@@ -2,6 +2,30 @@
    then run `npm run build:css`. Changes made here are overwritten. The
    comments that explain each rule are in the source, not shipped. */
 @media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
+    height: var(--hero-h, 10svh) !important;
+  }
+  section[aria-roledescription="carousel"] {
+    height: var(--hero-h, 10svh) !important;
+  }
+}
+@media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"] {
+    position: absolute !important;
+    inset: 0 !important;
+    aspect-ratio: auto !important;
+  }
+  [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    min-height: var(--hero-h-md, 18svh) !important;
+  }
+}
+@media (max-width: 767px) {
+  .hero-strength img,
+  .hero-strength picture img {
+    object-position: 0% center !important;
+  }
+}
+@media (max-width: 767px) {
   form:has(input[type='password']) input {
     font-size: 16px;
     min-height: 44px;
@@ -18,12 +42,176 @@
     width: auto;
   }
 }
+
+@media (max-width: 767px) {
+  .hero-strength {
+    height: 75svh !important;
+  }
+  .hero-strength > .aspect-\[2\.52\/1\] {
+    height: calc(75svh - 104px) !important;
+    aspect-ratio: auto !important;
+  }
+  .hero-strength > div:nth-child(2) {
+    height: 104px !important;
+    align-items: flex-start !important;
+    padding-top: 0 !important;
+  }
+  .hero-strength > div:nth-child(2) > div {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  .hero-strength > .aspect-\[2\.52\/1\]::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 28px;
+    background: linear-gradient(to bottom, transparent, rgba(20, 22, 26, 0.55));
+    pointer-events: none;
+  }
+}
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .cat-tile {
+    padding: 14px !important;
+  }
+  .cat-tile .eyebrow {
+    font-size: 12px !important;
+  }
+  .cat-tile__title {
+    font-size: 18px !important;
+    margin-top: 4px !important;
+  }
+}
+@media (max-width: 767px) {
+section:has(> [class~="grid"] > .cat-tile) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+}
+@media (max-width: 767px) {
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+}
+@media (max-width: 767px) {
+  .cat-tile { padding: 20px !important; }
+  .cat-tile__title { font-size: 24px !important; }
+}
+@media (max-width: 767px) {
+html, :host, body, .eyebrow {
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
+}
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    gap: 14px !important;
+  }
+}
+@media (max-width: 767px) {
+  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+    row-gap: 10px;
+  }
+}
+@media (max-width: 767px) {
+.cat-tile.tile-outlet img {
+  object-position: 90% center !important;
+}
+}
+@media (max-width: 767px) {
+button[class~="h-16"][class~="w-16"][class~="shrink-0"][class~="overflow-hidden"][class~="rounded-xl"][class~="border-2"] {
+  height: 5rem !important;
+}
+}
+@media (max-width: 767px) {
+section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"][class~="overflow-hidden"] {
+  height: calc(var(--sp-hero-h) - var(--sp-band)) !important;
+}
+}
+@media (max-width: 767px) {
+section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"][class~="overflow-hidden"] {
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  aspect-ratio: auto !important;
+}
+}
+@media (max-width: 767px) {
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+  min-height: 0 !important;
+}
+}
 @media (max-width: 767px) {
   [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
     grid-template-columns: minmax(0, 1fr) !important;
   }
   .cat-tile.tile-men, .cat-tile.tile-women,
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1 / 1 !important; }
+}
+@media (max-width: 767px) {
+.cat-tile .eyebrow {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(12px, 1.1vw, 18px) !important;
+  font-weight: 700 !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .cat-tile__title {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(30px, 5.2vw, 76px) !important;
+  font-weight: 800 !important;
+  margin: .25em 0 .3em !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .cat-tile__title {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(30px, 5.2vw, 76px) !important;
+  font-weight: 800 !important;
+}
+}
+@media (max-width: 767px) {
+  .cat-tile > div.relative {
+    width: 46% !important;
+    margin-inline-start: 0 !important;
+  }
+  .cat-tile .cat-tile__title { font-size: 28px !important; }
+  .cat-tile.tile-acc .cat-tile__title { font-size: 23px !important; }
+}
+@media (max-width: 767px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) {
+    padding-top: 1.25rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) > nav.mb-6 {
+    margin-bottom: 1rem;
+  }
+
+  .rounded-2xl.border:has(> .hidden.md\:block) > .mb-3 {
+    margin-bottom: 0;
+  }
+
+  div:has(> div > h1.product-title) > p.mt-3.text-lg.text-slate-600 {
+    margin-top: 2rem;
+  }
+}
+@media (max-width: 767px) {
+.flex.items-start.justify-between.gap-4:has(> .product-title) > .product-title {
+  padding-inline: 3.25rem;
+}
+}
+@media (max-width: 767px) {
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 16px;
+}
+}
+@media (max-width: 767px) {
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+  padding: 12px 12px 14px;
+}
 }
 @media (max-width: 639.98px) {
   div.grid:has(> div > #f-block) {
@@ -37,6 +225,109 @@
     grid-template-columns: 1fr 1fr;
     column-gap: 10px;
   }
+}
+@media (max-width: 767px) {
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  gap: 8px !important;
+}
+}
+@media (max-width: 767px) {
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  gap: 8px !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .cat-tile__title {
+  font-size: clamp(20px, 3.4vw, 54px) !important;
+  margin: .15em 0 .25em !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .cat-tile__title {
+  font-size: clamp(20px, 3.4vw, 54px) !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .cat-tile__title {
+  font-size: clamp(20px, 3.4vw, 54px) !important;
+}
+}
+@media (max-width: 767px) {
+.cat-tile .eyebrow {
+  font-size: clamp(10px, .9vw, 14px) !important;
+}
+}
+@media (max-width: 767px) {
+  .cat-tile { padding: 10px !important; }
+  .cat-tile p:not(.eyebrow) { display: none !important; }
+  .cat-tile > div[class~="relative"] { max-width: none !important; }
+  .cat-tile .cat-tile__title { font-size: min(16px, 4vw) !important; line-height: 1.05 !important; }
+  .cat-tile.tile-acc .cat-tile__title { font-size: min(12.5px, 3.2vw) !important; }
+  .cat-tile .eyebrow { font-size: 9px !important; letter-spacing: .02em !important; }
+  .cat-tile span[class~="rounded-full"][class~="bg-brand"][class~="inline-block"] {
+    font-size: 9px !important;
+    padding: 2px 8px !important;
+    margin-bottom: 2px !important;
+  }
+  .cat-tile > span[class~="absolute"][class~="rounded-full"] {
+    width: 28px !important;
+    height: 28px !important;
+    bottom: 6px !important;
+    inset-inline-end: 6px !important;
+  }
+  .cat-tile > span[class~="absolute"][class~="rounded-full"] svg { width: 12px; height: 12px; }
+}
+@media (max-width: 767.98px) {
+  main h1[class~="text-3xl"], main h1[class~="mb-8"] { font-size: 28px !important; }
+}
+@media (max-width: 767px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (max-width: 767px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (max-width: 767px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (max-width: 767px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (max-width: 767.98px) {
+main h1[class~="text-3xl"], main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 26px !important; }
+}
+@media (max-width: 767.98px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+}
+}
+@media (max-width: 767px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-brand"][class~="rounded-full"] {
+  height: 48px;
+  padding: 0 24px !important;
+  font-weight: 700 !important;
+  font-size: 15.2px !important;
+}
+}
+@media (max-width: 767px) {
+.sporta-home-banner__media img {
+  object-fit: cover;
+  object-position: 50% 15%;
+}
+}
+@media (max-width: 767px) {
+.sporta-home-banner__media--none img {
+  object-fit: contain;
+}
 }
 @media (max-width: 767px) {
   .cat-tile .eyebrow {
@@ -57,4 +348,7 @@
     padding: 3px 10px !important;
     margin-bottom: 6px !important;
   }
+}
+@media (max-width: 767px) {
+.sporta-section-all svg { width: 16px; height: 16px; }
 }

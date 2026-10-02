@@ -65,24 +65,6 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
   --hero-h: 10svh !important;
   --hero-h-md: 18svh !important;
 }
-@media (max-width: 767px) {
-  [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: var(--hero-h, 10svh) !important;
-  }
-  section[aria-roledescription="carousel"] {
-    height: var(--hero-h, 10svh) !important;
-  }
-}
-@media (max-width: 767px) {
-  [class~="aspect-[2.52/1]"] {
-    position: absolute !important;
-    inset: 0 !important;
-    aspect-ratio: auto !important;
-  }
-  [class~="md:min-h-[var(--hero-h-md,640px)]"] {
-    min-height: var(--hero-h-md, 18svh) !important;
-  }
-}
 [class~="from-ink/85"][class~="via-ink/40"] {
   --tw-gradient-from: #171a1e4d !important;
   --tw-gradient-via: #171a1e1f !important;
@@ -95,12 +77,6 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
 .hero-strength picture img {
   object-fit: cover !important;
   object-position: 15% center !important;
-}
-@media (max-width: 767px) {
-  .hero-strength img,
-  .hero-strength picture img {
-    object-position: 0% center !important;
-  }
 }
 main section:has(> a.bg-gradient-to-br) {
   display: none;
@@ -386,34 +362,6 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 }
 .app-header span:has(> svg[viewBox='0 0 48 48']) {
   display: none !important;
-}
-
-@media (max-width: 767px) {
-  .hero-strength {
-    height: 75svh !important;
-  }
-  .hero-strength > .aspect-\[2\.52\/1\] {
-    height: calc(75svh - 104px) !important;
-    aspect-ratio: auto !important;
-  }
-  .hero-strength > div:nth-child(2) {
-    height: 104px !important;
-    align-items: flex-start !important;
-    padding-top: 0 !important;
-  }
-  .hero-strength > div:nth-child(2) > div {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-  }
-  .hero-strength > .aspect-\[2\.52\/1\]::after {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: 28px;
-    background: linear-gradient(to bottom, transparent, rgba(20, 22, 26, 0.55));
-    pointer-events: none;
-  }
 }
 .hero-strength img.blur-2xl,
 .hero-cardio   img.blur-2xl,
@@ -728,30 +676,6 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   height: auto !important;
   aspect-ratio: 900 / 855 !important;
 }
-@media (min-width: 768px) {
-  .cat-tile.tile-men,
-  .cat-tile.tile-women,
-  .cat-tile.tile-acc,
-  .cat-tile.tile-outlet {
-    aspect-ratio: 1216 / 1059 !important;
-  }
-}
-@media (max-width: 767px) {
-  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-  }
-  .cat-tile {
-    padding: 14px !important;
-  }
-  .cat-tile .eyebrow {
-    font-size: 12px !important;
-  }
-  .cat-tile__title {
-    font-size: 18px !important;
-    margin-top: 4px !important;
-  }
-}
 section:has(> [class~="grid"] > .cat-tile) {
   max-width: none !important;
   padding-left: 0 !important;
@@ -765,14 +689,6 @@ section:has(> [class~="grid"] > .cat-tile) {
 .cat-tile.tile-acc, .cat-tile.tile-outlet { border-radius: 0 !important; }
 .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 798 !important; }
 .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 454 !important; }
-@media (min-width: 768px) {
-  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 988 !important; }
-  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 418 !important; }
-}
-@media (max-width: 767px) {
-  .cat-tile { padding: 20px !important; }
-  .cat-tile__title { font-size: 24px !important; }
-}
 .m-tabbar {
   background: var(--sp-tabbar-bg, #fff);
   border-top-color: var(--sp-tabbar-border, #e2e8f0);
@@ -853,9 +769,6 @@ html, :host, body, .eyebrow {
   height: 48px;
   width: auto;
 }
-@media (min-width: 768px) {
-  [data-sporta-brand-tile] img { height: 64px; }
-}
 @media (prefers-reduced-motion: reduce) {
   [data-sporta-brand-tile] { transition: none; }
   [data-sporta-brand-tile]:hover { transform: none; }
@@ -868,31 +781,9 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
   font-size: 1.95rem !important;
   margin-bottom: 2rem !important;
 }
-@media (min-width: 768px) {
-  h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
-    font-size: 2.375rem !important;
-    margin-bottom: 3rem !important;
-  }
-}
 section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
   padding-top: 3rem !important;
   padding-bottom: 3rem !important;
-}
-@media (min-width: 768px) {
-  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
-    padding-top: 4.5rem !important;
-    padding-bottom: 4.5rem !important;
-  }
-}
-@media (max-width: 767px) {
-  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
-    gap: 14px !important;
-  }
-}
-@media (min-width: 768px) {
-  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
-    gap: 28px !important;
-  }
 }
 h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
   content: "";
@@ -905,17 +796,6 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
   border-radius: 2px;
   background: var(--sp-ember, #ff7b17);
 }
-@media (max-width: 767px) {
-  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
-    row-gap: 10px;
-  }
-}
-@media (min-width: 768px) {
-  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
-    column-gap: 22px;
-    row-gap: 22px;
-  }
-}
 a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
   border-radius: 0;
 }
@@ -927,11 +807,6 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
   max-width: 80rem;
   padding: 0 1rem 2rem;
 }
-@media (min-width: 768px) {
-  .sporta-home-products {
-    padding: 0 1.5rem 3rem;
-  }
-}
 .sporta-home-products__heading {
   text-align: center;
   position: relative;
@@ -940,12 +815,6 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
   font-weight: 700;
   font-size: 1.75rem;
   color: #fff;
-}
-@media (min-width: 768px) {
-  .sporta-home-products__heading {
-    font-size: 2.125rem;
-    margin-bottom: 1.75rem;
-  }
 }
 .sporta-home-products__heading::after {
   content: "";
@@ -1024,12 +893,6 @@ section[aria-roledescription="carousel"] {
   --sp-hero-h: var(--hero-h, 10svh);
   --sp-band: 132px;
 }
-@media (min-width: 768px) {
-  section[aria-roledescription="carousel"] {
-    --sp-hero-h: var(--hero-h-md, 18svh);
-    --sp-band: 112px;
-  }
-}
 section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"][class~="overflow-hidden"] {
   position: absolute !important;
   inset: 0 0 auto 0 !important;
@@ -1087,31 +950,6 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
   min-height: 44px;
   padding: 0 18px !important;
   font-size: 14px !important;
-}
-
-@media (min-width: 768px) {
-  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
-    padding: 0 24px !important;
-  }
-  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
-    height: var(--sp-band);
-    grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
-    column-gap: 16px;
-  }
-  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
-    font-size: 30px !important;
-  }
-  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
-    font-size: 15px !important;
-  }
-  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a {
-    grid-column: 3;
-    justify-self: end;
-    padding: 0 28px !important;
-  }
-  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
-    bottom: calc((var(--sp-band) - 44px) / 2) !important;
-  }
 }
 @media (prefers-reduced-motion: no-preference) {
   section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"] > img {
@@ -1191,11 +1029,6 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
   padding-top: 0 !important;
   padding-bottom: 20px !important;
 }
-@media (min-width: 768px) {
-  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
-    padding-bottom: 32px !important;
-  }
-}
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
   display: block;
   width: 100%;
@@ -1214,14 +1047,6 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
   bottom: 6px;
   background: var(--brand, #e0561c) !important;
-}
-@media (min-width: 768px) {
-  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
-    padding: 20px 24px 24px !important;
-  }
-  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
-    bottom: 8px;
-  }
 }
 :root[data-hero-size="short"] {
   --hero-h: 8svh !important;
@@ -1267,30 +1092,6 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 }
 [dir=rtl] .cat-tile .eyebrow,
 [dir=rtl] .cat-tile .cat-tile__title { letter-spacing: 0 !important; }
-@media (max-width: 767px) {
-  .cat-tile > div.relative {
-    width: 46% !important;
-    margin-inline-start: 0 !important;
-  }
-  .cat-tile .cat-tile__title { font-size: 28px !important; }
-  .cat-tile.tile-acc .cat-tile__title { font-size: 23px !important; }
-}
-@media (max-width: 767px) {
-  section.mx-auto.max-w-5xl:has(h1.product-title) {
-    padding-top: 1.25rem;
-  }
-  section.mx-auto.max-w-5xl:has(h1.product-title) > nav.mb-6 {
-    margin-bottom: 1rem;
-  }
-
-  .rounded-2xl.border:has(> .hidden.md\:block) > .mb-3 {
-    margin-bottom: 0;
-  }
-
-  div:has(> div > h1.product-title) > p.mt-3.text-lg.text-slate-600 {
-    margin-top: 2rem;
-  }
-}
 .flex.items-start.justify-between.gap-4:has(> .product-title) > .product-title {
   padding-inline: 3.25rem;
 }
@@ -1511,26 +1312,6 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article .price-card :is(s, 
 .cat-tile > div[class~="relative"] {
   max-width: 82% !important;
 }
-@media (max-width: 767px) {
-  .cat-tile { padding: 10px !important; }
-  .cat-tile p:not(.eyebrow) { display: none !important; }
-  .cat-tile > div[class~="relative"] { max-width: none !important; }
-  .cat-tile .cat-tile__title { font-size: min(16px, 4vw) !important; line-height: 1.05 !important; }
-  .cat-tile.tile-acc .cat-tile__title { font-size: min(12.5px, 3.2vw) !important; }
-  .cat-tile .eyebrow { font-size: 9px !important; letter-spacing: .02em !important; }
-  .cat-tile span[class~="rounded-full"][class~="bg-brand"][class~="inline-block"] {
-    font-size: 9px !important;
-    padding: 2px 8px !important;
-    margin-bottom: 2px !important;
-  }
-  .cat-tile > span[class~="absolute"][class~="rounded-full"] {
-    width: 28px !important;
-    height: 28px !important;
-    bottom: 6px !important;
-    inset-inline-end: 6px !important;
-  }
-  .cat-tile > span[class~="absolute"][class~="rounded-full"] svg { width: 12px; height: 12px; }
-}
 html[data-theme] :is(input, textarea, select):not([type="checkbox"], [type="radio"], [type="range"],
   [type="file"], [type="hidden"], [type="submit"], [type="button"], [type="image"], [type="color"]):not(.admin-content *) {
   background-color: #d9dde2 !important;
@@ -1577,21 +1358,10 @@ html[data-theme] :is(input, textarea, select):not(.admin-content *):disabled {
   bottom: 6px;
   background: var(--brand, #e0561c) !important;
 }
-@media (min-width: 768px) {
-  [data-theme] .sporta-home-products__heading {
-    padding: 20px 24px 24px !important;
-    font-size: 2.375rem !important;
-    margin-bottom: 16px !important;
-  }
-  [data-theme] .sporta-home-products__heading::after { bottom: 8px; }
-}
 header.app-header nav { padding-block: 6px !important; }
 header.app-header nav > a img { height: 2.125rem !important; }
 @layer utilities {
   header.app-header nav > a:has(img) { padding-block: 4px !important; }
-}
-@media (min-width: 768px) {
-  header.app-header nav > a img { height: 2.5rem !important; }
 }
 #f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building, #f-floor, #f-flat {
   min-height: 52px;
@@ -1646,9 +1416,6 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
   padding-bottom: 16px;
   position: relative;
 }
-@media (min-width: 768px) {
-  main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] { font-size: 30px !important; }
-}
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"]::after {
   content: "";
   position: absolute;
@@ -1700,16 +1467,6 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 [data-theme] .sporta-home-products__heading {
   font-size: 28px !important;
 }
-@media (max-width: 767.98px) {
-  main h1[class~="text-3xl"], main h1[class~="mb-8"] { font-size: 28px !important; }
-}
-@media (min-width: 768px) {
-  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
-  [data-theme] .sporta-home-products__heading {
-    font-size: 32px !important;
-  }
-  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.6vw, 32px) !important; }
-}
 .product-title { font-size: clamp(22px, 2.3vw, 30px) !important; }
 p.font-display[class~="text-7xl"] { font-size: 56px !important; }
 h1, h2, h3 { text-wrap: balance; }
@@ -1740,20 +1497,9 @@ html { font-synthesis: none; }
 [data-theme] .sporta-home-products__heading { font-size: 26px !important; }
 main h1[class~="text-3xl"], main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 26px !important; }
 main span.font-display[class~="text-accent"] { font-size: 24px !important; }
-@media (min-width: 768px) {
-  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
-  [data-theme] .sporta-home-products__heading { font-size: 30px !important; }
-  main h1[class~="text-3xl"]:not(:is(section[class~="max-w-3xl"], section[class~="max-w-4xl"], section[class~="max-w-xl"]) h1), main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 30px !important; }
-  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.3vw, 28px) !important; }
-  main span.font-display[class~="text-accent"] { font-size: 26px !important; }
-}
 .product-title { font-size: clamp(22px, 2.2vw, 28px) !important; }
 main :is(section, div)[class~="text-center"][class~="py-20"],
 main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 40px !important; }
-@media (min-width: 768px) {
-  main :is(section, div)[class~="text-center"][class~="py-20"],
-  main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 64px !important; }
-}
 main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
 main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -1800,11 +1546,6 @@ main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~
   color: #ffffff !important;
   position: relative;
   padding-bottom: 16px !important;
-}
-@media (min-width: 768px) {
-  main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
-    font-size: 30px !important;
-  }
 }
 main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display)::after {
   content: "";

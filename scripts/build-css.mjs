@@ -117,15 +117,36 @@ const split = (css) => {
   const target = nodes.map((n) => n.type === 'atrule' && n.name === 'media' ? (isMobile(n.params) ? 'm' : isDesktop(n.params) ? 'd' : '') : '')
   const keysOf = (n) => { const k = new Set(); if (n.type === 'rule') keyset(n).forEach((x) => k.add(x)); else if (n.nodes) n.walkRules((r) => keyset(r).forEach((x) => k.add(x))); return k }
   const keys = nodes.map(keysOf)
-  let kept = 0
+  /* EVERY phone/desktop block moves. Where a LATER shared rule overrode one, the cascade is
+   * kept by COPYING that rule's conflicting declarations into the device file at the shared
+   * rule's own place in the order, wrapped in the moved block's own media query — so it wins
+   * exactly where, and only where, it won before. The shared rule stays where it is too. */
+  const out = { m: [], d: [] }        // [position, node] pairs, sorted by original position
+  let copies = 0
   for (let i = 0; i < nodes.length; i++) {
-    if (!target[i]) continue
+    const t = target[i]
+    if (!t) continue
+    out[t].push([i, 0, nodes[i]])
     const mine = keys[i]
-    const overridden = nodes.some((n, j) => j > i && !target[j] && [...keys[j]].some((k) => mine.has(k)))
-    if (overridden) { target[i] = ''; kept++ }
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (target[j] || ![...keys[j]].some((k) => mine.has(k))) continue
+      const wrap = postcss.atRule({ name: 'media', params: nodes[i].params })
+      const host = nodes[j].type === 'atrule' ? nodes[j].clone({ nodes: [] }) : null
+      const add = (rule, into) => {
+        const r = rule.clone({ nodes: [] })
+        rule.each((d) => { if (d.type === 'decl' && (r.selectors || []).some((sel) => subjectTokens(sel).some((tk) => mine.has(tk + '{' + family(d.prop))))) r.append(d.clone()) })
+        if (r.nodes.length) into.append(r)
+      }
+      if (nodes[j].type === 'rule') add(nodes[j], wrap)
+      else { nodes[j].walkRules((r) => add(r, host)); if (host.nodes.length) wrap.append(host) }
+      if (wrap.nodes.length) { out[t].push([j, i, wrap]); copies++ }
+    }
   }
-  nodes.forEach((n, i) => { if (target[i] === 'm') { n.remove(); mob.append(n) } else if (target[i] === 'd') { n.remove(); desk.append(n) } })
-  console.log(`split: ${kept} @media block(s) kept shared because a later rule overrides them`)
+  for (const t of ['m', 'd']) {
+    const dest = t === 'm' ? mob : desk
+    out[t].sort((x, y) => x[0] - y[0] || x[1] - y[1]).forEach(([pos, , n]) => { if (n.parent) n.remove(); dest.append(n) })
+  }
+  console.log(`split: every phone/desktop block moved; ${copies} later override(s) copied after them to keep the cascade`)
   return [root.toString(), mob.toString(), desk.toString()]
 }
 const [uiCss, mobCss, deskCss] = split(stripComments(body))

@@ -19,7 +19,160 @@
   }
 }
 @media (min-width: 768px) {
+  .cat-tile.tile-men,
+  .cat-tile.tile-women,
+  .cat-tile.tile-acc,
+  .cat-tile.tile-outlet {
+    aspect-ratio: 1216 / 1059 !important;
+  }
+}
+@media (min-width: 768px) {
+.cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 798 !important; }
+}
+@media (min-width: 768px) {
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 454 !important; }
+}
+@media (min-width: 768px) {
+  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 988 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 418 !important; }
+}
+@media (min-width: 768px) {
+  [data-sporta-brand-tile] img { height: 64px; }
+}
+@media (min-width: 768px) {
+  h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+    font-size: 2.375rem !important;
+    margin-bottom: 3rem !important;
+  }
+}
+@media (min-width: 768px) {
+  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+}
+@media (min-width: 768px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    gap: 28px !important;
+  }
+}
+@media (min-width: 768px) {
+  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+    column-gap: 22px;
+    row-gap: 22px;
+  }
+}
+@media (min-width: 768px) {
+  .sporta-home-products {
+    padding: 0 1.5rem 3rem;
+  }
+}
+@media (min-width: 768px) {
+  .sporta-home-products__heading {
+    font-size: 2.125rem;
+    margin-bottom: 1.75rem;
+  }
+}
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] {
+    --sp-hero-h: var(--hero-h-md, 18svh);
+    --sp-band: 112px;
+  }
+}
+
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    padding: 0 24px !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    height: var(--sp-band);
+    grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    font-size: 30px !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
+    font-size: 15px !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a {
+    grid-column: 3;
+    justify-self: end;
+    padding: 0 28px !important;
+  }
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: calc((var(--sp-band) - 44px) / 2) !important;
+  }
+}
+
+@media (min-width: 768px) {
+section[aria-roledescription="carousel"] {
+  --sp-band: 0px !important;
+}
+}
+
+@media (min-width: 768px) {
+[data-theme] main article > a[class*="aspect-"] > button[class~="bottom-2"] { bottom: 2px !important; }
+}
+
+@media (min-width: 768px) {
+main article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
+  top: 8px !important;
+  inset-inline-start: 8px !important;
+}
+}
+
+@media (min-width: 768px) {
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 798 !important; }
+}
+
+@media (min-width: 768px) {
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 798 !important; }
+}
+@media (min-width: 768px) {
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 988 !important; }
+}
+@media (min-width: 768px) {
+section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+  padding-top: 0 !important;
+  padding-bottom: 20px !important;
+}
+}
+@media (min-width: 768px) {
+  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+    padding-bottom: 32px !important;
+  }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+  margin: 0 0 6px !important;
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 800 !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+  padding: 14px 16px 18px !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+  padding: 14px 16px 18px !important;
+}
+}
+@media (min-width: 768px) {
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+    padding: 20px 24px 24px !important;
+  }
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
+    bottom: 8px;
+  }
+}
+@media (min-width: 768px) {
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 16px;
+}
 }
 @media (min-width: 768px) {
   main div.grid[class~="grid"][class~="grid-cols-2"] {
@@ -28,16 +181,303 @@
   }
 }
 @media (min-width: 768px) {
+main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
+  bottom: auto !important;
+  top: 10px !important;
+  left: 10px !important;
+  right: auto !important;
+}
+}
+@media (min-width: 768px) {
+main div.grid > article > a[class*="aspect-"][data-sporta-sale] > span[class~="absolute"][class~="rounded-lg"][class~="bg-brand"] {
+  top: 38px !important;
+}
+}
+@media (min-width: 768px) {
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+  gap: 5px;
+}
+}
+@media (min-width: 768px) {
   main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
     gap: 6px;
     padding: 14px 16px 16px;
   }
 }
 @media (min-width: 768px) {
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  gap: 8px !important;
+}
+}
+@media (min-width: 768px) {
+.sporta-home-products { padding-inline: 0; }
+}
+@media (min-width: 768px) {
   .sporta-home-products__grid { padding-inline: 1.5rem; }
 }
 @media (min-width: 768px) {
+[data-theme] .sporta-home-products__heading {
+  margin: 0 0 12px !important;
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 1.95rem !important;
+}
+}
+@media (min-width: 768px) {
+  [data-theme] .sporta-home-products__heading {
+    padding: 20px 24px 24px !important;
+    font-size: 2.375rem !important;
+    margin-bottom: 16px !important;
+  }
+  [data-theme] .sporta-home-products__heading::after { bottom: 8px; }
+}
+@media (min-width: 768px) {
+header.app-header nav > a img { height: 2.125rem !important; }
+}
+@media (min-width: 768px) {
+  header.app-header nav > a img { height: 2.5rem !important; }
+}
+@media (min-width: 768px) {
   main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) { padding-top: 64px; }
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+  margin-bottom: 14px !important;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
+  padding-bottom: 16px;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
+  padding-bottom: 16px;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
+  padding-bottom: 16px;
+}
+}
+@media (min-width: 768px) {
+  main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] { font-size: 30px !important; }
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"]::after {
+  bottom: 0;
+  inset-inline-start: 0;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  padding-inline-start: 12px;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  padding-inline-start: 12px;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  padding-inline-start: 12px;
+}
+}
+@media (min-width: 768px) {
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading {
+  font-size: 28px !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading {
+  font-size: 28px !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading {
+  font-size: 28px !important;
+}
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading {
+  font-size: 28px !important;
+}
+}
+@media (min-width: 768px) {
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+  [data-theme] .sporta-home-products__heading {
+    font-size: 32px !important;
+  }
+  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.6vw, 32px) !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+main h1[class~="text-3xl"], main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+  [data-theme] .sporta-home-products__heading { font-size: 30px !important; }
+  main h1[class~="text-3xl"]:not(:is(section[class~="max-w-3xl"], section[class~="max-w-4xl"], section[class~="max-w-xl"]) h1), main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 30px !important; }
+  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.3vw, 28px) !important; }
+  main span.font-display[class~="text-accent"] { font-size: 26px !important; }
+}
+@media (min-width: 768px) {
+  main :is(section, div)[class~="text-center"][class~="py-20"],
+  main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 64px !important; }
+}
+@media (min-width: 768px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+}
+}
+@media (min-width: 768px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+}
+}
+@media (min-width: 768px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  padding-bottom: 16px;
+}
+}
+@media (min-width: 768px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after,
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"]::after {
+  bottom: 0;
+  inset-inline-start: 0;
+}
+}
+@media (min-width: 768px) {
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after {
+  inset-inline-start: calc(50% - 28px);
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  padding-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  padding-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  padding-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+}
+}
+@media (min-width: 768px) {
+  main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+    font-size: 30px !important;
+  }
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display)::after {
+  bottom: 0;
+  inset-inline-start: 0;
+}
+}
+@media (min-width: 768px) {
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display).product-title::after,
+main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
+  inset-inline-start: calc(50% - 28px);
+}
 }
 @media (min-width: 768px) {
   .sporta-home-banner {
@@ -53,6 +493,16 @@
   }
 }
 @media (min-width: 768px) {
+.sporta-home-banner__media img {
+  height: 100%;
+}
+}
+@media (min-width: 768px) {
+.sporta-home-banner__media img {
+  height: 100%;
+}
+}
+@media (min-width: 768px) {
   .sporta-home-banner__body {
     gap: 10px;
     padding-block: 32px;
@@ -66,8 +516,98 @@
   .sporta-home-banner__price b { font-size: 22px; }
 }
 @media (min-width: 768px) {
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
+}
+@media (min-width: 768px) {
   html[data-theme] main section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]),
   html[data-theme] main section.sporta-home-products { --sh-fs: 26px; --sh-pad: 18px; }
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  padding: var(--sh-pad) 16px !important;
+  padding-inline-end: 112px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  padding: var(--sh-pad) 16px !important;
+  padding-inline-end: 112px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  padding: var(--sh-pad) 16px !important;
+  padding-inline-end: 112px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+  padding: var(--sh-pad) 16px !important;
+  padding-inline-end: 112px !important;
+  margin-bottom: 4px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-size: var(--sh-fs) !important;
+  font-weight: 700 !important;
+}
 }
 @media (min-width: 768px) {
   html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
