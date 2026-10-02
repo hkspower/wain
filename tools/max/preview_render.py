@@ -2,7 +2,8 @@
 """The 3ds Max render pack, rendered in Cycles: what Max should come close to.
 
     python3 tools/max/preview_render.py press/max/render/black-demon [--shots hero,side,rear] [--turntable]
-                                        [--samples 128] [--tt-samples 32] [--tt-scale 0.5]
+                                        [--samples 128] [--scale 1] [--tt-samples 32] [--tt-scale 0.5]
+    python3 tools/max/preview_render.py press/max/render --scale 0.5 --samples 64   # every pack
 
 Builds the studio from the pack's studio.json (not from render_cars.py), so
 the cameras, lights, floor and world are exactly what the Max side places,
@@ -23,11 +24,10 @@ ap.add_argument("--samples", type=int, default=128)
 ap.add_argument("--tt-samples", type=int, default=32)
 ap.add_argument("--tt-scale", type=float, default=0.5, help="turntable resolution as a share of the pack's")
 ap.add_argument("--frames", type=int, default=0, help="render only this many turntable frames (0 = all)")
+ap.add_argument("--scale", type=float, default=1.0, help="stills resolution as a share of the pack's")
+ap.add_argument("--skip-existing", action="store_true", help="leave a shot whose EXR is already there")
 args = ap.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:])
 
-spec = json.load(open(os.path.join(args.pack, "studio.json")))
-out = os.path.join(args.pack, "preview")
-os.makedirs(os.path.join(out, "turntable"), exist_ok=True)
 
 
 def look(obj, loc, target):
@@ -35,11 +35,11 @@ def look(obj, loc, target):
     obj.rotation_euler = (Vector(target) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
 
 
-def build():
+def build(pack, spec):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=os.path.normpath(os.path.join(args.pack, spec["glb"])), import_pack_images=True,
+    bpy.ops.import_scene.gltf(filepath=os.path.normpath(os.path.join(pack, spec["glb"])), import_pack_images=True,
                               merge_vertices=False, import_shading="NORMALS")
     car = [o for o in bpy.data.objects if o not in before]
     pivot = bpy.data.objects.new("Turntable", None)
@@ -122,24 +122,48 @@ def render(sc, path, w, h, samples):
     return time.time() - t
 
 
-sc, cam, pivot = build()
-st = spec["stills"]
-for name in [s for s in args.shots.split(",") if s]:
-    shot = st["shots"][name]
-    look(cam, shot["loc"], shot["aim"])
-    took = render(sc, os.path.abspath(os.path.join(out, f"{name}.exr")), st["width"], st["height"], args.samples)
-    print(f"[preview] {name}: {st['width']}x{st['height']} @ {args.samples} spp in {took:.0f} s", flush=True)
+def preview(pack):
+    spec = json.load(open(os.path.join(pack, "studio.json")))
+    out = os.path.join(pack, "preview")
+    os.makedirs(os.path.join(out, "turntable"), exist_ok=True)
+    st = spec["stills"]
+    todo = [s for s in args.shots.split(",") if s and not (args.skip_existing and os.path.exists(os.path.join(out, f"{s}.exr")))]
+    if not todo and not args.turntable:
+        print(f"[preview] {spec['car']}: all shots already rendered", flush=True)
+        return
+    sc, cam, pivot = build(pack, spec)
+    w, h = int(st["width"] * args.scale), int(st["height"] * args.scale)
+    for name in todo:
+        shot = st["shots"][name]
+        look(cam, shot["loc"], shot["aim"])
+        took = render(sc, os.path.abspath(os.path.join(out, f"{name}.exr")), w, h, args.samples)
+        print(f"[preview] {spec['car']} {name}: {w}x{h} @ {args.samples} spp in {took:.0f} s", flush=True)
 
-if args.turntable:
-    tt = spec["turntable"]
-    look(cam, tt["loc"], tt["aim"])
-    w, h = int(tt["width"] * args.tt_scale), int(tt["height"] * args.tt_scale)
-    n = args.frames or tt["frames"]
-    t0 = time.time()
-    for i in range(n):
-        pivot.rotation_euler = (0, 0, 2 * math.pi * i / tt["frames"])
-        render(sc, os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1))), w, h, args.tt_samples)
-        if i % 10 == 0:
-            el = time.time() - t0
-            print(f"[preview] turntable {i + 1}/{n}, ~{el / (i + 1) * (n - i - 1) / 60:.0f} min left", flush=True)
-print("[preview] done ->", out)
+    if args.turntable:
+        tt = spec["turntable"]
+        look(cam, tt["loc"], tt["aim"])
+        w, h = int(tt["width"] * args.tt_scale), int(tt["height"] * args.tt_scale)
+        n = args.frames or tt["frames"]
+        t0 = time.time()
+        for i in range(n):
+            pivot.rotation_euler = (0, 0, 2 * math.pi * i / tt["frames"])
+            render(sc, os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1))), w, h, args.tt_samples)
+            if i % 10 == 0:
+                el = time.time() - t0
+                print(f"[preview] turntable {i + 1}/{n}, ~{el / (i + 1) * (n - i - 1) / 60:.0f} min left", flush=True)
+    print("[preview] done ->", out, flush=True)
+
+
+if os.path.exists(os.path.join(args.pack, "studio.json")):
+    preview(args.pack)
+else:  # a folder of packs
+    index = os.path.join(args.pack, "packs.json")
+    cars = [c["id"] for c in json.load(open(index))["cars"]] if os.path.exists(index) else \
+        sorted(d for d in os.listdir(args.pack) if os.path.exists(os.path.join(args.pack, d, "studio.json")))
+    t_all = time.time()
+    for i, car in enumerate(cars):
+        try:
+            preview(os.path.join(args.pack, car))
+        except Exception as e:  # one car must not end the batch
+            print(f"[preview] {car} FAILED: {e}", flush=True)
+        print(f"[preview] {i + 1}/{len(cars)} cars, ~{(time.time() - t_all) / (i + 1) * (len(cars) - i - 1) / 60:.0f} min left", flush=True)

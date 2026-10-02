@@ -200,6 +200,35 @@ if any(abs(r - i * step) > 1e-9 for i, r in enumerate(rots)):
 if len(scene["saved"]) != 3:
     fails.append(f"quick PNGs {scene['saved']}")
 
+# render_all: three packs, one already rendered (skipped), one broken (logged,
+# the batch goes on), one rendered.
+import shutil, tempfile  # noqa: E402
+root = tempfile.mkdtemp(prefix="packs-")
+for car in ("done-car", "broken-car", "fresh-car"):
+    os.makedirs(os.path.join(root, car))
+    shutil.copy(os.path.join(pack, "studio.json"), os.path.join(root, car))
+    shutil.copy(os.path.join(pack, "materials.json"), os.path.join(root, car))
+os.makedirs(os.path.join(root, "done-car", "out"))
+for shot in ("hero", "side", "rear"):
+    open(os.path.join(root, "done-car", "out", shot + ".exr"), "w").close()
+os.makedirs(os.path.join(root, "done-car", "out", "turntable"))
+open(os.path.join(root, "done-car", "out", "turntable", "0003.exr"), "w").close()  # done = stills + last frame
+with open(os.path.join(root, "broken-car", "studio.json"), "w") as f:
+    f.write("{ not json")
+json.dump({"cars": [{"id": c} for c in ("done-car", "broken-car", "fresh-car")]}, open(os.path.join(root, "packs.json"), "w"))
+n_before = len(scene["renders"])
+rep = R.render_all(root, ("hero", "side", "rear"), turntable=True, frames=3, half=True)
+status = {r["id"]: r["status"] for r in rep}
+print("render_all:", status)
+if not status["done-car"].startswith("skipped") or not status["broken-car"].startswith("FAILED") \
+        or status["fresh-car"] != "ok":
+    fails.append(f"render_all statuses {status}")
+fresh = scene["renders"][n_before:]
+if len(fresh) != 6 or fresh[0][1:3] != (spec["stills"]["width"] // 2, spec["stills"]["height"] // 2):
+    fails.append(f"render_all renders {[(r[0], r[1], r[2]) for r in fresh]}")
+if not os.path.exists(os.path.join(root, "render-all.json")):
+    fails.append("render_all wrote no render-all.json")
+
 print(f"materials {len(built)}, quad lights {len(quads)}, skydome {len(sky)}, cameras {len(sc['cams'])}, "
       f"renders {len(scene['renders'])}")
 print("render log:\n  " + "\n  ".join(R.LOG))

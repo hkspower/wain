@@ -101,6 +101,7 @@ macroScript NR_ExportAll category:"Night Racer" buttonText:"NR Export all" toolt
 macroScript NR_RenderPack category:"Night Racer" buttonText:"NR Render pack" tooltip:"Night Racer: build the Arnold studio from a render pack" (NR_action "renderpack")
 macroScript NR_RenderStills category:"Night Racer" buttonText:"NR Render stills" tooltip:"Night Racer: render hero, side and rear" (NR_action "renderstills")
 macroScript NR_RenderTurntable category:"Night Racer" buttonText:"NR Turntable" tooltip:"Night Racer: render the turntable frames" (NR_action "renderturntable")
+macroScript NR_RenderAll category:"Night Racer" buttonText:"NR Render all" tooltip:"Night Racer: render every car's pack" (NR_action "renderall")
 macroScript NR_Install category:"Night Racer" buttonText:"NR Install at startup" tooltip:"Night Racer: load the menu at every start" (NR_install())
 
 -- ---------------------------------------------------------------- menus
@@ -109,7 +110,8 @@ global NR_MENU_ITEMS = #( \
   #("NR_Heatmap", "Heatmap"), #("NR_Snap", "Snap verts to Envelope"), #("NR_Symmetric", "Make symmetric"), \
   #("NR_Export", "Export for game"), #("NR_ExportAll", "Export all..."), \
   #("NR_RenderPack", "Open render pack..."), #("NR_RenderStills", "Render stills"), \
-  #("NR_RenderTurntable", "Render turntable"), #("NR_Install", "Install at startup"))
+  #("NR_RenderTurntable", "Render turntable"), #("NR_RenderAll", "Render all cars..."), \
+  #("NR_Install", "Install at startup"))
 
 -- 2025+: the new menu system builds menus from #cuiRegisterMenus callbacks.
 fn NR_registerMenus =

@@ -11,6 +11,7 @@ and renders it:
                          a turntable dummy the car hangs from
   render_stills(...)     <pack>/out/<shot>.exr (+ a quick .png)
   render_turntable(...)  <pack>/out/turntable/####.exr
+  render_all(root, ...)  every pack under press/max/render/, resumable
 
 The EXRs are linear; tools/max/finish_render.py grades them with the same
 ACES view as the Blender studio set and encodes the turntable MP4.
@@ -107,7 +108,7 @@ def colour(lin, mode):
 
 # ---------------------------------------------------------------- materials
 
-def bitmap(pack, rel, mapping=None, alpha=False):
+def bitmap(pack, rel, mapping=None, alpha=False, clamp=False):
     path = os.path.normpath(os.path.join(pack, rel))
     if not os.path.exists(path):
         log("missing texture %s" % path)
@@ -116,6 +117,9 @@ def bitmap(pack, rel, mapping=None, alpha=False):
     if alpha:
         set_prop(b, "monoOutput", 1)      # alpha as the mono output
         set_prop(b, "alphaSource", 0)     # the image's own alpha
+    if clamp:
+        set_prop(b.coords, "U_Tile", False)
+        set_prop(b.coords, "V_Tile", False)
     if mapping:
         c = b.coords
         set_prop(c, "U_Offset", mapping["offset"][0])
@@ -141,7 +145,7 @@ def physical(name, m, pack, mode):
         set_prop(p, "coat_roughness", m["coat_roughness"])
         set_prop(p, "coat_ior", 1.5)
     if m.get("base_tex"):
-        t = bitmap(pack, m["base_tex"], m.get("base_tex_map"))
+        t = bitmap(pack, m["base_tex"], m.get("base_tex_map"), clamp=m.get("base_tex_clamp", False))
         if t:
             set_prop(p, "base_color_map", t)
     if m.get("normal_tex"):
@@ -158,7 +162,7 @@ def physical(name, m, pack, mode):
         set_prop(p, "trans_color", colour((1, 1, 1), mode))
         set_prop(p, "thin_walled", True)
     if m.get("alpha_tex"):
-        t = bitmap(pack, m["alpha_tex"], m.get("alpha_tex_map"), alpha=True)
+        t = bitmap(pack, m["alpha_tex"], m.get("alpha_tex_map"), alpha=True, clamp=m.get("alpha_tex_clamp", False))
         if t:
             set_prop(p, "cutout_map", t)
     if m.get("emission_strength", 0) > 0:
@@ -169,7 +173,7 @@ def physical(name, m, pack, mode):
         set_prop(p, "emit_luminance", 1500.0 * m["emission_strength"])
         set_prop(p, "emit_kelvin", 6500.0)
         if m.get("emission_tex"):
-            t = bitmap(pack, m["emission_tex"], m.get("emission_tex_map"))
+            t = bitmap(pack, m["emission_tex"], m.get("emission_tex_map"), clamp=m.get("emission_tex_clamp", False))
             if t:
                 set_prop(p, "emit_color_map", t)
     return p
@@ -401,3 +405,58 @@ def render_turntable(scene, frames=None, width=None, height=None, aa=4, progress
             pass
     scene["pivot"].rotation = rt.EulerAngles(0, 0, 0)
     return out
+
+
+# ---------------------------------------------------------------- every car
+
+def list_packs(root):
+    """The packs under root, in packs.json order when there is one."""
+    index = os.path.join(root, "packs.json")
+    if os.path.exists(index):
+        ids = [c["id"] for c in json.load(open(index))["cars"]]
+    else:
+        ids = sorted(d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)))
+    return [i for i in ids if os.path.exists(os.path.join(root, i, "studio.json"))]
+
+
+def _done(pack, shots, turntable, frames):
+    out = os.path.join(pack, "out")
+    if any(not os.path.exists(os.path.join(out, "%s.exr" % s)) for s in shots):
+        return False
+    if turntable:
+        n = frames or json.load(open(os.path.join(pack, "studio.json")))["turntable"]["frames"]
+        return os.path.exists(os.path.join(out, "turntable", "%04d.exr" % n))
+    return True
+
+
+def render_all(root, shots=("hero", "side", "rear"), turntable=False, frames=None, half=False, aa=6,
+               light_scale=1.0, skip_done=True, progress=None):
+    """Every pack under root (npm run max:render-pack -- all): stills, and the
+    turntable if asked. Resumable: a car whose EXRs are all there is skipped.
+    One bad car is logged and the batch goes on. Writes root/render-all.json."""
+    import time
+    packs = list_packs(root)
+    report = []
+    for i, car in enumerate(packs):
+        pack = os.path.join(root, car)
+        if progress:
+            progress(car, i, len(packs))
+        if skip_done and _done(pack, shots, turntable, frames):
+            report.append({"id": car, "status": "skipped (already rendered)"})
+            continue
+        t0 = time.time()
+        try:
+            sc = open_pack(pack, light_scale)
+            st, tt = sc["spec"]["stills"], sc["spec"]["turntable"]
+            w, h = (st["width"] // 2, st["height"] // 2) if half else (st["width"], st["height"])
+            render_stills(sc, shots, w, h, aa)
+            if turntable:
+                tw, th = (tt["width"] // 2, tt["height"] // 2) if half else (tt["width"], tt["height"])
+                render_turntable(sc, frames, tw, th, max(1, aa - 2))
+            report.append({"id": car, "status": "ok", "seconds": round(time.time() - t0, 1), "log": list(LOG)})
+        except Exception as e:  # keep going: one car must not cost the night
+            report.append({"id": car, "status": "FAILED: %s" % e, "log": list(LOG)})
+            log("%s failed: %s" % (car, e))
+        with open(os.path.join(root, "render-all.json"), "w") as f:
+            json.dump(report, f, indent=2)
+    return report

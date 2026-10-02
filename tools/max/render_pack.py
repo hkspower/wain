@@ -2,7 +2,8 @@
 """A whole car, packed to be rendered in 3ds Max (Arnold) in the game's studio.
 
     npm run max:render-pack -- black-demon
-    python3 tools/max/render_pack.py --car black-demon [--width 2560 --height 1440]
+    npm run max:render-pack -- all                 # every car in press/renders/cars.json
+    python3 tools/max/render_pack.py --car black-demon,storm-s8 [--width 2560 --height 1440]
 
 Reads press/renders/glb/<car>.glb (tools/shots/export-cars.mjs: the car as
 the game builds it, paint and lamps included) and writes
@@ -21,6 +22,9 @@ press/max/render/<car>/:
                    lights, the world grey, a fitted camera per shot (hero, side,
                    rear) and a turntable (pivot, frames, a camera framed so no
                    frame clips).
+
+With more than one car it also writes press/max/render/packs.json, the
+list the Max panel's "Render all packs" walks.
 
 tools/max/nightracer/render.py builds and renders it in Max;
 tools/max/preview_render.py renders the same pack in Cycles here.
@@ -81,12 +85,12 @@ def mapping_of(tex_node):
             "scale": [round(float(x), 6) for x in m.inputs["Scale"].default_value[:2]]}
 
 
-def main():
-    glb = os.path.join(args.glb_dir, f"{args.car}.glb")
+def pack(car):
+    glb = os.path.join(args.glb_dir, f"{car}.glb")
     if not os.path.exists(glb):
         sys.exit(f"no {glb}: run node tools/shots/export-cars.mjs first")
-    rec = next((c for c in json.load(open(args.cars)) if c["id"] == args.car), {"id": args.car, "name": args.car})
-    out = os.path.join(args.out, args.car)
+    rec = next((c for c in json.load(open(args.cars)) if c["id"] == car), {"id": car, "name": car})
+    out = os.path.join(args.out, car)
     tex_dir = os.path.join(out, "tex")
     os.makedirs(tex_dir, exist_ok=True)
 
@@ -157,6 +161,11 @@ def main():
                 mp = mapping_of(node)
                 if mp:
                     rec_m[key + "_map"] = mp
+                # glTF CLAMP comes in as EXTEND with nothing in front; REPEAT
+                # either as REPEAT or as EXTEND behind wrap maths. Max tiles a
+                # bitmap unless told not to.
+                if node.extension == "EXTEND" and not node.inputs["Vector"].is_linked:
+                    rec_m[key + "_clamp"] = True
         nrm = g("Normal")
         if nrm is not None and nrm.is_linked and nrm.links[0].from_node.type == "NORMAL_MAP":
             node = linked_image(nrm.links[0].from_node.inputs["Color"])
@@ -169,7 +178,7 @@ def main():
     # The FBX: the car, nothing else.
     for o in bpy.data.objects:
         o.select_set(o.type in ("MESH", "EMPTY"))
-    fbx = os.path.join(out, f"{args.car}.fbx")
+    fbx = os.path.join(out, f"{car}.fbx")
     bpy.ops.export_scene.fbx(filepath=fbx, use_selection=True, apply_scale_options="FBX_SCALE_ALL",
                              axis_forward="-Z", axis_up="Y", object_types={"EMPTY", "MESH"},
                              mesh_smooth_type="FACE", use_tspace=False, add_leaf_bones=False, bake_anim=False,
@@ -184,7 +193,7 @@ def main():
     tloc, taim, tworst = studio.fit_camera(mn, mx, az, el, args.tt_width / args.tt_height,
                                            corners=studio.turntable_corners(mn, mx))
     spec = {
-        "car": args.car, "name": rec.get("name", args.car), "ar": rec.get("ar", ""),
+        "car": car, "name": rec.get("name", car), "ar": rec.get("ar", ""),
         "frame": "metres, Z up, nose -Y (3ds Max and Blender)",
         "bounds": {"min": mn, "max": mx}, "length": L, "height": H,
         "fbx": os.path.basename(fbx), "glb": os.path.relpath(glb, out),
@@ -198,11 +207,44 @@ def main():
     }
     json.dump(spec, open(os.path.join(out, "studio.json"), "w"), indent=2)
     json.dump(mats, open(os.path.join(out, "materials.json"), "w"), indent=2)
-    print(f"{args.car}: {len(meshes)} meshes, {len(mats)} materials, {len(images_saved)} textures, "
+    print(f"{car}: {len(meshes)} meshes, {len(mats)} materials, {len(images_saved)} textures, "
           f"{mx[0] - mn[0]:.2f} x {mx[1] - mn[1]:.2f} x {mx[2] - mn[2]:.2f} m -> {out}")
     for k, s in shots.items():
         print(f"  {k:5} camera at {tuple(round(v, 2) for v in s['loc'])}, worst corner at {s['fill']:.3f} of the frame")
     print(f"  turntable camera at {tuple(round(v, 2) for v in tloc)}, {args.frames} frames")
+    return {"id": car, "name": rec.get("name", car), "ar": rec.get("ar", ""), "cls": rec.get("cls"),
+            "pack": car, "meshes": len(meshes), "materials": len(mats)}
+
+
+def main():
+    records = json.load(open(args.cars))
+    if args.car == "all":
+        cars = [c["id"] for c in records]
+    else:
+        cars = [c for c in args.car.split(",") if c]
+    known = {c["id"] for c in records}
+    unknown = [c for c in cars if c not in known]
+    if unknown:
+        sys.exit(f"not in {args.cars}: {', '.join(unknown)}")
+    done, failed = [], []
+    for car in cars:
+        try:
+            done.append(pack(car))
+        except (Exception, SystemExit) as e:  # one bad car must not end the batch
+            print(f"{car}: FAILED: {e}")
+            failed.append(car)
+    if len(cars) > 1:
+        # Merged by id, so packing a few cars again keeps the others listed.
+        index = os.path.join(args.out, "packs.json")
+        old = {}
+        if os.path.exists(index):
+            old = {c["id"]: c for c in json.load(open(index)).get("cars", [])}
+        old.update({c["id"]: c for c in done})
+        order = [c["id"] for c in records if c["id"] in old]
+        json.dump({"cars": [old[i] for i in order]}, open(index, "w"), indent=2)
+        print(f"\n{len(done)} packs, {len(failed)} failed -> {index}")
+    if failed:
+        sys.exit(1)
 
 
 main()

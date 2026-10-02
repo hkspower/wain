@@ -146,7 +146,16 @@ class Panel(QtWidgets.QWidget):
         g.addWidget(self.frames, 3, 1)
         g.addWidget(self._btn("Render stills", self.on_render_stills), 4, 0)
         g.addWidget(self._btn("Render turntable", self.on_render_turntable), 4, 1)
-        g.addWidget(self._btn("Show render log", self.on_render_log), 5, 0, 1, 2)
+        self.all_tt = QtWidgets.QCheckBox("with turntables")
+        self.all_tt.setChecked(self.settings.value("all_tt", False, type=bool))
+        self.all_tt.toggled.connect(lambda v: self.settings.setValue("all_tt", v))
+        self.all_skip = QtWidgets.QCheckBox("skip cars already rendered")
+        self.all_skip.setChecked(self.settings.value("all_skip", True, type=bool))
+        self.all_skip.toggled.connect(lambda v: self.settings.setValue("all_skip", v))
+        g.addWidget(self.all_tt, 5, 0)
+        g.addWidget(self.all_skip, 5, 1)
+        g.addWidget(self._btn("Render ALL packs in folder...", self.on_render_all), 6, 0, 1, 2)
+        g.addWidget(self._btn("Show render log", self.on_render_log), 7, 0, 1, 2)
         lay.addWidget(box)
         self.scene = None
         lay.addStretch(1)
@@ -348,6 +357,38 @@ class Panel(QtWidgets.QWidget):
         self._info("Rendered %d frames to\n%s\n\nMake the MP4 (and grade the frames):\n"
                    "  npm run max:finish -- \"%s\"" % (self.frames.value(), out, os.path.dirname(out)))
 
+    def on_render_all(self):
+        start = self.settings.value("packs_root", "", type=str)
+        root = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Folder of render packs (press/max/render, with packs.json)", start)
+        if not root:
+            return
+        packs = render.list_packs(root)
+        if not packs:
+            raise RuntimeError("No render packs in that folder. Make them with npm run max:render-pack -- all")
+        shots = [n for n, cb in self.shot_boxes.items() if cb.isChecked()]
+        if not shots:
+            raise RuntimeError("Tick at least one shot.")
+        if QtWidgets.QMessageBox.question(
+                self, "Night Racer", "Render %d cars (%s%s)? Each car resets the scene; save your work first."
+                % (len(packs), ", ".join(shots), " + turntable" if self.all_tt.isChecked() else "")) \
+                != QtWidgets.QMessageBox.Yes:
+            return
+        if not rt.checkForSave():
+            return
+        self.settings.setValue("packs_root", root)
+        rt.progressStart("Night Racer: render all")
+        try:
+            report = render.render_all(root, shots, self.all_tt.isChecked(), self.frames.value(),
+                                       self.res.currentIndex() == 1, self.aa.value(), self.light_scale.value(),
+                                       self.all_skip.isChecked(), self._progress)
+        finally:
+            rt.progressEnd()
+        self.scene = None
+        lines = ["%s: %s" % (r["id"], r["status"]) for r in report]
+        self._info("%s\n\nGrade every car and make the contact sheets:\n  npm run max:finish -- \"%s\""
+                   % ("\n".join(lines), root))
+
     def on_render_log(self):
         self._info("\n".join(render.LOG) or "Nothing logged yet.")
 
@@ -380,6 +421,6 @@ def action(name):
           "exportall": p.on_export_all, "snap": p.on_snap, "symmetric": p.on_sym, "recentre": p.on_centre,
           "outward": p.on_outward, "replace": p.on_replace, "save": p.on_save,
           "renderpack": p.on_open_pack, "renderstills": p.on_render_stills,
-          "renderturntable": p.on_render_turntable}.get(name)
+          "renderturntable": p.on_render_turntable, "renderall": p.on_render_all}.get(name)
     if fn:
         p._run(fn)

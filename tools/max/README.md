@@ -92,6 +92,35 @@ The car renders in the same studio as the Blender set (`press/renders`): the sam
 
    This writes `out/final/*.png` with the same ACES view as the Blender set, and `out/final/turntable.mp4`. No ffmpeg needed.
 
+### Every car
+
+```sh
+npm run max:render-pack -- all                       # 17 packs + press/max/render/packs.json
+```
+
+In Max: **Render → Render ALL packs in folder…** and pick `press/max/render`.
+- It renders the ticked shots for each car in turn. Tick *with turntables* for the spins too.
+- It's resumable: with *skip cars already rendered* ticked, a car whose EXRs are all there is skipped, so an interrupted night picks up where it stopped.
+- One failing car is logged and the batch goes on. `press/max/render/render-all.json` records each car's status, time and log.
+
+Then, in the repo:
+
+```sh
+npm run max:finish -- press/max/render               # grade every car
+```
+
+This grades every car into `<car>/out/final/`, then collects them into `press/max/render/final-out/`:
+- `<shot>/<car>.png`;
+- a contact sheet per shot, `<shot>-sheet.jpg`;
+- `turntables/<car>.mp4`.
+
+The Cycles previews of every pack work the same way:
+
+```sh
+npm run max:preview -- press/max/render --scale 0.5 --samples 64 --skip-existing
+npm run max:finish -- press/max/render --from preview   # final-preview/
+```
+
 **Comparing with Blender:** `npm run max:preview -- press/max/render/black-demon --turntable` renders the same pack in Cycles, into `preview/`. Run `max:finish` on that folder too. The Max render should come close to it.
 
 **If something looks off:** **Show render log** lists any Arnold or Physical Material parameter this version of Max doesn't have, and which colour space was assumed for the material swatches. Send me that log with the render.
