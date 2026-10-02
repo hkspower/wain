@@ -48,5 +48,9 @@ foreach (($j['slides'] ?? []) as $s) {
         . ' mobile=' . (!empty($s['has_mobile_image']) ? "{$mw}x{$mh} ratio=" . $ratio($mw, $mh) : 'none')
         . ' focal=' . ($s['focal_x'] ?? '-') . ',' . ($s['focal_y'] ?? '-')
         . ' text=' . ((($s['title_en'] ?? '') . ($s['title_ar'] ?? '')) !== '' ? 'yes' : 'no') . "\n";
+    // every text field the slide carries, so a word on the hero can be traced to its slide
+    foreach ($s as $k => $v) {
+        if (is_string($v) && $v !== '' && preg_match('/_(en|ar)$/', $k)) echo "  $k=" . $v . "\n";
+    }
 }
 echo 'SUMMARY slides=' . count($j['slides'] ?? []) . " http=$code\n";
