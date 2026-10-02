@@ -74,6 +74,9 @@ type ChatLine =
  * rules, the summer rule and the message format stay the one file that
  * already owns them rather than a second copy drifting from it here.
  */
+/** How long the retry waits after the server said she is unavailable. */
+const UNAVAILABLE_RETRY_MS = 30000;
+
 export default function SalemChat() {
   const notConfigured = WAIN_AI_AGENT_ID === "";
   const [status, setStatus] = useState<SalemStatus>(notConfigured ? "error" : "connecting");
@@ -89,6 +92,8 @@ export default function SalemChat() {
   const [awaitingGreeting, setAwaitingGreeting] = useState(false);
   // A reply is taking long (see WAIN_AI_CHAT_COPY.slow).
   const [slow, setSlow] = useState(false);
+  // After an «unavailable» refusal the retry button waits; see below.
+  const [retryReady, setRetryReady] = useState(true);
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Whether the visitor is reading the bottom of the transcript. Forcing the
@@ -232,8 +237,23 @@ export default function SalemChat() {
   const showStarters =
     status === "connected" && !pending && !awaitingGreeting && !messages.some((m) => m.role === "user");
 
+  // An «unavailable» refusal will refuse again if retried at once, so the
+  // button only comes back after a while — a page that offers a retry it
+  // knows will fail is the «جرّب مرة ثانية» this state exists to replace.
+  useEffect(() => {
+    if (failure !== "unavailable") {
+      setRetryReady(true);
+      return;
+    }
+    setRetryReady(false);
+    const t = setTimeout(() => setRetryReady(true), UNAVAILABLE_RETRY_MS);
+    return () => clearTimeout(t);
+  }, [failure]);
+
   const failureText =
-    failure === "timeout"
+    failure === "unavailable"
+      ? WAIN_AI_CHAT_COPY.unavailable
+      : failure === "timeout"
       ? WAIN_AI_CHAT_COPY.failedTimeout
       : failure === "dropped"
         ? WAIN_AI_CHAT_COPY.failedDropped
@@ -247,7 +267,9 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.connected
         : status === "disconnected"
           ? WAIN_AI_CHAT_COPY.disconnected
-          : WAIN_AI_CHAT_COPY.offline;
+          : failure === "unavailable"
+            ? WAIN_AI_CHAT_COPY.unavailableStatus
+            : WAIN_AI_CHAT_COPY.offline;
 
   return (
     // text-white here: not decorative — the sr-only <label> below inherits
@@ -393,14 +415,14 @@ export default function SalemChat() {
             retrying opens the exact same session the agent id already
             refused. "error" and "disconnected" are the two states a fresh
             socket can actually answer differently. */}
-        {!notConfigured && (status === "error" || status === "disconnected") && (
+        {!notConfigured && (status === "error" || status === "disconnected") && retryReady && (
           <div className="text-center">
             <button
               type="button"
               onClick={connect}
               className="mt-1 inline-flex min-h-6 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
             >
-              {WAIN_AI_CHAT_COPY.reconnect}
+              {failure === "unavailable" ? WAIN_AI_CHAT_COPY.retryLater : WAIN_AI_CHAT_COPY.reconnect}
             </button>
           </div>
         )}

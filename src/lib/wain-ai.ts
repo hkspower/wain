@@ -365,6 +365,14 @@ export const WAIN_AI_CHAT_COPY = {
   // tried to open a place or the map from here and could not.
   toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.",
   failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
+  // The server refused for something on our side that no retry this minute
+  // changes — the account was out of credits on 2 October, and «جرّب مرة
+  // ثانية» invited a tap that could only fail again. Said as it is; the retry
+  // button waits (UNAVAILABLE_RETRY_MS in SalemChat.tsx) instead of offering
+  // the same refusal on the spot. «سالم» and not «شوق»: this page is his.
+  unavailable: "سالم مو متاح الحين — جرّب بعد شوي.",
+  unavailableStatus: "مو متاح الحين",
+  retryLater: "جرّب مرة ثانية",
   notConfigured: "المحادثة مو متاحة الحين.",
 } as const;
 
@@ -383,7 +391,9 @@ export const WAIN_AI_CHAT_COPY = {
  * first, never this comment.
  */
 export const WAIN_AI_RECORDING = {
-  chatNotice: "المحادثة تنحفظ عند ElevenLabs وما تنمسح تلقائياً.",
+  // The provider is not named here, on request (2 October): /privacy names it
+  // once, behind «التفاصيل».
+  chatNotice: "المحادثة تنحفظ عند مزوّد خدمة الصوت وما تنمسح تلقائياً.",
   chatNoticeLink: "التفاصيل",
 } as const;
 

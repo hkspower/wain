@@ -102,6 +102,14 @@ class _SalemScreenState extends State<SalemScreen> {
   /// twelve-second connect timeout. «ابدأ من جديد» tries again.
   bool _offline = false;
 
+  /// The server said he is unavailable (out of credits): said as it is, and
+  /// the retry comes back only after a wait — at once it could only meet the
+  /// same refusal. The web's UNAVAILABLE_RETRY_MS.
+  bool _unavailable = false;
+  bool _retryReady = true;
+  Timer? _retryTimer;
+  static const _retryWait = Duration(seconds: 30);
+
   void _connect() {
     _handle?.close();
     if (Provider.of<Online?>(context, listen: false)?.offline ?? false) {
@@ -111,8 +119,11 @@ class _SalemScreenState extends State<SalemScreen> {
       });
       return;
     }
+    _retryTimer?.cancel();
     setState(() {
       _offline = false;
+      _unavailable = false;
+      _retryReady = true;
       _status = ChatStatus.connecting;
       if (_entries.isNotEmpty) _entries.clear();
     });
@@ -130,6 +141,17 @@ class _SalemScreenState extends State<SalemScreen> {
         _add(_Text(m.role, m.text));
       },
       onToolUnavailable: () => _add(_Text('system', ChatCopy.toolUnavailable)),
+      onUnavailable: () {
+        if (!mounted) return;
+        setState(() {
+          _unavailable = true;
+          _retryReady = false;
+        });
+        _retryTimer?.cancel();
+        _retryTimer = Timer(_retryWait, () {
+          if (mounted) setState(() => _retryReady = true);
+        });
+      },
       clientTools: {
         'show_places': (p) {
           final r = showPlacesForChat(
@@ -193,6 +215,7 @@ class _SalemScreenState extends State<SalemScreen> {
   @override
   void dispose() {
     _waitTimer?.cancel();
+    _retryTimer?.cancel();
     _handle?.close();
     _input.dispose();
     _scroll.dispose();
@@ -208,6 +231,8 @@ class _SalemScreenState extends State<SalemScreen> {
           ChatStatus.error =>
             _offline
                 ? ChatCopy.offline
+                : _unavailable
+                ? ChatCopy.unavailableStatus
                 : kAgentEnabled
                 ? ChatCopy.failed
                 : ChatCopy.notConfigured,
@@ -296,6 +321,16 @@ class _SalemScreenState extends State<SalemScreen> {
               ),
               if (_awaitingConsent)
                 _ConsentPanel(onAgree: _agree)
+              else if (over && _unavailable && !_retryReady)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    ChatCopy.unavailable,
+                    key: const ValueKey('chat-unavailable'),
+                    textAlign: TextAlign.center,
+                    style: wainText(WainText.base, color: Colors.white),
+                  ),
+                )
               else if (over)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -307,7 +342,7 @@ class _SalemScreenState extends State<SalemScreen> {
                       minimumSize: const Size(220, 48),
                     ),
                     child: Text(
-                      ChatCopy.reconnect,
+                      _unavailable ? ChatCopy.retryLater : ChatCopy.reconnect,
                       style: wainText(
                         WainText.base,
                         weight: FontWeight.w600,

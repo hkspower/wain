@@ -70,12 +70,17 @@ console.log('\n── the box says the conversation is kept, before anything is 
   // settings on 1 October; WAIN_AI_RECORDING). A visitor has to be able to
   // read that BEFORE the first message, since the first message is kept too.
   const { ctx, p } = await fresh('/salem/');
-  const notice = p.locator('p', { hasText: 'تنحفظ عند ElevenLabs' });
+  const notice = p.locator('p', { hasText: 'تنحفظ عند مزوّد خدمة الصوت' });
   ok('the notice is on screen with the box', await notice.isVisible());
+  // The brand is off every visible surface but one sentence on /privacy, on
+  // request (2 October).
+  ok('and nothing on the page names the provider', !(await p.locator('body').innerText()).includes('ElevenLabs'));
   const box = await p.locator('#salem-q').boundingBox();
-  const line = await notice.boundingBox();
+  const line = await notice.boundingBox({ timeout: 2000 }).catch(() => null);
   ok('it sits above the box, where it is read before typing', !!(box && line && line.y + line.height <= box.y + 1));
-  const href = await notice.locator('a').getAttribute('href');
+  // Soft: a missing notice must fail its own line, not throw and cancel
+  // every section after it.
+  const href = await notice.locator('a').getAttribute('href', { timeout: 2000 }).catch(() => null);
   ok('its link goes to the privacy section that says the rest', href === '/privacy/#wain-ai', `href=${href}`);
   await ctx.close();
 
@@ -84,6 +89,8 @@ console.log('\n── the box says the conversation is kept, before anything is 
   ok('/privacy has the section the link points at', await section.isVisible());
   ok('and it says there is no expiry, in so many words', await section.locator('text=ما لها مدة تنمسح بعدها').isVisible());
   ok('and it no longer says the only thing kept is our own log', !(await priv.p.locator('text=الشي الوحيد اللي نسجّله').count()));
+  const named = ((await priv.p.locator('main').innerText()).match(/ElevenLabs/g) ?? []).length;
+  ok('/privacy names the provider exactly once', named === 1, `named ${named} times`);
   await priv.ctx.close();
 }
 
@@ -376,6 +383,47 @@ for (const [width, height, standalone] of [[390, 844, false], [320, 568, false],
   ok(`${tag}: the box is on screen, above the tab bar when there is one`, m.inputBottom <= m.floor, JSON.stringify(m));
   ok(`${tag}: her newest reply is in view`, m.lastBottom !== null && m.lastBottom <= m.floor && m.lastTop >= 0, JSON.stringify(m));
   await lctx.close();
+}
+
+console.log('\n── out of credits: said as it is, and no instant retry ──');
+{
+  // 2 October: every conversation ended at 0 s, «[quota_exceeded] You've run
+  // out of credits», and this page answered «جرّب مرة ثانية» with a button that
+  // could only meet the same refusal. The reason arrives as the close reason.
+  const qctx = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW',
+  });
+  await qctx.addInitScript(() => {
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  });
+  const qp = await qctx.newPage();
+  await qp.clock.install();
+  await qp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await qp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 });
+  await qp.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.readyState = 3;
+    s.emit('close', { code: 1008, reason: "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation." });
+  });
+  const alert = qp.locator('p[role="alert"]');
+  await alert.waitFor({ timeout: 4000 }).catch(() => {});
+  const said = (await alert.textContent().catch(() => '')) ?? '';
+  ok('the banner says he is not available, not «جرّب مرة ثانية»', said.includes('مو متاح الحين') && !said.includes('جرّب مرة ثانية'), said);
+  ok('the header says so too', await qp.locator('header', { hasText: 'مو متاح الحين' }).isVisible());
+  ok('no retry button on the spot', await qp.getByRole('button', { name: /جرّب مرة ثانية|ابدأ من جديد/ }).count() === 0);
+  await qp.clock.runFor(31000);
+  ok('one comes back after a wait', await qp.getByRole('button', { name: 'جرّب مرة ثانية' }).isVisible().catch(() => false));
+  await qctx.close();
 }
 
 await browser.close();

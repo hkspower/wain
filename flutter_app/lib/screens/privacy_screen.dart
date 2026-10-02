@@ -45,12 +45,14 @@ class PrivacyScreen extends StatelessWidget {
       [
         'شوق ما تشتغل إلا إذا اتصلت فيها أنت، بالضغط على زر الاتصال، وتقدر تنهي المكالمة في أي وقت. '
             'قبل جذي ما يصير أي اتصال بخدمتها.',
-        'المايك ما يشتغل إلا بعد ما تعطي الإذن. وخلال المكالمة صوتك يتنقل مباشرة لخدمة '
-            'ElevenLabs عشان تسمعك وترد عليك، وتنطبق سياسة الخصوصية الخاصة فيهم.',
+        'المايك ما يشتغل إلا بعد ما تعطي الإذن. وخلال المكالمة صوتك يتنقل مباشرة لمزوّد '
+            'خدمة الصوت عشان تسمعك وترد عليك، وتنطبق سياسة الخصوصية الخاصة فيهم.',
         // This said «ما نسجّل المكالمة عندنا، ولا نخزّن صوتك» until 1 October,
         // and the agent's own settings said the opposite: record_voice on,
         // retention_days -1. The owner chose to keep them and say so; the
-        // wording is AiPrivacyCopy's, shared with the web.
+        // wording is AiPrivacyCopy's, shared with the web. The one place the
+        // app names the provider (2 October, on request — the web's /privacy
+        // does the same).
         'المكالمة والمحادثة المكتوبة تنحفظ: ElevenLabs تسجّل صوت المكالمة وتحفظ نصها، وتحفظ '
             'الرسائل اللي تكتبها لسالم بعد، تحت حسابنا عندهم — وما لها مدة تنمسح بعدها تلقائياً، '
             'تبقى لين تنحذف. الخدمة تحللها تلقائياً (المواضيع والانطباع)، وإحنا نقدر نقراها عشان نعرف '

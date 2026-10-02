@@ -50,6 +50,14 @@ String cleanReply(String text) => text
     .replaceFirst(RegExp(r'^\s*ثانية\s+وحدة\s*[….،.]*\s*'), '')
     .trim();
 
+/// The server refused for something no retry this minute changes — the
+/// account out of credits, as every conversation was on 2 October («[quota_
+/// exceeded] You've run out of credits»). The web's `isUnavailable`, ported.
+bool isUnavailable(String reason) => RegExp(
+  r'quota_exceeded|run out of credits|insufficient[_ ]credits',
+  caseSensitive: false,
+).hasMatch(reason);
+
 typedef ChannelFactory = WebSocketChannel Function(
   Uri uri,
   Iterable<String> protocols,
@@ -74,6 +82,10 @@ ChatHandle startSalemChat({
   required void Function(ChatStatus) onStatus,
   required void Function(ChatMessage) onMessage,
   required void Function() onToolUnavailable,
+
+  /// Called just before the error status when the server said why it
+  /// refused and the reason is [isUnavailable].
+  void Function()? onUnavailable,
   Map<String, ChatTool>? clientTools,
   String? agentId,
   ChannelFactory connect = defaultChannel,
@@ -99,6 +111,9 @@ ChatHandle startSalemChat({
 
   var deliberatelyClosed = false;
   var settled = false;
+  // Set once the server has said why it refused, so the close that follows
+  // cannot overwrite it with a guess.
+  var unavailable = false;
   onStatus(ChatStatus.connecting);
 
   Timer? timer;
@@ -148,6 +163,8 @@ ChatHandle startSalemChat({
         return;
       }
       switch (data['type']) {
+        case 'error' || 'client_error':
+          if (isUnavailable(event)) unavailable = true;
         case 'conversation_initiation_metadata':
           settled = true;
           timer?.cancel();
@@ -212,12 +229,20 @@ ChatHandle startSalemChat({
     onError: (_) {
       settled = true;
       timer?.cancel();
-      if (!deliberatelyClosed) onStatus(ChatStatus.error);
+      if (deliberatelyClosed) return;
+      if (unavailable) onUnavailable?.call();
+      onStatus(ChatStatus.error);
     },
     onDone: () {
       timer?.cancel();
+      if (isUnavailable(channel.closeReason ?? '')) unavailable = true;
       if (deliberatelyClosed) return;
       settled = true;
+      if (unavailable) {
+        onUnavailable?.call();
+        onStatus(ChatStatus.error);
+        return;
+      }
       onStatus(
         channel.closeCode == 1000 ? ChatStatus.disconnected : ChatStatus.error,
       );

@@ -136,7 +136,10 @@ void main() {
 
   test('cleanReply: voice directions and the phone filler are not text', () {
     expect(cleanReply('[sad] ما عندي مطعم ياباني.'), 'ما عندي مطعم ياباني.');
-    expect(cleanReply('أقرب شي [happy] مارينا كريسنت.'), 'أقرب شي مارينا كريسنت.');
+    expect(
+      cleanReply('أقرب شي [happy] مارينا كريسنت.'),
+      'أقرب شي مارينا كريسنت.',
+    );
     expect(cleanReply('ثانية وحدة…. [happy] يا هلا!'), 'يا هلا!');
     expect(cleanReply('[laughs softly] أكيد'), 'أكيد');
     expect(cleanReply('ثانية وحدة…'), '');
@@ -283,6 +286,57 @@ void main() {
       await a2.stop();
     },
   );
+
+  // 2 October: every conversation that afternoon ended at 0 s, «[quota_
+  // exceeded] You've run out of credits», and the page offered an instant
+  // retry. The reason arrives as the close reason.
+  test(
+    'a close for credits says unavailable; any other refusal does not',
+    () async {
+      var unavailable = 0;
+      final statuses = <ChatStatus>[];
+      startSalemChat(
+        agentId: 'a',
+        connect: agent.factory,
+        onStatus: statuses.add,
+        onMessage: (_) {},
+        onToolUnavailable: () {},
+        onUnavailable: () => unavailable++,
+      );
+      await agent.connected.future;
+      await agent.socket!.close(
+        1008,
+        "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan.",
+      );
+      await until(() => statuses.contains(ChatStatus.error));
+      expect(unavailable, 1);
+
+      final a2 = FakeAgent();
+      await a2.start();
+      var other = 0;
+      final s2 = <ChatStatus>[];
+      startSalemChat(
+        agentId: 'a',
+        connect: a2.factory,
+        onStatus: s2.add,
+        onMessage: (_) {},
+        onToolUnavailable: () {},
+        onUnavailable: () => other++,
+      );
+      await a2.connected.future;
+      await a2.socket!.close(1008, 'policy violation');
+      await until(() => s2.contains(ChatStatus.error));
+      expect(other, 0);
+      await a2.stop();
+    },
+  );
+
+  test('the copy says so without naming the provider', () {
+    expect(ChatCopy.unavailable, contains('مو متاح الحين'));
+    expect(ChatCopy.unavailable, isNot(contains('جرّب مرة ثانية')));
+    expect(AiPrivacyCopy.chatNotice, isNot(contains('ElevenLabs')));
+    expect(AiPrivacyCopy.consentBody, isNot(contains('ElevenLabs')));
+  });
 
   test('never hears back: error after the connect timeout, and the socket is closed', () async {
     final statuses = <ChatStatus>[];

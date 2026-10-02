@@ -42,11 +42,13 @@ const String kSalemGreeting =
 /// نخزّن صوتك», which the agent's own settings contradicted. If those settings
 /// change, this and the web's copy change together — re-read the agent first.
 abstract final class AiPrivacyCopy {
-  static const chatNotice = 'المحادثة تنحفظ عند ElevenLabs وما تنمسح تلقائياً.';
+  // The provider is named once, on the privacy screen; on request (2 October).
+  static const chatNotice =
+      'المحادثة تنحفظ عند مزوّد خدمة الصوت وما تنمسح تلقائياً.';
   static const details = 'التفاصيل';
   static const consentTitle = 'قبل ما تكلّم شوق أو تكتب لسالم';
   static const consentBody =
-      'صوتك، وأي شي تكتبه، يروح لخدمة ElevenLabs عشان شوق تسمعك وترد عليك — '
+      'صوتك، وأي شي تكتبه، يروح لمزوّد خدمة الصوت عشان شوق تسمعك وترد عليك — '
       'وينحفظ عندهم تحت حسابنا وما ينمسح تلقائياً. فلا تقول ولا تكتب شي ما تبيه ينحفظ.';
   static const agree = 'أوافق وأكمّل';
   static const notNow = 'مو الحين';
@@ -101,6 +103,12 @@ abstract final class ChatCopy {
   static const toolUnavailable =
       'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.';
   static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
+
+  /// The server refused for something a retry this minute cannot change (out
+  /// of credits, 2 October) — the web's `WAIN_AI_CHAT_COPY.unavailable`.
+  static const unavailable = 'سالم مو متاح الحين — جرّب بعد شوي.';
+  static const unavailableStatus = 'مو متاح الحين';
+  static const retryLater = 'جرّب مرة ثانية';
   static const notConfigured = 'المحادثة مو متاحة الحين.';
   static const offline = 'ما فيه إنترنت — المحادثة تحتاج اتصال.';
 

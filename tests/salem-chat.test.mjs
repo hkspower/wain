@@ -314,6 +314,29 @@ console.log("\n── a failure says WHICH kind ──");
   startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
   FakeSocket.last.emit("close", { code: 1000 });
   ok("a normal close is «disconnected», with no failure attached", seen.some(([s, f]) => s === "disconnected" && f === undefined), JSON.stringify(seen));
+
+  /* 2 October: every conversation that afternoon ended at 0 s with the
+     account out of credits, and the page offered an instant retry. The reason
+     travels as the close reason, after the socket opened. */
+  const QUOTA = "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.";
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  FakeSocket.last.readyState = FakeSocket.OPEN;
+  FakeSocket.last.emit("open", {});
+  FakeSocket.last.emit("close", { code: 1008, reason: QUOTA });
+  ok("a close for credits is «unavailable», not a refusal", seen.at(-1)?.[0] === "error" && seen.at(-1)?.[1] === "unavailable", JSON.stringify(seen));
+
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  FakeSocket.last.readyState = FakeSocket.OPEN;
+  FakeSocket.last.emit("message", { data: JSON.stringify({ type: "error", error: { reason: QUOTA } }) });
+  FakeSocket.last.emit("error", {});
+  ok("an error message saying so first wins over the error event that follows", seen.at(-1)?.[1] === "unavailable", JSON.stringify(seen));
+
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  FakeSocket.last.emit("close", { code: 1008, reason: "policy violation" });
+  ok("any other refusal is still a refusal", seen.at(-1)?.[1] === "refused", JSON.stringify(seen));
   mock.timers.reset();
 }
 

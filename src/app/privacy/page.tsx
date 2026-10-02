@@ -35,14 +35,18 @@ export default function PrivacyPage() {
             technical log. It stopped being the only thing on 1 October, when
             the agent's own settings were read: شوق's calls and سالم's typed
             chats are recorded and kept by ElevenLabs on our account, with no
-            expiry. Two things are kept, so the summary names two. */}
+            expiry. Two things are kept, so the summary names two. The provider
+            is named once on this page — in «المكالمة والمحادثة المكتوبة
+            تنحفظ» below — and called «مزوّد خدمة الصوت» everywhere else, on
+            request (2 October): the owner wanted the brand off every visible
+            surface but the one sentence a privacy page owes a reader. */}
         باختصار: <strong className="text-ink-900">وين ما يستخدم كوكيز</strong>، وما
         يتتبّعك، وما عنده حساب لك. الصفحة هذي تشرح الوضع بالتفصيل — بما فيه
         اللي ينحفظ: سطر تقني بسيط عندنا، و
         <a href="#wain-ai" className="font-semibold text-ink-900 underline underline-offset-2">
           مكالمات شوق ومحادثات سالم
         </a>{" "}
-        عند ElevenLabs.
+        عند مزوّد خدمة الصوت.
       </p>
 
       {/* No cookies */}
@@ -174,8 +178,8 @@ export default function PrivacyPage() {
           </p>
           <p>
             فلا تقول بالمكالمة ولا تكتب شي ما تبيه ينحفظ — رقمك، عنوان بيتك، أو
-            أي معلومة خاصة. وقبل ما تبدأ المكالمة تطلع لك شروط ElevenLabs
-            توافق عليها بنفسك، وفوق خانة الكتابة عند سالم سطر يقول نفس الشي.
+            أي معلومة خاصة. وقبل ما تبدأ المكالمة تطلع لك شروط الخدمة توافق
+            عليها بنفسك، وفوق خانة الكتابة عند سالم سطر يقول نفس الشي.
           </p>
           <p>
             إذا ما كانت خدمة المحادثة مفعّلة، الزر يستخدم{" "}
@@ -186,16 +190,15 @@ export default function PrivacyPage() {
             لأي مكان.
           </p>
           <p>
-            لمّا تفتحها في وضع المحادثة، تتحمّل من{" "}
-            <strong className="text-ink-900">ElevenLabs</strong> عشان يشتغل الصوت،
-            ووقتها ينطبق عليه سياسة الخصوصية الخاصة فيهم — وممكن يحفظ بيانات في
-            متصفحك تخصّ المحادثة. المايك ما يشتغل إلا بعد ما تعطي الإذن.
+            لمّا تفتحها في وضع المحادثة، يتصل متصفحك بمزوّد خدمة الصوت عشان
+            يشتغل الصوت، ووقتها تنطبق سياسة الخصوصية الخاصة فيهم — وممكن يحفظ
+            بيانات في متصفحك تخصّ المحادثة. المايك ما يشتغل إلا بعد ما تعطي الإذن.
           </p>
           <p>
-            ووقت المحادثة تتحمّل صورة زخرفية صغيرة للكرة من مخزن ElevenLabs
+            ووقت المحادثة تتحمّل صورة زخرفية صغيرة للكرة من مخزن مزوّد الصوت
             العام على قوقل (storage.googleapis.com)، فعنوانك يوصل لقوقل وقتها.
           </p>
-          <p>إذا ما فتحت وين AI، ما يتحمّل ولا يشتغل أي شي من ElevenLabs أبداً.</p>
+          <p>إذا ما فتحت وين AI، ما يتصل متصفحك بمزوّد خدمة الصوت أبداً.</p>
         </div>
       </section>
 

@@ -43,7 +43,21 @@ export type SalemStatus = "connecting" | "connected" | "disconnected" | "error";
  * refusal at the handshake is not something a retry fixes on the spot, and a
  * socket that dies in the middle of a conversation is neither.
  */
-export type SalemFailure = "timeout" | "refused" | "dropped";
+export type SalemFailure = "timeout" | "refused" | "dropped" | "unavailable";
+
+/**
+ * The server said no for a reason no retry on this page can change: the
+ * account is out of credits. Measured, 2 October — every conversation that
+ * afternoon, typed and called, ended at 0 s with `error.code 3000`, «[quota_
+ * exceeded] You've run out of credits…», and the page said «جرّب مرة ثانية»
+ * over a door that would stay shut until somebody topped the account up.
+ * The reason reaches the client as the WebSocket's close reason (the SDK this
+ * was read out of hands it on as the error message); a message carrying the
+ * same text is read the same way in case it arrives first.
+ */
+export function isUnavailable(reason: string): boolean {
+  return /quota_exceeded|run out of credits|insufficient[_ ]credits/i.test(reason);
+}
 
 export interface SalemChatHandle {
   /**
@@ -217,7 +231,10 @@ export function startSalemChat({
     pending = next;
     onPending?.(next);
   };
-  const failure = (): SalemFailure => (wasConnected ? "dropped" : "refused");
+  // Set once the server has said why, so the `error`/`close` pair that
+  // follows cannot overwrite it with a guess.
+  let unavailable = false;
+  const failure = (): SalemFailure => (unavailable ? "unavailable" : wasConnected ? "dropped" : "refused");
   onStatus("connecting");
 
   const connectTimer = setTimeout(() => {
@@ -252,6 +269,10 @@ export function startSalemChat({
     try {
       data = JSON.parse(event.data);
     } catch {
+      return;
+    }
+    if (data.type === "error" || data.type === "client_error") {
+      if (isUnavailable(JSON.stringify(data))) unavailable = true;
       return;
     }
     switch (data.type) {
@@ -352,9 +373,11 @@ export function startSalemChat({
   socket.addEventListener("close", (event) => {
     clearTimeout(connectTimer);
     setPending(false);
+    if (isUnavailable(event.reason ?? "")) unavailable = true;
     if (deliberatelyClosed) return;
     settled = true;
-    if (event.code === 1000) onStatus("disconnected");
+    if (unavailable) onStatus("error", "unavailable");
+    else if (event.code === 1000) onStatus("disconnected");
     else onStatus("error", failure());
   });
 
