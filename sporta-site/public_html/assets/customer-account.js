@@ -17,7 +17,7 @@
 (function () {
   'use strict'
   var API = '/api/api.php?r='
-  var state = { me: undefined, view: 'in', busy: false, orders: null, note: '' }
+  var state = { me: undefined, view: 'in', busy: false, orders: null, note: '', fresh: false }
   var btn = null, overlay = null, lastFocus = null
 
   var L = {
@@ -28,6 +28,14 @@
     pwHint: ['At least 12 characters', '١٢ حرفًا على الأقل'], show: ['Show', 'إظهار'], hide: ['Hide', 'إخفاء'],
     close: ['Close', 'إغلاق'], signout: ['Sign out', 'تسجيل الخروج'],
     hello: ['Hello', 'أهلاً'], orders: ['Your orders', 'طلباتك'], loading: ['Loading…', 'جارٍ التحميل…'],
+    perk: ['Keep your orders in one place and track them any time.', 'اجمع طلباتك في مكان واحد وتتبّعها في أي وقت.'],
+    welcome: ['Your account is ready.', 'تم إنشاء حسابك.'],
+    lenOf: ['characters', 'حرفًا'], pwOk: ['Long enough', 'طويلة بما يكفي'],
+    consent1: ['By creating an account you accept the ', 'بإنشاء الحساب فإنك توافق على '],
+    terms: ['Terms', 'الشروط والأحكام'], and: [' and the ', ' و'], privacy: ['Privacy Policy', 'سياسة الخصوصية'],
+    f_email: ['Enter a valid email address, like name@example.com.', 'اكتب بريدًا إلكترونيًا صحيحًا مثل name@example.com.'],
+    f_pw_empty: ['Enter your password.', 'اكتب كلمة المرور.'],
+    f_phone: ['Kuwaiti mobile: 8 digits starting with 5, 6 or 9 (the +965 is added for you).', 'رقم موبايل كويتي: ٨ أرقام يبدأ بـ ٥ أو ٦ أو ٩ (يُضاف +٩٦٥ تلقائيًا).'],
     none: ['No orders yet.', 'لا توجد طلبات بعد.'],
     note: ['Orders you place while signed in appear here.', 'الطلبات التي تضعها وأنت مسجّل الدخول تظهر هنا.'],
     track: ['Track', 'تتبع'], copied: ['Number copied — paste it on the next page', 'تم نسخ الرقم — الصقه في الصفحة التالية'],
@@ -174,6 +182,34 @@
     f.focus()
   }
 
+  /* ---- checks that run in the browser first, so a typo is caught beside its own box instead
+     of after a round trip. The server still checks everything again (api/customer.php). ---- */
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+  function digits(v) {
+    return String(v).replace(/[\u0660-\u0669]/g, function (d) { return d.charCodeAt(0) - 1632 })
+      .replace(/[\u06f0-\u06f9]/g, function (d) { return d.charCodeAt(0) - 1776 }).replace(/\D/g, '')
+  }
+  /* "+965 5551 2345", "00965-55512345" and "٥٥٥١٢٣٤٥" all become 55512345, like store_phone() on the server. */
+  function normPhone(v) {
+    var d = digits(v)
+    if (d.indexOf('00965') === 0) d = d.slice(5)
+    else if (d.length > 8 && d.indexOf('965') === 0) d = d.slice(3)
+    return d
+  }
+  function setFieldError(f, text) {
+    var note = f.wrap.querySelector('.cua-fe')
+    if (!text) {
+      if (note) note.remove()
+      f.input.removeAttribute('aria-invalid')
+      if (f.input.id === 'cua-pw' && state.view === 'up') f.input.setAttribute('aria-describedby', 'cua-pw-hint')
+      else f.input.removeAttribute('aria-describedby')
+      return
+    }
+    if (!note) { note = el('small', 'cua-fe'); note.id = f.input.id + '-err'; f.wrap.appendChild(note) }
+    note.textContent = text
+    f.input.setAttribute('aria-invalid', 'true'); f.input.setAttribute('aria-describedby', note.id)
+  }
+
   function formView(sheet) {
     var tabs = el('div', 'cua-tabs'); tabs.setAttribute('role', 'tablist')
     ;[['in', 'signin'], ['up', 'create']].forEach(function (p) {
@@ -184,6 +220,7 @@
     })
     sheet.appendChild(tabs)
     var up = state.view === 'up'
+    if (up) sheet.appendChild(el('p', 'cua-perk', t('perk')))
     var form = el('form', 'cua-form'); form.noValidate = true
     var em = field('cua-email', t('email'), 'email', 'email', { inputmode: 'email', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', required: 'required', dir: 'ltr' })
     var pw = field('cua-pw', t('password'), 'password', up ? 'new-password' : 'current-password', { required: 'required', dir: 'ltr', minlength: up ? '12' : '1' })
@@ -192,11 +229,56 @@
     pw.wrap.appendChild(tog)
     form.appendChild(em.wrap); form.appendChild(pw.wrap)
     var nm, ph
+    var meter = null
     if (up) {
-      pw.wrap.appendChild(el('small', 'cua-muted', t('pwHint')))
+      // A LIVE LENGTH METER instead of a hint that only turns into an error after Submit: the one
+      // rule the server enforces is twelve characters, so that is the one thing shown.
+      meter = el('div', 'cua-meter'); meter.id = 'cua-pw-hint'
+      var bar = el('span', 'cua-bar'); var fill = el('i'); bar.appendChild(fill)
+      var cnt = el('small', 'cua-muted'); meter.appendChild(bar); meter.appendChild(cnt)
+      pw.wrap.appendChild(meter)
+      pw.input.setAttribute('aria-describedby', 'cua-pw-hint')
+      var upd = function () {
+        var n = pw.input.value.length
+        fill.style.width = Math.min(100, Math.round(n / 12 * 100)) + '%'
+        meter.className = 'cua-meter' + (n >= 12 ? ' ok' : '')
+        cnt.textContent = n >= 12 ? '✓ ' + t('pwOk') : n + ' / 12 ' + t('lenOf')
+      }
+      pw.input.addEventListener('input', upd); upd()
       nm = field('cua-name', t('name'), 'text', 'name', { autocapitalize: 'words', maxlength: '120' })
       ph = field('cua-phone', t('phone'), 'tel', 'tel-national', { inputmode: 'numeric', dir: 'ltr', maxlength: '17' })
       form.appendChild(nm.wrap); form.appendChild(ph.wrap)
+    }
+    if (up) {
+      var q = ar() ? '' : '?lang=en'
+      var c = el('p', 'cua-muted cua-consent')
+      c.appendChild(document.createTextNode(t('consent1')))
+      var a1 = el('a', '', t('terms')); a1.href = '/terms' + q; a1.target = '_blank'; a1.rel = 'noopener'
+      c.appendChild(a1); c.appendChild(document.createTextNode(t('and')))
+      var a2 = el('a', '', t('privacy')); a2.href = '/privacy' + q; a2.target = '_blank'; a2.rel = 'noopener'
+      c.appendChild(a2); c.appendChild(document.createTextNode('.'))
+      form.appendChild(c)
+    }
+    var checkEmail = function () { var ok = EMAIL_RE.test(em.input.value.trim()); setFieldError(em, ok ? '' : t('f_email')); return ok }
+    var checkPw = function () {
+      var v = pw.input.value
+      var bad = up ? (v.length < 12 ? t('err_password_too_short') : '') : (v === '' ? t('f_pw_empty') : '')
+      setFieldError(pw, bad); return !bad
+    }
+    var checkPhone = function () {
+      if (!ph) return true
+      var raw = ph.input.value.trim()
+      if (raw === '') { setFieldError(ph, ''); return true }
+      var n = normPhone(raw)
+      if (/^[569]\d{7}$/.test(n)) { ph.input.value = n; setFieldError(ph, ''); return true }
+      setFieldError(ph, t('f_phone')); return false
+    }
+    em.input.addEventListener('blur', function () { if (em.input.value.trim()) checkEmail() })
+    em.input.addEventListener('input', function () { if (em.input.getAttribute('aria-invalid')) checkEmail() })
+    pw.input.addEventListener('input', function () { if (pw.input.getAttribute('aria-invalid')) checkPw() })
+    if (ph) {
+      ph.input.addEventListener('blur', checkPhone)
+      ph.input.addEventListener('input', function () { if (ph.input.getAttribute('aria-invalid')) checkPhone() })
     }
     var msg = el('p', 'cua-err'); msg.setAttribute('role', 'alert'); msg.hidden = true
     var go = el('button', 'cua-go', t(up ? 'create' : 'signin')); go.type = 'submit'
@@ -204,13 +286,26 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault()
       if (state.busy) return
+      var firstBad = null
+      if (!checkEmail()) firstBad = firstBad || em.input
+      if (!checkPw()) firstBad = firstBad || pw.input
+      if (up && !checkPhone()) firstBad = firstBad || ph.input
+      if (firstBad) { msg.hidden = true; firstBad.focus(); return }
       var body = { email: em.input.value.trim(), password: pw.input.value }
       if (up) { body.name = nm.input.value.trim(); body.phone = ph.input.value.trim() }
       state.busy = true; go.disabled = true; msg.hidden = true
       call(up ? 'customer_register' : 'customer_login', body).then(function (r) {
         state.busy = false
-        if (r.ok && r.j.customer) { state.me = r.j.customer; refreshButton(); loadOrders(); render() }
-        else { go.disabled = false; msg.textContent = errText(r); msg.hidden = false }
+        if (r.ok && r.j.customer) { state.me = r.j.customer; state.fresh = up; refreshButton(); loadOrders(); render() }
+        else {
+          go.disabled = false
+          var k = r.j && r.j.error
+          // an error that belongs to one box is shown under that box, and the box takes focus
+          if (k === 'email_taken' || k === 'invalid_email') { setFieldError(em, errText(r)); em.input.focus() }
+          else if (k === 'invalid_phone' && ph) { setFieldError(ph, t('f_phone')); ph.input.focus() }
+          else if (k === 'password_too_short') { setFieldError(pw, errText(r)); pw.input.focus() }
+          else { msg.textContent = errText(r); msg.hidden = false }
+        }
       }).catch(function () { state.busy = false; go.disabled = false; msg.textContent = t('err_generic'); msg.hidden = false })
     })
     sheet.appendChild(form)
@@ -222,6 +317,7 @@
   function accountView(sheet) {
     var me = state.me
     sheet.appendChild(el('h2', 'cua-h', t('hello') + (me.name ? ', ' + me.name : '')))
+    if (state.fresh) sheet.appendChild(el('p', 'cua-welcome', '✓ ' + t('welcome')))
     var d = el('div', 'cua-details')
     d.appendChild(el('span', '', me.email))
     if (me.phone) d.appendChild(el('span', '', '+' + me.phone))
@@ -247,7 +343,7 @@
     var out = el('button', 'cua-out', t('signout')); out.type = 'button'
     out.addEventListener('click', function () {
       out.disabled = true
-      call('customer_logout', {}).then(function () { state.me = null; state.orders = null; state.view = 'in'; refreshButton(); render() })
+      call('customer_logout', {}).then(function () { state.me = null; state.orders = null; state.fresh = false; state.view = 'in'; refreshButton(); render() })
     })
     sheet.appendChild(out)
   }
@@ -274,6 +370,15 @@
     + '.cua-f input:focus{outline:none;border-color:var(--brand,#e0561c);box-shadow:0 0 0 3px rgba(224,86,28,.3)}'
     + '.cua-eye{position:absolute;top:34px;right:6px;min-height:44px;padding:0 10px;border:0;border-radius:10px;background:#dbdfe4;color:#3a3e44;font-weight:700;cursor:pointer}'
     + '.cua-muted{color:#9aa1a9;font-size:13px;margin:0}'
+    + '.cua-perk{margin:0 0 14px;color:#b7bdc4;font-size:14px}'
+    + '.cua-fe{color:#ff8a80;font-size:13px}'
+    + '.cua-f input[aria-invalid=true]{border-color:#ff8a80;box-shadow:0 0 0 3px rgba(255,138,128,.25)}'
+    + '.cua-meter{display:flex;align-items:center;gap:10px}'
+    + '.cua-bar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}'
+    + '.cua-bar i{display:block;height:100%;width:0;border-radius:3px;background:#cf4a0b;transition:width .15s}'
+    + '.cua-meter.ok .cua-bar i{background:#6fd08c}.cua-meter.ok small{color:#6fd08c}'
+    + '.cua-consent a{color:#dbdfe4;text-decoration:underline;text-underline-offset:2px}'
+    + '.cua-welcome{margin:2px 0 10px;color:#6fd08c;font-weight:700;font-size:14px}'
     + '.cua-err{margin:0;color:#ff8a80;font-size:14px}.cua-err[hidden]{display:none}'
     + '.cua-go,.cua-out{min-height:52px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer}'
     + '.cua-go{background:#cf4a0b;color:#fff}.cua-go:disabled{opacity:.6}'
