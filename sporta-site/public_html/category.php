@@ -381,10 +381,18 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      own column and gutter, so they line up with the product count under them. */
   .cp-hero--text { background: transparent; }
   .cp-hero--text .cp-copy {
-    position: static; max-width: 80rem; margin: 0 auto; background: none;
-    padding: 28px 16px 0;
+    position: static; max-width: var(--cp-max); margin: 0 auto; background: none;
+    padding: 28px var(--cp-gutter) 0;
   }
-  @media (min-width: 768px) { .cp-hero--text .cp-copy { padding: 40px 16px 0; } }
+  @media (min-width: 768px) { .cp-hero--text .cp-copy { padding: 40px var(--cp-gutter) 0; } }
+  /* A WIDER BODY, 2026-10-02 ("increase size for body for category pages to get more space
+     for product"): the grid's column was 80rem (1280px) with 16px gutters, so on a 1920px
+     screen a third of the width was empty. It is 1600px now, with 12px gutters on a phone and
+     24px from 768px, and the title above it uses the SAME two values so they stay aligned. */
+  :root { --cp-max: 100rem; --cp-gutter: 12px; }
+  @media (min-width: 768px) { :root { --cp-gutter: 24px; } }
+  .cp-wrap.cp-wrap { max-width: var(--cp-max); padding-inline: var(--cp-gutter); }
+  @media (min-width: 1700px) { .cp-wrap .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
   .cp-title {
     position: relative; margin: 0; padding-bottom: 16px;
     font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -421,7 +429,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
       <h1 class="cp-title"><?= e($name) ?></h1>
     </div>
   </div>
-  <section class="mx-auto max-w-7xl px-4 py-12" style="padding-top:20px">
+  <section class="cp-wrap mx-auto max-w-7xl px-4 py-12" style="padding-top:20px">
   <?php
   // Cross-link to the OTHER THREE category pages rather than to /shop —
   // /shop is not linked anywhere on these four pages, per the owner's own

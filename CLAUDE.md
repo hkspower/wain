@@ -4139,3 +4139,7 @@ Asked as "make categories pages all without category image" and "make model at c
 ## Outlet tile: thin border, bigger shelves, and an editable "up to N% off" — 2026-10-02
 
 The Outlet tile's orange border is 0.7% of the height (was 2%), the shelf photo is 1.25x larger and cropped so the products sit toward the far edge (`photo_shelves()`). `ART_VERSION` is `20261002d`. **The "60%" was fixed copy inside the bundle** (`outlet.k` and `discount`, English and Arabic), not part of the picture, so it is now the `outlet_discount_pct` rule (1-90, default 60) in /backends → Shop rules, in both panels, public on `?r=slides`. `rules-live.js` rewrites only the phrases "up to 60%" / "حتى|تصل إلى ٦٠٪" and does nothing at 60. It is copy only: what a shopper is charged is still decided by the discounts and `discount_max_pct`.
+
+## Category pages have a wider body — 2026-10-02
+
+"increase size for body for category pages to get more space for product". The grid's column was 80rem (1280px) with 16px gutters; it is 100rem (1600px) with 12px gutters on a phone and 24px from 768px, and 5 columns from 1700px wide (4 below). `--cp-max` and `--cp-gutter` in `category.php` are shared by the grid and the title so they stay aligned. Only the four category pages; /shop is unchanged. Cards: 177px on a phone (was ~171), 296px at 1280, 318px at 1920.
