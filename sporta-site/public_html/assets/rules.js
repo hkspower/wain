@@ -112,14 +112,14 @@
   /* --------------------------------------------------------------- fields -- */
 
   var MONEY = [
-    ['delivery_fee_fils', 'Delivery fee', '0 means free for everyone.'],
+    ['delivery_fee_fils', 'Delivery fee', '0 = free.'],
     ['free_delivery_fils', 'Free delivery over', '0 turns it off.'],
   ]
   var COUNTS = [
-    ['return_days', 'Returns window', 'days', 'From delivery, not the order. WARNING: the shop’s pages still say “14 days” in fixed text.'],
-    ['cod_open_max', 'Unpaid cash orders', 'per customer', 'Open cash orders allowed per phone number.'],
-    ['review_reward_pct', 'Review reward', '%', 'Discount for reviewing a purchase.'],
-    ['discount_max_pct', 'Discount cap', '%', 'Most any combination may take off one order.'],
+    ['return_days', 'Returns window', 'days', 'From delivery.'],
+    ['cod_open_max', 'Unpaid cash orders', 'per customer', 'Per phone.'],
+    ['review_reward_pct', 'Review reward', '%', 'Per review.'],
+    ['discount_max_pct', 'Discount cap', '%', 'Per order.'],
   ]
   // cod/knet/tpay are the server's own names (store.php's STORE_PAY_METHODS);
   // "online link" is what the owner calls tpay — the QR/hosted-page half of
@@ -130,14 +130,11 @@
   var PAY_LABELS = { cod: 'Cash on delivery', knet: 'KNET', tpay: 'Online link (T-Pay)' }
 
   var LISTS = [
-    ['governorates', 'Delivery areas', 'Outside these, checkout is refused. WARNING: the checkout still lists all six in fixed text, so removing one refuses the customer at the last step rather than hiding it.'],
+    ['governorates', 'Delivery areas', 'Where the shop delivers.'],
     ['sizes', 'Sizes', 'Offered, in this order.'],
     ['fits', 'Fits', 'Offered.'],
     ['payment_methods', 'Payment methods',
-      'Which ways to pay this shop accepts. At least one must stay on. WARNING: like the '
-      + 'delivery areas above, the checkout may still show a method turned off here — it is '
-      + 'refused at the last step rather than hidden, since neither website bundle has source '
-      + 'in this repository.',
+      'At least one stays on.',
       function (v) { return PAY_LABELS[v] || v }],
   ]
 
@@ -153,7 +150,7 @@
     var h = el('h3', 'srl-h', 'Shop rules')
     card.appendChild(h)
     card.appendChild(el('p', 'srl-sub',
-      'Takes effect on the next order — nothing to publish.'))
+      'Applies to the next order.'))
 
     if (!state.rules) {
       card.appendChild(el('p', 'srl-note', 'Loading…'))

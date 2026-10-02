@@ -162,7 +162,7 @@
 
     if (!query) {
       host.appendChild(el('p', 'stx-hint',
-        'Type a word above to find the line you want — in English or Arabic.'))
+        'Search to edit.'))
       return
     }
 
@@ -259,7 +259,7 @@
   function build() {
     card.textContent = ''
     card.appendChild(el('h3', 'stx-h', 'Site wording'))
-    card.appendChild(el('p', 'stx-sub', 'Search the shop’s own words and rewrite any of them.'))
+    card.appendChild(el('p', 'stx-sub', ''))
 
     var box = document.createElement('input')
     box.type = 'search'

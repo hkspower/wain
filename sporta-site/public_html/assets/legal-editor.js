@@ -69,13 +69,13 @@
   // key, label, hint, textarea?
   var FIELDS = [
     ['privacy_en', 'Privacy — English',
-      'Replaces everything below "Last updated" on /privacy. Blank line between paragraphs.', true],
+      'Blank line: new paragraph.', true],
     ['privacy_ar', 'Privacy — Arabic', '', true],
     ['terms_en', 'Terms & conditions — English',
-      'Replaces everything below "Last updated" on /terms. Blank line between paragraphs.', true],
+      'Blank line: new paragraph.', true],
     ['terms_ar', 'Terms & conditions — Arabic', '', true],
     ['returns_en', 'Returns — English',
-      'The one paragraph above the order-lookup box on /returns.', false],
+      'Above the order lookup.', false],
     ['returns_ar', 'Returns — Arabic', '', false],
   ]
 
@@ -162,7 +162,7 @@
     c.setAttribute(MARK, '1')
     c.appendChild(el('h2', 'sle-h', 'Policy pages'))
     c.appendChild(el('p', 'sle-sub',
-      'Privacy, Terms and Returns. Empty keeps the shop’s built-in text.'))
+      'Empty = built-in.'))
 
     var grid = el('div', 'sle-grid')
     fields = {}

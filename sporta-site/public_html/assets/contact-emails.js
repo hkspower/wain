@@ -71,7 +71,7 @@
 
     card.appendChild(el('h3', 'sce-h', 'More emails'))
     card.appendChild(el('p', 'sce-sub',
-      'Kept here for the owner’s own record. None of these appear on the shop.'))
+      'Not shown on the shop.'))
 
     if (!state.emails) {
       card.appendChild(el('p', 'sce-note', 'Loading…'))

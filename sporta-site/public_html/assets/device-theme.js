@@ -89,7 +89,7 @@
   function build() {
     card.textContent = ''
     card.appendChild(el('h3', 'sdt-h', 'Phone and desktop'))
-    card.appendChild(el('p', 'sdt-sub', 'Empty is the same as all devices.'))
+    card.appendChild(el('p', 'sdt-sub', 'Empty = all devices.'))
     var tabs = el('div', 'sdt-tabs')
     tabs.setAttribute('role', 'tablist')
     DEVICES.forEach(function (d) {

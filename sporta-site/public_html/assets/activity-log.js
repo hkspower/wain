@@ -73,7 +73,7 @@
     if (!card) return
     card.innerHTML = ''
     card.appendChild(el('h3', 'sal-h', 'Activity'))
-    card.appendChild(el('p', 'sal-sub', 'Every save in this panel, newest first.'))
+    card.appendChild(el('p', 'sal-sub', ''))
 
     if (state.error) {
       card.appendChild(el('p', 'sal-note', state.error))
@@ -89,7 +89,10 @@
     }
 
     var list = el('div', 'sal-list')
-    state.rows.forEach(function (row) {
+    // The latest five; the rest on request, so the log does not grow the
+    // Settings screen by a row for every save ever made.
+    var rows = state.all ? state.rows : state.rows.slice(0, 5)
+    rows.forEach(function (row) {
       var item = el('div', 'sal-row')
       var top = el('div', 'sal-row-top')
       top.appendChild(el('span', 'sal-route', row.route))
@@ -97,9 +100,22 @@
       item.appendChild(top)
       item.appendChild(el('p', 'sal-email', row.admin_email))
       var line = summaryLine(row.summary)
-      if (line) item.appendChild(el('p', 'sal-summary', line))
+      if (line) {
+        // Collapsed: the raw values are for when something needs checking,
+        // and open they were most of the Settings screen's words.
+        var more = document.createElement('details')
+        more.appendChild(el('summary', 'sal-more', 'Details'))
+        more.appendChild(el('p', 'sal-summary', line))
+        item.appendChild(more)
+      }
       list.appendChild(item)
     })
+    if (!state.all && state.rows.length > 5) {
+      var all = el('button', 'sal-all', 'Show all ' + state.rows.length)
+      all.type = 'button'
+      all.addEventListener('click', function () { state.all = true; render() })
+      list.appendChild(all)
+    }
     card.appendChild(list)
   }
 
@@ -113,6 +129,8 @@
     + '.sal-row-top{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:13px}'
     + '.sal-time{opacity:.6;font-weight:400;white-space:nowrap}'
     + '.sal-email{margin:2px 0 0;font-size:12px;opacity:.7}'
+    + '.sal-all{min-height:44px;margin-top:8px;padding:0 14px;border-radius:8px;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit;font:inherit;cursor:pointer}'
+    + '.sal-more{cursor:pointer;font-size:12px;opacity:.7;min-height:32px;padding-top:6px}'
     + '.sal-summary{margin:4px 0 0;font-size:12px;opacity:.75;word-break:break-word}'
     + '.sal-note{margin:0;font-size:13px;opacity:.7}'
 

@@ -23,11 +23,11 @@
   var ADMIN = '/api/admin.php?r='
 
   var NETWORKS = [
-    ['instagram', 'Instagram', 'instagram.com/sporta.kw — or just the handle, sporta.kw'],
-    ['snapchat', 'Snapchat', 'snapchat.com/add/… — or just the username'],
-    ['youtube', 'YouTube', 'youtube.com/@… — a channel or video link, or an @handle'],
-    ['tiktok', 'TikTok', 'tiktok.com/@… — or just the handle'],
-    ['whatsapp', 'WhatsApp Business', 'wa.me/965… or a wa.link — or the business number with its country code'],
+    ['instagram', 'Instagram', 'Link or handle'],
+    ['snapchat', 'Snapchat', 'Link or username'],
+    ['youtube', 'YouTube', 'Link or @handle'],
+    ['tiktok', 'TikTok', 'Link or handle'],
+    ['whatsapp', 'WhatsApp Business', 'wa.me link or number'],
   ]
 
   var card = null, note = null, fields = {}, loaded = null
@@ -128,8 +128,7 @@
     c.setAttribute(MARK, 'social')
     c.appendChild(el('h2', 'ssu-h', 'Social media'))
     c.appendChild(el('p', 'ssu-sub',
-      'The icons in the shop’s footer link here. Paste a profile address or just the handle. '
-      + 'Snapchat and YouTube show an icon once filled in; Instagram, TikTok and WhatsApp keep the shop’s usual link when left empty.'))
+      'The footer icons.'))
     var grid = el('div', 'ssu-grid')
     fields = {}
     NETWORKS.forEach(function (n) {

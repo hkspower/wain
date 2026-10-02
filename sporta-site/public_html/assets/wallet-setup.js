@@ -86,7 +86,7 @@
         + (st.expires ? ', certificate valid until ' + st.expires : '') + '.'
       : st.expired
         ? 'The certificate EXPIRED on ' + st.expires + '. Wallet cards cannot be issued until a new one is uploaded.'
-        : 'Not linked yet. Customers cannot add a Sporta card to Apple Wallet.'
+        : 'Not linked yet.'
     statusBox.appendChild(el('p', st.ready ? 'spw-ok' : 'spw-bad', line))
     if (st.request_pending && !st.ready) {
       statusBox.appendChild(el('p', 'spw-hint',
@@ -171,16 +171,14 @@
     c.setAttribute(MARK, 'wallet')
     c.appendChild(el('h2', 'spw-h', 'Apple Wallet'))
     c.appendChild(el('p', 'spw-sub',
-      'Link your Apple Developer account so customers can add their Sporta '
-      + 'loyalty card to Apple Wallet. Needs an Apple Developer Program membership.'))
+      'Needs an Apple Developer Program membership.'))
     statusBox = el('div')
     c.appendChild(statusBox)
 
     var s1 = el('div', 'spw-step')
     s1.appendChild(el('h3', null, '1. Create a request'))
     s1.appendChild(el('p', null,
-      'The shop makes a private key and keeps it on the server. You download '
-      + 'only the request, which holds nothing secret.'))
+      ''))
     var reqBtn = el('button', 'spw-btn', 'Create request')
     reqBtn.type = 'button'
     reqBtn.addEventListener('click', function () { makeRequest(reqBtn) })
@@ -203,8 +201,8 @@
     li2.appendChild(document.createTextNode(' (skip if it exists).'))
     ol.appendChild(li2)
     ol.appendChild(el('li', null,
-      'Open it, choose Create Certificate, and upload the request from step 1.'))
-    ol.appendChild(el('li', null, 'Download the certificate Apple gives you (pass.cer).'))
+      'Open it → Create Certificate → upload the step 1 request.'))
+    ol.appendChild(el('li', null, 'Download pass.cer.'))
     s2.appendChild(ol)
     c.appendChild(s2)
 

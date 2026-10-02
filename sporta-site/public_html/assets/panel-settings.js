@@ -220,7 +220,7 @@
     c.setAttribute(MARK, 'contact')
     c.appendChild(el('h2', 'spc-h', 'Contact details'))
     c.appendChild(el('p', 'spc-sub',
-      'Shown on the shop’s pages and on every invoice. Empty hides the field.'))
+      'Empty hides a field.'))
 
     var grid = el('div', 'spc-grid')
     fields = {}
@@ -271,16 +271,12 @@
 
       if (names.indexOf('api/setup-admin.php') >= 0) {
         p.setAttribute(MARK, 'password')
-        p.textContent =
-          'To reset the password, clear the admin_users table in phpMyAdmin and '
-          + 'reload — the sign-in screen then offers to create the first account. '
-          + 'Five wrong passwords lock the account for fifteen minutes.'
+        p.textContent = 'Lost password: empty admin_users, the sign-in screen then offers to create the first account.'
+          ''
       } else if (names.indexOf('public_html/cats/') >= 0) {
         p.setAttribute(MARK, 'photos')
-        p.textContent =
-          'Photos live in the database, not a folder. Upload them on '
-          + 'the Catalogue tab, on the garment they belong to. Brand logos work '
-          + 'the same way, on the Brands tab.'
+        p.textContent = 'Upload them on the Catalogue tab.'
+          ''
       }
     }
   }

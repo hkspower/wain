@@ -4089,3 +4089,7 @@ Asked for as a separate setup for desktop and mobile "for css and all theme"; th
 - **A save that omits `phone`/`desktop` keeps the stored ones.** That is what stops the older whole-row cards erasing an override; `theme-colors.js` deletes both keys before saving, so it cannot resend a stale copy read at load either.
 - **`custom-css.js` was blanking the five bar colours and the page colour on every save**: its key list predated them. Fixed on the way.
 - The card is `assets/device-theme.js`, under "Buttons and bars" on Settings, with Phone/Desktop tabs. `test:device-theme` saves through the panel and reads the header colour back at 390 and 1280.
+
+## Settings prose cut to the cap — 2026-10-02
+
+"reduct un needed text": Settings went 2,116 → 598 words and `test:panel-cards` is green again. Most of it was the **Activity log**, which listed every save ever made with its raw values open: it now shows the latest five, each with its values behind a collapsed **Details**, and a "Show all" button for the rest. The **three WARNING hints in Shop rules were stale**: since `rules-live.js`, the returns-window copy updates, and switched-off delivery areas and payment methods are hidden at checkout, so the warnings described faults already fixed. All other hints were shortened. The two `panel-settings.js` notes stay, because they CORRECT wrong instructions in the bundle.

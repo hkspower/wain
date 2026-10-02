@@ -230,7 +230,7 @@
 
     card.appendChild(el('h3', 'bkp-h', 'Backup'))
     card.appendChild(el('p', 'bkp-sub',
-      'Download everything the shop stores, or restore from a file you already downloaded.'))
+      'Download or restore.'))
 
     var exportRow = el('div', 'bkp-foot')
     var exportBtn = el('button', 'bkp-btn', state.exporting ? 'Preparing…' : 'Download backup')
@@ -243,9 +243,7 @@
     card.appendChild(el('div', 'bkp-divider'))
 
     var warn = el('p', 'bkp-warn',
-      'Restoring REPLACES the shop’s current data with what is in the file, table by '
-      + 'table — anything added or changed since the file was made is lost, exactly like '
-      + 'the file was made. It does not merge the two.')
+      'Restoring replaces the shop’s current data with the file.')
     card.appendChild(warn)
 
     var pick = el('label', 'bkp-pick')

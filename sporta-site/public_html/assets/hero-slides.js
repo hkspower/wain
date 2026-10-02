@@ -393,8 +393,7 @@
     card.textContent = ''
     card.appendChild(el('h3', 'hsl-h', 'Hero slides'))
     card.appendChild(el('p', 'hsl-sub',
-      'The home page banner. With every slide off, the shop falls back to its ' +
-      'five drawn slides — that is a supported state, not an error.'))
+      'The home page banner.'))
 
     if (!state.slides) {
       card.appendChild(el('p', 'hsl-note', 'Loading…'))

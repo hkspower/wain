@@ -49,27 +49,27 @@
   var FIELDS = [
     {
       key: 'brand', label: 'Brand', shipped: '#e0561c', on: '#ffffff',
-      hint: 'Buttons, chips and badges.',
+      hint: 'Buttons and badges.',
       presets: ['#e0561c', '#b8430f', '#1f6feb', '#2f6f4e'],
     },
     {
       key: 'header_bg', label: 'Header bar', shipped: '#2b2b2b', on: '#ffffff',
-      hint: 'The top strip. White text on it.',
+      hint: 'The top strip.',
       presets: ['#2b2b2b', '#14161a', '#363d45', '#e0561c'],
     },
     {
       key: 'tabbar_bg', label: 'Tab bar', shipped: '#ffffff', onKey: 'tabbar_active',
-      hint: 'The phone bar. Its labels follow this.',
+      hint: 'The phone bar.',
       presets: ['#ffffff', '#f2f3f5', '#14161a', '#2b3138'],
     },
     {
       key: 'tabbar_active', label: 'Tab bar — current item', shipped: '#4f46e5', onKey: 'tabbar_bg',
-      hint: 'Ships as Tailwind indigo, not a Sporta colour.',
+      hint: 'The selected tab.',
       presets: ['#e0561c', '#ff7b17', '#4f46e5', '#14161a'],
     },
     {
       key: 'secondary_bg', label: 'Secondary button', shipped: '#a6acb2', on: '#171a1e',
-      hint: 'Badges and outlined buttons, dark theme.',
+      hint: 'Outlined buttons.',
       presets: ['#a6acb2', '#e0561c', '#ff7b17', '#eaecee'],
     },
   ]
@@ -318,7 +318,7 @@
   function build() {
     card.textContent = ''
     card.appendChild(el('h3', 'stc-h', 'Buttons and bars'))
-    card.appendChild(el('p', 'stc-sub', 'Empty keeps what the shop was built with.'))
+    card.appendChild(el('p', 'stc-sub', 'Empty = built-in.'))
 
     FIELDS.forEach(function (f) { card.appendChild(row(f)) })
 
