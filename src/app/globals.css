@@ -360,6 +360,84 @@ h1, h2, h3 {
   animation: kb-b 21s cubic-bezier(0.35, 0, 0.65, 0.95) infinite alternate;
 }
 
+/* «معالم الكويت» under the home hero (LandmarksShow.tsx). The same two drifts
+   at 9s, so each slide's picture moves visibly in the 6s it is on screen.
+
+   One loop of 36s carries all six slides: each runs `landmark-fade` with a
+   6s × index delay, so it fades in over 0.9s (2.5%), holds, and fades out
+   while the next fades in. `visibility` moves with the opacity on purpose —
+   an invisible slide that could still take a tap or a Tab is the link under
+   the visitor's finger being somewhere other than the one on screen. Before
+   its first turn a slide sits on the 0% frame (`both`), hidden. */
+@keyframes landmark-fade {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  2.5%,
+  16.67% {
+    opacity: 1;
+    visibility: visible;
+  }
+  19.17%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes landmark-dot {
+  0% {
+    width: 0.5rem;
+    background: var(--color-line-strong);
+  }
+  2.5%,
+  16.67% {
+    width: 1.375rem;
+    background: var(--color-sea-600);
+  }
+  19.17%,
+  100% {
+    width: 0.5rem;
+    background: var(--color-line-strong);
+  }
+}
+.landmark-kb-a {
+  animation: kb-a 9s ease-out infinite alternate;
+}
+.landmark-kb-b {
+  animation: kb-b 9s ease-out infinite alternate;
+}
+.landmark-slide {
+  opacity: 0;
+  visibility: hidden;
+  animation: landmark-fade 36s linear infinite both;
+}
+.landmark-dot {
+  animation: landmark-dot 36s linear infinite both;
+}
+.landmark-show.is-paused :is(.landmark-slide, .landmark-dot, .landmark-kb-a, .landmark-kb-b) {
+  animation-play-state: paused;
+}
+/* The global reduced-motion rule shortens every animation to nothing but
+   leaves the delays, so each slide would end on the last frame — hidden — and
+   the show would be an empty box. Here the first one simply stays. */
+@media (prefers-reduced-motion: reduce) {
+  .landmark-slide,
+  .landmark-dot,
+  .landmark-kb-a,
+  .landmark-kb-b {
+    animation: none !important;
+  }
+  .landmark-slide.is-first {
+    opacity: 1;
+    visibility: visible;
+  }
+  .landmark-dot.is-first {
+    width: 1.375rem;
+    background: var(--color-sea-600);
+  }
+}
+
 /* Text laid straight on /find's photographs. The scrims under it were
    lightened on request, so the letters carry their own separation: a tight
    dark edge for the outline and a wide soft one for the busy parts of the

@@ -6,7 +6,7 @@ change to `src/components/icons.tsx` or `src/components/PlaceIcon.tsx`;
 
 | Sheet | Contents | Grid |
 |---|---|---|
-| `wain-icons-ui.svg` | 33 UI icons | 24 |
+| `wain-icons-ui.svg` | 35 UI icons | 24 |
 | `wain-icons-places.svg` | 52 bespoke place marks of 52 places | 48 |
 
 ## Getting them into Figma as components

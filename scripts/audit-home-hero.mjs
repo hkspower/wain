@@ -67,6 +67,16 @@ try {
   console.error(`${e.stderr}`.trim() + "\n— run `npm run home-hero` and commit the result");
   process.exit(1);
 }
+// The slideshow under the hero has its own generated half. A drawn stand-in
+// left in it is a warning here and a refusal in deploy:plan — see
+// scripts/gen-landmarks.mjs.
+try {
+  const out = execFileSync("node", [join(ROOT, "scripts/gen-landmarks.mjs"), "--check"], { cwd: ROOT, encoding: "utf8", stdio: "pipe" });
+  if (/stand-ins/.test(out)) console.log(`  ! landmarks: ${out.trim()} — they may not be deployed`);
+} catch (e) {
+  console.error(`${e.stderr}`.trim() + "\n— run `npm run landmarks` and commit the result");
+  process.exit(1);
+}
 if (!existsSync(join(OUT, "index.html"))) {
   console.error("out/ is missing — run npm run build first.");
   process.exit(1);

@@ -29,6 +29,11 @@
  * such thing as an AI photograph of أبراج الكويت — only a picture of something
  * that looks like it.
  *
+ * The home page's «معالم الكويت» slideshow (LandmarksShow, 2 October) does
+ * carry generated pictures, on request, and that is why it is not here: it is
+ * a picture OF each landmark on the home page, built by its own generator
+ * (scripts/gen-landmarks.mjs), and no place page ever shows one.
+ *
  * ## Adding one
  *
  *   1. Put the original in `photos-src/<slug>.<ext>` — full resolution, as it

@@ -501,3 +501,23 @@ export function IconSpeakerOff(props: IconProps) {
     </svg>
   );
 }
+
+/** The landmarks slideshow's stop button (LandmarksShow): two bars, drawn to
+ *  the set's 17 units so it sits level with the heading beside it. */
+export function IconPause(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M8.5 3.5v17M15.5 3.5v17" />
+    </svg>
+  );
+}
+
+/** …and its start button. Pointing right in an RTL page too: a play mark is
+ *  a media convention, and every player in Arabic keeps it that way. */
+export function IconPlay(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7.5 4.6v14.8a.9.9 0 0 0 1.4.8l11-7.4a.9.9 0 0 0 0-1.6l-11-7.4a.9.9 0 0 0-1.4.8Z" />
+    </svg>
+  );
+}

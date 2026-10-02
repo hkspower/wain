@@ -187,6 +187,28 @@ if (archiveBuild.digest !== build.digest) {
 }
 const commit = archiveBuild.commit;
 
+// The landmarks slideshow was built on drawn stand-ins while its real pictures
+// could not be generated (scripts/gen-landmarks.mjs). They must not go live
+// passing for the realistic pictures the owner asked for, so read the
+// generated list AS IT WAS at the archive's commit — not the working tree,
+// which may already be ahead of what the server would receive.
+{
+  let list = "";
+  try {
+    list = git(["show", `${commit}:src/lib/landmarks.g.ts`]);
+  } catch {
+    // An archive from before the slideshow existed has nothing to refuse.
+  }
+  const standIns = [...list.matchAll(/\{\s*slug: "([^"]+)"[^}]*source: "([a-z-]+)"/g)]
+    .filter((m) => m[2] !== "ai")
+    .map((m) => m[1]);
+  if (standIns.length)
+    fail(
+      `the archive's landmarks slideshow still shows ${standIns.length} drawn stand-in(s): ${standIns.join(", ")}.\n` +
+        `  Put the approved pictures in brand-source/landmarks/<slug>.jpg, run \`npm run landmarks\`, and release again.`
+    );
+}
+
 const zipBytes = statSync(archive).size;
 const zipSha = createHash("sha256").update(readFileSync(archive)).digest("hex");
 

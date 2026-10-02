@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+<defs>
+<linearGradient id="sp-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9d7ea"/><stop offset="0.6" stop-color="#e5edee"/><stop offset="1" stop-color="#f7efe1"/></linearGradient>
+<linearGradient id="sp-wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d6c5a2"/><stop offset="0.5" stop-color="#f3e8d4"/><stop offset="1" stop-color="#e2d3b5"/></linearGradient>
+<linearGradient id="sp-roof" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f86d6"/><stop offset="1" stop-color="#1e4f93"/></linearGradient>
+<linearGradient id="sp-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86bfcf"/><stop offset="1" stop-color="#4d8fa8"/></linearGradient>
+<path id="sp-arch" d="M0 340 V312 Q10 298 20 312 V340 Z" fill="#a88f66"/>
+<g id="sp-palm"><path d="M0 0 C-3 -36 2 -70 -4 -104" fill="none" stroke="#6d5133" stroke-width="6" stroke-linecap="round"/><path d="M-4 -104 Q-36 -116 -60 -92 Q-32 -104 -4 -104 Z" fill="#456f3c"/><path d="M-4 -104 Q30 -118 56 -94 Q28 -106 -4 -104 Z" fill="#3b6434"/><path d="M-4 -104 Q-26 -140 -48 -140 Q-20 -130 -4 -104 Z" fill="#507d47"/><path d="M-4 -104 Q20 -142 44 -140 Q16 -128 -4 -104 Z" fill="#456f3c"/><path d="M-4 -104 Q-38 -96 -52 -66 Q-26 -92 -4 -104 Z" fill="#33582e"/><path d="M-4 -104 Q34 -96 50 -68 Q24 -92 -4 -104 Z" fill="#33582e"/></g>
+</defs>
+<rect x="0" y="0" width="600" height="400" fill="url(#sp-sky)"/>
+<rect x="0" y="292" width="600" height="40" fill="url(#sp-sea)"/>
+<rect x="30" y="266" width="540" height="78" fill="url(#sp-wall)"/>
+<rect x="30" y="262" width="540" height="6" fill="#cbb791"/>
+<use href="#sp-arch" x="50"/>
+<use href="#sp-arch" x="84"/>
+<use href="#sp-arch" x="118"/>
+<use href="#sp-arch" x="152"/>
+<use href="#sp-arch" x="186"/>
+<use href="#sp-arch" x="394"/>
+<use href="#sp-arch" x="428"/>
+<use href="#sp-arch" x="462"/>
+<use href="#sp-arch" x="496"/>
+<use href="#sp-arch" x="530"/>
+<rect x="262" y="140" width="76" height="206" fill="url(#sp-wall)"/>
+<rect x="262" y="140" width="5" height="206" fill="#c3b08b"/>
+<rect x="333" y="140" width="5" height="206" fill="#c3b08b"/>
+<path d="M286 300 V262 Q300 244 314 262 V300 Z" fill="#8b6836"/>
+<path d="M288 236 V214 Q300 202 312 214 V236 Z" fill="#8b6836"/>
+<rect x="254" y="196" width="92" height="7" fill="#8b6836"/>
+<rect x="258" y="203" width="4" height="12" fill="#8b6836"/>
+<rect x="338" y="203" width="4" height="12" fill="#8b6836"/>
+<polygon points="256,140 344,140 300,50" fill="url(#sp-roof)"/>
+<path d="M300 50 L270 140 M300 50 L285 140 M300 50 L315 140 M300 50 L330 140" stroke="#e3b84c" stroke-opacity="0.7" stroke-width="1.2"/>
+<path d="M282 104 L318 104 M272 122 L328 122" stroke="#e3b84c" stroke-opacity="0.7" stroke-width="1.2"/>
+<rect x="298.5" y="32" width="3" height="20" fill="#d4a840"/>
+<circle cx="300" cy="30" r="4" fill="#d4a840"/>
+<circle cx="300" cy="170" r="15" fill="#fbf8ef" stroke="#8b6836" stroke-width="2"/>
+<path d="M300 170 L300 160 M300 170 L307 173" stroke="#35302a" stroke-width="1.8" stroke-linecap="round"/>
+<rect x="0" y="344" width="600" height="56" fill="#cdbb93"/>
+<rect x="0" y="344" width="600" height="3" fill="#e9dcc0"/>
+<use href="#sp-palm" x="110" y="352"/>
+<use href="#sp-palm" x="470" y="352"/>
+</svg>

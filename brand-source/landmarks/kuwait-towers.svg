@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+<defs>
+<linearGradient id="kt-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e39a63"/><stop offset="0.55" stop-color="#f6cb92"/><stop offset="1" stop-color="#fde7bf"/></linearGradient>
+<radialGradient id="kt-sun" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff4d2" stop-opacity="1"/><stop offset="1" stop-color="#fff4d2" stop-opacity="0"/></radialGradient>
+<linearGradient id="kt-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5aa1bd"/><stop offset="1" stop-color="#1f5776"/></linearGradient>
+<linearGradient id="kt-shaft" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a39380"/><stop offset="0.55" stop-color="#efe3d0"/><stop offset="1" stop-color="#fbf3e6"/></linearGradient>
+<radialGradient id="kt-orb" cx="0.66" cy="0.34" r="0.75"><stop offset="0" stop-color="#9fd8cc"/><stop offset="0.45" stop-color="#2f8790"/><stop offset="1" stop-color="#0f3a47"/></radialGradient>
+<pattern id="kt-discs" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="2.3" fill="#c8ece2" fill-opacity="0.35"/></pattern>
+<linearGradient id="kt-plaza" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dcc59d"/><stop offset="1" stop-color="#b39771"/></linearGradient>
+</defs>
+<rect x="0" y="0" width="600" height="300" fill="url(#kt-sky)"/>
+<circle cx="480" cy="255" r="170" fill="url(#kt-sun)"/>
+<circle cx="480" cy="262" r="20" fill="#fff6dc"/>
+<rect x="0" y="284" width="600" height="72" fill="url(#kt-sea)"/>
+<rect x="455" y="290" width="50" height="3" fill="#ffe4b0" fill-opacity="0.7"/>
+<rect x="440" y="300" width="78" height="2.5" fill="#ffe4b0" fill-opacity="0.55"/>
+<rect x="430" y="312" width="96" height="2" fill="#ffe4b0" fill-opacity="0.4"/>
+<rect x="422" y="325" width="112" height="2" fill="#ffe4b0" fill-opacity="0.3"/>
+<path d="M0 352 L600 336 L600 400 L0 400 Z" fill="url(#kt-plaza)"/>
+<path d="M0 348 L600 332" stroke="#f5e9d2" stroke-width="2"/>
+<polygon points="310,352 330,352 120,396 86,396" fill="#7d6346" fill-opacity="0.32"/>
+<polygon points="222,350 238,350 70,392 46,392" fill="#7d6346" fill-opacity="0.28"/>
+<polygon points="401,348 409,348 300,392 288,392" fill="#7d6346" fill-opacity="0.25"/>
+<polygon points="401,348 409,348 406,176 404,176" fill="url(#kt-shaft)"/>
+<polygon points="404.3,176 405.7,176 405,146" fill="#efe3d0"/>
+<polygon points="222,350 238,350 233,170 227,170" fill="url(#kt-shaft)"/>
+<polygon points="310,352 330,352 323,62 317,62" fill="url(#kt-shaft)"/>
+<circle cx="230" cy="166" r="30" fill="url(#kt-orb)"/>
+<circle cx="230" cy="166" r="30" fill="url(#kt-discs)"/>
+<polygon points="228.6,137 231.4,137 230,96" fill="#efe3d0"/>
+<circle cx="320" cy="216" r="40" fill="url(#kt-orb)"/>
+<circle cx="320" cy="216" r="40" fill="url(#kt-discs)"/>
+<path d="M281 216 A39 13 0 0 0 359 216" fill="none" stroke="#0f3a47" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="320" cy="118" r="21" fill="url(#kt-orb)"/>
+<circle cx="320" cy="118" r="21" fill="url(#kt-discs)"/>
+<polygon points="318.4,98 321.6,98 320,26" fill="#efe3d0"/>
+</svg>

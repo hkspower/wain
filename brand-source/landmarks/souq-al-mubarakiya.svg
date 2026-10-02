@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+<defs>
+<radialGradient id="sq-glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffcf73" stop-opacity="0.85"/><stop offset="1" stop-color="#ffcf73" stop-opacity="0"/></radialGradient>
+<radialGradient id="sq-haze" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffb860" stop-opacity="0.6"/><stop offset="1" stop-color="#ffb860" stop-opacity="0"/></radialGradient>
+<linearGradient id="sq-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a6a46"/><stop offset="1" stop-color="#3a2614"/></linearGradient>
+<linearGradient id="sq-wallL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3a2212"/><stop offset="1" stop-color="#6b4424"/></linearGradient>
+<linearGradient id="sq-wallR" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#3a2212"/><stop offset="1" stop-color="#6b4424"/></linearGradient>
+</defs>
+<rect x="0" y="0" width="600" height="400" fill="#2a170b"/>
+<rect x="230" y="150" width="140" height="110" fill="#ffd28c" fill-opacity="0.85"/>
+<polygon points="0,0 230,150 230,260 0,400" fill="url(#sq-wallL)"/>
+<polygon points="600,0 370,150 370,260 600,400" fill="url(#sq-wallR)"/>
+<polygon points="0,0 600,0 370,150 230,150" fill="#24130a"/>
+<polygon points="23,15 577,15 574,22 26,22" fill="#6b4422"/>
+<polygon points="69,45 531,45 528,51 72,51" fill="#6b4422"/>
+<polygon points="115,75 485,75 483,80 117,80" fill="#6b4422"/>
+<polygon points="161,105 439,105 437,109 163,109" fill="#6b4422"/>
+<polygon points="196,128 404,128 403,131 197,131" fill="#6b4422"/>
+<polygon points="0,400 230,260 370,260 600,400" fill="url(#sq-floor)"/>
+<rect x="282" y="226" width="10" height="34" rx="5" fill="#2a170b" fill-opacity="0.7"/>
+<rect x="312" y="230" width="9" height="30" rx="4.5" fill="#2a170b" fill-opacity="0.6"/>
+<circle cx="300" cy="205" r="130" fill="url(#sq-haze)"/>
+<rect x="20" y="318" width="110" height="52" fill="#3a2212"/>
+<ellipse cx="75" cy="318" rx="52" ry="18" fill="#c4621f"/>
+<rect x="110" y="292" width="76" height="34" fill="#3a2212"/>
+<ellipse cx="148" cy="292" rx="36" ry="12" fill="#d9a53a"/>
+<rect x="166" y="276" width="44" height="22" fill="#3a2212"/>
+<ellipse cx="188" cy="276" rx="22" ry="7" fill="#8b3a1c"/>
+<rect x="470" y="318" width="110" height="52" fill="#3a2212"/>
+<ellipse cx="525" cy="318" rx="52" ry="18" fill="#6e3b1e"/>
+<rect x="414" y="292" width="76" height="34" fill="#3a2212"/>
+<ellipse cx="452" cy="292" rx="36" ry="12" fill="#e0b04a"/>
+<rect x="390" y="276" width="44" height="22" fill="#3a2212"/>
+<ellipse cx="412" cy="276" rx="22" ry="7" fill="#c9762f"/>
+<path d="M300 22 V40 M300 51 V86 M240 51 V80 M360 51 V80 M300 109 V124" stroke="#1a0d05" stroke-width="1.5"/>
+<circle cx="300" cy="50" r="38" fill="url(#sq-glow)"/>
+<rect x="293" y="40" width="14" height="18" rx="3" fill="#c8913a"/>
+<circle cx="240" cy="88" r="26" fill="url(#sq-glow)"/>
+<rect x="235" y="80" width="10" height="13" rx="2" fill="#c8913a"/>
+<circle cx="360" cy="88" r="26" fill="url(#sq-glow)"/>
+<rect x="355" y="80" width="10" height="13" rx="2" fill="#c8913a"/>
+<circle cx="300" cy="94" r="22" fill="url(#sq-glow)"/>
+<rect x="295.5" y="86" width="9" height="12" rx="2" fill="#c8913a"/>
+<circle cx="300" cy="129" r="14" fill="url(#sq-glow)"/>
+<rect x="297" y="124" width="6" height="8" rx="1.5" fill="#c8913a"/>
+</svg>

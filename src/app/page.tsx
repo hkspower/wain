@@ -1,11 +1,21 @@
 import Link from "next/link";
 import HomeHero from "@/components/HomeHero";
+import LandmarksShow from "@/components/LandmarksShow";
 import PlaceCard from "@/components/PlaceCard";
 import { IconCar, IconCompass, IconGo, IconSearch, IconSparkle } from "@/components/icons";
-import { getFeaturedPlaces } from "@/lib/places";
+import { LANDMARKS } from "@/lib/landmarks.g";
+import { getFeaturedPlaces, getPlace } from "@/lib/places";
 
 export default function HomePage() {
   const featured = getFeaturedPlaces();
+  // Names and areas are read from the catalogue here, on the server, and the
+  // slideshow gets six plain rows — it is a client component, and importing
+  // places.ts there would ship all 52 records with the home page.
+  const landmarks = LANDMARKS.map((l) => {
+    const place = getPlace(l.slug);
+    if (!place) throw new Error(`landmarks.g.ts names ${l.slug}, which is not in places.ts`);
+    return { slug: l.slug, name: place.nameAr, area: place.areaAr, avif: l.avif, webp: l.webp, src: l.src };
+  });
 
   return (
     <>
@@ -38,6 +48,11 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
+      {/* ---------- Landmarks ---------- */}
+      {/* Six of the famous places, one at a time (LandmarksShow.tsx). Under
+          the search row, not on the picture: the hero is only the picture. */}
+      <LandmarksShow slides={landmarks} />
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">

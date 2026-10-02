@@ -89,7 +89,8 @@
     "flutter:fixtures": "node scripts/gen-flutter-fixtures.mjs",
     "flutter:art": "node scripts/export-flutter-art.mjs",
     "home-hero": "node scripts/gen-home-hero.mjs",
-    "audit:flutter": "node scripts/audit-flutter.mjs"
+    "audit:flutter": "node scripts/audit-flutter.mjs",
+    "landmarks": "node scripts/gen-landmarks.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

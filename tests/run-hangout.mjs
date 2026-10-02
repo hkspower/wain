@@ -28,6 +28,9 @@
  *                   actually fires on the شوق tap, not just that the page
  *                   moves to /search — a navigation alone would not have
  *                   caught the nested-button bug the first draft shipped.
+ *   landmarks     — «معالم الكويت» under the home hero: one landmark at a
+ *                   time, only the one on screen takes a tap, a stop button
+ *                   that stops it, and reduced motion leaves the first one up.
  *   salem         — his own page, structure and client-side state only; see
  *                   the file's own header for why a live ElevenLabs
  *                   connection is deliberately not part of what is asserted.
@@ -63,7 +66,7 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 {
   const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
     ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
-    ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon",
+    ".svg": "image/svg+xml", ".avif": "image/avif", ".webp": "image/webp", ".woff2": "font/woff2", ".ico": "image/x-icon",
     ".webmanifest": "application/manifest+json", ".txt": "text/plain", ".xml": "application/xml" };
   const srv = createServer((req, res) => {
     let p = decodeURIComponent(req.url.split("?")[0]);
@@ -104,6 +107,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ إلى وين: the dial, and the choice it leads to now ════");
   failed += (await run("node", ["tests/find.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ معالم الكويت: the slideshow under the hero ════");
+  failed += (await run("node", ["tests/landmarks.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ سالم: his own page ════");
   failed += (await run("node", ["tests/salem.test.mjs"], { env })) === 0 ? 0 : 1;

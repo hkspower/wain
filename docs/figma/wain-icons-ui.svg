@@ -66,37 +66,43 @@
   <g id="Icon/Palm" data-name="Icon/Palm" transform="translate(200 80)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 9.1c-2.5-2.5-5.4-2.7-7.9-.5"></path><path d="M12 9.1c2.5-2.5 5.4-2.7 7.9-.5"></path><path d="M12 9.1c-1-2.9-3.3-4.5-6.3-4.6"></path><path d="M12 9.1c1-2.9 3.3-4.5 6.3-4.6"></path><circle cx="12" cy="9.4" r="1.3"></circle><path d="M12.2 10.6c.3 4 .5 7.5.6 10.4"></path><path d="M4.5 21h15"></path>
   </g>
-  <g id="Icon/Phone" data-name="Icon/Phone" transform="translate(240 80)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Pause" data-name="Icon/Pause" transform="translate(240 80)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.5 3.5v17M15.5 3.5v17"></path>
+  </g>
+  <g id="Icon/Phone" data-name="Icon/Phone" transform="translate(280 80)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M5 4h4l1.8 4.2-2.2 1.9a12.5 12.5 0 0 0 5.3 5.3l1.9-2.2L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.4 20 4 13.6 3.5 5.6A1.5 1.5 0 0 1 5 4Z"></path>
   </g>
-  <g id="Icon/PinSolid" data-name="Icon/PinSolid" transform="translate(280 80)" fill="currentColor">
+  <g id="Icon/PinSolid" data-name="Icon/PinSolid" transform="translate(0 120)" fill="currentColor">
     <path d="M12 3.5a6.1 6.1 0 0 0-6.1 6.1c0 4.4 6.1 10.9 6.1 10.9s6.1-6.5 6.1-10.9A6.1 6.1 0 0 0 12 3.5Zm0 8.6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"></path>
   </g>
-  <g id="Icon/Search" data-name="Icon/Search" transform="translate(0 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Play" data-name="Icon/Play" transform="translate(40 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.5 4.6v14.8a.9.9 0 0 0 1.4.8l11-7.4a.9.9 0 0 0 0-1.6l-11-7.4a.9.9 0 0 0-1.4.8Z"></path>
+  </g>
+  <g id="Icon/Search" data-name="Icon/Search" transform="translate(80 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="11" cy="11" r="7"></circle><path d="m20.5 20.5-4-4"></path>
   </g>
-  <g id="Icon/Send" data-name="Icon/Send" transform="translate(40 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Send" data-name="Icon/Send" transform="translate(120 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M20.5 4.2 3.6 10.4a.6.6 0 0 0 0 1.1l6.7 2.3 2.3 6.7a.6.6 0 0 0 1.1 0Z"></path><path d="m10.3 13.8 4.6-4.6"></path>
   </g>
-  <g id="Icon/Shouq" data-name="Icon/Shouq" transform="translate(80 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Shouq" data-name="Icon/Shouq" transform="translate(160 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 4.4a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2Z"></path><path d="M4.6 12.4a7.6 7.6 0 0 1 14.8 0c-.9-1.4-1.9-2.1-3.2-2.5-1.4-.4-2-1.6-4.4-1.6-3.6 0-6.2 1.7-7.2 4.1Z"></path><path data-part="eyes" d="M9.6 13h.01M14.4 13h.01"></path><path data-part="mouth" d="M9.3 15.9c.7.8 1.7 1.2 2.7 1.2s2-.4 2.7-1.2"></path>
   </g>
-  <g id="Icon/Sparkle" data-name="Icon/Sparkle" transform="translate(120 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Sparkle" data-name="Icon/Sparkle" transform="translate(200 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M10.2 3.5c.6 3.6 2.2 5.2 5.8 5.8-3.6.6-5.2 2.2-5.8 5.8-.6-3.6-2.2-5.2-5.8-5.8 3.6-.6 5.2-2.2 5.8-5.8Z"></path><path d="M16.7 15.5c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9Z"></path>
   </g>
-  <g id="Icon/Speaker" data-name="Icon/Speaker" transform="translate(160 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Speaker" data-name="Icon/Speaker" transform="translate(240 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"></path><path d="M15.5 9.6a3.6 3.6 0 0 1 0 4.8"></path><path d="M18 7.2a7 7 0 0 1 0 9.6"></path>
   </g>
-  <g id="Icon/SpeakerOff" data-name="Icon/SpeakerOff" transform="translate(200 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/SpeakerOff" data-name="Icon/SpeakerOff" transform="translate(280 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"></path><path d="m15.6 9.7 4.6 4.6M20.2 9.7l-4.6 4.6"></path>
   </g>
-  <g id="Icon/Star" data-name="Icon/Star" transform="translate(240 120)" fill="currentColor">
+  <g id="Icon/Star" data-name="Icon/Star" transform="translate(0 160)" fill="currentColor">
     <path d="M12 3.5 14.18 9.91 20.94 10 15.52 14.04 17.52 20.5 12 16.6 6.48 20.5 8.48 14.04 3.06 10 9.82 9.91Z"></path>
   </g>
-  <g id="Icon/Sun" data-name="Icon/Sun" transform="translate(280 120)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Sun" data-name="Icon/Sun" transform="translate(40 160)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="12" cy="12" r="4.3"></circle><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4l1.6 1.6M18 6l-1.6 1.6M7.6 16.4 6 18"></path>
   </g>
-  <g id="Icon/Tower" data-name="Icon/Tower" transform="translate(0 160)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g id="Icon/Tower" data-name="Icon/Tower" transform="translate(80 160)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M9 2.2v1.9M9 6.7v.6M9 13.1V21"></path><circle cx="9" cy="5.4" r="1.3"></circle><circle cx="9" cy="10.2" r="2.9"></circle><path d="M16 7v3.1M16 14.5V21"></path><circle cx="16" cy="12.3" r="2.2"></circle><path d="M4.5 21h15"></path>
   </g>
 </svg>

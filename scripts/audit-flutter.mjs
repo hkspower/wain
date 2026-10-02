@@ -29,6 +29,7 @@ const checks = [
   ["search documents + parity cases", "gen-flutter-search.mjs", "flutter:search"],
   ["helper parity fixtures", "gen-flutter-fixtures.mjs", "flutter:fixtures"],
   ["home hero picture + geometry", "gen-home-hero.mjs", "home-hero"],
+  ["landmarks slideshow pictures", "gen-landmarks.mjs", "landmarks"],
 ];
 if (process.env.SKIP_ART !== "1") {
   if (existsSync(CHROMIUM) || process.env.CHROMIUM_PATH) checks.push(["drawings", "export-flutter-art.mjs", "flutter:art"]);
