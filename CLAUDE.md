@@ -4593,6 +4593,21 @@ caught none. It is `https://json.schemastore.org/claude-code-settings.json`
 now; checked with ajv against that schema, which rejects a typo like
 `"defaultMode": "acceptedits"` that the old line let through.
 
+**The deploy routine stopped asking on 2 October**, on request («make one
+time approve for whole task»): pushes to THIS branch, `npm run *`, the Flutter
+binaries, `git add`/`commit`, the GitHub Actions read and dispatch tools, and
+the Hostinger calls a deploy makes are allowed now. Still asking: reset,
+rebase, history rewrites, `checkout -B`, PRs, file writes through GitHub, any
+push to another branch. **Hostinger is decided per operation by
+`.claude/hooks/hosa-guard.mjs`**, because every Hostinger operation goes
+through one tool (`mcp__hosa__execute`) and a permission rule cannot tell a
+cron listing from a website deletion — which is also why the old
+`deny: mcp__hosa__hosting_deployStaticSiteArchiveV1` never matched anything.
+The guard allows cron create/list/output/delete, the two docroot reads and the
+cache purge; **denies** `hosting_websites_deploy-static-site-archive` (it
+empties the folder first); and asks for everything else. Pipe-tested on all
+three outcomes and on `multi-execute`.
+
 `.claude/settings.local.json` is gitignored: the committed file is the
 project's allowlist and every session should get the same one, where a local
 override widens it for one machine and nobody else can see that it did.

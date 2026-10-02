@@ -52,6 +52,15 @@
       "Bash(git ls-files*)",
       "Bash(git stash list*)",
       "Bash(git fetch*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git checkout -- *)",
+      "Bash(git push -u origin claude/wainkw-design-issues-2bggdi)",
+      "Bash(git push origin claude/wainkw-design-issues-2bggdi)",
+
+      "Bash(npm run *)",
+      "Bash(/opt/flutter/bin/flutter *)",
+      "Bash(/opt/flutter/bin/dart *)",
 
       "Bash(ls*)",
       "Bash(cat*)",
@@ -72,11 +81,18 @@
       "Bash(printf*)",
       "Bash(mkdir -p*)",
 
-      "mcp__wain__*"
+      "mcp__wain__*",
+
+      "mcp__hosa__search",
+      "mcp__github__actions_run_trigger",
+      "mcp__github__actions_list",
+      "mcp__github__actions_get",
+      "mcp__github__get_job_logs",
+      "mcp__github__get_commit",
+      "mcp__Claude_Code_Remote__send_later"
     ],
 
     "ask": [
-      "Bash(git push*)",
       "Bash(git reset --hard*)",
       "Bash(git checkout -B*)",
       "Bash(git clean*)",
@@ -84,13 +100,11 @@
       "Bash(git filter-repo*)",
       "Bash(git filter-branch*)",
 
-      "mcp__hosa__*",
       "mcp__github__create_pull_request",
       "mcp__github__merge_pull_request",
       "mcp__github__push_files",
       "mcp__github__create_or_update_file",
-      "mcp__github__delete_file",
-      "mcp__github__actions_run_trigger"
+      "mcp__github__delete_file"
     ],
 
     "deny": [
@@ -98,7 +112,24 @@
       "Bash(rm -rf ~*)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
       "mcp__hosa__hosting_deployStaticSiteArchiveV1"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__hosa__execute|mcp__hosa__multi-execute",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/hosa-guard.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
