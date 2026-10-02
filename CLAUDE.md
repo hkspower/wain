@@ -4158,3 +4158,9 @@ Asked for as "add menu bar under topbar, then make menu bar with top bar sticky"
 ## No bar under the home headings, and half the space — 2026-10-02
 
 "remove under orange line bar under تسوق حسب الفئه و الأكثر مبيعات, then reduce upper and under space". The orange bar under "Shop by category", "Best sellers" (`66-section-heads.css`) and the features title (`trust-strip.js`, which had copied it) is gone. Heading padding is 8/6px on a phone and 12/8px from 768px (was 16/14 and 22/18), the margin under is 0, and the features section's own padding is 16/8px and 24/12px (was 28 and 36). The gap between the two category-section headings and what follows them is 0.
+
+## Dead code removed — packages and selectors, 2026-10-02
+
+"check for any unneeded code", then "packages and selector". Removed: `@expo/ui`, `expo-device`, `expo-glass-effect`, `expo-status-bar`, `expo-symbols` (no import in `src/`, none in `app.json` plugins; `npm test` and typecheck still pass), the whole `:root[data-theme='dark-white']` block of `sporta-dark.css` (nothing sets that value on the website — the bundle has no occurrence, and `33-dark-white-theme.css` re-colours `dark` instead), and the unused `.doc-page` selector. `test:css` ("no dead stylesheet") passes. The app's own `darkWhite` theme in `src/constants/theme.ts` is a different thing and stays.
+
+**Two rigs are not wired into package.json and are stale:** `scripts/both-modes-test.mjs` fails identically with and without this change (the header toggle was hidden again on 2026-09-20, which its first check forbids) and `scripts/hero-slides-panel-test.mjs` is not run by `npm test` at all. Neither was touched. Still on the owner's list, not removed: `scripts/set-zero-stock.php` (sets every zero stock to 10), `add-missing-variants.php`, `migrate-live.php`, the root screenshots and `cost.tmp.mjs`, and the dead picture-banner CSS and clock code in `category.php` / `category-topbar.js`.

@@ -269,7 +269,6 @@ footer.app-footer > .mx-auto.max-w-7xl {
 }
 .app-footer a.inline-flex.min-h-11,
 footer a.inline-flex.min-h-11 { min-width: 44px; }
-.doc-page,
 main > section:has(> h1.text-brand-dark):has(h2),
 main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-body: 14.75px;
@@ -278,7 +277,6 @@ main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-h2: 17px;
   --doc-h3: 15.25px;
 }
-html[lang='ar'] .doc-page,
 html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2),
 html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-body: 15.5px;

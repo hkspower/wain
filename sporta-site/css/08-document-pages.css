@@ -40,7 +40,6 @@
  * halves of the same legal section visibly disagreeing, which is a defect
  * rather than restraint. Remove `:has(h2)`'s reach by naming pages if that is
  * not wanted. */
-.doc-page,
 main > section:has(> h1.text-brand-dark):has(h2),
 main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-body: 14.75px;
@@ -49,7 +48,6 @@ main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-h2: 17px;
   --doc-h3: 15.25px;
 }
-html[lang='ar'] .doc-page,
 html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2),
 html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-body: 15.5px;
