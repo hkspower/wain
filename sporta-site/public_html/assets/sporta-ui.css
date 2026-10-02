@@ -1480,8 +1480,13 @@ main article h3[class~="line-clamp-1"] {
   color: var(--sp-text, #dbdfe4) !important;
   text-align: left;
   unicode-bidi: plaintext;
-  -webkit-line-clamp: 1 !important;
-  line-clamp: 1 !important;
+  display: block !important;
+  -webkit-line-clamp: none !important;
+  line-clamp: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
   color: var(--sp-card-ink, #c2410c) !important;

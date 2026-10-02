@@ -76,6 +76,8 @@ try {
         colourText: colour && colour.textContent.trim(), dot: colour && getComputedStyle(colour.querySelector('i')).backgroundColor,
         order: [...cap.children].map((e) => e.className.split(' ')[0] || e.tagName),
         capPlainH: capP ? box(capP).height : null,
+        // the whole name is shown since 2026-10-02 (no ellipsis): each wrapped line adds one line-height
+        capPlainExtra: capP && capP.querySelector('h3') ? Math.max(0, box(capP.querySelector('h3')).height - parseFloat(getComputedStyle(capP.querySelector('h3')).lineHeight)) : 0,
         capBg: getComputedStyle(cap).backgroundColor, capPad: [parseFloat(getComputedStyle(cap).paddingTop), parseFloat(getComputedStyle(cap).paddingLeft)],
         nameColour: getComputedStyle(h3).color, priceColour: getComputedStyle(price).color,
         // every line of the caption against its white: rgb() and color(srgb …) both parsed, so a
@@ -113,7 +115,7 @@ try {
     check(m.priceSize >= 15 && m.priceSize <= 17 && m.priceWeight >= 700, `${L} price 15-17px bold`, `${m.priceSize}/${m.priceWeight}`)
     check(m.oldDeco === 'line-through' && m.oldSize <= 13, `${L} the old price is small and struck through`, `${m.oldDeco} ${m.oldSize}`)
     check(m.colourText && /Cherry Red|أحمر كرزي/.test(m.colourText) && rgb(m.dot) === '143,29,44', `${L} a colour line with its dot`, `${m.colourText} ${m.dot}`)
-    check(m.capPlainH === null || (m.capPlainH >= 50 && m.capPlainH <= 85), `${L} a plain card's caption is 85px or less`, String(m.capPlainH))
+    check(m.capPlainH === null || (m.capPlainH >= 50 && m.capPlainH - m.capPlainExtra <= 85.5), `${L} a plain card's caption is 85px or less, plus one line for each extra line of a wrapped name`, `${m.capPlainH} (name adds ${m.capPlainExtra})`)
     await p.close()
   }
 } finally {
