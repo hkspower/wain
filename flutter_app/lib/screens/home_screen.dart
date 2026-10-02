@@ -19,9 +19,17 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: const [_Hero(), _Featured(), _HowItWorks(), _Cta()],
+    // The space above the tab bar, which the hero fills on a phone.
+    return LayoutBuilder(
+      builder: (context, box) => ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _Hero(screenHeight: box.maxHeight),
+          const _Featured(),
+          const _HowItWorks(),
+          const _Cta(),
+        ],
+      ),
     );
   }
 }
@@ -32,12 +40,17 @@ class HomeScreen extends StatelessWidget {
 /// on it is placed in the picture's own fractions from home_hero.g.dart, so it
 /// lands on the same spot at every size.
 ///
-/// A phone shows it at full width. A tablet (Android 16 may lay one out
+/// A phone shows it at full width, centred in the whole first screen with the
+/// picture's top-row sky above it and its bottom-row sea below (2 October, on
+/// request — option B on the design canvas: a phone is taller than 9:16, and
+/// the owner chose bands over cutting the picture's sides). A tablet (Android 16 may lay one out
 /// whatever the manifest says) gets it as tall as the screen allows, centred,
 /// with the picture's edge colours carried out to the sides — the web's rule
 /// from `sm` up, and its numbers: 28rem to 62rem, the screen less 3rem.
 class _Hero extends StatelessWidget {
-  const _Hero();
+  /// The height of the space the hero sits in (the screen above the tab bar).
+  final double screenHeight;
+  const _Hero({required this.screenHeight});
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +64,10 @@ class _Hero extends StatelessWidget {
       pw = ph * kHomeHeroWidth / kHomeHeroHeight;
     }
     final narrower = pw < screen.width - 0.5;
+    final phone = screen.width < 640;
+    final height = phone && screenHeight.isFinite
+        ? math.max(ph, screenHeight)
+        : ph;
     Widget picture = Image.asset(
       kHomeHeroAsset,
       width: pw,
@@ -77,16 +94,28 @@ class _Hero extends StatelessWidget {
       );
     }
     return Container(
-      height: ph,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: kHomeHeroEdgeColors,
-          stops: kHomeHeroEdgeStops,
-        ),
+      height: height,
+      decoration: BoxDecoration(
+        gradient: phone
+            ? LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  kHomeHeroEdgeColors.first,
+                  kHomeHeroEdgeColors.first,
+                  kHomeHeroEdgeColors.last,
+                  kHomeHeroEdgeColors.last,
+                ],
+                stops: const [0, 0.5, 0.5, 1],
+              )
+            : const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: kHomeHeroEdgeColors,
+                stops: kHomeHeroEdgeStops,
+              ),
       ),
-      alignment: Alignment.topCenter,
+      alignment: phone ? Alignment.center : Alignment.topCenter,
       child: SizedBox(
         width: pw,
         height: ph,

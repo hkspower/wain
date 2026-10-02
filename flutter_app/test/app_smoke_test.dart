@@ -220,6 +220,35 @@ void main() {
     );
   }
 
+  // On a phone the hero is the whole first screen (2 October, on request —
+  // option B on the design canvas): the picture whole at full width, centred
+  // in the space above the tab bar, sky above it and sea below.
+  for (final size in const [Size(390, 844), Size(320, 640)]) {
+    testWidgets(
+      'home at ${size.width.toInt()}×${size.height.toInt()}: the hero fills the first screen',
+      (t) async {
+        await pumpAt(t, '/', size: size);
+        final view = t.getRect(find.byType(ListView).first);
+        final img = t.getRect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is Image &&
+                w.image is AssetImage &&
+                (w.image as AssetImage).assetName == kHomeHeroAsset,
+          ),
+        );
+        final above = img.top - view.top, below = view.bottom - img.bottom;
+        expect(above, greaterThan(1), reason: 'sky above the picture');
+        expect(
+          (above - below).abs(),
+          lessThan(1),
+          reason: 'centred: $above above, $below below',
+        );
+        expect(t.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('home: tapping the sun opens /find', (t) async {
     await pumpAt(t, '/');
     await t.tap(find.byKey(const ValueKey('home-sun')));

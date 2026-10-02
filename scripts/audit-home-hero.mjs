@@ -176,6 +176,16 @@ for (const [width, height] of VIEWPORTS) {
   if (img.l < -0.5 || img.l + img.w > m.vw + 0.5) say(`${where}: the picture runs off the screen`);
   if (img.t < m.sec.t - 0.5 || img.t + img.h > m.sec.t + m.sec.h + 0.5) say(`${where}: the section cuts the picture`);
 
+  // Phones: the hero is the whole first screen (2 October, on request, option
+  // B on the canvas): the picture stays whole at full width and the sky above
+  // it and the sea below it fill the rest, so it is centred in a section at
+  // least the screen's height.
+  if (width < 640) {
+    if (m.sec.h < height - 1) say(`${where}: the hero is ${Math.round(m.sec.h)}px tall on a ${height}px phone — it should fill the screen`);
+    const above = img.t - m.sec.t, below = m.sec.t + m.sec.h - (img.t + img.h);
+    if (Math.abs(above - below) > 1) say(`${where}: the picture is not centred in the hero (${Math.round(above)}px of sky above, ${Math.round(below)}px of sea below)`);
+  }
+
   if (!m.sun) say(`${where}: no sun link to /find`);
   else {
     const cx = (m.sun.l + m.sun.w / 2 - img.l) * k, cy = (m.sun.t + m.sun.h / 2 - img.t) * k, d = m.sun.w * k;
