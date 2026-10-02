@@ -711,6 +711,75 @@ on a Mac, and one look at the map with tiles would close all of it.
 one store listing. The same warning as there applies: it is fixed at the first
 upload.
 
+## Free by default, ElevenLabs only on staging — 2 October, afternoon
+
+**What prompted it**: a phone screenshot of the live call sheet. The account had run
+out (see «Update شوق with ElevenLabs» below), and the widget, mounted inside our own
+sheet, printed «حدث خطأ — You've run out of credits [quota_exceeded]» in English,
+covered our hang-up with its own panel and added «Powered by ElevenAgents» — while our
+header said «متصل ٠:٠٤». The owner's decisions: **no ElevenLabs on the live site or in
+the apps; ElevenLabs only on `staging.wainkw.com`** («sandbox»).
+
+**The switch.** `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` unset, empty or «none» is OFF — the
+default, reversed from «default on» (the old reason is in `wain-ai.ts`'s comment). An
+agent id is ON; staging is built with
+`NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116 npm run release`.
+Everything follows it: صوت وين's bridge default (`voice.ts`: `/api/tts.php` only with an
+agent), `vendor-widget --copy` (a free export carries **no** `convai-` file),
+`/privacy`'s wording, and the app's `kAgentId` (`config.dart`, unset → off). Free means:
+- **The call** is the old local mode — the phone's own speech recognition → /search →
+  the spoken answer. The app got the same (`ai/local_session.dart`, `speech_to_text`
+  7.5.0, BSD-3): listen once in ar_KW, open /search with the words, step aside.
+- **/salem** answers from our own search (`search` + `formatShowPlaces` + `answerParts`)
+  with place cards and ShareHangout, no socket and no recording notice, on web and app.
+- **Nothing to agree to**: the consent gate only exists with an agent.
+
+**Also live from earlier the same afternoon (`f2d4a184`)**: the honest «شوق مو متاحة
+الحين» on a quota refusal (`isUnavailable()` in `salem-chat.ts`, a 30s wait before
+«جرّب مرة ثانية»); ElevenLabs' name off every visible surface (the privacy pages keep
+one sentence naming the voice provider); the widget served from our own host
+(`/_next/static/media/convai-0.18.3-<hash>.js`, SRI sha384, unpkg gone from the CSP);
+صوت وين reinstalled at `61106006b3be078c` — **its key is still empty, and in free mode
+nothing calls it, so it should stay empty.** `disable_banner` was sent to the widget
+config and **ignored on the Creator tier**; on staging the banner can still show.
+
+**/find is a phone** (web `512c1f1b`, app `ed8817c6`): her role, «كلّم شوق», a handset
+with her photo, name and «تدوّر لك وين تطلع», one big green call («اتصال» under it),
+then the greeting. The app's /find scrolls now: two halves fixed to the screen shrank
+the phone to 0.72 at 390 and its call button to 42px at 320. The call sheet is
+`z-[60]` (the installed tab bar painted over the hang-up), one face, a round hang-up.
+**`audit:theme` failed the phone's 44px bezel** although its own comment says only a
+corner *inside* the 10–20px scale is rot; the code now matches the comment (still red
+on a planted `rounded-[14px]`).
+
+**Icons are a clean outline** (`6ae58fa1`): 1.5 strokes, no 15%/14% wash, in the UI
+set, the category icons and all 52 place marks; star and solid pin stay filled.
+**Two shapes had been closed by their fill alone** — the knife blade (its straight
+edge was never stroked) and the dishdasha (one outline and a placket). Take a fill
+off and look at what is left. `audit:place-icons` now flags a tint.
+
+**/search shows the list first** (`721b000d`): the first result row was at 1248px on
+a 390 phone, under شوق's answer, the whole share panel and the map. Now: answer →
+count → list → share panel → map, and from `lg` two columns with the map sticky
+beside the list. `tests/search-layout.test.mjs` (in `test:hangout`), 9 of 11 red
+against the old page.
+
+**Deploys.** Production first (`4b4ce87a`, then `273439f4` via archive `a7e533ed`,
+job `PBrL3rzsL1`): `deploy:verify` «273439f4 is live — verified at the root and 6
+levels below it»; `media/` has no `convai-` file; through the edge `/search/` is 200
+with no unpkg in the CSP. `removed: 0` was the second firing again — only
+`273439f4…/` was left under `_next/static/`. Staging (`wain-stg.zip`, force-added
+because `/wain-*.zip` is ignored, and short so the command stays at 201 characters):
+`82b438b9`, the agent build of `a7e533ed`, job `1hPqoZ5unP` read at its FIRST firing,
+`{"ok":true,"deployed":266,"removed":11,"emptied":1}`; staging holds
+`convai-0.18.3-55b04692dc40ebf5.js` (1,533,912) and `build.json` digest
+`ed9a46c9a78aeffa`. `test:widget-csp` 6/6 on that build. Four more archive blobs today;
+`DEPLOY_SECRET` is still unset.
+
+**Not measured**: the free call on a real phone (speech recognition is the device's —
+iOS Safari, Chrome on iOS and the apps' recognisers are all untested), the app's
+/find on a device, and anything on staging that needs credits.
+
 ## The 2 October deploys, second and third — `4b96415c` is live: the picture hero
 
 What shipped since `898657bc`: the home hero as the owner's picture (see «The
@@ -3740,8 +3809,10 @@ are now read and correct; a seventh appearing means something new, not this.
 
 ## Checks
 
-`npm run scan` is lint plus 34 audits — counted from `package.json` on
-2 October rather than estimated (31 on 21 September; `audit:flutter`,
+`npm run scan` is lint plus 36 steps — counted from `package.json` on the
+afternoon of 2 October, audits plus `test:map`, `test:find-moment` and
+`content:check` (it said «34 audits» that morning; count again rather than add).
+Earlier it was counted on 2 October rather than estimated (31 on 21 September; `audit:flutter`,
 `audit:home-hero` and `audit:rls` joined since), because «~29» had been carried along
 through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
 map-pin, live-map, search-keys, shouq-search, search-plan, find, salem —
