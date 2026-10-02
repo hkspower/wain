@@ -68,6 +68,7 @@ flutter:
     - assets/art/cat-icon/
     - assets/art/icon/
     - assets/img/
+    - assets/img/landmarks/
 
 # The app icon is the site's own mark (ios-config/app-icon-1024.png, rendered by
 # `npm run icon:app`); the adaptive foreground is the site's maskable PNG. Both

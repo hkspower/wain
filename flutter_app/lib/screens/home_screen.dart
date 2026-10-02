@@ -7,11 +7,13 @@ import '../data/catalogue.dart';
 import '../data/home_hero.g.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/landmarks_show.dart';
 import '../widgets/layout.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 
-/// Home: the picture hero with its sun as the «إلى وين؟» button, the featured
+/// Home: the picture hero with its sun as the «إلى وين؟» button, «معالم
+/// الكويت» one landmark at a time (LandmarksShow), the featured
 /// places, how it works, and the call to explore. The sun is one navigation,
 /// to /find, which asks how you want to search before showing anything.
 class HomeScreen extends StatelessWidget {
@@ -21,7 +23,13 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: EdgeInsets.zero,
-      children: const [_Hero(), _Featured(), _HowItWorks(), _Cta()],
+      children: const [
+        _Hero(),
+        LandmarksShow(),
+        _Featured(),
+        _HowItWorks(),
+        _Cta(),
+      ],
     );
   }
 }
