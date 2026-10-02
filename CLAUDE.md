@@ -4728,6 +4728,17 @@ against the old schema `anon` truncated the places and 15 of 30 failed, against
 this one 30 of 30 pass. Not reachable through PostgREST, and the back end is
 unconfigured, so this reaches a database only when `schema.sql` is run on one.
 
+**The dashboard refused to save the agent, 2 October**: «Hostname must consist
+of a domain and an optional port» on allowlist entries 3 and 4 — `localhost`
+and `127.0.0.1`, added for local testing in September and accepted then; the
+dashboard's validation has since tightened, and it blocks every other save
+until they go. Removed through `agents_update` (`platform_settings.auth`
+alone, with the whole three-host list, since an array is replaced not merged);
+version `agtvrsn_1501m3xr4nprfv5928yw5hkn8pm4`, the reply read back with the
+prompt, tools, 25 tests, KB v5 and both overrides intact. Nothing here calls
+the real agent from localhost, so nothing lost them. **Any section above that
+says «all five hostnames» is out of date: it is three.**
+
 **The device CI at `0ab16a67`**: both iPhones green — the 17e on its first
 attempt with the bounded install step. Both workflows stopped at «the generated
 half is current»: committed `*.g.dart` had been through `dart format` (the trap
