@@ -161,6 +161,9 @@ console.log("\n════ شوق: the voice ════");
   const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
+    // voice.ts follows شوق's switch since 2 October (wain-ai.ts), so it reads
+    // this key too — the rule in the comment above, met again.
+    '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL=""',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the voice harness"); process.exit(1); }
@@ -208,6 +211,9 @@ console.log("\n════ شوق: the live bridge ════");
   const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
+    // voice.ts follows شوق's switch since 2 October (wain-ai.ts), so it reads
+    // this key too — the rule in the comment above, met again.
+    '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="/tts"',
     `--outfile=${join(btmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the bridge harness"); process.exit(1); }

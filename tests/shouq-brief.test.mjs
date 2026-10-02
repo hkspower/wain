@@ -83,10 +83,17 @@ console.log("\n── the agent the site actually calls is the one documented �
   // got the browser's one-question speech recognition. It is compiled in now,
   // which makes drift between the code and the brief the new way to break it —
   // a build pointing at one agent while the brief describes another.
+  //
+  // Since 2 October the live site builds WITHOUT her (free mode) and only the
+  // staging sandbox builds with the id, so the code no longer compiles one in:
+  // it names the id in the build line it documents for the sandbox, and that
+  // is the id that has to match the brief.
   const src = readFileSync("src/lib/wain-ai.ts", "utf8");
-  const inCode = (src.match(/DEFAULT_AGENT_ID = "([^"]+)"/) || [])[1];
-  ok("the code ships a default agent id, not an empty string",
+  const inCode = (src.match(/NEXT_PUBLIC_ELEVENLABS_AGENT_ID=(agent_[0-9a-z]+)/) || [])[1];
+  ok("the code names the sandbox's agent id in the build line it documents",
     !!inCode && inCode.startsWith("agent_"), String(inCode));
+  ok("and does not compile any agent in by default",
+    !/DEFAULT_AGENT_ID\s*=/.test(src) && /\|\| OFF\)/.test(src));
   ok("and the brief documents that same agent",
     !!inCode && committed.includes(inCode), `${inCode} not in docs/wain-ai-agent.md`);
   // An id is public by construction here — it reaches the browser — so what
