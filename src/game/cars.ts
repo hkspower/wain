@@ -531,8 +531,14 @@ function faceUV(geo: THREE.BufferGeometry, w: number, h: number): THREE.BufferGe
   const nor = geo.attributes.normal;
   if (!uv || !nor) return geo;
   for (let i = 0; i < uv.count; i++) {
-    if (Math.abs(nor.getZ(i)) < 0.99) continue;      // rim, not face
-    uv.setXY(i, (uv.getX(i) + w / 2) / w, (uv.getY(i) + h / 2) / h);
+    const nz = nor.getZ(i);
+    if (Math.abs(nz) < 0.99) continue;                // rim, not face
+    // The generator writes u = x on BOTH caps. Seen from behind, world -X
+    // is the viewer's right, so on the -Z cap u has to run the other way
+    // or the face reads mirrored — which it did, on every rear plate in
+    // the game: the one plate the chase camera shows all race.
+    const u = nz > 0 ? (uv.getX(i) + w / 2) / w : (w / 2 - uv.getX(i)) / w;
+    uv.setXY(i, u, (uv.getY(i) + h / 2) / h);
   }
   uv.needsUpdate = true;
   return geo;
