@@ -343,6 +343,8 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <link rel="stylesheet" href="<?= e($bundleCss) ?>">
 <link rel="stylesheet" href="/assets/sporta-dark.css">
 <link rel="stylesheet" href="/assets/sporta-ui.css">
+<link rel="stylesheet" href="/assets/sporta-mobile.css" media="(max-width: 767.98px)">
+<link rel="stylesheet" href="/assets/sporta-desktop.css" media="(min-width: 768px)">
 <style>
   /* Only what is this page's own: the banner, the count, the empty state and the links to
      the other three sections. Everything else is the shop's markup under the shop's CSS. */

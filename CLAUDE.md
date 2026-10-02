@@ -4073,3 +4073,11 @@ After a full CSS scan reported only quiet decorative hairlines, the owner chose 
 ## Men and Women tiles share one alignment — 2026-10-02
 
 "make all models as same alignment" (the owner chose the category tiles). `compose_person()` in `make-white-tiles.py` centres each figure on ONE fixed line by its TORSO (alpha centroid of the top 45%, so a stride or an elbow cannot pull the body off the line), and lays the band, stripes and shadow out from a reference box of the same size for every model. Same head height, same floor, same band on both tiles. `ART_VERSION` is `20261002a`.
+
+## Mobile and desktop CSS in their own files — 2026-10-02
+
+Asked for as "make the mobile version have native setup css and desktop native separate"; the owner chose separate files. `npm run build:css` now writes THREE stylesheets from the same 66 sources: `sporta-ui.css` (shared), `sporta-mobile.css` (top-level `@media` blocks that can only match a phone, max-width ≤ 767.98px) and `sporta-desktop.css` (min-width ≥ 768px). `index.html` (and its `<noscript>`) and `category.php` link them in that order with `media="(max-width: 767.98px)"` / `media="(min-width: 768px)"`. The `@media` wrappers stay ON the moved rules, so each rule matches exactly where it did; the link's media only lets the browser skip the other device's file. Keep editing the SOURCES as before; the split is automatic.
+
+**Moving a rule later can change the cascade, and the first two builds did.** A block a LATER shared rule overrides must stay shared, or it comes last and wins: the category tiles' gap went 8px → 28px and the Best sellers padding moved. The build now keeps a block shared when any later rule sets the same property FAMILY (padding*, margin*, gap*, inset/top/left…) on a subject sharing any class/attribute token — 32 blocks stay shared, ~2 KB per device moves. Proved by a computed-style snapshot of EVERY element (`scripts/_style-snap.mjs`): 10 pages × phone/820/1280/1920 × both languages, **0 differences** against the single-file build, after the first two builds had shown 462. Re-run it before trusting any change to the split.
+
+`.htaccess`'s fixed-name revalidate list gained the two files — and `section-heads.js`, which had been missing from it since 2026-10-01 (`test:htaccess` caught it).

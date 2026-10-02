@@ -62,13 +62,82 @@ const body = files.map((f) => {
 /* sporta-dark.css (the palette) is built the same way from its own source,
    which lived in assets/ and shipped its comments too (35 KB for ~7 KB of
    rules). It is not one of the numbered files: it loads as its own <link>. */
+/* MOBILE AND DESKTOP IN THEIR OWN FILES, 2026-10-02 ("make the mobile version have native
+ * setup css and desktop native separate"; the owner chose separate files). Every TOP-LEVEL
+ * @media block that can only ever match a phone (max-width at most 767.98px) goes to
+ * sporta-mobile.css, and every one that can only match a tablet or computer (min-width 768px
+ * or more) goes to sporta-desktop.css; everything else — base rules, print, pointer,
+ * reduced motion, the 1023px band — stays in sporta-ui.css. The @media wrappers stay ON the
+ * moved rules, so a rule matches exactly where it did before; the <link media> on each file
+ * is only a superset that lets the browser skip the other device's file.
+ *
+ * Load order is ui, mobile, desktop. Moving a rule later can only change the result where a
+ * base rule of EQUAL specificity that came after it in the sources also styles the same
+ * property — so the reorganisation was proved by a computed-style snapshot of every element,
+ * 10 pages x 4 widths x 2 languages, identical before and after (scripts/_style-snap.mjs). */
+const isMobile = (q) => { const m = /^\(max-width:\s*([\d.]+)px\)$/.exec(q.trim()); return !!m && +m[1] <= 767.98 }
+const isDesktop = (q) => { const m = /^\(min-width:\s*([\d.]+)px\)$/.exec(q.trim()); return !!m && +m[1] >= 768 }
+/* A block that a LATER shared rule overrides must not move, or it would come last and win.
+ * Measured on the first build: the category section's gap and top padding came from
+ * @media rules in 22- that a plain rule in 36- overrode; moved to the end, the @media won
+ * and the tiles' gap went 8px -> 28px. So a block stays shared when any rule after it in
+ * the sources (outside the moving blocks) sets one of its properties on one of its
+ * selectors, compared by every selector in the list. */
+/* Keyed by the SUBJECT of each selector (its last compound) broken into class, attribute,
+ * id and pseudo-element tokens, plus the property: two rules conflict when they set the same
+ * property on subjects that share any token. Exact selector text was not enough — the second
+ * build kept the category blocks and still moved one whose override named the same element
+ * differently (".sporta-home-products" against "main section.sporta-home-products"). Erring
+ * wide only keeps more rules shared, which is always safe. */
+const subjectTokens = (sel) => {
+  const last = sel.replace(/\s*([>+~])\s*/g, ' ').trim().split(/\s+(?![^\[]*\])/).pop() || ''
+  const t = last.match(/\.[\w\\:/\[\].-]+|\[[^\]]+\]|#[\w-]+|::?[\w-]+(\([^)]*\))?/g) || []
+  const tag = /^[a-z][\w-]*/i.exec(last)
+  return t.length ? t : [tag ? tag[0] : '*']
+}
+// a property FAMILY, so a longhand and its shorthand (padding-inline vs padding, row-gap vs
+// gap, top vs inset) count as the same property
+const family = (prop) => {
+  if (prop.startsWith('--')) return prop
+  if (/^(top|right|bottom|left|inset)/.test(prop)) return 'inset'
+  if (/^(gap|row-gap|column-gap)$/.test(prop)) return 'gap'
+  return prop.split('-')[0]
+}
+const keyset = (rule) => {
+  const out = new Set()
+  for (const sel of rule.selectors || []) {
+    const toks = subjectTokens(sel)
+    rule.each((d) => { if (d.type === 'decl') toks.forEach((tk) => out.add(tk + '{' + family(d.prop))) })
+  }
+  return out
+}
+const split = (css) => {
+  const root = postcss.parse(css), mob = postcss.root(), desk = postcss.root()
+  const nodes = root.nodes.slice()
+  const target = nodes.map((n) => n.type === 'atrule' && n.name === 'media' ? (isMobile(n.params) ? 'm' : isDesktop(n.params) ? 'd' : '') : '')
+  const keysOf = (n) => { const k = new Set(); if (n.type === 'rule') keyset(n).forEach((x) => k.add(x)); else if (n.nodes) n.walkRules((r) => keyset(r).forEach((x) => k.add(x))); return k }
+  const keys = nodes.map(keysOf)
+  let kept = 0
+  for (let i = 0; i < nodes.length; i++) {
+    if (!target[i]) continue
+    const mine = keys[i]
+    const overridden = nodes.some((n, j) => j > i && !target[j] && [...keys[j]].some((k) => mine.has(k)))
+    if (overridden) { target[i] = ''; kept++ }
+  }
+  nodes.forEach((n, i) => { if (target[i] === 'm') { n.remove(); mob.append(n) } else if (target[i] === 'd') { n.remove(); desk.append(n) } })
+  console.log(`split: ${kept} @media block(s) kept shared because a later rule overrides them`)
+  return [root.toString(), mob.toString(), desk.toString()]
+}
+const [uiCss, mobCss, deskCss] = split(stripComments(body))
 const OUTPUTS = [
-  { out: 'sporta-ui.css', css: banner('sporta-site/css/[0-9][0-9]-*.css') + stripComments(body), from: `${files.length} sources` },
+  { out: 'sporta-ui.css', css: banner('sporta-site/css/[0-9][0-9]-*.css') + uiCss.replace(/^\n+/, ''), from: `${files.length} sources (shared rules)` },
+  { out: 'sporta-mobile.css', css: banner('sporta-site/css/[0-9][0-9]-*.css (phone-only @media)') + mobCss.replace(/^\n+/, '') + '\n', from: `${files.length} sources (phones, max-width 767.98px)` },
+  { out: 'sporta-desktop.css', css: banner('sporta-site/css/[0-9][0-9]-*.css (768px+ @media)') + deskCss.replace(/^\n+/, '') + '\n', from: `${files.length} sources (768px and wider)` },
   { out: 'sporta-dark.css', css: banner('sporta-site/css/sporta-dark.css') + stripComments(readFileSync(join(SRC, 'sporta-dark.css'), 'utf8')), from: 'sporta-site/css/sporta-dark.css' },
 ]
 for (const o of OUTPUTS) {
   // A stylesheet that parsed to nothing would also "build".
-  if (o.css.length < 2000) { console.log(`FAIL ${o.out} built to ${o.css.length} bytes — refusing`); process.exit(1) }
+  if (o.css.length < (/mobile|desktop/.test(o.out) ? 400 : 2000)) { console.log(`FAIL ${o.out} built to ${o.css.length} bytes — refusing`); process.exit(1) }
 }
 
 if (process.argv.includes('--check')) {
