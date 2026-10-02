@@ -38,24 +38,9 @@ export default function HomeHero() {
   const labelW = (H.label.x1 - H.label.x0) / (2 * H.sun.r);
   const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
   const sizes = "(min-width: 640px) 560px, 100vw";
-  // The picture's top-row and bottom-row colours: the sky over the wordmark
-  // and the deepest sea.
-  const stops = H.edge.split(", ");
-  const sky = stops[0].split(" ")[0];
-  const sea = stops[stops.length - 1].split(" ")[0];
 
   return (
-    // On a phone the hero is the whole first screen (2 October, on request —
-    // option B on the design canvas): the picture stays whole at full width
-    // and the sky above it and the sea below it fill the rest. A phone is
-    // taller than the picture's 9:16, so filling the height any other way
-    // would mean cutting its sides, which the owner chose not to do.
-    <section className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden sm:block sm:min-h-0">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 sm:hidden"
-        style={{ backgroundImage: `linear-gradient(to bottom, ${sky} 50%, ${sea} 50%)` }}
-      />
+    <section className="relative overflow-hidden">
       {/* The picture's edge colours, carried out to the sides. A layer of its
           own and not the section's background: everything in the section
           would otherwise sit "on" the gradient as far as audit:color can
@@ -64,7 +49,7 @@ export default function HomeHero() {
           describes — audit:home-hero reads that off the master instead. */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 max-sm:hidden"
+        className="absolute inset-0"
         style={{ backgroundImage: `linear-gradient(to bottom, ${H.edge})` }}
       />
       {/* The picture says both; these say them to everyone who does not see it. */}
