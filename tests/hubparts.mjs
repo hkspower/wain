@@ -18,26 +18,39 @@
 //   duplicate   an id already shipped in mods.ts is refused, and so is
 //               one already queued
 //   bounded     the queue has a cap, checked by reading the constant —
-//               this endpoint is unauthenticated like every other one
-//               in this file, so it can be filled with junk the same
-//               way the lap/career stores can
+//               a signed-in operator (or a stolen session) can still
+//               fill it with junk, so it stays bounded
 //   persists    a proposal survives a restart — it is on disk, not in
 //               memory, the same promise the referral ledger keeps
 //   rejectable  DELETE clears a queued proposal
+//
+// Signed in as an operator throughout (tests/hubadmin.mjs is where the
+// sign-in itself is attacked); the one check here is that the queue is
+// shut to anyone who is not.
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createAdminAuth } from "../server/admin-auth.mjs";
 
 const PORT = 8898;
 const BASE = `http://127.0.0.1:${PORT}`;
 const dir = mkdtempSync(join(tmpdir(), "grn-hubparts-"));
 const proposals = join(dir, "part-proposals.json");
 const ledger = join(dir, "referrals.json");
+const admins = join(dir, "admins.json");
+const audit = join(dir, "admin-audit.json");
+const OPERATOR = { username: "parts-op", password: "queue-keeper-0042" };
+{
+  const auth = createAdminAuth({ accountsPath: admins, auditPath: audit });
+  const r = await auth.createAccount({ ...OPERATOR, role: "operator", by: "test" });
+  if (r.error) throw new Error(r.error);
+  auth.flush();
+}
 
 function startHub() {
   const hub = spawn(process.execPath, ["server/hub-server.mjs"], {
-    env: { ...process.env, HUB_PORT: String(PORT), HUB_LEDGER: ledger, HUB_PART_PROPOSALS: proposals },
+    env: { ...process.env, HUB_PORT: String(PORT), HUB_LEDGER: ledger, HUB_PART_PROPOSALS: proposals, HUB_ADMINS: admins, HUB_ADMIN_AUDIT: audit },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let log = "";
@@ -71,14 +84,28 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
+// The operator's session: the cookie, and the CSRF token every write needs.
+let session = { cookie: "", csrf: "" };
+async function signIn() {
+  const r = await fetch(`${BASE}/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(OPERATOR),
+  });
+  if (!r.ok) throw new Error(`the operator could not sign in: ${r.status}`);
+  session = { cookie: (r.headers.get("set-cookie") ?? "").split(";")[0], csrf: (await r.json()).csrf };
+}
+const auth = (write) => ({ Cookie: session.cookie, ...(write ? { "X-CSRF-Token": session.csrf } : {}) });
+
 const post = (body) =>
   fetch(`${BASE}/api/v1/admin/parts`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...auth(true) },
     body: JSON.stringify(body),
   }).then(async (r) => ({ status: r.status, json: await r.json() }));
-const list = () => fetch(`${BASE}/api/v1/admin/parts`).then((r) => r.json());
-const del = (id) => fetch(`${BASE}/api/v1/admin/parts/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => r.json());
+const list = () => fetch(`${BASE}/api/v1/admin/parts`, { headers: auth(false) }).then((r) => r.json());
+const del = (id) =>
+  fetch(`${BASE}/api/v1/admin/parts/${encodeURIComponent(id)}`, { method: "DELETE", headers: auth(true) }).then((r) => r.json());
 
 const GOOD = { id: "paint-desert-storm", cat: "paint", name: "Desert Storm", ar: "عاصفة صحراوية", price: 900, desc: "A flat sand that reads as armour under the lamps." };
 
@@ -89,6 +116,26 @@ for (let i = 0; i < 60; i++) {
     if (r.ok) break;
   } catch {}
   await sleep(250);
+}
+
+// --- 0. Shut to anyone who has not signed in ----------------------------
+{
+  const anon = await fetch(`${BASE}/api/v1/admin/parts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(GOOD),
+  });
+  check(anon.status === 401, `an anonymous proposal answered ${anon.status}, not 401`);
+  const peek = await fetch(`${BASE}/api/v1/admin/parts`);
+  check(peek.status === 401, `the queue was listed to an anonymous caller (${peek.status})`);
+  await signIn();
+  const noToken = await fetch(`${BASE}/api/v1/admin/parts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: session.cookie },
+    body: JSON.stringify(GOOD),
+  });
+  check(noToken.status === 403, `a write with the cookie but no CSRF token answered ${noToken.status}, not 403`);
+  console.log(`signed in     anonymous 401, cookie without CSRF token 403, operator "${OPERATOR.username}" in`);
 }
 
 // --- 1. A well-formed proposal is accepted and comes back in the list --
@@ -148,13 +195,12 @@ for (let i = 0; i < 60; i++) {
   console.log(`duplicate     a shipped id and an already-queued id both refused`);
 }
 
-// --- 5. The queue is bounded, the same way the other unauthenticated
-//        stores in this file are (read the constant, not five hundred
-//        requests) --------------------------------------------------
+// --- 5. The queue is bounded, the same way the hub's other stores are
+//        (read the constant, not five hundred requests) ---------------
 {
   const src = readFileSync("server/hub-server.mjs", "utf8");
   const m = src.match(/const MAX_PART_PROPOSALS = ([^;]+);/);
-  check(!!m, "MAX_PART_PROPOSALS is gone — an unauthenticated caller can grow the queue without limit");
+  check(!!m, "MAX_PART_PROPOSALS is gone — one session can grow the queue without limit");
   if (m) console.log(`bounded       MAX_PART_PROPOSALS = ${m[1].trim()}`);
 }
 
@@ -167,6 +213,10 @@ for (let i = 0; i < 60; i++) {
     try { if ((await fetch(`${BASE}/api/v1/status`)).ok) break; } catch {}
     await sleep(250);
   }
+  // Sessions live in the hub's memory, so a restart signs everyone out.
+  const stale = await fetch(`${BASE}/api/v1/admin/parts`, { headers: auth(false) });
+  check(stale.status === 401, `a session from before the restart still answered ${stale.status}`);
+  await signIn();
   const l = await list();
   check(l.proposals.some((p) => p.id === GOOD.id), "a queued proposal did not survive a restart");
   console.log(`persists      ${l.proposals.length} proposal(s) survived a restart`);

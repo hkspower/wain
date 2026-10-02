@@ -115,7 +115,8 @@ __pycache__/
 # noon. As with the sparks, the numbers it prints are the artefact.
 /press/smoke/
 
-# the hub's referral ledger — live player data, written by the server
+# the hub's referral ledger, part proposals, admin accounts (password
+# hashes) and admin audit log — live data, written by the server
 /server/data/
 
 # Intermediate frames from tools/shots/exportfilm.mjs — the encoded

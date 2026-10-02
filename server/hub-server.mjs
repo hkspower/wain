@@ -30,7 +30,9 @@
 //                    {t:"ref-result",ok,reason}
 
 import { WebSocketServer } from "ws";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes, timingSafeEqual } from "node:crypto";
+import { createAdminAuth, can } from "./admin-auth.mjs";
+import { loginPage, setupPage, dashboardPage } from "./admin-panel.mjs";
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -217,9 +219,10 @@ function teamsChanged() {
 
 // ----------------------------------------------------------- part proposals
 //
-// The admin dashboard's one write path — see adminPage() below. Every
-// other endpoint answers a game client; this answers whoever is running
-// the hub, and it does not touch the game.
+// The admin dashboard's one write path (handleAdmin() below; the page is
+// server/admin-panel.mjs). Every other endpoint answers a game client;
+// this answers a signed-in operator running the hub, and it does not
+// touch the game.
 //
 // WHAT THIS IS. `PARTS` (src/game/mods.ts) is a hand-authored TypeScript
 // array compiled into the client at build time — the hub has never
@@ -231,15 +234,12 @@ function teamsChanged() {
 // person's inbox, not a back door around them — nothing here ever writes
 // to mods.ts, and nothing in the game reads this file.
 //
-// WHAT THIS ENDPOINT INHERITS FROM THE REST OF THIS FILE. No auth, same
-// as everything else here (hub-server.mjs:425-429). A proposal is
-// therefore bounded and inert the same way team-create already is: a
-// capped-size string appended to a capped-size queue, never executed,
-// never merged automatically. Anybody who can reach the hub can queue a
-// proposal or clear somebody else's; anybody who can already reach the
-// hub could do worse to the WebSocket protocol above, so this adds no
-// new class of exposure — it stays inside the trade-off this file
-// already made and wrote down.
+// WHO MAY USE IT. It used to be open, like every other endpoint in this
+// file; it is now behind the operator sign-in (server/admin-auth.mjs):
+// reading the queue needs a viewer, queuing or rejecting needs an
+// operator, and each change is in the audit log with who made it. A
+// proposal is still bounded and inert: a capped-size string appended
+// to a capped-size queue, never executed, never merged automatically.
 
 const PROPOSALS_PATH = process.env.HUB_PART_PROPOSALS || "server/data/part-proposals.json";
 const PART_CATEGORIES = [
@@ -450,6 +450,26 @@ loadLedger();
 loadPartProposals();
 setInterval(saveLedger, 10_000).unref?.();
 
+// ---------------------------------------------------------------------
+// Operator accounts for /admin (server/admin-auth.mjs has the promises:
+// scrypt, lockout, sessions, roles, audit). The panel and every
+// /api/v1/admin route need a signed-in operator with the right role;
+// the game's own endpoints stay exactly as open as they were.
+const ADMINS_PATH = process.env.HUB_ADMINS || "server/data/admins.json";
+const ADMIN_AUDIT_PATH = process.env.HUB_ADMIN_AUDIT || "server/data/admin-audit.json";
+const adminAuth = createAdminAuth({
+  accountsPath: ADMINS_PATH,
+  auditPath: ADMIN_AUDIT_PATH,
+  idleMs: Number(process.env.HUB_ADMIN_IDLE_MIN || 30) * 60 * 1000,
+  maxAgeMs: Number(process.env.HUB_ADMIN_MAX_HOURS || 12) * 60 * 60 * 1000,
+});
+setInterval(() => adminAuth.flush(), 2000).unref?.();
+if (!adminAuth.hasAccounts()) {
+  console.log(`[hub] /admin is locked: no operator accounts in ${ADMINS_PATH} — npm run hub:admin -- add <name> --role owner`);
+} else {
+  console.log(`[hub] /admin: ${adminAuth.size} operator account(s)`);
+}
+
 /**
  * Live player-vs-player duels. The server is the referee: it owns the SP
  * clock, reading the position stream both sides already send at 10 Hz,
@@ -588,11 +608,6 @@ function sendJson(res, code, body) {
   res.end(payload);
 }
 
-function sendHtml(res, code, body) {
-  res.writeHead(code, { "Content-Type": "text/html; charset=utf-8" });
-  res.end(body);
-}
-
 function readBody(req, limit = MAX_CAREER_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -622,15 +637,22 @@ function readBody(req, limit = MAX_CAREER_BYTES) {
  *   PUT  /api/v1/career/:name        — store one (4 KB cap)
  *
  * Plus /admin, for whoever is running this hub rather than for a game
- * client — a dashboard over the same data, and its one write path:
- *   GET    /api/v1/admin/parts        — queued part proposals
- *   POST   /api/v1/admin/parts        — queue one {id,cat,name,ar,price,desc}
- *   DELETE /api/v1/admin/parts/:id    — drop a proposal (proposalId, not the part id)
- * See the "part proposals" block above for what this is and is not.
+ * client: a signed-in operator panel. See handleAdmin() for its routes;
+ * none of them answer without a session.
  */
 async function handleRest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
   const path = url.pathname.replace(/\/+$/, "");
+
+  // The operator panel and its API: same-origin only, signed in, by role.
+  // Routed before the OPTIONS answer below on purpose, so a cross-origin
+  // preflight to an admin route gets no CORS grant.
+  if (path === "/admin" || path.startsWith("/admin/") || path === "/api/v1/admin" || path.startsWith("/api/v1/admin/")) {
+    return handleAdmin(req, res, url, path).catch((err) => {
+      console.warn(`[hub] admin error: ${err.message}`);
+      if (!res.headersSent) sendAdminJson(res, 500, { error: "internal error" });
+    });
+  }
 
   if (req.method === "OPTIONS") return sendJson(res, 204, {});
 
@@ -657,41 +679,6 @@ async function handleRest(req, res) {
 
   if (path === "/api/v1/players") {
     return sendJson(res, 200, { apiVersion: API_VERSION, players: adminRoster() });
-  }
-
-  if (path === "/admin") {
-    return sendHtml(res, 200, adminPage());
-  }
-
-  if (path === "/api/v1/admin/parts" && req.method === "GET") {
-    return sendJson(res, 200, { apiVersion: API_VERSION, proposals: [...partProposals.values()] });
-  }
-
-  if (path === "/api/v1/admin/parts" && req.method === "POST") {
-    let body;
-    try {
-      body = JSON.parse(await readBody(req));
-    } catch {
-      return sendJson(res, 400, { error: "bad json" });
-    }
-    if (partProposals.size >= MAX_PART_PROPOSALS) {
-      return sendJson(res, 507, { error: "the proposal queue is full — clear some first" });
-    }
-    const v = validatePart(body);
-    if (v.error) return sendJson(res, 400, { error: v.error });
-    const proposalId = String(nextProposalId++);
-    const entry = { proposalId, ...v.part, submittedAt: new Date().toISOString() };
-    partProposals.set(proposalId, entry);
-    proposalsDirty = true;
-    savePartProposals();
-    return sendJson(res, 200, { accepted: true, proposal: entry });
-  }
-
-  const proposalMatch = path.match(/^\/api\/v1\/admin\/parts\/([^/]+)$/);
-  if (proposalMatch && req.method === "DELETE") {
-    const ok = partProposals.delete(proposalMatch[1]);
-    if (ok) { proposalsDirty = true; savePartProposals(); }
-    return sendJson(res, ok ? 200 : 404, { deleted: ok });
   }
 
   if (path === "/api/v1/lap" && req.method === "POST") {
@@ -775,212 +762,299 @@ function adminRoster() {
 }
 
 /**
- * The read-only dashboard. One file, no build step, no framework — this
- * server has none of those and a dashboard for it should not need to
- * grow any. Polls the REST endpoints it would tell anyone else to use;
- * there is no private channel between this page and the server's memory,
- * so what it shows is provably what a game client could also ask for.
+ * /admin and /api/v1/admin/*: the operator panel.
+ *
+ *   GET    /admin                         sign-in page, first-run notice, or the dashboard
+ *   POST   /admin/login                   {username, password} (form or JSON) -> session cookie
+ *   POST   /admin/logout                  (form field or header csrf) -> cookie cleared
+ *   GET    /api/v1/admin/me               who you are, your role, your CSRF token
+ *   GET    /api/v1/admin/parts            queued part proposals                  viewer+
+ *   POST   /api/v1/admin/parts            queue one {id,cat,name,ar,price,desc}  operator+
+ *   DELETE /api/v1/admin/parts/:id        drop one (proposalId)                  operator+
+ *   GET    /api/v1/admin/accounts         operator accounts                      owner
+ *   POST   /api/v1/admin/accounts         {username, password, role}             owner
+ *   PATCH  /api/v1/admin/accounts/:name   {role?, disabled?, password?}          owner
+ *   DELETE /api/v1/admin/accounts/:name                                          owner
+ *   POST   /api/v1/admin/password         {current, next}  your own              any
+ *   GET    /api/v1/admin/audit?limit=n    the audit log                          owner
+ *
+ * Every write needs the session's CSRF token in X-CSRF-Token (or the
+ * logout form's csrf field) and, when the browser sends one, an Origin
+ * that is this server. Every admin response is no-store, unframeable and
+ * carries no CORS grant; HTML additionally runs under a nonce CSP.
  */
-function adminPage() {
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Night Racer hub</title>
-<style>
-  body { background:#0a0d13; color:#e8eaf0; font:14px/1.4 -apple-system,system-ui,sans-serif; margin:0; padding:24px; }
-  h1 { font-size:18px; margin:0 0 4px; }
-  .sub { color:#8a8f9c; margin-bottom:20px; }
-  .cards { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
-  .card { background:#12161f; border:1px solid #232838; border-radius:10px; padding:12px 16px; min-width:110px; }
-  .card .n { font-size:24px; font-weight:600; color:#f5a623; }
-  .card .l { color:#8a8f9c; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
-  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
-  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid #1c2130; font-variant-numeric:tabular-nums; }
-  th { color:#8a8f9c; font-size:12px; text-transform:uppercase; letter-spacing:.05em; font-weight:500; }
-  tr:last-child td { border-bottom:none; }
-  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
-  .tag { color:#f5a623; font-weight:600; }
-  .muted { color:#5c6270; }
-  .stale { opacity:.5; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#8a8f9c; margin:0 0 8px; }
-  .partForm { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; align-items:flex-start; }
-  .partForm input, .partForm select, .partForm textarea {
-    background:#12161f; border:1px solid #232838; border-radius:6px; color:#e8eaf0;
-    font:inherit; padding:6px 8px;
-  }
-  .partForm input[name=id] { width:140px; }
-  .partForm input[name=name] { width:170px; }
-  .partForm input[name=ar] { width:130px; direction:rtl; }
-  .partForm input[name=price] { width:80px; }
-  .partForm textarea { width:240px; height:32px; resize:vertical; }
-  .partForm button {
-    background:#f5a623; border:none; border-radius:6px; color:#0a0d13;
-    font-weight:600; padding:7px 14px; cursor:pointer;
-  }
-  .partForm button:disabled { opacity:.5; cursor:default; }
-  .partErr { color:#e5484d; font-size:12px; width:100%; min-height:1em; }
-  .reject { background:none; border:1px solid #3a2020; color:#e5484d; border-radius:6px;
-    padding:3px 9px; font-size:12px; cursor:pointer; }
-  .reject:hover { background:#1c1010; }
-  .copyTs { background:none; border:1px solid #232838; color:#8a8f9c; border-radius:6px;
-    padding:3px 9px; font-size:12px; cursor:pointer; margin-left:6px; }
-  .copyTs:hover { color:#e8eaf0; }
-</style></head>
-<body>
-  <h1>Night Racer — hub</h1>
-  <div class="sub" id="sub">connecting…</div>
-  <div class="cards" id="cards"></div>
-  <h2>Online (<span id="playerCount">0</span>)</h2>
-  <table id="players"><thead><tr><th></th><th>Name</th><th>Crew</th><th>Speed</th><th></th></tr></thead><tbody></tbody></table>
-  <h2>Leaderboard</h2>
-  <table id="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Best lap</th></tr></thead><tbody></tbody></table>
-  <h2>Crews (<span id="teamCount">0</span>)</h2>
-  <table id="teams"><thead><tr><th>Tag</th><th>Name</th><th>Founder</th><th>Members</th></tr></thead><tbody></tbody></table>
+const ADMIN_COOKIE = "grn_admin";
+const TRUST_PROXY = process.env.HUB_TRUST_PROXY === "1";
 
-  <!-- The one write path on this page — see the "part proposals" block
-       in hub-server.mjs for what landing one into the game actually
-       takes. This queues it; it does not ship it. -->
-  <h2>Propose a new part</h2>
-  <form class="partForm" id="partForm">
-    <input name="id" placeholder="id — paint-navy" autocomplete="off" required>
-    <select name="cat" required></select>
-    <input name="name" placeholder="name — Navy Metallic" autocomplete="off" required>
-    <input name="ar" placeholder="ar — كحلي معدني" autocomplete="off" required>
-    <input name="price" type="number" min="0" step="1" placeholder="price" autocomplete="off" required>
-    <textarea name="desc" placeholder="desc (optional)"></textarea>
-    <button type="submit">Queue proposal</button>
-    <div class="partErr" id="partErr"></div>
-  </form>
-  <h2>Pending proposals (<span id="proposalCount">0</span>)</h2>
-  <table id="proposals"><thead><tr><th>id</th><th>cat</th><th>name</th><th>ar</th><th>price</th><th>desc</th><th>submitted</th><th></th></tr></thead><tbody></tbody></table>
-<script>
-const fmtLap = (ms) => {
-  const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(1).padStart(4, "0");
-  return m + ":" + s;
+function clientIp(req) {
+  if (TRUST_PROXY) {
+    const fwd = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+    if (fwd) return fwd.slice(0, 64);
+  }
+  return String(req.socket?.remoteAddress ?? "?").slice(0, 64);
+}
+
+/** Behind TLS? Directly, or by a proxy we were told to trust, or by
+ *  operator decree (HUB_ADMIN_SECURE_COOKIE=1 for a TLS proxy that does
+ *  not set X-Forwarded-Proto). Decides the cookie's Secure flag. */
+function viaTls(req) {
+  if (process.env.HUB_ADMIN_SECURE_COOKIE === "1") return true;
+  if (req.socket?.encrypted) return true;
+  return TRUST_PROXY && String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() === "https";
+}
+
+function cookies(req) {
+  const out = {};
+  for (const part of String(req.headers.cookie ?? "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+/** Did this request come from one of our own pages? A modern browser says
+ *  so itself in Sec-Fetch-Site, which no page script can set and which
+ *  does not care how a proxy rewrote Host, so when it is there it decides.
+ *  Otherwise a browser always sends Origin on a cross-site POST, and when
+ *  it is there it has to be us; "null" (a sandboxed frame, a data: URL, a
+ *  page with no-referrer) is not us. (A missing Origin is a non-browser
+ *  client, which cannot ride an operator's cookie in the first place, and
+ *  still needs the CSRF token for every API write.) */
+function sameOrigin(req) {
+  const site = req.headers["sec-fetch-site"];
+  if (site !== undefined) return site === "same-origin";
+  const origin = req.headers.origin;
+  if (origin === undefined) return true;
+  const host = req.headers.host;
+  if (!host) return false;
+  const proto = viaTls(req) ? "https" : "http";
+  return origin === `${proto}://${host}` || (!viaTls(req) && origin === `https://${host}`);
+}
+
+function sameToken(a, b) {
+  const x = Buffer.from(String(a ?? ""));
+  const y = Buffer.from(String(b ?? ""));
+  return x.length === y.length && x.length > 0 && timingSafeEqual(x, y);
+}
+
+const ADMIN_HEADERS = {
+  "Cache-Control": "no-store",
+  "Pragma": "no-cache",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  // Not no-referrer: under that a browser sends `Origin: null` even to its
+  // own origin, and every sign-in and write from the panel looks forged.
+  // same-origin still tells no other site where the panel lives.
+  "Referrer-Policy": "same-origin",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
 };
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-// One <option> per category the game actually has, read off the same
-// list validatePart() checks against server-side — kept in one place in
-// hub-server.mjs and interpolated in here, rather than typed out twice
-// where the two copies could drift.
-const PART_CATEGORIES = ${JSON.stringify(PART_CATEGORIES)};
-{
-  const sel = document.querySelector('#partForm select[name=cat]');
-  sel.innerHTML = PART_CATEGORIES.map((c) => '<option value="' + c + '">' + c + '</option>').join("");
+function sendAdminJson(res, code, body, extra = {}) {
+  res.writeHead(code, {
+    ...ADMIN_HEADERS,
+    "Content-Type": "application/json; charset=utf-8",
+    "X-GRN-Api-Version": String(API_VERSION),
+    ...extra,
+  });
+  res.end(JSON.stringify(body));
 }
 
-async function tick() {
+function sendAdminPage(res, code, render, extra = {}) {
+  const nonce = randomBytes(16).toString("base64");
+  res.writeHead(code, {
+    ...ADMIN_HEADERS,
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Security-Policy":
+      `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; ` +
+      "img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    ...extra,
+  });
+  res.end(render(nonce));
+}
+
+function sessionCookie(req, token, maxAgeSec) {
+  return `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}${viaTls(req) ? "; Secure" : ""}`;
+}
+
+/** {username, password} from a form post or JSON, small bodies only. */
+async function readCredentials(req) {
+  const raw = await readBody(req, 4096);
+  const type = String(req.headers["content-type"] ?? "");
+  if (type.includes("application/json")) {
+    const j = JSON.parse(raw || "{}");
+    return { username: j?.username, password: j?.password, csrf: j?.csrf, json: true };
+  }
+  const f = new URLSearchParams(raw);
+  return { username: f.get("username"), password: f.get("password"), csrf: f.get("csrf"), json: false };
+}
+
+async function readJson(req) {
   try {
-    const [status, players, board, teams, parts] = await Promise.all(
-      ["/api/v1/status", "/api/v1/players", "/api/v1/leaderboard", "/api/v1/teams", "/api/v1/admin/parts"].map(
-        (u) => fetch(u).then((r) => r.json())
-      )
+    return { body: JSON.parse((await readBody(req, 8192)) || "{}") };
+  } catch {
+    return { error: "bad json" };
+  }
+}
+
+async function handleAdmin(req, res, url, path) {
+  const ip = clientIp(req);
+  const method = req.method ?? "GET";
+  if (method === "OPTIONS") return sendAdminJson(res, 204, {});
+  const token = cookies(req)[ADMIN_COOKIE];
+  const sess = adminAuth.session(token);
+
+  // ---- pages
+  if (path === "/admin" && (method === "GET" || method === "HEAD")) {
+    if (!adminAuth.hasAccounts()) return sendAdminPage(res, 200, (nonce) => setupPage({ nonce, accountsPath: ADMINS_PATH }));
+    if (!sess) return sendAdminPage(res, 200, (nonce) => loginPage({ nonce }));
+    return sendAdminPage(res, 200, (nonce) =>
+      dashboardPage({
+        nonce,
+        username: sess.username,
+        role: sess.role,
+        csrf: sess.csrf,
+        perms: { partsWrite: can(sess.role, "parts.write"), accounts: can(sess.role, "accounts.read"), audit: can(sess.role, "audit.read") },
+        partCategories: PART_CATEGORIES,
+      })
     );
-    document.getElementById("sub").textContent =
-      status.game + " — uptime " + Math.floor(status.uptimeSec / 60) + "m — refreshed " + new Date().toLocaleTimeString();
-    document.getElementById("cards").innerHTML =
-      '<div class="card"><div class="n">' + status.online + '</div><div class="l">Online</div></div>' +
-      '<div class="card"><div class="n">' + status.teams + '</div><div class="l">Crews</div></div>' +
-      '<div class="card"><div class="n">' + board.entries.length + '</div><div class="l">Lap times</div></div>';
-
-    document.getElementById("playerCount").textContent = players.players.length;
-    document.getElementById("players").querySelector("tbody").innerHTML =
-      players.players.map((p) =>
-        '<tr><td><span class="dot" style="background:' + esc(p.color) + '"></span></td>' +
-        '<td>' + esc(p.name) + '</td>' +
-        '<td>' + (p.crew ? '<span class="tag">[' + esc(p.crew.tag) + ']</span> ' + esc(p.crew.name) : '<span class="muted">—</span>') + '</td>' +
-        '<td>' + (p.speedKmh === null ? '<span class="muted">—</span>' : p.speedKmh + ' km/h') + '</td>' +
-        '<td>' + (p.inDuel ? '<span class="tag">duel</span>' : '') + '</td></tr>'
-      ).join("") || '<tr><td colspan="5" class="muted">nobody online</td></tr>';
-
-    document.getElementById("leaderboard").querySelector("tbody").innerHTML =
-      board.entries.map((e, i) =>
-        '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + '</td><td>' + fmtLap(e.ms) + '</td></tr>'
-      ).join("") || '<tr><td colspan="3" class="muted">no laps yet</td></tr>';
-
-    document.getElementById("teamCount").textContent = teams.teams.length;
-    document.getElementById("teams").querySelector("tbody").innerHTML =
-      teams.teams.map((t) =>
-        '<tr><td class="tag">[' + esc(t.tag) + ']</td><td>' + esc(t.name) + '</td><td>' + esc(t.founder) + '</td>' +
-        '<td>' + t.members.filter((m) => m.online).length + ' / ' + t.members.length + '</td></tr>'
-      ).join("") || '<tr><td colspan="4" class="muted">no crews founded yet</td></tr>';
-
-    document.getElementById("proposalCount").textContent = parts.proposals.length;
-    document.getElementById("proposals").querySelector("tbody").innerHTML =
-      parts.proposals.map((p) =>
-        '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.cat) + '</td><td>' + esc(p.name) + '</td>' +
-        '<td dir="rtl">' + esc(p.ar) + '</td><td>' + p.price + '</td>' +
-        '<td class="muted">' + esc(p.desc || "—") + '</td>' +
-        '<td class="muted">' + new Date(p.submittedAt).toLocaleString() + '</td>' +
-        '<td><button class="copyTs" data-part="' + esc(JSON.stringify(p)) + '" onclick="copyPartTs(this)">copy</button>' +
-        '<button class="reject" data-id="' + esc(p.proposalId) + '" onclick="rejectPart(this)">reject</button></td></tr>'
-      ).join("") || '<tr><td colspan="8" class="muted">nothing queued</td></tr>';
-  } catch (err) {
-    document.getElementById("sub").textContent = "could not reach the hub: " + err.message;
   }
-}
-tick();
-setInterval(tick, 4000);
 
-// This dashboard's one write path. Queues a proposal; never ships one —
-// see the "part proposals" comment in hub-server.mjs for what that
-// boundary is and why it is there.
-document.getElementById("partForm").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const form = ev.target;
-  const btn = form.querySelector("button");
-  const errBox = document.getElementById("partErr");
-  errBox.textContent = "";
-  const body = {
-    id: form.id.value.trim(),
-    cat: form.cat.value,
-    name: form.name.value.trim(),
-    ar: form.ar.value.trim(),
-    price: Number(form.price.value),
-    desc: form.desc.value.trim(),
+  if (path === "/admin/login" && method === "POST") {
+    if (!sameOrigin(req)) return sendAdminJson(res, 403, { error: "cross-origin sign-in refused" });
+    let cred;
+    try {
+      cred = await readCredentials(req);
+    } catch {
+      return sendAdminJson(res, 400, { error: "bad request" });
+    }
+    const name = String(cred.username ?? "").slice(0, 64);
+    const r = await adminAuth.login(name, cred.password, ip);
+    if (r.ok) {
+      const cookie = sessionCookie(req, r.token, Math.round(Number(process.env.HUB_ADMIN_MAX_HOURS || 12) * 3600));
+      if (cred.json) return sendAdminJson(res, 200, { ok: true, username: r.username, role: r.role, csrf: r.csrf }, { "Set-Cookie": cookie });
+      res.writeHead(303, { ...ADMIN_HEADERS, Location: "/admin", "Set-Cookie": cookie });
+      return res.end();
+    }
+    const msg = r.locked
+      ? `Too many attempts. Try again in ${Math.ceil(r.retryAfterSec / 60)} minute(s).`
+      : "Wrong username or password.";
+    const code = r.locked ? 429 : 401;
+    const extra = r.locked ? { "Retry-After": String(r.retryAfterSec) } : {};
+    if (cred.json) return sendAdminJson(res, code, { error: msg }, extra);
+    return sendAdminPage(res, code, (nonce) => loginPage({ nonce, error: msg, username: name }), extra);
+  }
+
+  if (path === "/admin/logout" && method === "POST") {
+    let csrf = req.headers["x-csrf-token"];
+    if (!csrf) {
+      try { csrf = (await readCredentials(req)).csrf; } catch {}
+    }
+    if (sess && sameOrigin(req) && sameToken(csrf, sess.csrf)) adminAuth.logout(token, ip);
+    const clear = sessionCookie(req, "", 0);
+    if (String(req.headers.accept ?? "").includes("application/json")) return sendAdminJson(res, 200, { ok: true }, { "Set-Cookie": clear });
+    res.writeHead(303, { ...ADMIN_HEADERS, Location: "/admin", "Set-Cookie": clear });
+    return res.end();
+  }
+
+  if (!path.startsWith("/api/v1/admin")) return sendAdminJson(res, 404, { error: "not found" });
+
+  // ---- the API: signed in, and for writes, same origin and the CSRF token
+  if (!sess) return sendAdminJson(res, 401, { error: "sign in required" });
+  const writing = method !== "GET" && method !== "HEAD";
+  if (writing && (!sameOrigin(req) || !sameToken(req.headers["x-csrf-token"], sess.csrf))) {
+    return sendAdminJson(res, 403, { error: "missing or wrong CSRF token" });
+  }
+  const need = (action) => {
+    if (can(sess.role, action)) return true;
+    sendAdminJson(res, 403, { error: `your role (${sess.role}) cannot do that` });
+    return false;
   };
-  btn.disabled = true;
-  try {
-    const r = await fetch("/api/v1/admin/parts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+  const audit = (action, target, ok = true, detail) => adminAuth.record({ actor: sess.username, action, target, ok, detail, ip });
+
+  if (path === "/api/v1/admin/me" && method === "GET") {
+    return sendAdminJson(res, 200, {
+      username: sess.username,
+      role: sess.role,
+      csrf: sess.csrf,
+      can: Object.fromEntries(["parts.write", "accounts.write", "audit.read"].map((a) => [a, can(sess.role, a)])),
     });
-    const j = await r.json();
-    if (!r.ok) { errBox.textContent = j.error || ("HTTP " + r.status); return; }
-    form.reset();
-    await tick();
-  } catch (err) {
-    errBox.textContent = "could not reach the hub: " + err.message;
-  } finally {
-    btn.disabled = false;
   }
-});
 
-// A pasteable Part literal, exactly the shape mods.ts wants — landing it
-// is still the reviewed diff a person writes; this just saves them
-// retyping six fields by hand once they have decided to.
-function copyPartTs(btn) {
-  const p = JSON.parse(btn.dataset.part);
-  // JSON.stringify quotes and escapes a string exactly the way a TS
-  // string literal needs — no hand-rolled backslash escaping, which
-  // does not survive sitting inside this page's OWN template literal:
-  // every backslash typed directly into adminPage()'s source is
-  // unescaped once already before the browser ever sees it.
-  const q = JSON.stringify;
-  const ts = "{ id: " + q(p.id) + ", cat: " + q(p.cat) + ", name: " + q(p.name) +
-    ", ar: " + q(p.ar) + ", price: " + p.price + ", desc: " + q(p.desc) + " },";
-  (navigator.clipboard?.writeText(ts) ?? Promise.reject()).catch(() => {});
-  const was = btn.textContent;
-  btn.textContent = "copied";
-  setTimeout(() => { btn.textContent = was; }, 1200);
-}
+  if (path === "/api/v1/admin/parts" && method === "GET") {
+    if (!need("parts.read")) return;
+    return sendAdminJson(res, 200, { apiVersion: API_VERSION, proposals: [...partProposals.values()] });
+  }
+  if (path === "/api/v1/admin/parts" && method === "POST") {
+    if (!need("parts.write")) return;
+    const { body, error } = await readJson(req);
+    if (error) return sendAdminJson(res, 400, { error });
+    if (partProposals.size >= MAX_PART_PROPOSALS) {
+      return sendAdminJson(res, 507, { error: "the proposal queue is full — clear some first" });
+    }
+    const v = validatePart(body);
+    if (v.error) return sendAdminJson(res, 400, { error: v.error });
+    const proposalId = String(nextProposalId++);
+    const entry = { proposalId, ...v.part, submittedAt: new Date().toISOString(), submittedBy: sess.username };
+    partProposals.set(proposalId, entry);
+    proposalsDirty = true;
+    savePartProposals();
+    audit("part.propose", v.part.id);
+    return sendAdminJson(res, 200, { accepted: true, proposal: entry });
+  }
+  const proposalMatch = path.match(/^\/api\/v1\/admin\/parts\/([^/]+)$/);
+  if (proposalMatch && method === "DELETE") {
+    if (!need("parts.write")) return;
+    const p = partProposals.get(proposalMatch[1]);
+    const ok = partProposals.delete(proposalMatch[1]);
+    if (ok) { proposalsDirty = true; savePartProposals(); audit("part.reject", p?.id ?? proposalMatch[1]); }
+    return sendAdminJson(res, ok ? 200 : 404, { deleted: ok });
+  }
 
-function rejectPart(btn) {
-  btn.disabled = true;
-  fetch("/api/v1/admin/parts/" + encodeURIComponent(btn.dataset.id), { method: "DELETE" }).then(tick);
-}
-</script>
-</body></html>`;
+  if (path === "/api/v1/admin/accounts" && method === "GET") {
+    if (!need("accounts.read")) return;
+    return sendAdminJson(res, 200, { accounts: adminAuth.listAccounts() });
+  }
+  if (path === "/api/v1/admin/accounts" && method === "POST") {
+    if (!need("accounts.write")) return;
+    const { body, error } = await readJson(req);
+    if (error) return sendAdminJson(res, 400, { error });
+    const r = await adminAuth.createAccount({ username: body?.username, password: body?.password, role: body?.role, by: sess.username, ip });
+    return sendAdminJson(res, r.error ? r.status ?? 400 : 200, r);
+  }
+  const acctMatch = path.match(/^\/api\/v1\/admin\/accounts\/([^/]+)$/);
+  if (acctMatch && (method === "PATCH" || method === "DELETE")) {
+    if (!need("accounts.write")) return;
+    const target = decodeURIComponent(acctMatch[1]);
+    if (method === "DELETE") {
+      if (target === sess.username) return sendAdminJson(res, 409, { error: "you cannot delete your own account" });
+      const r = adminAuth.deleteAccount(target, { by: sess.username, ip });
+      return sendAdminJson(res, r.error ? r.status ?? 400 : 200, r);
+    }
+    const { body, error } = await readJson(req);
+    if (error) return sendAdminJson(res, 400, { error });
+    const changes = {};
+    for (const k of ["role", "disabled", "password"]) if (body?.[k] !== undefined) changes[k] = body[k];
+    if (!Object.keys(changes).length) return sendAdminJson(res, 400, { error: "nothing to change" });
+    const r = await adminAuth.updateAccount(target, changes, { by: sess.username, ip, sessionKey: sess.key });
+    return sendAdminJson(res, r.error ? r.status ?? 400 : 200, r);
+  }
+
+  if (path === "/api/v1/admin/password" && method === "POST") {
+    if (!need("self.password")) return;
+    const { body, error } = await readJson(req);
+    if (error) return sendAdminJson(res, 400, { error });
+    const r = await adminAuth.changeOwnPassword(sess.username, body?.current, body?.next, { sessionKey: sess.key, ip });
+    return sendAdminJson(res, r.error ? r.status ?? 400 : 200, r);
+  }
+
+  if (path === "/api/v1/admin/audit" && method === "GET") {
+    if (!need("audit.read")) return;
+    const limit = Math.max(1, Math.min(2000, Number(url.searchParams.get("limit")) || 200));
+    return sendAdminJson(res, 200, { entries: adminAuth.listAudit(limit) });
+  }
+
+  return sendAdminJson(res, 404, { error: "unknown admin endpoint" });
 }
 
 /** How many sockets the hub will hold at once. A cruise is a few dozen
@@ -1375,6 +1449,7 @@ function shutdown(signal) {
     saveLedger();
     proposalsDirty = true;
     savePartProposals();
+    adminAuth.flush();
   } catch (err) {
     console.error(`[hub] ledger flush failed on ${signal}: ${err.message}`);
   }
