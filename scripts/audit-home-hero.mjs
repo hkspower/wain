@@ -1,66 +1,118 @@
 #!/usr/bin/env node
 /**
- * The home hero's two layers, at every width:  npm run audit:home-hero   (needs npm run build)
+ * The home hero, at every width:  npm run audit:home-hero   (needs npm run build)
  *
- * The hero is a drawing (KuwaitSkyline) with a sun dial and a search pill laid
- * over it. The drawing scales with the viewport; the dial does not, it is in
- * CSS pixels. Where one lies over the other is therefore a function of the
- * width, and for as long as nothing measured it the answer was wrong across
- * most of the range that real people use. Run against the old layout (a fixed
- * 288px dial, one overlay layout from 640px up) it fails at 9 of the 14 widths
- * below, 640 to 1440px: at 768px the dial lay over the dome, its crescent, the
- * minaret's cap, the big sphere and the flag; at 1024px over the dome, the
- * sphere and the flag; at 1280px it still touched the dome and the sphere. It
- * first cleared at 1536px. Nothing else in `scan` could see any of it — every
- * other audit asks about one element, and this is a question about two.
+ * The hero is one picture (brand-source/home-hero.png, shipped by
+ * gen-home-hero.mjs) with two controls placed on it in its own coordinates:
+ * the sun is the link to /find and carries «إلى وين؟ / ابدأ», and «دوّر باسم
+ * المكان» lies on the sea. Placing things on a picture is a promise about
+ * pixels the layout code never sees — that the label is on the yellow of the
+ * disc and not across a tower, that the pill is on water and not a sail — so
+ * this keeps it by looking: it maps each control's rendered box back into the
+ * master and reads the pixels under it.
  *
- * It measures BOUNDING BOXES, so it is conservative about round shapes: the
- * corner of a dome's box is empty sky, and a part may read as touching the
- * dial or the pill when the painted shapes still have air between them. Clear
- * by this audit is clear by eye; the reverse is not promised.
+ * Until 2 October this audited a drawn skyline with a sun dial floating over
+ * it, where the question was whether the dial covered the dome or the spheres
+ * at a given width; it failed at 9 of these 14 widths on the layout before
+ * that one. The picture is laid out in its own coordinates, so that question
+ * is gone, and the one that replaced it is above.
  *
  * What is checked, at each width:
  *
- *   1. The page does not slide sideways, and the dial sits wholly on screen.
- *   2. The dial's circle (ticks included) is clear of every part of the
- *      drawing marked `data-clear` — the spheres, the dome and its crescent,
- *      the flag, the minaret's cap, the Liberation Tower's pod, the clock
- *      tower. Found by that attribute, not by coordinates, so a moved or new
- *      landmark is protected by marking it.
- *   3. The search pill is clear of them by at least PILL_GAP_PX. The dial is
- *      the sun, and a sun may sit in front of the sky; a chip lying across a
- *      dome reads as a mistake.
- *   4. The dial is still a dial: not shrunk below DIAL_MIN_PX to make room.
+ *   1. The generated half is current (gen-home-hero.mjs --check).
+ *   2. The page does not slide sideways.
+ *   3. The picture is whole: its box has the master's ratio, sits inside the
+ *      section and the screen, and actually loaded.
+ *   4. The sun link is a circle on the picture's sun: centre and diameter
+ *      within SUN_TOL_PX of the disc's, measured in the master.
+ *   5. The label («إلى وين؟» and «ابدأ») lies on the disc: at least
+ *      ON_SUN_MIN of the master's pixels under each box are the disc's yellow.
+ *   6. The search pill lies on plain sea: every pixel under it is water.
+ *   7. Nothing is too small to read or tap: «ابدأ» at the 11px floor, the sun
+ *      no smaller than SUN_MIN_PX.
+ *   8. Text drawn straight on the picture reads against the pixels under it
+ *      (WCAG AA). audit:color cannot do this one: it reads backgrounds from
+ *      CSS, and the picture is an <img>, so to it the label is on the page.
  *
- * It is a real browser against `out/`, so it measures what ships. It fails if
- * it finds NO marked parts — a selector that drifts must not pass vacuously.
+ * It fails if it finds no picture, so a selector that drifts cannot pass
+ * vacuously.
  */
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import sharp from "sharp";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "out");
 const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 const PORT = 4239;
 
-/** Phone, small tablet, the 1024 boundary on both sides, laptops, desktop, wide. */
-const WIDTHS = [320, 390, 640, 768, 1023, 1024, 1100, 1180, 1280, 1366, 1440, 1536, 1680, 1920];
-/** The dial may touch nothing the drawing marks. 0 = not overlapping. */
-const DIAL_GAP_PX = 0;
-/** The pill is a smaller, sharper-edged thing; give it room to breathe. */
-const PILL_GAP_PX = 8;
-/** The smallest the dial may be made. It is the page's primary control. */
-const DIAL_MIN_PX = 220;
+/** Phone, small tablet, tablet, laptops, desktop, wide, and a phone on its side. */
+const VIEWPORTS = [
+  [320, 640], [360, 780], [390, 844], [430, 932], [640, 900], [768, 1024], [1024, 768],
+  [1100, 900], [1280, 800], [1366, 768], [1440, 900], [1680, 1050], [1920, 1080], [844, 390],
+];
+const SUN_TOL_PX = 2;
+const ON_SUN_MIN = 0.97;
+const SUN_MIN_PX = 120;
+const FLOOR_PX = 11;
 
+try {
+  execFileSync("node", [join(ROOT, "scripts/gen-home-hero.mjs"), "--check"], { cwd: ROOT, stdio: "pipe" });
+} catch (e) {
+  console.error(`${e.stderr}`.trim() + "\n— run `npm run home-hero` and commit the result");
+  process.exit(1);
+}
 if (!existsSync(join(OUT, "index.html"))) {
   console.error("out/ is missing — run npm run build first.");
   process.exit(1);
 }
 
+// The master, as pixels, and what counts as disc and as water in it. The disc
+// is one flat yellow (#ffc93c); the sea is five flat blues, every one with
+// blue well above red, where a sail is cream, a hull black and a flag red.
+const { data: px, info } = await sharp(join(ROOT, "brand-source/home-hero.png"))
+  .removeAlpha().raw().toBuffer({ resolveWithObject: true });
+const at = (x, y) => {
+  const i = (Math.min(info.height - 1, Math.max(0, y)) * info.width + Math.min(info.width - 1, Math.max(0, x))) * 3;
+  return [px[i], px[i + 1], px[i + 2]];
+};
+const isSun = ([r, g, b]) => Math.abs(r - 0xff) < 8 && Math.abs(g - 0xc9) < 10 && Math.abs(b - 0x3c) < 14;
+const isSea = ([r, , b]) => b - r > 80;
+const lum = (c) => {
+  const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+};
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+/** Share of the master's pixels in [x0,x1)×[y0,y1) (master px) that pass `test`. */
+function share(box, test) {
+  let hit = 0, n = 0;
+  for (let y = Math.round(box.y0); y < box.y1; y += 2)
+    for (let x = Math.round(box.x0); x < box.x1; x += 2) { n++; if (test(at(x, y))) hit++; }
+  return n ? hit / n : 0;
+}
+
+// The disc, re-measured off the master rather than trusted from the generator,
+// so a wrong number there (or a replaced picture) is caught here.
+const G = JSON.parse(readFileSync(join(ROOT, "src/lib/home-hero.g.ts"), "utf8").match(/HOME_HERO_PX = (\{.*\}) as const/)[1]);
+{
+  // The first rim-coloured pixel from the left along the disc's row, and from
+  // the top along its column. Rim and fill are both strongly yellow; the
+  // halo, the sky and the Liberation Tower's cream all carry far more blue.
+  const rim = ([r, g, b]) => r > 0xd0 && g > 0x90 && b < 0x40;
+  let left = -1, top = -1;
+  for (let x = 0; x < G.sun.cx && left < 0; x++) if (rim(at(x, G.sun.cy))) left = x;
+  for (let y = 0; y < G.sun.cy && top < 0; y++) if (rim(at(G.sun.cx, y))) top = y;
+  if (Math.abs(G.sun.cx - left - G.sun.r) > 2 || Math.abs(G.sun.cy - top - G.sun.r) > 2) {
+    console.error(`the sun in home-hero.png is not where gen-home-hero.mjs says: rim at x ${left} (row ${G.sun.cy}) and y ${top} (column ${G.sun.cx}), expected ${G.sun.cx - G.sun.r} and ${G.sun.cy - G.sun.r}. Re-measure SUN.`);
+    process.exit(1);
+  }
+}
+
 const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
-  ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+  ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".avif": "image/avif", ".webp": "image/webp",
   ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon", ".txt": "text/plain" };
 const server = createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
@@ -79,58 +131,81 @@ const browser = await chromium.launch({ executablePath: CHROMIUM });
 let problems = 0;
 const say = (msg) => { console.log("  ✗ " + msg); problems++; };
 
-console.log("\n── the sun dial and the search pill against the drawing ──");
+console.log("\n── the home hero: the picture, its sun and the search pill ──");
 
-for (const width of WIDTHS) {
-  const ctx = await browser.newContext({ viewport: { width, height: 900 }, locale: "ar-KW" });
+for (const [width, height] of VIEWPORTS) {
+  const ctx = await browser.newContext({ viewport: { width, height }, locale: "ar-KW" });
   const page = await ctx.newPage();
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: "networkidle" });
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(150);
 
   const m = await page.evaluate(() => {
-    const sec = document.querySelector("main section");
-    const link = sec.querySelector('a[href^="/find"]');
-    const ring = link.parentElement.querySelector("svg"); // the tick ring: the dial as it is SEEN
+    const img = document.querySelector("main section img");
+    if (!img) return null;
+    const sec = img.closest("section");
+    const box = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; };
+    const sun = sec.querySelector('a[href^="/find"]');
+    const spans = sun ? [...sun.querySelectorAll("span")].filter((s) => s.children.length === 0 && s.textContent.trim()) : [];
     const pill = sec.querySelector('a[href^="/search"]');
-    const marked = [...sec.querySelectorAll("svg [data-clear]")];
-    const box = (e) => {
-      const r = e.getBoundingClientRect();
-      return { l: r.left, t: r.top, r: r.right, b: r.bottom };
-    };
-    const rr = box(ring), pp = box(pill);
-    const cx = (rr.l + rr.r) / 2, cy = (rr.t + rr.b) / 2, rad = (rr.r - rr.l) / 2;
-    // distance from a point to the nearest point of a rectangle
-    const toRect = (x, y, q) => Math.hypot(Math.max(q.l - x, 0, x - q.r), Math.max(q.t - y, 0, y - q.b));
-    // gap between two rectangles (0 when they overlap or touch)
-    const rects = (a, q) => Math.hypot(Math.max(a.l - q.r, q.l - a.r, 0), Math.max(a.t - q.b, q.t - a.b, 0));
-    let dial = { gap: Infinity, name: "" }, pl = { gap: Infinity, name: "" };
-    for (const e of marked) {
-      const q = box(e);
-      const dg = toRect(cx, cy, q) - rad;
-      if (dg < dial.gap) dial = { gap: dg, name: e.getAttribute("data-clear") };
-      const pg = rects(pp, q);
-      if (pg < pl.gap) pl = { gap: pg, name: e.getAttribute("data-clear") };
-    }
-    const vw = document.documentElement.clientWidth;
     return {
-      marked: marked.length,
-      dialPx: Math.round(link.getBoundingClientRect().width),
-      heroH: Math.round(sec.getBoundingClientRect().height),
-      overflow: document.documentElement.scrollWidth - vw,
-      dialOff: Math.round(Math.max(0, -(rr.l), rr.r - vw)),
-      dial, pill: pl,
+      img: box(img), sec: box(sec), loaded: img.complete && img.naturalWidth > 0,
+      sun: sun && box(sun),
+      labels: spans.map((s) => {
+        const cs = getComputedStyle(s);
+        return { text: s.textContent.trim(), box: box(s), font: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10),
+          color: cs.color, ownBg: cs.backgroundColor !== "rgba(0, 0, 0, 0)" };
+      }),
+      pill: pill && box(pill),
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      vw: document.documentElement.clientWidth,
     };
   });
 
-  const where = `${width}px`;
-  if (m.marked === 0) { say(`${where}: found no part of the drawing marked data-clear — the audit would pass vacuously`); await ctx.close(); continue; }
+  const where = `${width}×${height}`;
+  if (!m) { say(`${where}: no picture in the hero — the audit would pass vacuously`); await ctx.close(); continue; }
+  const before = problems;
+  const { img } = m;
+  const k = info.width / img.w; // master px per css px
+  const toMaster = (b) => ({ x0: (b.l - img.l) * k, y0: (b.t - img.t) * k, x1: (b.l + b.w - img.l) * k, y1: (b.t + b.h - img.t) * k });
+
   if (m.overflow > 1) say(`${where}: the page is ${m.overflow}px wider than the screen`);
-  if (m.dialOff > 0) say(`${where}: the dial runs ${m.dialOff}px off the screen`);
-  if (m.dialPx < DIAL_MIN_PX) say(`${where}: the dial is ${m.dialPx}px — under ${DIAL_MIN_PX}px it stops being the page's main control`);
-  if (m.dial.gap < DIAL_GAP_PX) say(`${where}: the dial covers the ${m.dial.name} (by ${Math.round(-m.dial.gap)}px)`);
-  if (m.pill.gap < PILL_GAP_PX) say(`${where}: the search pill is ${Math.round(m.pill.gap)}px from the ${m.pill.name} — under ${PILL_GAP_PX}px`);
-  else if (m.dial.gap >= DIAL_GAP_PX && m.dialPx >= DIAL_MIN_PX) {
-    console.log(`  ✓ ${where.padEnd(7)} dial ${m.dialPx}px · hero ${m.heroH}px · nearest to the dial: ${m.dial.name} ${Math.round(m.dial.gap)}px · to the pill: ${m.pill.name} ${Math.round(m.pill.gap)}px`);
+  if (!m.loaded) say(`${where}: the picture did not load`);
+  if (Math.abs(img.h / img.w - info.height / info.width) > 0.01) say(`${where}: the picture is ${Math.round(img.w)}×${Math.round(img.h)}, not the master's ratio — it is being stretched or cropped`);
+  if (img.l < -0.5 || img.l + img.w > m.vw + 0.5) say(`${where}: the picture runs off the screen`);
+  if (img.t < m.sec.t - 0.5 || img.t + img.h > m.sec.t + m.sec.h + 0.5) say(`${where}: the section cuts the picture`);
+
+  if (!m.sun) say(`${where}: no sun link to /find`);
+  else {
+    const cx = (m.sun.l + m.sun.w / 2 - img.l) * k, cy = (m.sun.t + m.sun.h / 2 - img.t) * k, d = m.sun.w * k;
+    const tol = SUN_TOL_PX * k;
+    if (Math.abs(cx - G.sun.cx) > tol || Math.abs(cy - G.sun.cy) > tol || Math.abs(d - 2 * G.sun.r) > 2 * tol || Math.abs(m.sun.w - m.sun.h) > 1)
+      say(`${where}: the sun link is not on the sun — centre (${cx.toFixed(0)}, ${cy.toFixed(0)}) ⌀${d.toFixed(0)} in the master, the disc is (${G.sun.cx}, ${G.sun.cy}) ⌀${2 * G.sun.r}`);
+    if (m.sun.w < SUN_MIN_PX) say(`${where}: the sun is ${Math.round(m.sun.w)}px — under ${SUN_MIN_PX}px it stops being the page's main control`);
+  }
+  if (m.labels.length < 2) say(`${where}: the sun carries ${m.labels.length} label(s), expected «إلى وين؟» and «ابدأ»`);
+  for (const l of m.labels) {
+    const on = share(toMaster(l.box), isSun);
+    if (on < ON_SUN_MIN) say(`${where}: «${l.text}» is ${(on * 100).toFixed(0)}% on the sun's yellow — it reaches past the disc or over a tower`);
+    if (l.font < FLOOR_PX - 0.05) say(`${where}: «${l.text}» is ${l.font.toFixed(1)}px — under the ${FLOOR_PX}px floor`);
+    if (!l.ownBg) {
+      // Against the darkest and the lightest pixel under it: the worst case.
+      const fg = l.color.match(/\d+/g).slice(0, 3).map(Number);
+      const b = toMaster(l.box);
+      let worst = Infinity;
+      for (let y = Math.round(b.y0); y < b.y1; y += 2)
+        for (let x = Math.round(b.x0); x < b.x1; x += 2) worst = Math.min(worst, contrast(fg, at(x, y)));
+      const need = l.font >= 24 || (l.font >= 18.66 && l.weight >= 700) ? 3 : 4.5;
+      if (worst < need) say(`${where}: «${l.text}» is ${worst.toFixed(2)}:1 against the picture under it — needs ${need}`);
+    }
+  }
+  if (m.pill) {
+    const seaShare = share(toMaster(m.pill), isSea);
+    if (seaShare < 1) say(`${where}: the search pill is ${(seaShare * 100).toFixed(1)}% on plain water — part of it lies on a boat or the shore`);
+  } else if (!m.pill) say(`${where}: no search pill`);
+
+  if (problems === before) {
+    const lab = m.labels.map((l) => `${l.font.toFixed(0)}px`).join("/");
+    console.log(`  ✓ ${where.padEnd(10)} picture ${Math.round(img.w)}×${Math.round(img.h)} · sun ⌀${Math.round(m.sun.w)} · labels ${lab}`);
   }
   await ctx.close();
 }
@@ -139,7 +214,7 @@ await browser.close();
 server.close();
 
 if (problems) {
-  console.log(`\n${problems} problem(s) — see the header of scripts/audit-home-hero.mjs and the hero comment in src/app/page.tsx\n`);
+  console.log(`\n${problems} problem(s) — see the header of scripts/audit-home-hero.mjs and src/components/HomeHero.tsx\n`);
   process.exit(1);
 }
-console.log(`\n0 errors — the dial and the pill stay clear of the drawing at ${WIDTHS.length} widths.\n`);
+console.log(`\n0 errors — the picture is whole and the sun and the pill are where it says, at ${VIEWPORTS.length} sizes.\n`);

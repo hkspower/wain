@@ -222,7 +222,7 @@ console.log("\n── colours outside the palette ──");
 /* Illustrations are allowed their own colours — a skyline is artwork, not UI,
    and forcing it through eight brand tokens would make it worse. Everything
    else should be spending the palette. */
-const ART = /(KuwaitSkyline|CategoryArt|PlaceArt|WainLogo|icons|PlaceIcon)\.tsx$/;
+const ART = /((CategoryArt|PlaceArt|WainLogo|icons|PlaceIcon)\.tsx|home-hero\.g\.ts)$/;
 /* layout.tsx and manifest.ts hold the app-chrome colours, which the check
    above compares against the palette properly. Listing them here as well would
    be reporting the same three values twice. */

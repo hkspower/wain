@@ -31,10 +31,14 @@ produced it. So every `.ts`/`.tsx` under `src/` is read for hex literals.
 
 Two exemptions, and only two:
 
-- `KuwaitSkyline`, `CategoryArt`, `WainLogo`, `PlaceArt` are *drawings* — a dhow
-  sail, a dome, the flag. Their colours are chosen for the picture, not applied
-  to an interface, none of them sits behind text, and forcing them onto a
-  nine-step UI ramp would flatten them.
+- `CategoryArt`, `WainLogo`, `PlaceArt` are *drawings* — a dhow sail, a dome,
+  the flag. Their colours are chosen for the picture, not applied to an
+  interface, and forcing them onto a nine-step UI ramp would flatten them. So is
+  `lib/home-hero.g.ts`: the home hero's edge colours, read off the picture by
+  `gen-home-hero.mjs` (the drawn `KuwaitSkyline` it replaced on 2 October was
+  the fourth drawing here). Text DOES sit on that picture — the sun's label —
+  and `audit:home-hero` measures it against the picture's own pixels, because
+  this audit reads backgrounds from CSS and cannot see an `<img>`.
 - `layout.tsx` and `manifest.ts` set the PWA and browser-chrome colours, which
   the operating system reads before any stylesheet exists.
 

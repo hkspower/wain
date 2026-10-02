@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
+import '../data/home_hero.g.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/layout.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 
-/// Home: the skyline hero with the «إلى وين؟» dial, the featured places, how
-/// it works, and the call to explore. The skyline is drawn at its own
-/// 1200:530 and never cropped; the dial is one navigation, to /find, which
-/// asks how you want to search before showing anything.
+/// Home: the picture hero with its sun as the «إلى وين؟» button, the featured
+/// places, how it works, and the call to explore. The sun is one navigation,
+/// to /find, which asks how you want to search before showing anything.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -26,109 +26,102 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+/// The owner's picture (brand-source/home-hero.png, shipped by
+/// `npm run home-hero`), as on the web (HomeHero.tsx): never cropped, its
+/// wordmark and question part of the picture, its sun the button. Everything
+/// on it is placed in the picture's own fractions from home_hero.g.dart, so it
+/// lands on the same spot at every size.
+///
+/// A phone shows it at full width. A tablet (Android 16 may lay one out
+/// whatever the manifest says) gets it as tall as the screen allows, centred,
+/// with the picture's edge colours carried out to the sides — the web's rule
+/// from `sm` up, and its numbers: 28rem to 62rem, the screen less 3rem.
 class _Hero extends StatelessWidget {
   const _Hero();
 
   @override
   Widget build(BuildContext context) {
-    final w = MediaQuery.sizeOf(context).width;
-    final skyline = w * 530 / 1200;
-    final dial = math.min(288.0, w - 56);
+    final screen = MediaQuery.sizeOf(context);
+    final double pw, ph;
+    if (screen.width < 640) {
+      pw = screen.width;
+      ph = pw * kHomeHeroHeight / kHomeHeroWidth;
+    } else {
+      ph = (screen.height - 48).clamp(448.0, 992.0);
+      pw = ph * kHomeHeroWidth / kHomeHeroHeight;
+    }
+    final narrower = pw < screen.width - 0.5;
+    Widget picture = Image.asset(
+      kHomeHeroAsset,
+      width: pw,
+      height: ph,
+      fit: BoxFit.fill,
+      excludeFromSemantics: true,
+      gaplessPlayback: true,
+    );
+    if (narrower) {
+      // Faded into the bands beside it, so a band edge a few px off (the
+      // waves are not straight) never reads as a seam.
+      picture = ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (r) => const LinearGradient(
+          colors: [
+            Color(0x00000000),
+            Color(0xFF000000),
+            Color(0xFF000000),
+            Color(0x00000000),
+          ],
+          stops: [0, 0.06, 0.94, 1],
+        ).createShader(r),
+        child: picture,
+      );
+    }
     return Container(
-      color: Colors.white,
-      child: Stack(
-        children: [
-          // The drawing sits on the section's floor at its natural ratio.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: WainSvg(
-                'assets/art/skyline.svg',
-                width: w,
-                height: skyline,
-                fit: BoxFit.fitWidth,
-                alignment: Alignment.bottomCenter,
-              ),
+      height: ph,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: kHomeHeroEdgeColors,
+          stops: kHomeHeroEdgeStops,
+        ),
+      ),
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: pw,
+        height: ph,
+        child: Stack(
+          children: [
+            // The picture says both; these say them to a screen reader.
+            Semantics(
+              header: true,
+              label: 'وين — وين الطلعة اليوم؟',
+              child: picture,
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(10, 8, 10, skyline * 0.92),
-            child: Column(
-              children: [
-                const _Wordmark(),
-                const SizedBox(height: 28),
-                // No «دوّر باسم المكان» under the dial here: the app's tab
-                // bar has a search tab, so it was the same offer twice. The
-                // website keeps it — in a browser it is the page's one way
-                // to /search — and hides it in its installed mode too.
-                _Dial(size: dial),
-              ],
-            ),
-          ),
-        ],
+            // No «دوّر باسم المكان» on the sea here: the app's tab bar has a
+            // search tab, so it would be the same offer twice. The website
+            // keeps it — in a browser it is the page's one way to /search —
+            // and hides it in its installed mode too.
+            _Sun(pw: pw, ph: ph),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _Wordmark extends StatelessWidget {
-  const _Wordmark();
+class _Sun extends StatefulWidget {
+  final double pw, ph;
+  const _Sun({required this.pw, required this.ph});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Text(
-              'وين',
-              semanticsLabel: 'وين',
-              style: wainText(
-                WainText.s5xl,
-                weight: FontWeight.w700,
-                color: WainColors.ink900,
-              ),
-            ),
-            PositionedDirectional(
-              start: -28,
-              top: -8,
-              child: WainSvg.icon(
-                'pinsolid',
-                size: 36,
-                color: WainColors.coral600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'وين الطلعة اليوم؟',
-          style: wainText(
-            WainText.s2xl,
-            weight: FontWeight.w700,
-            color: WainColors.coral600,
-          ),
-        ),
-      ],
-    );
-  }
+  State<_Sun> createState() => _SunState();
 }
 
-class _Dial extends StatefulWidget {
-  final double size;
-  const _Dial({required this.size});
-
-  @override
-  State<_Dial> createState() => _DialState();
-}
-
-class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
+class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2400),
+    duration: const Duration(milliseconds: 2600),
   )..repeat();
 
   @override
@@ -139,77 +132,78 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.size;
-    return SizedBox(
-      width: s + 32,
-      height: s + 32,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // The pulse: a ring that swells and fades, unless motion is reduced.
-          if (!MediaQuery.disableAnimationsOf(context))
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (_, _) => Container(
-                width: s * (1 + 0.12 * _pulse.value),
-                height: s * (1 + 0.12 * _pulse.value),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: WainColors.sun300.withValues(
-                    alpha: 0.6 * (1 - _pulse.value),
+    final pw = widget.pw, ph = widget.ph;
+    final d = 2 * kHomeHeroSunR * pw;
+    final left = (kHomeHeroSunX - kHomeHeroSunR) * pw;
+    final top = kHomeHeroSunY * ph - kHomeHeroSunR * pw;
+    // The label's box, in the sun's own coordinates.
+    final label = Rect.fromLTRB(
+      kHomeHeroLabel.left * pw - left,
+      kHomeHeroLabel.top * ph - top,
+      kHomeHeroLabel.right * pw - left,
+      kHomeHeroLabel.bottom * ph - top,
+    );
+    return Positioned(
+      left: left,
+      top: top,
+      width: d,
+      height: d,
+      child: Semantics(
+        key: const ValueKey('home-sun'),
+        button: true,
+        label: 'إلى وين؟ — اكتب أو كلّم شوق',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => context.push('/find'),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // A ring that breathes out from the rim, so the sun reads as
+              // something to press — a ring, not a fill, or it would wash yellow
+              // over the Kuwait Towers in front of it. Off under reduced motion.
+              if (!MediaQuery.disableAnimationsOf(context))
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (_, _) {
+                      final v = (_pulse.value / 0.7).clamp(0.0, 1.0);
+                      return Transform.scale(
+                        scale: 0.92 + 0.2 * v,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: WainColors.sun200.withValues(
+                                alpha: 0.7 * (1 - v),
+                              ),
+                              width: 4,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-            ),
-          CustomPaint(size: Size(s + 32, s + 32), painter: _TickRing()),
-          Semantics(
-            button: true,
-            label: 'إلى وين؟ — اكتب أو كلّم شوق',
-            child: GestureDetector(
-              onTap: () => context.push('/find'),
-              child: Container(
-                width: s,
-                height: s,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 6),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [WainColors.sun200, WainColors.sun400],
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x8CB4780A),
-                      blurRadius: 40,
-                      spreadRadius: -12,
-                      offset: Offset(0, 18),
-                    ),
-                  ],
-                ),
+              Positioned.fromRect(
+                rect: label,
                 child: ExcludeSemantics(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         'إلى وين؟',
+                        maxLines: 1,
                         style: wainText(
-                          WainText.s3xl,
+                          math.max(20.0, 0.062 * pw),
                           weight: FontWeight.w700,
                           color: WainColors.ink900,
                         ),
                       ),
-                      // The question and one thing to do, as on the web
-                      // (NearbyDial): «اضغط ودوّر حواليك» stopped being true
-                      // when the dial stopped ranking places around you, and
-                      // what the tap leads to is in the label above.
-                      const SizedBox(height: 12),
+                      SizedBox(height: 0.02 * pw),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 8,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 0.048 * pw,
+                          vertical: 0.012 * pw,
                         ),
                         decoration: BoxDecoration(
                           color: WainColors.ink900,
@@ -218,7 +212,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                         child: Text(
                           'ابدأ',
                           style: wainText(
-                            WainText.sm,
+                            math.max(11.0, 0.034 * pw),
                             weight: FontWeight.w600,
                             color: WainColors.sun100,
                           ),
@@ -228,38 +222,12 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
-
-/// The compass tick ring around the dial: 36 ticks, every ninth a major one.
-class _TickRing extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final unit = size.width / 100;
-    for (var i = 0; i < 36; i++) {
-      final a = i * 10 * math.pi / 180;
-      final major = i % 9 == 0;
-      final r1 = (major ? 44.5 : 46.5) * unit;
-      final r2 = 48 * unit;
-      canvas.drawLine(
-        c + Offset(math.cos(a) * r1, math.sin(a) * r1),
-        c + Offset(math.cos(a) * r2, math.sin(a) * r2),
-        Paint()
-          ..color = WainColors.sun600.withValues(alpha: 0.5)
-          ..strokeWidth = (major ? 1.6 : 0.9) * unit
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TickRing old) => false;
 }
 
 class _Featured extends StatelessWidget {

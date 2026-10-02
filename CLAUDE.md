@@ -3276,6 +3276,67 @@ the first place; the header comment records all three rather than only the
 last, because the next person reaching for `SALEM_VOICE_ID` from a THIRD
 surface should see that this has been tried and walked back twice already.
 
+## The home hero is the owner's picture now — 2 October
+
+Asked: «use this as main hero instead current». The owner's choices: use the
+picture as it is; on wide screens centre it and extend the sky and sea; the
+«إلى وين؟» button on the picture's own sun; the Flutter home too; deploy.
+
+**So the four sections below — the 1.3× towers, the whole-scene style pass,
+the colours checked against what they depict, the dial and pill over the
+drawing at 9 of 14 widths — describe a hero that is gone.** `KuwaitSkyline.tsx`
+(1,058 lines) and `NearbyDial.tsx` are deleted, and so is the app's
+`assets/art/skyline.svg`. They are in git if the drawn version is ever wanted
+back; their reasoning is kept below because it is the record of why they
+looked the way they did.
+
+**What it is.** `brand-source/home-hero.png` (1080×1920, a design source, not
+served) → `npm run home-hero` (`scripts/gen-home-hero.mjs`) writes
+`public/home/hero-<hash>-{720,1080}.{avif,webp}` (23–66K; AVIF q60 was read at
+the wordmark's edges before choosing it), `src/lib/home-hero.g.ts`, the app's
+`assets/img/home-hero.webp` and `lib/data/home_hero.g.dart`. The names carry
+the master's hash because `.htaccess` caches stable-named media for a week.
+`HomeHero.tsx` draws it; the wordmark and «وين الطلعة اليوم؟» are in the
+picture, so the page's `<h1>` and line are `sr-only`.
+
+- **Never cropped.** Full width on a phone; from `sm` as tall as
+  `clamp(28rem, 100svh − 3rem, 62rem)` allows, centred. Beside it, the
+  picture's own edge colours run out to the screen's edges — sky, the mint
+  city, the dark shore, five bands of sea, read off columns 0–6 and 1073–1079
+  — and the picture's sides fade into them over 6%. **The sky needed seven
+  stops, not two**: a linear sky was 2–3 units darker at mid-height and that
+  was enough to see the picture's box.
+- **The sun is the button**, a circle exactly on the disc (centre (540, 1004),
+  radius 285 in the master — the rim measured on its row and its column).
+  The label goes only on the part of the disc nothing stands in front of:
+  right of the Liberation Tower's pod, left of the Kuwait Towers' spheres.
+  «دوّر باسم المكان» lies on the deep sea under both dhows, and stays
+  `standalone:hidden`. Everything is placed in the picture's coordinates
+  (`%` of the box, `cqw` of its width), so it lands on the same pixels at
+  every size; the label grows with the picture and stops at the 11px floor.
+- **`audit:home-hero` was rewritten for it** and stays in `scan`. At 14
+  viewports it maps each control's box back into the master and reads the
+  pixels: the picture is whole, the link is on the disc within 2px, the label
+  is ≥97% on the disc's yellow, the pill is 100% on water, the label meets AA
+  **against the picture's own pixels**, and it re-measures the disc so a
+  replaced picture cannot pass on old numbers. Every check was proved red with
+  the build green (label moved, pill moved, sun moved, picture cropped, «ابدأ»
+  under 11px, the label in sun-600, the generator's radius off by 10).
+- **`audit:color` cannot see this text's background, and was misled into
+  failing it.** It reads backgrounds from CSS; the picture is an `<img>`. With
+  the edge gradient on the `<section>`, the `sr-only` heading was measured
+  against the sea (1.06:1). The gradient is a layer of its own now, and the
+  real contrast check is the one above.
+- **The app** mirrors it: the same fractions from `home_hero.g.dart`, the same
+  width rule (a tablet gets the centred, banded version), the sun a
+  `Semantics(button)` that pushes /find, no search pill (the tab bar has
+  search). Three widget tests hold the geometry at 390, 320 and 800 and one
+  taps the sun; proved red by moving the sun 10px and, separately, the label.
+
+**Not verified**: a real phone (the label's size, the pulse ring over the
+towers), the AVIF on an older iPhone (WebP is the fallback, `<img>` is WebP),
+and the live site until the deploy below.
+
 ## The home hero's towers are 1.3× taller, and the canvas grew to hold them — 30 September
 
 Asked for higher, better-looking towers. Kuwait Towers and the Liberation

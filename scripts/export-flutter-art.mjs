@@ -3,8 +3,9 @@
  * Exports the site's drawings as static SVG for the Flutter app.
  *   npm run flutter:art     (add --check to render and diff without writing)
  *
- * CategoryArt, PlaceArt, PlaceIcon, the UI icons, WainLogo and the skyline are
- * hand-drawn React components, and the skyline's orbs are computed. Re-tracing
+ * CategoryArt, PlaceArt, PlaceIcon, the UI icons and WainLogo are hand-drawn
+ * React components. (The home skyline was one too, until the home hero became
+ * a picture on 2 October — gen-home-hero.mjs ships that one.) Re-tracing
  * them for Flutter would be a second set of drawings that could only drift, so
  * they are bundled, rendered in a real browser, and taken out of the DOM — the
  * technique `export-figma-icons.mjs` already uses, for the same reason: the
@@ -45,7 +46,6 @@ import PlaceIcon from "${join(ROOT, "src/components/PlaceIcon")}";
 import PlaceArt from "${join(ROOT, "src/components/PlaceArt")}";
 import CategoryArt from "${join(ROOT, "src/components/CategoryArt")}";
 import CategoryIcon from "${join(ROOT, "src/components/CategoryIcon")}";
-import KuwaitSkyline from "${join(ROOT, "src/components/KuwaitSkyline")}";
 import WainLogo from "${join(ROOT, "src/components/WainLogo")}";
 import { places, categories } from "${join(ROOT, "src/lib/places")}";
 
@@ -57,7 +57,7 @@ createRoot(document.getElementById("r")!).render(
     <div id="mark">{places.map((p) => <i key={p.slug} data-name={p.slug}><PlaceIcon slug={p.slug} className="size-12" /></i>)}</div>
     <div id="category-icon">{[...categories.map((c) => c.icon), "all"].map((n) => <i key={n} data-name={n}><CategoryIcon name={n} className="size-12" /></i>)}</div>
     <div id="icon">{uiNames.map((n) => { const C = (Icons as Record<string, any>)[n]; return <i key={n} data-name={n.replace(/^Icon/, "").toLowerCase()}><C /></i>; })}</div>
-    <div id="single"><i data-name="skyline"><KuwaitSkyline /></i><i data-name="logo"><WainLogo /></i></div>
+    <div id="single"><i data-name="logo"><WainLogo /></i></div>
   </>
 );
 `
@@ -87,24 +87,10 @@ const grabbed = await page.evaluate(() => {
     const el = svg.cloneNode(true);
     const vars = {};
     for (const name of ["--w2"]) vars[name] = svg.style.getPropertyValue(name) || root.getPropertyValue(name);
-    // The skyline styles its outlines with a <style> block (.bldg/.spire/.orb),
-    // which flutter_svg does not apply. The browser already knows what each of
-    // those classes resolves to, so bake the computed stroke onto the element.
-    const originals = svg.querySelectorAll("[class]");
-    const clones = el.querySelectorAll("[class]");
-    originals.forEach((o, i) => {
-      if (!/\b(bldg|spire|orb)\b/.test(o.getAttribute("class") || "")) return;
-      const cs = getComputedStyle(o);
-      clones[i].setAttribute("stroke", cs.stroke);
-      clones[i].setAttribute("stroke-width", cs.strokeWidth);
-      clones[i].setAttribute("stroke-linejoin", cs.strokeLinejoin);
-    });
     el.querySelectorAll("style").forEach((n) => n.remove());
     el.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     for (const a of ["class", "aria-hidden", "focusable", "role", "width", "height"]) el.removeAttribute(a);
     el.querySelectorAll("*").forEach((n) => { n.removeAttribute("class"); });
-    // audit hooks (KuwaitSkyline's data-clear) mean nothing to flutter_svg
-    el.querySelectorAll("[data-clear]").forEach((n) => n.removeAttribute("data-clear"));
     // Resolve the custom property the marks use for their detail stroke.
     const walk = (n) => {
       for (const a of [...n.attributes]) {
@@ -145,7 +131,6 @@ for (const [k, v] of Object.entries(grabbed["place-art"])) put(`place/${k}.svg`,
 for (const [k, v] of Object.entries(marks)) put(`mark/${k}.svg`, v);
 for (const [k, v] of Object.entries(grabbed["category-icon"])) put(`cat-icon/${k}.svg`, v);
 for (const [k, v] of Object.entries(grabbed.icon)) put(`icon/${k}.svg`, v);
-put("skyline.svg", grabbed.single.skyline);
 put("logo.svg", grabbed.single.logo);
 
 // What flutter_svg cannot draw must not have leaked through.

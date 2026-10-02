@@ -21,7 +21,7 @@ pre-installed on `PATH` in the cloud sandbox: `/opt/flutter/bin/flutter`.
 
 | Route | Notes |
 |---|---|
-| `/` | skyline hero, the «إلى وين؟» dial, featured rail, how it works |
+| `/` | the picture hero (its sun is the «إلى وين؟» button), featured rail, how it works |
 | `/find` | شوق's call on top, a typed conversation with her below |
 | `/search` | the ranked engine, filters by kind, map, hangout panel, voice toggle |
 | `/explore` | category chips + filter + grid |
@@ -45,6 +45,7 @@ route change and a call the page owned would be killed by its own tool.
 | `lib/data/search_data.g.dart`, `test/fixtures/search_parity.json` | `npm run flutter:search` | `src/lib/search.ts` |
 | `test/fixtures/kit_parity.json` | `npm run flutter:fixtures` | `place-kit`, `voice-lines`, `hangout` |
 | `assets/art/**`, `lib/theme/art_index.g.dart` | `npm run flutter:art` | the React drawings, rendered in Chromium |
+| `assets/img/home-hero.webp`, `lib/data/home_hero.g.dart` | `npm run home-hero` | `brand-source/home-hero.png` (the picture and where its sun is) |
 
 `npm run audit:flutter` (part of `npm run scan`) re-renders each with `--check`
 and fails if any differs — a place added on the web with no regeneration would

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wain/app/deep_link.dart';
 import 'package:wain/app/app_state.dart';
+import 'package:wain/data/home_hero.g.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/main.dart';
 import 'package:wain/map/wain_map.dart';
@@ -31,7 +32,7 @@ void main() {
   tearDown(() => debugTileUrl = null);
 
   final routes = {
-    '/': 'وين الطلعة اليوم؟',
+    '/': 'إلى وين؟',
     '/find': 'اتصال',
     '/explore': 'استكشف الكويت',
     '/explore?category=coffee': 'استكشف الكويت',
@@ -166,6 +167,66 @@ void main() {
     // second one under the dial.
     expect(find.text('دوّر باسم المكان'), findsNothing);
     expect(find.text('بحث'), findsWidgets);
+  });
+
+  // The hero is the owner's picture (2 October) and its sun is the button.
+  // Placing a control on a picture is a promise about pixels the layout never
+  // sees; the web's audit:home-hero reads the master under each control, and
+  // this holds the app to the same numbers: the button IS the disc, and the
+  // label sits inside the part of it nothing stands in front of.
+  for (final size in const [Size(390, 844), Size(320, 568), Size(800, 1280)]) {
+    testWidgets(
+      'home at ${size.width.toInt()}px: the picture is whole and its sun is the button',
+      (t) async {
+        await pumpAt(t, '/', size: size);
+        final img = t.getRect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is Image &&
+                w.image is AssetImage &&
+                (w.image as AssetImage).assetName == kHomeHeroAsset,
+          ),
+        );
+        expect(
+          img.height / img.width,
+          closeTo(kHomeHeroHeight / kHomeHeroWidth, 0.01),
+          reason: 'never cropped or stretched',
+        );
+        expect(img.left, greaterThanOrEqualTo(-0.5));
+        expect(img.right, lessThanOrEqualTo(size.width + 0.5));
+
+        final sun = t.getRect(find.byKey(const ValueKey('home-sun')));
+        expect(sun.width, closeTo(sun.height, 0.5));
+        expect(sun.width, closeTo(2 * kHomeHeroSunR * img.width, 1));
+        expect(sun.center.dx, closeTo(img.left + kHomeHeroSunX * img.width, 1));
+        expect(sun.center.dy, closeTo(img.top + kHomeHeroSunY * img.height, 1));
+
+        final zone = Rect.fromLTRB(
+          img.left + kHomeHeroLabel.left * img.width,
+          img.top + kHomeHeroLabel.top * img.height,
+          img.left + kHomeHeroLabel.right * img.width,
+          img.top + kHomeHeroLabel.bottom * img.height,
+        ).inflate(0.5);
+        for (final text in ['إلى وين؟', 'ابدأ']) {
+          final r = t.getRect(find.text(text));
+          expect(
+            zone.contains(r.topLeft) && zone.contains(r.bottomRight),
+            isTrue,
+            reason: '«$text» at $r is outside the clear part of the sun, $zone',
+          );
+        }
+        expect(t.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('home: tapping the sun opens /find', (t) async {
+    await pumpAt(t, '/');
+    await t.tap(find.byKey(const ValueKey('home-sun')));
+    for (var i = 0; i < 10; i++) {
+      await t.pump(const Duration(milliseconds: 80));
+    }
+    expect(find.byKey(const ValueKey('find-call')), findsOneWidget);
   });
 }
 

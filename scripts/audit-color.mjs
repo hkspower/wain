@@ -292,12 +292,14 @@ if (strangers.length) {
 // exactly like sea-700 at 40% over sand whether it came from a token or not.
 // So read the source.
 //
-// The illustrations are exempt, and only they. KuwaitSkyline, CategoryArt and
+// The illustrations are exempt, and only they. CategoryArt, PlaceArt and
 // the rest are drawings — a dhow sail, a mosque dome, the flag — whose colours
 // are picked for the picture, not applied to an interface. Forcing them onto a
 // nine-step UI ramp would flatten them, and none of them ever sits behind text.
 const ART = new Set([
-  "src/components/KuwaitSkyline.tsx",
+  // The home hero's picture is a raster; these are its own edge colours,
+  // carried out to the sides of a wide screen (gen-home-hero.mjs).
+  "src/lib/home-hero.g.ts",
   "src/components/CategoryArt.tsx",
   "src/components/WainLogo.tsx",
   "src/components/PlaceArt.tsx",

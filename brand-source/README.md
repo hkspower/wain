@@ -22,3 +22,10 @@ Still served from `public/brand/`:
 mirrors, which is the definition of a design source. Keep the two in sync.
 
 Use these files for anything off-site: print, social banners, partner decks.
+
+`home-hero.png` (1080×1920) is the home page's hero, supplied by the owner on
+2 October and used as it is. Nothing serves this file; `npm run home-hero`
+writes the AVIF/WebP sizes the site serves (`public/home/`) and the app's copy
+(`flutter_app/assets/img/home-hero.webp`) from it. Replacing it means
+re-measuring the sun in `scripts/gen-home-hero.mjs` — `audit:home-hero`
+re-measures the disc and stops if the numbers no longer fit the picture.
