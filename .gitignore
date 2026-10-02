@@ -148,3 +148,6 @@ sporta-site/RESTORE/
 # arrived untracked, exactly as the zips did before the rule above them was
 # widened. No tracked file matches sporta-*.php.
 sporta-*.php
+
+# test-rig upload leftovers (the brand/product upload rigs write here); never part of the shop
+sporta-site/public_html/images/_uploads/
