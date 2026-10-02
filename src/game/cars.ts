@@ -2151,10 +2151,14 @@ function tireSurface() {
       const u = x / W;
       let e: number;
       if (v < 0.2 || v > 0.8) {
-        // Sidewall: gently domed, carrying the fine concentric ribbing a
-        // mould leaves, strongest out near the shoulder.
+        // Sidewall: gently domed, with the mould's ribbing kept FINE and
+        // faint. At 0.09 of the height field, through the normal map's
+        // 3.2 gain, it read as deep lathe grooves, concentric rings
+        // stepping down every sidewall in every studio render. A real
+        // sidewall is a smooth satin face; the ribbing is something you
+        // see only with your nose on it.
         const d = v < 0.5 ? v / 0.2 : (1 - v) / 0.2;
-        e = 0.4 + 0.09 * Math.sin(v * 190) * (0.3 + 0.7 * d) + 0.08 * d;
+        e = 0.4 + 0.018 * Math.sin(v * 420) * (0.3 + 0.7 * d) + 0.08 * d;
       } else {
         // Tread: three circumferential grooves, and one lateral sipe per
         // tile raked across so the blocks are not a chequerboard.
@@ -2195,17 +2199,22 @@ function tireSurface() {
     for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 4;
       const e = h[y * W + x];
-      // Rubber is never pure black: it sits around 8-12% reflectance with
-      // a faint blue-grey cast. Pure black reads as a hole in the frame.
-      const base = sidewall ? 13 : 10;
-      const lit = base + e * (sidewall ? 15 : 26);
+      // Rubber is never pure black, but it is BLACK: carbon-filled
+      // rubber reflects a few percent, with a faint blue-grey cast. The
+      // tread's groove floors sit a little darker than the block faces.
+      const base = sidewall ? 14 : 11;
+      const lit = base + e * (sidewall ? 8 : 18);
       col.data[i] = lit * 0.98;
       col.data[i + 1] = lit;
       col.data[i + 2] = lit * 1.1;
       col.data[i + 3] = 255;
-      // Sidewall rubber has a sheen; tread blocks are scuffed matte and
-      // the groove floors, which never touch the road, rougher still.
-      const r = sidewall ? 0.6 + (1 - e) * 0.14 : 0.86 + (1 - e) * 0.12;
+      // Sidewall rubber has a satin sheen, not a gloss: at 0.6 it threw
+      // back every light in the scene and a black tyre came out mid-grey.
+      // At 0.8 and up it went the other way, a flat black disc with no
+      // bulge to it. 0.7 is the satin: black, with the shape of the
+      // sidewall drawn in one soft highlight. Tread blocks are scuffed
+      // matte; the groove floors, which never touch the road, rougher.
+      const r = sidewall ? 0.7 + (1 - e) * 0.08 : 0.86 + (1 - e) * 0.1;
       const rv = Math.round(Math.min(1, r) * 255);
       rgh.data[i] = rgh.data[i + 1] = rgh.data[i + 2] = rv;
       rgh.data[i + 3] = 255;
@@ -2291,7 +2300,7 @@ const TYRE_STICKERS = {
 
 export type TyreSticker = keyof typeof TYRE_STICKERS;
 
-const stickerTexCache = new Map<TyreSticker, THREE.CanvasTexture>();
+const stickerTexCache = new Map<TyreSticker, { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture }>();
 
 /**
  * The band, unrolled: brand and fitment code, twice around.
@@ -2299,63 +2308,119 @@ const stickerTexCache = new Map<TyreSticker, THREE.CanvasTexture>();
  * Twice rather than once, because a single name on a spinning wheel is
  * absent for half of every rotation; and rather than four, because at
  * four the words stop being words.
+ *
+ * Drawn big: the band is about 75 mm tall and 1.9 m around, and the
+ * letters fill most of that height, the way a real sidewall's do. The
+ * first cut set 40 px letters in a 64 px band at 2048 across, which at
+ * any distance past arm's length was a grey smudge.
+ *
+ * Every letter is RAISED: a height field is drawn from the same text
+ * (a soft-edged copy, so each letter has a bevel), and a normal map is
+ * taken from it. Moulded lettering is all relief and no ink; painted
+ * lettering is ink on relief. Either way the letters catch the light on
+ * their edges, which is what makes a sidewall read as a sidewall.
  */
-function tyreStickerTexture(id: TyreSticker): THREE.CanvasTexture {
+function tyreStickerTexture(id: TyreSticker): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
   const hit = stickerTexCache.get(id);
   if (hit) return hit;
   const spec = TYRE_STICKERS[id];
-  // Long and thin, because the surface is: this wraps a band about 2.3 m
-  // around and 60 mm tall, so the canvas is sized to give the letters
-  // real texels rather than to be square.
-  const W = 2048;
-  const H = 64;
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const ctx = c.getContext("2d")!;
-  // Transparent everywhere the letters are not: this is a decal laid on
-  // the rubber, not a replacement for it.
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = spec.ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  for (let i = 0; i < 2; i++) {
-    const cx = (i + 0.5) * (W / 2);
-    ctx.font = `700 40px ${latinDisplay()}`;
-    ctx.fillText(spec.name, cx - 150, H / 2);
-    // The fitment code, smaller and set apart the way it is on a real
-    // sidewall: the name is what you read at a glance, the code is what
-    // you read standing still.
-    ctx.font = `600 22px ${latinDisplay()}`;
-    ctx.fillText(spec.sub, cx + 190, H / 2 + 1);
+  // Long and thin, because the surface is.
+  const W = 4096;
+  const H = 160;
+  const draw = (ctx: CanvasRenderingContext2D, fill: string) => {
+    ctx.fillStyle = fill;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < 2; i++) {
+      const cx = (i + 0.5) * (W / 2);
+      ctx.font = `800 112px ${latinDisplay()}`;
+      ctx.fillText(spec.name, cx - 300, H / 2 + 4);
+      // The fitment code, smaller and set apart the way it is on a real
+      // sidewall: the name is what you read at a glance, the code is
+      // what you read standing still.
+      ctx.font = `700 54px ${latinDisplay()}`;
+      ctx.fillText(spec.sub, cx + 420, H / 2 + 2);
+      // A short rule either side of the code, moulded in with it.
+      ctx.fillRect(cx + 250, H / 2 - 3, 50, 6);
+      ctx.fillRect(cx + 540, H / 2 - 3, 50, 6);
+    }
+  };
+  const canvas = () => {
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    return c;
+  };
+  // Colour: ink where the letters are, transparent elsewhere: this is a
+  // decal on the rubber, not a replacement for it.
+  const colC = canvas();
+  const col = colC.getContext("2d")!;
+  col.clearRect(0, 0, W, H);
+  draw(col, spec.ink);
+  // Height: the same letters, blurred for a bevel, on black.
+  const hC = canvas();
+  const hx = hC.getContext("2d")!;
+  hx.fillStyle = "#000";
+  hx.fillRect(0, 0, W, H);
+  hx.filter = "blur(2.5px)";
+  draw(hx, "#fff");
+  hx.filter = "none";
+  const hd = hx.getImageData(0, 0, W, H).data;
+  const nC = canvas();
+  const nx = nC.getContext("2d")!;
+  const nd = nx.createImageData(W, H);
+  const at = (x: number, y: number) =>
+    hd[((Math.min(H - 1, Math.max(0, y)) * W + ((x + W) % W)) * 4)] / 255;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 2.2;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 2.2;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * W + x) * 4;
+      nd.data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      // Canvas rows run down, texture v runs up: flip the y slope.
+      nd.data[i + 1] = Math.round(((dy / len) * 0.5 + 0.5) * 255);
+      nd.data[i + 2] = Math.round((1 / len) * 0.5 * 255 + 127.5);
+      nd.data[i + 3] = 255;
+    }
   }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = THREE.RepeatWrapping;
-  t.wrapT = THREE.ClampToEdgeWrapping;
-  t.anisotropy = 8;
-  stickerTexCache.set(id, t);
-  return t;
+  nx.putImageData(nd, 0, 0);
+  const map = new THREE.CanvasTexture(colC);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const normalMap = new THREE.CanvasTexture(nC);
+  normalMap.colorSpace = THREE.NoColorSpace;
+  for (const t of [map, normalMap]) {
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.ClampToEdgeWrapping;
+    t.anisotropy = 8;
+  }
+  const out = { map, normalMap };
+  stickerTexCache.set(id, out);
+  return out;
 }
 
-const stickerMatCache = new Map<TyreSticker, THREE.MeshStandardMaterial>();
-function tyreStickerMat(id: TyreSticker): THREE.MeshStandardMaterial {
+const stickerMatCache = new Map<TyreSticker, THREE.MeshPhysicalMaterial>();
+function tyreStickerMat(id: TyreSticker): THREE.MeshPhysicalMaterial {
   const hit = stickerMatCache.get(id);
   if (hit) return hit;
-  const m = new THREE.MeshStandardMaterial({
+  const tex = tyreStickerTexture(id);
+  const m = new THREE.MeshPhysicalMaterial({
     name: `tire-sticker-${id}`,
-    map: tyreStickerTexture(id),
+    map: tex.map,
+    normalMap: tex.normalMap,
+    normalScale: new THREE.Vector2(1.6, 1.6),
     transparent: true,
     // Moulded letters are rubber, and rubber is not glossy. Painted ones
-    // are paint over rubber, and only slightly less matt.
-    roughness: id === "moulded" ? 0.95 : 0.72,
+    // are paint over rubber, a little less matt.
+    roughness: id === "moulded" ? 0.8 : 0.62,
     metalness: 0,
-    // It sits 3.5 mm off a surface curving away from it: depth-test
-    // against the tyre, but do not fight it.
+    specularIntensity: id === "moulded" ? 0.7 : 0.9,
+    envMapIntensity: 0.9,
+    // It sits a few millimetres off a surface curving away from it:
+    // depth-test against the tyre, but do not fight it.
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
-    side: THREE.DoubleSide,
   });
   stickerMatCache.set(id, m);
   return m;
@@ -2369,85 +2434,136 @@ function tyreStickerMat(id: TyreSticker): THREE.MeshStandardMaterial {
  * the way across a surface that bulges at one end of it and tucks in at
  * the other.
  */
-function tyreStickerBand(from: number, to: number, lift = 0.0035, seg = 48): THREE.BufferGeometry {
-  const pts: Array<[number, number]> = [];
-  for (let i = from; i <= to; i++) {
-    const [r, a] = TIRE_SECTION[i];
-    const [rp, ap] = TIRE_SECTION[Math.max(from, i - 1)];
-    const [rn, an] = TIRE_SECTION[Math.min(to, i + 1)];
+/**
+ * The lettering band for a tyre: a strip lathed from THAT tyre's own
+ * outboard sidewall, lifted a few millimetres off it.
+ *
+ * Read off the geometry rather than off TIRE_SECTION, because the tyre a
+ * hero car ends up wearing is not the lathed one: models.ts swaps in the
+ * authored wheel (public/models/wheel-5/6.glb) once it loads, and that
+ * sidewall is shaped differently. A band lathed from the section sat
+ * 15 to 25 mm off the authored rubber, lettering hovering beside the
+ * wheel. So: rays straight in along the axle, at a run of radii across
+ * the sidewall, give the surface the band has to follow on whichever
+ * tyre this is.
+ *
+ * The band spans 30% to 78% of the way from the bead to the tread: the
+ * flank between the rim and the shoulder, where a real tyre carries its
+ * name.
+ */
+function tyreStickerBand(tyre: THREE.BufferGeometry, outboard: 1 | -1, lift = 0.003, seg = 96, rows = 14): THREE.BufferGeometry | null {
+  const pos = tyre.attributes.position as THREE.BufferAttribute;
+  let rMin = Infinity, rMax = 0, aMax = 0;
+  for (let k = 0; k < pos.count; k++) {
+    const r = Math.hypot(pos.getY(k), pos.getZ(k));
+    rMin = Math.min(rMin, r);
+    rMax = Math.max(rMax, r);
+    aMax = Math.max(aMax, Math.abs(pos.getX(k)));
+  }
+  if (!(rMax > rMin)) return null;
+  const probe = new THREE.Mesh(tyre, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  probe.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  const prof: Array<[number, number]> = []; // radius, axial (outboard positive)
+  for (let k = 0; k <= rows; k++) {
+    const r = rMin + (rMax - rMin) * (0.78 - 0.48 * (k / rows)); // outer edge first
+    ray.set(new THREE.Vector3(outboard * (aMax + 0.2), r, 0), new THREE.Vector3(-outboard, 0, 0));
+    const hit = ray.intersectObject(probe, false)[0];
+    if (hit) prof.push([r, hit.point.x * outboard]);
+  }
+  if (prof.length < 3) return null;
+  // Lift along the profile's own normal, outboard.
+  const lifted = prof.map(([r, a], j) => {
+    const [rp, ap] = prof[Math.max(0, j - 1)];
+    const [rn, an] = prof[Math.min(prof.length - 1, j + 1)];
     const dr = rn - rp;
     const da = an - ap;
     const len = Math.hypot(dr, da) || 1;
-    const nr = -da / len;
-    const na = dr / len;
-    // Outward is +axial on this band; the far wheel gets it mirrored.
-    const sgn = na >= 0 ? 1 : -1;
-    pts.push([r + nr * lift * sgn, a + na * lift * sgn]);
-  }
-  const n = pts.length - 1;
-  const pos = new Float32Array((n + 1) * (seg + 1) * 3);
+    let nr = -da / len;
+    let na = dr / len;
+    if (na < 0) { nr = -nr; na = -na; }
+    return [r + nr * lift, (a + na * lift) * outboard] as [number, number];
+  });
+  const n = lifted.length - 1;
+  const P = new Float32Array((n + 1) * (seg + 1) * 3);
   const uv = new Float32Array((n + 1) * (seg + 1) * 2);
   const idx: number[] = [];
   for (let j = 0; j <= n; j++) {
-    const [r, a] = pts[j];
+    const [r, x] = lifted[j];
     for (let i = 0; i <= seg; i++) {
       const th = (i / seg) * Math.PI * 2;
       const o = (j * (seg + 1) + i) * 3;
-      // Built straight into the wheel's own frame, where the axle is X —
-      // the same frame tireLathe reaches by rotating.
-      pos[o] = a * WHEEL_W_K;
-      pos[o + 1] = Math.cos(th) * r * WHEEL_R_K;
-      pos[o + 2] = Math.sin(th) * r * WHEEL_R_K;
+      // The tyre's own frame, where the axle is X.
+      P[o] = x;
+      P[o + 1] = Math.cos(th) * r;
+      P[o + 2] = Math.sin(th) * r;
       const ou = (j * (seg + 1) + i) * 2;
-      uv[ou] = i / seg;
-      uv[ou + 1] = j / n;
+      // Read from outside the wheel, letters upright with their tops to
+      // the tread: v grows outward (row 0 is the outer edge), and u runs
+      // toward the viewer's right, which is -z seen from +x and +z seen
+      // from -x. A band that was simply mirrored for the left wheels
+      // read backwards there, and one with v the other way had every
+      // letter's top toward the hub.
+      uv[ou] = outboard > 0 ? 1 - i / seg : i / seg;
+      uv[ou + 1] = 1 - j / n;
     }
   }
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < seg; i++) {
       const v = j * (seg + 1) + i;
-      idx.push(v, v + 1, v + seg + 1, v + 1, v + seg + 2, v + seg + 1);
+      // Wound to face outboard on either side, so the material can be
+      // single-sided. (j grows inward, i grows with the angle: on the +x
+      // face the triangle (v, v+1, v+seg+1) faces +x.)
+      if (outboard > 0) idx.push(v, v + 1, v + seg + 1, v + 1, v + seg + 2, v + seg + 1);
+      else idx.push(v, v + seg + 1, v + 1, v + 1, v + seg + 1, v + seg + 2);
     }
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("position", new THREE.BufferAttribute(P, 3));
   g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
 
-/** Section indices 18..21 are the outboard sidewall between the shoulder
- *  and the bead — the band a real tyre carries its name on. Built once
- *  and shared: never dispose it. */
-let tyreBandGeo: THREE.BufferGeometry | null = null;
-function getTyreBandGeo(): THREE.BufferGeometry {
-  tyreBandGeo ??= tyreStickerBand(18, 21);
-  return tyreBandGeo;
+/** One band per tyre geometry and side, built on first use and shared
+ *  like the tyres themselves: never dispose them. (It used to be lathed
+ *  from section points 18 to 21 of a 21-point section, indices 0 to 20,
+ *  and reading point 21 threw: every car fitted with any of the three
+ *  sidewall packs failed to build.) */
+const tyreBandCache = new WeakMap<THREE.BufferGeometry, Partial<Record<1 | -1, THREE.BufferGeometry | null>>>();
+export function tyreBandFor(tyre: THREE.BufferGeometry, outboard: 1 | -1): THREE.BufferGeometry | null {
+  let entry = tyreBandCache.get(tyre);
+  if (!entry) tyreBandCache.set(tyre, (entry = {}));
+  if (entry[outboard] === undefined) entry[outboard] = tyreStickerBand(tyre, outboard);
+  return entry[outboard]!;
 }
 
 /**
  * Lay the lettering band on the wheel's OUTBOARD face.
  *
- * The geometry is built once on the +axial sidewall and the far side is
- * that band mirrored in x. Mirroring inverts the winding, so the material
- * is DoubleSide — cheaper and less breakable than lathing a second
- * geometry the other way round.
+ * `side` is the wheel's own idea of which way is out (+1 right, -1 left,
+ * 0 for a trike's centre wheel, which shows its right face). Each side
+ * has its own band, built facing that way with its letters reading
+ * correctly from outside: not one band mirrored, which reads backwards.
  */
 function addTyreSticker(w: THREE.Group, side: number, sticker?: TyreSticker): void {
   if (!sticker) return;
-  const band = new THREE.Mesh(getTyreBandGeo(), tyreStickerMat(sticker));
-  if (side < 0) band.scale.x = -1;
+  const outboard: 1 | -1 = side < 0 ? -1 : 1;
+  const tyre = w.children.find((o) => (o as THREE.Mesh).isMesh && o.userData.wheelPart === "tire") as THREE.Mesh | undefined;
+  const geo = tyre ? tyreBandFor(tyre.geometry, outboard) : null;
+  if (!geo) return;
+  const band = new THREE.Mesh(geo, tyreStickerMat(sticker));
   band.userData.wheelPart = "tire-sticker";
   band.userData.wheelSide = side;
   w.add(band);
 }
 
-let tireMatShared: THREE.MeshStandardMaterial | null = null;
-function getTireMat(): THREE.MeshStandardMaterial {
+let tireMatShared: THREE.MeshPhysicalMaterial | null = null;
+function getTireMat(): THREE.MeshPhysicalMaterial {
   if (tireMatShared) return tireMatShared;
   const s = tireSurface();
-  tireMatShared = new THREE.MeshStandardMaterial({
+  tireMatShared = new THREE.MeshPhysicalMaterial({
     // Named, like every other material on the car. It was the one
     // unnamed material in the build, which meant every tool that groups
     // meshes by what they wear filed four tyres per car under
@@ -2460,7 +2576,12 @@ function getTireMat(): THREE.MeshStandardMaterial {
     color: 0xffffff,
     roughness: 1, // the map carries the real range
     metalness: 0,
-    envMapIntensity: 2.4, // rubber picks up the night, faintly
+    // Rubber reflects less than paint or glass: a lower specular level
+    // (exported as KHR_materials_specular, so the studio renders get it
+    // too) and only a faint share of the night sky. At 2.4 the
+    // environment lit the tyres brighter than the bodywork around them.
+    specularIntensity: 0.75,
+    envMapIntensity: 1.3,
   });
   return tireMatShared;
 }
@@ -5034,7 +5155,9 @@ function buildWheel(
   // merged, so a traffic wheel is three draws (four on steel) instead of
   // the nine a lip, a hub and five separate spokes cost, across 184
   // traffic wheels.
-  w.add(new THREE.Mesh(tireGeo, getTireMat()));
+  const trafficTyre = new THREE.Mesh(tireGeo, getTireMat());
+  trafficTyre.userData.wheelPart = "tire";
+  w.add(trafficTyre);
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   const face = wheelFace(nSpokes, side);
   w.add(new THREE.Mesh(face.alloy, spokeMat));

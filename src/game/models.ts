@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { assetUrl } from "./cdn";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, type BodyStyle } from "./cars";
+import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, tyreBandFor, type BodyStyle } from "./cars";
 
 // Blender-authored graphics.
 //
@@ -574,6 +574,17 @@ export function upgradeWheels(group: THREE.Group): void {
         // authored at, or the sidewall bands land off the edge of the map.
         if (slot === "tire") addTireUvs(geo, TIRE_HALF_W);
         mesh.geometry = (mesh.userData.wheelSide as number) < 0 ? mirrorX(geo) : geo;
+        // Sidewall lettering follows the tyre it is on: refit the band to
+        // the authored rubber, which is shaped differently from the
+        // lathed tyre it was first laid on.
+        if (slot === "tire") {
+          const side = mesh.userData.wheelSide as number;
+          for (const band of mesh.parent?.children ?? []) {
+            if (band.userData.wheelPart !== "tire-sticker") continue;
+            const fitted = tyreBandFor(mesh.geometry, side < 0 ? -1 : 1);
+            if (fitted) (band as THREE.Mesh).geometry = fitted;
+          }
+        }
       });
     });
   }
