@@ -19,7 +19,7 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
   }
   const L = `${name} ${lang}`
   const vals = Object.values(seen)
-  check(vals.every((v) => v.font === 'Alexandria' && v.weight === '700' && v.color === 'rgb(255, 255, 255)' && v.bar === '56px'), `${L}: every utility page title is the same (Alexandria 700, white, orange bar)`, Object.entries(seen).map(([k, v]) => `${k}:${v.font}/${v.weight}/${v.bar}`).join(' '))
+  check(vals.every((v) => v.font === 'Alexandria' && v.weight === '700' && v.color === 'rgb(23, 26, 30)' && v.bar === '56px'), `${L}: every utility page title is the same (Alexandria 700, dark ink on the white body, orange bar)`, Object.entries(seen).map(([k, v]) => `${k}:${v.font}/${v.weight}/${v.bar}`).join(' '))
   const tops = vals.map((v) => v.top)
   check(Math.max(...tops) - Math.min(...tops) <= 12, `${L}: and every one starts at the same height under the header (within 12px)`, Object.entries(seen).map(([k, v]) => `${k}:${v.top}`).join(' '))
   check(seen['/cart'].btn && seen['/cart'].btn === seen['/wishlist'].btn, `${L}: the empty bag and the empty wishlist share one "Back to shop" button`, `${seen['/cart'].btn} vs ${seen['/wishlist'].btn}`)

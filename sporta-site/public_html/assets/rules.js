@@ -118,9 +118,9 @@
   ]
   var COUNTS = [
     ['return_days', 'Returns window', 'days', 'From delivery.'],
-    ['outlet_discount_pct', 'Outlet "up to" discount', '%', 'Shown on the Outlet tile.'],
+    ['outlet_discount_pct', 'Outlet discount', '%', ''],
     ['cod_open_max', 'Unpaid cash orders', 'per customer', 'Per phone.'],
-    ['review_reward_pct', 'Review reward', '%', 'Per review.'],
+    ['review_reward_pct', 'Review reward', '%', ''],
     ['discount_max_pct', 'Discount cap', '%', 'Per order.'],
   ]
   // cod/knet/tpay are the server's own names (store.php's STORE_PAY_METHODS);
