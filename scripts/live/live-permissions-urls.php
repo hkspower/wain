@@ -13,6 +13,13 @@
  * It also lists, by top-level folder, what the secret-looking files OUTSIDE public_html are, so a
  * pile of false positives (vendor config*.php in a trash folder) can be told from a real one.
  */
+// A SLOW SCRIPT ON A PER-MINUTE JOB OVERLAPS ITSELF, and every overlapping run adds requests that
+// keep the shop's rate limiter hot — so it never finishes and reports nothing. So: one run at a time
+// (a flock; a second run exits at once) and the answer goes to ~/perm-urls.txt, which a separate
+// `cat` job reads. Delete both jobs when it is read.
+$lock = fopen('/home/u130124229/perm-urls.lock', 'c');
+if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) exit(0);
+ob_start();
 $ROOT = '/home/u130124229/domains/sporta.com.kw';
 $DOC = $ROOT . '/public_html';
 $RE = '/(^|\/)(config[^\/]*\.php|\.env[^\/]*|[^\/]*\.(secret|pem|key|p12|pfx|cer|crt|sql|log|bak|old|orig|zip|gz|tar|rar|7z|swp|sqlite|db))$|\/wallet-certs\/|\/invoices\//i';
@@ -31,7 +38,6 @@ while ($stack) {
 }
 sort($files);
 echo 'URLS candidates=' . count($files) . "\n";
-flush();
 
 $ctx = stream_context_create([
     'ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'peer_name' => 'www.sporta.com.kw'],
@@ -77,3 +83,4 @@ while ($stack) {
 }
 arsort($out);
 foreach ($out as $top => $n) echo "OUTSIDE $top x$n" . (!empty($ex[$top]) ? '  ' . implode(' ; ', array_slice($ex[$top], 0, 6)) : '') . "\n";
+file_put_contents('/home/u130124229/perm-urls.txt', ob_get_clean() . 'DONE ' . date('H:i:s') . "\n");
