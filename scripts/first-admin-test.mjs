@@ -45,7 +45,7 @@ const check = (ok, what, detail = '') => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `   ${detail}` : ''}`)
 }
 const sql = (q) =>
-  execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+  execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 
 // Everything in the table, as SQL that puts it back. Saved before anything is
 // deleted — a rig that empties an auth table and cannot restore it has broken

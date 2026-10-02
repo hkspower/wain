@@ -49,7 +49,7 @@ const check = (ok, what, detail = '') => {
   if (!ok) fails++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `   ${detail}` : ''}`)
 }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 
 // ZERO ROWS AND A NULL VALUE ARE NOT THE SAME, and neither is 'NULL' the
 // string. A shop that has never opened this screen has no contact row at all,

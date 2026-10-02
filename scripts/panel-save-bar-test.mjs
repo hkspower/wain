@@ -35,7 +35,7 @@ const check = (ok, what, detail = '') => {
   if (!ok) fails++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `   ${detail}` : ''}`)
 }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 
 // Restore whatever the shop really had. The rig types into the contact card,
 // which writes a real settings row — and a rig that leaves its own fixture

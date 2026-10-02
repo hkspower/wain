@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0
 const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${w}${d ? '   ' + d : ''}`) }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 const SLUG = 'cheetahs-rugby-t-shirt'
 const saved = sql(`select quote(name_en), quote(desc_en), quote(name_ar) from products where slug='${SLUG}'`).split('\t')
 const restore = () => sql(`update products set name_en=${saved[0]}, desc_en=${saved[1]}, name_ar=${saved[2]} where slug='${SLUG}'`)

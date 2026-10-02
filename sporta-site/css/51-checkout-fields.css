@@ -17,17 +17,17 @@ form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-bui
 /* hints */
 .cf-msg { margin: 6px 2px 0; font-size: 13px; line-height: 1.4; }
 .cf-msg[hidden] { display: none; }
-.cf-bad { color: #ff8a80; }
-.cf-ok { color: #6fd08c; font-weight: 700; text-align: end; margin-top: 4px; }
-[data-cf="bad"] :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building) { border-color: #ff6b5e !important; }
+.cf-bad { color: var(--sp-bad, #ff8a80); }
+.cf-ok { color: var(--sp-good, #6fd08c); font-weight: 700; text-align: end; margin-top: 4px; }
+[data-cf="bad"] :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building) { border-color: var(--sp-bad, #ff6b5e) !important; }
 [data-cf="bad"] #f-phone { outline: none; }
-[data-cf="bad"] div:has(> #f-phone) { border-color: #ff6b5e !important; }
+[data-cf="bad"] div:has(> #f-phone) { border-color: var(--sp-bad, #ff6b5e) !important; }
 [data-cf="ok"] :is(#f-name, #f-email, #f-area, #f-block, #f-street, #f-building) { border-color: rgba(111, 208, 140, .7) !important; }
 /* optional fields tucked behind one button */
 .cf-collapsed { display: none !important; }
 .cf-more {
   grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
-  background: none; border: 0; color: var(--sp-link, #ff8a3d); font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
+  background: none; border: 0; color: var(--sp-link, var(--sp-ember, #ff8a3d)); font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
 }
 .cf-more[hidden] { display: none; }
 /* The bundle's own hint line (#h-phone, #h-email) says the same thing as our message; show one. */

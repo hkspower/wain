@@ -1378,16 +1378,16 @@ form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-bui
 .mt-3.grid:has(#f-name) { row-gap: 18px; }
 .cf-msg { margin: 6px 2px 0; font-size: 13px; line-height: 1.4; }
 .cf-msg[hidden] { display: none; }
-.cf-bad { color: #ff8a80; }
-.cf-ok { color: #6fd08c; font-weight: 700; text-align: end; margin-top: 4px; }
-[data-cf="bad"] :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building) { border-color: #ff6b5e !important; }
+.cf-bad { color: var(--sp-bad, #ff8a80); }
+.cf-ok { color: var(--sp-good, #6fd08c); font-weight: 700; text-align: end; margin-top: 4px; }
+[data-cf="bad"] :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building) { border-color: var(--sp-bad, #ff6b5e) !important; }
 [data-cf="bad"] #f-phone { outline: none; }
-[data-cf="bad"] div:has(> #f-phone) { border-color: #ff6b5e !important; }
+[data-cf="bad"] div:has(> #f-phone) { border-color: var(--sp-bad, #ff6b5e) !important; }
 [data-cf="ok"] :is(#f-name, #f-email, #f-area, #f-block, #f-street, #f-building) { border-color: rgba(111, 208, 140, .7) !important; }
 .cf-collapsed { display: none !important; }
 .cf-more {
   grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
-  background: none; border: 0; color: var(--sp-link, #ff8a3d); font-weight: 700; font-size: 14px; cursor: pointer;
+  background: none; border: 0; color: var(--sp-link, var(--sp-ember, #ff8a3d)); font-weight: 700; font-size: 14px; cursor: pointer;
 }
 .cf-more[hidden] { display: none; }
 [data-cf="bad"] [id^="h-"] { display: none; }
@@ -1732,6 +1732,8 @@ h2[class~="font-extrabold"] { font-weight: 700 !important; }
     --sp-ember: var(--sp-ink-on-light, #c2410c);
     --sp-chip: #d5d9de;
     --sp-field-edge: #7a8188;
+    --sp-bad: #b42318;
+    --sp-good: #15803d;
     --sp-card-edge: #8a9199;
     color: #171a1e;
   }
@@ -1750,6 +1752,8 @@ h2[class~="font-extrabold"] { font-weight: 700 !important; }
     --sp-accent: #dbdfe4;
     --sp-ember: var(--sp-accent);
     --sp-chip: var(--sp-silver);
+    --sp-bad: #ff8a80;
+    --sp-good: #6fd08c;
     --sp-field-edge: #aab1b9;
     --sp-card-edge: rgba(255, 255, 255, .11);
     color: #dbdfe4;

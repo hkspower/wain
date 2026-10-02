@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0
 const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${w}${d ? '   ' + d : ''}`) }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 const TRACK = 'SPNOTIFRIG1'
 const savedSeen = sql("select quote(value) from settings where name='notif_seen'") || null
 const cleanup = () => {

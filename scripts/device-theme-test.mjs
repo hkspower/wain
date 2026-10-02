@@ -26,7 +26,7 @@ const check = (ok, what, detail = '') => {
   if (!ok) fails++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `   ${detail}` : ''}`)
 }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '-e', q], { encoding: 'utf8' }).trim()
 const saved = sql("select quote(value) from settings where name = 'theme'") || null
 const row = () => JSON.parse(sql("select value from settings where name = 'theme'") || '{}')
 const rgb = (h) => `rgb(${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)})`

@@ -33,6 +33,10 @@
     --sp-chip: #d5d9de;
     /* a text field's edge: the dark page's #aab1b9 is 7:1 there and 2.2:1 on white (48-) */
     --sp-field-edge: #7a8188;
+    /* error and success text on white (5.9:1 and 5.0:1); the dark page's pink and mint were
+       2.3:1 here, and the /track and checkout overlays used them (2026-10-02) */
+    --sp-bad: #b42318;
+    --sp-good: #15803d;
     /* the product card's edge: the dark page's white hairline vanishes on white */
     --sp-card-edge: #8a9199;   /* 3.2:1 on white, a visible card edge (owner, 2026-10-02: "card edges only") */
     color: #171a1e;
@@ -62,6 +66,8 @@
     --sp-accent: #dbdfe4;
     --sp-ember: var(--sp-accent);
     --sp-chip: var(--sp-silver);
+    --sp-bad: #ff8a80;
+    --sp-good: #6fd08c;
     --sp-field-edge: #aab1b9;
     --sp-card-edge: rgba(255, 255, 255, .11);
     color: #dbdfe4;

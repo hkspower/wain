@@ -28,7 +28,7 @@ const EMAIL = 'manager@sporta.com.kw'
 const PASSWORD = 'correct horse'
 let fails = 0
 const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${extra ? '   ' + extra : ''}`) }
-const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
+const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
 const saved = sql("select quote(value) from settings where name = 'social'") || null
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium' })

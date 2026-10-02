@@ -4097,3 +4097,9 @@ Asked for as a separate setup for desktop and mobile "for css and all theme"; th
 ## Women tile model from the owner's photo — 2026-10-02
 
 The owner supplied the photo (red half-zip and leggings) after ElevenLabs ran out of credits. Both AHED logos were painted out with `cv2.inpaint` (bright low-saturation pixels in two boxes on the garment), the figure cut from the grey ground with `grabCut` plus a grey-pixel sweep above the socks, and the cut-out replaces `scripts/fixtures/tile-subjects/women.png`. The original photo is not in the repository. Only the eight women tiles changed; `ART_VERSION` is `20261002b`. The photo crops the shoes at its bottom edge, so the tile does too.
+
+## Text scan: two overlays unreadable on the white body — 2026-10-02
+
+"scan all text". `test:text-colour` found `/track`'s order-progress card WHITE ON WHITE (title and step names invisible, dates 2.6:1) and the checkout hints at 2.3:1, both since the white body (2026-10-01): each hard-coded the dark page's colours. They read tokens now, and `65-white-body.css` gained `--sp-bad` / `--sp-good` (dark values restored in the dark islands). **A colour written as a literal does not follow the page when the page changes; a token does.**
+
+Also found: eight rigs saved and restored rows through `mariadb` WITHOUT `--default-character-set=utf8mb4`, so Arabic went round-trip as `?????`. `product-page-polish-test` had turned the sandbox's `cheetahs-rugby-t-shirt` Arabic name into question marks. All eight now pass the charset. Sandbox only — the live shop never ran them.
