@@ -266,204 +266,222 @@ export default function SearchClient() {
     optionIdAt: useCallback((i: number) => optionId(LISTBOX_ID, i), []),
   });
 
+  const showResults = q.trim().length > 0 && hits.length > 0;
+
   return (
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
-          دوّر في وين
-        </h1>
-        <VoiceControls />
-      </div>
-
-      {/* The three ways to an answer, named once rather than left to be
-          discovered: the map only appears once there are results, and the
-          call lives on /find, so without this a first-time visitor could use
-          the page for months and never notice either exists. The second is a
-          link to /find's button, not a button of its own — one way to call
-          شوق, on request. */}
-      <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500">
-        <li>{toArabicDigits(1)}. دوّر بالكتابة</li>
-        <li aria-hidden="true">·</li>
-        <li>
-          <Link href="/find/" className="inline-flex min-h-6 items-center text-coral-700 underline underline-offset-2 hover:text-coral-800">
-            {toArabicDigits(2)}. كلّمي شوق
-          </Link>
-        </li>
-        <li aria-hidden="true">·</li>
-        <li>{toArabicDigits(3)}. عالخريطة</li>
-      </ol>
-
-      {/* Query box */}
-      <div className="relative">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500"
-        >
-          <IconSearch className="size-5" />
-        </span>
-        <input
-          ref={inputRef}
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={onKeyDown}
-          role="combobox"
-          aria-expanded={hits.length > 0}
-          aria-controls={LISTBOX_ID}
-          aria-autocomplete="list"
-          aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
-          aria-label="ابحث في كل محتوى وين"
-          placeholder="اكتب اسم مكان، منطقة، أو جو…"
-          className="w-full rounded-2xl border border-line-control bg-white py-4 pe-11 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
-        />
-        {q && (
-          <button
-            type="button"
-            onClick={() => setQ("")}
-            aria-label="مسح البحث"
-            // The call button that sat at end-3 is gone (it is /find's now), so
-            // the clear button takes its place; the input's pe-11 keeps typed
-            // text out from under it.
-            className="absolute inset-y-0 end-3 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
-          >
-            <IconClose className="size-4" />
-          </button>
-        )}
-      </div>
-
-      {/* The listening line went with the mic. The call has its own sheet, and
-          it says «يرن…» / «متصل» / why it failed with far more room than a
-          caption under a text field ever had. */}
-
-      {/* Filters */}
-      {q.trim() && (
-        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="نوع النتيجة">
-          {FILTERS.map((f) => {
-            const n = counts[f.id as keyof typeof counts];
-            return (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => { haptic("select"); setKind(f.id); }}
-                aria-pressed={kind === f.id}
-                disabled={n === 0}
-                className={`min-h-6 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
-                  kind === f.id
-                    ? "bg-ink-900 text-white"
-                    : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
-                }`}
-              >
-                {/* opacity-70 put the count at 3.97:1 on white — it reads as a
-                    dimmed detail but it is the number the reader is choosing
-                    by, so it has to clear 4.5:1 like any other text. */}
-                {f.label} {n > 0 && <span className="opacity-80">{toArabicDigits(n)}</span>}
-              </button>
-            );
-          })}
+    // From lg the page is two columns: everything that reads on the start
+    // side, the map beside it and sticky. Until 2 October it was one 736px
+    // column, and the map stood between the box and the list.
+    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8">
+      <div className="min-w-0">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
+            دوّر في وين
+          </h1>
+          <VoiceControls />
         </div>
-      )}
 
-      <div className="mt-7">
-        {/* Above the branch, not inside it.
-            She used to be rendered in the `hits.length > 0` arm only, so the
-            one moment a service call must not go quiet — the failed lookup —
-            was the one moment she could not appear. Here she covers both
-            outcomes and renders nothing on an empty box, because
-            `answerParts` returns no parts for one. */}
-        <ShouqAnswer parts={answer} />
+        {/* The three ways to an answer, named once rather than left to be
+            discovered: the map only appears once there are results, and the
+            call lives on /find, so without this a first-time visitor could use
+            the page for months and never notice either exists. The second is a
+            link to /find's button, not a button of its own — one way to call
+            شوق, on request. */}
+        <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500">
+          <li>{toArabicDigits(1)}. دوّر بالكتابة</li>
+          <li aria-hidden="true">·</li>
+          <li>
+            <Link href="/find/" className="inline-flex min-h-6 items-center text-coral-700 underline underline-offset-2 hover:text-coral-800">
+              {toArabicDigits(2)}. كلّمي شوق
+            </Link>
+          </li>
+          <li aria-hidden="true">·</li>
+          <li>{toArabicDigits(3)}. عالخريطة</li>
+        </ol>
 
-        {!q.trim() ? (
-          <section>
-            {/* The second thing that happens: the visitor hits the search
-                bar, and the page asks. It read «جرّب تدوّر عن» — a caption
-                introducing the chips as examples — so the first move was
-                the visitor's and the page only labelled it. As a question
-                the chips become answers to it, which is what they are.
-
-                Same words as the category band on the home page and the
-                empty palette, on purpose: one question, asked at each of
-                the three points where it can be answered.
-
-                A step up from text-sm/ink-600 because the role changed. At
-                caption weight a question reads as a footnote to the chips
-                rather than the thing they answer. */}
-            <h2 className="mb-3 text-base font-semibold text-ink-800">شنو تدوّر؟</h2>
-            <ul className="flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
-                <li key={s}>
-                  <button
-                    type="button"
-                    onClick={() => setQ(s)}
-                    className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
-                  >
-                    {s}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : hits.length > 0 ? (
-          /* Dimmed, not blanked, while the results are still for an older
-             query than the box. Blanking would make every keystroke a flash
-             of empty page; this says «catching up» quietly and keeps what is
-             on screen readable, which is usually still the right answer. */
-          <div className={settling ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
-            {/* Before the count, the map and the list, because it is the only
-                thing on this page that finishes the errand. Everything under
-                it is browsing. */}
-            <SearchPlan
-              places={hitPlaces}
-              activeSlug={activeSlug}
-              onActiveSlug={setActiveSlug}
-            />
-            {/* Not a live region any more: ShouqAnswer took the role, and it
-                says what the top result IS rather than how many there are.
-
-                countAr rather than the digits and a bare «نتيجة»: Arabic takes
-                the plural for 3–10, so this read «٣ نتيجة» for every small
-                result set — the most-read number on the site, and it disagreed
-                with /explore's own counter, which has always used countAr. */}
-            <p className="mb-4 text-sm text-ink-500">
-              {countAr(hits.length, RESULTS_COUNT)}
-            </p>
-            <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
-            <SearchResults
-              hits={hits}
-              activeIndex={active}
-              activeSlug={activeSlug}
-              onActiveSlug={setActiveSlug}
-              listboxId={LISTBOX_ID}
-            />
-          </div>
-        ) : settling ? (
-          /* Nothing yet for the newest query, but the older one is still being
-             replaced — so this is «not finished», not «nothing there». The
-             empty state below announces a dead end, and announcing one mid-word
-             is the single most annoying thing a live search box can do. */
-          null
-        ) : (
-          <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-16 text-center">
-            <span
-              aria-hidden="true"
-              className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600"
+        {/* Query box */}
+        <div className="relative">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500"
+          >
+            <IconSearch className="size-5" />
+          </span>
+          <input
+            ref={inputRef}
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={onKeyDown}
+            role="combobox"
+            aria-expanded={hits.length > 0}
+            aria-controls={LISTBOX_ID}
+            aria-autocomplete="list"
+            aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
+            aria-label="ابحث في كل محتوى وين"
+            placeholder="اكتب اسم مكان، منطقة، أو جو…"
+            className="w-full rounded-2xl border border-line-control bg-white py-4 pe-11 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              aria-label="مسح البحث"
+              // The call button that sat at end-3 is gone (it is /find's now), so
+              // the clear button takes its place; the input's pe-11 keeps typed
+              // text out from under it.
+              className="absolute inset-y-0 end-3 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
             >
-              <IconCompass className="size-9" />
-            </span>
-            <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
-              ما لقينا شي عن «{q.trim()}»
-            </h2>
+              <IconClose className="size-4" />
+            </button>
+          )}
+        </div>
 
-            {/* A dead end used to offer one way out — «تصفّح الأماكن», the whole
-                catalogue — which answers "I give up" and not "I still want
-                something". The ways on live in SearchHub now, because the ⌘K
-                palette met the same dead end with «ما لقينا شي.» and nothing
-                else: two surfaces of one search box, answering the same
-                question differently. One component, drawn in both. */}
-            <SearchHub className="mt-7" />
+        {/* The listening line went with the mic. The call has its own sheet, and
+            it says «يرن…» / «متصل» / why it failed with far more room than a
+            caption under a text field ever had. */}
+
+        {/* Filters */}
+        {q.trim() && (
+          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="نوع النتيجة">
+            {FILTERS.map((f) => {
+              const n = counts[f.id as keyof typeof counts];
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => { haptic("select"); setKind(f.id); }}
+                  aria-pressed={kind === f.id}
+                  disabled={n === 0}
+                  className={`min-h-6 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
+                    kind === f.id
+                      ? "bg-ink-900 text-white"
+                      : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
+                  }`}
+                >
+                  {/* opacity-70 put the count at 3.97:1 on white — it reads as a
+                      dimmed detail but it is the number the reader is choosing
+                      by, so it has to clear 4.5:1 like any other text. */}
+                  {f.label} {n > 0 && <span className="opacity-80">{toArabicDigits(n)}</span>}
+                </button>
+              );
+            })}
           </div>
         )}
+
+        <div className="mt-7">
+          {/* Above the branch, not inside it.
+              She used to be rendered in the `hits.length > 0` arm only, so the
+              one moment a service call must not go quiet — the failed lookup —
+              was the one moment she could not appear. Here she covers both
+              outcomes and renders nothing on an empty box, because
+              `answerParts` returns no parts for one. */}
+          <ShouqAnswer parts={answer} />
+
+          {!q.trim() ? (
+            <section>
+              {/* The second thing that happens: the visitor hits the search
+                  bar, and the page asks. It read «جرّب تدوّر عن» — a caption
+                  introducing the chips as examples — so the first move was
+                  the visitor's and the page only labelled it. As a question
+                  the chips become answers to it, which is what they are.
+
+                  Same words as the category band on the home page and the
+                  empty palette, on purpose: one question, asked at each of
+                  the three points where it can be answered.
+
+                  A step up from text-sm/ink-600 because the role changed. At
+                  caption weight a question reads as a footnote to the chips
+                  rather than the thing they answer. */}
+              <h2 className="mb-3 text-base font-semibold text-ink-800">شنو تدوّر؟</h2>
+              <ul className="flex flex-wrap gap-2">
+                {SUGGESTIONS.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onClick={() => setQ(s)}
+                      className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : hits.length > 0 ? (
+            /* Dimmed, not blanked, while the results are still for an older
+               query than the box. Blanking would make every keystroke a flash
+               of empty page; this says «catching up» quietly and keeps what is
+               on screen readable, which is usually still the right answer. */
+            <div className={settling ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
+              {/* Not a live region any more: ShouqAnswer took the role, and it
+                  says what the top result IS rather than how many there are.
+
+                  countAr rather than the digits and a bare «نتيجة»: Arabic takes
+                  the plural for 3–10, so this read «٣ نتيجة» for every small
+                  result set — the most-read number on the site, and it disagreed
+                  with /explore's own counter, which has always used countAr. */}
+              <p className="mb-4 text-sm text-ink-500">
+                {countAr(hits.length, RESULTS_COUNT)}
+              </p>
+              <SearchResults
+                hits={hits}
+                activeIndex={active}
+                activeSlug={activeSlug}
+                onActiveSlug={setActiveSlug}
+                listboxId={LISTBOX_ID}
+              />
+              {/* After the list. It used to come first, as «the only thing on
+                  this page that finishes the errand» — and on a phone that put
+                  the first result row at 1248px, a screen and a half under the
+                  box, so a search answered with a share form. The list is the
+                  answer; this acts on it. */}
+              <SearchPlan
+                places={hitPlaces}
+                activeSlug={activeSlug}
+                onActiveSlug={setActiveSlug}
+              />
+            </div>
+          ) : settling ? (
+            /* Nothing yet for the newest query, but the older one is still being
+               replaced — so this is «not finished», not «nothing there». The
+               empty state below announces a dead end, and announcing one mid-word
+               is the single most annoying thing a live search box can do. */
+            null
+          ) : (
+            <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-16 text-center">
+              <span
+                aria-hidden="true"
+                className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600"
+              >
+                <IconCompass className="size-9" />
+              </span>
+              <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
+                ما لقينا شي عن «{q.trim()}»
+              </h2>
+
+              {/* A dead end used to offer one way out — «تصفّح الأماكن», the whole
+                  catalogue — which answers "I give up" and not "I still want
+                  something". The ways on live in SearchHub now, because the ⌘K
+                  palette met the same dead end with «ما لقينا شي.» and nothing
+                  else: two surfaces of one search box, answering the same
+                  question differently. One component, drawn in both. */}
+              <SearchHub className="mt-7" />
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* One map, rendered once: under the list on a phone (it draws the
+          answer, it is not the answer), beside it and sticky from lg. Same
+          dimming as the list while the results catch up with the box. */}
+      {showResults && (
+        <aside
+          className={`mt-7 lg:sticky lg:top-4 lg:mt-0 transition-opacity duration-150 ${settling ? "opacity-60" : ""}`}
+        >
+          <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
+        </aside>
+      )}
     </div>
   );
 }
