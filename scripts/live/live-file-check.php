@@ -205,10 +205,10 @@ $WANT = [
     'assets/site-text.js' => '1f14de76655611e43bd56e6f92f8eb16b9b420f872f18bed927b966aeba559b6',
     'assets/social-links.js' => 'a21ed1c9e267e994dc55a4cf29591654540bcb3aca8ba7fa39fbceb52228a79e',
     'assets/social-setup.js' => 'a6403def6f7f585e0dc58f356da47af4fc5530d10bffd06c923e823b1b83b007',
-    'assets/sporta-dark.css' => '9a6172a002a4e9dcb44323af5faa19c39834e6d086ab2f78e862c173804cf9f6',
+    'assets/sporta-dark.css' => '7b9445725c3d0c8a3e01720914dc10d39b503248c598510b135043fbce0b9a7f',
     'assets/sporta-desktop.css' => '9fced76a042cb45fc23a9506897d59b2882b4d9dcd94b3b1020de283b1d7bd0b',
     'assets/sporta-mobile.css' => '187095496a3b008135265347c2352eb4fd80e38eb3cb9dadcce82ba47e8e391b',
-    'assets/sporta-ui.css' => '4790fa2411bf77cd410f45d31200028118eefadfa4391de79bd3a6454fa34265',
+    'assets/sporta-ui.css' => 'c91f16d3a4bf509a03e01db1731585669b4d827eefb96779a98bcacb81c69cef',
     'assets/theme-colors.js' => 'ed913d1b97ccbef2f52c3f24ffe8fbeac31142894173a274014d4d1327d37811',
     'assets/theme.js' => 'cf0044660306b1eedd3c830ed9ec432a7400d15e27aabdd3ce57d435b7c60403',
     'assets/tile-art.js' => 'ae6ae9f3683808cb9be19937b7a9f8405a0dc63ab7b9ebe7221c638ca7d603ab',
@@ -318,7 +318,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'c401189242c899585c0f1ac27f9a17948ce653b4bd0677af0cac859efd0f359a',
+    'sw.js' => 'd2d6a8a06d8d0586055e24a39d9f636856023705bd6b0a6abe55d24f170dcd23',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
