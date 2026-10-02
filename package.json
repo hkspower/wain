@@ -227,6 +227,7 @@
     "test:payments-screen": "node scripts/payments-screen-test.mjs",
     "test:hero-size-guide": "node scripts/hero-size-guide-test.mjs",
     "test:product-grid-spec": "node scripts/product-grid-spec-test.mjs",
+    "test:scroll-jank": "node scripts/scroll-jank-test.mjs",
     "test:product-zoom": "node scripts/product-zoom-test.mjs",
     "test:wallet-setup": "node scripts/wallet-setup-test.mjs",
     "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",

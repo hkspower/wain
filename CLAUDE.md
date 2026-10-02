@@ -4112,3 +4112,9 @@ Also found: eight rigs saved and restored rows through `mariadb` WITHOUT `--defa
 - **A debounce starved**: on /shop other overlays keep changing the page, so a restart-on-every-mutation timer never fired and no name was fitted. It is a throttle now. **A timer that restarts on every event needs a quiet moment to fire.**
 - A one-line name drops the 42px kept clear for the + (the + sits on the price row), but the + disc's top reaches up into the name's line (8-10px), so the name has 12px under it instead.
 - `test:product-grid-spec` asserts one line (or the wrap fallback) and that the + does not touch the text; mutation-tested (script disabled -> two lines, caught). `test:theme-unity` accepts any size from 10px to 14px.
+
+## Scrolling froze in Chrome — my own name fitter, 2026-10-02
+
+"the website at google chrome feel like motion freeze when scrolling down". The cause was `grid-name-fit.js`, shipped that morning: it reset and re-measured every product name on every page change, stepping the size down one layout read at a time. React re-renders the card titles while a page scrolls, so a phone /shop rewrote ~3,700 styles per scroll with long tasks of 54-162ms. Fixed by remembering each name's result (text + width), computing the size in ONE step (text width scales with font size), and batching: read every width, reset only the new names, read their text widths, write every result. Two layouts per batch instead of one per name.
+
+`test:scroll-jank` wheels through / and /shop on a phone and a desktop and fails on any long task over 50ms or on the titles being rewritten over and over. **It also requires every name to be fitted**: the first fix deleted the text-width helper by accident, the fitter crashed on its first name, and the smoothness check passed perfectly, because a script that does nothing cannot stutter. Blocking the fitter's file entirely was the control that proved the remaining 60-170ms tasks were still mine.
