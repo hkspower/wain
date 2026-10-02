@@ -60,6 +60,12 @@ flutter:
           weight: 600
         - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
           weight: 700
+    # The sun's two words only, as on the site (HomeHero.tsx says why and
+    # how the subset was made): Marhey Bold, OFL, cut to «إلى وين؟ ابحث».
+    - family: MarheyHero
+      fonts:
+        - asset: assets/fonts/MarheyHero-Bold.ttf
+          weight: 700
   assets:
     - assets/art/
     - assets/art/category/

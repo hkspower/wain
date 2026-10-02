@@ -219,40 +219,104 @@ class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'إلى وين؟',
-                        maxLines: 1,
-                        style: wainText(
-                          math.max(20.0, 0.062 * pw),
-                          weight: FontWeight.w700,
-                          color: WainColors.ink900,
-                        ),
-                      ),
+                      _HeroTitle(size: math.max(20.0, 0.062 * pw)),
                       SizedBox(height: 0.02 * pw),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 0.048 * pw,
-                          vertical: 0.012 * pw,
-                        ),
-                        decoration: BoxDecoration(
-                          color: WainColors.ink900,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          'ابدأ',
-                          style: wainText(
-                            math.max(11.0, 0.034 * pw),
-                            weight: FontWeight.w600,
-                            color: WainColors.sun100,
-                          ),
-                        ),
-                      ),
+                      _HeroGo(size: math.max(11.0, 0.034 * pw), pw: pw),
                     ],
                   ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// «إلى وين؟» in white on the sun, as on the site (2 October, on request):
+/// an ink outline drawn under the white letters, with the picture's drawn
+/// offset shadow beneath it — white alone on that yellow is 1.4:1.
+class _HeroTitle extends StatelessWidget {
+  final double size;
+  const _HeroTitle({required this.size});
+
+  static const _text = 'إلى وين؟';
+
+  @override
+  Widget build(BuildContext context) {
+    TextStyle style([Paint? foreground, List<Shadow>? shadows]) => TextStyle(
+      fontFamily: 'MarheyHero',
+      fontWeight: FontWeight.w700,
+      fontSize: size,
+      height: 1.3,
+      foreground: foreground,
+      color: foreground == null ? Colors.white : null,
+      shadows: shadows,
+    );
+    return Stack(
+      children: [
+        // A RichText, not a Text: the outline is drawing, and the word is
+        // the white Text above it — one word for a finder or a reader.
+        RichText(
+          maxLines: 1,
+          textDirection: TextDirection.rtl,
+          // Text follows the reader's text size and a bare RichText does not;
+          // without this the outline drifts off the letters at large sizes.
+          textScaler: MediaQuery.textScalerOf(context),
+          text: TextSpan(
+            text: _text,
+            style: style(
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.16 * size
+                ..strokeJoin = StrokeJoin.round
+                ..color = WainColors.ink900,
+              [
+                Shadow(color: WainColors.ink900, offset: Offset(0, 0.1 * size)),
+                Shadow(
+                  color: WainColors.ink900.withValues(alpha: 0.3),
+                  offset: Offset(0, 0.2 * size),
+                  blurRadius: 0.5 * size,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Text(_text, maxLines: 1, style: style()),
+      ],
+    );
+  }
+}
+
+/// «ابحث», a white pill outlined in ink, the site's .home-hero-go.
+class _HeroGo extends StatelessWidget {
+  final double size;
+  final double pw;
+  const _HeroGo({required this.size, required this.pw});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 0.048 * pw,
+        vertical: 0.012 * pw,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: WainColors.ink900, width: 0.12 * size),
+        boxShadow: [
+          BoxShadow(color: WainColors.ink900, offset: Offset(0, 0.22 * size)),
+        ],
+      ),
+      child: Text(
+        'ابحث',
+        style: TextStyle(
+          fontFamily: 'MarheyHero',
+          fontWeight: FontWeight.w700,
+          fontSize: size,
+          color: WainColors.ink900,
         ),
       ),
     );

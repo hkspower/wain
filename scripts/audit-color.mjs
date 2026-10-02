@@ -221,11 +221,20 @@ for (const vp of [
         if (!el.offsetParent && cs.position !== "fixed") continue;
         const fgRaw = toRgb(cs.color);
         if (!fgRaw) continue;
-        const { colours, unknown } = backdrop(el);
+        const size = parseFloat(cs.fontSize);
+        // Outlined text — the home hero's white «إلى وين؟» since 2 October,
+        // an ink stroke painted under the fill — is read against its outline,
+        // which is what touches every letter's edge. Only a real outline: a
+        // tenth of the size or more, under the fill, and opaque. The same
+        // rule audit:home-hero applies against the picture's pixels.
+        const stroke = parseFloat(cs.webkitTextStrokeWidth) || 0;
+        const strokeRgb = toRgb(cs.webkitTextStrokeColor);
+        const outlined = stroke >= Math.max(1.5, size * 0.1) && (cs.paintOrder || "").startsWith("stroke") && strokeRgb && strokeRgb.a === 1;
+        const found = outlined ? { colours: [strokeRgb], unknown: false } : backdrop(el);
+        const { colours, unknown } = found;
         // Text over a photograph: not measurable from CSS, counted and
         // reported, never failed on a guess.
         if (unknown || !colours.length) { out.unknown++; continue; }
-        const size = parseFloat(cs.fontSize);
         const weight = parseInt(cs.fontWeight, 10) || 400;
         // WCAG "large text": 18.66px bold, or 24px.
         const large = size >= 24 || (size >= 18.66 && weight >= 700);

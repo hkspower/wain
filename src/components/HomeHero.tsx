@@ -1,5 +1,23 @@
+import localFont from "next/font/local";
 import Link from "next/link";
 import { HOME_HERO as H } from "@/lib/home-hero.g";
+
+/**
+ * The sun's two words in Marhey Bold (OFL, src/fonts/Marhey-OFL.txt): rounded
+ * and hand-drawn like the picture they sit on, where the site's Plex read as
+ * a form label pasted over an illustration (2 October, on request: «use a
+ * better font»). Subset to the glyphs of «إلى وين؟ ابحث» — 3.7KB, preloaded
+ * on the home page only. Change the words and the subset must be redone:
+ *   fonttools varLib.instancer Marhey[wght].ttf wght=700 -o Marhey-700.ttf
+ *   pyftsubset Marhey-700.ttf --text="إلى وين؟ ابحث" --layout-features='*' \
+ *     --flavor=woff2 --output-file=src/fonts/marhey-hero-700.woff2
+ * (the app's assets/fonts/MarheyHero-Bold.ttf is the same, without --flavor).
+ */
+const heroFont = localFont({
+  src: "../fonts/marhey-hero-700.woff2",
+  weight: "700",
+  display: "block",
+});
 
 /**
  * The home page's hero: one finished picture, with its sun as the button.
@@ -111,12 +129,12 @@ export default function HomeHero() {
             className="absolute inset-0 rounded-full bg-white/0 transition group-hover:bg-white/10 group-active:bg-ink-900/5"
           />
           <span
-            className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[2cqw] text-center"
+            className={`${heroFont.className} absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[2cqw] text-center`}
             style={{ left: pct(labelCx), top: pct(labelCy), width: pct(labelW) }}
           >
-            <span className="home-hero-title font-display font-bold text-ink-900">إلى وين؟</span>
-            <span className="home-hero-go rounded-full bg-ink-900 font-semibold text-sun-100 shadow-sm transition group-hover:bg-ink-800">
-              ابدأ
+            <span className="home-hero-title">إلى وين؟</span>
+            <span className="home-hero-go rounded-full bg-white text-ink-900 transition group-hover:bg-sun-100">
+              ابحث
             </span>
           </span>
         </Link>

@@ -50,7 +50,7 @@ console.log('\n── the dial no longer opens its own panel ──');
   // lines, one of them («اضغط ودوّر حواليك») untrue since the dial stopped
   // ranking places around you.
   const said = (await dial.innerText()).split('\n').map((t) => t.trim()).filter(Boolean);
-  ok('the dial says two things: the question and «ابدأ»', JSON.stringify(said) === JSON.stringify(['إلى وين؟', 'ابدأ']), JSON.stringify(said));
+  ok('the dial says two things: the question and «ابحث»', JSON.stringify(said) === JSON.stringify(['إلى وين؟', 'ابحث']), JSON.stringify(said));
   ok('and its name still says where it leads', (await dial.getAttribute('aria-label'))?.includes('كلّم شوق'));
   await dial.click();
   await p.waitForURL('**/find/**');
