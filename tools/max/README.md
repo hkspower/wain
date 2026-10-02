@@ -57,6 +57,45 @@ The game currently drops the shipped hatch and super canopies (skin 26 mm and bo
 3. Press **Check**: the canopy now passes (hatch: box 0.2 mm, skin 2.0 mm; super: box 0.2 mm, skin 5.1 mm; 100% symmetric).
 4. Refine it if you like, then **Export for game** and run `npm run max:import`.
 
+## Render a car in 3ds Max (Arnold)
+
+The car renders in the same studio as the Blender set (`press/renders`): the same five area lights, glossy black floor, world grey, 55 mm cameras fitted to the car, and ACES grade. Arnold ships with 3ds Max.
+
+1. **Make the pack** (in the repo):
+
+   ```sh
+   npm run max:render-pack -- black-demon      # press/max/render/black-demon/
+   ```
+
+   The pack holds:
+   - `black-demon.fbx`: the whole car, as the game builds it;
+   - `tex/`: its textures;
+   - `materials.json`: every material's real values, including clearcoat and lamp emission, which FBX loses;
+   - `studio.json`: the floor, lights and cameras, solved for this car.
+
+2. **In 3ds Max:** Night Racer panel → **Render** → **Open render pack…** and pick that folder. This:
+   - imports the car;
+   - rebuilds all its materials as Physical Materials (paint with its clear coat, dark thin glass, glowing lamps, plate and decal textures);
+   - builds the floor;
+   - adds five Arnold quad lights and an Arnold skydome for the world grey, both invisible to the camera;
+   - adds four cameras;
+   - hangs the car on a turntable dummy.
+3. **Render stills** writes hero, side and rear to `<pack>\out\*.exr`. **Render turntable** writes `<pack>\out\turntable\####.exr`, 120 frames by default.
+   - *Half (test)* renders at half size.
+   - *AA* sets Arnold's camera samples: 6 for the stills; the turntable uses AA − 2.
+   - *lights x* scales every light, if the result is too bright or too dark.
+4. **Grade** (in the repo, or anywhere with `pip install bpy`):
+
+   ```sh
+   npm run max:finish -- press/max/render/black-demon/out
+   ```
+
+   This writes `out/final/*.png` with the same ACES view as the Blender set, and `out/final/turntable.mp4`. No ffmpeg needed.
+
+**Comparing with Blender:** `npm run max:preview -- press/max/render/black-demon --turntable` renders the same pack in Cycles, into `preview/`. Run `max:finish` on that folder too. The Max render should come close to it.
+
+**If something looks off:** **Show render log** lists any Arnold or Physical Material parameter this version of Max doesn't have, and which colour space was assumed for the material swatches. Send me that log with the render.
+
 ## The rules the game enforces
 
 - **Within 10 mm** of the game's own shell, after crowning: by box, and by skin at 25 points.
@@ -83,6 +122,8 @@ The game currently drops the shipped hatch and super canopies (skin 26 mm and bo
 | `nightracer/core.py` | The game's tests in plain Python: crown, fit, mirror, symmetrize, nearest point |
 | `nightracer/maxio.py` | Moves meshes between the scene and core.py, and holds the open, export and fix operations |
 | `nightracer/panel.py` | The dock panel |
+| `nightracer/render.py` | Builds a render pack's studio in Max and renders it with Arnold |
+| `render_pack.py`, `preview_render.py`, `finish_render.py` | Make a render pack, render it in Cycles, grade EXRs to ACES PNG and MP4 |
 | `nightracer_classic.ms` | The panel for Max 2020–2022 |
 | `procedural.mjs` | Writes the game's crowned shells (`*-target.glb`) and `*.nr.json` (crown specs, tolerance, how the game judges the shipped file) |
 | `export_for_max.py` | Builds the FBX: Edit, the fresh-loft Envelope, Target and Context |

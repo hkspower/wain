@@ -5,7 +5,8 @@
 
     3ds Max 2023 and later   the Night Racer dock panel (tools/max/nightracer/,
                              Python): Open, Save; Check with the game's own
-                             tests; a drift heatmap; fixes; Export and Export all.
+                             tests; a drift heatmap; fixes; Export and Export all;
+                             and Render: a car's render pack in Arnold.
     3ds Max 2020-2022        the classic panel (nightracer_classic.ms): Open,
                              a box-only Check, Export.
 
@@ -48,7 +49,7 @@ fn NR_panel_open =
 (
   if NR_ROOT == undefined do return false
   if NR_hasPython() then
-    NR_py "import importlib, nightracer.core, nightracer.maxio, nightracer.panel as P\nfor m in (nightracer.core, nightracer.maxio, P): importlib.reload(m)\nP.show()"
+    NR_py "import importlib, nightracer.core, nightracer.maxio, nightracer.render, nightracer.panel as P\nfor m in (nightracer.core, nightracer.maxio, nightracer.render, P): importlib.reload(m)\nP.show()"
   else
   (
     fileIn (NR_ROOT + "nightracer_classic.ms")
@@ -97,13 +98,18 @@ macroScript NR_Snap category:"Night Racer" buttonText:"NR Snap" tooltip:"Night R
 macroScript NR_Symmetric category:"Night Racer" buttonText:"NR Symmetric" tooltip:"Night Racer: make the selected shell symmetric" (NR_action "symmetric")
 macroScript NR_Export category:"Night Racer" buttonText:"NR Export" tooltip:"Night Racer: export Body, Canopy, Roof for the game" (NR_action "export")
 macroScript NR_ExportAll category:"Night Racer" buttonText:"NR Export all" tooltip:"Night Racer: export every car-*.max in a folder" (NR_action "exportall")
+macroScript NR_RenderPack category:"Night Racer" buttonText:"NR Render pack" tooltip:"Night Racer: build the Arnold studio from a render pack" (NR_action "renderpack")
+macroScript NR_RenderStills category:"Night Racer" buttonText:"NR Render stills" tooltip:"Night Racer: render hero, side and rear" (NR_action "renderstills")
+macroScript NR_RenderTurntable category:"Night Racer" buttonText:"NR Turntable" tooltip:"Night Racer: render the turntable frames" (NR_action "renderturntable")
 macroScript NR_Install category:"Night Racer" buttonText:"NR Install at startup" tooltip:"Night Racer: load the menu at every start" (NR_install())
 
 -- ---------------------------------------------------------------- menus
 global NR_MENU_ITEMS = #( \
   #("NR_Panel", "Night Racer panel"), #("NR_Open", "Open style..."), #("NR_Check", "Check"), \
   #("NR_Heatmap", "Heatmap"), #("NR_Snap", "Snap verts to Envelope"), #("NR_Symmetric", "Make symmetric"), \
-  #("NR_Export", "Export for game"), #("NR_ExportAll", "Export all..."), #("NR_Install", "Install at startup"))
+  #("NR_Export", "Export for game"), #("NR_ExportAll", "Export all..."), \
+  #("NR_RenderPack", "Open render pack..."), #("NR_RenderStills", "Render stills"), \
+  #("NR_RenderTurntable", "Render turntable"), #("NR_Install", "Install at startup"))
 
 -- 2025+: the new menu system builds menus from #cuiRegisterMenus callbacks.
 fn NR_registerMenus =

@@ -17,7 +17,7 @@ except ImportError:  # 2023-2024
 import pymxs
 from pymxs import runtime as rt
 
-from . import maxio
+from . import maxio, render
 
 GAME_TOL_MM = 10.0
 _dock = None
@@ -106,6 +106,49 @@ class Panel(QtWidgets.QWidget):
         g.addWidget(self._btn("Export for game", self.on_export), 0, 0)
         g.addWidget(self._btn("Export all .max in folder...", self.on_export_all), 0, 1)
         lay.addWidget(box)
+
+        # Render (Arnold)
+        box = QtWidgets.QGroupBox("Render (Arnold, the studio set)")
+        g = QtWidgets.QGridLayout(box)
+        g.addWidget(self._btn("Open render pack...", self.on_open_pack), 0, 0, 1, 2)
+        self.shot_boxes = {}
+        row = QtWidgets.QHBoxLayout()
+        for name in ("hero", "side", "rear"):
+            cb = QtWidgets.QCheckBox(name)
+            cb.setChecked(self.settings.value("shot_" + name, True, type=bool))
+            cb.toggled.connect(lambda v, n=name: self.settings.setValue("shot_" + n, v))
+            self.shot_boxes[name] = cb
+            row.addWidget(cb)
+        g.addLayout(row, 1, 0, 1, 2)
+        self.res = QtWidgets.QComboBox()
+        self.res.addItems(["Full (pack size)", "Half (test)"])
+        self.res.setCurrentIndex(self.settings.value("res", 0, type=int))
+        self.res.currentIndexChanged.connect(lambda i: self.settings.setValue("res", i))
+        g.addWidget(self.res, 2, 0)
+        self.aa = QtWidgets.QSpinBox()
+        self.aa.setRange(1, 12)
+        self.aa.setPrefix("AA ")
+        self.aa.setValue(self.settings.value("aa", 6, type=int))
+        self.aa.valueChanged.connect(lambda v: self.settings.setValue("aa", v))
+        g.addWidget(self.aa, 2, 1)
+        self.light_scale = QtWidgets.QDoubleSpinBox()
+        self.light_scale.setRange(0.05, 20.0)
+        self.light_scale.setSingleStep(0.1)
+        self.light_scale.setPrefix("lights x")
+        self.light_scale.setValue(self.settings.value("light_scale", 1.0, type=float))
+        self.light_scale.valueChanged.connect(lambda v: self.settings.setValue("light_scale", v))
+        g.addWidget(self.light_scale, 3, 0)
+        self.frames = QtWidgets.QSpinBox()
+        self.frames.setRange(1, 720)
+        self.frames.setSuffix(" frames")
+        self.frames.setValue(self.settings.value("frames", 120, type=int))
+        self.frames.valueChanged.connect(lambda v: self.settings.setValue("frames", v))
+        g.addWidget(self.frames, 3, 1)
+        g.addWidget(self._btn("Render stills", self.on_render_stills), 4, 0)
+        g.addWidget(self._btn("Render turntable", self.on_render_turntable), 4, 1)
+        g.addWidget(self._btn("Show render log", self.on_render_log), 5, 0, 1, 2)
+        lay.addWidget(box)
+        self.scene = None
         lay.addStretch(1)
         self.refresh_style()
 
@@ -130,6 +173,10 @@ class Panel(QtWidgets.QWidget):
         QtWidgets.QMessageBox.information(self, "Night Racer", text)
 
     def refresh_style(self):
+        if getattr(self, "scene", None) is not None:
+            spec = self.scene["spec"]
+            self.style_label.setText("Render pack: %s" % spec.get("name", spec["car"]))
+            return
         style = maxio.file_prop("nr_style")
         data = "" if maxio.style_info() else "  (no style data: re-open the FBX)"
         self.style_label.setText(("Style: %s" % style + data) if style else "No style open")
@@ -147,6 +194,7 @@ class Panel(QtWidgets.QWidget):
         if not rt.checkForSave():
             return
         self.settings.setValue("folder", os.path.dirname(path))
+        self.scene = None
         style, has = maxio.open_style(path, self.sym.isChecked())
         if not has:
             self._info("Opened %s, but car-%s.nr.json was not beside it: the checks need it. "
@@ -249,6 +297,61 @@ class Panel(QtWidgets.QWidget):
         self._info("\n".join("%s -> %s" % d for d in done) or "No car-*.max files in that folder.")
 
 
+    # ------------------------------------------------------------ render
+    def on_open_pack(self):
+        start = self.settings.value("pack_folder", "", type=str)
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Render pack (folder with studio.json)", start)
+        if not folder:
+            return
+        if not os.path.exists(os.path.join(folder, "studio.json")):
+            raise RuntimeError("No studio.json in that folder. Make a pack with npm run max:render-pack.")
+        if not rt.checkForSave():
+            return
+        self.settings.setValue("pack_folder", folder)
+        self.scene = render.open_pack(folder, self.light_scale.value())
+        spec = self.scene["spec"]
+        self._info("Studio built for %s.\n\n%s" % (spec.get("name"), "\n".join(render.LOG[-8:])))
+
+    def _need_scene(self):
+        if self.scene is None:
+            raise RuntimeError("Open a render pack first.")
+        return self.scene
+
+    def _scale(self, w, h):
+        return (w // 2, h // 2) if self.res.currentIndex() == 1 else (w, h)
+
+    def on_render_stills(self):
+        sc = self._need_scene()
+        shots = [n for n, cb in self.shot_boxes.items() if cb.isChecked()]
+        if not shots:
+            raise RuntimeError("Tick at least one shot.")
+        st = sc["spec"]["stills"]
+        w, h = self._scale(st["width"], st["height"])
+        rt.progressStart("Night Racer: render stills")
+        try:
+            done = render.render_stills(sc, shots, w, h, self.aa.value(), self._progress)
+        finally:
+            rt.progressEnd()
+        out = os.path.dirname(done[0])
+        self._info("Rendered %d still(s) to\n%s\n\nGrade them like the Blender set (ACES):\n"
+                   "  npm run max:finish -- \"%s\"" % (len(done), out, out))
+
+    def on_render_turntable(self):
+        sc = self._need_scene()
+        tt = sc["spec"]["turntable"]
+        w, h = self._scale(tt["width"], tt["height"])
+        rt.progressStart("Night Racer: render turntable")
+        try:
+            out = render.render_turntable(sc, self.frames.value(), w, h, max(1, self.aa.value() - 2), self._progress)
+        finally:
+            rt.progressEnd()
+        self._info("Rendered %d frames to\n%s\n\nMake the MP4 (and grade the frames):\n"
+                   "  npm run max:finish -- \"%s\"" % (self.frames.value(), out, os.path.dirname(out)))
+
+    def on_render_log(self):
+        self._info("\n".join(render.LOG) or "Nothing logged yet.")
+
+
 def show():
     """Open (or raise) the dock, where it was last time."""
     global _dock
@@ -275,6 +378,8 @@ def action(name):
     p = show().widget()
     fn = {"open": p.on_open, "check": p.on_check, "heatmap": p.on_heat, "export": p.on_export,
           "exportall": p.on_export_all, "snap": p.on_snap, "symmetric": p.on_sym, "recentre": p.on_centre,
-          "outward": p.on_outward, "replace": p.on_replace, "save": p.on_save}.get(name)
+          "outward": p.on_outward, "replace": p.on_replace, "save": p.on_save,
+          "renderpack": p.on_open_pack, "renderstills": p.on_render_stills,
+          "renderturntable": p.on_render_turntable}.get(name)
     if fn:
         p._run(fn)

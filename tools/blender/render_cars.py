@@ -54,6 +54,9 @@ import argparse, json, math, os, sys, time
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import studio as studio_def  # noqa: E402  (the shared studio numbers)
+
 ap = argparse.ArgumentParser()
 ap.add_argument("--glb-dir", default="press/renders/glb")
 ap.add_argument("--cars", default="press/renders/cars.json")
@@ -70,8 +73,7 @@ args = ap.parse_args(sys.argv[1:] if "--" not in sys.argv else sys.argv[sys.argv
 if args.preview:
     args.width, args.height, args.samples = 640, 360, 32
 
-# The game paints in sRGB hex; the sodium the road is lit by.
-SODIUM = (0.92, 0.40, 0.03)
+SODIUM = studio_def.SODIUM  # the sodium the road is lit by
 
 
 def log(*a):
@@ -107,48 +109,30 @@ def add_area(name, loc, target, energy, size, size_y=None, spread_deg=180, color
 
 
 def studio(mn, mx):
-    """The stage, lit for a car whose world bounds are mn..mx (metres)."""
+    """The stage, lit for a car whose world bounds are mn..mx (metres).
+    The numbers live in tools/blender/studio.py, shared with the 3ds Max
+    render pack; this builds them in Blender."""
     sc = bpy.context.scene
-    dims = mx - mn
-    c = (mn + mx) / 2
-    gz = mn.z
-    # The car comes in nose along -Y (glTF +Z forward); its long axis is Y.
-    L = max(dims.x, dims.y)
-    H = dims.z
-
-    # Floor: black diffuse, low roughness — the reflection is the whole
-    # point, and the specular is independent of the albedo.
-    bpy.ops.mesh.primitive_plane_add(size=max(120.0, L * 30), location=(c.x, c.y, gz))
+    fl = studio_def.floor(tuple(mn), tuple(mx))
+    bpy.ops.mesh.primitive_plane_add(size=fl["size"], location=fl["center"])
     ground = bpy.context.active_object
     ground.name = "Ground"
     gm = bpy.data.materials.new("Stage")
     gm.use_nodes = True
     b = gm.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (0.010, 0.010, 0.011, 1.0)
+    b.inputs["Base Color"].default_value = (*fl["base"], 1.0)
     b.inputs["Metallic"].default_value = 0.0
-    # Roughness 0.3 and a lower specular level: at 0.26 / 0.6 the key's
-    # reflection pooled into a hot patch on the floor beside the car.
-    b.inputs["Roughness"].default_value = 0.30
-    b.inputs["Specular IOR Level"].default_value = 0.4
+    b.inputs["Roughness"].default_value = fl["roughness"]
+    b.inputs["Specular IOR Level"].default_value = fl["specular"]
     ground.data.materials.append(gm)
 
-    tgt = (c.x, c.y, c.z)
-    # The camera stands on the -Y side (the nose) swung toward +X, so +X
-    # is the flank it sees. The key is on that side, high and forward;
-    # the fill answers from -X; the rim and the sodium kicker come from
-    # behind — the sodium from the far rear quarter, off the camera's
-    # axis, so it edges the far flank rather than sitting behind the
-    # glasshouse. The lights are hidden from camera rays (they still
-    # light, and still appear in the paint's reflections).
-    add_area("Key", (c.x + 1.3 * L, c.y - 0.8 * L, gz + 2.4 * H + 1.0), tgt, energy=1100, size=3.6, size_y=2.4, spread_deg=110)
-    add_area("Fill", (c.x - 1.6 * L, c.y - 0.6 * L, gz + 1.0 * H + 0.6), tgt, energy=170, size=5.0, size_y=3.5, spread_deg=160, color=(0.86, 0.91, 1.0))
-    add_area("Rim", (c.x - 0.5 * L, c.y + 1.4 * L, gz + 2.2 * H + 1.0), tgt, energy=1400, size=2.2, size_y=1.2, spread_deg=80, color=(0.95, 0.97, 1.0))
-    add_area("Sodium", (c.x - 1.3 * L, c.y + 0.6 * L, gz + 0.45 * H), (c.x, c.y, gz + 0.5 * H), energy=260, size=1.6, size_y=0.6, spread_deg=70, color=SODIUM)
-    # The strip: long, thin, straight down over the roof, along the car,
-    # a little toward the camera's side so the highlight sits on the
-    # near shoulder.
-    strip = add_area("Strip", (c.x + 0.15 * L, c.y, gz + H + 1.5 * H + 0.9), tgt, energy=1500, size=0.35, size_y=3.0 * L, spread_deg=120)
-    strip.rotation_euler = (0, 0, 0)
+    # The lights are hidden from camera rays (they still light, and still
+    # appear in the paint's reflections).
+    for L in studio_def.rig(tuple(mn), tuple(mx)):
+        ob = add_area(L["name"], L["loc"], L["target"], energy=L["energy"], size=L["size"], size_y=L["size_y"],
+                      spread_deg=L["spread_deg"], color=L["color"])
+        if L.get("down"):
+            ob.rotation_euler = (0, 0, 0)
     for ob in bpy.data.objects:
         if ob.type == "LIGHT":
             try_set(ob, "visible_camera", False)
@@ -162,7 +146,7 @@ def studio(mn, mx):
     wn.nodes.clear()
     out = wn.nodes.new("ShaderNodeOutputWorld")
     lit = wn.nodes.new("ShaderNodeBackground")
-    lit.inputs["Color"].default_value = (0.045, 0.045, 0.055, 1)
+    lit.inputs["Color"].default_value = (*studio_def.WORLD_GREY, 1)
     lit.inputs["Strength"].default_value = 1.0
     black = wn.nodes.new("ShaderNodeBackground")
     black.inputs["Color"].default_value = (0, 0, 0, 1)
@@ -173,41 +157,18 @@ def studio(mn, mx):
     wn.links.new(black.outputs["Background"], mix.inputs[2])
     wn.links.new(mix.outputs["Shader"], out.inputs["Surface"])
 
-    # Camera: three-quarter front, a little below the beltline. Fitted
-    # to the car's BOX, not its sphere: the eight corners are projected
-    # through the lens and the camera walks back along its own axis until
-    # all of them sit inside the frame with a 7% margin. A sphere fit
-    # (the first cut) left a 4.7 m car filling half the width. az swings
-    # the camera from the nose toward +X.
+    # Camera: three-quarter front, a little below the beltline, fitted to
+    # the car's BOX, not its sphere (studio.fit_camera): a sphere fit left
+    # a 4.7 m car filling half the width.
     cam_d = bpy.data.cameras.new("Cam")
-    cam_d.lens = 55.0
-    cam_d.sensor_width = 36.0
+    cam_d.lens = studio_def.LENS_MM
+    cam_d.sensor_width = studio_def.SENSOR_MM
     cam_d.sensor_fit = "HORIZONTAL"
     cam = link(bpy.data.objects.new("Cam", cam_d))
-    az = -(math.pi / 2 - math.radians(36))  # toward -Y (the nose), swung 36 deg off the axis
-    el = math.radians(8.5)
-    view = Vector((math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)))
-    aim = Vector((c.x, c.y, gz + 0.40 * H))
-    tan_h = cam_d.sensor_width / 2 / cam_d.lens
-    tan_v = tan_h * args.height / args.width
-    corners = [Vector((x, y, z)) for x in (mn.x, mx.x) for y in (mn.y, mx.y) for z in (mn.z, mx.z)]
-    dist = 1.0
-    for _ in range(40):
-        cam.location = aim + view * dist
-        rot = (aim - cam.location).to_track_quat("-Z", "Y")
-        inv = rot.to_matrix().transposed()
-        worst = 0.0
-        for k in corners:
-            p = inv @ (k - cam.location)  # camera space: -Z forward
-            depth = -p.z
-            if depth <= 0.05:
-                worst = 9.0
-                break
-            worst = max(worst, abs(p.x) / (depth * tan_h), abs(p.y) / (depth * tan_v))
-        if abs(worst - 0.93) < 0.005:
-            break
-        dist *= worst / 0.93
-    cam.rotation_euler = (aim - cam.location).to_track_quat("-Z", "Y").to_euler()
+    az, el = studio_def.SHOTS["hero"]
+    loc, aim, _ = studio_def.fit_camera(tuple(mn), tuple(mx), az, el, args.width / args.height)
+    cam.location = loc
+    cam.rotation_euler = (Vector(aim) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
     sc.camera = cam
 
 
