@@ -37,7 +37,7 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { startSalemChat, stripFiller } = await import(pathToFileURL(bundle).href);
+const { startSalemChat, stripFiller, cleanReply } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 /** A WebSocket standing in for the network — no connection, ever attempted. */
@@ -323,7 +323,40 @@ console.log("\n── the phone-call filler is not a typed answer ──");
   ok("a reply that is only the filler becomes empty", stripFiller("ثانية وحدة…") === "");
   ok("an ordinary reply is untouched", stripFiller("حياك الله") === "حياك الله");
   ok("«ثانية» inside a sentence is not stripped", stripFiller("استنى ثانية وحدة بس") === "استنى ثانية وحدة بس");
+}
 
+console.log("\n── voice directions are not text ──");
+{
+  // The shapes the 2 October suite produced once expressive_mode was on.
+  ok("a leading tag is dropped", cleanReply("[sad] ما عندي مطعم ياباني بالجابرية.") === "ما عندي مطعم ياباني بالجابرية.", cleanReply("[sad] ما عندي مطعم ياباني بالجابرية."));
+  ok("a tag mid-sentence leaves one space", cleanReply("أقرب شي هو [happy] مارينا كريسنت.") === "أقرب شي هو مارينا كريسنت.", cleanReply("أقرب شي هو [happy] مارينا كريسنت."));
+  ok("filler then tag: both go", cleanReply("ثانية وحدة…. [happy] يا هلا!") === "يا هلا!", cleanReply("ثانية وحدة…. [happy] يا هلا!"));
+  ok("a multi-word tag goes", cleanReply("[laughs softly] أكيد") === "أكيد");
+  ok("Arabic in brackets is hers, and stays", cleanReply("[مؤقت] سوق شرق") === "[مؤقت] سوق شرق");
+
+  globalThis.WebSocket = FakeSocket;
+  const msgs = [];
+  const fixes = [];
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: (m) => msgs.push(m),
+    onCorrection: (c) => fixes.push(c),
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  handle.send("بحر");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "[warm] أبشر، شاطئ المارينا." } }) });
+  ok("on the wire: the bubble carries no tag", msgs[0]?.text === "أبشر، شاطئ المارينا.", JSON.stringify(msgs));
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response_correction", agent_response_correction_event: { original_agent_response: "[warm] أبشر، شاطئ المارينا.", corrected_agent_response: "[warm] أبشر." } }) });
+  ok("a correction is cleaned on both sides, so it still finds its bubble", fixes[0]?.original === msgs[0]?.text && fixes[0]?.corrected === "أبشر.", JSON.stringify(fixes));
+  handle.close();
+}
+
+console.log("\n── a filler on the wire ──");
+{
   globalThis.WebSocket = FakeSocket;
   mock.timers.enable({ apis: ["setTimeout"] });
   const pend = [];

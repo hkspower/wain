@@ -116,6 +116,26 @@ export function stripFiller(text: string): string {
 }
 
 /**
+ * Voice-direction tags — «[happy]», «[warm]», «[laughs softly]». The agent's
+ * TTS went to eleven_v4_turbo with `expressive_mode` on (2 October), which
+ * tells the model to write them for the voice to act on; the call widget hides
+ * them (`strip_audio_tags`), but this socket hands over the raw text, and the
+ * very next suite had them in 32 of her replies — «[sad] ما عندي مطعم ياباني…».
+ * Latin letters only, so an Arabic phrase someone puts in brackets survives.
+ */
+export function stripAudioTags(text: string): string {
+  return text
+    .replace(/\[[a-z][a-z' -]{0,30}\]/gi, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/** What a bubble shows: no voice directions, no phone filler. */
+export function cleanReply(text: string): string {
+  return stripFiller(stripAudioTags(text));
+}
+
+/**
  * Who is calling, from the server's own list (`conversation_initiation_source`).
  * This said «wain-salem-chat» until 1 October — a name nobody had told the
  * server — and in all that time not one typed conversation was recorded for
@@ -243,7 +263,7 @@ export function startSalemChat({
         return;
       case "agent_response": {
         const evt = data.agent_response_event as { agent_response?: string } | undefined;
-        const text = stripFiller(evt?.agent_response ?? "");
+        const text = cleanReply(evt?.agent_response ?? "");
         // Only the filler: she is still working, so the typing state stays —
         // and it is the server telling us she is slow, three seconds in,
         // where the page's own hint used to wait ten.
@@ -260,9 +280,11 @@ export function startSalemChat({
           | { original_agent_response?: string; corrected_agent_response?: string }
           | undefined;
         if (evt?.corrected_agent_response) {
+          // Both sides cleaned, or the original no longer matches the bubble
+          // it is meant to find.
           onCorrection?.({
-            original: evt.original_agent_response ?? "",
-            corrected: evt.corrected_agent_response,
+            original: cleanReply(evt.original_agent_response ?? ""),
+            corrected: cleanReply(evt.corrected_agent_response),
           });
         }
         return;

@@ -34,6 +34,22 @@ typedef ChatTool = FutureOr<String> Function(Map<String, dynamic> parameters);
 /// typed conversation was ever recorded. The Flutter SDK sends «flutter_sdk».
 const _source = 'flutter_sdk';
 
+/// What a bubble shows of her reply — the web's `cleanReply`, ported.
+///
+/// Voice directions first: «[happy]», «[warm]», «[laughs softly]». Her TTS
+/// went to eleven_v4_turbo with expressive mode on (2 October), which has the
+/// model write them for the voice to act on, and this socket hands over the raw
+/// text — the next test suite had them in 32 replies. Latin letters only, so an
+/// Arabic phrase in brackets stays. Then the phone filler («ثانية وحدة…», the
+/// 3s soft timeout): at the head of a reply it goes, and a reply that is only
+/// the filler comes back empty and draws nothing — she is still working.
+String cleanReply(String text) => text
+    .replaceAll(RegExp(r"\[[a-zA-Z][a-zA-Z' -]{0,30}\]"), ' ')
+    .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+    .trim()
+    .replaceFirst(RegExp(r'^\s*ثانية\s+وحدة\s*[….،.]*\s*'), '')
+    .trim();
+
 typedef ChannelFactory = WebSocketChannel Function(
   Uri uri,
   Iterable<String> protocols,
@@ -138,9 +154,9 @@ ChatHandle startSalemChat({
           onStatus(ChatStatus.connected);
         case 'agent_response':
           final evt = data['agent_response_event'];
-          final text = evt is Map ? evt['agent_response'] : null;
-          if (text is String && text.isNotEmpty)
-            onMessage(ChatMessage('agent', text));
+          final raw = evt is Map ? evt['agent_response'] : null;
+          final text = raw is String ? cleanReply(raw) : '';
+          if (text.isNotEmpty) onMessage(ChatMessage('agent', text));
         case 'ping':
           final evt = data['ping_event'];
           sendJson({

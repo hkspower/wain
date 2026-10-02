@@ -1325,6 +1325,64 @@ in Kuwait.
 
 `hub.wainkw.com` is deliberately left alone: no DMARC, no CAA, not wain's.
 
+## «Update شوق with ElevenLabs» — 2 October: gemini-3.8-flash, and the account ran dry
+
+Asked for a health check, a better voice model, faster replies, and «upgrade
+to last gemini 3.8». **Read the live config before planning anything**: in
+the twelve minutes after this session's allowlist commit, main had gained
+three more from the dashboard — «Upgrade analysis LLM to gemini-3.8-flash»,
+«Disable sentiment analysis», «Upgrade LLM to Claude Opus and enable
+expressive TTS mode» — and a UI save that left `eleven_v4_turbo`,
+`similarity_boost` 0.75, `pcm_48000`, `turn_eagerness: eager`,
+`speculative_turn: true` and a nameless free-form procedure. So the voice
+model upgrade was already live, and the conversation LLM was Opus, not 3.8.
+
+**Opus never answered once.** Suite on main (`suite_4201…`): 45/50, and in
+all 50 runs `charging.llm_usage` names only gemini-2.5-flash, gpt-4o and
+flash-lite — the backups. A 27K-token context does not start inside the 4s
+`cascade_timeout_seconds`, so every live turn waited 4s for nothing and then
+cascaded. `report_gap` failed 2/2 on it. **A model upgrade has to be read
+off `llm_usage`, not off the config**: the config said Opus for the whole
+time Opus was saying nothing.
+
+**gemini-3.8-flash, on a branch (`suite_1201…`): 47/50, 47 of 50 runs
+answered by 3.8 itself** — the first suite in this file that measures the
+model callers hear. `report_gap` 2/2. What still fails: the summer «من
+العصر» defect, now on the «قهوة على البحر» shape test 2/2 (the `منطق ٦`
+family — still the model, still not the prompt), and one judge «unknown» on
+a turn that ended at a tool call. Merged after `merge_branch_preview` showed
+`llm` as the only difference: main is **`agtvrsn_3001m3xsqdp5f30amqp3s76b61mz`**.
+
+**Expressive mode writes voice tags into the TEXT.** «[happy]», «[warm]»,
+«[sad] ما عندي مطعم ياباني…» — 32 replies in one suite. The call widget
+hides them (`strip_audio_tags`); the typed chat's socket does not, so every
+/salem bubble would have carried them. `cleanReply` in `salem-chat.ts` (and
+its Dart port in `salem_chat.dart`, which never had the filler strip either)
+removes Latin-letter bracket tags, then the filler; corrections are cleaned
+on both sides so they still find their bubble. Both proved red with the old
+wiring. **In the repository, not on the site until a deploy.**
+
+**RAG was tried for speed and is NOT merged** (branch `rag-speed`,
+`agtbrch_2601m3xss93beemsan8qm4yj4z4v`, 0% traffic; index
+`multilingual_e5_large_instruct` built on the v5 document). Input per turn
+fell from ~27K to **16.5K** tokens — the lever is real — but the one fact
+that lives in a single KB section broke: «المسافة بين مكانين» 0/2, «دقايق
+بالسيارة» instead of 1.2 km, because the distances section was not
+retrieved. Any retry needs the distances moved into the prompt or into every
+place's own chunk first.
+
+**And that suite ran the account out.** 21 of its 50 runs died on
+`quota_exceeded` — «quota of 144959 … 8 credits remaining, 16 required».
+That quota is the same one calls and typed chats spend, so **at the end of
+this session شوق could not answer anyone** until it resets or is topped up.
+The three suites here cost ~19.5K credits; a full 25×2 suite on this agent
+is 7–9K. **Check the balance before a suite, not after.**
+
+Also seen: the harness's assembled turn text splits Arabic words («الق
+زاز») on every model, including the backups; the two real calls of
+1 October are clean, so it is read as a harness artefact, not a model
+defect — unverified.
+
 ## شوق, the ElevenLabs agent
 
 Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 25 attached tests; run them after

@@ -134,6 +134,41 @@ void main() {
     h.close();
   });
 
+  test('cleanReply: voice directions and the phone filler are not text', () {
+    expect(cleanReply('[sad] ما عندي مطعم ياباني.'), 'ما عندي مطعم ياباني.');
+    expect(cleanReply('أقرب شي [happy] مارينا كريسنت.'), 'أقرب شي مارينا كريسنت.');
+    expect(cleanReply('ثانية وحدة…. [happy] يا هلا!'), 'يا هلا!');
+    expect(cleanReply('[laughs softly] أكيد'), 'أكيد');
+    expect(cleanReply('ثانية وحدة…'), '');
+    expect(cleanReply('[مؤقت] سوق شرق'), '[مؤقت] سوق شرق');
+    expect(cleanReply('استنى ثانية وحدة بس'), 'استنى ثانية وحدة بس');
+  });
+
+  test('on the wire: a tagged reply arrives clean, and a filler alone draws nothing', () async {
+    final messages = <ChatMessage>[];
+    final h = startSalemChat(
+      agentId: 'a',
+      connect: agent.factory,
+      onStatus: (_) {},
+      onMessage: messages.add,
+      onToolUnavailable: () {},
+    );
+    await agent.connected.future;
+    agent.say({'type': 'conversation_initiation_metadata'});
+    agent.say({
+      'type': 'agent_response',
+      'agent_response_event': {'agent_response': 'ثانية وحدة…'},
+    });
+    agent.say({
+      'type': 'agent_response',
+      'agent_response_event': {'agent_response': '[warm] أبشر، شاطئ المارينا.'},
+    });
+    await until(() => messages.isNotEmpty);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(messages.map((m) => m.text), ['أبشر، شاطئ المارينا.']);
+    h.close();
+  });
+
   test('a registered tool is run and its result returned; a failing one answers is_error', () async {
     final h = startSalemChat(
       agentId: 'a',
