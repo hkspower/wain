@@ -138,8 +138,8 @@ def https_checks():
     # so shipping it would have silently lifted the password from the admin
     # console and exposed the n8n blueprints. Pinned so that cannot come back.
     for what, pat in (
-        ("Basic Auth guards admin, nizam, editor and mcp-admin",
-         r'<FilesMatch "\^\(admin\|mcp-admin\|editor\|nizam\)\\\.html\$">\s*AuthType Basic[^<]*Require valid-user'),
+        ("Basic Auth guards admin, editor and mcp-admin — and not the free system",
+         r'<FilesMatch "\^\(admin\|mcp-admin\|editor\)\\\.html\$">\s*AuthType Basic[^<]*Require valid-user'),
         ("the password file sits above the web root",
          r'AuthUserFile /home/[^/\s]+/domains/almuhallab-code\.com/\.htpasswd'),
         ("the n8n proxy blueprints are never served",

@@ -103,7 +103,9 @@ ErrorDocument 404 /404.html
 # ═══════════ BASIC AUTH ON INTERNAL TOOLS ═══════════
 # The password file lives ABOVE the web root, so it can never be served.
 # User: almuhallab
-<FilesMatch "^(admin|mcp-admin|editor|nizam)\.html$">
+# nizam.html is NOT here: it is النوخذة's free system, open to every visitor
+# (owner's request 2026-10-02 — a password box met everyone who registered).
+<FilesMatch "^(admin|mcp-admin|editor)\.html$">
   AuthType Basic
   AuthName "Almuhallab - Restricted"
   AuthUserFile /home/u130124229/domains/almuhallab-code.com/.htpasswd
