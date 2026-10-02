@@ -92,6 +92,31 @@ for (const { pattern } of rules) {
   }
 }
 
+/* Every kind of file the export ships has to reach the browser as itself.
+   The host's own type table is not this repository's to see, and it is
+   older than the web it serves: on 2 October the home hero's .avif came back
+   «text/plain» — gzipped as text, cached for an hour — while the .webp beside
+   it was «image/webp». Nothing failed; the AVIF is simply the file a modern
+   browser picks first, arriving labelled as something else under nosniff.
+   So an extension is either one every Apache has typed for decades, or the
+   .htaccess types it itself. A new kind of file fails here until one is true. */
+{
+  const STOCK = new Set(["html", "txt", "js", "css", "json", "xml", "jpg", "jpeg", "png", "gif", "ico", "mp3"]);
+  const typed = new Set(
+    [...readFileSync(HTACCESS, "utf8").matchAll(/^\s*AddType\s+\S+\s+(.+)$/gm)]
+      .flatMap((m) => m[1].trim().split(/\s+/).map((e) => e.replace(/^\./, "").toLowerCase()))
+  );
+  const exts = new Set(shipped.map((f) => basename(f)).filter((b) => b.includes(".") && !b.startsWith(".")).map((b) => b.split(".").pop().toLowerCase()));
+  const untyped = [...exts].filter((e) => !STOCK.has(e) && !typed.has(e)).sort();
+  if (untyped.length)
+    errors.push(
+      `the export ships .${untyped.join(", .")} and public/.htaccess has no AddType for ` +
+        `${untyped.length === 1 ? "it" : "them"}. The host serves a type it does not know as ` +
+        `text/plain (measured for .avif) — add an AddType line in the mod_mime block.`
+    );
+  else notes.push(`allowed: every file type the export ships is typed (${[...exts].sort().join(", ")})`);
+}
+
 /* The rules that matter most are the ones protecting live data. Losing one of
    these to a careless edit is silent and expensive, so they are named. */
 const MUST_DENY = [

@@ -245,6 +245,8 @@ Options -Indexes
   ExpiresByType font/woff2            "access plus 1 year"
   ExpiresByType font/woff             "access plus 1 year"
   ExpiresByType image/png             "access plus 1 week"
+  ExpiresByType image/webp            "access plus 1 week"
+  ExpiresByType image/avif            "access plus 1 week"
   ExpiresByType image/svg+xml         "access plus 1 week"
   ExpiresByType image/x-icon          "access plus 1 week"
   ExpiresByType audio/mpeg            "access plus 1 week"
@@ -277,6 +279,11 @@ Options -Indexes
   AddType font/woff2 .woff2
   AddType application/manifest+json .webmanifest
   AddType image/svg+xml .svg
+  # The host does not know AVIF: on 2 October the home hero's .avif came back
+  # «Content-Type: text/plain», gzipped as text and cached for an hour, beside
+  # a .webp served correctly. Named here so it no longer depends on the host.
+  AddType image/avif .avif
+  AddType image/webp .webp
 </IfModule>
 
 # iOS fetches /.well-known/apple-app-site-association to decide whether a
