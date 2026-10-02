@@ -2112,7 +2112,7 @@ h2[class~="font-extrabold"] { font-weight: 700 !important; }
     --sp-ember: var(--sp-ink-on-light, #c2410c);
     --sp-chip: #d5d9de;
     --sp-field-edge: #7a8188;
-    --sp-card-edge: rgba(23, 26, 30, .16);
+    --sp-card-edge: #8a9199;
     color: #171a1e;
   }
   [data-theme='dark'] main h1:not(.display-title):not(.font-display):not(.sr-only):not([hidden]) {

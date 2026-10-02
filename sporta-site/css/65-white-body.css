@@ -34,7 +34,7 @@
     /* a text field's edge: the dark page's #aab1b9 is 7:1 there and 2.2:1 on white (48-) */
     --sp-field-edge: #7a8188;
     /* the product card's edge: the dark page's white hairline vanishes on white */
-    --sp-card-edge: rgba(23, 26, 30, .16);
+    --sp-card-edge: #8a9199;   /* 3.2:1 on white, a visible card edge (owner, 2026-10-02: "card edges only") */
     color: #171a1e;
   }
 

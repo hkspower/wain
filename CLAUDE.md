@@ -4065,3 +4065,7 @@ Asked for as "make main website body background is white color"; the owner chose
 ## Full product names in the grids — 2026-10-02
 
 Asked for as "make name of product name at grid full no hidden". The name in every grid card (one card, `44-product-grid-spec.css`) wrapped to as many lines as it needs instead of one line with an ellipsis; the bundle's `line-clamp-*` (display -webkit-box + overflow hidden) is undone there. `test:product-grid-spec`'s caption cap is now 85px **plus one line-height per extra line of a wrapped name**: the cap came from the 2026-09-30 spec of one-line names, and the owner's newer instruction wins.
+
+## Product card edges are visible — 2026-10-02
+
+After a full CSS scan reported only quiet decorative hairlines, the owner chose "card edges only": the product card's border on the white body is `--sp-card-edge: #8a9199` (3.2:1 on white) in `65-white-body.css`, every grid. Dividers elsewhere were deliberately left soft; `test:borders` and `test:site-contrast` still REPORT them (not failures).
