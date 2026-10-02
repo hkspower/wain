@@ -203,7 +203,11 @@ void _backSwipeTests() {
           (w.key! as ValueKey<String>).value.startsWith('result-place:'),
     );
     expect(row, findsWidgets);
-    await t.ensureVisible(row.first);
+    // Scrolled into the middle, not to the edge: `ensureVisible` stopped with
+    // the row's centre past the viewport once /search's numbered line grew a
+    // link (1 October), and the tap landed on the tab bar instead.
+    Scrollable.ensureVisible(t.element(row.first), alignment: 0.5);
+    await t.pump(const Duration(milliseconds: 300));
     await t.tap(row.first);
     await t.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.byKey(const ValueKey('search-input')), findsNothing);

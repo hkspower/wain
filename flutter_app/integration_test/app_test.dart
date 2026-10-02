@@ -164,7 +164,10 @@ void main() {
       orElse: () => fail('no place result on screen for «قهوة»'),
     );
     final row = find.byKey(ValueKey('result-place:${first.slug}'));
-    await t.ensureVisible(row);
+    // Centred, not merely «visible»: at the edge of the list the row's centre
+    // can sit under the tab bar, and the tap goes there instead (the widget
+    // suite met this once /search's numbered line grew a link, 1 October).
+    Scrollable.ensureVisible(t.element(row), alignment: 0.5);
     await settle(t, 300);
     await t.tap(row);
     await waitFor(t, find.text(first.descriptionAr));

@@ -1416,11 +1416,11 @@ did not contain an agent response». A test that had just passed in the full
 suite failed 2/2 minutes later with that shape. The harness drops the user turn
 sometimes; read the rationale before believing a regression, and re-run.
 
-**The launcher is `ShouqCallButton`, inside the /search query box; the call
-component lives in the root layout.** Both are deliberate. Every call already
-ended on /search, so the button belongs there — and it replaced the box's own
-dictation mic, because a mic and a call button side by side are one offer
-drawn twice. The call cannot move with it: `open_place` is a route change and
+**The launcher is `ShouqCallButton`, on /find and nowhere else (since 1 October,
+see «One call button» below); the call component lives in the root layout.**
+It spent September inside the /search query box, where it had replaced the
+box's own dictation mic; the box and the search dead end now carry a LINK to
+/find instead. The call cannot move with any button: `open_place` is a route change and
 the `<elevenlabs-convai>` element is created inside `WainAiCall`, so a call the
 search page owned would be killed by its own tool.
 
@@ -3539,9 +3539,9 @@ are now read and correct; a seventh appearing means something new, not this.
 
 ## Checks
 
-`npm run scan` is lint plus 33 audits — counted from `package.json` on
-1 October rather than estimated (31 on 21 September; `audit:flutter` and
-`audit:home-hero` joined since), because «~29» had been carried along
+`npm run scan` is lint plus 34 audits — counted from `package.json` on
+2 October rather than estimated (31 on 21 September; `audit:flutter`,
+`audit:home-hero` and `audit:rls` joined since), because «~29» had been carried along
 through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
 map-pin, live-map, search-keys, shouq-search, search-plan, find, salem —
 **nine**, having gained `salem` and lost `swipe` since the line above this
@@ -4664,6 +4664,78 @@ run app:links`, a build and a deploy — `flutter_app/docs/app-links.md`). The
 TestFlight setup (`docs/ios-testflight.md`). And a real phone: a call through a
 locked screen, a Bluetooth headset, a WhatsApp link opening the app, an R8
 release placing a call. None of those can be measured from here.
+
+## One call button, RLS, and سالم's silence — 1–2 October
+
+Asked in one message: «enable rls / publish now / keep call shough only one
+button call / fix salem chat layout didnt responce».
+
+**سالم never answered because the server never opened the conversation.**
+`agents_list_conversations` held widget calls back to 29 September — 0-second
+ones included, and one real 90-second call with `show_places` and
+`open_place` — and **not one typed conversation, ever**. Both typed clients
+(`lib/salem-chat.ts`, Flutter `ai/salem_chat.dart`) sent `source=wain-salem-chat`
+in the URL and in `source_info`, and that name is not in the server's
+`conversation_initiation_source` list; the SDKs they were read out of send
+`js_sdk` and `flutter_sdk`, which is what they send now. Asserted on both
+sides against that list, red before. **That is the strongest explanation, not
+a measurement**: the socket is refused here, so the first real typed chat after
+a deploy is what closes it. The agent still allows both overrides the chat
+asks for (`text_only`, `voice_id`), read with `agents_get`.
+
+**And the layout hid what she did say.** `/salem` was `min-h-dvh`: a minimum
+gives the transcript's `overflow-y-auto` nothing to overflow, so the page grew,
+the box and her newest reply slid below the fold (the input at 1654px on an
+844px screen) and the scroll-to-newest effect scrolled a list that could not
+scroll. Exact height now, `standalone:` subtracting the tab bar; 12 assertions
+at 390, 320 and installed, all red before. The app had its own version: it
+scrolled to an ESTIMATED `maxScrollExtent` that each new reply cancelled, so
+fourteen replies in it showed the 3rd to the 6th. A reversed list holds the
+newest at offset 0 (`salem_layout_test.dart`, red before). A first attempt that
+re-aimed after each scroll was worse — rows grow in, so right after a reply the
+list reads as already at the end.
+
+**One call button: /find's.** The /search box and the search dead end each had
+their own `ShouqCallButton` — one offer drawn three times. Both are links to
+/find now (`wain-hub.ts`' call action points there too, so MCP's
+`list_actions` says the same), on the site and in the app. `find.test.mjs` and
+`one_call_button_test.dart` count the button route by route, red against the
+old build (the dead end had two). Things worth knowing from moving it:
+
+- **A call placed from /find starts DURING a route change.** The tap pushes
+  /search, so for ~200ms the call's alert is up over a page that has not
+  arrived. `shouq-flow` read the search box and the error buzz in that gap and
+  went red three times; instrumented, the product was right (one `pushState`,
+  the box there by 600ms, `[24,55,24]` at 439ms). The waits are on the events
+  now. **Read the trace before «fixing» a race in the product.**
+- **The tests that read the launcher after the tap** (`aria-expanded`, the
+  pulse) cannot: it unmounts with /find. They record it with a
+  `MutationObserver` before it goes.
+- **A taller line above the results pushed the first result under the app's
+  tab bar** for `ensureVisible`, which stops at the edge; the back-swipe test
+  tapped the bar. `Scrollable.ensureVisible(alignment: 0.5)` in both suites.
+
+**RLS was already on for every table; two real gaps were not.** `audit:rls`
+(in `scan`) reads `schema.sql`: RLS and a policy on every table, no write
+policy `(true)`, storage policies scoped to a bucket, every function pinning
+`search_path`, every security definer function revoking PUBLIC — and it fails
+if it finds no tables. First run: `touch_updated_at()` and
+`stamp_order_status()` did not pin `search_path`, and **the grants only ever
+added** — Supabase's default privileges give `anon` ALL on new tables,
+TRUNCATE included, which RLS does not govern. Every table revokes first now.
+`test:db` reproduces those defaults (`alter default privileges … grant all`);
+against the old schema `anon` truncated the places and 15 of 30 failed, against
+this one 30 of 30 pass. Not reachable through PostgREST, and the back end is
+unconfigured, so this reaches a database only when `schema.sql` is run on one.
+
+**The device CI at `0ab16a67`**: both iPhones green — the 17e on its first
+attempt with the bounded install step. Both workflows stopped at «the generated
+half is current»: committed `*.g.dart` had been through `dart format` (the trap
+named above, met for real); regenerated in `05292bcb`. The Android emulator
+died a few seconds into the first flow (ANR stack dump, «Service has
+disappeared», «device offline») on the image's default AVD; memory, disk, a
+software GPU and no host audio were set in `6c70c9d6`, as a hypothesis the next
+run tests.
 
 ## Style
 

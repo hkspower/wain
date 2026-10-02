@@ -144,8 +144,8 @@ export default function HomePage() {
               and it makes the shortest route to search read as a fork.
 
               The offer is not lost: /search names all three ways — typing,
-              شوق, the map — once you are there, which is the stage that can
-              afford to. Same «one offer, drawn once» rule as ShouqCallButton's
+              شوق (a link to /find, the one call button), the map — once you
+              are there, which is the stage that can afford to. Same «one offer, drawn once» rule as ShouqCallButton's
               own placement, applied to the step before it rather than to the
               page. Do not put the second half back here without moving the
               /search line out of the way first. */}

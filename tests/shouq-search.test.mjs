@@ -120,40 +120,45 @@ console.log('\n── an empty box gets nothing; a failed search gets the most i
   await ctx.close();
 }
 
-console.log('\n── the box carries \u0634\u0648\u0642, and only her ──');
+console.log('\n── the box carries no voice control; the call is one link away ──');
 {
   /**
    * This block used to drive the query box's own microphone: stub the engine,
    * press the mic, feed interim results, watch them land in the field while
    * the search ran on them mid-sentence.
    *
-   * That mic is gone. It was added so the page شوق hands you to could also
-   * be USED by voice, and it made sense while her call was somewhere else —
-   * but once the call moved onto this page the box had two microphone-ish
-   * buttons side by side offering what reads as one thing. The one that
-   * survives is شوق: in local mode a call still ends where the mic ended,
-   * with the sentence in the box and the answer read back, and that path is
-   * measured end to end in shouq-flow.test.mjs.
+   * That mic went first, for شوق's call button in its place. The call button
+   * went next, 1 October: the owner asked for ONE way to call her, and that is
+   * /find's. A call placed there still ends here — the sentence in the box and
+   * the answer read back, measured end to end in shouq-flow.test.mjs.
    *
-   * What is left to assert here is the absence: one voice control in the box,
-   * and it is hers.
+   * So the box carries no voice control at all, «كلّمي شوق» above it is a link
+   * to /find, and the button's own promises are asserted where it now lives.
    */
   const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, locale: 'ar-KW', isMobile: true, hasTouch: true });
   const p = await ctx.newPage();
   await p.route('**openstreetmap.org**', (r) => r.abort());
   await p.goto(`${B}/search/`, { waitUntil: 'networkidle' });
 
-  const shouq = p.locator('button[aria-label*="\u0648\u064a\u0646 AI"]');
-  ok('the box carries her call button', (await shouq.count()) === 1);
-  ok('it points at the panel it opens',
-    (await shouq.getAttribute('aria-controls')) === 'wain-ai-panel');
-  ok('and reports itself closed until it is pressed',
-    (await shouq.getAttribute('aria-expanded')) === 'false');
+  const shouq = (pg) => pg.locator('button[aria-label*="\u0648\u064a\u0646 AI"]');
+  // Was «the box carries her call button»; it is the opposite since 1 October.
+  ok('the box carries no call button', (await shouq(p).count()) === 0);
+  ok('and names the call as a link to /find instead',
+    await p.locator('a[href="/find/"]', { hasText: 'كلّمي شوق' }).isVisible());
 
   ok('the old dictation mic is gone',
     (await p.locator('button[aria-label="\u0627\u0633\u0623\u0644 \u0634\u0648\u0642 \u0628\u0635\u0648\u062a\u0643"]').count()) === 0);
   ok('and no second voice button took its place',
     (await p.locator('button[aria-label*="\u0627\u0633\u062a\u0645\u0627\u0639"]').count()) === 0);
+
+  // The two promises the box's button made, read off the one that is left.
+  await p.goto(`${B}/find/`, { waitUntil: 'networkidle' });
+  ok('/find carries her call button', (await shouq(p).count()) === 1);
+  // evaluateAll: with no button a bare getAttribute waits 30s and throws,
+  // cancelling the section after this one.
+  const attr = (n) => shouq(p).evaluateAll((es, n) => es[0]?.getAttribute(n) ?? null, n);
+  ok('it points at the panel it opens', (await attr('aria-controls')) === 'wain-ai-panel');
+  ok('and reports itself closed until it is pressed', (await attr('aria-expanded')) === 'false');
   await ctx.close();
 }
 

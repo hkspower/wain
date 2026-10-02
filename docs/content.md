@@ -221,7 +221,7 @@ MCP server as `list_actions`, so both surfaces name the same moves.
 
 | id | عربي | english | kind | href |
 | --- | --- | --- | --- | --- |
-| `call_shouq` | شوق | Call Shouq, the guide, and ask out loud | call | `/search/` |
+| `call_shouq` | شوق | Call Shouq, the guide, and ask out loud | call | `/find/` |
 | `explore` | تصفّح كل الأماكن | Browse the whole catalogue | route | `/explore/` |
 | `add_place` | سجّل مكانك مجاناً | Register a Kuwait business on wain, free | route | `/add/` |
 

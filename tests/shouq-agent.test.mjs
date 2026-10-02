@@ -80,6 +80,19 @@ async function makeCtx(micError, seen) {
   }, micError);
   return c;
 }
+/**
+ * Every call is placed from /find — the one call button on the site since
+ * 1 October — and the tap carries the caller on to /search, where her tools
+ * put the answers. Soft: a tap that never lands is a red assertion, not a
+ * throw that cancels every section after it.
+ */
+const onSearch = (u) => new URL(u).pathname.startsWith('/search');
+const dial = async (page) => {
+  await page.goto(B + '/find/', { waitUntil: 'networkidle' });
+  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  return page.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
+};
+
 const requested = [];
 const ctx = await makeCtx(null, requested);
 const p = await ctx.newPage();
@@ -87,14 +100,16 @@ const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 
 console.log('\n── with an agent configured, the call goes to her, not the recogniser ──');
-await p.goto(B + '/search/', { waitUntil: 'networkidle' });
+await p.goto(B + '/find/', { waitUntil: 'networkidle' });
 const fab = p.locator('button[aria-label*="وين AI"]');
 await fab.click();
 await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
 ok('one tap places the call', true);
+const landed = await p.waitForURL(onSearch, { timeout: 6000 }).then(() => true, () => false);
+ok('and carries the caller on to /search, where her tools put the answers', landed, p.url());
 // In agent mode the tap opens a conversation; it must NOT fall through to the
-// dictation flow, which would push a query. The call is placed from /search
-// now, so «is it still off /search» proves nothing — the absence of ?q= does.
+// dictation flow, which would push a query. Every tap lands on /search, so
+// «did it reach /search» proves nothing — the absence of ?q= does.
 ok('it stays put rather than searching', !p.url().includes('q='), p.url());
 
 const panel = await p.locator('#wain-ai-panel').textContent();
@@ -384,7 +399,8 @@ console.log('\n── the call is warmed before it is placed ──');
     await route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
   });
   const w = await warmCtx.newPage();
-  await w.goto(B + '/search/', { waitUntil: 'networkidle' });
+  // /find: the one page with a button to warm from.
+  await w.goto(B + '/find/', { waitUntil: 'networkidle' });
 
   const links = () => w.evaluate(() => [...document.querySelectorAll('link[rel=preconnect]')]
     .map((l) => `${new URL(l.href).origin}${l.crossOrigin ? ' [cors]' : ''}`));
@@ -417,7 +433,7 @@ console.log('\n── a bundle that never arrives fails the call, quickly ──
   const deadCtx = await makeCtx(null, []);
   await deadCtx.route('**/unpkg.com/**', (route) => route.abort('failed'));
   const d = await deadCtx.newPage();
-  await d.goto(B + '/search/', { waitUntil: 'networkidle' });
+  await d.goto(B + '/find/', { waitUntil: 'networkidle' });
   const t0 = Date.now();
   await d.locator('button[aria-controls="wain-ai-panel"]').first().click();
   let took = -1;
@@ -448,8 +464,7 @@ for (const [name, want, label] of [
 ]) {
   const mctx = await makeCtx(name, []);
   const m = await mctx.newPage();
-  await m.goto(B + '/search/', { waitUntil: 'networkidle' });
-  await m.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  await dial(m);
   let text = '';
   try {
     await m.waitForFunction(

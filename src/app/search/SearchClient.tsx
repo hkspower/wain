@@ -2,12 +2,12 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
 import SearchPlan from "@/components/SearchPlan";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
-import ShouqCallButton from "@/components/ShouqCallButton";
 import SearchHub from "@/components/SearchHub";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
 import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
@@ -232,20 +232,11 @@ export default function SearchClient() {
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);
 
-  /* The box's own microphone is gone, and شوق is in its place.
-   *
-   * It was added so the page شوق hands you to could also be USED by voice —
-   * «the search box is the same brain with typed input» — and it did that with
-   * the same engine and the same ar-KW, dictating straight into `q` so the
-   * results moved while the sentence was still being said.
-   *
-   * What it became, once the call moved onto this page, was the second
-   * microphone on it: a mic in the box that dictates, and a coral launcher
-   * beside it that calls, two icons a visitor reads as one offer. In local
-   * mode a call already ends where the mic ended — the sentence lands in `q`
-   * via the `wain:asked` handover above, this page searches it and reads the
-   * answer back — so the behaviour survives the button that is left.
-   * `ShouqCallButton` is that button, in the box, below.
+  /* The box's own microphone went first, for a call button in its place; the
+   * call button went next, 1 October, because the owner asked for ONE way to
+   * call شوق and that is /find's. A call placed there still ends here: her
+   * question arrives through the `wain:asked` handover above and `show_places`
+   * pushes `/search?q=…`, so this page answers it without offering the call.
    */
 
   /**
@@ -284,18 +275,20 @@ export default function SearchClient() {
         <VoiceControls />
       </div>
 
-      {/* The three ways this page answers, named once rather than left to be
-          discovered. The call button is a small icon inside the box below —
-          deliberately, see ShouqCallButton — and the map only appears once
-          there are results, so without this a first-time visitor could use
-          the page for months and never notice either exists. Purely a label:
-          it points at what is already there rather than adding a second way
-          to trigger any of the three, which is the «one offer, drawn once»
-          rule ShouqCallButton itself was built around. */}
+      {/* The three ways to an answer, named once rather than left to be
+          discovered: the map only appears once there are results, and the
+          call lives on /find, so without this a first-time visitor could use
+          the page for months and never notice either exists. The second is a
+          link to /find's button, not a button of its own — one way to call
+          شوق, on request. */}
       <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500">
         <li>{toArabicDigits(1)}. دوّر بالكتابة</li>
         <li aria-hidden="true">·</li>
-        <li>{toArabicDigits(2)}. كلّمي شوق</li>
+        <li>
+          <Link href="/find/" className="inline-flex min-h-6 items-center text-coral-700 underline underline-offset-2 hover:text-coral-800">
+            {toArabicDigits(2)}. كلّمي شوق
+          </Link>
+        </li>
         <li aria-hidden="true">·</li>
         <li>{toArabicDigits(3)}. عالخريطة</li>
       </ol>
@@ -321,25 +314,17 @@ export default function SearchClient() {
           aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
           aria-label="ابحث في كل محتوى وين"
           placeholder="اكتب اسم مكان، منطقة، أو جو…"
-          className="w-full rounded-2xl border border-line-control bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          className="w-full rounded-2xl border border-line-control bg-white py-4 pe-11 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
-        {/* Unconditional, unlike the mic it replaces. That was rendered only
-            where `canListen()` was true, because a microphone that opens a
-            permission prompt and then does nothing is worse than none. A call
-            has somewhere to go on every browser: without recognition it says
-            so and leaves the visitor in this box, typing. */}
-        <ShouqCallButton className="absolute inset-y-0 end-3 my-auto" />
         {q && (
           <button
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            // end-14 was tuned to sit past ShouqCallButton's old 44px width;
-            // that button is size-8 now, so this comes in to match. end-11
-            // measured flush against it, zero gap — verified by rendering,
-            // not computed: two absolutely-positioned siblings are easier to
-            // get wrong on paper than to look at. end-13 measures 8px clear.
-            className="absolute inset-y-0 end-13 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
+            // The call button that sat at end-3 is gone (it is /find's now), so
+            // the clear button takes its place; the input's pe-11 keeps typed
+            // text out from under it.
+            className="absolute inset-y-0 end-3 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
           >
             <IconClose className="size-4" />
           </button>

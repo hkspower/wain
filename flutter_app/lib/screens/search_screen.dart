@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../ai/call_button.dart';
 import '../app/app_state.dart';
 import '../data/catalogue.dart';
 import '../data/categories.g.dart';
@@ -192,13 +191,30 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              Text(
-                '${toArabicDigits(1)}. دوّر بالكتابة  ·  ${toArabicDigits(2)}. كلّمي شوق  ·  ${toArabicDigits(3)}. عالخريطة',
-                style: wainText(
-                  WainText.xs,
-                  weight: FontWeight.w600,
-                  color: WainColors.ink500,
-                ),
+              // The second step is a way to /find's button, not a button of
+              // its own: one way to call شوق, on request (1 October). The box
+              // and the dead end each had a call button until then.
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('${toArabicDigits(1)}. دوّر بالكتابة  ·', style: _steps),
+                  TextButton(
+                    key: const ValueKey('search-call-link'),
+                    onPressed: () => context.push('/find'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: WainColors.coral700,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                    child: Text(
+                      '${toArabicDigits(2)}. كلّمي شوق',
+                      style: _steps.copyWith(
+                        color: WainColors.coral700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  Text('·  ${toArabicDigits(3)}. عالخريطة', style: _steps),
+                ],
               ),
               const SizedBox(height: 10),
               _QueryBox(
@@ -298,7 +314,7 @@ class _QueryBox extends StatelessWidget {
             contentPadding: const EdgeInsetsDirectional.fromSTEB(
               56,
               16,
-              96,
+              56,
               16,
             ),
             prefixIcon: Padding(
@@ -330,7 +346,6 @@ class _QueryBox extends StatelessWidget {
                     color: WainColors.ink500,
                   ),
                 ),
-              const ShouqCallButton(size: 36),
             ],
           ),
         ),
@@ -584,24 +599,16 @@ class _DeadEnd extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ShouqCallButton(size: 40),
-              const SizedBox(width: 10),
-              // Flexible: at 320 the line ran 44px past the edge (found by
-              // tap_targets_test, the first suite to lay this out that narrow).
-              Flexible(
-                child: Text(
-                  'اضغط عشان تكلّم شوق',
-                  style: wainText(
-                    WainText.sm,
-                    weight: FontWeight.w600,
-                    color: WainColors.ink700,
-                  ),
-                ),
-              ),
-            ],
+          // A way to /find's call button, not a second one (1 October).
+          FilledButton.icon(
+            key: const ValueKey('dead-end-call-link'),
+            onPressed: () => context.push('/find'),
+            style: FilledButton.styleFrom(
+              backgroundColor: WainColors.coral600,
+              minimumSize: const Size(48, 48),
+            ),
+            icon: WainSvg.icon('call', size: 18, color: Colors.white),
+            label: const Text('اضغط عشان تكلّم شوق'),
           ),
           const SizedBox(height: 12),
           TextButton(
@@ -617,3 +624,9 @@ class _DeadEnd extends StatelessWidget {
     );
   }
 }
+
+final _steps = wainText(
+  WainText.xs,
+  weight: FontWeight.w600,
+  color: WainColors.ink500,
+);

@@ -72,8 +72,8 @@ input[type="search"]::-webkit-search-decoration {
 
    This used to reserve `5.5rem + inset` for شوق's launcher, which floated over
    the end of the page in a browser. The launcher is not there any more: it is
-   `ShouqCallButton`, in the /search query box, and it scrolls with the page
-   like anything else. The allowance outlived it by three route changes and was
+   `ShouqCallButton`, on /find (it spent a while in the /search box first),
+   and it scrolls with the page like anything else. The allowance outlived it by three route changes and was
    found by measurement, not by reading — 88px of reserved strip on every route
    with nothing painted over it, because `AppTabBar` is `hidden` until the site
    is installed, so in a browser nothing is pinned to the bottom at all.

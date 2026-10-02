@@ -9,8 +9,8 @@ import type { Phase } from "@/components/WainAiCall";
  * شوق's call, mounted above the router and started from somewhere else.
  *
  * This used to be the button as well, floating over the corner of every page.
- * The button is in the search box now (`ShouqCallButton`), where the question
- * is actually being asked and where the page already had a microphone.
+ * The button moved into the /search box, and then — 1 October, asked for one
+ * way to call her — to /find alone (`ShouqCallButton`, `FindChoice.tsx`).
  *
  * What stays here is only what has to outlive a route change. `open_place` is
  * a route change, and the `<elevenlabs-convai>` element is created

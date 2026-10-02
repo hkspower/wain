@@ -141,6 +141,31 @@ console.log('\n── what it says depends on when it is read ──');
     html.includes('هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.'));
 }
 
+console.log('\n── one call button, and it is here ──');
+// 1 October, asked for: «keep call شوق only one button call». There were
+// three — /find's, one in the /search box and one in the search dead end —
+// one offer drawn three times. Every ShouqCallButton carries
+// aria-controls="wain-ai-panel", so that is what is counted. The routes are
+// the ones a visitor actually lands on, not only the page that was changed.
+{
+  const routes = [
+    ['/find/', 1], ['/', 0], ['/search/', 0], ['/search/?q=قهوة', 0],
+    ['/search/?q=صيدلية', 0], ['/explore/', 0], ['/places/kuwait-towers/', 0], ['/salem/', 0],
+  ];
+  for (const [path, want] of routes) {
+    const { ctx, p } = await fresh(path);
+    await p.waitForTimeout(300);
+    const n = await p.locator('button[aria-controls="wain-ai-panel"]:visible').count();
+    ok(`${path}: ${want} call button${want === 1 ? '' : 's'}`, n === want, `found ${n}`);
+    await ctx.close();
+  }
+  // And the way from /search to it is a link to /find, not a second button.
+  const { ctx, p } = await fresh('/search/');
+  ok('/search still names the call, as a link to /find',
+    await p.locator('a[href="/find/"]', { hasText: 'كلّمي شوق' }).isVisible());
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

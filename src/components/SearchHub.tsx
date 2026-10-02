@@ -1,10 +1,8 @@
 "use client";
 
-import { useId } from "react";
 import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
-import ShouqCallButton from "@/components/ShouqCallButton";
-import { IconCompass, IconPinSolid } from "@/components/icons";
+import { IconCall, IconCompass, IconPinSolid } from "@/components/icons";
 import { categories } from "@/lib/place-kit";
 import { CALL_ACTION, ROUTE_ACTIONS } from "@/lib/wain-hub";
 
@@ -35,11 +33,6 @@ export default function SearchHub({
   onNavigate?: () => void;
   className?: string;
 }) {
-  // Two of these can be on screen at once — the palette opens over /search —
-  // so the id the call button is named by has to be unique per instance or a
-  // screen reader follows the wrong one.
-  const hintId = useId();
-
   return (
     <div className={`text-center ${className}`}>
       <h3 className="text-sm font-semibold text-ink-700">دوّر بالتصنيف</h3>
@@ -71,16 +64,19 @@ export default function SearchHub({
         <span className="h-px flex-1 bg-line-strong" />
       </div>
 
-      {/* The real ShouqCallButton, not a second implementation that looks like
-          it. It has to be: the tap spends the user gesture synchronously on
-          `haptic` and `primeAudio`, because iOS will not unlock audio outside
-          one and the call mounts an event later. A bespoke «call شوق» button
-          here would look identical and ring silently. */}
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <ShouqCallButton labelledBy={hintId} onTapped={onNavigate} />
-        <span id={hintId} className="text-sm font-semibold text-ink-700">
+      {/* A link to /find, not a call button. The call has one button on the
+          site — /find's — and this row is the way to it. It used to be a
+          second ShouqCallButton, and before that the /search box held a third;
+          one offer drawn three times, until the owner asked for one. */}
+      <div className="mt-4 flex justify-center">
+        <Link
+          href={CALL_ACTION.href}
+          onClick={onNavigate}
+          className="inline-flex min-h-6 items-center gap-2 rounded-full bg-coral-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-700"
+        >
+          <IconCall className="size-4" aria-hidden="true" />
           {CALL_ACTION.hintAr}
-        </span>
+        </Link>
       </div>
 
       <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">

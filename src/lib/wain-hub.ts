@@ -40,7 +40,7 @@ export const WAIN_ORIGIN = "https://www.wainkw.com";
 export type HubActionKind =
   /** Goes to a page. */
   | "route"
-  /** Places a call to شوق, in the browser, from the page named by `href`. */
+  /** A call to شوق, placed in the browser on the page named by `href`. */
   | "call";
 
 export interface HubAction {
@@ -65,9 +65,11 @@ export const HUB_ACTIONS: HubAction[] = [
     hintAr: WAIN_AI_COPY.callHint,
     en: "Call Shouq, the guide, and ask out loud",
     kind: "call",
-    // /search rather than the current page: a call ends by handing its question
-    // to the search box, so this is where the answer lands either way.
-    href: "/search/",
+    // /find, the one page with a call button. There used to be three — the
+    // /search box and this hub too — and the owner asked for one, 1 October:
+    // a call offered in three places is one offer drawn three times. The
+    // hub's own row is now a link to that button rather than a second one.
+    href: "/find/",
     icon: "shouq",
   },
   {
