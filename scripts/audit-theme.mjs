@@ -288,24 +288,33 @@ console.log("\n── written down, not improvised ──");
   };
   const loc = (h) => h.split(":").slice(0, 2).join(":");
 
-  const smallestRadius = Math.min(
-    ...[...css.matchAll(/--radius-[a-z0-9]+:\s*([\d.]+)rem;/g)].map((m) => px(+m[1]))
-  );
-  const corners = { rot: [], detail: [] };
+  const radii = [...css.matchAll(/--radius-[a-z0-9]+:\s*([\d.]+)rem;/g)].map((m) => px(+m[1]));
+  const smallestRadius = Math.min(...radii);
+  const largestRadius = Math.max(...radii);
+  /* Outside the range on EITHER side is not a step. The code used to flag
+     everything from the smallest token up, which contradicted the rule above
+     the day /find drew a phone (2 October): a 44px bezel is a drawing of a
+     device, beyond a scale that stops at cards. Units are read as written,
+     px or rem, so a rem corner cannot pass by not parsing. */
+  const corners = { rot: [], detail: [], beyond: [] };
   for (const h of grep(String.raw`rounded(-[a-z]+)?-\[`)) {
-    const v = h.match(/rounded(?:-[a-z]+)?-\[(\d+(?:\.\d+)?)px\]/);
-    const n = v ? +v[1] : null;
-    (n !== null && n < smallestRadius ? corners.detail : corners.rot).push({ h, n });
+    const v = h.match(/rounded(?:-[a-z]+)?-\[(\d+(?:\.\d+)?)(px|rem)\]/);
+    const n = v ? (v[2] === "rem" ? px(+v[1]) : +v[1]) : null;
+    if (n !== null && n < smallestRadius) corners.detail.push({ h, n });
+    else if (n !== null && n > largestRadius) corners.beyond.push({ h, n });
+    else corners.rot.push({ h, n });
   }
   if (corners.rot.length) {
     fail(
-      `${corners.rot.length} arbitrary corner(s) at or above the ${smallestRadius}px the scale starts at — ` +
+      `${corners.rot.length} arbitrary corner(s) inside the scale's ${smallestRadius}–${largestRadius}px — ` +
         `use a --radius token:`
     );
     corners.rot.forEach((c) => console.log("      " + c.h));
   }
   for (const c of corners.detail)
     console.log(`  ${c.n}px corner under the ${smallestRadius}px scale — a hairline, not a step: ${loc(c.h)}`);
+  for (const c of corners.beyond)
+    console.log(`  ${c.n}px corner past the ${largestRadius}px top of the scale — a drawing, not a step: ${loc(c.h)}`);
   if (!corners.rot.length) console.log(`  no corner improvised inside the scale ✓`);
 
   const inkHex2 = css.match(/--color-ink-900:\s*#([0-9a-f]{6});/i)?.[1] ?? "";
