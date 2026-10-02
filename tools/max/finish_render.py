@@ -27,7 +27,9 @@ import bpy
 
 ap = argparse.ArgumentParser()
 ap.add_argument("folder")
-ap.add_argument("--exposure", type=float, default=0.0)
+# Default: the exposure that makes Blender's ACES 1.3 view equal the
+# game's three.js ACESFilmic (tools/blender/studio.py, GAME_EXPOSURE_EV).
+ap.add_argument("--exposure", type=float, default=0.737)
 ap.add_argument("--fps", type=int, default=30)
 ap.add_argument("--from", dest="src", default="out", help="in a folder of packs: which subfolder to grade (out | preview)")
 args = ap.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:])

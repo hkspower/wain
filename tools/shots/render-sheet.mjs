@@ -14,7 +14,10 @@ const rows = Math.ceil(cars.length / COLS);
 const tiles = [];
 for (const [i, c] of cars.entries()) {
   const x = PAD + (i % COLS) * (W + PAD), y = PAD + Math.floor(i / COLS) * (H + LABEL + PAD);
-  tiles.push({ input: await sharp(`${dir}/${c.id}.png`).resize(W, H).toBuffer(), left: x, top: y });
+  // Resized in linear light (gamma()): a plain sRGB downscale averages
+  // thin white lettering into grey (measured: lettering p90 226 -> 182 at
+  // tile size; 199 with gamma()).
+  tiles.push({ input: await sharp(`${dir}/${c.id}.png`).gamma().resize(W, H).toBuffer(), left: x, top: y });
   const svg = `<svg width="${W}" height="${LABEL}"><text x="8" y="23" font-family="sans-serif" font-size="18" font-weight="700" fill="#ffc45c">${c.name}</text><text x="${W - 8}" y="23" text-anchor="end" font-family="sans-serif" font-size="16" fill="#ffffffaa">${c.ar}</text></svg>`;
   tiles.push({ input: Buffer.from(svg), left: x, top: y + H });
 }

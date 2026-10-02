@@ -3622,9 +3622,12 @@ function plateTexture(reg: string): THREE.CanvasTexture {
   c.width = PLATE_W;
   c.height = PLATE_H;
   const ctx = c.getContext("2d")!;
-  // The field, and a plate is not paper white — it is a reflective sheet
-  // that goes slightly warm-grey under sodium.
-  ctx.fillStyle = "#eceee9";
+  // The field: retroreflective white sheeting. It was #eceee9, "not paper
+  // white... warm-grey under sodium", but nothing in this world is lit by
+  // sodium (the lamps light no objects) and the plate read a dull grey in
+  // every render, about 140 of 255 in the 4K stills. The plate lamp in
+  // plateMat does the rest.
+  ctx.fillStyle = "#f6f7f4";
   ctx.fillRect(0, 0, PLATE_W, PLATE_H);
   // Pressed edge: a dark rule with a lighter one inside it, which is the
   // shadow and the highlight of an embossed rim.
@@ -4705,23 +4708,38 @@ function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
     map,
     transparent: true,
     roughness: 0.5,
-    metalness: 0.1,
+    // Vinyl is a dielectric: at 0.1 every decal lost a tenth of its
+    // diffuse, the whites included.
+    metalness: 0,
     emissive: 0xffffff,
     emissiveMap: map,
-    emissiveIntensity: 0.16,
+    // The floor a printed livery keeps between lamps. At 0.16 a white ink
+    // was about 66 of 255 unlit at the night exposure, a grey number on a
+    // grey door; 0.28 puts it near 107.
+    emissiveIntensity: 0.28,
     polygonOffset: true,
     polygonOffsetFactor: -2,
   });
 }
 
-function plateMat(colors: CarColors): THREE.MeshStandardMaterial {
+function plateMat(colors: CarColors, front: boolean): THREE.MeshStandardMaterial {
+  const map = plateTexture(plateReg(colors));
   return new THREE.MeshStandardMaterial({
     name: "plate",
-    map: plateTexture(plateReg(colors)),
+    map,
     // Retroreflective sheeting, not painted metal: a plate is the
     // brightest thing on a car in somebody else's headlights, and at
     // 0.5 it was reading as a slightly shiny sticker.
     roughness: 0.34,
+    // The plate lamp. Every car has to light its rear plate, and only the
+    // player's car throws light in this game, so an unlit rear plate was
+    // lit by the player's rim light alone: about 35 of 255 on the chase
+    // camera at the night exposure. Emitted through the plate's own
+    // texture, so the field glows and the registration stays dark. The
+    // front gets a little, for the sheeting catching the world's light.
+    emissive: 0xffffff,
+    emissiveMap: map,
+    emissiveIntensity: front ? 0.15 : 0.35,
   });
 }
 
@@ -6649,7 +6667,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const face = noseFaceZ(bGeo, style, PLATE_Y, front);
     const z =
       face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
-    const plate = new THREE.Mesh(faceUV(roundedBox(PLATE_W_M, PLATE_H_M, 0.02, 0.007), PLATE_W_M, PLATE_H_M), plateMat(colors));
+    const plate = new THREE.Mesh(faceUV(roundedBox(PLATE_W_M, PLATE_H_M, 0.02, 0.007), PLATE_W_M, PLATE_H_M), plateMat(colors, front));
     plate.position.set(0, PLATE_Y, z);
     group.add(plate);
   }
@@ -8141,13 +8159,19 @@ export function createCar(colors: CarColors): THREE.Group {
     // cutting the sweep out of a constant-height ribbon is free, where
     // building it into geometry is a second law to keep in step with the
     // eight silhouettes flankRibbon already handles.
+    const bandTex = policeBandTexture();
     const bandMat = new THREE.MeshStandardMaterial({
       name: "police-band",
-      map: policeBandTexture(),
+      map: bandTex,
       transparent: true,
       alphaTest: 0.35,
       roughness: 0.34,
-      metalness: 0.06,
+      metalness: 0,
+      // The same floor as every other printed livery (decalMat), so the
+      // white POLICE lettering reads white between lamps.
+      emissive: 0xffffff,
+      emissiveMap: bandTex,
+      emissiveIntensity: 0.28,
       // Printed vinyl over paint. It is not as wet as the lacquer around
       // it, but it is not matte either, and with no envMapIntensity of
       // its own it was the one surface on the car reflecting nothing.

@@ -1730,6 +1730,18 @@ function roadTextTexture(text: string): THREE.CanvasTexture {
   });
 }
 
+/**
+ * A sign board's face: it glows through its OWN texture, so the white
+ * legend is the bright thing and the blue field stays blue. The boards
+ * used a flat grey emissive (0x444444-0x666666) that lit legend and
+ * field alike: unlit, the white words came out about 62 of 255 and the
+ * blue went grey behind them. Night-gated with every other emissive
+ * under 2.0 (nightGlow).
+ */
+function signFaceMat(map: THREE.Texture, glow = 0.45): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: glow });
+}
+
 function stripeTexture(colorA: string, colorB: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 8;
@@ -3592,6 +3604,15 @@ export interface WorldHandle {
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
    *  so they can sit inside a tight far plane without ever clipping. */
   skyFollowers: THREE.Object3D[];
+  /**
+   * What the paint's reflection probe should see differently from the
+   * camera (engine.renderProbeFace): the street-lamp lens material, which
+   * the probe draws brighter, and the lamp coronas and glints, which it
+   * does not draw at all. A point sprite is sized for the MAIN buffer's
+   * height, so inside a cube face it comes out about four times too big
+   * and smears every lamp across the paint.
+   */
+  probe: { readonly lampMat: THREE.MeshStandardMaterial | null; hide: THREE.Object3D[] };
   /** The ambient third tier, which setTimeOfDay recolours every hour. */
   hemiLight: THREE.HemisphereLight;
   /**
@@ -4050,6 +4071,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
   const skyFollowers: THREE.Object3D[] = [];
+  const probeHide: THREE.Object3D[] = [];
   /** The street lanterns' lenses, filled by the street-light block. */
   const streetLamps: THREE.Vector3[] = [];
 
@@ -5036,10 +5058,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
    * asphalt and still plainly the brightest thing out there — and moves
    * the street's own median by 2.7 of 255, which is nothing.
    */
+  // Lifted one step inside the envelope measured above: 0xdeded6 measured
+  // 1.31% of the lower frame pinned (the guard in tests/grade.mjs is 1.4),
+  // and is linear 0.73, the low end of real thermoplastic (0xc9c9c2 is
+  // 0.79 only as a byte; as light it is 0.58). The distance visibility
+  // comes from the emissive floor rather than the albedo, so the near,
+  // headlit paint does not clip: at 0xa8a8a0 x 0.5 an unlit line was
+  // about 84 of 255 at the night exposure, a grey stripe.
   const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xc9c9c2,
-    emissive: 0xa8a8a0,
-    emissiveIntensity: 0.5,
+    color: 0xdeded6,
+    emissive: 0xdcdcd4,
+    emissiveIntensity: 0.6,
     roughness: 0.5,
   });
   // The paint is named alongside the asphalt it sits on. It is the
@@ -5076,9 +5105,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // A touch duller than the edge line, as it was — a lane divide
       // takes more tyre than the edge does. See lineMat for why neither
       // of them is 0.96 white any more.
-      color: 0xc5c5be,
-      emissive: 0x9a9a92,
-      emissiveIntensity: 0.45,
+      color: 0xd8d8d0,
+      emissive: 0xd2d2ca,
+      emissiveIntensity: 0.5,
       roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt
     });
     // The three interior divides of a four-lane road. Nothing marks the
@@ -5689,7 +5718,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // with a hard edge above it, which is what reads as a cutoff lantern
     // rather than a bulb. The arm and lid carry the fixture's shape at
     // distance, where the corona alone used to be the whole silhouette.
-    scene.add(coronaPoints(lampPositions, 0xdbe7ff, 2.8));
+    const lampCoronas = coronaPoints(lampPositions, 0xdbe7ff, 2.8);
+    probeHide.push(lampCoronas);
+    scene.add(lampCoronas);
     // Star glints: the sparkle each bright source throws at the lens
     {
       const geo = new THREE.BufferGeometry();
@@ -5712,6 +5743,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       });
       const glints = new THREE.Points(geo, glintMat);
       glints.frustumCulled = false;
+      probeHide.push(glints);
       scene.add(glints);
     }
     shimmerLampMat = lampMat;
@@ -6815,7 +6847,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     strips.instanceMatrix.needsUpdate = true;
     tpools.instanceMatrix.needsUpdate = true;
     scene.add(strips, tpools);
-    scene.add(coronaPoints(stripPositions, 0xdbe7ff, 2.6));
+    const stripCoronas = coronaPoints(stripPositions, 0xdbe7ff, 2.6);
+    probeHide.push(stripCoronas);
+    scene.add(stripCoronas);
 
     /* THE SERVICE RUN, AND THE STUDS.
      *
@@ -7154,10 +7188,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Front face only — a DoubleSide plane shows mirrored text from behind
     const board = new THREE.Mesh(
       new THREE.PlaneGeometry(10, 3.1),
-      new THREE.MeshStandardMaterial({
-        map: signTexture(area.name.toUpperCase(), area.arabic),
-        emissive: 0x666666,
-      })
+      signFaceMat(signTexture(area.name.toUpperCase(), area.arabic), 0.5)
     );
     board.position.y = 5.4;
     g.add(board);
@@ -7195,10 +7226,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     g.add(post);
     const board = new THREE.Mesh(
       new THREE.PlaneGeometry(5.0, 1.56),
-      new THREE.MeshStandardMaterial({
-        map: signTexture("LOVE STREET", "شارع الحب", "2ND RING RD"),
-        emissive: 0x555555,
-      })
+      signFaceMat(signTexture("LOVE STREET", "شارع الحب", "2ND RING RD"))
     );
     board.position.y = 4.2;
     g.add(board);
@@ -7344,7 +7372,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       g.add(post);
       const board = new THREE.Mesh(
         new THREE.PlaneGeometry(1.9, 2.5),
-        new THREE.MeshStandardMaterial({ map: roundaboutSignTexture(), emissive: 0x555555 })
+        signFaceMat(roundaboutSignTexture())
       );
       board.position.y = 3.2;
       g.add(board);
@@ -7362,11 +7390,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     {
       const kerbTex = stripeTexture("#c8342b", "#f2f2ee");
       kerbTex.wrapS = kerbTex.wrapT = THREE.RepeatWrapping;
+      // Read at a glancing angle, always: without anisotropy the stripes
+      // averaged to pink a few metres out.
+      kerbTex.anisotropy = 8;
       const kerbMat = new THREE.MeshStandardMaterial({
         map: kerbTex,
         roughness: 0.6,
-        emissive: 0x3a2320,
-        emissiveIntensity: 0.35,
+        // Through its own stripes, so the white blocks glow white and the
+        // red ones red (a flat red-brown floor left the whites unlit).
+        emissive: 0xffffff,
+        emissiveMap: kerbTex,
+        emissiveIntensity: 0.12,
       });
       const uSpan = (DRIFT_PLAZA.halfSpan + 14) / L;
       for (const sign of [-1, 1]) {
@@ -7585,17 +7619,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       g.add(post);
       const board = new THREE.Mesh(
         new THREE.PlaneGeometry(1.05, 1.3),
-        new THREE.MeshStandardMaterial({
-          map:
-            s < COAST_END_M
-              ? waymarkTexture(Math.round(s / 100) / 10, ROADS[0].arabic, ROADS[0].name)
-              : waymarkTexture(
-                  Math.round((s - COAST_END_M) / 100) / 10,
-                  ROADS[1].arabic,
-                  ROADS[1].name
-                ),
-          emissive: 0x444444,
-        })
+        signFaceMat(
+          s < COAST_END_M
+            ? waymarkTexture(Math.round(s / 100) / 10, ROADS[0].arabic, ROADS[0].name)
+            : waymarkTexture(
+                Math.round((s - COAST_END_M) / 100) / 10,
+                ROADS[1].arabic,
+                ROADS[1].name
+              ),
+          0.35
+        )
       );
       board.position.y = 2.2;
       g.add(board);
@@ -7645,6 +7678,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     moonLight,
     fillLight,
     skyFollowers,
+    probe: {
+      get lampMat() {
+        return shimmerLampMat;
+      },
+      hide: probeHide,
+    },
     hemiLight: hemiRef!,
     streetLamps,
     solvePlants(dt: number, wakes: readonly Wake[]) {

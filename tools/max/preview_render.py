@@ -55,13 +55,14 @@ def build(pack, spec):
 
     fl = spec["floor"]
     bpy.ops.mesh.primitive_plane_add(size=fl["size"], location=fl["center"])
+    ground = bpy.context.active_object
     gm = bpy.data.materials.new("Stage")
     gm.use_nodes = True
     b = gm.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (*fl["base"], 1)
     b.inputs["Roughness"].default_value = fl["roughness"]
     b.inputs["Specular IOR Level"].default_value = fl["specular"]
-    bpy.context.active_object.data.materials.append(gm)
+    ground.data.materials.append(gm)
 
     for L in spec["lights"]:
         ld = bpy.data.lights.new(L["name"], "AREA")
@@ -73,6 +74,13 @@ def build(pack, spec):
         if L.get("down"):
             ob.rotation_euler = (0, 0, 0)
         ob.visible_camera = False
+        if L.get("floor") is False and ground is not None:
+            # Keep this light off the floor (light linking: the floor is
+            # the only member of an EXCLUDE receiver collection).
+            coll = bpy.data.collections.new(L["name"] + ".receivers")
+            coll.objects.link(ground)
+            ob.light_linking.receiver_collection = coll
+            coll.collection_objects[0].light_linking.link_state = "EXCLUDE"
 
     w = bpy.data.worlds.new("World")
     sc.world = w

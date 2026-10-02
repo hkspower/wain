@@ -14,6 +14,12 @@ import math
 
 SODIUM = (0.92, 0.40, 0.03)
 WORLD_GREY = (0.045, 0.045, 0.055)   # what reflections see where there is no light; camera sees black
+# The game tone-maps with three.js ACESFilmic, which is Blender's ACES 1.3
+# view evaluated at x / 0.6 (measured on a ramp: 0.18 -> 127 in the game is
+# 0.30 -> 127 in Blender). So a Blender render at exposure 0 sat 0.74 EV
+# under the game's own picture, whites topping out grey; this is the view
+# exposure that makes the two the same.
+GAME_EXPOSURE_EV = 0.737
 LENS_MM, SENSOR_MM = 55.0, 36.0      # horizontal sensor fit
 FILL = 0.93                           # the worst box corner sits at 93% of the half-frame
 
@@ -52,15 +58,19 @@ def dims(mn, mx):
 def floor(mn, mx):
     c, gz, L, H = dims(mn, mx)
     # Black, low roughness, a lower specular: the reflection is the point,
-    # and at 0.26 / 0.6 the key's reflection pooled into a hot patch.
+    # and at 0.26 / 0.6 the key's reflection pooled into a hot patch. At
+    # 0.30 the rim and the sodium still pooled on it, clipped (46% of the
+    # lower right of the hero frame at 255), so the floor is a touch
+    # rougher and the rim is kept off it altogether (see rig(): floor).
     return {"center": (c[0], c[1], gz), "size": max(120.0, L * 30), "base": (0.010, 0.010, 0.011),
-            "roughness": 0.30, "specular": 0.4}
+            "roughness": 0.40, "specular": 0.4}
 
 
 def rig(mn, mx):
     """The five area lights. Each: name, loc, target, energy (Blender watts),
-    size (x), size_y (y), spread_deg, color, and down=True for the strip,
-    which hangs level, pointing straight down, long along the car."""
+    size (x), size_y (y), spread_deg, color, down=True for the strip,
+    which hangs level, pointing straight down, long along the car, and
+    floor=False for a light the floor does not receive."""
     c, gz, L, H = dims(mn, mx)
     tgt = c
     # The camera stands on the nose side swung toward +X, so +X is the
@@ -73,8 +83,12 @@ def rig(mn, mx):
          "energy": 1100, "size": 3.6, "size_y": 2.4, "spread_deg": 110, "color": (1, 1, 1)},
         {"name": "Fill", "loc": (c[0] - 1.6 * L, c[1] - 0.6 * L, gz + 1.0 * H + 0.6), "target": tgt,
          "energy": 170, "size": 5.0, "size_y": 3.5, "spread_deg": 160, "color": (0.86, 0.91, 1.0)},
+        # The rim lights the car, not the floor: on a glossy floor its
+        # mirror image lands just below the hero frame and spread a clipped
+        # pool across the lower right of every hero shot. A studio would
+        # flag it off the floor; Blender's light linking does the same.
         {"name": "Rim", "loc": (c[0] - 0.5 * L, c[1] + 1.4 * L, gz + 2.2 * H + 1.0), "target": tgt,
-         "energy": 1400, "size": 2.2, "size_y": 1.2, "spread_deg": 80, "color": (0.95, 0.97, 1.0)},
+         "energy": 1400, "size": 2.2, "size_y": 1.2, "spread_deg": 80, "color": (0.95, 0.97, 1.0), "floor": False},
         {"name": "Sodium", "loc": (c[0] - 1.3 * L, c[1] + 0.6 * L, gz + 0.45 * H), "target": (c[0], c[1], gz + 0.5 * H),
          "energy": 260, "size": 1.6, "size_y": 0.6, "spread_deg": 70, "color": SODIUM},
         # The strip: long, thin, straight down over the roof, along the car,

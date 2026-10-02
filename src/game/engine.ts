@@ -1164,6 +1164,17 @@ const PROBE_FAR = 420;
 /** The radius the sky dome is drawn at inside the probe: within
  *  PROBE_FAR with room for the probe riding 1.2 m above the car. */
 const PROBE_SKY_RADIUS = 380;
+/**
+ * How much brighter the street-lamp lenses are in the paint's reflection
+ * probe than on screen. Gloss is a small, bright reflection on a darker
+ * field, and on this car the only small bright things the probe holds are
+ * the lamps: at their on-screen 3.0 emissive a lens reflected off a gloss
+ * clearcoat (F0 0.04) came out about 99 of 255, a dull streak, while the
+ * baked environment's lamps sit at 11.5-13.2 for the same reason. Raising
+ * only the lenses, only inside the probe, raises the streaks and not the
+ * panel between them (envMapIntensity would lift both).
+ */
+const PROBE_LAMP_GAIN = 3.5;
 
 export class GameEngine {
   private renderer: THREE.WebGLRenderer;
@@ -2882,6 +2893,20 @@ export class GameEngine {
         hidden.push(fx.points);
       }
     }
+    // The street lamps, as the paint should see them: the coronas and
+    // glints left out (sized for the main buffer, they drew four times too
+    // big in a face and smeared each lamp), and the lenses themselves
+    // brighter (PROBE_LAMP_GAIN), so a lamp mirrored in the clearcoat is a
+    // crisp, bright streak. Both put back in the finally below.
+    for (const o of this.world.probe.hide) {
+      if (o.visible) {
+        o.visible = false;
+        hidden.push(o);
+      }
+    }
+    const lampMat = this.world.probe.lampMat;
+    const lampWas = lampMat ? lampMat.emissiveIntensity : 0;
+    if (lampMat) lampMat.emissiveIntensity = lampWas * PROBE_LAMP_GAIN;
     // The sky, brought inside the probe's reach.
     //
     // The dome is a 1900 m sphere and the probe's cameras stop at 420 m,
@@ -2935,6 +2960,7 @@ export class GameEngine {
       }
       this.cubeRT.texture.generateMipmaps = genMips;
       this.renderer.setRenderTarget(prevTarget, prevFace, prevMip);
+      if (lampMat) lampMat.emissiveIntensity = lampWas;
       this.playerMesh.visible = true;
       // Restore only what this call hid: a remote player waiting on its
       // first snapshot is invisible on purpose.

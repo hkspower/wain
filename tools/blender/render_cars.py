@@ -66,12 +66,15 @@ ap.add_argument("--height", type=int, default=1440)
 ap.add_argument("--samples", type=int, default=128)
 ap.add_argument("--only", default="", help="comma-separated car ids")
 ap.add_argument("--preview", action="store_true", help="640x360 at 32 samples, for a look")
-ap.add_argument("--exposure", type=float, default=0.0, help="view exposure, in stops")
+ap.add_argument("--exposure", type=float, default=None,
+                help="view exposure, in stops (default: studio.GAME_EXPOSURE_EV, the game's own tone curve)")
 ap.add_argument("--keep-blend", action="store_true", help="save <glb-dir>/<id>.blend (ignored by git) for inspection")
 ap.add_argument("--force", action="store_true", help="re-render cars whose PNG is already newer than their GLB")
 args = ap.parse_args(sys.argv[1:] if "--" not in sys.argv else sys.argv[sys.argv.index("--") + 1:])
 if args.preview:
     args.width, args.height, args.samples = 640, 360, 32
+if args.exposure is None:
+    args.exposure = studio_def.GAME_EXPOSURE_EV
 
 SODIUM = studio_def.SODIUM  # the sodium the road is lit by
 
@@ -133,6 +136,13 @@ def studio(mn, mx):
                       spread_deg=L["spread_deg"], color=L["color"])
         if L.get("down"):
             ob.rotation_euler = (0, 0, 0)
+        if L.get("floor") is False and ground is not None:
+            # Keep this light off the floor (light linking: the floor is
+            # the only member of an EXCLUDE receiver collection).
+            coll = bpy.data.collections.new(L["name"] + ".receivers")
+            coll.objects.link(ground)
+            ob.light_linking.receiver_collection = coll
+            coll.collection_objects[0].light_linking.link_state = "EXCLUDE"
     for ob in bpy.data.objects:
         if ob.type == "LIGHT":
             try_set(ob, "visible_camera", False)

@@ -39,6 +39,12 @@ const CAR = process.env.CAR ?? "zeta-300-gtr";
 const TIER = process.env.TIER ?? "ultra";
 const W = 3840, H = 2160;
 const OUT = process.env.OUT ?? "press/ik/4k";
+// Exposure, pinned per still rather than left to the meter: the meter
+// adapts by one frame's step per render and sat on its 0.55 night floor
+// for every shot, about a stop under what the paint and grade tools
+// measure at, which is why the whites in these frames topped out near
+// 150 of 255. EV lifts from that floor; +1 is the default.
+const EV = Number(process.env.EV ?? 1);
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({
@@ -61,7 +67,7 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnEngine, null, { timeout: 600000 });
 console.log(`booted in ${secs()} s`);
 
-await page.evaluate(async ({ car, tier }) => {
+await page.evaluate(async ({ car, tier, ev }) => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.setSky("night");
@@ -72,8 +78,11 @@ await page.evaluate(async ({ car, tier }) => {
   e.applyGarage();
   e.applyQualityTier(tier);
   e.setResolution(2160);
+  // Manual exposure: the meter's night floor, lifted by EV.
+  e.setExposure(0, false);
+  e.autoExp.exposureMat.uniforms.uManual.value = 0.55 * Math.pow(2, ev);
   await new Promise((r) => setTimeout(r, 300));
-}, { car: CAR, tier: TIER });
+}, { car: CAR, tier: TIER, ev: EV });
 
 // The authored shells and wheels arrive as async fetches; a 4K still of
 // the procedural stand-ins would be a still of the wrong car.
@@ -136,6 +145,16 @@ const shoot = async (name, stageSrc) => {
     cam.fov = s.fov ?? 34;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld(true);
+    // Fill the paint's reflection probe HERE, at the staged spot. The
+    // engine is paused, so its loop renders no probe faces, and the
+    // ultra tier swapped in a fresh 512 cube that nothing had drawn:
+    // every still before this mirrored an empty cube, the paint, rims
+    // and chrome lit by the direct lights alone (paint.mjs found the
+    // same fault in itself). Six faces from face 0, so the whole cube
+    // is from this spot and the PMREM re-convolves.
+    while (e.probeFace !== 0) e.renderProbe();
+    for (let i = 0; i < 6; i++) e.renderProbe();
+    e.composer.render();
     e.composer.render();
     const state = {
       roll: +(e.roll * 180 / Math.PI).toFixed(2),
