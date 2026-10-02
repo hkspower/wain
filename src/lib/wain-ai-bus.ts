@@ -1,9 +1,9 @@
 import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_API_ORIGIN,
-  WAIN_AI_WIDGET_ORIGIN,
   WAIN_AI_WIDGET_SRC,
 } from "@/lib/wain-ai";
+import { WAIN_AI_WIDGET_INTEGRITY } from "@/lib/widget-src.g";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -68,26 +68,20 @@ export function onPhase(fn: (phase: Phase) => void): () => void {
 let warmed = false;
 
 /**
- * DNS and TLS to both origins, on the first sign of interest — a hover, a
- * focus, a finger landing. Two sockets, opened only for somebody who has
+ * DNS and TLS to the voice service, on the first sign of interest — a hover,
+ * a focus, a finger landing. A socket opened only for somebody who has
  * already reached for the button, and free to anyone who never does.
  */
 export function warmCall(): void {
   if (warmed || !WAIN_AI_AGENT_ENABLED || typeof document === "undefined") return;
   warmed = true;
-  // See the notes in wain-ai.ts: the CDN is reached by a plain <script>, which
-  // is a no-CORS request, and a preconnect carrying `crossorigin` would warm a
-  // pool entry it cannot use. The API's fetches are CORS, so that one does.
-  for (const [href, cors] of [
-    [WAIN_AI_WIDGET_ORIGIN, false],
-    [WAIN_AI_API_ORIGIN, true],
-  ] as const) {
-    const link = document.createElement("link");
-    link.rel = "preconnect";
-    link.href = href;
-    if (cors) link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-  }
+  // The widget itself is on this origin now (vendor-widget.mjs), so only the
+  // API is left to warm. Its fetches are CORS, hence `crossorigin`.
+  const link = document.createElement("link");
+  link.rel = "preconnect";
+  link.href = WAIN_AI_API_ORIGIN;
+  link.crossOrigin = "anonymous";
+  document.head.appendChild(link);
 }
 
 let widgetLoad: Promise<void> | null = null;
@@ -132,6 +126,9 @@ export function loadWidget(): Promise<void> {
       const script = document.createElement("script");
       script.dataset.wainWidget = "loading";
       script.src = WAIN_AI_WIDGET_SRC;
+      // A changed file on the server is refused, not run. Same origin, so no
+      // `crossorigin` is needed for the check to apply.
+      script.integrity = WAIN_AI_WIDGET_INTEGRITY;
       script.async = true;
       script.addEventListener("load", () => {
         script.dataset.wainWidget = "loaded";

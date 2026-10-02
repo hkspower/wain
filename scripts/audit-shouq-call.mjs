@@ -1,33 +1,32 @@
 #!/usr/bin/env node
 /**
- * The one URL a call to شوق cannot survive being wrong about.
+ * The one file a call to شوق cannot survive being wrong about.
  *
- * `WAIN_AI_WIDGET_SRC` is fetched at the moment somebody taps «كلّم شوق», from
- * a CDN, by a <script> tag whose only failure signal is `onerror`. Nothing in
- * this repository builds against it, imports it, or renders it, so a URL that
- * resolves to nothing is invisible to every other check here — and one was.
+ * `WAIN_AI_WIDGET_SRC` is fetched at the moment somebody taps «كلّم شوق», by a
+ * <script> tag whose only failure signal is `onerror`, so a path that resolves
+ * to nothing is invisible to every other check here — and one was.
  *
- * It said `@elevenlabs/convai-widget-embed@1`. That is a semver RANGE, and the
- * package has never published a 1.x: 79 versions, 0.1.0 to 0.18.1. A range with
- * no match cannot resolve, so every call in agent mode ended at `agentFailed`
- * and told the visitor «ما قدرنا نوصلك بشوق — جرّب مرة ثانية», which reads as a
- * bad connection. Months of that.
+ * It was `unpkg.com/@elevenlabs/convai-widget-embed@1` for months. That is a
+ * semver RANGE, and the package has never published a 1.x, so every call in
+ * agent mode ended at `agentFailed` and told the visitor «ما قدرنا نوصلك بشوق —
+ * جرّب مرة ثانية», which reads as a bad connection.
  *
- * So this asserts the two properties that make the URL survivable, offline,
- * from the module itself:
+ * Since 2 October the file is served from this origin (scripts/vendor-widget.mjs),
+ * so what this asserts moved with it:
  *
- *   1. an EXACT version, never a range — the bug that happened;
- *   2. a path down to the file, so neither of unpkg's two redirects (range →
- *      version, version → entry) is on the critical path of a call.
+ *   1. package.json pins the widget to an EXACT version — the same bug, one
+ *      file over: a caret would let an install change the call silently;
+ *   2. the path is on this origin, under _next/static/media/, named for that
+ *      version and its content — so the immutable cache cannot serve stale bytes;
+ *   3. the generated module is current for what node_modules holds;
+ *   4. when out/ exists, the file is there and its bytes match the integrity
+ *      the tag will demand — a mismatch would be refused by every browser.
  *
- * Then, only if the registry answers, it checks that the exact version is
- * really published and that the path really is that version's entry. That part
- * needs the network and says so when it cannot run; the two checks above are
- * the ones that catch this class of bug and they never need it.
+ * Then, only if the registry answers, that the version is really published.
  */
-
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -42,7 +41,7 @@ const note = (m) => { notes++; console.log(`  · ${m}`); };
 /* Read the constant by importing it, not by grepping for it — a regex over the
    source would keep passing if the export were renamed or moved. */
 const tmp = mkdtempSync(join(tmpdir(), "wain-shouq-call-"));
-let SRC, ORIGIN, AGENT_ENABLED;
+let SRC, INTEGRITY, AGENT_ENABLED;
 /** Is شوق on, for a given value of the build-time variable? */
 let enabledWhen = () => null;
 try {
@@ -50,8 +49,9 @@ try {
   const bundle = join(tmp, "b.mjs");
   writeFileSync(
     entry,
-    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_WIDGET_ORIGIN, WAIN_AI_AGENT_ENABLED } from " +
-      `${JSON.stringify(join(ROOT, "src/lib/wain-ai.ts"))};\n`
+    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_AGENT_ENABLED } from " +
+      `${JSON.stringify(join(ROOT, "src/lib/wain-ai.ts"))};\n` +
+      `export { WAIN_AI_WIDGET_INTEGRITY } from ${JSON.stringify(join(ROOT, "src/lib/widget-src.g.ts"))};\n`
   );
   execFileSync(join(ROOT, "node_modules/.bin/esbuild"), [
     entry, "--bundle", "--format=esm", `--alias:@=${join(ROOT, "src")}`,
@@ -59,7 +59,7 @@ try {
   ], { cwd: ROOT, stdio: "pipe" });
   const mod = await import(pathToFileURL(bundle).href);
   SRC = mod.WAIN_AI_WIDGET_SRC;
-  ORIGIN = mod.WAIN_AI_WIDGET_ORIGIN;
+  INTEGRITY = mod.WAIN_AI_WIDGET_INTEGRITY;
   AGENT_ENABLED = mod.WAIN_AI_AGENT_ENABLED;
 
   /**
@@ -85,65 +85,67 @@ try {
   // Deliberately NOT removed here — enabledWhen() re-imports the bundle below.
 }
 
-console.log("\n── the widget URL a call depends on ──");
+console.log("\n── the widget file a call depends on ──");
 console.log(`  ${SRC}`);
 
-const url = new URL(SRC);
-if (url.protocol !== "https:") fail("it must be https", url.protocol);
-else ok("https");
+const PKG = "@elevenlabs/convai-widget-embed";
+const pinned = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).devDependencies?.[PKG];
+const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// THE CHECK, moved from the URL to the manifest. A range is what shipped once.
+if (!pinned) fail(`package.json has no devDependency on ${PKG}`);
+else if (!EXACT.test(pinned)) {
+  fail(
+    `package.json pins «${pinned}», a range or a tag, not an exact version`,
+    "The bytes that ship are whatever npm installed, so a range lets an install\n" +
+    "      change the call without a commit saying so — and `@1` once resolved to\n" +
+    "      nothing at all. Pin x.y.z."
+  );
+} else ok(`package.json pins exactly ${pinned}`);
 
-if (ORIGIN !== url.origin) {
-  fail("WAIN_AI_WIDGET_ORIGIN must be the origin of the src — it is what gets preconnected",
-       `${ORIGIN} vs ${url.origin}`);
-} else ok(`the preconnect origin matches it (${ORIGIN})`);
-
-/* unpkg spells a package as /<name>@<version>/<path>, and the name may be
-   scoped, so the version is the last @ before the path. */
-const m = /^\/((?:@[^/@]+\/)?[^/@]+)@([^/]+)(\/.*)?$/.exec(url.pathname);
+const m = /^\/_next\/static\/media\/convai-([^-/]+(?:-[0-9A-Za-z.]+)?)-([0-9a-f]{16})\.js$/.exec(SRC ?? "");
 if (!m) {
-  fail("the path does not name a package and a version", url.pathname);
+  fail(
+    "the src is not a hashed file under /_next/static/media/ on this origin",
+    "That directory is cached for a year as immutable; a name that does not\n" +
+    "      change with the bytes would serve the old widget to everyone who had it."
+  );
 } else {
-  const [, pkg, version, path] = m;
-  ok(`package ${pkg}`);
+  ok("on this origin, under _next/static/media/, named for its content");
+  if (pinned && m[1] !== pinned) fail("the file is named for a different version than package.json pins", `${m[1]} vs ${pinned}`);
+  else ok(`and for the pinned version (${m[1]})`);
+}
 
-  // THE CHECK. A range is what shipped, and a range is what could not resolve.
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-    fail(
-      `version «${version}» is a range or a tag, not an exact version`,
-      "A range resolves at request time, on a phone, with onerror as the only\n" +
-      "      signal — and `@1` resolved to nothing at all for months. Pin x.y.z."
+try {
+  execFileSync(process.execPath, [join(ROOT, "scripts/vendor-widget.mjs"), "--check"], { cwd: ROOT, stdio: "pipe" });
+  ok("src/lib/widget-src.g.ts is current for node_modules");
+} catch (e) {
+  fail("src/lib/widget-src.g.ts is stale", String(e.stderr ?? e.message).trim());
+}
+
+const shipped = SRC ? join(ROOT, "out", SRC) : null;
+if (!shipped || !existsSync(join(ROOT, "out"))) {
+  note("no out/ — whether the build carries the file was NOT checked here");
+} else if (!existsSync(shipped)) {
+  fail("out/ does not carry the file the page will ask for", SRC);
+} else {
+  const got = `sha384-${createHash("sha384").update(readFileSync(shipped)).digest("base64")}`;
+  if (got !== INTEGRITY) fail("the shipped bytes do not match the integrity the tag demands — every browser would refuse them", `${got} vs ${INTEGRITY}`);
+  else ok("out/ carries it, and its bytes match the integrity on the tag");
+}
+
+// Everything below wants the registry. It is a bonus, not the check.
+if (pinned && EXACT.test(pinned)) {
+  let meta = null;
+  try {
+    meta = JSON.parse(
+      execFileSync("npm", ["view", `${PKG}@${pinned}`, "--json"], {
+        cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], timeout: 60_000, encoding: "utf8",
+      })
     );
-  } else ok(`exact version ${version}`);
-
-  if (!path || !path.endsWith(".js")) {
-    fail(
-      "the path does not name the entry file",
-      "unpkg answers 302 to the package entry when the file is left off, which\n" +
-      "      puts a redirect in front of 451KB at the moment a call is placed."
-    );
-  } else ok(`entry ${path} — no redirect on the way to it`);
-
-  // Everything below wants the registry. It is a bonus, not the check.
-  if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-    let meta = null;
-    try {
-      meta = JSON.parse(
-        execFileSync("npm", ["view", `${pkg}@${version}`, "--json"], {
-          cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], timeout: 60_000, encoding: "utf8",
-        })
-      );
-    } catch {
-      note("the registry could not be reached — the version itself was NOT verified here");
-    }
-    if (meta) {
-      ok(`the registry has ${pkg}@${meta.version}`);
-      const declared = meta.unpkg ?? meta.main;
-      const want = declared ? `/${String(declared).replace(/^\.?\//, "")}` : null;
-      if (want && path && want !== path) {
-        fail(`the path is not this version's entry`, `declared ${want}, using ${path}`);
-      } else if (want) ok(`and declares that file as its entry (${want})`);
-    }
+  } catch {
+    note("the registry could not be reached — the version itself was NOT verified here");
   }
+  if (meta) ok(`the registry has ${PKG}@${meta.version}`);
 }
 
 /**

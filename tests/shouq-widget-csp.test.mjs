@@ -19,14 +19,12 @@
  * with the policy removed (so a mock that stopped answering cannot pass or fail
  * this on its own).
  *
- * Needs the registry (`npm pack` of the pinned widget) and a fresh `out/`.
+ * Needs a fresh `out/`, which carries the widget itself (vendor-widget.mjs).
  * ElevenLabs itself is never contacted — every request to it is routed here.
  */
 import { chromium } from "playwright";
-import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireFreshBuild } from "./stale-build.mjs";
@@ -51,17 +49,21 @@ if (!CSP || !PERMISSIONS) {
   process.exit(1);
 }
 
-/* The exact version the site pins, packed from the registry. */
-const version = readFileSync(join(ROOT, "src/lib/wain-ai.ts"), "utf8")
-  .match(/convai-widget-embed@(\d+\.\d+\.\d+)\/dist\/index\.js/)?.[1];
-if (!version) { console.error("no exact widget version pin in src/lib/wain-ai.ts"); process.exit(1); }
-const work = mkdtempSync(join(tmpdir(), "wain-widget-"));
-const tgz = execFileSync("npm", ["pack", `@elevenlabs/convai-widget-embed@${version}`, "--silent"], { cwd: work }).toString().trim();
-execFileSync("tar", ["-xzf", tgz], { cwd: work });
-const BUNDLE = readFileSync(join(work, "package/dist/index.js"));
+/* The widget the site ships — served from out/ by the server below, the very
+   file a visitor gets (vendor-widget.mjs copies it there at build). It came
+   off unpkg until 2 October, so this suite used to `npm pack` the pinned
+   version and route the CDN to it; now nothing is routed, and the SRI
+   integrity on the tag is exercised for real: wrong bytes would be refused. */
+const WIDGET_PATH = readFileSync(join(ROOT, "src/lib/widget-src.g.ts"), "utf8")
+  .match(/WAIN_AI_WIDGET_PATH = "([^"]+)"/)?.[1];
+if (!WIDGET_PATH || !existsSync(join(OUT, WIDGET_PATH))) {
+  console.error(`out/ does not carry the call widget (${WIDGET_PATH ?? "no path in widget-src.g.ts"}) — run npm run build`);
+  process.exit(1);
+}
 
-/* What the agent's widget config looks like (agents_get_widget, 30 Sept). */
-const WIDGET_CONFIG = {"agent_id": "agent_1701m1gcrccrethae9y3nyv1e116", "widget_config": {"variant": "full", "placement": "bottom-right", "expandable": "never", "avatar": {"type": "orb", "color_1": "#2792dc", "color_2": "#9ce6e6"}, "feedback_mode": "during", "end_feedback": {"type": "rating"}, "bg_color": "#ffffff", "text_color": "#000000", "btn_color": "#000000", "btn_text_color": "#ffffff", "border_color": "#e1e1e1", "focus_color": "#000000", "shareable_page_show_terms": true, "terms_text": "#### Terms and conditions\n\nBy clicking \"Agree,\" and each time I interact with this AI agent, I consent to the recording, storage, and sharing of my communications with third-party service providers, and as described in the Privacy Policy.", "show_avatar_when_collapsed": false, "disable_banner": false, "markdown_link_allowed_hosts": [], "mic_muting_enabled": true, "transcript_enabled": true, "text_input_enabled": true, "conversation_mode_toggle_enabled": false, "default_expanded": false, "always_expanded": false, "dismissible": false, "show_agent_status": false, "show_conversation_id": true, "strip_audio_tags": true, "text_contents": {"main_label": "هل تحتاج إلى مساعدة؟", "start_call": "بدء مكالمة", "start_chat": "رسالة", "new_call": "مكالمة جديدة", "end_call": "إنهاء", "mute_microphone": "كتم الميكروفون", "accept_terms": "قبول", "dismiss_terms": "إلغاء", "listening_status": "يستمع", "speaking_status": "تحدث للمقاطعة", "connecting_status": "جارٍ الاتصال", "error_occurred": "حدث خطأ"}, "styles": {}, "show_resize_button": true, "language": "ar", "language_presets": {}, "text_only": false, "supports_text_only": true, "first_message": "هلا والله! أنا شوق من «وين». قول لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة مع العيال؟", "file_input_config": {"enabled": true, "max_files_in_memory": 10, "max_files_per_conversation": 10}}};
+/* What the agent's widget config looks like (agents_get_widget, 30 Sept;
+   the conversation-id line off since 2 October). */
+const WIDGET_CONFIG = {"agent_id": "agent_1701m1gcrccrethae9y3nyv1e116", "widget_config": {"variant": "full", "placement": "bottom-right", "expandable": "never", "avatar": {"type": "orb", "color_1": "#2792dc", "color_2": "#9ce6e6"}, "feedback_mode": "during", "end_feedback": {"type": "rating"}, "bg_color": "#ffffff", "text_color": "#000000", "btn_color": "#000000", "btn_text_color": "#ffffff", "border_color": "#e1e1e1", "focus_color": "#000000", "shareable_page_show_terms": true, "terms_text": "#### Terms and conditions\n\nBy clicking \"Agree,\" and each time I interact with this AI agent, I consent to the recording, storage, and sharing of my communications with third-party service providers, and as described in the Privacy Policy.", "show_avatar_when_collapsed": false, "disable_banner": false, "markdown_link_allowed_hosts": [], "mic_muting_enabled": true, "transcript_enabled": true, "text_input_enabled": true, "conversation_mode_toggle_enabled": false, "default_expanded": false, "always_expanded": false, "dismissible": false, "show_agent_status": false, "show_conversation_id": false, "strip_audio_tags": true, "text_contents": {"main_label": "هل تحتاج إلى مساعدة؟", "start_call": "بدء مكالمة", "start_chat": "رسالة", "new_call": "مكالمة جديدة", "end_call": "إنهاء", "mute_microphone": "كتم الميكروفون", "accept_terms": "قبول", "dismiss_terms": "إلغاء", "listening_status": "يستمع", "speaking_status": "تحدث للمقاطعة", "connecting_status": "جارٍ الاتصال", "error_occurred": "حدث خطأ"}, "styles": {}, "show_resize_button": true, "language": "ar", "language_presets": {}, "text_only": false, "supports_text_only": true, "first_message": "هلا والله! أنا شوق من «وين». قول لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة مع العيال؟", "file_input_config": {"enabled": true, "max_files_in_memory": 10, "max_files_per_conversation": 10}}};
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".txt": "text/plain", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2" };
 
@@ -83,7 +85,6 @@ async function run({ withPolicy }) {
     args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
   });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "ar-KW", permissions: ["microphone"] });
-  await ctx.route("**/unpkg.com/**", (r) => r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: BUNDLE }));
   await ctx.route(/api(\.us)?\.elevenlabs\.io/, (r) => {
     if (/\/widget/.test(r.request().url()))
       return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
@@ -110,16 +111,23 @@ async function run({ withPolicy }) {
       window.__violations.push(`${e.violatedDirective} ${e.blockedURI.slice(0, 100)}`));
   });
   const page = await ctx.newPage();
-  await page.goto(`http://127.0.0.1:${port}/search/`, { waitUntil: "networkidle" });
+  // /find: the one page with a call button since 1 October.
+  await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
   await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
-  await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
-  await page.waitForTimeout(2500);
-  const widget = page.locator("#wain-ai-panel elevenlabs-convai");
-  await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
-  await page.waitForTimeout(1200);
-  const accept = widget.getByRole("button", { name: /قبول/ }).first();
-  if (await accept.count()) await accept.click({ timeout: 5000 });
-  await page.waitForTimeout(5000);
+  // Soft: a widget that never arrives — refused by its integrity, say — must
+  // fail the assertions below, not throw and leave nothing reported.
+  try {
+    await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
+    await page.waitForTimeout(2500);
+    const widget = page.locator("#wain-ai-panel elevenlabs-convai");
+    await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(1200);
+    const accept = widget.getByRole("button", { name: /قبول/ }).first();
+    if (await accept.count()) await accept.click({ timeout: 5000 });
+    await page.waitForTimeout(5000);
+  } catch (e) {
+    console.log(`  · the call did not get as far as the widget: ${String(e.message).split("\n")[0]}`);
+  }
   const header = await page.locator("#wain-ai-panel header").textContent();
   const violations = await page.evaluate(() => window.__violations);
   await browser.close();
@@ -127,7 +135,7 @@ async function run({ withPolicy }) {
   return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, violations };
 }
 
-console.log(`\n── the real widget ${version}, a fake microphone, a mock socket ──`);
+console.log(`\n── the real widget (${WIDGET_PATH}), a fake microphone, a mock socket ──`);
 const bare = await run({ withPolicy: false });
 ok("control: with no policy the widget opens the call and the header says connected", /متصل/.test(bare.header), bare.header);
 ok("control: with no policy audio leaves the page", bare.chunks > 20, `${bare.chunks} chunks`);

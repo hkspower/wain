@@ -346,8 +346,12 @@ Options -Indexes
   # mint a per-request nonce. So this is not a strong defence against injected
   # inline script. What it does buy, and what the site actually needs:
   #
-  #   * script-src pins executable code to this origin and unpkg (شوق's widget)
-  #     — nothing else can be loaded, whatever ends up in the DOM.
+  #   * script-src pins executable code to this origin — nothing else can be
+  #     loaded, whatever ends up in the DOM. شوق's widget came from unpkg.com
+  #     until 2 October and is served from here now (scripts/vendor-widget.mjs),
+  #     so unpkg left script-src, connect-src and worker-src together: the
+  #     bundle names no unpkg URL of its own (grepped), and test:widget-csp runs
+  #     the vendored file under this exact policy.
   #   * frame-ancestors 'none' blocks clickjacking of /admin.
   #   * form-action 'self' stops an injected form posting credentials offsite.
   #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
@@ -403,8 +407,7 @@ Options -Indexes
   # this exact policy with a fake microphone and a mock socket: 0 chunks sent,
   # 201 with blob: added to script-src, 197 with no policy at all. Nothing is
   # logged where the page can see it (no securitypolicyviolation, no error), so
-  # the console was clean while she heard nothing. worker-src keeps its blob:
-  # and unpkg.com; taking them out was not tested and is not the point.
+  # the console was clean while she heard nothing. worker-src keeps its blob:.
   #
   # img-src also names ONE PATH on Google's storage host, not the host. The
   # widget's orb paints a noise texture from ElevenLabs' public bucket, under
@@ -416,5 +419,5 @@ Options -Indexes
   # visitor's address reaches Google's storage host. Found by running the real
   # widget under this policy and listing every securitypolicyviolation
   # (tests/shouq-widget-csp.test.mjs asserts there are none).
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob: https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob: https://unpkg.com; manifest-src 'self'"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

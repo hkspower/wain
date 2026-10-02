@@ -5,7 +5,7 @@
   "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
+    "build": "node scripts/vendor-widget.mjs && next build && node scripts/vendor-widget.mjs --copy && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
     "start": "next start",
     "lint": "eslint .",
     "check:cache": "node scripts/check-cache-safety.mjs",
@@ -103,6 +103,7 @@
   "devDependencies": {
     "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.5.2",
+    "@elevenlabs/convai-widget-embed": "0.18.3",
     "@eslint/eslintrc": "^3.3.6",
     "@eslint/js": "^9.39.5",
     "@tailwindcss/postcss": "^4.1.8",

@@ -205,7 +205,22 @@ for (const [p, t] of corpus) {
   }
 }
 
-const onDemand = staticFiles.filter((f) => /\.(js|css)$/.test(f) && !referencedByHtml.has(f));
+const onDemandAll = staticFiles.filter((f) => /\.(js|css)$/.test(f) && !referencedByHtml.has(f));
+
+/* شوق's call widget has been served from here since 2 October
+   (scripts/vendor-widget.mjs): ~460K gzipped of somebody else's bundle,
+   fetched on the call button and nowhere else. It is NOT ours to slim, so it
+   has a ceiling of its own rather than swallowing the ratchet below, where it
+   would make every other on-demand regression of ours invisible. It is still
+   on demand, so the precache check further down includes it. */
+const isWidget = (f) => f.startsWith("/_next/static/media/convai-");
+const widgetFiles = onDemandAll.filter(isWidget);
+const widgetGz = widgetFiles.reduce((a, f) => a + gzOf(f.slice(1)), 0);
+const WIDGET_BUDGET_KB = 500;
+if (widgetFiles.length > 1) err(`${widgetFiles.length} copies of the call widget ship — an old one was not cleaned: ${widgetFiles.join(", ")}`);
+if (widgetGz / 1024 > WIDGET_BUDGET_KB)
+  err(`the call widget is ${kb(widgetGz)}, over its ${WIDGET_BUDGET_KB}K ceiling — read the upgrade before taking it`);
+const onDemand = onDemandAll.filter((f) => !isWidget(f));
 const onDemandGz = onDemand.reduce((a, f) => a + gzOf(f.slice(1)), 0);
 
 /* A ratchet like the route budget: just above where the build sits, so an
@@ -230,7 +245,7 @@ if (mapChunks.length && mapGz / 1024 > MAP_BUDGET_KB)
    in name only. */
 if (existsSync(join(OUT, "sw.js"))) {
   const sw = readFileSync(join(OUT, "sw.js"), "utf8");
-  const precached = onDemand.filter((f) => sw.includes(`"${f}"`));
+  const precached = onDemandAll.filter((f) => sw.includes(`"${f}"`));
   if (precached.length)
     err(
       `${precached.length} on-demand file(s) are in the service worker precache, so every visitor ` +
@@ -249,6 +264,7 @@ for (const r of show.slice(0, 12)) console.log(`  ${kb(r.gz).padStart(7)}  ${r.r
 console.log(
   `\n  on demand, in no page's HTML: ${kb(onDemandGz)} in ${onDemand.length} files` +
     (mapChunks.length ? `  — the live map is ${kb(mapGz)} of it` : "") +
+    (widgetFiles.length ? `\n  شوق's call widget, from this origin: ${kb(widgetGz)} (ceiling ${WIDGET_BUDGET_KB}K)` : "") +
     `\n  none of it precached, so it is paid only by whoever asks for it`
 );
 if (!maps.length && !withRef.length) console.log(`\n  ✓ no source maps, no sourceMappingURL`);

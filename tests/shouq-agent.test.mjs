@@ -28,12 +28,29 @@ let pass = 0;
 const fails = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
 
+
+/* The widget is served from this origin with an SRI integrity on its tag
+   (vendor-widget.mjs), and a stub's bytes can never match it — the browser
+   would refuse the stub and every section here would test a refusal. So a
+   stub context records the integrity the page asked for instead of applying
+   it; the REAL bytes are checked against it in test:widget-csp and by
+   audit:shouq-call. */
+const RECORD_INTEGRITY = () => {
+  Object.defineProperty(HTMLScriptElement.prototype, 'integrity', {
+    configurable: true,
+    get() { return ''; },
+    set(v) { window.__widgetIntegrity = v; },
+  });
+};
+const WIDGET = '**/_next/static/media/convai-*';
+
 /** One browser context wired the way a phone with the widget would be.
  *  `micError` is the DOMException name getUserMedia should reject with, or
  *  null for a working microphone. */
 async function makeCtx(micError, seen) {
   const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
-  await c.route('**/unpkg.com/**', async (route) => {
+  await c.addInitScript(RECORD_INTEGRITY);
+  await c.route(WIDGET, async (route) => {
     seen.push(route.request().url());
     await route.fulfill({
       status: 200,
@@ -131,13 +148,17 @@ ok('the bundle is fetched only after she is opened', requested.length === 1, req
 /* This assertion used to be /convai-widget-embed@\d/ and it passed for months
    on `@elevenlabs/convai-widget-embed@1` — a semver RANGE, matching no
    published version of a package that has never had a 1.x. Every real call
-   404'd at the CDN and told the caller «ما قدرنا نوصلك بشوق». `@\d` cannot
-   tell a pin from a range, so it must be x.y.z, and the entry file has to be
-   named too or unpkg answers two redirects before 451KB starts arriving. */
-ok('the URL names an exact version, not a range',
-  /convai-widget-embed@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\//.test(requested[0]), requested[0]);
-ok('and the entry file, so nothing redirects on the way to it',
-  /\/dist\/[^/]+\.js$/.test(requested[0]), requested[0]);
+   404'd at the CDN. The file is ours to serve now (2 October), so what is
+   asserted is the shape that keeps that from coming back: this origin, a
+   name carrying the exact version and the content's hash, and the integrity
+   the build stamped on the tag. */
+ok('the widget comes from this origin, named for an exact version and its content',
+  new URL(requested[0]).origin === new URL(B).origin &&
+    /\/_next\/static\/media\/convai-\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?-[0-9a-f]{16}\.js$/.test(requested[0]),
+  requested[0]);
+ok('and its tag carries the integrity the build stamped',
+  /^sha384-[A-Za-z0-9+/]{64}$/.test(await p.evaluate(() => window.__widgetIntegrity ?? '')),
+  await p.evaluate(() => window.__widgetIntegrity ?? '(none)'));
 await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
 ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
 
@@ -393,8 +414,9 @@ ok('none of them navigated anywhere', p.url() === before, p.url());
 console.log('\n── the call is warmed before it is placed ──');
 {
   const warmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  await warmCtx.addInitScript(RECORD_INTEGRITY);
   const fetched = [];
-  await warmCtx.route('**/unpkg.com/**', async (route) => {
+  await warmCtx.route(WIDGET, async (route) => {
     fetched.push(route.request().url());
     await route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
   });
@@ -411,11 +433,10 @@ console.log('\n── the call is warmed before it is placed ──');
   await w.locator('button[aria-controls="wain-ai-panel"]').first().hover();
   await w.waitForTimeout(200);
   const warm = await links();
-  // The CDN is reached by a plain <script> — a no-CORS request — so warming it
-  // WITH crossorigin would open a pool entry the script cannot use. The API's
-  // fetches are CORS and need the opposite. Getting this backwards is the
-  // classic way to make a preconnect cost a connection instead of saving one.
-  ok('a hover warms the CDN, without crossorigin', warm.includes('https://unpkg.com'), warm.join(', '));
+  // The widget is on this origin since 2 October, so the page's own
+  // connection carries it and there is no CDN left to warm. The API's fetches
+  // are CORS, so its preconnect carries crossorigin.
+  ok('a hover warms no CDN — the widget comes over the page\'s own connection', !warm.some((l) => /unpkg/.test(l)), warm.join(', '));
   ok('and the session host, with it', warm.includes('https://api.elevenlabs.io [cors]'), warm.join(', '));
   ok('but a hover does not pull half a megabyte', fetched.length === 0, fetched.join(', '));
 
@@ -431,7 +452,7 @@ console.log('\n── a bundle that never arrives fails the call, quickly ──
   // A working microphone, so the failure under test is the bundle's and not
   // the preflight's; the later-registered route wins over makeCtx's stub.
   const deadCtx = await makeCtx(null, []);
-  await deadCtx.route('**/unpkg.com/**', (route) => route.abort('failed'));
+  await deadCtx.route(WIDGET, (route) => route.abort('failed'));
   const d = await deadCtx.newPage();
   await d.goto(B + '/find/', { waitUntil: 'networkidle' });
   const t0 = Date.now();

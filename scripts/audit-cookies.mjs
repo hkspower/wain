@@ -77,7 +77,6 @@ const ROUTES = [
  */
 const KNOWN_THIRD_PARTIES = new Map([
   ["www.openstreetmap.org", "the basemap, in a sandboxed frame with no same-origin"],
-  ["unpkg.com", "the ElevenLabs widget, loaded only when the call button is pressed"],
   ["api.elevenlabs.io", "the voice call itself, once connected"],
   ["api.us.elevenlabs.io", "the voice call itself, once connected"],
   // NOT "the submission webhook", which is what this said and what the comment
@@ -175,14 +174,20 @@ const unmeasured = new Set();
   }
 }
 
-// ── 3. is the only third-party script kept off the page until asked for? ───
+// ── 3. is the call widget kept off the page until asked for? ────────────────
+// It is served from this origin since 2 October (scripts/vendor-widget.mjs),
+// so the host list below no longer sees it: being first-party bytes does not
+// make it less of a stranger — it opens a connection to the voice service and
+// keeps its own storage. This used to read WainAiCall.tsx, which stopped
+// injecting the tag when wain-ai-bus.ts took the job over, so it had been
+// checking nothing; the browser half below now asks the page directly.
 {
-  const call = await readFile(new URL("../src/components/WainAiCall.tsx", import.meta.url), "utf8");
-  const injects = call.includes("script.src = WAIN_AI_WIDGET_SRC");
-  const gated = /if \(!WAIN_AI_AGENT_ENABLED \|\| !dialling/.test(call);
-  if (injects && !gated)
-    problems.push("WainAiCall: the third-party widget is no longer gated behind the call button");
-  else if (injects) notes.push("the ElevenLabs widget loads only once the call button is pressed");
+  const bus = await readFile(new URL("../src/lib/wain-ai-bus.ts", import.meta.url), "utf8");
+  const injects = bus.includes("script.src = WAIN_AI_WIDGET_SRC");
+  const gated = /if \(!WAIN_AI_AGENT_ENABLED\)\s*\{\s*reject\(/.test(bus);
+  if (!injects) problems.push("wain-ai-bus.ts no longer injects the widget — this check is reading the wrong file");
+  else if (!gated) problems.push("wain-ai-bus.ts: loadWidget no longer refuses when agent mode is off");
+  else notes.push("the call widget is injected only by loadWidget(), which refuses when agent mode is off");
 
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
   if (/<script\s/.test(layout)) problems.push("layout.tsx has a <script> tag — nothing third-party belongs on every page");
@@ -207,6 +212,10 @@ const context = await browser.newContext();
 
 const setCookieHeaders = [];
 const thirdParties = new Set();
+const widgetFetched = [];
+context.on("request", (r) => {
+  if (new URL(r.url()).pathname.startsWith("/_next/static/media/convai-")) widgetFetched.push(r.url());
+});
 context.on("response", async (r) => {
   const host = new URL(r.url()).hostname;
   if (host !== "127.0.0.1") thirdParties.add(host);
@@ -249,6 +258,10 @@ if (cookies.length)
 else notes.push(`${ROUTES.length} pages browsed, cookie jar empty`);
 
 if (setCookieHeaders.length) problems.push(`Set-Cookie seen: ${setCookieHeaders.join(" | ")}`);
+
+if (widgetFetched.length)
+  problems.push(`the call widget was fetched on a plain browse, before anyone pressed the call button: ${widgetFetched[0]}`);
+else notes.push("the call widget was not fetched on a plain browse of any page");
 
 for (const host of thirdParties) {
   if (!KNOWN_THIRD_PARTIES.has(host))

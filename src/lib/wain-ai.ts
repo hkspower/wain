@@ -1,3 +1,5 @@
+import { WAIN_AI_WIDGET_PATH } from "@/lib/widget-src.g";
+
 /**
  * وين AI — the assistant behind the hold-to-talk button.
  *
@@ -163,47 +165,29 @@ export const SALEM_ROLE = "دليلك في الكويت";
 export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.";
 
 /**
- * CDN bundle that defines the <elevenlabs-convai> custom element.
+ * The bundle that defines the <elevenlabs-convai> custom element — served from
+ * this origin since 2 October, out of node_modules, by scripts/vendor-widget.mjs
+ * (which says why, and what the file carries besides the package's bytes).
  *
- * THE VERSION MUST BE EXACT, AND THAT IS NOT A STYLE PREFERENCE.
+ * It came from `unpkg.com/@elevenlabs/convai-widget-embed@<version>/dist/index.js`
+ * until then, and two things learned there still hold:
  *
- * This said `@1` for months, described as «pinned to a major version so a
- * supply-chain change upstream cannot silently become part of this page». Both
- * halves were wrong. `@1` is a semver RANGE, so any 1.x would have been taken
- * silently — and there has never been a 1.x. The registry published 79
- * versions of this package then, 0.1.0 through 0.18.1, and still no 1.x on
- * 1 October, when `latest` was the 0.18.3 pinned below. A
- * range that matches nothing cannot resolve, so the <script> failed on every
- * call: `onerror` → `agentFailed` → «ما قدرنا نوصلك بشوق». Agent mode was
- * unreachable, every time, and the fallback text blamed the connection.
+ * **The version must be exact.** It said `@1` for months — a semver RANGE on a
+ * package that has never published a 1.x — so the <script> failed on every
+ * call and the visitor was told the connection was the problem. package.json
+ * now pins the devDependency without a caret, and `npm run audit:shouq-call`
+ * refuses a range there the way it refused one in the URL.
  *
- * It reads as a slow or flaky call rather than a broken URL, which is why it
- * survived: nothing here fetches it at build time, and no test could see it.
- * `npm run audit:shouq-call` now refuses a range — that is the check that
- * would have caught this on the day it was written.
+ * **Nothing at build time used to fetch it**, which is how the broken range
+ * survived. Now the build copies the very bytes it was given, and the path
+ * carries their hash, so the file a page asks for is the file that shipped.
  *
- * The full path is spelled out for a second reason. `unpkg.com/<pkg>@<version>`
- * answers 302 to the package's `unpkg`/`main` entry, and a range answers 302 to
- * the resolved version first — two redirects on the critical path of a call, on
- * a phone, before 451KB of widget starts arriving. Naming `dist/index.js`
- * (which IS this package's `unpkg` field) makes it one request.
- *
- * Bump deliberately, and re-run the audit: it checks the registry for the exact
- * version and for the entry path when it can reach it.
+ * Same origin, so there is nothing left to preconnect: the page's own
+ * connection is already open and warm by the time anyone reaches the button.
+ * The `integrity` is set on the tag (loadWidget in wain-ai-bus.ts), so a
+ * changed file on the server is refused rather than run.
  */
-export const WAIN_AI_WIDGET_SRC =
-  "https://unpkg.com/@elevenlabs/convai-widget-embed@0.18.3/dist/index.js";
-
-/**
- * Origin of the above, warmed before a tap.
- *
- * Deliberately warmed WITHOUT `crossorigin`, because the widget arrives on a
- * plain `<script src>` — a no-CORS request. A preconnect that carries
- * `crossorigin` opens a different entry in the connection pool, so the script
- * would ignore the socket and open a second one: the classic way to make a
- * preconnect cost a connection instead of saving one.
- */
-export const WAIN_AI_WIDGET_ORIGIN = "https://unpkg.com";
+export const WAIN_AI_WIDGET_SRC = WAIN_AI_WIDGET_PATH;
 
 /**
  * Where the widget goes once it has loaded, warmed at the same moment.

@@ -63,6 +63,14 @@ let textBytes = 0;
 for (const f of files) {
   const ext = extname(f).toLowerCase() || basename(f).toLowerCase();
   if (!TEXT.has(ext)) continue;
+  // شوق's call widget, vendored from npm (scripts/vendor-widget.mjs). Its
+  // strings are its own — «//storage.googleapis.com/eleven-public-cdn/…» reads
+  // to this scan as a rooted path to a file wain never had. Not our text, so
+  // not our references; its bytes still count below.
+  if (rel(f).startsWith("/_next/static/media/convai-")) {
+    textBytes += statSync(f).size;
+    continue;
+  }
   const src = readFileSync(f, "utf8");
   textBytes += Buffer.byteLength(src);
   // The RSC flight payload is serialised into a run of `self.__next_f.push`
