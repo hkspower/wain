@@ -438,9 +438,10 @@ $head .= '  <meta name="robots" content="' . $robots . "\" />\n";
    so the owner's text would last until hydration. This marker carries it to assets/seo-keep.js, which
    puts it back for this path only. Emitted only when the owner set something. */
 if ($ownTitle !== null || $ownDesc !== null) {
-    $head .= '  <meta name="sporta-seo-own" data-path="' . e($path) . '" data-lang="' . $lang . '"'
-          . ($ownTitle !== null ? ' data-title="' . e($ownTitle) . '"' : '')
-          . ($ownDesc !== null ? ' data-desc="' . e($ownDesc) . '"' : '') . " />\n";
+    $head .= '  <meta name="sporta-seo-own" data-path="' . e($path) . '" data-lang="' . e($lang) . '"';
+    if ($ownTitle !== null) $head .= ' data-title="' . e($ownTitle) . '"';
+    if ($ownDesc !== null)  $head .= ' data-desc="' . e($ownDesc) . '"';
+    $head .= " />\n";
 }
 if ($verification !== '') {
     $head .= '  <meta name="google-site-verification" content="' . e($verification) . "\" />\n";
