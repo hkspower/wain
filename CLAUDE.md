@@ -4103,3 +4103,12 @@ The owner supplied the photo (red half-zip and leggings) after ElevenLabs ran ou
 "scan all text". `test:text-colour` found `/track`'s order-progress card WHITE ON WHITE (title and step names invisible, dates 2.6:1) and the checkout hints at 2.3:1, both since the white body (2026-10-01): each hard-coded the dark page's colours. They read tokens now, and `65-white-body.css` gained `--sp-bad` / `--sp-good` (dark values restored in the dark islands). **A colour written as a literal does not follow the page when the page changes; a token does.**
 
 Also found: eight rigs saved and restored rows through `mariadb` WITHOUT `--default-character-set=utf8mb4`, so Arabic went round-trip as `?????`. `product-page-polish-test` had turned the sandbox's `cheetahs-rugby-t-shirt` Arabic name into question marks. All eight now pass the charset. Sandbox only — the live shop never ran them.
+
+## Product names on ONE line, shrunk to fit — 2026-10-02
+
+"make product name at one full line" (replaces the wrapping names of the same morning). The owner chose shrink-to-fit over an ellipsis. `assets/grid-name-fit.js` measures each grid card's name and lowers its font-size from 14px to a 10px floor until it fits; a name that still does not fit gets `.gnf-wrap` and keeps wrapping, so NOTHING is ever cut. Without JavaScript the names wrap as before. On a 412px phone every name fits (down to 10px); on a 360px phone about two thirds of the long English names still wrap at the floor.
+
+- **The inline size has to be `!important`**: the card's own `font-size: 14px !important` beats a normal inline style, and the first version shrank nothing.
+- **A debounce starved**: on /shop other overlays keep changing the page, so a restart-on-every-mutation timer never fired and no name was fitted. It is a throttle now. **A timer that restarts on every event needs a quiet moment to fire.**
+- A one-line name drops the 42px kept clear for the + (the + sits on the price row), but the + disc's top reaches up into the name's line (8-10px), so the name has 12px under it instead.
+- `test:product-grid-spec` asserts one line (or the wrap fallback) and that the + does not touch the text; mutation-tested (script disabled -> two lines, caught). `test:theme-unity` accepts any size from 10px to 14px.

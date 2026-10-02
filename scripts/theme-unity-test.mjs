@@ -97,7 +97,9 @@ for (const [vw, lang] of [[390, 'ar'], [1280, 'en']]) {
     check(near(g.heart, ref.heart), `${vw} ${lang} ${name}: the heart where /shop has it`, JSON.stringify([g.heart, ref.heart]))
     check(g.plus && Math.abs(g.plus.right - ref.plus.right) <= 2 && Math.abs(g.plus.bottom - ref.plus.bottom) <= 2,
       `${vw} ${lang} ${name}: the + beside the price, where /shop has it`, JSON.stringify([g.plus, ref.plus]))
-    check(g.nameSize === ref.nameSize, `${vw} ${lang} ${name}: the same name size`, `${g.nameSize} vs ${ref.nameSize}`)
+    // 2026-10-02: each name is shrunk to fit ITS card on one line (grid-name-fit.js), so two
+    // grids no longer show the same size for different names; the rule they share is 10-14px
+    check(parseFloat(g.nameSize) >= 10 && parseFloat(g.nameSize) <= parseFloat(ref.nameSize) + 0.01, `${vw} ${lang} ${name}: the name is the shared size or shrunk to fit (10px floor)`, `${g.nameSize} vs ${ref.nameSize}`)
     check(PRICE[lang].test(g.price), `${vw} ${lang} ${name}: the shop's price format`, JSON.stringify(g.price))
     if (g.placeholder !== 'no card without a photo') check(/no-photo\.svg/.test(g.placeholder), `${vw} ${lang} ${name}: a missing photo shows the Sporta placeholder`, g.placeholder)
   }

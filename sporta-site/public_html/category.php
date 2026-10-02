@@ -478,6 +478,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <script src="/assets/theme.js" defer></script>
 <script src="/assets/category-topbar.js" defer></script>
 <script src="/assets/card-heart.js" defer></script>
+<script src="/assets/grid-name-fit.js" defer></script>
 <script src="/assets/quick-add-size.js?v=20261001e" defer></script>
 <script src="/assets/customer-account.js" defer></script>
 <script src="/assets/brand-badge.js" defer></script>

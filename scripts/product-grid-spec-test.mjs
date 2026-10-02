@@ -70,6 +70,8 @@ try {
         plusRight: ch.right - pb.right, plusBottom: ch.bottom - pb.bottom, plusDisc: getComputedStyle(plus, '::before').backgroundColor, plusInPhoto: pb.top < box(mine.children[0]).bottom,
         badgeLeft: bb ? bb.left - ch.left : null, badgeTop: bb ? bb.top - ch.top : null, badgeBg: badge ? getComputedStyle(badge).backgroundColor : null,
         badgeRadius: badge ? parseFloat(getComputedStyle(badge).borderTopLeftRadius) : null, badgeH: bb ? bb.height : null,
+        nameLines: Math.round(box(h3).height / (parseFloat(getComputedStyle(h3).lineHeight) || 1)), nameWrapFallback: h3.classList.contains('gnf-wrap'),
+        nameClear: (() => { const r = document.createRange(); r.selectNodeContents(h3); const t = r.getBoundingClientRect(), pr = plus.getBoundingClientRect(); return +(pr.top - t.bottom).toFixed(1) })(),
         nameAlign: getComputedStyle(h3).textAlign, nameSize: parseFloat(getComputedStyle(h3).fontSize), nameWeight: +getComputedStyle(h3).fontWeight,
         priceSize: parseFloat(getComputedStyle(price).fontSize), priceWeight: +getComputedStyle(price).fontWeight,
         oldDeco: old ? getComputedStyle(old).textDecorationLine : null, oldSize: old ? parseFloat(getComputedStyle(old).fontSize) : null,
@@ -111,7 +113,10 @@ try {
     check(m.plusRight <= 8 && m.plusBottom <= 8 && !m.plusInPhoto && rgb(m.plusDisc) === '245,99,21', `${L} the orange + sits at the caption's bottom-right, off the photograph`, `${m.plusRight}/${m.plusBottom} inPhoto=${m.plusInPhoto} ${m.plusDisc}`)
     check(m.badgeLeft !== null && m.badgeLeft <= 14 && m.badgeTop <= 14 && m.badgeRadius >= 10 && rgb(m.badgeBg) === '207,74,11', `${L} the sale badge is an orange pill at the top-LEFT`, `${m.badgeLeft}/${m.badgeTop} r${m.badgeRadius} ${m.badgeBg}`)
     check(m.nameAlign === 'left' && Math.abs(m.nameLeft - m.priceLeft) <= 2, `${L} name and price are left-aligned on one edge`, `${m.nameAlign} ${m.nameLeft}/${m.priceLeft}`)
-    check(m.nameSize >= 14 && m.nameSize <= 15 && m.nameWeight >= 500, `${L} name 14-15px, medium or bold`, `${m.nameSize}/${m.nameWeight}`)
+    // 2026-10-02: one line, shrunk to fit (grid-name-fit.js), 14px at most and 10px at least
+    check(m.nameSize >= 10 && m.nameSize <= 15 && m.nameWeight >= 500, `${L} name 10-15px (shrunk to fit), medium or bold`, `${m.nameSize}/${m.nameWeight}`)
+    check(m.nameLines === 1 || m.nameWrapFallback, `${L} the name is ONE line (or the 10px floor wrapped it rather than cutting it)`, `${m.nameLines} lines, wrapFallback=${m.nameWrapFallback}`)
+    check(m.nameWrapFallback || m.nameClear >= 0, `${L} the + button does not touch a one-line name`, `${m.nameClear}px between the name text and the +`)
     check(m.priceSize >= 15 && m.priceSize <= 17 && m.priceWeight >= 700, `${L} price 15-17px bold`, `${m.priceSize}/${m.priceWeight}`)
     check(m.oldDeco === 'line-through' && m.oldSize <= 13, `${L} the old price is small and struck through`, `${m.oldDeco} ${m.oldSize}`)
     check(m.colourText && /Cherry Red|أحمر كرزي/.test(m.colourText) && rgb(m.dot) === '143,29,44', `${L} a colour line with its dot`, `${m.colourText} ${m.dot}`)

@@ -209,6 +209,21 @@ main article h3[class~="line-clamp-1"] {
   text-overflow: clip !important;
   overflow-wrap: anywhere;
 }
+/* ONE LINE, SHRUNK TO FIT, 2026-10-02 ("make product name at one full line"). assets/grid-name-fit.js
+   adds .gnf and lowers the font-size until the whole name fits (floor 10px); a name that still
+   does not fit at the floor gets .gnf-wrap and keeps wrapping, so no name is ever cut. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3.gnf:not(.gnf-wrap) {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  overflow-wrap: normal;
+  /* the + sits on the price row below a one-line name, so the 42px kept clear for it when the
+     name wrapped to its level is not needed here (measured: it never touches the name's text) */
+  padding-right: 0;
+  /* ...but the + disc's top edge reaches up into the name's line (measured 8-10px), so the price
+     row moves down by that much instead of the name being narrowed for it */
+  margin-bottom: 12px;
+}
 /* Orange on the white caption, in the product grids — where the caption is white. NAMED BY THE
    GRID, not `main article h3`: that selector (0,1,3) LOSES to sporta-dark.css's
    `[data-theme='dark'] .text-slate-900` (0,2,0), both !important — measured, the name stayed

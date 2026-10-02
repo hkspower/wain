@@ -1233,6 +1233,14 @@ main article h3[class~="line-clamp-1"] {
   text-overflow: clip !important;
   overflow-wrap: anywhere;
 }
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3.gnf:not(.gnf-wrap) {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  overflow-wrap: normal;
+  padding-right: 0;
+  margin-bottom: 12px;
+}
 main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
   color: var(--sp-card-ink, #c2410c) !important;
 }
