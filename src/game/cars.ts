@@ -6264,19 +6264,37 @@ export function createCar(colors: CarColors): THREE.Group {
     buildTail(geo, ":authored");
   };
 
-  // High-mount third brake light: sedan/gtr at the rear-glass base, and
-  // for the gtr a second element in the wing itself; zx on the fastback.
+  // High-mount third brake light: on the fastbacks (zx, rx7) on the
+  // bodywork itself, which arches 100-160 mm above the profile line it
+  // was pinned to; on the gtr in front of the wing; on everything else
+  // on the roof's trailing edge, the top of the rear screen.
+  //
+  // That last one used to be a pair of numbers, 1.36 m up and 1.28 m
+  // back, the same for six silhouettes. Measured against the shells it
+  // was 85 to 400 mm in the air over the sedan, hatch, pony, pickup and
+  // super (a red lamp hanging behind the roof in every rear shot), and
+  // 360 mm INSIDE the suv's roof. So it is read off the roof now: the
+  // panel's rear edge, the skin there, and the skin's own pitch.
   {
     const cherry = new THREE.Mesh(roundedBox(0.5, 0.035, 0.05, 0.015), tailMat);
-    // On the fastbacks it sits on the bodywork itself, which arches
-    // 100-160 mm above the profile line it was pinned to; on the sedan
-    // and gtr it sits at the base of the rear glass, well above the
-    // shell, so those two keep their measured heights.
+    let pitch = bCabBack ? -0.5 : -0.2;
     if (style === "zx") cherry.position.set(0, (deckY(bGeo, style, -1.98) ?? 0.86) + 0.02, -1.98);
     else if (style === "rx7") cherry.position.set(0, (deckY(bGeo, style, -1.86) ?? 0.8) + 0.02, -1.86);
     else if (style === "gtr") cherry.position.set(0, d.deckY + 0.05, -1.7);
-    else cherry.position.set(0, 1.36, -1.28);
-    cherry.rotation.x = bCabBack ? -0.5 : -0.2;
+    else {
+      if (!rGeo.boundingBox) rGeo.computeBoundingBox();
+      const z = rGeo.boundingBox!.min.z + 0.05; // just inside the roof's trailing edge
+      const y = topSkinY(z);
+      // The roof's fall toward the tail, read on the roof side only: a
+      // sample across the edge would take the pitch of the cab back or
+      // the tailgate (on the pickup, near vertical) and stand it on end.
+      const slope = (topSkinY(z + 0.06) - y) / 0.06;
+      pitch = Math.max(-0.6, Math.min(0.6, -Math.atan(slope)));
+      // Lifted by its own pitched half-height, 2 mm proud of the skin.
+      const lift = 0.0175 * Math.cos(pitch) + 0.025 * Math.abs(Math.sin(pitch)) + 0.002;
+      cherry.position.set(0, y + lift, z);
+    }
+    cherry.rotation.x = pitch;
     group.add(cherry);
   }
 
@@ -7558,8 +7576,36 @@ export function createCar(colors: CarColors): THREE.Group {
     // at the edges and clearing toward the middle where a driver
     // actually looks out. Emissive-free and nearly opaque, so at night
     // it reads as a black band rather than as glass.
+    //
+    // Fitted to the screen it is stuck to. It used to be pinned at a
+    // fixed height over the wiper line at a fixed rake, and on eight of
+    // the nine silhouettes that was 140 to 340 mm OFF the glass, in
+    // front of it (a black bar floating ahead of every base car's
+    // windscreen), and on the rx7 60 mm into it. Now: hung from the
+    // header (the canopy's own headerZ), on the glass at the centreline,
+    // laid along the screen's rake there, and no wider than the screen
+    // is at that height.
+    const BAND_H = 0.16;
+    const hz = (cGeo.userData.headerZ as number | undefined) ?? d.wiperZ;
+    const glassY = (z: number) => deckY(cGeo, style, z, "canopy");
+    // Walk forward from the header until the screen has dropped by the
+    // band's height along the glass: that is where its middle goes.
+    let zc = hz + 0.02;
+    for (let i = 0; i < 40; i++) {
+      const y0 = glassY(hz + 0.01), y1 = glassY(zc);
+      if (y0 === null || y1 === null) break;
+      if (Math.hypot(zc - hz, y0 - y1) >= BAND_H * 0.62) break;
+      zc += 0.01;
+    }
+    const yc = glassY(zc) ?? d.beltY + 0.42;
+    const slope = ((glassY(zc + 0.03) ?? yc) - (glassY(zc - 0.03) ?? yc)) / 0.06; // dy/dz, < 0 on a screen
+    // Local +y up the glass toward the header, local +z out of it.
+    const rake = Math.atan2(-1, -slope);
+    const nrm = new THREE.Vector3(0, 1, -slope).normalize();
+    const half = flankXAt(cGeo, style, yc, zc, ":band");
+    const bandW = Math.min(1.28, half !== null ? 2 * (half - 0.07) : 1.28);
     const band = new THREE.Mesh(
-      roundedBox(1.28, 0.16, 0.02, 0.008),
+      roundedBox(bandW, BAND_H, 0.02, 0.008),
       new THREE.MeshStandardMaterial({
         name: "sun-band",
         color: 0x0d1014,
@@ -7569,8 +7615,8 @@ export function createCar(colors: CarColors): THREE.Group {
         opacity: 0.82,
       })
     );
-    band.position.set(0, d.beltY + 0.42, d.wiperZ + 0.16);
-    band.rotation.x = -0.5; // lies along the screen's rake
+    band.position.set(0, yc + nrm.y * 0.012, zc + nrm.z * 0.012); // 2 mm proud of the glass
+    band.rotation.x = rake; // lies along the screen's rake
     group.add(band);
   }
 

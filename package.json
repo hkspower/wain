@@ -121,6 +121,7 @@
     "test:fonts": "node tests/fonts.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:doorfit": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/doorfit.mjs",
+    "test:perch": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/perch.mjs",
     "test:plates": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/plates.mjs",
     "test:glassfit": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/glassfit.mjs",
     "test:grade": "node tests/grade.mjs",
