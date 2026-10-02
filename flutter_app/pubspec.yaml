@@ -34,6 +34,7 @@ dependencies:
   audioplayers: ^6.8.1
   wakelock_plus: ^1.8.1
   connectivity_plus: ^7.3.2
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:

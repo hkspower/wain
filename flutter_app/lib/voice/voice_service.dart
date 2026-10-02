@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../ai/config.dart' show kAgentEnabled;
 import '../data/voice_lines.dart';
 
 const String kWainOrigin = 'https://www.wainkw.com';
@@ -26,9 +27,13 @@ const Duration kTtsDeadline = Duration(seconds: 4);
 
 /// Absolute, because a native app has no origin to be relative to — the web's
 /// `/api/tts.php` would resolve against nothing. `none` switches the bridge off.
-String resolveTtsUrl([String configured = _ttsConfigured]) {
+///
+/// The bridge renders with ElevenLabs on our server, so its default follows
+/// شوق's switch: a free build (the live app since 2 October) never asks it,
+/// and the phone's own voice speaks — the web's voice.ts does the same.
+String resolveTtsUrl([String configured = _ttsConfigured, bool agent = false]) {
   final c = configured.trim().isEmpty
-      ? '$kWainOrigin/api/tts.php'
+      ? (agent ? '$kWainOrigin/api/tts.php' : 'none')
       : configured.trim();
   return c.toLowerCase() == 'none' ? '' : c;
 }
@@ -61,7 +66,7 @@ class VoiceService extends ChangeNotifier {
     String? ttsUrl,
     this.origin = kWainOrigin,
   }) : _client = client ?? http.Client(),
-       _ttsUrl = ttsUrl ?? resolveTtsUrl();
+       _ttsUrl = ttsUrl ?? resolveTtsUrl(_ttsConfigured, kAgentEnabled);
 
   final ClipPlayer player;
   final TtsBackend tts;

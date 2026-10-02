@@ -2,18 +2,21 @@
 /// Mirrors `src/lib/wain-ai.ts`.
 library;
 
-const String kDefaultAgentId = 'agent_1701m1gcrccrethae9y3nyv1e116';
+/// شوق's ElevenLabs agent — used ONLY by a sandbox build that asks for it:
+///   flutter build … --dart-define=WAIN_AI_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116
+/// The live app is the free build since 2 October (local_session.dart): the
+/// paid account ran dry and a live call showed its English quota error over
+/// our own sheet. The web made the same change (src/lib/wain-ai.ts).
+const String kSandboxAgentId = 'agent_1701m1gcrccrethae9y3nyv1e116';
 const String _configured = String.fromEnvironment('WAIN_AI_AGENT_ID');
 
-/// The agent id, or empty when switched off with «none».
-///
-/// `isEmpty` and not `?? default`: an unset define arrives as the EMPTY STRING,
-/// and a null-coalescing default never fires for it. That is the exact bug the
-/// web's CI had — GitHub expands an unset variable to "", `??` kept it, and
-/// every build shipped with شوق switched off while the log said she was on.
+/// The agent id, or empty for the free build. Unset, empty and «none» all mean
+/// free: an unset define arrives as the EMPTY STRING (the `??` trap the web's
+/// CI hit), and since nothing falls back to an agent any more, all three are
+/// the same answer.
 String resolveAgentId([String configured = _configured]) {
-  final c = configured.trim().isEmpty ? kDefaultAgentId : configured.trim();
-  return c.toLowerCase() == 'none' ? '' : c;
+  final c = configured.trim();
+  return c.isEmpty || c.toLowerCase() == 'none' ? '' : c;
 }
 
 final String kAgentId = resolveAgentId();
@@ -91,6 +94,11 @@ abstract final class CallCopy {
   static const noMic = 'ما لقينا مايك في جهازك — وصّل مايك وجرّب مرة ثانية.';
   static const micBusy = 'المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.';
   static const failed = 'ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.';
+
+  /// The free call (local_session.dart) — the web's local-mode lines.
+  static const noSpeech = 'ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.';
+  static const speechUnavailable =
+      'جوالك ما يقدر يسمعك الحين — اكتب اللي تبيه بالبحث.';
 }
 
 abstract final class ChatCopy {
@@ -107,6 +115,16 @@ abstract final class ChatCopy {
   /// The server refused for something a retry this minute cannot change (out
   /// of credits, 2 October) — the web's `WAIN_AI_CHAT_COPY.unavailable`.
   static const unavailable = 'سالم مو متاح الحين — جرّب بعد شوي.';
+
+  /// The free chat (the live app since 2 October) — the web's
+  /// WAIN_AI_CHAT_COPY.free* lines, the same words.
+  static const freeGreeting =
+      'هلا! أنا سالم. اكتب وش تبي — قهوة، بحر، طلعة عيال، منطقة — وأدوّر لك بين أماكن وين.';
+  static const freeStatus = 'جاهز';
+  static const freeNotice =
+      'اللي تكتبه يبقى بجهازك — البحث يصير داخل الصفحة وما ينرسل لأحد.';
+  static const freeEmpty =
+      'ما لقيت شي يطابق هذا — جرّب كلمة ثانية، مثل «قهوة» أو «بحر» أو اسم منطقة.';
   static const unavailableStatus = 'مو متاح الحين';
   static const retryLater = 'جرّب مرة ثانية';
   static const notConfigured = 'المحادثة مو متاحة الحين.';

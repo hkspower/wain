@@ -10,7 +10,9 @@ import 'package:provider/provider.dart';
 import 'app/app_state.dart';
 import 'ai/call_controller.dart';
 import 'ai/call_overlay.dart';
+import 'ai/config.dart';
 import 'ai/elevenlabs_session.dart';
+import 'ai/local_session.dart';
 import 'ai/keep_alive.dart';
 import 'app/deep_link.dart';
 import 'app/offline_banner.dart';
@@ -67,7 +69,19 @@ class _WainAppState extends State<WainApp> {
 
   late final CallController _call = CallController(
     isOffline: () => _online.offline,
-    sessionFactory: widget.sessionFactory ?? ElevenLabsSession.new,
+    // The free call unless this build names an agent (config.dart): the live
+    // app spends no ElevenLabs credits since 2 October.
+    local: (widget.agentId ?? kAgentId).isEmpty,
+    sessionFactory:
+        widget.sessionFactory ??
+        ((widget.agentId ?? kAgentId).isEmpty
+            ? () => LocalSession(
+                onHeard: (words) => _call.hear(words),
+                // The search screen speaks its own answer once voice is on —
+                // the web's free call turns it on the same way.
+                onAnswered: (_) => widget.state.setVoiceEnabled(true),
+              )
+            : ElevenLabsSession.new),
     keepAlive: _keepAlive,
     agentId: widget.agentId,
     places: kPlaces,

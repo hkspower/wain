@@ -19,6 +19,7 @@ import '../data/models.dart';
 import '../data/search.dart';
 import 'config.dart';
 import 'keep_alive.dart';
+import 'local_session.dart' show kNoSpeech;
 import 'tools.dart';
 
 enum CallPhase { idle, ringing, live, answering, ended, failed }
@@ -63,7 +64,13 @@ class CallController extends ChangeNotifier {
     this.agentId,
     this.keepAlive,
     this.isOffline,
+    this.local = false,
   });
+
+  /// The free call (local_session.dart): no agent, so no agent id is needed,
+  /// and once the search has opened the sheet gets out of the way of it — the
+  /// web's local mode closes the same way.
+  final bool local;
 
   final SessionFactory sessionFactory;
   final List<Place> places;
@@ -94,6 +101,7 @@ class CallController extends ChangeNotifier {
   bool _salemVoice = false;
   Duration _elapsed = Duration.zero;
   bool _sheetOpen = false;
+  String _heard = '';
 
   AgentSession? _session;
   Timer? _dial;
@@ -110,6 +118,15 @@ class CallController extends ChangeNotifier {
   bool get salemVoice => _salemVoice;
   Duration get elapsed => _elapsed;
   bool get sheetOpen => _sheetOpen;
+
+  /// What the free call has heard so far, shown while she listens.
+  String get heard => _heard;
+  void hear(String words) {
+    if (!active) return;
+    _heard = words;
+    notifyListeners();
+  }
+
   bool get active =>
       _phase == CallPhase.ringing ||
       _phase == CallPhase.live ||
@@ -143,7 +160,7 @@ class CallController extends ChangeNotifier {
   Future<void> start({bool salem = false}) async {
     if (active) return;
     final id = agentId ?? kAgentId;
-    if (id.isEmpty) {
+    if (id.isEmpty && !local) {
       _error = CallCopy.failed;
       _sheetOpen = true;
       _set(CallPhase.failed);
@@ -159,6 +176,7 @@ class CallController extends ChangeNotifier {
     indexOf();
     _error = null;
     _lastAction = null;
+    _heard = '';
     _elapsed = Duration.zero;
     _salemVoice = salem;
     _sheetOpen = true;
@@ -208,11 +226,25 @@ class CallController extends ChangeNotifier {
       },
       onDisconnected: () {
         if (token != _token) return;
+        if (local) {
+          // The answer is on the search screen now; the sheet steps aside.
+          final s = _session;
+          _teardown();
+          _session = null;
+          _sheetOpen = false;
+          _set(CallPhase.idle);
+          s?.dispose();
+          return;
+        }
         _finish(CallPhase.ended);
       },
       onError: (message) {
         if (token != _token) return;
-        if (_phase == CallPhase.ringing) {
+        if (message == kNoSpeech) {
+          _fail(CallCopy.noSpeech);
+        } else if (local && _phase == CallPhase.ringing) {
+          _fail(CallCopy.speechUnavailable);
+        } else if (_phase == CallPhase.ringing) {
           _fail(CallCopy.callFailed);
         } else {
           _finish(CallPhase.ended);

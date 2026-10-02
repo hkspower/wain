@@ -334,7 +334,10 @@ void main() {
   );
 
   test('resolveTtsUrl: absolute by default (a native app has no origin), none switches off', () {
-    expect(resolveTtsUrl(''), 'https://www.wainkw.com/api/tts.php');
+    // The bridge renders with ElevenLabs, so it is the sandbox build's only:
+    // a free build (the live app since 2 October) never asks it.
+    expect(resolveTtsUrl(''), '');
+    expect(resolveTtsUrl('', true), 'https://www.wainkw.com/api/tts.php');
     expect(resolveTtsUrl('none'), '');
     expect(resolveTtsUrl('https://s.example/tts'), 'https://s.example/tts');
   });

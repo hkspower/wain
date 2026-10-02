@@ -131,7 +131,9 @@ void main() {
     testWidgets('from the line opening to her greeting, then from a message '
         'to her answer, through a tool call', (t) async {
       final ch = _MemChannel();
-      await t.pumpWidget(_host(SalemScreen(connect: (_, _) => ch)));
+      await t.pumpWidget(
+        _host(SalemScreen(connect: (_, _) => ch, agentId: 'agent_test')),
+      );
       await t.pump();
       expect(_typing, findsNothing, reason: 'not before the line is open');
 
@@ -179,7 +181,9 @@ void main() {
       t,
     ) async {
       final ch = _MemChannel();
-      await t.pumpWidget(_host(SalemScreen(connect: (_, _) => ch)));
+      await t.pumpWidget(
+        _host(SalemScreen(connect: (_, _) => ch, agentId: 'agent_test')),
+      );
       await t.pump();
       ch.say({'type': 'conversation_initiation_metadata'});
       await _delivered(t);

@@ -297,15 +297,17 @@ void main() {
     });
   });
 
-  test('resolveAgentId: unset/empty/none (the ?? vs || bug)', () {
+  test('resolveAgentId: the free build unless an agent is named', () {
+    // Since 2 October the live app is free (local_session.dart): unset,
+    // empty and «none» all mean no agent. Only a sandbox build names one.
     expect(
       resolveAgentId(''),
-      kDefaultAgentId,
-      reason: 'an unset define arrives as the empty string',
+      '',
+      reason: 'an unset define arrives as the empty string — and is free',
     );
-    expect(resolveAgentId('   '), kDefaultAgentId);
+    expect(resolveAgentId('   '), '');
     expect(resolveAgentId('none'), '');
     expect(resolveAgentId('NONE'), '');
-    expect(resolveAgentId('agent_x'), 'agent_x');
+    expect(resolveAgentId(kSandboxAgentId), kSandboxAgentId);
   });
 }

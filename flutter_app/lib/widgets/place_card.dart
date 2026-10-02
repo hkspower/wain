@@ -176,7 +176,8 @@ class PlaceCard extends StatelessWidget {
                             const Spacer(),
                             // Category name only where the row has the width —
                             // the tint band and the mark ARE the category.
-                            if (MediaQuery.sizeOf(context).width >= kCategoryChipWidth)
+                            if (MediaQuery.sizeOf(context).width >=
+                                kCategoryChipWidth)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,

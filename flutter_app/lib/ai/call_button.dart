@@ -12,7 +12,6 @@ import '../theme/colors.dart';
 import '../widgets/layout.dart';
 import '../widgets/svg.dart';
 import 'call_controller.dart';
-import 'config.dart';
 import 'consent.dart';
 
 class ShouqCallButton extends StatelessWidget {
@@ -25,14 +24,17 @@ class ShouqCallButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!kAgentEnabled) return const SizedBox.shrink();
+    // Always shown: without an agent the call is the free one
+    // (local_session.dart), not no call at all.
     final call = context.watch<CallController>();
     final ringing = call.active;
     Future<void> place() async {
       HapticFeedback.mediumImpact();
-      // Asked once, before the microphone prompt — see ai/consent.dart.
+      // Asked once, before the microphone prompt — see ai/consent.dart —
+      // and only when there is an agent recording the call. The free call
+      // keeps nothing anywhere, so there is nothing to agree to.
       // A «مو الحين» leaves the call unplaced and the page where it was.
-      if (!await ensureAiConsent(context)) return;
+      if (!call.local && !await ensureAiConsent(context)) return;
       call.start();
       onTapped?.call();
     }

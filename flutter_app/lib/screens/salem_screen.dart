@@ -13,6 +13,8 @@ import '../ai/tools.dart';
 import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../data/places.g.dart';
+import '../share/hangout.dart' show kuwaitMonth;
+import '../data/voice_lines.dart';
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -27,7 +29,12 @@ import '../widgets/typing_dots.dart';
 class SalemScreen extends StatefulWidget {
   /// Tests inject a socket factory; the app uses the real one.
   final ChannelFactory? connect;
-  const SalemScreen({super.key, this.connect});
+
+  /// The agent to talk to; null reads the build's (config.dart). Empty — the
+  /// live app since 2 October — is the free chat: سالم answers from the
+  /// app's own search, with nothing sent anywhere.
+  final String? agentId;
+  const SalemScreen({super.key, this.connect, this.agentId});
 
   @override
   State<SalemScreen> createState() => _SalemScreenState();
@@ -82,9 +89,18 @@ class _SalemScreenState extends State<SalemScreen> {
   /// recorded conversation, before a word is typed.
   bool _awaitingConsent = false;
 
+  bool get _free => (widget.agentId ?? kAgentId).isEmpty;
+
   @override
   void initState() {
     super.initState();
+    if (_free) {
+      // Nothing to connect to and nothing recorded, so nothing to agree to:
+      // he greets in words this screen owns, and the box works at once.
+      _status = ChatStatus.connected;
+      _entries.add(_Text('agent', ChatCopy.freeGreeting));
+      return;
+    }
     if (context.read<AppState>().aiConsent) {
       _connect();
     } else {
@@ -128,6 +144,7 @@ class _SalemScreenState extends State<SalemScreen> {
       if (_entries.isNotEmpty) _entries.clear();
     });
     _handle = startSalemChat(
+      agentId: widget.agentId,
       connect:
           widget.connect ?? (uri, protocols) => defaultChannel(uri, protocols),
       onStatus: (s) {
@@ -207,9 +224,34 @@ class _SalemScreenState extends State<SalemScreen> {
     if (text.isEmpty || _status != ChatStatus.connected) return;
     HapticFeedback.lightImpact();
     _input.clear();
+    if (_free) {
+      _add(_Text('user', text));
+      _answerLocally(text);
+      return;
+    }
     _handle?.send(text);
     _add(_Text('user', text));
     _wait(true);
+  }
+
+  /// The free chat's reply: the same search `show_places` runs, and the
+  /// sentence the free call speaks on /search (`answerParts`), so the two
+  /// free paths say the same thing about the same place. The web's
+  /// SalemChat.tsx does exactly this.
+  void _answerLocally(String q) {
+    final r = showPlacesForChat(q, searchIndex, kPlaces);
+    final found = [for (final s in r.slugs) ?getPlace(s)];
+    if (found.isEmpty) {
+      _add(_Text('agent', ChatCopy.freeEmpty));
+      return;
+    }
+    final words = answerParts(
+      found.map((p) => p.nameAr).toList(),
+      found,
+      month: kuwaitMonth(),
+    ).map((p) => p.text).join(' ');
+    _add(_Text('agent', words));
+    _add(_Places(found));
   }
 
   @override
@@ -226,16 +268,15 @@ class _SalemScreenState extends State<SalemScreen> {
       ? AiPrivacyCopy.waiting
       : switch (_status) {
           ChatStatus.connecting => ChatCopy.connecting,
-          ChatStatus.connected => ChatCopy.connected,
+          ChatStatus.connected =>
+            _free ? ChatCopy.freeStatus : ChatCopy.connected,
           ChatStatus.disconnected => ChatCopy.disconnected,
           ChatStatus.error =>
             _offline
                 ? ChatCopy.offline
                 : _unavailable
                 ? ChatCopy.unavailableStatus
-                : kAgentEnabled
-                ? ChatCopy.failed
-                : ChatCopy.notConfigured,
+                : ChatCopy.failed,
         };
 
   @override
@@ -356,9 +397,13 @@ class _SalemScreenState extends State<SalemScreen> {
                 // agreement was given once, the reminder is read every time.
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  // The free chat sends nothing anywhere, so it says that;
+                  // a recording notice over it would be untrue.
                   child: Text(
-                    AiPrivacyCopy.chatNotice,
-                    key: const ValueKey('chat-recording-notice'),
+                    _free ? ChatCopy.freeNotice : AiPrivacyCopy.chatNotice,
+                    key: ValueKey(
+                      _free ? 'chat-free-notice' : 'chat-recording-notice',
+                    ),
                     style: wainText(WainText.xs, color: WainColors.sand200),
                   ),
                 ),

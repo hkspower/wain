@@ -1,6 +1,7 @@
 // No network: say so at once, and keep everything that never needed one.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wain/widgets/place_card.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
 import 'package:wain/app/app_state.dart';
@@ -72,11 +73,18 @@ void main() {
     },
   );
 
-  testWidgets('the typed chat says so instead of waiting out its timeout', (
-    t,
-  ) async {
+  // It said «ما فيه إنترنت» here, which was right for the agent's chat. The
+  // live app's chat is the free one since 2 October: it answers from the
+  // app's own search, so no network is not a reason to stop.
+  testWidgets('the free typed chat works with no network at all', (t) async {
     await at(t, '/salem');
-    expect(find.text(ChatCopy.offline), findsWidgets);
+    expect(find.text(ChatCopy.offline), findsNothing);
+    expect(find.text(ChatCopy.freeGreeting), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'قهوة');
+    await t.testTextInput.receiveAction(TextInputAction.send);
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.text(ChatCopy.freeEmpty), findsNothing);
+    expect(find.byType(PlaceCard), findsWidgets);
     await t.pumpWidget(const SizedBox());
   });
 

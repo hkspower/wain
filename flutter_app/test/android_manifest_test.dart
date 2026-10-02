@@ -99,6 +99,14 @@ void main() {
     );
   });
 
+  test('the free call can find the phone\'s speech recogniser', () {
+    // Android 11+ hides other apps' services unless the manifest names them;
+    // without this the free call (local_session.dart) finds no recogniser on
+    // a phone that has one, and every call fails as «unavailable».
+    expect(manifest, contains('android.speech.RecognitionService'));
+    expect(permits('RECORD_AUDIO'), isTrue);
+  });
+
   test('still no location and no camera', () {
     expect(permits('ACCESS_FINE_LOCATION'), isFalse);
     expect(permits('ACCESS_COARSE_LOCATION'), isFalse);

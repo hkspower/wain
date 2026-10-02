@@ -123,6 +123,7 @@ void main() {
           state,
           call,
           SalemScreen(
+            agentId: 'agent_test',
             connect: (uri, protocols) {
               opened++;
               throw StateError('no network in tests');
@@ -154,6 +155,7 @@ void main() {
           state,
           call,
           SalemScreen(
+            agentId: 'agent_test',
             // A channel that never answers: the screen stays «connecting», so
             // the input row — and the notice over it — is what is drawn. Real
             // socket IO does not run inside a widget test's fake clock.

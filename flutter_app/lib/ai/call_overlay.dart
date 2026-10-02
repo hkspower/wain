@@ -155,8 +155,12 @@ class _Sheet extends StatelessWidget {
                 ),
               )
             else if (live) ...[
+              // The free call shows what it has heard as it hears it — the
+              // web's sheet does the same with its transcript.
               Text(
-                CallCopy.listening,
+                call.heard.isNotEmpty ? call.heard : CallCopy.listening,
+                key: const ValueKey('call-heard'),
+                textAlign: TextAlign.center,
                 style: wainText(
                   WainText.lg,
                   weight: FontWeight.w600,
@@ -197,7 +201,9 @@ class _Sheet extends StatelessWidget {
             ],
             const Spacer(),
             if (call.phase == CallPhase.ringing || live) ...[
-              if (live)
+              // A voice switch needs the agent; the free call speaks with
+              // the phone's own voice.
+              if (live && !call.local)
                 TextButton(
                   key: const ValueKey('call-switch-voice'),
                   onPressed: call.switchVoice,
