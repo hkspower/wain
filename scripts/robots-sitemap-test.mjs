@@ -173,6 +173,16 @@ console.log('\n--- the sitemaps, fetched')
 const locs = (xml) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1])
 
 const index = get(sitemapLines[0] ?? `${SITE}/sitemap.xml`)
+// The INDEX is generated too since 2026-10-02 (api/sitemap-index.php, from /backends → SEO), so this
+// PHP-less Apache hands back its source like the children below: the rewrite is proved by that source
+// being the generator's, and what it means is asked of the sandbox's real interpreter.
+if (index.body.trimStart().startsWith('<?php')) {
+  check(/sitemap-index\.php|The sitemap index/.test(index.body), '/sitemap.xml is rewritten to the generator (api/sitemap-index.php)')
+  const r = spawnSync('curl', ['-s', '-m', '10', '-w', '\n%{content_type}', `${process.env.PHP_BASE ?? 'http://127.0.0.1:4300'}/sitemap.xml`], { encoding: 'utf8' })
+  const out = r.stdout ?? ''
+  index.type = out.slice(out.lastIndexOf('\n') + 1)
+  index.body = out.slice(0, out.lastIndexOf('\n'))
+}
 check(index.status === 200 && /xml/.test(index.type),
   `${sitemapLines[0]} answers ${index.status} ${index.type}`)
 

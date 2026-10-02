@@ -1464,6 +1464,86 @@ if ($r === 'home_banner_get') {
     ]);
 }
 
+// ------------------------------------------------------------------ SEO SETUP
+// 2026-10-02. One read for the whole SEO screen, so the panel never reconstructs state from pieces.
+if ($r === 'seo_state') {
+    $products = [];
+    foreach ($db->query('select slug, name_en, name_ar from products where active = 1 order by name_en')->fetchAll() as $p) {
+        $products[] = ['slug' => $p['slug'], 'name_en' => $p['name_en'], 'name_ar' => $p['name_ar']];
+    }
+    $seoRows = [];
+    $ready = true;
+    try {
+        foreach ($db->query('select slug, title_en, title_ar, desc_en, desc_ar from product_seo')->fetchAll() as $row) $seoRows[$row['slug']] = $row;
+    } catch (Throwable $e) { $ready = false; }
+    foreach ($products as &$p) {
+        $o = $seoRows[$p['slug']] ?? [];
+        foreach (['title_en', 'title_ar', 'desc_en', 'desc_ar'] as $k) $p['seo_' . $k] = (string)($o[$k] ?? '');
+    }
+    unset($p);
+    store_out([
+        'seo'      => store_seo($db),
+        'crawl'    => store_crawl($db),
+        'image'    => store_seo_image_url($db),
+        'bots'     => STORE_SEO_AI_BOTS,
+        'products' => $products,
+        'ready'    => $ready,
+    ]);
+}
+
+// The share picture: a data: URI to set it, {remove: true} to go back to og-image.png.
+if ($r === 'seo_image_save' && $method === 'POST') {
+    $b = store_body();
+    try {
+        if (!empty($b['remove'])) {
+            $db->exec('delete from seo_image where id = 1');
+        } else {
+            $img = store_seo_image_decode((string)($b['image'] ?? ''));
+            $q = $db->prepare('insert into seo_image (id, image, image_type, image_w, image_h, etag) values (1, ?, ?, ?, ?, ?)
+                               on duplicate key update image = values(image), image_type = values(image_type),
+                               image_w = values(image_w), image_h = values(image_h), etag = values(etag)');
+            $q->bindValue(1, $img['bytes'], PDO::PARAM_LOB);
+            $q->bindValue(2, $img['type']);
+            $q->bindValue(3, $img['w'], PDO::PARAM_INT);
+            $q->bindValue(4, $img['h'], PDO::PARAM_INT);
+            $q->bindValue(5, md5($img['bytes']));
+            $q->execute();
+        }
+    } catch (PDOException $e) {
+        error_log('seo_image_save: ' . $e->getMessage());
+        store_fail('seo_not_ready', 503);
+    }
+    store_out(['ok' => true, 'image' => store_seo_image_url($db)]);
+}
+
+// One product's search title and description. Writes ONLY product_seo, never products, so it cannot
+// disturb anything product_save owns. All four empty deletes the row (= the page's own text).
+if ($r === 'seo_product_save' && $method === 'POST') {
+    $b = store_body();
+    $slug = (string)($b['slug'] ?? '');
+    $q = $db->prepare('select 1 from products where slug = ?');
+    $q->execute([$slug]);
+    if ($slug === '' || !$q->fetchColumn()) store_fail('seo_unknown_product');
+    $v = [
+        'title_en' => store_seo_text($b['title_en'] ?? '', 70), 'title_ar' => store_seo_text($b['title_ar'] ?? '', 70),
+        'desc_en'  => store_seo_text($b['desc_en'] ?? '', 200), 'desc_ar'  => store_seo_text($b['desc_ar'] ?? '', 200),
+    ];
+    try {
+        if (implode('', $v) === '') {
+            $db->prepare('delete from product_seo where slug = ?')->execute([$slug]);
+        } else {
+            $db->prepare('insert into product_seo (slug, title_en, title_ar, desc_en, desc_ar) values (?, ?, ?, ?, ?)
+                          on duplicate key update title_en = values(title_en), title_ar = values(title_ar),
+                          desc_en = values(desc_en), desc_ar = values(desc_ar)')
+               ->execute([$slug, $v['title_en'], $v['title_ar'], $v['desc_en'], $v['desc_ar']]);
+        }
+    } catch (PDOException $e) {
+        error_log('seo_product_save: ' . $e->getMessage());
+        store_fail('seo_not_ready', 503);
+    }
+    store_out(['ok' => true, 'slug' => $slug] + $v);
+}
+
 if ($r === 'home_banner_save' && $method === 'POST') {
     $b = store_body();
     $enabled = !empty($b['enabled']) ? 1 : 0;
@@ -2650,6 +2730,54 @@ if ($r === 'settings_save' && $method === 'POST') {
             'href'      => store_internal_href($v['href'] ?? null) ?? '',
             'starts_at' => store_datetime($v['starts_at'] ?? null),
             'ends_at'   => store_datetime($v['ends_at'] ?? null),
+        ]);
+    } elseif ($name === 'seo') {
+        // THE HOME PAGE'S SEARCH TEXT AND GOOGLE'S TOKEN. Empty = seo.php's built-in text, no tag.
+        // Lengths are what a result shows before it cuts: ~60 for a title, ~160 for a description;
+        // the caps leave room past that rather than truncating what the owner meant.
+        store_setting_save($db, 'seo', [
+            'title_en' => store_seo_text($v['title_en'] ?? '', 70),
+            'title_ar' => store_seo_text($v['title_ar'] ?? '', 70),
+            'desc_en'  => store_seo_text($v['desc_en'] ?? '', 200),
+            'desc_ar'  => store_seo_text($v['desc_ar'] ?? '', 200),
+            'google_verification' => store_seo_verification((string)($v['google_verification'] ?? '')),
+        ]);
+    } elseif ($name === 'crawl') {
+        // ROBOTS.TXT SWITCHES AND THE SITEMAP. Every value is checked here, so robots.php and the
+        // sitemap generators only ever read what passed: a bot from the switchable list, a Disallow
+        // rule that hides none of the shop's key pages, a sitemap link on this shop's own host, a
+        // product that exists. At least one sitemap section or link must stay on.
+        $sec = is_array($v['sections'] ?? null) ? $v['sections'] : [];
+        $sections = [];
+        foreach (['pages', 'categories', 'products'] as $k) $sections[$k] = !empty($sec[$k]);
+        $custom = [];
+        foreach (array_slice(is_array($v['custom'] ?? null) ? $v['custom'] : [], 0, 50) as $u) {
+            if (trim((string)$u) === '') continue;
+            $custom[] = store_seo_custom_url((string)$u);
+        }
+        if (!array_filter($sections) && !$custom) store_fail('sitemap_empty');
+        $exclude = [];
+        $known = $db->prepare('select 1 from products where slug = ?');
+        foreach (array_slice(is_array($v['exclude'] ?? null) ? $v['exclude'] : [], 0, 500) as $slug) {
+            $known->execute([(string)$slug]);
+            if ($known->fetchColumn()) $exclude[] = (string)$slug;
+        }
+        $block = [];
+        foreach (is_array($v['block'] ?? null) ? $v['block'] : [] as $bot) {
+            if (!in_array($bot, STORE_SEO_AI_BOTS, true)) store_fail('robots_unknown_bot');
+            $block[] = $bot;
+        }
+        $disallow = [];
+        foreach (array_slice(is_array($v['disallow'] ?? null) ? $v['disallow'] : [], 0, 20) as $rule) {
+            if (trim((string)$rule) === '') continue;
+            $disallow[] = store_robots_rule((string)$rule);
+        }
+        store_setting_save($db, 'crawl', [
+            'sections' => $sections,
+            'custom'   => array_values(array_unique($custom)),
+            'exclude'  => array_values(array_unique($exclude)),
+            'block'    => array_values(array_unique($block)),
+            'disallow' => array_values(array_unique($disallow)),
         ]);
     } elseif ($name === 'footer_links') {
         // THE FOOTER'S LINK COLUMNS. At most 4 columns of 8 links. A column needs a title in at

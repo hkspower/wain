@@ -113,6 +113,7 @@ const PARTS = [
   ['customernotes.mysql.sql', 'CRM — private notes and tags per customer', API],
   ['categoryart.mysql.sql', 'category art — the home tile pictures, when the owner replaces them', API],
   ['homebanner.mysql.sql', 'home banner — the product banner above the categories, edited in /backends', API],
+  ['seo.mysql.sql', 'SEO — per-product search titles and the default share picture, edited in /backends', API],
   ['productattrs.mysql.sql', 'product attributes — colour and fits picked in /backends', API],
   ['productthumbs.mysql.sql', 'product photo thumbnails — resized once, read back', API],
   ['stocklog.mysql.sql', 'stock history — every change to a stock count', API],

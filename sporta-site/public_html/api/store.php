@@ -2902,6 +2902,13 @@ const STORE_SETTING_DEFAULTS = [
     // panel saving the prose would drop the columns if they lived there. EMPTY `columns` means
     // "keep the footer's built-in columns", the same rule every other footer field follows.
     'footer_links' => ['columns' => []],
+    // SEO SETUP (2026-10-02). Empty means "what the shop has always sent": seo.php keeps its built-in
+    // home title and description, prints no verification tag, and shares og-image.png.
+    'seo'       => ['title_en' => '', 'title_ar' => '', 'desc_en' => '', 'desc_ar' => '', 'google_verification' => ''],
+    // ROBOTS.TXT AND THE SITEMAP (2026-10-02). The defaults reproduce the static files exactly: every
+    // section listed, no custom links, nothing excluded, no bot blocked, no extra rule.
+    'crawl'     => ['sections' => ['pages' => true, 'categories' => true, 'products' => true],
+                    'custom' => [], 'exclude' => [], 'block' => [], 'disallow' => []],
     'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null],
@@ -4373,4 +4380,189 @@ function store_apple_login(string $idToken): array {
 
     store_admin_grant($db, $u);
     return ['id' => (int) $u['id'], 'email' => $u['email']];
+}
+
+
+// ===================================================================== SEO SETUP
+//
+// 2026-10-02, "add seo setup and sitemap builder and robots txt builder at backend". Three things the
+// owner can now set without a code change, each failing back to exactly what the shop sent before:
+//
+//   seo     home title/description per language, Google's verification token, the share picture
+//   crawl   which sitemaps the index lists, extra links, products kept out of the sitemap,
+//           AI crawlers blocked, extra Disallow lines
+//   product_seo  an optional search title/description per product (api/seo.mysql.sql)
+//
+// ROBOTS.TXT IS BUILT FROM THE STATIC FILE, NOT FROM SCRATCH. api/robots.php reads public_html/robots.txt
+// and applies the owner's switches to it, so with nothing set the output IS the file, byte for byte, and
+// a fault anywhere serves the file untouched. The protective rules in it (/backends, /admin, /api, /knet,
+// /pay) cannot be edited from the panel at all, and an extra rule that would hide a page the shop wants
+// found ("/", a product, a category) is refused by name: a robots.txt mistake removes a shop from
+// Google silently, and nothing on the site itself would ever show it.
+
+const STORE_SEO_SITE = 'https://www.sporta.com.kw';
+// Crawlers the owner may switch off. The wildcard group, Googlebot and Bingbot are NOT here on purpose:
+// blocking those is de-indexing the shop, which is not a switch anybody should be one click from.
+const STORE_SEO_AI_BOTS = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-Web', 'anthropic-ai',
+    'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'Amazonbot', 'CCBot', 'Bytespider', 'cohere-ai',
+    'Meta-ExternalAgent'];
+// Paths a crawler must keep reaching. An extra Disallow matching any of them is refused.
+const STORE_SEO_KEY_PATHS = ['/', '/product/x', '/shop', '/men', '/women', '/accessories', '/outlet', '/about',
+    '/contact', '/returns', '/sitemap.xml', '/robots.txt'];
+// Never listed in a sitemap: private, transactional, or not a page.
+const STORE_SEO_PRIVATE = ['/backends', '/admin', '/api', '/knet', '/pay', '/cart', '/checkout', '/wishlist',
+    '/payment', '/invoice'];
+const STORE_SEO_IMAGE_MAX = 900000;
+
+function store_seo_text($v, int $max): string {
+    $s = trim(preg_replace('/\s+/u', ' ', (string)$v) ?? '');
+    return mb_substr($s, 0, $max);
+}
+
+function store_seo(PDO $db): array {
+    $d = STORE_SETTING_DEFAULTS['seo'];
+    try { $v = store_setting($db, 'seo'); } catch (Throwable $e) { return $d; }
+    $out = [];
+    foreach ($d as $k => $def) $out[$k] = is_string($v[$k] ?? null) ? $v[$k] : $def;
+    return $out;
+}
+
+function store_crawl(PDO $db): array {
+    $d = STORE_SETTING_DEFAULTS['crawl'];
+    try { $v = store_setting($db, 'crawl'); } catch (Throwable $e) { return $d; }
+    $sec = is_array($v['sections'] ?? null) ? $v['sections'] : [];
+    $out = ['sections' => []];
+    foreach ($d['sections'] as $k => $on) $out['sections'][$k] = array_key_exists($k, $sec) ? (bool)$sec[$k] : $on;
+    foreach (['custom', 'exclude', 'block', 'disallow'] as $k) {
+        $out[$k] = array_values(array_filter(is_array($v[$k] ?? null) ? $v[$k] : [], 'is_string'));
+    }
+    $out['block'] = array_values(array_intersect($out['block'], STORE_SEO_AI_BOTS));
+    return $out;
+}
+
+// Google's verification token. The owner will paste either the token or the whole
+// <meta name="google-site-verification" content="…"> tag Search Console shows; both are accepted.
+function store_seo_verification(string $raw): string {
+    $v = trim($raw);
+    if ($v === '') return '';
+    if (preg_match('/content\s*=\s*["\']([^"\']+)["\']/i', $v, $m)) $v = trim($m[1]);
+    if (!preg_match('/^[A-Za-z0-9_\-]{10,100}$/', $v)) store_fail('invalid_google_verification');
+    return $v;
+}
+
+// Robots matching, as Google reads a rule: a prefix match, `*` for any run, `$` for the end.
+function store_robots_matches(string $rule, string $path): bool {
+    $re = '#^' . str_replace(['\*', '\$'], ['.*', '$'], preg_quote($rule, '#')) . '#';
+    return (bool)preg_match($re, $path);
+}
+
+function store_robots_rule(string $raw): string {
+    $v = trim($raw);
+    if (!preg_match('#^/[A-Za-z0-9/_\-\.\*\$\?=&%]{0,100}$#', $v)) store_fail('invalid_robots_rule');
+    foreach (STORE_SEO_KEY_PATHS as $p) {
+        if (store_robots_matches($v, $p)) store_fail('robots_rule_blocks_key_page:' . $p);
+    }
+    return $v;
+}
+
+// A sitemap link: this shop's own page, as a path. A full address on the shop's own host is accepted
+// and reduced to its path; any other host is refused, because a sitemap may only list its own site.
+function store_seo_custom_url(string $raw): string {
+    $v = trim($raw);
+    if (preg_match('#^https?://(www\.)?sporta\.com\.kw(/.*)?$#i', $v, $m)) $v = ($m[2] ?? '') !== '' ? $m[2] : '/';
+    if (!preg_match('#^/(?![/\\\\])[A-Za-z0-9/_\-\.\?=&%]{0,180}$#', $v)) store_fail('invalid_sitemap_link');
+    foreach (STORE_SEO_PRIVATE as $p) {
+        if ($v === $p || str_starts_with($v, $p . '/') || str_starts_with($v, $p . '?')) store_fail('sitemap_link_private:' . $v);
+    }
+    return $v;
+}
+
+// robots.txt = the static file with the owner's switches applied. Groups are split at each
+// `User-agent:` line; a blocked bot's group becomes `Disallow: /`, and every group that is not
+// blocked gains the extra Disallow lines after its own. Comments and order are kept.
+function store_robots_render(string $static, array $crawl): string {
+    $block = array_map('strtolower', $crawl['block']);
+    $extra = $crawl['disallow'];
+    if (!$block && !$extra) return $static;
+    $lines = preg_split("/\r\n|\n/", $static);
+    $out = []; $agent = null; $groupEnd = static function () use (&$out, &$agent, $extra, $block) {
+        if ($agent !== null && !in_array(strtolower($agent), $block, true)) {
+            foreach ($extra as $e) $out[] = 'Disallow: ' . $e;
+        }
+    };
+    foreach ($lines as $line) {
+        if (preg_match('/^\s*User-agent:\s*(\S+)/i', $line, $m)) {
+            $groupEnd();
+            $agent = $m[1];
+            $out[] = $line;
+            if (in_array(strtolower($agent), $block, true)) $out[] = 'Disallow: /';
+            continue;
+        }
+        if ($agent !== null && preg_match('/^\s*(Allow|Disallow):/i', $line)) {
+            if (in_array(strtolower($agent), $block, true)) continue;   // replaced by Disallow: /
+            $out[] = $line;
+            continue;
+        }
+        if ($agent !== null && (preg_match('/^\s*Sitemap:/i', $line) || (trim($line) !== '' && !str_starts_with(ltrim($line), '#')))) {
+            $groupEnd(); $agent = null;
+        } elseif ($agent !== null && trim($line) === '') {
+            $groupEnd(); $agent = null;
+        }
+        $out[] = $line;
+    }
+    $groupEnd();
+    return implode("\n", $out);
+}
+
+function store_seo_image_decode(string $raw): array {
+    if (!preg_match('#^data:image/(webp|jpeg|png);base64,([A-Za-z0-9+/=\s]+)$#', trim($raw), $m)) store_fail('seo_image_bad_format');
+    $bytes = base64_decode(preg_replace('/\s+/', '', $m[2]), true);
+    if ($bytes === false || strlen($bytes) < 64) store_fail('seo_image_bad_format');
+    if (strlen($bytes) > STORE_SEO_IMAGE_MAX) store_fail('seo_image_too_large');
+    $magic = ['png' => "\x89PNG\r\n\x1a\n", 'jpeg' => "\xff\xd8\xff", 'webp' => 'RIFF'][$m[1]];
+    if (!str_starts_with($bytes, $magic) || ($m[1] === 'webp' && substr($bytes, 8, 4) !== 'WEBP')) store_fail('seo_image_not_an_image');
+    $info = @getimagesizefromstring($bytes);
+    if (!$info || $info[0] < 600 || $info[1] < 315 || $info[0] > 3000 || $info[1] > 3000) store_fail('seo_image_wrong_size');
+    return ['bytes' => $bytes, 'type' => $m[1], 'w' => (int)$info[0], 'h' => (int)$info[1]];
+}
+
+// The share picture's public address, or null when none is uploaded (or the table is missing).
+function store_seo_image_url(PDO $db): ?string {
+    try {
+        $tag = $db->query('select etag from seo_image where id = 1')->fetchColumn();
+    } catch (Throwable $e) { return null; }
+    return $tag ? STORE_SEO_SITE . '/api/api.php?r=seo_image&v=' . substr((string)$tag, 0, 12) : null;
+}
+
+function store_seo_image_serve(PDO $db): void {
+    try {
+        $row = $db->query('select image, image_type, etag from seo_image where id = 1')->fetch();
+    } catch (Throwable $e) { $row = null; }
+    $types = ['webp' => 'image/webp', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+    if (!$row || !isset($types[(string)$row['image_type']])) { http_response_code(404); exit; }
+    $etag = (string)$row['etag'];
+    header('Content-Type: ' . $types[(string)$row['image_type']]);
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: public, max-age=31536000, immutable');   // the URL carries the hash
+    header_remove('Pragma');
+    header('ETag: "' . $etag . '"');
+    foreach (explode(',', (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) as $t) {
+        $t = trim($t);
+        if (str_starts_with($t, 'W/')) $t = substr($t, 2);
+        if ($t === '"' . $etag . '"') { http_response_code(304); exit; }
+    }
+    $bytes = (string)$row['image'];
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+// One product's own search title and description, or null. Fails closed (no table = null).
+function store_product_seo(PDO $db, string $slug): ?array {
+    try {
+        $q = $db->prepare('select title_en, title_ar, desc_en, desc_ar from product_seo where slug = ?');
+        $q->execute([$slug]);
+        $r = $q->fetch();
+        return $r ?: null;
+    } catch (Throwable $e) { return null; }
 }

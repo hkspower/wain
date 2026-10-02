@@ -249,6 +249,7 @@ try {
         $p = $stmt->fetch();
 
         if ($p) {
+            $productSlug = $slug;
             $name = $isEn ? ($p['name_en'] ?: $p['name_ar']) : ($p['name_ar'] ?: $p['name_en']);
             $body = $isEn ? ($p['desc_en'] ?: $p['desc_ar']) : ($p['desc_ar'] ?: $p['desc_en']);
             $price = number_format((float) $p['price'], 3);
@@ -384,6 +385,36 @@ try {
     seo_send($html);
 }
 
+/* ------------------------------------------- the owner's SEO setup, 2026-10-02
+ *
+ * /backends → SEO. Each override replaces a value only when the owner has set one, so a shop that
+ * never opens the screen sends exactly what it sent before; and ANY fault here (no database, no row,
+ * no table) leaves every value as computed above. Nothing is echoed unescaped: the head builder below
+ * runs everything through e(), and the verification token was pattern-checked when it was saved. */
+$verification = '';
+$ownTitle = null; $ownDesc = null;   // set only when the OWNER's text replaced ours, for assets/seo-keep.js
+try {
+    require_once __DIR__ . '/api/store.php';
+    $sdb = store_db();
+    if ($path === '/') {
+        $cfg = store_seo($sdb);
+        $t = $isEn ? $cfg['title_en'] : $cfg['title_ar'];
+        $d = $isEn ? $cfg['desc_en'] : $cfg['desc_ar'];
+        if ($t !== '') $title = $ownTitle = $t;
+        if ($d !== '') $desc = $ownDesc = $d;
+        if (preg_match('/^[A-Za-z0-9_\-]{10,100}$/', $cfg['google_verification'])) $verification = $cfg['google_verification'];
+    }
+    if (isset($productSlug) && ($ps = store_product_seo($sdb, $productSlug))) {
+        $t = $isEn ? $ps['title_en'] : $ps['title_ar'];
+        $d = $isEn ? $ps['desc_en'] : $ps['desc_ar'];
+        if ($t !== '') $title = $ownTitle = $t;
+        if ($d !== '') { $desc = $ownDesc = $d; if ($productLd !== null) $productLd['description'] = $d; }
+    }
+    if ($image === OG_IMAGE && ($u = store_seo_image_url($sdb))) $image = $u;
+} catch (Throwable $ex) {
+    /* the values computed above stand */
+}
+
 /* ------------------------------------------------------ build the head block */
 
 $hreflang = '';
@@ -403,6 +434,17 @@ $head  = "\n  <!-- seo.php: per-route metadata -->\n";
 $head .= '  <title>' . e($title) . "</title>\n";
 $head .= '  <meta name="description" content="' . e($desc) . "\" />\n";
 $head .= '  <meta name="robots" content="' . $robots . "\" />\n";
+/* The app writes its OWN title and description after it loads, and Google indexes the rendered page,
+   so the owner's text would last until hydration. This marker carries it to assets/seo-keep.js, which
+   puts it back for this path only. Emitted only when the owner set something. */
+if ($ownTitle !== null || $ownDesc !== null) {
+    $head .= '  <meta name="sporta-seo-own" data-path="' . e($path) . '" data-lang="' . $lang . '"'
+          . ($ownTitle !== null ? ' data-title="' . e($ownTitle) . '"' : '')
+          . ($ownDesc !== null ? ' data-desc="' . e($ownDesc) . '"' : '') . " />\n";
+}
+if ($verification !== '') {
+    $head .= '  <meta name="google-site-verification" content="' . e($verification) . "\" />\n";
+}
 if (!$noindex) {
     $head .= '  <link rel="canonical" href="' . e($canonical) . "\" />\n";
 }
@@ -435,6 +477,7 @@ $strip = [
     '#<meta\s+name=["\']description["\'][^>]*>\s*#i',
     '#<meta\s+name=["\']keywords["\'][^>]*>\s*#i',
     '#<meta\s+name=["\']robots["\'][^>]*>\s*#i',
+    '#<meta\s+name=["\']google-site-verification["\'][^>]*>\s*#i',
     '#<link\s+rel=["\']canonical["\'][^>]*>\s*#i',
     '#<link\s+rel=["\']alternate["\'][^>]*hreflang=[^>]*>\s*#i',
     '#<meta\s+property=["\']og:[^"\']*["\'][^>]*>\s*#i',

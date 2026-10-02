@@ -92,6 +92,19 @@ if ($uri === '/llms.txt' && is_file($_SERVER['DOCUMENT_ROOT'] . '/api/llms.php')
     exit;
 }
 
+// robots.txt and the sitemaps -> their generators (2026-10-02), ahead of the static files on disk,
+// exactly as the live rewrites put them.
+//   .htaccess: RewriteRule ^robots\.txt$ /api/robots.php, ^sitemap\.xml$ /api/sitemap-index.php,
+//              ^sitemap-custom\.xml$, ^sitemap-products\.xml$, ^sitemap-categories\.xml$
+$generated = ['/robots.txt' => '/api/robots.php', '/sitemap.xml' => '/api/sitemap-index.php',
+    '/sitemap-custom.xml' => '/api/sitemap-custom.php', '/sitemap-products.xml' => '/api/sitemap-products.php',
+    '/sitemap-categories.xml' => '/api/sitemap-categories.php'];
+if (isset($generated[$uri]) && is_file($_SERVER['DOCUMENT_ROOT'] . $generated[$uri])) {
+    $_SERVER['SCRIPT_NAME'] = $generated[$uri];
+    require $_SERVER['DOCUMENT_ROOT'] . $generated[$uri];
+    exit;
+}
+
 // /men /women /accessories /outlet -> category.php?slug=<name>, dynamic like
 // seo.php above rather than a static flat file, so it is required rather than
 // read off disk.

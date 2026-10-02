@@ -44,6 +44,11 @@ $rows = $db->query(
     'select slug, created_at from products where active = 1 order by slug'
 )->fetchAll();
 
+// Products the owner has kept out of the sitemap in /backends → SEO (2026-10-02). Still on sale and
+// still reachable; just not offered to crawlers. A fault reading the list excludes nothing.
+try { $skip = array_flip(store_crawl($db)['exclude']); } catch (Throwable $e) { $skip = []; }
+if ($skip) $rows = array_values(array_filter($rows, static fn ($r) => !isset($skip[(string) $r['slug']])));
+
 // THE PHOTOGRAPHS, so Google Images and the shopping surfaces can find them. A product's pictures
 // are rows in product_images, served from api.php?r=product_image at a URL carrying the content
 // hash — the same URL the page's og:image and its JSON-LD already name (seo.php), so the sitemap

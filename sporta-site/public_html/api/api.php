@@ -244,7 +244,8 @@ $STORE_LIMITS = [
     // The home page's product banner (2026-10-01): owner text and one product,
     // asked for once per home-page view. Same bucket as site_text.
     'home_banner' => [600, 60],
-    'home_banner_image' => null,  // hashed URL, one-year immutable cache, like slide_image
+    'home_banner_image' => null,
+    'seo_image'   => null,       // the share picture: hashed URL, a year immutable  // hashed URL, one-year immutable cache, like slide_image
     'cat_art'     => null,        // answered above, before this table is read: the
                                   // four home tiles, revalidated by ETag, and asked
                                   // for by EVERY page view — a ceiling would break
@@ -635,6 +636,10 @@ if ($r === 'home_banner') {
     store_out_cacheable(['banner' => store_home_banner_public($db)]);
 }
 if ($r === 'home_banner_image') store_home_banner_image_serve($db);
+
+// The shop's share picture (og:image), uploaded in /backends → SEO. 404 when there is none, and
+// seo.php then shares og-image.png as it always has.
+if ($r === 'seo_image') store_seo_image_serve($db);
 
 if ($r === 'slides') {
     $rows = $db->query(
