@@ -199,7 +199,7 @@
      it versioned nothing (there is no file to version) and, whenever the
      browser had already asked, made it ask again: eight 404s a load instead
      of four, depending on which script ran first. */
-  var ART_VERSION = '20261002a'
+  var ART_VERSION = '20261002b'
   function stamp() {
     var nodes = document.querySelectorAll('.cat-tile source[srcset], .cat-tile img[src]')
     for (var i = 0; i < nodes.length; i++) {

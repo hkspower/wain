@@ -4093,3 +4093,7 @@ Asked for as a separate setup for desktop and mobile "for css and all theme"; th
 ## Settings prose cut to the cap — 2026-10-02
 
 "reduct un needed text": Settings went 2,116 → 598 words and `test:panel-cards` is green again. Most of it was the **Activity log**, which listed every save ever made with its raw values open: it now shows the latest five, each with its values behind a collapsed **Details**, and a "Show all" button for the rest. The **three WARNING hints in Shop rules were stale**: since `rules-live.js`, the returns-window copy updates, and switched-off delivery areas and payment methods are hidden at checkout, so the warnings described faults already fixed. All other hints were shortened. The two `panel-settings.js` notes stay, because they CORRECT wrong instructions in the bundle.
+
+## Women tile model from the owner's photo — 2026-10-02
+
+The owner supplied the photo (red half-zip and leggings) after ElevenLabs ran out of credits. Both AHED logos were painted out with `cv2.inpaint` (bright low-saturation pixels in two boxes on the garment), the figure cut from the grey ground with `grabCut` plus a grey-pixel sweep above the socks, and the cut-out replaces `scripts/fixtures/tile-subjects/women.png`. The original photo is not in the repository. Only the eight women tiles changed; `ART_VERSION` is `20261002b`. The photo crops the shoes at its bottom edge, so the tile does too.
