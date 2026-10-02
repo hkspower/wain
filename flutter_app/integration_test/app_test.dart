@@ -8,10 +8,11 @@
 // every `shot()` as a PNG. Nothing here can run in the sandbox that wrote it
 // (no Xcode), so CI is its first and only reader.
 //
-// What it deliberately never does: agree to the AI consent, or place a call.
-// Either would open a recorded ElevenLabs conversation from a CI runner — a
-// real conversation in her history, paid for, with nobody on the line. The
-// consent sheet IS exercised, up to «مو الحين».
+// What it deliberately never does: place a call. CI builds the free app
+// (no agent since 2 October), whose call is the phone's own speech
+// recognition — a system prompt and a microphone nobody is speaking into.
+// The typed chat IS exercised end to end: free, it answers from the app's
+// own search and opens nothing.
 import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
@@ -26,6 +27,7 @@ import 'package:wain/ai/keep_alive.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/main.dart';
+import 'package:wain/widgets/place_card.dart';
 
 // Assigned as main()'s FIRST statement, not as a top-level initialiser: Dart
 // initialises top-level finals lazily, on first use, and the first use was
@@ -94,55 +96,52 @@ void main() {
     await shot('01-home');
   });
 
-  testWidgets('the dial opens /find, and a call asks for consent first', (
-    t,
-  ) async {
+  testWidgets('the dial opens /find: شوق on a phone, one big call', (t) async {
     await launch(t);
     await t.tap(find.text('ابدأ'));
     await waitFor(t, find.byKey(const ValueKey('find-call')));
-    expect(find.byKey(const ValueKey('find-type')), findsOneWidget);
-    await settle(t, 1200); // the photo fades in
-    await shot('02-find');
-
-    // The button inside the half, not the half: the half is a picture.
-    await t.tap(
+    expect(find.byKey(const ValueKey('find-phone')), findsOneWidget);
+    // The one call, on the phone — found, never tapped (see the header).
+    expect(
       find.descendant(
-        of: find.byKey(const ValueKey('find-call')),
+        of: find.byKey(const ValueKey('find-phone')),
         matching: find.byType(ShouqCallButton),
       ),
+      findsOneWidget,
     );
-    await waitFor(t, find.byKey(const ValueKey('ai-consent-decline')));
-    expect(find.byKey(const ValueKey('ai-consent-agree')), findsOneWidget);
+    await settle(t, 1200); // her photo
+    await shot('02-find');
+    // سالم's half is under it; the page scrolls, as the web's does.
+    await t.scrollUntilVisible(
+      find.byKey(const ValueKey('find-type')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await settle(t);
-    await shot('03-consent');
-
-    // «مو الحين»: no call, no sheet, nothing recorded — and still on /find.
-    await t.tap(find.byKey(const ValueKey('ai-consent-decline')));
-    await settle(t);
-    expect(find.byKey(const ValueKey('ai-consent-agree')), findsNothing);
-    expect(find.byKey(const ValueKey('call-sheet')), findsNothing);
-    expect(find.byKey(const ValueKey('find-call')), findsOneWidget);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool('wain-ai-consent-v1'), isNot(true));
+    await shot('03-find-salem');
   });
 
-  testWidgets('سالم\'s chat waits for consent before opening anything', (
+  testWidgets('سالم\'s free chat answers from the app\'s own search', (
     t,
   ) async {
     await launch(t);
     await t.tap(find.text('ابدأ'));
     await waitFor(t, find.byKey(const ValueKey('find-type')));
-    await t.tap(
-      find.descendant(
-        of: find.byKey(const ValueKey('find-type')),
-        matching: find.byType(FilledButton),
-      ),
+    final start = find.descendant(
+      of: find.byKey(const ValueKey('find-type')),
+      matching: find.byType(FilledButton),
     );
-    await waitFor(t, find.byKey(const ValueKey('chat-consent-agree')));
-    // No socket until agreed: nothing to type into.
-    expect(find.byKey(const ValueKey('chat-input')), findsNothing);
+    Scrollable.ensureVisible(t.element(start), alignment: 0.5);
+    await settle(t, 300);
+    await t.tap(start);
+    // No consent and no socket: free, nothing leaves the phone.
+    await waitFor(t, find.byType(TextField));
+    expect(find.byKey(const ValueKey('chat-consent-agree')), findsNothing);
+    await t.enterText(find.byType(TextField), 'قهوة');
+    await t.testTextInput.receiveAction(TextInputAction.send);
+    await waitFor(t, find.byType(PlaceCard));
     await settle(t);
-    await shot('04-salem-consent');
+    await shot('04-salem-free');
   });
 
   testWidgets('search: typing ranks results onto a real map, a result opens '

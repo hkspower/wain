@@ -40,6 +40,8 @@ void main() {
     '/search',
     '/about',
     '/places/kuwait-towers',
+    // Since 2 October: /find opens on شوق's phone, on sun-50, not a photo.
+    '/find',
   ]) {
     testWidgets('$light: dark icons on the sand', (t) async {
       await at(t, light);
@@ -47,7 +49,7 @@ void main() {
     });
   }
 
-  for (final dark in ['/find', '/salem']) {
+  for (final dark in ['/salem']) {
     testWidgets('$dark: light icons on the dark screen', (t) async {
       await at(t, dark);
       expect(statusBarStyle(t), kChromeOnDark);

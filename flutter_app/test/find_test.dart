@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:wain/ai/call_button.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/screens/find_screen.dart';
@@ -65,4 +66,49 @@ void main() {
     expect(_greetings(t), contains('غدا'));
     await t.pumpWidget(const SizedBox());
   });
+
+  // The web's /find phone (2 October, on request: «one call icon, big, at the
+  // centre of شوق's page, with a big mobile and the call text»): her half is a
+  // handset with one big round call button and «اتصال» under it.
+  for (final size in const [Size(390, 844), Size(320, 568)]) {
+    testWidgets(
+      'at ${size.width.toInt()}: one big call, on a phone, at the centre',
+      (t) async {
+        t.view.physicalSize = size * 3;
+        t.view.devicePixelRatio = 3;
+        addTearDown(t.view.reset);
+        await t.pumpWidget(_host(() => DateTime.utc(2026, 7, 15, 9)));
+        final half = find.byKey(const ValueKey('find-call'));
+        final phone = find.descendant(
+          of: half,
+          matching: find.byKey(const ValueKey('find-phone')),
+        );
+        expect(phone, findsOneWidget, reason: 'the handset is drawn');
+        final button = find.descendant(
+          of: phone,
+          matching: find.byType(ShouqCallButton),
+        );
+        expect(button, findsOneWidget, reason: 'the one call, on the phone');
+        expect(
+          find.descendant(of: phone, matching: find.text('اتصال')),
+          findsOneWidget,
+          reason: 'the call says what it is',
+        );
+        final b = t.getRect(button);
+        final h = t.getRect(half);
+        expect(
+          (b.center.dx - h.center.dx).abs(),
+          lessThan(8),
+          reason: 'centred: button ${b.center.dx}, half ${h.center.dx}',
+        );
+        expect(
+          b.width,
+          greaterThanOrEqualTo(size.width >= 390 ? 88 : 56),
+          reason: 'big: ${b.width}',
+        );
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+      },
+    );
+  }
 }

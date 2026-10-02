@@ -1,5 +1,5 @@
-/// The call launcher — one control, used everywhere a call can start (the
-/// /search box, /find's call half). It does the gesture work inside the tap:
+/// The call launcher — one control, and since 1 October one place: /find's
+/// call half, on the phone it draws. It does the gesture work inside the tap:
 /// haptic now, and the microphone prompt is the controller's first step, so the
 /// system sees a user gesture rather than a timer.
 library;
@@ -20,7 +20,16 @@ class ShouqCallButton extends StatelessWidget {
   /// Runs after the call has been placed (e.g. /find moves on to /search,
   /// where every call's answer appears).
   final VoidCallback? onTapped;
-  const ShouqCallButton({super.key, this.size = 32, this.onTapped});
+
+  /// The resting colour. /find's phone draws it green, as a phone's own call
+  /// button is; a call in progress is coral everywhere.
+  final Color color;
+  const ShouqCallButton({
+    super.key,
+    this.size = 32,
+    this.onTapped,
+    this.color = WainColors.sea600,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +55,7 @@ class ShouqCallButton extends StatelessWidget {
       child: HitArea(
         onTap: place,
         child: Material(
-          color: ringing ? WainColors.coral600 : WainColors.sea600,
+          color: ringing ? WainColors.coral600 : color,
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),

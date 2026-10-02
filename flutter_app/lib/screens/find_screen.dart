@@ -12,8 +12,8 @@ import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/svg.dart';
 
-/// /find — two full-bleed halves: شوق's call on top, a typed conversation with
-/// her below. Both lead to the same place (/search is where a call's answer
+/// /find — two halves: شوق's call on top, drawn as a phone with one big call
+/// button (the web's, 2 October), and a typed conversation below. Both lead to the same place (/search is where a call's answer
 /// appears), and the page says so once, in its own words.
 ///
 /// What both halves say follows the moment (data/find_moment.dart), and is
@@ -57,65 +57,96 @@ class _FindScreenState extends State<FindScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Light icons no more: the call half is sun-50 since the phone came in.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: kChromeOnDark,
+      value: kChromeOnLight,
       child: Stack(
         children: [
-          Column(
-            children: [
-              Expanded(
-                child: _Half(
-                  key: const ValueKey('find-call'),
-                  label: 'اتصال',
-                  image: 'assets/img/shouq.jpg',
-                  pill: CallCopy.role,
-                  background: WainColors.ink900,
-                  tint: WainColors.ink900,
-                  accent: WainColors.sun300,
-                  pillFg: WainColors.sun900,
-                  body: findGreeting(CallCopy.name, _moment),
-                  hint: CallCopy.callHint,
-                  action: ShouqCallButton(
-                    size: 64,
-                    onTapped: () => context.go('/search'),
+          // It scrolls, as the web does. Two halves fixed to the screen
+          // shrank the phone to 0.72 at 390 and to 0.46 at 320, where its
+          // call button came out 42 wide — a phone too small to be the point.
+          LayoutBuilder(
+            builder: (context, box) => SingleChildScrollView(
+              child: Column(
+                children: [
+                  _CallHalf(
+                    key: const ValueKey('find-call'),
+                    greeting: findGreeting(CallCopy.name, _moment),
                   ),
-                ),
-              ),
-              Expanded(
-                child: _Half(
-                  key: const ValueKey('find-type'),
-                  label: 'اكتب',
-                  image: 'assets/img/salem.jpg',
-                  pill: kSalemRole,
-                  background: WainColors.sea950,
-                  tint: WainColors.sea950,
-                  accent: WainColors.sea300,
-                  pillFg: WainColors.sea900,
-                  body: findGreeting(kSalemName, _moment),
-                  hint: CallCopy.typeHint,
-                  action: FilledButton(
-                    onPressed: () => context.push('/salem'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: WainColors.sea600,
-                      // 56, not 48: on a short screen this block is scaled
-                      // down to fit half a phone (the FittedBox below), and
-                      // 48 came out 41.8 tall at 320 — under Android's
-                      // finger-size guideline.
-                      minimumSize: const Size(0, 56),
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                    ),
-                    child: Text(
-                      'ابدأ الكتابة',
-                      style: wainText(
-                        WainText.base,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      SizedBox(
+                        height: (box.maxHeight * 0.5).clamp(380, 520),
+                        child: _Half(
+                          key: const ValueKey('find-type'),
+                          label: 'اكتب',
+                          image: 'assets/img/salem.jpg',
+                          pill: kSalemRole,
+                          background: WainColors.sea950,
+                          tint: WainColors.sea950,
+                          accent: WainColors.sea300,
+                          pillFg: WainColors.sea900,
+                          body: findGreeting(kSalemName, _moment),
+                          hint: CallCopy.typeHint,
+                          action: FilledButton(
+                            onPressed: () => context.push('/salem'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: WainColors.sea600,
+                              // 56, not 48: on a short screen this block is
+                              // scaled down to fit (the FittedBox below), and
+                              // 48 came out 41.8 tall at 320 — under Android's
+                              // finger-size guideline.
+                              minimumSize: const Size(0, 56),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 28,
+                              ),
+                            ),
+                            child: Text(
+                              'ابدأ الكتابة',
+                              style: wainText(
+                                WainText.base,
+                                weight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      // The seam: «أو», decorative, on the seam itself —
+                      // painted after the call half, so over it.
+                      Positioned(
+                        top: -22,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: ExcludeSemantics(
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: WainShadows.sm,
+                              ),
+                              child: Text(
+                                'أو',
+                                style: wainText(
+                                  WainText.sm,
+                                  weight: FontWeight.w700,
+                                  color: WainColors.ink900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
           PositionedDirectional(
             top: MediaQuery.paddingOf(context).top + 8,
@@ -128,29 +159,175 @@ class _FindScreenState extends State<FindScreen> {
               style: IconButton.styleFrom(backgroundColor: Colors.black38),
             ),
           ),
-          // The seam: «أو», decorative.
-          Center(
-            child: ExcludeSemantics(
-              child: Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  'أو',
-                  style: wainText(
-                    WainText.sm,
-                    weight: FontWeight.w700,
-                    color: WainColors.ink900,
+        ],
+      ),
+    );
+  }
+}
+
+/// شوق's half: her role, «كلّم شوق», a handset with her photo, name and one big
+/// green call button with «اتصال» under it, and the greeting for this hour.
+/// The web's FindChoice.tsx, the same order and words.
+class _CallHalf extends StatelessWidget {
+  final String greeting;
+  const _CallHalf({super.key, required this.greeting});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'اتصال',
+      child: ColoredBox(
+        color: WainColors.sun50,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: 312,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: WainColors.sun100,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          CallCopy.role,
+                          style: wainText(
+                            WainText.sm,
+                            weight: FontWeight.w600,
+                            color: WainColors.sun800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'كلّم ${CallCopy.name}',
+                        style: wainText(
+                          WainText.s3xl,
+                          weight: FontWeight.w700,
+                          color: WainColors.ink900,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const _Phone(),
+                      const SizedBox(height: 14),
+                      Text(
+                        greeting,
+                        key: const ValueKey('find-greeting'),
+                        textAlign: TextAlign.center,
+                        style: wainText(
+                          WainText.base,
+                          color: WainColors.ink700,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A phone is about 1:2; 236 wide keeps the greeting and the seam on screen.
+class _Phone extends StatelessWidget {
+  const _Phone();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('find-phone'),
+      width: 236,
+      height: 446,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WainColors.ink900,
+        borderRadius: BorderRadius.circular(44),
+        boxShadow: [
+          BoxShadow(
+            color: WainColors.ink900.withValues(alpha: 0.22),
+            blurRadius: 40,
+            offset: const Offset(0, 18),
+          ),
         ],
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(34),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+          child: Column(
+            children: [
+              ExcludeSemantics(
+                child: Container(
+                  width: 72,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: WainColors.ink900,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              ExcludeSemantics(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/img/shouq-face.jpg',
+                    width: 104,
+                    height: 104,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                CallCopy.name,
+                style: wainText(
+                  WainText.s2xl,
+                  weight: FontWeight.w700,
+                  color: WainColors.ink900,
+                ),
+              ),
+              Text(
+                CallCopy.phoneLine,
+                style: wainText(WainText.sm, color: WainColors.ink600),
+              ),
+              const Spacer(),
+              ShouqCallButton(
+                size: 92,
+                color: WainColors.palm600,
+                onTapped: () => context.go('/search'),
+              ),
+              const SizedBox(height: 8),
+              ExcludeSemantics(
+                child: Text(
+                  'اتصال',
+                  style: wainText(
+                    WainText.xl,
+                    weight: FontWeight.w700,
+                    color: WainColors.palm700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

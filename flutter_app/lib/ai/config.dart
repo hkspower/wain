@@ -62,6 +62,9 @@ abstract final class CallCopy {
   static const name = 'شوق';
   static const role = 'دليلتك في الكويت';
   static const callHint = 'اضغط عشان تكلّم شوق';
+
+  /// Under her name on /find's phone — the web's `WAIN_AI_COPY.phoneLine`.
+  static const phoneLine = 'تدوّر لك وين تطلع';
   static const typeHint = 'اكتب عشان تدردش وياه';
   static const greeting =
       'هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.';
