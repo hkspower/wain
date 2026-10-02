@@ -4,10 +4,11 @@
  *
  * The hero is one picture (brand-source/home-hero.png, shipped by
  * gen-home-hero.mjs) with two controls placed on it in its own coordinates:
- * the sun is the link to /find and carries «إلى وين؟ / ابدأ», and «دوّر باسم
- * المكان» lies on the sea. Placing things on a picture is a promise about
+ * the sun is the link to /find and carries «إلى وين؟ / ابدأ». Nothing else
+ * goes on it: «دوّر باسم المكان» sat on the sea for a day and was moved to a
+ * row under the picture on request. Placing things on a picture is a promise about
  * pixels the layout code never sees — that the label is on the yellow of the
- * disc and not across a tower, that the pill is on water and not a sail — so
+ * disc and not across a tower — so
  * this keeps it by looking: it maps each control's rendered box back into the
  * master and reads the pixels under it.
  *
@@ -27,7 +28,7 @@
  *      within SUN_TOL_PX of the disc's, measured in the master.
  *   5. The label («إلى وين؟» and «ابدأ») lies on the disc: at least
  *      ON_SUN_MIN of the master's pixels under each box are the disc's yellow.
- *   6. The search pill lies on plain sea: every pixel under it is water.
+ *   6. The way to /search is under the picture, not on it, and on screen.
  *   7. Nothing is too small to read or tap: «ابدأ» at the 11px floor, the sun
  *      no smaller than SUN_MIN_PX.
  *   8. Text drawn straight on the picture reads against the pixels under it
@@ -80,7 +81,6 @@ const at = (x, y) => {
   return [px[i], px[i + 1], px[i + 2]];
 };
 const isSun = ([r, g, b]) => Math.abs(r - 0xff) < 8 && Math.abs(g - 0xc9) < 10 && Math.abs(b - 0x3c) < 14;
-const isSea = ([r, , b]) => b - r > 80;
 const lum = (c) => {
   const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
   return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
@@ -131,7 +131,7 @@ const browser = await chromium.launch({ executablePath: CHROMIUM });
 let problems = 0;
 const say = (msg) => { console.log("  ✗ " + msg); problems++; };
 
-console.log("\n── the home hero: the picture, its sun and the search pill ──");
+console.log("\n── the home hero: the picture, its sun, and the search link under it ──");
 
 for (const [width, height] of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width, height }, locale: "ar-KW" });
@@ -146,7 +146,9 @@ for (const [width, height] of VIEWPORTS) {
     const box = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; };
     const sun = sec.querySelector('a[href^="/find"]');
     const spans = sun ? [...sun.querySelectorAll("span")].filter((s) => s.children.length === 0 && s.textContent.trim()) : [];
-    const pill = sec.querySelector('a[href^="/search"]');
+    // The visible one: AppTabBar's tab is in the DOM and painted by nothing.
+    const pill = [...document.querySelectorAll('main a[href^="/search"]')]
+      .find((a) => a.getClientRects().length && getComputedStyle(a).visibility !== "hidden");
     return {
       img: box(img), sec: box(sec), loaded: img.complete && img.naturalWidth > 0,
       sun: sun && box(sun),
@@ -198,10 +200,8 @@ for (const [width, height] of VIEWPORTS) {
       if (worst < need) say(`${where}: «${l.text}» is ${worst.toFixed(2)}:1 against the picture under it — needs ${need}`);
     }
   }
-  if (m.pill) {
-    const seaShare = share(toMaster(m.pill), isSea);
-    if (seaShare < 1) say(`${where}: the search pill is ${(seaShare * 100).toFixed(1)}% on plain water — part of it lies on a boat or the shore`);
-  } else if (!m.pill) say(`${where}: no search pill`);
+  if (!m.pill) say(`${where}: no visible link to /search on the home page — it is the web's only one`);
+  else if (m.pill.t < img.t + img.h - 0.5) say(`${where}: «دوّر باسم المكان» is on the picture (top ${Math.round(m.pill.t)}px, picture ends ${Math.round(img.t + img.h)}px) — it belongs in the row under it`);
 
   if (problems === before) {
     const lab = m.labels.map((l) => `${l.font.toFixed(0)}px`).join("/");
@@ -217,4 +217,4 @@ if (problems) {
   console.log(`\n${problems} problem(s) — see the header of scripts/audit-home-hero.mjs and src/components/HomeHero.tsx\n`);
   process.exit(1);
 }
-console.log(`\n0 errors — the picture is whole and the sun and the pill are where it says, at ${VIEWPORTS.length} sizes.\n`);
+console.log(`\n0 errors — the picture is whole and the sun is where it says and the search link is under it, at ${VIEWPORTS.length} sizes.\n`);

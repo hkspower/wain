@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { IconSearch } from "@/components/icons";
 import { HOME_HERO as H } from "@/lib/home-hero.g";
 
 /**
@@ -24,8 +23,9 @@ import { HOME_HERO as H } from "@/lib/home-hero.g";
  * size container, positions are % of it, sizes are `cqw` of its width. The
  * sun's disc is the link to /find; the label sits on the part of the disc
  * nothing stands in front of (left of the Kuwait Towers, right of the
- * Liberation Tower's pod), and «دوّر باسم المكان» on plain water below both
- * dhows. `audit:home-hero` samples the master under each of them at 14 widths.
+ * Liberation Tower's pod). `audit:home-hero` samples the master under it at
+ * 14 widths. Nothing else goes on the picture: «دوّر باسم المكان» sat on the
+ * sea for a day and was moved under it on request — see app/page.tsx.
  */
 export default function HomeHero() {
   // Where the label's centre is, as % of the sun link's own box — the link is
@@ -106,21 +106,6 @@ export default function HomeHero() {
           </span>
         </Link>
 
-        {/* The one visible way to /search on the web — see the comment over the
-            hero in app/page.tsx. standalone:hidden: the installed app's tab bar
-            has a search tab, so in the app it would be one offer drawn twice. */}
-        <div
-          className="absolute inset-x-0 flex justify-center standalone:hidden"
-          style={{ top: `${(H.pill.y0 + H.pill.y1) / 2}%` }}
-        >
-          <Link
-            href="/search"
-            className="inline-flex min-h-6 -translate-y-1/2 items-center gap-2 rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-white active:scale-[0.98]"
-          >
-            <IconSearch className="size-4" />
-            دوّر باسم المكان
-          </Link>
-        </div>
       </div>
     </section>
   );

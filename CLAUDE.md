@@ -3354,17 +3354,20 @@ picture, so the page's `<h1>` and line are `sr-only`.
   radius 285 in the master — the rim measured on its row and its column).
   The label goes only on the part of the disc nothing stands in front of:
   right of the Liberation Tower's pod, left of the Kuwait Towers' spheres.
-  «دوّر باسم المكان» lies on the deep sea under both dhows, and stays
-  `standalone:hidden`. Everything is placed in the picture's coordinates
+  «دوّر باسم المكان» lay on the deep sea under both dhows for a day and was
+  **moved to a row under the picture on request**, so nothing but the sun's
+  label is on it; still `standalone:hidden`, still the web's one visible
+  link to /search. Everything is placed in the picture's coordinates
   (`%` of the box, `cqw` of its width), so it lands on the same pixels at
   every size; the label grows with the picture and stops at the 11px floor.
 - **`audit:home-hero` was rewritten for it** and stays in `scan`. At 14
   viewports it maps each control's box back into the master and reads the
   pixels: the picture is whole, the link is on the disc within 2px, the label
-  is ≥97% on the disc's yellow, the pill is 100% on water, the label meets AA
+  is ≥97% on the disc's yellow, the search link is under the picture and not
+  on it (proved red by pulling it up 6rem), the label meets AA
   **against the picture's own pixels**, and it re-measures the disc so a
   replaced picture cannot pass on old numbers. Every check was proved red with
-  the build green (label moved, pill moved, sun moved, picture cropped, «ابدأ»
+  the build green (label moved, sun moved, picture cropped, «ابدأ»
   under 11px, the label in sun-600, the generator's radius off by 10).
 - **`audit:color` cannot see this text's background, and was misled into
   failing it.** It reads backgrounds from CSS; the picture is an `<img>`. With

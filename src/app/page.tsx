@@ -1,7 +1,7 @@
 import Link from "next/link";
 import HomeHero from "@/components/HomeHero";
 import PlaceCard from "@/components/PlaceCard";
-import { IconCar, IconCompass, IconGo, IconSparkle } from "@/components/icons";
+import { IconCar, IconCompass, IconGo, IconSearch, IconSparkle } from "@/components/icons";
 import { getFeaturedPlaces } from "@/lib/places";
 
 export default function HomePage() {
@@ -16,15 +16,28 @@ export default function HomePage() {
           the dome, the spheres and the flag at 14 widths — went with it, and
           audit:home-hero now asks the same question of the picture.
 
-          «دوّر باسم المكان» is still on it, and still the web's one visible
-          way to /search: removing the top bar took the search button with it,
-          and every other `href="/search/"` is AppTabBar's tab, painted by
-          nothing in a browser. It is one tap and not a fork («أو كلّم شوق»
-          came out): on a page where nobody has searched yet, «باسم» and «شوق»
-          are not a choice the visitor can make. /search names all three ways
-          once you are there. Do not put the second half back here without
-          moving the /search line out of the way first. */}
+          «دوّر باسم المكان» is the row under it. It sat on the picture's sea
+          for a day and came off on request, so the picture is only the
+          picture. It is still the web's one visible way to /search: removing
+          the top bar took the search button with it, and every other
+          `href="/search/"` is AppTabBar's tab, painted by nothing in a
+          browser — so it moved rather than went. It is one tap and not a fork
+          («أو كلّم شوق» came out): on a page where nobody has searched yet,
+          «باسم» and «شوق» are not a choice the visitor can make. /search
+          names all three ways once you are there. standalone:hidden: the
+          installed app's tab bar has a search tab. */}
       <HomeHero />
+      <div className="bg-sand-50 standalone:hidden">
+        <div className="mx-auto max-w-6xl px-2.5 pt-3 text-center sm:px-4 sm:pt-4">
+          <Link
+            href="/search"
+            className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-sand-100 active:scale-[0.98]"
+          >
+            <IconSearch className="size-4" />
+            دوّر باسم المكان
+          </Link>
+        </div>
+      </div>
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">

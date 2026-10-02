@@ -48,9 +48,6 @@ const DART_OUT = join(ROOT, "flutter_app/lib/data/home_hero.g.dart");
  * here and nowhere else; audit:home-hero samples the master under them and
  * requires the disc's own yellow.
  *
- * PILL: the deep sea under both dhows (the big hull ends at y 1640) and below
- * the second dashed wave line, so «دوّر باسم المكان» lies on plain water.
- *
  * EDGE: the colour bands at the picture's left and right edges, top to bottom
  * — sky, the mint city, the dark shore, five bands of sea. On a screen wider
  * than the picture these are drawn out to the sides, so the sky and the sea
@@ -63,7 +60,6 @@ const DART_OUT = join(ROOT, "flutter_app/lib/data/home_hero.g.dart");
 const SIZE = { width: 1080, height: 1920 };
 const SUN = { cx: 540, cy: 1004, r: 285 };
 const LABEL = { x0: 290, y0: 880, x1: 640, y1: 1110 };
-const PILL = { x0: 40, y0: 1690, x1: 1040, y1: 1900 };
 const EDGE = [
   // The sky is a curve, not a line: two stops left it 2–3 units darker than
   // the picture at mid-height, and that is enough to see the picture's box.
@@ -107,14 +103,12 @@ export const HOME_HERO = {
   sun: { x: ${pct(SUN.cx, SIZE.width)}, y: ${pct(SUN.cy, SIZE.height)}, r: ${pct(SUN.r, SIZE.width)} },
   /** Where the label may sit, in % of the picture's width and height. */
   label: { x0: ${pct(LABEL.x0, SIZE.width)}, y0: ${pct(LABEL.y0, SIZE.height)}, x1: ${pct(LABEL.x1, SIZE.width)}, y1: ${pct(LABEL.y1, SIZE.height)} },
-  /** Plain sea, in % of the picture's height. */
-  pill: { y0: ${pct(PILL.y0, SIZE.height)}, y1: ${pct(PILL.y1, SIZE.height)} },
   /** The picture's edge colours, top to bottom, as a CSS gradient's stops. */
   edge: "${edgeGradient}",
 } as const;
 
 /** The same numbers in the master's own pixels, for audit:home-hero. */
-export const HOME_HERO_PX = ${JSON.stringify({ size: SIZE, sun: SUN, label: LABEL, pill: PILL })} as const;
+export const HOME_HERO_PX = ${JSON.stringify({ size: SIZE, sun: SUN, label: LABEL })} as const;
 `;
 
 const dartColor = (hex) => `Color(0xFF${hex.slice(1).toUpperCase()})`;
