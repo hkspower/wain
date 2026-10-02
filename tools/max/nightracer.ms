@@ -1,218 +1,153 @@
 /*
-  Night Racer car shells in 3ds Max.
+  Night Racer tools for 3ds Max: the loader.
 
-  Scripting > Run Script... > this file. It opens the "Night Racer" panel:
+  Scripting > Run Script... > this file.
 
-    Open style...     pick press/max/car-<style>.fbx (npm run max:export).
-                      Sets the scene to metres, imports it, and sorts it onto
-                      three layers:
-                        NR_Edit      Body, Canopy, Roof - model these.
-                        NR_Envelope  frozen, see-through: the game's own shell.
-                        NR_Context   frozen: the whole car as the game builds
-                                     it (lamps, trim, wheels), for reference.
-    Check             names, triangle counts, and how far each shell's box has
-                      moved from its Envelope, in mm. The game drops a shell
-                      more than 10 mm off (src/game/models.ts); this is the
-                      quick look, and npm run max:import is the real gate.
-    Export for game   writes ONLY Body, Canopy and Roof to
-                      <folder of the opened file>\to-game\car-<style>.fbx,
-                      in metres, triangulated, with smoothing groups and the
-                      modifier stack applied. Then, in the repo:
-                        npm run max:import -- <that to-game folder>
+    3ds Max 2023 and later   the Night Racer dock panel (tools/max/nightracer/,
+                             Python): Open, Save; Check with the game's own
+                             tests; a drift heatmap; fixes; Export and Export all.
+    3ds Max 2020-2022        the classic panel (nightracer_classic.ms): Open,
+                             a box-only Check, Export.
 
-  Rules the game holds you to:
-    - names: exactly one Body, one Canopy, one Roof (the Canopy is all the glass);
-    - frame: metres, Z up, nose toward the Front view, centred on X = 0 - as
-      it arrived; move the shells, not the frame;
-    - symmetric across X = 0 (the Symmetry modifier is the easy way);
-    - closed and facing outward: the game draws them single-sided.
+  It also adds a "Night Racer" main menu and a "Night Racer" macro category
+  (Customize > Hotkey Editor / toolbars), and remembers where it lives, so
+  the menu and macros keep working after a restart. "Install at startup"
+  (in the menu) makes Max load the menu on every launch without opening the
+  panel.
+
+  Menus: 2025 and later use the new menu system (#cuiRegisterMenus); 2020-2024
+  use menuMan. Either way it is one "Night Racer" entry on the main menu bar.
 */
 
-global NR_style = undefined
-global NR_dir = undefined
-global NR_SLOTS = #("Body", "Canopy", "Roof")
-global NR_TOL_MM = 10.0
-global NR_panel
+global NR_ROOT
+global NR_QUIET  -- set true by the startup script: register, do not open the panel
 
-fn NR_metres =
 (
-  units.DisplayType = #metric
-  units.MetricType = #meters
-  units.SystemType = #meters
-  units.SystemScale = 1.0
-)
-
-fn NR_rootName o =
-(
-  local r = o
-  while r.parent != undefined do r = r.parent
-  r.name
-)
-
-fn NR_layer name frozen =
-(
-  local l = LayerManager.getLayerFromName name
-  if l == undefined do l = LayerManager.newLayerFromName name
-  l.isFrozen = frozen
-  l
-)
-
-/* The one shell of a slot on the Edit layer (or undefined), and how many there are. */
-fn NR_shells slot =
-(
-  local hits = for o in objects where (matchPattern o.name pattern:slot ignoreCase:true) and (NR_rootName o == "NR_Edit" or o.parent == undefined) and (superClassOf o == GeometryClass) collect o
-  hits
-)
-
-fn NR_envelope slot =
-(
-  getNodeByName ("Envelope_" + slot)
-)
-
-fn NR_open symmetry:false =
-(
-  local f = getOpenFileName caption:"Night Racer: open a car style" types:"Night Racer FBX (car-*.fbx)|car-*.fbx|FBX (*.fbx)|*.fbx"
-  if f == undefined do return false
-  if not (checkForSave()) do return false
-  resetMaxFile #noPrompt
-  NR_metres()
-  FBXImporterSetParam "ResetImport"
-  FBXImporterSetParam "Mode" #create
-  FBXImporterSetParam "ScaleConversion" true
-  FBXImporterSetParam "ConvertUnit" "m"
-  FBXImporterSetParam "SmoothingGroups" true
-  FBXImporterSetParam "Cameras" false
-  FBXImporterSetParam "Lights" false
-  FBXImporterSetParam "Animation" false
-  importFile f #noPrompt using:FBXIMP
-
-  local base = getFilenameFile f
-  NR_style = if matchPattern base pattern:"car-*" then substring base 5 -1 else base
-  NR_dir = getFilenamePath f
-
-  local lEdit = NR_layer "NR_Edit" false
-  local lEnv = NR_layer "NR_Envelope" true
-  local lCtx = NR_layer "NR_Context" true
-  for o in objects do
+  local here = getFilenamePath (getSourceFileName())
+  if here != undefined and doesFileExist (here + "nightracer") do NR_ROOT = here
+  if NR_ROOT == undefined do NR_ROOT = getINISetting (getMAXIniFile()) "NightRacer" "root"
+  if NR_ROOT == "" or NR_ROOT == undefined do
   (
-    case (NR_rootName o) of
-    (
-      "NR_Edit": lEdit.addNode o
-      "NR_Envelope": (lEnv.addNode o; o.xray = true; o.renderable = false)
-      "NR_Context": (lCtx.addNode o; o.renderable = false)
-    )
+    messageBox "Night Racer: cannot find the tools/max folder. Run this file from where it lives." title:"Night Racer"
+    NR_ROOT = undefined
   )
-  if symmetry do
-    for slot in NR_SLOTS do
-      for o in (NR_shells slot) do addModifier o (Symmetry())
-  max zoomext sel all
-  format "Night Racer: opened % (style %)\n" f NR_style
+  if NR_ROOT != undefined do setINISetting (getMAXIniFile()) "NightRacer" "root" NR_ROOT
+)
+
+fn NR_maxYear = (maxVersion())[1] / 1000 - 2 + 2000   -- 25000 -> 2023, 27000 -> 2025
+fn NR_hasPython = NR_maxYear() >= 2023
+
+fn NR_py code =
+(
+  -- Puts tools/max on sys.path once, then runs `code`.
+  local root = substitutestring NR_ROOT "\\" "/"
+  python.Execute ("import sys\nif r'" + root + "' not in sys.path: sys.path.insert(0, r'" + root + "')\n" + code)
+)
+
+fn NR_panel_open =
+(
+  if NR_ROOT == undefined do return false
+  if NR_hasPython() then
+    NR_py "import importlib, nightracer.core, nightracer.maxio, nightracer.panel as P\nfor m in (nightracer.core, nightracer.maxio, P): importlib.reload(m)\nP.show()"
+  else
+  (
+    fileIn (NR_ROOT + "nightracer_classic.ms")
+    createDialog NR_panel
+  )
   true
 )
 
-fn NR_check =
+fn NR_action name =
 (
-  local lines = #()
-  local bad = 0
-  for slot in NR_SLOTS do
+  if NR_ROOT == undefined do return false
+  if NR_hasPython() then
+    NR_py ("import nightracer.panel as P\nP.action('" + name + "')")
+  else
   (
-    local hits = NR_shells slot
-    if hits.count != 1 then
+    if NR_panel == undefined do fileIn (NR_ROOT + "nightracer_classic.ms")
+    case name of
     (
-      append lines (slot + ": " + (hits.count as string) + " meshes with this name - the game needs exactly one")
-      bad += 1
-    )
-    else
-    (
-      local o = hits[1]
-      local tris = (snapshotAsMesh o).numfaces
-      local env = NR_envelope slot
-      local msg = slot + ": " + (tris as string) + " tris"
-      if env != undefined then
-      (
-        local etris = (snapshotAsMesh env).numfaces
-        if tris > etris * 1.5 do msg += " (over 1.5x the shipped " + (etris as string) + "; heavier for every car on the road)"
-        local d = amax #(abs (o.min.x - env.min.x), abs (o.max.x - env.max.x), abs (o.min.y - env.min.y), \
-                        abs (o.max.y - env.max.y), abs (o.min.z - env.min.z), abs (o.max.z - env.max.z))
-        local mm = d * 1000.0   -- system units are metres (Open style sets them)
-        msg += ", box " + (formattedPrint mm format:".1f") + " mm off the Envelope"
-        if mm > NR_TOL_MM do (msg += "  <-- OVER 10 mm: the game will drop this shell"; bad += 1)
-      )
-      else msg += " (no Envelope to compare with)"
-      if abs (o.center.x - (if env != undefined then env.center.x else 0.0)) > 0.002 do
-        msg += "  [off the centreline: keep it symmetric across X = 0]"
-      append lines msg
+      "open": NR_open()
+      "check": NR_check()
+      "export": NR_export()
+      default: messageBox "This needs 3ds Max 2023 or later (the Python panel)." title:"Night Racer"
     )
   )
-  local text = ""
-  for l in lines do text += l + "\n"
-  text += if bad == 0 then "\nBox check passes. npm run max:import runs the full gate (skin, symmetry, glass)." \
-                      else "\n" + (bad as string) + " problem(s)."
-  format "Night Racer check:\n%\n" text
-  messageBox text title:"Night Racer: check"
-  bad == 0
 )
 
-fn NR_export =
+fn NR_install =
 (
-  if units.SystemType != #meters do NR_metres()
-  try (if NR_panel.etStyle.text != "" do NR_style = NR_panel.etStyle.text) catch ()
-  if NR_style == undefined or NR_style == "" do
-  (
-    messageBox "Type the body style (gtr, sedan, ...) in the panel first." title:"Night Racer"
-    return false
-  )
-  local pick = #()
-  for slot in NR_SLOTS do
-  (
-    local hits = NR_shells slot
-    if hits.count != 1 do (messageBox ("Need exactly one " + slot + " (found " + (hits.count as string) + ").") title:"Night Racer"; return false)
-    append pick hits[1]
-  )
-  local dir = (if NR_dir != undefined then NR_dir else (getDir #export) + "\\") + "to-game"
-  makeDir dir all:true
-  local out = dir + "\\car-" + NR_style + ".fbx"
-
-  FBXExporterSetParam "ResetExport"
-  FBXExporterSetParam "Animation" false
-  FBXExporterSetParam "BakeAnimation" false
-  FBXExporterSetParam "Cameras" false
-  FBXExporterSetParam "Lights" false
-  FBXExporterSetParam "EmbedTextures" false
-  FBXExporterSetParam "SmoothingGroups" true
-  FBXExporterSetParam "Triangulate" true
-  FBXExporterSetParam "Shape" false
-  FBXExporterSetParam "Skin" false
-  FBXExporterSetParam "ScaleFactor" 1.0
-  FBXExporterSetParam "ConvertUnit" "m"
-  FBXExporterSetParam "UpAxis" "Y"
-  FBXExporterSetParam "ASCII" false
-
-  local was = selection as array
-  select pick
-  exportFile out #noPrompt selectedOnly:true using:FBXEXP
-  if was.count > 0 then select was else clearSelection()
-  format "Night Racer: wrote %\n" out
-  messageBox ("Wrote\n" + out + "\n\nIn the repo:\n  npm run max:import -- \"" + dir + "\"") title:"Night Racer: export"
-  true
+  local f = (getDir #userStartupScripts) + "\\nightracer_startup.ms"
+  local s = createFile f
+  -- Built by concatenation: MAXScript's format has no escape for a literal %.
+  local body = "-- Night Racer: registers the menu and macros at startup (written by nightracer.ms)\n" + \
+               "global NR_QUIET = true\n" + \
+               "try (fileIn @\"" + NR_ROOT + "nightracer.ms\") catch (print (getCurrentException()))\n" + \
+               "NR_QUIET = false\n"
+  format "%" body to:s
+  close s
+  messageBox ("Night Racer will load its menu at every start:\n" + f) title:"Night Racer"
 )
 
-macroScript NR_Open category:"Night Racer" buttonText:"NR Open" tooltip:"Night Racer: open a car style" (NR_open())
-macroScript NR_Check category:"Night Racer" buttonText:"NR Check" tooltip:"Night Racer: check the shells" (NR_check())
-macroScript NR_Export category:"Night Racer" buttonText:"NR Export" tooltip:"Night Racer: export Body, Canopy, Roof for the game" (NR_export())
+macroScript NR_Panel category:"Night Racer" buttonText:"Night Racer" tooltip:"Night Racer: open the panel" (NR_panel_open())
+macroScript NR_Open category:"Night Racer" buttonText:"NR Open" tooltip:"Night Racer: open a car style" (NR_action "open")
+macroScript NR_Check category:"Night Racer" buttonText:"NR Check" tooltip:"Night Racer: the game's checks" (NR_action "check")
+macroScript NR_Heatmap category:"Night Racer" buttonText:"NR Heatmap" tooltip:"Night Racer: drift heatmap" (NR_action "heatmap")
+macroScript NR_Snap category:"Night Racer" buttonText:"NR Snap" tooltip:"Night Racer: snap selected verts to the Envelope" (NR_action "snap")
+macroScript NR_Symmetric category:"Night Racer" buttonText:"NR Symmetric" tooltip:"Night Racer: make the selected shell symmetric" (NR_action "symmetric")
+macroScript NR_Export category:"Night Racer" buttonText:"NR Export" tooltip:"Night Racer: export Body, Canopy, Roof for the game" (NR_action "export")
+macroScript NR_ExportAll category:"Night Racer" buttonText:"NR Export all" tooltip:"Night Racer: export every car-*.max in a folder" (NR_action "exportall")
+macroScript NR_Install category:"Night Racer" buttonText:"NR Install at startup" tooltip:"Night Racer: load the menu at every start" (NR_install())
 
-try (destroyDialog NR_panel) catch ()
-rollout NR_panel "Night Racer" width:210
+-- ---------------------------------------------------------------- menus
+global NR_MENU_ITEMS = #( \
+  #("NR_Panel", "Night Racer panel"), #("NR_Open", "Open style..."), #("NR_Check", "Check"), \
+  #("NR_Heatmap", "Heatmap"), #("NR_Snap", "Snap verts to Envelope"), #("NR_Symmetric", "Make symmetric"), \
+  #("NR_Export", "Export for game"), #("NR_ExportAll", "Export all..."), #("NR_Install", "Install at startup"))
+
+-- 2025+: the new menu system builds menus from #cuiRegisterMenus callbacks.
+fn NR_registerMenus =
 (
-  checkbox cbSym "Add Symmetry modifier on open" checked:false
-  edittext etStyle "Style:" text:(if NR_style == undefined then "" else NR_style)
-  button bOpen "Open style..." width:180
-  button bCheck "Check" width:180
-  button bExport "Export for game" width:180
-  label lb1 "Envelope/Context are frozen refs."
-  label lb2 "Model Body, Canopy, Roof only."
-  on bOpen pressed do (if NR_open symmetry:cbSym.checked do etStyle.text = NR_style)
-  on bCheck pressed do NR_check()
-  on bExport pressed do NR_export()
+  local mgr = callbacks.notificationParam()
+  local bar = mgr.mainMenuBar
+  local sub = bar.CreateSubMenu "a3c1e5d0-4b7f-4f0e-9a52-7b1d2c3e4f50" "Night Racer"
+  local i = 0
+  for it in NR_MENU_ITEMS do
+  (
+    i += 1
+    -- 647394 is the macroScript action table; the id is "macro`category".
+    sub.CreateAction ("a3c1e5d0-4b7f-4f0e-9a52-7b1d2c3e4f" + (formattedPrint (50 + i) format:"02d")) 647394 (it[1] + "`Night Racer")
+  )
 )
-createDialog NR_panel
+
+fn NR_menus =
+(
+  if NR_maxYear() >= 2025 then
+  (
+    callbacks.removeScripts id:#NightRacerMenus
+    callbacks.addScript #cuiRegisterMenus NR_registerMenus id:#NightRacerMenus
+    -- Rebuild now, so the menu appears in this session too.
+    try
+    (
+      local mm = maxOps.GetICuiMenuMgr()
+      mm.LoadConfiguration (mm.GetCurrentConfiguration())
+    )
+    catch (format "Night Racer: the menu appears after a restart (%)\n" (getCurrentException()))
+  )
+  else
+  (
+    local old = menuMan.findMenu "Night Racer"
+    if old != undefined do menuMan.unRegisterMenu old
+    local m = menuMan.createMenu "Night Racer"
+    for it in NR_MENU_ITEMS do m.addItem (menuMan.createActionItem it[1] "Night Racer") -1
+    local bar = menuMan.getMainMenuBar()
+    bar.addItem (menuMan.createSubMenuItem "Night Racer" m) (bar.numItems() + 1)
+    menuMan.updateMenuBar()
+  )
+)
+
+if NR_ROOT != undefined do
+(
+  try (NR_menus()) catch (format "Night Racer: could not add the menu: %\n" (getCurrentException()))
+  if NR_QUIET != true do NR_panel_open()
+)
