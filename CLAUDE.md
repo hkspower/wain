@@ -5070,6 +5070,23 @@ disappeared», «device offline») on the image's default AVD; memory, disk, a
 software GPU and no host audio were set in `6c70c9d6`, as a hypothesis the next
 run tests.
 
+## Flutter 3.47.6 — 2 October, evening
+
+Asked: «upgrade flutter». Stable 3.47.6 (Dart 3.13.5), the newest stable that
+day, in `/opt/flutter` (a git checkout on `stable`: `git fetch origin stable`
+and a fast-forward, then `flutter --version`), in all seven `flutter-version`
+pins across `android-flutter.yml` and `flutter-ci.yml`, and in the README.
+`environment: sdk: ^3.13.4` is unchanged — 3.13.5 satisfies it.
+
+`flutter pub upgrade`, never `--major-versions`: share_plus 13.3.1,
+device_info_plus 13.3.0, jni 1.1.0, objective_c 9.6.2, and hooks, code_assets,
+record_use, meta, petitparser, vector_math underneath. **Held, on purpose**:
+`permission_handler` ^12 (the AGP/SDK-37 reason above, still true) and
+`cupertino_icons` 1.x. Everything else `pub outdated` lists is pinned by the
+SDK itself (material_color_utilities, test_api, xml, cross_file, cli_util),
+so it moves only with a newer Flutter. Here: analyze clean, 557 tests,
+`audit:flutter` current, `scan` exit 0. CI at `2f66e234`: see below.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
