@@ -4044,7 +4044,7 @@ and subtle motion.
   picture, so the whole composition floats, not each item. Per-item motion needs layered art,
   and the tiles are owner-replaceable from /backends (`category_art`), so a layer set would
   disagree with a replaced picture.
-- `ART_VERSION` is `20261001d` in `tile-art.js` and `category.php`.
+- `ART_VERSION` is `20261002a` in `tile-art.js` and `category.php`.
 - **Men and Women models replaced 2026-10-01** with sharp generated studio photos (~1070px tall cut-outs, was ~650 and muddy), cut by `scripts/cut-model-subjects.py` (small holes only filled, edge un-matted from white). The owner approved them.
 
 ## The page body is white, header and footer stay dark — 2026-10-01
@@ -4069,3 +4069,7 @@ Asked for as "make name of product name at grid full no hidden". The name in eve
 ## Product card edges are visible — 2026-10-02
 
 After a full CSS scan reported only quiet decorative hairlines, the owner chose "card edges only": the product card's border on the white body is `--sp-card-edge: #8a9199` (3.2:1 on white) in `65-white-body.css`, every grid. Dividers elsewhere were deliberately left soft; `test:borders` and `test:site-contrast` still REPORT them (not failures).
+
+## Men and Women tiles share one alignment — 2026-10-02
+
+"make all models as same alignment" (the owner chose the category tiles). `compose_person()` in `make-white-tiles.py` centres each figure on ONE fixed line by its TORSO (alpha centroid of the top 45%, so a stride or an elbow cannot pull the body off the line), and lays the band, stripes and shadow out from a reference box of the same size for every model. Same head height, same floor, same band on both tiles. `ART_VERSION` is `20261002a`.

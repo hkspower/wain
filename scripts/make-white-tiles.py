@@ -81,12 +81,24 @@ def compose_person(name, w, h, sharpen=False):
         r, g, b_, a_ = sub.split()
         rgb = Image.merge('RGB', (r, g, b_)).filter(ImageFilter.UnsharpMask(radius=1.6, percent=60, threshold=2))
         sub = Image.merge('RGBA', (*rgb.split(), a_))
-    x = w - sub.width - int(w * 0.14)
+    # ONE ALIGNMENT FOR BOTH MODELS, 2026-10-02 ("make all models as same alignment"): the
+    # figure is CENTRED on a fixed line and the band, stripes and shadow are laid out from a
+    # reference box of the same size for every model, so Men and Women stand in the same place
+    # on the same band whatever the width of the pose (it was right-aligned, so a wider pose
+    # sat further left and dragged its band with it).
+    ref_w = int(sh * 0.40)
+    cx = w - int(w * 0.14) - ref_w // 2
+    # by the TORSO, not the outline box: a stride or an elbow widens the box and pulls a body
+    # off the line, so the centre is the alpha centroid of the top 45% (head and shoulders)
+    a_ = np.asarray(sub.split()[3], np.float32)[: int(sub.height * 0.45)]
+    tx = int((a_.sum(axis=0) * np.arange(sub.width)).sum() / max(a_.sum(), 1))
+    x = cx - tx
+    rx = cx - ref_w // 2
     y = h - sub.height
-    img.alpha_composite(band(w, h, x - int(w * 0.06), x + sub.width + int(w * 0.10)))
-    img.alpha_composite(stripes(w, h, x - int(w * 0.17), x - int(w * 0.07), 14, 4))
+    img.alpha_composite(band(w, h, rx - int(w * 0.06), rx + ref_w + int(w * 0.10)))
+    img.alpha_composite(stripes(w, h, rx - int(w * 0.17), rx - int(w * 0.07), 14, 4))
     img = Image.composite(Image.new('RGBA', (w, h), (20, 12, 8, 255)), img,
-                          shadow(w, h, x + sub.width // 2, h - 6, sub.width * 0.6, 12))
+                          shadow(w, h, cx, h - 6, ref_w * 0.6, 12))
     img.alpha_composite(sub, (x, y))
     return img
 
