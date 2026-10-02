@@ -22,8 +22,9 @@
  *
  *   1. The generated half is current (gen-home-hero.mjs --check).
  *   2. The page does not slide sideways.
- *   3. The picture is whole: its box has the master's ratio, sits inside the
- *      section and the screen, and actually loaded.
+ *   3. The picture is whole and full width: its box has the master's ratio,
+ *      spans the screen's width, sits inside the section and the screen, and
+ *      actually loaded.
  *   4. The sun link is a circle on the picture's sun: centre and diameter
  *      within SUN_TOL_PX of the disc's, measured in the master.
  *   5. The label («إلى وين؟» and «ابدأ») lies on the disc: at least
@@ -174,6 +175,10 @@ for (const [width, height] of VIEWPORTS) {
   if (!m.loaded) say(`${where}: the picture did not load`);
   if (Math.abs(img.h / img.w - info.height / info.width) > 0.01) say(`${where}: the picture is ${Math.round(img.w)}×${Math.round(img.h)}, not the master's ratio — it is being stretched or cropped`);
   if (img.l < -0.5 || img.l + img.w > m.vw + 0.5) say(`${where}: the picture runs off the screen`);
+  // Full width at every size, on request (2 October): it used to stand at the
+  // screen's height from `sm`, centred, with its edge colours carried out to
+  // the sides. Never cropped either way — the ratio check above holds that.
+  else if (img.w < m.vw - 0.5) say(`${where}: the picture is ${Math.round(img.w)}px wide on a ${m.vw}px screen — it spans the full width`);
   if (img.t < m.sec.t - 0.5 || img.t + img.h > m.sec.t + m.sec.h + 0.5) say(`${where}: the section cuts the picture`);
 
   if (!m.sun) say(`${where}: no sun link to /find`);

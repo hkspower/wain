@@ -10,13 +10,13 @@ import { HOME_HERO as H } from "@/lib/home-hero.g";
  * and on the page they are only for a screen reader — drawing them a second
  * time would put two of each on screen.
  *
- * **The picture is never cropped.** It is 9:16, so on a phone it is the whole
- * width; from `sm` up it is as tall as the screen allows and as wide as that
- * makes it, centred, and the bands of colour at its edges — the sky, the mint
- * city, the shore, the sea — carry on to the sides (`H.edge`, measured off the
- * picture's own edge columns by gen-home-hero.mjs), with its sides faded into
- * them so a few px of mismatch never show as a seam. Cropping it to fill a
- * wide screen would cut the wordmark or the sea, whichever end lost.
+ * **The picture is never cropped, and it is the full width at every size.**
+ * It is 9:16, so on a computer it is about two and a half screens tall and the
+ * page scrolls through it — the owner's choice (2 October) over standing it at
+ * the screen's height with its edge colours carried out to the sides, which
+ * is how it shipped first. Cropping it to fill a wide screen would cut the
+ * wordmark or the sea, whichever end lost. The master is 1080px wide, so past
+ * that width the browser scales it up; there is no larger source.
  *
  * **Everything on it is placed in the picture's own coordinates**, from the
  * generated module, so it lands on the same spot at every size: the box is a
@@ -37,26 +37,15 @@ export default function HomeHero() {
   const labelCy = (((H.label.y0 + H.label.y1) / 200) * ratio - linkTopW) / ((2 * H.sun.r) / 100);
   const labelW = (H.label.x1 - H.label.x0) / (2 * H.sun.r);
   const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
-  const sizes = "(min-width: 640px) 560px, 100vw";
+  const sizes = "100vw";
 
   return (
     <section className="relative overflow-hidden">
-      {/* The picture's edge colours, carried out to the sides. A layer of its
-          own and not the section's background: everything in the section
-          would otherwise sit "on" the gradient as far as audit:color can
-          tell, and the screen-reader lines below were measured against the
-          sea. What the label really sits on is the picture, which no CSS
-          describes — audit:home-hero reads that off the master instead. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{ backgroundImage: `linear-gradient(to bottom, ${H.edge})` }}
-      />
       {/* The picture says both; these say them to everyone who does not see it. */}
       <h1 className="sr-only">وين</h1>
       <p className="sr-only">وين الطلعة اليوم؟</p>
 
-      <div className="home-hero relative mx-auto aspect-[9/16] w-full sm:h-[clamp(28rem,calc(100svh-3rem),62rem)] sm:w-auto">
+      <div className="home-hero relative aspect-[9/16] w-full">
         <picture>
           <source type="image/avif" srcSet={H.avif} sizes={sizes} />
           <source type="image/webp" srcSet={H.webp} sizes={sizes} />
@@ -70,7 +59,7 @@ export default function HomeHero() {
             height={H.height}
             alt=""
             fetchPriority="high"
-            className="home-hero-picture absolute inset-0 size-full select-none"
+            className="absolute inset-0 size-full select-none"
             draggable={false}
           />
         </picture>

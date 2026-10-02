@@ -32,26 +32,18 @@ class HomeScreen extends StatelessWidget {
 /// on it is placed in the picture's own fractions from home_hero.g.dart, so it
 /// lands on the same spot at every size.
 ///
-/// A phone shows it at full width. A tablet (Android 16 may lay one out
-/// whatever the manifest says) gets it as tall as the screen allows, centred,
-/// with the picture's edge colours carried out to the sides — the web's rule
-/// from `sm` up, and its numbers: 28rem to 62rem, the screen less 3rem.
+/// Full width on every screen, a tablet included (Android 16 may lay one out
+/// whatever the manifest says) — the web's rule, since 2 October.
 class _Hero extends StatelessWidget {
   const _Hero();
 
   @override
   Widget build(BuildContext context) {
-    final screen = MediaQuery.sizeOf(context);
-    final double pw, ph;
-    if (screen.width < 640) {
-      pw = screen.width;
-      ph = pw * kHomeHeroHeight / kHomeHeroWidth;
-    } else {
-      ph = (screen.height - 48).clamp(448.0, 992.0);
-      pw = ph * kHomeHeroWidth / kHomeHeroHeight;
-    }
-    final narrower = pw < screen.width - 0.5;
-    Widget picture = Image.asset(
+    // A tablet scrolls through a tall picture rather than seeing it stand at
+    // the screen's height between bands of its edge colours, as it did first.
+    final pw = MediaQuery.sizeOf(context).width;
+    final ph = pw * kHomeHeroHeight / kHomeHeroWidth;
+    final picture = Image.asset(
       kHomeHeroAsset,
       width: pw,
       height: ph,
@@ -59,52 +51,23 @@ class _Hero extends StatelessWidget {
       excludeFromSemantics: true,
       gaplessPlayback: true,
     );
-    if (narrower) {
-      // Faded into the bands beside it, so a band edge a few px off (the
-      // waves are not straight) never reads as a seam.
-      picture = ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (r) => const LinearGradient(
-          colors: [
-            Color(0x00000000),
-            Color(0xFF000000),
-            Color(0xFF000000),
-            Color(0x00000000),
-          ],
-          stops: [0, 0.06, 0.94, 1],
-        ).createShader(r),
-        child: picture,
-      );
-    }
-    return Container(
+    return SizedBox(
+      width: pw,
       height: ph,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: kHomeHeroEdgeColors,
-          stops: kHomeHeroEdgeStops,
-        ),
-      ),
-      alignment: Alignment.topCenter,
-      child: SizedBox(
-        width: pw,
-        height: ph,
-        child: Stack(
-          children: [
-            // The picture says both; these say them to a screen reader.
-            Semantics(
-              header: true,
-              label: 'وين — وين الطلعة اليوم؟',
-              child: picture,
-            ),
-            // No «دوّر باسم المكان» on the sea here: the app's tab bar has a
-            // search tab, so it would be the same offer twice. The website
-            // keeps it — in a browser it is the page's one way to /search —
-            // and hides it in its installed mode too.
-            _Sun(pw: pw, ph: ph),
-          ],
-        ),
+      child: Stack(
+        children: [
+          // The picture says both; these say them to a screen reader.
+          Semantics(
+            header: true,
+            label: 'وين — وين الطلعة اليوم؟',
+            child: picture,
+          ),
+          // No «دوّر باسم المكان» on the sea here: the app's tab bar has a
+          // search tab, so it would be the same offer twice. The website
+          // keeps it — in a browser it is the page's one way to /search —
+          // and hides it in its installed mode too.
+          _Sun(pw: pw, ph: ph),
+        ],
       ),
     );
   }

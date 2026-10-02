@@ -194,6 +194,8 @@ void main() {
         );
         expect(img.left, greaterThanOrEqualTo(-0.5));
         expect(img.right, lessThanOrEqualTo(size.width + 0.5));
+        // Full width on a tablet too, as on the web (2 October).
+        expect(img.width, closeTo(size.width, 0.5), reason: 'full width');
 
         final sun = t.getRect(find.byKey(const ValueKey('home-sun')));
         expect(sun.width, closeTo(sun.height, 0.5));

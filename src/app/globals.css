@@ -219,11 +219,10 @@ html[data-standalone="true"] body {
 
    A picture with its sun as the button. The box is a size container so that
    what lies on the picture can be sized in `cqw` — a share of the PICTURE,
-   which is the whole screen's width on a phone and about half a laptop
-   screen's height on a desktop. A type-scale step would put the label on the
-   disc at one size and the disc at another; these grow with the drawing they
-   are written on, and stop at the scale's floor (11px for «ابدأ») rather
-   than going under it on a short landscape screen.
+   which is the whole screen's width at every size. A type-scale step would
+   put the label on the disc at one size and the disc at another; these grow
+   with the drawing they are written on, and stop at the scale's floor (11px
+   for «ابدأ») rather than going under it on a narrow phone.
    --------------------------------------------------------------------------- */
 .home-hero {
   container-type: inline-size;
@@ -235,15 +234,6 @@ html[data-standalone="true"] body {
 .home-hero-go {
   font-size: max(0.6875rem, 3.4cqw);
   padding: 1.2cqw 4.8cqw;
-}
-/* From `sm` the picture is narrower than the screen and the section's bands
-   carry its edges out to the sides; the sides are faded into them so that a
-   band boundary a few px off (the waves are not straight) never reads as a
-   seam. On a phone the picture IS the width and there is nothing to fade to. */
-@media (min-width: 40rem) {
-  .home-hero-picture {
-    mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
-  }
 }
 
 /* ---------------------------------------------------------------------------
