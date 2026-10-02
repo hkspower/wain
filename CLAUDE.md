@@ -780,6 +780,27 @@ because `/wain-*.zip` is ignored, and short so the command stays at 201 characte
 iOS Safari, Chrome on iOS and the apps' recognisers are all untested), the app's
 /find on a device, and anything on staging that needs credits.
 
+## The 2 October deploy, fourth — `fb5d568d` is live: the hero at full width
+
+What shipped since `273439f4`: two files, `HomeHero.tsx` and `globals.css` —
+the picture full width at every size (see «The home hero is the owner's
+picture now» below). The app has the same change in the repository; it reaches
+phones only through a new build.
+
+`{"ok":true,"version":"1.1.0","deployed":265,"removed":4,"emptied":1,"at":
+"2026-10-02T17:46:02+00:00"}` through the installed caller, job `F1j0Gy4EaT`,
+read at its FIRST firing, deleted, and the listing then held sporta's eight and
+nothing else. Archive `e3d747e/wain-1.1.0.zip` (sha256 `ef57026f…`), one more
+permanent ~4MB blob with `DEPLOY_SECRET` still unset. `deploy:verify`:
+«fb5d568d is live — verified at the root and 6 levels below it» (`build.json`
+`fb5d568d…` / `752967d9dd43e803`; `css/cd29fbb005ae4a1b.css` 96,232 the only
+site stylesheet; `fb5d568d…/` the only build-id directory; the four hero files
+byte-exact). After the cache purge, through the edge: `build.json` 200 with
+`Last-Modified: 17:46:02`, the deploy's own minute, `x-hcdn-cache-status: DYNAMIC`.
+
+**Not measured**: the tall hero on a real computer screen, and how the 1080px
+master looks scaled up on a wide one.
+
 ## The 2 October deploys, second and third — `4b96415c` is live: the picture hero
 
 What shipped since `898657bc`: the home hero as the owner's picture (see «The
@@ -3412,13 +3433,14 @@ the master's hash because `.htaccess` caches stable-named media for a week.
 `HomeHero.tsx` draws it; the wordmark and «وين الطلعة اليوم؟» are in the
 picture, so the page's `<h1>` and line are `sr-only`.
 
-- **Never cropped.** Full width on a phone; from `sm` as tall as
-  `clamp(28rem, 100svh − 3rem, 62rem)` allows, centred. Beside it, the
-  picture's own edge colours run out to the screen's edges — sky, the mint
-  city, the dark shore, five bands of sea, read off columns 0–6 and 1073–1079
-  — and the picture's sides fade into them over 6%. **The sky needed seven
-  stops, not two**: a linear sky was 2–3 units darker at mid-height and that
-  was enough to see the picture's box.
+- **Never cropped, and full width at every size** (since `fb5d568d`, on
+  request). It first shipped as tall as `clamp(28rem, 100svh − 3rem, 62rem)`
+  from `sm`, centred, with its edge colours (`H.edge`, still generated) carried
+  out to the sides; the owner chose full width over that, so on a computer the
+  picture is about 2.5 screens tall and the page scrolls through it. The master
+  is 1080 wide, so past that the browser scales it up — there is no larger
+  source. `audit:home-hero` asserts the full width (red at every width ≥640 on
+  the centred layout).
 - **The sun is the button**, a circle exactly on the disc (centre (540, 1004),
   radius 285 in the master — the rim measured on its row and its column).
   The label goes only on the part of the disc nothing stands in front of:
@@ -3444,7 +3466,7 @@ picture, so the page's `<h1>` and line are `sr-only`.
   against the sea (1.06:1). The gradient is a layer of its own now, and the
   real contrast check is the one above.
 - **The app** mirrors it: the same fractions from `home_hero.g.dart`, the same
-  width rule (a tablet gets the centred, banded version), the sun a
+  width rule (full width on a tablet too), the sun a
   `Semantics(button)` that pushes /find, no search pill (the tab bar has
   search). Three widget tests hold the geometry at 390, 320 and 800 and one
   taps the sun; proved red by moving the sun 10px and, separately, the label.
