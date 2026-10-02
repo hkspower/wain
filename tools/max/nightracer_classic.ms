@@ -31,8 +31,8 @@
     - closed and facing outward: the game draws them single-sided.
 */
 
-global NR_style = undefined
-global NR_dir = undefined
+global NR_style   -- no initialiser: reopening the panel (fileIn) keeps the opened style
+global NR_dir     -- ...and the opened file's folder, where Export writes
 global NR_SLOTS = #("Body", "Canopy", "Roof")
 global NR_TOL_MM = 10.0
 global NR_panel
@@ -43,6 +43,23 @@ fn NR_metres =
   units.MetricType = #meters
   units.SystemType = #meters
   units.SystemScale = 1.0
+)
+
+-- Metres per system unit, whatever the scene is set to.
+fn NR_unitM =
+(
+  local s = case units.SystemType of
+  (
+    #inches: 0.0254
+    #feet: 0.3048
+    #miles: 1609.344
+    #millimeters: 0.001
+    #centimeters: 0.01
+    #meters: 1.0
+    #kilometers: 1000.0
+    default: 1.0
+  )
+  s * units.SystemScale
 )
 
 fn NR_rootName o =
@@ -87,7 +104,7 @@ fn NR_open symmetry:false =
   FBXImporterSetParam "Cameras" false
   FBXImporterSetParam "Lights" false
   FBXImporterSetParam "Animation" false
-  importFile f #noPrompt using:FBXIMP
+  if not (importFile f #noPrompt using:FBXIMP) do (messageBox ("FBX import failed:\n" + f) title:"Night Racer"; return false)
 
   local base = getFilenameFile f
   NR_style = if matchPattern base pattern:"car-*" then substring base 5 -1 else base
@@ -140,12 +157,12 @@ fn NR_check =
         if tris > etris * 1.5 do msg += " (over 1.5x the shipped " + (etris as string) + "; heavier for every car on the road)"
         local d = amax #(abs (o.min.x - env.min.x), abs (o.max.x - env.max.x), abs (o.min.y - env.min.y), \
                         abs (o.max.y - env.max.y), abs (o.min.z - env.min.z), abs (o.max.z - env.max.z))
-        local mm = d * 1000.0   -- system units are metres (Open style sets them)
+        local mm = d * NR_unitM() * 1000.0
         msg += ", box " + (formattedPrint mm format:".1f") + " mm off the Envelope"
         if mm > NR_TOL_MM do (msg += "  <-- OVER 10 mm: the game will drop this shell"; bad += 1)
       )
       else msg += " (no Envelope to compare with)"
-      if abs (o.center.x - (if env != undefined then env.center.x else 0.0)) > 0.002 do
+      if abs (o.center.x - (if env != undefined then env.center.x else 0.0)) > (0.002 / NR_unitM()) do
         msg += "  [off the centreline: keep it symmetric across X = 0]"
       append lines msg
     )
@@ -161,7 +178,9 @@ fn NR_check =
 
 fn NR_export =
 (
-  if units.SystemType != #meters do NR_metres()
+  -- No unit switch here: changing the system unit does not rescale the
+  -- geometry, it reinterprets it. FBX ConvertUnit "m" converts from
+  -- whatever the scene is in.
   try (if NR_panel.etStyle.text != "" do NR_style = NR_panel.etStyle.text) catch ()
   if NR_style == undefined or NR_style == "" do
   (

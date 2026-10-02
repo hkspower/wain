@@ -171,7 +171,8 @@ def open_style(fbx_path, symmetry=False):
     rt.FBXImporterSetParam("Cameras", False)
     rt.FBXImporterSetParam("Lights", False)
     rt.FBXImporterSetParam("Animation", False)
-    rt.importFile(fbx_path, rt.Name("noPrompt"), using=rt.FBXIMP)
+    if rt.importFile(fbx_path, rt.Name("noPrompt"), using=rt.FBXIMP) is False:
+        raise RuntimeError("FBX import failed: %s" % fbx_path)
 
     base = os.path.splitext(os.path.basename(fbx_path))[0]
     style = base[4:] if base.startswith("car-") else base
@@ -308,7 +309,9 @@ def snap_selected_verts():
     ep, et = read_mesh(env, game=False)
     near = core.Nearest(ep, et)
     k = unit_to_m()
-    sel = list(rt.polyop.getVertSelection(n))
+    # Iterating a pymxs BitArray yields booleans, not indices; MAXScript's
+    # "as array" gives the 1-based indices of the set bits.
+    sel = [int(i) for i in rt.execute("fn nrBitsToArray b = (b as array)")(rt.polyop.getVertSelection(n))]
     if not sel:
         raise RuntimeError("Select some vertices on %s first (vertex sub-object level)." % n.name)
     worst = 0.0

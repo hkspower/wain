@@ -393,11 +393,35 @@ class Panel(QtWidgets.QWidget):
         self._info("\n".join(render.LOG) or "Nothing logged yet.")
 
 
+DOCK_NAME = "NightRacerDock"
+
+
+def _remember_area(area):
+    QtCore.QSettings("NightRacer", "MaxTools").setValue("dock_area", int(getattr(area, "value", area)))
+
+
 def show():
     """Open (or raise) the dock, where it was last time."""
     global _dock
     import qtmax
     main = qtmax.GetQMaxMainWindow()
+    if _dock is None:
+        # nightracer.ms reloads this module before every show(), which resets
+        # _dock: find the live dock by name instead of stacking another one,
+        # and give it a panel built from the reloaded code.
+        found = main.findChildren(QtWidgets.QDockWidget, DOCK_NAME)
+        for extra in found[1:]:          # duplicates left by older versions
+            main.removeDockWidget(extra)
+            extra.setParent(None)
+            extra.deleteLater()
+        if found:
+            _dock = found[0]
+            old = _dock.widget()
+            new = Panel()
+            _dock.setWidget(new)
+            new.show()
+            if old is not None:
+                old.deleteLater()
     if _dock is not None:
         try:
             _dock.show()
@@ -406,10 +430,17 @@ def show():
         except RuntimeError:  # the C++ side was deleted with the old window
             _dock = None
     _dock = QtWidgets.QDockWidget("Night Racer", main)
-    _dock.setObjectName("NightRacerDock")  # lets Max remember where it was docked
+    _dock.setObjectName(DOCK_NAME)  # the key in Max's saved main-window layout
     _dock.setWidget(Panel())
     _dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
-    main.addDockWidget(QtCore.Qt.RightDockWidgetArea, _dock)
+    # Max restores its layout before this dock exists; restoreDockWidget picks
+    # that placement up. Failing that, the side it was last docked on.
+    if not main.restoreDockWidget(_dock):
+        s = QtCore.QSettings("NightRacer", "MaxTools")
+        left = s.value("dock_area", 0, type=int) == int(getattr(QtCore.Qt.LeftDockWidgetArea, "value",
+                                                                 QtCore.Qt.LeftDockWidgetArea))
+        main.addDockWidget(QtCore.Qt.LeftDockWidgetArea if left else QtCore.Qt.RightDockWidgetArea, _dock)
+    _dock.dockLocationChanged.connect(_remember_area)
     _dock.show()
     return _dock
 

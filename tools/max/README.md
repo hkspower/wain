@@ -15,8 +15,8 @@ In 3ds Max:
 
 1. **Scripting → Run Script… →** `tools/max/nightracer.ms`.
    - This opens the **Night Racer** dock panel.
-   - It also adds a **Night Racer** menu and macro category.
-   - Menu → **Install at startup** makes the menu load on every launch.
+   - It also adds a **Night Racer** menu and macro category. Toolbar buttons and hotkeys bound to the macros keep working after a restart.
+   - Max 2020–2024 keep the menu. Max 2025+ rebuild menus at every start, so use Menu → **Install at startup** to have it back each launch.
 2. **Open style…** and pick `press/max/car-<style>.fbx`. Its `.nr.json` must sit beside it. Four layers come in:
    - **NR_Edit**: Body, Canopy and Roof. Model these.
    - **NR_Envelope**: frozen and see-through. The shells lofted fresh from today's profiles, uncrowned: what the game expects, in your modelling frame.
@@ -147,7 +147,8 @@ npm run max:finish -- press/max/render --from preview   # final-preview/
 
 | File | Role |
 |---|---|
-| `nightracer.ms` | Loader: Python path, macros, menu, startup install |
+| `nightracer.ms` | Loader: finds its folder, defines the macros, adds the menu, opens the panel |
+| `nightracer_lib.ms` | The functions the loader, menu and macros share. A macro reloads it by itself after a restart |
 | `nightracer/core.py` | The game's tests in plain Python: crown, fit, mirror, symmetrize, nearest point |
 | `nightracer/maxio.py` | Moves meshes between the scene and core.py, and holds the open, export and fix operations |
 | `nightracer/panel.py` | The dock panel |

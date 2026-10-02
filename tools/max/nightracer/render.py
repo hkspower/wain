@@ -76,44 +76,61 @@ def look_matrix(loc, target, k):
     return rt.Matrix3(rt.Point3(*x), rt.Point3(*y), rt.Point3(*z), rt.Point3(*(c * k for c in loc)))
 
 
-def colour_space():
-    """'linear' or 'srgb': how this Max reads a colour swatch value."""
+def colour_pipeline():
+    """Put the freshly reset scene in Gamma Workflow mode and say what it is.
+
+    In that mode (and on 2023, which has no ColorPipelineMgr) a colour
+    written to a parameter is a linear Rec.709 number: the gamma setting
+    only changes how swatches are DRAWN. 8-bit textures are decoded to
+    linear, and EXRs are written linear Rec.709, which materials.json and
+    finish_render.py both assume. 3ds Max 2025+ start new scenes in OCIO
+    with an ACEScg rendering space, which would leave every texture
+    desaturated in the EXR as Blender reads it, so the pack's scene is
+    switched. (The MAXScript property is ColorPipelineMgr.mode;
+    ColorPipelineMode is only the C++ enum's name.)"""
     try:
-        if maxio_year() >= 2024 and rt.isProperty(rt.ColorPipelineMgr, "ColorPipelineMode"):
-            return "linear"
+        cpm = rt.ColorPipelineMgr          # 2024+; undefined on 2023
     except Exception:
-        pass
+        cpm = None
+    if cpm is None:
+        return "legacy gamma (2023): colours are linear"
     try:
-        if str(rt.IDisplayGamma.colorCorrectionMode) == "gamma":
-            return "srgb"
-    except Exception:
-        pass
-    return "linear"
+        before = str(cpm.mode).lstrip("#").lower()
+        if before != "gamma":
+            cpm.mode = rt.Name("gamma")
+            log("colour management: switched this scene from %s to gamma (linear Rec.709)" % before)
+        return str(cpm.mode).lstrip("#").lower()
+    except Exception as e:
+        log("colour management: could not set Gamma Workflow mode (%s); colours may not match" % e)
+        return "unknown"
 
 
 def maxio_year():
     return int(rt.maxVersion()[0]) // 1000 - 2 + 2000
 
 
-def colour(lin, mode):
-    """A swatch colour from a LINEAR value: encoded to sRGB when this Max
-    reads swatches as gamma-encoded."""
-    def enc(v):
-        v = max(0.0, min(1.0, v))
-        if mode != "srgb":
-            return v
-        return 12.92 * v if v <= 0.0031308 else 1.055 * v ** (1 / 2.4) - 0.055
-    return rt.Color(*(enc(v) * 255.0 for v in lin))
+def colour(lin, mode=None):
+    """A swatch colour from a LINEAR Rec.709 value, written as is: Max reads
+    a parameter colour as linear in every mode this script leaves the scene
+    in. (`mode` is kept for the callers; it is always linear now.)"""
+    return rt.Color(*(max(0.0, min(1.0, v)) * 255.0 for v in lin))
 
 
 # ---------------------------------------------------------------- materials
 
-def bitmap(pack, rel, mapping=None, alpha=False, clamp=False):
+def bitmap(pack, rel, mapping=None, alpha=False, clamp=False, raw=False):
     path = os.path.normpath(os.path.join(pack, rel))
     if not os.path.exists(path):
         log("missing texture %s" % path)
         return None
     b = rt.Bitmaptexture(filename=path)
+    if raw:
+        # Vectors, not colours: an 8-bit PNG would otherwise be decoded with
+        # gamma 2.2, which turns a flat 0.5 into 0.21 and bends every normal.
+        try:
+            b.bitmap = rt.openBitMap(path, gamma=1.0)
+        except Exception as e:
+            log("could not load %s as raw data (normals will be gamma-decoded): %s" % (path, e))
     if alpha:
         set_prop(b, "monoOutput", 1)      # alpha as the mono output
         set_prop(b, "alphaSource", 0)     # the image's own alpha
@@ -121,12 +138,22 @@ def bitmap(pack, rel, mapping=None, alpha=False, clamp=False):
         set_prop(b.coords, "U_Tile", False)
         set_prop(b.coords, "V_Tile", False)
     if mapping:
+        # Blender's Mapping node (Point): t = R(rot) S uv + L, about UV (0, 0).
+        # Max's StandardUVGen: t = R(w) S (uv - 0.5 - off) + 0.5, about the
+        # map centre, with the offset a displacement of the map; W turns the
+        # same way as Blender's Z. So off = S^-1 R(-rot) (0.5 - L) - 0.5.
+        # (No pack has a transform today; this is for the first that does.)
         c = b.coords
-        set_prop(c, "U_Offset", mapping["offset"][0])
-        set_prop(c, "V_Offset", mapping["offset"][1])
-        set_prop(c, "U_Tiling", mapping["scale"][0])
-        set_prop(c, "V_Tiling", mapping["scale"][1])
-        set_prop(c, "W_Angle", math.degrees(mapping["rotation"]))
+        (lx, ly), (sx, sy), rot = mapping["offset"], mapping["scale"], mapping["rotation"]
+        sx = sx if abs(sx) > 1e-9 else 1e-9
+        sy = sy if abs(sy) > 1e-9 else 1e-9
+        a, d = 0.5 - lx, 0.5 - ly
+        cr, sr = math.cos(rot), math.sin(rot)
+        set_prop(c, "U_Tiling", sx)
+        set_prop(c, "V_Tiling", sy)
+        set_prop(c, "U_Offset", (a * cr + d * sr) / sx - 0.5)
+        set_prop(c, "V_Offset", (-a * sr + d * cr) / sy - 0.5)
+        set_prop(c, "W_Angle", math.degrees(rot))
     return b
 
 
@@ -144,12 +171,17 @@ def physical(name, m, pack, mode):
         set_prop(p, ("coating", "coat_weight"), m["coat"])
         set_prop(p, "coat_roughness", m["coat_roughness"])
         set_prop(p, "coat_ior", 1.5)
+        # Physical defaults both to 0.5, darkening and roughening the base
+        # under the coat; Blender's Principled coat and three.js clearcoat
+        # do neither (Arnold standard_surface's own default is 0 too).
+        set_prop(p, "coat_affect_color", 0.0)
+        set_prop(p, "coat_affect_roughness", 0.0)
     if m.get("base_tex"):
         t = bitmap(pack, m["base_tex"], m.get("base_tex_map"), clamp=m.get("base_tex_clamp", False))
         if t:
             set_prop(p, "base_color_map", t)
     if m.get("normal_tex"):
-        t = bitmap(pack, m["normal_tex"])
+        t = bitmap(pack, m["normal_tex"], raw=True)
         if t:
             nb = rt.Normal_Bump()
             set_prop(nb, "normal_map", t)
@@ -226,7 +258,11 @@ def arnold_available():
 
 
 def quad_light(L, k, scale, mode):
-    """One studio light. Blender area watts -> normalised radiance P / (pi A)."""
+    """One studio light. Blender area watts P -> radiance P / (pi A), given to
+    Arnold UN-normalised: with normalize off, intensity is the radiance itself,
+    whatever the light's size and the scene's units. (With it on, Arnold
+    divides by the area again: the key would come out 8.6x too dark and the
+    fill 17.5x.)"""
     area = L["size"] * L["size_y"]
     radiance = L["energy"] / (math.pi * area) * scale
     if L.get("down"):
@@ -235,15 +271,15 @@ def quad_light(L, k, scale, mode):
         target = L["target"]
     if arnold_available():
         a = rt.Arnold_Light()
-        set_prop(a, ("lightShape", "shape"), 3)       # quad
+        set_prop(a, ("shapeType", "lightShape"), 3)   # MAXtoA shapeType: 3 = Quad
         set_prop(a, "quadX", L["size"] * k)
         set_prop(a, "quadY", L["size_y"] * k)
-        set_prop(a, "normalize", True)
+        set_prop(a, "normalize", False)
         set_prop(a, "intensity", radiance)
         set_prop(a, "exposure", 0.0)
         set_prop(a, "color", colour(L["color"], mode))
         set_prop(a, "spread", min(1.0, L["spread_deg"] / 180.0))
-        set_prop(a, ("camera", "cameraVisibility"), 0.0)
+        hide_from_camera(a)
         set_prop(a, "samples", 2)
     else:
         a = rt.Free_Area()   # photometric fallback: lights, but not matched
@@ -254,6 +290,18 @@ def quad_light(L, k, scale, mode):
     a.name = "NR_" + L["name"]
     a.transform = look_matrix(L["loc"], target, k)
     return a
+
+
+def hide_from_camera(light):
+    """Lights light, and show in reflections, but the camera never sees them
+    (as in the Blender studio). The shape's own visibility is the switch;
+    the Contribution panel's camera weight goes to 0 too where it exists."""
+    set_prop(light, "lightShapeVisible", False)
+    try:
+        if rt.isProperty(light, "camera"):
+            light.camera = 0.0
+    except Exception:
+        pass
 
 
 def build_studio(pack, spec, light_scale=1.0, mode="linear"):
@@ -277,10 +325,11 @@ def build_studio(pack, spec, light_scale=1.0, mode="linear"):
     if arnold_available():
         sky = rt.Arnold_Light()
         sky.name = "NR_World"
-        set_prop(sky, ("lightShape", "shape"), 6)         # skydome
+        set_prop(sky, ("shapeType", "lightShape"), 6)     # MAXtoA shapeType: 6 = Skydome
         set_prop(sky, "color", colour(spec["world"], mode))
         set_prop(sky, "intensity", 1.0 * light_scale)
-        set_prop(sky, ("camera", "cameraVisibility"), 0.0)
+        set_prop(sky, "exposure", 0.0)
+        hide_from_camera(sky)
         made.append(sky)
     rt.backgroundColor = rt.Color(0, 0, 0)
 
@@ -310,6 +359,7 @@ def open_pack(pack, light_scale=1.0, colours="auto"):
     mats = json.load(open(os.path.join(pack, "materials.json")))
     rt.resetMaxFile(rt.Name("noPrompt"))
     maxio.metres()
+    log("colour management: %s" % colour_pipeline())
     rt.FBXImporterSetParam("ResetImport")
     rt.FBXImporterSetParam("Mode", rt.Name("create"))
     rt.FBXImporterSetParam("ScaleConversion", True)
@@ -319,12 +369,18 @@ def open_pack(pack, light_scale=1.0, colours="auto"):
     rt.FBXImporterSetParam("Lights", False)
     rt.FBXImporterSetParam("Animation", False)
     before = set(str(n.handle) for n in rt.objects)
-    rt.importFile(os.path.join(pack, spec["fbx"]), rt.Name("noPrompt"), using=rt.FBXIMP)
+    fbx = os.path.join(pack, spec["fbx"])
+    if not os.path.isfile(fbx):
+        raise RuntimeError("FBX not found: %s" % fbx)
+    ok = rt.importFile(fbx, rt.Name("noPrompt"), using=rt.FBXIMP)
     car = [n for n in rt.objects if str(n.handle) not in before]
+    if ok is False or not car:
+        # Without this a failed import renders an empty studio, and the batch
+        # would count those EXRs as done.
+        raise RuntimeError("FBX import failed or brought in nothing: %s" % fbx)
     k = 1.0 / maxio.unit_to_m()
 
-    mode = colours if colours in ("linear", "srgb") else colour_space()
-    log("colour swatches read as %s" % mode)
+    mode = "linear"
     n, missing = apply_materials(pack, mats, mode)
     log("%d Physical Materials built from materials.json" % n)
 
@@ -362,7 +418,10 @@ def arnold_quality(aa=6, diffuse=3, specular=3, transmission=4):
 
 def _render(cam, path, w, h):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    bm = rt.render(camera=cam, outputwidth=w, outputheight=h, outputfile=path, vfb=False, quiet=True)
+    # outputHDRbitmap: a 32-bit float buffer, or the EXR is clipped at 1.0
+    # before finish_render.py's ACES view ever sees the highlights.
+    bm = rt.render(camera=cam, outputwidth=w, outputheight=h, outputfile=path,
+                   outputHDRbitmap=True, vfb=False, quiet=True)
     return bm
 
 

@@ -44,7 +44,10 @@ class P3(tuple):
 
 
 scene = {"objects": [], "renders": [], "saved": [], "rot": []}
-NO_PROPS = {"Arnold_Light": {"shape", "cameraVisibility"}, "PhysicalMaterial": {"coat_weight"}}
+# Names the code must NOT rely on (the review found them absent in MAXtoA /
+# Physical Material): the mock rejects them so a regression shows up here.
+NO_PROPS = {"Arnold_Light": {"shape", "lightShape", "cameraVisibility", "camera"},
+            "PhysicalMaterial": {"coat_weight"}}
 
 
 def make(cls):
@@ -74,8 +77,9 @@ rt.Name = lambda s: "#" + s
 rt.classOf = lambda o: getattr(o, "cls", type(o).__name__)
 rt.isProperty = lambda o, n: n not in NO_PROPS.get(getattr(o, "cls", ""), set())
 rt.maxVersion = lambda: [27000]
-rt.IDisplayGamma = types.SimpleNamespace(colorCorrectionMode="none")
-rt.ColorPipelineMgr = types.SimpleNamespace(ColorPipelineMode="OCIO")
+rt.IDisplayGamma = types.SimpleNamespace(colorCorrectionMode="gamma")   # 2023's default: must NOT re-encode
+rt.ColorPipelineMgr = types.SimpleNamespace(mode="#OCIO_Default")       # 2025+'s default: must switch to gamma
+rt.openBitMap = lambda path, **kw: Obj("Bitmap", filename=path, **kw)
 rt.renderers = types.SimpleNamespace(current=None)
 rt.SceneExposureControl = types.SimpleNamespace(exposureControl="x")
 rt.units = types.SimpleNamespace(decodeValue=lambda s: 1.0)
@@ -100,7 +104,12 @@ def import_file(path, *a, **kw):
     scene["objects"].append(o)
 
 
-rt.importFile = import_file
+def import_ok(path, *a, **kw):
+    import_file(path)
+    return True
+
+
+rt.importFile = import_ok
 rt.nrSubCount = lambda m: len(m.subs)
 rt.nrGetSub = lambda m, i: m.subs[i - 1]
 rt.nrSetSub = lambda m, i, s: m.subs.__setitem__(i - 1, s)
@@ -109,6 +118,8 @@ rt.backgroundColor = None
 
 
 def render(camera=None, outputwidth=0, outputheight=0, outputfile="", **kw):
+    if not kw.get("outputHDRbitmap"):
+        scene.setdefault("ldr", []).append(outputfile)
     scene["renders"].append((camera.name, outputwidth, outputheight, outputfile,
                              next(o for o in scene["objects"] if o.name == "NR_Turntable").rotation))
     return Obj("Bitmap")
@@ -148,10 +159,32 @@ decal = next(m for m in built if m.name == "decal")
 if "cutout_map" not in decal.set or "base_color_map" not in decal.set:
     fails.append(f"decal maps: {sorted(decal.set)}")
 
+# Colour: the scene is put in Gamma Workflow, and swatches are written as
+# the linear numbers (paint base 0.003347 -> 0.853 of 255, not 11).
+if str(rt.ColorPipelineMgr.mode).lstrip("#").lower() != "gamma":
+    fails.append(f"colour pipeline left at {rt.ColorPipelineMgr.mode}")
+if abs(paint.set["base_color"][0] - mats["paint"]["base"][0] * 255) > 1e-6:
+    fails.append(f"paint base colour {paint.set['base_color']} is not the linear value")
+if paint.set.get("coat_affect_color") != 0.0 or paint.set.get("coat_affect_roughness") != 0.0:
+    fails.append("coat still darkens/roughens the base")
+tyre = next((m for m in built if m.name == "tire"), None)
+if tyre is not None:
+    nm = tyre.set.get("bump_map").set.get("normal_map")
+    if nm is None or getattr(nm, "bitmap", None) is None or nm.bitmap.gamma != 1.0:
+        fails.append("tyre normal map not loaded raw (gamma 1.0)")
+
 # Lights: five quads, a skydome; positions and aim.
 lights = [o for o in scene["objects"] if o.cls == "Arnold_Light"]
-quads = [l for l in lights if l.set.get("lightShape") == 3]
-sky = [l for l in lights if l.set.get("lightShape") == 6]
+quads = [l for l in lights if l.set.get("shapeType") == 3]
+sky = [l for l in lights if l.set.get("shapeType") == 6]
+for l in lights:
+    if l.set.get("lightShapeVisible") is not False:
+        fails.append(f"{l.name} is visible to the camera")
+    if "camera" in l.set:
+        fails.append(f"{l.name}: set a 'camera' property the mock says does not exist")
+for l in quads:
+    if l.set.get("normalize") is not False:
+        fails.append(f"{l.name}: normalize must be off (intensity is already per area)")
 if len(quads) != 5 or len(sky) != 1:
     fails.append(f"lights: {len(quads)} quads, {len(sky)} skydomes")
 
@@ -199,6 +232,17 @@ if any(abs(r - i * step) > 1e-9 for i, r in enumerate(rots)):
     fails.append(f"turntable rotation {rots}")
 if len(scene["saved"]) != 3:
     fails.append(f"quick PNGs {scene['saved']}")
+if scene.get("ldr"):
+    fails.append(f"rendered without a float buffer (EXR clipped at 1.0): {scene['ldr'][:2]}")
+
+# A failed FBX import is an error, not an empty studio rendered as "ok".
+rt.importFile = lambda *a, **kw: False
+try:
+    R.open_pack(pack)
+    fails.append("open_pack carried on after a failed FBX import")
+except RuntimeError as e:
+    print("failed import ->", e)
+rt.importFile = import_ok
 
 # render_all: three packs, one already rendered (skipped), one broken (logged,
 # the batch goes on), one rendered.
@@ -208,6 +252,7 @@ for car in ("done-car", "broken-car", "fresh-car"):
     os.makedirs(os.path.join(root, car))
     shutil.copy(os.path.join(pack, "studio.json"), os.path.join(root, car))
     shutil.copy(os.path.join(pack, "materials.json"), os.path.join(root, car))
+    open(os.path.join(root, car, spec["fbx"]), "w").close()   # the stand-in import never reads it
 os.makedirs(os.path.join(root, "done-car", "out"))
 for shot in ("hero", "side", "rear"):
     open(os.path.join(root, "done-car", "out", shot + ".exr"), "w").close()
