@@ -197,9 +197,9 @@
      actually ships — Anton for headings, IBM Plex Sans for body, IBM Plex Sans
      Arabic behind both. This used to be one Alexandria stack, which stopped
      being "what the shop uses today" the day the swap landed. */
-  var STACK_BODY = '"IBM Plex Sans", "IBM Plex Sans Arabic", ' +
+  var STACK_BODY = '"IBM Plex Sans", Alexandria, "IBM Plex Sans Arabic", ' +
                    '"Plex Arabic Fallback", system-ui, sans-serif'
-  var STACK_HEAD = 'Anton, "IBM Plex Sans Arabic", "Alexandria Fallback", ' +
+  var STACK_HEAD = 'Anton, Alexandria, "IBM Plex Sans Arabic", "Alexandria Fallback", ' +
                    'system-ui, sans-serif'
 
   fetch('/api/api.php?r=theme', { credentials: 'omit' })

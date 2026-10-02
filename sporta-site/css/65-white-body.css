@@ -17,7 +17,10 @@
   [data-theme='dark'] body[data-canvas='silver'] {
     background-color: var(--sp-body-bg, #fff) !important;
   }
-  [data-theme='dark'] main {
+  /* NOT the /backends panel: its content area is ALSO a <main> (.admin-content), inside a shell
+     the dark theme paints dark. Flipping its variables made the panel's text dark ink on dark
+     grey (measured 2026-10-02: "Orders" #171a1e on #24272a). */
+  [data-theme='dark'] main:not(.admin-content) {
     --sp-black: #fff;
     --sp-tile: #f2f3f5;
     --sp-panel: #fff;
@@ -46,7 +49,7 @@
      dark page. The hero's display titles are white over photographs and stay so. */
   /* The :not()s are specificity, not intent: 58-page-titles.css names its h1s through
      :is(...):not(.font-display) at (0,3,2), and both sides are !important. */
-  [data-theme='dark'] main h1:not(.display-title):not(.font-display):not(.sr-only):not([hidden]) {
+  [data-theme='dark'] main:not(.admin-content) h1:not(.display-title):not(.font-display):not(.sr-only):not([hidden]) {
     color: var(--sp-text) !important;
   }
 
@@ -54,7 +57,7 @@
      logo: the product page's sticky buy bar, the promo panels (free returns, 24-hour delivery)
      and the logo strip under the product. They keep the dark page's variables, so everything
      inside them resolves as it did. */
-  [data-theme='dark'] main :is(.action-bar, .bg-ink-silver, div.grid > article > a[class*="aspect-"], div:has(> picture > img[src*='logo-white'])) {
+  [data-theme='dark'] main:not(.admin-content) :is(.action-bar, .bg-ink-silver, div.grid > article > a[class*="aspect-"], div:has(> picture > img[src*='logo-white'])) {
     --sp-black: #1e2023;
     --sp-tile: #24272a;
     --sp-panel: #2d3034;

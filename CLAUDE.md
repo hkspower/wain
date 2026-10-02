@@ -4125,3 +4125,13 @@ Asked as "make categories pages all without category image" and "make model at c
 
 - `category.php` draws no picture now: the kicker and title (with its orange bar) sit at the top of the white page in the grid's own column, then the count and the grid. The art stays the page's `og:image` for link previews.
 - The red outfit was turned black on the owner's photo (`/tmp` only, not in the repository): the garment is the deep cherry red (`H<=3 or >=168`, `S>175`) plus its shadowed edges next to it, mapped to 8-52 grey levels so the folds stay. **Skin is hue 7-8 and the fabric 0-2 / 175+**: a looser mask (`H<=12`, `S>70`) turned the face and hands grey. Clarity is CLAHE plus an unsharp mask applied to the person AFTER the cut (before it, it brightened the background into the mask). The background sweep spares the head (eye whites) and fills holes under 150px (fingernails), but not the larger enclosed gap by the hip. `ART_VERSION` is `20261002c`.
+
+## Centred home headings, Alexandria for Arabic, panel on a phone — 2026-10-02
+
+"Shop by category" and "Best sellers" are centred with a short orange bar under them (`66-section-heads.css`). The "View all" link and `section-heads.js` are gone. Arabic text now uses Alexandria: it comes right after the Latin face in both font stacks (`25-fonts.css`, `theme.js`), so `unicode-range` sends Arabic characters to it.
+
+**The white body had reached the panel.** `65-white-body.css` redefined the variables on every `main`, and the panel's content area is `main.admin-content`, so the panel showed dark text on dark cards. All three selectors are now `main:not(.admin-content)`. `67-panel-mobile.css` makes the phone list rows (`.m-row`) dark cards with their text at the start side, enlarges the Brands captions, and gives the Move buttons a 44px target.
+
+**Do NOT add `section{min-width:0}` to the panel.** It squeezed the Security cards into thin columns.
+
+"مشاهدة الجديد" was found nowhere: not in the code, the bundle, the slides, `site_text`, the banner, the footer or the hero artwork. A screenshot from the owner is needed.

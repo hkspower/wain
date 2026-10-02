@@ -1,0 +1,29 @@
+/* /backends on a phone, 2026-10-02.
+   Lists render as .m-row buttons there. They came out as white cards with pale,
+   centred text (the button's own flex centring), so each row is a dark card
+   with its text at the start side, matching the panel. */
+html[data-theme='dark'] .admin-shell .m-row {
+  background: var(--sp-panel, #2d3034) !important;
+  border: 1px solid var(--sp-line, #494e54) !important;
+  color: var(--sp-text, #f4f5f6) !important;
+  text-align: start !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+html[data-theme='dark'] .admin-shell .m-row * { text-align: start !important; }
+html[data-theme='dark'] .admin-shell .m-row .m-row__top { justify-content: flex-start !important; }
+html[data-theme='dark'] .admin-shell .m-row .m-row__title,
+html[data-theme='dark'] .admin-shell .m-row .text-slate-900,
+html[data-theme='dark'] .admin-shell .m-row .text-slate-800,
+html[data-theme='dark'] .admin-shell .m-row .font-bold { color: var(--sp-text, #f4f5f6) !important; }
+
+/* Brands: the 11px captions were too small to read on a phone. */
+html[data-theme='dark'] .admin-shell p[class~="text-[0.7rem]"],
+html[data-theme='dark'] .admin-shell .sbl-logo-none { font-size: 12px !important; }
+
+@media (pointer: coarse) {
+  html[data-theme='dark'] .admin-shell button[aria-label^="Move"] {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+}

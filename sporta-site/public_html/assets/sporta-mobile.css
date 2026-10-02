@@ -104,7 +104,7 @@ section:has(> [class~="grid"] > .cat-tile) {
 }
 @media (max-width: 767px) {
 html, :host, body, .eyebrow {
-  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+  font-family: 'IBM Plex Sans', 'Alexandria', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
 }
 }
 @media (max-width: 767px) {
@@ -348,7 +348,4 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-bran
     padding: 3px 10px !important;
     margin-bottom: 6px !important;
   }
-}
-@media (max-width: 767px) {
-.sporta-section-all svg { width: 16px; height: 16px; }
 }

@@ -45,9 +45,9 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK, '1')
-    card.style.cssText = 'margin:24px auto;max-width:900px;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
+    card.style.cssText = 'margin:24px auto;max-width:min(900px,100%);min-width:0;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
     var h = document.createElement('h2'); h.style.cssText = 'margin:0 0 6px;font-size:16px'; h.textContent = 'Sign-in history'
-    var sub = document.createElement('p'); sub.style.cssText = 'margin:0 0 12px;font-size:13px;opacity:.75;line-height:1.5'
+    var sub = document.createElement('p'); sub.style.cssText = 'margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;opacity:.75;line-height:1.5'
     var wrap = document.createElement('div'); wrap.style.cssText = 'overflow-x:auto'
     card.appendChild(h); card.appendChild(sub); card.appendChild(wrap)
     var host = anchor.parentNode

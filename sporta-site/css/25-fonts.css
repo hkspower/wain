@@ -73,10 +73,14 @@
   unicode-range: U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
+/* ARABIC IS ALEXANDRIA, 2026-10-02 ("use better font arabic"; the owner chose Alexandria).
+   The Latin faces come first and cover only Latin (their unicode-range), so Arabic letters fall
+   to the next family: Alexandria's Arabic subset, a variable 100-900 face the bundle already
+   declares. Plex Arabic stays behind it as the fallback. */
 h1, h2, h3, .font-display {
-  font-family: 'Anton', 'IBM Plex Sans Arabic', 'Alexandria Fallback', system-ui, sans-serif !important;
+  font-family: 'Anton', 'Alexandria', 'IBM Plex Sans Arabic', 'Alexandria Fallback', system-ui, sans-serif !important;
 }
 html, :host, body, .eyebrow {
-  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+  font-family: 'IBM Plex Sans', 'Alexandria', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
 }
 
