@@ -33,7 +33,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -220,15 +220,19 @@ const commit = archiveBuild.commit;
 const zipBytes = statSync(archive).size;
 const zipSha = createHash("sha256").update(readFileSync(archive)).digest("hex");
 
-/* ── every file the export contains, with its size ───────────────────────── */
+/* ── every file the ARCHIVE contains, with its size ──────────────────────── */
+// Read out of the zip, not out/. The sizes written here are what
+// `deploy:verify` later demands of the live server, and the server holds the
+// archive's bytes. On 3 October out/ had been rebuilt one commit later than the
+// archive, so the plan named `_next/static/<out's commit>/` and verify called
+// the real build-id directory «expected undefined» on a deploy that had landed.
 const files = {};
-(function walk(dir) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) walk(p);
-    else files[relative(OUT, p).split("\\").join("/")] = statSync(p).size;
-  }
-})(OUT);
+for (const line of execFileSync("unzip", ["-l", archive], { encoding: "utf8", maxBuffer: 1 << 24 }).split("\n")) {
+  const m = line.match(/^\s*(\d+)\s+\d{4}-\d\d-\d\d\s+\d\d:\d\d\s+(.+)$/);
+  if (m && !m[2].endsWith("/")) files[m[2]] = Number(m[1]);
+}
+if (!Object.keys(files).length) fail(`could not list ${relative(ROOT, archive)}`);
+const fromArchive = (f) => execFileSync("unzip", ["-p", archive, f], { encoding: "utf8", maxBuffer: 1 << 24 });
 
 /**
  * The proofs that are not at the root.
@@ -259,7 +263,7 @@ const files = {};
 const referenced = new Set();
 for (const f of Object.keys(files)) {
   if (!f.endsWith(".html")) continue;
-  const html = readFileSync(join(OUT, f), "utf8");
+  const html = fromArchive(f);
   for (const m of html.matchAll(/\/?_next\/static\/[^"'()\\\s]+?\.(?:js|css)/g)) {
     referenced.add(decodeURIComponent(m[0].replace(/^\//, "")));
   }
