@@ -18,6 +18,7 @@ import '../data/voice_lines.dart';
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/back_fab.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 import '../widgets/typing_dots.dart';
@@ -298,13 +299,8 @@ class _SalemScreenState extends State<SalemScreen> {
                 padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
                 child: Row(
                   children: [
-                    IconButton(
-                      tooltip: 'رجوع',
-                      onPressed: () => context.canPop()
-                          ? context.pop()
-                          : context.go('/find'),
-                      icon: WainSvg.icon('back', size: 24, color: Colors.white),
-                    ),
+                    const BackFab(fallback: '/find'),
+                    const SizedBox(width: 8),
                     const CircleAvatar(
                       radius: 20,
                       backgroundImage: AssetImage('assets/img/salem-face.jpg'),

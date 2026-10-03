@@ -10,7 +10,7 @@ import '../data/find_moment.dart';
 import '../share/hangout.dart' show msToNextKuwaitHour;
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
-import '../widgets/svg.dart';
+import '../widgets/back_fab.dart';
 
 /// /find — two halves: شوق's call on top, drawn as a phone with one big call
 /// button (the web's, 2 October), and a typed conversation below. Both lead to the same place (/search is where a call's answer
@@ -151,13 +151,7 @@ class _FindScreenState extends State<FindScreen> {
           PositionedDirectional(
             top: MediaQuery.paddingOf(context).top + 8,
             start: 8,
-            child: IconButton(
-              tooltip: 'رجوع',
-              onPressed: () =>
-                  context.canPop() ? context.pop() : context.go('/'),
-              icon: WainSvg.icon('back', size: 24, color: Colors.white),
-              style: IconButton.styleFrom(backgroundColor: Colors.black38),
-            ),
+            child: const BackFab(),
           ),
         ],
       ),

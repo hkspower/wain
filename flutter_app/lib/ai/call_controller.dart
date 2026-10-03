@@ -242,7 +242,9 @@ class CallController extends ChangeNotifier {
         if (token != _token) return;
         if (message == kNoSpeech) {
           _fail(CallCopy.noSpeech);
-        } else if (local && _phase == CallPhase.ringing) {
+        } else if (local) {
+          // The phone's recogniser gave up, ringing or live. It used to end a
+          // live call as «انتهت المكالمة», which says she hung up on them.
           _fail(CallCopy.speechUnavailable);
         } else if (_phase == CallPhase.ringing) {
           _fail(CallCopy.callFailed);

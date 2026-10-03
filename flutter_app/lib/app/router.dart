@@ -17,6 +17,7 @@ import '../screens/privacy_screen.dart';
 import '../screens/salem_screen.dart';
 import '../screens/search_screen.dart';
 import '../share/hangout.dart';
+import '../widgets/back_fab.dart';
 import 'shell.dart';
 
 /// A screen opened ON TOP of the tabs: a place, /find, سالم, the static pages.
@@ -31,9 +32,34 @@ import 'shell.dart';
 /// These live on the ROOT navigator, outside the tab shell, so they cover the
 /// tab bar the way a pushed screen does in a native app, and the tab they
 /// were opened from is still there, scrolled where it was, when they close.
-Page<void> _pushed(GoRouterState s, Widget child) => MaterialPage<void>(
+///
+/// Each carries the round back button (BackFab) at the top-start corner, over
+/// a 56px band the screen starts below, so at rest it covers nothing — the
+/// website's BackButton, 3 October. /find and /salem draw their own: one is a
+/// full-bleed photograph, the other a header with a portrait in that corner.
+Page<void> _pushed(
+  GoRouterState s,
+  Widget child, {
+  bool back = true,
+  String fallback = '/',
+}) => MaterialPage<void>(
   key: s.pageKey,
-  child: Scaffold(body: SafeArea(child: child)),
+  child: Scaffold(
+    body: SafeArea(
+      child: back
+          ? Stack(
+              children: [
+                Padding(padding: const EdgeInsets.only(top: 56), child: child),
+                PositionedDirectional(
+                  top: 4,
+                  start: 8,
+                  child: BackFab(fallback: fallback),
+                ),
+              ],
+            )
+          : child,
+    ),
+  ),
 );
 
 /// The three tab roots switch in place, the way a tab bar does: no slide, and
@@ -95,11 +121,11 @@ GoRouter buildRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: '/find',
-        pageBuilder: (_, s) => _pushed(s, const FindScreen()),
+        pageBuilder: (_, s) => _pushed(s, const FindScreen(), back: false),
       ),
       GoRoute(
         path: '/salem',
-        pageBuilder: (_, s) => _pushed(s, const SalemScreen()),
+        pageBuilder: (_, s) => _pushed(s, const SalemScreen(), back: false),
       ),
       GoRoute(
         path: '/about',
@@ -124,6 +150,7 @@ GoRouter buildRouter({String initialLocation = '/'}) {
             place: getPlace(s.pathParameters['slug']!)!,
             invite: readInvite(s.uri.query),
           ),
+          fallback: '/explore',
         ),
       ),
       GoRoute(path: '/404', builder: (_, _) => const NotFoundScreen()),

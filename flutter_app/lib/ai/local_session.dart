@@ -24,24 +24,51 @@ import 'call_controller.dart';
 abstract class Recognizer {
   Future<bool> init({required void Function(String error) onError});
 
-  /// Listens once; [onWords] gets every partial and the final result.
+  /// The locales this phone can recognise, as the platform names them.
+  Future<List<String>> localeIds();
+
+  /// Listens once; [onWords] gets every partial and the final result. A null
+  /// [localeId] is the phone's own language.
   Future<void> listen({
-    required String localeId,
+    required String? localeId,
     required void Function(String words, bool isFinal) onWords,
   });
   Future<void> stop();
 }
 
-class DeviceRecognizer implements Recognizer {
+/// The speech plugin, as it actually behaves — which is the part that went
+/// wrong. `SpeechToText()` is one object per process, and `initialize` returns
+/// at once after the first success, keeping the FIRST call's `onError` for
+/// ever. Every call made a new recogniser and passed its own handler, so from
+/// the second call on, the phone's errors went to the first call's session,
+/// long finished, and were dropped: a call that heard nothing sat «live» with
+/// its clock running until the caller hung up (3 October).
+abstract class SpeechEngine {
+  Future<bool> initialize({required void Function(String error) onError});
+  Future<List<String>> localeIds();
+  Future<void> listen({
+    required String? localeId,
+    required void Function(String words, bool isFinal) onWords,
+  });
+  Future<void> stop();
+}
+
+class PluginSpeechEngine implements SpeechEngine {
+  PluginSpeechEngine._();
+  static final PluginSpeechEngine instance = PluginSpeechEngine._();
   final SpeechToText _stt = SpeechToText();
 
   @override
-  Future<bool> init({required void Function(String error) onError}) =>
+  Future<bool> initialize({required void Function(String error) onError}) =>
       _stt.initialize(onError: (e) => onError(e.errorMsg));
 
   @override
+  Future<List<String>> localeIds() async =>
+      (await _stt.locales()).map((l) => l.localeId).toList();
+
+  @override
   Future<void> listen({
-    required String localeId,
+    required String? localeId,
     required void Function(String words, bool isFinal) onWords,
   }) => _stt.listen(
     onResult: (SpeechRecognitionResult r) =>
@@ -60,6 +87,74 @@ class DeviceRecognizer implements Recognizer {
   Future<void> stop() => _stt.stop();
 }
 
+/// One per call, over the one engine: it initialises the engine once, with a
+/// handler that forwards to whichever call is current, so each call hears its
+/// own errors.
+class DeviceRecognizer implements Recognizer {
+  DeviceRecognizer([SpeechEngine? engine])
+    : _engine = engine ?? PluginSpeechEngine.instance;
+
+  final SpeechEngine _engine;
+  static final Expando<Future<bool>> _ready = Expando();
+  static final Expando<void Function(String)> _route = Expando();
+
+  @override
+  Future<bool> init({required void Function(String error) onError}) async {
+    _route[_engine] = onError;
+    try {
+      final ready = _ready[_engine] ??= _engine.initialize(
+        onError: (e) => _route[_engine]?.call(e),
+      );
+      final ok = await ready;
+      if (!ok) _ready[_engine] = null; // a refusal may be lifted next time
+      return ok;
+    } catch (_) {
+      // A phone with no recognition service at all (no Google app, some
+      // Huawei phones) THROWS here rather than answering false, and the call
+      // said «ما قدرنا نوصلك» instead of «جوالك ما يقدر يسمعك».
+      _ready[_engine] = null;
+      return false;
+    }
+  }
+
+  @override
+  Future<List<String>> localeIds() => _engine.localeIds();
+
+  @override
+  Future<void> listen({
+    required String? localeId,
+    required void Function(String words, bool isFinal) onWords,
+  }) => _engine.listen(localeId: localeId, onWords: onWords);
+
+  @override
+  Future<void> stop() => _engine.stop();
+}
+
+/// The locale to ask for: Kuwaiti Arabic if the phone has it, then Saudi
+/// (Gulf, and the one Apple has), then any Arabic, else the phone's own.
+/// `ar_KW` used to be sent whether or not the phone had it, and a phone
+/// without it ended the call with no word said.
+String? pickLocale(List<String> ids) {
+  String norm(String s) => s.replaceAll('-', '_').toLowerCase();
+  final byNorm = {for (final id in ids) norm(id): id};
+  for (final want in ['ar_kw', 'ar_sa']) {
+    if (byNorm[want] != null) return byNorm[want];
+  }
+  for (final id in ids) {
+    if (norm(id).startsWith('ar')) return id;
+  }
+  return null;
+}
+
+/// What the platform calls «heard nothing». Android reports silence as an
+/// error, not as an empty result, and it used to end the call as «انتهت
+/// المكالمة» instead of saying nothing was heard.
+const Set<String> _silence = {
+  'error_speech_timeout',
+  'error_no_match',
+  'error_no_speech',
+};
+
 /// What the controller shows while she listens — the words as they arrive.
 typedef HeardListener = void Function(String words);
 
@@ -69,6 +164,7 @@ class LocalSession implements AgentSession {
     this.onHeard,
     this.onAnswered,
     this.answerDelay = const Duration(milliseconds: 700),
+    this.maxListen = const Duration(seconds: 20),
   }) : _rec = recognizer ?? DeviceRecognizer();
 
   final Recognizer _rec;
@@ -83,10 +179,9 @@ class LocalSession implements AgentSession {
   /// How long «شوق ترد…» shows before the sheet gets out of the way.
   final Duration answerDelay;
 
-  /// The language her ear is set to: Kuwaiti Arabic, as on the web
-  /// (`SPEECH_LANG` in speech.ts). A device without it falls back to its own
-  /// Arabic, which the plugin handles.
-  static const String localeId = 'ar_KW';
+  /// Listening at all: a question is a sentence. The plugin has its own
+  /// 15s, which a phone that never reports anything does not honour.
+  final Duration maxListen;
 
   void Function()? _connected;
   void Function(bool)? _speaking;
@@ -94,6 +189,7 @@ class LocalSession implements AgentSession {
   void Function(String)? _error;
   bool _done = false;
   Timer? _answer;
+  Timer? _cap;
 
   @override
   void listen({
@@ -116,17 +212,40 @@ class LocalSession implements AgentSession {
   }) async {
     // No speech service, or its permission refused: said as a failure while
     // still «ringing», which the controller turns into a sentence.
-    final ok = await _rec.init(onError: (_) => _finish(error: 'recognizer'));
+    final ok = await _rec.init(
+      onError: (e) =>
+          _finish(error: _silence.contains(e) ? kNoSpeech : 'recognizer'),
+    );
     if (_done) return;
     if (!ok) {
       _done = true;
       _error?.call('unavailable');
       return;
     }
+    final ids = await _rec.localeIds().catchError((_) => <String>[]);
+    if (_done) return;
     _connected?.call();
     var heard = '';
+    Future<void> answer() async {
+      if (_done) return;
+      _cap?.cancel();
+      _speaking?.call(true);
+      await tools['show_places']?.call({'query': heard});
+      onAnswered?.call(heard);
+      _answer = Timer(answerDelay, _finish);
+    }
+
+    _cap = Timer(maxListen, () {
+      if (_done) return;
+      _rec.stop();
+      if (heard.isEmpty) {
+        _finish(error: kNoSpeech);
+      } else {
+        answer();
+      }
+    });
     await _rec.listen(
-      localeId: localeId,
+      localeId: pickLocale(ids),
       onWords: (words, isFinal) async {
         if (_done) return;
         heard = words.trim();
@@ -136,10 +255,7 @@ class LocalSession implements AgentSession {
           _finish(error: kNoSpeech);
           return;
         }
-        _speaking?.call(true);
-        await tools['show_places']?.call({'query': heard});
-        onAnswered?.call(heard);
-        _answer = Timer(answerDelay, _finish);
+        await answer();
       },
     );
   }
@@ -148,6 +264,7 @@ class LocalSession implements AgentSession {
     if (_done) return;
     _done = true;
     _answer?.cancel();
+    _cap?.cancel();
     if (error != null) {
       _error?.call(error);
     } else {
@@ -159,6 +276,7 @@ class LocalSession implements AgentSession {
   Future<void> end() async {
     _done = true;
     _answer?.cancel();
+    _cap?.cancel();
     await _rec.stop();
   }
 
@@ -166,6 +284,7 @@ class LocalSession implements AgentSession {
   void dispose() {
     _done = true;
     _answer?.cancel();
+    _cap?.cancel();
   }
 }
 
