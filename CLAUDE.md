@@ -5601,6 +5601,22 @@ one Arabic female voice ElevenLabs labels Kuwaiti), both `eleven_v4`, ~83
 credits each. Nothing switched. Same connector caveats as before: default
 settings, 128 kbps.
 
+**Then the owner chose Maryam («make maryam as default»), and she is.** The
+agent's `tts.voice_id` is `3AH0h1SXwwhE8vUUWuQW` — version
+`agtvrsn_3801m40zys8hfxcbhkg3mgepbsfw`, sent as `voice_id` alone; the reply
+still held the prompt, the three tools, the 25 tests, KB v5, the three hosts
+and the overrides, and every other TTS setting (v4_turbo, 0.35/0.75/1.06,
+expressive). `gen-voice.mjs` and `tts-endpoint.php` changed together, which is
+what `audit:tts` exists to insist on. Two things this does NOT change: **the
+live site and apps** (free builds — the phone's voice, as above), and **the
+installed `tts.php` on the server**, still the older copy naming Talya; its
+key is empty and nothing calls it, so it is reinstalled only when the bridge
+is switched on. **The September trap was a library voice the workspace did not
+hold** (Maryam Essa, `voice_not_found`); this Maryam is listed twice the way
+Talya is — a workspace entry beside the library one — and rendered through the
+connector, which is strong evidence and not a call. One call on staging proves
+it.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

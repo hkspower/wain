@@ -92,6 +92,10 @@ the agent is on `eleven_v4_turbo`** (expressive mode, similarity 0.75), set
 from the dashboard on 2 October; the voice is still Talya and the clips and
 bridge are still `eleven_multilingual_v2`, on purpose.
 
+**And from later on 3 October the voice is not Talya:** شوق is Maryam,
+`3AH0h1SXwwhE8vUUWuQW` (ar-kuwaiti), on the agent, in `gen-voice.mjs` and in
+`tts-endpoint.php`, by the owner's choice after hearing both.
+
 Stability, similarity, style and speed all matched. **The voice id alone did
 not**, which is the hardest field to notice going wrong: nothing breaks, no
 request fails, the audio plays — a different woman finishes the sentence.

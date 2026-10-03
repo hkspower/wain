@@ -98,11 +98,20 @@ const MANIFEST_PATH = path.join(VOICE_DIR, "manifest.json");
  * سالم takes the Gulf male voice rather than either Modern Standard one, for
  * the same reason.
  *
+ * **شوق is Maryam now, on the owner's word (3 October), after hearing her
+ * greeting in both voices** (docs/voice-sample/shouq-greeting-compare.txt).
+ * `3AH0h1SXwwhE8vUUWuQW`, «Maryam — Kuwaiti Soft & Storytelling», female,
+ * ar-kuwaiti: the accent the brief asked for, which Talya could only
+ * approximate. Not the Maryam Essa above — a different id, and this one is
+ * listed among the workspace's own voices the way Talya is, where Essa is
+ * library-only. The agent was switched the same day, so the clips, the bridge
+ * and the call still name one woman.
+ *
  * ELEVEN_VOICE_SHOUQ / ELEVEN_VOICE_SALEM still override, and swapping either
  * now re-records — see the digest below, which did not use to include it.
  */
 const DEFAULT_VOICE_IDS = {
-  shouq: "rh16DBXwtscjdPFeMBYf", // Talya — ar-omani, female, young, conversational
+  shouq: "3AH0h1SXwwhE8vUUWuQW", // Maryam — ar-kuwaiti, female, soft (was Talya rh16DBXwtscjdPFeMBYf)
   salem: "Ywuz3KyW2N5pqKNpwcCL", // Eid — Gulf male, warm and clear
 };
 const VOICE_IDS = {

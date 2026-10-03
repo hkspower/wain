@@ -316,8 +316,15 @@ to pick and nothing to set unless you disagree with the choice:
 
 | | voice | id |
 | --- | --- | --- |
-| شوق | Talya — Human-like Arabic AI Bot (Gulf, `ar-omani`) | `rh16DBXwtscjdPFeMBYf` |
+| شوق | Maryam — Kuwaiti Soft & Storytelling (`ar-kuwaiti`) | `3AH0h1SXwwhE8vUUWuQW` |
 | سالم | Eid — Warm, Clear, Confident (Gulf) | `Ywuz3KyW2N5pqKNpwcCL` |
+
+**شوق changed voice on 3 October, on the owner's word.** The paragraph below
+explains why Talya was chosen in September over the two Kuwaiti Maryams. The
+owner heard her greeting in Talya and in this Maryam
+(`docs/voice-sample/shouq-greeting-compare.txt`) and chose Maryam: the accent
+over the age. The agent, the clips and the bridge all name her now. The
+reasoning below is kept as the record of the trade that was reversed.
 
 **Why these, and what was given up.** The brief calls شوق «صوت كويتي شبابي» —
 a young Kuwaiti woman. That voice does not exist in this workspace, and the

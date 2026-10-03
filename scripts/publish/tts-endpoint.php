@@ -68,7 +68,7 @@ declare(strict_types=1);
    is merely asked to match is a table that will not. */
 const VOICES = [
     'shouq' => [
-        'voiceId'  => 'rh16DBXwtscjdPFeMBYf', // Talya — ar-omani, female, young
+        'voiceId'  => '3AH0h1SXwwhE8vUUWuQW', // Maryam — ar-kuwaiti, female (Talya until 3 October)
         'settings' => [
             'stability'         => 0.35,
             'similarity_boost'  => 0.8,
