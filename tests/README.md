@@ -362,6 +362,26 @@ npm run test:ik
 GRN_STILLS=1 npm run test:ik   # also writes /tmp/smoke/ik-driver.png
 ```
 
+## masonry.mjs — the walls are built of something
+
+The city's walls were a flat grey fill. They are now four masonry
+layers — buff brick, ochre limestone, white render, formed concrete —
+built as typed arrays by `src/game/masonry.ts` and spliced into the
+facade material by `src/game/facadeSkin.ts`, so all of it is measurable
+here without a browser: brick courses every 16 texels (75 mm) with
+2.13-texel (10 mm) joints and the half bond 24 texels over, a 17.19%
+mortar share against the analytic 17.19%, every layer's linear mean on
+its target, a tile with no seam (measured against the same joint
+inside the tile, since the joints sit on the tile's edge on purpose),
+normals that lean the right way off a joint, the family weights per
+building class, and an unmoved world draw count. It also checks every
+splice point exists once in three.js's own shader and every uniform the
+GLSL declares is supplied — a missed `replace()` fails silently.
+
+```bash
+npm run test:masonry
+```
+
 ## framepacing.mjs — hertz, and the cost of a frame
 
 Covers refresh detection, the frame limiter, the under-refresh VRR cap
