@@ -5697,6 +5697,56 @@ App CI at `79ca5be`: `flutter-ci` run 37135643828 green — verify, build-ios an
 both simulators, first attempt; `android-flutter` run 37135641826 built both
 APKs, its emulator job in «Run the device suite» from 16:12 — the known hang.
 
+## سالم and شوق as one: the map, the memory, the hangout — 3 October (live as `df8c4af2`)
+
+Asked: «improve full ingrate salem with shoug for hangsout and map and all». The
+owner's picks: a small map under each سالم reply; follow-ups and memory;
+handoffs between them; سالم reads his replies aloud; a hangout shortlist the
+group votes on; share from the call; the invite page leads to them. Site
+`2e076614`, app `df8c4af2`.
+
+- **سالم remembers his last answer** (`lib/salem-followup.ts`, loaded with the
+  search index): «غيره» shows the next places of the same answer, «أرخص»/«داخلي»
+  narrow it and ask again, «الثاني» picks a card, «وين بالضبط؟» shows one place on
+  a map with «الطريق». Deliberately narrow — a reply longer than six words, or
+  with a word the lists do not know, is a new question. Chips under the newest
+  answer only, each checked against the answer (no «أرخص» when all are cheapest).
+  The chat survives leaving the page (sessionStorage `wain:salem:v1`, this tab,
+  newest 60 lines; the privacy pages say so).
+- **«داخلي» is a constraint in any month** (`answer-order.ts`, outdoor ×0.3,
+  mixed ×0.7, the summer factor skipped). «قهوة داخلي» used to lead with an open
+  courtyard in January.
+- **Handoffs**: شوق's answer card has «رسّلها للربع» (the page's own share panel,
+  on her place) and «كمّل مع سالم» (`/salem/?q=`, asked once, then removed from
+  the address with `replaceState`); a finished call offers the last place she
+  opened at `/places/<slug>/#share`; the invite banner has «شوفه على الخريطة» and
+  «اسأل سالم». The chat links to /find for a call — still one call button.
+- **The shortlist**: ShareHangout's «خلّهم يختارون» sends up to three places with
+  times that suit all of them, to `/pick/?p=a,b,c&when=` — numbered places, «أنا
+  معه» to vote back, a map. **`/pick` needs `alternates: { canonical: null }`**
+  beside `noindex`: dropping `alternates` inherits the root's canonical «/», and
+  audit:runtime refuses a noindex page that claims to be the home page.
+- **A new reply scrolls to its first line, not the bottom.** At 320×568 the map
+  and chips pushed her sentence off the screen; salem.test found it.
+- Tests: `together.test` (44, in `test:hangout`, two sabotage rounds red with the
+  build green), `test:salem-followup` (43, in `scan`). App 1117 → 1225, parity
+  fixtures replaying the web's follow-up readings, shortlist messages and
+  «داخلي» orderings.
+
+**Live**: archive `fb0c42cf` (one more ~4MB blob), job `1F4jzBR6Cr` read at its
+FIRST firing — `{"ok":true,"version":"1.1.0","deployed":273,"removed":23,
+"emptied":1,"at":"2026-10-03T17:53:02+00:00"}` — deleted, listed gone
+(sporta's eight). `deploy:verify`: «df8c4af2 is live — verified at the root and
+7 levels below it» (`build.json` digest `255ff0a681408d5b`; stylesheets 98,924
+and 5,438; `df8c4af2…/` the only build-id directory; /search chunk 29,371);
+also on disk byte-exact: `pick/index.html` 21,342, the /pick chunk 4,585, the
+/salem chunk 25,754. After the cache purge, a cron `wget -S --spider` of
+`/pick/` through the edge: 200, `Last-Modified: 17:53:02` (the deploy's minute),
+`x-hcdn-cache-status: DYNAMIC`; job `1xNebiidFk` read, deleted, listed gone.
+
+**Not measured**: real map tiles inside the chat (refused here), any of it on a
+phone, the app on a device.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
