@@ -116,7 +116,18 @@ export const GradeShader = {
      * there to open the shadows at the meter's night floor (0.55); an
      * exposure pinned a stop above that has already opened them, and the
      * full lift on top turned the darks milky. 1 everywhere but a pinned
-     * manual exposure (engine.setManualExposure).
+     * manual exposure (engine.setManualExposure), where it is
+     * (0.55 / e)^2: a quarter at the stills' one stop over.
+     *
+     * Squared rather than in proportion because the proportional half was
+     * still milky. At 0.5 the bottom of the stills' ramp was compressive —
+     * 0 -> 1.0, 5 -> 6.4, 12 -> 15.4, 24 -> 30.1 of 255, the shipped
+     * brightness 1.12 and contrast 1.18 included — and the 4K stills
+     * measured a p1 of 20 to 27 with the darkest 2% at 33,23,19 (lock).
+     * At 0.25 it is about identity (0 -> 0.5, 5 -> 4.7, 12 -> 12.5,
+     * 24 -> 26.2): the exposure opens the shadows and the lift only keeps
+     * the literal blacks off the floor. Not 0, which starts to crush
+     * (2 -> 0.7).
      */
     uLiftScale: { value: 1 },
     /** Luma at which the lift has faded to nothing. */
@@ -214,8 +225,43 @@ export const GradeShader = {
      *  monochrome is that the scene holds two hues — a blue sky and a
      *  grey road, with the tail lamps the only thing arguing. Real
      *  separation has to come from what is emitting: sodium against the
-     *  LED, lit signage, coloured facades. */
+     *  LED, lit signage, coloured facades.
+     *
+     *  Gated off in the deepest darks (see the stage itself): below 5/255
+     *  a pixel's colour is the tone mapper's channel split, not the
+     *  scene's, and this was boosting it up to 1.8x. */
     uVibrance: { value: 0.8 },
+    /**
+     * The black neutraliser: how much of a dark pixel's colour is taken
+     * back toward its own grey, at black. 0 disables it — kept as a
+     * uniform rather than compiled in for the same reason uSoftBlack is:
+     * tools/shots/blacks.mjs A/Bs it on one parked frame in one session.
+     *
+     * WHERE THE DARKS' COLOUR CAME FROM. ACES' toe (RRTAndODTFit's
+     * -0.000090537 offset, zero at an AP1 input of about 0.0032) takes a
+     * dark pixel's weakest channel to zero first and multiplies whatever
+     * cast it had two to four times on the way down, and nothing after
+     * OutputPass ever took it back out. Measured off the 4K stills by
+     * tools/shots/stillblacks.mjs, the darkest 2% of each frame was
+     * 33,23,19 (lock), 33,16,16 (brake), 37,23,22 (drift) and 65,47,26
+     * (traffic) — and 28,9,14 in the DAYLIGHT driver still, which is why
+     * this is not gated on uNight: the toe splits channels at every hour.
+     *
+     * LUMA-PRESERVING BY CONSTRUCTION: a convex mix toward the pixel's
+     * own Rec.709 luma, so nothing clamps and no luma-only measurement in
+     * this repo can move — levels.mjs's crush bars, dark.mjs's tiles,
+     * blacks.mjs's shares, tests/grade.mjs's exposure ladder and its
+     * banded stop-down. It scales a pixel's chroma by a factor of its
+     * luma alone, identically in both shots of any pair, so the
+     * saturation and situation checks' ratios hold too.
+     *
+     * 0.6, so a cast at black keeps 40% of itself and dim coloured light
+     * keeps most of its colour: a 40,8,8 tail-lamp reflection keeps 77%.
+     */
+    uBlackNeutral: { value: 0.6 },
+    /** Luma at which the neutraliser has faded to nothing: 0.10 is about
+     *  26/255, just over a night frame's median of 20. */
+    uNeutralTo: { value: 0.1 },
     /** Colour balance, as a per-channel gain. 1,1,1 is neutral.
      *
      *  This is what the situation grade steers: cool and hard for a
@@ -257,6 +303,8 @@ export const GradeShader = {
     uniform float uDesatStart;
     uniform float uSaturation;
     uniform float uVibrance;
+    uniform float uBlackNeutral;
+    uniform float uNeutralTo;
     uniform vec3 uTint;
     uniform float uDither;
     varying vec2 vUv;
@@ -267,13 +315,24 @@ export const GradeShader = {
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
 
-      // Unsharp mask against a 4-tap cross blur
+      // Unsharp mask against a 4-tap cross blur.
+      //
+      // The undershoot may halve a dark pixel but not take it through
+      // zero. Beside a bright edge — a lamp head, a lit window, a
+      // headlamp against the night sky — the dark side's correction is
+      // larger than the pixel: c = 0.05 next to one 0.9 neighbour has a
+      // blur of 0.2625 and came out at -0.035, which the toe's max()
+      // below took to 0 and the lift then raised to the floor's colour. A
+      // one-pixel ring of floor round every light in the sky. Clamped at
+      // -0.5c it comes out 0.025, still darker than its surroundings,
+      // which is all the sharpening needs. The bright side's overshoot is
+      // untouched, so the edge contrast hardly moves.
       vec3 blur = 0.25 * (
         texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb +
         texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb +
         texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb +
         texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb);
-      c.rgb += (c.rgb - blur) * 0.4;
+      c.rgb += max((c.rgb - blur) * 0.4, -0.5 * c.rgb);
 
       float d = distance(vUv, vec2(0.5));
       // Vignette. This was 0.38, then 0.26 — the corners delivered at
@@ -479,10 +538,40 @@ export const GradeShader = {
       float chroma = mx - mn;
       // Squared, so the falloff is gentle near grey and steep once a
       // pixel has real colour of its own.
+      //
+      // And gated off in the deepest darks. "Room" is largest exactly
+      // where a pixel is nearly grey, and a nearly grey pixel at 5/255
+      // owes what colour it has to the tone mapper's toe, not to the
+      // scene — so this boosted the cast in the blacks by up to 1.8x, more
+      // than anywhere else in the frame. Fully off below luma 0.02 (5/255)
+      // and fully on by 0.08 (20/255, a night frame's median), so a pixel
+      // at the night's median keeps more than 99% of the vibrance that
+      // uVibrance's sweep measured as worth having. A gate from 0.03 to
+      // 0.18 was considered and would have kept a quarter of it there.
       float room = 1.0 - clamp(chroma / max(mx, 1e-4), 0.0, 1.0);
-      float boost = 1.0 + uVibrance * room * room;
       float lv = luma(c.rgb);
+      float boost = 1.0 + uVibrance * room * room * smoothstep(0.02, 0.08, lv);
       c.rgb = max(mix(vec3(lv), c.rgb, boost), 0.0);
+
+      // Neutral blacks.
+      //
+      // ACES' toe (RRTAndODTFit's -0.000090537 offset, zero at an AP1
+      // input of about 0.0032) zeroes a dark pixel's weakest channel first
+      // and multiplies any cast two to four times, and nothing after
+      // OutputPass took it back out: the darkest 2% of every 4K still
+      // came out brown, R - B 12 to 39 levels (see uBlackNeutral). A mix
+      // toward the pixel's own luma, strongest at black and gone by
+      // uNeutralTo, so the depth of every dark pixel is exactly what it
+      // was and only its colour moves.
+      //
+      // HERE, after vibrance, and not up beside the lift where the cast
+      // is born. Vibrance boosts near-neutral darks by 1 + 0.8 room^2 —
+      // up to 1.8x — so a cast removed upstream is handed straight back:
+      // placed after the lift, the net at luma 0.04 models at chroma
+      // x0.85 to x1.04, which is no fix. Last before the dither, nothing
+      // downstream can re-colour it.
+      float lN = luma(c.rgb);
+      c.rgb = mix(vec3(lN), c.rgb, 1.0 - uBlackNeutral * (1.0 - smoothstep(0.0, uNeutralTo, lN)));
 
       // Triangular-PDF dither, applied last, immediately before the 8-bit
       // quantisation it exists to hide. The frame buffer is half-float all

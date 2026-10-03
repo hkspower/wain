@@ -658,7 +658,7 @@ function asphaltSurface(): {
     const v = 34 + h * 30 + stone * 74;
     img.data[i * 4] = v;
     img.data[i * 4 + 1] = v + 1;
-    img.data[i * 4 + 2] = v + 5;
+    img.data[i * 4 + 2] = v + 2;
     img.data[i * 4 + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
@@ -3962,12 +3962,21 @@ const STAR_TWINKLE_LO = 0.5;
  * zenith so the band climbs from one horizon over the top third of the
  * sky. The width is the sine-distance from the band's centre line at
  * which it has fallen to 1/e — about 9° — and the colour is a faint
- * cool cream, scaled so the band's peak sits a hair over the night
- * zenith (0.104 blue) rather than competing with it.
+ * cool cream.
+ *
+ * Its strength is set against the zenith it sits on, so it moves when the
+ * zenith does. It was vec3(0.017, 0.019, 0.026) over a zenith of linear
+ * Y 0.031; the night zenith is 0.011 now (setTimeOfDay), and the tone
+ * mapper's toe stretches contrast harder the deeper the sky, so unscaled
+ * the band would have gone from 1.5x the sky's luma to 3.3x in the stills
+ * (modelled through the shipped chain) — a galaxy you could read by, in a
+ * city under a full moon. x0.41 holds it at about 2x, and in play its
+ * lift over the sky goes from 15.6 levels to about 8: still there, still
+ * faint. The usable range is x0.35 (1.9x, 7 levels) to x0.5 (2.2x, 10).
  */
 const MILKY_POLE_V = new THREE.Vector3(0.62, 0.47, -0.63).normalize();
 const MILKY_WIDTH = 0.12;
-const MILKY_COLOR = "vec3(0.017, 0.019, 0.026)";
+const MILKY_COLOR = "vec3(0.0070, 0.0078, 0.0105)";
 /** The baked map stores 0..MILKY_MAP_RANGE in a byte; the shader
  *  multiplies back. Above 1 because the mottling peaks over the band's
  *  own mean. */
@@ -4178,7 +4187,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // skyline, the towers and oncoming traffic read from a long way out.
   // Fog colour is the floor the whole scene fades to, so it has to be at
   // least as dark as the darkest object or distance reads as grey haze.
-  scene.fog = new THREE.FogExp2(0x02030b, 0.0009);
+  //
+  // This colour is frame 0 only: setTimeOfDay overwrites it on its first
+  // call, from its own keyframes. It said 0x02030b, which no frame after
+  // the first ever showed — the night actually ran on a navy keyframe
+  // whose far field models at 4,8,41 on screen. So it is the night
+  // keyframe now, written in sRGB (the hex is read as sRGB and
+  // linearised): see the fog in setTimeOfDay for why that is nearly
+  // neutral.
+  scene.fog = new THREE.FogExp2(0x14161d, 0.0009);
   // Ambient fill is the other black-level lift: at 0.65 nothing in the
   // scene could reach zero. 0.3 keeps shape in the shadows without
   // flooding them.
@@ -4243,8 +4260,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Palette lives in uniforms so setSky can turn midnight into dawn
       // without rebuilding the dome.
       uniforms: {
-        uTop: { value: new THREE.Color(0.004, 0.007, 0.026) },
-        uHorizon: { value: new THREE.Color(0.05, 0.066, 0.125) },
+        // The night keyframes of setTimeOfDay, which overwrites these on
+        // its first call; matching them keeps frame 0 the same sky.
+        uTop: { value: new THREE.Color(0.009, 0.011, 0.022) },
+        uHorizon: { value: new THREE.Color(0.056, 0.064, 0.085) },
         uGlow: { value: new THREE.Color(0.085, 0.046, 0.01) },
         /** How far the horizon band climbs — dawn light reaches higher. */
         uGlowHeight: { value: 0.16 },
@@ -7911,12 +7930,32 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Sky gradient: deep bay blue → sunrise ember → daylight blue
       if (skyMatRef) {
         const u = skyMatRef.uniforms;
-        // The night zenith is four times what it was. At the old value it
-        // arrived at the grade as 0.017 and the black point subtracted it
-        // to exactly zero: two thirds of every sky pixel was 0/255, the
-        // gradient existed only in the horizon band, and the stars sat on
-        // a dead field. A city this size throws enough light back at its
-        // own sky that the top of it is a deep navy, not a hole.
+        // The night zenith: a deep, nearly neutral navy-black, over a warm
+        // skyline glow.
+        //
+        // It was raised fourfold, to [0.016, 0.028, 0.104], when the black
+        // point was a HARD 0.02 clip: the sky arrived at the grade at
+        // 0.017 and was subtracted to exactly zero, two thirds of every
+        // sky pixel at 0/255 and the stars on a dead field. That reason
+        // has gone. The black point is a 0.006 soft knee now (grade.ts),
+        // which keeps a deep zenith graded with no terrace in it, and the
+        // raise had left a royal-blue sky behind: B/R 6.5 in linear light,
+        // which the tone mapper's toe stretches further, so the 4K stills'
+        // zenith measured 22,45,114 (B - R 92, tools/shots/stillblacks.mjs).
+        // A city this size does throw light back at its own sky, but it
+        // is the colour of the city, which is why the glow at the skyline
+        // stays warm and the blue is taken out up here.
+        //
+        // [0.009, 0.011, 0.022]: linear Y 0.0309 -> 0.0114, B/R 6.5 ->
+        // 2.4. Modelled through the shipped chain, the stills' zenith goes
+        // to about 9,11,22. In play it moves less: the old zenith's Y of
+        // 0.0309 was exactly the meter's key at its 0.55 floor
+        // (0.017 / 0.55, grade.ts), so a frame that is mostly sky re-meters
+        // upward and looking straight up barely darkens; a chase frame,
+        // whose meter stays on the floor, comes to about 6,8,14 (from
+        // 7,26,83). Bluer candidates at linear B/R 3.0 and 3.4 were
+        // modelled too, and the toe stretches them straight back into a
+        // blue sky: [0.010, 0.013, 0.034] plays at 8,10,24.
         // The day palette is deliberately left alone. Dimming it to a
         // quarter less DOES unblow the noon sky — measured 17.4% of it at
         // 250/255 or above, down to 10.6% — but it also inverts the
@@ -7927,7 +7966,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // the sky. Noted in the levels tool's output instead.
         (u.uTop.value as THREE.Color).copy(
           mix4(
-            [0.016, 0.028, 0.104],
+            [0.009, 0.011, 0.022],
             [0.030, 0.048, 0.105],
             // The zenith deepens as the sun drops — the blue goes richer
             // and loses a little of its green, which is the whole reason
@@ -7944,7 +7983,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         );
         (u.uHorizon.value as THREE.Color).copy(
           mix4(
-            [0.05, 0.066, 0.125],
+            // Mauve until now (the stills' skyline read 142,123,144): a
+            // blue band under the warm glow. Equal luminance near enough
+            // (Y 0.0669 -> 0.0638, so the skyline and the paint probe's
+            // flank reflections hold) at B/R 1.52 instead of 2.5, and with
+            // uGlow left warm the skyline reads as city light. Modelled
+            // through the chain, no elevation of the night gradient is
+            // saturated blue any more: 54,64,89 at 3°, 19,25,45 at 8°.
+            [0.056, 0.064, 0.085],
             [0.42, 0.24, 0.16],
             // And the horizon band goes to warm haze rather than the pale
             // blue of midday. This is the band the city sits in.
@@ -7967,7 +8013,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const fog = scene.fog as THREE.FogExp2;
       fog.color.copy(
         mix4(
-          [0.008, 0.012, 0.043],
+          // A dark, nearly neutral floor rather than navy. At
+          // [0.008, 0.012, 0.043] (B/R 5.4) everything far away — the
+          // distant facades, the far end of the road — faded into blue,
+          // modelled at 4,8,41 on screen in play. This is Y 0.0081 at B/R
+          // 1.7, about 4,5,6 in play and 6,6,10 in the stills: still a
+          // fade to dark, no longer a fade to a colour. Fogged pixels were
+          // already under dark.mjs's floor of 10/255, so no tile changes
+          // class. A darker, bluer [0.005, 0.0065, 0.013] was modelled
+          // and only brought the far field nearer crush.
+          [0.007, 0.008, 0.012],
           [0.098, 0.102, 0.172],
           [0.70, 0.62, 0.52],
           // The noon fog follows the horizon it fades into (luminance
@@ -8014,10 +8069,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       moonLight.intensity = key;
 
       // The fill answers the key from the other side, tracking it so the
-      // ratio holds at every hour instead of only at midnight. It is
-      // cooler than the key at every hour too: warm key, cool fill is
-      // what keeps a night scene from going monochrome blue and a day
-      // scene from going flat.
+      // ratio holds at every hour instead of only at midnight. Warm key,
+      // cool fill is what keeps a day scene from going flat, and it holds
+      // for the twilight, gold and day keyframes.
+      //
+      // Not at night, where the key is itself cool: the moon, B/R 1.16
+      // after nightLight. A fill bluer than that (it was
+      // nightLight([0.42, 0.55, 0.82]), B/R 1.42) does not separate warm
+      // from cool, it just paints the whole shadow side blue — and the
+      // shadow side is most of a night. With the hemisphere sky below and
+      // the asphalt's own albedo, which carried five extra levels of blue
+      // (asphaltSurface; two now), the unlit road in the 4K stills read
+      // 54,60,78 in lock and 49,56,75 in brake, B/R 1.44 and 1.53. So the
+      // night fill MATCHES the key: B/R 1.15 at the same luminance (Y
+      // 0.542 -> 0.543 after nightLight, which preserves luma), which
+      // leaves the luma guards — tests/grade.mjs's paint-to-road ratio
+      // among them — nothing to move. The night's cool note is the moon
+      // and the zenith now, not every shadow in it. A paler
+      // nightLight([0.62, 0.68, 0.82]) has the same hue and 25% more
+      // light, which would have brightened every night shadow.
       fillLight.position.set(
         -moonLight.position.x * 0.62,
         // Never above the key. The floor is there so the fill does not
@@ -8029,7 +8099,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         -moonLight.position.z * 0.62
       );
       fillLight.color.copy(
-        mix4(nightLight([0.42, 0.55, 0.82]), [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
+        mix4(nightLight([0.50, 0.545, 0.655]), [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
       );
       fillLight.intensity = key * FILL_RATIO;
 
@@ -8037,11 +8107,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // doing the shadow-side lifting, the hemisphere only has to keep
       // the very darkest crevices off absolute black.
       if (hemiRef) {
+        // The night sky term follows the fill: nightLight([0.17, 0.22,
+        // 0.33]) was B/R 1.41, and this is 1.18 at the same luminance
+        // (Y 0.2173 -> 0.2183).
         hemiRef.color.copy(
-          mix4(nightLight([0.17, 0.22, 0.33]), [0.35, 0.42, 0.59], [0.52, 0.6, 0.8], [0.55, 0.68, 0.92])
+          mix4(nightLight([0.195, 0.22, 0.27]), [0.35, 0.42, 0.59], [0.52, 0.6, 0.8], [0.55, 0.68, 0.92])
         );
+        // The night ground term was brown, [0.07, 0.055, 0.03] at B/R
+        // 0.43 — the one night light colour that never went through
+        // nightLight — and it is what lights anything facing down: a
+        // car's undertray, the underside of a sill, a tyre's lower half.
+        // Hemisphere irradiance comes in a factor of pi under the IBL's,
+        // so on a vertical it is a fifth of the probe; facing down the two
+        // are comparable, which is why the probe's own ground (env.ts)
+        // was neutralised with it — either one alone left the undersides
+        // warm. Same luminance (Y 0.0564 -> 0.0561), B/R 0.90. The traffic
+        // still's tyres had measured B/R 0.45 and drift's 0.31.
         hemiRef.groundColor.copy(
-          mix4([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.46, 0.36, 0.24], [0.42, 0.36, 0.28])
+          mix4([0.058, 0.056, 0.052], [0.17, 0.13, 0.09], [0.46, 0.36, 0.24], [0.42, 0.36, 0.28])
         );
         // Night ambient, up from 0.2 and then from 0.3.
         //

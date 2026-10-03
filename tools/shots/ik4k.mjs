@@ -79,8 +79,9 @@ await page.evaluate(async ({ car, tier, ev }) => {
   e.applyQualityTier(tier);
   e.setResolution(2160);
   // Manual exposure: the meter's night floor, lifted by EV. Through the
-  // engine's own pin, which also eases the night shadow lift off by the
-  // same amount (it is sized for the 0.55 floor, not for this).
+  // engine's own pin, which also eases the night shadow lift off with the
+  // square of it (it is sized for the 0.55 floor, not for this): a
+  // quarter of the lift at EV+1.
   e.setExposure(0, false);
   e.setManualExposure(0.55 * Math.pow(2, ev));
   await new Promise((r) => setTimeout(r, 300));

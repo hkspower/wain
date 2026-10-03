@@ -393,6 +393,160 @@ console.log(
     `at 1.0 in: recover ${(white.recover * 255).toFixed(0)}, push ${(white.push * 255).toFixed(0)} of 255`
 );
 
+// --- 1b'. The blacks are neutral, and the ramp did not move ----------
+//
+// ACES' toe zeroes a dark pixel's weakest channel first and multiplies
+// whatever cast it had, and the grade's black neutraliser (uBlackNeutral)
+// is there to take that back out. Its whole promise is that it moves
+// COLOUR and not DEPTH: a mix toward the pixel's own luma. So this asks
+// exactly that, of the real shader rather than of a re-derivation of it
+// (the rule the white-point section above follows): known patches in,
+// the same frame graded with the stage off and on, and the difference.
+//
+// The input is a 32x4 byte texture, colorSpace NoColorSpace and Nearest
+// filtering, so the shader samples byte/255 — exactly what it sees from
+// OutputPass. Eight 4x4 patches: neutral 0, 5, 12, 24, and four dark
+// colours — a brown, a navy, a dark red-brown and a tail-lamp red. Only
+// each patch's central 2x2 is read, so the unsharp mask's cross never
+// leaves the patch; the grain is identical in every render (same uv,
+// same uTime) so it cancels from every comparison.
+//
+// Read back in HALF FLOAT, not bytes. Rounding three channels to bytes
+// moves a pixel's luma by up to half a level between two renders, which
+// is the size of the thing being measured; at half float the noise is a
+// fiftieth of a level and the bars can say what they mean.
+const nb = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const THREE = window.__grnThree;
+  const src = e.grainPass.material;
+  const PATCHES = [[0, 0, 0], [5, 5, 5], [12, 12, 12], [24, 24, 24],
+    [14, 8, 4], [6, 14, 48], [20, 9, 8], [40, 8, 8]];
+  const W = 32, H = 4;
+  const bytes = new Uint8Array(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = PATCHES[x >> 2], i = (y * W + x) * 4;
+    bytes[i] = p[0]; bytes[i + 1] = p[1]; bytes[i + 2] = p[2]; bytes[i + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(bytes, W, H, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.minFilter = tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  // The shipped grade's own uniforms, copied by value: whatever the
+  // engine has set them to, then pinned below to the player defaults.
+  const uniforms = {};
+  for (const [k, u] of Object.entries(src.uniforms))
+    uniforms[k] = { value: k === "tDiffuse" ? tex : u.value?.clone ? u.value.clone() : u.value };
+  const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: src.vertexShader, fragmentShader: src.fragmentShader });
+  const shipped = src.uniforms.uBlackNeutral.value;
+  uniforms.uDither.value = 0;
+  uniforms.uTexel.value = new THREE.Vector2(1 / W, 1 / H);
+  uniforms.uNight.value = 1;
+  uniforms.uTime.value = 0;
+  // The shipped player defaults (settings.ts), not 1: the in-game ramp
+  // is what they make of it.
+  uniforms.uBrightness.value = 1.12;
+  uniforms.uContrast.value = 1.18;
+  uniforms.uSaturation.value = 1.08;
+  uniforms.uTint.value = new THREE.Vector3(1, 1, 1);
+  uniforms.uHighlights.value = 0;
+  uniforms.uKnee.value = 0.86;
+  const rt = new THREE.WebGLRenderTarget(W, H, {
+    type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false,
+    minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+  });
+  const scene = new THREE.Scene();
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  scene.add(quad);
+  const r = e.renderer;
+  const render = (neutral, liftScale) => {
+    uniforms.uBlackNeutral.value = neutral;
+    uniforms.uLiftScale.value = liftScale;
+    const prev = r.getRenderTarget();
+    r.setRenderTarget(rt);
+    r.render(scene, cam);
+    r.setRenderTarget(prev);
+    const buf = new Uint16Array(W * H * 4);
+    r.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    return PATCHES.map((_, p) => {
+      const acc = [0, 0, 0];
+      for (const y of [1, 2]) for (const x of [p * 4 + 1, p * 4 + 2]) {
+        const i = (y * W + x) * 4;
+        for (let k = 0; k < 3; k++) acc[k] += THREE.DataUtils.fromHalfFloat(buf[i + k]) * 255 / 4;
+      }
+      return acc;
+    });
+  };
+  const out = {
+    shipped, patches: PATCHES,
+    game: { off: render(0, 1), on: render(shipped, 1) },
+    // The stills' lift: engine.setManualExposure at ik4k's EV+1.
+    stills: { off: render(0, 0.25), on: render(shipped, 0.25) },
+  };
+  rt.dispose(); mat.dispose(); quad.geometry.dispose(); tex.dispose();
+  return out;
+});
+{
+  const L = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  const C = (c) => Math.max(...c) - Math.min(...c);
+  const f = (c) => c.map((v) => v.toFixed(1)).join(",");
+  console.log(`\nblacks     the neutraliser at ${nb.shipped}, on known patches through the real grade (bytes in, levels out)`);
+  const qualified = [];
+  for (const [regime, pair] of [["in game", nb.game], ["stills ", nb.stills]]) {
+    for (let p = 0; p < nb.patches.length; p++) {
+      const off = pair.off[p], on = pair.on[p];
+      const neutral = p < 4;
+      const keep = C(off) > 0.5 ? C(on) / C(off) : 1;
+      console.log(
+        `           ${regime} ${nb.patches[p].join(",").padEnd(9)} off ${f(off).padEnd(16)} on ${f(on).padEnd(16)} ` +
+          `luma ${L(off).toFixed(2)} -> ${L(on).toFixed(2)}` + (neutral ? "" : `, chroma ${C(off).toFixed(1)} -> ${C(on).toFixed(1)} (keeps ${(keep * 100).toFixed(0)}%)`)
+      );
+      if (neutral) {
+        // (a) A grey is a grey: the stage has nothing to do and does nothing.
+        check(on.every((v, k) => Math.abs(v - off[k]) <= 0.5),
+          `the black neutraliser moved the neutral ${nb.patches[p][0]} patch ${regime.trim()}: ${f(off)} -> ${f(on)}`);
+        continue;
+      }
+      // (b) Depth is untouched: the same luma either way.
+      check(Math.abs(L(on) - L(off)) <= 0.25,
+        `the black neutraliser moved ${nb.patches[p].join(",")}'s luma ${regime.trim()}: ${L(off).toFixed(2)} -> ${L(on).toFixed(2)} — it is meant to move colour only`);
+      // (c) A dark colour loses at least a quarter of its cast. Asked of
+      // whatever comes out under luma 0.05 (13/255), where the stage at
+      // 0.6 takes 30% by its own curve; by 0.06 it takes only 21%, so a
+      // quarter is not a fair ask of anything between. The in-game lift
+      // puts all four of these colours above it and the stills' quarter
+      // lift puts two below (modelled at 0.036 and 0.046, with the next
+      // nearest at 0.062), which is what keeps this from passing
+      // vacuously.
+      if (L(off) / 255 < 0.05) {
+        qualified.push(`${nb.patches[p].join(",")} ${regime.trim()}`);
+        check(keep <= 0.75,
+          `${nb.patches[p].join(",")} ${regime.trim()} comes out at luma ${(L(off) / 255).toFixed(3)} and keeps ${(keep * 100).toFixed(0)}% of its colour — the cast is not coming out of the blacks`);
+      }
+    }
+    // (d) Dim coloured LIGHT keeps its colour: a tail lamp's reflection.
+    const red = nb.patches.findIndex((c) => c.join() === "40,8,8");
+    const keepRed = C(pair.on[red]) / C(pair.off[red]);
+    check(keepRed >= 0.6, `a 40,8,8 tail-lamp red keeps only ${(keepRed * 100).toFixed(0)}% of its colour ${regime.trim()} — the neutraliser is greying lights, not blacks`);
+  }
+  console.log(`           under luma 0.05 and so held to losing a quarter: ${qualified.join("; ") || "none"}`);
+  check(qualified.length >= 2, `only ${qualified.length} patch(es) came out dark enough to test the neutraliser on — the check is passing vacuously`);
+  // (e) The ramps. In game, the full lift through the shipped player
+  // defaults: 0 -> 2.1, 5 -> 9.9, 12 -> 21.5, 24 -> 37.9 of 255. For the
+  // stills a quarter of the lift (setManualExposure at EV+1) is about
+  // identity at the bottom: 12 -> 12.5, 24 -> 26.2. Neither may move with
+  // the neutraliser, and both are pinned so that a change to the lift
+  // shows up here as a number rather than as a look.
+  const ramp = (pair) => [0, 1, 2, 3].map((p) => pair.on[p][1]);
+  const game = ramp(nb.game), stills = ramp(nb.stills);
+  console.log(`           ramp in game 0/5/12/24 -> ${game.map((v) => v.toFixed(1)).join(" / ")}; stills -> ${stills.map((v) => v.toFixed(1)).join(" / ")}`);
+  [2.1, 9.9, 21.5, 37.9].forEach((want, i) =>
+    check(Math.abs(game[i] - want) <= 1.5, `the in-game ramp moved: ${[0, 5, 12, 24][i]}/255 grades to ${game[i].toFixed(1)}, not ${want}`));
+  [[2, 12], [3, 26]].forEach(([i, want]) =>
+    check(Math.abs(stills[i] - want) <= 1.5, `the stills' ramp is not near identity: ${[0, 5, 12, 24][i]}/255 grades to ${stills[i].toFixed(1)}, not about ${want}`));
+}
+
 // --- 1c. Brightness lifts the floor and leaves white alone -----------
 //
 // A gamma about black, not a gain, because the thing that needs moving

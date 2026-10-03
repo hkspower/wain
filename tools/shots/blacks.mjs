@@ -29,6 +29,28 @@
 // have an opinion about them. The sky at midnight belongs down there and
 // so does the sea. Read it as a before-and-after against the same
 // viewpoints, which is what it is for.
+//
+// AND BLACK IS A COLOUR. Everything above is luma, and luma cannot see a
+// cast: a floor of 20,9,8 and one of 12,12,12 are the same depth. ACES'
+// toe zeroes a dark pixel's weakest channel first and multiplies whatever
+// cast it had two to four times, so the darkest pixels this game
+// delivered were brown and the shadows above them often blue, while every
+// luma bar here passed. So beside the depth columns there are colour
+// ones:
+//
+//   p1       the 1st percentile of luma
+//   dark2    the mean RGB of the darkest 2% of the frame (pro rata
+//            through the cut level, so it is exactly 2%), its chroma
+//            (max - min) and R - B
+//   <40      over the pixels darker than 40/255: mean B - R and mean
+//            chroma — which way the shadows lean, and how far
+//
+// and a second A-B-A, on the grade's black neutraliser (uBlackNeutral),
+// for the same reason the knee has one. It is luma-preserving by
+// construction, so the median must not move by more than a level, and
+// it exists to take the cast out of the darks, so dark2's chroma must
+// fall. tools/shots/stillblacks.mjs asks the same colour questions of
+// the 4K stills without a browser.
 
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
@@ -81,9 +103,12 @@ const STOPS = ALL_STOPS.slice(0, Number(process.env.STOPS || ALL_STOPS.length));
  *  control below is what says whether the value in use is sufficient. */
 const SETTLE = Number(process.env.SETTLE || 14);
 
-console.log("        pixels at or below, as a share of the frame");
+console.log("        pixels at or below, as a share of the frame; then the colour of the darks");
 console.log("        (exposure frozen per stop at whatever the night metered to)");
-console.log("stop                      2/255    8/255   16/255   median   levels  plateau");
+console.log(
+  "stop                      2/255    8/255   16/255   median   levels  plateau   p1" +
+    "   dark2 RGB    chroma  R-B   <40 B-R  chroma"
+);
 
 const rows = [];
 for (const [label, s] of STOPS) {
@@ -172,13 +197,34 @@ for (const [label, s] of STOPS) {
     await page.waitForTimeout(140);
     shots[name] = (await page.screenshot({ type: "png" })).toString("base64");
   }
-  // Leave it where the game ships.
+  // The knee back where the game ships, before the neutraliser is
+  // measured on top of it.
   await page.evaluate(() => {
     const e = window.__grnEngine;
     e.grainPass.uniforms.uSoftBlack.value = 1;
     for (let i = 0; i < 2; i++) e.composer.render();
   });
-  const shot = Buffer.from(shots.knee, "base64");
+  // THE BLACK NEUTRALISER, A-B-A, for the knee's reasons: a few levels of
+  // colour at the bottom of a night frame are far smaller than anything
+  // two sessions agree on, so it is toggled on the live uniform over the
+  // same parked camera at the same pinned exposure. Off, at the value the
+  // game ships, off again.
+  const shipNeutral = await page.evaluate(() => window.__grnEngine.grainPass.uniforms.uBlackNeutral.value);
+  for (const [name, k] of [["raw", 0], ["neutral", shipNeutral], ["raw2", 0]]) {
+    await page.evaluate((v) => {
+      const e = window.__grnEngine;
+      e.grainPass.uniforms.uBlackNeutral.value = v.v;
+      for (let i = 0; i < v.n; i++) e.composer.render();
+    }, { v: k, n: SETTLE });
+    await page.waitForTimeout(140);
+    shots[name] = (await page.screenshot({ type: "png" })).toString("base64");
+  }
+  // Leave it where the game ships.
+  await page.evaluate((k) => {
+    const e = window.__grnEngine;
+    e.grainPass.uniforms.uBlackNeutral.value = k;
+    for (let i = 0; i < 2; i++) e.composer.render();
+  }, shipNeutral);
   const measure = async (b64) => page.evaluate(async (b64) => {
     const img = new Image();
     img.src = "data:image/png;base64," + b64;
@@ -189,16 +235,36 @@ for (const [label, s] of STOPS) {
     g.drawImage(img, 0, 0);
     const d = g.getImageData(0, 0, c.width, c.height).data;
     const hist = new Uint32Array(256);
-    let n = 0;
+    // Per-level channel sums, so the darkest 2% can be averaged in colour
+    // straight off the histogram.
+    const sr = new Float64Array(256), sg = new Float64Array(256), sb = new Float64Array(256);
+    let n = 0, n40 = 0, br40 = 0, ch40 = 0;
     for (let i = 0; i < d.length; i += 4) {
       // Rec.709 luma on the DISPLAYED pixels: this is about what reaches
       // the eye, not about scene-referred light.
-      const y = Math.round(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+      const r = d[i], gr = d[i + 1], bl = d[i + 2];
+      const y = Math.round(0.2126 * r + 0.7152 * gr + 0.0722 * bl);
       hist[y]++; n++;
+      sr[y] += r; sg[y] += gr; sb[y] += bl;
+      if (y < 40) { n40++; br40 += bl - r; ch40 += Math.max(r, gr, bl) - Math.min(r, gr, bl); }
     }
     const under = (t) => { let s2 = 0; for (let v = 0; v <= t; v++) s2 += hist[v]; return s2 / n; };
     let acc = 0, med = 0;
     for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n / 2) { med = v; break; } }
+    let p1 = 0;
+    acc = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.01) { p1 = v; break; } }
+    // The darkest 2%: every level under the cut, plus the cut level's
+    // pro-rata share, so it is exactly 2% of the frame.
+    const cut = n * 0.02;
+    let got = 0, dr = 0, dg = 0, db = 0;
+    for (let v = 0; v < 256 && got < cut; v++) {
+      if (!hist[v]) continue;
+      const take = Math.min(hist[v], cut - got) / hist[v];
+      dr += sr[v] * take; dg += sg[v] * take; db += sb[v] * take;
+      got += hist[v] * take;
+    }
+    const dark2 = [dr / got, dg / got, db / got];
     // ---- the GRADIENT at the black end, as opposed to the amount of it -
     //
     // "How much is crushed" and "does the dark roll smoothly" are two
@@ -225,21 +291,35 @@ for (const [label, s] of STOPS) {
     return {
       p2: under(2), p8: under(8), p16: under(16), med,
       levels, plateau: plateau / n, plateauAt,
+      p1, dark2,
+      dark2Chroma: Math.max(...dark2) - Math.min(...dark2),
+      dark2RB: dark2[0] - dark2[2],
+      br40: n40 ? br40 / n40 : 0,
+      ch40: n40 ? ch40 / n40 : 0,
     };
   }, b64);
   const clip = await measure(shots.clip);
   const stats = await measure(shots.knee);
   const clip2 = await measure(shots.clip2);
-  rows.push([label, stats, clip, clip2]);
+  const raw = await measure(shots.raw);
+  const neutral = await measure(shots.neutral);
+  const raw2 = await measure(shots.raw2);
+  rows.push([label, stats, clip, clip2, raw, neutral, raw2]);
   const line = (tag, x) =>
     `${tag.padEnd(22)} ${(x.p2 * 100).toFixed(1).padStart(6)}% ` +
     `${(x.p8 * 100).toFixed(1).padStart(7)}% ${(x.p16 * 100).toFixed(1).padStart(7)}% ` +
     `${String(x.med).padStart(8)} ${String(x.levels).padStart(8)} ` +
-    `${(x.plateau * 100).toFixed(1).padStart(8)}% @${String(x.plateauAt).padStart(3)}`;
+    `${(x.plateau * 100).toFixed(1).padStart(8)}% @${String(x.plateauAt).padStart(3)} ` +
+    `${String(x.p1).padStart(4)}   ${x.dark2.map((v) => Math.round(v)).join(",").padEnd(11)} ` +
+    `${x.dark2Chroma.toFixed(1).padStart(6)} ${x.dark2RB.toFixed(1).padStart(5)} ` +
+    `${x.br40.toFixed(1).padStart(8)} ${x.ch40.toFixed(1).padStart(7)}`;
   console.log(`${label}  — exposure held at ${held}`);
   console.log(line("", clip) + "   clip");
   console.log(line("", stats) + "   knee");
   console.log(line("", clip2) + "   clip again");
+  console.log(line("", raw) + "   neutraliser off");
+  console.log(line("", neutral) + `   neutraliser ${shipNeutral}`);
+  console.log(line("", raw2) + "   neutraliser off again");
 }
 const mean = (k) => rows.reduce((a, [, s]) => a + s[k], 0) / rows.length;
 const meanClip = (k) => rows.reduce((a, [, , c]) => a + c[k], 0) / rows.length;
@@ -256,11 +336,12 @@ console.log(
 // anything. The two clip shots are the same settings on the same parked
 // camera; whatever separates them is what this rig cannot hold still,
 // and no claim about the knee is allowed to be smaller than that.
-const drift = rows.map(([label, , c1, c2]) => ({
-  label,
-  med: Math.abs(c1.med - c2.med),
-  p8: Math.abs(c1.p8 - c2.p8),
-}));
+// Both A-B-A pairs count: the neutraliser's two "off" shots are the same
+// kind of control as the knee's two clips.
+const drift = rows.flatMap(([label, , c1, c2, r1, , r2]) => [
+  { label, med: Math.abs(c1.med - c2.med), p8: Math.abs(c1.p8 - c2.p8) },
+  { label, med: Math.abs(r1.med - r2.med), p8: Math.abs(r1.p8 - r2.p8) },
+]);
 const worstDrift = drift.reduce((a, b) => (a.med > b.med ? a : b));
 console.log(
   `control: the same settings twice moved the median by at most ` +
@@ -279,8 +360,32 @@ if (!(mean("plateau") <= meanClip("plateau")))
   fail.push(`the knee's biggest single dark level holds ${(mean("plateau") * 100).toFixed(1)}% against the clip's ${(meanClip("plateau") * 100).toFixed(1)}% — the terrace has not gone`);
 // And it must not have made the picture milky, which is the failure mode
 // the hard clip was there to prevent.
-if (mean("p2") > meanClip("p2") + 0.02)
-  fail.push(`the knee lifted the floor: ${(mean("p2") * 100).toFixed(1)}% at or below 2/255 against ${(meanClip("p2") * 100).toFixed(1)}%`);
+//
+// The sign matters and was wrong. Milky is a floor LIFTED off zero,
+// which empties the bottom of the histogram, so it shows as the knee's
+// share at or below 2/255 coming out BELOW the clip's. This read
+// `mean("p2") > meanClip("p2") + 0.02`, which cannot fire at all: the
+// knee x*x/(x + b) sits above the clip max(x - b, 0) by b*b/(x + b) at
+// every input (grade.ts, the black point), so its p2 can only fall.
+if (mean("p2") < meanClip("p2") - 0.02)
+  fail.push(`the knee lifted the floor: ${(mean("p2") * 100).toFixed(1)}% at or below 2/255 against the clip's ${(meanClip("p2") * 100).toFixed(1)}%`);
+// The neutraliser, stop by stop. Luma-preserving by construction (a mix
+// toward the pixel's own Rec.709 luma), so a median that moves by more
+// than a level means something else in the chain is reacting to it; and
+// the darkest 2% has to come out less coloured than it went in, or the
+// stage is not doing the one thing it is for. A stop whose darks are
+// already within a level of grey has no cast to remove and is not asked.
+for (const [label, , , , raw, neu] of rows) {
+  console.log(
+    `neutraliser at ${label}: median ${raw.med} -> ${neu.med}, dark2 ` +
+      `${raw.dark2.map((v) => Math.round(v)).join(",")} -> ${neu.dark2.map((v) => Math.round(v)).join(",")} ` +
+      `(chroma ${raw.dark2Chroma.toFixed(1)} -> ${neu.dark2Chroma.toFixed(1)}), <40 B-R ${raw.br40.toFixed(1)} -> ${neu.br40.toFixed(1)}`
+  );
+  if (Math.abs(neu.med - raw.med) > 1)
+    fail.push(`the black neutraliser moved the median ${raw.med} -> ${neu.med} at ${label} — it is meant to leave luma alone`);
+  if (raw.dark2Chroma >= 1 && !(neu.dark2Chroma < raw.dark2Chroma))
+    fail.push(`the black neutraliser did not take the cast out of the darkest 2% at ${label}: chroma ${raw.dark2Chroma.toFixed(1)} -> ${neu.dark2Chroma.toFixed(1)}`);
+}
 if (fail.length) { console.error(`\n${fail.length} problem(s):`); for (const f of fail) console.error(`  ${f}`); }
-else console.log("\nthe dark rolls off instead of stopping.");
+else console.log("\nthe dark rolls off instead of stopping, and loses its cast without moving.");
 await b.close();

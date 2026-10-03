@@ -431,10 +431,22 @@ function contactShadowTexture(
   soft.width = soft.height = S;
   const sx = soft.getContext("2d")!;
 
-  // The body, as a rounded rectangle. 0.62 rather than the old 0.5:
-  // this is the level the band OUTSIDE the sill inherits, and it is the
-  // only level that ends up on screen.
-  sx.fillStyle = "rgba(0,0,0,0.62)";
+  // The body, as a rounded rectangle. This is the level the band OUTSIDE
+  // the sill inherits, and it is the only level that ends up on screen.
+  //
+  // 0.75, after 0.5 and then 0.62. At 0.62 the band let 38% of the road's
+  // light through, and in the 4K stills the road beside and under a car
+  // still read lit: sweep's under-car band 84,71,59 (luma 72), brake's
+  // under-diffuser luma 93 — a car standing a little off the road it is
+  // parked on. At 0.75 it lets through a quarter, about a third less
+  // light; the tyres' 0.95 below is untouched. Lowering SHADOW_FILL
+  // instead would darken every shadow in the game to reach this one band,
+  // and that lever was measured and set on its own (world.ts). The blob
+  // is drawn into every car group, the attract showroom's included, so
+  // the showroom's black share (levels.mjs --attract) is the guard on
+  // it; the cast shadow it shares the road with is measured by
+  // tools/shots/shadows.mjs.
+  sx.fillStyle = "rgba(0,0,0,0.75)";
   const bw = bodyU * 2 * S;
   const bh = bodyV * 2 * S;
   const bx = (S - bw) / 2;
