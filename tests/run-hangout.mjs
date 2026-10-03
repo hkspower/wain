@@ -31,6 +31,8 @@
  *   landmarks     — «معالم الكويت» under the home hero: one landmark at a
  *                   time, only the one on screen takes a tap, a stop button
  *                   that stops it, and reduced motion leaves the first one up.
+ *   back-button   — the round back button on every page but home: where it
+ *                   sits, that it covers nothing at rest, and where it goes.
  *   salem         — his own page, structure and client-side state only; see
  *                   the file's own header for why a live ElevenLabs
  *                   connection is deliberately not part of what is asserted.
@@ -110,6 +112,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ معالم الكويت: the slideshow under the hero ════");
   failed += (await run("node", ["tests/landmarks.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ رجوع: the back button on every page but home ════");
+  failed += (await run("node", ["tests/back-button.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ سالم: his own page ════");
   failed += (await run("node", ["tests/salem.test.mjs"], { env })) === 0 ? 0 : 1;

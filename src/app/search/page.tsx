@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import SearchClient from "./SearchClient";
+import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
   title: "بحث",
@@ -23,6 +24,7 @@ export default function SearchPage() {
           on the handshake this is meant to have finished. Only this side of
           the Suspense boundary is actually in the file the browser parses. */}
       <link rel="preconnect" href="https://www.openstreetmap.org" />
+      <BackButton />
       <Suspense>
         <SearchClient />
       </Suspense>

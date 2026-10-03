@@ -14,6 +14,7 @@ import {
 } from "@/lib/places";
 import { photoOf } from "@/lib/photos";
 import { OG_BASE } from "@/lib/site-meta";
+import BackButton from "@/components/BackButton";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
@@ -111,15 +112,18 @@ export default async function PlacePage({
   );
 
   return (
-    <PlaceLive
-      slug={slug}
-      initial={place}
-      heroClass={placeGradient(place)}
-      art={art}
-      /* Renders nothing unless the photograph's licence needs it named. */
-      credit={<PhotoCredit slug={place.slug} />}
-      related={relatedNode}
-      relatedPlaces={related}
-    />
+    <>
+      <BackButton fallback="/explore" />
+      <PlaceLive
+        slug={slug}
+        initial={place}
+        heroClass={placeGradient(place)}
+        art={art}
+        /* Renders nothing unless the photograph's licence needs it named. */
+        credit={<PhotoCredit slug={place.slug} />}
+        related={relatedNode}
+        relatedPlaces={related}
+      />
+    </>
   );
 }

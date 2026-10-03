@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import BackButton from "@/components/BackButton";
 import PlaceCard from "@/components/PlaceCard";
 import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
@@ -331,6 +332,11 @@ export default function SalemChat() {
     // for the tab bar, so the frame is that much shorter.
     <div className="flex h-dvh flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom))]">
       <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
+        {/* In the header, not floating: this page is one fixed frame, so the
+            header never scrolls away and a floating circle would sit on his
+            portrait. Opened from a shared link, there is no page of ours
+            behind it, and /find is where he is offered. */}
+        <BackButton floating={false} fallback="/find" />
         {/* 144px for a 44px circle: three device pixels to the CSS pixel and a
             little over. It was the 320px portrait, 24KB, competing with the
             page's scripts for the link before the socket opens — leaving it

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { IconCheck, IconGo, IconLocate } from "@/components/icons";
 import { WAIN_AI_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
   title: "الخصوصية والكوكيز",
@@ -20,6 +21,7 @@ const noCookies = [
 export default function PrivacyPage() {
   return (
     <div className="measure mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <BackButton />
       <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         الخصوصية والكوكيز
       </h1>

@@ -45,6 +45,33 @@ export interface SpeechRecognitionLike {
  */
 export const SPEECH_LANG = "ar-KW";
 
+/**
+ * The locale to ask THIS browser for.
+ *
+ * Apple's recogniser — behind every browser on an iPhone, and Safari on a Mac
+ * — does not list `ar-KW`; its Arabic is `ar-SA`. Asked for a locale it does
+ * not have, WebKit refuses with `service-not-allowed`, and that code was read
+ * as «the microphone is blocked», so every iPhone call said «ما وصلنا صوتك»
+ * with the microphone allowed (reported 3 October). `ar-SA` is Gulf Arabic
+ * too, and it is the one Apple has. Everyone else keeps `ar-KW`.
+ */
+export function speechLang(): string {
+  if (typeof navigator === "undefined") return SPEECH_LANG;
+  return /Apple/.test(navigator.vendor ?? "") ? "ar-SA" : SPEECH_LANG;
+}
+
+/**
+ * Inside WhatsApp's, Instagram's or Facebook's own browser, or an Android
+ * WebView. They expose the recognition API and then refuse to start it,
+ * because the host app never asked the phone for speech — so the refusal is
+ * not something the visitor can fix in the site's settings, and saying
+ * «allow the microphone» sends them looking for a switch that is not there.
+ */
+export function isInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /FBAN|FBAV|Instagram|WhatsApp|Snapchat|TikTok|; wv\)/.test(navigator.userAgent);
+}
+
 export function getRecognition(): SpeechRecognitionLike | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { IconCompass, IconGo } from "@/components/icons";
+import BackButton from "@/components/BackButton";
 
 // A missing page has no address of its own to name, and the layout's «/»
 // beside «noindex» told a crawler the home page was this one.
@@ -9,6 +10,7 @@ export const metadata: Metadata = { alternates: { canonical: null } };
 export default function NotFound() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center px-2.5 py-8 text-center sm:px-4 sm:py-8">
+      <BackButton />
       <span
         className="grid size-24 place-items-center rounded-3xl bg-gradient-to-b from-sun-200 to-sun-400 text-ink-900 shadow-lg shadow-sun-400/40"
         aria-hidden="true"

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import ExploreClient from "./ExploreClient";
+import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
   title: "استكشف",
@@ -12,8 +13,11 @@ export const metadata: Metadata = {
 
 export default function ExplorePage() {
   return (
-    <Suspense>
-      <ExploreClient />
-    </Suspense>
+    <>
+      <BackButton />
+      <Suspense>
+        <ExploreClient />
+      </Suspense>
+    </>
   );
 }

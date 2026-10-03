@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
-import { armCall, onPhase, requestCall, warmCall } from "@/lib/wain-ai-bus";
+import { WAIN_AI_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { armCall, onPhase, requestCall, startLocalRecognition, warmCall } from "@/lib/wain-ai-bus";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -69,6 +69,8 @@ export default function ShouqCallButton({
   labelledBy?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
+  const phaseRef = useRef<Phase>("idle");
+  phaseRef.current = phase;
 
   useEffect(() => onPhase(setPhase), []);
 
@@ -132,6 +134,14 @@ export default function ShouqCallButton({
      * knows about phones is that they ring at once. The bus overwrites this
      * with the real phase a moment later, which is the same value.
      */
+    const free = phaseRef.current === "idle" || phaseRef.current === "ended" || phaseRef.current === "error";
+    /**
+     * And, with no agent, start listening HERE too — see
+     * `startLocalRecognition`. WebKit starts recognition only inside the
+     * gesture, and the call that used to start it is a chunk and an effect
+     * away from this tap.
+     */
+    if (free && !WAIN_AI_AGENT_ENABLED) startLocalRecognition();
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
     requestCall();
     onTapped?.();

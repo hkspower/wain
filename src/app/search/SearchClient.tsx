@@ -17,6 +17,7 @@ import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
+import { callActive } from "@/lib/wain-ai-bus";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -114,8 +115,10 @@ export default function SearchClient() {
     return () => clearTimeout(t);
   }, [q, router]);
 
+  // Not under a call: the tap on /find pushes this page at once, and on
+  // Android the keyboard this focus opens covered the call's hang-up button.
   useEffect(() => {
-    inputRef.current?.focus();
+    if (!callActive()) inputRef.current?.focus();
   }, []);
 
   const counts = useMemo(() => {

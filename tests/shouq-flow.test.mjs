@@ -19,10 +19,18 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
  * `neverStarts` is the microphone prompt nobody answers: start() accepted, and
  * then silence for ever. No handler fires, so nothing but a timeout can end it.
  */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW' });
-  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts }) => {
+async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
+  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
+    if (vendor) Object.defineProperty(navigator, 'vendor', { configurable: true, get: () => vendor });
+    // Where the shared AudioContext was born: inside the tap, or after it.
+    // Created outside a gesture, an iPhone keeps it suspended and the
+    // ring-back plays to nobody.
+    const AC = window.AudioContext;
+    if (AC) window.AudioContext = class extends AC {
+      constructor(...a) { super(...a); window.__acEvent = window.event ? window.event.type : null; }
+    };
     window.__vibrations = [];
     navigator.vibrate = (p) => { window.__vibrations.push(p); return true; };
     class Utt { constructor(t) { this.text = t; } }
@@ -45,6 +53,16 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
         constructor() { this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null; window.__rec = this; }
         start() {
           window.__recLang = this.lang; window.__recStarted = true;
+          // WebKit's rule, which Chromium does not have: recognition starts
+          // only from inside a user gesture, and is refused otherwise. The
+          // call used to start it a lazy chunk and an effect after the tap —
+          // fine in Chrome, «ما وصلنا صوتك» on every iPhone (3 October).
+          const ev = window.event;
+          window.__startInGesture = Boolean(ev && ev.isTrusted && /^(click|pointerup|mouseup|touchend|keydown|keyup)$/.test(ev.type));
+          if (!window.__startInGesture) {
+            setTimeout(() => { this.onerror?.({ error: 'not-allowed' }); this.onend?.(); }, 60);
+            return;
+          }
           // A microphone prompt left sitting on screen: accepted, then nothing.
           if (neverStarts) return;
           // The real API fires onstart only once the microphone has been
@@ -71,10 +89,21 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
       }
       window.SpeechRecognition = Rec;
     }
-  }, { transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts });
+  }, { transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor });
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
+  // A wait that times out is a failed step, not the end of the file. They used
+  // to throw, and one throw took every section after it down with it — met
+  // again on 3 October while proving the WebKit gesture rule could go red:
+  // two reds, then a crash, and thirty assertions that never ran.
+  for (const m of ['waitForFunction', 'waitForSelector']) {
+    const orig = p[m].bind(p);
+    p[m] = (...a) => orig(...a).catch(() => {
+      console.log(`      (gave up waiting: ${m})`);
+      return null;
+    });
+  }
   return { ctx, p, errors };
 }
 const fab = (p) => p.locator('button[aria-label*="وين AI"]');
@@ -111,8 +140,10 @@ const onCall = (p) =>
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
     null, { timeout: 6000 }
   );
-const hangUp = (p) => p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
-const callAgain = (p) => p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).click();
+// Soft for the same reason as the waits in fresh(): a button that is not
+// there is a red further down, not a crash here.
+const hangUp = (p) => p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click({ timeout: 5000 }).catch(() => {});
+const callAgain = (p) => p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).click({ timeout: 5000 }).catch(() => {});
 
 console.log('\n── the button is on /find, and nowhere else ──');
 {
@@ -200,7 +231,7 @@ console.log('\n── hanging up ends the call and reports how long it ran ─�
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
     null, { timeout: 6000 }
   );
-  await p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
+  await hangUp(p);
   await p.waitForTimeout(200);
   const t = await sheet(p).textContent();
   ok('the call is reported ended', t.includes('انتهت المكالمة'));
@@ -331,9 +362,11 @@ console.log('\n── the reason given matches the reason ──');
   for (const [err, expect, label] of [
     ['network', 'ما قدرنا نوصلك', 'the speech service is unreachable'],
     ['audio-capture', 'ما قدرنا نوصلك', 'there is no usable microphone'],
-    // Not just «المايك» — that word is in the footer of every call sheet, so
-    // matching it would pass on any message at all. The sentence, or nothing.
-    ['service-not-allowed', 'المايك مسموح للموقع', 'the microphone is blocked by policy'],
+    // `service-not-allowed` is NOT the microphone: WebKit says it when
+    // Siri/Dictation is off or the locale is one Apple lacks. It read «allow
+    // the microphone» until 3 October, to callers whose microphone was on.
+    ['service-not-allowed', 'التعرّف على الصوت مو شغّال', 'the speech service is switched off'],
+    ['language-not-supported', 'التعرّف على الصوت مو شغّال', 'the language is not on this phone'],
   ]) {
     const { ctx, p } = await fresh({ error: err });
     await call(p);
@@ -345,12 +378,58 @@ console.log('\n── the reason given matches the reason ──');
   }
 }
 
+console.log('\n── a browser that cannot listen is not told about its microphone ──');
+{
+  {
+    const { ctx, p } = await fresh({ error: 'service-not-allowed' });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
+    const link = p.locator('#wain-ai-panel a[href="/salem/"]', { hasText: 'اكتب لسالم' });
+    ok('it offers typing to سالم instead', (await link.count()) === 1);
+    await link.click({ timeout: 5000 }).catch(() => {});
+    await p.waitForURL('**/salem/', { timeout: 5000 }).catch(() => {});
+    ok('…which goes to /salem', new URL(p.url()).pathname === '/salem/', p.url());
+    await ctx.close();
+  }
+  {
+    // WhatsApp's own browser on Android: the API is there, the permission is
+    // the host app's, and «allow the microphone» names a switch not there.
+    const { ctx, p } = await fresh({ error: 'not-allowed', userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0 Mobile Safari/537.36 WhatsApp/2.24' });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
+    const t = await sheet(p).textContent();
+    ok('inside an app\'s browser, a refusal is not blamed on the microphone', t.includes('التعرّف على الصوت مو شغّال') && !t.includes('المايك مسموح للموقع'), t.slice(0, 120));
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await fresh({ vendor: 'Apple Computer, Inc.' });
+    await call(p);
+    ok('on Apple\'s recogniser it asks for the Arabic Apple has (ar-SA)', (await p.evaluate(() => window.__recLang)) === 'ar-SA', String(await p.evaluate(() => window.__recLang)));
+    await ctx.close();
+  }
+}
+
+console.log('\n── a call that hears nothing ends, instead of listening for ever ──');
+{
+  const { ctx, p } = await fresh({ stayOpen: true });
+  await call(p);
+  await onCall(p).catch(() => {});
+  await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 12000 }).catch(() => {});
+  const t = await sheet(p).textContent().catch(() => '');
+  ok('after a silence the engine is stopped', (await p.evaluate(() => window.__stopped)) === true);
+  ok('…and the caller is told nothing was heard', t.includes('ما سمعناك'), t.slice(0, 120));
+  await ctx.close();
+}
+
 console.log('\n── the call connects her, and she answers ──');
 {
   const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية' });
   await call(p);
   ok('audio is unlocked inside the gesture (iOS)', (await p.evaluate(() => window.__primed)) === 'in-gesture');
   ok('the microphone is asked for in Kuwaiti Arabic', (await p.evaluate(() => window.__recLang)) === 'ar-KW');
+  ok('recognition starts inside the tap, as WebKit requires', (await p.evaluate(() => window.__startInGesture)) === true);
+  ok('the call\'s sound is unlocked inside the tap too', (await p.evaluate(() => window.__acEvent)) === 'click', String(await p.evaluate(() => window.__acEvent)));
+  ok('the search box does not take focus under the call', (await p.evaluate(() => document.activeElement?.tagName)) !== 'INPUT');
   // Two buzzes, and the second only exists once she is on the line — so this
   // has to wait for that, or it counts the dial and calls it a connection.
   await p.waitForFunction(() => window.__vibrations.length >= 2, null, { timeout: 6000 }).catch(() => {});
@@ -358,7 +437,7 @@ console.log('\n── the call connects her, and she answers ──');
 
   // Waiting for «/search» is not waiting for her: the tap on /find goes there
   // at once, before she has heard anything. The query is the event.
-  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 });
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 }).catch(() => {});
   ok('what she heard becomes the search', decodeURIComponent(p.url()).includes('قهوة هادية'));
   await p.waitForFunction(() => window.__said.length > 0, null, { timeout: 8000 });
   const said = (await p.evaluate(() => window.__said)).join(' ');
@@ -640,7 +719,12 @@ console.log('\n── the call is not paid for until it is placed ──');
   const early = await p.evaluate(async () => {
     const srcs = [...document.querySelectorAll('script[src]')].map((s) => s.src);
     const bodies = await Promise.all(srcs.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
-    return ['webkitSpeechRecognition', 'elevenlabs-convai']
+    // What the CALL ships: the sheet (its talking face is the one string only
+    // WainAiCall carries) and the agent's element. It used to look for
+    // `webkitSpeechRecognition`, and since 3 October /find ships exactly that
+    // on purpose — a few lines in lib/speech that start listening inside the
+    // tap, because WebKit refuses a start that comes a chunk later.
+    return ['shouq--talking', 'createElement("elevenlabs-convai")']
       .filter((s) => bodies.some((b) => b.includes(s)));
   });
   ok('the privacy page does not ship the call machinery', early.length === 0, early.join(' | '));
@@ -659,7 +743,12 @@ console.log('\n── the call is not paid for until it is placed ──');
   const shipped = () => p.evaluate(async () => {
     const srcs = [...document.querySelectorAll('script[src]')].map((s) => s.src);
     const bodies = await Promise.all(srcs.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
-    return ['webkitSpeechRecognition', 'elevenlabs-convai']
+    // What the CALL ships: the sheet (its talking face is the one string only
+    // WainAiCall carries) and the agent's element. It used to look for
+    // `webkitSpeechRecognition`, and since 3 October /find ships exactly that
+    // on purpose — a few lines in lib/speech that start listening inside the
+    // tap, because WebKit refuses a start that comes a chunk later.
+    return ['shouq--talking', 'createElement("elevenlabs-convai")']
       .filter((s) => bodies.some((b) => b.includes(s)));
   });
   // /search legitimately ships the search index, and is where every call

@@ -4,6 +4,7 @@ import {
   WAIN_AI_WIDGET_SRC,
 } from "@/lib/wain-ai";
 import { WAIN_AI_WIDGET_INTEGRITY } from "@/lib/widget-src.g";
+import { getRecognition, speechLang, type SpeechRecognitionLike } from "@/lib/speech";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -31,9 +32,105 @@ import type { Phase } from "@/components/WainAiCall";
 const CALL = "wain-ai:call";
 const PHASE = "wain-ai:phase";
 
+let requestedAt = 0;
+let lastPhase: Phase = "idle";
+
 /** Ask for a call. Do the gesture work (haptic, primeAudio) before this. */
 export function requestCall(): void {
+  requestedAt = Date.now();
   window.dispatchEvent(new Event(CALL));
+}
+
+/**
+ * Whether a call is on screen, or was asked for a moment ago and is still
+ * loading. /search uses it to keep its box from grabbing focus under the call
+ * sheet: the tap on /find pushes /search at once, and on Android the keyboard
+ * that focus opens covered the hang-up button.
+ */
+export function callActive(): boolean {
+  if (lastPhase !== "idle" && lastPhase !== "ended" && lastPhase !== "error") return true;
+  return Date.now() - requestedAt < 3000;
+}
+
+/* ── listening, started inside the tap ────────────────────────────────────────
+ *
+ * The call is a lazy component in another tree, so it used to start the
+ * recogniser after a window event, a chunk load and an effect — outside the
+ * tap. WebKit wants `start()` inside the gesture and answers `not-allowed`
+ * otherwise, which the call read as a blocked microphone (3 October: «ما وصلنا
+ * صوتك» on iPhones with the microphone allowed). So in free mode the button
+ * starts the engine synchronously, here, and the call adopts it.
+ *
+ * The engine can report before the call has attached — `start` in a few
+ * milliseconds, an error at once — so every event is buffered and replayed in
+ * order when it does.
+ */
+type RecEvent =
+  | { kind: "start" }
+  | { kind: "result"; e: Parameters<NonNullable<SpeechRecognitionLike["onresult"]>>[0] }
+  | { kind: "error"; e: { error: string } }
+  | { kind: "end" };
+
+export interface RecHandlers {
+  onstart: () => void;
+  onresult: NonNullable<SpeechRecognitionLike["onresult"]>;
+  onerror: NonNullable<SpeechRecognitionLike["onerror"]>;
+  onend: () => void;
+}
+
+export interface PendingRecognition {
+  rec: SpeechRecognitionLike;
+  /** `start()` threw — nothing will ever arrive. */
+  failed: boolean;
+  attach(h: RecHandlers): void;
+}
+
+let pending: PendingRecognition | null = null;
+
+/** Start listening now, inside the tap. Returns false where nothing can listen. */
+export function startLocalRecognition(): boolean {
+  pending?.rec.abort();
+  pending = null;
+  const rec = getRecognition();
+  if (!rec) return false;
+  rec.lang = speechLang();
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+  const queue: RecEvent[] = [];
+  let live: RecHandlers | null = null;
+  const deliver = (ev: RecEvent) => {
+    if (!live) return void queue.push(ev);
+    if (ev.kind === "start") live.onstart();
+    else if (ev.kind === "result") live.onresult(ev.e);
+    else if (ev.kind === "error") live.onerror(ev.e);
+    else live.onend();
+  };
+  rec.onstart = () => deliver({ kind: "start" });
+  rec.onresult = (e) => deliver({ kind: "result", e });
+  rec.onerror = (e) => deliver({ kind: "error", e });
+  rec.onend = () => deliver({ kind: "end" });
+  const handle: PendingRecognition = {
+    rec,
+    failed: false,
+    attach(h) {
+      live = h;
+      for (const ev of queue.splice(0)) deliver(ev);
+    },
+  };
+  try {
+    rec.start();
+  } catch {
+    handle.failed = true;
+  }
+  pending = handle;
+  return true;
+}
+
+/** The engine the tap started, once. Null when there is none. */
+export function takeLocalRecognition(): PendingRecognition | null {
+  const p = pending;
+  pending = null;
+  return p;
 }
 
 /** Returns an unsubscribe, so it can be an effect body. */
@@ -43,6 +140,7 @@ export function onCallRequest(fn: () => void): () => void {
 }
 
 export function publishPhase(phase: Phase): void {
+  lastPhase = phase;
   window.dispatchEvent(new CustomEvent<Phase>(PHASE, { detail: phase }));
 }
 

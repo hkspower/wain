@@ -281,6 +281,13 @@ export const WAIN_AI_COPY = {
   // unambiguous on both.
   micNote: "يحتاج إذن المايك عشان تكلّمها.",
   micDenied: "ما وصلنا صوتك — تأكد إن المايك مسموح للموقع.",
+  // The browser's speech service said no for a reason that is not the
+  // microphone: Siri/Dictation switched off, a language it does not have, or
+  // an app's built-in browser that never asked the phone for speech. Telling
+  // these callers to allow the microphone (which is what they got until
+  // 3 October) sends them to a switch that is already on.
+  speechOff: "التعرّف على الصوت مو شغّال بهالمتصفح — اكتب لسالم، أو افتح الموقع بسفاري أو كروم.",
+  typeToSalem: "اكتب لسالم",
   // Agent mode: the widget is on the sheet but has not started a call yet, so
   // the sheet must not say «متصل». «بدء مكالمة» is quoted exactly as it reads
   // on the widget's own button (the agent's start_call text) — a caller

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
-import { getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
+import { getRecognition, isInAppBrowser, speechLang, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
 import { usePlaces } from "@/lib/usePlaces";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
@@ -19,7 +19,7 @@ import {
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
-import { loadWidget } from "@/lib/wain-ai-bus";
+import { loadWidget, takeLocalRecognition } from "@/lib/wain-ai-bus";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -74,6 +74,12 @@ const ANSWER_MS = 700;
  * seconds, with the red button as the only way out.
  */
 const DIAL_TIMEOUT_MS = 20_000;
+/** The shortest ring, even when the engine is listening at once. */
+const RING_MIN_MS = 700;
+/** Listening with nothing heard: stop and say so. See `onstart`. */
+const SILENCE_MS = 8_000;
+/** Listening at all: a question is a sentence, not a speech. */
+const LISTEN_MAX_MS = 15_000;
 
 /** How long the ready screen waits for Start before pointing at it again. */
 const START_NUDGE_MS = 15_000;
@@ -88,7 +94,13 @@ const START_NUDGE_MS = 15_000;
  * one is us hanging up, and it is handled before this is reached.
  */
 function errorCopy(code: string): string {
-  if (code === "not-allowed" || code === "service-not-allowed") return WAIN_AI_COPY.micDenied;
+  // `service-not-allowed` is not the microphone. WebKit answers it when Siri
+  // and Dictation are off or the locale is one Apple does not have, and an
+  // app's built-in browser answers `not-allowed` because the host app never
+  // asked the phone for speech. All of them read «allow the microphone» until
+  // 3 October, to callers whose microphone was allowed.
+  if (code === "service-not-allowed" || code === "language-not-supported") return WAIN_AI_COPY.speechOff;
+  if (code === "not-allowed") return isInAppBrowser() ? WAIN_AI_COPY.speechOff : WAIN_AI_COPY.micDenied;
   if (code === "no-speech") return WAIN_AI_COPY.noSpeech;
   // network, audio-capture, bad-grammar, language-not-supported.
   return WAIN_AI_COPY.callFailed;
@@ -226,6 +238,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // callable from cleanup, from every failure path, and from the moment the
   // call connects — none of which should wait for a render.
   const stopRing = useRef<(() => void) | null>(null);
+  const ringStartedAt = useRef(0);
   // Gives up on a call that never connects — see DIAL_TIMEOUT_MS.
   const dialTimer = useRef<number | null>(null);
   // Which microphone probe is the current call's — see checkMic().
@@ -393,7 +406,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   );
 
   const startListening = useCallback(() => {
-    const rec = getRecognition();
+    // The tap on the launcher may already have started the engine — see
+    // `startLocalRecognition`, which exists because WebKit starts recognition
+    // only inside the gesture. «اتصل مرة ثانية» is a tap inside this sheet,
+    // so that path still starts its own, in its own gesture.
+    const pre = takeLocalRecognition();
+    const rec = pre?.rec ?? getRecognition();
     if (!rec) {
       // No speech input in this browser — the search box is the same brain
       // with typed input, so go there rather than dead-ending.
@@ -405,51 +423,93 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       return;
     }
     heardRef.current = "";
-    rec.lang = SPEECH_LANG;
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
-    // The call connects when the engine starts listening, not when the button
-    // was tapped: everything between the two is the microphone prompt, and
-    // that is exactly the part the ring-back is covering.
-    rec.onstart = () => {
-      if (recRef.current !== rec) return;
-      silenceRing();
-      connected();
-      haptic("success");
-      setPhase("live");
-    };
-    rec.onresult = (e) => {
-      const text = transcriptOf(e);
-      heardRef.current = text;
-      setTranscript(text);
-    };
-    rec.onerror = (e) => {
-      // Only the recogniser this call owns may end this call. `onstart` and
-      // `onend` both checked that; this did not, and the asymmetry was the
-      // bug. Hanging up abort()s the engine, and an engine reports an abort
-      // asynchronously — a tick or two after teardown() has already moved on —
-      // so the previous call's death landed on whatever was on screen by then:
-      //
-      //   · press the red button, and «ما سمعناك» replaced the ended call and
-      //     its duration, as though the hang-up had been a failure;
-      //   · press «اتصل مرة ثانية» quickly and the old error nulled out the new
-      //     recogniser's handle, so the new call's onstart no longer recognised
-      //     itself, and the call rang until the caller gave up.
-      if (recRef.current !== rec) return;
-      // An abort we did not cause still is not a failure to report: the engine
-      // fires onend straight after, and that path answers with what was heard.
-      if (e.error === "aborted") return;
-      recRef.current = null;
-      silenceRing();
-      setErrorText(errorCopy(e.error));
-      setPhase("error");
-    };
-    // Engines end recognition on their own after a pause — that IS the
-    // "done talking" signal, so act on whatever was heard by then.
-    rec.onend = () => {
-      if (recRef.current === rec) finishWith(heardRef.current);
+    // Only the recogniser this call owns may end this call — see onerror.
+    const mine = () => recRef.current === rec;
+    const handlers = {
+      // The call connects when the engine starts listening, not when the
+      // button was tapped: everything between the two is the microphone
+      // prompt, and that is exactly the part the ring-back is covering.
+      onstart: () => {
+        if (!mine()) return;
+        // The engine the tap started can be listening before this sheet has
+        // even drawn (a microphone granted on an earlier visit asks nothing),
+        // and a call that is «connected» before it has rung does not read as
+        // a call. A real phone rings at once; so does this one, briefly.
+        const wait = RING_MIN_MS - (Date.now() - ringStartedAt.current);
+        if (wait > 0) {
+          window.setTimeout(() => {
+            if (mine() && phaseRef.current === "ringing") handlers.onstart();
+          }, wait);
+          return;
+        }
+        silenceRing();
+        connected();
+        haptic("success");
+        setPhase("live");
+        // Nothing but the engine's own `onend` used to end a live call, and
+        // an engine that never decides the caller has finished left the sheet
+        // listening for ever — «she doesn't answer». Stop it after a silence,
+        // and after a fixed while whatever is happening; `onend` then answers
+        // with what was heard, exactly as when the engine ends it itself.
+        window.setTimeout(() => {
+          if (mine() && !heardRef.current) rec.stop();
+        }, SILENCE_MS);
+        window.setTimeout(() => {
+          if (mine()) rec.stop();
+        }, LISTEN_MAX_MS);
+      },
+      onresult: (e: Parameters<NonNullable<SpeechRecognitionLike["onresult"]>>[0]) => {
+        if (!mine()) return;
+        const text = transcriptOf(e);
+        heardRef.current = text;
+        setTranscript(text);
+      },
+      onerror: (e: { error: string }) => {
+        // Only the recogniser this call owns may end this call. `onstart` and
+        // `onend` both checked that; this did not, and the asymmetry was the
+        // bug. Hanging up abort()s the engine, and an engine reports an abort
+        // asynchronously — a tick or two after teardown() has already moved on —
+        // so the previous call's death landed on whatever was on screen by then:
+        //
+        //   · press the red button, and «ما سمعناك» replaced the ended call and
+        //     its duration, as though the hang-up had been a failure;
+        //   · press «اتصل مرة ثانية» quickly and the old error nulled out the new
+        //     recogniser's handle, so the new call's onstart no longer recognised
+        //     itself, and the call rang until the caller gave up.
+        if (!mine()) return;
+        // An abort we did not cause still is not a failure to report: the engine
+        // fires onend straight after, and that path answers with what was heard.
+        if (e.error === "aborted") return;
+        recRef.current = null;
+        silenceRing();
+        setErrorText(errorCopy(e.error));
+        setPhase("error");
+      },
+      // Engines end recognition on their own after a pause — that IS the
+      // "done talking" signal, so act on whatever was heard by then.
+      onend: () => {
+        if (mine()) finishWith(heardRef.current);
+      },
     };
     recRef.current = rec;
+    if (pre) {
+      if (pre.failed) {
+        recRef.current = null;
+        silenceRing();
+        setErrorText(WAIN_AI_COPY.callFailed);
+        setPhase("error");
+        return;
+      }
+      pre.attach(handlers);
+      return;
+    }
+    rec.lang = speechLang();
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    rec.onstart = handlers.onstart;
+    rec.onresult = handlers.onresult;
+    rec.onerror = handlers.onerror;
+    rec.onend = handlers.onend;
     try {
       rec.start();
     } catch {
@@ -763,6 +823,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setPersona("shouq");
     slotRef.current?.replaceChildren();
     silenceRing();
+    ringStartedAt.current = Date.now();
     stopRing.current = ringback();
     dialTimer.current = window.setTimeout(() => {
       dialTimer.current = null;
@@ -865,6 +926,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         <div
           id="wain-ai-panel"
           role="dialog"
+          aria-modal="true"
           aria-label={`${WAIN_AI_COPY.centre} — ${WAIN_AI_COPY.name}`}
           // Full screen on a tap, not a floating card any more — a call
           // takes over the whole screen the way a phone's own call screen
@@ -875,7 +937,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           // page underneath is fully covered either way, which is what
           // `tests/shouq-agent.test.mjs`'s "mostly behind it" note above
           // this component now reads as "entirely behind it".
-          className="wain-ai-panel fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-white"
+          className="wain-ai-panel fixed inset-0 z-[60] flex flex-col overflow-y-auto overscroll-contain bg-white"
         >
           {/* Same reason as the launcher: the coral-500 end of this gradient
               cannot carry white body text at AA. pt- carries the safe-area
@@ -1094,6 +1156,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <p className="py-2 text-sm font-semibold text-ink-600" role="alert">
                   {errorText}
                 </p>
+                {/* When the browser cannot listen at all, another call fails the
+                    same way. Typing to سالم answers the same question. */}
+                {errorText === WAIN_AI_COPY.speechOff && (
+                  <Link
+                    href="/salem"
+                    onClick={closeSheet}
+                    className="mb-2 inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
+                  >
+                    {WAIN_AI_COPY.typeToSalem}
+                  </Link>
+                )}
                 <div className="mt-2 flex justify-center gap-2">
                   <button
                     type="button"

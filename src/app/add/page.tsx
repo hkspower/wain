@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import AddBusinessClient from "@/app/add/AddBusinessClient";
 import { OG_BASE, OG_DEFAULT_IMAGE } from "@/lib/site-meta";
 import { IconCheck } from "@/components/icons";
+import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
   title: "سجّل مكانك مجاناً",
@@ -28,6 +29,7 @@ const PROMISES = [
 export default function AddBusinessPage() {
   return (
     <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <BackButton />
       <header className="mb-7">
         <p className="mb-2 inline-flex items-center rounded-full bg-palm-500/12 px-3 py-1 text-xs font-semibold text-palm-700">
           مجاناً

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { deadlineFetch } from "@/lib/net";
+import { audioContext } from "@/lib/audio-context";
 import { WAIN_AI_AGENT_ENABLED } from "@/lib/wain-ai";
 import {
   PERSONAS,
@@ -401,6 +402,10 @@ export function primeAudio() {
     /* nothing to unlock */
     endPriming();
   }
+  // And the shared AudioContext the call's ring-back and connect tones play
+  // through. It used to be created on the first tone, after the tap had been
+  // spent, so on an iPhone it stayed suspended and the call rang in silence.
+  audioContext();
   try {
     // Same trick for the synthetic path: an empty utterance is inaudible but
     // still counts as the gesture-initiated first speak() Safari waits for.

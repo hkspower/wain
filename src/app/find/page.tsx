@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import FindChoice from "@/app/find/FindChoice";
+import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
   title: "دوّر",
@@ -22,6 +23,9 @@ export default function FindPage() {
           what they are — but the page still needs a real <h1>, so this one
           stays, sr-only, exactly as it always was for a screen reader. */}
       <h1 className="sr-only">كيف تبي تدوّر؟</h1>
+      {/* Floating with no spacer: the call half is full-bleed and its
+          content is centred, so the corner is open sky. */}
+      <BackButton spacer={false} />
       <FindChoice />
     </>
   );

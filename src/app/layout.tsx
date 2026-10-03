@@ -5,6 +5,7 @@ import AppTabBar from "@/components/AppTabBar";
 import { LiveTray } from "@/components/OrdersLink";
 import RouteTransitions from "@/components/RouteTransitions";
 import ScrollMemory from "@/components/ScrollMemory";
+import { NavDepth } from "@/components/BackButton";
 import WainAi from "@/components/WainAi";
 import { OG_BASE, OG_DEFAULT_IMAGE } from "@/lib/site-meta";
 import "./globals.css";
@@ -121,6 +122,7 @@ export default function RootLayout({
         <AppShell />
         <RouteTransitions />
         <ScrollMemory />
+        <NavDepth />
       </body>
     </html>
   );
