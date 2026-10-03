@@ -8032,13 +8032,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // the asphalt's own albedo, which carried five extra levels of blue
       // (asphaltSurface; two now), the unlit road in the 4K stills read
       // 54,60,78 in lock and 49,56,75 in brake, B/R 1.44 and 1.53. So the
-      // night fill MATCHES the key: B/R 1.15 at the same luminance (Y
-      // 0.542 -> 0.543 after nightLight, which preserves luma), which
-      // leaves the luma guards — tests/grade.mjs's paint-to-road ratio
-      // among them — nothing to move. The night's cool note is the moon
-      // and the zenith now, not every shadow in it. A paler
-      // nightLight([0.62, 0.68, 0.82]) has the same hue and 25% more
-      // light, which would have brightened every night shadow.
+      // night fill comes most of the way back toward the key: B/R 1.28
+      // against the key's 1.16 and the old 1.42, at the same luminance (Y
+      // 0.5434 before and after; nightLight preserves luma), which leaves
+      // the luma guards — tests/grade.mjs's paint-to-road ratio among
+      // them — nothing to move.
+      //
+      // Not all the way. Matching the key (B/R 1.15) was tried, and it
+      // breaks the rig's one colour law: the fill is the cooler light
+      // (tests/daynight.mjs). That test measures warmth as R - B, and at a
+      // third of the key's luminance a fill of the key's own hue reads
+      // WARMER in absolute terms (-0.078 against the key's -0.125) — the
+      // shadow side would have read as lit by a warmer source than the
+      // moon. [0.43, 0.5615, 0.70] puts it at -0.135: cooler than the key,
+      // and a third less blue than the old fill's -0.20. A paler
+      // nightLight([0.62, 0.68, 0.82]) has the same hue as the old one and
+      // 25% more light, which would have brightened every night shadow.
       fillLight.position.set(
         -moonLight.position.x * 0.62,
         // Never above the key. The floor is there so the fill does not
@@ -8050,7 +8059,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         -moonLight.position.z * 0.62
       );
       fillLight.color.copy(
-        mix4(nightLight([0.50, 0.545, 0.655]), [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
+        mix4(nightLight([0.43, 0.5615, 0.7]), [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
       );
       fillLight.intensity = key * FILL_RATIO;
 

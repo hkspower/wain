@@ -187,7 +187,9 @@ const WANT = [
   "Mansuriya",
   "Da'iya",
   "Dasma",
-  "Kuwait City",
+  // Named "City Centre" in the game since d6757bab (no "Kuwait" anywhere
+  // a player reads); the district and its place on the lap are the same.
+  "City Centre",
 ];
 const got = m.areas.map((a) => a.name);
 console.log(

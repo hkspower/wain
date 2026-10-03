@@ -214,9 +214,17 @@ const nightLight = (c) => { const y = Y(c); return c.map((v) => y + (v - y) * sa
   lum("the night fill", fill, 0.5419, 0.01);
   lum("the night hemisphere sky", sky, 0.2173, 0.01);
   lum("the night hemisphere ground", ground, 0.0564, 0.02);
-  // At night the key is itself cool, so the fill matches it rather than
-  // out-blueing it; the hemisphere sky follows; the ground is near grey.
-  check(Math.abs(BR(fill) - BR(key)) <= 0.05, `the night fill is B/R ${F(BR(fill), 2)} against the moon's ${F(BR(key), 2)} — it is painting the shadows blue again`);
+  // At night the key is itself cool, so the fill comes most of the way
+  // back toward it rather than out-blueing it; the hemisphere sky
+  // follows; the ground is near grey. Most of the way, not all: the rig's
+  // colour law is that the fill is the cooler light (tests/daynight.mjs,
+  // R - B), and a fill of the moon's own hue at a third of its luminance
+  // reads warmer than the moon by that measure. So the band is: cooler
+  // than the key, and less than 0.15 of B/R bluer than it (the old fill
+  // was 0.26 bluer, 1.42 against 1.16).
+  const fillR = fill[0] - fill[2], keyR = key[0] - key[2];
+  check(fillR < keyR, `the night fill (R-B ${F(fillR)}) is not cooler than the moon (${F(keyR)}) — the rig's colour law, tests/daynight.mjs`);
+  check(BR(fill) - BR(key) <= 0.15, `the night fill is B/R ${F(BR(fill), 2)} against the moon's ${F(BR(key), 2)} — it is painting the shadows blue again`);
   check(BR(sky) <= BR(key) + 0.1, `the night hemisphere sky is B/R ${F(BR(sky), 2)}, bluer than the moon's ${F(BR(key), 2)}`);
   check(BR(ground) >= 0.8 && BR(ground) <= 1.1, `the night hemisphere ground is B/R ${F(BR(ground), 2)} — brown undersides again`);
   console.log(`night rig  key B/R ${F(BR(key), 2)}; fill Y ${F(Y(fill))} B/R ${F(BR(fill), 2)}; sky Y ${F(Y(sky))} B/R ${F(BR(sky), 2)}; ` +
