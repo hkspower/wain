@@ -1,0 +1,199 @@
+{
+ "tool": "tools/shots/stillblacks.mjs",
+ "measured": "2026-10-03T11:48:44.744Z",
+ "stills": {
+  "lock": {
+   "file": "lock.png",
+   "size": "3840x2160",
+   "p01": 10,
+   "p1": 26,
+   "p5": 39,
+   "p50": 70,
+   "le2": 0.00005,
+   "le8": 0.00057,
+   "dark2": [
+    33.4,
+    23.3,
+    19.4
+   ],
+   "dark2Chroma": 14,
+   "dark2RB": 14,
+   "y64": 0.3988,
+   "y64Chroma": 65.5,
+   "y64Blue": 0.636,
+   "y64Warm": 0.108,
+   "zenith": [
+    22.3,
+    44.8,
+    114.1
+   ],
+   "zenithBR": 91.7,
+   "failed": [
+    "p1",
+    "Y<64 chroma",
+    "zenith B-R",
+    "dark2 |R-B|"
+   ]
+  },
+  "sweep": {
+   "file": "sweep.png",
+   "size": "3840x2160",
+   "p01": 6,
+   "p1": 22,
+   "p5": 38,
+   "p50": 89,
+   "le2": 0.00018,
+   "le8": 0.00222,
+   "dark2": [
+    22.2,
+    21.2,
+    9.8
+   ],
+   "dark2Chroma": 12.3,
+   "dark2RB": 12.3,
+   "y64": 0.3351,
+   "y64Chroma": 76.2,
+   "y64Blue": 0.774,
+   "y64Warm": 0.128,
+   "zenith": [
+    32.7,
+    53.2,
+    111.5
+   ],
+   "zenithBR": 78.8,
+   "failed": [
+    "p1",
+    "Y<64 chroma",
+    "zenith B-R",
+    "dark2 |R-B|"
+   ]
+  },
+  "brake": {
+   "file": "brake.png",
+   "size": "3840x2160",
+   "p01": 12,
+   "p1": 20,
+   "p5": 31,
+   "p50": 68,
+   "le2": 0.00005,
+   "le8": 0.00033,
+   "dark2": [
+    33.2,
+    15.5,
+    16.2
+   ],
+   "dark2Chroma": 17.7,
+   "dark2RB": 17,
+   "y64": 0.4114,
+   "y64Chroma": 51.6,
+   "y64Blue": 0.382,
+   "y64Warm": 0.36,
+   "zenith": [
+    41.6,
+    48.4,
+    90.5
+   ],
+   "zenithBR": 49,
+   "failed": [
+    "p1",
+    "Y<64 chroma",
+    "zenith B-R",
+    "dark2 |R-B|"
+   ]
+  },
+  "drift": {
+   "file": "drift.png",
+   "size": "3840x2160",
+   "p01": 14,
+   "p1": 27,
+   "p5": 39,
+   "p50": 87,
+   "le2": 0.00003,
+   "le8": 0.00023,
+   "dark2": [
+    37,
+    22.5,
+    21.6
+   ],
+   "dark2Chroma": 15.4,
+   "dark2RB": 15.4,
+   "y64": 0.2221,
+   "y64Chroma": 43.7,
+   "y64Blue": 0.288,
+   "y64Warm": 0.446,
+   "zenith": [
+    45.5,
+    55.3,
+    100.9
+   ],
+   "zenithBR": 55.4,
+   "failed": [
+    "p1",
+    "Y<64 chroma",
+    "zenith B-R",
+    "dark2 |R-B|"
+   ]
+  },
+  "traffic": {
+   "file": "traffic.png",
+   "size": "3840x2160",
+   "p01": 41,
+   "p1": 49,
+   "p5": 63,
+   "p50": 114,
+   "le2": 0,
+   "le8": 0,
+   "dark2": [
+    65.2,
+    46.5,
+    26.1
+   ],
+   "dark2Chroma": 39.2,
+   "dark2RB": 39.2,
+   "y64": 0.053,
+   "y64Chroma": 58.9,
+   "y64Blue": 0.55,
+   "y64Warm": 0.448,
+   "zenith": [
+    68,
+    73.3,
+    129.8
+   ],
+   "zenithBR": 61.8,
+   "failed": [
+    "p1",
+    "Y<64 chroma",
+    "zenith B-R",
+    "dark2 |R-B|"
+   ]
+  },
+  "driver": {
+   "file": "driver.png",
+   "size": "3840x2160",
+   "p01": 3,
+   "p1": 16,
+   "p5": 26,
+   "p50": 124,
+   "le2": 0.00092,
+   "le8": 0.00478,
+   "dark2": [
+    27.6,
+    9.2,
+    13.7
+   ],
+   "dark2Chroma": 18.4,
+   "dark2RB": 13.9,
+   "y64": 0.2232,
+   "y64Chroma": 41.1,
+   "y64Blue": 0.285,
+   "y64Warm": 0.439,
+   "zenith": [
+    139.3,
+    191.5,
+    242.3
+   ],
+   "zenithBR": 103,
+   "failed": []
+  }
+ }
+}

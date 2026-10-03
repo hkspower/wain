@@ -3375,15 +3375,24 @@ export class GameEngine {
 
   /**
    * Pin the exposure to a value, for a still. The night shadow lift is
-   * sized for the meter's 0.55 floor, so above that it gives way in
-   * proportion (never below 0.4 of itself): the exposure has opened the
-   * shadows already, and the lift on top only greys the blacks.
+   * sized for the meter's 0.55 floor, so above that it gives way with the
+   * SQUARE of the over-exposure: the exposure has opened the shadows
+   * already, and the lift on top only greys the blacks.
+   *
+   * It gave way in proportion (0.55 / e, floored at 0.4), which at the
+   * stills' EV+1 left half the lift on top of a stop of exposure, and the
+   * 4K stills came out with a grey floor: p1 20 to 27, the darkest 2% of
+   * lock at 33,23,19 (tools/shots/stillblacks.mjs). Squared, EV+1 keeps a
+   * quarter, which makes the bottom of the stills' ramp about identity —
+   * 12/255 in, 12.5 out, against 15.4 at a half (grade.ts, uLiftScale).
+   * The EV stays +1: that is the white level, and it was decided on
+   * purpose (tools/shots/ik4k.mjs).
    */
   setManualExposure(e: number): void {
     const u = this.autoExp.exposureMat.uniforms;
     u.uAuto.value = 0;
     u.uManual.value = e;
-    this.grainPass.material.uniforms.uLiftScale.value = THREE.MathUtils.clamp(0.55 / e, 0.4, 1);
+    this.grainPass.material.uniforms.uLiftScale.value = THREE.MathUtils.clamp((0.55 / e) ** 2, 0, 1);
   }
 
   /** Current exposure and metered luminance. Reads back from the GPU, so

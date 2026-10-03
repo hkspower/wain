@@ -16,17 +16,41 @@ import * as THREE from "three";
 export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   const env = new THREE.Scene();
 
-  // Gradient dome: asphalt below, sodium-lit haze at the horizon,
-  // deep blue night above.
+  // Gradient dome: asphalt below, a bright haze band at the horizon,
+  // a dark, nearly neutral night above.
+  //
+  // The band was sodium amber (#e8b070, B/R 0.20 in linear light) and
+  // the stop under it brown (#3a2a1c), long after the street was re-lit
+  // with white LED — so the city every car was lit by was orange. That
+  // mattered more than a reflection's hue would suggest. Integrated
+  // cosine-weighted over a vertical surface's hemisphere, lamps, moon and
+  // towers included, the band is 43-47% of this bake's diffuse light, so
+  // every flank, tyre and facade in the shadow of the key read warm (the
+  // 4K stills' facades B/R 0.6, tyres down to 0.3) under a sky that read
+  // blue: two casts in one frame.
+  //
+  // Now the white-LED hue the lamps below already have, at EQUAL
+  // LUMINANCE: the band #bfbbad is linear Y 0.4963 against 0.4938 at B/R
+  // 0.80 against 0.20, and the ground stop #2e2d2a is Y 0.0262 against
+  // 0.0264 at B/R 0.85 against 0.27. The clearcoat streak keeps its
+  // brightness and its job — check:paint was calibrated on that
+  // luminance — and only its colour moves, amber to warm white. The two
+  // zenith stops lose their blue (B/R about 6 to about 2) and some light
+  // with it, Y 0.0056 -> 0.0041 and 0.0173 -> 0.0104, in step with the
+  // darker night sky in world.ts. Integrated the same way, a vertical's
+  // light goes about -2% at B/R 0.7 -> 1.0, the road's -4% at
+  // 1.37 -> 1.22, and an undertray's is unchanged in level at B/R 0.99
+  // instead of 0.46. A creamier #d6c3a6 was considered: 14% brighter
+  // (Y 0.561), which is a brighter streak and a moved paint check.
   const c = document.createElement("canvas");
   c.width = 16;
   c.height = 256;
   const ctx = c.getContext("2d")!;
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0.0, "#0a1024"); // zenith
-  g.addColorStop(0.42, "#16233f");
-  g.addColorStop(0.5, "#e8b070"); // the horizon band — the money stripe
-  g.addColorStop(0.56, "#3a2a1c");
+  g.addColorStop(0.0, "#0b0d14"); // zenith
+  g.addColorStop(0.42, "#161a24");
+  g.addColorStop(0.5, "#bfbbad"); // the horizon band — the money stripe, LED-white haze
+  g.addColorStop(0.56, "#2e2d2a");
   g.addColorStop(0.72, "#0b0c10");
   g.addColorStop(1.0, "#050506"); // ground
   ctx.fillStyle = g;
@@ -84,7 +108,7 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   // boxes of window texture on a ring well outside the lamps. They are
   // DARKER than the sky behind them, which is the point — a reflection
   // is a pattern, not a brightness, and the pattern here is black tower
-  // against sodium haze.
+  // against the horizon's haze.
   //
   // HOW FAR OUT is the whole of it, and the first version got it wrong.
   // Twenty towers on a 46 m ring subtend about eighteen degrees each,

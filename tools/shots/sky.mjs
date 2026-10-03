@@ -26,7 +26,12 @@
 //             every star a player can see.
 //   galaxy    the Milky Way is a feature IN the sky, not a brighter sky:
 //             the sky's median must not move, while its 95th percentile
-//             must — that is the band.
+//             must — that is the band. Asked as an A/B on the pitched-up
+//             view in one session, band off then on at a frozen exposure,
+//             rather than of one frame against fixed numbers: it used to
+//             hold the median inside 40..56, which was a statement about
+//             how bright the night sky was rather than about the band, and
+//             the night zenith went from linear Y 0.031 to 0.011.
 //
 // Stars are found as local maxima: a pixel brighter than all eight of its
 // neighbours by a margin, in the sky part of the frame. Lit windows are
@@ -156,6 +161,20 @@ const out = await page.evaluate(async () => {
   const upHits = stars(r.data, 0.9);
   const upShot = { png: r.png, sky: skyStats(r.data, 0, Math.floor(H * 0.9)), stars: upHits.length, luma: quart(upHits) };
 
+  // The galaxy, off and on, on this same pitched-up frame. shotUp renders
+  // with the exposure pass's dt at 0, so the meter cannot re-adapt to the
+  // band between the two, and nothing calls update() in between, so the
+  // grain and the twinkle are the same frame's. Whatever separates the
+  // two is the band.
+  const dome = e.world.skyFollowers.find((o) => o.name === "sky");
+  const milky = dome.material.uniforms.uMilky;
+  const shipped = milky.value;
+  milky.value = 0;
+  const galaxyOff = skyStats(shotUp().data, 0, Math.floor(H * 0.9));
+  milky.value = shipped;
+  const galaxyOn = skyStats(shotUp().data, 0, Math.floor(H * 0.9));
+  const galaxy = { uMilky: +shipped.toFixed(3), off: galaxyOff, on: galaxyOn };
+
   // Twinkle. Grain off — see the header.
   e.grainPass.enabled = false;
   const sample = () => { const d = shotUp().data; return upHits.slice(0, 400).map((h) => luma(d, (h.y * W + h.x) * 4)); };
@@ -170,7 +189,7 @@ const out = await page.evaluate(async () => {
   const twinkle = { sampled: a.length, stillWhenNoTimePassed: still, movedWithTime: moved, maxDelta: Math.round(maxD) };
   e.grainPass.enabled = true;
   e.setPaused(false);
-  return { where, chase, up: upShot, twinkle };
+  return { where, chase, up: upShot, twinkle, galaxy };
 });
 
 mkdirSync("press/sky", { recursive: true });
@@ -179,11 +198,12 @@ writeFileSync("press/sky/up.png", Buffer.from(out.up.png.split(",")[1], "base64"
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
-const { where, chase, up: upv, twinkle } = out;
+const { where, chase, up: upv, twinkle, galaxy } = out;
 console.log(`where       s=${where.s} cine=${where.cine}`);
 console.log(`chase       sky ${JSON.stringify(chase.sky)}  stars in the top quarter ${chase.stars}`);
 console.log(`up          sky ${JSON.stringify(upv.sky)}  stars ${upv.stars}  luma ${JSON.stringify(upv.luma)}`);
 console.log(`twinkle     ${JSON.stringify(twinkle)}`);
+console.log(`milky way   off ${JSON.stringify(galaxy.off)}  on (uMilky ${galaxy.uMilky}) ${JSON.stringify(galaxy.on)}`);
 console.log(
   `ladder      ${check(upv.luma && upv.luma.p75 - upv.luma.p25 >= 20 && upv.luma.p50 <= 235, "the stars are all one brightness")}` +
   `  quartiles spread ${upv.luma ? upv.luma.p75 - upv.luma.p25 : "-"} levels, median ${upv.luma?.p50}`
@@ -193,9 +213,14 @@ console.log(
   ` still without time  ${check(twinkle.movedWithTime >= twinkle.sampled * 0.5, "stars do not twinkle")} move with it`
 );
 console.log(`strip       ${check(chase.stars >= 120, `only ${chase.stars} stars in the chase camera's sky`)}  ${chase.stars} in the strip`);
+// Three levels of median and six of 95th percentile: the band is faint
+// on purpose (world.ts, MILKY_COLOR) and is meant to read as a feature,
+// which is a lift of the bright tail with the bulk of the sky held.
 console.log(
-  `galaxy      ${check(upv.sky.p50 >= 40 && upv.sky.p50 <= 56, `the sky's median moved to ${upv.sky.p50}`)}` +
-  ` median held  ${check(upv.sky.p95 >= upv.sky.p50 + 12, "no band: the sky's 95th percentile sits on its median")} band present`
+  `galaxy      ${check(Math.abs(galaxy.on.p50 - galaxy.off.p50) <= 3,
+    `the Milky Way moved the sky's median ${galaxy.off.p50} -> ${galaxy.on.p50}: it is brightening the sky, not sitting in it`)}` +
+  ` median held  ${check(galaxy.on.p95 >= galaxy.off.p95 + 6,
+    `no band: the sky's 95th percentile goes only ${galaxy.off.p95} -> ${galaxy.on.p95} with the Milky Way on`)} band present`
 );
 console.log(`stood       ${check(where.s === 4600 && !where.cine, "the car was not where the shot was set")}`);
 console.log("wrote press/sky/chase.png, press/sky/up.png");
