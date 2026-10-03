@@ -141,8 +141,9 @@
    * card"). This builds the bundle's /shop card markup class for class (grid,
    * article, 4:5 photo link, wishlist heart, caption, price line), so every rule
    * that draws the /shop card draws this one too: the + beside the price, the
-   * heart, the logo placeholder, the brand and colour lines (brand-badge.js), the
-   * sale chip (card-badges.js) and quick-add (quick-add-size.js). The old
+   * heart, the logo placeholder, the brand line (brand-badge.js), the colour circles
+   * and size boxes (card-options.js), the sale chip (card-badges.js) and quick-add
+   * (quick-add-size.js). The old
    * sporta-home-products__card/__frame names stay as hooks only. No "Bestseller"
    * pill: in a section titled Best sellers every card would carry it. */
   function build(list) {

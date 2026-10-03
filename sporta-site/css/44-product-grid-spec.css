@@ -231,14 +231,15 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article h3.gnf:not(.gnf-wra
 main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
   color: var(--sp-card-ink, #c2410c) !important;
 }
-/* THE NAME AND THE COLOUR LINE KEEP CLEAR OF THE + TOO, 2026-10-01. Only the price row
+/* THE NAME KEEPS CLEAR OF THE + TOO, 2026-10-01. Only the price row
  * did (padding-right: 42px, below), so on a phone the orange disc sat on the product name:
  * measured on /shop at 390px, it covered the first letters of all 12 Arabic names (an Arabic
  * line that overflows starts at the RIGHT edge, under the +) and the last letters of 10 of
  * 12 English ones; the product page's "Complete the look" row did the same at every width.
- * Same 42px as the price, physical right in both languages because the + is. */
-main div.grid[class~="grid"][class~="grid-cols-2"] > article h3,
-main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour {
+ * Same 42px as the price, physical right in both languages because the + is.
+ * (The "● colour" line that shared this rule was replaced on 2026-10-03 by the colour
+ * circles and size boxes of 70-card-options.css, which sit ABOVE the +'s reach.) */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
   padding-right: 42px;
 }
 main article .brand-chip-inline {
@@ -258,23 +259,6 @@ main article .sporta-brand-name {
   line-height: 1;
   color: var(--sp-card-ink-deep, #9a3412);   /* the deeper orange, 7.4:1 on the white caption */
   unicode-bidi: plaintext;
-}
-main article .sporta-card-colour {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 1.2;
-  color: var(--sp-card-ink-deep, #9a3412);   /* the deeper orange, 7.4:1 on the white caption */
-  text-align: left;
-  unicode-bidi: plaintext;
-}
-main article .sporta-card-colour__dot {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .22);   /* a dark ring now: a white swatch on the white caption needs an edge */
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   margin-top: auto;               /* prices sit on one line across a row */

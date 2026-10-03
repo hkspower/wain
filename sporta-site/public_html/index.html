@@ -710,7 +710,10 @@
          to its pattern), so a browser that fetched one holds it for a year and
          will not ask again. Fixing the header only helps new fetches; a new
          URL is the only thing that frees the old copy. -->
-    <script src="/assets/quick-add-size.js?v=20261001e" defer></script>
+    <script src="/assets/quick-add-size.js?v=20261003a" defer></script>
+    <!-- Colour circles and size boxes on every product card (2026-10-03): one tap on a size adds
+         it to the bag through quick-add-size.js's own path, so it comes after that file. -->
+    <script src="/assets/card-options.js" defer></script>
 
     <!-- The returns window, the delivery fee and the checkout's governorate
          list follow the rules set in /backends instead of the bundle's fixed

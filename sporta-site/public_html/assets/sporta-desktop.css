@@ -638,3 +638,9 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
     row-gap: 24px;
   }
 }
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+}

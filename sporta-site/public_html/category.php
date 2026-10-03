@@ -505,14 +505,17 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <?= shop_footer($isEn) ?>
 </div></div>
 <!-- The shop's own overlays for the parts this page now shares with it: the owner's theme,
-     the bag count, the wishlist heart, quick-add, the account sheet, the card's brand and
-     colour lines, the sale chip, card thumbnails, and the footer's editable wording, social
-     links and payment chips. -->
+     the bag count, the wishlist heart, quick-add, the card's colour circles and size boxes,
+     the account sheet, the card's brand line, the sale chip, card thumbnails, and the footer's
+     editable wording, social links and payment chips. api-dedupe.js comes first: four of them
+     ask for ?r=products, and it makes that one request. -->
+<script src="/assets/api-dedupe.js?v=20260929" defer></script>
 <script src="/assets/theme.js" defer></script>
 <script src="/assets/category-topbar.js" defer></script>
 <script src="/assets/card-heart.js" defer></script>
 <script src="/assets/grid-name-fit.js" defer></script>
-<script src="/assets/quick-add-size.js?v=20261001e" defer></script>
+<script src="/assets/quick-add-size.js?v=20261003a" defer></script>
+<script src="/assets/card-options.js" defer></script>
 <script src="/assets/customer-account.js" defer></script>
 <script src="/assets/brand-badge.js" defer></script>
 <script src="/assets/card-badges.js" defer></script>

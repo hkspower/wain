@@ -1,0 +1,152 @@
+/* COLOUR CIRCLES AND SIZE BOXES ON EVERY PRODUCT CARD — 2026-10-03.
+ * The owner's four choices (see assets/card-options.js, which draws them):
+ *   - every size the product has, as small boxes; a sold-out size greyed and crossed out
+ *   - one filled round circle per colour of the same style, the card's own ringed
+ *   - in the white caption: name, colours, sizes, then the price row with the + at its right
+ *   - one tap on a size adds it to the bag
+ * One card (44-), so /shop, Best sellers, the category pages, /wishlist and "Complete the
+ * look" all follow.
+ *
+ * THE +'S TAP BOX REACHES ABOVE THE PRICE ROW. It is 44px tall at the card's bottom-right
+ * (44-, 69-), so its top edge sits about 12.6px above the price row on a phone, 11.6px at
+ * 820 and 8.7px at 1280 (measured at 360, 390, 820 and 1280). The rows end above that with
+ * 3.4px to spare at the tightest (the caption's own 5/6px gap plus the margin below; 0.4px of
+ * clearance at 8px was measured first, which a finger's touch adjustment can cross), so a tap on a size box
+ * never lands on the + and a tap on the + never lands on a box. test:card-options fails if
+ * the two ever meet.
+ *
+ * Everything is named under `main article` or the grid itself; no :has() (44-'s header says
+ * why) and no universal subject (test:has-cost). */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 11px;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+}
+/* A one-line name kept 12px below it for the + (44-), because the price row came straight
+ * after it. With the rows in between, the + is nowhere near the name. MARGIN only:
+ * grid-name-fit.js caches each name by its clientWidth, so the padding must not change
+ * after it has fitted. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div[data-cardopt-on] h3.gnf:not(.gnf-wrap) {
+  margin-bottom: 0;
+}
+
+/* --- the colour circles: 24px to tap, a 16px disc to see ----------------- */
+main article .cardopt-colours {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: -4px;              /* the disc's edge lines up with the name */
+}
+main article .cardopt-colour {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+main article .cardopt-colour__disc {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22);   /* a white disc on the white caption needs an edge */
+}
+/* The card's own colour: a white gap, then the orange that reads on white (5.2:1). */
+main article .cardopt-colour[aria-current="true"] .cardopt-colour__disc {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22), 0 0 0 2px #fff, 0 0 0 3.5px var(--sp-card-ink, #c2410c);
+}
+main article .cardopt-colour:focus-visible {
+  outline: 2px solid #171a1e;
+  outline-offset: 0;
+}
+
+/* --- the size boxes: 28px, the dark ink on white -------------------------- */
+main article .cardopt-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+main article .cardopt-size {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0 5px;
+  border: 1px solid #8a9199;
+  border-radius: 6px;
+  background: #fff;
+  color: #171a1e;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  main article .cardopt-size:not(:disabled):hover {
+    border-color: #171a1e;
+  }
+}
+main article .cardopt-size:focus-visible {
+  outline: 2px solid var(--sp-card-ink, #c2410c);
+  outline-offset: 1px;
+}
+/* SOLD OUT, as on the product page: greyed, the size struck through, not pressable.
+ * #4b5563 on #f3f4f6 is 6.7:1, so the size can still be read. */
+main article .cardopt-size:disabled {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+main article .cardopt-size:disabled .cardopt-size__t {
+  text-decoration: line-through;
+  text-decoration-color: rgba(75, 85, 99, .75);
+}
+/* Added: a green box with a tick for 1.2s. The size stays in the box (hidden, not removed),
+ * so the box keeps its width and nothing around it moves. White on #15803d is 5.0:1. */
+main article .cardopt-size[data-cardopt-added] {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+main article .cardopt-size[data-cardopt-added] .cardopt-size__t {
+  visibility: hidden;
+}
+main article .cardopt-size[data-cardopt-added]::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The words a screen reader needs and the eye does not: "Size " before each box's letters,
+ * and the "added to your bag" message. */
+.cardopt-sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
