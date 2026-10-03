@@ -17,6 +17,17 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0
 const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${extra ? '   ' + extra : ''}`) }
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium' })
+// The bundle's own default fit (its st()/ct(), read out of index-*.js): none for accessories, then
+// from the English name — leggings/tights slim, t-shirts/tees normal, sweatshirts/hoodies normal,
+// jackets normal, tops/bras slim, anything else normal.
+const apiRows = await (await fetch(`${BASE}/api/api.php?r=products`)).json()
+const fitOf = (row) => {
+  if (!row) return 'missing'
+  if (row.category === 'accessories') return null
+  const n = String(row.name_en || '').toLowerCase()
+  return /legging|tight/.test(n) ? 'slim' : /t-?shirt|tee\b/.test(n) ? 'normal' : /sweatshirt|hoodie/.test(n) ? 'normal'
+    : /jacket/.test(n) ? 'normal' : /\btop\b|bra\b/.test(n) ? 'slim' : 'normal'
+}
 
 const grids = [
   ['home Best sellers', '/', '.sporta-home-products__card', '.sporta-home-products__frame'],
@@ -56,7 +67,12 @@ for (const lang of ['en', 'ar']) for (const [name, path, cardSel, frameSel] of g
   check(await p.evaluate(() => window.__qasNoReload === 1), `${L} adding does NOT reload the page (the bundle's own add is used)`)
   const cart = await p.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
   const row = cart.find((r) => r.slug === slug && r.size === size)
-  check(cart.length === 1 && row?.qty === 1 && row?.key === `${slug}__${size}__normal`, `${L} the cart holds that size once`, JSON.stringify(cart.map((r) => [r.key, r.qty])))
+  // THE PRODUCT PAGE'S FIT, not always 'normal' (2026-10-03): the chooser writes the fit the
+  // bundle's own product page defaults to for that garment, so the two make one cart line.
+  // Expected from this rig's own copy of that rule, applied to the API's row for the slug.
+  const fit = fitOf(apiRows.find((r) => r.slug === slug))
+  check(cart.length === 1 && row?.qty === 1 && row?.key === `${slug}__${size}__${fit == null ? '-' : fit}`, `${L} the cart holds that size once, with the product page's fit (${fit})`, JSON.stringify(cart.map((r) => [r.key, r.qty])))
+  check(row && (row.fit ?? null) === fit, `${L} and the row's fit field says the same`, JSON.stringify(row && row.fit))
   check(row && typeof row.price === 'number' && row.price > 0 && row.name?.en && row.name?.ar, `${L} with its price and both-language name`, JSON.stringify(row && [row.price, row.name]))
 
   // the bag the shopper can see

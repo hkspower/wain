@@ -4249,3 +4249,39 @@ All 165 `test:*` suites run in the sandbox plus the four live checks. **Live: cl
 **A number pad on an Arabic phone types ٠-٩ (or Persian ۰-۹), and several fields refused them** — `card.js`, `returns-request.js`, the 2FA/OTP codes, the passcode keypad, the password-reset code and the panel's phone all stripped them with ASCII-only `\D`, so a customer typing the page's own placeholder digits got `invalid_phone`. `keyboard-hints.js` converts them to 0-9 as typed (beforeinput → `insertText`, the only way into `type=number`; an `input` backstop; compositions converted once at `compositionend`, text inputs only), and each of our own scripts converts where it reads the value, so nothing depends on load order. Letter fields (order references, emails, names, SKUs, hex colours, URLs, search) are asserted NOT to get a number pad.
 
 `npm run test:numeric-keyboard` drives every field on iPhone 13 and Pixel 7 in both languages with Arabic AND Persian digits, checks what is SENT (writes are intercepted and refused, so it never touches the database), and has mutation modes. Its first version set `localStorage 'sporta_lang'`, which nothing reads (the boot script reads `'lang'`), so both "panel" runs were Arabic while it reported English too — a reviewer caught it; it now asserts `document.lang` after every panel load. The same review caught `inventory-tools.js`'s low-stock box going from 84px to ~230px as a text input (`min-width:auto` beats a flex basis) and breaking the row on a phone; `min-width:0` and `size=3` fixed it, and the rig asserts the width. **`test:inventory` failing on `low: 12` is older than this** (recorded in the 2026-10-02 full scan) and is sandbox data, not this change.
+
+## Colour circles and size boxes on every product card — 2026-10-03
+
+Asked first, and the owner chose all four: (1) every size the product has as a small box, a sold-out size greyed and crossed out like the product page; (2) one filled round circle per colour of the same STYLE, the card's own ringed, a tap on another opening that colour's page; (3) in the white caption: name, colours, sizes, then the price row with the + at its right (cards get taller, accepted); (4) one tap on a size box ADDS that size to the bag, a sold-out one does nothing. `assets/card-options.js` + `css/70-card-options.css`, on every grid (one card: /shop, Best sellers, the category pages, /wishlist, "Complete the look").
+
+- **The data is three new fields on `?r=products`**, so no second request (api-dedupe collapses the overlays' copies; `category.php` loads `api-dedupe.js` now too). `colour` keeps its shape; **`style_key`** and **`size_options`** are named so on purpose: the bundle spreads every API field into its product object, `style` is a React prop and `sizes` is already a string list in its own data.
+- **Precedence: `product_attrs` → the slug's ending → null.** On the live shop NO product has a `product_attrs` colour, so without the slug every card would have shown none. `store_colour_from_slug()` takes the LONGEST `STORE_COLOURS` key the slug ends with (`onyx-black` before `black`, `red-white` before `white`). **No colour means no `style_key`**, deliberately: a product with no colour is never grouped.
+- **Sizes are booleans, never counts.** `stock > 0` is computed in SQL, so no figure reaches PHP; the body (and the ETag) moves only when a size crosses zero. The list is `store_rule('sizes')`, the one `?r=order` validates against, in its order; a size outside it (XS) is dropped, duplicate SKU rows for one size are OR'ed, no rows means no size row. `ONE` shows as "One size" / "مقاس واحد".
+- **The colour row shows even for a style of one colour** (a single ringed circle), because it replaced brand-badge.js's "● colour" line and must keep what that line said. The product page shows its swatches only at 2+; switching the card to that is a one-line change, and **the owner's call**.
+- **THE FIT CHANGED, in the + chooser too.** `quick-add-size.js` wrote `fit: 'normal'` for every garment and its header said the bundle did the same. It does not: the product page defaults leggings, tights, tops and bras to `slim` and accessories to no fit (its `st()`/`ct()`). So a size added from the card and the same size added on the product page were TWO cart rows, and the order recorded the wrong fit. `defaultFit()` is the port; `cartAdd()` is the one add-to-bag path (bundle / static page / reload) and both are exported for the boxes. Checked against a real product-page add for all 46 sandbox products, and `test:card-options` C3 does it for two on every run.
+- **Every size box carries a hidden "Size " before its letters.** Seven rigs press `button` with text `/^L$/` on product pages, where "Complete the look" cards now carry boxes; a bare "L" would have been clicked instead of the page's own picker.
+- **Work once per card.** The overlay reads no layout; a caption remembers the photo link's href it was built for (`data-cardopt` + an expando), so a pass over 50 cards writes nothing. It rebuilds only when React re-uses a node for another product (the href changes), re-inserts when the box is no longer right before the price, and relabels in place on a language change. /shop loads more cards as it scrolls, so a newcomer is drawn once — `test:scroll-jank` fails if any caption is marked twice, and `test:card-options` C7 if a drawn card is touched again or anything is written once nothing new is arriving.
+- **The +'s 44px tap box reaches 12.6px above the price row on a phone** (11.6 at 820, 8.7 at 1280). The rows end 16/15px above it; the plan's 8px margin was measured first and left 0.4px, which a finger's touch adjustment can cross.
+
+`npm run test:card-options` (≈540 checks, its own `aaa-cardopt-%` fixtures, swept before and after; `ONLY=A,C1…`, `PAGES=`, `DEVICES=`, `LANGS=` narrow it). The expected values come from the API JSON and from `STORE_COLOURS` parsed out of `store.php` by the rig's own regex, never from the overlay. **The bundle's /wishlist draws only products in its own built-in catalogue** — a fixture slug saved there is silently left out — so that page is fed two real products. Mutation-tested fourteen ways, each caught by the check written for it:
+
+| mutation | caught by |
+|---|---|
+| the `usort` dropped from `store_colour_from_slug` | A1 (onyx-black read as black) and A7 |
+| `style_key` sent without a colour | A3 and A7 |
+| the slug beats `product_attrs` | A2 |
+| stock counts sent beside `in_stock` | A5, A6 and A8 (a 3 → 2 sale moved the ETag) |
+| the offered-sizes filter dropped | A5 (XS appeared) |
+| a sold-out box not disabled, no handler guard | C1 (S went into the bag) |
+| every pass rebuilds (key check skipped) | C5 and all four C7 checks |
+| keyed on the box's presence, not the href | C6 |
+| no relabel on a language change | C5 |
+| no hidden "Size " prefix | B: 16 bare size boxes on the product page |
+| no margin above the price row | B: the + touches a size box (phone) |
+| the rows inserted after the price | B: painted order, rows between name and price, the +, level rows |
+| `'normal'` hard-coded in `cartAdd` | C3 (`…__M__slim` on the page, `…__M__normal` on the card) |
+| no busy window | C1 (a double tap added 2) |
+
+**Updated rigs:** `product-grid-spec` (the colour is a ringed circle; the 85px caption cap is measured without the rows on the tallest card of a row, never on nothing; the + clear of the rows; the rows on the name's edge), `theme-unity` (the + is `:scope > a > button`, not a size box), `quick-add-grids` (the expected key carries the product page's fit), `scroll-jank` (`/women` too, BASE from env).
+
+**Not built:** the /backends product editor still shows no colour for a slug-derived one (it reads `product_attrs` only); nothing in the Expo app. Live: `scripts/live/live-card-options-check.php` (read-only) reports `rows= coloured= styles= withSizes= soldOutBoxes= countKeys=0` and the ETag/304; expect `coloured=29` and 9+ styles.

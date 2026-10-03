@@ -50,12 +50,14 @@ const cardGeometry = (page, gridSel) => page.evaluate((gridSel) => {
   const grid = document.querySelector(gridSel)
   if (!grid) return null
   const cards = [...grid.querySelectorAll(':scope > article')]
-  const withPlus = cards.find((a) => [...a.querySelectorAll('button:not([aria-pressed])')].some((b) => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== 'hidden'))
+  // the + is a button directly in the photo link: since 2026-10-03 the caption carries size
+  // boxes (card-options.js), which are buttons too, and must not be taken for the +
+  const withPlus = cards.find((a) => [...a.querySelectorAll(':scope > a > button:not([aria-pressed])')].some((b) => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== 'hidden'))
   const card = withPlus || cards[0]
   if (!card) return { cards: 0 }
   const r = card.getBoundingClientRect()
   const rel = (el) => { if (!el) return null; const x = el.getBoundingClientRect(); return { right: Math.round(r.right - x.right), top: Math.round(x.top - r.top), bottom: Math.round(r.bottom - x.bottom), w: Math.round(x.width) } }
-  const plus = [...card.querySelectorAll('button:not([aria-pressed])')].find((b) => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== 'hidden')
+  const plus = [...card.querySelectorAll(':scope > a > button:not([aria-pressed])')].find((b) => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== 'hidden')
   const cs = getComputedStyle(card)
   const photo = card.querySelector(':scope > a')
   const ph = photo.getBoundingClientRect()
