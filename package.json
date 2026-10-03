@@ -149,6 +149,7 @@
     "test:levels:all": "node tools/shots/levels.mjs --sweep",
     "test:lights": "node tests/lights.mjs",
     "test:map": "node tests/mapscreen.mjs",
+    "test:masonry": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/masonry.mjs",
     "test:menu": "node tests/menu.mjs",
     "test:mods": "node tests/mods.mjs",
     "test:motion": "node tests/motion.mjs",

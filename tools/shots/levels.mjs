@@ -56,6 +56,7 @@ if (!exe) { console.error("no chromium"); process.exit(2); }
 //   node tools/shots/levels.mjs            # night, ~2 min
 //   node tools/shots/levels.mjs --sweep    # all four, ~10 min
 //   node tools/shots/levels.mjs 12.5       # just noon
+//   node tools/shots/levels.mjs --facade-gain   # set the masonry's gain
 const SWEEP = process.argv.slice(2).some((a) => a === "--sweep" || a === "--all");
 const HOURS = process.argv.slice(2).map(Number).filter((n) => !Number.isNaN(n));
 const hours = HOURS.length ? HOURS : SWEEP ? [22.5, 5.6, 12.5, 18.2] : [22.5];
@@ -349,6 +350,15 @@ const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) =>
   // settings.ts shipped — and a levels report taken at a brightness
   // nobody plays at is a report about a picture nobody sees.
   if (opts.brightness) e.setBrightness?.(opts.brightness);
+  // The masonry's exposure (masonry.ts FACADE_ALBEDO_GAIN), set live: the
+  // uniform object is shared with the compiled facade program, so the
+  // sweep needs no recompile. Only when asked, like the brightness.
+  if (opts.facadeGain !== undefined) {
+    e.scene.traverse((o) => {
+      const u = o.name === "cityBlocks" && o.material?.userData?.grnMasonry?.uniforms;
+      if (u) u.grnGain.value = opts.facadeGain;
+    });
+  }
   // Still and empty. The camera rumbles with speed, and a lit rival
   // drifting into frame is worth more than half a night histogram.
   const park = () => {
@@ -582,6 +592,40 @@ if (SWEEP_B) {
   process.exit(0);
 }
 
+// The facade gain, for setting masonry.ts FACADE_ALBEDO_GAIN from what
+// the picture measures. The masonry is authored at real albedos and drawn
+// at this fraction of them; the question is how far it can rise before
+// the night skyline stops being a silhouette (windowTextures' rule:
+// buildings well under the sky, which measured 21 against 37 when it was
+// written) or the day city crushes. Both hours, the city stop, one row a
+// gain. Ship the largest gain that passes at 22.5 h and keeps the
+// building crush bar at both; if daylight wants more than night allows,
+// that is an hour-dependent gain beside the window emission in
+// setTimeOfDay — an art-direction call, not a number to pick here.
+const SWEEP_G = process.argv.slice(2).find((a) => a.startsWith("--facade-gain"));
+if (SWEEP_G) {
+  const SILHOUETTE = 6;
+  console.log(`\nfacade gain   22.5h building/sky p50  margin  crush   15.5h building/sky p50  crush   verdict`);
+  let best = null;
+  for (const g of [0.075, 0.1, 0.125, 0.15, 0.2]) {
+    const n = await measure(22.5, 587, { facadeGain: g });
+    const d = await measure(15.5, 587, { facadeGain: g });
+    const nb = n.building, ns = n.sky, db = d.building, ds = d.sky;
+    const margin = nb && ns ? ns.p50 - nb.p50 : NaN;
+    const ok = nb && ns && margin >= SILHOUETTE && nb.crush <= 0.25 && (!db || db.crush <= 0.25);
+    if (ok) best = g;
+    const p = (b, s) => `${String(b?.p50 ?? "-").padStart(3)} / ${String(s?.p50 ?? "-").padEnd(3)}`;
+    console.log(
+      `  ${g.toFixed(3)}       ${p(nb, ns)}             ${String(Number.isNaN(margin) ? "-" : margin).padStart(3)}    ` +
+        `${nb ? (nb.crush * 100).toFixed(1).padStart(4) + "%" : "   - "}   ${p(db, ds)}             ` +
+        `${db ? (db.crush * 100).toFixed(1).padStart(4) + "%" : "   - "}   ${ok ? "ok" : "no"}`
+    );
+  }
+  console.log(best === null ? "\nno gain in the sweep keeps the night silhouette" : `\nlargest gain that holds: ${best}`);
+  await browser.close();
+  process.exit(0);
+}
+
 const fail = [];
 for (const hour of hours) {
   for (const [where, u] of SPOTS) {
@@ -602,6 +646,13 @@ for (const hour of hours) {
     // And the other end: a picture with no white in it anywhere is as
     // wrong as one with no black, and far easier to ship by accident.
     if (r.all && r.all.max < 250) fail.push(`${at}: nothing in the frame reaches white (max ${r.all.max})`);
+    // The night skyline is a silhouette: the city's median at least six
+    // levels under the sky behind it (the rule windowTextures records).
+    // Walls that are made of something are brighter walls, so this is
+    // the bar the masonry's gain is set against (--facade-gain).
+    const B = r.building, Sk = r.sky;
+    if (hour === 22.5 && where === "city" && B && Sk && B.n >= MIN_PX && Sk.n >= MIN_PX && B.p50 > Sk.p50 - 6)
+      fail.push(`${at}: the skyline is not a silhouette — building p50 ${B.p50} against sky p50 ${Sk.p50}, want 6 or more below`);
   }
 }
 await browser.close();
