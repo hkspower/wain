@@ -31,12 +31,36 @@ const _settingLabel = {
 /// description, contact, share, highlights/best time/price/season, the map and
 /// similar places. Order and queue panels render nothing today — 0 of 52
 /// places take either (and the back end behind them is not configured).
-class PlaceDetailScreen extends StatelessWidget {
+class PlaceDetailScreen extends StatefulWidget {
   final Place place;
 
   /// The time a forwarded link carried, if any.
   final WhenId? invite;
   const PlaceDetailScreen({super.key, required this.place, this.invite});
+
+  @override
+  State<PlaceDetailScreen> createState() => _PlaceDetailScreenState();
+}
+
+class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
+  Place get place => widget.place;
+  WhenId? get invite => widget.invite;
+
+  /// The map, for an invitation's «شوفه على الخريطة» (the web's `#map`).
+  final _mapKey = GlobalKey();
+
+  void _showMap() {
+    final ctx = _mapKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.1,
+      duration: MediaQuery.of(context).disableAnimations
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +189,8 @@ class PlaceDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              if (invite != null) InviteBanner(place: place, when: invite!),
+              if (invite != null)
+                InviteBanner(place: place, when: invite!, onShowMap: _showMap),
               const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
@@ -212,6 +237,7 @@ class PlaceDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               WainMap(
+                key: _mapKey,
                 places: [place, ...related],
                 activeSlug: place.slug,
                 onActive: null,

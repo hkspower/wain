@@ -117,7 +117,7 @@ class VoiceService extends ChangeNotifier {
         if (part.optional) continue;
         return null;
       }
-      final id = '${persona().name}/${part.key}';
+      final id = '${_voiceOf().name}/${part.key}';
       final src = clips[id];
       if (src is! String) return null;
       final g = gains[id];
@@ -131,10 +131,19 @@ class VoiceService extends ChangeNotifier {
     return out.isEmpty ? null : out;
   }
 
+  /// Who is speaking this utterance: the chosen persona, unless the caller
+  /// names one. سالم's chat reads his replies in his voice whatever was picked
+  /// for the search screen — a reply from him in her voice is the speaker
+  /// changing between the bubble and the sound. Per utterance, never written
+  /// to the preference (voice.ts, 3 October).
+  PersonaId? _speakingAs;
+  PersonaId _voiceOf() => _speakingAs ?? persona();
+
   /// Say [parts]. Starting a new utterance silences the last.
-  Future<void> speak(List<SpeechPart> parts) async {
+  Future<void> speak(List<SpeechPart> parts, {PersonaId? persona}) async {
     if (parts.isEmpty) return;
     await stop();
+    _speakingAs = persona;
     final mine = ++_generation;
 
     final manifest = await _loadManifest();
@@ -163,7 +172,7 @@ class VoiceService extends ChangeNotifier {
             Uri.parse(_ttsUrl),
             headers: const {'content-type': 'application/json'},
             body: jsonEncode({
-              'persona': persona().name,
+              'persona': _voiceOf().name,
               'text': forSpeech(text),
             }),
           )

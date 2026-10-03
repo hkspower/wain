@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../ai/config.dart';
+import '../ai/salem_transcript.dart';
 import '../app/app_state.dart';
 import '../app/online.dart';
 import '../ai/salem_chat.dart';
@@ -13,20 +14,33 @@ import '../ai/tools.dart';
 import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../data/places.g.dart';
-import '../data/answer_order.dart' show kuwaitClock;
+import '../data/answer_order.dart' show AnswerClock, kuwaitClock;
+import '../data/salem_followup.dart';
 import '../data/voice_lines.dart';
+import '../map/wain_map.dart';
+import '../share/directions.dart';
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../voice/voice_service.dart';
 import '../widgets/back_fab.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 import '../widgets/typing_dots.dart';
 
-/// The typed conversation with شوق. Same agent, same prompt, same tools; text
+/// The typed conversation with سالم. Same agent, same prompt, same tools; text
 /// only. `show_places` / `open_place` put REAL place cards in the transcript
 /// instead of navigating — this screen IS the conversation, and a route
 /// change would close the socket mid-sentence.
+///
+/// «سالم، شوق، الطلعة والخريطة كلها وحدة» (3 October, mirrored from the web's
+/// SalemChat.tsx): the free answer remembers what it said
+/// (data/salem_followup.dart), so «أرخص», «غيره», «الثاني» and «وين بالضبط؟»
+/// answer the last answer; each answer carries its cards, a map of its own,
+/// a way to the full search and the share panel, all pointing at one place;
+/// the transcript survives leaving the screen (ai/salem_transcript.dart); a
+/// question handed over from elsewhere is asked as the visitor's own; and his
+/// replies can be read aloud in his voice.
 class SalemScreen extends StatefulWidget {
   /// Tests inject a socket factory; the app uses the real one.
   final ChannelFactory? connect;
@@ -35,31 +49,49 @@ class SalemScreen extends StatefulWidget {
   /// live app since 2 October — is the free chat: سالم answers from the
   /// app's own search, with nothing sent anywhere.
   final String? agentId;
-  const SalemScreen({super.key, this.connect, this.agentId});
+
+  /// A question handed over from somewhere else — «كمّل مع سالم» on the
+  /// search screen's answer, «اسأل سالم» on an invitation or a shortlist —
+  /// asked once, as the visitor's own message (`/salem?q=…`).
+  final String? initialQuery;
+
+  /// Kuwait's month and hour; tests pin them, the app reads the clock.
+  final AnswerClock Function()? clock;
+
+  const SalemScreen({
+    super.key,
+    this.connect,
+    this.agentId,
+    this.initialQuery,
+    this.clock,
+  });
 
   @override
   State<SalemScreen> createState() => _SalemScreenState();
 }
 
-sealed class _Entry {}
-
-class _Text extends _Entry {
-  final String role; // user | agent | system
-  final String text;
-  _Text(this.role, this.text);
-
-  /// Played its arrival once; a ListView rebuilds rows as they scroll back
-  /// into view, and a line must not slide in a second time.
-  bool seen = false;
-}
-
-class _Places extends _Entry {
-  final List<Place> places;
-  _Places(this.places);
-}
-
 class _SalemScreenState extends State<SalemScreen> {
-  final _entries = <_Entry>[];
+  List<ChatLine> _entries = [];
+
+  /// The memory: what the last answer was, and which of its places the
+  /// visitor last pointed at (a pin, a card or the share panel), for
+  /// «وين بالضبط؟».
+  ChatContext? _ctx;
+  String? _active;
+
+  /// The first line of the latest reply: a reply is a sentence, then its
+  /// cards, its map and its share panel — taller than a small phone — so it
+  /// is shown from where it STARTS, as on the web (3 October).
+  ChatLine? _replyStart;
+  final _replyKey = GlobalKey();
+  final _listKey = GlobalKey();
+
+  /// Captured once: dispose cannot look a provider up.
+  VoiceService? _voice;
+  AppState? _app;
+
+  /// The handed-over question, until it has been asked.
+  String? _handoff;
   final _input = TextEditingController();
   final _scroll = ScrollController();
   ChatStatus _status = ChatStatus.connecting;
@@ -79,7 +111,7 @@ class _SalemScreenState extends State<SalemScreen> {
         ? Timer(_waitLimit, () {
             if (!mounted || !_waiting) return;
             setState(() => _waiting = false);
-            _add(_Text('system', ChatCopy.noReply));
+            _add(ChatText('system', ChatCopy.noReply));
           })
         : null;
     if (mounted && _waiting != on) setState(() => _waiting = on);
@@ -95,11 +127,23 @@ class _SalemScreenState extends State<SalemScreen> {
   @override
   void initState() {
     super.initState();
+    _voice = Provider.of<VoiceService?>(context, listen: false);
+    _app = Provider.of<AppState?>(context, listen: false);
+    final q = widget.initialQuery?.trim() ?? '';
+    if (q.isNotEmpty) _handoff = q.length > 120 ? q.substring(0, 120) : q;
     if (_free) {
       // Nothing to connect to and nothing recorded, so nothing to agree to:
-      // he greets in words this screen owns, and the box works at once.
+      // he greets in words this screen owns, and the box works at once. Or
+      // the conversation is back where it was (ai/salem_transcript.dart).
       _status = ChatStatus.connected;
-      _entries.add(_Text('agent', ChatCopy.freeGreeting));
+      final kept = SalemTranscript.instance;
+      if (kept.lines.isNotEmpty) {
+        _entries = kept.restore();
+        _ctx = kept.context;
+      } else {
+        _entries.add(ChatText('agent', ChatCopy.freeGreeting));
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _askHandoff());
       return;
     }
     if (context.read<AppState>().aiConsent) {
@@ -156,9 +200,17 @@ class _SalemScreenState extends State<SalemScreen> {
       },
       onMessage: (m) {
         if (m.role == 'agent') _wait(false);
-        _add(_Text(m.role, m.text));
+        _add(ChatText(m.role, m.text));
+        // His reply in his voice — the agent's own audio is off on this
+        // channel.
+        if (m.role == 'agent') {
+          _readAloud([SpeechPart(text: m.text)]);
+          // The handed-over question goes after her greeting.
+          _askHandoff();
+        }
       },
-      onToolUnavailable: () => _add(_Text('system', ChatCopy.toolUnavailable)),
+      onToolUnavailable: () =>
+          _add(ChatText('system', ChatCopy.toolUnavailable)),
       onUnavailable: () {
         if (!mounted) return;
         setState(() {
@@ -172,28 +224,97 @@ class _SalemScreenState extends State<SalemScreen> {
       },
       clientTools: {
         'show_places': (p) {
-          final r = showPlacesForChat(
-            '${p['query'] ?? ''}'.trim(),
-            searchIndex,
-            kPlaces,
-          );
-          final found = [for (final s in r.slugs) ?getPlace(s)];
-          _add(_Places(found));
+          final q = '${p['query'] ?? ''}'.trim();
+          final r = showPlacesForChat(q, searchIndex, kPlaces);
+          _add(ChatPlaces(q, r.slugs));
           return r.spoken;
         },
         'open_place': (p) {
           final r = openPlaceForChat('${p['slug'] ?? ''}', kPlaces);
-          if (r.place != null) _add(_Places([r.place!]));
+          if (r.place != null) _add(ChatPlace(r.place!.slug));
           return r.spoken;
         },
       },
     );
   }
 
-  void _add(_Entry e) {
+  void _add(ChatLine e) {
     if (!mounted) return;
     setState(() => _entries.add(e));
+    _keep();
     _toNewest();
+  }
+
+  /// The free chat's transcript, kept for the running app.
+  void _keep() {
+    if (_free) SalemTranscript.instance.save(_entries, _ctx);
+  }
+
+  /// Shows the latest reply from its first line when it is taller than the
+  /// transcript: scrolled to the newest end, a reply's sentence sat above the
+  /// screen and the visitor met a share panel (the web's 320×568 finding).
+  Future<void> _revealReply() async {
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_scroll.hasClients) return;
+    if (_scroll.offset != 0) {
+      _scroll.jumpTo(0);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    // The reply's first line may sit further up than the list builds ahead
+    // of the screen: walk up to it, a screen at a time, then align it.
+    for (var tries = 0; tries < 6; tries++) {
+      if (!mounted || !_scroll.hasClients) return;
+      final row = _replyKey.currentContext?.findRenderObject();
+      final list = _listKey.currentContext?.findRenderObject();
+      final pos = _scroll.position;
+      if (row is RenderBox && list is RenderBox && row.attached) {
+        final top = row.localToGlobal(Offset.zero, ancestor: list).dy;
+        if (top >= 8) return;
+        // A reversed list: a larger offset brings older lines down into view.
+        final target = (pos.pixels + 8 - top).clamp(0.0, pos.maxScrollExtent);
+        if (MediaQuery.of(context).disableAnimations || tries > 0) {
+          _scroll.jumpTo(target);
+        } else {
+          await _scroll.animateTo(
+            target,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          );
+        }
+        return;
+      }
+      if (pos.pixels >= pos.maxScrollExtent) return;
+      _scroll.jumpTo(
+        (pos.pixels + pos.viewportDimension * 0.8).clamp(
+          0.0,
+          pos.maxScrollExtent,
+        ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  void _readAloud(List<SpeechPart> parts) {
+    if (parts.isEmpty || !context.read<AppState>().salemReadAloud) return;
+    _voice?.speak(parts, persona: PersonaId.salem);
+  }
+
+  void _toggleReadAloud() {
+    final state = context.read<AppState>();
+    final on = !state.salemReadAloud;
+    HapticFeedback.selectionClick();
+    if (!on) _voice?.stop();
+    state.setSalemReadAloud(on);
+  }
+
+  /// The handed-over question, once the chat can take it: at once in the free
+  /// chat, after her greeting on a socket.
+  void _askHandoff() {
+    final q = _handoff;
+    if (q == null || !mounted) return;
+    if (_status != ChatStatus.connected || _waiting) return;
+    _handoff = null;
+    _submit(q);
   }
 
   /// The transcript is a REVERSED list — offset 0 is the newest end — so a
@@ -221,44 +342,133 @@ class _SalemScreenState extends State<SalemScreen> {
   double _lastInset = 0;
 
   void _send() {
-    final text = _input.text.trim();
-    if (text.isEmpty || _status != ChatStatus.connected) return;
-    HapticFeedback.lightImpact();
-    _input.clear();
-    if (_free) {
-      _add(_Text('user', text));
-      _answerLocally(text);
-      return;
-    }
-    _handle?.send(text);
-    _add(_Text('user', text));
-    _wait(true);
+    if (_submit(_input.text)) _input.clear();
   }
 
-  /// The free chat's reply: the same search `show_places` runs, and the
-  /// sentence the free call speaks on /search (`answerParts`), so the two
-  /// free paths say the same thing about the same place. The web's
-  /// SalemChat.tsx does exactly this.
-  void _answerLocally(String q) {
-    final r = showPlacesForChat(q, searchIndex, kPlaces);
-    final found = [for (final s in r.slugs) ?getPlace(s)];
-    if (found.isEmpty) {
-      _add(_Text('agent', ChatCopy.freeEmpty));
-      return;
+  /// A message, typed or tapped (a chip, the handed-over question).
+  bool _submit(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty || _status != ChatStatus.connected || _waiting) {
+      return false;
     }
-    final clock = kuwaitClock();
-    final words = answerParts(
-      found.map((p) => p.nameAr).toList(),
-      found,
-      month: clock.month,
-      hour: clock.hour,
-    ).map((p) => p.text).join(' ');
-    _add(_Text('agent', words));
-    _add(_Places(found));
+    HapticFeedback.lightImpact();
+    if (_free) {
+      _add(ChatText('user', text));
+      _answerLocally(text);
+      return true;
+    }
+    _handle?.send(text);
+    _add(ChatText('user', text));
+    _wait(true);
+    return true;
+  }
+
+  /// The free chat's reply: our own search, our own words, no wire — read
+  /// against the last answer first (data/salem_followup.dart), so «أرخص»,
+  /// «غيره» and «وين بالضبط؟» answer what he just said instead of starting
+  /// again. The order is /search's (`answerOrder`) and the sentence is the
+  /// free call's (`answerParts`), so the free paths agree about the same
+  /// place. Mirrors SalemChat.tsx's `answerLocally`.
+  void _answerLocally(String q) {
+    final clock = (widget.clock ?? kuwaitClock)();
+    final ctx = _ctx;
+    final intent = readFollowUp(q, ctx, _active);
+    final lines = <ChatLine>[];
+    var parts = <SpeechPart>[];
+
+    List<SpeechPart> placeParts(Place p) => [
+      SpeechPart(key: 'try-${p.slug}', text: placeTryLine(p)),
+      ...whenParts(p, clock.month, clock.hour),
+    ];
+    String said(List<SpeechPart> ps) => ps.map((p) => p.text).join(' ');
+
+    // Cards for a list of slugs, and the memory and the chips that go with
+    // them.
+    void showList(
+      String query,
+      List<String> slugs,
+      List<String> ranked,
+      List<String> seen,
+      List<SpeechPart> spoken,
+    ) {
+      final next = ChatContext(
+        query: query,
+        ranked: ranked,
+        seen: seen,
+        shown: slugs,
+      );
+      final shown = [for (final s in slugs) ?getPlace(s)];
+      lines.add(
+        ChatPlaces(
+          query,
+          slugs,
+          followUpChips(next, shown, month: clock.month, hour: clock.hour),
+        ),
+      );
+      _ctx = next;
+      _active = null;
+      parts = spoken;
+    }
+
+    if (ctx != null && intent.kind == FollowUpKind.more) {
+      final slugs = nextPlaces(ctx);
+      if (slugs.isEmpty) {
+        lines.add(ChatText('agent', ChatCopy.moreNone));
+      } else {
+        final spoken = placeParts(getPlace(slugs.first)!);
+        lines.add(ChatText('agent', '${ChatCopy.moreIntro} ${said(spoken)}'));
+        showList(ctx.query, slugs, ctx.ranked, [...ctx.seen, ...slugs], spoken);
+      }
+    } else if (intent.kind == FollowUpKind.pick ||
+        intent.kind == FollowUpKind.where) {
+      final place = getPlace(intent.slug!)!;
+      _active = place.slug;
+      if (intent.kind == FollowUpKind.pick) {
+        parts = placeParts(place);
+        lines.add(ChatText('agent', said(parts)));
+        lines.add(ChatPlace(place.slug));
+      } else {
+        parts = [SpeechPart(text: '${place.nameAr} — ${place.areaAr}.')];
+        lines.add(ChatText('agent', '${parts.first.text} ${ChatCopy.where}'));
+        lines.add(ChatWhere(place.slug));
+      }
+    } else {
+      final query = intent.query ?? q;
+      final ranked = chatRanked(query, searchIndex, kPlaces, clock);
+      if (ranked.isEmpty && intent.kind == FollowUpKind.refine && ctx != null) {
+        // Nothing fits both — say so, and leave the last answer where it is
+        // rather than replacing it with the dead end.
+        lines.add(ChatText('agent', ChatCopy.refineNone));
+      } else if (ranked.isEmpty) {
+        lines.add(ChatText('agent', ChatCopy.freeEmpty));
+        _ctx = null;
+      } else {
+        final slugs = ranked.take(8).toList();
+        final found = [for (final s in slugs) ?getPlace(s)];
+        final spoken = answerParts(
+          found.map((p) => p.nameAr).toList(),
+          found,
+          month: clock.month,
+          hour: clock.hour,
+        );
+        lines.add(ChatText('agent', said(spoken)));
+        showList(query, slugs, ranked, slugs, spoken);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _replyStart = lines.first;
+      _entries.addAll(lines);
+    });
+    _keep();
+    _revealReply();
+    _readAloud(parts);
   }
 
   @override
   void dispose() {
+    // Leaving the chat should not leave him talking.
+    if (_app?.salemReadAloud ?? false) _voice?.stop();
     _waitTimer?.cancel();
     _retryTimer?.cancel();
     _handle?.close();
@@ -314,6 +524,8 @@ class _SalemScreenState extends State<SalemScreen> {
                         children: [
                           Text(
                             kSalemName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: wainText(
                               WainText.lg,
                               weight: FontWeight.w700,
@@ -325,6 +537,8 @@ class _SalemScreenState extends State<SalemScreen> {
                             child: Text(
                               _statusText,
                               key: const ValueKey('chat-status'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: wainText(
                                 WainText.xs,
                                 color: connected
@@ -336,11 +550,24 @@ class _SalemScreenState extends State<SalemScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    // His voice, on request: off until pressed, and
+                    // remembered (AppState, `wain-salem-read`).
+                    _ReadAloudToggle(
+                      on: context.watch<AppState>().salemReadAloud,
+                      onTap: _toggleReadAloud,
+                    ),
+                    const SizedBox(width: 8),
+                    // The call is placed from /find — one call button in the
+                    // app (1 October) — so this is the way there, not a
+                    // second one.
+                    const _CallShouqLink(),
                   ],
                 ),
               ),
               Expanded(
                 child: ListView.builder(
+                  key: _listKey,
                   controller: _scroll,
                   reverse: true,
                   padding: const EdgeInsets.all(12),
@@ -349,12 +576,12 @@ class _SalemScreenState extends State<SalemScreen> {
                   // she writes, otherwise her latest line.
                   itemBuilder: (_, row) {
                     final i = _entries.length + (_waiting ? 1 : 0) - 1 - row;
-                    return i == _entries.length
-                        ? const _TypingBubble()
-                        : switch (_entries[i]) {
-                            _Text t => _Bubble(t),
-                            _Places p => _PlacesBlock(places: p.places),
-                          };
+                    if (i == _entries.length) return const _TypingBubble();
+                    final line = _entries[i];
+                    final child = _line(line, i, connected);
+                    return identical(line, _replyStart)
+                        ? KeyedSubtree(key: _replyKey, child: child)
+                        : child;
                   },
                 ),
               ),
@@ -452,6 +679,115 @@ class _SalemScreenState extends State<SalemScreen> {
   }
 }
 
+extension on _SalemScreenState {
+  /// One transcript line, drawn.
+  Widget _line(ChatLine line, int i, bool connected) {
+    switch (line) {
+      case ChatText t:
+        return _Bubble(t);
+      case ChatPlaces p:
+        final places = [for (final s in p.slugs) ?getPlace(s)];
+        // The chips belong to the newest answer only: under an older one they
+        // would narrow something that is no longer the subject.
+        final latest = !_entries.skip(i + 1).any((x) => x is ChatPlaces);
+        return _PlacesResult(
+          key: ObjectKey(line),
+          places: places,
+          query: p.query,
+          chips: latest && !_waiting && connected ? p.chips : null,
+          onChip: _submit,
+          onActive: latest ? (slug) => _active = slug : null,
+        );
+      case ChatPlace p:
+        final place = getPlace(p.slug);
+        if (place == null) return const SizedBox.shrink();
+        return _PickedPlace(key: ObjectKey(line), place: place);
+      case ChatWhere w:
+        final place = getPlace(w.slug);
+        if (place == null) return const SizedBox.shrink();
+        return _Where(key: ObjectKey(line), place: place);
+    }
+  }
+}
+
+/// «اقرا لي الردود» — his replies read aloud in his voice.
+class _ReadAloudToggle extends StatelessWidget {
+  final bool on;
+  final VoidCallback onTap;
+  const _ReadAloudToggle({required this.on, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: on,
+      label: ChatCopy.readAloud,
+      excludeSemantics: true,
+      child: IconButton(
+        key: const ValueKey('chat-read-aloud'),
+        onPressed: onTap,
+        style: IconButton.styleFrom(
+          backgroundColor: on
+              ? WainColors.coral600
+              : Colors.white.withValues(alpha: 0.1),
+          minimumSize: const Size(48, 48),
+        ),
+        icon: WainSvg.icon(
+          on ? 'speaker' : 'speakeroff',
+          size: 20,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// «كلّم شوق» — to /find, where the call is. The words go before the name
+/// does: under 400 wide the header holds the back button, his face, his name
+/// and two controls, so the link is its icon (and its label is still read).
+class _CallShouqLink extends StatelessWidget {
+  const _CallShouqLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 400;
+    final icon = WainSvg.icon('call', size: 16, color: Colors.white);
+    return Semantics(
+      button: true,
+      label: ChatCopy.callShouq,
+      excludeSemantics: true,
+      child: FilledButton(
+        key: const ValueKey('chat-call-shouq'),
+        onPressed: () => context.push('/find'),
+        style: FilledButton.styleFrom(
+          backgroundColor: WainColors.coral600,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(48, 48),
+          padding: EdgeInsets.symmetric(horizontal: wide ? 14 : 0),
+          shape: const StadiumBorder(),
+        ),
+        child: wide
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  icon,
+                  const SizedBox(width: 6),
+                  Text(
+                    ChatCopy.callShouq,
+                    style: wainText(
+                      WainText.sm,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              )
+            : icon,
+      ),
+    );
+  }
+}
+
 /// The consent question, drawn where the input box will be: the same words
 /// as the sheet before a call (`AiPrivacyCopy`), agreed to once for both.
 class _ConsentPanel extends StatelessWidget {
@@ -512,7 +848,7 @@ class _ConsentPanel extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  final _Text entry;
+  final ChatText entry;
   const _Bubble(this.entry);
 
   @override
@@ -603,43 +939,304 @@ class _TypingBubble extends StatelessWidget {
   }
 }
 
-/// The cards she put in front of the visitor, each with the «رسّلها للربع»
-/// panel — this block's own selection, so one turn cannot leak into another.
-class _PlacesBlock extends StatefulWidget {
+/// One answer's places: the cards in a rail, a map of their own, a way to the
+/// same answer as a full search, the share panel, and — under the newest
+/// answer — the replies that would change it. The pin, the card and the
+/// panel's «أي مكان؟» point at one place together, as on /search. Its own
+/// state, so one turn's selection cannot leak into another's; a map per
+/// reply rather than one for the chat, as on the web — each answer keeps its
+/// own places where they are.
+class _PlacesResult extends StatefulWidget {
   final List<Place> places;
-  const _PlacesBlock({required this.places});
+  final String query;
+  final List<String>? chips;
+  final ValueChanged<String> onChip;
+  final ValueChanged<String>? onActive;
+  const _PlacesResult({
+    super.key,
+    required this.places,
+    required this.query,
+    required this.chips,
+    required this.onChip,
+    required this.onActive,
+  });
 
   @override
-  State<_PlacesBlock> createState() => _PlacesBlockState();
+  State<_PlacesResult> createState() => _PlacesResultState();
 }
 
-class _PlacesBlockState extends State<_PlacesBlock> {
+class _PlacesResultState extends State<_PlacesResult> {
   String? _slug;
+  final _rail = ScrollController();
+  static const double _cardWidth = 168;
+
+  void _choose(String? slug) {
+    setState(() => _slug = slug);
+    if (slug == null) return;
+    widget.onActive?.call(slug);
+    // Bring its card into the rail's view — the rail scrolls sideways, and a
+    // pin pressed for the seventh place pointed at a card off the screen.
+    final i = widget.places.indexWhere((p) => p.slug == slug);
+    if (i < 0 || !_rail.hasClients) return;
+    final pos = _rail.position;
+    final start = i * (_cardWidth + 8);
+    final end = start + _cardWidth;
+    final target = start < pos.pixels
+        ? start
+        : end > pos.pixels + pos.viewportDimension
+        ? end - pos.viewportDimension
+        : pos.pixels;
+    _rail.animateTo(
+      target.clamp(0.0, pos.maxScrollExtent),
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _rail.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.places.isEmpty) return const SizedBox.shrink();
-    final active = widget.places.firstWhere(
-      (p) => p.slug == _slug,
-      orElse: () => widget.places.first,
+    final places = widget.places;
+    if (places.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Center(
+          child: Text(
+            '${ChatCopy.noResults} «${widget.query}»',
+            textAlign: TextAlign.center,
+            style: wainText(WainText.xs, color: WainColors.sand200),
+          ),
+        ),
+      );
+    }
+    final active = places.any((p) => p.slug == _slug) ? _slug : null;
+    final target = places.firstWhere(
+      (p) => p.slug == active,
+      orElse: () => places.first,
     );
+    final chips = widget.chips;
     return Padding(
+      key: const ValueKey('chat-places'),
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final p in widget.places)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SizedBox(
-                height: placeCardExtent(context),
-                child: PlaceCard(place: p),
-              ),
+          SizedBox(
+            // The card's own extent, the ring's 2px above and below, and the
+            // rail's padding.
+            height: placeCardExtent(context) + 4 + 8,
+            child: ListView.separated(
+              key: const ValueKey('chat-rail'),
+              controller: _rail,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: places.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final p = places[i];
+                return Listener(
+                  // A finger landing on a card points at it, as a pointer
+                  // entering one does on the web; the tap still opens it.
+                  onPointerDown: (_) => _choose(p.slug),
+                  child: AnimatedContainer(
+                    key: ValueKey('chat-card-${p.slug}'),
+                    duration: const Duration(milliseconds: 150),
+                    width: _cardWidth,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(WainRadius.s2xl + 2),
+                      border: Border.all(
+                        color: p.slug == active
+                            ? WainColors.sun400
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: PlaceCard(place: p),
+                  ),
+                );
+              },
             ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(WainRadius.s3xl),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Still until «حرّك الخريطة», like every map in the app: in a
+                // scrolling transcript a live map would take the drag.
+                WainMap(
+                  key: const ValueKey('chat-map'),
+                  places: places,
+                  activeSlug: active,
+                  onActive: _choose,
+                  onOpen: (p) => context.push('/places/${p.slug}'),
+                  height: 200,
+                ),
+                TextButton.icon(
+                  key: const ValueKey('chat-see-all'),
+                  onPressed: () => context.go(
+                    '/search?q=${Uri.encodeQueryComponent(widget.query)}',
+                  ),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    foregroundColor: WainColors.sea700,
+                  ),
+                  icon: WainSvg.icon('map', size: 14, color: WainColors.sea700),
+                  label: Text(
+                    ChatCopy.seeAll,
+                    style: wainText(
+                      WainText.xs,
+                      weight: FontWeight.w600,
+                      color: WainColors.sea700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           ShareHangout(
-            place: active,
-            choices: widget.places.length > 1 ? widget.places : null,
-            onChoose: (s) => setState(() => _slug = s),
+            place: target,
+            choices: places.length > 1 ? places : null,
+            onChoose: _choose,
+          ),
+          if (chips != null && chips.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              key: const ValueKey('chat-followups'),
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  ChatCopy.followLabel,
+                  style: wainText(WainText.xs, color: WainColors.sand200),
+                ),
+                for (final c in chips)
+                  ActionChip(
+                    key: ValueKey('chat-chip-$c'),
+                    label: Text(
+                      c,
+                      style: wainText(WainText.sm, color: Colors.white),
+                    ),
+                    backgroundColor: Colors.white.withValues(alpha: 0.1),
+                    side: BorderSide.none,
+                    shape: const StadiumBorder(),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                    onPressed: () => widget.onChip(c),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One place — picked from the answer («الثاني») or opened by the agent: its
+/// card, and the share panel for it.
+class _PickedPlace extends StatelessWidget {
+  final Place place;
+  const _PickedPlace({super.key, required this.place});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const ValueKey('chat-picked'),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 192,
+            height: placeCardExtent(context),
+            child: PlaceCard(place: place),
+          ),
+          ShareHangout(place: place),
+        ],
+      ),
+    );
+  }
+}
+
+/// «وين بالضبط؟» — one place, on the map, with the way there.
+class _Where extends StatelessWidget {
+  final Place place;
+  const _Where({super.key, required this.place});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('chat-where'),
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(WainRadius.s3xl),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          WainMap(places: [place], activeSlug: place.slug, height: 200),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: const ValueKey('chat-directions'),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  openDirections(place);
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: WainColors.sea600,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WainRadius.xl),
+                  ),
+                ),
+                icon: WainSvg.icon('go', size: 16, color: Colors.white),
+                label: Text(
+                  ChatCopy.directions,
+                  style: wainText(
+                    WainText.sm,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              OutlinedButton(
+                key: const ValueKey('chat-open-place'),
+                onPressed: () => context.push('/places/${place.slug}'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  side: const BorderSide(color: WainColors.lineControl),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WainRadius.xl),
+                  ),
+                ),
+                child: Text(
+                  ChatCopy.openPlace,
+                  style: wainText(
+                    WainText.sm,
+                    weight: FontWeight.w600,
+                    color: WainColors.ink700,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

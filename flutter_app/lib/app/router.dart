@@ -12,6 +12,7 @@ import '../screens/explore_screen.dart';
 import '../screens/find_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/not_found_screen.dart';
+import '../screens/pick_screen.dart';
 import '../screens/place_detail_screen.dart';
 import '../screens/privacy_screen.dart';
 import '../screens/salem_screen.dart';
@@ -125,7 +126,18 @@ GoRouter buildRouter({String initialLocation = '/'}) {
       ),
       GoRoute(
         path: '/salem',
-        pageBuilder: (_, s) => _pushed(s, const SalemScreen(), back: false),
+        // `?q=` is a question handed over («كمّل مع سالم», «اسأل سالم»),
+        // asked once as the visitor's own message.
+        pageBuilder: (_, s) => _pushed(
+          s,
+          SalemScreen(initialQuery: s.uri.queryParameters['q']),
+          back: false,
+        ),
+      ),
+      // «خلّهم يختارون» — a shortlist a friend sent (`?p=a,b,c&when=…`).
+      GoRoute(
+        path: '/pick',
+        pageBuilder: (_, s) => _pushed(s, PickScreen(query: s.uri.query)),
       ),
       GoRoute(
         path: '/about',

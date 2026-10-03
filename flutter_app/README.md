@@ -26,7 +26,8 @@ pre-installed on `PATH` in the cloud sandbox: `/opt/flutter/bin/flutter`.
 | `/search` | the ranked engine, filters by kind, map, hangout panel, voice toggle |
 | `/explore` | category chips + filter + grid |
 | `/places/:slug` | hero, facts, invitation banner, «رسّلها للربع», map, similar places |
-| `/salem` | the typed chat — real place cards in the transcript, no navigation |
+| `/salem` | the typed chat — each answer is cards, a map, «شوف الكل بالبحث» and the hangout panel; remembers its last answer («أرخص», «غيره», «الثاني», «وين بالضبط؟»); `?q=` is asked as the visitor's own; read-aloud in سالم's voice |
+| `/pick` | a «خلّهم يختارون» shortlist a friend sent: the places numbered, on one map, «أنا معه» as the vote |
 | `/about` `/privacy` `/add` `/404` | copy written for the app (see below) |
 
 شوق's **call** is the official `elevenlabs_agents` SDK (WebRTC/LiveKit) behind
@@ -42,7 +43,7 @@ route change and a call the page owned would be killed by its own tool.
 |---|---|---|
 | `lib/data/places.g.dart`, `categories.g.dart` | `npm run flutter:catalogue` | `src/lib/places.ts` (every field) |
 | `lib/theme/tokens.g.dart` | `npm run flutter:tokens` | `src/app/theme.css` |
-| `lib/data/search_data.g.dart`, `test/fixtures/search_parity.json` | `npm run flutter:search` | `src/lib/search.ts` |
+| `lib/data/search_data.g.dart`, `test/fixtures/search_parity.json` | `npm run flutter:search` | `src/lib/search.ts`, `answer-order.ts`, `salem-followup.ts` |
 | `test/fixtures/kit_parity.json` | `npm run flutter:fixtures` | `place-kit`, `voice-lines`, `hangout` |
 | `assets/art/**`, `lib/theme/art_index.g.dart` | `npm run flutter:art` | the React drawings, rendered in Chromium |
 | `assets/img/home-hero.webp`, `lib/data/home_hero.g.dart` | `npm run home-hero` | `brand-source/home-hero.png` (the picture and where its sun is) |
@@ -75,6 +76,12 @@ reads that as staleness. Format the rest: `find lib test -name '*.dart' !
   the agent's prompt was tuned against are asserted verbatim.
 * **The typed chat** — `test/salem_chat_test.dart` against a real WebSocket
   server on localhost that speaks the protocol.
+* **سالم's memory** (`lib/data/salem_followup.dart`) — `test/salem_followup_test.dart`
+  replays the web's own readings of 32 short replies against 14 remembered
+  answers (and the narrowed question's answer for every «أرخص»), the chips and
+  «غيره»; `test/salem_together_test.dart` drives the chat itself.
+* **The shortlist** (`shortlistMessage` and friends in `lib/share/hangout.dart`)
+  — `test/kit_parity_test.dart`, the same 28 instants × 4 lists × 6 times.
 * **Voice** — `test/voice_service_test.dart`: clips → bridge → device voice; a
   404/503/403 is remembered, a timeout/5xx/429 is not; an error page wearing a
   200 is rejected.

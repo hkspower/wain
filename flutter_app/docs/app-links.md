@@ -3,6 +3,8 @@
 A «رسّلها للربع» message carries a link like
 `https://www.wainkw.com/places/kuwait-towers/?when=tonight-8`. Someone with the
 app should land on that place **in the app**; someone without it, on the site.
+A «خلّهم يختارون» shortlist (`/pick/?p=a,b,c&when=…`) is claimed the same way,
+and opens the app's pick screen.
 Everything in the app and in this repository is ready for that. What is left is
 two values only you have, and one website deploy.
 
@@ -11,7 +13,7 @@ two values only you have, and one website deploy.
 | | |
 |---|---|
 | iOS | `ios/Runner/Runner.entitlements` claims `applinks:www.wainkw.com` and `applinks:wainkw.com` |
-| Android | the `/places/` intent filter has `autoVerify="true"`, for both hosts |
+| Android | the `/places/` and `/pick/` intent filter has `autoVerify="true"`, for both hosts |
 | Routing | `app_links` alone (`lib/app/deep_link.dart`); Flutter's own deep linking is off, so a link reaches the router once |
 | Site | `public/.htaccess` serves `apple-app-site-association` as JSON; `.well-known/` is exempt from the dot-file rule |
 | Generator | `npm run app:links` writes both files, and refuses to write anything that is not a real value |

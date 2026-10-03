@@ -157,22 +157,26 @@ const inviteParam = 'when';
 String inviteUrl(Place place, WhenId when, String origin) =>
     '${origin.replaceAll(RegExp(r'/+$'), '')}/places/${place.slug}/?$inviteParam=${when.wire}';
 
-/// The time in a link, or null. Validated against the known ids: an unknown
-/// one is simply not an invitation.
-WhenId? readInvite(String search) {
-  // The FIRST `when`, as URLSearchParams#get gives — Uri.splitQueryString
-  // keeps the last, which would let a pasted link with two of them disagree
-  // with the web about which plan it carries.
+/// The FIRST value of [key] in a query string, as `URLSearchParams#get`
+/// gives — `Uri.splitQueryString` keeps the last, which would let a pasted
+/// link with two of them disagree with the web about what it carries. Null
+/// when the key is absent.
+String? _firstParam(String search, String key) {
   final q = search.startsWith('?') ? search.substring(1) : search;
   for (final pair in q.split('&')) {
     final eq = pair.indexOf('=');
-    final key = Uri.decodeQueryComponent(eq < 0 ? pair : pair.substring(0, eq));
-    if (key != inviteParam) continue;
-    return WhenId.parse(
-      eq < 0 ? '' : Uri.decodeQueryComponent(pair.substring(eq + 1)),
-    );
+    final k = Uri.decodeQueryComponent(eq < 0 ? pair : pair.substring(0, eq));
+    if (k != key) continue;
+    return eq < 0 ? '' : Uri.decodeQueryComponent(pair.substring(eq + 1));
   }
   return null;
+}
+
+/// The time in a link, or null. Validated against the known ids: an unknown
+/// one is simply not an invitation.
+WhenId? readInvite(String search) {
+  final raw = _firstParam(search, inviteParam);
+  return raw == null ? null : WhenId.parse(raw);
 }
 
 /// Has the invited hour already gone? Only answerable for the four evening
@@ -186,5 +190,120 @@ bool invitePassed(WhenId when, [DateTime? now]) {
 
 String inviteAcceptMessage(Place place, WhenId when) =>
     'تمام، أنا معكم 👍 ${place.nameAr} — ${phraseFor(when)}';
+
+// ── the shortlist: two or three places, and the group picks ──────────────
+//
+// «خلّهم يختارون» — when the sender has not decided either (hangout.ts, 3
+// October). The panel can send a short list with one time on it, and a link
+// that opens those places on a map where each person sends back the one they
+// want (`/pick`). Three at most: «اختاروا من ثمانية» is the argument again.
+
+const int kShortlistMax = 3;
+const String shortlistParam = 'p';
+const List<String> _ordinalAr = ['١', '٢', '٣'];
+
+/// The times that fit every place on the list — the summer rule, for each.
+List<WhenOption> whenOptionsFor(List<Place> list, [DateTime? now]) {
+  final t = now ?? DateTime.now();
+  final sets = [
+    for (final p in list) {for (final o in whenOptions(t, p)) o.id},
+  ];
+  return whenOptions(t)
+      .where((o) => sets.every((s) => s.contains(o.id)))
+      .toList();
+}
+
+/// The first time to offer for a list: the first place's own default, if it
+/// fits them all, else the evening, else tomorrow.
+WhenId defaultWhenFor(List<Place> list, [DateTime? now]) {
+  final t = now ?? DateTime.now();
+  final ok = {for (final o in whenOptionsFor(list, t)) o.id};
+  final first = list.isNotEmpty ? defaultWhen(list.first, t) : WhenId.tomorrow;
+  if (ok.contains(first)) return first;
+  if (ok.contains(WhenId.tonight8)) return WhenId.tonight8;
+  if (ok.contains(WhenId.tonight10)) return WhenId.tonight10;
+  return WhenId.tomorrow;
+}
+
+/// `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like [inviteUrl].
+String shortlistUrl(List<Place> list, WhenId when, String origin) {
+  final slugs = list.take(kShortlistMax).map((p) => p.slug).join(',');
+  return '${origin.replaceAll(RegExp(r'/+$'), '')}/pick/?$shortlistParam=$slugs&$inviteParam=${when.wire}';
+}
+
+final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
+
+/// The slugs and the time in a shortlist link. Each slug is checked against
+/// the places that exist ([known]), duplicates dropped, three kept — the link
+/// is whatever anyone pasted. Fewer than two left is not a shortlist.
+({List<String> slugs, WhenId? when}) readShortlist(
+  String search,
+  bool Function(String slug) known,
+) {
+  final raw = (_firstParam(search, shortlistParam) ?? '')
+      .split(',')
+      .map((s) => s.trim());
+  final slugs = <String>[];
+  for (final s in raw) {
+    if (_slugShape.hasMatch(s) && known(s) && !slugs.contains(s)) slugs.add(s);
+    if (slugs.length == kShortlistMax) break;
+  }
+  return (
+    slugs: slugs.length >= 2 ? slugs : const <String>[],
+    when: readInvite(search),
+  );
+}
+
+/// The message: one time, the places numbered, and the link to vote. The
+/// heat line travels once, for the first place the plan would bake.
+String shortlistMessage({
+  required List<Place> places,
+  required WhenId when,
+  required String url,
+  DateTime? now,
+}) {
+  final t = now ?? DateTime.now();
+  final month = kuwaitMonth(t);
+  final hour = kuwaitHour(t);
+  final arrival = when == WhenId.now
+      ? hour
+      : when == WhenId.soon
+      ? hour + 1
+      : _dayStarts + 2;
+  final daytimePlan =
+      when == WhenId.now ||
+      when == WhenId.soon ||
+      when == WhenId.tomorrow ||
+      when == WhenId.weekend;
+  Place? hot;
+  if (daytimePlan) {
+    for (final p in places) {
+      if (_bakesInTheSun(p, arrival, month)) {
+        hot = p;
+        break;
+      }
+    }
+  }
+  final list = places.take(kShortlistMax).toList();
+  return [
+    'وين نروح ${phraseFor(when)}؟ اختاروا:',
+    for (var i = 0; i < list.length; i++)
+      '${_ordinalAr[i]}. ${list[i].nameAr} — ${list[i].areaAr}',
+    if (hot != null) ...['', kGenericLines[summerKey(hot)]!],
+    '',
+    'صوّتوا هني: $url',
+  ].join('\n');
+}
+
+/// «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap.
+String shortlistVoteMessage(Place place, int position, WhenId? when) {
+  final n = position < _ordinalAr.length
+      ? _ordinalAr[position]
+      : '${position + 1}';
+  return 'أنا مع $n: ${place.nameAr} 👍${when != null ? ' — ${phraseFor(when)}' : ''}';
+}
+
+/// The share sheet's title for a list.
+String shortlistTitle() => 'وين نروح؟ — وين';
 
 String hangoutTitle(Place place) => '${place.nameAr} — وين؟';

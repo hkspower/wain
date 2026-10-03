@@ -2,7 +2,9 @@
 /// ordering for the search screen and سالم's chat. The web file carries the
 /// reasons; the order is: the search's score, then the Kuwaiti summer by day
 /// (open-air 0.6, half-covered 0.9, unless the question chose the outdoors or
-/// the evening), then «رخيص» (0.5 above the cheapest band), then the Google
+/// the evening) — or, when the question asks to be inside («داخلي», «مكيّف»),
+/// open-air 0.3 and half-covered 0.7 in any month instead — then «رخيص» (0.5
+/// above the cheapest band), then the Google
 /// figures within a band of near-equal matches (`reorderByReviews`). A
 /// question with no topic gets the hour's default pick.
 ///
@@ -25,6 +27,8 @@ AnswerClock kuwaitClock([DateTime? now]) =>
 const double kSummerOutdoor = 0.6;
 const double kSummerMixed = 0.9;
 const double kNotCheap = 0.5;
+const double kInsideOutdoor = 0.3;
+const double kInsideMixed = 0.7;
 
 Set<String> _fold(List<String> words) => {for (final w in words) normalise(w)};
 
@@ -41,6 +45,17 @@ final Set<String> _asksOutside = _fold(const [
   'عشاء', //
   'اتعشى', 'نتعشى', 'تعشى', 'برا', 'بره', 'مكشوف', 'بحر', 'شاطئ', 'شواطئ', //
   'بيتش', 'بر', 'كشته', 'صحراء', 'حديقه', 'حدائق',
+]);
+
+/// Words that ask to be inside. «مكيّف» folds to «مكيف».
+final Set<String> _asksInside = _fold(const [
+  'داخلي',
+  'داخل',
+  'مكيف',
+  'مكيفه',
+  'مسكر',
+  'مغلق',
+  'indoor',
 ]);
 final Set<String> _asksCheap = _fold(const [
   'رخيص',
@@ -67,7 +82,7 @@ List<String> _readings(String t) {
 }
 
 /// What the question asks of the answer, beyond what it matches.
-({bool outside, bool cheap}) readAsks(String query) {
+({bool outside, bool cheap, bool inside}) readAsks(String query) {
   final raw = tokenize(query);
   bool has(Set<String> set) => raw.any((t) => _readings(t).any(set.contains));
   var notDear = false;
@@ -76,17 +91,28 @@ List<String> _readings(String t) {
       notDear = true;
     }
   }
-  return (outside: has(_asksOutside), cheap: has(_asksCheap) || notDear);
+  return (
+    outside: has(_asksOutside),
+    cheap: has(_asksCheap) || notDear,
+    inside: has(_asksInside),
+  );
 }
 
 /// The multiplier the season and the price put on one place's score.
 double answerFactor(
   Place p,
-  ({bool outside, bool cheap}) asks,
+  ({bool outside, bool cheap, bool inside}) asks,
   AnswerClock clock,
 ) {
   var f = 1.0;
-  if (isSummerMonth(clock.month) &&
+  if (asks.inside) {
+    // Said, not inferred: no season and no `summerOk` changes it.
+    if (p.setting == 'outdoor') {
+      f *= kInsideOutdoor;
+    } else if (p.setting == 'mixed') {
+      f *= kInsideMixed;
+    }
+  } else if (isSummerMonth(clock.month) &&
       !isKuwaitNight(clock.hour) &&
       !asks.outside &&
       p.summerOk != true) {

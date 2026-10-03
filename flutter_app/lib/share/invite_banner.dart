@@ -5,8 +5,10 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -19,11 +21,16 @@ class InviteBanner extends StatefulWidget {
   final WhenId when;
   final DateTime Function() clock;
 
+  /// «شوفه على الخريطة» — the place page's own map, brought into view (the
+  /// web's `#map` anchor).
+  final VoidCallback? onShowMap;
+
   const InviteBanner({
     super.key,
     required this.place,
     required this.when,
     this.clock = _now,
+    this.onShowMap,
   });
 
   static DateTime _now() => DateTime.now();
@@ -179,6 +186,36 @@ class _InviteBannerState extends State<InviteBanner> {
                   ),
                 ],
               ),
+            // Where it is, and a way to answer «لا، خلنا نروح مكان ثاني» with a
+            // place instead of a complaint — سالم, asked about the same kind
+            // of place in the same area (3 October, as on the web).
+            const SizedBox(height: 8),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              children: [
+                _Link(
+                  key: const ValueKey('invite-map'),
+                  label: 'شوفه على الخريطة',
+                  onTap: () => widget.onShowMap?.call(),
+                ),
+                Text(
+                  '·',
+                  style: wainText(WainText.sm, color: WainColors.ink600),
+                ),
+                Text(
+                  'تبي مكان ثاني؟',
+                  style: wainText(WainText.sm, color: WainColors.ink600),
+                ),
+                _Link(
+                  key: const ValueKey('invite-salem'),
+                  label: 'اسأل سالم',
+                  onTap: () => context.push(
+                    '/salem?q=${Uri.encodeQueryComponent(inviteSalemQuestion(place))}',
+                  ),
+                ),
+              ],
+            ),
             if (_outcome == ShareOutcome.copied)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -196,6 +233,42 @@ class _InviteBannerState extends State<InviteBanner> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// What «اسأل سالم» asks: the same kind of place, in the same area.
+String inviteSalemQuestion(Place place) => [
+  getCategory(place.category)?.ar,
+  place.areaAr,
+].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+
+/// A text link — the web's underlined sea-coloured anchor, a finger's height.
+class _Link extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _Link({super.key, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      link: true,
+      child: TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          foregroundColor: WainColors.sea700,
+        ),
+        child: Text(
+          label,
+          style: wainText(
+            WainText.sm,
+            weight: FontWeight.w600,
+            color: WainColors.sea700,
+          ),
         ),
       ),
     );

@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 const Set<String> kOwnHosts = {'www.wainkw.com', 'wainkw.com'};
 
 /// `https://www.wainkw.com/places/kuwait-towers/?when=tonight-8` →
-/// `/places/kuwait-towers?when=tonight-8`; null for anything not ours.
+/// `/places/kuwait-towers?when=tonight-8`, and
+/// `https://www.wainkw.com/pick/?p=a,b&when=now` → `/pick?p=a,b&when=now`;
+/// null for anything not ours.
 String? locationFromLink(Uri link) {
   if (link.scheme != 'https' || !kOwnHosts.contains(link.host)) return null;
   final path = link.path.length > 1 && link.path.endsWith('/')
@@ -22,6 +24,10 @@ String? locationFromLink(Uri link) {
         '/explore',
         '/search',
         '/find',
+        // A shortlist («خلّهم يختارون») and a question handed to سالم: both
+        // carry their meaning in the query, which is passed on whole.
+        '/pick',
+        '/salem',
         '/about',
         '/privacy',
         '/add',

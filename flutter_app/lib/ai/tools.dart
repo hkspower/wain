@@ -46,6 +46,32 @@ List<SearchHit> placeHits(
   clock,
 ).hits;
 
+/// The places a free answer in سالم's chat is made of, in its order — the
+/// web's SalemChat `search`: the search over EVERY kind (limit 40, so a
+/// category or an area takes a slot the way it does there), `answerOrder`,
+/// then the place hits. Not [placeHits], which searches places alone and so
+/// finds more of them than the web's chat remembers.
+List<String> chatRanked(
+  String query,
+  SearchIndex index,
+  List<Place> places, [
+  AnswerClock? clock,
+]) {
+  final known = {for (final p in places) p.slug};
+  return [
+    for (final h in answerOrder(
+      query,
+      search(query, index, limit: 40),
+      index,
+      places,
+      clock,
+    ).hits)
+      if (h.doc.kind == 'place' &&
+          known.contains(h.doc.id.substring('place:'.length)))
+        h.doc.id.substring('place:'.length),
+  ];
+}
+
 /// `show_places` on a CALL.
 ShowPlacesResult showPlacesForCall(
   String query,

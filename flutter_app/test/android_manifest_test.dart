@@ -42,18 +42,21 @@ void main() {
     expect(kt, contains('START_NOT_STICKY'));
   });
 
-  test('a shared /places/ link is claimed for verification, on both hosts', () {
+  test('a shared /places/ or /pick/ link is claimed for verification, on '
+      'both hosts', () {
     final filter = RegExp(
       r'<intent-filter android:autoVerify="true">(.*?)</intent-filter>',
       dotAll: true,
     ).firstMatch(manifest)?.group(1);
     expect(filter, isNotNull);
     for (final host in ['www.wainkw.com', 'wainkw.com']) {
-      expect(
-        filter,
-        contains('android:host="$host" android:pathPrefix="/places/"'),
-        reason: host,
-      );
+      for (final path in ['/places/', '/pick/']) {
+        expect(
+          filter,
+          contains('android:host="$host" android:pathPrefix="$path"'),
+          reason: '$host $path',
+        );
+      }
     }
   });
 

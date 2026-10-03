@@ -19,15 +19,16 @@
  * otherwise cost the deploy its commit-named build id (CLAUDE.md, «A feature
  * that dirties the tree disables the build-id proof»).
  *
- * Only /places/* is claimed. Those are the links people forward; claiming the
- * whole site would send a visitor who meant the website into the app.
+ * Only /places/* and /pick/* are claimed. Those are the links people forward —
+ * a «رسّلها للربع» plan and a «خلّهم يختارون» shortlist (3 October); claiming
+ * the whole site would send a visitor who meant the website into the app.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const BUNDLE_ID = "com.wainkw.app";
-export const PATHS = ["/places/*"];
+export const PATHS = ["/places/*", "/pick/*"];
 
 const TEAM = /^[A-Z0-9]{10}$/;
 const CERT = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;

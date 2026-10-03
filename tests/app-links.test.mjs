@@ -29,11 +29,11 @@ ok("a placeholder is refused, not written", () => {
   assert.equal(appLinks({ teamId: "<your team>", certSha256: "<sha>" }).files, undefined);
 });
 
-ok("the Apple file names the app and claims only /places/*", () => {
+ok("the Apple file names the app and claims only /places/* and /pick/*", () => {
   const { files } = appLinks({ teamId: "ABCDE12345", certSha256: CERT });
   const aasa = JSON.parse(files["apple-app-site-association"]);
   assert.deepEqual(aasa.applinks.details[0].appIDs, [`ABCDE12345.${BUNDLE_ID}`]);
-  assert.deepEqual(aasa.applinks.details[0].components, [{ "/": "/places/*" }]);
+  assert.deepEqual(aasa.applinks.details[0].components, [{ "/": "/places/*" }, { "/": "/pick/*" }]);
 });
 
 ok("the Android file names the package and the fingerprint, upper-cased", () => {

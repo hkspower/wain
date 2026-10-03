@@ -168,6 +168,71 @@ void main() {
     });
   });
 
+  group('the shortlist («خلّهم يختارون»)', () {
+    final sl = f['shortlist'] as Map<String, dynamic>;
+    final known = bySlug.keys.toSet();
+
+    test('the link, its reading, the vote and the title', () {
+      expect(kShortlistMax, sl['max']);
+      expect(sl['title'], shortlistTitle());
+      final cases = (sl['cases'] as List).cast<Map<String, dynamic>>();
+      final lists = [
+        for (final l in (cases.first['lists'] as List).cast<Map>())
+          [for (final s in (l['slugs'] as List)) bySlug[s]!],
+      ];
+      for (var i = 0; i < lists.length; i++) {
+        expect(
+          shortlistUrl(lists[i], WhenId.tonight8, 'https://www.wainkw.com//'),
+          (sl['urls'] as List)[i],
+        );
+      }
+      for (final r in (sl['read'] as List).cast<Map>()) {
+        final got = readShortlist(r['q'] as String, known.contains);
+        expect(
+          {'slugs': got.slugs, 'when': got.when?.wire},
+          r['out'],
+          reason: r['q'] as String,
+        );
+      }
+      final votes = <String>[];
+      for (var i = 0; i < 4; i++) {
+        for (final w in [null, WhenId.tonight8, WhenId.now]) {
+          votes.add(shortlistVoteMessage(kPlaces[i], i, w));
+        }
+      }
+      expect(votes, sl['votes']);
+    });
+
+    for (final c in (sl['cases'] as List).cast<Map<String, dynamic>>()) {
+      final now = DateTime.parse(c['now'] as String);
+      test('the times, the default and the message at ${c['now']}', () {
+        for (final l in (c['lists'] as List).cast<Map<String, dynamic>>()) {
+          final list = [for (final s in (l['slugs'] as List)) bySlug[s]!];
+          final at = (l['slugs'] as List).join(',');
+          expect(
+            whenOptionsFor(list, now).map((o) => o.id.wire).toList(),
+            l['options'],
+            reason: '$at options',
+          );
+          expect(defaultWhenFor(list, now).wire, l['default'], reason: at);
+          (l['messages'] as Map).forEach((w, want) {
+            final when = WhenId.parse(w)!;
+            expect(
+              shortlistMessage(
+                places: list,
+                when: when,
+                url: shortlistUrl(list, when, 'https://www.wainkw.com/'),
+                now: now,
+              ),
+              want,
+              reason: '$at $w',
+            );
+          });
+        }
+      });
+    }
+  });
+
   test('/find says what the web says, at all 288 moments', () {
     final cases = f['findMoment'] as List;
     expect(cases, hasLength(288));

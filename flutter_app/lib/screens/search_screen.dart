@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -57,6 +58,28 @@ class _SearchScreenState extends State<SearchScreen> {
   String _kind = 'all';
   String? _activeSlug;
   Timer? _speakTimer;
+
+  /// The share panel, for «رسّلها للربع» in her answer to bring into view.
+  final _shareKey = GlobalKey();
+
+  /// «رسّلها للربع» for the place she named: the page's own share panel, on
+  /// it — the web's ShouqAnswer `onShare` (3 October).
+  void _shareFromAnswer(String slug) {
+    HapticFeedback.selectionClick();
+    setState(() => _activeSlug = slug);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _shareKey.currentContext;
+      if (!mounted || ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: MediaQuery.of(context).disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   String _lastSpoken = '';
 
   String get _q => _controller.text;
@@ -253,7 +276,11 @@ class _SearchScreenState extends State<SearchScreen> {
                 const _EmptyWaysOn(),
               ] else if (hits.isNotEmpty) ...[
                 if (hitPlaces.isNotEmpty)
-                  _AnswerLine(text: placeTryLine(hitPlaces.first)),
+                  _AnswerLine(
+                    text: placeTryLine(hitPlaces.first),
+                    query: q,
+                    onShare: () => _shareFromAnswer(hitPlaces.first.slug),
+                  ),
                 Text(
                   countAr(hits.length, kResultsCount),
                   style: wainText(WainText.sm, color: WainColors.ink500),
@@ -275,11 +302,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     onHover: (slug) => setState(() => _activeSlug = slug),
                   ),
                 if (hitPlaces.isNotEmpty && active != null)
-                  ShareHangout(
-                    key: const ValueKey('search-hangout'),
-                    place: hitPlaces.firstWhere((p) => p.slug == active),
-                    choices: hitPlaces.take(8).toList(),
-                    onChoose: (s) => setState(() => _activeSlug = s),
+                  KeyedSubtree(
+                    key: _shareKey,
+                    child: ShareHangout(
+                      key: const ValueKey('search-hangout'),
+                      place: hitPlaces.firstWhere((p) => p.slug == active),
+                      choices: hitPlaces.take(8).toList(),
+                      onChoose: (s) => setState(() => _activeSlug = s),
+                    ),
                   ),
               ] else
                 _DeadEnd(query: q),
@@ -519,26 +549,99 @@ class _EmptyWaysOn extends StatelessWidget {
 
 class _AnswerLine extends StatelessWidget {
   final String text;
-  const _AnswerLine({required this.text});
+
+  /// The question, for «كمّل مع سالم» — the same question, in his chat.
+  final String query;
+
+  /// «رسّلها للربع» for the place she named.
+  final VoidCallback onShare;
+  const _AnswerLine({
+    required this.text,
+    required this.query,
+    required this.onShare,
+  });
 
   @override
   Widget build(BuildContext context) => Container(
+    key: const ValueKey('search-answer'),
     margin: const EdgeInsets.only(bottom: 12),
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: WainColors.sea50,
       borderRadius: BorderRadius.circular(WainRadius.s2xl),
     ),
-    child: Row(
+    child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        WainSvg.icon('shouq', size: 20, color: WainColors.sea700),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'أقترح عليك: $text',
-            style: wainText(WainText.sm, color: WainColors.ink700, height: 1.6),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            WainSvg.icon('shouq', size: 20, color: WainColors.sea700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'أقترح عليك: $text',
+                style: wainText(
+                  WainText.sm,
+                  color: WainColors.ink700,
+                  height: 1.6,
+                ),
+              ),
+            ),
+          ],
+        ),
+        // Where to go from her answer, as on the web (3 October): send the
+        // place she named to the group — the share panel is a screen further
+        // down, unmentioned — or carry on with سالم, the same question typed,
+        // with his memory of it.
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              key: const ValueKey('answer-share'),
+              onPressed: onShare,
+              style: FilledButton.styleFrom(
+                backgroundColor: WainColors.coral700,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(WainRadius.xl),
+                ),
+              ),
+              icon: WainSvg.icon('send', size: 16, color: Colors.white),
+              label: Text(
+                'رسّلها للربع',
+                style: wainText(
+                  WainText.sm,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            OutlinedButton(
+              key: const ValueKey('answer-salem'),
+              onPressed: () =>
+                  context.push('/salem?q=${Uri.encodeQueryComponent(query)}'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: WainColors.coral200),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(WainRadius.xl),
+                ),
+              ),
+              child: Text(
+                'كمّل مع سالم',
+                style: wainText(
+                  WainText.sm,
+                  weight: FontWeight.w600,
+                  color: WainColors.coral800,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     ),

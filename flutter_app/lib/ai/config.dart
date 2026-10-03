@@ -29,7 +29,8 @@ bool get kAgentEnabled => kAgentId.isNotEmpty;
 /// same prompt, tools and knowledge — with a different speaker. Her prompt is
 /// first-person feminine and her first message «أنا شوق», so he can still call
 /// himself her name on the wire. Fixing that means editing the live agent.
-const String kSalemVoiceId = 'TbzNVcMOFmKd8tUT5liY'; // Mustafa Abdulla since 3 October, as on the web
+const String kSalemVoiceId =
+    'TbzNVcMOFmKd8tUT5liY'; // Mustafa Abdulla since 3 October, as on the web
 
 const String kSalemName = 'سالم';
 const String kSalemRole = 'دليلك في الكويت';
@@ -138,4 +139,22 @@ abstract final class ChatCopy {
 
   /// When a reply never comes (the web's 45s bound): said, not just dropped.
   static const noReply = 'ما وصلنا رد — جرّب مرة ثانية.';
+
+  /// The chat's memory (data/salem_followup.dart): what he says when a short
+  /// reply is read against his last answer rather than as a new question.
+  static const moreIntro = 'وهذي غيرها:';
+  static const moreNone =
+      'هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.';
+  static const refineNone = 'ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.';
+  static const where = 'مكانه على الخريطة تحت.';
+  static const directions = 'الطريق';
+  static const openPlace = 'صفحته';
+  static const followLabel = 'تبي';
+  static const noResults = 'ما لقينا شي لـ';
+
+  /// The other ways in, from inside the chat: the call (one button, on /find —
+  /// so a way there), the same answer as a full search, and his voice.
+  static const callShouq = 'كلّم شوق';
+  static const seeAll = 'شوف الكل بالبحث';
+  static const readAloud = 'اقرا لي الردود';
 }

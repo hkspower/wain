@@ -1,7 +1,10 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/data/catalogue.dart';
+import 'package:wain/share/hangout.dart';
 import 'package:wain/share/hangout_panel.dart';
 import 'package:wain/share/share_service.dart';
 
@@ -193,6 +196,168 @@ void main() {
         await t.pumpWidget(const SizedBox());
       },
     );
+
+    group('«خلّهم يختارون» — a shortlist for the group (3 October)', () {
+      final four = [
+        mall,
+        getPlace('souq-al-mubarakiya')!,
+        getPlace('kuwait-towers')!,
+        beach,
+      ];
+
+      testWidgets('one place has no toggle; two choices or more do', (t) async {
+        await pump(t, ShareHangout(place: mall, clock: () => kuwaitJanuary2pm));
+        expect(find.byKey(const ValueKey('hangout-mode')), findsNothing);
+        await pump(
+          t,
+          ShareHangout(
+            place: mall,
+            choices: four,
+            clock: () => kuwaitJanuary2pm,
+          ),
+        );
+        expect(find.text('مكان واحد'), findsOneWidget);
+        expect(find.text('خلّهم يختارون'), findsOneWidget);
+        // One place until asked: the button still sends this one.
+        expect(find.text('رسّلها'), findsOneWidget);
+        await t.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('the first three are listed, a fourth is not offered, and '
+          'the list goes out numbered with a /pick link', (t) async {
+        final b = FakeShare()..native = true;
+        debugShareBackend = b;
+        await pump(
+          t,
+          ShareHangout(
+            place: mall,
+            choices: four,
+            clock: () => kuwaitJanuary2pm,
+          ),
+        );
+        await t.tap(find.byKey(const ValueKey('mode-list')));
+        await t.pump();
+        expect(find.text('أي أماكن؟ (لين ٣)'), findsOneWidget);
+        expect(find.text('رسّل القائمة'), findsOneWidget);
+        bool on(String slug) =>
+            t
+                .getSemantics(find.byKey(ValueKey('place-$slug')))
+                .flagsCollection
+                .isSelected ==
+            Tristate.isTrue;
+        bool enabled(String slug) =>
+            t
+                .getSemantics(find.byKey(ValueKey('place-$slug')))
+                .flagsCollection
+                .isEnabled ==
+            Tristate.isTrue;
+        expect([for (final p in four) on(p.slug)], [true, true, true, false]);
+        expect(
+          enabled(beach.slug),
+          isFalse,
+          reason: 'the list is full at three',
+        );
+        // Take one off: the fourth can now go on.
+        await t.tap(find.byKey(ValueKey('place-${four[1].slug}')));
+        await t.pump();
+        expect(enabled(beach.slug), isTrue);
+        await t.tap(find.byKey(ValueKey('place-${beach.slug}')));
+        await t.pump();
+        await t.tap(find.byKey(const ValueKey('when-tonight-9')));
+        await t.pump();
+        await t.tap(find.byKey(const ValueKey('hangout-send')));
+        await t.pump();
+        await t.pump();
+        final listed = [four[0], four[2], beach];
+        expect(b.lastTitle, shortlistTitle());
+        expect(
+          b.lastText,
+          shortlistMessage(
+            places: listed,
+            when: WhenId.tonight9,
+            url: shortlistUrl(listed, WhenId.tonight9, kInviteOrigin),
+            now: kuwaitJanuary2pm,
+          ),
+        );
+        expect(
+          b.lastText,
+          contains(
+            'https://www.wainkw.com/pick/?p=${mall.slug},${four[2].slug},${beach.slug}&when=tonight-9',
+          ),
+        );
+        await t.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('under two, it says so and will not send', (t) async {
+        final b = FakeShare()..native = true;
+        debugShareBackend = b;
+        await pump(
+          t,
+          ShareHangout(
+            place: mall,
+            choices: four.take(2).toList(),
+            clock: () => kuwaitJanuary2pm,
+          ),
+        );
+        await t.tap(find.byKey(const ValueKey('mode-list')));
+        await t.pump();
+        expect(find.byKey(const ValueKey('hangout-too-few')), findsNothing);
+        await t.tap(find.byKey(ValueKey('place-${four[1].slug}')));
+        await t.pump();
+        expect(find.text('اختر مكانين على الأقل.'), findsOneWidget);
+        await t.tap(find.byKey(const ValueKey('hangout-send')));
+        await t.pump();
+        expect(b.calls, isEmpty);
+        await t.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('the times offered fit every place on the list — the '
+          'summer rule, for each', (t) async {
+        await pump(
+          t,
+          ShareHangout(
+            place: mall,
+            choices: [mall, beach],
+            clock: () => kuwaitJuly2pm,
+          ),
+        );
+        // The mall alone may go now; with the beach on the list it may not.
+        expect(find.byKey(const ValueKey('when-now')), findsOneWidget);
+        await t.tap(find.byKey(const ValueKey('mode-list')));
+        await t.pump();
+        expect(find.byKey(const ValueKey('when-now')), findsNothing);
+        await t.pumpWidget(const SizedBox());
+      });
+
+      for (final w in const [390.0, 320.0, 800.0]) {
+        testWidgets('laid out at ${w.toInt()} without overflow', (t) async {
+          t.view.physicalSize = Size(w * 2, 1800);
+          t.view.devicePixelRatio = 2;
+          addTearDown(t.view.reset);
+          await t.pumpWidget(
+            MaterialApp(
+              builder: (c, child) => Directionality(
+                textDirection: TextDirection.rtl,
+                child: child!,
+              ),
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: ShareHangout(
+                    place: mall,
+                    choices: four,
+                    clock: () => kuwaitJanuary2pm,
+                  ),
+                ),
+              ),
+            ),
+          );
+          await t.tap(find.byKey(const ValueKey('mode-list')));
+          await t.pump();
+          expect(t.takeException(), isNull);
+          await t.pumpWidget(const SizedBox());
+        });
+      }
+    });
 
     testWidgets('one choice shows no «أي مكان؟» picker', (t) async {
       await pump(

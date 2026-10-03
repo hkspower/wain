@@ -39,7 +39,10 @@ writeFileSync(
     // same sentences.
     `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n` +
     `export { GOOGLE_FIGURES } from ${JSON.stringify(join(ROOT, "src/lib/place-reviews.ts"))};\n` +
-    `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n`
+    `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n` +
+    // سالم's memory reads a short reply against the last answer, folding words
+    // with this same search's `normalise` — so it is replayed with it too.
+    `export { readFollowUp, nextPlaces, followUpChips } from ${JSON.stringify(join(ROOT, "src/lib/salem-followup.ts"))};\n`
 );
 const bundle = join(tmp, "entry.mjs");
 execSync(
@@ -169,6 +172,8 @@ const answerQueries = [
   "قهوة", "قهوة هادية", "مطعم رخيص", "مطعم مو غالي", "مطعم غالي فخم", "مطعم كويتي", "وين أتعشى", "عيال",
   "بحر", "عشا على البحر", "قهوة على البحر", "سهرة", "وين اسهر", "ملاهي", "بر", "مكان للبنات", "مطعن",
   "سائح أول مرة بالكويت", "جمعة الصبح", "سوق السمك", "وين أروح الحين", "وين نطلع", "زهقان", "ملل", "وين",
+  // «داخلي» is a constraint in any month (3 October, سالم's chip).
+  "قهوة داخلي", "مطعم داخلي", "مكان مكيف", "بحر داخلي", "قهوة مكيّفة رخيصة",
 ];
 const clocks = [{ month: 0, hour: 14 }, { month: 7, hour: 14 }, { month: 7, hour: 21 }, { month: 0, hour: 8 }];
 const bySlug = new Map(S.places.map((p) => [p.slug, p]));
@@ -188,6 +193,56 @@ for (const q of [...new Set(answerQueries)]) {
     });
   }
 }
+/* سالم's memory: for a few first questions at two clocks, what the chat
+   remembers (the place hits /salem's free answer orders — search limit 40,
+   every kind, then answerOrder), the chips under that answer, «غيره», and how
+   every short reply is read against it — including the narrowed question's
+   own answer, so «أرخص» is replayed as a change to the list, not only as a
+   word that was recognised. */
+const chatRanked = (q, clock) =>
+  S.answerOrder(q, S.search(q, index, { limit: 40 }), index, S.places, clock)
+    .hits.filter((h) => h.doc.kind === "place")
+    .map((h) => h.doc.id.slice(6))
+    .filter((s) => bySlug.has(s));
+const followMessages = [
+  "أرخص", "وأرخص", "بس داخلي", "داخلي", "للعيال", "مو غالي", "على البحر", "بالليل", "عيال وأرخص",
+  "غيره", "عطني غيرها", "شي ثاني", "ثاني", "زود",
+  "الثاني", "رقم ٣", "رقم 2", "الأول", "الأخير", "خلنا ناخذ الثالث", "رقم ٩",
+  "وين بالضبط؟", "وينه", "الموقع", "وين", "طيب",
+  "وين أتعشى", "أبي مطعم بحري بالسالمية الليلة", "سوق المباركية", "قهوة", "شكراً", "",
+];
+const followBases = ["مطعم", "قهوة", "بحر", "عيال", "وين أتعشى", "مطعم رخيص", "سوق"];
+const followClocks = [{ month: 0, hour: 20 }, { month: 7, hour: 13 }];
+const followups = {
+  noContext: followMessages.map((m) => ({ m, out: S.readFollowUp(m, null) })),
+  contexts: [],
+};
+for (const q of followBases) {
+  for (const clock of followClocks) {
+    const ranked = chatRanked(q, clock);
+    const shown = ranked.slice(0, 8);
+    const ctx = { query: q, ranked, seen: shown, shown };
+    const shownPlaces = shown.map((s) => bySlug.get(s));
+    const read = (m, active) => {
+      const out = S.readFollowUp(m, ctx, active);
+      return { m, active: active ?? null, out, refined: out.kind === "refine" ? chatRanked(out.query, clock) : null };
+    };
+    followups.contexts.push({
+      q,
+      month: clock.month,
+      hour: clock.hour,
+      ranked,
+      chips: S.followUpChips(ctx, shownPlaces, clock),
+      chipsWhenAllSeen: S.followUpChips({ ...ctx, seen: ranked }, shownPlaces, clock),
+      next: S.nextPlaces(ctx),
+      reads: [
+        ...followMessages.map((m) => read(m)),
+        read("وين بالضبط؟", shown[3] ?? null),
+        read("وين بالضبط؟", "not-a-place"),
+      ],
+    });
+  }
+}
 const fixture = {
   docs: docs.length,
   cases: queries.map((q) => ({
@@ -195,6 +250,7 @@ const fixture = {
     hits: S.search(q, index, { limit: 20 }).map((h) => ({ id: h.doc.id, score: h.score, matched: h.matched })),
   })),
   answers,
+  followups,
 };
 const fixtureOut = JSON.stringify(fixture, null, 1) + "\n";
 

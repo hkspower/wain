@@ -1,7 +1,8 @@
 /// The little the app remembers between launches, and nothing else: whether
 /// the voice is on (OFF until someone turns it on — a site that starts talking
 /// on arrival is a site people close), which persona speaks, and whether the
-/// visitor agreed to what happens to a conversation with شوق. Same keys as the
+/// visitor agreed to what happens to a conversation with شوق, and whether
+/// سالم's chat reads his replies aloud. Same keys as the
 /// web for the two voice preferences (`wain-voice-enabled`,
 /// `wain-voice-persona`) so the two describe one preference, not two.
 library;
@@ -18,10 +19,15 @@ class AppState extends ChangeNotifier {
         (p) => p.name == _prefs?.getString(_kPersona),
         orElse: () => PersonaId.shouq,
       ),
-      _aiConsent = _prefs?.getBool(_kAiConsent) ?? false;
+      _aiConsent = _prefs?.getBool(_kAiConsent) ?? false,
+      _salemReadAloud = _prefs?.getBool(_kSalemRead) ?? false;
 
   static const _kVoice = 'wain-voice-enabled';
   static const _kPersona = 'wain-voice-persona';
+
+  /// سالم's replies read aloud in his voice — off until pressed, and
+  /// remembered; the web's `wain-salem-read`.
+  static const _kSalemRead = 'wain-salem-read';
 
   /// Whether the visitor agreed to what happens to a conversation with شوق or
   /// سالم (`AiPrivacyCopy`). Versioned in the key on purpose: when what is
@@ -33,8 +39,16 @@ class AppState extends ChangeNotifier {
   bool _voiceEnabled;
   PersonaId _persona;
   bool _aiConsent;
+  bool _salemReadAloud;
 
   bool get aiConsent => _aiConsent;
+  bool get salemReadAloud => _salemReadAloud;
+
+  void setSalemReadAloud(bool v) {
+    _salemReadAloud = v;
+    _prefs?.setBool(_kSalemRead, v);
+    notifyListeners();
+  }
 
   void setAiConsent(bool v) {
     _aiConsent = v;

@@ -107,6 +107,45 @@ F.hangout = {
   readInvite: ["?when=tonight-8", "when=now", "?when=bogus", "", "?x=1&when=weekend", "?when=", "?when=tonight-8&when=now"].map((s) => ({ s, out: K.readInvite(s) })),
 };
 
+// «خلّهم يختارون»: the shortlist, at the same instants, for lists that mix
+// what the summer rule treats differently (and one longer than three).
+const lists = [
+  [setting("outdoor")[0], setting("indoor")[0], setting("mixed")[0]],
+  [setting("indoor")[0], setting("indoor")[1]],
+  [setting("mixed")[1], setting("outdoor")[1]],
+  [setting("outdoor")[0], setting("outdoor")[1], setting("mixed")[0], setting("indoor")[0]],
+];
+const known = new Set(ps.map((p) => p.slug));
+const ws = ["now", "soon", "tonight-8", "tonight-10", "tomorrow", "weekend"];
+F.shortlist = {
+  cases: instants.map((now) => ({
+    now: now.toISOString(),
+    lists: lists.map((list) => ({
+      slugs: list.map((p) => p.slug),
+      options: K.whenOptionsFor(list, now).map((o) => o.id),
+      default: K.defaultWhenFor(list, now),
+      messages: Object.fromEntries(
+        ws.map((w) => [w, K.shortlistMessage({ places: list, when: w, url: K.shortlistUrl(list, w, "https://www.wainkw.com/"), now })])
+      ),
+    })),
+  })),
+  urls: lists.map((list) => K.shortlistUrl(list, "tonight-8", "https://www.wainkw.com//")),
+  read: [
+    `?p=${lists[0].map((p) => p.slug).join(",")}&when=tonight-8`,
+    `?p=${ps[0].slug},${ps[0].slug},${ps[1].slug}`,
+    `?p=${ps[0].slug}`,
+    `?p=${ps[0].slug},not-a-place,${ps[2].slug}&when=bogus`,
+    `?p=${ps[0].slug},${ps[1].slug},${ps[2].slug},${ps[3].slug}`,
+    `?p=${ps[0].slug}, ${ps[1].slug}&p=${ps[2].slug},${ps[3].slug}`,
+    `?p=${ps[0].slug},UPPER,../x,${ps[1].slug}&when=now`,
+    `?p=${ps[0].slug}%2C${ps[1].slug}`,
+    "", "?p=", "?when=tonight-8",
+  ].map((q) => ({ q, out: K.readShortlist(q, (s) => known.has(s)) })),
+  votes: [0, 1, 2, 3].flatMap((i) => [null, "tonight-8", "now"].map((w) => K.shortlistVoteMessage(ps[i], i, w))),
+  title: K.shortlistTitle(),
+  max: K.SHORTLIST_MAX,
+};
+
 // /find's greeting at every hour of every month, for both names.
 F.findMoment = [];
 for (let month = 0; month < 12; month++)

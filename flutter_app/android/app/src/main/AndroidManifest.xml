@@ -68,6 +68,9 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="www.wainkw.com" android:pathPrefix="/places/"/>
                 <data android:scheme="https" android:host="wainkw.com" android:pathPrefix="/places/"/>
+                <!-- A «خلّهم يختارون» shortlist is forwarded the same way. -->
+                <data android:scheme="https" android:host="www.wainkw.com" android:pathPrefix="/pick/"/>
+                <data android:scheme="https" android:host="wainkw.com" android:pathPrefix="/pick/"/>
             </intent-filter>
             <!-- app_links routes links (app/deep_link.dart); Flutter's own deep
                  linking would hand the same link to the router a second time. -->

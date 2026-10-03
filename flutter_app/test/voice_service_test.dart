@@ -382,6 +382,46 @@ void main() {
     },
   );
 
+  test(
+    'a per-utterance persona: سالم\'s chat speaks in his voice, and the '
+    'next sentence is back to the chosen one (voice.ts, 3 October)',
+    () async {
+      final player = FakePlayer(), tts = FakeTts();
+      final personas = <String>[];
+      final v = make(
+        MockClient((r) async {
+          if (r.url.path.endsWith('manifest.json')) {
+            return http.Response(
+              jsonEncode({
+                'clips': {'salem/try-kuwait-towers': '/salem.mp3'},
+              }),
+              200,
+            );
+          }
+          personas.add(
+            (jsonDecode(r.body) as Map<String, dynamic>)['persona'] as String,
+          );
+          return http.Response.bytes(
+            audio,
+            200,
+            headers: {'content-type': 'audio/mpeg'},
+          );
+        }),
+        player,
+        tts,
+      );
+      // The clip set is his, though the preference says شوق.
+      await v.speak([part], persona: PersonaId.salem);
+      expect(player.clips.single.single.src.path, '/salem.mp3');
+      // A sentence with no clip goes to the bridge — in his voice too.
+      const free = SpeechPart(text: 'هذي كل الأماكن اللي عندي.');
+      await v.speak([free], persona: PersonaId.salem);
+      // And without the override, the preference again.
+      await v.speak([free]);
+      expect(personas, ['salem', 'shouq']);
+    },
+  );
+
   test('resolveTtsUrl: absolute by default (a native app has no origin), none switches off', () {
     // On in every build since 3 October: a sentence per request means the
     // server cache pays for each fixed sentence once.
