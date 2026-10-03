@@ -205,6 +205,28 @@ if (!process.argv.includes("--encode-only")) {
       const look = (x, y, z) => { cam.lookAt(x, y, z); cam.updateMatrixWorld(); };
       const lens = (fov, far) => { cam.fov = fov; cam.far = far; cam.updateProjectionMatrix(); };
       const fog = e.scene.fog;
+      // What a 3 km-high camera sees that a driver never does: the sea is
+      // a 3.3 x 5.8 km plane whose western edge cut a hard diagonal across
+      // the overview, and the night dome (1.9 km, centred on the camera)
+      // showed as a bubble of stars below the horizon. For the overviews
+      // only, the sea is stretched westward with its shoreline edge (x ~
+      // 770) exactly where it was, and the dome is hidden.
+      let seaMesh = null;
+      e.scene.traverse((o) => {
+        const g = o.geometry?.parameters;
+        if (o.isMesh && g && g.width === 3300 && g.height === 5800) seaMesh = o;
+      });
+      const seaHome = seaMesh ? { x: seaMesh.position.x, sx: seaMesh.scale.x, sy: seaMesh.scale.y } : null;
+      const followers = e.world.skyFollowers.map((o) => [o, o.visible]);
+      const aerialWorld = (on) => {
+        if (seaMesh) {
+          const k = on ? 5 : 1;
+          const east = seaHome.x + 3300 / 2;
+          seaMesh.scale.set(seaHome.sx * k, seaHome.sy * k, 1);
+          seaMesh.position.x = on ? east - (3300 * k) / 2 : seaHome.x;
+        }
+        for (const [o, vis] of followers) o.visible = on ? false : vis;
+      };
       const FOG_GAME = fog.density;
       const FAR_GAME = cam.far;
 
@@ -463,6 +485,8 @@ if (!process.argv.includes("--encode-only")) {
         e.world.setTimeOfDay(hour);
         e.applyDaylight();
         fog.density = FOG_GAME * fogK;
+        const aerialHigh = t < SEG0 || t >= SEG1;
+        aerialWorld(aerialHigh);
         const prof = {};
         let tp = performance.now();
         const mark = (k) => { const n = performance.now(); prof[k] = Math.round(n - tp); tp = n; };
@@ -483,6 +507,7 @@ if (!process.argv.includes("--encode-only")) {
         e.composer.render();
         mark("render");
         fog.density = FOG_GAME;
+        aerialWorld(false);
         window.__mapProf = prof;
 
         ctx.clearRect(0, 0, W, H);
