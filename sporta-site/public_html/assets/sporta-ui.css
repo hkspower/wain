@@ -1822,6 +1822,7 @@ html[data-theme='dark'] .admin-shell .sbl-logo-none { font-size: 12px !important
   font-size: 14px; font-weight: 700; white-space: nowrap; text-decoration: none;
   color: rgba(255, 255, 255, .88);
   border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
 }
 .app-header .sp-menubar__link:hover { color: var(--brand-bright, #ff7b17); }
 .app-header .sp-menubar__link[aria-current='page'] {

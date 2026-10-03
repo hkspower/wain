@@ -15,6 +15,18 @@
   font-size: 14px; font-weight: 700; white-space: nowrap; text-decoration: none;
   color: rgba(255, 255, 255, .88);
   border-bottom: 3px solid transparent;
+  /* The underline is 3px at the bottom; the same transparent 3px at the top keeps the text on the
+     bar's centre line (it sat 1.6-2.4px high, 2026-10-03). */
+  border-top: 3px solid transparent;
+}
+/* PHONES: all five links on screen, sharing the row evenly. At 14px with 14px padding the row was
+   458-480px on a 412px phone, so "All products" was cut off at the edge. Scrolling stays as the
+   fallback for a very narrow screen. */
+@media (max-width: 767.98px) {
+  .app-header .sp-menubar { gap: 0; padding: 0 4px !important; justify-content: space-between; }
+  .app-header .sp-menubar__link { flex: 1 1 auto; justify-content: center; padding: 0 6px; }
+  /* `.app-header nav a` sets 15.5px !important for the whole header; this beats it on phones only. */
+  .app-header nav.sp-menubar a.sp-menubar__link { font-size: 13px !important; }
 }
 .app-header .sp-menubar__link:hover { color: var(--brand-bright, #ff7b17); }
 .app-header .sp-menubar__link[aria-current='page'] {

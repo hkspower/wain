@@ -4214,3 +4214,7 @@ All 165 `test:*` suites run in the sandbox plus the four live checks. **Live: cl
 ## The accounting ledger has a test now — 2026-10-03
 
 "check accounting system". Nothing tested `api/accounting.php` or the `acc_*` routes. `npm run test:accounting` (20 checks) drives the real routes in the sandbox: the gate, posting OFF by default (and nothing posting while off), a zero exchange rate refused, the 37-order sandbox backlog posting once and only once, every sale entry crediting goods + delivery, the money posted equal to the backlog the screen promised, the trial balance and balance sheet balancing to the fils, net profit recomputed from the journal, refusals (unbalanced, negative, unknown account, one line), and a reversal netting to nothing and not repeatable. Mutation: the balance rule disabled fails 2. The journal has a self-referencing foreign key (`reverses_id`), so the rig's restore needs `foreign_key_checks=0`. `scripts/live/live-accounting-check.php` reports the live ledger's state (tables, posting on/off, unposted paid orders, balanced) and prints no customer data.
+
+## Menu bar links aligned — 2026-10-03
+
+"make aligment for main menu text link". On a phone the five links share the row evenly at 13px (the header's `nav a` 15.5px `!important` is beaten by a more specific rule in `68-menu-bar.css`), all five fit at 360px in both languages, and the text is vertically centred (a transparent 3px top border balances the active underline). Desktop unchanged.
