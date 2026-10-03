@@ -90,6 +90,7 @@
     "test:driver": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/driver.mjs",
     "test:plants": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/plants.mjs",
     "test:palms": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/palms.mjs",
+    "test:shrubs": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/shrubs.mjs",
     "test:police": "node tests/police.mjs",
     "test:areas": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/areas.mjs",
     "test:aspect": "node --experimental-strip-types tests/aspect.mjs",
