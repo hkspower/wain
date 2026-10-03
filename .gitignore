@@ -179,6 +179,11 @@ press/trailer/frames-*/
 press/trailer/*.mp4
 press/trailer/*.mkv
 
+# The map tour's rendered frames and encode (tools/shots/maptour.mjs):
+# thousands of JPEGs and a large MP4, rebuilt from the game by the tool.
+press/map/frames-*/
+press/map/*.mp4
+
 # The catalogue cars exported for the Blender renders (100+ MB, rebuilt
 # by tools/shots/export-cars.mjs); the renders themselves are committed.
 press/renders/glb/
