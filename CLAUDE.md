@@ -295,6 +295,35 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   links flip the chevron (`.ic.back`), forward actions use it as drawn. A toast
   takes its icon as an argument (`toast(msg, "i-check")`) and keeps its text as
   `textContent` — the icon is built from fixed ids, never from data.
+- **Every control has a state you can see, on every page** (theme audit,
+  2026-10-03): `.btn:hover` is a fill and border change — `opacity: .88` moved a
+  grey fill 1.01:1, invisible; `.btn:disabled` is `.6`, not `.45`, so the label
+  still reads; tab buttons have a hover and a focus ring; the focus ring on the
+  **dark bar is white** — an unscoped `.btn:focus-visible` (0,2,0) outranks
+  `header a:focus-visible` (0,1,1) and painted grey on grey at 1.24:1, so the
+  brand ring is scoped to `main` and `footer` on every page. Four radii only
+  (999 · 12 · 8 · 2); the app pages had 9/10/14/16. Amber is for warnings, and
+  nothing else: the old brown palette's amber companions kept painting heading
+  rules, the kicker, hover chips, hero shapes and an avatar gradient whose
+  white initial sat at 2.15:1. The suite scans every computed colour outside
+  the warning components for a warm hue and fails on one.
+- **An action answers, asks or stays honest** (UX audit, 2026-10-03). The
+  console's `mutate()` ignored `wr()`'s answer and toasted «تم تحديث الحالة»
+  over a save that never happened — every write's result now decides the
+  toast. Deleting a courier and cancelling an order **ask first** and name the
+  record; a bulk delete asks a different sentence from a bulk suspend («نهائياً؟
+  لا يمكن التراجع»). Toasts carry `role="status" aria-live="polite"` on every
+  page and stay `max(1.8s, 60ms × characters)`. A refused field is marked
+  `aria-invalid`, explained inline and focused; the portal's forms are
+  `novalidate` (the JS already says everything in Arabic) and clear a stale
+  error on input. After a route change focus lands on the new screen's
+  heading; after a row action it returns to the list (`focusAfter`); a
+  signed-in visitor is sent past `#/register` and `#/login`. Tabs mark
+  `aria-current="page"` and name the screen in the title. Every page opens with
+  a skip link to `main#main`. The project form opens WhatsApp **in the click**
+  (a timer is what popup blockers stop) and leaves a real link behind.
+  Overflowing tables and the phone nav fade their hidden end until scrolled
+  there (`.more`, set by `cueScroll`).
 - **A `display` rule beats the `[hidden]` attribute.** Every page carries
   `[hidden] { display: none !important; }`: the console's `label` is
   `display:flex`, so the login gate showed a second password box after the

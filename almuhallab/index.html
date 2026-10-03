@@ -400,7 +400,13 @@
     .btn.outline { border-color: var(--border); background: var(--panel-2); }
     /* states, the same on every page: a hover that can be seen (opacity .88
        moved a grey fill 1.01:1 — invisible), a disabled that still reads */
-    .btn { font-weight: 700; }   /* the links above stay 600: bold, four wrap at 320px */
+    .btn { font-weight: 700; }
+    /* a keyboard journey starts at the content, not seven stops of chrome */
+    .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint-strong);
+      color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 700; }
+    .skip:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
+    main:focus, [tabindex="-1"]:focus { outline: none; }
+   /* the links above stay 600: bold, four wrap at 320px */
     .btn:hover { background: var(--border); border-color: var(--border-input); }
     .btn.primary:hover { background: var(--tint); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -1213,6 +1219,7 @@
 </script>
 </head>
 <body id="top">
+  <a class="skip" href="#main">تخطَّ إلى المحتوى</a>
   <!-- icon sprite: defined once, referenced by <use>, never fetched.
        The company mark is the Kuwaiti boum, in two fixed forms of one drawing:
        #i-boum is the wide 2:1 form (masthead, print — the ship at her real
@@ -1278,7 +1285,7 @@
     </nav>
   </header>
 
-  <main>
+  <main id="main" tabindex="-1">
     <section class="hero">
       <div class="heroart" aria-hidden="true">
         <span class="shape tri"></span><span class="shape ring"></span>
@@ -1340,7 +1347,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="725">725</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="761">761</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1632,14 +1639,14 @@
     <div class="qwrap" data-reveal>
       <form class="qform" id="quote" novalidate>
         <div class="field">
-          <input type="text" id="q-name" name="name" placeholder=" " autocomplete="name" />
+          <input type="text" id="q-name" name="name" placeholder=" " autocomplete="name" required aria-describedby="q-name-hint" />
           <label for="q-name">الاسم</label>
-          <span class="hint">اكتب اسمك (حرفان على الأقل).</span>
+          <span class="hint" id="q-name-hint">اكتب اسمك (حرفان على الأقل).</span>
         </div>
         <div class="field">
-          <input type="email" id="q-email" name="email" placeholder=" " autocomplete="email" dir="ltr" />
+          <input type="email" id="q-email" name="email" placeholder=" " autocomplete="email" dir="ltr" required aria-describedby="q-email-hint" />
           <label for="q-email">البريد الإلكتروني</label>
-          <span class="hint">أدخل بريداً صحيحاً مثل name@example.com.</span>
+          <span class="hint" id="q-email-hint">أدخل بريداً صحيحاً مثل name@example.com.</span>
         </div>
         <div class="field wide">
           <select id="q-type" name="type">
@@ -1653,14 +1660,14 @@
           <label for="q-type">نوع المشروع</label>
         </div>
         <div class="field wide">
-          <textarea id="q-msg" name="msg" placeholder=" "></textarea>
+          <textarea id="q-msg" name="msg" placeholder=" " required aria-describedby="q-msg-hint"></textarea>
           <label for="q-msg">احكِ لنا عن مشروعك</label>
-          <span class="hint">اكتب سطراً واحداً على الأقل (10 أحرف).</span>
+          <span class="hint" id="q-msg-hint">اكتب سطراً واحداً على الأقل (10 أحرف).</span>
         </div>
         <button type="submit" class="btn primary send">
           <svg class="ic sm ok" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
           <span class="lbl"><svg class="ic sm" aria-hidden="true"><use href="#i-send"/></svg> أرسل عبر واتساب</span>
-          <span class="okmsg" hidden>تم — نكمل على واتساب</span>
+          <span class="okmsg" aria-live="polite" hidden>تم — نكمل على واتساب</span>
         </button>
       </form>
     </div>
@@ -2112,10 +2119,17 @@
           + "\nنوع المشروع: " + type.value
           + "\nالبريد: " + email.value.trim()
           + "\n\n" + msg.value.trim();
-        setTimeout(function () {
-          try { window.open("https://wa.me/96565894110?text=" + encodeURIComponent(text), "_blank", "noopener"); }
-          catch (e) {}
-        }, 450);
+        /* opened in the click itself (a window opened from a timer is what
+           popup blockers stop), and a real link stays on the page for when it
+           is stopped anyway — the green «تم» must never be the end of the road */
+        var href = "https://wa.me/96565894110?text=" + encodeURIComponent(text);
+        var go = form.querySelector(".golink");
+        if (!go) { go = document.createElement("a"); go.className = "btn golink"; go.target = "_blank"; go.rel = "noopener";
+                   btn.insertAdjacentElement("afterend", go); }
+        go.href = href; go.textContent = "افتح واتساب إن لم يُفتح تلقائياً";
+        btn.disabled = true;
+        try { window.open(href, "_blank", "noopener"); } catch (e) {}
+        go.focus();
       });
     })();
 

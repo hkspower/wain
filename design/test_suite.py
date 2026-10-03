@@ -714,6 +714,7 @@ def browser_checks():
         font_checks(pg)
         app_icon_checks(pg)
         theme_state_checks(pg)
+        ux_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
         br.close()
@@ -916,7 +917,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "725", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "761", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -949,7 +950,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "725", "0", "100%"], str(finals))
+          finals == ["4", "761", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2015,8 +2016,8 @@ def delivery_checks(pg):
     check(S, "in-progress excludes delivered", pg.inner_text("#s-active") == "2",
           pg.inner_text("#s-active"))
 
+    pg.on("dialog", lambda d: d.accept())   # cancelling asks first (2026-10-03); the answer is yes
     pg.click('button[data-cancel="1"]')
-    pg.on("dialog", lambda d: d.accept())
     pg.wait_for_timeout(300)
 
     # a cancelled order must not count as in progress nor as revenue
@@ -3250,6 +3251,108 @@ def theme_state_checks(pg):
         src = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", (ROOT / f).read_text(), re.S))
         radii = {int(v) for v in re.findall(r"border-radius:\s*(\d+)px", src)}
         check(S, f"{f}: radii stay on the four-step system", radii <= {999, 50, 12, 8, 2, 999}, str(sorted(radii - {999, 12, 8, 2})))
+
+
+def ux_checks(pg):
+    """What the 2026-10-03 UX audit found and the fixes it earned.
+
+    The console celebrated a save that never happened (its mutate() ignored
+    wr()'s answer); the delivery screen deleted a courier with no question and
+    no word, and cancelled an order as easily as advancing it; a bulk delete
+    and a bulk suspend asked the same sentence; the app pages' toasts were
+    silent to a screen reader; the portal kept a stale error under a corrected
+    field and offered a signed-in visitor the sign-up form; a keyboard journey
+    started with seven stops of chrome."""
+    S = "ux"
+    # its own page: the shared one already answers dialogs, and a second
+    # listener on a handled dialog throws
+    outer = pg; pg = outer.context.new_page()
+    asked = []
+    pg.on("dialog", lambda d: (asked.append(d.message), d.dismiss()))
+    for page in ("nokhatha.html", "nizam.html", "admin.html", "index.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle")
+        check(S, f"{page}: a skip link leads to the content",
+              pg.eval_on_selector(".skip", "e=>e.getAttribute('href')") == "#main"
+              and pg.eval_on_selector("main", "e=>e.id") == "main")
+    for page in ("nizam.html", "admin.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle")
+        check(S, f"{page}: the toast is announced", pg.get_attribute("#toast", "role") == "status"
+              and pg.get_attribute("#toast", "aria-live") == "polite")
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle"); pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+    cf = pg.locator("#del-courier-form"); cf.locator('input[name="cname"]').fill("مندوب"); cf.locator('input[name="cphone"]').fill("+965 5000 0001")
+    cf.locator('button[type=submit]').click(); pg.wait_for_timeout(200)
+    f = pg.locator("#del-form")
+    for k, v in (("customer", "اختبار"), ("phone", "+965 5000 0000"), ("address", "حولي"), ("items", "طلب"), ("amount", "1.000")):
+        f.locator(f'input[name="{k}"]').fill(v)
+    f.locator('button[type="submit"]').click(); pg.wait_for_timeout(200)
+    n = len(asked); pg.click("[data-del-courier]"); pg.wait_for_timeout(200)
+    check(S, "deleting a courier asks first, and a refused question deletes nothing",
+          len(asked) == n + 1 and "حذف المندوب" in asked[-1] and pg.locator("[data-del-courier]").count() == 1)
+    n = len(asked); pg.click("[data-cancel]"); pg.wait_for_timeout(200)
+    check(S, "cancelling an order asks first, and names it", len(asked) == n + 1 and "إلغاء الطلب" in asked[-1]
+          and "ملغي" not in pg.inner_text("#del-orders .status"))
+    pg.click('[data-filter="3"]'); pg.wait_for_timeout(150)
+    check(S, "an empty filtered list says which filter, not «no orders yet»",
+          "تم التسليم" in pg.inner_text("#del-empty") and pg.get_attribute('[data-filter="3"]', "aria-pressed") == "true")
+    check(S, "the current tab is marked and names the screen",
+          pg.locator('nav.tabs [aria-current="page"]').count() == 1 and pg.title().startswith("التوصيل"))
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); pg.wait_for_timeout(200)
+    pg.fill('#safi-form input[name="ticker"]', "بنك"); pg.fill('#safi-form input[name="name"]', "بنك"); pg.fill('#safi-form input[name="qty"]', "5")
+    pg.fill('#safi-form input[name="cost"]', "1"); pg.fill('#safi-form input[name="price"]', "1")
+    pg.click('#safi-form button[type=submit]'); pg.wait_for_timeout(200)
+    check(S, "a refused ticker is marked, explained inline and focused",
+          pg.get_attribute('#safi-form input[name="ticker"]', "aria-invalid") == "true"
+          and pg.inner_text("#safi-error").strip() != "" and pg.evaluate("document.activeElement.name") == "ticker")
+    pg.evaluate("localStorage.clear()")
+    # the console
+    pg.goto(f"{BASE}/admin.html", wait_until="networkidle")
+    pg.evaluate("localStorage.clear(); localStorage.setItem('nokhatha-users-v1', JSON.stringify({'ux@b.co':{email:'ux@b.co',name:'ت',plan:0,status:'active',createdAt:'2026-09-01T00:00:00Z'}}))")
+    pg.reload(wait_until="networkidle"); pg.wait_for_timeout(200)
+    pg.fill('input[name="pass"]', "ux-check-pass-1"); pg.fill('input[name="confirm"]', "ux-check-pass-1"); pg.click("#gate-btn"); pg.wait_for_timeout(400)
+    pg.click('nav.tabs button[data-tab="customers"]'); pg.wait_for_timeout(200)
+    pg.evaluate("(() => { Storage.prototype.setItem = function () { throw new Error('full'); }; return 1; })()")
+    pg.click('#cust-rows button[data-act="toggle"]'); pg.wait_for_timeout(200)
+    check(S, "the console reports a save that failed instead of celebrating it",
+          "تعذّر الحفظ" in pg.inner_text("#toast"))
+    pg.reload(wait_until="networkidle"); pg.wait_for_timeout(300)
+    pg.click('nav.tabs button[data-tab="customers"]'); pg.wait_for_timeout(200)
+    check(S, "a refused save changed nothing", "موقوف" not in pg.inner_text("#cust-rows"))
+    pg.check("#cust-rows input.sel"); n = len(asked); pg.click("#bulk-delete"); pg.wait_for_timeout(200)
+    d = asked[-1] if len(asked) > n else ""
+    pg.click("#bulk-suspend"); pg.wait_for_timeout(200); s_ = asked[-1] if len(asked) > n + 1 else ""
+    check(S, "a bulk delete and a bulk suspend ask different questions, the delete saying so",
+          "حذف" in d and "لا يمكن التراجع" in d and "حذف" not in s_ and d != s_, f"{d!r} / {s_!r}")
+    pg.focus('th.sortable[data-sort="name"]'); pg.keyboard.press("Enter"); pg.wait_for_timeout(150)
+    check(S, "a table sorts from the keyboard", pg.get_attribute('th.sortable[data-sort="name"]', "aria-sort") in ("ascending", "descending"))
+    pg.evaluate("localStorage.clear()")
+    # the portal
+    pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+    check(S, "the portal's forms validate in Arabic, not the browser's bubbles",
+          pg.get_attribute("#form-register", "novalidate") is not None and pg.get_attribute("#form-login", "novalidate") is not None)
+    f = "#form-register "
+    pg.fill(f + 'input[name="name"]', "زائر"); pg.fill(f + 'input[name="email"]', "bad"); pg.fill(f + 'input[name="password"]', "ux-check-pass-1")
+    pg.click(f + 'button[type=submit]'); pg.wait_for_timeout(200); pg.fill(f + 'input[name="email"]', "ux@example.com")
+    check(S, "a corrected field drops its stale error", pg.inner_text("#register-error").strip() == "")
+    pg.click(f + 'button[type=submit]'); pg.wait_for_timeout(2500)
+    check(S, "a route change puts focus on the new screen's heading",
+          "/dashboard" in pg.url and pg.evaluate("/^H[12]$/.test(document.activeElement.tagName)"))
+    pg.goto(f"{BASE}/nokhatha.html#/login", wait_until="networkidle"); pg.wait_for_timeout(300)
+    check(S, "a signed-in visitor is sent past the sign-in screen", "/dashboard" in pg.url)
+    pg.goto(f"{BASE}/nokhatha.html#/", wait_until="networkidle"); pg.wait_for_timeout(300)
+    check(S, "the hero's call to action opens the dashboard once signed in",
+          pg.get_attribute(".hero .actions a.btn.primary", "href") == "#/dashboard")
+    pg.evaluate("localStorage.clear()")
+    # the company page's form
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(600)
+    pg.fill("#q-name", "محمد"); pg.fill("#q-email", "m@example.com"); pg.fill("#q-msg", "أريد موقعاً جديداً لشركتي")
+    pg.click("#quote .send"); pg.wait_for_timeout(300)
+    href = pg.get_attribute("#quote .golink", "href") or ""
+    check(S, "the project form leaves a real WhatsApp link on the page, the button spent",
+          href.startswith("https://wa.me/96565894110?text=") and pg.is_disabled("#quote .send"))
+    check(S, "the form's fields are described by their hints",
+          pg.eval_on_selector_all("#quote [aria-describedby]", "n=>n.every(e=>document.getElementById(e.getAttribute('aria-describedby')))")
+          and pg.locator("#quote [aria-describedby]").count() == 3)
+    pg.close()
 
 
 def font_checks(pg):
