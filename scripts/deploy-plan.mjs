@@ -266,9 +266,13 @@ for (const f of Object.keys(files)) {
 }
 const allCss = Object.keys(files).filter((f) => f.startsWith("_next/static/") && f.endsWith(".css"));
 const css = allCss.filter((f) => referenced.has(f));
-if (css.length !== 1) {
+// One OR MORE. On 3 October Next split the Arabic font's @font-face rules
+// into a second stylesheet that every page loads beside the site's own (an
+// import was added to the root layout), and «exactly one» refused a good
+// build. Every stylesheet the pages load is a proof now; none is the failure.
+if (css.length === 0) {
   fail(
-    `expected exactly one stylesheet that a page loads, found ${css.length}` +
+    `expected a stylesheet that the pages load, found none` +
       (allCss.length !== css.length
         ? ` (${allCss.length - css.length} more are on demand and referenced by no page)`
         : "")
@@ -282,7 +286,7 @@ const ogImage = Object.keys(files).find((f) => f.startsWith("og/") && f.endsWith
 const placePage = Object.keys(files).find((f) => /^places\/[^/]+\/index\.html$/.test(f));
 
 const required = [
-  [css[0], "the hashed stylesheet — a deploy without it renders every page unstyled"],
+  ...css.map((f) => [f, "a hashed stylesheet every page loads — a deploy without it renders the pages unstyled"]),
   [`_next/static/${commit}/_buildManifest.js`, "the build-id directory, named for this commit"],
   [searchChunk, "the /search chunk, whose hash changes whenever the page does"],
   ["explore/index.html", "a route one level down"],
