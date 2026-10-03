@@ -5374,7 +5374,7 @@ the pattern is in its own command line, and exits 144 — use `pgrep -f
 its meaning); the test that measures chips excludes `[data-map-frame]` as
 `audit:mobile` does.
 
-## «معالم الكويت» redesigned — 3 October, night (built, NOT live)
+## «معالم الكويت» redesigned — 3 October, night (deployed, inert: nothing visible)
 
 Asked: «improve kuwait famous places design /design». The owner chose both
 surfaces (the slideshow under the hero, and the «معالم الكويت» category's five
@@ -5529,6 +5529,37 @@ is ~409):
 
 **Not measured:** the real pictures, any of it on a real phone, and the app on
 a device.
+
+## The 3 October night deploy — `17dd9b44` is live: the landmarks redesign, inert
+
+«publish now» after the redesign above was built. Asked what it meant (nothing
+visible changes while every picture is a stand-in); the owner chose «deploy
+anyway». A free build, production only, no staging step.
+
+`{"ok":true,"version":"1.1.0","deployed":267,"removed":10,"emptied":1,"at":
+"2026-10-03T13:01:01+00:00"}` through the installed caller, job `T4sVREdAMt`,
+read at its FIRST firing (`removed: 10` is the real prune, not the idempotent
+second pass), deleted and listed gone. Archive `a9d0a077/wain-1.1.0.zip`
+(4,095,508 bytes, sha256 `8a9b080d…8237`): one more permanent ~4MB blob with
+`DEPLOY_SECRET` still unset. `deploy:plan` passed the three-way stand-in
+refusal on it.
+
+`deploy:verify`: «17dd9b44 is live — verified at the root and 7 levels below
+it» (`build.json` digest `9c48b4da59d8755f`; both stylesheets, 5,438 and
+98,345; `17dd9b44…/` the only build-id directory; the /search chunk 31,302;
+`explore/index.html` 20,227; a place page 63,849; its og image 44,217). The
+server has **no `home/landmarks/` directory** — only the four hero files — so
+the prune held on the wire as well as in `out/`.
+
+After the cache purge, a cron `wget -S --spider` of `/explore/` from the
+server out through the edge: 200, `Last-Modified: 13:01:01` (the deploy's
+minute), `x-hcdn-cache-status: DYNAMIC`; job read, deleted, listed gone. The
+crontab then held sporta's eight and one job that is not wain's or ours,
+`uPhBTk21P4` (`hostinger_deploy.sh` from a commit on this repository, per
+minute) — another session's, left alone as this file says to.
+
+**Not measured:** a real phone. The point of this deploy is that a visitor
+sees no difference; the first one that does will be the real pictures.
 
 ## Style
 
