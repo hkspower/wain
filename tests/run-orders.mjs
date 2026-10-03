@@ -95,5 +95,46 @@ if (staleBuild(ROOT)) {
   stop();
 }
 
+// ---- the WhatsApp flow, on a build with a menu and no database --------------
+// The production build has neither, so the panel's WhatsApp mode — the only
+// mode a visitor can meet today — would otherwise never render in any test.
+// Same worktree fixture as the journey, built without the Supabase pair and
+// with the place's number set. See tests/fixture-build.mjs.
+console.log("\n════ the order as a WhatsApp message (fixture build, no database) ════");
+if (!existsSync(CHROMIUM)) {
+  console.log(`  chromium not found at ${CHROMIUM} — set CHROMIUM_PATH.`);
+  failed += 1;
+} else {
+  const { buildFixture, removeFixture, serveDir, FIXTURE_SLUG, FIXTURE_SLUG_NO_NUMBER, FIXTURE_WHATSAPP } =
+    await import("./fixture-build.mjs");
+  const TREE = "/tmp/wain-orders-wa";
+  const WA_PORT = 4193;
+  let out = null;
+  try {
+    out = buildFixture({
+      tree: TREE,
+      whatsapp: true,
+      env: { NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" },
+    });
+  } catch (err) {
+    console.error(err.message);
+    failed += 1;
+  }
+  if (out) {
+    const stop = await serveDir(out, WA_PORT);
+    failed += (await run("node", ["tests/order-whatsapp.test.mjs"], {
+      env: {
+        ...process.env,
+        WAIN_URL: `http://127.0.0.1:${WA_PORT}`,
+        WAIN_FIXTURE_SLUG: FIXTURE_SLUG,
+        WAIN_FIXTURE_SLUG_NO_NUMBER: FIXTURE_SLUG_NO_NUMBER,
+        WAIN_FIXTURE_WHATSAPP: FIXTURE_WHATSAPP,
+      },
+    })) === 0 ? 0 : 1;
+    stop();
+  }
+  removeFixture(TREE);
+}
+
 console.log(failed ? `\n${failed} suite(s) failed` : "\nطلب مسبق: all suites passed");
 process.exit(failed ? 1 : 0);

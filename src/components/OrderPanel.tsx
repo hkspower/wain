@@ -10,11 +10,12 @@ import { toArabicDigits } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
 import {
   MAX_QTY_PER_ITEM,
-  acceptsOrders,
   formatKwd,
   newOrderAttempt,
+  orderChannel,
   orderTotal,
   pickupSlots,
+  sendWhatsAppOrder,
   submitOrder,
   validateOrder,
   type OrderAttempt,
@@ -30,13 +31,28 @@ import {
  * rather than "checkout", and the total is labelled «المجموع التقريبي» —
  * approximate, because the business's till is the authority on the price and
  * this is a message, not a receipt.
+ *
+ * Two modes, decided by `orderChannel()` and never both at once:
+ *
+ *   - **db**: the order is a row the business reads on its board. Name, phone
+ *     and the rest go to the database; the tracker polls for «جاهز».
+ *   - **whatsapp**: no database (every build to date). The order becomes a
+ *     WhatsApp message to the place's own number, opened from the tap, and the
+ *     device remembers it. No phone field — the shop answers in the thread
+ *     the customer just opened. If the popup is blocked, the text is shown
+ *     with its own copy button and a plain link, which a tap can always open.
  */
 /** One shared empty array, so a place with no menu does not hand out a fresh
  *  one on every render and defeat the memo below. */
 const NO_MENU: NonNullable<Place["menuAr"]> = [];
 
+type Placed =
+  | { channel: "db"; reference: string }
+  | { channel: "whatsapp"; reference: string; opened: boolean; text: string; url: string };
+
 export default function OrderPanel({ place }: { place: Place }) {
   const menu = place.menuAr ?? NO_MENU;
+  const channel = orderChannel(place);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [pickupAt, setPickupAt] = useState("");
   const [name, setName] = useState("");
@@ -44,7 +60,8 @@ export default function OrderPanel({ place }: { place: Place }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const [placed, setPlaced] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<Placed | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // One clock reading for the life of the panel: reading it again on each
   // render would let a slot the customer is looking at expire underneath them
@@ -72,7 +89,9 @@ export default function OrderPanel({ place }: { place: Place }) {
    * a coffee they had already removed.
    *
    * Name, phone and note are not part of the signature: correcting a typo in
-   * your own phone number is not a second order.
+   * your own phone number is not a second order. In WhatsApp mode the same
+   * identity keeps the reference in the message stable across a blocked popup
+   * and the «افتح واتساب» link that follows it.
    */
   const signature = JSON.stringify([lines, pickupAt]);
   const attemptRef = useRef<{ signature: string; attempt: OrderAttempt } | null>(null);
@@ -84,7 +103,7 @@ export default function OrderPanel({ place }: { place: Place }) {
   const inFlight = useRef<AbortController | null>(null);
   useEffect(() => () => inFlight.current?.abort(), []);
 
-  if (!acceptsOrders(place)) return null;
+  if (!channel) return null;
 
   const bump = (id: string, by: number) => {
     setQty((q) => {
@@ -94,17 +113,38 @@ export default function OrderPanel({ place }: { place: Place }) {
     });
   };
 
+  const input = () => ({
+    placeSlug: place.slug,
+    placeNameAr: place.nameAr,
+    lines,
+    pickupAt,
+    customerName: name,
+    customerPhone: phone,
+    noteAr: note,
+  });
+
+  /** WhatsApp mode. Synchronous end to end — see sendWhatsAppOrder: a
+   *  window.open after an await is a blocked popup on Safari and Chrome. */
+  function sendByWhatsApp() {
+    const result = sendWhatsAppOrder(
+      input(),
+      place.orderWhatsApp!,
+      attemptRef.current!.attempt,
+      `${window.location.origin}/places/${place.slug}/`
+    );
+    if (!result.ok) {
+      haptic("error");
+      setErrors([result.message]);
+      return;
+    }
+    setErrors([]);
+    haptic(result.opened ? "success" : "error");
+    setPlaced({ channel: "whatsapp", ...result });
+  }
+
   async function send() {
-    const input = {
-      placeSlug: place.slug,
-      placeNameAr: place.nameAr,
-      lines,
-      pickupAt,
-      customerName: name,
-      customerPhone: phone,
-      noteAr: note,
-    };
-    const problems = validateOrder(input);
+    if (channel === "whatsapp") return sendByWhatsApp();
+    const problems = validateOrder(input());
     if (problems.length) {
       haptic("error");
       setErrors(problems);
@@ -118,28 +158,47 @@ export default function OrderPanel({ place }: { place: Place }) {
     inFlight.current?.abort();
     const controller = new AbortController();
     inFlight.current = controller;
-    const result = await submitOrder(input, attemptRef.current!.attempt, controller.signal);
+    const result = await submitOrder(input(), attemptRef.current!.attempt, controller.signal);
     if (controller.signal.aborted) return;
     inFlight.current = null;
     setBusy(false);
     if (result.ok) {
       haptic("success");
-      setPlaced(result.reference);
+      setPlaced({ channel: "db", reference: result.reference });
     } else {
       haptic("error");
       setErrors([result.message]);
     }
   }
 
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      haptic("success");
+    } catch {
+      setCopied(false);
+      haptic("error");
+    }
+  }
+
   if (placed) {
+    const wa = placed.channel === "whatsapp" ? placed : null;
+    const blocked = !!wa && !wa.opened;
     return (
-      <section className="mt-5 rounded-3xl border border-palm-500/30 bg-palm-500/8 p-4">
+      <section
+        className={`mt-5 rounded-3xl border p-4 ${
+          blocked ? "border-sun-500/40 bg-sun-100/60" : "border-palm-500/30 bg-palm-500/8"
+        }`}
+        data-order-placed={placed.channel}
+      >
         <h2 className="flex items-center gap-2 font-display text-xl font-bold text-ink-900">
           <IconCheck className="size-5 text-palm-600" />
-          وصل طلبك
+          {wa ? (blocked ? "جهّزنا رسالتك" : "فتحنا لك واتساب") : "وصل طلبك"}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
-          رقم طلبك <strong className="font-display text-lg text-ink-900" dir="ltr">{placed}</strong>{" "}
+          {wa && !blocked && <>اضغط «إرسال» هناك عشان توصل للمكان. </>}
+          رقم طلبك <strong className="font-display text-lg text-ink-900" dir="ltr">{placed.reference}</strong>{" "}
           — قوله لهم عند الاستلام.
         </p>
         <p className="mt-1 text-sm font-semibold text-ink-700">
@@ -147,6 +206,42 @@ export default function OrderPanel({ place }: { place: Place }) {
           {pickupAt && <> الساعة {slots.find((s) => s.value === pickupAt)?.labelAr}</>}.
         </p>
         {place.orderNoteAr && <p className={hintClass}>{place.orderNoteAr}</p>}
+
+        {/* The popup was blocked: the message IS the order, so here it is,
+            with its own copy button and a link a tap can always open — the
+            hangout's failed-send shape. */}
+        {wa && blocked && (
+          <div className="mt-3" role="alert">
+            <p className="text-sm font-semibold text-ink-700">
+              ما انفتح واتساب من هني — افتحه بالزر، أو انسخ الطلب والصقه برسالة للمكان.
+            </p>
+            <textarea
+              readOnly
+              value={wa.text}
+              rows={8}
+              dir="rtl"
+              aria-label="نص الطلب"
+              className="mt-2 w-full resize-none rounded-2xl border border-line bg-white p-3 text-sm leading-relaxed text-ink-800"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <a
+                href={wa.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-palm-600 px-4 text-sm font-semibold text-white transition hover:bg-palm-700"
+              >
+                افتح واتساب
+              </a>
+              <button
+                type="button"
+                onClick={() => copyText(wa.text)}
+                className="inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-palm-300 hover:text-palm-700"
+              >
+                {copied ? "انتسخ ✓" : "انسخ"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* What they just ordered. It used to say only the reference, which is
             the one thing they cannot check against. */}
@@ -156,22 +251,36 @@ export default function OrderPanel({ place }: { place: Place }) {
         {/* The device is the only thing holding this order's key, so the way
             back to it is a link and not an account. Said here, once, while the
             customer is still looking at the screen. */}
-        <Link
-          href="/orders"
-          className="mt-4 inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
-        >
-          تابع طلبك
-          <IconGo className="size-4" />
-        </Link>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Link
+            href="/orders"
+            className="inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
+          >
+            تابع طلبك
+            <IconGo className="size-4" />
+          </Link>
+          {wa && !blocked && (
+            <a
+              href={wa.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-tap items-center px-2 text-sm font-semibold text-ink-600 transition hover:text-palm-700"
+            >
+              ما انفتح؟ افتح واتساب
+            </a>
+          )}
+        </div>
         <p className="mt-2 text-xs text-ink-500">
-          تلقاه في «طلباتي» على هذا الجهاز، وتشوف فيه إذا صار جاهز.
+          {wa
+            ? "تلقاه في «طلباتي» على هذا الجهاز. المكان يرد عليك بالواتساب."
+            : "تلقاه في «طلباتي» على هذا الجهاز، وتشوف فيه إذا صار جاهز."}
         </p>
       </section>
     );
   }
 
   return (
-    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm">
+    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-channel={channel}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-2xl font-bold text-ink-900">اطلب مقدّماً</h2>
         <span className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-600">
@@ -179,7 +288,9 @@ export default function OrderPanel({ place }: { place: Place }) {
         </span>
       </div>
       <p className="mt-1 text-sm text-ink-500">
-        اختر اللي تبيه ووقت الاستلام، ويكون جاهز لك. ما ندفع ولا نمسك فلوسك — تدفع لهم مباشرة.
+        {channel === "whatsapp"
+          ? "اختر اللي تبيه ووقت الاستلام، ويوصل طلبك للمكان على واتساب وهم يردون عليك هناك. ما ندفع ولا نمسك فلوسك — تدفع لهم مباشرة."
+          : "اختر اللي تبيه ووقت الاستلام، ويكون جاهز لك. ما ندفع ولا نمسك فلوسك — تدفع لهم مباشرة."}
       </p>
 
       {/* ---- the menu ---- */}
@@ -274,12 +385,17 @@ export default function OrderPanel({ place }: { place: Place }) {
           <input id="o-name" className={fieldClass} value={name} maxLength={80}
             onChange={(e) => setName(e.target.value)} placeholder="عشان ينادونك" />
         </div>
-        <div>
-          <label htmlFor="o-phone" className={labelClass}>تلفونك</label>
-          <input id="o-phone" dir="ltr" inputMode="numeric" className={fieldClass} value={phone}
-            maxLength={20} onChange={(e) => setPhone(e.target.value)} placeholder="5xxxxxxx" />
-          <p className={hintClass}>يوصل للمكان بس، عشان يتواصلون معك لو احتاجوا.</p>
-        </div>
+        {/* No phone in WhatsApp mode: the shop answers in the thread the
+            customer opens, so the number they would type is the number they
+            are writing from. A field nobody reads is a field to leave out. */}
+        {channel === "db" && (
+          <div>
+            <label htmlFor="o-phone" className={labelClass}>تلفونك</label>
+            <input id="o-phone" dir="ltr" inputMode="numeric" className={fieldClass} value={phone}
+              maxLength={20} onChange={(e) => setPhone(e.target.value)} placeholder="5xxxxxxx" />
+            <p className={hintClass}>يوصل للمكان بس، عشان يتواصلون معك لو احتاجوا.</p>
+          </div>
+        )}
         <div>
           <label htmlFor="o-note" className={labelClass}>ملاحظة (اختياري)</label>
           <input id="o-note" className={fieldClass} value={note} maxLength={200}
@@ -302,9 +418,11 @@ export default function OrderPanel({ place }: { place: Place }) {
         type="button"
         onClick={send}
         disabled={busy || count === 0}
-        className="mt-5 min-h-12 w-full rounded-2xl bg-ink-900 px-6 font-display text-base font-semibold text-white transition hover:bg-ink-800 disabled:opacity-40"
+        className={`mt-5 min-h-12 w-full rounded-2xl px-6 font-display text-base font-semibold text-white transition disabled:opacity-40 ${
+          channel === "whatsapp" ? "bg-palm-600 hover:bg-palm-700" : "bg-ink-900 hover:bg-ink-800"
+        }`}
       >
-        {busy ? "نرسل الطلب…" : "أرسل الطلب"}
+        {channel === "whatsapp" ? "أرسل عبر واتساب" : busy ? "نرسل الطلب…" : "أرسل الطلب"}
       </button>
       <p className="mt-2 text-center text-2xs leading-relaxed text-ink-500">
         ما تدفع شي هنا. الطلب يوصل للمكان وتدفع لهم وقت الاستلام.

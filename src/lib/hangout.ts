@@ -480,8 +480,16 @@ export async function shareHangout(opts: {
   if (typeof window !== "undefined") {
     try {
       const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
-      const opened = window.open(wa, "_blank", "noopener,noreferrer");
-      if (opened) return "whatsapp";
+      // Not `noopener` as a feature string: with it, window.open returns
+      // null on SUCCESS as well as on a blocked popup (that is the spec), so
+      // every desktop send fell through to the clipboard and the tab opened
+      // anyway. Open, then cut the opener by hand. Found while writing the
+      // order's send, 3 October, which uses the same shape.
+      const opened = window.open(wa, "_blank");
+      if (opened) {
+        opened.opener = null;
+        return "whatsapp";
+      }
     } catch {
       /* popup blocked — the clipboard still works */
     }

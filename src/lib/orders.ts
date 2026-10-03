@@ -8,11 +8,15 @@ import {
   isRetryableSupabaseError,
   retry,
 } from "@/lib/net";
+import { acceptsOrders } from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 import {
+  buildOrderMessage,
   normalisePhone,
   orderReference,
   orderTotal,
   validateOrder,
+  whatsappOrderUrl,
   type OrderInput,
   type OrderLine,
 } from "@/lib/order-kit";
@@ -39,6 +43,27 @@ import {
  * client and the device store, which a message builder does not need.
  */
 export * from "@/lib/order-kit";
+
+/**
+ * Where an order goes. One channel per build, never both.
+ *
+ * With a database every order is a row the business reads on «الطلبات
+ * المسبقة». Without one — which is every build to date — the order leaves
+ * the site as a WhatsApp message to the place's own number, and is tracked
+ * only on the device that sent it. Two send buttons would be two orders, and
+ * a board that saw half of them; so the day the database is switched on,
+ * WhatsApp orders stop, and the docs say so. `null` means no panel at all: a
+ * place that has not opted in, or has a menu and nowhere for the order to go
+ * (audit:places refuses that shape in the catalogue, but a live row can
+ * still carry it).
+ */
+export type OrderChannel = "db" | "whatsapp";
+
+export function orderChannel(place: Place): OrderChannel | null {
+  if (!acceptsOrders(place)) return null;
+  if (supabaseEnabled) return "db";
+  return place.orderWhatsApp ? "whatsapp" : null;
+}
 
 /**
  * The order's id and the secret that proves it is yours.
@@ -100,6 +125,31 @@ export interface TrackedOrder {
   totalFils: number;
   pickupAt: string;
   placedAt: string;
+  /** Absent on entries written before WhatsApp mode existed; read as "db". */
+  channel?: OrderChannel;
+  /** The shop's number, WhatsApp mode only — so the card can reopen the thread
+   *  even if the place's number changes later. */
+  whatsapp?: string;
+  /** Kept on the device in WhatsApp mode, because nothing else holds them. */
+  lines?: OrderLine[];
+  noteAr?: string;
+  /** The customer called it off from this device — a different sentence
+   *  from the business cancelling it. */
+  cancelledByMe?: boolean;
+  cancelledAt?: string;
+}
+
+/** The customer asked for the order to be cancelled, from here. The database
+ *  knows too in db mode; in WhatsApp mode this is the only record. */
+export function markCancelledByMe(id: string): void {
+  try {
+    const all = listOrders().map((o) =>
+      o.id === id ? { ...o, cancelledByMe: true, cancelledAt: new Date().toISOString() } : o
+    );
+    localStorage.setItem(STORE_KEY, JSON.stringify(all));
+  } catch {
+    /* private mode */
+  }
 }
 
 const STORE_KEY = ORDERS_STORE_KEY;
@@ -290,6 +340,82 @@ export async function cancelOrder(
 export type OrderResult =
   | { ok: true; reference: string; tracked: TrackedOrder }
   | { ok: false; reason: "disabled" | "invalid" | "network"; message: string };
+
+export type WhatsAppOrderResult =
+  | {
+      ok: true;
+      reference: string;
+      tracked: TrackedOrder;
+      /** false when the popup was blocked: the caller shows the text and a
+       *  plain link, which a gesture-driven anchor can always open. */
+      opened: boolean;
+      text: string;
+      url: string;
+    }
+  | { ok: false; reason: "invalid"; message: string };
+
+/**
+ * Send one basket to the shop's WhatsApp.
+ *
+ * Synchronous on purpose, and the caller must call it inside the tap: Safari
+ * and Chrome block a `window.open` that follows an `await`, so a validation
+ * that went to the network first would turn every send into «blocked». The
+ * order is remembered BEFORE the window opens — a tab that opens and is lost
+ * is still an order the customer sent, and «طلباتي» has to show it.
+ *
+ * `opener` is nulled rather than passing `noopener` as a feature: with the
+ * feature, `window.open` returns null on success as well as on a block, and
+ * the two cannot be told apart.
+ */
+export function sendWhatsAppOrder(
+  input: OrderInput,
+  digits: string,
+  attempt: OrderAttempt,
+  pageUrl: string
+): WhatsAppOrderResult {
+  const problems = validateOrder(input, { phoneRequired: false });
+  if (problems.length) return { ok: false, reason: "invalid", message: problems[0] };
+
+  const reference = orderReference(attempt.id);
+  const text = buildOrderMessage({
+    placeNameAr: input.placeNameAr,
+    reference,
+    lines: input.lines,
+    pickupAt: input.pickupAt,
+    customerName: input.customerName,
+    noteAr: input.noteAr,
+    url: pageUrl,
+  });
+  const url = whatsappOrderUrl(digits, text);
+
+  const tracked: TrackedOrder = {
+    id: attempt.id,
+    token: attempt.token,
+    reference,
+    placeSlug: input.placeSlug,
+    placeNameAr: input.placeNameAr,
+    totalFils: orderTotal(input.lines),
+    pickupAt: input.pickupAt,
+    placedAt: new Date().toISOString(),
+    channel: "whatsapp",
+    whatsapp: digits,
+    lines: input.lines,
+    noteAr: input.noteAr.trim(),
+  };
+  rememberOrder(tracked);
+
+  let opened = false;
+  try {
+    const w = window.open(url, "_blank");
+    if (w) {
+      w.opener = null;
+      opened = true;
+    }
+  } catch {
+    /* blocked — the caller offers the text and a link */
+  }
+  return { ok: true, reference, tracked, opened, text, url };
+}
 
 /**
  * Send one basket.
