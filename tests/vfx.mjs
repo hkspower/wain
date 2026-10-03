@@ -666,7 +666,15 @@ console.log(`spark arc  peak ${sparkHeight.maxY} m, ${sparkHeight.abovePct}% of 
 // Checked as identity rather than by eye: whatever the policy is, every
 // car must be wearing it. A new kind of car that nobody remembered to
 // dress fails here rather than in a screenshot months later.
-const reflect = await page.evaluate(() => {
+//
+// And never a null envMap. three (r184, as shipped) draws a material whose envMap
+// is null with scene.environmentIntensity IN PLACE OF its own gain, so a
+// car left on the scene's environment was drawn at 1.0 whatever this
+// check read off the material: every gain below was a number on a
+// property the GPU never saw. That was the whole baked path — Balanced,
+// Battery, the performance fallback — so the check runs there too, not
+// only on the live probe this page boots with.
+const readReflections = () => page.evaluate(() => {
   const e = window.__grnEngine;
   const cars = [];
   const push = (label, group) => {
@@ -691,22 +699,40 @@ const reflect = await page.evaluate(() => {
   if (e.rival) push("rival", e.rival.mesh);
   e.traffic.slice(0, 3).forEach((t, i) => push(`traffic${i}`, t.mesh));
   const probe = e.cubeRT?.texture?.uuid ?? null;
-  return { cars, probe, live: e.liveReflections };
+  const baked = e.scene.environment?.uuid ?? null;
+  return { cars, probe, baked, dip: e.scene.environmentIntensity, live: e.liveReflections };
 });
-{
+const checkReflections = (reflect, label) => {
   const maps = new Set(reflect.cars.map((c) => c.envMap));
   const bodies = new Set(reflect.cars.map((c) => c.policy));
   const ratios = new Set(reflect.cars.flatMap((c) => c.metals.map((m) => m.ratio)));
-  console.log(`reflections ${reflect.cars.length} cars: ${reflect.cars.map((c) => `${c.label} i=${c.bodyI}`).join(", ")}`);
+  const nulls = reflect.cars.filter((c) => c.envMap === null || c.metals.some((m) => m.envMap === null));
+  console.log(`reflections ${label} ${reflect.cars.length} cars: ${reflect.cars.map((c) => `${c.label} i=${c.bodyI}`).join(", ")}`);
   console.log(`            env sources ${maps.size}, body gains ${bodies.size}, metal gains ${ratios.size}  ` +
-    check(maps.size === 1, `cars reflect ${maps.size} different environments — they will not match`) + " " +
-    check(bodies.size === 1, `paint runs at ${bodies.size} different gains across the cars: ${[...bodies].join(", ")}`) + " " +
-    check(ratios.size <= 1, `metals run at ${ratios.size} different gains across the cars`));
+    check(maps.size === 1, `${label}: cars reflect ${maps.size} different environments — they will not match`) + " " +
+    check(bodies.size === 1, `${label}: paint runs at ${bodies.size} different gains across the cars: ${[...bodies].join(", ")}`) + " " +
+    check(ratios.size <= 1, `${label}: metals run at ${ratios.size} different gains across the cars`) + " " +
+    check(nulls.length === 0,
+      `${label}: ${nulls.map((c) => c.label).join(", ")} left envMap null — three draws that at the scene's intensity, not the car's gain`));
   if (reflect.live) {
     check(reflect.cars.every((c) => c.envMap === reflect.probe),
-      "the live probe is on but some cars are still reflecting the baked environment");
+      `${label}: the live probe is on but some cars are still reflecting the baked environment`);
+  } else {
+    check(reflect.cars.every((c) => c.envMap === reflect.baked),
+      `${label}: the probe is off but some cars are not on the scene's baked environment`);
+    // The paint's baked gain is createCar's 1.5 times the dawn/dusk dip
+    // the scene is drawn at — within the 0.02 the engine lets the dip
+    // drift before it re-dresses.
+    const want = 1.5 * reflect.dip;
+    check(reflect.cars.every((c) => Math.abs(c.policy - want) <= 1.5 * 0.021),
+      `${label}: baked paint gain ${[...bodies].join(", ")} is not 1.5 x the scene's ${reflect.dip.toFixed(2)}`);
   }
-}
+};
+checkReflections(await readReflections(), "live");
+await page.evaluate(() => window.__grnEngine.applyQualityTier("balanced"));
+checkReflections(await readReflections(), "balanced");
+// Back to the tier the page booted on, for whatever runs after this.
+await page.evaluate(() => window.__grnEngine.applyQualityTier("auto"));
 
 // --- Glare falloff: a light must decay, not plateau ---
 // Every glow in the game is drawn ADDITIVELY, and an additive sprite

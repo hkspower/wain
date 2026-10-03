@@ -556,9 +556,33 @@ export const FINISHES: Record<PaintFinish, FinishSpec> = {
   // one. Not 0.03: nothing sprayed by a human is an optical mirror, and
   // a flawless one reads as a neon strip rather than as a reflection of
   // one.
-  gloss: { clearcoat: 1, clearcoatRoughness: 0.06, roughnessAdd: 0, envScale: 1, metalScale: 1 },
-  satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.16, envScale: 0.62, metalScale: 0.8 },
-  matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.38, envScale: 0.3, metalScale: 0.25 },
+  //
+  // 0.06 -> 0.045. The "neon strip" at 0.03 was never seen: three clamps
+  // clearcoatRoughness to 0.0525 in the shader, so 0.03 rendered as
+  // 0.0525 — sharper than 0.06, not a mirror. And 0.06 was itself below
+  // what Ultra's 512 probe could show: it asks the env map for mip 7.69,
+  // a 207-texel face, so the 512 cube bought the lacquer nothing.
+  // 0.045 asks for mip 8.52, which only a 512 face holds; cars.ts
+  // (PAINT_UNIFORMS) lowers the shader's floor to match the probe, so on
+  // Ultra this renders as 0.045 and everywhere else at the 0.0525 floor —
+  // still sharper than the 0.06 it replaces. Measured on gloss #c1272d
+  // at metalness 0.95 under the lamps (a scratch sweep using paint.mjs's
+  // segmentation, one session), 0.045 with the floor at 0.038 on a 512
+  // probe against the shipped 0.06 on 256: roof detail — the luma
+  // gradient where the buildings reflect — went 2.79 -> 3.33 (+19%) and
+  // the reflected windows resolve from one blob into separate windows;
+  // the highlight came out a touch smaller and dimmer (8.1% -> 7.7% of
+  // the panel, spec 182.5 -> 178.8) and no more than 0.07% of the body
+  // clipped. What High gets — 0.0525, env mip 8 against 7.69 — is
+  // predicted from the same arithmetic, not measured. Satin and matte
+  // are untouched; their lacquer is far above any floor.
+  gloss: { clearcoat: 1, clearcoatRoughness: 0.045, roughnessAdd: 0, envScale: 1, metalScale: 1 },
+  // roughnessAdd 0.16 -> 0.10 and 0.38 -> 0.32: the base they add to
+  // (cars.ts PAINT_BASE_ROUGHNESS) went 0.18 -> 0.24 for gloss, and these
+  // came down by the same 0.06 so satin still totals 0.34 and matte 0.56,
+  // the roughnesses they were measured at.
+  satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.1, envScale: 0.62, metalScale: 0.8 },
+  matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.32, envScale: 0.3, metalScale: 0.25 },
 };
 
 /** The garage part id for each finish, and back again. */

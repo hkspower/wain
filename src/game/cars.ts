@@ -4736,13 +4736,168 @@ export function paintMetalness(hex: number): number {
   // The dark knee is deliberately low. Dark does not mean unmetallic —
   // metallic reds and navies are real and common, and this fleet's red
   // sits at 0.22, its navy at 0.18 and its purple at 0.23, all of which
-  // keep the full 0.95. Only the near-blacks, where F0 stops being
-  // physical at all, come down to a dielectric basecoat and let the
+  // keep the full PAINT_METAL_TOP. Only the near-blacks, where F0 stops
+  // being physical at all, come down to a dielectric basecoat and let the
   // clearcoat above do the work it is already there to do.
-  if (lum >= 0.5) return Math.max(0.18, 0.95 - (lum - 0.5) * 1.9);
+  //
+  // The pale ramp is capped at the top rather than rescaled: it was
+  // 0.95 at mid luminance falling to 0.18 by 0.905, and only the stretch
+  // from 0.5 to 0.605 sat above 0.75. Capping keeps the curve continuous
+  // at 0.5 (a slightly paler paint must not be MORE metallic than a mid
+  // one) and leaves every pale paint below 0.605 — silver, sand, mint,
+  // ice, lime, gold — on the numbers the gold-white fix measured.
+  if (lum >= 0.5) return Math.max(0.18, Math.min(PAINT_METAL_TOP, 0.95 - (lum - 0.5) * 1.9));
   const DARK_KNEE = 0.16;
-  if (lum >= DARK_KNEE) return 0.95;
-  return 0.18 + (0.95 - 0.18) * (lum / DARK_KNEE);
+  if (lum >= DARK_KNEE) return PAINT_METAL_TOP;
+  // The near-black ramp keeps its 0.18 floor and ends at the new top, so
+  // there is no step at the knee: maroon (lum 0.144) goes 0.871 -> 0.693.
+  return 0.18 + (PAINT_METAL_TOP - 0.18) * (lum / DARK_KNEE);
+}
+
+/**
+ * How metallic a mid-tone basecoat is: 0.75, down from 0.95.
+ *
+ * 0.95 was set when nothing lit a car body but the blue moon rig and the
+ * player's rim — the POLICE note below still says the street lamps "light
+ * no objects" — and against that rig a diffuse term had nothing to
+ * receive, so a near-pure metal cost nothing. That stopped being true in
+ * 7db3da94: four 290 cd street lights now reach the cars, and a 25%
+ * diffuse share is what they have to light.
+ *
+ * It was also what turned the reds purple. A 0.95 basecoat's colour is
+ * almost all reflection, tinted by the paint, so a panel facing the night
+ * sky shows the sky multiplied by the paint — red times blue is nearly
+ * black — and what is left is the clearcoat's own, untinted reflection of
+ * that blue. On the 4K stills the lock hood measured hue 260 and the
+ * drift's rear deck 331 against the paint's own 356, saturation 0.41.
+ * With a quarter of the colour coming back as diffuse, the red survives
+ * on the panels that mirror sky.
+ *
+ * Measured by a scratch sweep using paint.mjs's segmentation, building
+ * the paint the game builds (paint.mjs itself had been measuring 0.18 —
+ * see there), gloss #c1272d under the lamps, High, a 256 probe,
+ * clearcoat 0.06, one session; the roughness column is
+ * PAINT_BASE_ROUGHNESS and hue is the body's circular mean:
+ *
+ *   metal / rough   body   spec    ratio   highlight   hue   grain
+ *   0.95  / 0.18    36.3   182.5   5.03    8.1%        316   7.10
+ *   0.75  / 0.24    44.9   181.6   4.04    8.0%        333   6.63
+ *   0.60  / 0.30    49.7   175.0   3.52    8.6%        338   6.33
+ *
+ * 0.75 takes the hue error (against #c1272d's own 357.7) from about 42
+ * degrees to 25 and the body from 36 to 45 with the highlight's size and
+ * brightness unchanged; a ratio of 4.0 is still a small bright thing on
+ * a darker field, which is what gloss means here. The price is grain, the
+ * gradient across the panels, down 7%: a quarter of diffuse fills in
+ * some of the contrast the reflection had to itself. 0.60 starts to give
+ * the highlight back (spec -7, ratio 3.5) for another 5 degrees.
+ * Declared solids are 0 either way, so the booth's solid-paint checks
+ * are unaffected (tests/paints.mjs pins this ceiling itself); the colour
+ * gate is paintcolors.mjs at FINISH=gloss plus paintaccuracy.mjs — no
+ * paint's hue error or dead share may get worse.
+ */
+export const PAINT_METAL_TOP = 0.75;
+
+/**
+ * The gloss basecoat's roughness: 0.24, up from 0.18. Finishes add to it
+ * (FinishSpec.roughnessAdd), and satin's and matte's additions came down
+ * by the same 0.06 so their totals — 0.34 and 0.56 — are the ones they
+ * were measured at. The 0.18 knee recorded where the bodyMat is built was
+ * swept before paint.mjs filled the reflection probe (f927966f), so its
+ * clearcoat was mirroring an empty cube and the knee does not bind a
+ * paint that mirrors the street. 0.24 moved together with the 0.75 basecoat
+ * and was measured only as that pair (the table on PAINT_METAL_TOP);
+ * 0.75 at 0.18 has not been measured, so if the pair is ever split, it is
+ * the roughness that needs re-sweeping.
+ */
+export const PAINT_BASE_ROUGHNESS = 0.24;
+
+/**
+ * The paint's material numbers for one colour in one finish — the single
+ * place they are worked out. createCar builds from it, and so does
+ * tools/shots/paint.mjs through the engine's debug hook: the tool used to
+ * repeat this arithmetic, and its copy drifted twice — a hard-coded 0.18
+ * basecoat, and a CSS string passed where a number belongs, which gave
+ * every gloss reading since a17dec76 a metalness of 0.18.
+ */
+export function paintParams(
+  hex: number,
+  finish: PaintFinish = "gloss"
+): { roughness: number; metalness: number; clearcoat: number; clearcoatRoughness: number; envMapIntensity: number } {
+  const F = FINISHES[finish];
+  return {
+    roughness: PAINT_BASE_ROUGHNESS + F.roughnessAdd,
+    metalness: paintMetalness(hex) * F.metalScale,
+    clearcoat: F.clearcoat,
+    clearcoatRoughness: F.clearcoatRoughness,
+    envMapIntensity: 1.5 * F.envScale,
+  };
+}
+
+/**
+ * three's own clearcoat roughness floor, in lights_physical_fragment:
+ * "0.0525 corresponds to the base mip of a 256 cubemap".
+ */
+const THREE_CC_FLOOR = 0.0525;
+
+/**
+ * The clearcoat roughness floor, as a uniform every paint shares.
+ *
+ * three clamps clearcoatRoughness to at least 0.0525 in the shader,
+ * whatever the material says, because below that a 256 cube has no
+ * sharper mip to give. The live probe on Ultra is 512, and it was doing
+ * nothing for the lacquer: the env lookup picks its mip as
+ * -2 log2(1.16 r), capped at log2(face), so gloss's 0.06 asked for mip
+ * 7.69 — a 207-texel face, below even 256. That is why the probe table
+ * in engine.ts found 512 "inside the drift of 256". It also means the
+ * 0.03 the gloss comment in mods.ts warns against was never rendered: it
+ * would have been clamped to 0.0525.
+ *
+ * So the floor follows the cube the paint is reading — see
+ * clearcoatFloorFor — and the engine moves it whenever the probe is
+ * rebuilt or the policy changes. One uniform object, referenced by every
+ * paint's program, so moving it recompiles nothing.
+ */
+export const PAINT_UNIFORMS = { uCcFloor: { value: THREE_CC_FLOOR } };
+
+/**
+ * The floor for a cube of this face size (null for the baked
+ * environment, which env.ts filters at 256): the roughness whose mip is
+ * that cube's finest, 1 / (1.16 sqrt(face)), and never above three's own
+ * 0.0525 — so a smaller probe never makes the lacquer softer than it
+ * was, it only lets a larger one be sharper.
+ *
+ *   face   floor     gloss (0.045) renders at   env mip
+ *   256    0.0525    0.0525                     8 (capped)
+ *   512    0.0381    0.045                      8.52
+ */
+export function clearcoatFloorFor(face: number | null): number {
+  if (!face) return THREE_CC_FLOOR;
+  return Math.min(THREE_CC_FLOOR, 1 / (1.16 * Math.sqrt(face)));
+}
+
+const CC_FLOOR_LINE = `material.clearcoatRoughness = max( material.clearcoatRoughness, ${THREE_CC_FLOOR} );`;
+const PAINT_LIGHTS_PHYSICAL = THREE.ShaderChunk.lights_physical_fragment.replace(
+  CC_FLOOR_LINE,
+  "material.clearcoatRoughness = max( material.clearcoatRoughness, uCcFloor );"
+);
+/** False if a three upgrade has moved the line the floor patch replaces
+ *  — tests/paints.mjs fails on it rather than the patch quietly doing
+ *  nothing. */
+export const PAINT_FLOOR_PATCHED = PAINT_LIGHTS_PHYSICAL !== THREE.ShaderChunk.lights_physical_fragment;
+
+/** Put the shared clearcoat floor into a paint's shader. */
+function paintClearcoatFloor(m: THREE.MeshPhysicalMaterial): void {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uCcFloor = PAINT_UNIFORMS.uCcFloor;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform float uCcFloor;")
+      .replace("#include <lights_physical_fragment>", PAINT_LIGHTS_PHYSICAL);
+  };
+  // One key for every paint: the patch is the same text for all of them,
+  // and the floor is a uniform, so no car, finish or tier needs its own
+  // program on account of it.
+  m.customProgramCacheKey = () => "paint-cc-floor";
 }
 
 function seg0Pitch(p: number): number {
@@ -4871,6 +5026,11 @@ export const POLICE = {
    * a car body is the blue moon rig or the blue player rim (street lamps
    * are emissive heads and pools on the road; they light no objects), so
    * a white car renders pale blue.
+   *
+   * (Written before 7db3da94, which put four real street lights on the
+   * cars; that change is why paintMetalness's mid-tone top came down to
+   * 0.75 — see PAINT_METAL_TOP. The silver choice has not been re-measured
+   * since.)
    */
   silver: 0xd3d8de,
   /**
@@ -5300,6 +5460,15 @@ export function createCar(colors: CarColors): THREE.Group {
   // perfect, which nothing sprayed by a human has ever been, and a
   // flawless mirror is a large part of why a rendered highlight reads as
   // a neon strip rather than as a reflection of one.
+  //
+  // (Two corrections to the history above, found later. paint.mjs read
+  // every figure before f927966f (Sep 19) against an empty probe cube,
+  // and its default gloss reading from a17dec76 (Sep 5) on built the
+  // paint at metalness 0.18 rather than the 0.95 the game drew; and 0.03
+  // was never what rendered, because three clamps clearcoatRoughness to
+  // 0.0525 in the shader. Both are written up at PAINT_METAL_TOP and
+  // PAINT_UNIFORMS, and the numbers now come from paintParams.)
+  const paint = paintParams(colors.body, colors.finish ?? "gloss");
   const bodyMat = new THREE.MeshPhysicalMaterial({
     name: "paint",
     color: colors.body,
@@ -5355,7 +5524,12 @@ export function createCar(colors: CarColors): THREE.Group {
     // the showroom turntable. The gain is 1.5 now. A tight lobe and a
     // loud environment are different things, and only one of them was
     // the problem.
-    roughness: 0.18 + FINISHES[colors.finish ?? "gloss"].roughnessAdd,
+    //
+    // 0.18 -> 0.24 (PAINT_BASE_ROUGHNESS), moving with the basecoat's
+    // metalness: the table above was swept against an empty reflection
+    // probe, before paint.mjs learned to fill it. Satin and matte keep
+    // their totals.
+    roughness: paint.roughness,
     // Metalness by how LIGHT the paint is.
     //
     // At 0.95 across the board, a metal's reflection is tinted by its
@@ -5373,10 +5547,13 @@ export function createCar(colors: CarColors): THREE.Group {
     // The finish scales the metalness — see FinishSpec.metalScale for
     // why matte HAS to: a matte car that kept the paint's metalness had
     // no diffuse term and rendered as a dim mirror, not as pigment.
-    metalness: paintMetalness(colors.body) * FINISHES[colors.finish ?? "gloss"].metalScale,
-    clearcoat: FINISHES[colors.finish ?? "gloss"].clearcoat,
-    clearcoatRoughness: FINISHES[colors.finish ?? "gloss"].clearcoatRoughness,
-    envMapIntensity: 1.5 * FINISHES[colors.finish ?? "gloss"].envScale,
+    // Mid-tones now top out at 0.75 rather than 0.95: PAINT_METAL_TOP.
+    metalness: paint.metalness,
+    clearcoat: paint.clearcoat,
+    // Gloss is 0.045 now (mods.ts), honoured only where the probe can
+    // show it: the shader's floor is PAINT_UNIFORMS.uCcFloor, below.
+    clearcoatRoughness: paint.clearcoatRoughness,
+    envMapIntensity: paint.envMapIntensity,
     // No sheen here, and that is a MEASURED decision rather than an
     // omission. The edges of a car in this game were the suspected
     // cause of "no volume", so a grazing-angle sheen lobe was fitted
@@ -5387,6 +5564,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // luminance of the middle of the same panel; the clearcoat and the
     // envmap's horizon band were doing the job all along.
   });
+  paintClearcoatFloor(bodyMat);
 
   // Per-car metal clones for everything that should mirror the world.
   // The shared module materials must stay shared — the live reflection
