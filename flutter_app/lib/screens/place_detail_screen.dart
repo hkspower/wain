@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/catalogue.dart';
+import '../data/landmark_gate.dart';
 import '../data/models.dart';
 import '../data/text_kit.dart';
 import '../map/wain_map.dart';
@@ -14,6 +15,7 @@ import '../share/invite_banner.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/art.dart';
+import '../widgets/landmark_picture.dart';
 import '../widgets/layout.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
@@ -40,6 +42,10 @@ class PlaceDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final category = getCategory(place.category);
     final related = relatedPlaces(place);
+    // One of the five «معالم الكويت» places shows its picture, whole and
+    // tagged, once the picture may be shown; every other place, and those five
+    // until then, keep the drawing.
+    final picture = placePictureOf(place.slug);
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -52,7 +58,10 @@ class PlaceDetailScreen extends StatelessWidget {
               // above it and falls back to /explore — two ways back, stacked.
               Stack(
                 children: [
-                  PlaceHero(place: place),
+                  if (picture != null)
+                    PictureHero(place: place, picture: picture)
+                  else
+                    PlaceHero(place: place),
                   if (place.rating != null)
                     PositionedDirectional(
                       start: 10,

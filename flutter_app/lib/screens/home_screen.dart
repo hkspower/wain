@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
 import '../data/home_hero.g.dart';
+import '../data/landmark_gate.dart';
 import '../data/landmarks.g.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -20,11 +21,11 @@ import '../widgets/svg.dart';
 /// to /find, which asks how you want to search before showing anything.
 /// The slideshow waits for its real pictures, as on the web (app/page.tsx):
 /// drawn stand-ins are not shipped as the «realistic» pictures the owner
-/// asked for. `--dart-define=WAIN_SHOW_STANDINS=true` shows them in a build
-/// meant for looking at.
-final bool kShowLandmarks =
-    kLandmarks.every((l) => !l.standIn) ||
-    const bool.fromEnvironment('WAIN_SHOW_STANDINS');
+/// asked for. All or nothing — half real and half drawn would be worse than
+/// no section (landmark_gate.dart). `--dart-define=WAIN_SHOW_STANDINS=true`
+/// shows them in a build meant for looking at. A getter, so the gate's switch
+/// is read when the home is built rather than once at start-up.
+bool get kShowLandmarks => kLandmarks.every(shownPicture);
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
