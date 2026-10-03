@@ -5147,10 +5147,14 @@ scenes, kept as `brand-source/landmarks/<slug>.svg`.
 `gen-landmarks.mjs` takes the `.jpg` over the `.svg` and records `source: "ai" |
 "stand-in"` per entry.
 
-**A stand-in cannot reach the live site by accident.** `deploy:plan` reads
-`landmarks.g.ts` *at the archive's commit* and refuses the deploy if any entry
-is a stand-in. `audit:home-hero` warns while one is left. The first version of
-that check matched across entries, so a lazy regex named the wrong slug; it now
+**A stand-in cannot reach the live site by accident.** While any entry is a
+stand-in, `page.tsx` leaves the slideshow out and `gen-landmarks --prune-out`
+drops its pictures from `out/` (a preview build with
+`NEXT_PUBLIC_SHOW_STANDINS=1` keeps both). `deploy:plan` refuses an archive
+only when its `landmarks.g.ts` names a stand-in **and** its home page actually
+shows the slideshow — it refused every deploy at first, which blocked the
+3 October fixes below. `audit:home-hero` warns while one is left. The first
+version of the check matched across entries and named the wrong slug; it now
 reads one `{…}` at a time.
 
 **`photos.ts`'s rule still holds** (no generated picture stands in for a
@@ -5184,6 +5188,91 @@ home page and never goes there. `photos.ts` now says so in one sentence.
 
 **Not measured:** the real pictures (they do not exist), the slideshow on a
 real phone, and the app's slideshow on screen (widget tests only).
+
+## A back button, and the free call and سالم fixed for real phones — 3 October
+
+Asked: «add back button sticky / fix call shoug and salem». The owner chose a
+floating round button on every page but home, site and app, and reported all
+four faults from a real phone: the call blaming the microphone with the mic
+allowed, the call not hearing or answering, سالم not replying, and the layout.
+Nothing here can hold a real phone, so each cause below was read out of the
+code and each fix is built to hold whichever one is real.
+
+**The back button** (`BackButton.tsx`, app `widgets/back_fab.dart`): a 44px
+white circle, `fixed` at the top start corner (top-right in RTL), `z-50` so the
+call sheet covers it, with an in-flow spacer so nothing is covered at rest.
+`router.back()` when this tab navigated in-app (`NavDepth` in the layout counts
+it), else a fallback: a place → /explore, /salem → /find, else home. On /find
+it floats with no spacer; on /salem it sits in the header row.
+`tests/back-button.test.mjs` (173, in `test:hangout`) and `back_button_test.dart`
+(24). `audit:padding` read the spacer as the page's first block and failed the
+rhythm; it skips `[data-back-spacer]` now.
+
+**The call, site (free mode):**
+- **Recognition started outside the tap.** Tap → window event → lazy
+  `WainAiCall` → effect → `rec.start()`, and WebKit answers that with
+  `not-allowed` — which the sheet called «المايك». The button now starts the
+  recogniser inside the tap (`startLocalRecognition()` in `wain-ai-bus.ts`,
+  events buffered until the call attaches) and the call adopts it. The sheet
+  still rings for 700ms first (`RING_MIN_MS`): a pre-started engine connected
+  before the sheet had drawn, and «it starts out ringing» caught it.
+- **`service-not-allowed` and `language-not-supported` are not the mic** — iOS
+  sends them when Siri/Dictation is off or the language is missing. They, and
+  `not-allowed` inside an in-app browser (WhatsApp, Instagram…), now say
+  `speechOff` with a «اكتب لسالم» link to /salem.
+- **`ar-SA` on Apple** (`speechLang()`), `ar-KW` elsewhere: Apple's recogniser
+  has no `ar-KW`.
+- **A live call ends on its own**: 8s with nothing heard, 15s in all.
+- `primeAudio()` creates the AudioContext inside the gesture (the ring tones
+  were silent on iOS); /search does not focus its box under a call.
+- `shouq-flow`'s stub refuses `start()` outside a trusted click — so the old
+  wiring goes red — and it went 102 green. Its uncaught waits were made soft
+  while proving that, the coverage-hole shape this file keeps recording.
+
+**سالم, site:** the search chunk had no timeout, so a stalled one left the
+dots up for ever; it races 10s now, and a failed import is not cached. The box
+is disabled in the HTML until the script runs (a tap before hydration did a
+native GET). The frame is `fixed` and sized from `visualViewport` (`--vvh`),
+with `interactive-widget=resizes-content`, so the keyboard shrinks the chat
+instead of pushing the header away. `salem.test` 41 green.
+
+**The service worker was keeping failures.** Proving the retry found it: the
+second question after a 404'd chunk never reached the network, because sw.js
+cached the 404 cache-first. It stores only `ok` responses now, in both
+branches. That bug was live for every visitor whose chunk fetch ever failed.
+
+**The app:** `SpeechToText()` is a process-wide singleton and `initialize`
+keeps the FIRST `onError`, so from the second call on errors went to a dead
+session and the call hung. Errors route to the live session now; silence
+(`error_speech_timeout`, `error_no_match`) says «ما سمعناك» instead of a plain
+«انتهت»; a phone with no recogniser gets `speechUnavailable`; the locale is
+picked from the device (ar_KW > ar_SA > any ar); a 20s cap. Suite 595.
+
+**The deploy, and three things the planner got wrong on the way.** Deployment
+was blocked by the landmarks stand-ins (see above). Then:
+- **«expected exactly one stylesheet»** — Next split the font's `@font-face`
+  into a second stylesheet. One or more, every one a proof.
+- **The plan's sizes came from `out/`, the server holds the archive.** With
+  `out/` one commit ahead, verify called the real build-id directory
+  «expected undefined» on a deploy that had landed. Sizes and page HTML are
+  read out of the zip now — the 20 September lesson about proofs, finished.
+- Reading the zip reordered the proofs (a zip lists in its own order), so the
+  place page and og image are chosen alphabetically.
+
+`4aa5f509` is live: `{"ok":true,"version":"1.1.0","deployed":266,"removed":21,
+"emptied":1,"at":"2026-10-03T07:54:02+00:00"}`, job `Ogz8fAnePQ` read at its
+first firing, deleted and listed gone (another session's `NEhbaMvwph`,
+sporta's `fix-product-categories.php`, left alone). `deploy:verify`: «4aa5f509
+is live — verified at the root and 7 levels below it» (`build.json` digest
+`141da2d524a537e6`, both stylesheets, the /search chunk, `explore/`, a place
+page, its og image). Archive `40517698`, one more blob. After the cache purge, a cron
+`wget -S --spider` of `/salem/` through the edge: 200, `Last-Modified: 07:54:02`
+(the deploy's minute), `x-hcdn-cache-status: DYNAMIC`; job read, deleted, and
+the crontab back to sporta's eight.
+
+**Not measured:** any of it on a real phone — Safari's recogniser, an in-app
+browser, Siri switched off, the keyboard over /salem, the app on a device. One
+call and one سالم chat on the owner's phone is what closes it.
 
 ## Style
 
