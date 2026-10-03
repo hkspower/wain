@@ -4218,3 +4218,7 @@ All 165 `test:*` suites run in the sandbox plus the four live checks. **Live: cl
 ## Menu bar links aligned — 2026-10-03
 
 "make aligment for main menu text link". On a phone the five links share the row evenly at 13px (the header's `nav a` 15.5px `!important` is beaten by a more specific rule in `68-menu-bar.css`), all five fit at 360px in both languages, and the text is vertically centred (a transparent 3px top border balances the active underline). Desktop unchanged.
+
+## Women tile colour corrected — 2026-10-03
+
+"improve woman model color accuracy and fix high tint". The cut-out's outfit carried a faint teal cast (shirt R52 G53 B54) and the skin was over-saturated (face R203 G142 B118) from the earlier recolour and CLAHE. Low-saturation pixels are now exactly neutral, skin and hair keep 72% of their saturation with a slight cool balance, and contrast is eased 6% (face now R181 G145 B132; shirt neutral grey). Only the eight women tiles changed; `ART_VERSION` is `20261003a`.
