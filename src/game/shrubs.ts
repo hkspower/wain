@@ -748,20 +748,35 @@ export function patchLeafFragment(fs: string): string {
  * stand on other sides of the road, and every ik still before the change
  * stops lining up with every still after it.
  *
- * WHY A REPLAY AND NOT A NUMBER. The legacy block took 1,440 draws for
- * its three shapes and then a placement loop whose LENGTH depends on the
- * values it drew: a slot is skipped when its first draw is under 0.28,
- * and a kept slot takes a second draw for its position and a third only
- * if that position clears the tunnel and the seam. Then eight per plant
- * (yaw, height, width, depth, three for the tint, and the phase). The
- * total was measured at 17,446 to 17,695 depending on the stream state
- * on entry — so a hard-coded count is right for exactly one upstream
- * city, and the first change upstream of here would break it silently.
- * Replaying the loop's own tests makes it right for every one.
+ * WHY A REPLAY AND NOT A NUMBER. The legacy block opened with a
+ * placement loop whose LENGTH depends on the values it drew: a slot is
+ * skipped when its first draw is under 0.28, and a kept slot takes a
+ * second draw for its position and a third only if that position clears
+ * the tunnel and the seam. Then 1,440 draws for its three shapes, and
+ * eight per plant (yaw, height, width, depth, three for the tint, and
+ * the phase). The total was measured at 17,173 to 17,770 over the entry
+ * states tests/shrubs.mjs tries, and at 17,408 in the recorded city,
+ * which enters the block at draw 43,825 — so a hard-coded count is
+ * right for exactly one upstream city, and the first change upstream of
+ * here would break it silently. Replaying the loop's own tests makes it
+ * right for every one.
+ *
+ * IN SOURCE ORDER, because the loop reads the values. In f1a525c4 the
+ * shapes come AFTER the loop: mound() is defined at world.ts 6644 but
+ * only called at 6752, inside the per-shape InstancedMesh loop, after
+ * the placement loop at 6710-6743 has finished. The first version of
+ * this burn spent the 1,440 shape draws first, so the loop's skip tests
+ * read numbers 1,440 further down the stream and kept a different set
+ * of slots: 17,441 draws in the recorded city instead of 17,408, which
+ * moves every billboard side and tunnel texture after the verge. Its own
+ * reference copy made the same swap, so the test agreed with it.
  *
  * The constants below are the legacy block's, frozen: they describe
  * consumption that has to be reproduced, not planting that exists.
- * tests/shrubs.mjs holds this against a verbatim copy of the old loop.
+ * tests/shrubs.mjs holds this against a copy of the old block in source
+ * order, and holds that copy to the recorded city: run from draw 43,825
+ * it rebuilds the three legacy "planting" groups, 1,313 plants, to the
+ * hashes tests/baselines/world.json recorded at f1a525c4.
  */
 export function burnLegacyVergeDraws(
   draw: () => number,
@@ -774,9 +789,7 @@ export function burnLegacyVergeDraws(
     n++;
     return draw();
   };
-  // mound() × 3: IcosahedronGeometry(0.5, 1) is non-indexed, 80 faces ×
-  // 3 = 240 vertices, and each took two draws (the xz and y factors).
-  for (let i = 0; i < 3 * 240 * 2; i++) d();
+  // The placement loop FIRST (world.ts 6710-6743 at f1a525c4).
   const SPACING = 7, SEAM = 40;
   let spots = 0;
   for (let step = 0; step < L; step += SPACING) {
@@ -789,6 +802,10 @@ export function burnLegacyVergeDraws(
       spots++;
     }
   }
+  // THEN mound() × 3, called at 6752 once the spots were counted:
+  // IcosahedronGeometry(0.5, 1) is non-indexed, 80 faces × 3 = 240
+  // vertices, and each took two draws (the xz and y factors).
+  for (let i = 0; i < 3 * 240 * 2; i++) d();
   // Per plant: yaw, height, width, depth, tint × 3, and then — in a
   // second pass, but the stream does not care — its phase.
   for (let i = 0; i < spots * 8; i++) d();

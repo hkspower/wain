@@ -22,13 +22,16 @@
 //      every plant taller than the rail, the lean in metres, the budget;
 //   §4 the shared stream: the beds draw nothing from it, and the burn
 //      that stands in for the old block's draws is exact — against a
-//      verbatim copy of the old block's consumption.
+//      verbatim copy of the old block in source order, which is itself
+//      held to the recorded city: run from the draw that city entered
+//      the block at, it rebuilds the old planting to its recorded hashes.
 //
 // What it does not cover: the chunked culling (S2 of the design — not
 // built), and how it looks. The browser half is tests/planting.mjs,
 // tests/world.mjs and the ik stills.
 import * as THREE from "three";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   SHRUB,
   SHRUB_KINDS,
@@ -80,9 +83,21 @@ for (const [i, kind] of SHRUB_KINDS.entries()) {
     else seen.set(k, v);
   }
   // Open edges, flat-shaded and downward faces.
+  //
+  // THE RIM IS ON THE SOIL, EXACTLY. The round kinds have their rim
+  // pinned to y = 0 (moundShape) and the hedge's foot ring is built at
+  // y = 0, so every open-edge vertex is 0 to the bit, and the check is
+  // exact. The first version allowed 0.36 of the height, which is wider
+  // than the gap the pin exists to close: with the pin line deleted the
+  // rims measured ball 0.182-0.289, mound 0.144-0.194 and upright
+  // 0.176-0.244 of the height, daylight under every plant, and that
+  // check stayed green.
   const open = openEdgeVertices(g);
-  let openTop = 0;
-  for (const v of open) openTop = Math.max(openTop, pos.getY(v));
+  let openTop = 0, openOff = 0;
+  for (const v of open) {
+    openTop = Math.max(openTop, pos.getY(v));
+    if (pos.getY(v) !== 0) openOff++;
+  }
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   const n0 = new THREE.Vector3(), n1 = new THREE.Vector3(), n2 = new THREE.Vector3();
   let flat = 0, down = 0;
@@ -144,14 +159,14 @@ for (const [i, kind] of SHRUB_KINDS.entries()) {
   const spec = SHRUB.kinds[kind];
   const flowering = !!spec.flower;
   console.log(
-    `  ${kind.padEnd(7)} ${tris} tris, ${pos.count} verts; open rim at y<=${f3(openTop)}; ` +
+    `  ${kind.padEnd(7)} ${tris} tris, ${pos.count} verts; open rim ${open.size} verts at y<=${f3(openTop)}; ` +
       `flat ${flat}, down ${down}; canopy Y ${meanY.toFixed(4)}; crown/foot ${crown.toFixed(2)}; ` +
       `contrast ${relStd.toFixed(3)}; sRGB s ${sat.toFixed(2)} h ${hue.toFixed(0)}°; flowers ${nFlower}/${nUpper}`
   );
   check(!!idx, `${kind}: not indexed — the copies of each corner can move apart`);
   check(dupes === 0, `${kind}: ${dupes} vertices share a position with another — unwelded corners tear`);
   check(tris <= SHRUB.maxTrisPerPlant, `${kind}: ${tris} triangles > ${SHRUB.maxTrisPerPlant}`);
-  check(openTop <= (kind === "hedge" ? 0.05 : 0.36) * top, `${kind}: an open edge at y ${f3(openTop)} — a hole above the soil line`);
+  check(openOff === 0, `${kind}: ${openOff} of ${open.size} open-edge vertices off the soil, up to y ${f3(openTop)} — daylight under the skirt`);
   check(flat / tris <= 0.05, `${kind}: ${flat} of ${tris} triangles flat-shaded (legacy 300/300)`);
   check(down / tris <= 0.02, `${kind}: ${down} of ${tris} triangles face the soil`);
   check(bb.min.y >= -0.01, `${kind}: geometry reaches y ${f3(bb.min.y)}, below its own foot`);
@@ -377,24 +392,38 @@ console.log(`  lean in metres ${check(bad.gain === 0, `${bad.gain} plant(s) whos
 // ------------------------------------------------------------------ §4
 console.log("\n=== §4 THE SHARED STREAM ===");
 /**
- * The legacy verge block's consumption of the shared stream, VERBATIM in
- * every line that draws or decides whether to draw: world.ts at f1a525c4,
- * mound() 6644-6683, the placement loop 6709-6743, the per-plant draws
- * 6782 / 6798-6800 / 6806, and the phases 6821. Geometry-building and
- * matrix code that draws nothing is left out. Frozen: this is the
- * reference the burn must reproduce, not code anyone should update.
+ * The legacy verge block, VERBATIM in every line that draws, decides
+ * whether to draw, or places an instance: world.ts at f1a525c4, IN
+ * SOURCE ORDER. The placement loop 6710-6743 runs first. mound() is
+ * defined at 6644 but only CALLED at 6752, inside the per-shape
+ * InstancedMesh loop, once the spots are counted, so its 1,440 draws
+ * come second. Then per plant the yaw 6782, h / w / z-scale 6798-6800
+ * and the tint 6806, and last the phases 6821.
+ *
+ * The order is the whole point. The loop's skip tests read the values,
+ * so 1,440 draws moved in front of it change which slots it keeps and
+ * how many draws it takes. The first copy of this ran the shapes first,
+ * the same swap the burn made, so the two agreed with each other and
+ * with nothing else: 17,441 draws in the recorded city against the real
+ * 17,408. That is why this copy is held to the recorded city below and
+ * not only to the burn.
+ *
+ * Code that neither draws nor moves an instance is left out, with one
+ * stand-in: topOf[k], the merged stem-and-crown's bounding-box top, is
+ * read straight off the crown. The stem tops out at STEM_H and every
+ * crown vertex sits at STEM_H or above, so the crown's highest Float32
+ * y IS the merged box's max, and skipping the merge skips three's
+ * "already non-indexed" warning on every call. The hash check below
+ * would fail if it were not.
+ *
+ * Frozen: this is the reference the burn must reproduce, not code anyone
+ * should update. With `place` it also fills the three InstancedMeshes the
+ * way the old block did, so their matrices can be fingerprinted the way
+ * tests/world.mjs fingerprints them.
  */
-function legacyVergeBlock(rand) {
+function legacyVergeBlock(rand, place = false) {
   const STEM_H = 0.28;
-  for (let seed = 0; seed < 3; seed++) {
-    const crown = new THREE.IcosahedronGeometry(0.5, 1);
-    const pos = crown.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const k = 0.72 + rand() * 0.5;
-      pos.setXYZ(i, pos.getX(i) * k * (1 + seed * 0.06), Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3) + STEM_H, pos.getZ(i) * k);
-    }
-  }
-  const SPACING = 7, LAT_MIN = 2.3, LAT_SPAN = 1.1;
+  const SHAPES = 3, SPACING = 7, LAT_MIN = 2.3, LAT_SPAN = 1.1;
   const TUNNEL_S = LAP.tunnel;
   const spots = [];
   for (let step = 0; step < L; step += SPACING) {
@@ -407,23 +436,100 @@ function legacyVergeBlock(rand) {
       spots.push({ s: at, lat: side * (track.halfWidthAt(at) + LAT_MIN + rand() * LAT_SPAN) });
     }
   }
-  for (const spot of spots) {
-    void spot;
-    rand(); // yaw (6782)
-    rand(); rand(); rand(); // h, w, z-scale (6798-6800)
+  const per = Math.ceil(spots.length / SHAPES);
+  const meshes = [];
+  const topOf = [];
+  for (let shape = 0; shape < SHAPES; shape++) {
+    // mound(shape), 6644-6683, called here at 6752.
+    const seed = shape;
+    const crown = new THREE.IcosahedronGeometry(0.5, 1);
+    const pos = crown.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const k = 0.72 + rand() * 0.5;
+      pos.setXYZ(i, pos.getX(i) * k * (1 + seed * 0.06), Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3) + STEM_H, pos.getZ(i) * k);
+    }
+    let top = STEM_H;
+    for (let i = 0; i < pos.count; i++) top = Math.max(top, pos.getY(i));
+    topOf.push(top);
+    if (place) {
+      const im = new THREE.InstancedMesh(crown, undefined, per);
+      im.count = 0;
+      meshes.push(im);
+    }
+  }
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), scl = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0), p2 = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+  for (const [i, spot] of spots.entries()) {
+    if (place) track.pose(spot.s, spot.lat, p2, tmp2);
+    p.set(p2.x, 0, p2.z);
+    const yaw = rand() * Math.PI * 2; // 6782
+    q.setFromAxisAngle(up, yaw);
+    const h = 0.85 + rand() * 0.85; // 6798
+    const w = 0.8 + rand() * 1.5; // 6799
+    scl.set(w, h / topOf[i % SHAPES], w * (0.8 + rand() * 0.4)); // 6800
+    if (place) {
+      const im = meshes[i % SHAPES];
+      m.compose(p, q, scl);
+      im.setMatrixAt(im.count, m);
+      im.count++;
+    }
     rand(); rand(); rand(); // tint (6806)
   }
   for (let i = 0; i < spots.length; i++) rand(); // phase (6821)
+  return { plants: spots.length, meshes };
+}
+/**
+ * The recorded city's verge, frozen: tests/baselines/world.json as
+ * f1a525c4 wrote it, the last build with the old shapes. The new beds
+ * keep the name "planting", so the next BASELINE=write overwrites these
+ * three lines there; they are history, so they live here.
+ *
+ * ENTRY is the draw the old block started at in that build. Found, not
+ * assumed: of the 258,930 entry draws the recorded stream allows, 5,657
+ * give the source-order loop the recorded 1,313 plants, and exactly one
+ * of those, 43,825, rebuilds "planting" to its recorded hash, with
+ * "planting#1" and "planting#2" matching too. DRAWS is what the block
+ * took from there.
+ *
+ * It rests on that commit's lap as well as its stream: the hashes are of
+ * positions from track.pose and halfWidthAt, and the loop runs to
+ * track.length past LAP.tunnel and COAST_END_M. A change to the lap's
+ * geometry turns this line red for a reason that is not the burn's. The
+ * burn itself follows the lap, so the check below it stays meaningful;
+ * re-anchor this one by rerunning the search (every entry draw whose
+ * loop gives 1,313 plants, hashed) against f1a525c4's lap.
+ */
+const RECORDED = {
+  entry: 43825,
+  draws: 17408,
+  groups: [["planting", 438, "7a2b30b6312c"], ["planting#1", 438, "804b4620f992"], ["planting#2", 437, "a5fb5d612606"]],
+};
+const digest = (s) => createHash("sha256").update(s).digest("hex").slice(0, 12);
+/** tests/world.mjs's fingerprint: the whole matrix buffer, rounded hard. */
+const fingerprint = (im) => {
+  const a = im.instanceMatrix.array;
+  const q = new Array(a.length);
+  for (let i = 0; i < a.length; i++) q[i] = Math.round(a[i] * 1000) / 1000;
+  return digest(q.join(","));
+};
+const counting = (seed, skip) => {
+  const r = makeRng(seed);
+  for (let i = 0; i < skip; i++) r();
+  let n = 0;
+  const f = () => { n++; return r(); };
+  return { f, r, n: () => n };
+};
+{
+  const a = counting(WORLD_SEED, RECORDED.entry);
+  const { plants, meshes } = legacyVergeBlock(a.f, true);
+  const got = meshes.map((im) => [im.count, fingerprint(im)]);
+  const ok = got.every(([n, h], k) => n === RECORDED.groups[k][1] && h === RECORDED.groups[k][2]) && a.n() === RECORDED.draws;
+  console.log(`  the reference, from draw ${RECORDED.entry}: ${plants} plants, ` +
+    got.map(([n, h], k) => `${RECORDED.groups[k][0]} ${n} ${h}`).join(", ") + `; ${a.n()} draws  ` +
+    check(ok, "the legacy reference does not rebuild the recorded city's planting: it is not the block the city was built with, so the burn is being held to the wrong thing"));
 }
 {
-  const counting = (seed, skip) => {
-    const r = makeRng(seed);
-    for (let i = 0; i < skip; i++) r();
-    let n = 0;
-    const f = () => { n++; return r(); };
-    return { f, r, n: () => n };
-  };
-  const offsets = [0, 1, 12345, 777777, 2 ** 20];
+  const offsets = [0, 1, 12345, RECORDED.entry, 777777, 2 ** 20];
   const counts = [];
   let allSame = true;
   for (const off of offsets) {
@@ -438,15 +544,20 @@ function legacyVergeBlock(rand) {
   console.log(`  legacy draws by entry offset — ${counts.join(", ")}`);
   console.log(`  burn == legacy, count and state  ${check(allSame, "the burn does not leave the shared stream where the legacy block left it — every billboard side and tunnel texture after it moves")}`);
 
-  // And through the real module-level stream, the way world.ts calls it.
+  // And through the real module-level stream, the way world.ts calls it,
+  // from where the recorded city entered the block.
   resetWorldRng();
-  for (let i = 0; i < 1000; i++) rand();
-  const before = worldDraws();
+  for (let i = 0; i < RECORDED.entry; i++) rand();
   const said = burnLegacyVergeDraws(rand, L, LAP.tunnel, COAST_END_M);
-  const ref = counting(WORLD_SEED, 1000);
+  const after = worldDraws();
+  const ref = counting(WORLD_SEED, RECORDED.entry);
   legacyVergeBlock(ref.f);
-  console.log(`  through rand(): ${said} draws  ` +
-    check(worldDraws() - before === said && said === ref.n() && rand() === ref.r(), "burning through rand() disagrees with the replay"));
+  const atEnd = after === RECORDED.entry + RECORDED.draws;
+  const onReplay = said === ref.n() && rand() === ref.r();
+  console.log(`  through rand() from draw ${RECORDED.entry}: ${said} draws, stream at ${after}  ` +
+    check(atEnd && onReplay, atEnd
+      ? `burning through rand() disagrees with the replay (${said} against ${ref.n()} draws)`
+      : `burning through rand() leaves the stream at ${after}, not the recorded ${RECORDED.entry + RECORDED.draws}`));
   resetWorldRng();
 }
 // The call site: once, after the palm block and before the underpass's

@@ -6797,9 +6797,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // billboard block). The beds below take nothing from it, so the
     // stream is advanced here by exactly what the old block took: a
     // replay of its loop, because how much it took depended on what it
-    // drew. tests/world.mjs holds the total (258,930) and every other
-    // instanced group to the recorded city; tests/shrubs.mjs holds the
-    // replay to a verbatim copy of the old loop.
+    // drew: 17,408 in the recorded city, which reaches this line at draw
+    // 43,825, and more or fewer for any other. tests/world.mjs holds
+    // the total (258,930) and every other instanced group to the
+    // recorded city; tests/shrubs.mjs holds the replay to a verbatim
+    // copy of the old block in source order (the loop, THEN the shapes),
+    // and that copy to the old planting's recorded hashes.
     burnLegacyVergeDraws(rand, L, TUNNEL_S, COAST_END_M);
 
     // Four plantings, four shapes, one InstancedMesh each. Built once,
