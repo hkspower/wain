@@ -119,6 +119,7 @@
     "test:faces": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/faces.mjs",
     "test:film": "node tests/intro-film.mjs",
     "test:flags": "node tests/flags.mjs",
+    "test:flare": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/flare.mjs",
     "test:fonts": "node tests/fonts.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:doorfit": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/doorfit.mjs",

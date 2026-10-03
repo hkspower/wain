@@ -9,6 +9,7 @@ import { kuwaitiDriver } from "./characters";
 import { RIG } from "./rig";
 import { solveDriverRig, lookAheadFor } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
+import { HEAD_FLARE, lampFlareMaterial } from "./flare";
 import { drawTeamLogo, type TeamLogo } from "./teams";
 import { CLEAR_OPACITY, glassLook, type TintFilm } from "./tint";
 import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
@@ -5819,9 +5820,13 @@ export function createCar(colors: CarColors): THREE.Group {
   }
 
   // Every lamp carries a soft bloom and a diffraction star. Sprites, so
-  // the flare always faces the camera — an oncoming car's lights spike
-  // properly whichever way it is pointing. Traffic skips them: thirty
-  // background cars do not need sixty extra additive sprites.
+  // the flare is always a flat disc to the camera — but no longer one
+  // that shows from every side: the shader fades it with the angle
+  // between the lamp's own axis and the eye, so a car seen from behind
+  // has no headlamp blazing out past its flanks, and caps how much of
+  // the frame it can fill up close (flare.ts, HEAD_FLARE, for the why
+  // and the numbers). Traffic skips them: thirty background cars do not
+  // need sixty extra additive sprites.
   const headGlowMats: THREE.SpriteMaterial[] = [];
   /** Where this shell's lamps actually are, in body space.
    *
@@ -5840,36 +5845,44 @@ export function createCar(colors: CarColors): THREE.Group {
     // headlight IS at a distance — so the tint has to reach the sprites
     // or a smoked car looks stock from fifty metres.
     const flare = lamps === "smoked" ? 0.34 : 1;
-    const halo = new THREE.SpriteMaterial({
+    const halo = lampFlareMaterial(new THREE.SpriteMaterial({
       map: pointGlowTexture(),
       // The flare has to be the colour of the lamp behind it or the mod
       // stops at ten metres: a laser car with a warm halo is a warm car
       // with a cold line painted on its nose.
       color: lamps === "smoked" ? 0xffc98a : lamps === "laser" ? 0xdceaff : 0xfff2cc,
       transparent: true,
-      opacity: 0.5 * flare,
+      opacity: HEAD_FLARE.haloOpacity * flare,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
-    });
+    }));
+    // What the clock sets it to at night, tint and all — it used to set
+    // every sprite on the player's car to a flat 0.9 and throw the
+    // smoked lens's 0.34 away.
+    halo.userData.nightOpacity = HEAD_FLARE.nightHalo * flare;
     const h = new THREE.Sprite(halo);
-    h.scale.setScalar(0.85 * size);
+    h.scale.setScalar(HEAD_FLARE.haloSize * size);
     h.position.set(x, y, z + 0.06);
     h.userData.noShadow = true;
     group.add(h);
     headGlowMats.push(halo);
 
-    const starMat = new THREE.SpriteMaterial({
+    // The star: smaller and quieter than the halo it sits on, where it
+    // used to be twice the halo's size at the same night level (1.7 m at
+    // 0.9 on the player, 0.62 as built).
+    const starMat = lampFlareMaterial(new THREE.SpriteMaterial({
       map: headlightStarTexture(),
       color: lamps === "smoked" ? 0xffd9a0 : lamps === "laser" ? 0xeaf2ff : 0xfff6e0,
       transparent: true,
-      opacity: 0.62 * flare,
+      opacity: HEAD_FLARE.starOpacity * flare,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
-    });
+    }));
+    starMat.userData.nightOpacity = HEAD_FLARE.nightStar * flare;
     const star = new THREE.Sprite(starMat);
-    star.scale.setScalar(1.7 * size);
+    star.scale.setScalar(HEAD_FLARE.starSize * size);
     star.position.set(x, y, z + 0.07);
     star.userData.noShadow = true;
     group.add(star);
