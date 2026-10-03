@@ -20,6 +20,11 @@
  *     nothing is pushed: the reason has gone down with the sun.
  *  3. The price: «رخيص», «ميزانية», «مو غالي» halve any place above the
  *     cheapest band.
+ *  3b. Inside: «داخلي», «مكيّف» push an open-air place to 0.3 of its score and
+ *     a half-covered one to 0.7, in any month — the visitor said where they
+ *     want to be. Added 3 October for سالم's «داخلي» chip: «قهوة» then
+ *     «داخلي» led with the tea houses in an open courtyard, because the word
+ *     only nudged the search and the order did not know it was a constraint.
  *  4. Reviews, last and only within a band of near-equal matches
  *     (`reorderByReviews` — see place-reviews.ts for what those figures are
  *     and why they may order but never be quoted).
@@ -59,6 +64,9 @@ export const SUMMER_OUTDOOR = 0.6;
 export const SUMMER_MIXED = 0.9;
 /** How much «رخيص» takes off a place above the cheapest band. */
 export const NOT_CHEAP = 0.5;
+/** How much «داخلي» takes off a place that is open-air, or half of it. */
+export const INSIDE_OUTDOOR = 0.3;
+export const INSIDE_MIXED = 0.7;
 
 const fold = (words: string[]) => new Set(words.map(normalise));
 
@@ -72,6 +80,8 @@ const ASKS_OUTSIDE = fold([
   // the outdoors, by name
   "برا", "بره", "مكشوف", "بحر", "شاطئ", "شواطئ", "بيتش", "بر", "كشته", "صحراء", "حديقه", "حدائق",
 ]);
+/** Words that ask to be inside. «مكيّف» folds to «مكيف». */
+const ASKS_INSIDE = fold(["داخلي", "داخل", "مكيف", "مكيفه", "مسكر", "مغلق", "indoor"]);
 /** And words that ask for the cheap end. «مو غالي» is read below. */
 const ASKS_CHEAP = fold(["رخيص", "رخيصه", "ارخص", "ميزانيه", "اقتصادي", "بلاش", "ببلاش"]);
 const DEAR = fold(["غالي", "غاليه", "مكلف"]);
@@ -86,12 +96,12 @@ function readings(t: string): string[] {
 }
 
 /** What the question asks of the answer, beyond what it matches. */
-export function readAsks(query: string): { outside: boolean; cheap: boolean } {
+export function readAsks(query: string): { outside: boolean; cheap: boolean; inside: boolean } {
   const raw = tokenize(query);
   const has = (set: Set<string>) => raw.some((t) => readings(t).some((r) => set.has(r)));
   // «مو غالي», «ما أبي شي غالي»: a negator anywhere before a word for dear.
   const notDear = raw.some((t, i) => DEAR.has(t) && raw.slice(0, i).some((w) => NEGATOR_SET.has(w)));
-  return { outside: has(ASKS_OUTSIDE), cheap: has(ASKS_CHEAP) || notDear };
+  return { outside: has(ASKS_OUTSIDE), cheap: has(ASKS_CHEAP) || notDear, inside: has(ASKS_INSIDE) };
 }
 
 type Rankable = Pick<Place, "slug" | "setting" | "summerOk" | "priceLevel">;
@@ -99,11 +109,16 @@ type Rankable = Pick<Place, "slug" | "setting" | "summerOk" | "priceLevel">;
 /** The multiplier the season and the price put on one place's score. */
 export function answerFactor(
   p: Rankable,
-  asks: { outside: boolean; cheap: boolean },
+  asks: { outside: boolean; cheap: boolean; inside?: boolean },
   clock: AnswerClock
 ): number {
   let f = 1;
-  if (isSummerMonth(clock.month) && !isKuwaitNight(clock.hour) && !asks.outside && !p.summerOk) {
+  if (asks.inside) {
+    // Said, not inferred: no season and no `summerOk` changes it — the
+    // causeway is fine in August from a car, and still not inside.
+    if (p.setting === "outdoor") f *= INSIDE_OUTDOOR;
+    else if (p.setting === "mixed") f *= INSIDE_MIXED;
+  } else if (isSummerMonth(clock.month) && !isKuwaitNight(clock.hour) && !asks.outside && !p.summerOk) {
     if (p.setting === "outdoor") f *= SUMMER_OUTDOOR;
     else if (p.setting === "mixed") f *= SUMMER_MIXED;
   }

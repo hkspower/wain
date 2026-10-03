@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icons";
+import { IconClose, IconPhone, IconPinSolid, IconSend, IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { getRecognition, isInAppBrowser, speechLang, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
@@ -190,6 +190,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * the last one did.
    */
   const [lastAction, setLastAction] = useState("");
+  // The place her last tool put on screen, for «رسّلها للربع» when she hangs
+  // up — the one thing a call is for, one tap from the end of it.
+  const [lastSlug, setLastSlug] = useState<string | null>(null);
   /**
    * Which voice the widget is set to render شوق's answers in — still شوق,
    * still her tools, only the speaker changes. See SALEM_VOICE_ID for why a
@@ -623,6 +626,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               .hits.filter((h) => h.doc.kind === "place");
             total = found.length;
             names = found.slice(0, 3).map((h) => h.doc.title);
+            setLastSlug(found[0] ? found[0].doc.id.replace(/^place:/, "") : null);
           } catch {
             // The page is still navigating and will show whatever it finds;
             // fall through to the generic wording rather than fail the call.
@@ -675,6 +679,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           }
           router.push(`/places/${s}/`);
           setLastAction(`${WAIN_AI_COPY.didOpen} «${place.nameAr}»`);
+          setLastSlug(s);
           return (
             `صفحة «${place.nameAr}» (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
             "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
@@ -824,6 +829,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setStarted(false);
     // Or a fresh call opens announcing what the previous one did.
     setLastAction("");
+    setLastSlug(null);
     // A previous call may have switched to سالم's voice and left the widget
     // mounted with that override (see the persona note above) — clearing the
     // slot here means the mount effect below sees an empty one and creates a
@@ -1139,7 +1145,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {lastAction}
                   </p>
                 )}
-                <div className="mt-4 flex justify-center gap-2">
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {lastSlug && (
+                    <Link
+                      href={`/places/${lastSlug}/#share`}
+                      onClick={closeSheet}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
+                    >
+                      <IconSend className="size-4" aria-hidden="true" />
+                      رسّلها للربع
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={startCall}

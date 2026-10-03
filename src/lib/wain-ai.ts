@@ -363,6 +363,20 @@ export const WAIN_AI_CHAT_COPY = {
   unavailableStatus: "مو متاح الحين",
   retryLater: "جرّب مرة ثانية",
   notConfigured: "المحادثة مو متاحة الحين.",
+  // The chat's memory (lib/salem-followup.ts): what he says when a short
+  // reply is read against his last answer rather than as a new question.
+  moreIntro: "وهذي غيرها:",
+  moreNone: "هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.",
+  refineNone: "ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.",
+  where: "مكانه على الخريطة تحت.",
+  directions: "الطريق",
+  openPlace: "صفحته",
+  followLabel: "تبي",
+  // The other ways in, from inside the chat: the call (one button, on /find —
+  // so a link to it), the same answer as a full page, and his voice.
+  callShouq: "كلّم شوق",
+  seeAll: "شوف الكل بالبحث",
+  readAloud: "اقرا لي الردود",
 } as const;
 
 /**

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { IconCheck, IconGo, IconSend } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
+import { getCategory } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
 import {
   hangoutTitle,
@@ -113,6 +115,25 @@ export default function InviteBanner({ place }: { place: Place }) {
           </a>
         </div>
       )}
+
+      {/* Where it is, and a way to answer «لا، خلنا نروح مكان ثاني» with a
+          place instead of a complaint — سالم, asked about the same kind of
+          place in the same area (3 October, on request). */}
+      <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-600">
+        <a href="#map" className="inline-flex min-h-tap items-center font-semibold text-sea-700 underline-offset-2 hover:underline">
+          شوفه على الخريطة
+        </a>
+        <span aria-hidden="true">·</span>
+        <span>تبي مكان ثاني؟</span>
+        <Link
+          href={`/salem/?q=${encodeURIComponent(
+            [getCategory(place.category)?.ar, place.areaAr].filter(Boolean).join(" ")
+          )}`}
+          className="inline-flex min-h-tap items-center font-semibold text-sea-700 underline-offset-2 hover:underline"
+        >
+          اسأل سالم
+        </Link>
+      </p>
 
       {/* The clipboard path is the one that needs saying out loud: nothing
           opened, and without this the button looks like it did nothing. */}

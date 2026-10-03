@@ -206,7 +206,7 @@ export default function PlaceView({
       <BusinessProducts place={place} />
       <OrderPanel place={place} />
       <QueuePanel place={place} />
-      <ShareHangout place={place} />
+      <ShareHangout place={place} id="share" />
       <BusinessGallery place={place} />
 
       {/* Details */}

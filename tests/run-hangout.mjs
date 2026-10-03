@@ -41,6 +41,9 @@
  *   ux-pass       — the 3 October pass: 40px for a finger and 24 for a mouse,
  *                   /search in the order it answers, the empty spots filled,
  *                   and a desktop home page with something to press.
+ *   together      — سالم, شوق, the hangout and the map as one: the map and
+ *                   the memory in his chat, the handoffs, his voice, the
+ *                   shortlist and /pick, the invitation's way on.
  *   salem         — his own page, structure and client-side state only; see
  *                   the file's own header for why a live ElevenLabs
  *                   connection is deliberately not part of what is asserted.
@@ -132,6 +135,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ سالم: his own page ════");
   failed += (await run("node", ["tests/salem.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ مع بعض: سالم, شوق, the hangout and the map as one ════");
+  failed += (await run("node", ["tests/together.test.mjs"], { env })) === 0 ? 0 : 1;
   srv.close();
 }
 

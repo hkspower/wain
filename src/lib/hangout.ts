@@ -272,6 +272,102 @@ export function inviteAcceptMessage(place: Place, when: WhenId): string {
   return `تمام، أنا معكم 👍 ${place.nameAr} — ${phraseFor(when)}`;
 }
 
+/* ------------------------------------------------------------------ */
+/* The shortlist: two or three places, and the group picks             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * «اختاروا» — when the sender has not decided either.
+ *
+ * Everything above assumes one person has already chosen the place and the
+ * group only answers «تمام». Often nobody has: three of them like three
+ * places, and the argument is about which. A single-place proposal sent into
+ * that just starts the argument over. So the panel can also send a short list
+ * with one time on it, and a link that opens those places on a map where each
+ * person sends back the one they want (`/pick`, 3 October, on request).
+ *
+ * Three at most: «اختاروا من ثمانية» is the argument again, on a screen.
+ */
+export const SHORTLIST_MAX = 3;
+export const SHORTLIST_PARAM = "p";
+
+const ORDINAL_AR = ["١", "٢", "٣"];
+
+/** The times that fit every place on the list — the summer rule, for each. */
+export function whenOptionsFor(list: Place[], now: Date = new Date()): WhenOption[] {
+  const sets = list.map((p) => new Set(whenOptions(now, p).map((o) => o.id)));
+  return whenOptions(now).filter((o) => sets.every((s) => s.has(o.id)));
+}
+
+/** The first time to offer for a list: the first place's own default, if it
+ * fits them all, else the evening, else tomorrow. */
+export function defaultWhenFor(list: Place[], now: Date = new Date()): WhenId {
+  const ok = new Set(whenOptionsFor(list, now).map((o) => o.id));
+  const first = list[0] ? defaultWhen(list[0], now) : "tomorrow";
+  if (ok.has(first)) return first;
+  if (ok.has("tonight-8")) return "tonight-8";
+  if (ok.has("tonight-10")) return "tonight-10";
+  return "tomorrow";
+}
+
+/** `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like `inviteUrl`. */
+export function shortlistUrl(list: Place[], when: WhenId, origin: string): string {
+  const slugs = list.slice(0, SHORTLIST_MAX).map((p) => p.slug).join(",");
+  return `${origin.replace(/\/+$/, "")}/pick/?${SHORTLIST_PARAM}=${slugs}&${INVITE_PARAM}=${when}`;
+}
+
+/**
+ * The slugs and the time in a shortlist link. Each slug is checked against
+ * the places that exist (`known`), duplicates dropped, three kept — the link
+ * is whatever anyone pasted. Fewer than two left is not a shortlist.
+ */
+export function readShortlist(search: string, known: (slug: string) => boolean): { slugs: string[]; when: WhenId | null } {
+  const params = new URLSearchParams(search);
+  const raw = (params.get(SHORTLIST_PARAM) ?? "").split(",").map((s) => s.trim());
+  const slugs: string[] = [];
+  for (const s of raw) {
+    if (/^[a-z0-9-]+$/.test(s) && known(s) && !slugs.includes(s)) slugs.push(s);
+    if (slugs.length === SHORTLIST_MAX) break;
+  }
+  return { slugs: slugs.length >= 2 ? slugs : [], when: readInvite(search) };
+}
+
+/**
+ * The message: one time, the places numbered, and the link to vote.
+ *
+ * The heat line travels with it for the same reason as a single plan's: a
+ * daytime plan in July that includes an open-air place is a plan the group
+ * should be warned about before choosing it — once, for the first such place,
+ * not three times.
+ */
+export function shortlistMessage(opts: { places: Place[]; when: WhenId; url: string; now?: Date }): string {
+  const { places: list, when, url, now = new Date() } = opts;
+  const month = kuwaitMonth(now);
+  const hour = kuwaitHour(now);
+  const arrival = when === "now" ? hour : when === "soon" ? hour + 1 : DAY_STARTS + 2;
+  const daytimePlan = when === "now" || when === "soon" || when === "tomorrow" || when === "weekend";
+  const hot = daytimePlan ? list.find((p) => bakesInTheSun(p, arrival, month)) : undefined;
+  const lines = [
+    `وين نروح ${phraseFor(when)}؟ اختاروا:`,
+    ...list.slice(0, SHORTLIST_MAX).map((p, i) => `${ORDINAL_AR[i]}. ${p.nameAr} — ${p.areaAr}`),
+    ...(hot ? ["", GENERIC_LINES[summerKey(hot)]] : []),
+    "",
+    `صوّتوا هني: ${url}`,
+  ];
+  return lines.join("\n");
+}
+
+/** «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap. */
+export function shortlistVoteMessage(place: Place, position: number, when: WhenId | null): string {
+  const n = ORDINAL_AR[position] ?? String(position + 1);
+  return `أنا مع ${n}: ${place.nameAr} 👍${when ? ` — ${phraseFor(when)}` : ""}`;
+}
+
+/** The share sheet's title for a list. */
+export function shortlistTitle(): string {
+  return "وين نروح؟ — وين";
+}
+
 /** What the native share sheet shows as the title. */
 export function hangoutTitle(place: Place): string {
   return `${place.nameAr} — وين؟`;

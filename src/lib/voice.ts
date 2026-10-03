@@ -243,7 +243,7 @@ function resolveClips(parts: SpeechPart[], manifest: Manifest): Clip[] | null {
       if (part.optional) continue;
       return null;
     }
-    const id = `${snapshot.persona}/${part.key}`;
+    const id = `${voiceOf()}/${part.key}`;
     const src = manifest.clips[id];
     if (!src) return null;
     clips.push({ src, volume: clampVolume(manifest.gains?.[id]) });
@@ -645,7 +645,7 @@ async function renderLive(text: string): Promise<Blob | null> {
       // recording: what is synthesised has to be the string the fallback would
       // have uttered, digits and dashes included, or the two paths say
       // different things.
-      body: JSON.stringify({ persona: snapshot.persona, text: forSpeech(text) }),
+      body: JSON.stringify({ persona: voiceOf(), text: forSpeech(text) }),
       signal: AbortSignal.timeout(TTS_DEADLINE_MS),
     });
     if (!res.ok) {
@@ -705,9 +705,20 @@ async function speakLive(parts: SpeechPart[], mine: number): Promise<boolean> {
   return true;
 }
 
-export function speak(parts: SpeechPart[]) {
+/**
+ * Who is speaking this utterance. The chosen persona, unless the caller names
+ * one: سالم's chat reads his replies in his voice whatever the visitor picked
+ * for /search, because a reply from him in her voice is the speaker changing
+ * between the bubble and the sound. Per utterance, never written to the
+ * preference.
+ */
+let speakingAs: PersonaId | null = null;
+const voiceOf = (): PersonaId => speakingAs ?? snapshot.persona;
+
+export function speak(parts: SpeechPart[], opts?: { persona?: PersonaId }) {
   if (typeof window === "undefined" || parts.length === 0) return;
   stop();
+  speakingAs = opts?.persona ?? null;
   const mine = ++generation;
   void loadManifest().then((manifest) => {
     if (mine !== generation) return;

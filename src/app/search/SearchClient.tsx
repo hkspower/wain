@@ -396,7 +396,15 @@ export default function SearchClient() {
               was the one moment she could not appear. Here she covers both
               outcomes and renders nothing on an empty box, because
               `answerParts` returns no parts for one. */}
-          <ShouqAnswer parts={answer} />
+          <ShouqAnswer
+            parts={answer}
+            query={deferredQ.trim()}
+            onShare={(slug) => {
+              setActiveSlug(slug);
+              const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              document.getElementById("share-plan")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+            }}
+          />
 
           {!q.trim() ? (
             <section>

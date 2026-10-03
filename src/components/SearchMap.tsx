@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import ClusterPin from "@/components/ClusterPin";
 import MapPin, { pinHeadroom } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
@@ -55,8 +55,13 @@ export default function SearchMap({
   places,
   active = null,
   onActive,
+  compact = false,
 }: {
   places: Place[];
+  /** سالم's chat: a short map under each reply rather than a column of its
+   *  own. Wider frames (so shorter), and no margin under the section — the
+   *  card it sits in already has one. */
+  compact?: boolean;
   /** Highlighted slug, shared with the result list so the two stay in step. */
   active?: string | null;
   onActive?: (slug: string | null) => void;
@@ -82,6 +87,11 @@ export default function SearchMap({
   // measured rather than assumed: see useFrameWidth for the two basemap loads
   // and the layout shift that assuming it cost on every phone visit.
   const [frameRef, frameW] = useFrameWidth<HTMLDivElement>();
+  // One heading id per map in سالم's chat, which draws one under every reply:
+  // a shared id would label each with the first one's count. /search keeps its
+  // fixed id — it has one map, and its suites find it by that name.
+  const uid = useId();
+  const headingId = compact ? `map-${uid.replace(/:/g, "")}` : "search-map-heading";
   const live = useLiveMap();
 
   /**
@@ -97,7 +107,7 @@ export default function SearchMap({
     [places, focus]
   );
 
-  const maxAspect = frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
+  const maxAspect = compact ? (frameW < PHONE_FRAME_PX ? 2.1 : 2.8) : frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
   const f = useMemo(
     () =>
       framed.length && frameW > 0
@@ -157,10 +167,10 @@ export default function SearchMap({
   const apart = (p: Place) => p.slug === active || p.slug === places[0]?.slug;
 
   return (
-    <section className="mb-4" aria-labelledby="search-map-heading">
+    <section className={compact ? "" : "mb-4"} aria-labelledby={headingId}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2
-          id="search-map-heading"
+          id={headingId}
           className="flex items-center gap-2 text-sm font-semibold text-ink-700"
         >
           <IconMap className="size-4 text-sea-600" />

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SpeakButton } from "@/components/VoiceControls";
-import { IconShouq } from "@/components/icons";
+import { IconSend, IconShouq } from "@/components/icons";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
 import type { SpeechPart } from "@/lib/voice-lines";
 
@@ -62,7 +62,17 @@ const isWarning = (key: string | undefined) => key?.startsWith("summer-") ?? fal
  * The header is her name alone; «— أقترح عليك:» beside it went with the
  * spoken intro it echoed.
  */
-export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
+export default function ShouqAnswer({
+  parts,
+  query,
+  onShare,
+}: {
+  parts: SpeechPart[];
+  /** The question, for «كمّل مع سالم» — the same question, in his chat. */
+  query?: string;
+  /** «رسّلها للربع» for the place she named: the page's own share panel, on it. */
+  onShare?: (slug: string) => void;
+}) {
   if (parts.length === 0) return null;
 
   // The recommendation if there is one, else the first thing she actually
@@ -71,6 +81,7 @@ export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
   const lead = placeAt >= 0 ? placeAt : parts.findIndex((p) => !p.optional && !isWarning(p.key));
   const warnings = parts.filter((p) => isWarning(p.key));
   const rest = parts.filter((p, i) => i !== lead && !isWarning(p.key));
+  const recommended = placeAt >= 0 ? slugOf(parts[placeAt].key) : null;
 
   return (
     <section
@@ -124,6 +135,33 @@ export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
         {/* The same parts, out loud. Not a second answer — the same one. */}
         <SpeakButton parts={parts} label="اسمعها" />
       </div>
+
+      {/* Where to go from her answer, 3 October, on request: send the place
+          she named to the group (a call used to end on this page with the
+          share panel a screen further down, unmentioned), or carry on with
+          سالم — the same question, typed, with his memory of it. */}
+      {(recommended || query) && (
+        <div className="mt-2 flex flex-wrap gap-2 border-t border-coral-100 pt-2">
+          {recommended && onShare && (
+            <button
+              type="button"
+              onClick={() => onShare(recommended)}
+              className="inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-coral-700 px-3 text-sm font-semibold text-white transition hover:bg-coral-800"
+            >
+              <IconSend className="size-4" aria-hidden="true" />
+              رسّلها للربع
+            </button>
+          )}
+          {query && (
+            <Link
+              href={`/salem/?q=${encodeURIComponent(query)}`}
+              className="inline-flex min-h-tap items-center rounded-xl border border-coral-200 bg-white px-3 text-sm font-semibold text-coral-800 transition hover:border-coral-300"
+            >
+              كمّل مع سالم
+            </Link>
+          )}
+        </div>
+      )}
     </section>
   );
 }

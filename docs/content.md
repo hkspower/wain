@@ -15,8 +15,8 @@ empty on the server.
 | places | 52 |
 | categories | 8 |
 | areas (distinct `areaAr`) | 21 |
-| routes (files under `src/app`) | 12 |
-| pages built | 63 |
+| routes (files under `src/app`) | 13 |
+| pages built | 64 |
 | hub actions | 3 |
 | voice clip lines, per persona | 109 |
 
@@ -33,6 +33,7 @@ Ordering is live on **0 of 52** places and the queue on **0** — both need two 
 | `/find/` | دوّر |  |
 | `/orders/` | طلباتي | noindex |
 | `/` | — | layout default |
+| `/pick/` | اختاروا وين نروح | noindex |
 | `/places/<slug>/` | — | generateMetadata, 52 pages |
 | `/privacy/` | الخصوصية والكوكيز |  |
 | `/queue/` | دوري | noindex |

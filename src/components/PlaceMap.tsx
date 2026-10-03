@@ -48,7 +48,8 @@ export default function PlaceMap({
   }`;
 
   return (
-    <section className="mt-5">
+    // An anchor: an invitation's «شوفه على الخريطة» lands here.
+    <section id="map" className="mt-5 scroll-mt-4">
       <h2 className="mb-4 flex items-center gap-2 font-display text-2xl font-bold text-ink-900">
         <IconMap className="size-6 text-sea-600" />
         وينه بالضبط؟

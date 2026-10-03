@@ -68,7 +68,9 @@ console.log('\n── a search you can act on without leaving it ──');
   ok('the panel is on the search page', await panel(p).isVisible());
   ok('it offers a choice of place', (await placeChips(p).count()) > 1);
   ok('exactly one place is selected', (await chosenPlace(p).count()) === 1);
-  ok('and a time is already chosen', (await panel(p).locator('button[aria-pressed="true"]').count()) === 2,
+  // Inside the two questions (which place, when): the panel also carries
+  // the «مكان واحد / خلّهم يختارون» switch, which is pressed too (3 October).
+  ok('and a time is already chosen', (await panel(p).locator('fieldset button[aria-pressed="true"]').count()) === 2,
     'one place + one time');
   ok('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();

@@ -78,7 +78,8 @@ export default function SearchPlan({
   const canQueue = takesQueue(target);
 
   return (
-    <div className="mb-7">
+    // The anchor «رسّلها للربع» in شوق's answer scrolls to.
+    <div id="share-plan" className="mb-7 scroll-mt-4">
       <ShareHangout place={target} choices={choices} onChoose={onActiveSlug} />
 
       {/* Only where the business actually switched them on. A greyed «اطلب» on

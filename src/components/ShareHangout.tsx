@@ -5,13 +5,19 @@ import { IconCheck, IconSend } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import type { Place } from "@/lib/places";
 import {
+  SHORTLIST_MAX,
   defaultWhen,
+  defaultWhenFor,
   hangoutMessage,
   hangoutTitle,
   inviteUrl,
   msToNextKuwaitHour,
   shareHangout,
+  shortlistMessage,
+  shortlistTitle,
+  shortlistUrl,
   whenOptions,
+  whenOptionsFor,
   type ShareOutcome,
   type WhenId,
 } from "@/lib/hangout";
@@ -39,8 +45,12 @@ export default function ShareHangout({
   place,
   choices,
   onChoose,
+  id,
 }: {
   place: Place;
+  /** An anchor for links that land on this panel — the place page's is
+   *  «share», which a finished call's «رسّلها للربع» opens. */
+  id?: string;
   /** Places the visitor may switch between. Fewer than two renders no row. */
   choices?: Place[];
   onChoose?: (slug: string) => void;
@@ -50,13 +60,34 @@ export default function ShareHangout({
   const [busy, setBusy] = useState(false);
 
   /**
+   * «خلّهم يختارون» — send two or three of the choices and let the group pick
+   * (see shortlistMessage). Offered only where there is a choice to hand on;
+   * a place page has one place and no row.
+   */
+  const canList = (choices?.length ?? 0) >= 2;
+  const [mode, setMode] = useState<"one" | "list">("one");
+  const [picked, setPicked] = useState<string[]>([]);
+  const listMode = canList && mode === "list";
+  const listed = useMemo(
+    () => (choices ?? []).filter((c) => picked.includes(c.slug)),
+    [choices, picked]
+  );
+  // The first few, until the visitor says otherwise; re-seeded when the
+  // results under the panel change, so it never lists places no longer shown.
+  const choiceKey = (choices ?? []).map((c) => c.slug).join(",");
+  useEffect(() => {
+    setPicked((choices ?? []).slice(0, SHORTLIST_MAX).map((c) => c.slug));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the slugs, not the array identity
+  }, [choiceKey]);
+
+  /**
    * A result from the last place is not a result about this one.
    *
    * Without this, sending «مقاهي المباركية» and then switching the target left
    * «انتسخت — الصقها بالجروب» sitting under a different name, which reads as a
    * claim that the new place was sent too.
    */
-  useEffect(() => setOutcome(null), [place.slug]);
+  useEffect(() => setOutcome(null), [place.slug, mode, picked]);
 
   // The hour decides both which options exist and which is preselected, and
   // the hour is not knowable while this is prerendered — the exported HTML is
@@ -64,6 +95,15 @@ export default function ShareHangout({
   // for every visitor after the one whose build it was. Chosen on mount.
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
+
+  // A link to `#share` arrives before this panel exists (it renders after
+  // mount, below), so the browser found no anchor to scroll to. Once drawn,
+  // it scrolls itself there.
+  useEffect(() => {
+    if (!now || !id || window.location.hash !== `#${id}`) return;
+    document.getElementById(id)?.scrollIntoView({ block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when first drawn
+  }, [now === null]);
 
   /**
    * The hour keeps moving, and this panel used to stop watching it.
@@ -89,7 +129,10 @@ export default function ShareHangout({
   // The place is passed so the summer rule reaches the chips: an unshaded
   // place in July stops offering «الحين» rather than offering a plan the rest
   // of the site would refuse to make. See whenOptions.
-  const options = useMemo(() => (now ? whenOptions(now, place) : []), [now, place]);
+  const options = useMemo(
+    () => (now ? (listMode ? whenOptionsFor(listed, now) : whenOptions(now, place)) : []),
+    [now, place, listMode, listed]
+  );
 
   // Picks the first time, and re-picks when the chosen one expires — which is
   // the half that matters. An expired selection is not merely shown, it is
@@ -101,23 +144,31 @@ export default function ShareHangout({
     // Without the place this asked a different question than the row answered,
     // so a slot the summer rule had just removed still counted as valid and
     // still got sent.
-    if (when === null || !whenOptions(now, place).some((o) => o.id === when)) {
-      setWhen(defaultWhen(place, now));
+    const valid = listMode ? whenOptionsFor(listed, now) : whenOptions(now, place);
+    if (when === null || !valid.some((o) => o.id === when)) {
+      setWhen(listMode ? defaultWhenFor(listed, now) : defaultWhen(place, now));
     }
-  }, [now, when, place]);
+  }, [now, when, place, listMode, listed]);
 
   const send = async () => {
     if (!when || busy) return;
+    if (listMode && listed.length < 2) return;
     setBusy(true);
     setOutcome(null);
     haptic("tap");
     // Canonical, and carrying the time — see inviteUrl. Built here rather than
     // in an effect so it is composed at the moment of sending, from the choice
     // that is actually selected.
-    const url =
-      typeof window === "undefined" ? "" : inviteUrl(place, when, window.location.origin);
-    const text = hangoutMessage({ place, when, url });
-    const result = await shareHangout({ text, title: hangoutTitle(place) });
+    const origin = typeof window === "undefined" ? "" : window.location.origin;
+    const result = listMode
+      ? await shareHangout({
+          text: shortlistMessage({ places: listed, when, url: shortlistUrl(listed, when, origin) }),
+          title: shortlistTitle(),
+        })
+      : await shareHangout({
+          text: hangoutMessage({ place, when, url: inviteUrl(place, when, origin) }),
+          title: hangoutTitle(place),
+        });
     if (result === "shared" || result === "whatsapp" || result === "copied") haptic("success");
     setOutcome(result);
     setBusy(false);
@@ -128,7 +179,7 @@ export default function ShareHangout({
   if (!now || !when) return null;
 
   return (
-    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm">
+    <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 shadow-sm">
       <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
         <IconSend className="size-5 text-coral-700" />
         رسّلها للربع
@@ -140,19 +191,52 @@ export default function ShareHangout({
       {/* Which place — only where the place is still in question. The chips
           match the filter chips above the results rather than inventing a
           second selected-chip style for the same page. */}
+      {canList && (
+        <div className="mt-4 inline-flex rounded-full bg-sand-100 p-1 ring-1 ring-line" role="group" aria-label="كم مكان ترسل؟">
+          {(
+            [
+              ["one", "مكان واحد"],
+              ["list", "خلّهم يختارون"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { haptic("select"); setMode(id); }}
+              aria-pressed={mode === id}
+              className={`min-h-tap rounded-full px-4 text-sm font-semibold transition ${
+                mode === id ? "bg-white text-ink-900 shadow-sm" : "text-ink-600 hover:text-ink-900"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {choices && choices.length > 1 && (
         <fieldset className="mt-4">
-          <legend className="text-xs font-semibold text-ink-600">أي مكان؟</legend>
+          <legend className="text-xs font-semibold text-ink-600">
+            {listMode ? "أي أماكن؟ (لين ٣)" : "أي مكان؟"}
+          </legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {choices.map((c) => {
-              const active = c.slug === place.slug;
+              const inList = picked.includes(c.slug);
+              const active = listMode ? inList : c.slug === place.slug;
+              // A fourth place is not offered: the list is full at three.
+              const full = listMode && !inList && picked.length >= SHORTLIST_MAX;
               return (
                 <button
                   key={c.slug}
                   type="button"
-                  onClick={() => { haptic("select"); onChoose?.(c.slug); }}
+                  disabled={full}
+                  onClick={() => {
+                    haptic("select");
+                    if (!listMode) return onChoose?.(c.slug);
+                    setPicked((prev) => (inList ? prev.filter((x) => x !== c.slug) : [...prev, c.slug]));
+                  }}
                   aria-pressed={active}
-                  className={`min-h-tap max-w-full truncate rounded-full px-4 text-sm font-semibold transition ${
+                  className={`min-h-tap max-w-full truncate rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
                     active
                       ? "bg-ink-900 text-white"
                       : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
@@ -190,14 +274,18 @@ export default function ShareHangout({
         </div>
       </fieldset>
 
+      {listMode && listed.length < 2 && (
+        <p className="mt-3 text-sm text-ink-600" role="status">اختر مكانين على الأقل.</p>
+      )}
+
       <button
         type="button"
         onClick={send}
-        disabled={busy}
+        disabled={busy || (listMode && listed.length < 2)}
         className="mt-5 inline-flex min-h-tap items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800 disabled:opacity-60"
       >
         <IconSend className="size-4" />
-        {busy ? "لحظة…" : "رسّلها"}
+        {busy ? "لحظة…" : listMode ? "رسّل القائمة" : "رسّلها"}
       </button>
 
       {/* Only ever one line, and never one that scolds somebody for changing

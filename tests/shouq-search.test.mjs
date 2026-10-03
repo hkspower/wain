@@ -37,7 +37,9 @@ const read = (p) =>
       live: sec?.getAttribute('aria-live') ?? null,
       atomic: sec?.getAttribute('aria-atomic') ?? null,
       text: sec ? sec.textContent.replace(/\s+/g, ' ').trim() : '',
-      links: sec ? [...sec.querySelectorAll('a')].map((a) => a.getAttribute('href')) : [],
+      // The place links only: the card also carries «كمّل مع سالم», which is a
+      // way on from the answer and not a place she names (3 October).
+      links: sec ? [...sec.querySelectorAll('a[href^="/places/"]')].map((a) => a.getAttribute('href')) : [],
       liveRegions: document.querySelectorAll('[aria-live]').length,
       // The first result the SEARCH ranked, to compare against what she says.
       topResult: document.querySelector('[role="option"]')?.getAttribute('href') ?? null,

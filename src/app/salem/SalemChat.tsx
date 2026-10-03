@@ -4,11 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import BackButton from "@/components/BackButton";
 import PlaceCard from "@/components/PlaceCard";
+import SearchMap from "@/components/SearchMap";
 import ShareHangout from "@/components/ShareHangout";
-import { IconSend } from "@/components/icons";
+import { IconCall, IconGo, IconMap, IconSend, IconSpeaker, IconSpeakerOff } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ENABLED, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
-import { answerParts } from "@/lib/voice-lines";
+import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
+import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
+import type { ChatContext } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
@@ -28,8 +31,20 @@ import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
  * rather than a second, ad-hoc card shape that would drift from it. */
 type ChatLine =
   | { role: "user" | "agent" | "system"; text: string }
-  | { role: "places"; query: string; slugs: string[] }
-  | { role: "place"; slug: string };
+  | { role: "places"; query: string; slugs: string[]; chips?: string[] }
+  | { role: "place"; slug: string }
+  | { role: "where"; slug: string };
+
+/** Where the conversation is kept while the visitor is on a place page.
+ * A card in the chat is a link, and coming back with the browser's back
+ * button used to land on «هلا! أنا سالم» and nothing else — the answer they
+ * had followed was gone. Session storage: this tab, this visit, this device;
+ * nothing leaves the page, which is what the notice under the chat says. */
+const KEPT = "wain:salem:v1";
+/** Lines kept, the newest. A long chat is a long JSON string on every turn. */
+const KEPT_LINES = 60;
+/** His replies read aloud — this device's choice, like صوت وين's. */
+const READ_PREF = "wain-salem-read";
 
 /**
  * سالم's typed chat — his name, his portrait, his voice on the wire.
@@ -119,6 +134,13 @@ export default function SalemChat() {
   // re-read an earlier answer.
   const stickRef = useRef(true);
   const { places } = usePlaces();
+  // The memory: what the last answer was, and which of its places the visitor
+  // last pointed at (a pin or a card), for «وين بالضبط؟».
+  const ctxRef = useRef<ChatContext | null>(null);
+  const activeRef = useRef<string | null>(null);
+  const [readAloud, setReadAloud] = useState(false);
+  const readAloudRef = useRef(false);
+  readAloudRef.current = readAloud;
 
   // Same shape as WainAiCall.tsx's own `loadIndex`, for the same reason: the
   // search engine belongs to a conversation that may never happen, so it is
@@ -132,11 +154,18 @@ export default function SalemChat() {
     let pending: Promise<{
       mod: typeof import("@/lib/search");
       order: typeof import("@/lib/answer-order");
+      follow: typeof import("@/lib/salem-followup");
       index: import("@/lib/search").SearchIndex;
     }> | null = null;
+    // salem-followup rides with the search because it folds words with the
+    // search's own `normalise` — up front it would carry the engine with it.
     return () =>
-      (pending ??= Promise.all([import("@/lib/search"), import("@/lib/answer-order")]).then(
-        ([mod, order]) => ({ mod, order, index: mod.buildIndex(places) }),
+      (pending ??= Promise.all([
+        import("@/lib/search"),
+        import("@/lib/answer-order"),
+        import("@/lib/salem-followup"),
+      ]).then(
+        ([mod, order, follow]) => ({ mod, order, follow, index: mod.buildIndex(places) }),
         (err) => {
           // Forget a failure: a remembered rejection failed every message
           // after the first, for the rest of the visit.
@@ -151,6 +180,53 @@ export default function SalemChat() {
   // reloaded the page with the question gone. It waits for this instead.
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
+
+  // The conversation, back where it was after a visit to a place page (see
+  // KEPT). Free build only: an agent conversation lives on its socket, and a
+  // transcript restored without the session behind it would be a chat that
+  // cannot answer. Restored after mount — the HTML is one file for everybody.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    try {
+      setReadAloud(localStorage.getItem(READ_PREF) === "1");
+    } catch {
+      /* private mode — off */
+    }
+    if (!FREE) return;
+    try {
+      const raw = sessionStorage.getItem(KEPT);
+      const kept = raw ? (JSON.parse(raw) as { messages?: ChatLine[]; ctx?: ChatContext | null }) : null;
+      if (kept?.messages?.length) {
+        setMessages(kept.messages);
+        ctxRef.current = kept.ctx ?? null;
+      }
+    } catch {
+      /* private mode, or a shape from an older build — start fresh */
+    }
+    restoredRef.current = true;
+  }, []);
+  useEffect(() => {
+    if (!FREE || !restoredRef.current) return;
+    try {
+      sessionStorage.setItem(KEPT, JSON.stringify({ messages: messages.slice(-KEPT_LINES), ctx: ctxRef.current }));
+    } catch {
+      /* full or private — the chat still works, it just will not survive a back */
+    }
+  }, [messages]);
+
+  // A question handed over from somewhere else — «كمّل مع سالم» on /search,
+  // «اسأل سالم» on an invitation. Asked once, as the visitor's own message,
+  // and taken off the address bar so a reload does not ask it again.
+  const handoffRef = useRef<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q")?.trim();
+    if (!q) return;
+    handoffRef.current = q.slice(0, 120);
+    params.delete("q");
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+  }, []);
 
   // Sized to the screen that is actually visible. `h-dvh` alone ignored the
   // keyboard on iPhones (the browser panned the page and the header slid
@@ -185,29 +261,86 @@ export default function SalemChat() {
     });
   }, [loadIndex]);
 
-  /** The free build's reply: our own search, our own words, no wire. */
+  /**
+   * The free build's reply: our own search, our own words, no wire — read
+   * against the last answer first (lib/salem-followup.ts), so «أرخص», «غيره»
+   * and «وين بالضبط؟» answer what he just said instead of starting again.
+   */
   async function answerLocally(q: string) {
     setPending(true);
     try {
       // Bounded: a search chunk stuck on a weak connection kept the dots up and
       // the box locked for ever. Ten seconds, then say so; the next message
       // tries again.
-      const { mod, order, index } = await Promise.race([
+      const { mod, order, follow, index } = await Promise.race([
         loadIndex(),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), FREE_REPLY_MS)),
       ]);
       const clock = order.kuwaitClock();
-      const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, places, clock);
-      const { slugs } = formatShowPlaces(q, hits, places);
-      const found = slugs.flatMap((slug) => places.filter((p) => p.slug === slug));
-      const text = found.length
-        ? answerParts(hits, found, clock).map((p) => p.text).join(" ")
-        : WAIN_AI_CHAT_COPY.freeEmpty;
-      setMessages((prev) => [
-        ...prev,
-        { role: "agent", text },
-        ...(found.length ? [{ role: "places" as const, query: q, slugs }] : []),
-      ]);
+      const ctx = ctxRef.current;
+      const intent = follow.readFollowUp(q, ctx, activeRef.current);
+      const bySlug = (slug: string) => places.find((p) => p.slug === slug);
+      const lines: ChatLine[] = [];
+      let parts: SpeechPart[] = [];
+
+      // Cards for a list of slugs, the answer's own sentence, and the memory
+      // and the chips that go with them.
+      const showList = (query: string, slugs: string[], ranked: string[], seen: string[], spoken: SpeechPart[]) => {
+        const next: ChatContext = { query, ranked, seen, shown: slugs };
+        const shown = slugs.flatMap((s) => bySlug(s) ?? []);
+        lines.push({ role: "places", query, slugs, chips: follow.followUpChips(next, shown, clock) });
+        ctxRef.current = next;
+        activeRef.current = null;
+        parts = spoken;
+      };
+      const search = (query: string) => {
+        const { hits } = order.answerOrder(query, mod.search(query, index, { limit: 40 }), index, places, clock);
+        const ranked = hits.filter((h) => h.doc.kind === "place").map((h) => h.doc.id.replace(/^place:/, ""));
+        return { hits, ranked: ranked.filter((s) => bySlug(s)) };
+      };
+
+      if (ctx && intent.kind === "more") {
+        const slugs = follow.nextPlaces(ctx);
+        if (slugs.length === 0) {
+          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.moreNone });
+        } else {
+          const top = bySlug(slugs[0])!;
+          const spoken = [{ key: `try-${top.slug}`, text: placeTryLine(top) }, ...whenParts(top, clock.month, clock.hour)];
+          lines.push({ role: "agent", text: `${WAIN_AI_CHAT_COPY.moreIntro} ${spoken.map((p) => p.text).join(" ")}` });
+          showList(ctx.query, slugs, ctx.ranked, [...ctx.seen, ...slugs], spoken);
+        }
+      } else if (intent.kind === "pick" || intent.kind === "where") {
+        const place = bySlug(intent.slug)!;
+        activeRef.current = place.slug;
+        if (intent.kind === "pick") {
+          parts = [{ key: `try-${place.slug}`, text: placeTryLine(place) }, ...whenParts(place, clock.month, clock.hour)];
+          lines.push({ role: "agent", text: parts.map((p) => p.text).join(" ") }, { role: "place", slug: place.slug });
+        } else {
+          parts = [{ text: `${place.nameAr} — ${place.areaAr}.` }];
+          lines.push({ role: "agent", text: `${parts[0].text} ${WAIN_AI_CHAT_COPY.where}` }, { role: "where", slug: place.slug });
+        }
+      } else {
+        // («غيره» with nothing remembered cannot happen — readFollowUp needs a
+        // last answer to call anything a follow-up — but it reads as asked.)
+        const query = intent.kind === "more" ? q : intent.query;
+        const { hits, ranked } = search(query);
+        if (ranked.length === 0 && intent.kind === "refine" && ctx) {
+          // Nothing fits both — say so, and leave the last answer where it is
+          // rather than replacing it with the dead end.
+          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.refineNone });
+        } else if (ranked.length === 0) {
+          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.freeEmpty });
+          ctxRef.current = null;
+        } else {
+          const { slugs } = formatShowPlaces(query, hits, places);
+          const found = slugs.flatMap((slug) => bySlug(slug) ?? []);
+          const spoken = answerParts(hits, found, clock);
+          lines.push({ role: "agent", text: spoken.map((p) => p.text).join(" ") });
+          showList(query, slugs, ranked, slugs, spoken);
+        }
+      }
+      setMessages((prev) => [...prev, ...lines]);
+      if (readAloudRef.current && parts.length) speak(parts, { persona: "salem" });
     } catch {
       setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]);
     } finally {
@@ -241,6 +374,9 @@ export default function SalemChat() {
       onMessage: (m) => {
         if (m.role === "agent") setAwaitingGreeting(false);
         setMessages((prev) => [...prev, m]);
+        // His reply in his voice, a sentence at a time through the bridge
+        // (lib/voice.ts) — the agent's own audio is off on this channel.
+        if (m.role === "agent" && readAloudRef.current) speak([{ text: m.text }], { persona: "salem" });
       },
       onNoReply: () => setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]),
       onSlow: () => setSlow(true),
@@ -294,7 +430,24 @@ export default function SalemChat() {
     const el = listRef.current;
     if (!el || !stickRef.current) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollTo({ top: el.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+    const behavior = reduced ? "auto" : "smooth";
+    // A reply is a sentence, then its cards, its map and its share panel —
+    // taller than a small phone. Scrolled to the bottom, the sentence was
+    // above the screen and the visitor met a share form (320×568, 3 October).
+    // So a new reply is scrolled to where it STARTS; the bottom is for the
+    // visitor's own message and the typing dots.
+    let lastUser = -1;
+    messages.forEach((m, i) => {
+      if (m.role === "user") lastUser = i;
+    });
+    const replyStart = !pending && lastUser >= 0 && lastUser < messages.length - 1 ? lastUser + 1 : -1;
+    const start = replyStart >= 0 ? el.querySelector<HTMLElement>(`[data-line="${replyStart}"]`) : null;
+    if (start) {
+      const top = el.scrollTop + start.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
+      el.scrollTo({ top, behavior });
+      return;
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior });
   }, [messages, pending]);
 
   const typing = status === "connected" && (pending || awaitingGreeting);
@@ -326,6 +479,32 @@ export default function SalemChat() {
     setMessages((prev) => [...prev, { role: "user", text }]);
     return true;
   }
+
+  // The handed-over question goes as soon as the chat can take it: at once in
+  // the free build, after her greeting on a socket.
+  useEffect(() => {
+    const q = handoffRef.current;
+    if (!q || !ready || status !== "connected" || pending || awaitingGreeting) return;
+    handoffRef.current = null;
+    submit(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- submit closes over the same state listed here
+  }, [ready, status, pending, awaitingGreeting]);
+
+  function toggleReadAloud() {
+    const on = !readAloud;
+    // Inside the tap, so iOS lets the first reply play.
+    if (on) primeAudio();
+    else stopVoice();
+    setReadAloud(on);
+    try {
+      localStorage.setItem(READ_PREF, on ? "1" : "0");
+    } catch {
+      /* private mode — this visit only */
+    }
+  }
+
+  // Leaving the chat should not leave him talking.
+  useEffect(() => () => stopVoice(), []);
 
   function send(e: React.FormEvent) {
     e.preventDefault();
@@ -415,6 +594,30 @@ export default function SalemChat() {
             {statusLine}
           </p>
         </div>
+        {/* His voice, on request: off until pressed, and remembered. */}
+        <button
+          type="button"
+          onClick={toggleReadAloud}
+          aria-pressed={readAloud}
+          aria-label={WAIN_AI_CHAT_COPY.readAloud}
+          title={WAIN_AI_CHAT_COPY.readAloud}
+          className={`grid size-11 shrink-0 place-items-center rounded-full transition ${
+            readAloud ? "bg-coral-600 text-white hover:bg-coral-700" : "bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          {readAloud ? <IconSpeaker className="size-5" /> : <IconSpeakerOff className="size-5" />}
+        </button>
+        {/* The call is placed from /find — one call button on the site, on
+            request (1 October) — so this is the way there, not a second one. */}
+        <Link
+          href="/find/"
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-coral-600 px-3 text-sm font-semibold text-white transition hover:bg-coral-700"
+        >
+          <IconCall className="size-4" aria-hidden="true" />
+          {/* The words go before the name does: at 320 the header holds the
+              back button, his face, his name and two controls. */}
+          <span className="sr-only min-[400px]:not-sr-only">{WAIN_AI_CHAT_COPY.callShouq}</span>
+        </Link>
       </header>
 
       {/* role="log": the transcript is the one thing on this page that changes
@@ -451,7 +654,24 @@ export default function SalemChat() {
               const place = places.find((p) => p.slug === slug);
               return place ? [place] : [];
             });
-            return <SalemPlacesResult key={i} places={cards} query={m.query} />;
+            // The chips belong to the newest answer only: under an older one
+            // they would narrow something that is no longer the subject.
+            const latest = !messages.slice(i + 1).some((x) => x.role === "places");
+            return (
+              <SalemPlacesResult
+                key={i}
+                places={cards}
+                query={m.query}
+                chips={latest && !pending && status === "connected" ? m.chips : undefined}
+                onChip={(c) => submit(c)}
+                onActive={latest ? (slug) => (activeRef.current = slug) : undefined}
+              />
+            );
+          }
+          if (m.role === "where") {
+            const place = places.find((p) => p.slug === m.slug);
+            if (!place) return null;
+            return <SalemWhere key={i} place={place} />;
           }
           if (m.role === "place") {
             const place = places.find((p) => p.slug === m.slug);
@@ -469,7 +689,7 @@ export default function SalemChat() {
           // side, the visitor's on the end — so the dots below and the reply
           // that replaces them are visibly the same bubble.
           return (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div key={i} data-line={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <p
                 className={`animate-bubble-in max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user" ? "rounded-ee-md bg-sea-600 text-white" : "rounded-es-md bg-white text-ink-900"
@@ -585,10 +805,38 @@ export default function SalemChat() {
  * `show_places` call in the conversation. Without that, picking a different
  * place in an earlier turn's row would silently retarget a later one too,
  * because both would be reading and writing the same piece of state.
+ *
+ * The map under the cards is /search's own (`SearchMap`, compact), and the
+ * three point at one place together, as they do there: a pin, a card's ring
+ * and the share panel's «أي مكان؟». It is a map per reply rather than one for
+ * the chat, on request — each answer keeps its own places where they are.
  */
-function SalemPlacesResult({ places, query }: { places: Place[]; query: string }) {
+function SalemPlacesResult({
+  places,
+  query,
+  chips,
+  onChip,
+  onActive,
+}: {
+  places: Place[];
+  query: string;
+  chips?: readonly string[];
+  onChip?: (chip: string) => void;
+  onActive?: (slug: string) => void;
+}) {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const target = places.find((p) => p.slug === activeSlug) ?? places[0];
+  const railRef = useRef<HTMLUListElement>(null);
+
+  const choose = (slug: string | null) => {
+    setActiveSlug(slug);
+    if (!slug) return;
+    onActive?.(slug);
+    // Bring its card into the rail's view — the rail scrolls sideways, and a
+    // pin pressed for the seventh place pointed at a card off the screen.
+    const card = railRef.current?.querySelector<HTMLElement>(`[data-slug="${slug}"]`);
+    card?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  };
 
   if (!target) {
     return (
@@ -599,17 +847,76 @@ function SalemPlacesResult({ places, query }: { places: Place[]; query: string }
   }
 
   return (
-    <div className="space-y-2">
-      <ul className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+    <div className="space-y-2" data-salem-places="">
+      <ul ref={railRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
         {places.map((place) => (
-          <li key={place.slug} className="w-40 shrink-0 snap-start">
+          <li
+            key={place.slug}
+            data-slug={place.slug}
+            onPointerEnter={() => choose(place.slug)}
+            onFocus={() => choose(place.slug)}
+            className={`w-40 shrink-0 snap-start rounded-2xl transition ${
+              place.slug === activeSlug ? "ring-2 ring-sun-400 ring-offset-2 ring-offset-sea-950" : ""
+            }`}
+          >
             <PlaceCard place={place} />
           </li>
         ))}
       </ul>
+      <div className="rounded-3xl bg-white p-3 text-ink-900">
+        <SearchMap places={places} active={activeSlug} onActive={choose} compact />
+        <Link
+          href={`/search/?q=${encodeURIComponent(query)}`}
+          className="mt-2 inline-flex min-h-tap items-center gap-1.5 text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
+        >
+          <IconMap className="size-3.5" aria-hidden="true" />
+          {WAIN_AI_CHAT_COPY.seeAll}
+        </Link>
+      </div>
       {/* SearchPlan.tsx's own shape: `choices` only when there is a real
           choice to make, `onChoose` closing over this turn's own state. */}
-      <ShareHangout place={target} choices={places.length > 1 ? places : undefined} onChoose={setActiveSlug} />
+      <ShareHangout place={target} choices={places.length > 1 ? places : undefined} onChoose={choose} />
+      {chips && chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 pt-1" data-followups="">
+          <span className="text-xs text-sand-200">{WAIN_AI_CHAT_COPY.followLabel}</span>
+          {chips.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChip?.(c)}
+              className="inline-flex min-h-tap items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** «وين بالضبط؟» — one place, on the map, with the way there. */
+function SalemWhere({ place }: { place: Place }) {
+  return (
+    <div className="space-y-2 rounded-3xl bg-white p-3 text-ink-900">
+      <SearchMap places={[place]} active={place.slug} compact />
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-sea-600 px-4 text-sm font-semibold text-white transition hover:bg-sea-700"
+        >
+          {WAIN_AI_CHAT_COPY.directions}
+          <IconGo className="size-4" aria-hidden="true" />
+        </a>
+        <Link
+          href={`/places/${place.slug}/`}
+          className="inline-flex min-h-tap items-center rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+        >
+          {WAIN_AI_CHAT_COPY.openPlace}
+        </Link>
+      </div>
     </div>
   );
 }
