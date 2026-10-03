@@ -243,11 +243,11 @@ export default function PrivacyPage() {
       {/* صوت وين */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
-          صوت وين — الاقتراح الصوتي
+          صوت وين — «اقرا لي الجواب»
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           <p>
-            إذا شغّلت الاقتراح الصوتي واخترت صوت شوق أو سالم، اختيارك ينحفظ{" "}
+            إذا شغّلت «اقرا لي الجواب» واخترت صوت شوق أو سالم، اختيارك ينحفظ{" "}
             <strong className="text-ink-900">داخل متصفحك بس</strong> (Local
             Storage) عشان يبقى محفوظ لك بالزيارة الجاية — ما ينرسل لأي خادم ولا
             يُستخدم للتتبّع.

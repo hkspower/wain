@@ -83,29 +83,11 @@ export default function PlaceView({
 
   return (
     <div className="mx-auto max-w-4xl px-2.5 py-2 sm:px-4 sm:py-3">
-      {/* Breadcrumb */}
-      {/* text-sm, not text-xs. «استكشف» is four letters, and the link is only
-          as wide as its word: at 12px it measured 42px across, under the 44px
-          the thumb needed at the time this was fixed. The floor is 24px now
-          (see CLAUDE.md — "The scale is compact on purpose"), so 42px would
-          clear it at text-xs too; kept at text-sm anyway; reverting it is a
-          redesign nobody asked for. The row's height was never the problem —
-          min-h-6 has always been there — so the saving here was the margin,
-          not the type. */}
-      <nav className="mb-2 text-sm text-ink-500" aria-label="مسار التنقّل">
-        <Link
-          href="/explore"
-          className="inline-flex min-h-6 items-center px-1 transition hover:text-coral-700"
-        >
-          استكشف
-        </Link>
-        <span className="mx-2" aria-hidden="true">
-          /
-        </span>
-        <span className="text-ink-700" aria-current="page">
-          {place.nameAr}
-        </span>
-      </nav>
+      {/* The breadcrumb «استكشف / <name>» stood here until 3 October, one
+          line under the round back button — two ways back, stacked, the second
+          repeating the heading under it. The back button falls back to
+          /explore for a place opened from a link, which is where the crumb
+          went, and «رجوع للاستكشاف» is still at the foot of the page. */}
 
       {/* Hero */}
       <div

@@ -68,6 +68,7 @@ export default function HomeHero() {
             said once, in the link, for the visitor who hears it. */}
         <Link
           href="/find"
+          data-hero-sun
           aria-label="إلى وين؟ — اكتب أو كلّم شوق"
           className="group absolute aspect-square rounded-full transition focus-visible:ring-offset-0"
           style={{

@@ -372,7 +372,7 @@ export default function LiveMap({
           onClick={() => nudge(1)}
           disabled={zoom !== null && zoom >= MAX_ZOOM}
           aria-label="تكبير الخريطة"
-          className="grid size-8 place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
+          className="grid size-8 min-h-tap min-w-tap place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
         >
           +
         </button>
@@ -382,7 +382,7 @@ export default function LiveMap({
           onClick={() => nudge(-1)}
           disabled={zoom !== null && zoom <= MIN_ZOOM}
           aria-label="تصغير الخريطة"
-          className="grid size-8 place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
+          className="grid size-8 min-h-tap min-w-tap place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
         >
           −
         </button>

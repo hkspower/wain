@@ -242,7 +242,7 @@ export default function PlaceMapFrame({
               onTouchStart={live.warm}
               onPointerDown={live.warm}
               disabled={live.loading}
-              className="absolute bottom-3 right-3 z-30 flex min-h-6 items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition hover:text-sea-700 disabled:opacity-60"
+              className="absolute bottom-3 right-3 z-30 flex min-h-tap items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition hover:text-sea-700 disabled:opacity-60"
             >
               <IconMap className="size-3.5" />
               {live.loading ? "لحظة…" : "حرّك الخريطة"}

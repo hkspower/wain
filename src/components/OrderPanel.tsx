@@ -158,7 +158,7 @@ export default function OrderPanel({ place }: { place: Place }) {
             customer is still looking at the screen. */}
         <Link
           href="/orders"
-          className="mt-4 inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
+          className="mt-4 inline-flex min-h-tap items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
         >
           تابع طلبك
           <IconGo className="size-4" />

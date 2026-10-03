@@ -11,12 +11,12 @@
  *
  *   1. Anything wider than the screen. One overflowing element makes the whole
  *      page slide sideways, and the visitor blames the site, not the element.
- *   2. Tap targets under 24px. WCAG 2.5.8 Target Size (Minimum) — Level AA,
- *      not the 44px of 2.5.5 Target Size (Enhanced) — Level AAA this used to
- *      enforce. AA is the level most compliance targets actually require, and
- *      44px was chosen here before, not because AA was ever failed; going
- *      compact means trading the AAA margin for the AA floor deliberately,
- *      with eyes open, not discovering the difference by accident.
+ *   2. Tap targets under 40px — on a touch screen, which is what this audit
+ *      emulates. The site went compact in September (WCAG 2.5.8's 24px AA
+ *      floor, down from 2.5.5's 44px) and on 3 October the owner asked for
+ *      bigger buttons on phones: --spacing-tap is now 24px under a mouse and
+ *      40px under a finger. A link inside a sentence is WCAG's «inline»
+ *      exception and is not padded out: it is sized by the line it sits in.
  *   3. Small targets crowded together, where a miss is not a miss but a wrong
  *      action. WCAG 2.5.8's own spacing exception is the number here: an
  *      undersized target needs 24px of clear space to its nearest neighbour,
@@ -108,12 +108,11 @@ const WIDTHS = [
 ];
 
 /**
- * WCAG 2.5.8 Target Size (Minimum), Level AA — 24×24 CSS px. This project
- * enforced 2.5.5's AAA number (44px) until this floor was deliberately traded
- * down for a more compact UI; see the file header for why the other four
- * checks were NOT touched the same way.
+ * The touch floor, 40px — `--spacing-tap` under `pointer: coarse`, which this
+ * audit's touch emulation matches. It was 24px (WCAG 2.5.8 AA) from
+ * September to 3 October; see the file header.
  */
-const MIN_TARGET_PX = 24;
+const MIN_TARGET_PX = 40;
 /**
  * WCAG 2.5.8's own spacing exception: an undersized target needs this much
  * clear space to its nearest neighbour (the standard phrases it as a 24px
@@ -214,6 +213,11 @@ for (const vp of WIDTHS) {
         const floating = getComputedStyle(el).position === "fixed";
         boxes.push({ r, el, inMap, floating });
         if (inMap) continue;
+        // WCAG 2.5.8's «inline» exception: a link that is a run of words
+        // inside a sentence is sized by the line, not padded into a button.
+        const inline = el.tagName === "A" && getComputedStyle(el).display === "inline"
+          && (el.parentElement?.textContent ?? "").trim().length > (el.textContent ?? "").trim().length + 4;
+        if (inline) continue;
         if (r.width < minTarget || r.height < minTarget) {
           out.small.push({
             tag: el.tagName.toLowerCase(),

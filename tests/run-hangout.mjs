@@ -33,6 +33,9 @@
  *                   that stops it, and reduced motion leaves the first one up.
  *   back-button   — the round back button on every page but home: where it
  *                   sits, that it covers nothing at rest, and where it goes.
+ *   ux-pass       — the 3 October pass: 40px for a finger and 24 for a mouse,
+ *                   /search in the order it answers, the empty spots filled,
+ *                   and a desktop home page with something to press.
  *   salem         — his own page, structure and client-side state only; see
  *                   the file's own header for why a live ElevenLabs
  *                   connection is deliberately not part of what is asserted.
@@ -115,6 +118,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ رجوع: the back button on every page but home ════");
   failed += (await run("node", ["tests/back-button.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ 3 October: the UX pass ════");
+  failed += (await run("node", ["tests/ux-pass.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ سالم: his own page ════");
   failed += (await run("node", ["tests/salem.test.mjs"], { env })) === 0 ? 0 : 1;

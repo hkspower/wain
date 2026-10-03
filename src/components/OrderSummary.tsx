@@ -63,7 +63,7 @@ export function CollectionDetails({ slug }: { slug: string }) {
         href={directions}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+        className="inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
       >
         <IconGo className="size-4 text-sea-600" />
         الطريق للمكان
@@ -71,7 +71,7 @@ export function CollectionDetails({ slug }: { slug: string }) {
       {place.phone && (
         <a
           href={`tel:${place.phone.replace(/\s/g, "")}`}
-          className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+          className="inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
         >
           <IconPhone className="size-4 text-palm-600" />
           اتصل فيهم
@@ -79,7 +79,7 @@ export function CollectionDetails({ slug }: { slug: string }) {
       )}
       <Link
         href={`/places/${slug}/`}
-        className="inline-flex min-h-6 items-center gap-1 px-2 text-sm text-ink-500 transition hover:text-sea-700"
+        className="inline-flex min-h-tap items-center gap-1 px-2 text-sm text-ink-500 transition hover:text-sea-700"
       >
         صفحة المكان
       </Link>

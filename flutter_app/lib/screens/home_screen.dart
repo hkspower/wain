@@ -222,26 +222,40 @@ class _Featured extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton(
-              onPressed: () => context.go('/explore'),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'شوف الكل',
-                    style: wainText(
-                      WainText.sm,
-                      weight: FontWeight.w600,
-                      color: WainColors.coral700,
-                    ),
+          // A heading on the start side: «شوف الكل» stood alone at the end,
+          // a link to «all» of nothing named (3 October, as on the web).
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  'أماكن ما تنقال عنها لا',
+                  style: wainText(
+                    WainText.xl,
+                    weight: FontWeight.w700,
+                    color: WainColors.ink900,
                   ),
-                  const SizedBox(width: 6),
-                  WainSvg.icon('go', size: 16, color: WainColors.coral700),
-                ],
+                ),
               ),
-            ),
+              TextButton(
+                onPressed: () => context.go('/explore'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'شوف الكل',
+                      style: wainText(
+                        WainText.sm,
+                        weight: FontWeight.w600,
+                        color: WainColors.coral700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    WainSvg.icon('go', size: 16, color: WainColors.coral700),
+                  ],
+                ),
+              ),
+            ],
           ),
           // A rail on a phone — one card and a half, the shape that says «there
           // are more sideways» — at the cost of one card's height, not six.

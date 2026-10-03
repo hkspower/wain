@@ -48,8 +48,8 @@ class PlaceDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Breadcrumb(place: place),
-              const SizedBox(height: 8),
+              // No «استكشف / name» breadcrumb: the round back button sits right
+              // above it and falls back to /explore — two ways back, stacked.
               Stack(
                 children: [
                   PlaceHero(place: place),
@@ -268,42 +268,6 @@ class PlaceDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Breadcrumb extends StatelessWidget {
-  final Place place;
-  const _Breadcrumb({required this.place});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        InkWell(
-          onTap: () => context.go('/explore'),
-          // 48 tall: the word is short, so the finger target is the box, not
-          // the text (Android's guideline; it measured 33 before).
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              'استكشف',
-              style: wainText(WainText.sm, color: WainColors.ink500),
-            ),
-          ),
-        ),
-        Text(' / ', style: wainText(WainText.sm, color: WainColors.ink500)),
-        Flexible(
-          child: Text(
-            place.nameAr,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: wainText(WainText.sm, color: WainColors.ink700),
           ),
         ),
       ],

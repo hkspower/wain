@@ -31,13 +31,13 @@ export default function RouteError({ reset }: { reset: () => void }) {
         <button
           type="button"
           onClick={reset}
-          className="inline-flex min-h-6 items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-semibold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
+          className="inline-flex min-h-tap items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-semibold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
         >
           جرّب مرة ثانية
         </button>
         <Link
           href="/explore"
-          className="inline-flex min-h-6 items-center gap-2 rounded-2xl border border-line-control bg-white px-6 py-3 font-display text-lg font-semibold text-ink-800 transition hover:border-sea-300"
+          className="inline-flex min-h-tap items-center gap-2 rounded-2xl border border-line-control bg-white px-6 py-3 font-display text-lg font-semibold text-ink-800 transition hover:border-sea-300"
         >
           دوّر على مكان
           <IconGo className="size-5" />

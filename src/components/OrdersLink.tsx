@@ -62,7 +62,7 @@ export function useTicketCount(): number {
  * is where they live now.
  */
 const PILL =
-  "flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-sea-100 transition hover:bg-sea-100";
+  "flex min-h-tap items-center gap-1.5 whitespace-nowrap rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-sea-100 transition hover:bg-sea-100";
 const BADGE = "rounded-full bg-sea-100 px-1.5 py-0.5 text-xs font-semibold text-sea-800";
 
 export function QueueLink() {

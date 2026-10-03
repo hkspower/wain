@@ -284,4 +284,12 @@
   --shadow-2xl: 0 2px 4px rgb(20 18 15 / 0.06), 0 16px 32px -8px rgb(20 18 15 / 0.1),
     0 40px 72px -16px rgb(20 18 15 / 0.15);
   --shadow: var(--shadow-sm);
+
+  /* The tap floor, as min-h-tap / min-w-tap. 24px under a mouse (WCAG 2.5.8,
+     the compact trade made in September); globals.css raises it to 40px when
+     the pointer is a finger. On 3 October the owner asked for bigger buttons
+     on phones: 60+ chips and filters measured exactly 24px tall at 390. One
+     token rather than 84 class strings, so the two floors cannot drift apart
+     and a desktop keeps the compact look it was designed with. */
+  --spacing-tap: 1.5rem;
 }

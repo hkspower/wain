@@ -5274,6 +5274,59 @@ the crontab back to sporta's eight.
 browser, Siri switched off, the keyboard over /salem, the app on a device. One
 call and one سالم chat on the owner's phone is what closes it.
 
+## The UX pass — 3 October, later
+
+Asked: «improve ux». Under «ask before any design change», the first move was
+a measurement, not an edit: every main route rendered at 390 and 1280 on the
+built export, with tap-target sizes and first-screen contents read off the
+DOM. Seven findings went to the owner as four options; all four were chosen,
+site and app, deploy.
+
+- **A finger gets 40px.** Over 60 chips and filters measured exactly 24px
+  tall on a phone — the September «ultra compact» floor. It is one token now,
+  `--spacing-tap` (`min-h-tap`, `min-w-tap`, `size-tap`): 24px under a mouse,
+  40px under `pointer: coarse` (globals.css). A pointer query rather than a
+  width, because a tablet is as wide as a laptop and as fat-fingered as a
+  phone. 85 `min-h-6`/`min-w-6` became the token, so the two floors cannot
+  drift. `audit:mobile` emulates touch, so its floor is 40 now, with WCAG's
+  «inline» exception for a link inside a sentence; it found the /add map's
+  ± buttons, which were `size-6`. Headless Chromium with `hasTouch` does match
+  `(pointer: coarse)` — checked before relying on it. The app was already 48dp.
+- **/search in the order it answers.** The «١. دوّر بالكتابة · ٢. كلّمي شوق ·
+  ٣. عالخريطة» line is gone (only the middle item was a link, so it read as a
+  stepper); a filter tab with 0 results is not drawn at all (two of five were
+  greyed for most queries); شوق's card leads with one line — her
+  recommendation, or the miss line — keeps a heat warning visible, and folds
+  the rest into a native «جوابها كامل» `<details>`. Every part is still in the
+  DOM, so the written and spoken answers are still the same parts. First
+  result row at 390: ~640px → ~420px. The voice toggle is «اقرا لي الجواب»,
+  and the privacy pages name it the same.
+- **The empty spots.** /search before typing: the call link («تبي تحكي بدال ما
+  تكتب؟ — كلّمي شوق», where the numbered line's link went), the categories
+  and the home page's six picks. Home: «أماكن ما تنقال عنها لا» is visible
+  beside «شوف الكل». Place page: no breadcrumb under the back button.
+- **A desktop first screen with something to press.** At 1280×800 the first
+  screen was the wordmark and the sun sat 52px under the fold (959px at
+  1440×900). `StartBar.tsx` is the same offer fixed at the foot, shown only
+  while the sun (`[data-hero-sun]`) is still below the screen — so a phone,
+  where the sun is in the first screen, never sees it, and the picture did not
+  change. Starts hidden and `inert`, so it neither flashes nor sits in the Tab
+  order while unseen.
+
+`tests/ux-pass.test.mjs` (28, in `test:hangout`): 20 red against the old
+`src/` with the build green, 28 green now. **Its first red run crashed after
+nine assertions** — a `.click()` on a `<summary>` that did not exist yet
+waited 30s and threw — so sections 3 and 4 had never run; every read is soft
+now. That is the fourth time this file records that shape. The app mirror
+(`test/ux_pass_test.dart`, 8, each proved red) took the same three changes;
+its category chips `go` to the Explore tab, as the rest of the app does.
+
+Two things to know: `pkill -f <pattern>` matches the shell that runs it when
+the pattern is in its own command line, and exits 144 — use `pgrep -f
+"^node …"` and `kill`. And a map pin is still 32px on purpose (its position is
+its meaning); the test that measures chips excludes `[data-map-frame]` as
+`audit:mobile` does.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

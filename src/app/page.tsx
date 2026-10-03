@@ -1,5 +1,6 @@
 import Link from "next/link";
 import HomeHero from "@/components/HomeHero";
+import StartBar from "@/components/StartBar";
 import LandmarksShow from "@/components/LandmarksShow";
 import PlaceCard from "@/components/PlaceCard";
 import { IconCar, IconCompass, IconGo, IconSearch, IconSparkle } from "@/components/icons";
@@ -44,11 +45,12 @@ export default function HomePage() {
           names all three ways once you are there. standalone:hidden: the
           installed app's tab bar has a search tab. */}
       <HomeHero />
+      <StartBar />
       <div className="bg-sand-50 standalone:hidden">
         <div className="mx-auto max-w-6xl px-2.5 pt-3 text-center sm:px-4 sm:pt-4">
           <Link
             href="/search"
-            className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-sand-100 active:scale-[0.98]"
+            className="inline-flex min-h-tap items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-sand-100 active:scale-[0.98]"
           >
             <IconSearch className="size-4" />
             دوّر باسم المكان
@@ -64,18 +66,14 @@ export default function HomePage() {
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
         <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
-          {/* Both the display title and the standfirst under it were removed,
-              so nothing labels this section on screen. The heading stays in
-              the markup, visually hidden: `sr-only` is out of flow, so it
-              costs no layout, and without it the section would be unreachable
-              in the outline a screen reader navigates by. `justify-end` and
-              not `justify-between` because the link is the only child left —
-              `between` would push it to the start edge. */}
-          <div className="mb-3 flex flex-wrap items-end justify-end gap-3 sm:mb-5">
-            <h2 className="sr-only">أماكن ما تنقال عنها لا.</h2>
+          {/* The heading was visually hidden for a while, and «شوف الكل» then
+              sat alone on its row — a link to «all» of nothing named. Shown
+              again on 3 October, on request; it is one line, beside the link. */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
+            <h2 className="font-display text-xl font-bold text-ink-900 sm:text-2xl">أماكن ما تنقال عنها لا</h2>
             <Link
               href="/explore"
-              className="group flex min-h-6 items-center gap-1.5 text-sm font-semibold text-coral-700 transition hover:text-coral-800"
+              className="group flex min-h-tap items-center gap-1.5 text-sm font-semibold text-coral-700 transition hover:text-coral-800"
             >
               شوف الكل
               <IconGo className="size-4 transition group-hover:-translate-x-0.5" />

@@ -175,7 +175,7 @@ export default function SearchMap({
             <button
               type="button"
               onClick={() => setFocus(null)}
-              className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+              className="flex min-h-tap items-center rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
             >
               كل النتائج
             </button>
@@ -194,7 +194,7 @@ export default function SearchMap({
               onTouchStart={live.warm}
               onPointerDown={live.warm}
               disabled={live.loading}
-              className="flex min-h-6 items-center gap-1.5 rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700 disabled:opacity-60"
+              className="flex min-h-tap items-center gap-1.5 rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700 disabled:opacity-60"
             >
               <IconMap className="size-3.5" />
               {live.loading ? "لحظة…" : "حرّك الخريطة"}
@@ -205,7 +205,7 @@ export default function SearchMap({
               href={osmLink(f.centre, 12)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-6 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
+              className="flex min-h-tap items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
             >
               افتح الخريطة الكبيرة
             </a>

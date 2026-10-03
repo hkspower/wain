@@ -214,7 +214,7 @@ export default function FindChoice() {
           </p>
           <Link
             href="/salem"
-            className="animate-reveal-up mt-1 inline-flex min-h-6 items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700 [animation-delay:880ms]"
+            className="animate-reveal-up mt-1 inline-flex min-h-tap items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700 [animation-delay:880ms]"
           >
             ابدأ الكتابة
           </Link>

@@ -5,6 +5,16 @@
    buried after ~400 lines of the component CSS that stayed below. */
 @import "./theme.css";
 
+/* A finger gets 40px to aim at; a mouse keeps the compact 24px. `pointer:
+   coarse` rather than a width, because what decides how big a target must be
+   is what hits it — a tablet is as wide as a laptop and as fat-fingered as a
+   phone. See --spacing-tap in theme.css. */
+@media (pointer: coarse) {
+  :root {
+    --spacing-tap: 2.5rem;
+  }
+}
+
 /* `standalone:` applies only in the installed app (home-screen launch), never
    in a browser tab. Two signals, because iOS reports home-screen launches
    through navigator.standalone and older versions never match the media

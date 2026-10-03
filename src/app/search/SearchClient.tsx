@@ -9,8 +9,10 @@ import SearchPlan from "@/components/SearchPlan";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
 import SearchHub from "@/components/SearchHub";
-import { IconClose, IconCompass, IconSearch } from "@/components/icons";
-import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
+import PlaceCard from "@/components/PlaceCard";
+import CategoryIcon from "@/components/CategoryIcon";
+import { IconCall, IconClose, IconCompass, IconSearch } from "@/components/icons";
+import { RESULTS_COUNT, categories, countAr, toArabicDigits } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
@@ -270,6 +272,9 @@ export default function SearchClient() {
   });
 
   const showResults = q.trim().length > 0 && hits.length > 0;
+  // The home page's own picks, from the rows this page already holds for its
+  // index — so the empty state costs no second copy of anything.
+  const featured = useMemo(() => places.filter((p) => p.featured).slice(0, 6), [places]);
 
   return (
     // From lg the page is two columns: everything that reads on the start
@@ -277,30 +282,18 @@ export default function SearchClient() {
     // column, and the map stood between the box and the list.
     <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8">
       <div className="min-w-0">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
             دوّر في وين
           </h1>
           <VoiceControls />
         </div>
 
-        {/* The three ways to an answer, named once rather than left to be
-            discovered: the map only appears once there are results, and the
-            call lives on /find, so without this a first-time visitor could use
-            the page for months and never notice either exists. The second is a
-            link to /find's button, not a button of its own — one way to call
-            شوق, on request. */}
-        <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500">
-          <li>{toArabicDigits(1)}. دوّر بالكتابة</li>
-          <li aria-hidden="true">·</li>
-          <li>
-            <Link href="/find/" className="inline-flex min-h-6 items-center text-coral-700 underline underline-offset-2 hover:text-coral-800">
-              {toArabicDigits(2)}. كلّمي شوق
-            </Link>
-          </li>
-          <li aria-hidden="true">·</li>
-          <li>{toArabicDigits(3)}. عالخريطة</li>
-        </ol>
+        {/* «١. دوّر بالكتابة · ٢. كلّمي شوق · ٣. عالخريطة» stood here until
+            3 October. Only the second was a link, so it read as a stepper the
+            visitor was somewhere in, and it pushed the box down a line. Removed
+            on request: the call is offered by the empty state below and by the
+            dead end, and the map arrives with the results. */}
 
         {/* Query box */}
         <div className="relative">
@@ -323,7 +316,7 @@ export default function SearchClient() {
             aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
             aria-label="ابحث في كل محتوى وين"
             placeholder="اكتب اسم مكان، منطقة، أو جو…"
-            className="w-full rounded-2xl border border-line-control bg-white py-4 pe-11 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="w-full rounded-2xl border border-line-control bg-white py-4 pe-12 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
           />
           {q && (
             <button
@@ -331,9 +324,9 @@ export default function SearchClient() {
               onClick={() => setQ("")}
               aria-label="مسح البحث"
               // The call button that sat at end-3 is gone (it is /find's now), so
-              // the clear button takes its place; the input's pe-11 keeps typed
-              // text out from under it.
-              className="absolute inset-y-0 end-3 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
+              // the clear button takes its place; the input's pe-12 keeps typed
+              // text out from under it, at the 40px a finger gets.
+              className="absolute inset-y-0 end-1.5 my-auto grid size-tap place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
             >
               <IconClose className="size-4" />
             </button>
@@ -344,10 +337,13 @@ export default function SearchClient() {
             it says «يرن…» / «متصل» / why it failed with far more room than a
             caption under a text field ever had. */}
 
-        {/* Filters */}
-        {q.trim() && (
+        {/* Filters — only the kinds this query found. A tab for a kind with
+            nothing in it used to be drawn greyed and disabled: two of five
+            were dead for most searches, and a disabled control is still
+            something to read and rule out. */}
+        {q.trim() && counts.all > 0 && (
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="نوع النتيجة">
-            {FILTERS.map((f) => {
+            {FILTERS.filter((f) => counts[f.id as keyof typeof counts] > 0).map((f) => {
               const n = counts[f.id as keyof typeof counts];
               return (
                 <button
@@ -355,8 +351,7 @@ export default function SearchClient() {
                   type="button"
                   onClick={() => { haptic("select"); setKind(f.id); }}
                   aria-pressed={kind === f.id}
-                  disabled={n === 0}
-                  className={`min-h-6 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
+                  className={`min-h-tap rounded-full px-4 text-sm font-semibold transition ${
                     kind === f.id
                       ? "bg-ink-900 text-white"
                       : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
@@ -365,14 +360,14 @@ export default function SearchClient() {
                   {/* opacity-70 put the count at 3.97:1 on white — it reads as a
                       dimmed detail but it is the number the reader is choosing
                       by, so it has to clear 4.5:1 like any other text. */}
-                  {f.label} {n > 0 && <span className="opacity-80">{toArabicDigits(n)}</span>}
+                  {f.label} <span className="opacity-80">{toArabicDigits(n)}</span>
                 </button>
               );
             })}
           </div>
         )}
 
-        <div className="mt-7">
+        <div className="mt-5">
           {/* Above the branch, not inside it.
               She used to be rendered in the `hits.length > 0` arm only, so the
               one moment a service call must not go quiet — the failed lookup —
@@ -403,13 +398,59 @@ export default function SearchClient() {
                     <button
                       type="button"
                       onClick={() => setQ(s)}
-                      className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                      className="flex min-h-tap items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
                     >
                       {s}
                     </button>
                   </li>
                 ))}
               </ul>
+
+              {/* The voice way in, said once, where nobody has typed yet. It
+                  was the middle item of a numbered line over the box; it is a
+                  link to /find's call button rather than a button of its own —
+                  one way to call شوق, on request (1 October). */}
+              <p className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink-600">
+                تبي تحكي بدال ما تكتب؟
+                <Link
+                  href="/find/"
+                  className="inline-flex min-h-tap items-center gap-2 rounded-full bg-coral-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-700"
+                >
+                  <IconCall className="size-4" aria-hidden="true" />
+                  كلّمي شوق
+                </Link>
+              </p>
+
+              {/* The rest of the screen was blank until 3 October: six chips
+                  and then nothing, on the one page a visitor arrives at
+                  without knowing what to type. Two more ways in, both things
+                  the site already has — its categories, and the places the
+                  home page leads with. */}
+              <h2 className="mb-3 mt-6 text-base font-semibold text-ink-800">دوّر بالتصنيف</h2>
+              <ul className="flex flex-wrap gap-2">
+                {categories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link
+                      href={`/explore/?category=${cat.id}`}
+                      className="flex min-h-tap items-center gap-2 rounded-full border border-line-control bg-white px-3.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                    >
+                      <CategoryIcon name={cat.icon} className="size-4 text-ink-500" />
+                      {cat.ar}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              {featured.length > 0 && (
+                <>
+                  <h2 className="mb-3 mt-6 text-base font-semibold text-ink-800">أماكن ما تنقال عنها لا</h2>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {featured.map((place) => (
+                      <PlaceCard key={place.slug} place={place} />
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
           ) : hits.length > 0 ? (
             /* Dimmed, not blanked, while the results are still for an older

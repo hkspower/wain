@@ -502,7 +502,7 @@ export default function SalemChat() {
                 type="button"
                 disabled={!ready}
                 onClick={() => submit(q)}
-                className="inline-flex min-h-6 items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
+                className="inline-flex min-h-tap items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
               >
                 {q}
               </button>
@@ -521,7 +521,7 @@ export default function SalemChat() {
             <button
               type="button"
               onClick={connect}
-              className="mt-1 inline-flex min-h-6 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
+              className="mt-1 inline-flex min-h-tap items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
             >
               {failure === "unavailable" ? WAIN_AI_CHAT_COPY.retryLater : WAIN_AI_CHAT_COPY.reconnect}
             </button>
@@ -538,7 +538,7 @@ export default function SalemChat() {
           same overstatement in the other direction. */}
       <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
         {FREE ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
-        <Link href="/privacy/#wain-ai" className="inline-flex min-h-6 items-center font-semibold text-white underline underline-offset-2">
+        <Link href="/privacy/#wain-ai" className="inline-flex min-h-tap items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
         </Link>
       </p>

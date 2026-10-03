@@ -19,6 +19,7 @@ import '../theme/colors.dart';
 import '../voice/voice_service.dart';
 import '../widgets/art.dart';
 import '../widgets/layout.dart';
+import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 
 const _kinds = [
@@ -190,63 +191,42 @@ class _SearchScreenState extends State<SearchScreen> {
                   const _VoiceControls(),
                 ],
               ),
-              const SizedBox(height: 10),
-              // The second step is a way to /find's button, not a button of
-              // its own: one way to call شوق, on request (1 October). The box
-              // and the dead end each had a call button until then.
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text('${toArabicDigits(1)}. دوّر بالكتابة  ·', style: _steps),
-                  TextButton(
-                    key: const ValueKey('search-call-link'),
-                    onPressed: () => context.push('/find'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: WainColors.coral700,
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                    ),
-                    child: Text(
-                      '${toArabicDigits(2)}. كلّمي شوق',
-                      style: _steps.copyWith(
-                        color: WainColors.coral700,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                  Text('·  ${toArabicDigits(3)}. عالخريطة', style: _steps),
-                ],
-              ),
+              // No «١. دوّر بالكتابة · ٢. كلّمي شوق · ٣. عالخريطة» line: only the
+              // middle item was a link, so it read like a stepper; the call link
+              // moved to the empty state (3 October).
               const SizedBox(height: 10),
               _QueryBox(
                 controller: _controller,
                 onChanged: () => setState(() {}),
                 onClear: () => setState(() => _controller.clear()),
               ),
-              if (q.isNotEmpty) ...[
+              // Only the kinds this query found: a greyed chip that cannot be
+              // tapped was an answer drawn as a control (3 October).
+              if (q.isNotEmpty && counts['all']! > 0) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
                     for (final (id, label) in _kinds)
-                      WainChip(
-                        label: counts[id]! > 0
-                            ? '$label ${toArabicDigits(counts[id]!)}'
-                            : label,
-                        active: _kind == id,
-                        onTap: counts[id] == 0
-                            ? null
-                            : () => setState(() => _kind = id),
-                      ),
+                      if (counts[id]! > 0)
+                        WainChip(
+                          key: ValueKey('kind-$id'),
+                          label: '$label ${toArabicDigits(counts[id]!)}',
+                          active: _kind == id,
+                          onTap: () => setState(() => _kind = id),
+                        ),
                   ],
                 ),
               ],
               const SizedBox(height: 20),
-              if (q.isEmpty)
+              if (q.isEmpty) ...[
                 _Suggestions(
                   onPick: (s) => setState(() => _controller.text = s),
-                )
-              else if (hits.isNotEmpty) ...[
+                ),
+                const SizedBox(height: 20),
+                const _EmptyWaysOn(),
+              ] else if (hits.isNotEmpty) ...[
                 if (hitPlaces.isNotEmpty)
                   _AnswerLine(text: placeSuggestLine(hitPlaces.first)),
                 Text(
@@ -410,6 +390,12 @@ class _VoiceControls extends StatelessWidget {
   }
 }
 
+final _sectionHeading = wainText(
+  WainText.base,
+  weight: FontWeight.w600,
+  color: WainColors.ink800,
+);
+
 class _Suggestions extends StatelessWidget {
   final ValueChanged<String> onPick;
   const _Suggestions({required this.onPick});
@@ -419,14 +405,7 @@ class _Suggestions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'شنو تدوّر؟',
-          style: wainText(
-            WainText.base,
-            weight: FontWeight.w600,
-            color: WainColors.ink800,
-          ),
-        ),
+        Text('شنو تدوّر؟', style: _sectionHeading),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -435,6 +414,78 @@ class _Suggestions extends StatelessWidget {
             for (final s in _suggestions)
               WainChip(label: s, active: false, onTap: () => onPick(s)),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The empty box's other ways on, as on the web: call شوق (a way to /find's
+/// button, not a second one), browse by category, or start from the featured.
+class _EmptyWaysOn extends StatelessWidget {
+  const _EmptyWaysOn();
+
+  @override
+  Widget build(BuildContext context) {
+    final featured = featuredPlaces().take(6).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            Text(
+              'تبي تحكي بدال ما تكتب؟',
+              style: wainText(WainText.sm, color: WainColors.ink700),
+            ),
+            FilledButton.icon(
+              key: const ValueKey('search-call-link'),
+              onPressed: () => context.push('/find'),
+              style: FilledButton.styleFrom(
+                backgroundColor: WainColors.coral600,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                minimumSize: const Size(48, 48),
+              ),
+              icon: WainSvg.icon('call', size: 18, color: Colors.white),
+              label: const Text('كلّمي شوق'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('دوّر بالتصنيف', style: _sectionHeading),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in kCategories)
+              WainChip(
+                key: ValueKey('search-category-${c.id}'),
+                label: c.ar,
+                active: false,
+                // The Explore TAB, switched to — as a category result row does.
+                onTap: () => context.go('/explore?category=${c.id}'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('أماكن ما تنقال عنها لا', style: _sectionHeading),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            mainAxisExtent: placeCardExtent(context),
+          ),
+          itemCount: featured.length,
+          itemBuilder: (_, i) => PlaceCard(place: featured[i]),
         ),
       ],
     );
@@ -624,9 +675,3 @@ class _DeadEnd extends StatelessWidget {
     );
   }
 }
-
-final _steps = wainText(
-  WainText.xs,
-  weight: FontWeight.w600,
-  color: WainColors.ink500,
-);
