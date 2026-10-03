@@ -376,7 +376,13 @@ inside the tile, since the joints sit on the tile's edge on purpose),
 normals that lean the right way off a joint, the family weights per
 building class, and an unmoved world draw count. It also checks every
 splice point exists once in three.js's own shader and every uniform the
-GLSL declares is supplied — a missed `replace()` fails silently.
+GLSL declares is supplied — a missed `replace()` fails silently — and
+that the old wall comes out of a far, mip-averaged texel by coverage:
+the roughness map's B carries each opaque texel's shading (wall 170,
+floor band 137, its shadow line 82, surround 234), and every mix of the
+window map's texel kinds gives back its glass, field and shaded-trim
+shares the way the shader reads them. The lerp it replaced left up to
+0.34 walls of the old slate in such a mix.
 
 ```bash
 npm run test:masonry

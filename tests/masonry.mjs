@@ -25,6 +25,10 @@
 //   shader     every splice anchor is in three.js's own shader, every
 //              uniform the GLSL declares is supplied, the textures are
 //              filtered the way the header says
+//   coverage   the old wall comes out of a mip-averaged texel by
+//              coverage: any mix of window-map texels gives back its
+//              glass, field and shaded trim shares, as the shader reads
+//              them, where the old lerp left the old wall in
 import { createHash } from "node:crypto";
 import * as THREE from "three";
 import {
@@ -40,7 +44,10 @@ import {
   MASONRY_WEIGHTS,
   MASONRY_TALL_M,
   OCT_PERIMETER,
+  FACADE_WALL_HEX,
   FACADE_WALL_LUMA,
+  FACADE_SHADE_MAX,
+  shadeOpaqueCoverage,
   srgbToLinear,
   luminance,
 } from "../src/game/masonry.ts";
@@ -401,8 +408,8 @@ const nrm = (f, i) => {
   // the normal after the normal maps and before the lights read it.
   const at = (a) => p.fragmentShader.indexOf(a);
   const order = [
-    "#include <color_fragment>", "float grnOpaque = 0.0;", "#include <roughnessmap_fragment>",
-    "roughnessFactor = mix(roughnessFactor", "#include <normal_fragment_maps>", "grnTangentFrame(-vViewPosition",
+    "#include <color_fragment>", "float grnShade = 0.0;", "#include <roughnessmap_fragment>",
+    "roughnessFactor += roughness * grnFieldCov", "#include <normal_fragment_maps>", "grnTangentFrame(-vViewPosition",
     "#include <lights_fragment_begin>", "#include <dithering_fragment>", "if (grnDebug > 0.5)",
   ].map(at);
   console.log(
@@ -455,6 +462,74 @@ const nrm = (f, i) => {
   console.log(
     `fallback  ${check(!broken.ok && broken.fragmentShader === fs.replace("#include <color_fragment>", "#include <color_fragment_x>") && broken.vertexShader.includes("vMapUv *= grnTile") && !broken.vertexShader.includes("grnMasonry"), "a missing anchor did not fall back to the UV scaling alone")}  ` +
       `a missing anchor leaves the window-map UV scaling and no masonry`
+  );
+}
+
+// --- 11. the old wall comes out by coverage -------------------------------------------
+//
+// A far facade is a mip: each texel the average of window-map texels that
+// were glass, field or trim up close. The shader swaps the masonry in
+// with sums only — t(C - K W0) + R field + (K - R) trim — so any average
+// should give back exactly its glass colour, its field share and its
+// shaded trim share. Checked here on one texel of each kind windowTextures
+// paints (byte for byte, the band and its shadow line composited the way
+// a canvas does), over every mix of them a mip could make.
+{
+  const lin3 = (c) => c.map(srgbToLinear);
+  const W0 = [(FACADE_WALL_HEX >> 16) & 255, (FACADE_WALL_HEX >> 8) & 255, FACADE_WALL_HEX & 255];
+  const band = W0.map((v) => Math.round(v * 0.9));
+  const shadow = band.map((v) => Math.round(v * 0.78));
+  const kinds = [
+    { name: "wall", c: W0, r: 255, g: 218, b: 255 },
+    { name: "band", c: band, r: 0, g: 218, b: 255 },
+    { name: "shadow", c: shadow, r: 0, g: 218, b: 255 },
+    { name: "surround", c: [0x6f, 0x74, 0x7d], r: 0, g: 218, b: 255 },
+    { name: "sky pane", c: [0x5a, 0x6b, 0x7e], r: 0, g: 31, b: 0 },
+    { name: "dark pane", c: [0x34, 0x3b, 0x46], r: 0, g: 31, b: 0 },
+    { name: "bar", c: [0x3d, 0x43, 0x4d], r: 0, g: 138, b: 0 },
+  ];
+  const n = kinds.length;
+  const fb = new Uint8Array(n * 4), rb = new Uint8Array(n * 4);
+  kinds.forEach((k, i) => { fb.set([...k.c, 255], i * 4); rb.set([k.r, k.g, k.b, 255], i * 4); });
+  const st = shadeOpaqueCoverage(fb, rb);
+  const byte = (name) => rb[kinds.findIndex((k) => k.name === name) * 4 + 2];
+  const gSame = kinds.every((k, i) => rb[i * 4 + 1] === k.g && rb[i * 4] === k.r);
+  console.log(
+    `shade     ${check(byte("wall") === Math.round(255 / FACADE_SHADE_MAX) && st.opaque === 4 && st.partial === 0 && st.clamped === 0 && gSame && byte("sky pane") === 0, `B bytes ${kinds.map((k) => `${k.name} ${byte(k.name)}`).join(", ")}; ${st.clamped} clamped; R/G moved: ${!gSame}`)}  ` +
+      `B = ${kinds.slice(0, 4).map((k) => `${k.name} ${byte(k.name)}`).join(", ")} (x${FACADE_SHADE_MAX}/255 walls); glass 0; R, G untouched`
+  );
+  const Wl = lin3(W0), Na = 0xc4 / 255, rough = 0.8 / (0xda / 255);
+  const kOf = (c) => luminance(lin3(c)) / FACADE_WALL_LUMA;
+  let glassErr = 0, trimErr = 0, roughErr = 0, lerpLeft = 0, mixes = 0;
+  for (let mask = 1; mask < 1 << n; mask++) {
+    const ids = kinds.map((_, i) => i).filter((i) => mask & (1 << i));
+    const m = ids.length;
+    const avg = (f) => ids.reduce((s, i) => s + f(i), 0) / m;
+    // what the GPU's mips hold: linear colour, raw bytes
+    const C = [0, 1, 2].map((ch) => avg((i) => lin3(kinds[i].c)[ch]));
+    const R = avg((i) => rb[i * 4] / 255), G = avg((i) => rb[i * 4 + 1] / 255);
+    const K = avg((i) => rb[i * 4 + 2] / 255) * FACADE_SHADE_MAX;
+    // what the texels under it say each share is
+    const isGlass = (i) => kinds[i].b === 0, isField = (i) => kinds[i].r === 255;
+    const glass = [0, 1, 2].map((ch) => avg((i) => (isGlass(i) ? lin3(kinds[i].c)[ch] : 0)));
+    const trim = avg((i) => (!isGlass(i) && !isField(i) ? kOf(kinds[i].c) : 0));
+    const roughTrue = rough * avg((i) => (isField(i) ? Na : rb[i * 4 + 1] / 255));
+    // the shader's reading of the mix
+    glassErr = Math.max(glassErr, ...C.map((v, ch) => Math.abs(v - Wl[ch] * K - glass[ch]) / Wl[ch]));
+    trimErr = Math.max(trimErr, Math.abs(Math.max(K - R, 0) - trim));
+    roughErr = Math.max(roughErr, Math.abs(rough * (G + R * (Na - 0xda / 255)) - roughTrue));
+    // the lerp it replaced: mix(t C, wall, B) keeps (1 - B) of C, opaque share and all
+    const B = avg((i) => (isGlass(i) ? 0 : 1));
+    if (B > 0 && B < 1) {
+      const opaqueL = luminance([0, 1, 2].map((ch) => C[ch] - glass[ch]));
+      lerpLeft = Math.max(lerpLeft, ((1 - B) * opaqueL) / FACADE_WALL_LUMA);
+    }
+    mixes++;
+  }
+  console.log(
+    `coverage  ${check(glassErr < 0.025 && trimErr < 0.01 && roughErr < 1e-9, `over ${mixes} mixes: glass off by ${fx(glassErr, 4)} of the wall, shaded trim by ${fx(trimErr, 4)} walls, roughness by ${roughErr}`)}  ` +
+      `${mixes} mixes of ${n} texels: glass back within ${fx(glassErr * 100, 2)}% of the wall, trim within ${fx(trimErr, 4)} walls, roughness exact; ` +
+      `the lerp left up to ${fx(lerpLeft, 3)} walls of the old one in`
   );
 }
 

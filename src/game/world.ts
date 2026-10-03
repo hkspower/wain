@@ -33,7 +33,7 @@ import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
 import { applyFacadeSkin, masonryTextures } from "./facadeSkin";
-import { FACADE_WALL_HEX, OCT_PERIMETER, masonryFamily } from "./masonry";
+import { FACADE_WALL_HEX, OCT_PERIMETER, masonryFamily, shadeOpaqueCoverage } from "./masonry";
 import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
 
 /**
@@ -1551,9 +1551,10 @@ function windowTextures(): Skin {
   // still has somewhere to go when the sun is on it.
   //
   // On the city blocks it is now only a reference: the masonry
-  // (facadeSkin.ts) replaces every opaque texel, and divides by this
-  // grey's luminance to keep the floor band's shadow and the lighter
-  // surrounds as a ratio. Read from masonry.ts so the two cannot drift.
+  // (facadeSkin.ts) takes this grey out of every opaque texel and puts
+  // its own wall in, keeping the floor band's shadow and the lighter
+  // surrounds as a ratio to this grey's luminance (shadeOpaqueCoverage,
+  // below). Read from masonry.ts so the two cannot drift.
   fx.fillStyle = `#${FACADE_WALL_HEX.toString(16).padStart(6, "0")}`;
   fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
@@ -1561,9 +1562,11 @@ function windowTextures(): Skin {
   // The roughness map carries two masks beside the roughness, for the
   // masonry, in channels three.js does not read (it reads G):
   //   R  masonry FIELD coverage — the wall between the windows
-  //   B  OPAQUE coverage — everything that is not glass or its bars
-  // Coverage, not flags, so the mips average them and the shader reads
-  // field = R/B at any distance. G is untouched: the glass test in
+  //   B  OPAQUE coverage — everything that is not glass or its bars —
+  //      painted plain here, then weighted by this map's own shading of
+  //      each texel once the loop is done (shadeOpaqueCoverage)
+  // Coverage, not flags, so the mips average them and the shader's swap
+  // holds at any distance. G is untouched: the glass test in
   // tests/buildings.mjs reads the same grey levels it always did. Painted
   // in this pass with no rand() of its own, so the stream does not move.
   rx.fillStyle = "rgb(255,218,255)"; // wall: field, opaque, matte (0xda, CONCRETE_MAP_ROUGH)
@@ -1670,6 +1673,21 @@ function windowTextures(): Skin {
         fx.fillRect(x, gy, ww, gh);
         fx.globalAlpha = 1;
       }
+    }
+  }
+  // B, from plain opaque coverage to coverage x the old wall's shading:
+  // a floor band 0.81 of the wall, its shadow line 0.48, a surround 1.38.
+  // The facade shader subtracts exactly that much old wall before it adds
+  // the masonry, which is what keeps a far, mip-averaged facade the same
+  // colour as the texels it averages (masonry.ts says why, with numbers).
+  // Read back from the facade canvas itself, so it is the bytes the GPU
+  // gets, whatever this browser's compositing rounded them to.
+  {
+    const rimg = rx.getImageData(0, 0, W, H);
+    const st = shadeOpaqueCoverage(fx.getImageData(0, 0, W, H).data, rimg.data);
+    rx.putImageData(rimg, 0, 0);
+    if (st.partial || st.clamped) {
+      console.warn(`windowTextures: ${st.partial} part-opaque and ${st.clamped} over-bright wall texels (max ${st.maxShade.toFixed(3)} walls); far facades will drift from near ones`);
     }
   }
   const wrap = (canvas: HTMLCanvasElement, colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace) => {

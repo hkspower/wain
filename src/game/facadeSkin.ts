@@ -11,14 +11,37 @@
  *
  *   roughness map  R = masonry FIELD coverage (the wall between windows)
  *                  G = roughness, unchanged (the glass test still holds)
- *                  B = OPAQUE coverage (anything that is not glass/bars)
+ *                  B = OPAQUE coverage x the old wall's shading there,
+ *                      over FACADE_SHADE_MAX (shadeOpaqueCoverage)
  *
  * Both masks are coverage, so the window map's mips average them
- * linearly and the shader reads field = R/B and opaque = B at any
- * distance. A threshold on G instead would have faded the masonry out
+ * linearly. A threshold on G instead would have faded the masonry out
  * with distance, because a mip that mixes glass and wall falls below it.
  * Opaque but not field is TRIM — floor bands and window surrounds, the
  * concrete frame a Kuwaiti infill block is — coloured per family.
+ *
+ * The swap is linear in coverage too, which is the point of B carrying
+ * the shading. With C the map's colour, t the tint it was multiplied by,
+ * K = B x FACADE_SHADE_MAX and W0 the old wall:
+ *
+ *   colour     t (C - K W0)  +  R field  +  (K - R) trim
+ *   roughness  G + R (masonry - 0xda)       (every opaque texel is 0xda)
+ *
+ * Each term is a sum over the texels under the footprint, so a mip that
+ * mixes glass and wall comes out as the same mix of glass and masonry as
+ * the texels up close. The first cut lerped instead — colour and
+ * roughness towards the masonry by B — and a mixed texel already holds B
+ * of wall, so glass kept (1 - B)^2 and the old wall came back at
+ * B(1 - B). Measured on the whole window map rasterised in Node with box
+ * mips (brick, render and formwork under palette[0]): the far tile 6-8%
+ * too bright in the old slate cast, a texel on a window's edge off by up
+ * to 31%, far roughness 0.672 against the 0.617 its texels average to
+ * (brick). This: 0.0% luminance, under 1.7% of chroma (the surround is
+ * not exactly a multiple of the wall's colour), 0.617. On the GPU
+ * (headless Chromium, SwiftShader; a 4x4 window map drawn at 64 px and at
+ * 1 px, ambient light only) the far pixel came out -8% to +31% off the
+ * mean of the near ones under the lerp, and within 0.3% now — which also
+ * shows the colour map's mips averaging in linear light, as this needs.
  *
  * Rejected: a material per family (16 draws, or splitting every instanced
  * mesh four ways) and one 2D atlas (needs fract() and textureGrad, and
@@ -30,18 +53,20 @@ import * as THREE from "three";
 import {
   FAMILIES,
   FACADE_ALBEDO_GAIN,
-  FACADE_WALL_LUMA,
+  FACADE_SHADE_MAX,
+  FACADE_WALL_HEX,
   GROUND_STOREY_M,
   MASONRY_TILE_M,
   MODULES_PER_TILE,
   STONE_COURSE_M,
   buildMasonry,
+  hexToLinear,
   srgbToLinear,
   type MasonryMaps,
 } from "./masonry";
 
 /** Bump when the GLSL below changes: three.js caches programs by this. */
-export const FACADE_SKIN_CACHE_KEY = "grn-facade-masonry-1";
+export const FACADE_SKIN_CACHE_KEY = "grn-facade-masonry-2";
 
 export interface MasonryTextures {
   albedo: THREE.DataArrayTexture;
@@ -97,7 +122,7 @@ export function facadeSkinUniforms(t: MasonryTextures) {
     grnTintB: { value: FAMILIES.map((f) => vec(f.tintB)) },
     grnNormalScale: { value: FAMILIES.map((f) => f.normalScale) },
     grnGain: { value: FACADE_ALBEDO_GAIN },
-    grnWallLuma: { value: FACADE_WALL_LUMA },
+    grnOldWall: { value: new THREE.Vector3(...hexToLinear(FACADE_WALL_HEX)) },
     grnBaseM: { value: GROUND_STOREY_M },
     grnBaseCourseM: { value: STONE_COURSE_M },
     grnDebug: { value: 0 },
@@ -187,7 +212,7 @@ uniform vec3 grnTintA[4];
 uniform vec3 grnTintB[4];
 uniform float grnNormalScale[4];
 uniform float grnGain;
-uniform float grnWallLuma;
+uniform vec3 grnOldWall;
 uniform float grnBaseM;
 uniform float grnBaseCourseM;
 uniform float grnDebug;
@@ -221,23 +246,28 @@ mat3 grnTangentFrame(vec3 eye, vec3 n, vec2 uv) {
 }`;
 
 /**
- * After color_fragment: diffuseColor is map x instance colour here, and
- * the masonry REPLACES it on opaque texels — so the palette tint that
- * still colours the glass and its bars no longer greys every wall. The
- * per-building variety on a wall comes from its seed instead: the
- * family's tint range, and a per-module tone jitter that fades out once a
- * module is under ~2 px, before it can sparkle.
+ * After color_fragment: diffuseColor is map x material colour x instance
+ * colour here, and the masonry REPLACES the opaque share of it — so the
+ * palette tint that still colours the glass and its bars no longer greys
+ * every wall. The per-building variety on a wall comes from its seed
+ * instead: the family's tint range, and a per-module tone jitter that
+ * fades out once a module is under ~2 px, before it can sparkle.
+ *
+ * Replaced by subtraction, not by a lerp: see the header. grnShade is K,
+ * the opaque coverage weighted by the old wall's shading (a surround
+ * texel 1.376, a floor band 0.806, plain wall 1.0); grnFieldCov is R.
  */
 const FRAGMENT_COLOR = `
-float grnOpaque = 0.0;
-float grnField = 0.0;
+float grnShade = 0.0;
+float grnFieldCov = 0.0;
 int grnL = 0;
 vec4 grnN = vec4(0.5, 0.5, 1.0, 1.0);
 #if defined( USE_MAP ) && defined( USE_ROUGHNESSMAP )
 {
   vec4 grnR = texture2D(roughnessMap, vRoughnessMapUv);
-  grnOpaque = step(0.0, vGrnFam) * grnR.b;
-  grnField = grnR.b > 0.004 ? clamp(grnR.r / grnR.b, 0.0, 1.0) : 0.0;
+  float grnOn = step(0.0, vGrnFam);
+  grnFieldCov = grnOn * grnR.r;
+  grnShade = grnOn * grnR.b * ${f1(FACADE_SHADE_MAX)};
   int grnF = int(clamp(vGrnFam, 0.0, 3.0) + 0.5);
   grnL = grnF;
   // A rendered building stands on a stone plinth: whole stone courses up
@@ -257,34 +287,50 @@ vec4 grnN = vec4(0.5, 0.5, 1.0, 1.0);
   float grnPx = max(length(dFdx(grnG)), length(dFdy(grnG)));
   float grnJit = 1.0 + (grnHash(grnCell + floor(vGrnSeed * 4096.0 + 0.5)) - 0.5)
     * 2.0 * grnMod.w * (1.0 - smoothstep(0.3, 0.6, grnPx));
-  vec3 grnWall = mix(grnTrim[grnF] * (0.8 + 0.4 * grnA.a), grnA.rgb * grnJit, grnField)
-    * mix(grnTintA[grnF], grnTintB[grnF], vGrnSeed) * grnGain;
-  // The window map's own shading of its opaque texels — the floor band's
-  // shadow line, the lighter surrounds — kept as a ratio to the old wall,
-  // where a texel is wholly opaque (in a mip that mixes in glass the
-  // ratio would be the glass's, not the wall's).
-  grnWall *= mix(1.0, dot(sampledDiffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)) / grnWallLuma,
-    smoothstep(0.98, 1.0, grnR.b));
-  diffuseColor.rgb = mix(diffuseColor.rgb, grnWall, grnOpaque);
+  vec3 grnTone = mix(grnTintA[grnF], grnTintB[grnF], vGrnSeed) * grnGain;
+  vec3 grnFieldC = grnA.rgb * grnJit * grnTone;
+  vec3 grnTrimC = grnTrim[grnF] * (0.8 + 0.4 * grnA.a) * grnTone;
+  // What the map was multiplied by: the material's colour and, on every
+  // mesh that wears this, the instance's palette tint.
+  vec3 grnTint = diffuse;
+  #if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )
+    grnTint *= vColor.rgb;
+  #endif
+  // Out with the old wall — K of it, so the floor band's shadow line and
+  // the lighter surrounds go out at their own brightness — and in with
+  // the masonry: field at R, trim at the shaded rest, K - R. A wholly
+  // opaque texel leaves at most ~0.001 of rounding behind; the max()
+  // keeps that from going negative.
+  diffuseColor.rgb = max(diffuseColor.rgb - grnTint * grnOldWall * grnShade, 0.0)
+    + grnFieldCov * grnFieldC + max(grnShade - grnFieldCov, 0.0) * grnTrimC;
 }
 #endif`;
 
+// Every opaque texel paints G = 0xda, so the field's share of G is
+// exactly R x 0xda: trade that share for the masonry's own roughness.
+// Trim and glass keep the map's.
 const FRAGMENT_ROUGH = `
 #ifdef USE_ROUGHNESSMAP
-  roughnessFactor = mix(roughnessFactor, roughness * mix(texelRoughness.g, grnN.a, grnField), grnOpaque);
+  roughnessFactor += roughness * grnFieldCov * (grnN.a - ${(0xda / 255).toFixed(6)});
 #endif`;
 
 const FRAGMENT_NORMAL = `
 {
   vec3 grnNt = grnN.xyz * 2.0 - 1.0;
-  grnNt.xy *= grnNormalScale[grnL] * grnField * grnOpaque;
+  grnNt.xy *= grnNormalScale[grnL] * grnFieldCov;
   normal = normalize(grnTangentFrame(-vViewPosition, normal, vGrnMuv) * grnNt);
 }`;
 
 // The mask pass for the instruments: red masonry field, green trim, blue
-// glass. Set userData.grnMasonry.uniforms.grnDebug.value = 1.
+// glass. Set userData.grnMasonry.uniforms.grnDebug.value = 1. B no longer
+// holds plain opaque coverage, but every opaque shade the window map
+// paints is 0.48 or more (the floor band's shadow line), so K / 0.45 is
+// the opaque share on any whole texel; across an edge it saturates early.
 const FRAGMENT_DEBUG = `
-if (grnDebug > 0.5) gl_FragColor = vec4(grnOpaque * grnField, grnOpaque * (1.0 - grnField), 1.0 - grnOpaque, 1.0);`;
+if (grnDebug > 0.5) {
+  float grnOpq = min(1.0, grnShade / 0.45);
+  gl_FragColor = vec4(grnFieldCov, max(grnOpq - grnFieldCov, 0.0), 1.0 - grnOpq, 1.0);
+}`;
 
 /** Insert `code` after the one occurrence of `anchor`, or report that
  *  there is not exactly one. */

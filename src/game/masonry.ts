@@ -208,9 +208,10 @@ export const MODULES_PER_TILE = [
  */
 export const FACADE_ALBEDO_GAIN = 0.1;
 
-/** The old wall fill. windowTextures paints it, and the shader divides by
- *  its luminance to recover the floor-band shadow and the lighter window
- *  surrounds as a ratio. */
+/** The old wall fill. windowTextures paints it; shadeOpaqueCoverage
+ *  measures every opaque texel against its luminance (the floor band's
+ *  shadow, the lighter window surrounds), and the shader subtracts it,
+ *  times that measure, to take the old wall out of a texel. */
 export const FACADE_WALL_HEX = 0x5f646b;
 
 /** Below this height a rendered building stands on the limestone layer:
@@ -272,6 +273,80 @@ export function luminance(c: readonly [number, number, number]): number {
 
 /** The old wall's luminance, linear: 0.126. */
 export const FACADE_WALL_LUMA = luminance(hexToLinear(FACADE_WALL_HEX));
+
+/**
+ * Full scale of the facade roughness map's B channel, in old walls: B =
+ * 255 is 1.5 times #5f646b's luminance. The brightest opaque texel
+ * windowTextures paints is the window surround, #6f747d at 1.376 walls,
+ * so 1.5 holds it with room to spare and puts a plain wall texel at
+ * 255 / 1.5 = 170 exactly — the field reads back as 1.000, not 0.996.
+ */
+export const FACADE_SHADE_MAX = 1.5;
+
+export interface ShadeStats {
+  /** Texels with any opaque coverage. */
+  opaque: number;
+  /** Of those, texels only partly opaque. windowTextures paints every
+   *  opaque edge on whole texels, so this is 0; a partial texel would be
+   *  shaded by its mixed colour, glass and all. */
+  partial: number;
+  /** Texels brighter than FACADE_SHADE_MAX walls, clamped to it. */
+  clamped: number;
+  /** The brightest opaque texel, in walls. */
+  maxShade: number;
+}
+
+/**
+ * Turn the facade roughness map's B channel from opaque coverage into
+ * opaque coverage times the old wall's shading there, in place.
+ *
+ * WHY. The facade shader swaps the masonry in for the old wall, and a
+ * window-map texel far enough away is a mix of glass and wall. The first
+ * cut lerped the shaded colour towards the masonry by B, the opaque
+ * coverage — but a mixed texel's colour already holds B of wall and 1 - B
+ * of glass, so the lerp left glass (1 - B)^2 and let the old palette-
+ * tinted slate back in at B(1 - B). Over a whole tile (B = 0.702) that is
+ * glass at 0.089 instead of 0.298 and the old wall back at 0.209: far
+ * facades came out 6-8% brighter than the same wall near, in the slate-
+ * blue cast the masonry was there to remove, and a texel straddling a
+ * window's edge was off by up to 31%.
+ *
+ * The fix is to take the old wall OUT instead: subtract what the opaque
+ * share contributed and add the masonry's. That is linear in coverage —
+ * any mip of any mix comes out as the same mix — but only if the shader
+ * knows how much old wall to subtract, and the opaque share is not one
+ * colour: the floor band is 0.806 of the wall, its shadow line 0.482, the
+ * surround 1.376. Subtracting plain wall instead still left a texel on a
+ * window's edge up to 13% off — the surround's brightening, old wall in
+ * and new trim out — on white render, where the two differ most (the
+ * same rasterised map, measured the same way). So each opaque texel
+ * carries its own shading, measured here from the facade map's actual
+ * bytes — luminance over the wall's, the same ratio the shader used to
+ * take from the texel itself — and a mip averages it like any other
+ * coverage. Field texels are exactly the wall, 1.0, so R (field
+ * coverage) stays plain coverage and the trim's shaded share is K - R.
+ *
+ * `facade` and `rough` are RGBA bytes of the same size (ImageData). Only
+ * B is written; R, G and A are untouched, so the roughness three.js reads
+ * from G does not move.
+ */
+export function shadeOpaqueCoverage(facade: Uint8ClampedArray | Uint8Array, rough: Uint8ClampedArray | Uint8Array): ShadeStats {
+  const lin = new Float64Array(256);
+  for (let i = 0; i < 256; i++) lin[i] = srgbToLinear(i);
+  const st: ShadeStats = { opaque: 0, partial: 0, clamped: 0, maxShade: 0 };
+  for (let i = 0; i + 3 < rough.length; i += 4) {
+    const b = rough[i + 2];
+    if (b === 0) continue;
+    st.opaque++;
+    if (b !== 255) st.partial++;
+    const k = (0.2126 * lin[facade[i]] + 0.7152 * lin[facade[i + 1]] + 0.0722 * lin[facade[i + 2]]) / FACADE_WALL_LUMA;
+    if (k > st.maxShade) st.maxShade = k;
+    const v = Math.round(((b / 255) * k * 255) / FACADE_SHADE_MAX);
+    if (v > 255) st.clamped++;
+    rough[i + 2] = v > 255 ? 255 : v;
+  }
+  return st;
+}
 
 /** Linear 0-1 to 8-bit sRGB, through a 4096-entry table: a pow per texel
  *  per channel is most of a generator's time otherwise. */
