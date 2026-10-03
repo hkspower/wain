@@ -973,7 +973,59 @@ function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
     if ($newStatus === 'paid') {
         store_queue_whatsapp($db, $orderId, 'confirmed');
         store_post_to_ledger($db, $orderId);
+        store_wallet_touch($db, $orderId);
     }
+}
+
+/**
+ * The customer's Wallet card changed: mark it updated and ask Apple to tell their phones (2026-10-03).
+ *
+ * Called when an order's payment status changes. NEVER THROWS: it runs inside the transaction that
+ * records the payment, and a loyalty card is not worth losing that record for — no table, no card,
+ * no certificate all simply mean there is nothing to do.
+ *
+ * The push itself is sent at SHUTDOWN, after the response and after the payment's transaction has
+ * committed: a phone told "something changed" before the commit would fetch the old points. Apple's
+ * push carries no data — the phone then asks passkit.php which cards changed and fetches this one.
+ */
+function store_wallet_touch(PDO $db, int $orderId): void {
+    try {
+        $q = $db->prepare("select p.serial from orders o join wallet_passes p on p.phone = o.customer_phone and p.kind = 'loyalty'
+                           where o.id = ? limit 1");
+        $q->execute([$orderId]);
+        $serial = $q->fetchColumn();
+        if ($serial === false) return;
+        $db->prepare('update wallet_passes set updated_at = current_timestamp where serial = ?')->execute([$serial]);
+        $tokens = $db->prepare('select push_token from wallet_registrations where serial = ?');
+        $tokens->execute([$serial]);
+        $list = $tokens->fetchAll(PDO::FETCH_COLUMN);
+        if (!$list) return;
+        register_shutdown_function('store_wallet_push', $list);
+    } catch (Throwable $e) { /* no wallet tables, or no card: nothing to update */ }
+}
+
+/** One empty APNs push per phone, signed with the pass certificate. Failures are logged, never raised. */
+function store_wallet_push(array $tokens): void {
+    try {
+        if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+        require_once __DIR__ . '/wallet-setup.php';
+        $dir = wallet_cert_dir(store_config());
+        if (!is_readable("$dir/pass.pem") || !is_readable("$dir/pass.key") || !function_exists('curl_init')) return;
+        foreach (array_slice($tokens, 0, 50) as $t) {
+            if (!preg_match('/^[A-Fa-f0-9]{32,200}$/', (string) $t)) continue;
+            $ch = curl_init('https://api.push.apple.com/3/device/' . $t);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true, CURLOPT_POSTFIELDS => '{}', CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2_0, CURLOPT_TIMEOUT => 8,
+                CURLOPT_HTTPHEADER => ['apns-topic: ' . WALLET_PASS_TYPE_ID, 'apns-push-type: background', 'apns-priority: 5'],
+                CURLOPT_SSLCERT => "$dir/pass.pem", CURLOPT_SSLKEY => "$dir/pass.key",
+            ]);
+            curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            if ($code !== 200) error_log("wallet push: HTTP $code for a registered phone");
+            curl_close($ch);
+        }
+    } catch (Throwable $e) { error_log('wallet push: ' . $e->getMessage()); }
 }
 
 /**

@@ -975,6 +975,8 @@ if ($r === 'cod_paid' && $method === 'POST') {
         // Cash collected is a settled outcome: the warehouse follow-up fires
         // exactly as it does when the bank confirms a card.
         if ($paid) store_payment_settled($db, $id, 'paid');
+        // Un-marking takes the points back off the customer's Wallet card too.
+        else store_wallet_touch($db, $id);
         $db->commit();
     } catch (Throwable $e) {
         $db->rollBack();

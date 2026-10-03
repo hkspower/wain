@@ -283,6 +283,8 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
                     // is paid and unposted is listed on the Accounting screen
                     // until somebody posts it.
                     if ($paid) store_post_to_ledger($pdo, (int)$orderId);
+                    // The customer's Wallet card shows the new points (never throws).
+                    if ($paid) store_wallet_touch($pdo, (int)$orderId);
                 }
             }
         }

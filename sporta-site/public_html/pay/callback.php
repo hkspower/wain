@@ -366,6 +366,8 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
                     // the bank took the money. A paid order that did not post
                     // is listed on the Accounting screen until it does.
                     if ($paid) store_post_to_ledger($pdo, (int) $orderId);
+                    // The customer's Wallet card shows the new points (never throws).
+                    if ($paid) store_wallet_touch($pdo, (int) $orderId);
                 }
             }
         }

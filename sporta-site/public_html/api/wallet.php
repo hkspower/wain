@@ -35,10 +35,8 @@ require __DIR__ . '/store.php';
 // /backends setup card, so the pass type the card checks for and the one this
 // file signs as cannot drift apart.
 require __DIR__ . '/wallet-setup.php';
-const WALLET_ORG          = 'Sporta';
-// One point per 100 fils spent, on PAID orders only. Cash-on-delivery counts
-// from the moment it is marked paid, not from when it was placed.
-const WALLET_FILS_PER_POINT = 100;
+// The card itself (building, signing, translations, the loyalty layout) — shared with passkit.php.
+require __DIR__ . '/wallet-pass.php';
 
 $db = store_db();
 store_throttle($db, 'wallet', 60, 60);
@@ -51,133 +49,6 @@ $teamId  = wallet_team_id($cfg, $certDir);
 
 $r = $_GET['r'] ?? '';
 
-/** Every file of the bundle, hashed and signed, returned as bytes. */
-function wallet_build(array $pass, string $certDir): string {
-    $files = ['pass.json' => json_encode($pass, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)];
-
-    $assets = __DIR__ . '/wallet-assets';
-    foreach (glob($assets . '/*.png') ?: [] as $png) {
-        $files[basename($png)] = (string) file_get_contents($png);
-    }
-    if (count($files) < 4) store_fail('wallet_assets_missing', 500);
-
-    // manifest.json is SHA-1 of every file. Apple still specifies SHA-1 here:
-    // it is an integrity list inside a signed envelope, not a security
-    // boundary of its own.
-    $manifest = [];
-    foreach ($files as $name => $bytes) $manifest[$name] = sha1($bytes);
-    $files['manifest.json'] = json_encode($manifest, JSON_UNESCAPED_SLASHES);
-
-    $cert = $certDir . '/pass.pem';
-    $key  = $certDir . '/pass.key';
-    $wwdr = $certDir . '/wwdr.pem';
-    foreach ([$cert, $key, $wwdr] as $needed) {
-        if (!is_readable($needed)) {
-            // 503, not 500: nothing is broken, the certificate simply is not
-            // installed yet, and the difference matters to whoever reads the log.
-            store_out([
-                'error' => 'wallet_not_configured',
-                'hint'  => "missing " . basename($needed) . " in {$certDir} — see WALLET.md",
-            ], 503);
-        }
-    }
-
-    $tmp = sys_get_temp_dir() . '/sporta-wallet-' . bin2hex(random_bytes(6));
-    mkdir($tmp);
-    try {
-        file_put_contents("$tmp/manifest.json", $files['manifest.json']);
-        $signed = "$tmp/signature.p7s";
-        $ok = openssl_pkcs7_sign(
-            "$tmp/manifest.json",
-            $signed,
-            'file://' . $cert,
-            ['file://' . $key, (string) ($GLOBALS['wallet_key_pass'] ?? '')],
-            [],
-            PKCS7_BINARY | PKCS7_DETACHED,
-            $wwdr
-        );
-        if (!$ok) store_fail('wallet_sign_failed', 500);
-
-        // UNWRAPPING S/MIME PROPERLY. openssl_pkcs7_sign writes a MULTIPART
-        // message: a preamble, the signed content as one part, and the
-        // signature as another. Wallet wants the DER of that second part and
-        // nothing else.
-        //
-        // Taking everything after the first blank line — the obvious reading —
-        // yields the preamble plus both parts, base64-decodes to rubbish, and
-        // openssl refuses it with "wrong tag". The pass looked complete and was
-        // unopenable; the test is what said so.
-        //
-        // So: find the part whose headers name a pkcs7 signature, and decode
-        // only its body.
-        $smime = (string) file_get_contents($signed);
-        $der = '';
-        if (preg_match('/boundary="?([^";\r\n]+)"?/i', $smime, $m)) {
-            foreach (explode('--' . $m[1], $smime) as $part) {
-                // The MESSAGE headers say "protocol=application/x-pkcs7-signature"
-                // too, so the preamble matches that string just as the real part
-                // does. Taking the first match found the preamble, decoded "This
-                // is an S/MIME signed message", and produced a pass that looked
-                // complete and would not open. Every part is tried, and the one
-                // that decodes to a DER SEQUENCE — 0x30 — is the signature.
-                if (stripos($part, 'pkcs7-signature') === false) continue;
-                $split = preg_split('/\r?\n\r?\n/', ltrim($part), 2);
-                if (count($split) !== 2) continue;
-                $try = (string) base64_decode(preg_replace('/[^A-Za-z0-9+\/=]/', '', $split[1]) ?? '', true);
-                if ($try !== '' && substr($try, 0, 1) === "\x30") { $der = $try; break; }
-            }
-        }
-        if ($der === '' || substr($der, 0, 1) !== "\x30") store_fail('wallet_sign_unwrap_failed', 500);
-        $files['signature'] = $der;
-
-        $zipPath = "$tmp/pass.pkpass";
-        $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) store_fail('wallet_zip_failed', 500);
-        // FLAT. Every file at the root of the archive: a .pkpass with its
-        // contents one directory down is the commonest reason a hand-built
-        // pass refuses to open, and it looks identical from outside.
-        foreach ($files as $name => $bytes) $zip->addFromString($name, $bytes);
-        $zip->close();
-
-        return (string) file_get_contents($zipPath);
-    } finally {
-        foreach (glob("$tmp/*") ?: [] as $f) @unlink($f);
-        @rmdir($tmp);
-    }
-}
-
-function wallet_common(string $teamId): array {
-    return [
-        'formatVersion'      => 1,
-        'passTypeIdentifier' => WALLET_PASS_TYPE_ID,
-        'teamIdentifier'     => $teamId,
-        'organizationName'   => WALLET_ORG,
-        'backgroundColor'    => 'rgb(43, 49, 56)',
-        'foregroundColor'    => 'rgb(255, 255, 255)',
-        'labelColor'         => 'rgb(226, 128, 63)',
-        'logoText'           => 'SPORTA',
-    ];
-}
-
-function wallet_barcode(string $message): array {
-    return [[
-        'format'          => 'PKBarcodeFormatQR',
-        'message'         => $message,
-        'messageEncoding' => 'iso-8859-1',
-        'altText'         => $message,
-    ]];
-}
-
-function wallet_send(string $bytes, string $filename): void {
-    header('Content-Type: application/vnd.apple.pkpass');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Content-Length: ' . strlen($bytes));
-    // A pass is personal and cheap to rebuild; caching one is how a customer
-    // ends up holding somebody else's card from a shared proxy.
-    header('Cache-Control: no-store, private');
-    echo $bytes;
-    exit;
-}
 
 // ------------------------------------------------------------------ loyalty
 // -------------------------------------------------------------- the balance
@@ -303,34 +174,25 @@ if ($r === 'loyalty') {
         $existing = ['serial' => $serial, 'name' => $name, 'issued_at' => date('Y-m-d H:i:s')];
     }
 
-    // Points from what was actually paid, computed now — a stored balance is a
-    // balance that can disagree with the orders behind it.
-    $pts = $db->prepare("select coalesce(sum(amount), 0) from orders where customer_phone = ? and payment_status = 'paid'");
-    $pts->execute([$phone]);
-    $spentFils = (int) round(((float) $pts->fetchColumn()) * 1000);
-    $points = intdiv($spentFils, WALLET_FILS_PER_POINT);
+    // A token for Apple's update service, minted once per card (2026-10-03). Guarded: on a shop that
+    // has not run migrate-wallet-web.php the column is missing, and the card is issued without live
+    // updates rather than not at all.
+    try {
+        $tok = $db->prepare('select auth_token from wallet_passes where serial = ?');
+        $tok->execute([$existing['serial']]);
+        $token = (string) $tok->fetchColumn();
+        if ($token === '') {
+            $token = bin2hex(random_bytes(16));
+            $db->prepare('update wallet_passes set auth_token = ?, updated_at = updated_at where serial = ? and auth_token is null')
+               ->execute([$token, $existing['serial']]);
+        }
+        $existing['auth_token'] = $token;
+    } catch (Throwable $e) { /* no column yet: a static card */ }
+    $existing['phone'] = $phone;
 
-    $db->prepare('update wallet_passes set points_at_issue = ? where serial = ?')
-       ->execute([$points, $existing['serial']]);
-
-    $pass = wallet_common($teamId) + [
-        'description'  => 'Sporta loyalty card',
-        'serialNumber' => $existing['serial'],
-        'barcodes'     => wallet_barcode($existing['serial']),
-        'storeCard'    => [
-            'headerFields'    => [['key' => 'points', 'label' => 'النقاط', 'value' => $points, 'changeMessage' => 'رصيدك الآن %@ نقطة']],
-            'primaryFields'   => [['key' => 'holder', 'label' => 'العضو', 'value' => (string) ($existing['name'] ?? 'عميل سبورتا')]],
-            'secondaryFields' => [
-                ['key' => 'tier', 'label' => 'المستوى', 'value' => $points >= 500 ? 'ذهبي' : ($points >= 200 ? 'فضي' : 'أساسي')],
-                ['key' => 'since', 'label' => 'عضو منذ', 'value' => substr((string) $existing['issued_at'], 0, 4)],
-            ],
-            'backFields'      => [
-                ['key' => 'how', 'label' => 'كيف تجمع النقاط', 'value' => 'نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا.'],
-                ['key' => 'shop', 'label' => 'المتجر', 'value' => 'www.sporta.com.kw'],
-                ['key' => 'contact', 'label' => 'خدمة العملاء', 'value' => 'cs@sporta.com.kw'],
-            ],
-        ],
-    ];
+    $pass = wallet_loyalty_pass($db, $teamId, $existing);
+    $db->prepare('update wallet_passes set points_at_issue = ?, updated_at = updated_at where serial = ?')
+       ->execute([(int) $pass['storeCard']['headerFields'][0]['value'], $existing['serial']]);
 
     wallet_send(wallet_build($pass, $certDir), 'sporta-loyalty.pkpass');
 }
@@ -351,25 +213,28 @@ if ($r === 'coupon') {
     if (!$d) store_fail('no_such_offer', 404);
     if ($d['usage_limit'] > 0 && $d['used_count'] >= $d['usage_limit']) store_fail('offer_used_up', 410);
 
-    $value = $d['type'] === 'percent'
-        ? rtrim(rtrim((string) $d['value'], '0'), '.') . '%'
-        : number_format((float) $d['value'], 3) . ' د.ك';
+    // A fixed discount is a CURRENCY field, so the phone writes "KWD 2.000" or "٢٫٠٠٠ د.ك." in its
+    // own language; a percentage is the same in both.
+    $valueField = $d['type'] === 'percent'
+        ? ['key' => 'value', 'label' => 'DISCOUNT', 'value' => rtrim(rtrim((string) $d['value'], '0'), '.') . '%']
+        : ['key' => 'value', 'label' => 'DISCOUNT', 'value' => (float) $d['value'], 'currencyCode' => 'KWD'];
 
     $pass = wallet_common($teamId) + [
         'description'  => 'Sporta offer ' . $code,
         'serialNumber' => $code,
         'barcodes'     => wallet_barcode($code),
         'coupon'       => [
-            'headerFields'    => [['key' => 'value', 'label' => 'الخصم', 'value' => $value]],
-            'primaryFields'   => [['key' => 'code', 'label' => 'الكود', 'value' => $code]],
+            'headerFields'    => [$valueField],
+            'primaryFields'   => [['key' => 'code', 'label' => 'CODE', 'value' => $code]],
             'secondaryFields' => array_values(array_filter([
-                $d['ends_at'] ? ['key' => 'ends', 'label' => 'ينتهي', 'value' => substr((string) $d['ends_at'], 0, 10)] : null,
-                ['key' => 'where', 'label' => 'أين', 'value' => 'المتجر والتطبيق'],
+                $d['ends_at'] ? ['key' => 'ends', 'label' => 'ENDS', 'value' => substr((string) $d['ends_at'], 0, 10) . 'T23:59:59+03:00',
+                                 'dateStyle' => 'PKDateStyleMedium', 'timeStyle' => 'PKDateStyleNone'] : null,
+                ['key' => 'where', 'label' => 'WHERE', 'value' => 'WHERE_TEXT'],
             ])),
-            'backFields'      => [
-                ['key' => 'how', 'label' => 'كيف تستخدمه', 'value' => 'أدخل الكود عند إتمام الطلب.'],
-                ['key' => 'terms', 'label' => 'الشروط', 'value' => (string) $d['label']],
-            ],
+            'backFields'      => array_merge(array_values(array_filter([
+                ['key' => 'how', 'label' => 'HOW_USE', 'value' => 'HOW_USE_TEXT'],
+                trim((string) $d['label']) !== '' ? ['key' => 'terms', 'label' => 'TERMS', 'value' => (string) $d['label']] : null,
+            ])), wallet_back_fields($db, false)),
         ],
     ];
     // Wallet greys an expired pass and drops it to the back of the stack, which
