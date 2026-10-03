@@ -32,6 +32,8 @@ import { FLAGS, FLAG_IDS, flagPlane, flagTexture, type FlagId } from "./flags";
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
+import { applyFacadeSkin, masonryTextures } from "./facadeSkin";
+import { FACADE_WALL_HEX, OCT_PERIMETER, masonryFamily } from "./masonry";
 import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
 
 /**
@@ -1547,11 +1549,24 @@ function windowTextures(): Skin {
   // NOON as well and put half the building pixels at 0/255 in daylight.
   // This is a real concrete grey, a third down from where it was, so it
   // still has somewhere to go when the sun is on it.
-  fx.fillStyle = "#5f646b";
+  //
+  // On the city blocks it is now only a reference: the masonry
+  // (facadeSkin.ts) replaces every opaque texel, and divides by this
+  // grey's luminance to keep the floor band's shadow and the lighter
+  // surrounds as a ratio. Read from masonry.ts so the two cannot drift.
+  fx.fillStyle = `#${FACADE_WALL_HEX.toString(16).padStart(6, "0")}`;
   fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
   lx.fillRect(0, 0, W, H);
-  rx.fillStyle = "#dadada"; // concrete: matte (CONCRETE_MAP_ROUGH)
+  // The roughness map carries two masks beside the roughness, for the
+  // masonry, in channels three.js does not read (it reads G):
+  //   R  masonry FIELD coverage — the wall between the windows
+  //   B  OPAQUE coverage — everything that is not glass or its bars
+  // Coverage, not flags, so the mips average them and the shader reads
+  // field = R/B at any distance. G is untouched: the glass test in
+  // tests/buildings.mjs reads the same grey levels it always did. Painted
+  // in this pass with no rand() of its own, so the stream does not move.
+  rx.fillStyle = "rgb(255,218,255)"; // wall: field, opaque, matte (0xda, CONCRETE_MAP_ROUGH)
   rx.fillRect(0, 0, W, H);
   for (let y = 6 * S; y < 250 * S; y += 10 * S) {
     fx.fillStyle = "rgba(0,0,0,0.10)";
@@ -1561,6 +1576,9 @@ function windowTextures(): Skin {
     // this is a stack of floors rather than a pattern.
     fx.fillStyle = "rgba(0,0,0,0.22)";
     fx.fillRect(0, y + 6 * S, W, Math.max(1, S / 2));
+    // The spandrel is the floor slab's edge: trim, not infill.
+    rx.fillStyle = "rgb(0,218,255)";
+    rx.fillRect(0, y + 6 * S, W, 3 * S);
     const floorVibe = rand();
     const litChance = floorVibe < 0.18 ? 0.85 : floorVibe < 0.5 ? 0.12 : 0.38;
     const warm = rand() < 0.7;
@@ -1572,6 +1590,9 @@ function windowTextures(): Skin {
       // now there are twenty-four texels across a pane instead of six.
       fx.fillStyle = "#6f747d";
       fx.fillRect(x - S / 2, y - S / 2, ww + S, wh + S);
+      // The surround is the concrete frame round the opening: trim.
+      rx.fillStyle = "rgb(0,218,255)";
+      rx.fillRect(x - S / 2, y - S / 2, ww + S, wh + S);
       // The glass. A real pane is not one colour: it holds the sky at
       // the top and the room's darkness at the bottom, because it is a
       // mirror at a grazing angle and a hole at a straight one. A
@@ -1610,10 +1631,11 @@ function windowTextures(): Skin {
       fx.fillStyle = "#3d434d";
       fx.fillRect(x + ww / 2 - bar / 2, y, bar, wh);
       fx.fillRect(x, y + wh * 0.38, ww, Math.max(1, S / 3));
-      // The pane is polished, the bars are not.
-      rx.fillStyle = "#1f1f1f";
+      // The pane is polished, the bars are not. Neither is wall: R and B
+      // go to zero, so both keep the facade colour and the instance tint.
+      rx.fillStyle = "rgb(0,31,0)";
       rx.fillRect(x, y, ww, wh);
-      rx.fillStyle = "#8a8a8a";
+      rx.fillStyle = "rgb(0,138,0)";
       rx.fillRect(x + ww / 2 - bar / 2, y, bar, wh);
       rx.fillRect(x, y + wh * 0.38, ww, Math.max(1, S / 3));
       if (rand() < litChance) {
@@ -2244,41 +2266,10 @@ function solvePlants(dt: number, wakes: readonly Wake[]): void {
   for (const im of P.meshes) (im.userData.bend as THREE.InstancedBufferAttribute).needsUpdate = true;
 }
 
-function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
-  mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
-      "#include <uv_vertex>",
-      `#include <uv_vertex>
-      #ifdef USE_INSTANCING
-        vec3 grnScale = vec3(
-          length(instanceMatrix[0].xyz),
-          length(instanceMatrix[1].xyz),
-          length(instanceMatrix[2].xyz));
-        vec3 grnN = abs(normal);
-        // Which two of the box's three extents this face actually spans.
-        vec2 grnSpan;
-        if (grnN.y > 0.5) grnSpan = vec2(grnScale.x, grnScale.z);
-        else if (grnN.x > 0.5) grnSpan = vec2(grnScale.z, grnScale.y);
-        else grnSpan = vec2(grnScale.x, grnScale.y);
-        vec2 grnTile = grnSpan / vec2(${FACADE_TILE_M.x.toFixed(1)}, ${FACADE_TILE_M.y.toFixed(1)});
-        #ifdef USE_MAP
-          vMapUv *= grnTile;
-        #endif
-        #ifdef USE_EMISSIVEMAP
-          vEmissiveMapUv *= grnTile;
-        #endif
-        // The roughness map rides its own UV in this three.js — left
-        // untiled it would put the polished patches off their own panes.
-        #ifdef USE_ROUGHNESSMAP
-          vRoughnessMapUv *= grnTile;
-        #endif
-      #endif`
-    );
-  };
-  // Without this the two compilations — instanced and not — share a
-  // cache entry and whichever compiles first wins for both.
-  mat.customProgramCacheKey = () => "grn-facade-uv";
-}
+// The facade UV scaling described above STEM_H used to be spliced in
+// here (facadeUvScaling). It moved, unchanged, into facadeSkin.ts with
+// the masonry that now rides the same UVs, so the whole facade shader is
+// in one file a Node test can check against three.js's own chunks.
 
 /** The concrete grey painted into the roughness map (#dadada), read raw.
  *  glazedMat divides a building's own concrete roughness by it, so the
@@ -6036,6 +6027,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // City blocks with lit windows
   const windows = windowTextures();
+  // The walls between the windows: four masonry families on their own
+  // random stream (masonry.ts), so building them draws nothing from the
+  // world's.
+  const masonry = masonryTextures();
   {
     const count = 340; // more blocks now that they are visible much further
     const geo = new THREE.BoxGeometry(1, 1, 1);
@@ -6048,9 +6043,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Intensity rides the hour — see setTimeOfDay — because a window
     // that glows at noon reads as a mistake.
     const mat = glazedMat(windows, 0xffffff, 0.8);
-    facadeUvScaling(mat);
+    applyFacadeSkin(mat, masonry, { tileX: FACADE_TILE_M.x, tileY: FACADE_TILE_M.y, cityGroundY: CITY_GROUND_Y });
     litFacades.push(mat);
     const blocks = new THREE.InstancedMesh(geo, mat, count);
+    // Which masonry each block wears — (family, seed) per instance, read
+    // by the facade shader. From a hash of the block's index, not a draw.
+    const blockMasonry = new Float32Array(count * 2);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -6086,6 +6084,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       mast: boolean;
       tint: THREE.Color;
       r: number[];
+      /** The block's masonry, so its setback and podium wear the same. */
+      masonry: { family: number; seed: number };
     }> = [];
     // Facade variety: concrete grey to warm beige to blue glass
     const palette = [0x8a8f99, 0x9c937e, 0x7c828e, 0x6e7686, 0xa39a85];
@@ -6181,6 +6181,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       blocks.setMatrixAt(placed, m);
       tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + rand() * 0.3);
       blocks.setColorAt(placed, tint);
+      // Keyed on `placed`, the instance index: that is the building's
+      // identity everywhere else (ownerOf), and it costs no draw.
+      const fam = masonryFamily(placed, hArch);
+      blockMasonry[placed * 2] = fam.family;
+      blockMasonry[placed * 2 + 1] = fam.seed;
       // What the roof needs, worked out here where the footprint and the
       // orientation are still in hand. A building is a stack, not a box —
       // see the massing block below.
@@ -6205,9 +6210,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         mast: hArch > 70 && rand() < 0.5,
         tint: tint.clone(),
         r: [rand(), rand(), rand(), rand()],
+        masonry: fam,
       });
       placed++;
     }
+    geo.setAttribute("grnMasonry", new THREE.InstancedBufferAttribute(blockMasonry, 2));
     // Draw only what was written; the tail of the buffer is untouched.
     blocks.count = placed;
     blocks.instanceMatrix.needsUpdate = true;
@@ -6286,11 +6293,27 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         if (b.podium) { podiums.push(b); podiumOf.push(i); }
       });
 
+      // The setback and the podium wear the facade, so each needs the
+      // per-instance masonry attribute — its own shaft's, so a building is
+      // one material top to bottom. An instanced attribute lives on the
+      // geometry, so they stop sharing capGeo with the parapets and plant.
+      const masonryOf = (list: typeof massing) => {
+        const a = new Float32Array(Math.max(1, list.length) * 2);
+        list.forEach((b, i) => {
+          a[i * 2] = b.masonry.family;
+          a[i * 2 + 1] = b.masonry.seed;
+        });
+        return new THREE.InstancedBufferAttribute(a, 2);
+      };
+      const setbackGeo = capGeo.clone();
+      setbackGeo.setAttribute("grnMasonry", masonryOf(setbacks));
+      const podiumGeo = capGeo.clone();
+      podiumGeo.setAttribute("grnMasonry", masonryOf(podiums));
       const parapetMesh = new THREE.InstancedMesh(capGeo, concrete, massing.length);
-      const setbackMesh = new THREE.InstancedMesh(capGeo, mat, Math.max(1, setbacks.length));
+      const setbackMesh = new THREE.InstancedMesh(setbackGeo, mat, Math.max(1, setbacks.length));
       // The podium wears the same glazed skin as the shaft: at street
       // level the lit ground floors ARE the shopfronts.
-      const podiumMesh = new THREE.InstancedMesh(capGeo, mat, Math.max(1, podiums.length));
+      const podiumMesh = new THREE.InstancedMesh(podiumGeo, mat, Math.max(1, podiums.length));
       const plantMesh = new THREE.InstancedMesh(capGeo, plantMat, Math.max(1, plants.length));
       const mastMesh = new THREE.InstancedMesh(
         new THREE.CylinderGeometry(0.18, 0.3, 1, 6),
@@ -6406,7 +6429,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     {
       const octGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
       octGeo.translate(0, 0.5, 0);
+      // The side's u runs 0..1 round the whole perimeter and the facade
+      // shader scales u by the instance's DIAMETER, so every drum wore its
+      // facade stretched 3.06x sideways: brake.png measured lit windows at
+      // 128 x 40 px (3.2:1) that are painted 1.83 x 1.66 m (1.1:1). Scaled
+      // by the perimeter over the diameter, u is in the same units as
+      // every box face. Caps (|n.y| = 1) keep their radial u.
+      {
+        const uvA = octGeo.getAttribute("uv");
+        const nA = octGeo.getAttribute("normal");
+        for (let k = 0; k < uvA.count; k++) {
+          if (Math.abs(nA.getY(k)) < 0.5) uvA.setX(k, uvA.getX(k) * OCT_PERIMETER);
+        }
+        uvA.needsUpdate = true;
+      }
       const octs = new THREE.InstancedMesh(octGeo, mat, 26);
+      // Drums are rendered or stone (masonry.ts MASONRY_WEIGHTS.drum).
+      const octMasonry = new Float32Array(26 * 2);
       // Same concrete as the roof furniture — its sibling material is
       // scoped inside the massing block above, so this is its twin.
       const octConcrete = new THREE.MeshStandardMaterial({
@@ -6449,6 +6488,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         octs.setMatrixAt(oPlaced, m);
         tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + rand() * 0.3);
         octs.setColorAt(oPlaced, tint);
+        // Owners 0x10000 and up, clear of every block index.
+        const oFam = masonryFamily(0x10000 + oPlaced, h2, true);
+        octMasonry[oPlaced * 2] = oFam.family;
+        octMasonry[oPlaced * 2 + 1] = oFam.seed;
         // Its own eight-sided parapet — a square cap on a drum is the
         // one join that gives the trick away.
         scale.set(dia + 0.6, 0.9, dia + 0.6);
@@ -6458,6 +6501,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         octCaps.setColorAt(oPlaced, tint);
         oPlaced++;
       }
+      octGeo.setAttribute("grnMasonry", new THREE.InstancedBufferAttribute(octMasonry, 2));
       octs.count = oPlaced;
       octCaps.count = oPlaced;
       octs.instanceMatrix.needsUpdate = true;

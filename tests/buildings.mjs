@@ -44,6 +44,14 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 800, height: 460 } });
 page.setDefaultTimeout(120000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+// A facade shader that fails to compile does not throw: three.js logs it
+// and draws nothing. Kept for the masonry section at the end.
+const shaderErrors = [];
+page.on("console", (m) => {
+  // Not every "THREE.WebGLProgram" line: a driver's info-log warning on
+  // some other material is not this check's business.
+  if (/Shader Error|facadeSkin/.test(m.text())) shaderErrors.push(m.text().slice(0, 400));
+});
 await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
 await page.evaluate(() => {
   localStorage.clear();
@@ -266,6 +274,141 @@ for (const g of glass) {
 check(
   ["blocks", "liberation", "alHamra"].every((w) => glass.some((g) => g.who === w)),
   `glazed materials found for ${[...new Set(glass.map((g) => g.who))].join(", ")} — expected blocks, liberation and alHamra`
+);
+
+// --- masonry --------------------------------------------------------------
+//
+// The wall between the windows is one of four masonry layers — buff
+// brick, ochre limestone, white render, formed concrete — chosen per
+// building (masonry.ts, facadeSkin.ts). tests/masonry.mjs measures the
+// textures and the splice in Node; this checks the live city wears them:
+//
+//   maps      two 384x384x4 array textures, sRGB colour and raw data,
+//             Linear magnification (so anisotropy applies) and trilinear
+//   wearing   blocks, setbacks, podiums and drums share one material and
+//             each carries a per-instance grnMasonry (family, seed)
+//   variety   at least three families on the blocks, none over 60%
+//   one       a setback and a podium wear their own shaft's masonry
+//   drums     the drum's side u spans its perimeter (3.06 diameters),
+//             so its windows are no longer stretched 3x sideways
+//   compiled  the facade program built, and nothing logged a shader error
+const maso = await page.evaluate(() => {
+  const THREE = window.__grnThree;
+  const e = window.__grnEngine;
+  const find = (name) => {
+    let hit = null;
+    e.scene.traverse((o) => {
+      if (o.name === name) hit = o;
+    });
+    return hit;
+  };
+  const names = ["cityBlocks", "citySetbacks", "cityPodiums", "cityDrums"];
+  const meshes = names.map(find);
+  const mat0 = meshes[0]?.material;
+  const out = { meshes: [], maps: null, drumU: null, programs: [], broken: [] };
+  meshes.forEach((m, k) => {
+    const a = m?.geometry.getAttribute("grnMasonry");
+    const fam = [];
+    if (a) for (let i = 0; i < m.count; i++) fam.push([a.getX(i), a.getY(i)]);
+    out.meshes.push({
+      name: names[k],
+      found: !!m,
+      count: m?.count ?? 0,
+      attr: a ? a.count : 0,
+      instanced: !!a?.isInstancedBufferAttribute,
+      sameMat: !!m && m.material === mat0,
+      fam,
+      owner: m?.userData.ownerOf ?? null,
+    });
+  });
+  const u = mat0?.userData.grnMasonry;
+  if (u) {
+    const tex = (t) => ({
+      isArray: !!t.isDataArrayTexture,
+      w: t.image.width, h: t.image.height, d: t.image.depth,
+      cs: t.colorSpace,
+      linearMag: t.magFilter === THREE.LinearFilter,
+      trilinear: t.minFilter === THREE.LinearMipmapLinearFilter && t.generateMipmaps,
+      aniso: t.anisotropy,
+    });
+    out.maps = { albedo: tex(u.albedo), normal: tex(u.normal), gain: u.uniforms.grnGain.value };
+  }
+  const drums = meshes[3];
+  if (drums) {
+    const uv = drums.geometry.getAttribute("uv"), n = drums.geometry.getAttribute("normal");
+    let max = 0;
+    for (let i = 0; i < uv.count; i++) if (Math.abs(n.getY(i)) < 0.5) max = Math.max(max, uv.getX(i));
+    out.drumU = max;
+  }
+  for (const p of e.renderer.info.programs ?? []) {
+    if (!String(p.cacheKey).includes("grn-facade-masonry")) continue;
+    out.programs.push(p.name);
+    if (p.diagnostics && p.diagnostics.runnable === false) out.broken.push(p.name);
+  }
+  return out;
+});
+
+{
+  const m = maso.maps;
+  const bad = [];
+  if (!m) bad.push("the city material carries no userData.grnMasonry");
+  else {
+    for (const [k, t, cs] of [["albedo", m.albedo, "srgb"], ["normal", m.normal, ""]]) {
+      if (!t.isArray || t.d !== 4 || t.w !== 384 || t.h !== 384) bad.push(`${k} is not a 384x384x4 array texture`);
+      if (t.cs !== cs) bad.push(`${k} colour space ${t.cs || "none"}, want ${cs || "none"}`);
+      if (!t.linearMag) bad.push(`${k} magFilter is not Linear — anisotropy would never apply`);
+      if (!t.trilinear) bad.push(`${k} is not trilinear with mips`);
+      if (t.aniso < 8) bad.push(`${k} anisotropy ${t.aniso}`);
+    }
+  }
+  console.log(
+    `maps      ${check(bad.length === 0, bad.join("; "))}  two 384x384x4 masonry arrays, sRGB + data, Linear/trilinear` +
+      (m ? `, gain ${m.gain}` : "")
+  );
+}
+{
+  const bad = maso.meshes
+    .filter((x) => !x.found || !x.instanced || x.attr < x.count || !x.sameMat)
+    .map((x) => `${x.name}${!x.found ? " missing" : !x.instanced ? " has no instanced grnMasonry" : x.attr < x.count ? ` has ${x.attr} masonry entries for ${x.count} instances` : " wears a different material"}`);
+  console.log(
+    `wearing   ${check(bad.length === 0, bad.join("; "))}  ` +
+      maso.meshes.map((x) => `${x.name} ${x.count}`).join(", ") + " — one material, per-instance masonry"
+  );
+}
+{
+  const blocks = maso.meshes[0];
+  const counts = [0, 0, 0, 0];
+  for (const [f] of blocks.fam) counts[Math.round(f)]++;
+  const share = counts.map((c) => c / Math.max(1, blocks.fam.length));
+  const used = share.filter((s) => s > 0).length;
+  console.log(
+    `variety   ${check(used >= 3 && Math.max(...share) <= 0.6, `blocks wear ${used} families, the commonest on ${(Math.max(...share) * 100).toFixed(0)}%`)}  ` +
+      `brick/stone/render/formwork on ${share.map((s) => (s * 100).toFixed(0) + "%").join(" / ")} of ${blocks.fam.length} blocks`
+  );
+  let mismatched = 0, n = 0;
+  for (const piece of [maso.meshes[1], maso.meshes[2]]) {
+    if (!piece.owner) { mismatched++; continue; }
+    piece.fam.forEach(([f, s], i) => {
+      n++;
+      const o = blocks.fam[piece.owner[i]];
+      if (!o || o[0] !== f || o[1] !== s) mismatched++;
+    });
+  }
+  console.log(
+    `one       ${check(mismatched === 0 && n > 0, `${mismatched} setback/podium instance(s) wear a different masonry from their shaft`)}  ` +
+      `all ${n} setbacks and podiums wear their own shaft's masonry`
+  );
+}
+console.log(
+  `drums     ${check(maso.drumU !== null && Math.abs(maso.drumU - 3.0615) < 0.01, `drum side u spans ${maso.drumU}, want 3.06 (8 sin(pi/8))`)}  ` +
+    `drum side u spans ${maso.drumU?.toFixed(4)} diameters`
+);
+console.log(
+  `compiled  ${check(maso.programs.length > 0 && maso.broken.length === 0 && shaderErrors.length === 0,
+    maso.programs.length === 0
+      ? "no compiled program carries the grn-facade-masonry cache key"
+      : `facade program broken (${maso.broken.join(", ")}) or shader errors logged: ${shaderErrors.join(" | ")}`)}  ` +
+    `${maso.programs.length} facade program(s) compiled clean`
 );
 
 await browser.close();
