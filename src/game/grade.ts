@@ -251,12 +251,17 @@ export const GradeShader = {
      * own Rec.709 luma, so nothing clamps and no luma-only measurement in
      * this repo can move — levels.mjs's crush bars, dark.mjs's tiles,
      * blacks.mjs's shares, tests/grade.mjs's exposure ladder and its
-     * banded stop-down. It scales a pixel's chroma by a factor of its
-     * luma alone, identically in both shots of any pair, so the
-     * saturation and situation checks' ratios hold too.
+     * banded stop-down. It scales a pixel's chroma by one factor, read
+     * off how bright the pixel is (its luma, or for a strongly coloured
+     * pixel its brightest channel: see the stage). Where that is the
+     * brightest channel, a more saturated shot of a pair is neutralised
+     * LESS, so the saturation and situation checks' ratios can only move
+     * the way their bars already ask, never against them.
      *
      * 0.6, so a cast at black keeps 40% of itself and dim coloured light
-     * keeps most of its colour: a 40,8,8 tail-lamp reflection keeps 77%.
+     * keeps most of its colour: a 40,8,8 tail-lamp reflection keeps 87%
+     * (77% when the stage read luma alone), and a saturated blue all of
+     * it — 0,0,108 kept 53% then.
      */
     uBlackNeutral: { value: 0.6 },
     /** Luma at which the neutraliser has faded to nothing: 0.10 is about
@@ -570,8 +575,32 @@ export const GradeShader = {
       // placed after the lift, the net at luma 0.04 models at chroma
       // x0.85 to x1.04, which is no fix. Last before the dither, nothing
       // downstream can re-colour it.
+      //
+      // HOW DARK a pixel is, though, is not its luma. Rec.709 weighs blue
+      // at 0.0722, so luma calls a plainly visible blue black: 0,0,108 is
+      // luma 0.031, and gated on luma alone it came out of this stage at
+      // 3.6,3.6,61.3 — half its colour gone. A police lens at emissive
+      // 0.1 (2,2,82 here) went to 4.7,4.7,47.4, and with it the blue
+      // spill round every light bar, every blue LED, and dark blue or
+      // purple paint in shadow, by day as well, since the stage is not
+      // gated on uNight. So the gate reads max(luma, 0.45 x the brightest
+      // channel), and the mix still goes toward vec3(lN), so luma is
+      // preserved exactly as before.
+      //
+      // 0.45 because of what the stage was built for. The most saturated
+      // cast the 4K stills measured, the daylight driver's 28,9,14, has
+      // its brightest channel 2.09x its luma (the night stills' 1.3x to
+      // 1.7x; tests/grade.mjs's brown patches 1.6x and 1.8x). Under
+      // 1 / 0.45 = 2.2x the gate IS luma, so every one of those is treated
+      // exactly as it was. Lights sit well above: a tail-lamp red 2.7x,
+      // a navy 3.3x, the police blue 10.5x, pure blue 13.9x. And at the
+      // very bottom both measures are near zero, so a deep toe cast is
+      // still taken however saturated it is: 12,3,3 (2.4x) keeps 47% of
+      // its colour where it kept 46%. 0.5, the round number, would have
+      // started to spare the daylight cast.
       float lN = luma(c.rgb);
-      c.rgb = mix(vec3(lN), c.rgb, 1.0 - uBlackNeutral * (1.0 - smoothstep(0.0, uNeutralTo, lN)));
+      float vN = max(lN, 0.45 * max(c.r, max(c.g, c.b)));
+      c.rgb = mix(vec3(lN), c.rgb, 1.0 - uBlackNeutral * (1.0 - smoothstep(0.0, uNeutralTo, vN)));
 
       // Triangular-PDF dither, applied last, immediately before the 8-bit
       // quantisation it exists to hide. The frame buffer is half-float all

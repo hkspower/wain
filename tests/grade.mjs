@@ -403,13 +403,19 @@ console.log(
 // (the rule the white-point section above follows): known patches in,
 // the same frame graded with the stage off and on, and the difference.
 //
-// The input is a 32x4 byte texture, colorSpace NoColorSpace and Nearest
+// The input is a 40x4 byte texture, colorSpace NoColorSpace and Nearest
 // filtering, so the shader samples byte/255 — exactly what it sees from
-// OutputPass. Eight 4x4 patches: neutral 0, 5, 12, 24, and four dark
-// colours — a brown, a navy, a dark red-brown and a tail-lamp red. Only
-// each patch's central 2x2 is read, so the unsharp mask's cross never
-// leaves the patch; the grain is identical in every render (same uv,
-// same uTime) so it cancels from every comparison.
+// OutputPass. Ten 4x4 patches: neutral 0, 5, 12, 24; two dark casts —
+// a brown and a dark red-brown, the stills' darkest 2% in miniature; and
+// four COLOURS that luma calls dark and that must keep their colour — a
+// navy, a tail-lamp red, and two saturated blues, 0,0,108 and the same
+// blue at 0,0,60. The blues are there because luma weighs blue at
+// 0.0722: when the stage gated on luma alone they modelled at 68% and
+// 55% of their colour kept in game, 60% and 47% in the stills, and the
+// red at 40,8,8 (luma's red weight is 0.21) could never have said so.
+// Only each patch's central 2x2 is read, so the unsharp mask's cross
+// never leaves the patch; the grain is identical in every render (same
+// uv, same uTime) so it cancels from every comparison.
 //
 // Read back in HALF FLOAT, not bytes. Rounding three channels to bytes
 // moves a pixel's luma by up to half a level between two renders, which
@@ -420,8 +426,8 @@ const nb = await page.evaluate(() => {
   const THREE = window.__grnThree;
   const src = e.grainPass.material;
   const PATCHES = [[0, 0, 0], [5, 5, 5], [12, 12, 12], [24, 24, 24],
-    [14, 8, 4], [6, 14, 48], [20, 9, 8], [40, 8, 8]];
-  const W = 32, H = 4;
+    [14, 8, 4], [6, 14, 48], [20, 9, 8], [40, 8, 8], [0, 0, 108], [0, 0, 60]];
+  const W = PATCHES.length * 4, H = 4;
   const bytes = new Uint8Array(W * H * 4);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const p = PATCHES[x >> 2], i = (y * W + x) * 4;
@@ -492,11 +498,15 @@ const nb = await page.evaluate(() => {
   const C = (c) => Math.max(...c) - Math.min(...c);
   const f = (c) => c.map((v) => v.toFixed(1)).join(",");
   console.log(`\nblacks     the neutraliser at ${nb.shipped}, on known patches through the real grade (bytes in, levels out)`);
+  // The colours, as against the casts. Not told apart by luma, which is
+  // the whole point: 0,0,60 comes out darker by luma than either cast.
+  const COLOURS = ["6,14,48", "40,8,8", "0,0,108", "0,0,60"];
   const qualified = [];
   for (const [regime, pair] of [["in game", nb.game], ["stills ", nb.stills]]) {
     for (let p = 0; p < nb.patches.length; p++) {
       const off = pair.off[p], on = pair.on[p];
       const neutral = p < 4;
+      const colour = COLOURS.includes(nb.patches[p].join());
       const keep = C(off) > 0.5 ? C(on) / C(off) : 1;
       console.log(
         `           ${regime} ${nb.patches[p].join(",").padEnd(9)} off ${f(off).padEnd(16)} on ${f(on).padEnd(16)} ` +
@@ -511,24 +521,32 @@ const nb = await page.evaluate(() => {
       // (b) Depth is untouched: the same luma either way.
       check(Math.abs(L(on) - L(off)) <= 0.25,
         `the black neutraliser moved ${nb.patches[p].join(",")}'s luma ${regime.trim()}: ${L(off).toFixed(2)} -> ${L(on).toFixed(2)} — it is meant to move colour only`);
-      // (c) A dark colour loses at least a quarter of its cast. Asked of
-      // whatever comes out under luma 0.05 (13/255), where the stage at
-      // 0.6 takes 30% by its own curve; by 0.06 it takes only 21%, so a
-      // quarter is not a fair ask of anything between. The in-game lift
-      // puts all four of these colours above it and the stills' quarter
-      // lift puts two below (modelled at 0.036 and 0.046, with the next
-      // nearest at 0.062), which is what keeps this from passing
+      // (c) A dark cast loses at least a quarter of itself. Asked of
+      // every cast that comes out under luma 0.05 (13/255), where the
+      // stage at 0.6 takes 30% by its own curve; by 0.06 it takes only
+      // 21%, so a quarter is not a fair ask of anything between. The
+      // casts' brightest channels are under 2.2x their luma, where the
+      // stage's gate is luma itself. The in-game lift puts both casts
+      // above 0.05 and the stills' quarter lift puts both below (modelled
+      // at 0.036 and 0.046), which is what keeps this from passing
       // vacuously.
-      if (L(off) / 255 < 0.05) {
+      if (!colour && L(off) / 255 < 0.05) {
         qualified.push(`${nb.patches[p].join(",")} ${regime.trim()}`);
         check(keep <= 0.75,
           `${nb.patches[p].join(",")} ${regime.trim()} comes out at luma ${(L(off) / 255).toFixed(3)} and keeps ${(keep * 100).toFixed(0)}% of its colour — the cast is not coming out of the blacks`);
       }
+      // (d) A dark COLOUR keeps its colour: navy paint in shadow, a tail
+      // lamp's reflection, a light bar's blue spill. 80%, where the
+      // luma-gated stage modelled at navy 100% / 81%, red 100% / 81%,
+      // 0,0,108 68% / 60% and 0,0,60 55% / 47% (in game / stills) — the
+      // blues fail it, as they should — and the shipped gate, max(luma,
+      // 0.45 x the brightest channel), models every one of the four at
+      // 97% or more.
+      if (colour) {
+        check(keep >= 0.8,
+          `${nb.patches[p].join(",")} keeps only ${(keep * 100).toFixed(0)}% of its colour ${regime.trim()} — the neutraliser is greying colours and lights, not blacks`);
+      }
     }
-    // (d) Dim coloured LIGHT keeps its colour: a tail lamp's reflection.
-    const red = nb.patches.findIndex((c) => c.join() === "40,8,8");
-    const keepRed = C(pair.on[red]) / C(pair.off[red]);
-    check(keepRed >= 0.6, `a 40,8,8 tail-lamp red keeps only ${(keepRed * 100).toFixed(0)}% of its colour ${regime.trim()} — the neutraliser is greying lights, not blacks`);
   }
   console.log(`           under luma 0.05 and so held to losing a quarter: ${qualified.join("; ") || "none"}`);
   check(qualified.length >= 2, `only ${qualified.length} patch(es) came out dark enough to test the neutraliser on — the check is passing vacuously`);

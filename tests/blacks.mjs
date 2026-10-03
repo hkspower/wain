@@ -79,6 +79,61 @@ const nightLight = (c) => { const y = Y(c); return c.map((v) => y + (v - y) * sa
   check(/c\.rgb \+= max\(\(c\.rgb - blur\) \* 0\.4, -0\.5 \* c\.rgb\);/.test(frag),
     "the unsharp mask's undershoot is not clamped: a dark pixel beside a lamp goes through zero and comes back as the floor's colour");
   console.log(`grade      neutraliser ${def("uBlackNeutral")} to luma ${def("uNeutralTo")}, after vibrance (gated ${gate ? `${gate[1]}..${gate[2]}` : "-"}), before the dither; undershoot clamped  ${verdict()}`);
+
+  // --- 1b. The neutraliser takes casts and leaves lights ------------------
+  //
+  // Its gate read luma alone at first, and luma weighs blue at 0.0722: a
+  // plainly visible 0,0,108 was "black" and came out at 3.6,3.6,61.3, the
+  // police lens's 2,2,82 at 4.7,4.7,47.4. The gate is now how bright the
+  // pixel is by its brightest channel too. This runs the stage's OWN two
+  // expressions, lifted out of the shader the way section 2 runs
+  // setManualExposure's, on colours as they arrive at the stage: every
+  // cast the stills measured must be treated EXACTLY as the luma gate
+  // treated it (that is what the stage was built and measured for), and
+  // the lights must keep their colour. tests/grade.mjs asks the same of
+  // the real shader on the GPU, through the whole grade.
+  const lNdecl = /float lN = luma\(c\.rgb\);/.test(frag);
+  const vNexpr = /float vN = ([^;]+);/.exec(frag)?.[1];
+  const keepExpr = /c\.rgb = mix\(vec3\(lN\), c\.rgb, (.+)\);/.exec(frag)?.[1];
+  check(lNdecl, "the neutraliser no longer mixes toward the pixel's own luma — it is meant to move colour, not depth");
+  check(!!vNexpr && !!keepExpr, "could not find the neutraliser's gate (float vN = ...) and its mix in the shader");
+  check(!!keepExpr && /smoothstep\(0\.0, uNeutralTo, vN\)/.test(keepExpr), `the neutraliser's fade is not on vN: ${keepExpr}`);
+  if (vNexpr && keepExpr) {
+    const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const stage = new Function("c", "lN", "max", "smoothstep", "uBlackNeutral", "uNeutralTo",
+      `const vN = ${vNexpr}; return ${keepExpr};`);
+    // The factor the stage scales a colour's chroma by (the mix is toward
+    // its own luma, so chroma out / chroma in is exactly this).
+    const keep = (rgb, gateOnLuma = false) => {
+      const [r, g, b] = rgb.map((v) => v / 255), lN = Y([r, g, b]);
+      const c = { r, g, b };
+      return gateOnLuma
+        ? 1 - def("uBlackNeutral") * (1 - smoothstep(0, def("uNeutralTo"), lN))
+        : stage(c, lN, Math.max, smoothstep, def("uBlackNeutral"), def("uNeutralTo"));
+    };
+    // The casts: the 4K stills' darkest 2% (lock, brake, drift, traffic,
+    // and the daylight driver's 28,9,14, the most saturated at 2.09x),
+    // and tests/grade.mjs's brown and red-brown.
+    const casts = [[33, 23, 19], [33, 16, 16], [37, 23, 22], [65, 47, 26], [28, 9, 14], [14, 8, 4], [20, 9, 8]];
+    const moved = casts.filter((c) => Math.abs(keep(c) - keep(c, true)) > 1e-9);
+    check(moved.length === 0, `the gate moved casts the stage was measured on: ${moved.map((c) => `${c} ${F(keep(c, true), 3)} -> ${F(keep(c), 3)}`).join("; ")}`);
+    // ...and still takes at least half of a deep toe cast whose weakest
+    // channel has gone, however saturated (2.2x to 2.9x its luma, at
+    // and past where the gate leaves luma): at 4 to 12 levels both
+    // measures are near zero. The luma gate kept 0.46 / 0.42 / 0.44 of
+    // these; reading the brightest channel whole (an HSV value) would
+    // keep 0.67 of 12,3,3.
+    const deep = [[12, 3, 3], [6, 2, 1], [2, 4, 12]];
+    for (const c of deep) check(keep(c) <= 0.5,
+      `a deep cast ${c} keeps ${F(keep(c), 3)} of its colour (the luma gate took it to ${F(keep(c, true), 3)}) — the gate has stopped reaching the blacks`);
+    // The colours: a tail-lamp red, navy paint, the police lens at
+    // emissive 0.1 and saturated blues, all of which luma calls dark.
+    const lights = [[[40, 8, 8], 0.85], [[6, 14, 48], 0.9], [[2, 2, 82], 0.95], [[0, 0, 108], 0.95], [[0, 0, 60], 0.95], [[0, 0, 227], 0.95]];
+    for (const [c, want] of lights) check(keep(c) >= want,
+      `${c} keeps only ${F(keep(c), 3)} of its colour through the neutraliser (luma ${F(Y(c) / 255, 3)}) — it is greying colours and lights, not blacks`);
+    console.log(`neutral    gate ${vNexpr}: casts ${casts.length - moved.length}/${casts.length} as the luma gate had them; ` +
+      `deep ${deep.map((c) => F(keep(c), 2)).join(" / ")}; colours ${lights.map(([c]) => `${c} ${F(keep(c), 2)} (was ${F(keep(c, true), 2)})`).join(", ")}  ${verdict()}`);
+  }
 }
 
 // --- 2. The stills keep a quarter of the lift at EV+1 --------------------
