@@ -82,18 +82,18 @@ def page(layout, ship):
     css = f"""
 @font-face {{ font-family: RK; src: url(data:font/woff2;base64,{font('reemkufi-700.woff2')}) format('woff2'); }}
 @font-face {{ font-family: STM; src: url(data:font/woff2;base64,{font('sharetechmono-400.woff2')}) format('woff2'); }}
-@font-face {{ font-family: Cairo; src: url(data:font/woff2;base64,{font('cairo-500.woff2')}) format('woff2'); }}
+@font-face {{ font-family: Cairo; src: url(data:font/woff2;base64,{font('cairo-700.woff2')}) format('woff2'); }}
 html, body {{ margin: 0; background: {BG}; }}
 .c {{ width: var(--w); height: var(--h); display: flex; align-items: center; justify-content: center;
       gap: var(--gap); flex-direction: var(--dir); color: {INK}; }}
 .ship {{ width: var(--ship); }}
 .ship svg {{ display: block; width: 100%; height: auto; }}
 .t {{ display: flex; flex-direction: column; align-items: var(--align); }}
-.ar {{ font-family: RK; font-weight: 700; font-size: var(--ar); line-height: 1.2; }}
+.ar {{ font-family: RK; font-weight: 700; font-size: var(--ar); line-height: 1.4; text-rendering: geometricPrecision; }}
 .en {{ font-family: STM; font-size: var(--en); letter-spacing: .32em; margin-inline-end: -.32em;
        color: {SOFT}; direction: ltr; margin-top: .2em; }}
 .rule {{ width: 100%; height: 2px; background: linear-gradient(90deg, transparent, {DIM}, transparent); margin: .5em 0 .3em; }}
-.tag {{ font-family: Cairo; font-size: calc(var(--en) * .95); color: {DIM}; }}
+.tag {{ font-family: Cairo; font-weight: 700; font-size: calc(var(--en) * .95); color: {SOFT}; line-height: 1.5; text-rendering: geometricPrecision; }}
 """
     vars_ = {
         "stacked": "--w:1600px;--h:1600px;--dir:column;--gap:56px;--ship:900px;--ar:200px;--en:44px;--align:center",
@@ -115,7 +115,7 @@ def main():
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME)
         for name, (w, h) in sizes.items():
-            pg = b.new_page(viewport={"width": w, "height": h})
+            pg = b.new_page(viewport={"width": w, "height": h}, device_scale_factor=2)
             html = page(name, ship)
             (HERE / f"{name}.html").write_text(html)
             pg.set_content(html); pg.wait_for_timeout(600)
