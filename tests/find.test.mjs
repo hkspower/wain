@@ -43,7 +43,9 @@ async function fresh(path) {
 console.log('\n── the dial no longer opens its own panel ──');
 {
   const { ctx, p, errors } = await fresh('/');
-  const dial = p.locator('a[href="/find/"]');
+  // The sun itself: since 3 October the home page has a second link to /find,
+  // the desktop «ابدأ» bar (StartBar.tsx), hidden while the sun is in view.
+  const dial = p.locator('a[href="/find/"][data-hero-sun]');
   ok('the dial is a link to /find', await dial.isVisible());
   ok('it no longer promises a distance figure', !(await p.locator('text=كم حواليك').count()));
   // Less text, on request: the question and one thing to do. It carried four

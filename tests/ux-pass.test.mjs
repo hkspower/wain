@@ -15,6 +15,7 @@ import { chromium } from 'playwright';
  *      place page has one way back, not two stacked.
  *   4. A desktop's first screen of the home page has something to press,
  *      until the sun itself is on screen — and a phone never sees that bar.
+ *   5. The sun is one round button you can feel (asked the same day).
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -149,6 +150,59 @@ const bar = async (p) => (await one(p, '[data-start-bar]', (e) => ({
   await p.waitForTimeout(500);
   const b = await bar(p);
   ok('a phone, where the sun is in the first screen, never sees the bar', !b.missing && !b.shown && b.inert, JSON.stringify(b));
+  await ctx.close();
+}
+
+console.log('\n── 5. the sun is one round button you can feel ──');
+/**
+ * Asked the same day: «make sun like full button with active haptic feel».
+ * At rest the whole disc carries a rim (so the disc, not only the «ابدأ» pill,
+ * reads as the button); under the finger it sinks and the phone ticks; it
+ * springs back on release. The tick is the Vibration API — Android only, iOS
+ * Safari has none — so it is counted from a stub here, and the sinking is what
+ * every phone sees.
+ */
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await ctx.addInitScript(() => {
+    window.__buzz = [];
+    navigator.vibrate = (pattern) => { window.__buzz.push(pattern); return true; };
+  });
+  const p = await ctx.newPage();
+  await p.goto(`${B}/`, { waitUntil: 'networkidle' });
+  const read = () => p.evaluate(() => {
+    const sun = document.querySelector('[data-hero-sun]');
+    const face = sun?.querySelector('.hero-sun-face');
+    const label = sun?.querySelector('.hero-sun-label');
+    return {
+      pressed: sun?.hasAttribute('data-pressed') ?? null,
+      face: face ? getComputedStyle(face).boxShadow : '',
+      scale: label ? getComputedStyle(label).scale : '',
+      buzz: window.__buzz.length,
+    };
+  });
+  const rest = await read();
+  ok('at rest the whole disc carries a rim, so it reads as the button', /inset/.test(rest.face), rest.face);
+  ok('…and nothing is pressed yet', rest.pressed === false && rest.buzz === 0, JSON.stringify(rest));
+
+  const box = await p.locator('[data-hero-sun]').boundingBox();
+  await p.mouse.move(box.x + box.width / 2, box.y + box.height * 0.7);
+  await p.mouse.down();
+  await p.waitForTimeout(200);
+  const down = await read();
+  ok('under the finger it is pressed', down.pressed === true, JSON.stringify(down));
+  ok('…the phone ticks, once', down.buzz === 1, `${down.buzz} buzzes`);
+  ok('…the disc sinks: a shade from the top replaces the lift',
+    /inset/.test(down.face) && down.face !== rest.face, down.face);
+  ok('…and the label presses in', down.scale === '0.95', down.scale);
+
+  // Slide off and let go outside it: released, not followed.
+  await p.mouse.move(5, 5);
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const up = await read();
+  ok('released, it springs back', up.pressed === false && up.scale !== '0.95' && up.face === rest.face, JSON.stringify(up));
+  ok('…and a release is not a second tick', up.buzz === 1, `${up.buzz} buzzes`);
   await ctx.close();
 }
 

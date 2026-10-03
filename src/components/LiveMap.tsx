@@ -365,14 +365,17 @@ export default function LiveMap({
       {/* Zoom, in the site's own shapes rather than Leaflet's. Physical
           right/bottom: the page is RTL, geography is not, and a logical inset
           would put these over the map's east edge on one page and its west on
-          another. */}
+          another. 32px, not the 40px tap floor: they sit ON the map, where 40px
+          buttons covered a pin near the corner and made it untappable
+          (search-plan caught it, 3 October) — and a finger zooms by pinching
+          anyway. Exempt the way the pins are ([data-map-frame]). */}
       <div className="absolute bottom-3 right-3 z-30 flex flex-col overflow-hidden rounded-xl border border-line bg-white/95 shadow-sm">
         <button
           type="button"
           onClick={() => nudge(1)}
           disabled={zoom !== null && zoom >= MAX_ZOOM}
           aria-label="تكبير الخريطة"
-          className="grid size-8 min-h-tap min-w-tap place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
+          className="grid size-8 place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
         >
           +
         </button>
@@ -382,7 +385,7 @@ export default function LiveMap({
           onClick={() => nudge(-1)}
           disabled={zoom !== null && zoom <= MIN_ZOOM}
           aria-label="تصغير الخريطة"
-          className="grid size-8 min-h-tap min-w-tap place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
+          className="grid size-8 place-items-center text-lg font-semibold text-ink-700 transition hover:bg-sand-100 disabled:opacity-40"
         >
           −
         </button>

@@ -5321,6 +5321,27 @@ now. That is the fourth time this file records that shape. The app mirror
 (`test/ux_pass_test.dart`, 8, each proved red) took the same three changes;
 its category chips `go` to the Explore tab, as the rest of the app does.
 
+**Then the sun, asked the same day: «make sun like full button with active
+haptic feel».** The whole disc was always the link; only the «ابدأ» pill looked
+pressable. `HeroSun.tsx` (client, for the tick) gives the disc a light rim and
+a lift at rest; pressed, it sinks — an inner shade from the top, the rim
+dimmed, the label at 0.95 — with an 8ms `haptic("tap")`, and springs back. The
+state is `data-pressed`, held at least 140ms: iOS applies `:active` only to an
+element with a touch listener, and a tap that navigates releases within a
+frame. The tick is the Vibration API, so **an iPhone gets the sink and no
+tick** (lib/haptics.ts). The app's `_Sun` does the same with
+`HapticFeedback.mediumImpact()`, which does reach an iPhone; in a scroll view
+its tap-down only arrives after the 100ms press timeout, which the test pumps
+past (`sun_press_test.dart`, red with the haptic call removed). `ux-pass`
+section 5 is 6 red on the previous sun.
+
+**Making targets 40px broke a pin, and only a browser suite saw it.** The live
+map's zoom buttons took the tap floor, grew from 32 to 40px on touch, and
+covered a pin near the corner — `search-plan` could not tap it. They are 32px
+again, exempt like the pins (they sit on the map, and a finger pinches). And
+the desktop bar is a second `a[href="/find/"]` on the home page, so a bare
+`locator('a[href="/find/"]')` in `find.test` hit strict mode; it names the sun.
+
 Two things to know: `pkill -f <pattern>` matches the shell that runs it when
 the pattern is in its own command line, and exits 144 — use `pgrep -f
 "^node …"` and `kill`. And a map pin is still 32px on purpose (its position is

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import HeroSun from "@/components/HeroSun";
 import { HOME_HERO as H } from "@/lib/home-hero.g";
 
 /**
@@ -65,36 +65,16 @@ export default function HomeHero() {
         </picture>
 
         {/* The sun. Same name as the dial it replaces, so what it leads to is
-            said once, in the link, for the visitor who hears it. */}
-        <Link
-          href="/find"
-          data-hero-sun
-          aria-label="إلى وين؟ — اكتب أو كلّم شوق"
-          className="group absolute aspect-square rounded-full transition focus-visible:ring-offset-0"
+            said once, in the link, for the visitor who hears it. A button you
+            can feel since 3 October — HeroSun.tsx. */}
+        <HeroSun
           style={{
             left: `${H.sun.x - H.sun.r}%`,
             width: `${2 * H.sun.r}%`,
             top: `calc(${H.sun.y}% - ${H.sun.r}cqw)`,
           }}
-        >
-          {/* A ring that breathes out from the disc's rim, so the sun reads as
-              something to press. A ring and not a fill: a fill would wash
-              yellow over the Kuwait Towers standing in front of it. */}
-          <span aria-hidden="true" className="absolute inset-0 rounded-full ring-4 ring-sun-200 animate-pulse-ring" />
-          <span
-            aria-hidden="true"
-            className="absolute inset-0 rounded-full bg-white/0 transition group-hover:bg-white/10 group-active:bg-ink-900/5"
-          />
-          <span
-            className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[2cqw] text-center"
-            style={{ left: pct(labelCx), top: pct(labelCy), width: pct(labelW) }}
-          >
-            <span className="home-hero-title font-display font-bold text-ink-900">إلى وين؟</span>
-            <span className="home-hero-go rounded-full bg-ink-900 font-semibold text-sun-100 shadow-sm transition group-hover:bg-ink-800">
-              ابدأ
-            </span>
-          </span>
-        </Link>
+          labelStyle={{ left: pct(labelCx), top: pct(labelCy), width: pct(labelW) }}
+        />
 
       </div>
     </section>

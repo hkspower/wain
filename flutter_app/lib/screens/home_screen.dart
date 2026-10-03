@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
@@ -104,6 +105,30 @@ class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
     duration: const Duration(milliseconds: 2600),
   )..repeat();
 
+  /// The sun as one round button (3 October, as on the web): a rim at rest,
+  /// and under the finger it sinks with a haptic tap. Held for at least
+  /// [_pressHold] so a tap that navigates is still seen.
+  bool _pressed = false;
+  DateTime _since = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _pressHold = Duration(milliseconds: 140);
+
+  void _down() {
+    _since = DateTime.now();
+    setState(() => _pressed = true);
+    HapticFeedback.mediumImpact();
+  }
+
+  void _up() {
+    final left = _pressHold - DateTime.now().difference(_since);
+    if (left <= Duration.zero) {
+      if (mounted) setState(() => _pressed = false);
+    } else {
+      Future.delayed(left, () {
+        if (mounted) setState(() => _pressed = false);
+      });
+    }
+  }
+
   @override
   void dispose() {
     _pulse.dispose();
@@ -134,6 +159,9 @@ class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
         label: 'إلى وين؟ — اكتب أو كلّم شوق',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => _down(),
+          onTapUp: (_) => _up(),
+          onTapCancel: _up,
           onTap: () => context.push('/find'),
           child: Stack(
             clipBehavior: Clip.none,
@@ -141,7 +169,7 @@ class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
               // A ring that breathes out from the rim, so the sun reads as
               // something to press — a ring, not a fill, or it would wash yellow
               // over the Kuwait Towers in front of it. Off under reduced motion.
-              if (!MediaQuery.disableAnimationsOf(context))
+              if (!MediaQuery.disableAnimationsOf(context) && !_pressed)
                 Positioned.fill(
                   child: AnimatedBuilder(
                     animation: _pulse,
@@ -164,41 +192,86 @@ class _SunState extends State<_Sun> with SingleTickerProviderStateMixin {
                     },
                   ),
                 ),
+              // The face: a light rim and a lift at rest; pressed, a shade from
+              // the top and the rim dimmed — the disc sinking.
+              Positioned.fill(
+                child: AnimatedContainer(
+                  key: const ValueKey('home-sun-face'),
+                  duration: Duration(milliseconds: _pressed ? 60 : 160),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: WainColors.sand50.withValues(
+                        alpha: _pressed ? 0.2 : 0.55,
+                      ),
+                      width: 0.005 * pw,
+                    ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        WainColors.ink900.withValues(alpha: _pressed ? 0.3 : 0),
+                        WainColors.ink900.withValues(
+                          alpha: _pressed ? 0.06 : 0,
+                        ),
+                      ],
+                    ),
+                    boxShadow: [
+                      if (!_pressed)
+                        BoxShadow(
+                          color: WainColors.sun700.withValues(alpha: 0.35),
+                          offset: Offset(0, 0.012 * pw),
+                          blurRadius: 0.03 * pw,
+                          spreadRadius: -0.006 * pw,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
               Positioned.fromRect(
                 rect: label,
                 child: ExcludeSemantics(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'إلى وين؟',
-                        maxLines: 1,
-                        style: wainText(
-                          math.max(20.0, 0.062 * pw),
-                          weight: FontWeight.w700,
-                          color: WainColors.ink900,
-                        ),
-                      ),
-                      SizedBox(height: 0.02 * pw),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 0.048 * pw,
-                          vertical: 0.012 * pw,
-                        ),
-                        decoration: BoxDecoration(
-                          color: WainColors.ink900,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          'ابدأ',
+                  child: AnimatedScale(
+                    key: const ValueKey('home-sun-label'),
+                    scale: _pressed && !MediaQuery.disableAnimationsOf(context)
+                        ? 0.95
+                        : 1,
+                    duration: Duration(milliseconds: _pressed ? 60 : 220),
+                    curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'إلى وين؟',
+                          maxLines: 1,
                           style: wainText(
-                            math.max(11.0, 0.034 * pw),
-                            weight: FontWeight.w600,
-                            color: WainColors.sun100,
+                            math.max(20.0, 0.062 * pw),
+                            weight: FontWeight.w700,
+                            color: WainColors.ink900,
                           ),
                         ),
-                      ),
-                    ],
+                        SizedBox(height: 0.02 * pw),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 0.048 * pw,
+                            vertical: 0.012 * pw,
+                          ),
+                          decoration: BoxDecoration(
+                            color: WainColors.ink900,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            'ابدأ',
+                            style: wainText(
+                              math.max(11.0, 0.034 * pw),
+                              weight: FontWeight.w600,
+                              color: WainColors.sun100,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
