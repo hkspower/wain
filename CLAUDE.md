@@ -5114,6 +5114,11 @@ app started, the binding installed and the first flow ran.
 
 ## «معالم الكويت» under the hero — 2 October, night (built, NOT live)
 
+**Superseded the next night** by «معالم الكويت» redesigned (below): the
+slideshow is direction A now, the pictures reach the category's cards and
+place pages, and the deploy refusal is three-way. The flow and node ids here
+are still the ones to run.
+
 Asked: «make realistic animation for famous kuwait places under main hero».
 The owner chose AI-generated realistic pictures, six landmarks, each one
 tappable, on the site and in the app. From the design canvas
@@ -5368,6 +5373,162 @@ the pattern is in its own command line, and exits 144 — use `pgrep -f
 "^node …"` and `kill`. And a map pin is still 32px on purpose (its position is
 its meaning); the test that measures chips excludes `[data-map-frame]` as
 `audit:mobile` does.
+
+## «معالم الكويت» redesigned — 3 October, night (built, NOT live)
+
+Asked: «improve kuwait famous places design /design». The owner chose both
+surfaces (the slideshow under the hero, and the «معالم الكويت» category's five
+places wherever they appear), realistic AI pictures, everywhere with a small
+label, and the canvas first: the image account still has 0 credits. From the
+canvas (https://claude.ai/artifact/7ytCHozZXJcfoWX2uGNoaK) they picked:
+
+- slideshow **A «القصة»**, at six landmarks;
+- **card A**: the picture in the card's own 56px band;
+- the page top at **3:2**, the whole picture;
+- tag **T1**, a solid ink chip.
+
+Alt: `alt=""` on cards and slides (the tag is `aria-hidden`, the link names
+the place); on a place page, «صورة توضيحية: <what the approved picture shows>».
+
+**`photos.ts`'s rule is rewritten, on the owner's word.** A generated picture
+now goes on a landmark's card and page top, but never into `PHOTOS`, always
+tagged «صورة توضيحية», and a real photograph still wins: photo → tagged
+picture → drawing.
+
+**Nothing visible changes on the live site, by construction.** Every slot asks
+`landmark-gate.ts`'s `shown()`: the slideshow is all or nothing, and a card or
+page top goes place by place. With all eight still stand-ins, a normal build
+renders exactly what it did before, and `gen-landmarks --prune-out` ships none
+of the 68 picture files («0 shipped, 68 left out»).
+`NEXT_PUBLIC_SHOW_STANDINS=1` is the preview: stand-ins shown, each flagged
+orange «رسم مؤقت», and `<html data-preview="stand-ins">`.
+
+**The pieces that are easy to get wrong:**
+
+- **The preview switch is a `next.config.ts` `env` define, because of a
+  bundle.** PlaceCard reaches client bundles, so `landmark-cards.g.ts` does
+  too. Read as plain `process.env`, the stand-in entries stayed in /explore's
+  JavaScript, naming 20 files the export had pruned; `audit:assets` caught it.
+  `env` makes the switch a constant in every build ("0" or "1"), the stand-ins
+  sit inside `...(cond ? [...] : [])`, and a normal build folds them away.
+  `landmarks.g.ts` is server-only, and `audit:js` §8 fails if a chunk names one
+  of its 3:2 files.
+- **`deploy:plan` refuses a drawing three ways** (`scripts/lib/stand-ins.mjs`):
+  a stand-in's own file in the archive, a page (.html or the router's .txt)
+  naming one, or the preview marker. `tests/stand-ins.test.mjs` proves both
+  outcomes, on `out/` and on small archives made for it.
+- **A file name carries everything that decides its bytes**: master, focus,
+  sizes, budgets and qualities. Names used to hash the master alone, so a
+  re-cut or a new budget re-encoded under the old name — which `.htaccess`
+  lets a browser keep for a week. The generator also writes only what changed,
+  because a rewritten-but-identical file is newer than the export and the
+  browser suites refuse a stale build.
+- **The slideshow is `next/dynamic` (`LandmarksShowLazy.tsx`), and the reason
+  is every other page.** The home page's own chunk (`app/page`) is loaded on
+  ten other routes: Next records a client module against the first route that
+  included it, and `next/link` (module 2619 in this build) was first seen on
+  the home page. So a route whose server markup has a Link loads the home
+  chunk to get it. The rebuilt slideshow put 2.4K on /search, /explore, /find,
+  the 404 and more, while rendering nowhere — and the old one had leaked 2.4K
+  the same way since 2 October. Against HEAD, both builds measured: +0.3K
+  shared, +0.9–1.0K on the routes with cards (/search 169.2K of 175K), +0.4K
+  elsewhere. **Whatever `app/page.tsx` imports directly ships to every route
+  with a server-rendered Link**, so put a home-only client component behind
+  `dynamic`.
+
+**Web.**
+- **The card band** holds a 3:1 strip cut around the landmark when it was made
+  (`focus` in the generator's TABLE). The tag sits bottom-end and the rating
+  chip is unchanged; the other 47 cards are untouched.
+- **The page top** is `aspect-[3/2] max-w-xl`, eager and high priority.
+  Drawings keep 18:5 (`data-hero-kind`), and `audit:hero` holds both shapes.
+- **The slideshow (A):**
+  - a box of fixed shape: 6:5 on a phone, 2:1 from `sm` inside `max-w-6xl`;
+  - story bars that are both the clock (CSS `landmark-fill`, 6s, with
+    `onAnimationEnd` advancing) and the way to jump (44px tall, labelled
+    «١ من ٦، …»);
+  - a pause pill that says its word;
+  - mouse hover, keyboard focus and a hidden tab all hold it;
+  - a swipe with `touch-action: pan-y`, and the drift on the slide on screen
+    only.
+- **Three traps the tests found:**
+  1. The `<img>` is natively draggable, so a mouse swipe dragged the picture
+     and no `pointerup` came. Fixed with `onDragStart` → `preventDefault`.
+  2. The click after a drag opened the place. RouteTransitions takes link
+     clicks in the document's capture phase, before the link's own handler
+     can cancel, so the click is eaten by a one-shot capture listener on
+     `window`.
+  3. Under reduced motion, the global rule sets every duration to 0.01ms with
+     `!important`. That fired the bar's `animationend` at once and moved the
+     show on every frame. Fixed with `animation: none !important` on the bars
+     plus a JS guard. **Its first test passed with both guards removed**,
+     because Playwright's click is a mouse and hovering holds the show; it
+     taps now and counts `animationend`.
+- `audit:home-hero` checks the caption against the worst picture: white text
+  needs ≥82% dark under 14px and ≥70% under 20px bold. The fade (90% → 80% at
+  45%) was proved red with a lighter one.
+- **Two more, found only on the preview build** (a normal build never renders
+  the slideshow, so its audits could not see them). `audit:padding` read the
+  box's wrapper — capped, no padding — as a home page with a 0px gutter on a
+  phone; the cap is `lg:` only now, since below lg the box is a picture edge
+  to edge, not a page. And the preview's «رسم مؤقت» sat inside the drifting
+  picture, which carried it half out of the box; it is a sibling of the drift
+  now, on the site and in the app.
+- `tests/landmarks.test.mjs` branches on the `<html>` marker: 19 checks on a
+  normal build, 76 on a preview. Every web sabotage went red with the build
+  green:
+  - a see-through tag;
+  - the band at `h-20`;
+  - the hero at 18:5;
+  - a full-width desktop box;
+  - a jump that does nothing;
+  - pause leaving the drift running;
+  - no tag;
+  - no swipe;
+  - no click-eater;
+  - no reduced-motion guards;
+  - the switch forced on in a normal build;
+  - the flag back inside the drift (5 of 5 widths).
+
+  The new `audit:js` §8 went red when a client component imported
+  `landmarks.g.ts`, naming the chunk and the file.
+
+**App** (mirrored by an agent, then reviewed):
+- New files: `landmark_gate.dart` (`debugShowStandIns`, `WAIN_SHOW_STANDINS`),
+  `illustrative_tag.dart` and `landmark_picture.dart`.
+- **The card band shows the web's own strip bytes.** The generator writes
+  `<slug>-card.webp`, byte-identical to `card-960.webp`, shown cover/centred,
+  so the app shows the same cut as the site.
+- **The band's two badges stop growing at 1.15× text**
+  (`kCardBadgeMaxScale`). The rating and the tag met at 1.3× on a 320 phone.
+  This applies to all 52 cards' bands, so one rating is never drawn at two
+  sizes side by side.
+- **A widget test measures the test font unless told otherwise.** Every glyph
+  is a square, so «رسم مؤقت» measured twice its real width and an overlap
+  appeared that no phone draws. `landmark_picture_test` loads IBM Plex.
+- **Pre-existing, not fixed:** at 2× text, a 145dp card overflows its area row
+  (kuwait-towers'), with the icon as much as with the picture.
+- Suite 645, up from 605. Every new test was proved red: 23 sabotages by the
+  agent and 4 more after review (the clamp, the strip, the flag, the flag
+  riding the drift — 13.7px out of the box five seconds in).
+
+**Size:** 68 web files (644K) and 13 app files (168K) of drawn stand-ins are
+in git for good. The real pictures will replace them, not reclaim them.
+
+**Stage 3, once there are credits** (~5,000 leaves room for retakes; a picture
+is ~409):
+1. Add a composition clause to every prompt: the whole landmark, base to top,
+   in the middle ~60% of the frame.
+2. Add two nodes to flow `oN50F7f8UTyt8QLANgF9`, for al-hamra-tower and
+   sheikh-jaber-causeway.
+3. Pilot kuwait-towers, which is in all three slots. Then the rest one at a
+   time, each with the owner's yes.
+4. Write each picture's `focus` and `alt` into TABLE, run `npm run landmarks`,
+   and take preview screenshots.
+5. Get the owner's yes, then deploy.
+
+**Not measured:** the real pictures, any of it on a real phone, and the app on
+a device.
 
 ## Style
 
