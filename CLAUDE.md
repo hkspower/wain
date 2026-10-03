@@ -5751,6 +5751,112 @@ APKs, its emulator job in «Run the device suite» from 17:27 — the known hang
 **Not measured**: real map tiles inside the chat (refused here), any of it on a
 phone, the app on a device.
 
+## The hangout, dated and on the calendar — 3 October, night (built, NOT deployed)
+
+Asked: «full improve hangout setup». The owner picked all of it: the plan
+carries its date; «أضفها للتقويم»; the rough edges (the failed send, the
+layout jump, five choices everywhere, heat per hot place, a vote with a link);
+a fuller shortlist message; «عقب المغرب» as a time; «رسّلها» on Explore's cards
+and the home picks; site and app; **build and show, do not deploy**. Web
+`16b329c1` + the components commit, app in its own commit. The live site is
+still `df8c4af2`.
+
+**The link carries the day it was sent** (`d=YYYY-MM-DD`, Kuwait's calendar
+day, `lib/plan-date.ts`; the Dart twin `share/plan_date.dart`). It is the
+defect that made this worth doing: «الليلة الساعة ٨» forwarded on Tuesday
+read as tonight on Thursday, and only the four evening slots could ever be
+«راحت». `resolvePlan(when, day, now)` answers date, hour (`fixed` for a
+«tonight» hour, `approx` for sunset, `default` 20:00 for «باچر»/«الويكند» —
+**never printed, only for the calendar**, flagged there — or none) and
+`passed`. Weekend: Sun–Thu → the coming Friday, **Friday → Saturday**, Sat →
+next Friday. A link with no `d` behaves exactly as before — every old fixture
+case still passes. «باچر» becomes «باچر الجمعة» when the day is known.
+
+**«عقب المغرب»** (`sunset`, after «بعد ساعة», gone from 19:00) with a 12-month
+sunset table (`SUNSET_KW`, 16:55–18:55) that only the calendar reads, always
+«تقريباً». It is the **default** for a place the summer sun ruins (not
+indoor, not `summerOk`) while it is still on offer — the one time rule the
+voice lines already apply, now in the chips. That moved the suite's August
+expectation («open-air at 09:00 → tonight-8» became sunset) and added a chip
+row: **the app's panel test had to `ensureVisible` the send button**, which
+had dropped past 800px with four places listed.
+
+**The calendar** (`lib/hangout-calendar.ts`, `share/hangout_calendar.dart`):
+one VEVENT, UID `<day>-<when>-<slug>@wainkw.com`, UTC `Z` stamps two hours
+long, SUMMARY «طلعة — name», the phrase + note + maps + link in DESCRIPTION,
+**folded at 75 octets without splitting a code point** (74 on a continuation
+line), and a Google «add this» URL with `ctz=Asia/Kuwait`. The Dart copy is
+held **byte for byte** against 24 web entries (3 places × 4 whens × 2
+instants) in `kit_parity_test`, beside 432 `resolvePlan` readings. `now`/
+`soon` get no button (a plan for the next hour needs no reminder); nor does a
+shortlist (nobody has chosen). Web: a blob `<a download>` plus the Google
+link, after a send, on a live invitation, after a vote. App: Android opens
+Google's page first, iOS the share sheet with the file first
+(`fileNameOverrides` is **required** — `XFile.fromData` ignores `name` and the
+sheet would be handed `<uuid>.ics`), each falling back to the other.
+**`https://calendar.google.com` is a link, not a fetch**: `audit:htaccess`
+read it in the bundle and wanted it in `connect-src`; it is in
+`NO_DIRECTIVE_NEEDED` with the reason.
+
+**The rough edges.** The panel's shell is in the HTML now (chips `aria-busy`
+until the clock is known) — it used to render nothing until mount, so a place
+page drew its lower half and then grew a panel into it. A send nothing took
+shows **the text itself** in a read-only box with its own «انسخ» — «انسخ
+الرابط من فوق» pointed, on /search and in سالم's chat, at an address bar with
+no invitation in it. A passed invitation has a real «اقترح وقت ثاني» that
+scrolls to `#share`. The shortlist message numbers each place with its line,
+its own heat warning when it bakes, and its map link, and the vote carries the
+place's dated link. `CHOICE_MAX = 5` on /search and in سالم (the chat had no
+cap).
+
+**«رسّلها» on a card** (`PlaceCard shareable`, Explore and the home picks
+only — /pick and سالم's rail already sit beside a panel): a white 32px disc in
+the band's end corner, a 40/48 target, `/places/<slug>/#share`. The
+illustrative tag moves to the start corner under it. In the app the same
+button pushes `?share=1`, which `PlaceDetailScreen` scrolls to after its first
+frame; **its Semantics needs `container: true`** or the card's own label folds
+it in and a screen reader never meets it. **The app's button sits at the
+bottom-end, not the web's top-end**: a 56 band has four corners and a preview
+card has four badges — rating, flag, tag, button — and the preview test
+(`landmark_picture_test`) found the bottom row cannot hold the tag beside the
+«رسم مؤقت» flag on a 320 phone at the 1.15× clamp. So the flag keeps the top,
+the button takes the corner under it, with its 32 disc hugging the bottom of
+its 48 target so only the invisible margin reaches the flag. **The web's
+preview build was not rebuilt for this** — whether its flag and share button
+collide on a shareable card is unread.
+
+**/search went over the JS budget, and the fix was not in the hangout.** With
+the components in, `/search` read 178.0K against the 176K the constant says
+was raised «deliberately and once». The calendar module is behind a dynamic
+import in `AddToCalendar` (nobody pays for ICS text until they ask for it),
+and that was not enough. What was: **`LiveTray` in the root layout imported
+`orders.ts` and `queue.ts` on every route** — ~6K gzipped with their row
+mapping, paid by every visitor, for a feature 0 of 52 places offer. The keys
+live in `lib/live-keys.ts` now (no other import), the hooks read the raw
+`localStorage` value for free and `import()` the modules only on a device that
+holds something. Shared 123.2K → **117.2K**, `/search` **174.6K**, `/privacy`
+118.1K; `test:orders` (the tray with a seeded order, both suites) still green.
+**A budget breach is a reason to look at the whole route, not only at the
+change that tipped it.**
+
+**Gates.** `scan` exit 0, `test:hangout` 15/15 (the new assertions in
+`hangout.test` 146, `hangout-page`, `together` §8), `test:journey` 40,
+`test:orders`; the sabotage round (shell gone, failed block gone, the banner
+and /pick ignoring the day, no card shareable) went red where it should —
+see the commit. App: analyze clean, **1246** tests (from 1225), `audit:flutter` current;
+`hangout_dated_test` (14) proved red five ways (no card shareable, «اقترح
+وقت ثاني» inert, no calendar after a send, the vote's link without its day,
+the failed send showing nothing) and `landmark_picture_test` carries the
+corner rules above. Two app tests were **stale, not
+wrong**: the /pick vote now carries its link, and the سالم rail's
+`_railSlugs` read the panel's choices as the whole answer — the rail is a lazy
+list, so it reads `_PlacesResult.places` by name now.
+
+**Not measured:** a calendar app importing the `.ics` (iPhone Safari's
+handling of a blob download, the iOS share sheet's offer for an `.ics`,
+Android's Google page), WhatsApp's rendering of the longer message, the share
+button under a real thumb, and any of the app on a device.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
