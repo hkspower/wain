@@ -229,7 +229,7 @@
     '.sts-title{position:relative;margin:0 0 14px;padding:0;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
     'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
     '.sts-panel{display:flex;align-items:center;justify-content:center;min-height:200px;padding:28px 20px;border-radius:16px;' +
-    'background:#e0561c url(/assets/features.webp) center/cover no-repeat;}' +
+    'background:var(--brand,#e0561c) url(/assets/features.webp) center/cover no-repeat;}' +
     '.sts{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;width:100%;max-width:300px;}' +
     // White on the brand orange is 3.7:1, so the text is LARGE bold (>=18.66px, 700): AA for large text.
     '.sts-item{display:flex;align-items:center;gap:14px;padding:0;border:0;background:none;color:#fff;}' +

@@ -93,6 +93,7 @@ const PARTS = [
   ['4-promo.mysql.sql', 'promo — hero slides, settings, promotions and discounts'],
   ['5-missing-variants.sql', 'sizes — the size rows fifteen seeded garments lack'],
   ['wallet.mysql.sql', 'wallet — Apple Wallet passes', API],
+  ['walletweb.mysql.sql', 'wallet live updates — card tokens and registered phones', API],
   ['7-returns.sql', 'returns — return and exchange requests'],
   ['8-email-otp.sql', 'email OTP — the admin\'s second factor by email'],
   // AND THE SAME DRIFT AGAIN, which is what this script was written to stop.

@@ -82,11 +82,15 @@
       if (!f || !f.columns || !f.columns.length) return
       columns = f.columns
       run()
-      new MutationObserver(function () {
+      var mo = new MutationObserver(function () {
         if (ours || queued) return
         queued = true
         requestAnimationFrame(function () { queued = false; run() })
-      }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['lang'] })
+      })
+      mo.observe(document.body, { childList: true, subtree: true })
+      // The language lives on <html>, which is OUTSIDE body: watched on its own, or a switch is only
+      // noticed when something else in the page happens to change.
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
     })
     .catch(function () { /* the built-in footer stays */ })
 })()

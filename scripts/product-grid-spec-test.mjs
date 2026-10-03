@@ -33,6 +33,15 @@ sql(`update products set sale_price = 6.5 where slug='${SLUG}'`)
 // compares nothing and passes on any CSS at all. The bundle's "Bestseller" pill is NOT the API's
 // `featured` — it is baked into the bundle's own product list by slug (measured: featured = 1 drew
 // no pill) — so the sale goes on a product the bundle already calls a bestseller.
+// A PHOTOGRAPHED card is the fixture the white-ground check needs, and a fresh sandbox has none: the
+// rig used to pass only when some other rig had left a photo behind. It plants a real 40x50 white PNG
+// (sort 9999, marked by its hash) when the product has no photo, and removes exactly that row after.
+const PHOTO_MARK = 'f'.repeat(64)
+const plantPhoto = sql(`select count(*) from product_images where slug='${SLUG}'`) === '0'
+if (plantPhoto) {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAACgAAAAyCAIAAACh0Q7HAAAAL0lEQVR4nO3NMQEAAAwCIPuX1hg7BgVIj0QsFovFYrFYLBaLxWKxWCwWi8Xiz/EAwBVZ6ueucREAAAAASUVORK5CYII='
+  sql(`insert into product_images (slug, sort, image, image_hash, image_w, image_h) values ('${SLUG}', 9999, 'data:image/png;base64,${png}', '${PHOTO_MARK}', 40, 50)`)
+}
 const BEST = 'cagliari-calcio-backpack'
 const hadBestSale = sql(`select coalesce(sale_price,'NULL') from products where slug='${BEST}'`)
 sql(`update products set sale_price = price - 1 where slug='${BEST}'`)
@@ -150,6 +159,7 @@ try {
   }
 } finally {
   await br.close()
+  if (plantPhoto) sql(`delete from product_images where slug='${SLUG}' and image_hash='${PHOTO_MARK}'`)
   sql(hadAttr ? `update product_attrs set colour='${hadAttr}' where slug='${SLUG}'` : `delete from product_attrs where slug='${SLUG}'`)
   sql(hadSale === 'NULL' ? `update products set sale_price = NULL where slug='${SLUG}'` : `update products set sale_price = ${hadSale} where slug='${SLUG}'`)
   sql(hadBestSale === 'NULL' ? `update products set sale_price = NULL where slug='${BEST}'` : `update products set sale_price = ${hadBestSale} where slug='${BEST}'`)

@@ -1045,6 +1045,7 @@ function store_wallet_push(array $tokens): void {
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2_0, CURLOPT_TIMEOUT => 8,
                 CURLOPT_HTTPHEADER => ['apns-topic: ' . WALLET_PASS_TYPE_ID, 'apns-push-type: background', 'apns-priority: 5'],
                 CURLOPT_SSLCERT => "$dir/pass.pem", CURLOPT_SSLKEY => "$dir/pass.key",
+                CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
             ]);
             curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);

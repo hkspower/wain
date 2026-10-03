@@ -454,7 +454,7 @@ if ($ownTitle !== null || $ownDesc !== null) {
     if ($ownDesc !== null)  $head .= ' data-desc="' . e($ownDesc) . '"';
     $head .= " />\n";
 }
-if (isset($returnDaysMeta)) $head .= '  <meta name="sporta-return-days" content="' . (int) $returnDaysMeta . "\" />\n";
+if (isset($returnDaysMeta)) $head .= '  <meta name="sporta-return-days" content="' . e((string) (int) $returnDaysMeta) . "\" />\n";
 if ($verification !== '') {
     $head .= '  <meta name="google-site-verification" content="' . e($verification) . "\" />\n";
 }

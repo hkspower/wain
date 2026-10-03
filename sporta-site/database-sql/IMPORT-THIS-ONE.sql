@@ -23,24 +23,25 @@
 --   4. 4-promo.mysql.sql      hero slides, settings, promotions and discounts
 --   5. 5-missing-variants.sql the size rows fifteen seeded garments lack
 --   6. wallet.mysql.sql       Apple Wallet passes
---   7. 7-returns.sql          return and exchange requests
---   8. 8-email-otp.sql        the admin's second factor by email
---   9. 9-product-brands.sql   which brand each garment belongs to
---   10. 10-must-change-password.sql force a new password after a cron-set temporary one
---   11. 11-admin-audit-log.sql every admin write, logged centrally
---   12. 12-known-login-ips.sql which addresses have signed an admin in before
---   13. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
---   14. assistantqa.mysql.sql  the answers the shop writes itself
---   15. customernotes.mysql.sql private notes and tags per customer
---   16. categoryart.mysql.sql  the home tile pictures, when the owner replaces them
---   17. homebanner.mysql.sql   the product banner above the categories, edited in /backends
---   18. seo.mysql.sql          per-product search titles and the default share picture, edited in /backends
---   19. productattrs.mysql.sql colour and fits picked in /backends
---   20. productthumbs.mysql.sql resized once, read back
---   21. stocklog.mysql.sql     every change to a stock count
---   22. admindevices.mysql.sql the /backends passcode unlock
---   23. adminreset.mysql.sql   forgot-password by email at /backends
---   24. adminloginlog.mysql.sql every attempt with address and country
+--   7. walletweb.mysql.sql    card tokens and registered phones
+--   8. 7-returns.sql          return and exchange requests
+--   9. 8-email-otp.sql        the admin's second factor by email
+--   10. 9-product-brands.sql   which brand each garment belongs to
+--   11. 10-must-change-password.sql force a new password after a cron-set temporary one
+--   12. 11-admin-audit-log.sql every admin write, logged centrally
+--   13. 12-known-login-ips.sql which addresses have signed an admin in before
+--   14. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
+--   15. assistantqa.mysql.sql  the answers the shop writes itself
+--   16. customernotes.mysql.sql private notes and tags per customer
+--   17. categoryart.mysql.sql  the home tile pictures, when the owner replaces them
+--   18. homebanner.mysql.sql   the product banner above the categories, edited in /backends
+--   19. seo.mysql.sql          per-product search titles and the default share picture, edited in /backends
+--   20. productattrs.mysql.sql colour and fits picked in /backends
+--   21. productthumbs.mysql.sql resized once, read back
+--   22. stocklog.mysql.sql     every change to a stock count
+--   23. admindevices.mysql.sql the /backends passcode unlock
+--   24. adminreset.mysql.sql   forgot-password by email at /backends
+--   25. adminloginlog.mysql.sql every attempt with address and country
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -1863,6 +1864,24 @@ create table if not exists wallet_passes (
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create index if not exists idx_wallet_phone on wallet_passes (kind, phone);
+
+-- ========================================================================
+-- wallet live updates — card tokens and registered phones
+-- (walletweb.mysql.sql)
+-- ========================================================================
+
+-- Apple Wallet live updates (2026-10-03): a per-card token for Apple's update service, and the
+-- phones each card is installed on. Safe to run twice. Run AFTER wallet.mysql.sql.
+alter table wallet_passes add column if not exists auth_token varchar(64) null;
+
+create table if not exists wallet_registrations (
+  device_id   varchar(64)  not null,
+  serial      varchar(40)  not null,
+  push_token  varchar(200) not null,
+  created_at  timestamp    not null default current_timestamp,
+  primary key (device_id, serial),
+  key idx_wallet_reg_serial (serial)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- ========================================================================
 -- returns — return and exchange requests
