@@ -13,10 +13,19 @@
     }
 nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
 nav.site .btn.primary .ic { stroke: var(--tint-strong); color: var(--tint-strong); }
+nav.site .btn.primary:hover { background: var(--panel-3); }
+header a:focus-visible, header .btn:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
 .btn.primary { background: var(--tint-strong); color: #fff; }
 .btn.outline { border-color: var(--border); background: var(--panel-2); }
-.btn:hover { opacity: .88; }
-a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+/* states, the same on every page: a hover that can be seen (opacity .88
+       moved a grey fill 1.01:1 — invisible), a disabled that still reads */
+    .btn { font-weight: 700; }
+.btn:hover { background: var(--border); border-color: var(--border-input); }
+.btn.primary:hover { background: var(--tint); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+/* scoped to main and the footer: unscoped, .btn:focus-visible (0,2,0) beat
+       the bar's white ring (0,1,1) and painted grey on grey — 1.24:1 */
+    main a:focus-visible, main .btn:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 .btn { transition: transform .18s ease, opacity .18s ease; }
 .btn:hover { transform: translateY(-1px); }
 /* ripple: a pressed primary button answers where it was touched */

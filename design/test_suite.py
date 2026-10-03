@@ -713,6 +713,7 @@ def browser_checks():
         portal_checks(pg)
         font_checks(pg)
         app_icon_checks(pg)
+        theme_state_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
         br.close()
@@ -3170,6 +3171,85 @@ def app_icon_checks(pg):
     check(S, "the console's login gate asks for one password, not two",
           pg.evaluate("document.getElementById('lbl-confirm').hidden") and not pg.is_visible("#lbl-confirm"))
     pg.evaluate("localStorage.clear()")
+
+
+def theme_state_checks(pg):
+    """The grey theme is one theme, and every control has visible states.
+
+    Pinned after the 2026-10-03 theme audit: the brown palette's amber
+    companions kept painting decoration (heading rules, the kicker, hover
+    chips, hero shapes, an avatar whose white initial sat at 2.15:1); on the
+    dark bar the brand-ink focus ring measured 1.24:1 because an unscoped
+    .btn:focus-visible outranked the bar's white one; secondary buttons'
+    hover moved a grey fill 1.01:1; tab buttons had no hover or focus at all."""
+    S = "theme"
+    import colorsys
+    WARM = r"""() => {
+      const warm = c => { const m = c.match(/[\d.]+/g); if (!m || (m[3] !== undefined && +m[3] < .2)) return false;
+        const [r, g, b] = m.slice(0, 3).map(v => +v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        if (mx - mn < .12) return false; const d = mx - mn;
+        let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
+        return h >= 15 && h <= 50 && d / mx > .25; };
+      const SEM = '.demo-banner, .offline-banner, .banner, #xbrl-audit, .st-0, .warn, #xbrl-check';
+      const out = [];
+      for (const e of document.querySelectorAll('body *')) {
+        if (e.closest(SEM) || e.closest('svg') || !e.checkVisibility()) continue;
+        for (const pse of ['', '::before', '::after']) {
+          const cs = getComputedStyle(e, pse || null);
+          for (const k of ['color', 'backgroundColor', 'borderTopColor', 'outlineColor']) if (warm(cs[k])) out.push(e.tagName + '#' + e.id + '.' + e.className + pse + ' ' + k + ' ' + cs[k]);
+          if (/rgba?\((2[0-9][0-9]|1[5-9][0-9]), (1[0-9][0-9]|[6-9][0-9]), ([0-9]|[1-9][0-9]|1[0-2][0-9])[,)]/.test(cs.backgroundImage)) out.push(e.tagName + '#' + e.id + '.' + e.className + pse + ' gradient');
+        }
+      }
+      return out; }"""
+    for page in ("index.html", "nokhatha.html#/dashboard"):
+        if "dashboard" in page:
+            pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+            f = "#form-register "
+            pg.fill(f + 'input[name="name"]', "زائر"); pg.fill(f + 'input[name="email"]', "theme@example.com"); pg.fill(f + 'input[name="password"]', "theme-pass-12")
+            pg.click(f + 'button[type=submit]'); pg.wait_for_timeout(2500)
+        else:
+            pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(1200)
+            pg.evaluate("document.documentElement.classList.remove('motion');document.querySelectorAll('[data-reveal]').forEach(e=>e.classList.add('in'))")
+        warm = pg.evaluate(WARM)
+        check(S, f"{page.split('#')[0]}: no warm colour paints outside a warning", not warm, "; ".join(warm[:4]))
+    # the scan must see: plant an amber label and an amber gradient
+    pg.evaluate("document.body.insertAdjacentHTML('beforeend', '<p id=\"plant\" style=\"color:#e3a556\">x</p><p id=\"plant2\" style=\"background:linear-gradient(90deg,#33383f,#e3a556)\">y</p>')")
+    seen = pg.evaluate(WARM); pg.evaluate("plant.remove(); plant2.remove()")
+    check(S, "the warm-colour scan flags a planted amber label and gradient",
+          any("plant" in w and "color" in w for w in seen) and any("plant2" in w and "gradient" in w for w in seen), str(seen))
+    pg.evaluate("localStorage.clear()")
+
+    def ring(sel, bg):
+        pg.focus(sel); pg.keyboard.press("Shift+Tab"); pg.keyboard.press("Tab")
+        c, w = pg.eval_on_selector(sel, "e=>[getComputedStyle(e).outlineColor, parseFloat(getComputedStyle(e).outlineWidth)]")
+        m = [int(v) for v in re.findall(r"\d+", c)[:3]]
+        return contrast("#%02x%02x%02x" % tuple(m), bg), w
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(600)
+    r, w = ring("header .btn.primary", "#25292f")
+    check(S, "the bar's call to action shows a focus ring you can see on the bar", w >= 2 and r >= 3, f"{r:.2f}:1, {w}px")
+    for page, sel in (("nizam.html#/safi", "#safi-export"), ("index.html", ".qform input[name=name]")):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(500)
+        r, w = ring(sel, "#ffffff")
+        check(S, f"{page.split('#')[0]} {sel}: a 2px brand ring on focus", w >= 2 and r >= 3, f"{r:.2f}:1, {w}px")
+    for page in ("nizam.html#/safi", "admin.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(500)
+        if page == "admin.html":
+            pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+            pg.fill('input[name="pass"]', "theme-pass-123"); pg.fill('input[name="confirm"]', "theme-pass-123"); pg.click("#gate-btn"); pg.wait_for_timeout(400)
+        sel = "nav.tabs button:nth-child(2)"
+        r, w = ring(sel, "#ffffff")
+        rest = pg.eval_on_selector(sel, "e=>getComputedStyle(e).backgroundColor"); pg.hover(sel); pg.wait_for_timeout(200)
+        hov = pg.eval_on_selector(sel, "e=>getComputedStyle(e).backgroundColor")
+        check(S, f"{page.split('#')[0]}: tab buttons show focus and hover", w >= 2 and r >= 3 and rest != hov, f"{r:.2f}:1, hover {rest}→{hov}")
+        rest = pg.eval_on_selector(".btn:not(.primary)", "e=>getComputedStyle(e).borderTopColor"); pg.hover(".btn:not(.primary)"); pg.wait_for_timeout(200)
+        hov = pg.eval_on_selector(".btn:not(.primary)", "e=>getComputedStyle(e).borderTopColor")
+        check(S, f"{page.split('#')[0]}: a secondary button's hover is visible", rest != hov, f"{rest}→{hov}")
+        pg.evaluate("localStorage.clear()")
+    # one radius system on every page: 999 pills, 12 panels, 8 controls, 2 hairlines
+    for f in PAGES:
+        src = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", (ROOT / f).read_text(), re.S))
+        radii = {int(v) for v in re.findall(r"border-radius:\s*(\d+)px", src)}
+        check(S, f"{f}: radii stay on the four-step system", radii <= {999, 50, 12, 8, 2, 999}, str(sorted(radii - {999, 12, 8, 2})))
 
 
 def font_checks(pg):

@@ -278,7 +278,7 @@
       --bg: #ffffff;
       --panel: #ffffff;
       --panel-2: #f1f4f8;
-      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
+      --border: #d0d7e1; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
       --text: #1b2430;
       --muted: #434d55;
       --tint: #33383f;
@@ -306,7 +306,7 @@
          50% is gone: every element carrying it was square, where 50% and
          999px are the same curve — but on anything that later stops being
          square they stop being the same, silently. */   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
-      --sand: #9e5603; --sand-vivid: #e3a556;
+      --sand: #7c4403;   /* warnings only · 7.8:1 on white */
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
@@ -393,12 +393,20 @@
     nav.site a:hover { background: var(--on-bar-fill); }
     nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
     nav.site .btn.primary .ic { stroke: var(--tint-strong); color: var(--tint-strong); }
-    header a:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
+    nav.site .btn.primary:hover { background: var(--panel-3); }   /* the white pill dims a step */
+    header a:focus-visible, header .btn:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
 
     .btn.primary { background: var(--tint-strong); color: #fff; }
     .btn.outline { border-color: var(--border); background: var(--panel-2); }
-    .btn:hover { opacity: .88; }
-    a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    /* states, the same on every page: a hover that can be seen (opacity .88
+       moved a grey fill 1.01:1 — invisible), a disabled that still reads */
+    .btn { font-weight: 700; }   /* the links above stay 600: bold, four wrap at 320px */
+    .btn:hover { background: var(--border); border-color: var(--border-input); }
+    .btn.primary:hover { background: var(--tint); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    /* scoped to main and the footer: unscoped, .btn:focus-visible (0,2,0) beat
+       the bar's white ring (0,1,1) and painted grey on grey — 1.24:1 */
+    main a:focus-visible, main .btn:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 
     main { max-width: 1060px; margin: 0 auto; padding: 16px 20px 40px;  line-height: var(--lh-text); }
 
@@ -885,7 +893,8 @@
       background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 8px;
       padding: 20px 12px 6px; transition: border-color .2s ease; }
     .qform textarea { min-height: 96px; resize: vertical; }
-    .qform input:focus, .qform select:focus, .qform textarea:focus { outline: none; border-color: var(--tint); }
+    .qform input:focus, .qform select:focus, .qform textarea:focus { border-color: var(--tint); }
+    .qform :is(input, select, textarea):focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }   /* the ring the other pages draw */
     .qform label { position: absolute; inset-inline-start: 12px; top: 13px; color: var(--muted);
       font-size: 14px; pointer-events: none; transition: top .18s ease, font-size .18s ease; }
     .qform input:focus + label, .qform input:not(:placeholder-shown) + label,
@@ -1086,7 +1095,7 @@
     .base .made { display: inline-flex; align-items: center; gap: 6px; }
     .base .made .ship { width: 24px; --ship-cut: var(--panel-2); }   /* the ship on the grey base */
     .base .top { display: inline-flex; align-items: center; gap: 6px; color: var(--tint);
-      font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+      font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border-input);
       background: var(--panel); transition: border-color .18s ease, transform .18s ease; }
     .base .top:hover { border-color: var(--tint); transform: translateY(-2px); }
     .base .top .ic { width: 14px; height: 14px; transform: rotate(90deg); stroke-width: 2.3; }

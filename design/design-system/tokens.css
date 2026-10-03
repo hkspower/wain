@@ -40,7 +40,7 @@
       --bg: #ffffff;
       --panel: #ffffff;
       --panel-2: #f1f4f8;
-      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
+      --border: #d0d7e1; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
       --text: #1b2430;
       --muted: #434d55;
       --tint: #33383f;
@@ -68,7 +68,7 @@
          50% is gone: every element carrying it was square, where 50% and
          999px are the same curve — but on anything that later stops being
          square they stop being the same, silently. */   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
-      --sand: #9e5603; --sand-vivid: #e3a556;
+      --sand: #7c4403;   /* warnings only · 7.8:1 on white */
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
