@@ -534,10 +534,10 @@ const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 | | |
 | --- | --- |
 | Agent ID | \`agent_1701m1gcrccrethae9y3nyv1e116\` |
-| اللغة | \`ar\` · نموذج الصوت \`eleven_turbo_v2_5\` |
+| اللغة | \`ar\` · نموذج الصوت \`eleven_v4_turbo\` |
 | الأدوات | \`show_places\` = \`tool_8701m1gccbbkf0288efab76729ac\` · \`open_place\` = \`tool_6101m1gccq94ey3b7hkx4sebhnr9\` · \`report_gap\` = \`tool_4801m27x39vheb8999yyaggkwhjt\` |
-| قاعدة المعرفة | \`xTqmrvefgSbzdcEyFjtG\` — v4، \${slugs.length} مكان مع المسافات والشيشة |
-| الأصول المسموحة | wainkw.com · www.wainkw.com · localhost · 127.0.0.1 |
+| قاعدة المعرفة | \`ynRNIOiliu2vKBN4d9H6\` — v5، \${slugs.length} مكان مع المسافات والشيشة |
+| الأصول المسموحة | wainkw.com · www.wainkw.com · staging.wainkw.com |
 
 حط \`NEXT_PUBLIC_ELEVENLABS_AGENT_ID\` = الـ Agent ID وقت البناء، عشان زر
 الاتصال يشتغل بالوكيل بدل الـ speech recognition حق المتصفح.
@@ -581,14 +581,16 @@ const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 
 ## الصوت (Voice)
 
-الإعدادات المضبوطة على الوكيل الحين — ونفسها في \`RENDITION\` بـ
-\`scripts/gen-voice.mjs\`، عشان الصوت المسجّل مسبقاً والمكالمة الحيّة يطلعون
-نفس الشخص:
+الإعدادات المضبوطة على الوكيل الحين (مقروءة بـ \`agents_get\`، ٣ أكتوبر).
+الصوت والثبات والسرعة نفسها في \`RENDITION\` بـ \`scripts/gen-voice.mjs\`،
+عشان الصوت المسجّل مسبقاً والمكالمة الحيّة يطلعون نفس الشخص:
+- Voice: Talya \`rh16DBXwtscjdPFeMBYf\`
 - Stability: 0.35 — أقل ثبات = أكثر تعبيراً، والتعبير أكثر شي يقرأ «شبابي»
-- Similarity: 0.80
+- Similarity: 0.75 على الوكيل — والمقاطع المسجّلة 0.80، فرق صغير انحفظ من
+  لوحة التحكم ٢ أكتوبر
 - Speed: 1.06 — الدليل يمشي أسرع من الراوي
-- Model: \`eleven_turbo_v2_5\` — مطلوب، الـ API يرفض أي وكيل غير إنجليزي
-  على غيره وغير flash v2_5
+- Model: \`eleven_v4_turbo\` مع expressive mode — المقاطع والجسر يظلّون على
+  \`eleven_multilingual_v2\` عن قصد
 
 ## اللغة
 

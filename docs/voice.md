@@ -87,6 +87,11 @@ They had diverged. Checked all three on 11 September:
 | the n8n bridge, before the fix | **`w0uhBAmNIG5kUDeaFEsA`** Maryam Essa | `eleven_multilingual_v2` |
 | `scripts/publish/tts-endpoint.php` — the bridge now | `rh16DBXwtscjdPFeMBYf` Talya | `eleven_multilingual_v2` |
 
+That table is the 11 September reading. **Read 3 October with `agents_get`:
+the agent is on `eleven_v4_turbo`** (expressive mode, similarity 0.75), set
+from the dashboard on 2 October; the voice is still Talya and the clips and
+bridge are still `eleven_multilingual_v2`, on purpose.
+
 Stability, similarity, style and speed all matched. **The voice id alone did
 not**, which is the hardest field to notice going wrong: nothing breaks, no
 request fails, the audio plays — a different woman finishes the sentence.

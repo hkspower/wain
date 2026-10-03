@@ -1,0 +1,33 @@
+شوق's greeting — her live first_message, word for word — in two voices, for
+choosing by ear. Nothing is switched by this file.
+
+    هلا والله! أنا شوق من «وين». قول لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة
+    مع العيال؟
+
+    shouq-talya-v4-greeting.mp3      Talya  rh16DBXwtscjdPFeMBYf   7.20s  133,362 bytes
+    shouq-maryam-kw-v4-greeting.mp3  Maryam 3AH0h1SXwwhE8vUUWuQW   6.72s  125,839 bytes
+
+    model   eleven_v4 — both (the agent runs eleven_v4_turbo, which the
+            connector does not offer; v4 is the same family)
+    format  128 kbps · 44.1 kHz mono — both
+    cost    ~83 credits each by the estimate
+
+Talya is شوق's voice today, on the agent, the clips and the bridge. Maryam is
+the library voice ElevenLabs labels «Kuwaiti Soft & Storytelling»
+(accent ar-kuwaiti, female, middle-aged) — the only voice in its Arabic female
+conversational list carrying a Kuwaiti label; the rest are Saudi, Levantine,
+Egyptian, Moroccan, Tunisian. Its description says storytelling, not
+conversation, which is what this pair is for hearing.
+
+Not the n8n bridge's old «Maryam Essa» (w0uhBAmNIG5kUDeaFEsA, docs/voice.md):
+a different voice id.
+
+Generated 3 October through the ElevenLabs connector (flow
+ZM4A1SSGrNPZtxCGHhH6).
+
+What this cannot tell you, stated rather than implied:
+- The connector has no stability/similarity/speed parameters, so both used
+  their defaults, not the agent's 0.35/0.75/1.06. This is voice against voice.
+- A call streams pcm_48000; these are 128 kbps mp3s.
+- Switching her would also mean re-rendering the clip library and the bridge's
+  table (audit:tts holds those two together) and choosing سالم's pair again.
