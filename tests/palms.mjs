@@ -25,6 +25,7 @@
 // Each line prints what it measured; the run exits 1 on any failure.
 
 import * as THREE from "three";
+import { MARKINGS } from "../src/game/markings.ts";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -560,12 +561,22 @@ console.log("6. placement");
   });
   const stale = grep("src");
   const lampReads = /const spacing = LAMP_COLUMNS\.spacing;/.test(world) && /const POLE_LAT = LAMP_COLUMNS\.lat;/.test(world);
-  const signalReads = /const every = SIGNALS\.every;/.test(world) && /SIGNALS\.poleLat/.test(world);
+  // The signal block and palmFixtures both iterate the junction model
+  // (markings.ts junctions(): the one list the stop lines are laid from)
+  // and stand the pole at SIGNALS.poleLat, so the palms keep clear of the
+  // masts the world actually builds. SIGNALS.every states the model's
+  // cadence for anyone reading world.ts; it must agree with it.
+  const sigBlock = world.slice(world.indexOf("const approaches"), world.indexOf("const approaches") + 4000);
+  const fixBlock = world.slice(world.indexOf("export function palmFixtures"), world.indexOf("export function palmFixtures") + 3000);
+  const signalReads =
+    /junctions\(track, STREETS\)/.test(sigBlock) && /signalHeadS\(j\)/.test(sigBlock) && /SIGNALS\.poleLat/.test(sigBlock) &&
+    /junctions\(track, STREETS\)/.test(fixBlock) && /signalHeadS\(j\)/.test(fixBlock) &&
+    SIGNALS.every === MARKINGS.junction.signalEvery;
   const named = /"palm-trunks"/.test(world) && /`palm-crowns-\$\{kind\}`/.test(world);
   console.log(`  wiring: upgradePalmCrowns in ${stale.length ? stale.join(", ") : "nothing"}; lamp loop reads LAMP_COLUMNS (${LAMP_COLUMNS.spacing} m, lat ${LAMP_COLUMNS.lat}) ${lampReads}; signals read SIGNALS (every ${SIGNALS.every}, lat ${SIGNALS.poleLat}) ${signalReads}; meshes named ${named}; ${cross} cross streets`);
   check(stale.length === 0, `upgradePalmCrowns is still referenced in ${stale.join(", ")}`);
   check(lampReads, "the lamp loop no longer reads LAMP_COLUMNS — the palms' clearance and the columns could drift apart");
-  check(signalReads, "the signal block no longer reads SIGNALS");
+  check(signalReads, "the signal block and palmFixtures must both iterate junctions() with SIGNALS.poleLat, and SIGNALS.every must equal MARKINGS.junction.signalEvery");
   check(named, "palm meshes must be named palm-trunks / palm-crowns-<kind>, or tests/world.mjs cannot fingerprint them");
 }
 
