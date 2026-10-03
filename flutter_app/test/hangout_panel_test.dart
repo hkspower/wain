@@ -8,13 +8,34 @@ import 'package:wain/share/hangout.dart';
 import 'package:wain/share/hangout_panel.dart';
 import 'package:wain/share/share_service.dart';
 
-class FakeShare implements ShareBackend {
+class FakeShare extends ShareBackend {
   bool? native; // null = no share sheet
   bool whatsapp = true;
   bool copyOk = true;
+  bool? file; // null = no sheet for a file
+  bool urlOk = true;
   final calls = <String>[];
   String? lastText, lastTitle;
-  Uri? lastWa;
+  Uri? lastWa, lastUrl;
+  String? lastFileName, lastFileMime;
+  List<int>? lastFileBytes;
+
+  @override
+  Future<bool?> shareFile(List<int> bytes, String name, String mime, String title) async {
+    calls.add('file');
+    lastFileBytes = bytes;
+    lastFileName = name;
+    lastFileMime = mime;
+    lastTitle = title;
+    return file;
+  }
+
+  @override
+  Future<bool> openUrl(Uri uri) async {
+    calls.add('url');
+    lastUrl = uri;
+    return urlOk;
+  }
 
   @override
   Future<bool?> nativeShare(String text, String title) async {
@@ -265,6 +286,10 @@ void main() {
         await t.pump();
         await t.tap(find.byKey(const ValueKey('when-tonight-9')));
         await t.pump();
+        // «عقب المغرب» joined the chips (3 October) and the row wrapped, so
+        // with four places listed the send button sits past 800px.
+        await t.ensureVisible(find.byKey(const ValueKey('hangout-send')));
+        await t.pump();
         await t.tap(find.byKey(const ValueKey('hangout-send')));
         await t.pump();
         await t.pump();
@@ -275,7 +300,13 @@ void main() {
           shortlistMessage(
             places: listed,
             when: WhenId.tonight9,
-            url: shortlistUrl(listed, WhenId.tonight9, kInviteOrigin),
+            // The link carries the day it was sent (3 October).
+            url: shortlistUrl(
+              listed,
+              WhenId.tonight9,
+              kInviteOrigin,
+              kuwaitDay(kuwaitJanuary2pm),
+            ),
             now: kuwaitJanuary2pm,
           ),
         );

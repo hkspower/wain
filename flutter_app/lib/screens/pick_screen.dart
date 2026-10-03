@@ -14,7 +14,9 @@ import 'package:go_router/go_router.dart';
 import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../map/wain_map.dart';
+import '../share/add_to_calendar.dart';
 import '../share/hangout.dart';
+import '../share/hangout_panel.dart' show kInviteOrigin;
 import '../share/share_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -40,10 +42,8 @@ class PickScreen extends StatefulWidget {
 }
 
 class _PickScreenState extends State<PickScreen> {
-  late final ({List<String> slugs, WhenId? when}) _read = readShortlist(
-    widget.query,
-    (s) => getPlace(s) != null,
-  );
+  late final ({List<String> slugs, WhenId? when, String? day}) _read =
+      readShortlist(widget.query, (s) => getPlace(s) != null);
   late final List<Place> _list = [for (final s in _read.slugs) ?getPlace(s)];
   String? _active;
   ({String slug, ShareOutcome outcome})? _voted;
@@ -57,8 +57,14 @@ class _PickScreenState extends State<PickScreen> {
       _active = place.slug;
     });
     HapticFeedback.selectionClick();
+    // The vote carries the place's own link, so the chat ends up holding the
+    // winner's plan the way a single proposal would have.
+    final when = _read.when;
+    final url = when != null
+        ? inviteUrl(place, when, kInviteOrigin, _read.day)
+        : null;
     final outcome = await shareHangout(
-      text: shortlistVoteMessage(place, i, _read.when),
+      text: shortlistVoteMessage(place, i, when, url, _read.day),
       title: shortlistTitle(),
     );
     if (outcome == ShareOutcome.shared ||
@@ -79,7 +85,9 @@ class _PickScreenState extends State<PickScreen> {
     // place renamed since, or a link cut short in a forward.
     if (_list.length < 2) return const _NotAShortlist();
     final when = _read.when;
-    final passed = when != null && invitePassed(when, widget.clock());
+    final now = widget.clock();
+    final passed = when != null && invitePassed(when, now, _read.day);
+    final phrase = when != null ? planPhrase(when, _read.day, now) : '';
     final category = getCategory(_list.first.category);
     final ask = category != null
         ? '${category.ar} ${_list.first.areaAr}'
@@ -102,7 +110,7 @@ class _PickScreenState extends State<PickScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${when != null ? 'وين نروح ${phraseFor(when)}؟' : 'وين نروح؟'} اختار واحد ورد عليهم.',
+                '${when != null ? 'وين نروح $phrase؟' : 'وين نروح؟'} اختار واحد ورد عليهم.',
                 style: wainText(WainText.base, color: WainColors.ink600),
               ),
               const SizedBox(height: 20),
@@ -124,6 +132,29 @@ class _PickScreenState extends State<PickScreen> {
                 _Note('نسخنا ردّك — الصقه بالجروب.'),
               if (_voted?.outcome == ShareOutcome.failed)
                 _Note('ما قدرنا نرسل الرد — رد عليهم بالجروب.'),
+              // Having voted, the voter has a plan of their own to keep.
+              if (_voted != null &&
+                  _voted!.outcome != ShareOutcome.failed &&
+                  when != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: AddToCalendar(
+                    place: _list.firstWhere((p) => p.slug == _voted!.slug),
+                    when: when,
+                    day: _read.day,
+                    phrase: phrase,
+                    url: inviteUrl(
+                      _list.firstWhere((p) => p.slug == _voted!.slug),
+                      when,
+                      kInviteOrigin,
+                      _read.day,
+                    ),
+                    mapsUrl: mapsUrl(
+                      _list.firstWhere((p) => p.slug == _voted!.slug),
+                    ),
+                    clock: widget.clock,
+                  ),
+                ),
               const SizedBox(height: 12),
               WainMap(
                 key: const ValueKey('pick-map'),

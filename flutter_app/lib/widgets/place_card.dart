@@ -51,7 +51,18 @@ class PlaceCard extends StatelessWidget {
   /// Distance from the place being looked at; absent on /explore and in search.
   final double? awayKm;
 
-  const PlaceCard({super.key, required this.place, this.awayKm});
+  /// «رسّلها» on the card itself, leading to the place's share panel — on
+  /// Explore and the home picks, where the panel is otherwise three taps
+  /// away (as `PlaceCard.tsx`, 3 October). Not where a panel already sits
+  /// beside the card (/pick, سالم's rail).
+  final bool shareable;
+
+  const PlaceCard({
+    super.key,
+    required this.place,
+    this.awayKm,
+    this.shareable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -134,11 +145,27 @@ class PlaceCard extends StatelessWidget {
                             top: 6,
                             child: _RatingChip(rating: place.rating!),
                           ),
+                        // Four corners, four badges on a shareable card: the
+                        // rating at the top-start, the preview's «رسم مؤقت»
+                        // flag at the top-end as always, the share button at
+                        // the bottom-end, and the tag moves to the
+                        // bottom-start. The bottom row cannot hold the tag AND
+                        // the flag on a 320 phone at large text, so the flag
+                        // keeps the top and the button takes the corner below
+                        // it (the web's button is at the top-end; the web has
+                        // no 1.15× clamp to fit under).
                         if (picture != null)
-                          const PositionedDirectional(
-                            end: 6,
+                          PositionedDirectional(
+                            end: shareable ? null : 6,
+                            start: shareable ? 6 : null,
                             bottom: 6,
-                            child: IllustrativeTag(),
+                            child: const IllustrativeTag(),
+                          ),
+                        if (shareable)
+                          PositionedDirectional(
+                            end: 2,
+                            bottom: 2,
+                            child: _ShareButton(place: place),
                           ),
                       ],
                     ),
@@ -251,6 +278,65 @@ class PlaceCard extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// «رسّلها للربع» on the card: a 32 white disc with the send icon inside a
+/// 48 tap area, leading to the place's own share panel (`?share=1`, which
+/// PlaceDetailScreen scrolls to). The card's own tap and long press stay
+/// what they are; this is a second, named control at the band's end corner.
+class _ShareButton extends StatelessWidget {
+  final Place place;
+  const _ShareButton({required this.place});
+
+  @override
+  Widget build(BuildContext context) {
+    // Its own node: without `container` the card's Semantics above folds
+    // this one into its label, and a screen reader never meets the button.
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'رسّل ${place.nameAr} للربع',
+      // Not HitArea: that centres the drawing in its 48, which in a 56 band
+      // puts the disc up against the preview flag in the corner above. The
+      // disc hugs the bottom of its target instead; the target's upper
+      // margin is still a finger's, and overlapping an invisible margin is
+      // fine where overlapping the disc was not.
+      child: GestureDetector(
+        key: const ValueKey('card-share'),
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          context.push('/places/${place.slug}?share=1');
+        },
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ExcludeSemantics(
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  shape: BoxShape.circle,
+                  boxShadow: WainShadows.sm,
+                ),
+                child: Center(
+                  child: WainSvg.icon(
+                    'send',
+                    size: 16,
+                    color: WainColors.ink800,
+                  ),
+                ),
               ),
             ),
           ),

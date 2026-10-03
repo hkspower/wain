@@ -161,6 +161,8 @@ GoRouter buildRouter({String initialLocation = '/'}) {
           PlaceDetailScreen(
             place: getPlace(s.pathParameters['slug']!)!,
             invite: readInvite(s.uri.query),
+            day: readInviteDay(s.uri.query),
+            share: s.uri.queryParameters['share'] == '1',
           ),
           fallback: '/explore',
         ),

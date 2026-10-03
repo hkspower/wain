@@ -28,6 +28,8 @@ writeFileSync(
     `export * from ${JSON.stringify(join(ROOT, "src/lib/place-kit.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/hangout.ts"))};`,
+    `export { parseDay, addDays, weekday, hasCalendarEntry } from ${JSON.stringify(join(ROOT, "src/lib/plan-date.ts"))};`,
+    `export { calendarEntry } from ${JSON.stringify(join(ROOT, "src/lib/hangout-calendar.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/find-moment.ts"))};`,
     `export { places } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};`,
   ].join("\n")
@@ -93,15 +95,15 @@ F.hangout = {
       options: K.whenOptions(now, p).map((o) => o.id),
       default: K.defaultWhen(p, now),
       messages: Object.fromEntries(
-        ["now", "soon", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow", "weekend"].map((w) => [
+        ["now", "soon", "sunset", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow", "weekend"].map((w) => [
           w,
           K.hangoutMessage({ place: p, when: w, url: K.inviteUrl(p, w, "https://www.wainkw.com/"), now }),
         ])
       ),
-      passed: Object.fromEntries(["now", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow"].map((w) => [w, K.invitePassed(w, now)])),
+      passed: Object.fromEntries(["now", "sunset", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow"].map((w) => [w, K.invitePassed(w, now)])),
     })),
   })),
-  phrases: Object.fromEntries(["now", "soon", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow", "weekend"].map((w) => [w, K.phraseFor(w)])),
+  phrases: Object.fromEntries(["now", "soon", "sunset", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow", "weekend"].map((w) => [w, K.phraseFor(w)])),
   accept: sample.slice(0, 2).map((p) => K.inviteAcceptMessage(p, "tonight-8")),
   title: sample.slice(0, 2).map((p) => K.hangoutTitle(p)),
   readInvite: ["?when=tonight-8", "when=now", "?when=bogus", "", "?x=1&when=weekend", "?when=", "?when=tonight-8&when=now"].map((s) => ({ s, out: K.readInvite(s) })),
@@ -142,9 +144,58 @@ F.shortlist = {
     "", "?p=", "?when=tonight-8",
   ].map((q) => ({ q, out: K.readShortlist(q, (s) => known.has(s)) })),
   votes: [0, 1, 2, 3].flatMap((i) => [null, "tonight-8", "now"].map((w) => K.shortlistVoteMessage(ps[i], i, w))),
+  // A vote with the place's link and day under it (3 October).
+  datedVotes: [0, 1].flatMap((i) =>
+    ["tonight-8", "tomorrow", "weekend"].map((w) => K.shortlistVoteMessage(ps[i], i, w, K.inviteUrl(ps[i], w, "https://www.wainkw.com", "2026-10-02"), "2026-10-02"))
+  ),
   title: K.shortlistTitle(),
   max: K.SHORTLIST_MAX,
+  choiceMax: K.CHOICE_MAX,
 };
+
+// The day in the link (plan-date.ts): what a dated plan means, when it has
+// gone, and the phrase it is printed with. Send-days chosen for the edges —
+// month, year and leap rollover, and every weekday for «الويكند».
+const sendDays = ["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-31", "2026-12-31", "2028-02-28"];
+const readAt = ["2026-10-02T07:00:00Z", "2026-10-03T16:59:00Z", "2026-10-03T17:00:00Z", "2026-10-04T20:59:00Z", "2026-10-04T21:00:00Z", "2026-10-10T12:00:00Z"];
+const whens = ["now", "soon", "sunset", "tonight-7", "tonight-8", "tonight-9", "tonight-10", "tomorrow", "weekend"];
+F.plan = {
+  readDay: ["2026-10-03", "2026-02-30", "2026-13-01", "2026-2-3", "2028-02-29", "<script>", ""].map((s) => ({ s, out: K.parseDay(s) })),
+  addDays: [["2026-10-31", 1], ["2026-12-31", 1], ["2028-02-28", 1], ["2026-01-01", -1], ["2026-03-01", 5]].map(([d, n]) => ({ d, n, out: K.addDays(d, n) })),
+  weekday: sendDays.map((d) => ({ d, out: K.weekday(d) })),
+  resolve: sendDays.flatMap((day) =>
+    whens.flatMap((when) =>
+      readAt.map((at) => {
+        const r = K.resolvePlan(when, day, new Date(at));
+        return { when, day, at, out: { date: r.date, hour: r.hour, minute: r.minute, kind: r.hourKind, weekdayAr: r.weekdayAr, passed: r.passed } };
+      })
+    )
+  ),
+  phrase: sendDays.flatMap((day) => whens.map((when) => ({ when, day, out: K.planPhrase(when, day) }))),
+  bare: whens.map((when) => ({ when, out: K.planPhrase(when, null) })),
+  urls: [
+    K.inviteUrl(ps[0], "tomorrow", "https://www.wainkw.com", "2026-10-03"),
+    K.inviteUrl(ps[0], "tomorrow", "https://www.wainkw.com"),
+    K.shortlistUrl([ps[0], ps[1]], "weekend", "https://www.wainkw.com/", "2026-10-03"),
+  ],
+  readDayFromLink: ["?when=tomorrow&d=2026-10-03", "?d=2026-02-30&when=now", "?when=now", "?d=2026-10-03&d=2026-10-04"].map((s) => ({ s, out: K.readInviteDay(s) })),
+  passed: [["tonight-8", "2026-10-02", "2026-10-03T07:00:00Z"], ["tonight-8", null, "2026-10-03T07:00:00Z"], ["tomorrow", "2026-09-25", "2026-10-03T07:00:00Z"], ["tomorrow", null, "2026-10-03T07:00:00Z"]]
+    .map(([when, day, at]) => ({ when, day, at, out: K.invitePassed(when, new Date(at), day) })),
+  hasEntry: whens.flatMap((when) => [["2026-10-03"], [null]].map(([day]) => ({ when, day, out: K.hasCalendarEntry(when, day) }))),
+};
+
+// «أضفها للتقويم»: the entry, byte for byte, for three places at the whens
+// that get one, at two instants (the stamp is the instant).
+F.calendar = [ps[0], setting("outdoor")[0], setting("indoor")[0]].flatMap((p) =>
+  ["sunset", "tonight-8", "tomorrow", "weekend"].flatMap((when) =>
+    ["2026-07-15T09:00:00Z", "2026-12-20T15:30:00Z"].map((at) => {
+      const day = K.kuwaitDay(new Date(at));
+      const url = K.inviteUrl(p, when, "https://www.wainkw.com", day);
+      const e = K.calendarEntry({ place: p, when, day, phrase: K.planPhrase(when, day), url, mapsUrl: K.mapsUrl(p), now: new Date(at) });
+      return { slug: p.slug, when, day, at, url, ics: e.ics, google: e.google, filename: e.filename };
+    })
+  )
+);
 
 // /find's greeting at every hour of every month, for both names.
 F.findMoment = [];

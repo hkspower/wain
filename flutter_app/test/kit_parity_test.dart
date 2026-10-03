@@ -10,6 +10,7 @@ import 'package:wain/data/places.g.dart';
 import 'package:wain/data/text_kit.dart';
 import 'package:wain/data/voice_lines.dart';
 import 'package:wain/share/hangout.dart';
+import 'package:wain/share/hangout_calendar.dart';
 
 void main() {
   final f = jsonDecode(
@@ -189,7 +190,7 @@ void main() {
       for (final r in (sl['read'] as List).cast<Map>()) {
         final got = readShortlist(r['q'] as String, known.contains);
         expect(
-          {'slugs': got.slugs, 'when': got.when?.wire},
+          {'slugs': got.slugs, 'when': got.when?.wire, 'day': got.day},
           r['out'],
           reason: r['q'] as String,
         );
@@ -201,6 +202,23 @@ void main() {
         }
       }
       expect(votes, sl['votes']);
+    });
+
+    test('a vote carries the place\'s own dated link (3 October)', () {
+      expect(kChoiceMax, sl['choiceMax']);
+      final dated = <String>[];
+      for (var i = 0; i < 2; i++) {
+        for (final w in [WhenId.tonight8, WhenId.tomorrow, WhenId.weekend]) {
+          final url = inviteUrl(
+            kPlaces[i],
+            w,
+            'https://www.wainkw.com',
+            '2026-10-02',
+          );
+          dated.add(shortlistVoteMessage(kPlaces[i], i, w, url, '2026-10-02'));
+        }
+      }
+      expect(dated, sl['datedVotes']);
     });
 
     for (final c in (sl['cases'] as List).cast<Map<String, dynamic>>()) {
@@ -230,6 +248,135 @@ void main() {
           });
         }
       });
+    }
+  });
+
+  // The day in the link (plan_date.dart): what a dated plan means, when it
+  // has gone, and the phrase it is printed with — replayed at the web's
+  // edges (month, year and leap rollover; every weekday for «الويكند»).
+  group('the day in the link', () {
+    final pl = f['plan'] as Map<String, dynamic>;
+    HourKind kindOf(String s) =>
+        s == 'default' ? HourKind.defaultHour : HourKind.values.byName(s);
+
+    test('reading, adding and naming a day', () {
+      for (final r in (pl['readDay'] as List).cast<Map>()) {
+        expect(parseDay(r['s'] as String), r['out'], reason: r['s'] as String);
+      }
+      for (final r in (pl['addDays'] as List).cast<Map>()) {
+        expect(addDays(r['d'] as String, r['n'] as int), r['out']);
+      }
+      for (final r in (pl['weekday'] as List).cast<Map>()) {
+        expect(weekday(r['d'] as String), r['out'], reason: r['d'] as String);
+      }
+      for (final r in (pl['readDayFromLink'] as List).cast<Map>()) {
+        expect(readInviteDay(r['s'] as String), r['out'], reason: r['s'] as String);
+      }
+    });
+
+    test('resolvePlan, at ${(pl['resolve'] as List).length} readings', () {
+      for (final r in (pl['resolve'] as List).cast<Map>()) {
+        final got = resolvePlan(
+          WhenId.parse(r['when'] as String)!,
+          r['day'] as String,
+          DateTime.parse(r['at'] as String),
+        );
+        final want = r['out'] as Map;
+        expect(
+          {
+            'date': got.date,
+            'hour': got.hour,
+            'minute': got.minute,
+            'kind': got.hourKind,
+            'weekdayAr': got.weekdayAr,
+            'passed': got.passed,
+          },
+          {
+            'date': want['date'],
+            'hour': want['hour'],
+            'minute': want['minute'],
+            'kind': kindOf(want['kind'] as String),
+            'weekdayAr': want['weekdayAr'],
+            'passed': want['passed'],
+          },
+          reason: '${r['when']} sent ${r['day']} read at ${r['at']}',
+        );
+      }
+    });
+
+    test('the phrase, dated and bare', () {
+      for (final r in (pl['phrase'] as List).cast<Map>()) {
+        expect(
+          planPhrase(WhenId.parse(r['when'] as String)!, r['day'] as String),
+          r['out'],
+          reason: '${r['when']} ${r['day']}',
+        );
+      }
+      for (final r in (pl['bare'] as List).cast<Map>()) {
+        expect(planPhrase(WhenId.parse(r['when'] as String)!, null), r['out']);
+      }
+    });
+
+    test('the links carry the day, and only when given one', () {
+      final urls = pl['urls'] as List;
+      expect(
+        inviteUrl(kPlaces[0], WhenId.tomorrow, 'https://www.wainkw.com', '2026-10-03'),
+        urls[0],
+      );
+      expect(inviteUrl(kPlaces[0], WhenId.tomorrow, 'https://www.wainkw.com'), urls[1]);
+      expect(
+        shortlistUrl([kPlaces[0], kPlaces[1]], WhenId.weekend, 'https://www.wainkw.com/', '2026-10-03'),
+        urls[2],
+      );
+    });
+
+    test('passed, with and without a day; which plans get a calendar entry', () {
+      for (final r in (pl['passed'] as List).cast<Map>()) {
+        expect(
+          invitePassed(
+            WhenId.parse(r['when'] as String)!,
+            DateTime.parse(r['at'] as String),
+            r['day'] as String?,
+          ),
+          r['out'],
+          reason: '${r['when']} ${r['day']} ${r['at']}',
+        );
+      }
+      for (final r in (pl['hasEntry'] as List).cast<Map>()) {
+        expect(
+          hasCalendarEntry(WhenId.parse(r['when'] as String)!, r['day'] as String?),
+          r['out'],
+          reason: '${r['when']} ${r['day']}',
+        );
+      }
+    });
+  });
+
+  // «أضفها للتقويم»: the ICS text, the Google link and the file name, byte
+  // for byte — a calendar app reads the bytes, so «equivalent» is not enough.
+  test('the calendar entry is the web\'s, byte for byte', () {
+    final cases = (f['calendar'] as List).cast<Map<String, dynamic>>();
+    expect(cases, hasLength(24));
+    for (final c in cases) {
+      final place = bySlug[c['slug']]!;
+      final when = WhenId.parse(c['when'] as String)!;
+      final day = c['day'] as String;
+      final at = DateTime.parse(c['at'] as String);
+      expect(kuwaitDay(at), day);
+      expect(inviteUrl(place, when, 'https://www.wainkw.com', day), c['url']);
+      final e = calendarEntry(
+        place: place,
+        when: when,
+        day: day,
+        phrase: planPhrase(when, day),
+        url: c['url'] as String,
+        mapsUrl: mapsUrl(place),
+        now: at,
+      );
+      final why = '${place.slug} ${c['when']} ${c['at']}';
+      expect(e.ics, c['ics'], reason: why);
+      expect(e.google, c['google'], reason: why);
+      expect(e.filename, c['filename'], reason: why);
     }
   });
 

@@ -159,7 +159,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 mainAxisExtent: placeCardExtent(context),
               ),
               itemCount: filtered.length,
-              itemBuilder: (_, i) => PlaceCard(place: filtered[i]),
+              itemBuilder: (_, i) =>
+                  PlaceCard(place: filtered[i], shareable: true),
             ),
           )
         else

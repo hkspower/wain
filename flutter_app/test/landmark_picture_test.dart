@@ -198,15 +198,44 @@ void main() {
             expect(t.getRect(image), band);
 
             // «صورة توضيحية» at the band's bottom-end corner — the left, in
-            // a right-to-left card.
+            // a right-to-left card. On a shareable card (Explore, the home
+            // picks — 3 October) the share button holds the bottom-end, so
+            // the tag takes the bottom-start; the preview flag keeps the
+            // top-end either way (the bottom row cannot hold it beside the
+            // tag on a 320 phone at large text).
+            final shareable = t
+                .widget<PlaceCard>(
+                  find.descendant(
+                    of: card,
+                    matching: find.byType(PlaceCard),
+                    matchRoot: true,
+                  ),
+                )
+                .shareable;
             final tag = t.getRect(_in(card, find.byType(IllustrativeTag)));
-            expect(tag.left, closeTo(band.left + 6, 0.5), reason: s);
+            if (shareable) {
+              expect(tag.right, closeTo(band.right - 6, 0.5), reason: s);
+            } else {
+              expect(tag.left, closeTo(band.left + 6, 0.5), reason: s);
+            }
             expect(tag.bottom, closeTo(band.bottom - 6, 0.5), reason: s);
 
             // A stand-in says so, in the top-end corner.
             final flag = t.getRect(_in(card, find.byType(StandInFlag)));
             expect(flag.left, closeTo(band.left, 0.5), reason: '$s: flag');
             expect(flag.top, closeTo(band.top, 0.5), reason: '$s: flag');
+            if (shareable) {
+              // The button's 48 target reaches up into the flag's corner by
+              // design (an invisible margin); its 32 disc must touch neither
+              // the flag above it nor the tag beside it.
+              final share = _in(card, find.byKey(const ValueKey('card-share')));
+              final disc = t.getRect(
+                find.descendant(of: share, matching: find.byType(Container)).first,
+              );
+              expect(disc.bottom, closeTo(band.bottom - 2, 0.5), reason: s);
+              expect(disc.overlaps(flag), isFalse, reason: '$s: disc, flag');
+              expect(disc.overlaps(tag), isFalse, reason: '$s: disc, tag');
+            }
             expect(flag.overlaps(tag), isFalse, reason: '$s: flag, tag');
 
             // The rating chip stays where it was: the band's top-start. The

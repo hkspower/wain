@@ -9,27 +9,13 @@ library;
 
 import '../data/models.dart';
 import '../data/voice_lines.dart';
+import 'plan_date.dart';
 
-enum WhenId {
-  now('now'),
-  soon('soon'),
-  tonight7('tonight-7'),
-  tonight8('tonight-8'),
-  tonight9('tonight-9'),
-  tonight10('tonight-10'),
-  tomorrow('tomorrow'),
-  weekend('weekend');
+export 'plan_date.dart';
 
-  final String wire;
-  const WhenId(this.wire);
-
-  static WhenId? parse(String? raw) {
-    for (final w in values) {
-      if (w.wire == raw) return w;
-    }
-    return null;
-  }
-}
+/// How many places the panel offers to switch between, on search and in
+/// سالم's chat alike (`CHOICE_MAX` on the web).
+const int kChoiceMax = 5;
 
 class WhenOption {
   final WhenId id;
@@ -42,6 +28,10 @@ class WhenOption {
 const List<WhenOption> _all = [
   WhenOption(WhenId.now, 'الحين', 'الحين'),
   WhenOption(WhenId.soon, 'بعد ساعة', 'بعد ساعة'),
+  // «عقب المغرب»: the words شوق uses for every summer plan; first among the
+  // evening options, gone at seven. No clock time is attached anywhere a
+  // person reads — the calendar entry alone turns it into an hour.
+  WhenOption(WhenId.sunset, 'عقب المغرب', 'عقب المغرب', 19),
   WhenOption(WhenId.tonight7, '٧ مساءً', 'الليلة الساعة ٧', 19),
   WhenOption(WhenId.tonight8, '٨ مساءً', 'الليلة الساعة ٨', 20),
   WhenOption(WhenId.tonight9, '٩ مساءً', 'الليلة الساعة ٩', 21),
@@ -52,22 +42,6 @@ const List<WhenOption> _all = [
 
 const _dayStarts = 9;
 const _dayEnds = 19;
-const _threeHours = Duration(hours: 3);
-
-DateTime _kuwait(DateTime now) => now.toUtc().add(_threeHours);
-
-/// Kuwait's wall-clock hour.
-int kuwaitHour([DateTime? now]) => _kuwait(now ?? DateTime.now()).hour;
-
-/// Kuwait's calendar month, 0-based (as `Date#getUTCMonth`).
-int kuwaitMonth([DateTime? now]) => _kuwait(now ?? DateTime.now()).month - 1;
-
-/// How long until the offered list changes — the next Kuwait hour boundary.
-int msToNextKuwaitHour([DateTime? now]) {
-  final k =
-      (now ?? DateTime.now()).toUtc().millisecondsSinceEpoch + 3 * 3600000;
-  return 3600000 - (((k % 3600000) + 3600000) % 3600000);
-}
 
 bool _bakesInTheSun(Place? place, int arrivalHour, int month) {
   if (place == null || place.summerOk == true || place.setting == 'indoor') {
@@ -100,6 +74,13 @@ WhenId defaultWhen(Place place, [DateTime? now]) {
   final hour = kuwaitHour(t);
   final options = whenOptions(t).map((o) => o.id).toSet();
   final daytimeIsFine = place.setting == 'indoor' || place.summerOk == true;
+  // In summer an open-air place is proposed for after sunset — the words
+  // شوق says about it. Before seven only.
+  if (!daytimeIsFine &&
+      isSummerMonth(kuwaitMonth(t)) &&
+      options.contains(WhenId.sunset)) {
+    return WhenId.sunset;
+  }
   if (hour >= 9 &&
       hour < 12 &&
       daytimeIsFine &&
@@ -112,6 +93,21 @@ WhenId defaultWhen(Place place, [DateTime? now]) {
 }
 
 String phraseFor(WhenId id) => _all.firstWhere((o) => o.id == id).phraseAr;
+
+/// The phrase with its day, when the day is known: «باچر الخميس», «الويكند —
+/// الجمعة». Only the two day-words gain a weekday.
+String planPhrase(WhenId id, String? day, [DateTime? now]) {
+  final phrase = phraseFor(id);
+  if (day == null) return phrase;
+  final plan = resolvePlan(id, day, now);
+  if (id == WhenId.tomorrow) return '$phrase ${plan.weekdayAr}';
+  if (id == WhenId.weekend) return '$phrase — ${plan.weekdayAr}';
+  return phrase;
+}
+
+/// The map link the messages carry — directions to the pin.
+String mapsUrl(Place place) =>
+    'https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}';
 
 /// The message itself, one person talking to their group. The heat warning is
 /// the very sentence شوق says aloud, imported rather than retyped.
@@ -141,12 +137,13 @@ String hangoutMessage({
       : '';
   return [
     '${place.nameAr} — ${place.areaAr} 📍',
-    phraseFor(when),
+    // Composed at the moment of sending, so the day is always known here.
+    planPhrase(when, kuwaitDay(t), t),
     '',
     place.taglineAr,
     if (heat.isNotEmpty) heat,
     '',
-    'الموقع: https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}',
+    'الموقع: ${mapsUrl(place)}',
     url,
   ].join('\n');
 }
@@ -154,8 +151,16 @@ String hangoutMessage({
 const inviteParam = 'when';
 
 /// Built from the slug, never from an address bar, so it cannot compound.
-String inviteUrl(Place place, WhenId when, String origin) =>
-    '${origin.replaceAll(RegExp(r'/+$'), '')}/places/${place.slug}/?$inviteParam=${when.wire}';
+/// [day] is the Kuwait day of sending (plan_date.dart); optional, so every
+/// link already in a chat keeps meaning what it meant.
+String inviteUrl(Place place, WhenId when, String origin, [String? day]) {
+  final base =
+      '${origin.replaceAll(RegExp(r'/+$'), '')}/places/${place.slug}/?$inviteParam=${when.wire}';
+  return day != null ? '$base&$dayParam=$day' : base;
+}
+
+/// The sending day in a link, or null — absent on links from before 3 October.
+String? readInviteDay(String search) => parseDay(_firstParam(search, dayParam));
 
 /// The FIRST value of [key] in a query string, as `URLSearchParams#get`
 /// gives — `Uri.splitQueryString` keeps the last, which would let a pasted
@@ -182,7 +187,9 @@ WhenId? readInvite(String search) {
 /// Has the invited hour already gone? Only answerable for the four evening
 /// slots; «الحين», «باچر» and «الويكند» are relative to a moment the link
 /// does not carry, and claiming otherwise would be inventing a fact.
-bool invitePassed(WhenId when, [DateTime? now]) {
+bool invitePassed(WhenId when, [DateTime? now, String? day]) {
+  // With the sending day in hand every kind of plan can be judged.
+  if (day != null) return resolvePlan(when, day, now).passed;
   final o = _all.firstWhere((o) => o.id == when);
   if (o.afterHour == null) return false;
   return kuwaitHour(now ?? DateTime.now()) >= o.afterHour!;
@@ -226,9 +233,16 @@ WhenId defaultWhenFor(List<Place> list, [DateTime? now]) {
 }
 
 /// `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like [inviteUrl].
-String shortlistUrl(List<Place> list, WhenId when, String origin) {
+String shortlistUrl(
+  List<Place> list,
+  WhenId when,
+  String origin, [
+  String? day,
+]) {
   final slugs = list.take(kShortlistMax).map((p) => p.slug).join(',');
-  return '${origin.replaceAll(RegExp(r'/+$'), '')}/pick/?$shortlistParam=$slugs&$inviteParam=${when.wire}';
+  final base =
+      '${origin.replaceAll(RegExp(r'/+$'), '')}/pick/?$shortlistParam=$slugs&$inviteParam=${when.wire}';
+  return day != null ? '$base&$dayParam=$day' : base;
 }
 
 final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
@@ -236,7 +250,7 @@ final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
 /// The slugs and the time in a shortlist link. Each slug is checked against
 /// the places that exist ([known]), duplicates dropped, three kept — the link
 /// is whatever anyone pasted. Fewer than two left is not a shortlist.
-({List<String> slugs, WhenId? when}) readShortlist(
+({List<String> slugs, WhenId? when, String? day}) readShortlist(
   String search,
   bool Function(String slug) known,
 ) {
@@ -251,11 +265,14 @@ final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
   return (
     slugs: slugs.length >= 2 ? slugs : const <String>[],
     when: readInvite(search),
+    day: readInviteDay(search),
   );
 }
 
-/// The message: one time, the places numbered, and the link to vote. The
-/// heat line travels once, for the first place the plan would bake.
+/// The message: one time, the places numbered, and the link to vote. Each
+/// place gets what a single plan gets — what it is, why it is worth it,
+/// where it is — and the heat line sits inside the block of the place it is
+/// about, every place that would bake (as on the web, 3 October).
 String shortlistMessage({
   required List<Place> places,
   required WhenId when,
@@ -275,32 +292,42 @@ String shortlistMessage({
       when == WhenId.soon ||
       when == WhenId.tomorrow ||
       when == WhenId.weekend;
-  Place? hot;
-  if (daytimePlan) {
-    for (final p in places) {
-      if (_bakesInTheSun(p, arrival, month)) {
-        hot = p;
-        break;
-      }
-    }
-  }
   final list = places.take(kShortlistMax).toList();
+  final blocks = <String>[];
+  for (var i = 0; i < list.length; i++) {
+    final p = list[i];
+    final hot = daytimePlan && _bakesInTheSun(p, arrival, month);
+    blocks.add([
+      '${_ordinalAr[i]}. ${p.nameAr} — ${p.areaAr}',
+      p.taglineAr,
+      if (hot) kGenericLines[summerKey(p)]!,
+      'الموقع: ${mapsUrl(p)}',
+    ].join('\n'));
+  }
   return [
-    'وين نروح ${phraseFor(when)}؟ اختاروا:',
-    for (var i = 0; i < list.length; i++)
-      '${_ordinalAr[i]}. ${list[i].nameAr} — ${list[i].areaAr}',
-    if (hot != null) ...['', kGenericLines[summerKey(hot)]!],
+    'وين نروح ${planPhrase(when, kuwaitDay(t), t)}؟ اختاروا:',
+    '',
+    blocks.join('\n\n'),
     '',
     'صوّتوا هني: $url',
   ].join('\n');
 }
 
-/// «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap.
-String shortlistVoteMessage(Place place, int position, WhenId? when) {
+/// «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap; with the place's own
+/// link under it when the page has one.
+String shortlistVoteMessage(
+  Place place,
+  int position,
+  WhenId? when, [
+  String? url,
+  String? day,
+]) {
   final n = position < _ordinalAr.length
       ? _ordinalAr[position]
       : '${position + 1}';
-  return 'أنا مع $n: ${place.nameAr} 👍${when != null ? ' — ${phraseFor(when)}' : ''}';
+  final line =
+      'أنا مع $n: ${place.nameAr} 👍${when != null ? ' — ${planPhrase(when, day)}' : ''}';
+  return url != null ? '$line\n$url' : line;
 }
 
 /// The share sheet's title for a list.

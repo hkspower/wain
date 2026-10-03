@@ -13,24 +13,36 @@ import '../data/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/svg.dart';
+import 'add_to_calendar.dart';
 import 'hangout.dart';
+import 'hangout_panel.dart' show kInviteOrigin;
 import 'share_service.dart';
 
 class InviteBanner extends StatefulWidget {
   final Place place;
   final WhenId when;
+
+  /// The day the link was sent (`d=`), when it carries one — then «باچر» has
+  /// a weekday and a plan from last week reads as gone.
+  final String? day;
   final DateTime Function() clock;
 
   /// «شوفه على الخريطة» — the place page's own map, brought into view (the
   /// web's `#map` anchor).
   final VoidCallback? onShowMap;
 
+  /// «اقترح وقت ثاني» on a passed invitation — the share panel further down
+  /// the page (the web's `#share`).
+  final VoidCallback? onPropose;
+
   const InviteBanner({
     super.key,
     required this.place,
     required this.when,
+    this.day,
     this.clock = _now,
     this.onShowMap,
+    this.onPropose,
   });
 
   static DateTime _now() => DateTime.now();
@@ -66,7 +78,9 @@ class _InviteBannerState extends State<InviteBanner> {
   @override
   Widget build(BuildContext context) {
     final place = widget.place;
-    final passed = invitePassed(widget.when, widget.clock());
+    final now = widget.clock();
+    final passed = invitePassed(widget.when, now, widget.day);
+    final phrase = planPhrase(widget.when, widget.day, now);
     return Semantics(
       label: 'دعوة',
       container: true,
@@ -106,14 +120,12 @@ class _InviteBannerState extends State<InviteBanner> {
                       color: WainColors.ink900,
                     ),
                   ),
-                  TextSpan(
-                    text: ' — ${place.areaAr}، ${phraseFor(widget.when)}',
-                  ),
+                  TextSpan(text: ' — ${place.areaAr}، $phrase'),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            if (passed)
+            if (passed) ...[
               Text(
                 'الوقت اللي بالدعوة عدّى. المكان نفسه بعده هني — شوفه واقترح وقت ثاني للربع.',
                 style: wainText(
@@ -121,8 +133,34 @@ class _InviteBannerState extends State<InviteBanner> {
                   color: WainColors.ink600,
                   height: 1.7,
                 ),
-              )
-            else
+              ),
+              // The text used to say it and offer no way (3 October).
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const ValueKey('invite-propose'),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  widget.onPropose?.call();
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: WainColors.coral700,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WainRadius.s2xl),
+                  ),
+                ),
+                icon: WainSvg.icon('send', size: 16, color: Colors.white),
+                label: Text(
+                  'اقترح وقت ثاني',
+                  style: wainText(
+                    WainText.sm,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ] else
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -156,9 +194,7 @@ class _InviteBannerState extends State<InviteBanner> {
                   OutlinedButton(
                     key: const ValueKey('invite-directions'),
                     onPressed: () => launchUrl(
-                      Uri.parse(
-                        'https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}',
-                      ),
+                      Uri.parse(mapsUrl(place)),
                       mode: LaunchMode.externalApplication,
                     ),
                     style: OutlinedButton.styleFrom(
@@ -183,6 +219,15 @@ class _InviteBannerState extends State<InviteBanner> {
                         WainSvg.icon('go', size: 16, color: WainColors.ink700),
                       ],
                     ),
+                  ),
+                  AddToCalendar(
+                    place: place,
+                    when: widget.when,
+                    day: widget.day,
+                    phrase: phrase,
+                    url: inviteUrl(place, widget.when, kInviteOrigin, widget.day),
+                    mapsUrl: mapsUrl(place),
+                    clock: widget.clock,
                   ),
                 ],
               ),

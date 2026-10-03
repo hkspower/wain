@@ -112,7 +112,7 @@ void main() {
   });
 }
 
-class _RecordingShare implements ShareBackend {
+class _RecordingShare extends ShareBackend {
   final List<String> log;
   _RecordingShare(this.log);
   @override

@@ -19,6 +19,7 @@ import '../data/salem_followup.dart';
 import '../data/voice_lines.dart';
 import '../map/wain_map.dart';
 import '../share/directions.dart';
+import '../share/hangout.dart' show kChoiceMax;
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -1106,7 +1107,9 @@ class _PlacesResultState extends State<_PlacesResult> {
           ),
           ShareHangout(
             place: target,
-            choices: places.length > 1 ? places : null,
+            // Five at most, as /search's panel and the web's SalemChat: a
+            // longer row of times-by-place does not fit a phone.
+            choices: places.length > 1 ? places.take(kChoiceMax).toList() : null,
             onChoose: _choose,
           ),
           if (chips != null && chips.isNotEmpty) ...[

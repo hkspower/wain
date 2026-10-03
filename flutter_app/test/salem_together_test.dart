@@ -24,6 +24,7 @@ import 'package:wain/data/places.g.dart';
 import 'package:wain/data/voice_lines.dart';
 import 'package:wain/map/wain_map.dart';
 import 'package:wain/screens/salem_screen.dart';
+import 'package:wain/share/hangout.dart' show kChoiceMax;
 import 'package:wain/share/hangout_panel.dart';
 import 'package:wain/voice/voice_service.dart';
 import 'package:wain/widgets/place_card.dart';
@@ -138,25 +139,41 @@ Finder _newest(String key) => find.byKey(ValueKey(key)).first;
 /// rail's cards and the map's pins (the rail is lazy, so its off-screen cards
 /// are not built to be read); and the first card, which is.
 List<String> _railSlugs(WidgetTester t, Finder block) {
+  // The cards are the answer; the map carries every one of them, and the
+  // share panel offers the first five as choices (kChoiceMax, 3 October — a
+  // longer row of times-by-place does not fit a phone), in the same order.
+  // The rail is a lazy list, so only the first few cards exist as widgets;
+  // the block's own `places` is the whole ordered answer. A private class,
+  // reached by its name and a dynamic getter rather than exported for a test.
+  final blockWidget = t.widget(
+    find.ancestor(
+      of: block,
+      matching: find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_PlacesResult',
+      ),
+    ),
+  );
   final slugs = <String>[
-    for (final p
-        in t
-                .widget<ShareHangout>(
-                  find.descendant(
-                    of: block,
-                    matching: find.byType(ShareHangout),
-                  ),
-                )
-                .choices ??
-            const <Place>[])
+    for (final p in ((blockWidget as dynamic).places as List).cast<Place>())
       p.slug,
   ];
+  expect(slugs, isNotEmpty, reason: 'an answer has cards');
   final first = t
       .widgetList<PlaceCard>(
         find.descendant(of: block, matching: find.byType(PlaceCard)),
       )
       .first;
   expect(first.place.slug, slugs.first, reason: 'the rail leads with it');
+  final choices = t
+      .widget<ShareHangout>(
+        find.descendant(of: block, matching: find.byType(ShareHangout)),
+      )
+      .choices;
+  expect(
+    [for (final p in choices ?? const <Place>[]) p.slug],
+    slugs.take(kChoiceMax).toList(),
+    reason: 'the panel offers the first ${slugs.length > kChoiceMax ? kChoiceMax : slugs.length}',
+  );
   final pins = {
     for (final m in t.widgetList<MapPin>(
       find.descendant(of: block, matching: find.byType(MapPin)),

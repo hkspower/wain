@@ -15,6 +15,7 @@ import '../data/search.dart';
 import '../data/text_kit.dart';
 import '../data/voice_lines.dart';
 import '../map/wain_map.dart';
+import '../share/hangout.dart' show kChoiceMax;
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -307,7 +308,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: ShareHangout(
                       key: const ValueKey('search-hangout'),
                       place: hitPlaces.firstWhere((p) => p.slug == active),
-                      choices: hitPlaces.take(8).toList(),
+                      choices: hitPlaces.take(kChoiceMax).toList(),
                       onChoose: (s) => setState(() => _activeSlug = s),
                     ),
                   ),

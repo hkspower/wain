@@ -340,7 +340,10 @@ class _Featured extends StatelessWidget {
               itemCount: featured.length,
               separatorBuilder: (_, _) => const SizedBox(width: 16),
               itemBuilder: (_, i) =>
-                  SizedBox(width: 256, child: PlaceCard(place: featured[i])),
+                  SizedBox(
+                    width: 256,
+                    child: PlaceCard(place: featured[i], shareable: true),
+                  ),
             ),
           ),
         ],

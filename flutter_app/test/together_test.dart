@@ -130,8 +130,18 @@ void main() {
       await t.tap(find.byKey(ValueKey('pick-vote-${_souq.slug}')));
       await t.pump();
       await t.pump();
-      expect(b.lastText, shortlistVoteMessage(_souq, 1, WhenId.tonight8));
-      expect(b.lastText, 'أنا مع ٢: ${_souq.nameAr} 👍 — الليلة الساعة ٨');
+      // The vote carries the place's own link under it (3 October), so the
+      // chat ends up holding the winner's plan the way one proposal would.
+      final voteLink = inviteUrl(_souq, WhenId.tonight8, kInviteOrigin);
+      expect(
+        b.lastText,
+        shortlistVoteMessage(_souq, 1, WhenId.tonight8, voteLink),
+      );
+      expect(
+        b.lastText,
+        'أنا مع ٢: ${_souq.nameAr} 👍 — الليلة الساعة ٨\n'
+        'https://www.wainkw.com/places/${_souq.slug}/?when=tonight-8',
+      );
       expect(b.lastTitle, shortlistTitle());
       expect(
         find.descendant(

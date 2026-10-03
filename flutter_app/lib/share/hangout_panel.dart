@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/layout.dart';
 import '../widgets/svg.dart';
+import 'add_to_calendar.dart';
 import 'hangout.dart';
 import 'share_service.dart';
 
@@ -52,6 +53,10 @@ class _ShareHangoutState extends State<ShareHangout> {
   ShareOutcome? _outcome;
   bool _busy = false;
   Timer? _tick;
+
+  /// What was last sent — the text, for the one outcome where nothing took
+  /// it and the visitor needs to see it; the plan, for the calendar button.
+  ({String text, WhenId when, String day, bool list})? _sent;
 
   /// «خلّهم يختارون» — send two or three of the choices and let the group
   /// pick (`shortlistMessage`). Offered only where there is a choice to hand
@@ -127,25 +132,26 @@ class _ShareHangoutState extends State<ShareHangout> {
     });
     HapticFeedback.selectionClick();
     final now = widget.clock();
-    final result = _inList
-        ? await shareHangout(
-            text: shortlistMessage(
-              places: listed,
-              when: when,
-              url: shortlistUrl(listed, when, kInviteOrigin),
-              now: now,
-            ),
-            title: shortlistTitle(),
+    // The link carries the day it was sent (plan_date.dart).
+    final day = kuwaitDay(now);
+    final text = _inList
+        ? shortlistMessage(
+            places: listed,
+            when: when,
+            url: shortlistUrl(listed, when, kInviteOrigin, day),
+            now: now,
           )
-        : await shareHangout(
-            text: hangoutMessage(
-              place: widget.place,
-              when: when,
-              url: inviteUrl(widget.place, when, kInviteOrigin),
-              now: now,
-            ),
-            title: hangoutTitle(widget.place),
+        : hangoutMessage(
+            place: widget.place,
+            when: when,
+            url: inviteUrl(widget.place, when, kInviteOrigin, day),
+            now: now,
           );
+    _sent = (text: text, when: when, day: day, list: _inList);
+    final result = await shareHangout(
+      text: text,
+      title: _inList ? shortlistTitle() : hangoutTitle(widget.place),
+    );
     if (result == ShareOutcome.shared ||
         result == ShareOutcome.whatsapp ||
         result == ShareOutcome.copied) {
@@ -368,10 +374,81 @@ class _ShareHangoutState extends State<ShareHangout> {
             _Note(icon: true, text: 'انتسخت — الصقها بالجروب.'),
           if (_outcome == ShareOutcome.whatsapp)
             _Note(icon: true, text: 'فتحنا لك واتساب.'),
-          if (_outcome == ShareOutcome.failed)
+          // Nothing took it: the message is the thing they need, so here it
+          // is, with its own copy (the old line pointed at an address bar
+          // that on search and in the chat holds no invitation).
+          if (_outcome == ShareOutcome.failed && _sent != null) ...[
             _Note(
               icon: false,
-              text: 'ما قدرنا نرسلها — انسخ الرابط من فوق وأرسله.',
+              text: 'ما قدرنا نرسلها — هذا النص، انسخه والصقه بالجروب.',
+            ),
+            const SizedBox(height: 8),
+            Container(
+              key: const ValueKey('hangout-failed-text'),
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: WainColors.sand50,
+                borderRadius: BorderRadius.circular(WainRadius.xl),
+                border: Border.all(color: WainColors.line),
+              ),
+              child: SelectableText(
+                _sent!.text,
+                style: wainText(
+                  WainText.sm,
+                  color: WainColors.ink800,
+                  height: 1.6,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const ValueKey('hangout-copy'),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: _sent!.text));
+                HapticFeedback.lightImpact();
+                if (mounted) setState(() => _outcome = ShareOutcome.copied);
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                side: const BorderSide(color: WainColors.line),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(WainRadius.xl),
+                ),
+              ),
+              child: Text(
+                'انسخ',
+                style: wainText(
+                  WainText.sm,
+                  weight: FontWeight.w600,
+                  color: WainColors.ink700,
+                ),
+              ),
+            ),
+          ],
+          // The sender's own copy of the plan, once it has gone out. Not for
+          // a shortlist: nobody has chosen yet.
+          if (_sent != null &&
+              !_sent!.list &&
+              (_outcome == ShareOutcome.shared ||
+                  _outcome == ShareOutcome.whatsapp ||
+                  _outcome == ShareOutcome.copied))
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: AddToCalendar(
+                place: widget.place,
+                when: _sent!.when,
+                day: _sent!.day,
+                phrase: planPhrase(_sent!.when, _sent!.day),
+                url: inviteUrl(
+                  widget.place,
+                  _sent!.when,
+                  kInviteOrigin,
+                  _sent!.day,
+                ),
+                mapsUrl: mapsUrl(widget.place),
+                clock: widget.clock,
+              ),
             ),
         ],
       ),

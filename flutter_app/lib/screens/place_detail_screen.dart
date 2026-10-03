@@ -34,9 +34,19 @@ const _settingLabel = {
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
 
-  /// The time a forwarded link carried, if any.
+  /// The time a forwarded link carried, if any — and the day it was sent.
   final WhenId? invite;
-  const PlaceDetailScreen({super.key, required this.place, this.invite});
+  final String? day;
+
+  /// Opened from a card's «رسّلها» (`?share=1`): scroll to the share panel.
+  final bool share;
+  const PlaceDetailScreen({
+    super.key,
+    required this.place,
+    this.invite,
+    this.day,
+    this.share = false,
+  });
 
   @override
   State<PlaceDetailScreen> createState() => _PlaceDetailScreenState();
@@ -46,11 +56,17 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Place get place => widget.place;
   WhenId? get invite => widget.invite;
 
-  /// The map, for an invitation's «شوفه على الخريطة» (the web's `#map`).
+  /// The map, for an invitation's «شوفه على الخريطة» (the web's `#map`),
+  /// and the share panel, for a card's «رسّلها» and a passed invitation's
+  /// «اقترح وقت ثاني» (the web's `#share`).
   final _mapKey = GlobalKey();
+  final _shareKey = GlobalKey();
 
-  void _showMap() {
-    final ctx = _mapKey.currentContext;
+  void _showMap() => _reveal(_mapKey);
+  void _showShare() => _reveal(_shareKey);
+
+  void _reveal(GlobalKey key) {
+    final ctx = key.currentContext;
     if (ctx == null) return;
     Scrollable.ensureVisible(
       ctx,
@@ -60,6 +76,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           : const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.share) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showShare();
+      });
+    }
   }
 
   @override
@@ -190,7 +216,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ],
               ),
               if (invite != null)
-                InviteBanner(place: place, when: invite!, onShowMap: _showMap),
+                InviteBanner(
+                  place: place,
+                  when: invite!,
+                  day: widget.day,
+                  onShowMap: _showMap,
+                  onPropose: _showShare,
+                ),
               const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
@@ -215,7 +247,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ),
               ],
               _Contact(place: place),
-              ShareHangout(place: place),
+              KeyedSubtree(key: _shareKey, child: ShareHangout(place: place)),
               const SizedBox(height: 12),
               _InfoGrid(place: place),
               const SizedBox(height: 12),
