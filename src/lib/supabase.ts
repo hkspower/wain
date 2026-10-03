@@ -5,8 +5,8 @@ import { deadlineFetch } from "@/lib/net";
 import { clampPrepMinutes, clampServiceMinutes, type CategoryId } from "@/lib/place-kit";
 // A type only, so this edge is erased at compile time. It matters which module
 // the VALUES come from: this file is reachable from the root layout through
-// OrdersLink, so importing a clamp from the catalogue put all 36 places on
-// every page of the site.
+// OrdersLink, so importing a clamp from the catalogue put every place record
+// (36 at the time) on every page of the site.
 import type { Place } from "@/lib/places";
 
 /**

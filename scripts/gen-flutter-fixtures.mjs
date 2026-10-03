@@ -68,7 +68,13 @@ F.distanceKm = ps.slice(0, 10).map((a, i) => {
   return { a: [a.lat, a.lng], b: [b.lat, b.lng], km: K.distanceKm(a, b) };
 });
 F.placeVariant = Object.fromEntries(ps.map((p) => [p.slug, K.placeVariant(p.slug)]));
-F.acceptsOrders = ps.map((p) => [K.acceptsOrders(p), K.takesQueue(p)]).filter((x) => x[0] || x[1]).length;
+// Counts, not a zero: the catalogue decides, and the Dart port has to agree
+// with it whichever way it reads (3 October — menus are on their way).
+F.orders = {
+  orders: ps.filter((p) => K.acceptsOrders(p)).length,
+  queue: ps.filter((p) => K.takesQueue(p)).length,
+  whatsapp: ps.filter((p) => K.acceptsOrders(p) && !!p.orderWhatsApp).length,
+};
 
 // speech preparation
 const lines = { shouq: K.buildClipLines("shouq", ps), salem: K.buildClipLines("salem", ps) };

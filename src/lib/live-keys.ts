@@ -4,7 +4,8 @@
  *
  * `LiveTray` is mounted on every page and used to import `orders.ts` and
  * `queue.ts` to find out — about 4K gzipped, paid by every visitor to every
- * route, for a feature 0 of 52 places offer. The keys live here, with no
+ * route, for a feature few places offer (docs/content.md counts them). The
+ * keys live here, with no
  * other import, so the tray can read the raw value for free and load the two
  * modules only on the device that has actually placed something.
  */

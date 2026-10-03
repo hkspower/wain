@@ -20,7 +20,7 @@ empty on the server.
 | hub actions | 3 |
 | voice clip lines, per persona | 109 |
 
-Ordering is live on **0 of 52** places and the queue on **0** — both need two fields set together, so read the pair, not either count in the coverage table below.
+Ordering is live on **0 of 52** places (**0** with a WhatsApp number, which is where an order goes while there is no database) and the queue on **0** — both need two fields set together, so read the pair, not either count in the coverage table below.
 
 ## Routes
 
@@ -202,12 +202,13 @@ The meaning of an empty cell is in the last column and is not always «no».
 | `productsAr` | 0 | what it sells, one line each |
 | `menuAr` | 0 | priced items |
 | `acceptsOrders` | 0 | the business's own switch |
+| `orderWhatsApp` | 0 | the number orders go to without a database |
 | `salonKind` | 0 | men's or women's, never both |
 | `takesQueue` | 0 | the salon's own switch |
 
 ## What the catalogue cannot answer yet
 
-Nothing in the catalogue sets `logoUrl`, `bioAr`, `imageUrls`, `phone`, `instagram`, `website`, `productsAr`, `menuAr`, `acceptsOrders`, `salonKind`, `takesQueue`.
+Nothing in the catalogue sets `logoUrl`, `bioAr`, `imageUrls`, `phone`, `instagram`, `website`, `productsAr`, `menuAr`, `acceptsOrders`, `orderWhatsApp`, `salonKind`, `takesQueue`.
 
 That is why the business profile, ordering and the queue render nothing
 anywhere on the site today — the panels return `null` rather than being

@@ -15,8 +15,9 @@ import { toArabicDigits } from "@/lib/place-kit";
  * And the module that knows how to read a record is loaded only once the raw
  * key holds something. These hooks sit in the root layout, so a static
  * import of `orders.ts` and `queue.ts` put ~4K gzipped on every route for
- * every visitor — for a feature 0 of 52 places offer (3 October; it was the
- * difference between /search over its JS budget and under it). A device with
+ * every visitor — for a feature few places offer (docs/content.md counts
+ * them; 3 October, when it was the difference between /search over its JS
+ * budget and under it). A device with
  * nothing stored never fetches either module; one with an order fetches it
  * once, and the tray appears a tick later than it used to.
  */
@@ -114,8 +115,8 @@ export default function OrdersLink() {
  * Removing the navbar took both pills with it, and /orders and /queue became
  * address-bar-only on the web: the only links left were AppTabBar's, and that
  * bar is `standalone:block`, so outside the installed app it is in the DOM and
- * painted by nothing. Nobody could reach that state — 0 of 52 places take an
- * order or a turn — which is exactly why it could sit broken unnoticed.
+ * painted by nothing. Nobody could reach that state — at the time no place
+ * took an order or a turn — which is exactly why it could sit broken unnoticed.
  *
  * This is deliberately not a bar coming back. It renders **nothing** unless
  * this device has a live order or today's ticket, so for every visitor there

@@ -37,14 +37,24 @@ serving its built-in copy of the places. Nothing breaks by not doing this.
 
 **Settings → API** gives you the two values. Put them in `.env.local` for local
 work, and in the GitHub repo (**Settings → Secrets and variables → Actions →
-Variables**) as `SUPABASE_URL` and `SUPABASE_ANON_KEY` for deploys:
+Variables**) as `SUPABASE_URL` and `SUPABASE_ANON_KEY` for CI deploys:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
-Then rebuild. `/admin` will show a login form.
+**Builds that reach the live site happen in the Claude Code environment, not
+in CI** (`DEPLOY_SECRET` has never been set, so every CI deploy stops at its
+first step). So the two values also go into **that environment's secrets**
+(the environment's settings page in claude.ai), under the same two
+`NEXT_PUBLIC_` names — a variable set only in GitHub reaches no build that is
+ever deployed. `NEXT_PUBLIC_*` is baked into the bundle at build time; nothing
+can supply it later.
+
+Then rebuild. `/admin` will show a login form, and — the part a customer
+notices — ordering switches from WhatsApp to the database for every place at
+once (see `docs/orders.md`, «Without a database»).
 
 > The anon key is meant to be public — it ships in the JavaScript of every
 > Supabase site. Row level security is what protects the data.

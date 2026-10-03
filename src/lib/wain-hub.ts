@@ -19,12 +19,13 @@
  * reason: the hub is reachable from the palette, the palette button is in the
  * root layout, and `npm run audit:js` fails if place records follow it there.
  *
- * WHAT IS DELIBERATELY ABSENT: ordering and the queue. Both are built, both
- * are inert — `acceptsOrders` needs a menu and `takesQueue` needs a salon
- * kind, and 0 of 52 places satisfy either, so a hub row for «طلباتي» would
- * advertise a door that opens onto nothing. `OrdersLink` already handles the
- * case that matters, appearing in the navbar only on a device that has a live
- * order. When a place takes orders, add the row here and both surfaces get it.
+ * WHAT IS DELIBERATELY ABSENT: ordering and the queue. `acceptsOrders` needs
+ * a menu and `takesQueue` needs a salon kind, and docs/content.md counts how
+ * many places satisfy either — while that is none or nearly none, a hub row
+ * for «طلباتي» would advertise a door that opens onto nothing. `LiveTray`
+ * already handles the case that matters, appearing only on a device that has
+ * a live order. When places take orders, add the row here and both surfaces
+ * get it.
  */
 
 // The one thing here that is already written somewhere else. `wain-ai.ts` has

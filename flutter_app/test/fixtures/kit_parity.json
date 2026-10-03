@@ -1023,7 +1023,11 @@
   "al-fanar-mall": 1,
   "modern-art-museum": 2
  },
- "acceptsOrders": 0,
+ "orders": {
+  "orders": 0,
+  "queue": 0,
+  "whatsapp": 0
+ },
  "clipLines": {
   "shouq": {
    "hello": "هلا! أنا شوق. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي.",

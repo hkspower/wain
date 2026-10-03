@@ -235,14 +235,25 @@ console.log('\n── nothing to plan, nothing shown ──');
 
 console.log('\n── ordering is offered only where a business switched it on ──');
 {
-  // Zero of the fifty-two do today. A greyed or dead «اطلب» on every result
-  // would teach the visitor to ignore the row, so the correct count is none.
+  // Against the catalogue, not against a zero: the link is drawn for the
+  // panel's target (the first result) exactly when that place accepts orders
+  // or runs a queue, and the data decides which — a greyed or dead «اطلب» on
+  // a place that does not would teach the visitor to ignore the row. This
+  // used to assert «0 of 52», which was true until the owner started sending
+  // menus, and would then have failed on correct behaviour.
+  const { places, acceptsOrders, takesQueue } = await import('./catalogue.mjs').then((m) => m.loadCatalogue());
   const { ctx, p } = await fresh('قهوة');
   await panel(p).waitFor({ timeout: 8000 });
+  // The chosen chip carries the target's name; the catalogue says what it accepts.
+  const chosenName = ((await chosenPlace(p).first().textContent().catch(() => '')) || '').trim();
+  const target = places.find((x) => x.nameAr === chosenName);
+  ok('the chosen place is a real place', !!target, chosenName);
   const order = await p.locator('a', { hasText: 'اطلب من' }).count();
   const queue = await p.locator('a', { hasText: 'خذ دورك' }).count();
-  ok('no order link while no place accepts orders', order === 0, `${order} shown`);
-  ok('no queue link while no salon runs a queue', queue === 0, `${queue} shown`);
+  const wantOrder = target && acceptsOrders(target) ? 1 : 0;
+  const wantQueue = target && takesQueue(target) ? 1 : 0;
+  ok(`the order link is there exactly when the place accepts orders (${target?.slug}: ${wantOrder})`, order === wantOrder, `${order} shown`);
+  ok(`the queue link is there exactly when the salon runs a queue (${wantQueue})`, queue === wantQueue, `${queue} shown`);
   await ctx.close();
 }
 

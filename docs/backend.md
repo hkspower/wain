@@ -49,25 +49,25 @@ The anon key is public by design — row level security decides what it can do �
 but it lives in `secrets` rather than `vars` so it is masked in logs. The
 `service_role` key must never appear in either; it bypasses RLS entirely.
 
-## 3. No place in the catalogue accepts orders
+## 3. How many places accept orders is a data question
 
-`acceptsOrders`, `menuAr`, `salonKind` and `takesQueue` appear in `places.ts`
-**only in the type definition**. Not one of the 36 place records sets any of
-them:
+`acceptsOrders`, `menuAr`, `orderWhatsApp`, `salonKind` and `takesQueue` are
+set per place in `places.ts`, and **`docs/content.md` (`npm run content`)
+counts them** — read it rather than this file, which said «0 of 36» for weeks
+after the catalogue had 52 records.
 
-```
-acceptsOrders: 0 places
-menuAr:        0 places
-salonKind:     0 places
-```
+Where a count is zero the matching panel renders nowhere, with or without
+Supabase. The features still pass their tests because `tests/fixture-build.mjs`
+injects a place with `acceptsOrders: true`, a menu and (for the WhatsApp
+flow) a number into a throwaway worktree build — the code is exercised, the
+catalogue is not.
 
-So even with Supabase live and the schema applied, the order panel and «خذ
-دورك» would render nowhere. The features pass their tests because
-`tests/run-journey.mjs:98` injects a place with `acceptsOrders: true` and a
-menu — the code is exercised, the catalogue is not.
-
-Enabling one is a data edit, not a code change: set `acceptsOrders`, add
-`menuAr` with fils-accurate prices, and give it a `prepMinutes`.
+Enabling one is a data edit, not a code change, and **it no longer needs
+Supabase**: with the database unconfigured an order goes to the place's
+`orderWhatsApp` number as a WhatsApp message (see `docs/orders.md`, «Without
+a database»). Set `acceptsOrders`, `orderWhatsApp`, `menuAr` with
+fils-accurate prices and an `orderPrepMinutes`; `npm run audit:places`
+refuses a place that accepts orders without a menu or a number.
 
 ## 4. The schema is written but unapplied
 

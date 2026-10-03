@@ -85,7 +85,7 @@ export default function SearchPlan({
 
       {/* Only where the business actually switched them on. A greyed «اطلب» on
           a place that does not take orders teaches the visitor to ignore the
-          row, and every place here is one of the fifty-two that has not. */}
+          row; docs/content.md counts how many have. */}
       {(canOrder || canQueue) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {canOrder && (

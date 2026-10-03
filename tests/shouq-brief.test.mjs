@@ -213,13 +213,19 @@ console.log("\n── with nothing switched on, she is told not to offer it ─�
   // turned either on. An agent told merely that "no place accepts orders"
   // will still cheerfully suggest ordering ahead, so the brief has to forbid
   // it rather than describe it.
+  // Not asserted to be zero any more (3 October): the owner is sending menus,
+  // and the day one lands this block has to follow the catalogue rather than
+  // fail on it. What IS asserted is that the brief agrees with the data,
+  // whichever way it reads.
   const anyOrders = /acceptsOrders: true/.test(places);
   const anyQueue = /takesQueue: true/.test(places);
-  ok("no shipped place takes orders or turns yet", !anyOrders && !anyQueue,
-    `orders:${anyOrders} queue:${anyQueue}`);
-  ok("so she is told not to offer ordering", committed.includes("لا تعرضين على أحد يطلب"));
-  ok("and not to offer a turn", committed.includes("لا تعرضين على أحد ياخذ دور"));
-  ok("she is given the sentence to say if asked", committed.includes("للحين ما فيه محل مفعّلها"));
+  console.log(`  (catalogue: orders ${anyOrders ? "on somewhere" : "off everywhere"}, queue ${anyQueue ? "on somewhere" : "off everywhere"})`);
+  ok(anyOrders ? "ordering is on somewhere, so she is not told to refuse it" : "no place takes orders, so she is told not to offer ordering",
+    anyOrders ? !committed.includes("لا تعرضين على أحد يطلب") : committed.includes("لا تعرضين على أحد يطلب"));
+  ok(anyQueue ? "a queue is on somewhere, so she is not told to refuse turns" : "no salon runs a queue, so she is told not to offer a turn",
+    anyQueue ? !committed.includes("لا تعرضين على أحد ياخذ دور") : committed.includes("لا تعرضين على أحد ياخذ دور"));
+  if (!anyOrders && !anyQueue)
+    ok("she is given the sentence to say if asked", committed.includes("للحين ما فيه محل مفعّلها"));
   ok("the word «مدفوع» never reaches her", !committed.includes("مدفوع"));
 }
 

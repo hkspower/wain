@@ -73,10 +73,17 @@ void main() {
       want.forEach((slug, v) => expect(placeVariant(slug), v, reason: slug));
     });
 
-    test('no shipped place accepts orders or a queue (CLAUDE.md: 0 of 52)', () {
-      expect(kPlaces.where(acceptsOrders), isEmpty);
-      expect(kPlaces.where(takesQueue), isEmpty);
-      expect(f['acceptsOrders'], 0);
+    test('the gates agree with the web on how many places take orders or a queue', () {
+      // A count against the web's own reading, not a zero: the catalogue
+      // decides (docs/content.md says how many today), and a menu landing in
+      // places.ts must move both sides together.
+      final counts = f['orders'] as Map<String, dynamic>;
+      expect(kPlaces.where(acceptsOrders).length, counts['orders']);
+      expect(kPlaces.where(takesQueue).length, counts['queue']);
+      expect(
+        kPlaces.where((p) => acceptsOrders(p) && p.orderWhatsApp != null).length,
+        counts['whatsapp'],
+      );
     });
   });
 

@@ -5857,6 +5857,88 @@ handling of a blob download, the iOS share sheet's offer for an `.ics`,
 Android's Google page), WhatsApp's rendering of the longer message, the share
 button under a real thumb, and any of the app on a device.
 
+## Orders go by WhatsApp when there is no database — 3 October, late (built, NOT deployed)
+
+Asked: «improve order arrange» = the ordering feature (طلباتي), which was fully
+built and inert: `supabaseEnabled` false and no place with a menu, so no visitor
+had ever seen the panel. The owner chose all four: make it work without a back
+end, prepare the Supabase switch-on, polish the flow, build it in the app. **The
+owner is sending the menus**; none exist, so every test runs on a fixture and
+the live site shows nothing new until a menu lands in `places.ts`. Web is done
+(`9c070502` field, `c3f68e60` kit, then the panel, the tracker, and this); the Flutter half is next.
+
+**One channel per build, never both** — `orderChannel(place)` in `orders.ts`:
+`null` unless `acceptsOrders`; `"db"` when Supabase is configured; else
+`"whatsapp"` when the place has `orderWhatsApp` (eight bare Kuwaiti digits,
+the `customer_phone` shape); else `null`. Two send buttons would be two orders
+and a board that saw half. **The day the database goes on, every shop stops
+getting WhatsApp orders** — `docs/orders.md` says so; tell them first.
+
+- **The pure half is `src/lib/order-kit.ts`** (`place-kit`'s rule: no
+  catalogue, no Supabase), re-exported by `orders.ts` so no caller changed.
+  `buildOrderMessage` is the text the shop receives (reference, place, «٢×
+  چاي كرك — ٠٫٥٠٠ د.ك» per line with the LINE total, «المجموع التقريبي»,
+  the time, the name, a note only if given, «الدفع عند الاستلام 👍», the
+  page's URL); `url` is a parameter so Dart replays it byte for byte.
+  `validateOrder({ phoneRequired: false })` in WhatsApp mode — the shop
+  answers in the thread the customer opened. `MAX_NOTE_CHARS` is 200, the
+  CHECK on `orders.note_ar`, not the 300 of the PLACE's note.
+- **`window.open` inside the tap, and `opener` cut by hand.** Safari and
+  Chrome block a popup that follows an `await`, so `sendWhatsAppOrder` is
+  synchronous end to end. And **`noopener` as a feature string makes
+  `window.open` return null on SUCCESS** (the spec) — the hangout's wa.me
+  step had been reading that as «blocked» and falling through to the
+  clipboard on every desktop while the tab opened anyway. Both sends open
+  plain and set `opener = null`. The order is remembered BEFORE the open, so
+  a lost tab is still in «طلباتي»; a blocked popup gets the hangout's
+  failed-send shape (the text in a box, «انسخ», a plain link).
+- **The tracker draws a card per channel.** A WhatsApp order has no status
+  anything here can read, so its card says «الحالة ما تنعرض هني», no steps,
+  no poll, no «ما قدرنا نتأكد»; its actions are anchors into the thread
+  («افتح المحادثة», «ألغِ عبر واتساب» carrying the cancel sentence), and a
+  tap on cancel marks «طلبت إلغاءه» on the device — a request, not a fact.
+  **The db card said «المكان ألغى الطلب» whoever had cancelled**; the device
+  now remembers it was the customer's (`markCancelledByMe`) and says «ألغيت
+  الطلب». Entries with no `channel` are read as db. A card whose order the
+  server no longer knows still falls back to «placed» and offers cancel —
+  unchanged, written down.
+- **The schema generator was behind its own output.** The 1–2 October RLS
+  fixes were hand edits to `supabase/schema.sql`, so `npm run db:schema`
+  would have reverted them; the five hunks are in `gen-schema.mjs` now,
+  proved by regenerating the unchanged catalogue byte for byte before adding
+  the column. The seed reads `places.ts` through esbuild and carries the menu
+  columns. **A hand edit to a generated file belongs in its generator**, or
+  the next regeneration is a rollback nobody asked for.
+- **Tests run on a fixture build, not a shipped place.** `tests/fixture-build.mjs`
+  holds the worktree-patch-build dance `run-journey.mjs` used to carry alone;
+  `run-orders.mjs` gains a phase with no Supabase, the place's number, and a
+  second place with a menu and NO number — the shape `audit:places` refuses,
+  which only a test build can show. `order-whatsapp.test` 54, `orders.test`
+  97, `order-tracking` 48, `journey` 46 (a second order she calls off
+  herself), each proved red with the build green. **Two sabotages failed the
+  build** (`{true && …}` on lint, `=== "never"` on types) and the suite ran
+  green against the stale export — read `BUILD_EXIT` before reading a red.
+- **«0 of 52» is out of the tests and the comments.** `search-plan`,
+  `shouq-brief` and the Dart `kit_parity` now count against the catalogue
+  (`tests/catalogue.mjs` bundles it; the fixture carries `F.orders`), so a
+  menu landing moves both sides together instead of failing on correct
+  behaviour. `docs/content.md` carries the counts; comments point there.
+- **The owner's intake, one message per shop** (`docs/orders.md`): المكان /
+  واتساب (8 digits) / التجهيز (5–240) / ملاحظة / القائمة lines «name | price
+  [خلص]». Into the record (`acceptsOrders`, `orderWhatsApp`,
+  `orderPrepMinutes`, `orderNoteAr`, `menuAr` with ids never renumbered once
+  shipped) → `db:schema` → `flutter:catalogue` → `flutter:fixtures` →
+  `ai:brief` → `content` → `scan` → screenshots → yes → deploy.
+- **Switching Supabase on**: the owner runs the regenerated `schema.sql`, and
+  puts the two `NEXT_PUBLIC_` values into **this environment's secrets**, not
+  only GitHub's — builds that reach the live site happen here, and
+  `DEPLOY_SECRET` has never been set (`docs/admin-setup.md`). The sandbox
+  cannot reach a Supabase host; the live proof is one order on the board.
+
+**Not measured:** whether `wa.me/965N?text=` opens WhatsApp with the text
+prefilled on a real iPhone or Android (and Safari's popup rule in practice),
+any Supabase round trip, the shop's side of the thread.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

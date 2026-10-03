@@ -128,6 +128,7 @@ const COVERAGE = [
   ["productsAr", (p) => p.productsAr?.length, "what it sells, one line each"],
   ["menuAr", (p) => p.menuAr?.length, "priced items"],
   ["acceptsOrders", (p) => p.acceptsOrders, "the business's own switch"],
+  ["orderWhatsApp", (p) => p.orderWhatsApp, "the number orders go to without a database"],
   ["salonKind", (p) => p.salonKind, "men's or women's, never both"],
   ["takesQueue", (p) => p.takesQueue, "the salon's own switch"],
 ];
@@ -135,8 +136,10 @@ const COVERAGE = [
 /* The two features whose gate is a PAIR of fields. Counting one of them alone
    is how «ordering is built» gets read as «ordering works»: a menu without
    the switch takes no orders, and the switch without a menu has nothing to
-   sell. 0 of 52 is the number that matters and it needs both. */
+   sell. The count that matters needs both — and without a database it also
+   needs a number for the order to go to, so that is counted beside it. */
 const ordering = has((p) => p.acceptsOrders && p.menuAr?.length);
+const orderingByWhatsApp = has((p) => p.acceptsOrders && p.menuAr?.length && p.orderWhatsApp);
 const queueing = has((p) => p.takesQueue && p.salonKind);
 
 const clipLines = buildClipLines("shouq", places);
@@ -177,7 +180,7 @@ row(["hub actions", HUB_ACTIONS.length]);
 row(["voice clip lines, per persona", Object.keys(clipLines).length]);
 w();
 w(
-  `Ordering is live on **${ordering} of ${places.length}** places and the queue on ` +
+  `Ordering is live on **${ordering} of ${places.length}** places (**${orderingByWhatsApp}** with a WhatsApp number, which is where an order goes while there is no database) and the queue on ` +
     `**${queueing}** — both need two fields set together, so read the pair, not ` +
     `either count in the coverage table below.`
 );

@@ -29,8 +29,9 @@ const _settingLabel = {
 
 /// A place: hero, name, what it is, the invitation if a link carried one, the
 /// description, contact, share, highlights/best time/price/season, the map and
-/// similar places. Order and queue panels render nothing today — 0 of 52
-/// places take either (and the back end behind them is not configured).
+/// similar places. The order panel renders only for a place that accepts
+/// orders and has a WhatsApp number (docs/content.md counts them); the queue
+/// renders nothing, its back end being unconfigured.
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
 
