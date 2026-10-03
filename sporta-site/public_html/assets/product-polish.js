@@ -24,6 +24,21 @@
     }
   }
 
+  // 3. THE OWNER'S RETURN WINDOW. The app's Product data says merchantReturnDays 14, fixed in the bundle;
+  //    seo.php states the rule from /backends in a meta tag, and the app's copy is corrected to it.
+  function fixReturnDays() {
+    var m = document.querySelector('meta[name="sporta-return-days"]')
+    var days = m ? parseInt(m.getAttribute('content'), 10) : NaN
+    if (!(days > 0)) return
+    var ld = document.querySelectorAll('script[type="application/ld+json"]')
+    for (var i = 0; i < ld.length; i++) {
+      var t = ld[i].textContent || ''
+      if (t.indexOf('"merchantReturnDays"') === -1) continue
+      var n = t.replace(/"merchantReturnDays":\s*\d+/g, '"merchantReturnDays":' + days)
+      if (n !== t) ld[i].textContent = n
+    }
+  }
+
   function hideEcho() {
     if (!/^\/product\//.test(location.pathname)) return
     var h1 = document.querySelector('h1.product-title')
@@ -41,7 +56,7 @@
   }
 
   var q = null
-  function run() { dedupeLd(); hideEcho() }
+  function run() { dedupeLd(); fixReturnDays(); hideEcho() }
   new MutationObserver(function () { if (!q) q = setTimeout(function () { q = null; run() }, 150) }).observe(document.documentElement, { childList: true, subtree: true })
   run()
 })()

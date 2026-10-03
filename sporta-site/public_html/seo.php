@@ -342,6 +342,17 @@ try {
                     'url'           => $canonical,
                 ],
             ];
+            /* The return window is the owner's rule (/backends -> Shop rules), not the bundle's fixed 14.
+               product-polish.js copies it into the app's own Product data, which replaces this copy. */
+            if ($days > 0) {
+                $productLd['offers']['hasMerchantReturnPolicy'] = [
+                    '@type' => 'MerchantReturnPolicy', 'applicableCountry' => 'KW',
+                    'returnPolicyCategory' => 'https://schema.org/MerchantReturnFiniteReturnWindow',
+                    'merchantReturnDays' => $days, 'returnMethod' => 'https://schema.org/ReturnByMail',
+                    'returnFees' => 'https://schema.org/FreeReturn',
+                ];
+                $returnDaysMeta = $days;
+            }
             if ($other !== '' && $other !== $name) $productLd['alternateName'] = $other;
             if ($brandName !== '')                  $productLd['brand'] = ['@type' => 'Brand', 'name' => $brandName];
             if (!empty($p['category']))             $productLd['category'] = (string) $p['category'];
@@ -443,6 +454,7 @@ if ($ownTitle !== null || $ownDesc !== null) {
     if ($ownDesc !== null)  $head .= ' data-desc="' . e($ownDesc) . '"';
     $head .= " />\n";
 }
+if (isset($returnDaysMeta)) $head .= '  <meta name="sporta-return-days" content="' . (int) $returnDaysMeta . "\" />\n";
 if ($verification !== '') {
     $head .= '  <meta name="google-site-verification" content="' . e($verification) . "\" />\n";
 }
