@@ -16,7 +16,7 @@ SITE = ROOT / "almuhallab"
 OUT = SITE / "og.png"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
-BROWN = "#6f3f1c"
+BROWN = "#25292f"
 
 
 def wide_mark() -> str:
@@ -25,7 +25,7 @@ def wide_mark() -> str:
     m = re.search(r'<symbol id="i-ship" viewBox="([^"]+)">(.*?)</symbol>', html, re.S)
     if not m:
         sys.exit("i-ship symbol not found in index.html — did the mark move?")
-    return f'<svg viewBox="{m.group(1)}" style="width:340px;height:auto;color:#fff;--ship-cut:#6f3f1c">{m.group(2)}</svg>'
+    return f'<svg viewBox="{m.group(1)}" style="width:340px;height:auto;color:#fff;--ship-cut:#25292f">{m.group(2)}</svg>'
 
 
 def build() -> str:

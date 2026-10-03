@@ -26,7 +26,7 @@ import pixel_boum as pb  # noqa: E402  the one bitmap of the square mark
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "almuhallab"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
-BROWN = "#6f3f1c"
+BROWN = "#25292f"
 
 
 def boum_touch():

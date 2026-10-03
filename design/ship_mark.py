@@ -25,7 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SITE = HERE.parent / "almuhallab"
 PAGE = SITE / "index.html"
-BROWN, WHITE = "#6f3f1c", "#ffffff"
+BROWN, WHITE = "#25292f", "#ffffff"
 
 _spec = importlib.util.spec_from_file_location("logo_modern", HERE / "logo-modern" / "build.py")
 lm = importlib.util.module_from_spec(_spec)
@@ -52,7 +52,7 @@ VIEWBOX = _drawing()[0]
 
 def symbol():
     vb, body = _drawing()
-    body = _inked(body, "currentColor", ("currentColor", ".78"), ("currentColor", ".45"), "var(--ship-cut, #6f3f1c)")
+    body = _inked(body, "currentColor", ("currentColor", ".78"), ("currentColor", ".45"), "var(--ship-cut, #25292f)")
     body = body.replace('url(#cs1)', 'url(#i-ship-cs1)').replace('url(#cs2)', 'url(#i-ship-cs2)') \
                .replace('id="cs1"', 'id="i-ship-cs1"').replace('id="cs2"', 'id="i-ship-cs2"')
     return f'<symbol id="i-ship" viewBox="{vb}">{body}</symbol>'

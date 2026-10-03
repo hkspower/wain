@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#6f3f1c" />
+  <meta name="theme-color" content="#25292f" />
   <!-- Preload every weight the masthead and the first screen actually render,
        measured rather than assumed. Without this the browser cannot know a
        font exists until it has parsed ~220 lines of inline CSS, so each file
@@ -109,20 +109,20 @@
       --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
       --text: #1b2430;
       --muted: #434d55;
-      --tint: #7a4418;
-      --tint-strong: #6f3f1c;
+      --tint: #33383f;
+      --tint-strong: #25292f;
       /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
          on it used to be white at an alpha, and an alpha is not a colour: it
          composites against whatever is underneath and the result is a value
-         nobody solved. Over #6f3f1c the .82 tagline resolved to #e5dcd6 — a
+         nobody solved. Over #25292f the .82 tagline resolved to #e5dcd6 — a
          BEIGE at 6.47:1, under the 7:1 body floor and against this project's
          own no-beige rule, invisible to the existing check because that check
          reads declared surface tokens and this was a composited ink. And the
          .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
          for a boundary you have to see in order to click. */
       --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
-      --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
-      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
+      --on-bar-bd: #8a919a;     /* the only boundary for a control on it · 4.51:1 */
+      --on-bar-fill: #454b54;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;

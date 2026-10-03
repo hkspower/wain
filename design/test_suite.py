@@ -585,9 +585,9 @@ def identity_checks():
                             capture_output=True, text=True)
     check(S, "the illustrated boum is generated from one drawing (ship_mark --check)",
           sm_gen.returncode == 0, (sm_gen.stdout + sm_gen.stderr).strip())
-    check(S, "logo.svg and favicon.svg fly the illustrated boum, white on brown",
+    check(S, "logo.svg and favicon.svg fly the illustrated boum, white on dark grey",
           'id="i-ship"' in home and "ship_mark.py" in logo and "ship_mark.py" in fav
-          and "#6f3f1c" in logo and "#6f3f1c" in fav)
+          and "#25292f" in logo and "#25292f" in fav)
     # Four things make her a boum; each is asserted on the drawing itself.
     tris = [p for p in ml.BOUM if len(p) == 3]
     check(S, "she carries two filled lateen sails, not bare poles",
@@ -630,7 +630,7 @@ def identity_checks():
         block = re.search(pat, src, re.S).group(1)
         return re.search(rf"--{name}:\s*(#[0-9a-fA-F]{{6}})", block).group(1)
 
-    PINNED = {"tint": "#7a4418", "tint-strong": "#6f3f1c"}
+    PINNED = {"tint": "#33383f", "tint-strong": "#25292f"}
     for name, want in PINNED.items():
         got = tok(home, name)
         check(S, f"--{name} is {want}", got == want, got)
@@ -638,14 +638,14 @@ def identity_checks():
     check(S, "the page and its cards stay white",
           tok(home, "bg") == "#ffffff" and tok(home, "panel") == "#ffffff")
 
-    # the masthead is brown on every page — one shell, no divergence (owner's
+    # the masthead is dark grey on every page — one shell, no divergence (owner's
     # request, 2026-07-31). It is the only brown surface; the page stays white.
     for p in PAGES:
         t = (ROOT / p).read_text()
-        check(S, f"{p}: the masthead bar is brown",
+        check(S, f"{p}: the masthead bar is dark grey",
               re.search(r"header\s*\{[^}]*background:\s*var\(--tint-strong\)", t, re.S) is not None)
         check(S, f"{p}: the browser chrome matches it",
-              'name="theme-color" content="#6f3f1c"' in t)
+              'name="theme-color" content="#25292f"' in t)
 
     for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
         check(S, f"contact channel kept: {want}", want in home)
@@ -1002,14 +1002,14 @@ def home_checks(pg):
                mark: getComputedStyle(document.querySelector('header .logo')).color };
     })()""")
     check(S, "the masthead is sticky", bar["pos"] == "sticky", bar["pos"])
-    check(S, "the masthead is brown", bar["bg"] == "rgb(111, 63, 28)", bar["bg"])
+    check(S, "the masthead is dark grey", bar["bg"] == "rgb(37, 41, 47)", bar["bg"])
     check(S, "the wordmark and mark are white on it",
           bar["name"] == "rgb(255, 255, 255)" and bar["mark"] == "rgb(255, 255, 255)",
           f'{bar["name"]} / {bar["mark"]}')
     # white on the brand brown must clear the body-text bar by measurement
-    check(S, "white on the masthead brown clears 7:1",
-          round(contrast("#ffffff", "#6f3f1c"), 2) >= 7,
-          f'{contrast("#ffffff", "#6f3f1c"):.2f}:1')
+    check(S, "white on the masthead dark grey clears 7:1",
+          round(contrast("#ffffff", "#25292f"), 2) >= 7,
+          f'{contrast("#ffffff", "#25292f"):.2f}:1')
     # it must actually stay put, and shrink rather than eat the viewport.
     # measure the full state from the top: earlier checks in this section
     # scroll the page, and the bar is compact whenever it is scrolled
@@ -1082,7 +1082,7 @@ def home_checks(pg):
 
         worst, label = 99.0, ""
         for text, colour, own in rows:
-            base = "#6f3f1c" if own.startswith("rgba(0, 0, 0, 0") else flatten(own, "#6f3f1c")
+            base = "#25292f" if own.startswith("rgba(0, 0, 0, 0") else flatten(own, "#25292f")
             c = contrast(flatten(colour, base), base)
             if c < worst: worst, label = c, text
         check(S, f"{page}: every masthead label clears 4.5:1",
@@ -1591,7 +1591,7 @@ def scan_checks(pg, br):
     _sys.path.insert(0, str(ROOT.parent / "design"))
     import pixel_boum as pb
     check(S, "the favicon file draws the illustrated boum",
-          "ship_mark.py" in fav and 'fill="#6f3f1c"' in fav)
+          "ship_mark.py" in fav and 'fill="#25292f"' in fav)
 
     # Home-screen icons. Every page used to point apple-touch-icon at an SVG,
     # which iOS ignores — "Add to Home Screen" showed a screenshot of the page.
@@ -1677,8 +1677,8 @@ def scan_checks(pg, br):
 
     # the installed app's colour follows the masthead, like every page's meta
     mani = json.loads((ROOT / "manifest.webmanifest").read_text())
-    check(S, "the manifest's theme colour is the masthead brown",
-          mani.get("theme_color") == "#6f3f1c", str(mani.get("theme_color")))
+    check(S, "the manifest's theme colour is the masthead dark grey",
+          mani.get("theme_color") == "#25292f", str(mani.get("theme_color")))
 
     # every shipped page belongs in the offline shell — 404.html did not
     sw = (ROOT / "sw.js").read_text()
