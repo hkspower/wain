@@ -26,10 +26,15 @@
 
   Unreal's packaging templates differ between engine versions, so rather
   than guess at an .ini key that may not exist in yours, merge the dict
-  below into the Info.plist your build produces. In UE 5.4 the reliable
-  route is Project Settings → Platforms → Mac → "Additional Plist Data",
-  pasted as the inner XML; unreal/mac/connect.sh prints this path when
-  it detects a packaged build.
+  below into the Info.plist your build produces. This project is on UE
+  5.8, which builds Mac apps through the modern-Xcode workflow: there a
+  project-level Info.plist template is part of the Xcode project, and
+  putting this dict in it carries the exception into every build. On
+  5.4 the route was Project Settings → Platforms → Mac → "Additional
+  Plist Data", pasted as the inner XML, and it may still work. Neither
+  route has been watched working on 5.8 — whichever you use, check the
+  packaged app's Contents/Info.plist for NSAppTransportSecurity, and
+  GRN.Api.Status for the result.
 
   NOT TESTED HERE. This repository's checks run on Linux with no Unreal
   and no Mac; the contents below are the standard ATS exception and the

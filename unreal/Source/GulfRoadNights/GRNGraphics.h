@@ -77,4 +77,25 @@ namespace GRNGraphics
 	/** Parse -grn4k / -grn2k / -grn1080 / -grndlss=off from the command
 	 *  line so a build can be pointed at a resolution without recompiling. */
 	void ApplyCommandLineOverrides(UObject* WorldContext);
+
+	/**
+	 * Is MegaLights going to draw this project's local lights?
+	 *
+	 * The street lamps and headlights ask this before they turn shadows
+	 * on. Under MegaLights a shadowed light costs a fixed amount per
+	 * pixel, however many there are — which is what makes ~170 shadowed
+	 * sodium lamps along 7.3 km affordable at all. Without it each one is
+	 * its own shadow map, and the old unshadowed lamps are the right
+	 * answer. So: r.MegaLights.EnableForProject (the project switch,
+	 * DefaultEngine.ini) and r.MegaLights.Allow (the per-scalability-rung
+	 * and per-device-profile switch, DefaultScalability.ini). An engine
+	 * with no MegaLights has neither variable and answers false.
+	 *
+	 * What it cannot see is the GPU. The variables say what the project
+	 * asked for, not whether this card can run it; the MegaLights
+	 * visualisation in the editor's view modes is the check for that.
+	 * Asked once at build time: a scalability change mid-session does
+	 * not re-light lamps that are already standing.
+	 */
+	bool MegaLightsActive();
 }

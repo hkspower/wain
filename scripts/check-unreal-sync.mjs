@@ -342,6 +342,31 @@ if (hCars.length !== api.cars.length) {
   }
 }
 
+// ---- the finish each car leaves the factory in ------------------------
+//
+// Read from `cars[].finish` on the live path and from GRNPaintLaw.h's
+// FactoryFinishes on the baked one — the same fact in two places, which
+// is what this file exists to compare. A port that disagrees paints the
+// matte pickup gloss for a player on a plane and matte for one online.
+// (check-unreal-project.mjs compares the same table with mods.ts offline;
+// this is the comparison with what the server actually serves.)
+{
+  const law = readFileSync("unreal/Source/GulfRoadNights/GRNPaintLaw.h", "utf8");
+  const baked = Object.fromEntries(
+    [...law.matchAll(/\{ "([\w-]+)", EGRNFinish::(Gloss|Satin|Matte) \}/g)].map((m) => [m[1], m[2].toLowerCase()])
+  );
+  let bad = 0;
+  for (const c of api.cars) {
+    const live = c.finish ?? "gloss";
+    const want = baked[c.id] ?? "gloss";
+    if (live !== want) { fail(`car ${c.id} finish: GRNPaintLaw.h ${want} vs api ${live}`); bad++; }
+  }
+  if (!bad) {
+    const off = api.cars.filter((c) => (c.finish ?? "gloss") !== "gloss").length;
+    ok(`finish: ${api.cars.length} cars agree (${off} not gloss) between the API and GRNPaintLaw.h`);
+  }
+}
+
 // ---- api version ----------------------------------------------------
 const clientVersion = readFileSync(
   "unreal/Source/GulfRoadNights/GRNApi.h", "utf8"

@@ -1,9 +1,11 @@
 #include "GRNWorldBuilder.h"
 #include "GRNTrack.h"
 #include "GRNTypes.h"
+#include "GRNGraphics.h"
 #include "ProceduralMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -134,6 +136,19 @@ void AGRNWorldBuilder::BuildStreetLights(AGRNTrack* Track)
 	const float Spacing = GRN_M(42.f);
 	const int32 Count = FMath::FloorToInt(L / Spacing);
 
+	// Shadowed lamps, or the old unshadowed ones — decided once for the
+	// whole corniche, by whether MegaLights is drawing local lights.
+	//
+	// MegaLights prices a shadowed light per PIXEL, not per light: it
+	// samples a few lights at each pixel and traces their shadows, so the
+	// cost holds still as the count climbs. That is the only reason ~170
+	// shadowed spot lights on one road is a sane thing to ask for. Without
+	// it each lamp is its own shadow map, which no frame budget survives,
+	// and the unshadowed lamps this always built are the right answer —
+	// so that is what an engine, a GPU rung or a device profile with
+	// MegaLights off still gets. See GRNGraphics::MegaLightsActive.
+	const bool bShadowed = GRNGraphics::MegaLightsActive();
+
 	for (int32 i = 0; i < Count; i++)
 	{
 		const float S = i * Spacing;
@@ -152,19 +167,43 @@ void AGRNWorldBuilder::BuildStreetLights(AGRNTrack* Track)
 		Arms->AddInstance(FTransform(ArmRot, ArmMid, FVector(0.09f, 0.09f, 3.0f)), true);
 		LampHeads->AddInstance(FTransform(Side.ToOrientationQuat(), Head, FVector(0.55f, 0.3f, 0.12f)), true);
 
-		// Real light: one narrow spot per lamp. Lumen makes these cheap
-		// enough to run every head; drop to every other on low scalability.
+		// Real light: one spot per lamp, every head. This comment used to
+		// say Lumen made them cheap; it never did. Lumen GI only gathers
+		// what direct lighting has already lit, and these were unshadowed
+		// so that 170-odd of them could be afforded at all. What makes
+		// them cheap — shadowed — is MegaLights, above.
+		//
+		// Movable before it registers: a light component defaults to
+		// Stationary, which promises the renderer precomputed shadowing
+		// this procedural project never builds.
 		USpotLightComponent* Lamp = NewObject<USpotLightComponent>(this);
+		Lamp->SetMobility(EComponentMobility::Movable);
 		Lamp->RegisterComponent();
 		Lamp->SetWorldLocation(Head - FVector(0, 0, GRN_M(0.2f)));
-		Lamp->SetWorldRotation(FRotator(-90.f, 0.f, 0.f));
+		// Straight down, yawed so the light's own Z — the axis a source
+		// LENGTH runs along — lies along the arm, the way the lantern does
+		// (LampHeads above is 0.55 m along Side). Yaw does nothing to a
+		// downward cone; it only turns the tube.
+		Lamp->SetWorldRotation(FRotator(-90.f, Side.Rotation().Yaw, 0.f));
 		Lamp->SetIntensity(8000.f);
 		Lamp->SetLightColor(FColor(0xFF, 0xB1, 0x5C)); // sodium
 		Lamp->SetOuterConeAngle(55.f);
 		Lamp->SetAttenuationRadius(GRN_M(26.f));
-		Lamp->SetCastShadows(false);
+		// The emitting area of a cobra-head's refractor: about 12 cm across
+		// and half a metre long. MegaLights is built for shadowed AREA
+		// lights, and the size is also what the clear coat reflects — a
+		// point source draws a pinprick on the bonnet, this draws the
+		// elongated sodium bar a car passing under a real one wears. A
+		// shading parameter, so it is set whether or not the lamp casts.
+		Lamp->SetSourceRadius(GRN_M(0.06f));
+		Lamp->SetSourceLength(GRN_M(0.5f));
+		Lamp->SetCastShadows(bShadowed);
 		Lamp->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("GRNWorldBuilder: %d street lamps every %.0f m, %s"), Count, Spacing / 100.f,
+		bShadowed ? TEXT("shadowed (MegaLights is drawing local lights)")
+		          : TEXT("unshadowed (MegaLights is off, and one shadow map per lamp is not affordable)"));
 }
 
 void AGRNWorldBuilder::BuildRails(AGRNTrack* Track)

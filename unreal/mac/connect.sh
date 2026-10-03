@@ -14,7 +14,8 @@
 # Unreal has a chance to swallow it, in the order the things actually go
 # wrong:
 #
-#   1. Is the engine even installed, and where.
+#   1. Is the engine even installed, and where — and is this Xcode one
+#      that engine can build with.
 #   2. Can this Mac reach the server at all — curl says so in plain text.
 #   3. Does the payload agree with what the connector expects.
 #   4. Then, and only then, generate the Xcode project.
@@ -76,6 +77,38 @@ if [ -z "$UE" ]; then
   [ -n "${UE_ROOT:-}" ] && UE="$UE_ROOT" && fail=$((fail - 1)) && say "engine" "using UE_ROOT=$UE"
 else
   say "engine" "$UE  (project asks for ${WANT_VER})"
+fi
+
+# ---- 1b. Is this an Xcode that engine builds with --------------------
+#
+# A wrong Xcode does not fail with an error about Xcode. It fails deep in
+# UnrealBuildTool, about an SDK or a toolchain flag, after minutes of
+# compiling — so it is asked here, before anything is generated. The
+# numbers are Epic's macOS requirements page for 5.8: Xcode 26.0 at the
+# least, 26.1.1 the recommended one, and 26.4 listed as NOT compatible;
+# separately, the 5.8 preview was reported crashing under 26.5. They are
+# per engine, so another EngineAssociation only gets the version printed.
+if [ "$(uname -s)" = "Darwin" ]; then
+  XC="$(xcodebuild -version 2>/dev/null | sed -n 's/^Xcode \([0-9][0-9.]*\).*/\1/p')"
+  if [ -z "$XC" ]; then
+    bad "xcode" "xcodebuild did not answer — install Xcode and run: sudo xcode-select -s /Applications/Xcode.app"
+  elif [ "$WANT_VER" = "5.8" ]; then
+    XC_MAJOR="${XC%%.*}"
+    XC_REST="${XC#*.}"
+    XC_MINOR="${XC_REST%%.*}"
+    [ "$XC_REST" = "$XC" ] && XC_MINOR=0
+    if [ "$XC_MAJOR" -lt 26 ]; then
+      bad "xcode" "Xcode $XC — UE 5.8 needs 26.0 or newer (26.1.1 is the recommended one)"
+    elif [ "$XC_MAJOR" -eq 26 ] && [ "$XC_MINOR" -eq 4 ]; then
+      bad "xcode" "Xcode $XC — Epic lists 26.4 as incompatible with UE 5.8; use 26.1.1"
+    elif [ "$XC_MAJOR" -gt 26 ] || [ "$XC_MINOR" -ge 5 ]; then
+      say "xcode" "Xcode $XC — newer than Epic lists; the 5.8 preview was reported crashing under 26.5. 26.1.1 is the safe one"
+    else
+      say "xcode" "Xcode $XC"
+    fi
+  else
+    say "xcode" "Xcode $XC (this script records Xcode requirements for UE 5.8 only)"
+  fi
 fi
 
 # ---- 2. Can this machine reach the server ----------------------------
@@ -141,3 +174,11 @@ fi
 echo "  The connector can reach $URL and agrees with it."
 echo "  Open GulfRoadNights.xcworkspace, or run the editor with:"
 echo "      -grnapi=$URL -grnhub=$HUB"
+echo
+# The paint is not built here: the commandlet lives in the editor module,
+# which does not exist until the project has been compiled once. The
+# editor builds it by itself on first open; this is the headless route.
+echo "  The editor builds the Substrate car paint the first time it opens."
+echo "  To build it headless once the project has compiled:"
+echo "      \"$UE/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor\" \"$PROJECT\" -run=GRNBuildPaint"
+echo "  and ask the game which paint it is drawing with GRN.Paint.Status."

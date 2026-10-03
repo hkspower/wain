@@ -2,6 +2,9 @@
 #include "GRNTrack.h"
 #include "GRNGameMode.h"
 #include "Camera/CameraComponent.h"
+#include "Components/InputComponent.h"
+#include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 AGRNVehiclePawn::AGRNVehiclePawn()
@@ -78,7 +81,7 @@ void AGRNVehiclePawn::CyclePressed()
 }
 
 void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
-	bool bAttackKit, float LengthM)
+	bool bAttackKit, float LengthM, float PaintMetal, EGRNFinish Finish)
 {
 	// Tear down the previous machine before the new one goes on
 	for (UStaticMeshComponent* W : Rig.Wheels) if (W) W->DestroyComponent();
@@ -88,7 +91,8 @@ void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWi
 	{
 		if (K != Camera) K->DestroyComponent();
 	}
-	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit, LengthM, &HeroAssets);
+	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit, LengthM, &HeroAssets,
+		PaintMetal, Finish);
 	// Left-hand drive, seated behind the wheel — Kuwait drives on the
 	// right, so the wheel is on the left, and the web build's seat has
 	// always been there. Negative Y is the car's left in Unreal. Rebuilt

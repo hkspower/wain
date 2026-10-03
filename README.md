@@ -46,7 +46,7 @@ Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.
 
 Prefer a **native engine build**? Two complete code-only ports live alongside the web game:
 
-- [`unreal/`](unreal/README.md) — **Unreal Engine 5.4** C++ project: the same spline, handling constants and battle rules, with Lumen GI/reflections, virtual shadow maps, TSR, real per-lamp spot lights, and gamepad bindings. No binary assets — open the `.uproject` and press Play.
+- [`unreal/`](unreal/README.md) — **Unreal Engine 5.8** C++ project: the same spline, handling constants and battle rules, with Lumen GI/reflections, virtual shadow maps, TSR, real per-lamp spot lights shadowed by MegaLights, a Substrate clear-coat car paint built from the web build's measured finishes, and gamepad bindings. No binary assets — open the `.uproject` and press Play. Not compiled in this repository; `node scripts/check-unreal-project.mjs` checks what text can.
 - [`unity/`](unity/README.md) — Unity 6 + URP port with the mobile tier.
 
 ### Background music (optional)
@@ -197,6 +197,9 @@ mobile/        Capacitor notes for the iOS and Android wrappers.
 `unity/Assets/Scripts/GRNData.cs` and `unreal/.../GRNTypes.h` come from
 `npm run sync:unity` and `npm run sync:unreal`, and `npm run check:unity`
 / `check:unreal` prove they still agree with the live API.
+`node scripts/check-unreal-project.mjs` needs no server: it checks the
+Unreal project's engine version, modules, includes and config as text,
+and runs the port's paint law against the web's.
 
 **Two kinds of runnable file, and the difference is deliberate.** Every
 `tests/*.mjs` has an `npm run test:*` script, because the suite is meant

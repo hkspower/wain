@@ -2,6 +2,7 @@
 #include "GameFramework/GameUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Engine/Engine.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
@@ -55,11 +56,23 @@ void GRNGraphics::ApplyMax(UObject* WorldContext)
 		TEXT("r.ScreenPercentage 100"),
 		TEXT("r.SecondaryScreenPercentage.GameViewport 0"),
 
-		// Lumen: the sodium lamps and paint reflections carry the look
+		// Lumen: the sodium lamps and paint reflections carry the look.
+		//
+		// r.Lumen.TraceMeshSDFs 1 used to sit here. Software ray tracing's
+		// per-mesh distance-field detail traces were deprecated in 5.6 and
+		// default off from 5.7; on 5.8 the line asks for a path Epic has
+		// deprecated, and the global distance field it falls back to is the
+		// one MegaLights' own software fallback traces anyway — which is
+		// why r.GenerateMeshDistanceFields stays on in DefaultEngine.ini.
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.6"),
-		TEXT("r.Lumen.TraceMeshSDFs 1"),
 		TEXT("r.Lumen.ScreenProbeGather.RadianceCache.ProbeResolution 32"),
 		TEXT("r.LumenScene.Radiosity.ProbeSpacing 2"),
+
+		// MegaLights at its default sample count, written down so the
+		// ceiling is a number in the source rather than an engine default
+		// that can move under it. 4 per pixel; ApplyRtxUltra takes it to
+		// 16. (Supported values are 2, 4 and 16.)
+		TEXT("r.MegaLights.NumSamplesPerPixel 4"),
 
 		// Virtual shadow maps at full page resolution
 		TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal 0"),
@@ -117,8 +130,13 @@ void GRNGraphics::ApplyNvidia(UObject* WorldContext, bool bPreferQuality)
 		TEXT("r.Lumen.HardwareRayTracing.LightingMode 1"), // hit lighting
 		TEXT("r.Lumen.Reflections.HardwareRayTracing 1"),
 		TEXT("r.Lumen.TranslucencyReflections.FrontLayer.EnableForProject 1"),
+		// Ray-traced shadows for the lights MegaLights is NOT drawing — a
+		// directional moon, or every light when MegaLights is off.
 		TEXT("r.RayTracing.Shadows 1"),
-		TEXT("r.RayTracing.AmbientOcclusion 1"),
+		// r.RayTracing.AmbientOcclusion 1 used to sit here. The legacy ray
+		// traced AO pass only ever ran with Lumen GI OFF, and the legacy
+		// ray-traced passes were dropped in 5.4; under Lumen it set a
+		// variable nothing read. Lumen's own short-range AO is the AO.
 		// Reflective wet asphalt is the whole look of a night corniche,
 		// so trace reflections well past the usual roughness cutoff.
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.75"),
@@ -185,12 +203,18 @@ void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 1.0"),
 		TEXT("r.Lumen.Reflections.SmoothBias 0"),
 
-		// Ray-traced shadows at full quality rather than the denoised
-		// half-rate default; the lamp posts cast the long shadows the look
-		// depends on and they are what shows sampling first.
+		// The lamps' shadows. Under MegaLights they are its samples, so
+		// they are raised there: 16 per pixel rather than 4. The lamp posts
+		// cast the long shadows the look depends on, and a stochastic
+		// light sampler shows undersampling as crawling noise in exactly
+		// those penumbrae first.
+		TEXT("r.MegaLights.NumSamplesPerPixel 16"),
+		// And for any light MegaLights is not drawing (or all of them when
+		// it is off): ray-traced shadows at full quality rather than the
+		// denoised half-rate default. The AO sample count that sat beside
+		// these is gone with the legacy AO pass — see ApplyNvidia.
 		TEXT("r.RayTracing.Shadows.SamplesPerPixel 4"),
 		TEXT("r.RayTracing.Shadows.EnableTwoSidedGeometry 1"),
-		TEXT("r.RayTracing.AmbientOcclusion.SamplesPerPixel 4"),
 
 		// Nanite and virtual shadow maps unclamped
 		TEXT("r.Nanite.MaxPixelsPerEdge 0.5"),
@@ -283,4 +307,15 @@ void GRNGraphics::ApplyVrrPacing(UObject* WorldContext, float RefreshHz)
 	Run(WorldContext, TEXT("t.Reflex.Mode 1"));
 
 	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: VRR pacing at %.0f fps under a %.0f Hz panel"), Cap, RefreshHz);
+}
+
+bool GRNGraphics::MegaLightsActive()
+{
+	IConsoleManager& Console = IConsoleManager::Get();
+	const IConsoleVariable* Project = Console.FindConsoleVariable(TEXT("r.MegaLights.EnableForProject"));
+	const IConsoleVariable* Allow = Console.FindConsoleVariable(TEXT("r.MegaLights.Allow"));
+	// No project switch means an engine without MegaLights: nothing to opt
+	// into. A missing Allow, on an engine that has the project switch, is
+	// read as allowed — it is only ever a way of saying no.
+	return Project && Project->GetInt() != 0 && (!Allow || Allow->GetInt() != 0);
 }
