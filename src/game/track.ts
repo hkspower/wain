@@ -218,7 +218,8 @@ export const LAP = {
  */
 export const TUNNEL_BOX = {
   /** Wall faces, either side of the centreline. The road is 7 m of
-   *  half-width; the walls stand 1.6 m outside the paint. */
+   *  half-width; the walls stand 1.6 m outside the tarmac edge and 1.4 m
+   *  outside the edge line's outer edge (markings.ts MARKINGS.edge). */
   halfWidth: ROAD_HALF_WIDTH + 1.6,
   /** Underside of the deck above the road. */
   height: 5.4,
