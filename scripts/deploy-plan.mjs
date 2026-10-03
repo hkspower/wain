@@ -286,8 +286,8 @@ if (css.length === 0) {
 const searchChunk = Object.keys(files).find((f) => /^_next\/static\/chunks\/app\/search\/page-[0-9a-f]+\.js$/.test(f));
 if (!searchChunk) fail("could not find the /search page chunk in the export");
 
-const ogImage = Object.keys(files).find((f) => f.startsWith("og/") && f.endsWith(".jpg"));
-const placePage = Object.keys(files).find((f) => /^places\/[^/]+\/index\.html$/.test(f));
+const ogImage = Object.keys(files).sort().find((f) => f.startsWith("og/") && f.endsWith(".jpg"));
+const placePage = Object.keys(files).sort().find((f) => /^places\/[^/]+\/index\.html$/.test(f));
 
 const required = [
   ...css.map((f) => [f, "a hashed stylesheet every page loads — a deploy without it renders the pages unstyled"]),
