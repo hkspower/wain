@@ -118,7 +118,7 @@ export default function ExploreClient() {
           </h2>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {filtered.map((place) => (
-              <PlaceCard key={place.slug} place={place} />
+              <PlaceCard key={place.slug} place={place} shareable />
             ))}
           </div>
         </>

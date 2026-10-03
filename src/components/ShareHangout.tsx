@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AddToCalendar from "@/components/AddToCalendar";
 import { IconCheck, IconSend } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import type { Place } from "@/lib/places";
@@ -11,13 +12,17 @@ import {
   hangoutMessage,
   hangoutTitle,
   inviteUrl,
+  kuwaitDay,
+  mapsUrl,
   msToNextKuwaitHour,
+  planPhrase,
   shareHangout,
   shortlistMessage,
   shortlistTitle,
   shortlistUrl,
   whenOptions,
   whenOptionsFor,
+  type Day,
   type ShareOutcome,
   type WhenId,
 } from "@/lib/hangout";
@@ -58,6 +63,9 @@ export default function ShareHangout({
   const [when, setWhen] = useState<WhenId | null>(null);
   const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
   const [busy, setBusy] = useState(false);
+  // What was last sent — the text, for the one outcome where nothing took
+  // it and the visitor needs to see it; the plan, for the calendar button.
+  const [sent, setSent] = useState<{ text: string; when: WhenId; day: Day; list: boolean } | null>(null);
 
   /**
    * «خلّهم يختارون» — send two or three of the choices and let the group pick
@@ -156,27 +164,27 @@ export default function ShareHangout({
     setBusy(true);
     setOutcome(null);
     haptic("tap");
-    // Canonical, and carrying the time — see inviteUrl. Built here rather than
-    // in an effect so it is composed at the moment of sending, from the choice
-    // that is actually selected.
+    // Canonical, and carrying the time AND the day — see inviteUrl. Built
+    // here rather than in an effect so it is composed at the moment of
+    // sending, from the choice that is actually selected.
     const origin = typeof window === "undefined" ? "" : window.location.origin;
-    const result = listMode
-      ? await shareHangout({
-          text: shortlistMessage({ places: listed, when, url: shortlistUrl(listed, when, origin) }),
-          title: shortlistTitle(),
-        })
-      : await shareHangout({
-          text: hangoutMessage({ place, when, url: inviteUrl(place, when, origin) }),
-          title: hangoutTitle(place),
-        });
+    const day = kuwaitDay();
+    const text = listMode
+      ? shortlistMessage({ places: listed, when, url: shortlistUrl(listed, when, origin, day) })
+      : hangoutMessage({ place, when, url: inviteUrl(place, when, origin, day) });
+    setSent({ text, when, day, list: listMode });
+    const result = await shareHangout({ text, title: listMode ? shortlistTitle() : hangoutTitle(place) });
     if (result === "shared" || result === "whatsapp" || result === "copied") haptic("success");
     setOutcome(result);
     setBusy(false);
   };
 
-  // Nothing to say while the clock is unknown: rendering the chips with a
-  // build-time hour would show «٧ مساءً» to somebody at midnight.
-  if (!now || !when) return null;
+  // The chips wait for the clock — rendering them with a build-time hour
+  // would show «٧ مساءً» to somebody at midnight — but the panel itself does
+  // not: it used to render nothing until mount, so a place page drew its
+  // whole lower half and then grew a panel into it (3 October). The shell is
+  // in the HTML; the chip row is `aria-busy` until the hour is known.
+  const ready = now !== null && when !== null;
 
   return (
     <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 shadow-sm">
@@ -252,7 +260,7 @@ export default function ShareHangout({
 
       <fieldset className="mt-4">
         <legend className="text-xs font-semibold text-ink-600">متى؟</legend>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2 flex min-h-tap flex-wrap gap-2" aria-busy={!ready}>
           {options.map((o) => {
             const active = o.id === when;
             return (
@@ -281,7 +289,7 @@ export default function ShareHangout({
       <button
         type="button"
         onClick={send}
-        disabled={busy || (listMode && listed.length < 2)}
+        disabled={!ready || busy || (listMode && listed.length < 2)}
         className="mt-5 inline-flex min-h-tap items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800 disabled:opacity-60"
       >
         <IconSend className="size-4" />
@@ -302,10 +310,50 @@ export default function ShareHangout({
           فتحنا لك واتساب.
         </p>
       )}
-      {outcome === "failed" && (
-        <p className="mt-3 text-sm font-semibold text-ink-600" role="alert">
-          ما قدرنا نرسلها — انسخ الرابط من فوق وأرسله.
-        </p>
+      {/* Nothing took it — no share sheet, a blocked popup, no clipboard. It
+          used to say «انسخ الرابط من فوق», which on /search and in سالم's
+          chat pointed at an address bar holding no invitation at all. The
+          message is the thing they need, so here it is, with its own copy. */}
+      {outcome === "failed" && sent && (
+        <div className="mt-3" role="alert">
+          <p className="text-sm font-semibold text-ink-600">ما قدرنا نرسلها — هذا النص، انسخه والصقه بالجروب.</p>
+          <textarea
+            readOnly
+            value={sent.text}
+            rows={6}
+            aria-label="نص الرسالة"
+            onFocus={(e) => e.currentTarget.select()}
+            className="mt-2 w-full rounded-xl border border-line bg-sand-50 p-2 text-sm leading-relaxed text-ink-800"
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(sent.text);
+                haptic("success");
+                setOutcome("copied");
+              } catch {
+                /* the text is already on screen, selectable */
+              }
+            }}
+            className="mt-2 inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
+          >
+            انسخ
+          </button>
+        </div>
+      )}
+      {/* The sender's own copy of the plan, once it has gone out. Not for a
+          shortlist: nobody has chosen yet, so there is no plan to keep. */}
+      {sent && !sent.list && (outcome === "shared" || outcome === "whatsapp" || outcome === "copied") && (
+        <AddToCalendar
+          className="mt-3"
+          place={place}
+          when={sent.when}
+          day={sent.day}
+          phrase={planPhrase(sent.when, sent.day)}
+          url={inviteUrl(place, sent.when, typeof window === "undefined" ? "" : window.location.origin, sent.day)}
+          mapsUrl={mapsUrl(place)}
+        />
       )}
     </section>
   );

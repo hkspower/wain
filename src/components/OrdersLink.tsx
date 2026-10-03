@@ -2,9 +2,57 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ORDERS_STORE_KEY, QUEUE_STORE_KEY, hasStored } from "@/lib/live-keys";
 import { toArabicDigits } from "@/lib/place-kit";
-import { listOrders } from "@/lib/orders";
-import { isFromToday, listTickets } from "@/lib/queue";
+
+/**
+ * How many live things of one kind this device holds.
+ *
+ * The count is read after mount, never during render: localStorage does not
+ * exist while this is prerendered, and the exported HTML is shared by every
+ * visitor, so it must not depend on one device's orders.
+ *
+ * And the module that knows how to read a record is loaded only once the raw
+ * key holds something. These hooks sit in the root layout, so a static
+ * import of `orders.ts` and `queue.ts` put ~4K gzipped on every route for
+ * every visitor — for a feature 0 of 52 places offer (3 October; it was the
+ * difference between /search over its JS budget and under it). A device with
+ * nothing stored never fetches either module; one with an order fetches it
+ * once, and the tray appears a tick later than it used to.
+ */
+function useLiveCount(key: string, count: () => Promise<number>): number {
+  const [n, setN] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const read = () => {
+      if (!hasStored(key)) {
+        setN(0);
+        return;
+      }
+      count().then(
+        (c) => alive && setN(c),
+        () => alive && setN(0)
+      );
+    };
+    read();
+    // Another tab placing an order should light this up here too.
+    addEventListener("storage", read);
+    return () => {
+      alive = false;
+      removeEventListener("storage", read);
+    };
+  }, [key, count]);
+
+  return n;
+}
+
+const countOrders = () => import("@/lib/orders").then((m) => m.listOrders().length);
+// Only today's tickets: yesterday's number is meaningless — the salon
+// restarted at one this morning — so a link offering to show it would be a
+// link to nothing worth reading.
+const countTickets = () =>
+  import("@/lib/queue").then((m) => m.listTickets().filter((t) => m.isFromToday(t)).length);
 
 /**
  * The way back to «طلباتي».
@@ -12,43 +60,14 @@ import { isFromToday, listTickets } from "@/lib/queue";
  * It appears only on a device that has actually placed an order. Everybody
  * else would be one tap from an empty page, and a permanent link to nothing is
  * worse than no link at all.
- *
- * The count is read after mount, never during render: localStorage does not
- * exist while this is prerendered, and the exported HTML is shared by every
- * visitor, so it must not depend on one device's orders.
  */
 export function useOrderCount(): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const read = () => setCount(listOrders().length);
-    read();
-    // Another tab placing an order should light this up here too.
-    addEventListener("storage", read);
-    return () => removeEventListener("storage", read);
-  }, []);
-
-  return count;
+  return useLiveCount(ORDERS_STORE_KEY, countOrders);
 }
 
-/**
- * Live queue tickets on this device.
- *
- * Only today's count: yesterday's number is meaningless — the salon restarted
- * at one this morning — so a link offering to show it would be a link to
- * nothing worth reading.
- */
+/** Live queue tickets on this device. */
 export function useTicketCount(): number {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const read = () => setCount(listTickets().filter((t) => isFromToday(t)).length);
-    read();
-    addEventListener("storage", read);
-    return () => removeEventListener("storage", read);
-  }, []);
-
-  return count;
+  return useLiveCount(QUEUE_STORE_KEY, countTickets);
 }
 
 /**

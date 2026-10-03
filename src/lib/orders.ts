@@ -1,5 +1,6 @@
 "use client";
 
+import { ORDERS_STORE_KEY } from "@/lib/live-keys";
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
 import {
   describeNetError,
@@ -185,7 +186,7 @@ export interface TrackedOrder {
   placedAt: string;
 }
 
-const STORE_KEY = "wain:orders";
+const STORE_KEY = ORDERS_STORE_KEY;
 const KEEP = 20;
 
 export function rememberOrder(order: TrackedOrder): void {

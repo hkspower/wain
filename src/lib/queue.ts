@@ -1,5 +1,6 @@
 "use client";
 
+import { QUEUE_STORE_KEY } from "@/lib/live-keys";
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
 import {
   describeNetError,
@@ -103,7 +104,7 @@ export interface HeldTicket {
   joinedAt: string;
 }
 
-const STORE_KEY = "wain:queue";
+const STORE_KEY = QUEUE_STORE_KEY;
 const KEEP = 10;
 
 export function rememberTicket(ticket: HeldTicket): void {

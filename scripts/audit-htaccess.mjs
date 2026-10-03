@@ -152,6 +152,9 @@ for (const [name, why] of MUST_DENY) {
 const NO_DIRECTIVE_NEEDED = [
   ["https://wa.me", "window.open target — a navigation, not a fetch"],
   ["https://www.google.com", "maps directions link, opened as a navigation"],
+  // «قوقل كالندر» beside «أضفها للتقويم» (3 October): Google's add-an-event
+  // page, an <a target=_blank>; the .ics itself is a blob: made on the page.
+  ["https://calendar.google.com", "add-to-calendar link, opened as a navigation"],
   // Appeared in the bundle when the place page became live-editable: the
   // business contact block moved from the server to the client, and its
   // profile link's href moved with it. It is an <a href>, followed as a

@@ -158,7 +158,66 @@ console.log('\n── nothing works at all: it says so rather than going quiet �
   await panel(p).waitFor({ timeout: 6000 });
   await sendButton(p).click();
   await p.waitForSelector('[role=alert]', { timeout: 6000 });
-  ok('an alert explains what to do instead', (await panel(p).textContent()).includes('انسخ الرابط'));
+  // It used to say «انسخ الرابط من فوق» — and on /search or in سالم's chat
+  // the address bar holds no invitation. The message itself is what they
+  // need, so it is on screen, with its own copy button.
+  ok('an alert explains what to do instead', (await panel(p).textContent()).includes('انسخه'));
+  const box = panel(p).locator('textarea');
+  ok('the message is on screen to copy by hand', (await box.count()) === 1 && (await box.inputValue()).includes('أبراج الكويت'));
+  ok('with a copy button beside it', (await panel(p).locator('button', { hasText: 'انسخ' }).count()) === 1);
+  await ctx.close();
+}
+
+console.log('\n── the panel is in the HTML, not grown into the page later ──');
+{
+  // It rendered nothing until mount, so a place page drew its lower half and
+  // then pushed it down by a panel. The shell is in the export; only the chip
+  // row waits for the clock.
+  const html = await (await fetch(B + PLACE)).text();
+  ok('the export already carries «رسّلها للربع»', html.includes('رسّلها للربع'));
+  ok('…with its chip row marked busy until the hour is known', html.includes('aria-busy="true"'));
+}
+
+console.log('\n── the link carries the day it was sent, on Kuwait\'s calendar ──');
+{
+  // 01:00 in Kuwait on 21 August is 22:00 UTC on the 20th. The day in the
+  // link has to be the 21st: the plan is Kuwait's, not the server's.
+  const { ctx, p } = await fresh({ share: 'ok', at: [1, 0] });
+  await panel(p).waitFor({ timeout: 6000 });
+  await p.waitForSelector('section:has(h2:text("رسّلها للربع")) fieldset button');
+  await sendButton(p).click();
+  await p.waitForFunction(() => window.__shared.length > 0, null, { timeout: 6000 });
+  const [data] = await p.evaluate(() => window.__shared);
+  const link = data.text.trim().split('\n').pop();
+  ok('the invite link ends with the Kuwait day', /&d=2026-08-21$/.test(link), link);
+  ok('and «باچر» in the message names its weekday', !data.text.includes('\nباچر\n'), data.text.split('\n')[1]);
+  await ctx.close();
+}
+
+console.log('\n── after a send, the plan can go on the calendar ──');
+{
+  const { ctx, p } = await fresh({ share: 'ok', at: [15, 0] });
+  await panel(p).waitFor({ timeout: 6000 });
+  await p.waitForSelector('section:has(h2:text("رسّلها للربع")) fieldset button');
+  await sendButton(p).click();
+  await p.waitForFunction(() => window.__shared.length > 0, null, { timeout: 6000 });
+  const cal = panel(p).locator('[data-calendar]');
+  await cal.waitFor({ timeout: 4000 }).catch(() => {});
+  ok('«أضفها للتقويم» appears once the plan has gone out', (await cal.count()) === 1);
+  const google = await panel(p).locator('[data-calendar-google]').getAttribute('href').catch(() => '');
+  ok('beside a Google Calendar link for the same plan', /calendar\.google\.com.*action=TEMPLATE.*dates=\d{8}T\d{6}Z/.test(google ?? ''), google);
+  // Catch the file instead of letting the browser save it.
+  await p.evaluate(() => {
+    window.__file = null;
+    URL.createObjectURL = (b) => { window.__file = b; return 'blob:caught'; };
+    HTMLAnchorElement.prototype.click = function () { window.__download = this.download; };
+  });
+  await cal.click();
+  await p.waitForFunction(() => window.__file !== null, null, { timeout: 4000 }).catch(() => {});
+  const got = await p.evaluate(async () => ({ type: window.__file?.type, name: window.__download, text: window.__file ? await window.__file.text() : '' }));
+  ok('the file is a calendar entry', got.type?.startsWith('text/calendar') && got.name?.endsWith('.ics'), `${got.type} ${got.name}`);
+  ok('…with CRLF ends and a start time', got.text.includes('\r\nDTSTART:') && got.text.includes('END:VCALENDAR'), got.text.slice(0, 80));
+  ok('…naming the place', got.text.replace(/\r\n /g, '').includes('أبراج الكويت'));
   await ctx.close();
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AddToCalendar from "@/components/AddToCalendar";
 import { IconCheck, IconGo, IconSend } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { getCategory } from "@/lib/place-kit";
@@ -10,9 +11,13 @@ import {
   hangoutTitle,
   inviteAcceptMessage,
   invitePassed,
-  phraseFor,
+  inviteUrl,
+  mapsUrl,
+  planPhrase,
   readInvite,
+  readInviteDay,
   shareHangout,
+  type Day,
   type ShareOutcome,
   type WhenId,
 } from "@/lib/hangout";
@@ -38,18 +43,30 @@ import {
  */
 export default function InviteBanner({ place }: { place: Place }) {
   const [when, setWhen] = useState<WhenId | null>(null);
+  const [day, setDay] = useState<Day | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setWhen(readInvite(window.location.search));
+    setDay(readInviteDay(window.location.search));
     setNow(new Date());
   }, []);
 
   if (!when || !now) return null;
 
-  const passed = invitePassed(when, now);
+  // With the sending day in the link every plan can be judged gone — a
+  // «باچر» from last week, not only the evening slots (plan-date.ts).
+  const passed = invitePassed(when, now, day);
+  const phrase = planPhrase(when, day, now);
+
+  /** «اقترح وقت ثاني» — the panel further down this page, which opens on
+   *  the next sensible time. The text used to say it and offer no way. */
+  const propose = () => {
+    haptic("select");
+    document.getElementById("share")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
 
   const accept = async () => {
     if (busy) return;
@@ -80,7 +97,7 @@ export default function InviteBanner({ place }: { place: Place }) {
       <p className="mt-1 text-ink-700">
         <strong className="text-ink-900">{place.nameAr}</strong> — {place.areaAr}
         {"، "}
-        {phraseFor(when)}
+        {phrase}
       </p>
 
       {/* A passed invitation is not hidden and not dressed up. The group is
@@ -89,10 +106,20 @@ export default function InviteBanner({ place }: { place: Place }) {
           or one that already happened. Saying nothing would let them turn up
           to the second thinking it was the first. */}
       {passed ? (
-        <p className="mt-3 text-sm leading-relaxed text-ink-600">
-          الوقت اللي بالدعوة عدّى. المكان نفسه بعده هني — شوفه واقترح وقت ثاني
-          للربع.
-        </p>
+        <div className="mt-3">
+          <p className="text-sm leading-relaxed text-ink-600">
+            الوقت اللي بالدعوة عدّى. المكان نفسه بعده هني — شوفه واقترح وقت ثاني
+            للربع.
+          </p>
+          <button
+            type="button"
+            onClick={propose}
+            className="mt-3 inline-flex min-h-tap items-center gap-2 rounded-2xl bg-coral-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-800"
+          >
+            <IconSend className="size-4" />
+            اقترح وقت ثاني
+          </button>
+        </div>
       ) : (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -105,7 +132,7 @@ export default function InviteBanner({ place }: { place: Place }) {
             {outcome ? "رديت عليهم" : "تمام، أنا معكم"}
           </button>
           <a
-            href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
+            href={mapsUrl(place)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
@@ -113,6 +140,14 @@ export default function InviteBanner({ place }: { place: Place }) {
             الطريق
             <IconGo className="size-4" />
           </a>
+          <AddToCalendar
+            place={place}
+            when={when}
+            day={day}
+            phrase={phrase}
+            url={inviteUrl(place, when, window.location.origin, day)}
+            mapsUrl={mapsUrl(place)}
+          />
         </div>
       )}
 

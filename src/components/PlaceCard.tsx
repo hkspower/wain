@@ -2,7 +2,7 @@ import Link from "next/link";
 import GeneratedPicture from "@/components/GeneratedPicture";
 import IllustrativeTag from "@/components/IllustrativeTag";
 import PlaceIcon from "@/components/PlaceIcon";
-import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
+import { IconGo, IconPinSolid, IconSend, IconStar } from "@/components/icons";
 import { LANDMARK_CARDS } from "@/lib/landmark-cards.g";
 import { shown } from "@/lib/landmark-gate";
 import {
@@ -28,9 +28,18 @@ import type { Place } from "@/lib/places";
 export default function PlaceCard({
   place,
   awayKm,
+  shareable = false,
 }: {
   place: Place;
   awayKm?: number;
+  /**
+   * «رسّلها» on the card itself — the share panel is three doors away from
+   * a visitor on /explore or the home page (open the place, scroll to the
+   * foot), so a small button on the band leads straight to it (3 October, on
+   * request). Only where there is no panel already on the page: /pick and
+   * سالم's rail draw one next to the card.
+   */
+  shareable?: boolean;
 }) {
   const category = getCategory(place.category);
   // The five «معالم الكويت» places carry their picture in the band the icon
@@ -40,7 +49,13 @@ export default function PlaceCard({
   const picture = LANDMARK_CARDS.find((c) => c.slug === place.slug);
   const pictured = picture !== undefined && shown(picture);
 
-  return (
+  // A link cannot hold a link, so the card stays the one <a> it always was
+  // and the share button is its SIBLING, laid over the band's far corner in
+  // a wrapper that sets the frame. The card's own markup is untouched —
+  // every suite that reads `a[href^="/places/"] [data-card-band]` still finds
+  // the band inside the anchor. audit:mobile reads an overlapped target as
+  // overlapped, not as crowded, so the two may sit on one another.
+  const card = (
     <Link
       href={`/places/${place.slug}`}
       // h-full so the card fills whatever holds it. In a grid it already did,
@@ -67,7 +82,10 @@ export default function PlaceCard({
               sizes="(min-width: 1024px) 280px, (min-width: 640px) 33vw, 256px"
               className="absolute inset-0 size-full transition duration-500 group-hover:scale-105"
             />
-            <IllustrativeTag className="end-1.5 bottom-1.5" />
+            {/* The tag takes the start corner under a share button, which
+                holds the end corner and, at a finger's 40px, would reach
+                down into it. The rating chip sits above it, at the top. */}
+            <IllustrativeTag className={shareable ? "start-1.5 bottom-1.5" : "end-1.5 bottom-1.5"} />
           </>
         ) : (
           <PlaceIcon
@@ -155,5 +173,25 @@ export default function PlaceCard({
         </div>
       </div>
     </Link>
+  );
+
+  if (!shareable) return card;
+  return (
+    <div className="relative h-full">
+      {card}
+      {/* On the band's end corner: the rating chip holds the start corner and
+          a landmark's «صورة توضيحية» tag the bottom. `size-8` with the tap
+          token so a finger gets 40px and a mouse 32 — the icon would touch a
+          24px button's own edge. `#share` is the panel's anchor on the place
+          page, which scrolls itself into view once drawn. */}
+      <Link
+        href={`/places/${place.slug}/#share`}
+        data-share=""
+        aria-label={`رسّل ${place.nameAr} للربع`}
+        className="absolute end-1.5 top-1.5 z-10 grid size-8 min-h-tap min-w-tap place-items-center rounded-full bg-white/95 text-ink-700 shadow-sm backdrop-blur transition hover:bg-coral-50 hover:text-coral-700"
+      >
+        <IconSend className="size-4" />
+      </Link>
+    </div>
   );
 }

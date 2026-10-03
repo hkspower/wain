@@ -15,6 +15,7 @@ import type { ChatContext } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
+import { CHOICE_MAX } from "@/lib/hangout";
 
 /** A typed-chat line — شوق's own reply, the visitor's own, a note from this
  * page itself (a tool it could not run), or one of her two tool RESULTS
@@ -875,7 +876,7 @@ function SalemPlacesResult({
       </div>
       {/* SearchPlan.tsx's own shape: `choices` only when there is a real
           choice to make, `onChoose` closing over this turn's own state. */}
-      <ShareHangout place={target} choices={places.length > 1 ? places : undefined} onChoose={choose} />
+      <ShareHangout place={target} choices={places.length > 1 ? places.slice(0, CHOICE_MAX) : undefined} onChoose={choose} />
       {chips && chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pt-1" data-followups="">
           <span className="text-xs text-sand-200">{WAIN_AI_CHAT_COPY.followLabel}</span>

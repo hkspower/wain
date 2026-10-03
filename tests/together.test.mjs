@@ -247,6 +247,78 @@ console.log('\n── 7. شوق\'s answer sends the place she named; an invitati
   await inv.ctx.close();
 }
 
+console.log('\n── 8. a plan with its day on it, the calendar, and «رسّلها» on the cards ──');
+/**
+ * 3 October, later: the link carries the Kuwait day it was sent, so «باچر»
+ * means one day to everybody and a plan from last week reads as gone; the
+ * plan can go on the calendar; a vote carries the place's link; and the
+ * explore cards and the home picks lead straight to the share panel.
+ */
+{
+  const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  // Kuwait's calendar day, offset by days — the same arithmetic the site does.
+  const day = (offset) => new Date(Date.now() + 3 * 3600e3 + offset * 86400e3).toISOString().slice(0, 10);
+
+  const gone = await fresh(`/places/marina-beach/?when=tomorrow&d=${day(-3)}`);
+  ok('a «باچر» sent three days ago has gone', (await soft(() => gone.p.getByText('الدعوة هذي راحت').isVisible(), false)) === true);
+  await soft(() => gone.p.getByRole('button', { name: 'اقترح وقت ثاني' }).click());
+  await gone.p.waitForTimeout(900);
+  const shareInView = await soft(() => gone.p.locator('#share').evaluate((e) => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }), false);
+  ok('and «اقترح وقت ثاني» brings the share panel into view', shareInView);
+  ok('no calendar button for a plan that has gone', (await soft(() => gone.p.locator('[data-calendar]').count(), 0)) === 0);
+  await gone.ctx.close();
+
+  const live = await fresh(`/places/marina-beach/?when=tomorrow&d=${day(0)}`);
+  const banner = live.p.locator('section[aria-label="دعوة"]');
+  const line = await soft(() => banner.textContent(), '');
+  ok('a «باچر» sent today is still ahead', (line ?? '').includes('ربعك عازمينك'), line);
+  ok('and the banner says which day «باچر» is', WEEKDAYS.some((w) => (line ?? '').includes(`باچر ${w}`)), line);
+  ok('with «أضفها للتقويم» and its Google twin',
+    (await soft(() => banner.locator('[data-calendar]').count(), 0)) === 1 &&
+      /action=TEMPLATE/.test((await soft(() => banner.locator('[data-calendar-google]').getAttribute('href'), '')) ?? ''));
+  await live.ctx.close();
+
+  const undated = await fresh('/places/marina-beach/?when=tomorrow');
+  ok('an old link with no day still invites, and offers no calendar',
+    (await soft(() => undated.p.getByText('ربعك عازمينك هني').isVisible(), false)) === true &&
+      (await soft(() => undated.p.locator('[data-calendar]').count(), 0)) === 0);
+  await undated.ctx.close();
+
+  const stale = await fresh(`/pick/?p=kuwait-towers,marina-beach&when=tonight-8&d=${day(-1)}`);
+  ok('/pick for last night says the time has gone', (await soft(() => stale.p.getByRole('heading', { name: 'الوقت اللي اختاروه عدّى' }).isVisible(), false)) === true);
+  ok('and its votes are closed', (await soft(() => stale.p.getByRole('button', { name: /^أنا مع ١/ }).isDisabled(), false)) === true);
+  await stale.ctx.close();
+
+  const pk = await fresh(`/pick/?p=kuwait-towers,marina-beach&when=tomorrow&d=${day(0)}`);
+  await soft(() => pk.p.getByRole('button', { name: /^أنا مع ٢/ }).click());
+  await pk.p.waitForTimeout(400);
+  const voted = await pk.p.evaluate(() => window.__shared.at(-1)?.text ?? '');
+  ok('a vote names the weekday and carries the place\'s own dated link',
+    WEEKDAYS.some((w) => voted.includes(`باچر ${w}`)) && /\n\S+\/places\/marina-beach\/\?when=tomorrow&d=\d{4}-\d{2}-\d{2}$/.test(voted), voted);
+  ok('and the voter can put the plan on the calendar', (await soft(() => pk.p.locator('[data-calendar]').count(), 0)) === 1);
+  ok('/pick\'s cards carry no share button of their own — the vote is the share', (await soft(() => pk.p.locator('[data-share]').count(), 0)) === 0);
+  await pk.ctx.close();
+
+  const ex = await fresh('/explore/');
+  const shares = ex.p.locator('main [data-share]');
+  const n = await soft(() => shares.count(), 0);
+  ok('every explore card has «رسّلها»', n >= 40, `${n}`);
+  const href = await soft(() => shares.first().getAttribute('href'), '');
+  ok('…leading to the place at its share panel', /^\/places\/[a-z0-9-]+\/#share$/.test(href ?? ''), href);
+  const box = await soft(() => shares.first().boundingBox(), null);
+  ok('…a finger-sized target', !!box && box.width >= 40 && box.height >= 40, JSON.stringify(box));
+  await soft(() => shares.first().click());
+  await soft(() => ex.p.waitForURL(/\/places\/[a-z0-9-]+\/#share$/, { timeout: 5000 }));
+  await ex.p.waitForTimeout(900);
+  const landed = await soft(() => ex.p.locator('#share').evaluate((e) => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }), false);
+  ok('tapping it lands on the panel', landed, ex.p.url());
+  await ex.ctx.close();
+
+  const home = await fresh('/');
+  ok('and so do the home picks', (await soft(() => home.p.locator('main [data-share]').count(), 0)) >= 4);
+  await home.ctx.close();
+}
+
 await browser.close();
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

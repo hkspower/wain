@@ -19,6 +19,8 @@
 import type { Place } from "@/lib/places";
 import { EVENING_DEFAULT_HOUR, addDays, resolvePlan, type Day, type ResolvedPlan, type WhenId } from "@/lib/plan-date";
 
+export { hasCalendarEntry } from "@/lib/plan-date";
+
 export type CalendarEntry = {
   /** The RFC 5545 text, CRLF line ends, folded at 75 octets. */
   ics: string;
@@ -85,11 +87,6 @@ export function icsUid(slug: string, when: WhenId, day: Day): string {
 
 export function icsFilename(slug: string, day: Day): string {
   return `wain-${slug}-${day}.ics`;
-}
-
-/** Whether a plan can be put on a calendar at all — see the header. */
-export function hasCalendarEntry(when: WhenId, day: Day | null | undefined): boolean {
-  return !!day && when !== "now" && when !== "soon";
 }
 
 /**

@@ -7,6 +7,7 @@ import { IconBag, IconClock, IconGo } from "@/components/icons";
 // From place-kit, not orders.ts/queue.ts: both of those are `"use client"`
 // modules carrying the Supabase bridge, and this page only asks the question.
 import { acceptsOrders, takesQueue } from "@/lib/place-kit";
+import { CHOICE_MAX } from "@/lib/hangout";
 import type { Place } from "@/lib/places";
 
 /**
@@ -68,8 +69,8 @@ export default function SearchPlan({
    */
   const choices = useMemo(() => {
     if (!target) return [];
-    const top = places.slice(0, 5);
-    return top.some((p) => p.slug === target.slug) ? top : [target, ...top.slice(0, 4)];
+    const top = places.slice(0, CHOICE_MAX);
+    return top.some((p) => p.slug === target.slug) ? top : [target, ...top.slice(0, CHOICE_MAX - 1)];
   }, [places, target]);
 
   if (!target) return null;

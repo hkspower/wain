@@ -104,6 +104,17 @@ export type ResolvedPlan = {
 const TONIGHT: Record<string, number> = { "tonight-7": 19, "tonight-8": 20, "tonight-9": 21, "tonight-10": 22 };
 
 /**
+ * Whether a plan can be put on a calendar at all. «الحين» and «بعد ساعة»
+ * carry a day and no hour, and a reminder for the next hour reminds nobody;
+ * a link with no day has no date to give. Here rather than in the calendar
+ * module so a page can decide whether to draw the button without loading
+ * the builder (hangout-calendar.ts is fetched on the tap).
+ */
+export function hasCalendarEntry(when: WhenId, day: Day | null | undefined): boolean {
+  return !!day && when !== "now" && when !== "soon";
+}
+
+/**
  * The plan a link means, given the day it was sent.
  *
  * «الويكند» said on a Friday means this weekend, not the next one — so Friday

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AddToCalendar from "@/components/AddToCalendar";
 import PlaceCard from "@/components/PlaceCard";
 import SearchMap from "@/components/SearchMap";
 import { IconCheck, IconSend } from "@/components/icons";
@@ -10,11 +11,14 @@ import { getCategory } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import {
   invitePassed,
-  phraseFor,
+  inviteUrl,
+  mapsUrl,
+  planPhrase,
   readShortlist,
   shareHangout,
   shortlistTitle,
   shortlistVoteMessage,
+  type Day,
   type ShareOutcome,
   type WhenId,
 } from "@/lib/hangout";
@@ -35,7 +39,7 @@ import {
  */
 export default function PickClient() {
   const { places } = usePlaces();
-  const [read, setRead] = useState<{ slugs: string[]; when: WhenId | null } | null>(null);
+  const [read, setRead] = useState<{ slugs: string[]; when: WhenId | null; day: Day | null } | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [voted, setVoted] = useState<{ slug: string; outcome: ShareOutcome } | null>(null);
@@ -54,7 +58,9 @@ export default function PickClient() {
 
   if (!read || !now) return null;
   const when = read.when;
-  const passed = when ? invitePassed(when, now) : false;
+  const day = read.day;
+  const passed = when ? invitePassed(when, now, day) : false;
+  const phrase = when ? planPhrase(when, day, now) : "";
 
   const vote = async (i: number) => {
     if (busy) return;
@@ -62,7 +68,10 @@ export default function PickClient() {
     setBusy(true);
     setActive(place.slug);
     haptic("tap");
-    const outcome = await shareHangout({ text: shortlistVoteMessage(place, i, when), title: shortlistTitle() });
+    // The vote carries the place's own link, so the chat ends up holding the
+    // winner's plan the way a single proposal would have.
+    const url = when ? inviteUrl(place, when, window.location.origin, day) : undefined;
+    const outcome = await shareHangout({ text: shortlistVoteMessage(place, i, when, url, day), title: shortlistTitle() });
     if (outcome === "shared" || outcome === "whatsapp" || outcome === "copied") haptic("success");
     setVoted({ slug: place.slug, outcome });
     setBusy(false);
@@ -102,7 +111,7 @@ export default function PickClient() {
         {passed ? "الوقت اللي اختاروه عدّى" : "ربعك يختارون"}
       </h1>
       <p className="mt-1 text-ink-600">
-        {when ? `وين نروح ${phraseFor(when)}؟` : "وين نروح؟"} اختار واحد ورد عليهم.
+        {when ? `وين نروح ${phrase}؟` : "وين نروح؟"} اختار واحد ورد عليهم.
       </p>
 
       <ol className="mt-5 space-y-3">
@@ -150,6 +159,22 @@ export default function PickClient() {
       {voted?.outcome === "failed" && (
         <p className="mt-3 text-sm text-ink-600" role="alert">ما قدرنا نرسل الرد — رد عليهم بالجروب.</p>
       )}
+      {/* Having voted, the voter has a plan of their own to keep: the place
+          they chose, at the list's time. */}
+      {voted && voted.outcome !== "failed" && when && (() => {
+        const chosen = list.find((p) => p.slug === voted.slug);
+        return chosen ? (
+          <AddToCalendar
+            className="mt-3"
+            place={chosen}
+            when={when}
+            day={day}
+            phrase={phrase}
+            url={inviteUrl(chosen, when, window.location.origin, day)}
+            mapsUrl={mapsUrl(chosen)}
+          />
+        ) : null;
+      })()}
 
       <div className="mt-6">
         <SearchMap places={list} active={active} onActive={setActive} />

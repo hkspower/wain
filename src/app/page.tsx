@@ -98,7 +98,7 @@ export default function HomePage() {
           <ul className="-mx-2.5 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
             {featured.map((place) => (
               <li key={place.slug} className="w-64 shrink-0 snap-start sm:w-auto">
-                <PlaceCard place={place} />
+                <PlaceCard place={place} shareable />
               </li>
             ))}
           </ul>
