@@ -150,18 +150,11 @@
     title.textContent = c.title
     section.appendChild(title)
 
-    // THE PICTURE BESIDE THE THREE ROWS (owner, 2026-10-02). Decorative: the rows say it all.
+    // THE ROWS SIT INSIDE THE PICTURE (owner, 2026-10-03): no models, the orange band as the
+    // panel's background, white text on it. The band is central and the panel is `cover`, so
+    // the text always lands on orange (see make-features-image.py).
     var body = document.createElement('div')
-    body.className = 'sts-body'
-    var pic = document.createElement('img')
-    pic.className = 'sts-pic'
-    pic.src = '/assets/features.webp'
-    pic.alt = ''
-    pic.width = 1200
-    pic.height = 900
-    pic.loading = 'lazy'
-    pic.decoding = 'async'
-    body.appendChild(pic)
+    body.className = 'sts-body sts-panel'
     var row = document.createElement('div')
     row.className = 'sts'
     body.appendChild(row)
@@ -235,17 +228,16 @@
     // redefines them (65-white-body.css); a literal #fff title was white on white.
     '.sts-title{position:relative;margin:0 0 14px;padding:0;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
     'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
-    '.sts-body{display:grid;grid-template-columns:1fr;gap:20px;align-items:center;}' +
-    '.sts-pic{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:16px;}' +
-    '.sts{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;}' +
-    '.sts-item{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;' +
-    'border:1px solid var(--sp-line,#d9dde2);background:var(--sp-panel,#f4f5f6);color:var(--sp-text,#171a1e);}' +
-    '.sts-icon{flex:none;width:30px;height:30px;color:var(--brand,#e0561c);}' +
+    '.sts-panel{display:flex;align-items:center;justify-content:center;min-height:200px;padding:28px 20px;border-radius:16px;' +
+    'background:#e0561c url(/assets/features.webp) center/cover no-repeat;}' +
+    '.sts{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;width:100%;max-width:300px;}' +
+    // White on the brand orange is 3.7:1, so the text is LARGE bold (>=18.66px, 700): AA for large text.
+    '.sts-item{display:flex;align-items:center;gap:14px;padding:0;border:0;background:none;color:#fff;}' +
+    '.sts-icon{flex:none;width:30px;height:30px;color:#fff;}' +
     '.sts-icon svg{width:100%;height:100%;}' +
-    '.sts-text{margin:0;font-size:15px;font-weight:600;color:inherit;}' +
+    '.sts-text{margin:0;font-size:19px;font-weight:700;line-height:1.35;color:#fff;}' +
     '@media(min-width:768px){.sts-wrap{padding:24px 24px 12px;}.sts-title{font-size:26px;}' +
-    '.sts-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;}' +
-    '.sts-item{padding:18px 20px;}.sts-text{font-size:16px;}}'
+    '.sts-panel{min-height:260px;padding:40px 32px;}.sts{max-width:460px;gap:18px;}.sts-text{font-size:20px;}}'
 
   function style() {
     if (document.getElementById('sts-css')) return

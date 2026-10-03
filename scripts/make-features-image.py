@@ -1,4 +1,10 @@
-"""assets/features.webp — the picture beside the three rows of "Sporta features" on the home page.
+"""assets/features.webp — the panel the "Sporta features" rows sit INSIDE on the home page.
+
+2026-10-03: the owner asked for the two models to go and the text to sit inside, in white, on the
+orange band. So: no people, and the band is wide and central — at every height it covers
+x = 0.225W..0.935W, and the panel is shown with background-size: cover, so a phone's crop lands
+entirely on orange. Text placed over the white edges would be white on white.
+
 
 Built from the two cut-outs the category tiles already use (scripts/fixtures/tile-subjects/), in the
 tiles' own look: white ground, the orange slanted band, faint stripes, a soft floor shadow. 2026-10-02.
@@ -11,23 +17,23 @@ HERE = os.path.dirname(__file__)
 SUBJ = os.path.join(HERE, 'fixtures', 'tile-subjects')
 OUT = os.path.join(HERE, '..', 'sporta-site', 'public_html', 'assets', 'features.webp')
 ORANGE = (224, 86, 28)
-W, H = 1200, 900
+W, H = 1600, 600
 
 img = Image.new('RGBA', (W, H), (255, 255, 255, 255))
-s = int(H * 0.22)
+s = int(H * 0.12)
 band = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-ImageDraw.Draw(band).polygon([(int(W * .30) + s, -10), (int(W * .98) + s, -10), (int(W * .98) - s, H + 10), (int(W * .30) - s, H + 10)],
+ImageDraw.Draw(band).polygon([(int(W * .18) + s, -10), (int(W * .98) + s, -10), (int(W * .98) - s, H + 10), (int(W * .18) - s, H + 10)],
                              fill=ORANGE + (255,))
 img.alpha_composite(band)
 st = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 d = ImageDraw.Draw(st)
 x = int(W * .04)
-while x < int(W * .20):
+while x < int(W * .15):
     d.polygon([(x + s, -10), (x + 9 + s, -10), (x + 9 - s, H + 10), (x - s, H + 10)], fill=ORANGE + (70,))
     x += 26
 img.alpha_composite(st)
 
-people = [('women', .40), ('men', .68)]            # name, centre x as a share of the width
+people = []                                          # the models were removed, 2026-10-03
 for name, cx in people:
     sub = Image.open(os.path.join(SUBJ, f'{name}.png')).convert('RGBA')
     sh = int(H * 0.90)

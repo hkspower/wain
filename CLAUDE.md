@@ -4222,3 +4222,7 @@ All 165 `test:*` suites run in the sandbox plus the four live checks. **Live: cl
 ## Women tile colour corrected — 2026-10-03
 
 "improve woman model color accuracy and fix high tint". The cut-out's outfit carried a faint teal cast (shirt R52 G53 B54) and the skin was over-saturated (face R203 G142 B118) from the earlier recolour and CLAHE. Low-saturation pixels are now exactly neutral, skin and hair keep 72% of their saturation with a slight cool balance, and contrast is eased 6% (face now R181 G145 B132; shirt neutral grey). Only the eight women tiles changed; `ART_VERSION` is `20261003a`.
+
+## Sporta features: no models, the rows inside the orange band — 2026-10-03
+
+"remove the models man and woman then put the text inside", asked first: the owner chose the orange band only, the rows inside it, white text. `features.webp` is now a 1600x600 band with no people (`make-features-image.py`, band covering x 0.225W–0.935W at every height) and is the PANEL's `background: … center/cover`, so a phone's crop lands on orange. The text is 19–20px bold, because white on the brand orange is 3.7:1 and passes AA only as large text. `test:menu-bar` samples the screenshot 4px outside each row at 360 and 1280 in both languages and requires orange there.

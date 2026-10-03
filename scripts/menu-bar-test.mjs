@@ -1,3 +1,4 @@
+import { PNG } from 'pngjs'
 /**
  * The menu bar under the top bar, and the strip's picture + fixed delivery line — 2026-10-02.
  *   bash scripts/sandbox.sh && node scripts/menu-bar-test.mjs
@@ -65,27 +66,45 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 800 }, true], [
 
 // the features strip
 for (const lang of ['en', 'ar']) {
-  const p = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+  for (const width of [360, 1280]) {
+  const p = await browser.newPage({ viewport: { width, height: 800 } })
   await p.goto(`${BASE}/?lang=${lang}`, { waitUntil: 'networkidle' })
   await p.waitForSelector('.sts-wrap', { timeout: 8000 }).catch(() => {})
   await p.evaluate(() => { window.__swaps = 0; new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList && n.classList.contains('sts-wrap')) window.__swaps++ }).observe(document.body, { childList: true, subtree: true }) })
   await p.waitForTimeout(2500)
   const s = await p.evaluate(() => {
     const w = document.querySelector('.sts-wrap'); if (!w) return null
-    const img = w.querySelector('img.sts-pic')
-    return { rows: w.querySelectorAll('.sts-item').length, texts: [...w.querySelectorAll('.sts-text')].map((t) => t.textContent), img: !!img && img.complete && img.naturalWidth > 0, swaps: window.__swaps,
+    const panel = w.querySelector('.sts-panel')
+    const boxes = [...w.querySelectorAll('.sts-item')].map((i) => { const r = i.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height } })
+    return { rows: w.querySelectorAll('.sts-item').length, texts: [...w.querySelectorAll('.sts-text')].map((t) => t.textContent), swaps: window.__swaps,
+      inside: !!panel && [...w.querySelectorAll('.sts-item')].every((i) => panel.contains(i)), people: w.querySelectorAll('img').length,
+      bg: panel ? getComputedStyle(panel).backgroundImage : '', textColour: getComputedStyle(w.querySelector('.sts-text')).color, boxes,
       titleColour: getComputedStyle(w.querySelector('.sts-title')).color }
   })
   check(!!s, `${lang}: the features section is on the home page`)
   if (!s) { await p.close(); continue }
   check(s.rows === 2, `${lang}: two rows (exchange, delivery)`, String(s.rows))
-  check(s.img, `${lang}: the picture loaded`)
+  check(s.inside, `${lang} ${width}: the rows sit inside the picture panel`)
+  check(s.people === 0 && /features\.webp/.test(s.bg), `${lang} ${width}: the panel is the band picture, no model image`, s.bg)
+  check(s.textColour === 'rgb(255, 255, 255)', `${lang} ${width}: the text is white`, s.textColour)
+  // White text must land on ORANGE: sample the panel 4px outside each row's left and right ends.
+  await p.evaluate(() => document.querySelector('.sts-panel').scrollIntoView({ block: 'center', behavior: 'instant' }))
+  await p.waitForTimeout(300)
+  const shot = PNG.sync.read(await p.screenshot({ fullPage: true }))
+  let white = []
+  for (const b of s.boxes) for (const x of [b.x - 4, b.x + b.w + 4]) {
+    const i = (Math.round(b.y + b.h / 2) * shot.width + Math.round(x)) * 4
+    const [r, g, bl] = [shot.data[i], shot.data[i + 1], shot.data[i + 2]]
+    if (!(r > 180 && g < 130 && bl < 90)) white.push(`${Math.round(x)}:${r},${g},${bl}`)
+  }
+  check(white.length === 0, `${lang} ${width}: every row sits on the orange band`, white.join(' '))
   check(s.texts[1] === (lang === 'en' ? 'Delivery 1 KWD to all Kuwait' : 'التوصيل ١ د.ك لجميع مناطق الكويت'), `${lang}: the delivery line`, s.texts[1])
   check(s.swaps === 0, `${lang}: the section is not re-created on every tick`, `${s.swaps} rebuilds in 2.5s`)
   check(s.titleColour !== 'rgb(255, 255, 255)', `${lang}: the title is not white on the white body`, s.titleColour)
   await p.close()
 }
+}
 
 await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nall ok — menu bar sticky with the top bar; features section has its picture')
+console.log(fails ? `\n${fails} failed` : '\nall ok — menu bar sticky with the top bar; features rows sit in white on the orange band')
 process.exit(fails ? 1 : 0)
