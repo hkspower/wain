@@ -1,6 +1,7 @@
 import { buildIndex, search } from "@/lib/search";
 import { places } from "@/lib/places";
 import { answerParts } from "@/lib/voice-lines";
+import { answerOrder } from "@/lib/answer-order";
 
 /**
  * Is the answer actually right?
@@ -31,13 +32,16 @@ const ok = (name, cond, detail = "") => {
 const index = buildIndex(places);
 const bySlug = new Map(places.map((p) => [p.slug, p]));
 
+/** January, two in the afternoon: the answer as /search and سالم give it
+ * (`answerOrder` — season, price, reviews), with no season to bend it. */
+const CLOCK = { month: 0, hour: 14 };
 function ask(q) {
-  const hits = search(q, index, { limit: 40 });
+  const { hits } = answerOrder(q, search(q, index, { limit: 40 }), index, places, CLOCK);
   const hitPlaces = hits
     .filter((h) => h.doc.kind === "place")
     .map((h) => bySlug.get(h.doc.id.replace(/^place:/, "")))
     .filter(Boolean);
-  return { hits, hitPlaces, said: answerParts(hits, hitPlaces, { asked: q }).map((p) => p.text).join(" ") };
+  return { hits, hitPlaces, said: answerParts(hits, hitPlaces, { asked: q, ...CLOCK }).map((p) => p.text).join(" ") };
 }
 
 /** [question, acceptable categories, note] */
@@ -266,16 +270,17 @@ console.log("\n── the summer rule survives a real question ──");
 {
   // Kuwait hits the high forties. Recommending an unshaded beach at midday in
   // August is not a ranking quirk, it is advice that hurts someone.
-  const r = ask("أبي أطلع");
-  const august = answerParts(r.hits, r.hitPlaces, { asked: "أبي أطلع", month: 7 })
-    .map((p) => p.text).join(" ");
-  const outdoor = r.hitPlaces.find((p) => p.setting === "outdoor");
-  if (outdoor && august.includes(outdoor.nameAr)) {
-    ok("an outdoor place suggested in August comes with a warning",
-      /المغرب|الليل|الحر|بعد العصر/.test(august), august.slice(0, 160));
-  } else {
-    ok("no unqualified outdoor suggestion in August", true);
-  }
+  // «أبي أطلع» has no topic, so since 3 October it is answered with the
+  // hour's pick — which in an August afternoon has to be out of the sun. The
+  // old form of this check passed vacuously whenever the first place was not
+  // outdoors («no unqualified outdoor suggestion», true); this one names it.
+  const { hits } = answerOrder("أبي أطلع", search("أبي أطلع", index, { limit: 40 }), index, places, { month: 7, hour: 14 });
+  const first = bySlug.get(hits[0]?.doc.id.replace(/^place:/, ""));
+  ok(`«أبي أطلع» at two in an August afternoon is answered indoors (${first?.slug})`, first?.setting === "indoor");
+  const anyOutdoor = places.find((p) => p.setting === "outdoor" && !p.summerOk);
+  const said = answerParts([{ doc: { id: `place:${anyOutdoor.slug}`, kind: "place", title: anyOutdoor.nameAr, subtitle: "" } }],
+    [anyOutdoor], { asked: "أبي أطلع", month: 7, hour: 14 }).map((p) => p.text).join(" ");
+  ok("an outdoor place said in August comes with the heat line", /المغرب|الصبح/.test(said) && /حر|يحمى/.test(said), said);
 }
 
 console.log("\n── the same Kuwaiti word, however it is spelled ──");

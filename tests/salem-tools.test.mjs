@@ -21,14 +21,18 @@ const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-salem-tools-"));
 const entry = join(tmp, "entry.ts");
-writeFileSync(entry, `export * from ${JSON.stringify(join(ROOT, "src/lib/salem-tools.ts"))};\n`);
+writeFileSync(
+  entry,
+  `export * from ${JSON.stringify(join(ROOT, "src/lib/salem-tools.ts"))};\n` +
+    `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n`
+);
 const bundle = join(tmp, "entry.mjs");
 execSync(
   `npx -y esbuild ${JSON.stringify(entry)} --bundle --format=esm ` +
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { formatShowPlaces, formatOpenPlace } = await import(pathToFileURL(bundle).href);
+const { formatShowPlaces, formatOpenPlace, answerOrder } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 const places = [
@@ -100,18 +104,34 @@ console.log("\n── formatShowPlaces: caps at 8 slugs ──");
   ok("and says only the first eight are on screen", r.spoken.includes("أول ٨ أماكن منها"), r.spoken);
 }
 
-console.log("\n── formatShowPlaces: among equal matches, the better reviewed is named first ──");
+console.log("\n── the order is the answer's, and the chat keeps it ──");
 {
   /* The figures are secondhand Google ratings (lib/place-reviews.ts): the zoo
      3.9 from 5,876 reviews, the science centre 4.4 from 5,186. They may decide
      between matches the search found equally good, and nothing else — so each
-     case below is one of the things they must NOT do, beside the one they do. */
+     case below is one of the things they must NOT do, beside the one they do.
+
+     They are applied by `answerOrder` since 3 October, for /search and this
+     chat alike; formatShowPlaces used to apply them itself, which /search did
+     not, so the same question named different places. These cases moved with
+     the rule: the hits go through answerOrder, then formatShowPlaces. */
+  const base = { setting: "indoor", priceLevel: 1, tagsAr: [], bestTimeAr: "" };
   const fam = [
-    { slug: "kuwait-zoo", nameAr: "حديقة حيوان الكويت", category: "family", areaAr: "العمرية", taglineAr: "" },
-    { slug: "kuwait-science-centre", nameAr: "المركز العلمي", category: "family", areaAr: "السالمية", taglineAr: "" },
-    { slug: "the-avenues", nameAr: "الأفنيوز", category: "shopping", areaAr: "الري", taglineAr: "" },
+    { ...base, slug: "kuwait-zoo", nameAr: "حديقة حيوان الكويت", category: "family", areaAr: "العمرية", taglineAr: "" },
+    { ...base, slug: "kuwait-science-centre", nameAr: "المركز العلمي", category: "family", areaAr: "السالمية", taglineAr: "" },
+    { ...base, slug: "the-avenues", nameAr: "الأفنيوز", category: "shopping", areaAr: "الري", taglineAr: "" },
+    { ...base, slug: "jacc", nameAr: "مركز جابر الأحمد الثقافي", category: "culture", areaAr: "", taglineAr: "" },
+    { ...base, slug: "kuwait-towers", nameAr: "أبراج الكويت", category: "landmarks", areaAr: "", taglineAr: "" },
+    { ...base, slug: "souq-al-mubarakiya", nameAr: "سوق المباركية", category: "shopping", areaAr: "", taglineAr: "" },
   ];
-  const near = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.95)], fam);
+  const JAN = { month: 0, hour: 14 };
+  const show = (q, hits) => formatShowPlaces(q, answerOrder(q, hits, { docs: [] }, fam, JAN).hits, fam);
+
+  const given = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.95)], fam);
+  ok("formatShowPlaces keeps the order it is handed — it no longer re-orders on its own",
+    given.slugs[0] === "kuwait-zoo", JSON.stringify(given.slugs));
+
+  const near = show("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.95)]);
   ok("between two near-equal matches, the clearly better reviewed comes first",
     near.slugs[0] === "kuwait-science-centre", JSON.stringify(near.slugs));
   ok("and it is the first she is told to name",
@@ -119,21 +139,18 @@ console.log("\n── formatShowPlaces: among equal matches, the better reviewed
   ok("no rating, no count and no «Google» in what she is told",
     !/[0-9٠-٩][.٫][0-9٠-٩]|قوقل|جوجل|google|تقييم|مراجع/i.test(near.spoken), near.spoken);
 
-  const far = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.6)], fam);
+  const far = show("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.6)]);
   ok("a clearly stronger match is never passed, however it is reviewed", far.slugs[0] === "kuwait-zoo", JSON.stringify(far.slugs));
 
   // The Avenues has no figure: it was not found, which says nothing about it.
   // The JACC is 4.7 from 4,550 — far enough above average that, were «no
   // figure» scored as average, it would pass; so this case can tell the two
   // rules apart, where the science centre (4.4, exactly average) could not.
-  const unknown = formatShowPlaces("مكيف", [hit("the-avenues", "الأفنيوز", 1), hit("jacc", "مركز جابر الأحمد الثقافي", 0.99)], [
-    ...fam,
-    { slug: "jacc", nameAr: "مركز جابر الأحمد الثقافي", category: "culture", areaAr: "", taglineAr: "" },
-  ]);
+  const unknown = show("مكيف", [hit("the-avenues", "الأفنيوز", 1), hit("jacc", "مركز جابر الأحمد الثقافي", 0.99)]);
   ok("a place with no figure is not passed on a guess", unknown.slugs[0] === "the-avenues", JSON.stringify(unknown.slugs));
 
   // 4.5 from 18,656 against 4.4 from 26,500: under a tenth of a star apart.
-  const noise = formatShowPlaces("الكويت", [hit("souq-al-mubarakiya", "سوق المباركية", 1), hit("kuwait-towers", "أبراج الكويت", 0.99)], places);
+  const noise = show("الكويت", [hit("souq-al-mubarakiya", "سوق المباركية", 1), hit("kuwait-towers", "أبراج الكويت", 0.99)]);
   ok("a difference under a tenth of a star changes nothing", noise.slugs[0] === "souq-al-mubarakiya", JSON.stringify(noise.slugs));
 }
 

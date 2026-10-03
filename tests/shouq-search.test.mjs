@@ -3,10 +3,10 @@ import { chromium } from 'playwright';
 /**
  * شوق, on the search page rather than beside it.
  *
- * `answerParts` builds a real reply to every search — it names the best place
- * and says why, gives the best time, warns about the Kuwaiti summer where the
- * place is open to it, and offers one alternative. The page computed that and
- * did exactly one thing with it: `speak()`.
+ * `answerParts` builds a real reply to every search — the place to try and
+ * where it is, then when to go, or the Kuwaiti summer's warning instead where
+ * the place is open to it. The page computed that and did exactly one thing
+ * with it: `speak()`.
  *
  * صوت وين is off unless you turn it on, so for almost everyone the answer was
  * built and thrown away. Her call hands you here — «the search page's own
@@ -48,6 +48,9 @@ console.log('\n── she answers in writing, with the voice switched off ──
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, locale: 'ar-KW', isMobile: true, hasTouch: true });
   const p = await ctx.newPage();
+  // Her answer reads Kuwait's month and hour (3 October): January, two in the
+  // afternoon, so the season cannot move what this section asserts.
+  await p.clock.setFixedTime(new Date('2026-01-15T11:00:00Z'));
   await p.route('**openstreetmap.org**', (r) => r.abort());
   await p.goto(`${B}/search/?q=${encodeURIComponent('قهوة هادية')}`, { waitUntil: 'networkidle' });
   await p.waitForTimeout(600);
@@ -56,11 +59,15 @@ console.log('\n── she answers in writing, with the voice switched off ──
   ok('her answer is on the page at all', a.found, 'no section labelled شوق');
   ok('and صوت وين really is off — this is not the spoken path',
     await p.evaluate(() => !JSON.parse(localStorage.getItem('wain:voice') ?? 'false')));
-  ok('she opens with the recommendation, not a result count',
-    a.text.includes('أقترح عليك'), a.text.slice(0, 80));
-  ok('she gives the best time', a.text.includes('أحلى وقت'), a.text);
-  ok('and offers exactly one alternative',
-    (a.text.match(/وإذا تبي غيره/g) || []).length === 1, a.text);
+  ok('she opens with «جرّب» and the place, not a result count',
+    /^شوق ?جرّب /.test(a.text), a.text.slice(0, 80));
+  // The header said «شوق — أقترح عليك:» until 3 October, the spoken intro
+  // echoed on screen. The intro went from the answer and the header with it.
+  ok('the header is her name alone',
+    (await p.locator(`${ANSWER} h2`).textContent()) === 'شوق', await p.locator(`${ANSWER} h2`).textContent());
+  ok('she says when to go, as «روح …»', a.text.includes('روح '), a.text);
+  ok('and offers no second place — that is the next card in the list',
+    !a.text.includes('وإذا تبي غيره'), a.text);
 
   /**
    * The one thing that makes this an answer rather than a caption: she must
@@ -70,13 +77,47 @@ console.log('\n── she answers in writing, with the voice switched off ──
   ok('the place she recommends is the one the search ranked first',
     !!a.topResult && a.links[0] === a.topResult, `${a.links[0]} vs ${a.topResult}`);
 
-  ok('both places she names are links to those places',
-    a.links.length === 2 && a.links.every((h) => h?.startsWith('/places/')), a.links.join(' · '));
+  ok('the one place she names is a link to it',
+    a.links.length === 1 && a.links[0]?.startsWith('/places/'), a.links.join(' · '));
 
   console.log('\n── and the page announces one thing, not two ──');
   ok('exactly one live region on the page', a.liveRegions === 1, `${a.liveRegions} regions`);
   ok('and it is hers', a.live === 'polite' && a.atomic === 'true', `${a.live}/${a.atomic}`);
   await ctx.close();
+}
+
+console.log('\n── the season and the hour are Kuwait\'s, and they change the answer ──');
+{
+  /* «قهوة» at two in an August afternoon led with a tea house in an open
+     courtyard and then said «لا تروح إلا بعد المغرب» about it — after «أحلى
+     وقت: العصر». Now the heat line replaces the best time, a place the sun
+     ruins is not first by day, and at night neither applies. */
+  const at = async (q, iso) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, locale: 'ar-KW', isMobile: true, hasTouch: true });
+    const p = await ctx.newPage();
+    await p.clock.setFixedTime(new Date(iso));
+    await p.route('**openstreetmap.org**', (r) => r.abort());
+    await p.goto(`${B}/search/?q=${encodeURIComponent(q)}`, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(500);
+    const r = await read(p);
+    await ctx.close();
+    return r;
+  };
+  const AFTERNOON = '2026-08-15T11:00:00Z'; // 14:00 in Kuwait
+  const NIGHT = '2026-08-15T18:00:00Z'; //     21:00 in Kuwait
+  const sea = await at('بحر', AFTERNOON);
+  ok('a beach at two in an August afternoon: the heat line', sea.text.includes('لا تروح إلا عقب المغرب'), sea.text);
+  ok('…instead of «go in the afternoon», not beside it', !/روح (من )?العصر/.test(sea.text), sea.text);
+  const seaNight = await at('بحر', NIGHT);
+  ok('the same beach at nine at night is not told to wait for sunset', !seaNight.text.includes('لا تروح إلا عقب المغرب'), seaNight.text);
+  const coffee = await at('قهوة', AFTERNOON);
+  ok('«قهوة» in an August afternoon does not lead with an open courtyard',
+    !coffee.text.includes('مقاهي المباركية') && !coffee.text.includes('كافيهات شارع الخليج'), coffee.text);
+  ok('and what she names is still the first result on the page', coffee.links[0] === coffee.topResult, `${coffee.links[0]} vs ${coffee.topResult}`);
+  /* «وين أروح الحين» found nothing and she said «ما لقيت شي». */
+  const now = await at('وين أروح الحين', AFTERNOON);
+  ok('«وين أروح الحين» gets a place, not «ما لقيت شي»', now.links.length === 1 && !now.text.includes('ما لقيت'), now.text);
+  ok('and the list leads with the same place', now.links[0] === now.topResult, `${now.links[0]} vs ${now.topResult}`);
 }
 
 console.log('\n── an empty box gets nothing; a failed search gets the most important turn ──');

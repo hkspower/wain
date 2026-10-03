@@ -14,7 +14,8 @@ truth is `src/lib/voice-lines.ts`).
 
 ## Status, measured 11 September 2026
 
-**Nothing is recorded yet** — zero of the **324** lines (162 per persona).
+**Nothing is recorded yet** — zero of the **218** lines (109 per persona since
+3 October, when the answer went short; it was 324, 162 per persona, before).
 Every spoken line on the live site is read by the browser's own Arabic
 synthesiser. That is why شوق sounds like a screen reader.
 
@@ -375,8 +376,9 @@ node scripts/gen-voice.mjs --dry-run     # preview all lines, no API calls
 node scripts/gen-voice.mjs               # generate missing and changed clips
 ```
 
-This writes **324 MP3s** (162 lines × 2 personas: greeting, connectors, and a
-full suggestion + short name + best time for every place) plus
+This writes **218 MP3s** (109 lines × 2 personas: the greeting, the fixed
+lines, and a «جرّب …» line and a best time for every place — 324 before the
+short answer of 3 October) plus
 `public/voice/manifest.json`. Then build and deploy as usual — the clips ride
 along in `out/`, and they have to: `deploy.php` prunes against the manifest, so
 anything uploaded beside a deploy is deleted by the next one.

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Place } from "@/lib/places";
-import { GENERIC_LINES, isSummerMonth } from "@/lib/voice-lines";
+import { GENERIC_LINES, isSummerMonth, summerKey } from "@/lib/voice-lines";
 import { kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
 
 /**
@@ -177,12 +177,11 @@ export function hangoutMessage(opts: {
   const hour = kuwaitHour(now);
   const arrival = when === "now" ? hour : when === "soon" ? hour + 1 : DAY_STARTS + 2;
   const daytimePlan = when === "now" || when === "soon" || when === "tomorrow" || when === "weekend";
-  const heat =
-    daytimePlan && bakesInTheSun(place, arrival, month)
-      ? place.setting === "mixed"
-        ? GENERIC_LINES["summer-mixed"]
-        : GENERIC_LINES["summer-outdoor"]
-      : "";
+  // `summerKey`, not «mixed or outdoor»: a market that is over by noon was
+  // told «لا تروح إلا عقب المغرب», and the group would have arrived to an
+  // empty lot. The morning places get «روح بدري الصبح» here as they do out
+  // loud (3 October).
+  const heat = daytimePlan && bakesInTheSun(place, arrival, month) ? GENERIC_LINES[summerKey(place)] : "";
 
   const lines = [
     `${place.nameAr} — ${place.areaAr} 📍`,

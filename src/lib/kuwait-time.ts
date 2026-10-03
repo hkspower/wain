@@ -42,3 +42,17 @@ export function kuwaitMonth(now: Date = new Date()): number {
 export function isSummerMonth(month: number): boolean {
   return month >= 5 && month <= 8;
 }
+
+/**
+ * Seven in the evening to five in the morning: the hours when «don't go
+ * until after sunset» has already come true.
+ *
+ * Asked at nine at night in August, شوق used to say «بس هذي أيام حر — لا
+ * تروح إلا بعد المغرب» about a beach the visitor could walk onto that minute,
+ * and the search pushed the same beach down as if it were noon. Nineteen is
+ * the hangout planner's DAY_ENDS for the same reason — by seven the outing
+ * everybody actually makes has begun — and five is before the sun is up.
+ */
+export function isKuwaitNight(hour: number): boolean {
+  return hour >= 19 || hour < 5;
+}

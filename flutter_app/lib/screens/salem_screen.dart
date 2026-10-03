@@ -13,7 +13,7 @@ import '../ai/tools.dart';
 import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../data/places.g.dart';
-import '../share/hangout.dart' show kuwaitMonth;
+import '../data/answer_order.dart' show kuwaitClock;
 import '../data/voice_lines.dart';
 import '../share/hangout_panel.dart';
 import '../theme/app_theme.dart';
@@ -246,10 +246,12 @@ class _SalemScreenState extends State<SalemScreen> {
       _add(_Text('agent', ChatCopy.freeEmpty));
       return;
     }
+    final clock = kuwaitClock();
     final words = answerParts(
       found.map((p) => p.nameAr).toList(),
       found,
-      month: kuwaitMonth(),
+      month: clock.month,
+      hour: clock.hour,
     ).map((p) => p.text).join(' ');
     _add(_Text('agent', words));
     _add(_Places(found));

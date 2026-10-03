@@ -110,9 +110,9 @@ console.log('\n── the rest of the answer is fetched while the first clip pla
  */
 {
   const three = [
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
-    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'روح وقت الغروب…' },
+    { key: 'summer-outdoor', text: 'بالصيف…' },
   ];
   const before = requested.length;
   const s = await page.evaluate(async (parts) => {
@@ -129,14 +129,14 @@ console.log('\n── the rest of the answer is fetched while the first clip pla
   const asked = requested.slice(before);
   ok('only the first clip has started playing', s.played.length === 1, JSON.stringify(s.played));
   ok('but all three have already been asked for',
-    ['suggest-intro', 'place-kuwait-towers', 'best-kuwait-towers']
+    ['try-kuwait-towers', 'best-kuwait-towers', 'summer-outdoor']
       .every((k) => asked.includes(`/voice/shouq/${k}.mp3`)),
     asked.join(' '));
   // The first clip is deliberately NOT prefetched: the element is already
   // loading it, and a second request races the element's own for a connection.
   // Warming all five moved the delay to the worst possible place — measured,
   // it pushed the first clip from 431ms to 771ms.
-  const firstTwice = asked.filter((u) => u === '/voice/shouq/suggest-intro.mp3').length;
+  const firstTwice = asked.filter((u) => u === '/voice/shouq/try-kuwait-towers.mp3').length;
   ok('and the one already loading was not asked for twice', firstTwice === 1, `${firstTwice} requests`);
 }
 
@@ -155,15 +155,15 @@ console.log('\n── a multi-part answer plays every clip, in order ──');
 // three is asserted, not merely that something played.
 {
   const s = await say([
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
-    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'روح وقت الغروب…' },
+    { key: 'summer-outdoor', text: 'بالصيف…' },
   ]);
   ok('all three clips played', s.played.length === 3, JSON.stringify(s.played));
   ok('in the order she says them', JSON.stringify(s.played) === JSON.stringify([
-    '/voice/shouq/suggest-intro.mp3',
-    '/voice/shouq/place-kuwait-towers.mp3',
+    '/voice/shouq/try-kuwait-towers.mp3',
     '/voice/shouq/best-kuwait-towers.mp3',
+    '/voice/shouq/summer-outdoor.mp3',
   ]), JSON.stringify(s.played));
   ok('with no synthetic speech mixed in', s.spoken.length === 0, JSON.stringify(s.spoken));
 }
@@ -178,9 +178,9 @@ console.log('\n── there is a beat between two sentences, not a splice ──
  */
 {
   const s = await say([
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
-    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'روح وقت الغروب…' },
+    { key: 'summer-outdoor', text: 'بالصيف…' },
   ]);
   ok('all three played', s.played.length === 3, JSON.stringify(s.played));
   const gaps = s.playedAt.slice(1).map((t, i) => t - s.playedAt[i]);
@@ -208,9 +208,9 @@ console.log('\n── stopping during the pause stays stopped ──');
     await new Promise((r) => setTimeout(r, 500));
     return { atStop, after: window.spy.played.length };
   }, [
-    { key: 'suggest-intro', text: 'أ' },
-    { key: 'place-kuwait-towers', text: 'ب' },
-    { key: 'best-kuwait-towers', text: 'ج' },
+    { key: 'try-kuwait-towers', text: 'أ' },
+    { key: 'best-kuwait-towers', text: 'ب' },
+    { key: 'summer-outdoor', text: 'ج' },
   ]);
   // Stated as its own assertion: if the timing drifted and the stop landed
   // during a clip instead, the one below would pass without testing anything.
@@ -239,11 +239,11 @@ console.log('\n── every clip plays at the level the manifest levelled it to 
     readFileSync(join(FIXTURES, 'manifest.json'), 'utf8')
   ).gains ?? {};
   const s = await say([
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
-    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'روح وقت الغروب…' },
+    { key: 'summer-outdoor', text: 'بالصيف…' },
   ]);
-  const want = ['shouq/suggest-intro', 'shouq/place-kuwait-towers', 'shouq/best-kuwait-towers']
+  const want = ['shouq/try-kuwait-towers', 'shouq/best-kuwait-towers', 'shouq/summer-outdoor']
     .map((k) => gains[k]);
   ok('the fixture manifest really carries levels to apply',
     want.every((v) => typeof v === 'number') && new Set(want).size > 1, JSON.stringify(want));
@@ -304,17 +304,17 @@ console.log('\n── one missing clip drops the WHOLE utterance to synthetic �
 // and it is the failure a naive per-part resolver would produce.
 {
   const s = await say([
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-al-shaheed-park', text: 'حديقة الشهيد، في مدينة الكويت.' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت.' },
+    { key: 'try-al-shaheed-park', text: 'جرّب حديقة الشهيد بمدينة الكويت.' },
   ]);
   ok('no clip is played at all', s.played.length === 0, JSON.stringify(s.played));
   // One utterance per sentence, not one for the answer — see speakFallback.
   ok('the whole thing is spoken instead', s.spoken.length === 2, JSON.stringify(s.spoken));
   ok('including the part that DID have a clip',
-    s.spoken.join(' ').includes('أقترح عليك') && s.spoken.join(' ').includes('حديقة الشهيد'),
+    s.spoken.join(' ').includes('أبراج الكويت') && s.spoken.join(' ').includes('حديقة الشهيد'),
     JSON.stringify(s.spoken));
   ok('and in the order she says them',
-    (s.spoken[0] ?? '').includes('أقترح عليك') && (s.spoken[1] ?? '').includes('حديقة الشهيد'),
+    (s.spoken[0] ?? '').includes('أبراج الكويت') && (s.spoken[1] ?? '').includes('حديقة الشهيد'),
     JSON.stringify(s.spoken));
 }
 
@@ -327,8 +327,8 @@ console.log('\n── the echoed question is skipped on the clip path ──');
 {
   const s = await say([
     { text: 'قهوة هادية؟', optional: true },
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
-    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'روح وقت الغروب…' },
   ]);
   ok('the two recorded parts play', s.played.length === 2, JSON.stringify(s.played));
   ok('and the echo is silent, not synthesised', s.spoken.length === 0, JSON.stringify(s.spoken));
@@ -337,7 +337,7 @@ console.log('\n── the echoed question is skipped on the clip path ──');
 console.log('\n── a keyless, NON-optional part still forces the fallback ──');
 {
   const s = await say([
-    { key: 'suggest-intro', text: 'أقترح عليك:' },
+    { key: 'try-kuwait-towers', text: 'جرّب أبراج الكويت…' },
     { text: 'أقرب شي لطلبك: مقاهي.' },
   ]);
   ok('nothing is played', s.played.length === 0, JSON.stringify(s.played));
@@ -364,9 +364,9 @@ console.log('\n── stopping mid-answer stops the rest of it ──');
     window.setAutoEnd(false); // hold on the first clip, as a long line would
     window.resetSpy();
     window.voice.speak([
-      { key: 'suggest-intro', text: 'أ' },
-      { key: 'place-kuwait-towers', text: 'ب' },
-      { key: 'best-kuwait-towers', text: 'ج' },
+      { key: 'try-kuwait-towers', text: 'أ' },
+      { key: 'best-kuwait-towers', text: 'ب' },
+      { key: 'summer-outdoor', text: 'ج' },
     ]);
     await new Promise((r) => setTimeout(r, 250));
     const midway = window.spy.played.length;

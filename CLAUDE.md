@@ -5628,8 +5628,52 @@ style…) is unknown**: the sandbox cannot reach ElevenLabs and the connector
 shows no settings for any model. A refusal degrades to the device voice, so
 `php tts.php probe [shouq|salem]` makes one real render on the server and
 prints ElevenLabs' answer. **Run it the moment the key is in**, before
-believing the voices work. The server's copy (`015fcf35cbd31124`, installed
-this afternoon) predates the probe and the model change; reinstall first.
+believing the voices work. Installed on both stages at `d067f482e0e81f6f`
+(v4, Maryam, Mustafa, the probe), key still empty.
+
+## شوق and سالم's free answer, shortened and ordered once — 3 October (built, NOT live)
+
+The owner's four decisions from a review of what she actually answered.
+
+- **The answer is «جرّب X بـY.» then when — ~9 seconds, not ~20.** No
+  «أقترح عليك:», no tagline, no «وإذا تبي غيره» (both are cards on screen).
+  Keys are `try-<slug>` and `best-<slug>` («روح <bestTimeAr>.»), one fixed
+  sentence each, because the read-aloud bridge caches per sentence; the clip
+  library is 109 lines per persona, from 162. `suggest-intro`, `related-intro`,
+  `place-*` and `name-*` are gone, from the fixture manifest too (regenerated
+  with espeak-ng, which had to be installed). Five best times were reworded so
+  they read after «روح» — in places.ts AND schema.sql, and the KB regenerated,
+  so **the repository is again ahead of the live KB document by five lines.**
+- **Summer: the heat line INSTEAD of the best time**, never beside it.
+  `whenParts` in voice-lines: outdoor → «بالصيف لا تروح إلا عقب المغرب، النهار
+  حر.»; mixed → best time plus «بالنهار خلك بالمكيّف…» unless the best time is
+  the evening; morning places (read off `bestTimeAr`, `isMorningPlace` — no new
+  field) → «بالصيف روح بدري الصبح…». From 19:00 to 05:00 (`isKuwaitNight`)
+  the after-sunset lines are skipped. The hangout message picks its line with
+  the same `summerKey`, so a market is not told to come after sunset there
+  either.
+- **One ordering, `src/lib/answer-order.ts`, for /search, سالم and the call's
+  `show_places`.** Search score × summer by day (outdoor 0.6, mixed 0.9,
+  unless the question chose the outdoors or the evening) × «رخيص» (0.5 above
+  priceLevel 1) → `reorderByReviews`. It is now the only importer
+  `audit:reviews` allows; `formatShowPlaces` keeps the order it is given.
+  Kuwait's clock everywhere (/search read the DEVICE's month and no hour).
+  A topicless question («وين أروح الحين», «زهقان») gets `defaultPicks` for
+  the hour from the catalogue's own tags, and the list shows them.
+- **Search words** (search.ts): the 3 October synonym block; synonyms looked
+  up under a clitic (`synonymsOf`); a word with a synonym gets no fuzzy and,
+  under three letters, no prefix; fuzzy never lands on a 3-letter term
+  («جديد» → «جيد»); a misspelt synonym key is read as that key
+  (`misspeltKey`: «مطعن» → «مطعم»); `GOING_OUT` and `isTopicless`.
+- **Flutter** mirrors all of it (`lib/data/answer_order.dart`, generated
+  `kGoingOut`/`kGoogleFigures`), and `search_parity.json` now replays 464
+  answers — order and sentences — at four Kuwait clocks.
+
+**`/search` is 175.4K against the 175K budget** (HEAD 172.2K): the ordering
+module is 2.45K gzipped (0.64K of it the review figures), voice-lines +0.5K,
+search +0.24K. Not hidden behind a dynamic import, which would only move the
+cost out of the place that measures it; raising the ratchet is the owner's
+call.
 
 ## Style
 

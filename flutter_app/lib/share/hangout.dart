@@ -134,10 +134,10 @@ String hangoutMessage({
       when == WhenId.soon ||
       when == WhenId.tomorrow ||
       when == WhenId.weekend;
+  // `summerKey`: a morning market is told «روح بدري الصبح», not «لا تروح
+  // إلا عقب المغرب» (3 October, as on the web).
   final heat = daytimePlan && _bakesInTheSun(place, arrival, month)
-      ? (place.setting == 'mixed'
-            ? kGenericLines['summer-mixed']!
-            : kGenericLines['summer-outdoor']!)
+      ? kGenericLines[summerKey(place)]!
       : '';
   return [
     '${place.nameAr} — ${place.areaAr} 📍',

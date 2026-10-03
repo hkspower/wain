@@ -32,7 +32,6 @@
  */
 import type { Place } from "@/lib/places";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
-import { reorderByReviews } from "@/lib/place-reviews";
 import { MATCHING_PLACES } from "@/lib/wain-ai";
 
 export interface SalemShowPlacesResult {
@@ -51,19 +50,17 @@ export interface SalemShowPlacesResult {
  * gives: the engine belongs to a conversation that may never happen. */
 export interface SalemSearchHit {
   doc: { kind: string; id: string; title: string };
-  /** How well it matched — what `reorderByReviews` cuts its bands by. */
   score: number;
 }
 
+/**
+ * `hits` arrive in the order the answer gives them — `answerOrder` in
+ * answer-order.ts, the same ordering /search uses. This used to re-order them
+ * itself (by reviews), which /search did not, so the same question could name
+ * one place on the page and another in the chat.
+ */
 export function formatShowPlaces(query: string, hits: SalemSearchHit[], places: Place[]): SalemShowPlacesResult {
-  // Among places the search found equally good, the one people rate clearly
-  // higher on Google is named first — see place-reviews.ts for what that
-  // rests on, and why it is ordered by and never quoted.
-  const found = reorderByReviews(
-    hits.filter((h) => h.doc.kind === "place"),
-    (h) => h.score,
-    (h) => h.doc.id.replace(/^place:/, "")
-  );
+  const found = hits.filter((h) => h.doc.kind === "place");
   const bySlug = new Set(places.map((p) => p.slug));
   const slugs = found
     .slice(0, 8)

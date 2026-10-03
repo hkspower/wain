@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../app/app_state.dart';
+import '../data/answer_order.dart';
 import '../data/catalogue.dart';
 import '../data/categories.g.dart';
 import '../data/models.dart';
@@ -93,16 +94,38 @@ class _SearchScreenState extends State<SearchScreen> {
   (String, String)? _memoKey;
   List<SearchHit> _memoHits = const [];
   List<SearchHit> _memoAll = const [];
+  AnswerClock _memoClock = kuwaitClock();
   @visibleForTesting
   int searchRuns = 0;
 
+  /// The hits in the order her answer gives them (`answerOrder` — the order
+  /// the chat uses too), with Kuwait's month and hour read with them. A
+  /// question with no topic comes back as the hour's default picks, and the
+  /// per-kind counts are of those, not of the search's matches for «وين».
   (List<SearchHit>, List<SearchHit>) _results(String q) {
     final key = (q, _kind);
     if (key != _memoKey) {
       searchRuns++;
       _memoKey = key;
-      _memoHits = q.isEmpty ? const [] : _hits(q, kind: _kind);
-      _memoAll = q.isEmpty ? const [] : _hits(q, limit: 200);
+      _memoClock = kuwaitClock();
+      if (q.isEmpty) {
+        _memoHits = const [];
+        _memoAll = const [];
+      } else {
+        final ordered = answerOrder(
+          q,
+          _hits(q, kind: _kind),
+          searchIndex,
+          kPlaces,
+          _memoClock,
+        );
+        _memoHits = ordered.fallback && _kind != 'all' && _kind != 'place'
+            ? const []
+            : ordered.hits;
+        _memoAll = ordered.fallback
+            ? answerOrder(q, const [], searchIndex, kPlaces, _memoClock).hits
+            : _hits(q, limit: 200);
+      }
     }
     return (_memoHits, _memoAll);
   }
@@ -146,7 +169,9 @@ class _SearchScreenState extends State<SearchScreen> {
     hits.map((h) => h.doc.title).toList(),
     hitPlaces,
     asked: null,
-    month: DateTime.now().month - 1,
+    // Kuwait's, read with the hits — it was the device's month, and no hour.
+    month: _memoClock.month,
+    hour: _memoClock.hour,
   );
 
   @override
@@ -228,7 +253,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 const _EmptyWaysOn(),
               ] else if (hits.isNotEmpty) ...[
                 if (hitPlaces.isNotEmpty)
-                  _AnswerLine(text: placeSuggestLine(hitPlaces.first)),
+                  _AnswerLine(text: placeTryLine(hitPlaces.first)),
                 Text(
                   countAr(hits.length, kResultsCount),
                   style: wainText(WainText.sm, color: WainColors.ink500),

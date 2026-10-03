@@ -20,7 +20,7 @@ export default function PlaceMap({
   related?: Place[];
 }) {
   const { lat, lng } = place;
-  const suggestParts = placeSuggestParts(place, related);
+  const suggestParts = placeSuggestParts(place);
   // The shared builder, not a second copy of the same template. This file had
   // its own `const osmLink` spelling out the identical URL — and shadowing the
   // exported name while doing it — so a fix to one would have silently left

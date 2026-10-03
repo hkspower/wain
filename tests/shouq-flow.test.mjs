@@ -19,7 +19,7 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
  * `neverStarts` is the microphone prompt nobody answers: start() accepted, and
  * then silence for ever. No handler fires, so nothing but a timeout can end it.
  */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null } = {}) {
+async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
   await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
@@ -91,6 +91,9 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
     }
   }, { transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor });
   const p = await ctx.newPage();
+  // Her answer reads Kuwait's month and hour (3 October); a section asserting
+  // on what she says pins them, or the season would move it.
+  if (at) await p.clock.setFixedTime(at);
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   // A wait that times out is a failed step, not the end of the file. They used
@@ -423,7 +426,8 @@ console.log('\n── a call that hears nothing ends, instead of listening for e
 
 console.log('\n── the call connects her, and she answers ──');
 {
-  const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية' });
+  // January, two in the afternoon in Kuwait.
+  const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية', at: new Date('2026-01-15T11:00:00Z') });
   await call(p);
   ok('audio is unlocked inside the gesture (iOS)', (await p.evaluate(() => window.__primed)) === 'in-gesture');
   ok('the microphone is asked for in Kuwaiti Arabic', (await p.evaluate(() => window.__recLang)) === 'ar-KW');
@@ -443,9 +447,12 @@ console.log('\n── the call connects her, and she answers ──');
   const said = (await p.evaluate(() => window.__said)).join(' ');
   console.log(`      «${said}»`);
   ok('she repeats what she heard', said.includes('قهوة هادية؟'));
-  ok('she recommends with a reason', said.includes('أقترح عليك') && said.includes('حوش السوق'));
-  ok('she says when to go', said.includes('أحلى وقت'));
-  ok('she offers one alternative', said.includes('وإذا تبي غيره'));
+  // The short answer, 3 October: the place and where, then when — about
+  // nine seconds. The tagline and a second place are on the screen behind her.
+  ok('she recommends a place, «جرّب …»', said.includes('جرّب مقاهي المباركية'), said);
+  ok('she says when to go', said.includes('روح العصر'), said);
+  ok('and stops there — no tagline, no second place',
+    !said.includes('حوش السوق') && !said.includes('وإذا تبي غيره'), said);
   ok('the results are on screen behind her', (await p.locator('a[href^="/places/"]').count()) > 0);
   ok('the voice toggle is left on', (await p.evaluate(() => localStorage.getItem('wain-voice-enabled'))) === '1');
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));

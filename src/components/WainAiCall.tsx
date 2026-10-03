@@ -561,14 +561,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // during ring-back but wait — and the tool awaits a promise that is by then
   // already settled. One loader per `places` identity, so an admin edit still
   // rebuilds the index rather than answering from the old rows.
+  //
+  // The page orders its results with `answerOrder` (answer-order.ts) since 3
+  // October, so this does too: «the same search the page runs» has to include
+  // the order, or she names one place first and the screen another.
   const loadIndex = useMemo(() => {
     let pending: Promise<{
       mod: typeof import("@/lib/search");
+      order: typeof import("@/lib/answer-order");
       index: import("@/lib/search").SearchIndex;
     }> | null = null;
     return () =>
-      (pending ??= import("@/lib/search").then((mod) => ({
+      (pending ??= Promise.all([import("@/lib/search"), import("@/lib/answer-order")]).then(([mod, order]) => ({
         mod,
+        order,
         index: mod.buildIndex(places),
       })));
   }, [places]);
@@ -611,8 +617,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           let names: string[] = [];
           let total = -1;
           try {
-            const { mod, index } = await loadIndex();
-            const found = mod.search(q, index, { limit: 40 }).filter((h) => h.doc.kind === "place");
+            const { mod, order, index } = await loadIndex();
+            const found = order
+              .answerOrder(q, mod.search(q, index, { limit: 40 }), index, places)
+              .hits.filter((h) => h.doc.kind === "place");
             total = found.length;
             names = found.slice(0, 3).map((h) => h.doc.title);
           } catch {

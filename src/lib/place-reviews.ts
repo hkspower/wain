@@ -14,12 +14,14 @@
  *  - It may ORDER places that already answer the question equally well
  *    (`reorderByReviews`). Within a band of near-equal matches, the better
  *    reviewed place is named first. It never lifts a weaker match over a
- *    stronger one, and it never adds a place the search did not find.
+ *    stronger one, and it never adds a place the search did not find. Since
+ *    3 October that is done in one place, `answer-order.ts`, for /search and
+ *    for سالم alike — it used to be the chat's alone, so the two disagreed.
  *  - It may NOT be said or shown. Not by سالم, not on a card, not on a pin —
  *    until the owner has opened that place on Google Maps and checked it
  *    (`docs/google-reviews-checklist.md`), at which point it can be quoted as
- *    «حسب قوقل» with that date. `audit:reviews` fails if anything but the
- *    tool helpers imports this file.
+ *    «حسب قوقل» with that date. `audit:reviews` fails if anything but
+ *    answer-order.ts imports this file.
  *
  * Fourteen places are not here: five are not one Google listing (three
  * streets, a row of tea houses, a stretch of cafés), seven were not found at
@@ -53,46 +55,61 @@ export interface GoogleFigure {
   verified: false;
 }
 
-export const GOOGLE_FIGURES: Readonly<Record<string, GoogleFigure>> = {
-  "abdullah-al-salem-cultural-centre": { rating: 4.6, count: 5550, corroborated: false, verified: false },
-  "al-fanar-mall": { rating: 4.1, count: 4615, corroborated: false, verified: false },
-  "al-hamra-tower": { rating: 4.5, count: 4613, corroborated: false, verified: false },
-  "al-kout-mall": { rating: 4.6, count: 10966, corroborated: true, verified: false },
-  "al-salam-palace": { rating: 4.5, count: 235, corroborated: true, verified: false },
-  "al-shaheed-park": { rating: 4.6, count: 19267, corroborated: true, verified: false },
-  "amricani-cultural-centre": { rating: 4.4, count: 369, corroborated: false, verified: false },
-  "aqua-park": { rating: 3.9, count: 400, corroborated: true, verified: false },
-  "bait-al-othman": { rating: 4.4, count: 1752, corroborated: true, verified: false },
-  "dickson-house": { rating: 4.1, count: 86, corroborated: false, verified: false },
-  "failaka-island": { rating: 4.3, count: 289, corroborated: false, verified: false },
-  "fish-market": { rating: 4.3, count: 10000, corroborated: false, verified: false },
-  "freej-swaileh": { rating: 4.2, count: 12983, corroborated: true, verified: false },
-  "friday-market": { rating: 4.2, count: 3700, corroborated: true, verified: false },
-  "grand-mosque": { rating: 4.8, count: 3573, corroborated: false, verified: false },
-  "green-island": { rating: 4, count: 3700, corroborated: true, verified: false },
-  "jacc": { rating: 4.7, count: 4550, corroborated: true, verified: false },
-  "kuwait-fairground": { rating: 4.4, count: 1700, corroborated: true, verified: false },
-  "kuwait-national-museum": { rating: 4.1, count: null, corroborated: false, verified: false },
-  "kuwait-science-centre": { rating: 4.4, count: 5186, corroborated: true, verified: false },
-  "kuwait-towers": { rating: 4.5, count: 18656, corroborated: true, verified: false },
-  "kuwait-zoo": { rating: 3.9, count: 5876, corroborated: true, verified: false },
-  "liberation-tower": { rating: 4.2, count: 4100, corroborated: false, verified: false },
-  "mais-alghanim": { rating: 4.5, count: 7056, corroborated: true, verified: false },
-  "mall-360": { rating: 4.5, count: 21000, corroborated: true, verified: false },
-  "marina-crescent": { rating: 4.4, count: 7495, corroborated: true, verified: false },
-  "marina-mall": { rating: 4.4, count: null, corroborated: false, verified: false },
-  "messilah-beach": { rating: 4.1, count: 410, corroborated: true, verified: false },
-  "mirror-house": { rating: 4.3, count: null, corroborated: true, verified: false },
-  "modern-art-museum": { rating: 4.2, count: 204, corroborated: true, verified: false },
-  "sadu-house": { rating: 4.4, count: 273, corroborated: true, verified: false },
-  "salhia-complex": { rating: 4.5, count: 985, corroborated: false, verified: false },
-  "sheikh-jaber-causeway": { rating: 4.7, count: 1623, corroborated: false, verified: false },
-  "souq-al-mubarakiya": { rating: 4.4, count: 26500, corroborated: true, verified: false },
-  "souq-al-safafeer": { rating: 4.1, count: 685, corroborated: true, verified: false },
-  "souq-al-watiya": { rating: 4, count: 4056, corroborated: false, verified: false },
-  "souq-sharq": { rating: 4.3, count: 11380, corroborated: true, verified: false },
-  "tareq-rajab-museum": { rating: 4.5, count: 244, corroborated: true, verified: false },
+/**
+ * The figures as [rating, count, corroborated] — a tuple rather than an
+ * object per place, because since 3 October this table rides in /search's
+ * own JavaScript (answer-order.ts orders both surfaces) and the object form
+ * spelled `corroborated` and `verified` out thirty-eight times: the route went
+ * 0.4K over the 175K `audit:js` budget on this table's keys alone. Expanded
+ * below to the same shape as before, so nothing that reads it changed.
+ */
+const FIGURES: Readonly<Record<string, readonly [number, number | null, 0 | 1]>> = {
+  "abdullah-al-salem-cultural-centre": [4.6, 5550, 0],
+  "al-fanar-mall": [4.1, 4615, 0],
+  "al-hamra-tower": [4.5, 4613, 0],
+  "al-kout-mall": [4.6, 10966, 1],
+  "al-salam-palace": [4.5, 235, 1],
+  "al-shaheed-park": [4.6, 19267, 1],
+  "amricani-cultural-centre": [4.4, 369, 0],
+  "aqua-park": [3.9, 400, 1],
+  "bait-al-othman": [4.4, 1752, 1],
+  "dickson-house": [4.1, 86, 0],
+  "failaka-island": [4.3, 289, 0],
+  "fish-market": [4.3, 10000, 0],
+  "freej-swaileh": [4.2, 12983, 1],
+  "friday-market": [4.2, 3700, 1],
+  "grand-mosque": [4.8, 3573, 0],
+  "green-island": [4, 3700, 1],
+  "jacc": [4.7, 4550, 1],
+  "kuwait-fairground": [4.4, 1700, 1],
+  "kuwait-national-museum": [4.1, null, 0],
+  "kuwait-science-centre": [4.4, 5186, 1],
+  "kuwait-towers": [4.5, 18656, 1],
+  "kuwait-zoo": [3.9, 5876, 1],
+  "liberation-tower": [4.2, 4100, 0],
+  "mais-alghanim": [4.5, 7056, 1],
+  "mall-360": [4.5, 21000, 1],
+  "marina-crescent": [4.4, 7495, 1],
+  "marina-mall": [4.4, null, 0],
+  "messilah-beach": [4.1, 410, 1],
+  "mirror-house": [4.3, null, 1],
+  "modern-art-museum": [4.2, 204, 1],
+  "sadu-house": [4.4, 273, 1],
+  "salhia-complex": [4.5, 985, 0],
+  "sheikh-jaber-causeway": [4.7, 1623, 0],
+  "souq-al-mubarakiya": [4.4, 26500, 1],
+  "souq-al-safafeer": [4.1, 685, 1],
+  "souq-al-watiya": [4, 4056, 0],
+  "souq-sharq": [4.3, 11380, 1],
+  "tareq-rajab-museum": [4.5, 244, 1],
 };
+
+export const GOOGLE_FIGURES: Readonly<Record<string, GoogleFigure>> = Object.fromEntries(
+  Object.entries(FIGURES).map(([slug, [rating, count, c]]) => [
+    slug,
+    { rating, count, corroborated: c === 1, verified: false } as const,
+  ]),
+);
 
 /** The median of the figures above: what «average» means here. */
 const PRIOR = 4.4;

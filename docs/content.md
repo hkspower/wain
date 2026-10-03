@@ -18,7 +18,7 @@ empty on the server.
 | routes (files under `src/app`) | 12 |
 | pages built | 63 |
 | hub actions | 3 |
-| voice clip lines, per persona | 162 |
+| voice clip lines, per persona | 109 |
 
 Ordering is live on **0 of 52** places and the queue on **0** — both need two fields set together, so read the pair, not either count in the coverage table below.
 
@@ -232,9 +232,9 @@ and three lines per place (suggestion, short name, best time).
 
 | persona | الاسم | وصف | lines | characters |
 | --- | --- | --- | --- | --- |
-| `shouq` | شوق | صوت كويتي شبابي — بنت | 162 | 6623 |
-| `salem` | سالم | صوت كويتي شبابي — ولد | 162 | 6624 |
+| `shouq` | شوق | صوت كويتي شبابي — بنت | 109 | 3207 |
+| `salem` | سالم | صوت كويتي شبابي — ولد | 109 | 3208 |
 
-**13247 characters** for the whole library, which is the number that argues for caching it in CI rather than re-rendering it — see
+**6415 characters** for the whole library, which is the number that argues for caching it in CI rather than re-rendering it — see
 CLAUDE.md, *صوت وين cannot be generated from a session*.
 

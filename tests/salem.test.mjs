@@ -95,6 +95,36 @@ console.log('\n── /salem works with nothing behind it but the page ──');
   await ctx.close();
 }
 
+console.log('\n── سالم and /search name the same place ──');
+{
+  /* The chat ordered its hits by reviews and /search did not, so «مطعم كويتي»
+     could be one place in the chat and another on the page. Both go through
+     answerOrder now (3 October). Checked at a pinned Kuwait clock, in winter
+     and in a summer afternoon, because the season is part of the order. */
+  const open = async (path, iso) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+    const p = await ctx.newPage();
+    await p.clock.setFixedTime(new Date(iso));
+    await p.route('**openstreetmap.org**', (r) => r.abort());
+    await p.goto(`${B}${path}`, { waitUntil: 'networkidle' });
+    return { ctx, p };
+  };
+  for (const iso of ['2026-01-15T11:00:00Z', '2026-08-15T11:00:00Z']) {
+    for (const q of ['مطعم كويتي', 'قهوة', 'مطعم رخيص', 'وين أروح الحين']) {
+      const chat = await open('/salem/', iso);
+      await ask(chat.p, q);
+      const card = await chat.p.locator('[role="log"] a[href^="/places/"]').first().getAttribute('href', { timeout: 2000 }).catch(() => null);
+      await chat.ctx.close();
+      const page = await open(`/search/?q=${encodeURIComponent(q)}`, iso);
+      await page.p.waitForTimeout(400);
+      const named = await page.p.locator('section[aria-label*="شوق"] a[href^="/places/"]').first().getAttribute('href', { timeout: 2000 }).catch(() => null);
+      await page.ctx.close();
+      ok(`«${q}» (${iso.slice(5, 7) === '08' ? 'August' : 'January'}): the chat's first card is the place /search names`,
+        !!card && card === named, `${card} vs ${named}`);
+    }
+  }
+}
+
 console.log('\n── /privacy says the same thing ──');
 {
   const { ctx, p } = await fresh('/privacy/');

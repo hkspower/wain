@@ -98,8 +98,7 @@ const FIXTURE_KBPS = 32;
 const first = places[0];
 const script = [
   lines.hello,
-  lines["suggest-intro"],
-  lines[`place-${first.slug}`],
+  lines[`try-${first.slug}`],
   lines[`best-${first.slug}`],
   lines["summer-outdoor"],
 ];
@@ -113,18 +112,17 @@ writeFileSync(
 );
 
 // ---- 2. one file per clip, for the tests -----------------------------------
-// A handful, not all 113: these are fixtures for the playback path, and the
-// path does not care how many files exist. Chosen to cover one of each shape
-// the resolver handles — a greeting, the two connectors, a place suggestion,
-// a best-time line, and a short name.
+// A handful, not all of them: these are fixtures for the playback path, and
+// the path does not care how many files exist. Chosen to cover one of each
+// shape the resolver handles — a greeting, a fixed line, a place to try and
+// its best time, a heat line, and a second place's line.
 const FIXTURES = [
   "hello",
-  "suggest-intro",
-  "related-intro",
   "search-empty",
-  `place-${first.slug}`,
+  "summer-outdoor",
+  `try-${first.slug}`,
   `best-${first.slug}`,
-  `name-${places[1].slug}`,
+  `try-${places[1].slug}`,
 ];
 // Laid out exactly as public/voice/ is, so the test server can hand these to
 // the browser under the real URLs and voice.ts cannot tell the difference.

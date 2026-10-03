@@ -6,6 +6,7 @@
 library;
 
 import '../data/models.dart';
+import '../data/answer_order.dart';
 import '../data/search.dart';
 import '../data/text_kit.dart';
 
@@ -29,8 +30,21 @@ class ShowPlacesResult {
   );
 }
 
-List<SearchHit> placeHits(String query, SearchIndex index) =>
-    search(query, index, limit: 40, kinds: const ['place']);
+/// The place hits in the order the answer gives them — `answerOrder`, the
+/// one ordering the search screen and the chat share, so a question names the
+/// same place on screen, in the chat and in what she is told (3 October).
+List<SearchHit> placeHits(
+  String query,
+  SearchIndex index,
+  List<Place> places, [
+  AnswerClock? clock,
+]) => answerOrder(
+  query,
+  search(query, index, limit: 40, kinds: const ['place']),
+  index,
+  places,
+  clock,
+).hits;
 
 /// `show_places` on a CALL.
 ShowPlacesResult showPlacesForCall(
@@ -48,7 +62,7 @@ ShowPlacesResult showPlacesForCall(
       [],
     );
   }
-  final found = placeHits(q, index);
+  final found = placeHits(q, index, places);
   final known = {for (final p in places) p.slug};
   final slugs = [
     for (final h in found.take(8))
@@ -134,7 +148,7 @@ ShowPlacesResult showPlacesForChat(
   SearchIndex index,
   List<Place> places,
 ) {
-  final found = placeHits(query, index);
+  final found = placeHits(query, index, places);
   final known = {for (final p in places) p.slug};
   final slugs = [
     for (final h in found.take(8))

@@ -10,7 +10,10 @@
  * the type system stops a component importing the table and printing a star
  * rating from it, so this does:
  *
- *  - only the tool helpers may import it (and tests and scripts);
+ *  - only the code that orders an answer may import it (and tests and
+ *    scripts) — `answer-order.ts` since 3 October, when /search and سالم
+ *    were made to order the same question the same way; before that it was
+ *    `salem-tools.ts`, which is why only the chat used to apply it;
  *  - it imports nothing itself — it is reached from the /salem chat, and the
  *    catalogue must not follow it into that bundle;
  *  - every slug is a place that exists, so a renamed place does not silently
@@ -26,8 +29,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MODULE = "src/lib/place-reviews.ts";
-/** Who may read the figures: the code that orders a tool's answer. */
-const ALLOWED = new Set(["src/lib/salem-tools.ts"]);
+/** Who may read the figures: the code that orders an answer. */
+const ALLOWED = new Set(["src/lib/answer-order.ts"]);
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-reviews-"));
 const entry = join(tmp, "entry.ts");

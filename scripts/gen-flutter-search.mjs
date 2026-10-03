@@ -33,7 +33,13 @@ const entry = join(tmp, "entry.ts");
 writeFileSync(
   entry,
   `export * from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n` +
-    `export { places, categories } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n`
+    `export { places, categories } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n` +
+    // The answer's order and words ride on the search, so they are replayed
+    // with it: same documents, same hits, then the same first place and the
+    // same sentences.
+    `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n` +
+    `export { GOOGLE_FIGURES } from ${JSON.stringify(join(ROOT, "src/lib/place-reviews.ts"))};\n` +
+    `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n`
 );
 const bundle = join(tmp, "entry.mjs");
 execSync(
@@ -104,6 +110,19 @@ const Map<String, List<String>> kRewrite = {
 ${tableRows(S.REWRITE)}
 };
 const List<List<String>> kElsewherePhrases = [${S.ELSEWHERE_PHRASES.map(list).join(", ")}];
+
+/// \`GOING_OUT\` — a question made of these and filler has no topic, and is
+/// answered with the hour's default pick (answer_order.dart).
+const List<String> kGoingOut = ${list(S.GOING_OUT)};
+
+/// \`GOOGLE_FIGURES\` from place-reviews.ts: secondhand ratings that may ORDER
+/// near-equal matches and may never be shown. (rating, count or null,
+/// corroborated).
+const Map<String, (double, int?, bool)> kGoogleFigures = {
+${Object.entries(S.GOOGLE_FIGURES)
+  .map(([k, f]) => `  ${dq(k)}: (${Number.isInteger(f.rating) ? f.rating.toFixed(1) : f.rating}, ${f.count ?? "null"}, ${f.corroborated}),`)
+  .join("\n")}
+};
 `;
 
 // ── fixtures ───────────────────────────────────────────────────────────────
@@ -141,12 +160,41 @@ const phrases = [
 ];
 const queries = [...new Set([...names, ...plausible, ...shisha, ...phrases])];
 const index = S.buildIndex(S.places);
+/* The answer, at four Kuwait clocks: a winter afternoon, a summer afternoon,
+   a summer night, a winter morning. The hits are the place hits /search asks
+   for (limit 40), so the order and the words the app gives can be checked
+   against the web's rather than against a reading of it. */
+const answerQueries = [
+  ...queries.filter((_, i) => i % 3 === 0),
+  "قهوة", "قهوة هادية", "مطعم رخيص", "مطعم مو غالي", "مطعم غالي فخم", "مطعم كويتي", "وين أتعشى", "عيال",
+  "بحر", "عشا على البحر", "قهوة على البحر", "سهرة", "وين اسهر", "ملاهي", "بر", "مكان للبنات", "مطعن",
+  "سائح أول مرة بالكويت", "جمعة الصبح", "سوق السمك", "وين أروح الحين", "وين نطلع", "زهقان", "ملل", "وين",
+];
+const clocks = [{ month: 0, hour: 14 }, { month: 7, hour: 14 }, { month: 7, hour: 21 }, { month: 0, hour: 8 }];
+const bySlug = new Map(S.places.map((p) => [p.slug, p]));
+const answers = [];
+for (const q of [...new Set(answerQueries)]) {
+  for (const clock of clocks) {
+    const hits = S.search(q, index, { limit: 40, kinds: ["place"] });
+    const ordered = S.answerOrder(q, hits, index, S.places, clock);
+    const found = ordered.hits.map((h) => bySlug.get(h.doc.id.slice(6))).filter(Boolean);
+    answers.push({
+      q,
+      month: clock.month,
+      hour: clock.hour,
+      fallback: ordered.fallback,
+      slugs: found.map((p) => p.slug),
+      parts: S.answerParts(ordered.hits, found, clock).map((p) => [p.key ?? null, p.text]),
+    });
+  }
+}
 const fixture = {
   docs: docs.length,
   cases: queries.map((q) => ({
     q,
     hits: S.search(q, index, { limit: 20 }).map((h) => ({ id: h.doc.id, score: h.score, matched: h.matched })),
   })),
+  answers,
 };
 const fixtureOut = JSON.stringify(fixture, null, 1) + "\n";
 
@@ -156,10 +204,10 @@ if (CHECK) {
     console.error("flutter search data is stale — run `npm run flutter:search`");
     process.exit(1);
   }
-  console.log(`flutter search data current (${docs.length} docs, ${fixture.cases.length} parity cases)`);
+  console.log(`flutter search data current (${docs.length} docs, ${fixture.cases.length} parity cases, ${answers.length} answers)`);
 } else {
   mkdirSync(dirname(FIXTURE), { recursive: true });
   writeFileSync(DART, dartOut);
   writeFileSync(FIXTURE, fixtureOut);
-  console.log(`wrote ${docs.length} docs, ${Object.keys(S.SYNONYMS).length} synonyms, ${fixture.cases.length} parity cases`);
+  console.log(`wrote ${docs.length} docs, ${Object.keys(S.SYNONYMS).length} synonyms, ${fixture.cases.length} parity cases, ${answers.length} answers`);
 }

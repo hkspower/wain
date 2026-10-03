@@ -464,6 +464,24 @@ export const SYNONYMS: Record<string, string[]> = {
   ونيس: ["ألعاب", "ترفيهية"],
   وناسه: ["ألعاب", "ترفيهية"],
 
+  /* 3 October, from a review of what she actually answered. Each of these
+   * had nothing to land on and fell to the fuzzy pass, which found a real
+   * word one letter away and answered that instead: «ملاهي» → «مقاهي» (a tea
+   * house for «amusement park»), «مكان هادي» → a modern-art museum on the
+   * word «هادي» in its prose, «سائح أول مرة» → the Amricani centre on
+   * «بالكويت». */
+  هادي: ["هدوء"],
+  هاديه: ["هدوء"],
+  هادئ: ["هدوء"],
+  رايق: ["هدوء"],
+  ملاهي: ["ترفيهية", "ألعاب"],
+  سائح: ["سياحة", "معلم"],
+  سياح: ["سياحة", "معلم"],
+  سواح: ["سياحة", "معلم"],
+  تمشيه: ["ممشى", "مشي"],
+  اتمشى: ["ممشى", "مشي"],
+  نتمشى: ["ممشى", "مشي"],
+
   // Food by the dish. «عشا»/«غدا» are the Kuwaiti spellings of the meals
   // the hamza forms above already reach — «عشاء» keeps its ء through
   // normalise(), so the two never met.
@@ -537,7 +555,17 @@ const SYNONYM_LOOKUP: Map<string, string[]> = (() => {
 /** A typed token plus its synonyms, kept grouped under the token they came
  * from so scoring can tell which *query word* a match satisfies. */
 function variantsOf(token: string): string[] {
-  return [...new Set([token, ...(SYNONYM_LOOKUP.get(token) ?? [])])];
+  return [...new Set([token, ...synonymsOf(token)])];
+}
+
+/**
+ * The synonyms of a token as typed, or — when it has none — of the word under
+ * its clitic. «للبنات» has no entry and «بنات» does; looked up only as typed,
+ * the glued form never reached it, fell to the fuzzy pass, and «مكان للبنات»
+ * answered with مزارع الوفرة on «للناس».
+ */
+function synonymsOf(token: string): string[] {
+  return SYNONYM_LOOKUP.get(token) ?? declitic(token).flatMap((t) => SYNONYM_LOOKUP.get(t) ?? []);
 }
 
 /**
@@ -917,17 +945,34 @@ function candidates(term: string, index: SearchIndex): { term: string; boost: nu
   }
   if (found.length) return found;
 
+  /* A word the synonym table knows is not a typo, and must not be read as
+   * one. Measured 3 October: «اسهر» has «سهرة» and still fuzzed onto «اسهل»
+   * and «اشهر»; «ملاهي», given its entry, still fuzzed onto «مقاهي» at the
+   * full weight of a typed word, and beat its own meaning. Its synonyms are
+   * searched beside it (variantsOf), so nothing is lost but the guess.
+   *
+   * Under three letters the prefix pass is a guess too: «بر» (the desert)
+   * reached «برد», «برجر» and «برستيج» and answered with the Avenues, and
+   * «حر» reached «حرف». A short word with a meaning of its own gets that
+   * meaning and no prefixes. */
+  const known = synonymsOf(term).length > 0;
+  if (term.length < 3 && known) return [];
+
   const prefix = index.terms.filter((t) => t.startsWith(term));
   if (prefix.length) return prefix.slice(0, 12).map((t) => ({ term: t, boost: 0.82 }));
 
   // Below four letters a single edit reaches too much of the vocabulary —
   // «قق» would "correct" to any two-letter term — so short tokens get exact,
   // prefix and synonym matching only.
-  if (term.length < 4) return [];
+  if (term.length < 4 || known) return [];
 
   const max = term.length >= 6 ? 2 : 1;
   const fuzzy: { term: string; boost: number }[] = [];
   for (const t of index.terms) {
+    // And not ONTO a short word either, for the reason above from the other
+    // side: one letter dropped from «جديد» is «جيد», the rating word, and
+    // «مكان جديد» answered with whichever places are rated «جيد».
+    if (t.length < 4) continue;
     const d = editDistance(term, t, max);
     if (d <= max) fuzzy.push({ term: t, boost: d === 1 ? 0.62 : 0.42 });
   }
@@ -964,6 +1009,12 @@ function candidates(term: string, index: SearchIndex): { term: string; boost: nu
 export const FILLER = [
   "على", "إلى", "أبي", "أبغي", "أبا", "نبي", "ودي", "أودي", "نودي", "أطلع", "نطلع", "وين", "شي", "أكو", "ماكو", "حق",
   "فيه", "وايد", "جو", "ممكن", "عطني", "دلني", "شنو",
+  // «أروح/نروح» and «حين» — «الحين» as tokenize() leaves it — and the words
+  // for being bored. «وين أروح الحين» searched «اروح» and «حين», found
+  // nothing, and she said «ما لقيت شي» to the commonest question there is.
+  // As filler they are dropped beside a real word («زهقان أبي بحر» is «بحر»),
+  // and a question made only of them is TOPICLESS — see isTopicless().
+  "أروح", "نروح", "حين", "زهقان", "زهقانة", "طفشان", "طفشانة", "ملل", "مليت",
   "to", "do", "for", "and", "with", "at", "on", "is", "some", "where", "want",
   "things", "near", "me",
 ];
@@ -1034,7 +1085,23 @@ export const ELSEWHERE_PHRASES = [
   ["عبدالله", "المبارك"],
 ];
 
+/**
+ * The words that ask to GO somewhere without saying where. A question made of
+ * these and other filler — «وين أروح الحين», «وين نطلع», «زهقان», «ملل» — has
+ * no topic to search, and is answered with a default pick for the hour
+ * (answer-order.ts) instead of «ما لقيت شي». «وين» alone is not one of them:
+ * it is also the site's name, and still finds the page about it.
+ */
+export const GOING_OUT = ["أروح", "نروح", "أطلع", "نطلع", "زهقان", "زهقانة", "طفشان", "طفشانة", "ملل", "مليت"];
+
 const FILLER_SET = new Set(FILLER.map(normalise));
+const GOING_OUT_SET = new Set(GOING_OUT.map(normalise));
+
+/** «وين أروح الحين?» — a wish to go out, with nothing to search for. */
+export function isTopicless(query: string): boolean {
+  const raw = tokenize(query);
+  return raw.length > 0 && raw.every((t) => FILLER_SET.has(t)) && raw.some((t) => GOING_OUT_SET.has(t));
+}
 const NEGATOR_SET = new Set(NEGATORS.map(normalise));
 const WANT_SET = new Set(WANT_WORDS.map(normalise));
 const foldTable = (t: Record<string, string[]>) =>
@@ -1062,6 +1129,26 @@ function splitGlued(token: string, index: SearchIndex): string[] {
     if (right.length >= 3 && known(left) && known(right)) return [left, right];
   }
   return [token];
+}
+
+/**
+ * «مطعن» is «مطعم» with a slipped finger, and was searched as a stranger: the
+ * fuzzy pass reached the word «مطعم» in prose — أبراج الكويت mentions its
+ * restaurant — but none of what «مطعم» MEANS (مطاعم، اكل، غدا، عشا), so the
+ * towers came first for «restaurant». A token the index cannot place at all
+ * (no exact, glued, synonym or prefix reading), one letter from a word the
+ * synonym table knows, is read as that word. Four letters at least on both
+ * sides, the fuzzy pass's own floor; the first key in the table at distance
+ * one wins, so the reading does not depend on the index.
+ */
+function misspeltKey(token: string, index: SearchIndex): string {
+  if (token.length < 4 || index.postings.has(token) || synonymsOf(token).length) return token;
+  if (declitic(token).some((t) => index.postings.has(t))) return token;
+  if (index.terms.some((t) => t.startsWith(token))) return token;
+  for (const key of SYNONYM_LOOKUP.keys()) {
+    if (key.length >= 4 && editDistance(token, key, 1) <= 1) return key;
+  }
+  return token;
 }
 
 /**
@@ -1101,7 +1188,7 @@ function readQuery(query: string, index: SearchIndex): { raw: string[]; pushedDo
     kept.push(...(ANTONYM_LOOKUP.get(unwanted) ?? []));
     i = j;
   }
-  raw = kept.flatMap((t) => splitGlued(t, index));
+  raw = kept.flatMap((t) => splitGlued(t, index)).map((t) => misspeltKey(t, index));
 
   const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
   if (raw.some((t) => [t, ...declitic(t)].some(elsewhere))) return null;

@@ -161,6 +161,13 @@ console.log("\n── the summer rule reaches the plan, not just the advice ─�
   // that already says «الليلة الساعة ٨» trains people to skip the line.
   ok("an evening slot in August carries no warning", !/حر/.test(msg("tonight-8", at(7, 12))));
   ok("«باچر» in December carries none", !/حر/.test(msg("tomorrow", at(11, 12))));
+  // A market that is over by noon was told «لا تروح إلا بعد المغرب»: the
+  // group would have driven to an empty lot. The morning places get the line
+  // شوق says about them out loud (summerKey in voice-lines, 3 October).
+  const market = H.places.find((p) => p.slug === "friday-market");
+  const early = H.hangoutMessage({ place: market, when: "tomorrow", url: "u", now: at(7, 12) });
+  ok("a morning market's «باچر» in August says go early, not after sunset",
+    early.includes("بدري الصبح") && !early.includes("المغرب"), early.split("\n")[4] ?? "");
 }
 
 console.log("\n── the default proposal suits the place and the hour ──");

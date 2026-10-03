@@ -37,8 +37,8 @@ class FakeTts implements TtsBackend {
 }
 
 const part = SpeechPart(
-  key: 'place-kuwait-towers',
-  text: 'أبراج الكويت، في مدينة الكويت. ١٨٧ متر — فوق الخليج',
+  key: 'try-kuwait-towers',
+  text: 'جرّب أبراج الكويت بمدينة الكويت. ١٨٧ متر — فوق الخليج',
 );
 final audio = Uint8List.fromList(List.filled(600, 7));
 
@@ -68,10 +68,10 @@ void main() {
           return http.Response(
             jsonEncode({
               'clips': {
-                'shouq/place-kuwait-towers':
-                    '/voice/shouq/place-kuwait-towers.mp3',
+                'shouq/try-kuwait-towers':
+                    '/voice/shouq/try-kuwait-towers.mp3',
               },
-              'gains': {'shouq/place-kuwait-towers': 0.6},
+              'gains': {'shouq/try-kuwait-towers': 0.6},
             }),
             200,
           );
@@ -82,7 +82,7 @@ void main() {
       await v.speak([part]);
       expect(
         player.clips.single.single.src.toString(),
-        'https://x.test/voice/shouq/place-kuwait-towers.mp3',
+        'https://x.test/voice/shouq/try-kuwait-towers.mp3',
       );
       expect(player.clips.single.single.volume, 0.6);
       expect(tts.spoken, isEmpty);
@@ -97,7 +97,7 @@ void main() {
         if (r.url.path.endsWith('manifest.json')) {
           return http.Response(
             jsonEncode({
-              'clips': {'shouq/place-kuwait-towers': '/a.mp3'},
+              'clips': {'shouq/try-kuwait-towers': '/a.mp3'},
             }),
             200,
           );
@@ -110,7 +110,7 @@ void main() {
     );
     await v.speak([
       part,
-      const SpeechPart(key: 'best-kuwait-towers', text: 'أحلى وقت: الغروب.'),
+      const SpeechPart(key: 'best-kuwait-towers', text: 'روح وقت الغروب.'),
     ]);
     expect(player.clips, isEmpty);
     // One request per sentence since 3 October.
@@ -127,7 +127,7 @@ void main() {
     final got = v.resolveClips(
       [const SpeechPart(text: 'قهوة؟', optional: true), part],
       {
-        'clips': {'shouq/place-kuwait-towers': '/a.mp3'},
+        'clips': {'shouq/try-kuwait-towers': '/a.mp3'},
       },
     );
     expect(got, hasLength(1));
@@ -142,8 +142,8 @@ void main() {
     );
     final clips = {
       'clips': {
-        'shouq/place-kuwait-towers': '/a.mp3',
-        'salem/place-kuwait-towers': '/b.mp3',
+        'shouq/try-kuwait-towers': '/a.mp3',
+        'salem/try-kuwait-towers': '/b.mp3',
       },
     };
     expect(v.resolveClips([part], clips)!.single.src.path, '/b.mp3');
@@ -170,7 +170,7 @@ void main() {
     expect(body['persona'], 'shouq');
     expect(
       body['text'],
-      'أبراج الكويت، في مدينة الكويت. 187 متر، فوق الخليج',
+      'جرّب أبراج الكويت بمدينة الكويت. 187 متر، فوق الخليج',
       reason: 'Western digits and a comma for the dash: what a voice can read',
     );
     expect(player.bytes.single, audio);

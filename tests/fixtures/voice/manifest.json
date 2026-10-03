@@ -3,20 +3,18 @@
   "model": "espeak-ng-placeholder",
   "clips": {
     "shouq/hello": "/voice/shouq/hello.mp3",
-    "shouq/suggest-intro": "/voice/shouq/suggest-intro.mp3",
-    "shouq/related-intro": "/voice/shouq/related-intro.mp3",
     "shouq/search-empty": "/voice/shouq/search-empty.mp3",
-    "shouq/place-kuwait-towers": "/voice/shouq/place-kuwait-towers.mp3",
+    "shouq/summer-outdoor": "/voice/shouq/summer-outdoor.mp3",
+    "shouq/try-kuwait-towers": "/voice/shouq/try-kuwait-towers.mp3",
     "shouq/best-kuwait-towers": "/voice/shouq/best-kuwait-towers.mp3",
-    "shouq/name-souq-al-mubarakiya": "/voice/shouq/name-souq-al-mubarakiya.mp3"
+    "shouq/try-souq-al-mubarakiya": "/voice/shouq/try-souq-al-mubarakiya.mp3"
   },
   "gains": {
-    "shouq/best-kuwait-towers": 0.836,
-    "shouq/hello": 0.837,
-    "shouq/name-souq-al-mubarakiya": 0.852,
-    "shouq/place-kuwait-towers": 0.819,
-    "shouq/related-intro": 0.816,
-    "shouq/search-empty": 0.834,
-    "shouq/suggest-intro": 1
+    "shouq/best-kuwait-towers": 0.95,
+    "shouq/hello": 0.889,
+    "shouq/search-empty": 0.887,
+    "shouq/summer-outdoor": 0.891,
+    "shouq/try-kuwait-towers": 0.94,
+    "shouq/try-souq-al-mubarakiya": 1
   }
 }

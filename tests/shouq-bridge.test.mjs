@@ -153,7 +153,7 @@ console.log('\n── a clip-covered sentence never reaches the bridge ──');
   calls.length = 0;
   const s = await page.evaluate(async () => {
     window.resetSpy();
-    window.voice.speak([{ key: 'suggest-intro', text: 'أ' }]);
+    window.voice.speak([{ key: 'try-kuwait-towers', text: 'أ' }]);
     await new Promise((r) => setTimeout(r, 600));
     return { played: window.spy.played, spoken: window.spy.spoken };
   });

@@ -103,8 +103,16 @@ for (const f of all) {
 
 /* ── 3. Per-route weight, against a budget ────────────────────────────────
    The budget is a ratchet, not a target: it sits just above where the site
-   is today so that a regression is loud and a reduction is free. */
-const BUDGET_KB = 175;
+   is today so that a regression is loud and a reduction is free.
+
+   175 → 176 on 3 October, deliberately and once. /search crossed it by 0.1K
+   with the owner's «better picks»: answer-order.ts (heat, price, the hour,
+   the reviews) now orders /search as well as سالم, so the two answer the
+   same question the same way. The review table was re-encoded first (0.3K
+   back); loading the module lazily would have hidden the cost from this audit
+   without saving a byte for the visitor, which is the one thing a budget must
+   not be gamed by. */
+const BUDGET_KB = 176;
 routes.sort((a, b) => b.gz - a.gz);
 for (const r of routes) {
   if (r.gz / 1024 > BUDGET_KB) err(`${r.route} ships ${kb(r.gz)} of JS, over the ${BUDGET_KB}K budget`);

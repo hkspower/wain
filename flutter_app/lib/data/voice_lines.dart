@@ -36,10 +36,9 @@ const Map<PersonaId, Persona> kPersonas = {
 
 const Map<String, String> kGenericLines = {
   'search-empty': 'ما لقيت شي بهالكلمة. قول لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.',
-  'suggest-intro': 'أقترح عليك:',
-  'related-intro': 'وإذا تبي غيره:',
-  'summer-outdoor': 'بس هذي أيام حر — لا تروح إلا بعد المغرب.',
-  'summer-mixed': 'والجو حر — خذ المكيّف بالنهار، والمكشوف بعد المغرب.',
+  'summer-outdoor': 'بالصيف لا تروح إلا عقب المغرب، النهار حر.',
+  'summer-mixed': 'بالنهار خلك بالمكيّف، والمكشوف عقب المغرب.',
+  'summer-early': 'بالصيف روح بدري الصبح، قبل لا يحمى الجو.',
 };
 
 String helloLine(String nameAr) =>
@@ -48,16 +47,34 @@ String helloLine(String nameAr) =>
 /// June to September in Kuwait. [month] is 0-based, as from `Date#getMonth`.
 bool isSummerMonth(int month) => month >= 5 && month <= 8;
 
-String placeSuggestLine(Place p) =>
-    '${p.nameAr}، في ${p.areaAr}. ${p.taglineAr}';
+/// Seven in the evening to five in the morning, when «don't go until after
+/// sunset» has already come true (`isKuwaitNight` on the web).
+bool isKuwaitNight(int hour) => hour >= 19 || hour < 5;
 
-String placeNameLine(Place p) => p.nameAr.contains(p.areaAr)
-    ? '${p.nameAr}.'
-    : '${p.nameAr} في ${p.areaAr}.';
+/// «جرّب سوق المباركية بمدينة الكويت.» — one fixed sentence per place, the
+/// area left off when the name already carries it.
+String placeTryLine(Place p) => p.nameAr.contains(p.areaAr)
+    ? 'جرّب ${p.nameAr}.'
+    : 'جرّب ${p.nameAr} ب${p.areaAr}.';
 
-String placeBestTimeLine(Place p) => 'أحلى وقت: ${p.bestTimeAr}.';
+/// When to go — «روح …», not the form-like «أحلى وقت: …».
+String placeBestTimeLine(Place p) => 'روح ${p.bestTimeAr}.';
 
-/// Everything one persona needs recorded (greeting, connectors, and three
+final RegExp _evening = RegExp('(المغرب|وقت الغروب|الليل|ليالي|العشا)');
+final RegExp _daytime = RegExp('(الصبح|بدري|العصر|الظهر|النهار)');
+final RegExp _morning = RegExp('(الصبح|بدري)');
+
+/// A best time that names the morning and never the evening.
+bool isMorningPlace(Place p) =>
+    _morning.hasMatch(p.bestTimeAr) && !_evening.hasMatch(p.bestTimeAr);
+
+/// Which summer line belongs to this place, once it is summer and daytime.
+String summerKey(Place p) {
+  if (isMorningPlace(p)) return 'summer-early';
+  return p.setting == 'mixed' ? 'summer-mixed' : 'summer-outdoor';
+}
+
+/// Everything one persona needs recorded (greeting, the fixed lines, and two
 /// lines per place), keyed the way the clip manifest is.
 Map<String, String> buildClipLines(PersonaId persona, List<Place> list) {
   final lines = <String, String>{
@@ -65,8 +82,7 @@ Map<String, String> buildClipLines(PersonaId persona, List<Place> list) {
     ...kGenericLines,
   };
   for (final p in list) {
-    lines['place-${p.slug}'] = placeSuggestLine(p);
-    lines['name-${p.slug}'] = placeNameLine(p);
+    lines['try-${p.slug}'] = placeTryLine(p);
     lines['best-${p.slug}'] = placeBestTimeLine(p);
   }
   return lines;
@@ -85,68 +101,66 @@ List<SpeechPart> helloParts(PersonaId persona) => [
   SpeechPart(key: 'hello', text: helloLine(kPersonas[persona]!.nameAr)),
 ];
 
-/// The spoken answer to a search: what to go to, when, then one alternative.
-/// [hitTitles] are the matched documents' titles (only used when the query
-/// matched categories/areas/pages and there is no place to recommend).
+/// What to say about WHEN: the best time, the heat line instead of it, both,
+/// or neither — `whenParts` on the web, whose comment carries the reasons.
+List<SpeechPart> whenParts(Place p, int? month, int? hour) {
+  final best = SpeechPart(key: 'best-${p.slug}', text: placeBestTimeLine(p));
+  final hot =
+      month != null &&
+      isSummerMonth(month) &&
+      p.summerOk != true &&
+      p.setting != 'indoor';
+  if (!hot) return [best];
+  final night = hour != null && isKuwaitNight(hour);
+  final key = summerKey(p);
+  final heat = SpeechPart(key: key, text: kGenericLines[key]!);
+  if (key == 'summer-early') return night ? [best] : [heat];
+  if (key == 'summer-outdoor') {
+    if (!night) return [heat];
+    return _evening.hasMatch(p.bestTimeAr) && !_daytime.hasMatch(p.bestTimeAr)
+        ? [best]
+        : const [];
+  }
+  return night || _evening.hasMatch(p.bestTimeAr) ? [best] : [best, heat];
+}
+
+/// The spoken answer to a search: the place and where it is, then when to go
+/// — about nine seconds. The tagline and a second place are on screen in the
+/// cards, and are not said (3 October). [hitTitles] are the matched
+/// documents' titles (only used when the query matched categories, areas or
+/// pages and there is no place to recommend). [month] and [hour] are
+/// Kuwait's.
 List<SpeechPart> answerParts(
   List<String> hitTitles,
   List<Place> places, {
   String? asked,
   int? month,
+  int? hour,
 }) {
   final a = asked?.trim();
   final echo = (a != null && a.isNotEmpty)
       ? [SpeechPart(text: '$a؟', optional: true)]
       : <SpeechPart>[];
 
-  if (hitTitles.isEmpty) {
-    return [
-      ...echo,
-      SpeechPart(key: 'search-empty', text: kGenericLines['search-empty']!),
-    ];
-  }
   if (places.isEmpty) {
+    if (hitTitles.isEmpty) {
+      return [
+        ...echo,
+        SpeechPart(key: 'search-empty', text: kGenericLines['search-empty']!),
+      ];
+    }
     return [...echo, SpeechPart(text: 'أقرب شي لطلبك: ${hitTitles.first}.')];
   }
   final top = places.first;
-  final parts = <SpeechPart>[
+  return [
     ...echo,
-    SpeechPart(key: 'suggest-intro', text: kGenericLines['suggest-intro']!),
-    SpeechPart(key: 'place-${top.slug}', text: placeSuggestLine(top)),
-    SpeechPart(key: 'best-${top.slug}', text: placeBestTimeLine(top)),
+    SpeechPart(key: 'try-${top.slug}', text: placeTryLine(top)),
+    ...whenParts(top, month, hour),
   ];
-  final summer = top.summerOk != true && month != null && isSummerMonth(month);
-  if (summer && top.setting == 'outdoor') {
-    parts.add(
-      SpeechPart(key: 'summer-outdoor', text: kGenericLines['summer-outdoor']!),
-    );
-  } else if (summer && top.setting == 'mixed') {
-    parts.add(
-      SpeechPart(key: 'summer-mixed', text: kGenericLines['summer-mixed']!),
-    );
-  }
-  if (places.length > 1) {
-    final next = places[1];
-    parts.addAll([
-      SpeechPart(key: 'related-intro', text: kGenericLines['related-intro']!),
-      SpeechPart(key: 'name-${next.slug}', text: placeNameLine(next)),
-    ]);
-  }
-  return parts;
 }
 
-/// What to say on a place page: this place, then up to two related ones.
-List<SpeechPart> placeSuggestParts(Place place, List<Place> related) {
-  final parts = [
-    SpeechPart(key: 'place-${place.slug}', text: placeSuggestLine(place)),
-  ];
-  if (related.isNotEmpty) {
-    parts.add(
-      SpeechPart(key: 'related-intro', text: kGenericLines['related-intro']!),
-    );
-    for (final r in related.take(2)) {
-      parts.add(SpeechPart(key: 'name-${r.slug}', text: placeNameLine(r)));
-    }
-  }
-  return parts;
-}
+/// What to say on a place page — the same two lines, with no season.
+List<SpeechPart> placeSuggestParts(Place place) => [
+  SpeechPart(key: 'try-${place.slug}', text: placeTryLine(place)),
+  SpeechPart(key: 'best-${place.slug}', text: placeBestTimeLine(place)),
+];

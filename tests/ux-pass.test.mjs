@@ -23,9 +23,12 @@ let pass = 0;
 const fails = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
 
-async function open(path, { width = 390, height = 844, touch = width < 600 } = {}) {
+async function open(path, { width = 390, height = 844, touch = width < 600, at } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, isMobile: touch, hasTouch: touch, locale: 'ar-KW' });
   const p = await ctx.newPage();
+  // Her answer reads Kuwait's month and hour since 3 October; a section that
+  // asserts on its shape pins the clock, or it would change with the season.
+  if (at) await p.clock.setFixedTime(at);
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.route('**openstreetmap.org**', (r) => r.abort());
@@ -70,7 +73,8 @@ for (const path of ['/search/', '/search/?q=قهوة', '/places/kuwait-towers/',
 
 console.log('\n── 2. /search reads in the order it answers ──');
 {
-  const { ctx, p, errors } = await open('/search/?q=قهوة');
+  // January, two in the afternoon in Kuwait: no season to bend the answer.
+  const { ctx, p, errors } = await open('/search/?q=قهوة', { at: new Date('2026-01-15T11:00:00Z') });
   ok('no numbered «١. دوّر بالكتابة» line', (await p.locator('text=دوّر بالكتابة').count()) === 0);
   const tabs = await p.locator('[aria-label="نوع النتيجة"] button').allInnerTexts();
   ok('only the kinds this query found get a tab', tabs.length >= 2 && !tabs.some((t) => /مناطق|صفحات/.test(t)), tabs.join(' | '));
@@ -82,7 +86,10 @@ console.log('\n── 2. /search reads in the order it answers ──');
     return { h: Math.round(s.getBoundingClientRect().height), open: d?.open ?? null, folded: d?.textContent ?? '' };
   })) ?? { h: 9999, open: null, folded: '' };
   ok('شوق leads with one line: her card is short', card.h <= 200, `${card.h}px`);
-  ok('the rest of her answer is folded, not gone', card.open === false && card.folded.includes('وإذا تبي غيره'), JSON.stringify(card));
+  // The rest is the best time now: the second choice was cut from the answer
+  // on 3 October (it is the second card in the list).
+  ok('the rest of her answer is folded, not gone', card.open === false && card.folded.includes('روح '), JSON.stringify(card));
+  ok('and it offers no second place', !card.folded.includes('وإذا تبي غيره'), JSON.stringify(card));
   const summary = p.locator('section[aria-label*="شوق"] summary');
   if (await summary.count()) await summary.click();
   ok('and opens on a tap', (await one(p, 'section[aria-label*="شوق"] details', (d) => d.open)) === true);

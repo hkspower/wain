@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import PlaceIcon from "@/components/PlaceIcon";
 import { SpeakButton } from "@/components/VoiceControls";
 import { IconShouq } from "@/components/icons";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
@@ -10,10 +9,10 @@ import type { SpeechPart } from "@/lib/voice-lines";
 /**
  * شوق's answer, on the page instead of only in the air.
  *
- * `answerParts` builds a real reply to every search — it names the best place
- * and says why, gives the best time to go, warns about the Kuwaiti summer when
- * the place is open to it, and offers exactly one alternative. The search page
- * has always computed that and then done one thing with it: `speak()`.
+ * `answerParts` builds a real reply to every search — the place to try and
+ * where it is, then when to go, or the Kuwaiti summer's warning instead when
+ * the place is open to it. The search page has always computed that and then
+ * done one thing with it: `speak()`.
  *
  * صوت وين is off unless you turn it on, so for almost everyone the answer was
  * computed and thrown away. شوق hands you to this page — «the search page's
@@ -25,19 +24,20 @@ import type { SpeechPart } from "@/lib/voice-lines";
  * no second copy of what she says, which is the only way the spoken and the
  * written answer cannot drift.
  *
- * ## Why the lines are links
+ * ## Why the line is a link
  *
- * Two of her parts are about a specific place — the recommendation and the
- * alternative — and `answerParts` says which by keying them `place-<slug>` and
- * `name-<slug>`. A sentence recommending a place, that you cannot press, is a
- * dead end in the middle of the answer. Those lines become links; the rest
- * stay text, because «أحلى وقت» is not somewhere you can go.
+ * One of her parts is about a specific place — «جرّب …» — and `answerParts`
+ * says which by keying it `try-<slug>`. A sentence recommending a place, that
+ * you cannot press, is a dead end in the middle of the answer. That line is a
+ * link; the rest stay text, because «روح بالليل» is not somewhere you can go.
+ * (There used to be two: the alternative, «وإذا تبي غيره», was cut from the
+ * answer on 3 October — it is the second card in the list underneath.)
  */
 
 /** The slug a part is about, if it is about one. */
 function slugOf(key: string | undefined): string | null {
   if (!key) return null;
-  const m = /^(?:place|name)-(.+)$/.exec(key);
+  const m = /^try-(.+)$/.exec(key);
   return m ? m[1] : null;
 }
 
@@ -56,19 +56,21 @@ const isWarning = (key: string | undefined) => key?.startsWith("summer-") ?? fal
  * because it is a caution rather than detail, and folds the rest into a
  * native <details>. Every part is still rendered — the spoken answer and the
  * written one are still the same parts — only the reading order changed.
+ *
+ * Since the answer was shortened (3 October) «the rest» is the best time, or
+ * nothing: a heat line replaces the best time, and it is shown, not folded.
+ * The header is her name alone; «— أقترح عليك:» beside it went with the
+ * spoken intro it echoed.
  */
 export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
   if (parts.length === 0) return null;
 
   // The recommendation if there is one, else the first thing she actually
   // says (the echo of a spoken question is not an answer, so it is skipped).
-  const placeAt = parts.findIndex((p) => p.key?.startsWith("place-"));
+  const placeAt = parts.findIndex((p) => p.key?.startsWith("try-"));
   const lead = placeAt >= 0 ? placeAt : parts.findIndex((p) => !p.optional && !isWarning(p.key));
-  const intro = parts.find((p) => p.key === "suggest-intro");
   const warnings = parts.filter((p) => isWarning(p.key));
-  const rest = parts.filter(
-    (p, i) => i !== lead && p !== intro && !isWarning(p.key)
-  );
+  const rest = parts.filter((p, i) => i !== lead && !isWarning(p.key));
 
   return (
     <section
@@ -94,10 +96,7 @@ export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
           <IconShouq className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-xs font-semibold text-coral-800">
-            {WAIN_AI_COPY.name}
-            {intro && <span className="font-normal text-coral-700"> — {intro.text}</span>}
-          </h2>
+          <h2 className="text-xs font-semibold text-coral-800">{WAIN_AI_COPY.name}</h2>
           {lead >= 0 && <Part part={parts[lead]} lead />}
         </div>
       </div>
@@ -132,19 +131,14 @@ export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
 function Part({ part, lead = false }: { part: SpeechPart; lead?: boolean }) {
   const slug = slugOf(part.key);
 
+  // Only the lead names a place now: the second place, which was drawn here
+  // as a link with its icon, left the answer on 3 October.
   if (slug) {
     return (
       <Link
         href={`/places/${slug}/`}
-        className={`group flex items-start gap-2 rounded-xl transition hover:bg-coral-100/60 ${
-          lead ? "mt-0.5 -mx-1 px-1 py-0.5" : "-mx-2 px-2 py-1.5"
-        }`}
+        className="group mt-0.5 -mx-1 flex items-start gap-2 rounded-xl px-1 py-0.5 transition hover:bg-coral-100/60"
       >
-        {!lead && (
-          <span aria-hidden="true" className="mt-0.5 shrink-0 text-coral-700">
-            <PlaceIcon slug={slug} className="size-5" />
-          </span>
-        )}
         <span className="text-sm font-semibold leading-relaxed text-ink-900 group-hover:text-coral-800">
           {part.text}
         </span>

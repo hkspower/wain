@@ -17,6 +17,7 @@ import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
+import { answerOrder, kuwaitClock } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
 import { callActive } from "@/lib/wain-ai-bus";
@@ -69,10 +70,21 @@ export default function SearchClient() {
   // Rebuilt whenever the place data changes (admin edits arrive live).
   const index = useMemo(() => buildIndex(places), [places]);
 
-  const hits = useMemo(
-    () => search(deferredQ, index, { limit: 40, kinds: kind === "all" ? undefined : [kind] }),
-    [deferredQ, index, kind]
-  );
+  /**
+   * The hits in the order her answer gives them — `answerOrder`, the one
+   * ordering /salem uses too. The list, the map and the answer above them all
+   * lead with the same place: the season (Kuwait's, not the device's), the
+   * price the question asked for and the reviews have already had their say.
+   * A question with no topic («وين أروح الحين») comes back as the hour's
+   * default picks, which is what the list then shows.
+   */
+  const { hits, fallback, clock } = useMemo(() => {
+    const clock = kuwaitClock();
+    const raw = search(deferredQ, index, { limit: 40, kinds: kind === "all" ? undefined : [kind] });
+    const ordered = answerOrder(deferredQ, raw, index, places, clock);
+    const shown = ordered.fallback && kind !== "all" && kind !== "place" ? [] : ordered.hits;
+    return { hits: shown, fallback: ordered.fallback, clock };
+  }, [deferredQ, index, kind, places]);
 
   // The place hits, in result order, resolved back to full records so the map
   // can plot them. Only places carry coordinates — categories, areas and pages
@@ -124,7 +136,12 @@ export default function SearchClient() {
   }, []);
 
   const counts = useMemo(() => {
-    const all = search(deferredQ, index, { limit: 200 });
+    // The default picks ARE the results for a topicless question; counting
+    // the search's own matches for «وين» and «حين» would offer tabs onto
+    // nothing she said.
+    const all = fallback
+      ? answerOrder(deferredQ, [], index, places).hits
+      : search(deferredQ, index, { limit: 200 });
     return {
       all: all.length,
       place: all.filter((h) => h.doc.kind === "place").length,
@@ -132,7 +149,7 @@ export default function SearchClient() {
       area: all.filter((h) => h.doc.kind === "area").length,
       page: all.filter((h) => h.doc.kind === "page").length,
     };
-  }, [deferredQ, index]);
+  }, [deferredQ, index, fallback, places]);
 
   // A kind filter chosen for an earlier query can have nothing for the new
   // one. Left alone it becomes a dead end: the chip stays selected but
@@ -199,12 +216,17 @@ export default function SearchClient() {
       deferredQ.trim()
         ? answerParts(hits, hitPlaces, {
             asked: asked && asked === deferredQ.trim() ? asked : undefined,
-            // Read at render, not at module load: an installed app can sit
-            // open across midnight, and across the end of a month.
-            month: new Date().getMonth(),
+            // Kuwait's month and hour, read with the hits rather than at module
+            // load: an installed app can sit open across midnight, and across
+            // the end of a month. It was the DEVICE's month until 3 October,
+            // which in another time zone is the wrong one for a day each side
+            // of the turn — and the hour, which decides whether the heat line
+            // is said at all, was not read.
+            month: clock.month,
+            hour: clock.hour,
           })
         : [],
-    [deferredQ, hits, hitPlaces, asked]
+    [deferredQ, hits, hitPlaces, asked, clock]
   );
 
   // صوت وين: once a search settles, say the best suggestion out loud —

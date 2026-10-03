@@ -183,11 +183,17 @@ final List<List<String>> _phrasePairs = [
 
 List<String> _variantsOf(String token) {
   final out = <String>[token];
-  for (final s in _synonymLookup[token] ?? const <String>[]) {
+  for (final s in _synonymsOf(token)) {
     if (!out.contains(s)) out.add(s);
   }
   return out;
 }
+
+/// The synonyms of a token as typed, or — when it has none — of the word
+/// under its clitic: «للبنات» reaches «بنات» (`synonymsOf` on the web).
+List<String> _synonymsOf(String token) =>
+    _synonymLookup[token] ??
+    [for (final t in _declitic(token)) ...?_synonymLookup[t]];
 
 List<String> _declitic(String token) {
   final out = <String>[];
@@ -330,16 +336,24 @@ List<_Cand> _candidates(String term, SearchIndex index) {
   }
   if (found.isNotEmpty) return found;
 
+  // A word the synonym table knows is not a typo, and under three letters a
+  // prefix is a guess too («بر» reached «برد», «برجر»). See candidates() on
+  // the web.
+  final known = _synonymsOf(term).isNotEmpty;
+  if (term.length < 3 && known) return const [];
+
   final prefix = index._terms.where((t) => t.startsWith(term)).toList();
   if (prefix.isNotEmpty) {
     return prefix.take(12).map((t) => (term: t, boost: 0.82)).toList();
   }
 
-  if (term.length < 4) return const [];
+  if (term.length < 4 || known) return const [];
 
   final max = term.length >= 6 ? 2 : 1;
   final fuzzy = <_Cand>[];
   for (final t in index._terms) {
+    // Not onto a short word either: «جديد» → «جيد», the rating word.
+    if (t.length < 4) continue;
     final d = _editDistance(term, t, max);
     if (d <= max) fuzzy.add((term: t, boost: d == 1 ? 0.62 : 0.42));
   }
@@ -375,6 +389,33 @@ List<String> _splitGlued(String token, SearchIndex index) {
     if (right.length >= 3 && known(left) && known(right)) return [left, right];
   }
   return [token];
+}
+
+/// «مطعن» read as «مطعم»: a token the index cannot place at all, one letter
+/// from a word the synonym table knows (`misspeltKey` on the web).
+String _misspeltKey(String token, SearchIndex index) {
+  if (token.length < 4 ||
+      index._postings.containsKey(token) ||
+      _synonymsOf(token).isNotEmpty) {
+    return token;
+  }
+  if (_declitic(token).any(index._postings.containsKey)) return token;
+  if (index._terms.any((t) => t.startsWith(token))) return token;
+  for (final key in _synonymLookup.keys) {
+    if (key.length >= 4 && _editDistance(token, key, 1) <= 1) return key;
+  }
+  return token;
+}
+
+final Set<String> _goingOut = {for (final w in kGoingOut) normalise(w)};
+
+/// «وين أروح الحين?» — a wish to go out with nothing to search for: every
+/// token filler, and one of them a going-out word (`isTopicless` on the web).
+bool isTopicless(String query) {
+  final raw = tokenize(query);
+  return raw.isNotEmpty &&
+      raw.every(_filler.contains) &&
+      raw.any(_goingOut.contains);
 }
 
 /// Filler out, «حار» rewritten, negations turned into an opposite and a set
@@ -415,7 +456,10 @@ List<String> _splitGlued(String token, SearchIndex index) {
     kept.addAll(_antonyms[unwanted] ?? const <String>[]);
     i = j;
   }
-  raw = [for (final t in kept) ..._splitGlued(t, index)];
+  raw = [
+    for (final t in kept)
+      for (final u in _splitGlued(t, index)) _misspeltKey(u, index),
+  ];
 
   bool elsewhere(String t) =>
       kElsewhereInKuwait.contains(t) && !index._postings.containsKey(t);

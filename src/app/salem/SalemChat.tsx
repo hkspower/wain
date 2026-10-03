@@ -9,7 +9,6 @@ import { IconSend } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ENABLED, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
 import { answerParts } from "@/lib/voice-lines";
-import { kuwaitMonth } from "@/lib/kuwait-time";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
@@ -126,12 +125,18 @@ export default function SalemChat() {
   // a runtime import() started on approach (here: as soon as a session opens,
   // since unlike the call there is no separate "ringing" moment to hide it
   // behind) rather than a static one paid by every visit to this page.
+  // answer-order.ts comes with it: it is the ordering /search uses, so the
+  // same question names the same place here and there — and it sits on the
+  // search module, so it belongs to the same lazy load.
   const loadIndex = useMemo(() => {
-    let pending: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null =
-      null;
+    let pending: Promise<{
+      mod: typeof import("@/lib/search");
+      order: typeof import("@/lib/answer-order");
+      index: import("@/lib/search").SearchIndex;
+    }> | null = null;
     return () =>
-      (pending ??= import("@/lib/search").then(
-        (mod) => ({ mod, index: mod.buildIndex(places) }),
+      (pending ??= Promise.all([import("@/lib/search"), import("@/lib/answer-order")]).then(
+        ([mod, order]) => ({ mod, order, index: mod.buildIndex(places) }),
         (err) => {
           // Forget a failure: a remembered rejection failed every message
           // after the first, for the rest of the visit.
@@ -187,15 +192,16 @@ export default function SalemChat() {
       // Bounded: a search chunk stuck on a weak connection kept the dots up and
       // the box locked for ever. Ten seconds, then say so; the next message
       // tries again.
-      const { mod, index } = await Promise.race([
+      const { mod, order, index } = await Promise.race([
         loadIndex(),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), FREE_REPLY_MS)),
       ]);
-      const hits = mod.search(q, index, { limit: 40 });
+      const clock = order.kuwaitClock();
+      const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, places, clock);
       const { slugs } = formatShowPlaces(q, hits, places);
       const found = slugs.flatMap((slug) => places.filter((p) => p.slug === slug));
       const text = found.length
-        ? answerParts(hits, found, { month: kuwaitMonth() }).map((p) => p.text).join(" ")
+        ? answerParts(hits, found, clock).map((p) => p.text).join(" ")
         : WAIN_AI_CHAT_COPY.freeEmpty;
       setMessages((prev) => [
         ...prev,
@@ -261,8 +267,8 @@ export default function SalemChat() {
         show_places: async ({ query }) => {
           const q = String(query ?? "").trim();
           if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.";
-          const { mod, index } = await loadIndex();
-          const hits = mod.search(q, index, { limit: 40 });
+          const { mod, order, index } = await loadIndex();
+          const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, places);
           const { spoken, slugs } = formatShowPlaces(q, hits, places);
           setMessages((prev) => [...prev, { role: "places", query: q, slugs }]);
           return spoken;
