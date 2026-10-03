@@ -7,74 +7,176 @@
  * One card (44-), so /shop, Best sellers, the category pages, /wishlist and "Complete the
  * look" all follow.
  *
+ * THE ROWS LINE UP ACROSS A ROW OF CARDS. A card's rows follow its name, and names differ:
+ * one that cannot fit on one line even at grid-name-fit's 10px floor wraps at 14px (gnf-wrap),
+ * a product with no colour has no colour row, and eight sizes wrap to two lines on a phone
+ * where two sizes take one. Left to follow the name, the colour rows of two neighbours sat
+ * 20-40px apart (measured on /shop and /women, iPhone 13). So the card is a SUBGRID of the
+ * product grid: every card in a row shares six tracks — photo, brand, name, colours, sizes,
+ * price — each as tall as the tallest in that row, and each piece of the caption is placed in
+ * its own track. A card without a colour row leaves that track empty and its sizes still sit
+ * level with the neighbour's.
+ *   - The grid's own row gap has to go for that: a subgrid that spans the gap between two of
+ *     its tracks inherits it, and an EMPTY track then keeps half the gap as dead space (measured,
+ *     8px of the 16). The gap becomes a bottom margin on each card, and the grid takes the same
+ *     margin back off its own bottom, so the space after the last row is what it was.
+ *   - Only product grids: card-options.js marks them data-cardopt-grid. A two-column FORM grid
+ *     (the checkout's) carries the same classes and must keep its gap, and telling the two apart
+ *     in CSS alone would need :has() on the grid, which 44-'s header rules out.
+ *   - A browser without subgrid (iOS before 16) keeps the flex caption, with the rows and the
+ *     price anchored to the BOTTOM of the caption as one block: the cards of a row are one
+ *     height, so the rows still line up there unless the size rows wrap differently.
+ *
  * THE +'S TAP BOX REACHES ABOVE THE PRICE ROW. It is 44px tall at the card's bottom-right
  * (44-, 69-), so its top edge sits about 12.6px above the price row on a phone, 11.6px at
  * 820 and 8.7px at 1280 (measured at 360, 390, 820 and 1280). The rows end above that with
- * 3.4px to spare at the tightest (the caption's own 5/6px gap plus the margin below; 0.4px of
- * clearance at 8px was measured first, which a finger's touch adjustment can cross), so a tap on a size box
- * never lands on the + and a tap on the + never lands on a box. test:card-options fails if
- * the two ever meet.
+ * 3.4px to spare at the tightest (16px above the price on a phone, 15px from 768px; 0.4px of
+ * clearance at 8px was measured first, which a finger's touch adjustment can cross), so a tap on
+ * a size box never lands on the + and a tap on the + never lands on a box. test:card-options
+ * fails if the two ever meet.
+ *
+ * FEW ELEMENTS. Every frame that inserts an element restyles the whole document on this shop
+ * (its :has() rules), so a circle is ONE element (the disc is the link's padding box, the ring a
+ * background layer) and a size box is ONE button with its text. See card-options.js.
  *
  * Everything is named under `main article` or the grid itself; no :has() (44-'s header says
  * why) and no universal subject (test:has-cost). */
-main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  margin-bottom: 11px;
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  --cardopt-gap: 5px;            /* the caption's own gap (44-) */
+  --cardopt-between: 6px;        /* colours to sizes */
+  --cardopt-above-price: 16px;   /* the rows to the price row: clear of the +'s tap box */
+  --cardopt-row-gap: 12px;       /* 69-'s gap between rows of cards */
 }
 @media (min-width: 768px) {
-  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
-    gap: 8px;
-    margin-bottom: 9px;
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    --cardopt-gap: 6px;
+    --cardopt-between: 8px;
+    --cardopt-above-price: 15px;
+    --cardopt-row-gap: 24px;
   }
 }
-/* A one-line name kept 12px below it for the + (44-), because the price row came straight
- * after it. With the rows in between, the + is nowhere near the name. MARGIN only:
- * grid-name-fit.js caches each name by its clientWidth, so the padding must not change
- * after it has fitted. */
-main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div[data-cardopt-on] h3.gnf:not(.gnf-wrap) {
-  margin-bottom: 0;
+
+/* --- the flex caption (no subgrid): the rows and the price, bottom-anchored as one block --- */
+@supports not (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-sizes {
+    min-width: 0;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > a + .cardopt-colours,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > a + .cardopt-sizes {
+    margin-top: auto;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours + .cardopt-sizes {
+    margin-top: calc(var(--cardopt-between) - var(--cardopt-gap));
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours + .price-card,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-sizes + .price-card {
+    margin-top: calc(var(--cardopt-above-price) - var(--cardopt-gap));
+  }
 }
 
-/* --- the colour circles: 24px to tap, a 16px disc to see ----------------- */
+/* --- the subgrid: six tracks shared by every card in a row ------------------------------- */
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+    margin-bottom: calc(-1 * var(--cardopt-row-gap));
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    grid-row: span 6;
+    row-gap: 0;
+    margin-bottom: var(--cardopt-row-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] {
+    grid-row: 1;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    grid-row: 2 / span 5;
+    row-gap: 0;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .brand-chip-inline {
+    grid-row: 1;
+    align-self: start;
+    margin-bottom: var(--cardopt-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > a {
+    grid-row: 2;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .cardopt-colours {
+    grid-row: 3;
+    align-self: start;
+    margin-top: var(--cardopt-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .cardopt-sizes {
+    grid-row: 4;
+    align-self: start;
+    margin-top: var(--cardopt-between);
+  }
+  /* The price row sits at the BOTTOM of its track, as it did at the bottom of the flex caption:
+     the + is pinned to the card's bottom edge and centred on a one-line price, so when a
+     neighbour's struck old price wraps to a second line and makes the track taller, this price
+     stays beside the + rather than a line above it. Prices end level across a row. */
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .price-card {
+    grid-row: 5;
+    align-self: end;
+    margin-top: var(--cardopt-above-price);
+  }
+  /* The price row has its own track now, 16px below whatever is above it, so a one-line name
+     needs no 12px of its own to keep clear of the + (44-). */
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article h3.gnf:not(.gnf-wrap) {
+    margin-bottom: 0;
+  }
+}
+
+/* --- the colour circles: a 24px target, a 16px disc ----------------------------------------
+ * The 4px transparent border is the rest of the target; the disc is the padding box, a circle
+ * of radius 8 because the border-radius is 12 (the padding edge's radius is 12 - 4). The colour
+ * is the link's own inline background-color, clipped to that disc. */
 main article .cardopt-colours {
   display: flex;
   flex-wrap: wrap;
   margin-left: -4px;              /* the disc's edge lines up with the name */
 }
 main article .cardopt-colour {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  flex: none;
+  box-sizing: border-box;
   width: 24px;
   height: 24px;
+  border: 4px solid transparent;
   border-radius: 50%;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22);   /* a white disc on the white caption needs an edge */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-main article .cardopt-colour__disc {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22);   /* a white disc on the white caption needs an edge */
-}
-/* The card's own colour: a white gap, then the orange that reads on white (5.2:1). */
-main article .cardopt-colour[aria-current="true"] .cardopt-colour__disc {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22), 0 0 0 2px #fff, 0 0 0 3.5px var(--sp-card-ink, #c2410c);
+/* The card's own colour: a white gap, then the orange that reads on white (5.2:1), drawn as a
+ * ring in the border area (radius 10 to 11.4). Two layers so the disc keeps its padding-box
+ * clip: the background colour follows the LAST layer's clip, which is the `none` one. */
+main article .cardopt-colour[aria-current="true"] {
+  background-image: radial-gradient(circle closest-side, transparent 9.6px, var(--sp-card-ink, #c2410c) 10px, var(--sp-card-ink, #c2410c) 11.4px, transparent 11.8px), none;
+  background-origin: border-box, padding-box;
+  background-clip: border-box, padding-box;
 }
 main article .cardopt-colour:focus-visible {
   outline: 2px solid #171a1e;
   outline-offset: 0;
 }
 
-/* --- the size boxes: 28px, the dark ink on white -------------------------- */
+/* --- the size boxes: 28px, the dark ink on white ------------------------------------------ */
 main article .cardopt-sizes {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
+/* min-height and min-width are SET, not left to the defaults: 55-product-polish.css gives
+ * every button whose label contains "الكمية" (quantity) a 36px minimum, and the Arabic
+ * "sold out" is "نفذت الكمية". A sold-out box in Arabic measured 36px beside 28px ones. */
 main article .cardopt-size {
   position: relative;
   display: inline-flex;
@@ -82,6 +184,7 @@ main article .cardopt-size {
   justify-content: center;
   box-sizing: border-box;
   min-width: 28px;
+  min-height: 28px;
   height: 28px;
   margin: 0;
   padding: 0 5px;
@@ -93,6 +196,7 @@ main article .cardopt-size {
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -112,21 +216,16 @@ main article .cardopt-size:disabled {
   background: #f3f4f6;
   color: #4b5563;
   border-color: #d1d5db;
-  cursor: not-allowed;
-}
-main article .cardopt-size:disabled .cardopt-size__t {
   text-decoration: line-through;
   text-decoration-color: rgba(75, 85, 99, .75);
+  cursor: not-allowed;
 }
-/* Added: a green box with a tick for 1.2s. The size stays in the box (hidden, not removed),
- * so the box keeps its width and nothing around it moves. White on #15803d is 5.0:1. */
+/* Added: a green box with a tick for 1.2s. The size stays in the box (transparent, not
+ * removed), so the box keeps its width and nothing around it moves. White on #15803d is 5.0:1. */
 main article .cardopt-size[data-cardopt-added] {
   background: #15803d;
   border-color: #15803d;
-  color: #fff;
-}
-main article .cardopt-size[data-cardopt-added] .cardopt-size__t {
-  visibility: hidden;
+  color: transparent;
 }
 main article .cardopt-size[data-cardopt-added]::after {
   content: "✓";
@@ -135,10 +234,10 @@ main article .cardopt-size[data-cardopt-added]::after {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #fff;
 }
 
-/* The words a screen reader needs and the eye does not: "Size " before each box's letters,
- * and the "added to your bag" message. */
+/* The "added to your bag" message a screen reader needs and the eye does not. */
 .cardopt-sr {
   position: absolute !important;
   width: 1px;

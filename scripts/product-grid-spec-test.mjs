@@ -47,24 +47,22 @@ try {
       // PLAIN = name and price only: no colour/size rows, no struck price, and no brand line either
       // (a brand adds a line). And in a row of plain cards: a row's captions are kept level on
       // purpose, so a plain card beside a sale card is stretched to the sale card's height.
-      const isPlain = (a) => !a.querySelector('.cardopt') && !a.querySelector('s') && !a.querySelector('[data-sporta-brand-chip]')
+      const isPlain = (a) => !a.querySelector('.cardopt-colours, .cardopt-sizes') && !a.querySelector('s') && !a.querySelector('[data-sporta-brand-chip]')
       const rowOf = (a) => cards.filter((x) => Math.abs(x.getBoundingClientRect().top - a.getBoundingClientRect().top) < 2)
       const plain = cards.find((a) => isPlain(a) && rowOf(a).every(isPlain))
       // THE CAPTION WITHOUT ITS ROWS (2026-10-03): since the colour circles and size boxes most
-      // cards carry rows, so a fully plain card may not exist. The 85px cap is then measured on
-      // a card with no struck price and no brand line that is the TALLEST in its row (so not
-      // stretched), less its rows, their margin and one caption gap. Null fails: it must never
-      // pass on nothing.
+      // cards carry rows, so a fully plain card may not exist. And since the rows line up across
+      // a row of cards (70-, a subgrid), every card in a row shares its neighbours' track heights,
+      // so the caption's own height says nothing about this card. The 85px cap is measured on what
+      // the card itself holds: its padding, its name, the space kept above the price row and the
+      // price row. Null fails: it must never pass on nothing.
       const noRows = (() => {
-        const ok = (a) => !a.querySelector('s') && !a.querySelector('[data-sporta-brand-chip]')
-        const tallest = (a) => rowOf(a).every((x) => x.getBoundingClientRect().height <= a.getBoundingClientRect().height + 0.5)
-        const a = cards.find((x) => ok(x) && tallest(x))
+        const a = cards.find((x) => !x.querySelector('s') && !x.querySelector('[data-sporta-brand-chip]'))
         if (!a) return null
-        const cap = a.children[1], box = cap.querySelector(':scope > .cardopt'), cs = getComputedStyle(cap), h3 = cap.querySelector('h3')
-        // ...and a one-line name gets back the 12px kept under it for the + when there are no rows (44-)
-        const less = box ? box.getBoundingClientRect().height + parseFloat(getComputedStyle(box).marginBottom) + parseFloat(cs.rowGap || cs.gap || 0)
-          - (h3.classList.contains('gnf') && !h3.classList.contains('gnf-wrap') ? 12 : 0) : 0
-        return { slug: a.querySelector('a').getAttribute('href'), h: cap.getBoundingClientRect().height - less,
+        const cap = a.children[1], cs = getComputedStyle(cap), h3 = cap.querySelector('h3'), pr = cap.querySelector(':scope > .price-card')
+        const h = parseFloat(cs.paddingTop) + h3.getBoundingClientRect().height + parseFloat(getComputedStyle(h3).marginBottom)
+          + parseFloat(getComputedStyle(pr).marginTop) + pr.getBoundingClientRect().height + parseFloat(cs.paddingBottom)
+        return { slug: a.querySelector('a').getAttribute('href'), h,
           extra: Math.max(0, h3.getBoundingClientRect().height - parseFloat(getComputedStyle(h3).lineHeight)) }
       })()
       const c = cards[0], gs = getComputedStyle(c.parentElement), cs = getComputedStyle(c)
@@ -78,7 +76,7 @@ try {
       const cap = mine.children[1], price = cap.querySelector('.price-card'), old = price.querySelector('s'), h3 = cap.querySelector('h3')
       // the colour is a ringed circle in the caption since 2026-10-03 (card-options.js), not a "● colour" line
       const colour = cap.querySelector('.cardopt-colour[aria-current="true"]')
-      const optBox = cap.querySelector(':scope > .cardopt'), size0 = cap.querySelector('.cardopt-size'), disc0 = cap.querySelector('.cardopt-colour__disc')
+      const optRows = [...cap.querySelectorAll(':scope > .cardopt-colours, :scope > .cardopt-sizes')], size0 = cap.querySelector('.cardopt-size'), circle0 = cap.querySelector('.cardopt-colour')
       const capP = plain && plain.children[1]
       return {
         cols: gs.gridTemplateColumns.split(' ').length, ratio: photo.width / photo.height, bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius),
@@ -94,10 +92,11 @@ try {
         nameAlign: getComputedStyle(h3).textAlign, nameSize: parseFloat(getComputedStyle(h3).fontSize), nameWeight: +getComputedStyle(h3).fontWeight,
         priceSize: parseFloat(getComputedStyle(price).fontSize), priceWeight: +getComputedStyle(price).fontWeight,
         oldDeco: old ? getComputedStyle(old).textDecorationLine : null, oldSize: old ? parseFloat(getComputedStyle(old).fontSize) : null,
-        colourText: colour && colour.getAttribute('aria-label'), dot: colour && getComputedStyle(colour.querySelector('.cardopt-colour__disc')).backgroundColor,
+        colourText: colour && colour.getAttribute('aria-label'), dot: colour && getComputedStyle(colour).backgroundColor,
         oldColourLines: document.querySelectorAll('.sporta-card-colour').length,
-        plusClearOfRows: optBox ? (() => { const pr = plus.getBoundingClientRect(); return [...optBox.querySelectorAll('.cardopt-size, .cardopt-colour')].every((e) => { const r = e.getBoundingClientRect(); return !(r.left < pr.right && pr.left < r.right && r.top < pr.bottom && pr.top < r.bottom) }) && +(pr.top - optBox.getBoundingClientRect().bottom).toFixed(1) >= 0 })() : null,
-        rowLefts: [disc0 && disc0.getBoundingClientRect().left - ch.left, size0 && size0.getBoundingClientRect().left - ch.left],
+        plusClearOfRows: optRows.length ? (() => { const pr = plus.getBoundingClientRect(); return [...cap.querySelectorAll('.cardopt-size, .cardopt-colour')].every((e) => { const r = e.getBoundingClientRect(); return !(r.left < pr.right && pr.left < r.right && r.top < pr.bottom && pr.top < r.bottom) }) && +(pr.top - optRows[optRows.length - 1].getBoundingClientRect().bottom).toFixed(1) >= 0 })() : null,
+        // the disc is the circle's padding box (its 4px transparent border is the rest of the target)
+        rowLefts: [circle0 && circle0.getBoundingClientRect().left + circle0.clientLeft - ch.left, size0 && size0.getBoundingClientRect().left - ch.left],
         noRows,
         order: [...cap.children].map((e) => e.className.split(' ')[0] || e.tagName),
         capPlainH: capP ? box(capP).height : null,
@@ -107,7 +106,7 @@ try {
         nameColour: getComputedStyle(h3).color, priceColour: getComputedStyle(price).color,
         // every line of the caption against its white: rgb() and color(srgb …) both parsed, so a
         // colour-mix() result is read as what it is rather than skipped
-        lines: [...cap.querySelectorAll('.sporta-brand-name, h3, .cardopt-size:not(:disabled) .cardopt-size__t, .price-card, .price-card s, .price-card del')]
+        lines: [...cap.querySelectorAll('.sporta-brand-name, h3, .cardopt-size:not(:disabled), .price-card, .price-card s, .price-card del')]
           .filter((e) => e.getBoundingClientRect().width > 0 && e.textContent.trim())
           .map((e) => ({ what: e.tagName === 'H3' ? 'name' : e.tagName === 'S' || e.tagName === 'DEL' ? 'old price' : e.className.split(' ')[0], colour: getComputedStyle(e).color })),
         // any card carrying BOTH a sale chip and a bestseller pill: their boxes must not meet

@@ -94,10 +94,18 @@
     if (existing) {
       // Keep the label in step with the language — the one thing that can
       // change on a re-render without the <li> itself being rebuilt.
+      // ONLY WHEN IT DIFFERS (2026-10-03). Assigning textContent replaces the
+      // text node even when the words are the same, which is a childList
+      // mutation under body — the very thing this file's own observer waits
+      // for. So place() re-armed itself every 80ms for ever, on every page,
+      // idle or not, and each rewrite inserted a node, which this shop's :has()
+      // rules answer with a restyle of the WHOLE document (measured: 37
+      // rewrites in 3s on an idle /shop, and the largest single cost of a
+      // scroll on a throttled phone).
       var link = existing.querySelector('a')
       if (link) {
-        link.textContent = LABEL[lang()]
-        link.title = FULL[lang()]
+        if (link.textContent !== LABEL[lang()]) link.textContent = LABEL[lang()]
+        if (link.title !== FULL[lang()]) link.title = FULL[lang()]
       }
       return
     }

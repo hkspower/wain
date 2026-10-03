@@ -1857,15 +1857,78 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article .price-card :is(s, 
 [data-theme] main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > button:not([aria-pressed]) {
   bottom: 1px !important;
 }
-main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  margin-bottom: 11px;
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  --cardopt-gap: 5px;
+  --cardopt-between: 6px;
+  --cardopt-above-price: 16px;
+  --cardopt-row-gap: 12px;
 }
-main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div[data-cardopt-on] h3.gnf:not(.gnf-wrap) {
-  margin-bottom: 0;
+@supports not (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-sizes {
+    min-width: 0;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > a + .cardopt-colours,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > a + .cardopt-sizes {
+    margin-top: auto;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours + .cardopt-sizes {
+    margin-top: calc(var(--cardopt-between) - var(--cardopt-gap));
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-colours + .price-card,
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt-sizes + .price-card {
+    margin-top: calc(var(--cardopt-above-price) - var(--cardopt-gap));
+  }
+}
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+    margin-bottom: calc(-1 * var(--cardopt-row-gap));
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    grid-row: span 6;
+    row-gap: 0;
+    margin-bottom: var(--cardopt-row-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] {
+    grid-row: 1;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    grid-row: 2 / span 5;
+    row-gap: 0;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .brand-chip-inline {
+    grid-row: 1;
+    align-self: start;
+    margin-bottom: var(--cardopt-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > a {
+    grid-row: 2;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .cardopt-colours {
+    grid-row: 3;
+    align-self: start;
+    margin-top: var(--cardopt-gap);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .cardopt-sizes {
+    grid-row: 4;
+    align-self: start;
+    margin-top: var(--cardopt-between);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > .price-card {
+    grid-row: 5;
+    align-self: end;
+    margin-top: var(--cardopt-above-price);
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article h3.gnf:not(.gnf-wrap) {
+    margin-bottom: 0;
+  }
 }
 main article .cardopt-colours {
   display: flex;
@@ -1873,23 +1936,22 @@ main article .cardopt-colours {
   margin-left: -4px;
 }
 main article .cardopt-colour {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  flex: none;
+  box-sizing: border-box;
   width: 24px;
   height: 24px;
+  border: 4px solid transparent;
   border-radius: 50%;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-main article .cardopt-colour__disc {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22);
-}
-main article .cardopt-colour[aria-current="true"] .cardopt-colour__disc {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .22), 0 0 0 2px #fff, 0 0 0 3.5px var(--sp-card-ink, #c2410c);
+main article .cardopt-colour[aria-current="true"] {
+  background-image: radial-gradient(circle closest-side, transparent 9.6px, var(--sp-card-ink, #c2410c) 10px, var(--sp-card-ink, #c2410c) 11.4px, transparent 11.8px), none;
+  background-origin: border-box, padding-box;
+  background-clip: border-box, padding-box;
 }
 main article .cardopt-colour:focus-visible {
   outline: 2px solid #171a1e;
@@ -1907,6 +1969,7 @@ main article .cardopt-size {
   justify-content: center;
   box-sizing: border-box;
   min-width: 28px;
+  min-height: 28px;
   height: 28px;
   margin: 0;
   padding: 0 5px;
@@ -1918,6 +1981,7 @@ main article .cardopt-size {
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -1935,19 +1999,14 @@ main article .cardopt-size:disabled {
   background: #f3f4f6;
   color: #4b5563;
   border-color: #d1d5db;
-  cursor: not-allowed;
-}
-main article .cardopt-size:disabled .cardopt-size__t {
   text-decoration: line-through;
   text-decoration-color: rgba(75, 85, 99, .75);
+  cursor: not-allowed;
 }
 main article .cardopt-size[data-cardopt-added] {
   background: #15803d;
   border-color: #15803d;
-  color: #fff;
-}
-main article .cardopt-size[data-cardopt-added] .cardopt-size__t {
-  visibility: hidden;
+  color: transparent;
 }
 main article .cardopt-size[data-cardopt-added]::after {
   content: "✓";
@@ -1956,6 +2015,7 @@ main article .cardopt-size[data-cardopt-added]::after {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #fff;
 }
 .cardopt-sr {
   position: absolute !important;

@@ -36,23 +36,36 @@
  * neither is possible. The fit is the product page's default for that garment
  * (window.sportaDefaultFit: 'slim' for leggings and tops, none for accessories), so a
  * size added here and the same size added on the product page are the same line.
+ * A double tap is one add PER SIZE: the guard sits on the box that was tapped, so S
+ * and then L on the same card are two adds, however quickly.
  *
- * ------------------------------------------------------------ HOW IT KEEPS UP
+ * ------------------------------------------------------------ WHAT IT COSTS A SCROLL
  *
- * WORK ONCE PER CARD. grid-name-fit.js once froze scrolling by re-measuring every name
- * on every change; this file reads no layout at all, and a card it has drawn is skipped
- * by a key: the caption remembers the photo link's href it was built for. Only three
- * things ever write again:
- *   - the href changes (React re-used the node for another product) -> rebuilt
- *   - the box is no longer right before the price row (React re-rendered) -> re-inserted
- *   - the page's language changes -> labels rewritten in place, never rebuilt
- *
- * The size boxes carry a hidden "Size " in front of the letters so that their text is
- * never a bare "L": seven rigs press `button` with text /^L$/ on the product page, where
- * "Complete the look" cards now carry boxes too.
+ * Measured on /shop, iPhone 14, CPU slowed 4x (test:scroll): the page's own :has() rules
+ * make EVERY frame that inserts an element restyle the whole document (body:has(...) and
+ * the grid's :has() are invalidated by any insertion that carries a class attribute). So
+ * the two things that cost are (a) a frame of insertions of our own, and (b) how many
+ * elements every one of those whole-document restyles has to walk. The first version
+ * paid both: it waited a frame after React drew a card, which made a second full restyle
+ * on top of React's, and it drew ~18 elements per card.
+ *   - SAME FRAME. The boxes are inserted inside the MutationObserver callback, a
+ *     microtask that runs straight after React's commit and before the browser styles
+ *     anything, so React's restyle is the only one.
+ *   - FEW ELEMENTS. Two rows inserted straight into the caption (no wrapper); a colour is
+ *     ONE <a> (the disc is its padding box, the ring a background layer); a size is ONE
+ *     <button> whose only child is its text. 2 + colours + sizes elements per card.
+ *   - ONE MARK PER GRID. data-cardopt-grid tells 70-card-options.css that this two-column
+ *     grid holds product cards, so it can line the rows up across a row (subgrid).
+ *   - ONCE PER CARD. A card already drawn is recognised by a property on the caption
+ *     (the photo link's href it was built for and the nodes it holds), so scrolling past
+ *     it reads two properties and writes nothing. Only three things ever write again:
+ *       - the href changes (React re-used the node for another product) -> rebuilt
+ *       - the rows are no longer right before the price row (React re-rendered) -> moved
+ *       - the page's language changes -> labels and hrefs rewritten in place, never rebuilt
+ * No layout is read anywhere in this file.
  *
  * DOM overlay on a page with no source here, same class of thing as brand-badge.js: it
- * only ADDS one block to a card's caption and removes only what it added.
+ * only ADDS two rows to a card's caption and removes only what it added.
  */
 ;(function () {
   'use strict'
@@ -77,11 +90,16 @@
   var lastLang = null
   var live = null
 
+  /* The page's language, as the page itself says it. Never the photo link's href: the
+     bundle's own cards (/shop, Best sellers, "Complete the look") carry no ?lang=en, and a
+     circle that copied them sent an English shopper to an Arabic page. */
   function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'ar' ? 'ar' : 'en' }
   function tr(k, l) { return T[k][l] }
   function nameOf(row, l) { return (l === 'ar' ? row.name_ar || row.name_en : row.name_en || row.name_ar) || row.slug }
   function sizeText(size, l) { return size === 'ONE' ? tr('oneSize', l) : size }
-  function srText(size, l) { return size === 'ONE' ? '' : tr('sizePrefix', l) }
+  /* A circle is a plain link, so a tap is a full page load, and a page with no ?lang= and
+     no saved choice opens in Arabic. The English shopper's language goes with the link. */
+  function hrefOf(slug, l) { return '/product/' + encodeURIComponent(slug) + (l === 'en' ? '?lang=en' : '') }
 
   function sizeLabel(row, size, inStock, l) {
     var what = size === 'ONE' ? tr('oneSize', l) : tr('sizePrefix', l) + size
@@ -92,7 +110,6 @@
   }
 
   function setAttr(el, k, v) { if (el.getAttribute(k) !== v) el.setAttribute(k, v) }
-  function setText(el, v) { if (el.textContent !== v) el.textContent = v }
 
   function slugOfHref(href) {
     var m = /\/product\/([^/?#]+)/.exec(href || '')
@@ -113,47 +130,40 @@
     return out
   }
 
-  function build(row, photo) {
+  /* The rows for one product: [colours?, sizes?], or [] when it has neither. */
+  function build(row) {
     var l = lang()
-    var hasColour = !!(row.colour && row.colour.key)
-    var sizes = Array.isArray(row.size_options) ? row.size_options : []
-    if (!hasColour && !sizes.length) return null
-
-    var box = document.createElement('div')
-    box.className = 'cardopt'
-    box.setAttribute('data-slug', row.slug)
-
-    if (hasColour) {
+    var out = []
+    if (row.colour && row.colour.key) {
       var cg = document.createElement('div')
       cg.className = 'cardopt-colours'
       cg.setAttribute('role', 'group')
       cg.setAttribute('aria-label', tr('colours', l))
-      var en = /[?&]lang=en(&|#|$)/.test(photo.getAttribute('href') || '') ? '?lang=en' : ''
+      cg.setAttribute('data-slug', row.slug)
       var sibs = siblings(row)
       for (var i = 0; i < sibs.length; i++) {
         var s = sibs[i]
         var a = document.createElement('a')
         a.className = 'cardopt-colour'
-        a.href = '/product/' + encodeURIComponent(s.slug) + en
+        a.href = hrefOf(s.slug, l)
         a.setAttribute('data-key', s.colour.key)
+        a.setAttribute('data-slug', s.slug)
         var cn = colourName[s.colour.key] || { en: s.colour.en, ar: s.colour.ar }
         a.setAttribute('aria-label', cn[l] || cn.en || s.colour.key)
         a.setAttribute('title', cn[l] || cn.en || s.colour.key)
         if (s.slug === row.slug) a.setAttribute('aria-current', 'true')
-        var disc = document.createElement('span')
-        disc.className = 'cardopt-colour__disc'
-        disc.style.background = HEX.test(s.colour.hex || '') ? s.colour.hex : '#888'
-        a.appendChild(disc)
+        a.style.backgroundColor = HEX.test(s.colour.hex || '') ? s.colour.hex : '#888'
         cg.appendChild(a)
       }
-      box.appendChild(cg)
+      out.push(cg)
     }
-
+    var sizes = Array.isArray(row.size_options) ? row.size_options : []
     if (sizes.length) {
       var sg = document.createElement('div')
       sg.className = 'cardopt-sizes'
       sg.setAttribute('role', 'group')
       sg.setAttribute('aria-label', tr('sizes', l))
+      sg.setAttribute('data-slug', row.slug)
       for (var j = 0; j < sizes.length; j++) {
         var size = String(sizes[j].size), inStock = sizes[j].in_stock === true
         var b = document.createElement('button')
@@ -162,19 +172,12 @@
         b.setAttribute('data-size', size)
         b.setAttribute('aria-label', sizeLabel(row, size, inStock, l))
         if (!inStock) { b.disabled = true; b.setAttribute('title', tr('soldOut', l)) }
-        var sr = document.createElement('span')
-        sr.className = 'cardopt-sr'
-        sr.textContent = srText(size, l)
-        var tx = document.createElement('span')
-        tx.className = 'cardopt-size__t'
-        tx.textContent = sizeText(size, l)
-        b.appendChild(sr)
-        b.appendChild(tx)
+        b.textContent = sizeText(size, l)
         sg.appendChild(b)
       }
-      box.appendChild(sg)
+      out.push(sg)
     }
-    return box
+    return out
   }
 
   /* Every card on the page, once. A card React has not finished drawing (no caption, no price
@@ -186,65 +189,79 @@
       var photo = art.firstElementChild
       if (!photo || photo.tagName !== 'A') continue
       var href = photo.getAttribute('href') || ''
-      if (!/\/product\//.test(href)) continue
       var cap = photo.nextElementSibling
       if (!cap) continue
-      var price = cap.querySelector(':scope > .price-card')
-      if (!price) continue
+      var co = cap.__cardopt
 
-      var had = cap.__cardoptBox
-      if (cap.getAttribute('data-cardopt') === href && had !== undefined && (had === null || had.parentNode === cap)) {
-        if (had && had.nextElementSibling !== price) cap.insertBefore(had, price)
+      if (co && co.href === href && co.price.parentNode === cap) {
+        var n = co.nodes, ok = true
+        for (var k = 0; k < n.length; k++) {
+          if (n[k].parentNode !== cap || n[k].nextElementSibling !== (k + 1 < n.length ? n[k + 1] : co.price)) { ok = false; break }
+        }
+        if (ok) continue
+        /* React put something between them: put the rows back right before the price row */
+        if (n.length) cap.insertBefore(frag(n), co.price)
         continue
       }
 
-      if (had && had.parentNode === cap) cap.removeChild(had)
-      var strays = cap.querySelectorAll(':scope > .cardopt')
-      for (var k = 0; k < strays.length; k++) cap.removeChild(strays[k])
+      if (!/\/product\//.test(href)) continue
+      var price = cap.querySelector(':scope > .price-card')
+      if (!price) continue
+
+      /* The grid is a product grid: 70-card-options.css lines the rows up across it (subgrid),
+         which needs the grid's own row gap moved onto the cards. Marked from here because CSS
+         cannot tell a product grid from a form's two-column grid without :has(). Once per grid. */
+      var grid = art.parentNode
+      if (grid && !grid.__cardoptGrid) { grid.__cardoptGrid = true; grid.setAttribute('data-cardopt-grid', '') }
+
+      if (co) for (var r = 0; r < co.nodes.length; r++) if (co.nodes[r].parentNode === cap) cap.removeChild(co.nodes[r])
+      var strays = cap.querySelectorAll(':scope > .cardopt-colours, :scope > .cardopt-sizes')
+      for (var s = 0; s < strays.length; s++) cap.removeChild(strays[s])
 
       var row = bySlug[slugOfHref(href)]
-      var box = row ? build(row, photo) : null
-      if (box) {
-        cap.insertBefore(box, price)
-        setAttr(cap, 'data-cardopt-on', '')
-      } else if (cap.hasAttribute('data-cardopt-on')) {
-        cap.removeAttribute('data-cardopt-on')
-      }
-      cap.__cardoptBox = box
-      setAttr(cap, 'data-cardopt', href)
+      var nodes = row ? build(row) : []
+      if (nodes.length) cap.insertBefore(frag(nodes), price)
+      cap.__cardopt = { href: href, price: price, nodes: nodes }
     }
   }
 
-  /* The language changed under cards that were not re-rendered: every label is rewritten in
-     place, and only where it differs. Nothing is rebuilt, so focus and the nodes survive. */
+  function frag(nodes) {
+    if (nodes.length === 1) return nodes[0]
+    var f = document.createDocumentFragment()
+    for (var i = 0; i < nodes.length; i++) f.appendChild(nodes[i])
+    return f
+  }
+
+  /* The language changed under cards that were not re-rendered: every label and every circle's
+     href is rewritten in place, and only where it differs. Nothing is rebuilt, so focus and the
+     nodes survive. */
   function relabel() {
     var l = lang()
-    var boxes = document.querySelectorAll('.cardopt[data-slug]')
-    for (var i = 0; i < boxes.length; i++) {
-      var box = boxes[i], row = bySlug[box.getAttribute('data-slug')]
+    var groups = document.querySelectorAll('.cardopt-colours[data-slug], .cardopt-sizes[data-slug]')
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i], row = bySlug[g.getAttribute('data-slug')]
       if (!row) continue
-      var cg = box.querySelector(':scope > .cardopt-colours')
-      if (cg) {
-        setAttr(cg, 'aria-label', tr('colours', l))
-        var cs = cg.querySelectorAll('.cardopt-colour[data-key]')
+      if (g.className === 'cardopt-colours') {
+        setAttr(g, 'aria-label', tr('colours', l))
+        var cs = g.children
         for (var c = 0; c < cs.length; c++) {
           var cn = colourName[cs[c].getAttribute('data-key')]
-          if (!cn) continue
-          setAttr(cs[c], 'aria-label', cn[l] || cn.en)
-          setAttr(cs[c], 'title', cn[l] || cn.en)
+          if (cn) {
+            setAttr(cs[c], 'aria-label', cn[l] || cn.en)
+            setAttr(cs[c], 'title', cn[l] || cn.en)
+          }
+          var slug = cs[c].getAttribute('data-slug')
+          if (slug) setAttr(cs[c], 'href', hrefOf(slug, l))
         }
-      }
-      var sg = box.querySelector(':scope > .cardopt-sizes')
-      if (sg) {
-        setAttr(sg, 'aria-label', tr('sizes', l))
-        var bs = sg.querySelectorAll('.cardopt-size[data-size]')
+      } else {
+        setAttr(g, 'aria-label', tr('sizes', l))
+        var bs = g.children
         for (var s = 0; s < bs.length; s++) {
           var b = bs[s], size = b.getAttribute('data-size')
           setAttr(b, 'aria-label', sizeLabel(row, size, !b.disabled, l))
           if (b.disabled) setAttr(b, 'title', tr('soldOut', l))
-          var sr = b.querySelector('.cardopt-sr'), tx = b.querySelector('.cardopt-size__t')
-          if (sr) setText(sr, srText(size, l))
-          if (tx) setText(tx, sizeText(size, l))
+          var t = sizeText(size, l)
+          if (b.textContent !== t) b.textContent = t
         }
       }
     }
@@ -268,15 +285,15 @@
     if (!b) return
     e.preventDefault()
     if (b.disabled) return                                   /* sold out: nothing, even for a synthetic click */
-    var box = b.closest('.cardopt')
-    if (!box || !bySlug) return
+    var group = b.parentNode
+    if (!group || !bySlug) return
     var now = Date.now()
-    if (box.__busyUntil > now) return                         /* a double tap is one add */
-    box.__busyUntil = now + 1200
-    var row = bySlug[box.getAttribute('data-slug')]
+    if (b.__busyUntil > now) return                           /* a double tap on THIS size is one add */
+    b.__busyUntil = now + 1200
+    var row = bySlug[group.getAttribute('data-slug')]
     var add = window.sportaCartAdd, fitOf = window.sportaDefaultFit
     if (!row || typeof add !== 'function' || typeof fitOf !== 'function') return
-    var cap = box.parentNode, photo = cap && cap.previousElementSibling
+    var cap = group.parentNode, photo = cap && cap.previousElementSibling
     var img = photo ? photo.querySelector(':scope > img:not([aria-hidden="true"])') || photo.querySelector('img') : null
     var size = b.getAttribute('data-size')
     var item = {
@@ -288,7 +305,8 @@
     var how = add(item, size, fitOf(String(row.category || ''), String(row.name_en || '')))
     if (!how) return
     b.setAttribute('data-cardopt-added', '')
-    setTimeout(function () { b.removeAttribute('data-cardopt-added') }, 1200)
+    clearTimeout(b.__addedTimer)
+    b.__addedTimer = setTimeout(function () { b.removeAttribute('data-cardopt-added') }, 1200)
     var l = lang()
     announce((l === 'ar' ? 'أُضيف إلى حقيبتك: ' : 'Added to your bag: ') + nameOf(row, l) + ' · ' + sizeText(size, l))
   })
@@ -313,20 +331,29 @@
       lastLang = lang()
       scan()
 
-      /* One observer, throttled to a frame. `href` is watched because React can re-use a card's
-         node for another product; `lang` because a language switch rewrites text, not nodes.
-         Our own writes are dropped with takeRecords(), or the observer would answer itself. */
-      var queued = false
-      var mo = new MutationObserver(function () {
-        if (queued) return
-        queued = true
-        requestAnimationFrame(function () {
-          queued = false
+      /* SYNCHRONOUS, in the observer's own microtask: it runs right after React commits a
+         batch of cards and before the browser styles the frame, so the rows join React's
+         restyle instead of causing one of their own a frame later (see the header).
+         `href` is watched because React can re-use a card's node for another product; `lang`
+         because a language switch rewrites text, not nodes. Our own writes are dropped with
+         takeRecords(), or the observer would answer itself. */
+      var mo = new MutationObserver(function (recs) {
+        var need = false, relang = false
+        for (var i = 0; i < recs.length; i++) {
+          var r = recs[i]
+          if (r.type === 'attributes') {
+            if (r.attributeName === 'lang') relang = true
+            else need = true
+          } else if (r.addedNodes.length || r.removedNodes.length) {
+            need = true
+          }
+        }
+        if (relang) {
           var l = lang()
           if (l !== lastLang) { lastLang = l; relabel() }
-          scan()
-          mo.takeRecords()
-        })
+        }
+        if (need) scan()
+        mo.takeRecords()
       })
       mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['lang', 'href'] })
     })

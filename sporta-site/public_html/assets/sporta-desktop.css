@@ -639,8 +639,51 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   }
 }
 @media (min-width: 768px) {
-  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div > .cardopt {
-    gap: 8px;
-    margin-bottom: 9px;
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    --cardopt-gap: 6px;
+    --cardopt-between: 8px;
+    --cardopt-above-price: 15px;
+    --cardopt-row-gap: 24px;
   }
+}
+@media (min-width: 768px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+  }
+}
+}
+@media (min-width: 768px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: subgrid;
+    grid-row: 2 / span 5;
+    row-gap: 0;
+  }
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div > a {
+    grid-row: 2;
+  }
+}
+}
+@media (min-width: 768px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+  }
+}
+}
+@media (min-width: 768px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] > article > a[class*="aspect-"] + div {
+    row-gap: 0;
+  }
+}
+}
+@media (min-width: 768px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+  }
+}
 }

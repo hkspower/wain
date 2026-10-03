@@ -361,3 +361,10 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   row-gap: 12px;
 }
 }
+@media (max-width: 767px) {
+@supports (grid-template-rows: subgrid) {
+  main div.grid[class~="grid"][class~="grid-cols-2"][data-cardopt-grid] {
+    row-gap: 0;
+  }
+}
+}
