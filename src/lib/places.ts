@@ -1,4 +1,4 @@
-import type { MenuItem } from "@/lib/orders";
+import type { MenuItem } from "@/lib/order-kit";
 
 import type { CategoryId } from "@/lib/place-kit";
 

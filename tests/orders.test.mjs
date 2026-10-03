@@ -11,6 +11,16 @@ import {
   acceptsOrders,
   isTerminalStatus,
 } from "@/lib/orders";
+// Imported from the kit itself, not through orders.ts, so a kit that quietly
+// grew a Supabase or catalogue import would be the first thing to break here.
+import {
+  MAX_NOTE_CHARS,
+  buildOrderMessage,
+  cancelOrderMessage,
+  timeAr,
+  whatsappOrderUrl,
+  validateOrder as validateKit,
+} from "@/lib/order-kit";
 import {
   DEFAULT_PREP_MINUTES,
   MAX_PREP_MINUTES,
@@ -166,6 +176,87 @@ console.log("\n── the order reference ──");
   ok("it is six characters", ref.length === 6, ref);
   ok("it is upper case and readable", /^[0-9A-F]{6}$/.test(ref), ref);
   ok("it is stable for one id", ref === orderReference("3f8a1c2d-4e5b-6789-abcd-ef0123456789"));
+}
+
+console.log("\n── a clock time in Arabic ──");
+{
+  ok("18:30 is ٦:٣٠ م", timeAr("18:30") === "٦:٣٠ م", timeAr("18:30"));
+  ok("09:00 is ٩:٠٠ ص", timeAr("09:00") === "٩:٠٠ ص", timeAr("09:00"));
+  ok("midnight is ١٢ ص", timeAr("00:30") === "١٢:٣٠ ص", timeAr("00:30"));
+  ok("noon is ١٢ م", timeAr("12:00") === "١٢:٠٠ م", timeAr("12:00"));
+  ok("nonsense passes through unchanged", timeAr("soon") === "soon");
+  // The slot labels and the message are built from the same function, so
+  // the time a customer picked is the time the shop reads.
+  const slot = pickupSlots(new Date("2026-08-20T18:05:00"), 1)[0];
+  ok("a slot's label is timeAr of its value", slot.labelAr === timeAr(slot.value), `${slot.labelAr} / ${slot.value}`);
+}
+
+console.log("\n── the order as a WhatsApp message ──");
+{
+  const lines = [
+    { id: "m1", nameAr: "چاي كرك", priceFils: 250, qty: 2 },
+    { id: "m2", nameAr: "قهوة عربية", priceFils: 500, qty: 1 },
+  ];
+  const base = {
+    placeNameAr: "مقاهي المباركية", reference: "3F2B1C", lines, pickupAt: "18:30",
+    customerName: " سالم ", url: "https://www.wainkw.com/places/mubarakiya-tea-houses/",
+  };
+  const expected = [
+    "طلب مسبق من وين — رقم الطلب 3F2B1C",
+    "مقاهي المباركية",
+    "",
+    "٢× چاي كرك — ٠٫٥٠٠ د.ك",
+    "١× قهوة عربية — ٠٫٥٠٠ د.ك",
+    "المجموع التقريبي: ١٫٠٠٠ د.ك",
+    "",
+    "الاستلام: الساعة ٦:٣٠ م",
+    "الاسم: سالم",
+    "",
+    "الدفع عند الاستلام 👍",
+    "https://www.wainkw.com/places/mubarakiya-tea-houses/",
+  ].join("\n");
+  const text = buildOrderMessage(base);
+  ok("the message is exactly the agreed text", text === expected, JSON.stringify(text));
+  const withNote = buildOrderMessage({ ...base, noteAr: " بدون سكر " });
+  ok("a note goes on its own line after the name",
+    withNote.includes("\nالاسم: سالم\nملاحظة: بدون سكر\n\nالدفع"), JSON.stringify(withNote));
+  ok("an empty note adds no line", buildOrderMessage({ ...base, noteAr: "   " }) === expected);
+  ok("the line price is the line total, not the unit price", text.includes("٢× چاي كرك — ٠٫٥٠٠ د.ك"));
+  ok("nothing in it says paid", !/مدفوع/.test(text) && !/مدفوع/.test(withNote));
+  ok("the digits are Arabic-Indic throughout the Arabic lines",
+    !/[0-9]/.test(text.split("\n").slice(0, -1).join("\n").replace("3F2B1C", "")), text);
+  ok("the reference is carried verbatim", text.includes("3F2B1C"));
+
+  const url = whatsappOrderUrl("51234567", text);
+  ok("the link opens a chat with the shop's number", url.startsWith("https://wa.me/96551234567?text="), url.slice(0, 40));
+  const back = decodeURIComponent(url.slice(url.indexOf("?text=") + 6));
+  ok("the text survives the URL byte for byte", back === text);
+  ok("the emoji and the newlines are encoded, not raw", !url.includes("\n") && !url.includes("👍"));
+
+  const cancel = cancelOrderMessage("3F2B1C");
+  ok("the cancel text names the reference", cancel.includes("3F2B1C"), cancel);
+  ok("and asks, rather than tells", /إذا ما بدأتوا/.test(cancel), cancel);
+  ok("it is the agreed sentence",
+    cancel === "السلام عليكم، أبي ألغي الطلب رقم 3F2B1C إذا ما بدأتوا فيه. شكراً", cancel);
+}
+
+console.log("\n── validation without a phone (WhatsApp mode) ──");
+{
+  const base = {
+    placeSlug: "deera-cafe", placeNameAr: "مقهى الديرة",
+    lines: [{ id: "a", nameAr: "كرك", priceFils: 250, qty: 2 }],
+    pickupAt: "18:30", customerName: "سالم", customerPhone: "", noteAr: "",
+  };
+  ok("an empty phone passes when the shop answers in the thread",
+    validateKit(base, { phoneRequired: false }).length === 0, validateKit(base, { phoneRequired: false }).join(" | "));
+  ok("but the default still wants one", validateKit(base).length === 1);
+  ok("a name is still required", validateKit({ ...base, customerName: "" }, { phoneRequired: false }).length === 1);
+  ok("a slot is still required", validateKit({ ...base, pickupAt: "" }, { phoneRequired: false }).length === 1);
+  ok("the note cap matches the database CHECK", MAX_NOTE_CHARS === 200);
+  ok("a note over the cap is caught",
+    validateKit({ ...base, noteAr: "ن".repeat(MAX_NOTE_CHARS + 1) }, { phoneRequired: false }).length === 1);
+  ok("a note at the cap is fine",
+    validateKit({ ...base, noteAr: "ن".repeat(MAX_NOTE_CHARS) }, { phoneRequired: false }).length === 0);
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);

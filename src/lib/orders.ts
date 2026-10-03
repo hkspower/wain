@@ -9,10 +9,13 @@ import {
   retry,
 } from "@/lib/net";
 import {
-  DEFAULT_PREP_MINUTES,
-  clampPrepMinutes,
-  toArabicDigits,
-} from "@/lib/place-kit";
+  normalisePhone,
+  orderReference,
+  orderTotal,
+  validateOrder,
+  type OrderInput,
+  type OrderLine,
+} from "@/lib/order-kit";
 
 /**
  * طلب مسبق — order ahead, pay when you collect.
@@ -28,101 +31,14 @@ import {
  * order is paid when they have not paid is the one thing this must never do.
  */
 
-/* ── money ──────────────────────────────────────────────────────────────
-   Kuwait's dinar has three decimal places, not two: 1.250 KWD is one dinar
-   and 250 fils. Prices are integer fils throughout, because 0.1 + 0.2 in
-   binary floating point is not 0.3, and money that is out by a thousandth is
-   money that is wrong. Formatting to a decimal happens once, at the edge. */
-
-export const FILS_PER_DINAR = 1000;
-
-/** "٢٫٧٥٠ د.ك" — Arabic-Indic digits and the Arabic decimal separator, to
- *  match every other number on the site. */
-export function formatKwd(fils: number): string {
-  const sign = fils < 0 ? "-" : "";
-  const abs = Math.abs(Math.round(fils));
-  const dinars = Math.floor(abs / FILS_PER_DINAR);
-  const rest = String(abs % FILS_PER_DINAR).padStart(3, "0");
-  return `${sign}${toArabicDigits(dinars)}٫${toArabicDigits(rest)} د.ك`;
-}
-
-/** Parse "2.750" or "٢٫٧٥٠" into fils. Returns null for anything unparseable,
- *  so an admin typo becomes a visible error rather than a silent zero. */
-export function parseKwd(value: string): number | null {
-  const western = value
-    .trim()
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-    .replace(/٫/g, ".")
-    .replace(/[،,\s]/g, "");
-  if (!/^\d{1,5}(\.\d{0,3})?$/.test(western)) return null;
-  const [whole, frac = ""] = western.split(".");
-  return Number(whole) * FILS_PER_DINAR + Number(frac.padEnd(3, "0"));
-}
-
-export interface MenuItem {
-  /** Stable within one place; used as the line key on an order. */
-  id: string;
-  nameAr: string;
-  /** Integer fils. */
-  priceFils: number;
-  noteAr?: string;
-  /** An item can be listed but unavailable today without being deleted. */
-  soldOut?: boolean;
-}
-
-export interface OrderLine {
-  id: string;
-  nameAr: string;
-  priceFils: number;
-  qty: number;
-}
-
-export const MAX_QTY_PER_ITEM = 20;
-export const MAX_LINES = 20;
-
-export function lineTotal(line: OrderLine): number {
-  return line.priceFils * line.qty;
-}
-
-export function orderTotal(lines: OrderLine[]): number {
-  return lines.reduce((sum, l) => sum + lineTotal(l), 0);
-}
-
 /**
- * Pickup slots for the rest of today, on the half hour.
- *
- * `from` is passed in rather than read here so this is testable and so a
- * component renders the same slots it validated against — reading the clock
- * twice across a render is how a slot becomes bookable one moment and gone
- * the next.
+ * The pure half — money, slots, the reference, validation and the WhatsApp
+ * message — lives in `order-kit.ts` and is re-exported here so every caller
+ * that already imports `@/lib/orders` keeps working. New callers that only
+ * need the kit should import it directly: this module carries the Supabase
+ * client and the device store, which a message builder does not need.
  */
-export function pickupSlots(
-  from: Date,
-  count = 8,
-  prepMinutes: number = DEFAULT_PREP_MINUTES
-): { value: string; labelAr: string }[] {
-  const out: { value: string; labelAr: string }[] = [];
-  const t = new Date(from);
-  // The soonest sensible collection: the time the business says it needs,
-  // rounded up to the next half hour. A blanket half hour was wrong in both
-  // directions — too long for a karak somebody wants on the way past, and
-  // nowhere near enough for a grill.
-  t.setSeconds(0, 0);
-  t.setMinutes(t.getMinutes() + clampPrepMinutes(prepMinutes));
-  t.setMinutes(t.getMinutes() <= 30 ? 30 : 60, 0, 0);
-  for (let i = 0; i < count; i++) {
-    const h = t.getHours();
-    const m = t.getMinutes();
-    const period = h < 12 ? "ص" : "م";
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    out.push({
-      value: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
-      labelAr: `${toArabicDigits(h12)}:${toArabicDigits(String(m).padStart(2, "0"))} ${period}`,
-    });
-    t.setMinutes(t.getMinutes() + 30);
-  }
-  return out;
-}
+export * from "@/lib/order-kit";
 
 /**
  * The order's id and the secret that proves it is yours.
@@ -371,48 +287,9 @@ export async function cancelOrder(
   };
 }
 
-export interface OrderInput {
-  placeSlug: string;
-  placeNameAr: string;
-  lines: OrderLine[];
-  pickupAt: string;
-  customerName: string;
-  customerPhone: string;
-  noteAr: string;
-}
-
 export type OrderResult =
   | { ok: true; reference: string; tracked: TrackedOrder }
   | { ok: false; reason: "disabled" | "invalid" | "network"; message: string };
-
-/** Short, readable, and said out loud at a counter without confusion. */
-export function orderReference(id: string): string {
-  return id.replace(/-/g, "").slice(0, 6).toUpperCase();
-}
-
-/** Kuwaiti mobile numbers are eight digits and start 5, 6 or 9. */
-export function normalisePhone(value: string): string | null {
-  const digits = value
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-    .replace(/[^\d]/g, "")
-    .replace(/^00965/, "")
-    .replace(/^965(?=\d{8}$)/, "");
-  return /^[569]\d{7}$/.test(digits) ? digits : null;
-}
-
-export function validateOrder(input: OrderInput): string[] {
-  const errs: string[] = [];
-  if (input.lines.length === 0) errs.push("ما اخترت شي بعد.");
-  if (input.lines.length > MAX_LINES) errs.push("الطلب كبير — قلّل الأصناف.");
-  if (input.lines.some((l) => l.qty < 1 || l.qty > MAX_QTY_PER_ITEM))
-    errs.push(`الكمية لازم تكون بين ١ و ${toArabicDigits(MAX_QTY_PER_ITEM)}.`);
-  if (input.lines.some((l) => !Number.isInteger(l.priceFils) || l.priceFils < 0))
-    errs.push("في سعر مو مضبوط.");
-  if (input.customerName.trim().length < 2) errs.push("اكتب اسمك.");
-  if (!normalisePhone(input.customerPhone)) errs.push("اكتب رقم كويتي صحيح (٨ أرقام).");
-  if (!/^\d{2}:\d{2}$/.test(input.pickupAt)) errs.push("اختر وقت الاستلام.");
-  return errs;
-}
 
 /**
  * Send one basket.
