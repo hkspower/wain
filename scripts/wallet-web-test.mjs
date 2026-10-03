@@ -36,7 +36,12 @@ execFileSync('php', ['-r', `
   file_put_contents("$d/wwdr.pem", $w); file_put_contents("$d/pass.pem", $c); file_put_contents("$d/pass.key", $kp);
 `])
 
-const [orderId, track, phone] = sql("select id, track_id, customer_phone from orders where payment_status = 'paid' and customer_phone <> '' order by id limit 1").split('\t')
+const cleanCerts = () => { for (const f of ['pass.pem', 'pass.key', 'wwdr.pem']) rmSync(join(CERTS, f), { force: true }); if (madeDir) rmSync(CERTS, { recursive: true, force: true }) }
+// The stand-in certificate exists from here on; anything that fails before the main try (a stopped
+// database, say) must still take it away, or the next run refuses to start.
+let orderId, track, phone
+try { [orderId, track, phone] = sql("select id, track_id, customer_phone from orders where payment_status = 'paid' and customer_phone <> '' order by id limit 1").split('\t') }
+catch (e) { cleanCerts(); console.error('sandbox database unreachable — run bash scripts/sandbox.sh'); process.exit(1) }
 sql(`delete r from wallet_registrations r join wallet_passes p on p.serial = r.serial where p.phone = '${phone}'`)
 sql(`delete from wallet_passes where phone = '${phone}'`)
 sql('delete from rate_limit')
@@ -122,8 +127,7 @@ try {
 } finally {
   sql(`delete r from wallet_registrations r join wallet_passes p on p.serial = r.serial where p.phone = '${phone}'`)
   sql(`delete from wallet_passes where phone = '${phone}'`)
-  for (const f of ['pass.pem', 'pass.key', 'wwdr.pem']) rmSync(join(CERTS, f), { force: true })
-  if (madeDir) rmSync(CERTS, { recursive: true, force: true })
+  cleanCerts()
   rmSync(work, { recursive: true, force: true })
 }
 console.log(fails ? `\n${fails} failed` : '\nall ok — a two-language card that keeps its points current')
