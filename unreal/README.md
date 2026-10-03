@@ -1,19 +1,56 @@
 # Night Racer — Unreal Engine 5 build
 
-The full game on UE 5.4: same 7.3 km Gulf Road spline, same arcade
+The full game on UE 5.8: same 7.3 km Gulf Road spline, same arcade
 handling, same TXR battle rules as the web build — as a **code-only C++
 project**. There are no binary `.uasset`s in the repo; everything is
-generated at runtime from engine primitives, so the whole project is
-reviewable, diffable text.
+generated at runtime from engine primitives, or — for the one asset a
+packaged game cannot make for itself, the car paint — built by C++ in the
+editor, so the whole project is reviewable, diffable text.
+
+> **Not compiled here.** This repository's machines are Linux boxes with
+> no Unreal and no Windows or Apple toolchain. The 5.8 upgrade, the
+> MegaLights lamps and the Substrate paint below were written against
+> Epic's documentation and release notes — read second-hand, because the
+> pages themselves could not be fetched from the machine this was written
+> on — and have **never been built or run**. What *was* checked is
+> everything a plain-text check can see: `node
+> scripts/check-unreal-project.mjs` (no server, no engine) and the paint
+> law compiled with a bare `g++`. See "What has and has not been
+> verified" below for the line between the two.
 
 ## Open it
 
-1. Install **Unreal Engine 5.4+** from the Epic Games Launcher (with the
-   C++ toolchain: Visual Studio 2022 on Windows, Xcode on macOS).
+1. Install **Unreal Engine 5.8** (the 5.8.3 hotfix is current) from the
+   Epic Games Launcher, with its C++ toolchain:
+   - **Windows:** Visual Studio 2022 17.14 or newer (2026 recommended),
+     MSVC 14.38 or newer (14.50 recommended), Windows SDK 10.0.22621 or
+     newer.
+   - **macOS:** Sonoma 14.5 or newer and Xcode 26.0 or newer — 26.1.1 is
+     the recommended one, Epic lists **26.4 as incompatible**, and there
+     is a forum report of the 5.8 preview crashing under 26.5.
+     `mac/connect.sh` checks the Xcode version for you. Lumen hardware
+     ray tracing and MegaLights on a Mac need Apple Silicon M2 or newer
+     and are marked experimental there.
 2. Right-click `GulfRoadNights.uproject` → *Generate project files*,
-   or just double-click it and accept the "rebuild module" prompt.
-3. Press Play. The game mode spawns the track, world, player and first
-   rival automatically — no map setup needed.
+   or just double-click it and accept the "rebuild modules" prompt. Two
+   modules build: `GulfRoadNights` (the game) and `GulfRoadNightsEditor`
+   (editor only — it builds the car paint, below).
+3. Let the editor finish opening. The first time, it builds
+   `/Game/GRN/Generated/M_GRNCarPaint_v1` into `Content/` and says so in
+   the log (`LogGRNPaintEditor`). Shaders compile once; Substrate makes
+   that first compile long.
+4. Press Play. The game mode spawns the track, world, player and first
+   rival automatically — no map setup needed. `GRN.Paint.Status` in the
+   console says which paint the cars are wearing and why.
+
+The project pins its engine in three places that must agree — the
+`.uproject`'s `"EngineAssociation": "5.8"`, and
+`BuildSettingsVersion.V7` with `EngineIncludeOrderVersion.Unreal5_8` in
+**both** `Source/*.Target.cs` — and `check-unreal-project.mjs` fails if
+they do not. They are pinned rather than `Latest` so the next engine bump
+is a diff someone reads, not a side effect: V7 is the settings version
+that turns the ReturnType, Dangling and UnreachableCode warnings into
+errors.
 
 ## On macOS
 
@@ -56,9 +93,13 @@ is working perfectly all look identical from inside the game.
   `http://localhost:3000` from the editor works as-is.
 - **A packaged Mac build talking to `http://` is.** Merge
   `unreal/Build/Mac/Resources/Info-ATS.plist` into the produced
-  `Info.plist` — in UE 5.4, Project Settings → Platforms → Mac →
-  *Additional Plist Data*. The exception is scoped to `localhost` and
-  `.local`; everything else still goes through ATS.
+  `Info.plist`. 5.8 builds Mac apps through the modern-Xcode workflow,
+  where a project-level plist template can carry the exception into
+  every build; Project Settings → Platforms → Mac → *Additional Plist
+  Data* was the route on 5.4 and may still be. Neither has been watched
+  working on 5.8 — the plist's own header says what to check. The
+  exception is scoped to `localhost` and `.local`; everything else still
+  goes through ATS.
 - **An `https://` host needs none of it.** Point `-grnapi=` at one and
   delete the file.
 
@@ -77,8 +118,10 @@ npm run check:connector -- --url http://192.168.1.20:3000
 ```
 
 Different question from `npm run check:unreal`, and both are worth
-having. `check:unreal` compares the tables **baked into** `GRNTypes.h`
-against the API, so the offline fallback is correct. `check:connector`
+having. (A third, `node scripts/check-unreal-project.mjs`, needs no
+server at all — see "What has and has not been verified".)
+`check:unreal` compares the tables **baked into** `GRNTypes.h` against
+the API, so the offline fallback is correct. `check:connector`
 compares the **live path**: every JSON field `ParseGameData` reads by
 name has to exist in the payload the server is serving right now, the
 API versions have to agree, and the tables have to be non-empty. A
@@ -131,7 +174,8 @@ GulfRoadNights.exe -grnapi=https://your-site -grnhub=http://your-hub:8787
 
 `npm run check:unreal` fetches the live API and diffs it against
 `GRNTypes.h` — track points, every rival's name/crew/colour/top
-speed/body, every car's price and handling figures, the shared handling
+speed/body, every car's price and handling figures and the finish it
+leaves the factory in (against `GRNPaintLaw.h`), the shared handling
 constants, and the API version both sides claim. It exits non-zero on
 any mismatch, so the offline tables can never silently disagree with
 what an online client is racing.
@@ -271,8 +315,9 @@ the C++ left behind by a merge. Neither was visible to a constant diff.
 | `rivals.ts` roster | `GRNRivals[]` in `GRNTypes.h` |
 | `mods.ts` showroom | `GRNCars[]` — applied to the pawn by `ApplyCar`; Tab / D-pad-right cycles machines until the UMG garage lands |
 | pre-battle cinematic (slow-mo film) | time dilation 0.22× + a real camera flying the same three shots (rival orbit → side pass → chase pull-back), Start/Esc skips |
-| `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
-| `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
+| `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with a real spot light per lamp**, shadowed by MegaLights where it is on (see "MegaLights" below) |
+| `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
+| `cars.ts` paint (basecoat + clearcoat), `mods.ts` `FINISHES`, `paintMetalness` | `GRNPaint` / `GRNPaintLaw.h` — a Substrate clear coat with the web's measured roughness, finishes and metalness law, falling back to the basic-shape material (see "The car paint" below) |
 | `ik.ts` two-bone solver + constrained aim | `GRNIk::SolveTwoBone` / `GRNIk::AimConstrained` — the same closed-form law of cosines, same pole-plane basis, same world-scale lift, and the same hinge range and soft reach edge (`DriverElbowMinDeg`/`MaxDeg`, `DriverKneeMinDeg`/`MaxDeg`, `DriverSoftReach`). Those three were generated and verified for a long time while the solver here read none of them — see "What a constant check cannot see" below |
 | `characters.ts` driver rig, `driver.ts` `solveDriverRig` | `GRNDriverRig::Build` / `::Solve` — hands IK'd onto the rim, feet onto pedals that sink with the inputs, eyes into the corner, and a `Lean` joint between the root and the body so the driver leans away from lateral g and folds under braking while the hands stay pinned to grips bolted to the car. Driven for the player (`AGRNVehiclePawn::UpdateDriver`) and the rival (`AGRNRival::UpdateDriver`, including the look-over when you pull alongside) |
 | `world.ts` `setCrowdFocus` — the watching, waving crowd | `AGRNWorldBuilder::BuildCrowd` / `::SetCrowdFocus`, ticked by the game mode with the player's position |
@@ -295,8 +340,14 @@ before the first frame and sets:
   radiosity spacing 2, rough reflections traced to 0.6) — the sodium
   lamps light the asphalt for real and car paint reflects the actual
   scene. **Hardware ray tracing** feeds Lumen on GPUs that have it
-  (`r.Lumen.HardwareRayTracing`, hit-lighting mode); software Lumen is
-  the automatic fallback.
+  (`r.Lumen.HardwareRayTracing`, hit-lighting mode — what makes the clear
+  coat reflect the real road rather than the surface cache's
+  approximation of it); software Lumen is the automatic fallback.
+- **MegaLights** for the ~170 street lamps and the cars' headlights:
+  shadowed area lights at a fixed per-pixel cost, 4 samples per pixel
+  (16 on `-grnrtxultra`).
+- **Substrate** for the car paint's clear coat, in the Blendable GBuffer
+  format.
 - **Nanite** enabled project-wide, ready for scanned car/city meshes.
 - **Virtual shadow maps** at zero LOD bias; **TSR** at its
   highest-quality history preset; SSR/refraction/translucency at max;
@@ -323,6 +374,7 @@ GulfRoadNights.exe -grn2k          # 2560 x 1440
 GulfRoadNights.exe -grn1080        # 1920 x 1080
 GulfRoadNights.exe -grndlss=perf   # DLSS Performance instead of Quality
 GulfRoadNights.exe -grnnonvidia    # skip the NVIDIA path entirely
+GulfRoadNights.exe -grnnomegalights  # MegaLights off; lamps and headlights unshadowed
 ```
 
 The shadow atlas and streaming pool scale with the preset rather than
@@ -330,10 +382,10 @@ sitting at one compromise value — a 4K frame carries 2.25x the pixels of
 1440p, and a shadow atlas sized for 1440p shows it.
 
 `ApplyNvidia` turns on hardware ray tracing for Lumen (GI, reflections
-and translucency), ray-traced shadows and AO, and pushes reflections past
-the usual roughness cutoff to 0.75 — wet asphalt under sodium light is
-the entire look of a night corniche, and that is exactly the roughness
-range it lives in.
+and translucency) and ray-traced shadows for any light MegaLights is not
+drawing, and pushes reflections past the usual roughness cutoff to
+0.75 — wet asphalt under sodium light is the entire look of a night
+corniche, and that is exactly the roughness range it lives in.
 
 DLSS and Reflex are **plugin-provided**. The console variables are set
 unconditionally because an unrecognised variable is a no-op, so the same
@@ -352,9 +404,10 @@ milliseconds:
   radiosity spacing 1, reflections traced to roughness 1.0. The corniche
   is lit almost entirely by many small sodium sources, which is the case
   that punishes a sparse probe grid hardest.
-- **Ray-traced shadows and AO at 4 samples per pixel** rather than the
-  denoised default — the lamp posts cast the long shadows the whole look
-  rests on, and they are what shows undersampling first.
+- **MegaLights at 16 samples per pixel** rather than 4, and ray-traced
+  shadows at 4 for anything it is not drawing — the lamp posts cast the
+  long shadows the whole look rests on, and a stochastic light sampler
+  shows undersampling as crawling noise in exactly those penumbrae.
 - **Nanite and virtual shadow maps unclamped** (0.5 px per edge, 16k
   pages, 16 SMRT rays), volumetric fog at a 4 px grid, and a 12 GB
   streaming pool, because a 5090 carries 32 GB and there is no reason to
@@ -373,9 +426,227 @@ gameplay mode.
 
 **Building it is a Windows job.** This repo carries the source, the
 config and the data pipeline — it cannot compile or package itself here.
-Generate project files, open in UE 5.4+, and package for Win64. The DLSS
+Generate project files, open in UE 5.8, and package for Win64 — the
+packaging settings always-cook `/Game/GRN/Generated` so the paint goes
+with it (see "The car paint"). The DLSS
 options above additionally need the NVIDIA DLSS plugin installed; without
 it those console variables are simply unrecognised and ignored.
+
+## MegaLights: the street lamps as real lights
+
+The corniche is lit by about 170 sodium lamps — 7.3 km at one every
+42 m — and the cars' own headlights, some thirty of them. Every lamp has
+always had a real spot light, and every one of them was **unshadowed**,
+because a shadowed light used to mean a shadow map per light and 170
+shadow maps is not a frame budget anyone has. (The source said Lumen made
+them cheap. Lumen never did: it gathers bounce light from what direct
+lighting has already lit. They were cheap because they cast nothing.)
+
+MegaLights changes the arithmetic. It is production-ready in 5.8, and it
+prices a shadowed light per **pixel** rather than per light: each pixel
+samples a few lights and traces their shadows, so the cost holds still as
+the count climbs. So, in `GRNWorldBuilder::BuildStreetLights` and in the
+car factory's headlight:
+
+- **Shadows on — where MegaLights is drawing.**
+  `GRNGraphics::MegaLightsActive()` needs four yeses:
+  `r.MegaLights.EnableForProject` (on, in `DefaultEngine.ini`),
+  `r.MegaLights.Allow`, an SM6 renderer (MegaLights has no SM5 path on
+  desktop) and hardware ray tracing (`IsRayTracingEnabled()`). Where any
+  says no, the lamps are built exactly as before — unshadowed — so an
+  engine without MegaLights, a GPU that cannot run it, a device profile
+  or `-grnnomegalights` never pays for 170 shadow maps. The log says
+  which it built.
+- **Not the boot rung.** `DefaultScalability.ini` says `r.MegaLights.Allow`
+  off on Low and Medium and on from High, but `ApplyMax` puts every group
+  at Cinematic — and saves it — before the world is built, so the first
+  build always reads Cinematic's yes. The first version of this switch
+  read nothing else, which made it the project switch alone: any GPU,
+  including one with no MegaLights, got ~170 lamps and ~30 headlights
+  shadowed the old way. What survives `ApplyMax` is what outranks
+  scalability (a device profile, `-grnnomegalights`, the console) and
+  the GPU itself, and those are what the switch now reads.
+- **Following the switch, not just asking once.** Every lamp and
+  headlight is made through `GRNGraphics::FollowMegaLights`, which tags
+  it and re-applies the answer whenever `r.MegaLights.Allow` or the
+  project switch changes. Without that, lowering the rung mid-session
+  (`scalability 1`) would turn MegaLights off under lights still built
+  shadowed — a shadow map each, the cost the rung was lowered to shed.
+  Now they go unshadowed with it, and come back when it is raised.
+- **A real source size.** The lamp is 12 cm across and 50 cm long, the
+  emitting area of a cobra-head's refractor, and its tube lies along the
+  arm as the lantern does. The headlight is 9 cm. A point source puts a
+  pinprick in a clear coat; a sized one puts the elongated sodium bar a
+  car passing under a real lamp wears — which is half of why the paint
+  below looks like paint.
+- **Movable, before registering.** A light component defaults to
+  Stationary, which promises the renderer precomputed shadowing this
+  procedural project never builds.
+
+The lamps keep MegaLights' default shadow method (ray tracing, fixed
+cost); the virtual-shadow-map method is per-light expensive. Hardware ray
+tracing is required on purpose: without it MegaLights falls back to
+tracing the global distance field, whose quality Epic calls significantly
+reduced, and whether 5.8 takes that fallback for every light on every
+such card could not be confirmed from here. Requiring it costs the
+shadows on a GPU that might have drawn them; not requiring it, if the
+fallback is not taken, costs a shadow map per lamp. What the switch
+still cannot see is what the renderer decides per view — a post-process
+volume turning MegaLights off, say. The MegaLights visualisation in the
+editor's view modes is the check, and `ProfileGPU` is the cost.
+
+**The road cannot be seen by the software tracers.** It is a
+`UProceduralMeshComponent`, which has no mesh distance field, so on a GPU
+without hardware ray tracing Lumen's software path (and MegaLights'
+distance-field fallback, for any shadowed light it draws there) passes
+straight through it. The lamps no longer take that path — without
+hardware RT they are unshadowed — but Lumen still does. On hardware RT it
+is fine. Moving the road to `UDynamicMeshComponent`, which gained Lumen
+support around 5.5, is the fix and a separate job.
+
+## The car paint: a Substrate clear coat
+
+Every car in this port used to wear the engine's basic-shape material
+with one parameter set — `Color` — and nothing else: no clear coat, no
+metal, the same surface on a matte pickup and a gloss supercar. The web
+build's paint is a two-layer thing, a metallic basecoat under a lacquer,
+and its numbers were **measured**, not picked: `src/game/cars.ts` records
+the basecoat roughness swept from 0.29 to 0.10 against a live frame
+(0.29 put 68% of the body inside the highlight; 0.18 put 17% there and
+is the knee), and the clearcoat roughness taken to 0.06 because at 0.13
+it smeared the lamp it reflected and at 0.03 a flawless coat reads as a
+neon strip.
+
+Substrate is what lets Unreal draw that as two layers. The port now does:
+
+| | gloss | satin | matte |
+| --- | --- | --- | --- |
+| clear coat | 1 | 0.45 | 0 |
+| clear coat roughness | 0.06 | 0.42 | 1 |
+| basecoat roughness | 0.18 | 0.34 | 0.56 |
+| metalness × | 1 | 0.8 | 0.25 |
+
+with the metalness itself from the web's law (`paintMetalness`): metallic
+in the mid-tones, falling toward solid for pale paints (at metalness near
+1 a white car is a mirror of the sodium sky, and the web fleet's pale cars
+came out gold) and for near-blacks (F0 *is* the base colour, and a
+metallic near-black reflects about half a percent of the light), and 0
+for any paint `paints.ts` declares solid. Across the 17 showroom cars that
+is 0 (the satin white Wain Special, a declared solid) to 0.95; the matte
+Falcon 720 and Jahra pickup come down to 0.24.
+
+Each car wears the finish it leaves the factory in (`mods.ts`): six of
+the seventeen are not gloss. The live path reads it from the API's
+`cars[].finish`; the baked path from `GRNPaintLaw.h`; a rival wears the
+finish of the car it brings, as `engine.ts` does — so the legend in the
+Falcon 720 brings it matte. Not ported, on purpose: `envScale` (a three.js
+environment-map gain; under Lumen the reflection *is* the scene) and the
+flake and orange peel the web team measured making the car look worse.
+A finish bought in the garage is not ported either: this port's save has
+no per-car equipped parts yet, so every car wears its factory finish.
+
+### Why it is built by the editor, and what happens when it is not
+
+A packaged game cannot create a material — shaders are compiled at cook
+time; at runtime only a dynamic instance of an existing one can be made.
+So the clear coat is a real asset, `/Game/GRN/Generated/M_GRNCarPaint_v1`,
+built from C++ by the **`GulfRoadNightsEditor`** module (an Editor-type
+module: it never reaches the game target):
+
+- **Automatically**, the first time the editor opens a project that does
+  not have it (`UGRNPaintEditorSubsystem`, after the asset registry's
+  initial scan; never inside a commandlet, so a cook cannot write assets
+  behind its own back).
+- **Headless**, for CI or before a cook:
+
+  ```
+  UnrealEditor-Cmd GulfRoadNights.uproject -run=GRNBuildPaint
+  UnrealEditor-Cmd GulfRoadNights.uproject -run=GRNBuildPaint -force
+  ```
+
+  `-force` rebuilds it in place. Exit code 1 if the paint was not built —
+  including with Substrate off, because a pipeline that asked for the
+  paint should stop rather than cook a build that quietly lacks it.
+
+The graph is Substrate *Metalness-To-DiffuseAlbedo-F0* → *Simple Clear
+Coat* → Front Material, with six parameters: `Color`, `Metalness`,
+`Specular`, `BaseRoughness`, `ClearCoat`, `ClearCoatRoughness`. Each node
+input is wired through its C++ member, so a Substrate input that a later
+engine renames is a **compile error** rather than a silently unconnected
+pin and a grey car. The names live once, in `GRNPaint.h`, and the check
+fails if any is typed anywhere else. The version is in the asset's name:
+a changed graph becomes `_v2`, and a stale `_v1` simply reads as absent.
+`Content/` is gitignored, so the asset never enters the repository — the
+graph that makes it is the reviewable part. `DefaultGame.ini` always-cooks
+`/Game/GRN/Generated`, because nothing references the paint by anything
+but a string; it does the same for `/Game/VehicleVarietyPack`, which had
+the same gap and predates the paint — the Fab hero art would not have
+been cooked either.
+
+**The fallback.** `GRNPaint::CreatePaintMid` decides once per session, in
+the order things go wrong:
+
+1. `r.Substrate` is on, the asset exists, it loads, and it is a material
+   → the clear coat, every parameter set.
+2. Anything else → a dynamic instance of the basic-shape material with
+   `Color` — exactly what every car was before.
+
+It says which, once, at Display (`LogGRNPaint`), and on demand:
+
+```
+GRN.Paint.Status
+```
+
+in the console: the paint, the reason, the asset path and `r.Substrate`.
+It asks again rather than repeating the boot answer, so building the
+asset mid-session and running it is enough; the next car built (Tab
+cycles yours) picks it up. A hero body from Fab keeps the material it was
+authored with either way — see "Respray, plainly" below.
+
+A **v2** graph — a real coat slab over a base slab, joined by Vertical
+Layer and weighted by `ClearCoat` — needs the Adaptive GBuffer format
+(`r.Substrate.ProjectGBufferFormat=1`) and costs more per pixel. It is
+worth building only if side-by-side stills of v1 against the web build at
+the same paint colour say v1 is not enough.
+
+## The 5.8 upgrade, line by line
+
+Nothing below was reported removed between 5.5 and 5.8 by any source this
+was written from, and the first 5.8 compile is the real test. What
+changed, and why:
+
+- **Includes made explicit** where a strict include order stops handing
+  them over through the shared PCH: `Misc/CommandLine.h` (GRNApi),
+  `Engine/Engine.h` and `Engine/World.h` (GRNHud), `Engine/StaticMesh.h`
+  (GRNWorldBuilder), `Components/StaticMeshComponent.h` and
+  `Components/InputComponent.h` (GRNVehiclePawn),
+  `Components/SpotLightComponent.h` (GRNTraffic), `Engine/World.h` and
+  `GameFramework/PlayerController.h` (GRNGameMode). The check knows which
+  uses need which header and fails on the next one.
+- **`FJsonObject`'s keys became `UE::FSharedString` in 5.8.** That breaks
+  code that iterates `Values`; GRNApi only calls `Get*Field` /
+  `TryGet*Field` with literals, so nothing changed. Every `UE_LOG`,
+  `Printf` and `Logf` was audited against 5.8's compile-time
+  argument-count check.
+- **Input stays on `BindAxis` / `BindAction` and `DefaultInput.ini`.**
+  Deprecated since 5.1/5.2, not removed as far as anything here could
+  find; they warn. Enhanced Input can be built entirely in code
+  (`NewObject<UInputAction>` / `UInputMappingContext`) and still needs no
+  assets — the follow-up. **Check in Play-In-Editor that W and Space
+  still drive the car.**
+- **Config.** `[/Script/Engine.RendererSettings.RayTracing]` is not a
+  section the engine has, so its three keys were never read; it is gone.
+  `r.RayTracing.AmbientOcclusion` only ever ran with Lumen GI off and the
+  legacy ray-traced passes were dropped in 5.4; `r.Lumen.TraceMeshSDFs`
+  asked for detail traces deprecated in 5.6. Both are gone from the ini
+  and from `GRNGraphics`. MegaLights and Substrate are on; mesh distance
+  fields stay on, because Lumen's software path traces them — and so
+  would MegaLights' fallback, for any shadowed light it drew without
+  hardware ray tracing. The lamps are not shadowed there any more.
+- **Two port bugs fixed on the way.** `AGRNGameMode::ApplyCar`'s no-API
+  copy of `GetCar` dropped `LengthM`, so that path built the car at its
+  silhouette's reference size; and the headlights and lamps were
+  Stationary components on things that move.
 
 ## High-end assets from Fab
 
@@ -450,7 +721,7 @@ in, *Add to project*. Then, per vehicle:
   use it. If a vehicle is only a skeletal rig — which is how vehicle
   packs are built, because the wheels are bones on the skeleton — bake
   one: open it in the Skeletal Mesh editor and use **Make Static Mesh**.
-  *(Its exact place in the 5.4 menus is not something this repository can
+  *(Its exact place in the 5.8 menus is not something this repository can
   confirm; if it is not there, drop the rig into a level and use the
   level editor's convert-to-static-mesh instead.)*
 - **Copy the path.** Right-click the asset → **Copy Reference** gives
@@ -487,6 +758,71 @@ guarantee is that the import's own material survives at all: it makes a
 dynamic instance *of the material already in the slot*, where it used to
 assign one parented to the engine cube and render a scanned car flat
 grey.
+
+## What has and has not been verified
+
+**Verified here, without Unreal** — `node scripts/check-unreal-project.mjs`:
+
+- One engine version everywhere: the `.uproject`, both targets'
+  `BuildSettingsVersion` and `IncludeOrderVersion`, and both READMEs.
+- The editor module is Editor-type, in the editor target and not the game
+  target; the runtime `Build.cs` names no editor-only module; no editor
+  header is included outside `WITH_EDITOR`; every engine header either
+  module includes belongs to a module its `Build.cs` depends on; the
+  editor module calls nothing from the runtime module that is not inline
+  (nothing there is exported, so a call would not link).
+- Every use of an engine type the check knows (52 today) has the header
+  that declares it, and every `.cpp`'s own header comes first.
+- No two `.cpp` files in a module keep a file-local name the other also
+  keeps. A unity build pastes them into one translation unit, where two
+  anonymous-namespace `Cube()`s are a redefinition error; UnrealBuildTool
+  only unity-builds a game module from 32 source files on and this one
+  has 15, which is the only reason the three that already exist
+  (`Cube`, `Cyl`, `Mid` in GRNCarFactory.cpp and GRNDriverRig.cpp) have
+  never bitten. They are recorded as a baseline; a new one fails.
+- The ini keys above are present, in sections that exist; the dead
+  variables are gone; the always-cook list covers the paint and the hero
+  art, derived from the paths in the code.
+- Lamps and headlights shadow only through `FollowMegaLights()` — no
+  other `SetCastShadows` anywhere in the runtime module — and
+  `MegaLightsActive()` reads both variables, the SM6 feature level and
+  `IsRayTracingEnabled()`; `-grnnomegalights` is parsed where this README
+  says it is; every spot light is Movable before it registers.
+- The paint's parameter names are spelled only in `GRNPaint.h`, declared
+  by the graph and set by the instance; the fallback ladder is intact;
+  the commandlet's run name matches what the docs and log messages quote.
+- The finishes, base roughness, declared solids, retired swatches and
+  per-car factory finishes match `mods.ts`, `cars.ts` and `paints.ts`, and
+  **the metalness law, compiled with `g++ -Wall -Wextra -Wshadow
+  -Werror`, gives bit-identical answers to the web's own `paintMetalness`
+  on 4,308 colours** — every paint, car and rival, all 256 greys and a
+  fixed sweep.
+
+**Not verified — needs a 5.8 editor on a real machine:**
+
+- That it compiles at all. In particular the Substrate node members the
+  paint builder names (`BaseColor`, `Metallic`, `Specular` on
+  Metalness-To-DiffuseAlbedo-F0; `DiffuseAlbedo`, `F0`, `Roughness`,
+  `ClearCoatCoverage`, `ClearCoatRoughness` on Simple Clear Coat), and
+  `BuildSettingsVersion.V7` itself, which came from third-party upgrade
+  write-ups rather than Epic's page.
+- That the Simple Clear Coat renders correctly in the Blendable format.
+- That `r.MegaLights.Allow` belongs in `ShadowQuality` — if 5.8's
+  `BaseScalability.ini` sets it in a group applied later, that wins.
+- That `IConsoleVariable::OnChangedDelegate` fires for a scalability
+  change as it does for a console one (`scalability 1` then `scalability
+  4` in Play-In-Editor: the log line `GRNGraphics: MegaLights off, N
+  lamps and headlights re-lit unshadowed` and back), and that
+  `IsRayTracingEnabled()` and `GMaxRHIFeatureLevel` are still spelled so
+  in 5.8.
+- `r.MegaLights.NumSamplesPerPixel` 4 and 16: 2, 4 and 16 were the
+  supported values when MegaLights shipped, and 5.8 may have moved them.
+  5.8 also added `r.MegaLights.ScreenTraces.Quality`; its range is not
+  known here, so it is left at the engine's default rather than guessed.
+- The cost. Turn MegaLights on, look at its visualisation, run
+  `ProfileGPU`; turn Substrate on, restart, run `-run=GRNBuildPaint`, and
+  compare stills against the web build's at the same paint colour.
+- Gamepad and keyboard input in Play-In-Editor.
 
 ## Where to take it next
 

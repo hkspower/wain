@@ -1,5 +1,7 @@
 #include "GRNCarFactory.h"
 #include "GRNHeroArt.h"
+#include "GRNPaint.h"
+#include "GRNGraphics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -103,10 +105,18 @@ static float StyleRefWidth(EGRNBodyStyle Style)
 
 FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit, float LengthM,
-	const FGRNHeroAssets* Hero)
+	const FGRNHeroAssets* Hero, float PaintMetal, EGRNFinish Finish)
 {
 	FGRNCarRig Rig;
-	Rig.PaintMid = Mid(Parent, Paint);
+	// The body paint: the Substrate clear coat when the project has it,
+	// and otherwise exactly the basic-shape MID this line always made —
+	// GRNPaint decides, once, and says which. Only the BODY paint goes
+	// through it; the trim, glass, lens and wheel MIDs below are not paint
+	// and stay on the basic material. `Color` is the respray parameter on
+	// either path, so Rig.PaintParam needs no branch.
+	const float Metal = PaintMetal >= 0.f ? PaintMetal : GRNPaint::Metalness(Paint.ToFColor(/*bSRGB=*/true));
+	Rig.PaintMid = GRNPaint::CreatePaintMid(Parent, Cube() ? Cube()->GetMaterial(0) : nullptr,
+		Paint, Metal, Finish);
 	UMaterialInstanceDynamic* Dark = Mid(Parent, FLinearColor(0.02f, 0.02f, 0.025f));
 	UMaterialInstanceDynamic* Glass = Mid(Parent, FLinearColor(0.03f, 0.04f, 0.06f));
 	Rig.TailMid = Mid(Parent, FLinearColor(0.6f, 0.05f, 0.05f));
@@ -368,8 +378,15 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		Rig.Wheels.Add(Wheel);
 	}
 
-	// Headlight beam, warm like the web build
+	// Headlight beam, warm like the web build.
+	//
+	// Movable, and said so BEFORE it registers: a light component's own
+	// default is Stationary, which on a car that never stops moving tells
+	// the renderer the light will not move. With nothing baked in this
+	// project that happened to draw like a dynamic light; a shadowed one
+	// should not lean on it.
 	Rig.Headlight = NewObject<USpotLightComponent>(Parent);
+	Rig.Headlight->SetMobility(EComponentMobility::Movable);
 	Rig.Headlight->RegisterComponent();
 	Rig.Headlight->AttachToComponent(AttachTo, FAttachmentTransformRules::KeepRelativeTransform);
 	Rig.Headlight->SetRelativeLocation(FVector(BodyLen * 0.5f, 0, 1.1f * K) * 100.f);
@@ -378,7 +395,17 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	Rig.Headlight->SetLightColor(FColor(0xFF, 0xF2, 0xCC));
 	Rig.Headlight->SetOuterConeAngle(28.f);
 	Rig.Headlight->SetAttenuationRadius(9000.f);
-	Rig.Headlight->SetCastShadows(false);
+	// A lamp the size of a lamp: 9 cm, half a reflector headlamp's lens.
+	// A point source puts a pinprick in another car's clear coat; a real
+	// one puts the lamp there. A shading parameter, not a shadow — there
+	// is no extra pass for it, so it is set whether or not MegaLights is.
+	Rig.Headlight->SetSourceRadius(9.f);
+	// Shadowed only where MegaLights is drawing it. Thirty-odd shadowed
+	// spot lights are a fixed per-pixel cost under MegaLights and thirty-
+	// odd shadow maps without it — the same reasoning, and the same
+	// switch, as the street lamps in GRNWorldBuilder; and like them it
+	// follows the switch if it changes while the car is on the road.
+	GRNGraphics::FollowMegaLights(Rig.Headlight);
 
 	return Rig;
 }

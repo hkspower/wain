@@ -14,6 +14,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GRNTypes.h"
+#include "GRNPaintLaw.h"
 #include "GRNApi.generated.h"
 
 /** The payload version this client understands. */
@@ -79,6 +80,12 @@ struct FGRNRuntimeCar
 	 *  size. It matters most to imported art: GRNCarFactory scales a Fab
 	 *  or Megascans body so its X extent is exactly this. */
 	UPROPERTY() float LengthM = 0.f;
+	/** The lacquer it leaves the factory in — gloss, satin or matte. Read
+	 *  from the payload's `finish` on the live path and from
+	 *  GRNPaintLaw::FactoryFinishes on the baked one, so both paths paint
+	 *  the matte pickup matte. Only the Substrate clear coat can show it;
+	 *  see GRNPaint.h. */
+	EGRNFinish Finish = EGRNFinish::Gloss;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FGRNOnGameDataReady, bool /*bFromNetwork*/);

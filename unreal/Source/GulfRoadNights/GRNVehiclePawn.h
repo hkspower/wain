@@ -97,9 +97,13 @@ public:
 
 	/** Rebuild the visible car (garage swap / respray / wing). */
 	/** LengthM is the length on the car's own card. Zero falls back to
-	 *  the silhouette's reference machine — see GRNCarFactory::Build. */
+	 *  the silhouette's reference machine — see GRNCarFactory::Build.
+	 *  PaintMetal and Finish go straight to the factory: the paint's
+	 *  metalness from its sRGB bytes (negative derives it) and the
+	 *  lacquer the car left the factory in. */
 	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
-		bool bAttackKit = false, float LengthM = 0.f);
+		bool bAttackKit = false, float LengthM = 0.f,
+		float PaintMetal = -1.f, EGRNFinish Finish = EGRNFinish::Gloss);
 	FGRNCarRig Rig;
 	/** Somebody is driving this: hands solved onto the wheel, feet onto
 	 *  the pedals, eyes into the corner. See GRNDriverRig.h. */

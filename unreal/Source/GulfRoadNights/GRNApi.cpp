@@ -1,10 +1,12 @@
 #include "GRNApi.h"
+#include "GRNPaint.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "Engine/GameInstance.h"
@@ -161,6 +163,14 @@ void UGRNApiSubsystem::ParseGameData(const FString& Json)
 			// The length on the card. GRNCarFactory fits both the primitive
 			// shell and any imported hero body to exactly this.
 			C.LengthM = (float)O->GetNumberField(TEXT("lengthM"));
+			// The finish it leaves the factory in. Published as `finish`,
+			// nullable; a car the payload says nothing about takes this
+			// build's own table rather than a blind gloss, so the live and
+			// baked paths agree on every car both of them know.
+			FString Finish;
+			C.Finish = O->TryGetStringField(TEXT("finish"), Finish)
+				? GRNPaint::FinishFromString(Finish)
+				: GRNPaint::FactoryFinish(C.Id);
 			Cars.Add(MoveTemp(C));
 		}
 	}
@@ -317,6 +327,7 @@ FGRNRuntimeCar UGRNApiSubsystem::GetCar(int32 Index) const
 	C.Style = D.Style;
 	C.bAttackKit = D.bAttackKit;
 	C.LengthM = D.LengthM;
+	C.Finish = GRNPaint::FactoryFinish(C.Id);
 	return C;
 }
 

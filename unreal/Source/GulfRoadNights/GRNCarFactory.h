@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "GRNTypes.h"
+#include "GRNPaintLaw.h"
 #include "GRNCarFactory.generated.h"
 
 class UStaticMesh;
@@ -131,10 +132,21 @@ namespace GRNCarFactory
 	/** Hero, when given and its Body is set, replaces the primitive
 	 *  bodywork and (if its Wheel is set) the cylinders — see
 	 *  FGRNHeroAssets. The aero, lamps and stance are the art's own. */
+	/** PaintMetal is the web's metalness law for this colour, before the
+	 *  finish — GRNPaint::Metalness on the colour's sRGB BYTES. Negative
+	 *  derives it from Paint, which is right for a colour that never had
+	 *  bytes (the traffic tints) and wrong by a byte at worst for one
+	 *  that did — and a byte is enough to miss a declared solid, whose
+	 *  lookup is by exact hex, so a caller holding the FColor passes it.
+	 *  Finish is the lacquer: gloss, satin or matte, as mods.ts has it.
+	 *  Both only reach the Substrate clear coat; on the basic-shape
+	 *  fallback (GRNPaint.h) the car is `Color` only, as it always was,
+	 *  and a hero body keeps the material it was authored with. */
 	FGRNCarRig Build(AActor* Parent, USceneComponent* AttachTo,
 		EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
 		bool bAttackKit = false, float LengthM = 0.f,
-		const FGRNHeroAssets* Hero = nullptr);
+		const FGRNHeroAssets* Hero = nullptr,
+		float PaintMetal = -1.f, EGRNFinish Finish = EGRNFinish::Gloss);
 
 	/** Advance wheel spin from road speed (m/s). */
 	void SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt);

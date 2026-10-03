@@ -11,7 +11,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "GRNGraphics.h"
 #include "GRNApi.h"
+#include "GRNPaint.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 
 AGRNGameMode::AGRNGameMode()
 {
@@ -158,7 +161,11 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 		: [&] { FGRNRuntimeCar C; const FGRNCarDef& D = GRNCars[CurrentCarIdx];
 			C.Id = D.Id; C.Name = D.Name; C.Price = D.Price; C.Power = D.Power;
 			C.TopSpeedKmh = D.TopSpeedKmh; C.Grip = D.Grip; C.Brake = D.Brake;
-			C.Paint = D.Paint; C.Style = D.Style; C.bAttackKit = D.bAttackKit; return C; }();
+			C.Paint = D.Paint; C.Style = D.Style; C.bAttackKit = D.bAttackKit;
+			// These two were missing from this copy of GetCar, so a pawn built
+			// with no API subsystem came out at its silhouette's reference
+			// length — and would have worn gloss whatever its card said.
+			C.LengthM = D.LengthM; C.Finish = GRNPaint::FactoryFinish(C.Id); return C; }();
 	Player->PowerMult = Car.Power;
 	Player->TopSpeedKmh = Car.TopSpeedKmh;
 	Player->GripAccel = Car.Grip;
@@ -170,8 +177,12 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 	{
 		bWing = Save->OwnedParts.Contains(TEXT("spoiler"));
 	}
-	// The length off the card, so the car is the size of the car.
-	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing, Car.bAttackKit, Car.LengthM);
+	// The length off the card, so the car is the size of the car — and the
+	// paint's metalness off its sRGB bytes (Car.Paint is the FColor the
+	// card carries, so a declared solid is matched exactly), with the
+	// finish it left the factory in.
+	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing, Car.bAttackKit, Car.LengthM,
+		GRNPaint::Metalness(Car.Paint), Car.Finish);
 	CurrentCarId = Car.Id;
 }
 

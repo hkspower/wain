@@ -3,6 +3,7 @@
 #include "GRNVehiclePawn.h"
 #include "GRNCarFactory.h"
 #include "GRNApi.h"
+#include "GRNPaint.h"
 
 AGRNRival::AGRNRival()
 {
@@ -34,9 +35,13 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 	{
 		const FGRNRuntimeRival R = Api->GetRival(DefIndex);
 		const FGRNRuntimeCar Car = Api->FindCar(R.CarId);
+		// And in the finish of that car, as engine.ts does
+		// (`finish: rivalCar?.finish`): the Falcon 720 is sold matte, and
+		// the legend who brings one brings it matte.
 		Rig = GRNCarFactory::Build(this, RootComponent, R.Style,
 			FLinearColor(R.BodyColor), /*bWing=*/R.Style == EGRNBodyStyle::GTR,
-			/*bAttackKit=*/false, /*LengthM=*/Car.LengthM, &HeroAssets);
+			/*bAttackKit=*/false, /*LengthM=*/Car.LengthM, &HeroAssets,
+			GRNPaint::Metalness(R.BodyColor), Car.Finish);
 	}
 	else
 	{
@@ -52,7 +57,8 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 		}
 		Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
 			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR,
-			/*bAttackKit=*/false, /*LengthM=*/LengthM, &HeroAssets);
+			/*bAttackKit=*/false, /*LengthM=*/LengthM, &HeroAssets,
+			GRNPaint::Metalness(Def.BodyColor), GRNPaint::FactoryFinish(Def.CarId));
 	}
 
 	// A legend at the wheel, not an empty car pulling alongside you.

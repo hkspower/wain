@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.4",
+	"EngineAssociation": "5.8",
 	"Category": "Game",
 	"Description": "Night Racer — Kuwait Xtreme Racer. Tokyo-style midnight highway battles on Kuwait's real Gulf Road.",
 	"Modules": [
@@ -12,6 +12,11 @@
 				"Engine",
 				"ProceduralMeshComponent"
 			]
+		},
+		{
+			"Name": "GulfRoadNightsEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

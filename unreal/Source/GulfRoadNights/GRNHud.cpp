@@ -5,6 +5,8 @@
 #include "GRNTrack.h"
 #include "GRNApi.h"
 #include "Engine/Canvas.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
 void AGRNHud::DrawBar(float X, float Y, float W, float H, float Frac, FLinearColor Fill)

@@ -2,6 +2,7 @@
 #include "GRNTrack.h"
 #include "GRNTypes.h"
 #include "GRNVehiclePawn.h"
+#include "Components/SpotLightComponent.h"
 
 static const FLinearColor GTrafficColors[] = {
 	FLinearColor(0.55f, 0.56f, 0.6f), FLinearColor(0.08f, 0.09f, 0.1f),
@@ -22,6 +23,10 @@ void AGRNTraffic::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 Seed
 	S = Track->Wrap(Rand.FRandRange(0.f, Track->LapLength()));
 	Lat = GRNLanes[Rand.RandRange(0, 3)];
 	SpeedMs = Rand.FRandRange(18.f, 27.f);
+	// Paint metalness from the tint itself (the factory's default): these
+	// four are typed as linear colours, never had sRGB bytes, and none is
+	// a declared solid, so there is no exact-hex lookup to miss. Gloss,
+	// the default: a civilian has no showroom card to carry a finish.
 	Rig = GRNCarFactory::Build(this, RootComponent, EGRNBodyStyle::Sedan,
 		GTrafficColors[Seed % UE_ARRAY_COUNT(GTrafficColors)], false,
 		/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);

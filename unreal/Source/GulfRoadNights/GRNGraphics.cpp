@@ -1,12 +1,68 @@
 #include "GRNGraphics.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Components/LocalLightComponent.h"
 #include "Engine/Engine.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "UObject/UObjectIterator.h"
+#include "RenderUtils.h"
+#include "RHI.h"
 
 namespace
 {
+	// Worn by every light whose shadows follow MegaLightsActive(). A
+	// function-local static, not a file-scope FName, so nothing builds a
+	// name before the name table exists.
+	const FName& MegaShadowTag()
+	{
+		static const FName Tag(TEXT("GRN.MegaShadow"));
+		return Tag;
+	}
+
+	// The answer changed (or may have: a scalability apply sets the
+	// variable whether or not its value moves). Every tagged light still
+	// standing takes the new answer; one already right is left alone, so
+	// a repeat costs a walk over the light components and nothing else —
+	// a few hundred objects, not a frame's worth.
+	void RelightFollowers(IConsoleVariable* /*Changed*/)
+	{
+		const bool bShadowed = GRNGraphics::MegaLightsActive();
+		int32 Relit = 0;
+		for (TObjectIterator<ULocalLightComponent> It; It; ++It)
+		{
+			ULocalLightComponent* Light = *It;
+			if (!IsValid(Light) || Light->IsTemplate() || !Light->IsRegistered()) continue;
+			if (!Light->ComponentHasTag(MegaShadowTag())) continue;
+			if ((Light->CastShadows != 0) == bShadowed) continue;
+			Light->SetCastShadows(bShadowed);
+			Relit++;
+		}
+		if (Relit > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("GRNGraphics: MegaLights %s, %d lamps and headlights re-lit %s"),
+				bShadowed ? TEXT("on") : TEXT("off"), Relit, bShadowed ? TEXT("shadowed") : TEXT("unshadowed"));
+		}
+	}
+
+	// Once per process. The variables outlive every world, and so does a
+	// static callback; the lights it touches are found fresh each time.
+	void WatchMegaLights()
+	{
+		static bool bWatching = false;
+		if (bWatching) return;
+		bWatching = true;
+		const TCHAR* Watched[] = { TEXT("r.MegaLights.Allow"), TEXT("r.MegaLights.EnableForProject") };
+		for (const TCHAR* Name : Watched)
+		{
+			if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name))
+			{
+				Var->OnChangedDelegate().AddStatic(&RelightFollowers);
+			}
+		}
+	}
+
 	FIntPoint ResolutionFor(GRNGraphics::EPreset Preset)
 	{
 		switch (Preset)
@@ -43,7 +99,11 @@ void GRNGraphics::ApplyMax(UObject* WorldContext)
 		S->SetFullscreenMode(EWindowMode::Fullscreen);
 		S->SetVSyncEnabled(false);
 		S->SetFrameRateLimit(0.f); // let TSR + the GPU decide
-		// 4 = Cinematic across every scalability group
+		// 4 = Cinematic across every scalability group. ApplySettings below
+		// also saves it, so the level the NEXT launch starts from is 4 as
+		// well: no per-rung switch in DefaultScalability.ini is ever what
+		// the world is built under. MegaLightsActive says what that means
+		// for the lamps' shadows.
 		S->SetOverallScalabilityLevel(4);
 		S->ApplySettings(false);
 	}
@@ -55,11 +115,23 @@ void GRNGraphics::ApplyMax(UObject* WorldContext)
 		TEXT("r.ScreenPercentage 100"),
 		TEXT("r.SecondaryScreenPercentage.GameViewport 0"),
 
-		// Lumen: the sodium lamps and paint reflections carry the look
+		// Lumen: the sodium lamps and paint reflections carry the look.
+		//
+		// r.Lumen.TraceMeshSDFs 1 used to sit here. Software ray tracing's
+		// per-mesh distance-field detail traces were deprecated in 5.6 and
+		// default off from 5.7; on 5.8 the line asks for a path Epic has
+		// deprecated, and the global distance field it falls back to is the
+		// one MegaLights' own software fallback traces anyway — which is
+		// why r.GenerateMeshDistanceFields stays on in DefaultEngine.ini.
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.6"),
-		TEXT("r.Lumen.TraceMeshSDFs 1"),
 		TEXT("r.Lumen.ScreenProbeGather.RadianceCache.ProbeResolution 32"),
 		TEXT("r.LumenScene.Radiosity.ProbeSpacing 2"),
+
+		// MegaLights at its default sample count, written down so the
+		// ceiling is a number in the source rather than an engine default
+		// that can move under it. 4 per pixel; ApplyRtxUltra takes it to
+		// 16. (Supported values are 2, 4 and 16.)
+		TEXT("r.MegaLights.NumSamplesPerPixel 4"),
 
 		// Virtual shadow maps at full page resolution
 		TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal 0"),
@@ -117,8 +189,13 @@ void GRNGraphics::ApplyNvidia(UObject* WorldContext, bool bPreferQuality)
 		TEXT("r.Lumen.HardwareRayTracing.LightingMode 1"), // hit lighting
 		TEXT("r.Lumen.Reflections.HardwareRayTracing 1"),
 		TEXT("r.Lumen.TranslucencyReflections.FrontLayer.EnableForProject 1"),
+		// Ray-traced shadows for the lights MegaLights is NOT drawing — a
+		// directional moon, or every light when MegaLights is off.
 		TEXT("r.RayTracing.Shadows 1"),
-		TEXT("r.RayTracing.AmbientOcclusion 1"),
+		// r.RayTracing.AmbientOcclusion 1 used to sit here. The legacy ray
+		// traced AO pass only ever ran with Lumen GI OFF, and the legacy
+		// ray-traced passes were dropped in 5.4; under Lumen it set a
+		// variable nothing read. Lumen's own short-range AO is the AO.
 		// Reflective wet asphalt is the whole look of a night corniche,
 		// so trace reflections well past the usual roughness cutoff.
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 0.75"),
@@ -164,6 +241,15 @@ void GRNGraphics::ApplyCommandLineOverrides(UObject* WorldContext)
 	}
 	if (FParse::Param(Cmd, TEXT("grnpathtrace"))) SetPathTracing(WorldContext, true);
 
+	// MegaLights off, and so every lamp and headlight unshadowed. The
+	// scalability rung cannot do this at boot (ApplyMax has just raised it
+	// to Cinematic), and a variable set from the console outranks one set
+	// by scalability, so a rung change later in the session cannot quietly
+	// turn it back on either. Runs before the world is built, which waits
+	// on the API fetch, so the lamps are built unshadowed rather than
+	// re-lit a frame later.
+	if (FParse::Param(Cmd, TEXT("grnnomegalights"))) Run(WorldContext, TEXT("r.MegaLights.Allow 0"));
+
 	// Frame pacing: -grnvsync, -grngsync, or -grnfps=N
 	float CapFps = 0.f;
 	if (FParse::Param(Cmd, TEXT("grngsync"))) ApplyVrrPacing(WorldContext);
@@ -185,12 +271,18 @@ void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
 		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 1.0"),
 		TEXT("r.Lumen.Reflections.SmoothBias 0"),
 
-		// Ray-traced shadows at full quality rather than the denoised
-		// half-rate default; the lamp posts cast the long shadows the look
-		// depends on and they are what shows sampling first.
+		// The lamps' shadows. Under MegaLights they are its samples, so
+		// they are raised there: 16 per pixel rather than 4. The lamp posts
+		// cast the long shadows the look depends on, and a stochastic
+		// light sampler shows undersampling as crawling noise in exactly
+		// those penumbrae first.
+		TEXT("r.MegaLights.NumSamplesPerPixel 16"),
+		// And for any light MegaLights is not drawing (or all of them when
+		// it is off): ray-traced shadows at full quality rather than the
+		// denoised half-rate default. The AO sample count that sat beside
+		// these is gone with the legacy AO pass — see ApplyNvidia.
 		TEXT("r.RayTracing.Shadows.SamplesPerPixel 4"),
 		TEXT("r.RayTracing.Shadows.EnableTwoSidedGeometry 1"),
-		TEXT("r.RayTracing.AmbientOcclusion.SamplesPerPixel 4"),
 
 		// Nanite and virtual shadow maps unclamped
 		TEXT("r.Nanite.MaxPixelsPerEdge 0.5"),
@@ -283,4 +375,37 @@ void GRNGraphics::ApplyVrrPacing(UObject* WorldContext, float RefreshHz)
 	Run(WorldContext, TEXT("t.Reflex.Mode 1"));
 
 	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: VRR pacing at %.0f fps under a %.0f Hz panel"), Cap, RefreshHz);
+}
+
+bool GRNGraphics::MegaLightsActive()
+{
+	IConsoleManager& Console = IConsoleManager::Get();
+	const IConsoleVariable* Project = Console.FindConsoleVariable(TEXT("r.MegaLights.EnableForProject"));
+	const IConsoleVariable* Allow = Console.FindConsoleVariable(TEXT("r.MegaLights.Allow"));
+	// No project switch means an engine without MegaLights: nothing to opt
+	// into. A missing Allow, on an engine that has the project switch, is
+	// read as allowed — it is only ever a way of saying no.
+	//
+	// Until these two lines were added this was the whole test, and in
+	// this game it reduced to the project switch alone: ApplyMax puts
+	// every scalability group at Cinematic before the world is built, so
+	// r.MegaLights.Allow always read 1 and the Low/Medium "no" was never
+	// heard. Nothing then looked at the GPU, so a card without MegaLights
+	// got ~170 lamps and ~30 headlights shadowed the old way. The
+	// variables say what the project asked for; these say whether this
+	// machine can deliver it, and neither can be raised by ApplyMax.
+	const bool bSM6 = GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6;
+	const bool bHardwareRT = IsRayTracingEnabled();
+	return Project && Project->GetInt() != 0 && (!Allow || Allow->GetInt() != 0)
+		&& bSM6 && bHardwareRT;
+}
+
+bool GRNGraphics::FollowMegaLights(ULocalLightComponent* Light)
+{
+	const bool bShadowed = MegaLightsActive();
+	if (!Light) return bShadowed;
+	WatchMegaLights();
+	Light->ComponentTags.AddUnique(MegaShadowTag());
+	Light->SetCastShadows(bShadowed);
+	return bShadowed;
 }
