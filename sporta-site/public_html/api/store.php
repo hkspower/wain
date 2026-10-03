@@ -276,6 +276,32 @@ const STORE_COLOURS = [
     'orange'       => ['Orange',       'برتقالي',       '#e0561c'],
     'red-white'    => ['Red / White',  'أحمر / أبيض',   '#c0262d'],
 ];
+
+// A PRODUCT'S COLOUR, READ OFF ITS SLUG, for a product with no product_attrs row
+// (2026-10-03, the card's colour circles). Every live product is filed as
+// <style>-<colour key> — cloudsoft-leggings-army-green, sculpt-top-taupe-brown —
+// so the slug already says which colour it is and which style it belongs to.
+//
+// Returns [colourKey|null, stem|null]: the LONGEST STORE_COLOURS key the slug ends
+// with after a dash, and the slug without it. Longest first is the whole point:
+// onyx-black before black, steel-grey before grey, cherry-red and red-white before
+// red and white — or "cloudsoft-leggings-onyx-black" would become an onyx-coloured
+// garment of style "cloudsoft-leggings-onyx", a style of one.
+//
+// A slug that is ONLY a colour key ("navy") has no style and gets nothing.
+function store_colour_from_slug(string $slug): array {
+    static $keys = null;
+    if ($keys === null) {
+        $keys = array_keys(STORE_COLOURS);
+        usort($keys, fn ($a, $b) => strlen($b) <=> strlen($a));
+    }
+    foreach ($keys as $k) {
+        $suf = '-' . $k;
+        if (strlen($slug) > strlen($suf) && str_ends_with($slug, $suf)) return [$k, substr($slug, 0, -strlen($suf))];
+    }
+    return [null, null];
+}
+
 const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
 
 // Where a shopper is sent to pay, per method.

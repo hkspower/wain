@@ -328,20 +328,65 @@ if ($r === 'products') {
         if ($path !== null) $logoFile[(string)$bs] = store_brand_logo_version($path);
     }
 
-    // THE COLOUR, for the card's "● Cherry Red" line. Read from product_attrs,
-    // which is optional: a shop not yet migrated, or a product with no row,
-    // simply has no colour and the card shows no line. Only the fixed-list
-    // fields go out (key, both names, the swatch), never free text.
+    // THE COLOUR, for the card's colour circles (assets/card-options.js, 2026-10-03;
+    // they replaced the "● Cherry Red" line). Two sources, in this order:
+    //
+    //   1. product_attrs, where the owner picked one in /backends — it WINS.
+    //   2. the slug's own ending (store_colour_from_slug): every live product is
+    //      filed as <style>-<colour>, and on the live shop NO product has a
+    //      product_attrs colour, so without this every card would have none.
+    //
+    // Neither gives a colour → null, and `style_key` is null too: a product with
+    // no colour is never grouped with anything. Only the fixed-list fields go out
+    // (key, both names, the swatch), never free text. product_attrs is optional:
+    // a shop not yet migrated simply falls through to the slug.
     $colourOf = [];
     try {
         foreach ($db->query("select slug, colour from product_attrs where colour is not null and colour <> ''")->fetchAll() as $x) {
-            $c = STORE_COLOURS[$x['colour']] ?? null;
-            if ($c) $colourOf[$x['slug']] = ['key' => $x['colour'], 'en' => $c[0], 'ar' => $c[1], 'hex' => $c[2]];
+            if (isset(STORE_COLOURS[$x['colour']])) $colourOf[$x['slug']] = (string)$x['colour'];
         }
-    } catch (Throwable $e) { /* no table yet: no colours */ }
+    } catch (Throwable $e) { /* no table yet: the slug decides */ }
+
+    // THE SIZES, for the card's size boxes: which sizes each product has and
+    // whether each one can be bought — a BOOLEAN, never a count. `stock > 0` is
+    // computed IN SQL, so no stock figure (and no cost) ever reaches PHP, let
+    // alone the response. That also keeps this route cacheable honestly: the
+    // body, and so the ETag, moves when a size crosses zero, and not on every
+    // sale that leaves it in stock.
+    //
+    // In the list AND the order ?r=order validates against (store_rule 'sizes'),
+    // so a box is never offered for a size the checkout would refuse, and the
+    // boxes read in the owner's order. Duplicate rows for one size (two SKUs)
+    // are OR'ed: in stock if either is. A product with no rows gets [] and the
+    // card shows no size row. A failed read fails CLOSED: no size rows at all.
+    $offered = STORE_SIZES;
+    try { $offered = store_rule($db, 'sizes') ?: STORE_SIZES; } catch (Throwable $e) {}
+    $rank = array_flip($offered);
+    $sizesOf = [];
+    try {
+        foreach ($db->query('select slug, size, stock > 0 as in_stock from product_variants')->fetchAll() as $v) {
+            $s = (string)$v['size'];
+            if (!isset($rank[$s])) continue;
+            $sizesOf[$v['slug']][$s] = ($sizesOf[$v['slug']][$s] ?? false) || (bool)$v['in_stock'];
+        }
+    } catch (Throwable $e) { $sizesOf = []; }
 
     foreach ($rows as &$row) {
-        $row['colour'] = $colourOf[$row['slug']] ?? null;
+        [$fromSlug, $stem] = store_colour_from_slug((string)$row['slug']);
+        $key = $colourOf[$row['slug']] ?? $fromSlug;
+        $c = $key !== null ? STORE_COLOURS[$key] : null;
+        $row['colour'] = $c ? ['key' => $key, 'en' => $c[0], 'ar' => $c[1], 'hex' => $c[2]] : null;
+        // THE STYLE: the slug without its colour ending, so the card can find the
+        // same garment in its other colours from this one response. NOT named
+        // `style` (a React prop) or `sizes` (already a string list in the
+        // bundle's own product data, which spreads every API field it is given).
+        $row['style_key'] = $c ? ($stem ?? (string)$row['slug']) : null;
+        $m = $sizesOf[$row['slug']] ?? [];
+        uksort($m, fn ($a, $b) => $rank[$a] <=> $rank[$b]);
+        $row['size_options'] = array_map(
+            fn ($s, $in) => ['size' => (string)$s, 'in_stock' => (bool)$in],
+            array_keys($m), array_values($m)
+        );
         // The database wins where both exist — see ?r=brand_logo, which
         // resolves them in the same order. Only a brand with NO stored logo
         // falls through to its folder.
