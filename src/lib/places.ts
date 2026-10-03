@@ -158,6 +158,15 @@ export interface Place {
    * around waiting.
    */
   orderPrepMinutes?: number;
+  /**
+   * The WhatsApp number that answers orders — eight bare Kuwaiti digits
+   * (`^[569]\d{7}$`, the same shape as a customer's phone), never with a
+   * country code. Without a database the order goes to the shop as a
+   * WhatsApp message to this number (see `orderChannel` in orders.ts); with
+   * one it goes to the orders table and this is unused. `audit:places`
+   * refuses `acceptsOrders` on a place that has a menu but no number.
+   */
+  orderWhatsApp?: string;
 
   /* --- الطابور. Take your turn at the salon. See src/lib/queue.ts --- */
 

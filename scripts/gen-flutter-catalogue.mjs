@@ -74,7 +74,7 @@ const KNOWN = new Set([
   "slug","name","nameAr","category","area","areaAr","lat","lng","coordsUnverified","rating","priceLevel",
   "emoji","taglineAr","descriptionAr","highlightsAr","bestTimeAr","setting","seasonAr","summerOk","shisha",
   "tagsAr","featured","logoUrl","bioAr","imageUrls","phone","instagram","website","productsAr","menuAr",
-  "acceptsOrders","orderNoteAr","orderPrepMinutes","salonKind","takesQueue","queueServiceMinutes",
+  "acceptsOrders","orderNoteAr","orderPrepMinutes","orderWhatsApp","salonKind","takesQueue","queueServiceMinutes",
 ]);
 for (const p of places)
   for (const k of Object.keys(p))
@@ -105,7 +105,7 @@ const placeEntries = places
     shisha: ${p.shisha === undefined ? "null" : dbool(p.shisha)},
     summerOk: ${p.summerOk === undefined ? "null" : dbool(p.summerOk)},${
       p.coordsUnverified ? "\n    coordsUnverified: true," : ""
-    }${opt("logoUrl", p.logoUrl, "str")}${opt("bioAr", p.bioAr, "str")}${opt("imageUrls", p.imageUrls, "list")}${opt("phone", p.phone, "str")}${opt("instagram", p.instagram, "str")}${opt("website", p.website, "str")}${opt("productsAr", p.productsAr, "list")}${menu(p.menuAr)}${opt("acceptsOrdersFlag", p.acceptsOrders, "bool")}${opt("orderNoteAr", p.orderNoteAr, "str")}${opt("orderPrepMinutes", p.orderPrepMinutes, "num")}${opt("salonKind", p.salonKind, "str")}${opt("takesQueueFlag", p.takesQueue, "bool")}${opt("queueServiceMinutes", p.queueServiceMinutes, "num")}
+    }${opt("logoUrl", p.logoUrl, "str")}${opt("bioAr", p.bioAr, "str")}${opt("imageUrls", p.imageUrls, "list")}${opt("phone", p.phone, "str")}${opt("instagram", p.instagram, "str")}${opt("website", p.website, "str")}${opt("productsAr", p.productsAr, "list")}${menu(p.menuAr)}${opt("acceptsOrdersFlag", p.acceptsOrders, "bool")}${opt("orderNoteAr", p.orderNoteAr, "str")}${opt("orderPrepMinutes", p.orderPrepMinutes, "num")}${opt("orderWhatsApp", p.orderWhatsApp, "str")}${opt("salonKind", p.salonKind, "str")}${opt("takesQueueFlag", p.takesQueue, "bool")}${opt("queueServiceMinutes", p.queueServiceMinutes, "num")}
   )`;
   })
   .join(",\n");

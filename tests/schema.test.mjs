@@ -234,6 +234,25 @@ console.log("\n── an order belongs to whoever holds the token ──");
     psql(`select public.cancel_order('${id}','${tok}');`, { role: "anon" }).out === "cancelled");
 }
 
+console.log("\n── where an order goes without a database: order_whatsapp ──");
+{
+  // The column the WhatsApp channel reads (3 October): eight bare Kuwaiti
+  // digits or empty, the customer_phone shape, so a number typed with a
+  // country code cannot be stored and then fail at the wa.me link.
+  ok("the column exists and defaults to empty",
+    psql("select order_whatsapp from public.places where slug = 'mubarakiya-tea-houses';").out === "");
+  ok("eight Kuwaiti digits are accepted",
+    psql("update public.places set order_whatsapp = '51234567' where slug = 'mubarakiya-tea-houses';").code === 0);
+  ok("a number with the country code is refused",
+    /violates check constraint/i.test(
+      psql("update public.places set order_whatsapp = '96551234567' where slug = 'mubarakiya-tea-houses';").err));
+  ok("a landline is refused",
+    /violates check constraint/i.test(
+      psql("update public.places set order_whatsapp = '22345678' where slug = 'mubarakiya-tea-houses';").err));
+  ok("and the seed carries the menu columns (none set today)",
+    psql("select count(*) from public.places where accepts_orders or jsonb_array_length(menu_ar) > 0 or order_whatsapp <> '';").out === "1");
+}
+
 console.log("\n── the queue, and who may add a walk-in ──");
 {
   psql(`update public.places set takes_queue = true, salon_kind = 'men' where slug = 'hamad-al-mubarak-street';`);

@@ -3,53 +3,43 @@
  * database starts as an exact copy of what the site already ships.
  * Run: npm run db:schema
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const src = readFileSync("src/lib/places.ts", "utf8");
-const body = src.slice(src.indexOf("export const places"));
-const blocks = body.split(/\n {2}\{\n/).slice(1);
+/**
+ * The real module, bundled once with the local esbuild — the trick
+ * scripts/audit-places.mjs and gen-flutter-catalogue.mjs already use. This
+ * file used to read places.ts with regular expressions, and twice wrote the
+ * bare word `undefined` into the seed (a missing rating, a wrapped
+ * description): PostgreSQL reads that as a column name and the whole INSERT
+ * aborts, so a fresh project got the tables and zero places. A regex also
+ * cannot read a nested `menuAr`, which the seed carries now (3 October): a
+ * database started from this file must know the same menus the site ships.
+ */
+const tmp = mkdtempSync(join(tmpdir(), "wain-schema-"));
+const bundle = join(tmp, "places.mjs");
+execSync(
+  `npx -y esbuild src/lib/places.ts --bundle --format=esm --alias:@=${JSON.stringify(join(process.cwd(), "src"))} ` +
+    `--outfile=${JSON.stringify(bundle)} --log-level=error`,
+  { stdio: "pipe" }
+);
+const { places } = await import(pathToFileURL(bundle).href);
+rmSync(tmp, { recursive: true, force: true });
 
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
-// \s* after the colon, because a long value wraps onto its own line:
-//   descriptionAr:
-//     "الأبراج الثلاثة …",
-// Without it every description matched nothing and every seeded row went in
-// carrying the literal string 'undefined'.
-const field = (b, k) => (b.match(new RegExp(`${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`)) || [])[1];
-/**
- * A number, or SQL NULL when the place does not carry one.
- *
- * This used to return JavaScript `undefined` for an absent field, which a
- * template literal then wrote into the file as the bare word `undefined` —
- * and PostgreSQL reads a bare word as a column name. Eight of the 44 places
- * have no `rating`, so the seed ended with:
- *
- *     ERROR:  column "undefined" does not exist
- *
- * That aborts the whole INSERT. `supabase/schema.sql` could not be applied at
- * all: a fresh project got the tables and zero places, and nothing in this
- * repository noticed, because nothing here had ever run the file against a
- * database.
- *
- * The comment above `q` records the same bug being fixed once already, for a
- * different field. It is the same shape both times — a regex that does not
- * match returns undefined, and undefined stringifies to something that is
- * almost valid SQL.
- */
-const num = (b, k) => {
-  const m = b.match(new RegExp(`${k}: ([-\\d.]+)`));
-  return m ? m[1] : "null";
-};
+/** A number, or SQL NULL when the place does not carry one — never the
+ *  JavaScript `undefined` the old regex path once wrote into the file. */
+const num = (v) => (v === undefined || v === null ? "null" : String(v));
+/** A SQL text[] constructor. */
+const arrayOf = (items) => `ARRAY[${(items ?? []).map(q).join(", ")}]::text[]`;
+/** A jsonb literal; `menuAr` is the one nested value a place carries. */
+const jsonb = (v) => `${q(JSON.stringify(v ?? []))}::jsonb`;
 
-/** A TS string-array literal for one key, as a SQL text[] constructor. */
-const arrayOf = (b, k) => {
-  const raw = (b.match(new RegExp(`${k}: \\[([^\\]]*)\\]`)) || [])[1] || "";
-  const items = [...raw.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => q(m[1]));
-  return `ARRAY[${items.join(", ")}]::text[]`;
-};
-
-const rows = blocks.map((b, i) => {
-  return `  (${q(field(b,'slug'))}, ${q(field(b,'name'))}, ${q(field(b,'nameAr'))}, ${q(field(b,'category'))}, ${q(field(b,'area'))}, ${q(field(b,'areaAr'))}, ${num(b,'lat')}, ${num(b,'lng')}, ${num(b,'rating')}, ${num(b,'priceLevel')}, ${q(field(b,'emoji'))}, ${q(field(b,'taglineAr'))}, ${q(field(b,'descriptionAr'))}, ${arrayOf(b,'highlightsAr')}, ${q(field(b,'bestTimeAr'))}, ${q(field(b,'setting'))}, ${q(field(b,'seasonAr'))}, ${arrayOf(b,'tagsAr')}, ${/featured: true/.test(b)}, ${i * 10})`;
+const rows = places.map((p, i) => {
+  return `  (${q(p.slug)}, ${q(p.name)}, ${q(p.nameAr)}, ${q(p.category)}, ${q(p.area)}, ${q(p.areaAr)}, ${num(p.lat)}, ${num(p.lng)}, ${num(p.rating)}, ${num(p.priceLevel)}, ${q(p.emoji)}, ${q(p.taglineAr)}, ${q(p.descriptionAr)}, ${arrayOf(p.highlightsAr)}, ${q(p.bestTimeAr)}, ${q(p.setting)}, ${q(p.seasonAr)}, ${arrayOf(p.tagsAr)}, ${!!p.featured}, ${i * 10}, ${jsonb(p.menuAr)}, ${!!p.acceptsOrders}, ${q(p.orderNoteAr ?? "")}, ${num(p.orderPrepMinutes ?? 30)}, ${q(p.orderWhatsApp ?? "")})`;
 });
 
 const sql = `-- Wain — database schema for the admin panel.
@@ -192,6 +182,11 @@ create table if not exists public.places (
   -- a typo cannot push every slot past closing time or offer food instantly.
   order_prep_minutes integer not null default 30
                    check (order_prep_minutes between 5 and 240),
+  -- Where an order goes when there is no database to put it in: the shop's
+  -- WhatsApp, eight bare Kuwaiti digits (the customer_phone shape). Empty is
+  -- «not reachable this way» and the site shows no panel (3 October).
+  order_whatsapp text not null default ''
+                   check (order_whatsapp = '' or order_whatsapp ~ '^[569][0-9]{7}$'),
   featured       boolean not null default false,
   published      boolean not null default true,
   sort_order     integer not null default 0,
@@ -203,8 +198,13 @@ create index if not exists places_category_idx on public.places (category);
 create index if not exists places_sort_idx     on public.places (sort_order, created_at);
 
 -- Keep updated_at honest.
+-- search_path pinned like every other function here: a trigger runs as
+-- whoever caused it, and an unpinned one resolves names through their
+-- search_path (Supabase's linter: function_search_path_mutable).
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql
+set search_path = public, pg_temp
+as $$
 begin new.updated_at = now(); return new; end $$;
 
 drop trigger if exists places_touch on public.places;
@@ -224,6 +224,7 @@ alter table public.places
   add column if not exists accepts_orders boolean not null default false,
   add column if not exists order_note_ar  text not null default '',
   add column if not exists order_prep_minutes integer not null default 30,
+  add column if not exists order_whatsapp text not null default '',
   add column if not exists salon_kind     text not null default '',
   add column if not exists takes_queue    boolean not null default false,
   add column if not exists queue_service_minutes integer not null default 20,
@@ -243,6 +244,9 @@ alter table public.places add constraint places_order_prep_minutes_check
 alter table public.places drop constraint if exists places_salon_kind_check;
 alter table public.places add constraint places_salon_kind_check
   check (salon_kind in ('', 'men', 'women'));
+alter table public.places drop constraint if exists places_order_whatsapp_check;
+alter table public.places add constraint places_order_whatsapp_check
+  check (order_whatsapp = '' or order_whatsapp ~ '^[569][0-9]{7}$');
 alter table public.places drop constraint if exists places_queue_service_minutes_check;
 alter table public.places add constraint places_queue_service_minutes_check
   check (queue_service_minutes between 5 and 180);
@@ -457,6 +461,15 @@ alter table public.orders enable row level security;
 -- Saying it here as well costs nothing and makes this file work on a project
 -- where those defaults were tightened. A grant only opens the door; the
 -- policies above are still the whole of the authorization.
+--
+-- And revoked first, so the grants below are the whole list rather than an
+-- addition to it. Those defaults are ALL — TRUNCATE included, which RLS does
+-- not govern. The API never exposed it, but «exactly these grants» was not
+-- true until this (1 October; scripts/audit-rls.mjs holds it).
+revoke all on public.places      from anon, authenticated;
+revoke all on public.admins      from anon, authenticated;
+revoke all on public.submissions from anon, authenticated;
+revoke all on public.orders      from anon, authenticated;
 grant select                         on public.places      to anon, authenticated;
 grant select, insert, update, delete on public.places      to authenticated;
 grant select                         on public.admins      to authenticated;
@@ -513,7 +526,9 @@ create trigger orders_touch before update on public.orders
 -- The moment a status changes is recorded here rather than trusted from
 -- whoever sent the update.
 create or replace function public.stamp_order_status() returns trigger
-  language plpgsql as $$
+  language plpgsql
+  set search_path = public, pg_temp
+as $$
 begin
   if new.status is distinct from old.status then
     if new.status = 'ready'     then new.ready_at     := now(); end if;
@@ -692,7 +707,7 @@ alter table public.queue_tickets
   add column if not exists source text not null default 'online',
   add column if not exists ended_at timestamptz;
 
-grant insert on public.queue_tickets to anon, authenticated;
+revoke all on public.queue_tickets from anon, authenticated;
 grant select, update on public.queue_tickets to authenticated;
 
 drop trigger if exists queue_tickets_touch on public.queue_tickets;
@@ -700,10 +715,10 @@ create trigger queue_tickets_touch before update on public.queue_tickets
   for each row execute function public.touch_updated_at();
 
 -- Anon inserts nothing directly: join_queue() is the only way in, because the
--- number has to be assigned by the database. There is deliberately no INSERT
--- policy for anon here even though the grant exists — the security definer
--- function bypasses RLS, and a caller reaching the table directly gets
--- nothing.
+-- number has to be assigned by the database. There is no INSERT grant and no
+-- INSERT policy — the security definer function runs as the owner and needs
+-- neither. The grant used to be here with no policy behind it, a door nothing
+-- walked through until somebody added a policy (2 October).
 drop policy if exists "admins read the queue" on public.queue_tickets;
 create policy "admins read the queue"
   on public.queue_tickets for select
@@ -955,11 +970,12 @@ on conflict (id) do update
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+-- Nobody uploads here through the API any more. Business photos go to wain's
+-- own /api/media.php (scripts/publish/media-endpoint.php) since September, so
+-- this anonymous INSERT had no caller — only a public key, 12MB a file and no
+-- limit on how many. The drop stays so a database that ran the older file
+-- loses it too (2 October; audit:rls and test:db hold it).
 drop policy if exists "anyone may upload media for review" on storage.objects;
-create policy "anyone may upload media for review"
-  on storage.objects for insert
-  to anon, authenticated
-  with check (bucket_id = 'business-pending');
 
 drop policy if exists "admins read pending media" on storage.objects;
 create policy "admins read pending media"
@@ -994,7 +1010,8 @@ create policy "admins remove published media"
 insert into public.places
   (slug, name, name_ar, category, area, area_ar, lat, lng, rating, price_level,
    emoji, tagline_ar, description_ar, highlights_ar, best_time_ar,
-   setting, season_ar, tags_ar, featured, sort_order)
+   setting, season_ar, tags_ar, featured, sort_order,
+   menu_ar, accepts_orders, order_note_ar, order_prep_minutes, order_whatsapp)
 values
 ${rows.join(",\n")}
 on conflict (slug) do nothing;

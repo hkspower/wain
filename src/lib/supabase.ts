@@ -93,6 +93,7 @@ export interface PlaceRow {
   accepts_orders: boolean | null;
   order_note_ar: string | null;
   order_prep_minutes: number | null;
+  order_whatsapp: string | null;
   salon_kind: string | null;
   takes_queue: boolean | null;
   queue_service_minutes: number | null;
@@ -134,6 +135,7 @@ export function rowToPlace(r: PlaceRow): Place {
     acceptsOrders: r.accepts_orders ?? undefined,
     orderNoteAr: r.order_note_ar || undefined,
     orderPrepMinutes: r.order_prep_minutes ?? undefined,
+    orderWhatsApp: r.order_whatsapp || undefined,
     salonKind: r.salon_kind === "men" || r.salon_kind === "women" ? r.salon_kind : undefined,
     takesQueue: r.takes_queue ?? undefined,
     queueServiceMinutes: r.queue_service_minutes ?? undefined,
@@ -171,6 +173,7 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     accepts_orders: !!p.acceptsOrders,
     order_note_ar: p.orderNoteAr ?? "",
     order_prep_minutes: clampPrepMinutes(p.orderPrepMinutes),
+    order_whatsapp: p.orderWhatsApp ?? "",
     salon_kind: p.salonKind ?? "",
     takes_queue: !!p.takesQueue,
     queue_service_minutes: clampServiceMinutes(p.queueServiceMinutes),

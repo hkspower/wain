@@ -161,6 +161,26 @@ for (const c of categories) {
   if (n === 0) err(`category «${c.ar}» has no places but is offered as a filter`);
   else if (n < 3) warn(`category «${c.ar}» has only ${n} place${n === 1 ? "" : "s"}`);
 }
+/* ── طلب مسبق: a place that takes orders must be reachable ────────────────
+   Without a database an order leaves the site as a WhatsApp message to the
+   place's number, so «accepts orders, has a menu, no number» is a panel that
+   can only fail at the send. Refused here rather than discovered by the
+   first customer. The number's shape is a customer phone's (orders.ts
+   normalisePhone): eight bare Kuwaiti digits, 5/6/9 first. */
+const WA_DIGITS = /^[569]\d{7}$/;
+for (const p of places) {
+  if (p.orderWhatsApp !== undefined && !WA_DIGITS.test(p.orderWhatsApp))
+    err(`${p.nameAr}: orderWhatsApp «${p.orderWhatsApp}» is not eight bare Kuwaiti digits (5/6/9…)`);
+  if (p.acceptsOrders) {
+    if (!p.menuAr?.length) err(`${p.nameAr} accepts orders but has no menu`);
+    if (!p.orderWhatsApp) err(`${p.nameAr} accepts orders but has no orderWhatsApp — nowhere for the order to go without a database`);
+  }
+  for (const m of p.menuAr ?? []) {
+    if (!Number.isInteger(m.priceFils) || m.priceFils < 0)
+      err(`${p.nameAr}: menu item «${m.nameAr}» has a price that is not whole fils`);
+  }
+}
+
 const featured = places.filter((p) => p.featured).length;
 if (featured < 3) err(`only ${featured} featured places — the home page and the offline shell both need them`);
 

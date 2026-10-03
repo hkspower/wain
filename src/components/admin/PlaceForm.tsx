@@ -3,7 +3,7 @@
 import { useState } from "react";
 import CoordinatePicker from "@/components/CoordinatePicker";
 import { fieldDenseClass, hintClass, labelClass } from "@/lib/form-classes";
-import { formatKwd, parseKwd, type MenuItem } from "@/lib/orders";
+import { formatKwd, normalisePhone, parseKwd, type MenuItem } from "@/lib/orders";
 import {
   DEFAULT_PREP_MINUTES,
   DEFAULT_SERVICE_MINUTES,
@@ -336,6 +336,27 @@ export default function PlaceForm({
           onChange={(e) => set("orderNoteAr", e.target.value || undefined)}
           placeholder="الاستلام من الكاشير، ونحتاج ١٥ دقيقة."
         />
+
+        <label className={label} htmlFor="f-wa" style={{ marginTop: "0.75rem" }}>
+          رقم واتساب للطلبات
+        </label>
+        <input
+          id="f-wa"
+          dir="ltr"
+          inputMode="numeric"
+          className={input}
+          value={p.orderWhatsApp ?? ""}
+          maxLength={20}
+          onChange={(e) => set("orderWhatsApp", e.target.value || undefined)}
+          // Stored as the eight bare digits the link needs; anything else
+          // («+965 …», Arabic digits) is normalised on the way out of the box,
+          // and a number that is not Kuwaiti is dropped rather than kept wrong.
+          onBlur={(e) => set("orderWhatsApp", normalisePhone(e.target.value) ?? undefined)}
+          placeholder="5xxxxxxx"
+        />
+        <p className={hint}>
+          بدون قاعدة بيانات، الطلب يوصل المكان كرسالة واتساب على هذا الرقم. ثمان أرقام كويتية بس.
+        </p>
       </div>
 
       {/* --- الطابور ---------------------------------------------------- */}

@@ -91,6 +91,11 @@ class Place {
   final String? orderNoteAr;
   final int? orderPrepMinutes;
 
+  /// The WhatsApp number that answers orders: eight bare Kuwaiti digits, no
+  /// country code. The app has no database, so this is the only way an
+  /// order leaves the phone (orders/order_kit.dart builds the message).
+  final String? orderWhatsApp;
+
   // Salon queue.
   final String? salonKind; // "men" | "women"
   final bool takesQueueFlag;
@@ -130,6 +135,7 @@ class Place {
     this.acceptsOrdersFlag = false,
     this.orderNoteAr,
     this.orderPrepMinutes,
+    this.orderWhatsApp,
     this.salonKind,
     this.takesQueueFlag = false,
     this.queueServiceMinutes,
