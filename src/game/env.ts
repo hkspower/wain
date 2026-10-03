@@ -145,3 +145,62 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   domeTex.dispose();
   return tex;
 }
+
+/**
+ * The day this game reflects, and is lit by in the shade.
+ *
+ * The night bake above used to stand in at every hour, so at noon a
+ * shaded surface was lit by a sodium-orange city at about a tenth of
+ * the sky's real strength: the cabin, the tyres and every tower's shade
+ * side went black under a bright sky, and the driver's visor mirrored a
+ * night street. This is the same recipe for daylight: the day sky's own
+ * gradient (setTimeOfDay's noon keyframes, in sRGB), sunlit ground
+ * below, and the skyline as pale blocks rather than lit windows.
+ *
+ * No sun in it. The sun is the key light, which moves with the clock;
+ * a sun baked into a fixed cube would put a second, wrong highlight on
+ * every clearcoat for most of the day.
+ */
+export function dayEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
+  const env = new THREE.Scene();
+  const c = document.createElement("canvas");
+  c.width = 16;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0.0, "#5a95e6"); // zenith
+  g.addColorStop(0.36, "#8fbaf0");
+  g.addColorStop(0.49, "#cfe0f5"); // the horizon haze
+  g.addColorStop(0.53, "#a89c88"); // sand and the far shore
+  g.addColorStop(0.7, "#6e665c"); // sunlit asphalt
+  g.addColorStop(1.0, "#5a544c");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 16, 256);
+  const domeTex = new THREE.CanvasTexture(c);
+  domeTex.colorSpace = THREE.SRGBColorSpace;
+  env.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(60, 24, 16),
+      new THREE.MeshBasicMaterial({ map: domeTex, side: THREE.BackSide })
+    )
+  );
+  // The skyline, on the same ring and in the same pattern as the night
+  // bake's, so the reflection sweeps the same city: sun-faded concrete
+  // and glass rather than dark slabs with windows.
+  const blockMat = new THREE.MeshBasicMaterial({ color: 0x8a8f96 });
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + 0.16;
+    const h = 26 + ((i * 37) % 5) * 11;
+    const w = 9 + ((i * 17) % 4) * 3;
+    const r = 95 + ((i * 23) % 3) * 13;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), blockMat);
+    block.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
+    block.rotation.y = a;
+    env.add(block);
+  }
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const tex = pmrem.fromScene(env, 0.02, 0.1, 320).texture;
+  pmrem.dispose();
+  domeTex.dispose();
+  return tex;
+}

@@ -1,8 +1,8 @@
 {
  "car": "zeta-300-gtr",
  "tier": "ultra",
- "roll": -0.77,
- "pitch": -0.3,
+ "roll": -0.94,
+ "pitch": 0.93,
  "yaw": 32.1,
  "fronts": [
   -0.518,
@@ -14,9 +14,9 @@
   0,
   0
  ],
- "wing": 0.407,
- "speedKmh": 243,
- "latAccel": 5.87,
+ "wing": 0.413,
+ "speedKmh": 236,
+ "latAccel": 7.08,
  "buffer": [
   3840,
   2160

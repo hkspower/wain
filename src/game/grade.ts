@@ -111,6 +111,14 @@ export const GradeShader = {
      * control off its output makes the look part of the loop.
      */
     uNight: { value: 1 },
+    /**
+     * How much of the lift the exposure still needs, 0..1. The lift is
+     * there to open the shadows at the meter's night floor (0.55); an
+     * exposure pinned a stop above that has already opened them, and the
+     * full lift on top turned the darks milky. 1 everywhere but a pinned
+     * manual exposure (engine.setManualExposure).
+     */
+    uLiftScale: { value: 1 },
     /** Luma at which the lift has faded to nothing. */
     uLiftRange: { value: 0.3 },
     /** Where the highlight shoulder starts. Below this nothing changes,
@@ -240,6 +248,7 @@ export const GradeShader = {
     uniform float uLiftRange;
     uniform float uShadowLift;
     uniform float uNight;
+    uniform float uLiftScale;
     uniform float uKnee;
     uniform float uContrast;
     uniform float uPivot;
@@ -350,7 +359,7 @@ export const GradeShader = {
       // uLiftRange, so everything below is opened up and everything a
       // headlight has already lit is left exactly where it was.
       float lLift = luma(c.rgb);
-      float wLift = (1.0 - smoothstep(0.0, max(uLiftRange, 1e-4), lLift)) * uNight;
+      float wLift = (1.0 - smoothstep(0.0, max(uLiftRange, 1e-4), lLift)) * uNight * uLiftScale;
       // Proportional first — this is the part that does the work.
       c.rgb = mix(c.rgb, pow(max(c.rgb, 0.0), vec3(uShadowLift)), wLift);
       // Then a floor under the literal blacks, which a gamma cannot give

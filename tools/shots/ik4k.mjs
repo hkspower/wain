@@ -78,9 +78,11 @@ await page.evaluate(async ({ car, tier, ev }) => {
   e.applyGarage();
   e.applyQualityTier(tier);
   e.setResolution(2160);
-  // Manual exposure: the meter's night floor, lifted by EV.
+  // Manual exposure: the meter's night floor, lifted by EV. Through the
+  // engine's own pin, which also eases the night shadow lift off by the
+  // same amount (it is sized for the 0.55 floor, not for this).
   e.setExposure(0, false);
-  e.autoExp.exposureMat.uniforms.uManual.value = 0.55 * Math.pow(2, ev);
+  e.setManualExposure(0.55 * Math.pow(2, ev));
   await new Promise((r) => setTimeout(r, 300));
 }, { car: CAR, tier: TIER, ev: EV });
 
@@ -145,6 +147,10 @@ const shoot = async (name, stageSrc) => {
     cam.fov = s.fov ?? 34;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld(true);
+    // What the game does after its camera moves: the headlamp shafts and
+    // pool fade by where they are seen from. Staged here, the camera
+    // moved after the last update, so do it for this camera.
+    e.updateBeamVisibility();
     // Fill the paint's reflection probe HERE, at the staged spot. The
     // engine is paused, so its loop renders no probe faces, and the
     // ultra tier swapped in a fresh 512 cube that nothing had drawn:
@@ -286,24 +292,46 @@ results.traffic = await shoot("traffic", `
     note: { scene: "a civilian through Ras Al-Ard at 120 km/h", trafficRoll: +(tt.roll*180/Math.PI).toFixed(2), trafficHubs: hubs(t.mesh), trafficFronts: fronts(t.mesh) } };
 `);
 
-// 6. The driver at lock, through the glass. Daylight, or the cabin is a
-// black box.
+// 6. The driver at lock, through the glass, in the afternoon sun.
+//
+// Daylight, or the cabin is a black box — and the sun on the driver's
+// side. This used to pick the flank by dotting with moonLight.position,
+// which the engine rewrites every frame to sit over the player, so it
+// chose a flank by where the car was on the map and shot the shaded one.
+// Now the flank is the driver's own and the hour is the first of a few
+// afternoon (or morning) hours whose sun faces it.
 results.driver = await shoot("driver", `
-  e.timeReal = false; e.timeCycling = false; e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
-  e.player.s = 2400; e.player.lat = 0; e.player.speed = 6; e.heading = 0; e.driftYaw = 0;
-  for (let i = 0; i < 50; i++) { e.setTouchInput({ steer: 0.85, throttle: 0.1, brake: 0 }); e.update(1/60); e.player.speed = 6; e.player.lat = 0; }
+  e.timeReal = false; e.timeCycling = false;
+  const stageAt = (H) => {
+    e.timeHours = H; e.world.setTimeOfDay(H); e.applyDaylight();
+    e.player.s = 2400; e.player.lat = 0; e.player.speed = 6; e.heading = 0; e.driftYaw = 0;
+    for (let i = 0; i < 50; i++) { e.setTouchInput({ steer: 0.85, throttle: 0.1, brake: 0 }); e.update(1/60); e.player.speed = 6; e.player.lat = 0; }
+  };
+  let hour = null, facing = 0, a = null, flank = null;
+  for (const H of [15.5, 15, 16, 9, 14, 12.5]) {
+    stageAt(H);
+    const rig = e.carBody.userData.driver;
+    rig.group.updateWorldMatrix(true, true);
+    a = axes(e.carBody);
+    // The driver sits on +x or -x of the shell; that side's outward
+    // normal is the flank to shoot through.
+    const drv = Math.sign(rig.group.position.x) || 1;
+    flank = a.side.clone().multiplyScalar(drv);
+    const L = e.world.moonLight.userData.keyDir;
+    facing = flank.dot(L);
+    hour = H;
+    if (facing > 0.35) break;
+  }
   const rig = e.carBody.userData.driver;
-  rig.group.updateWorldMatrix(true, true);
   const p = new V().setFromMatrixPosition(rig.group.matrixWorld);
-  const a = axes(e.carBody);
-  // Square-on to the side glass at window height: at a grazing angle the
-  // glass is a mirror.
-  // On the sunlit side, or the cabin is a silhouette: pick the flank
-  // whose outward normal faces the sun.
-  const sunSide = a.side.clone().multiplyScalar(Math.sign(a.side.dot(e.world.moonLight.position)) || 1);
-  const cam = p.clone().add(sunSide.multiplyScalar(3.6)).add(a.fwd.clone().multiplyScalar(0.3)); cam.y = p.y + 0.85;
-  const look = p.clone().add(a.fwd.clone().multiplyScalar(0.05)); look.y = p.y + 0.25;
-  return { cam: cam.toArray(), look: look.toArray(), fov: 30, note: { scene: "driver at 85% lock, through the side glass", handWheel: +rig.wheel.rotation.z.toFixed(2) } };
+  // Square-on to the side glass and level with it: at a grazing angle
+  // the glass is a mirror, and looking down through it from above the
+  // roofline showed nothing but the cabin floor.
+  const cam = p.clone().add(flank.clone().multiplyScalar(3.6)).add(a.fwd.clone().multiplyScalar(0.3)); cam.y = p.y + 0.62;
+  const look = p.clone().add(a.fwd.clone().multiplyScalar(0.05)); look.y = p.y + 0.58;
+  return { cam: cam.toArray(), look: look.toArray(), fov: 30, note: {
+    scene: "driver at 85% lock, through the side glass, " + hour + " h",
+    handWheel: +rig.wheel.rotation.z.toFixed(2), hour, sunOnFlank: +facing.toFixed(2) } };
 `);
 
 await browser.close();
@@ -327,6 +355,7 @@ const fmt = (s) => {
   if (s.rivalRoll !== undefined) parts.push(`rival ${s.rival} roll ${s.rivalRoll}°, hubs ${s.rivalHubs.map((h) => (h * 1000).toFixed(1)).join("/")} mm, fronts ${s.rivalFronts.join(" / ")}, wing ${s.rivalWing}`);
   if (s.trafficRoll !== undefined) parts.push(`civilian roll ${s.trafficRoll}°, hubs ${s.trafficHubs.map((h) => (h * 1000).toFixed(1)).join("/")} mm, fronts ${s.trafficFronts.join(" / ")}`);
   if (s.handWheel !== undefined) parts.push(`hand wheel ${s.handWheel} rad`);
+  if (s.sunOnFlank !== undefined) parts.push(`sun on the driver's flank ${s.sunOnFlank} (cos)`);
   parts.push(`${s.speedKmh} km/h, ${s.latAccel} m/s² lateral, buffer ${s.buffer.join("x")}`);
   return parts.join("; ");
 };

@@ -889,9 +889,12 @@ function glintTexture(): THREE.CanvasTexture {
   const ctx = c.getContext("2d")!;
   const arm = (w: number, h: number) => {
     const g = ctx.createLinearGradient(32 - w, 32, 32 + w, 32);
-    g.addColorStop(0, "rgba(255,225,170,0)");
-    g.addColorStop(0.5, "rgba(255,235,190,0.9)");
-    g.addColorStop(1, "rgba(255,225,170,0)");
+    // White, so the material colour decides the tint: the one material
+    // that wears this is the cool 0xe6eeff of the LED lanterns, and a
+    // warm halogen star on a blue-white lens read as two different lamps.
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.5, "rgba(255,255,255,0.9)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(32 - w, 32 - h, w * 2, h * 2);
   };
@@ -903,8 +906,8 @@ function glintTexture(): THREE.CanvasTexture {
   arm(30, 1.4); // vertical
   ctx.restore();
   const core = ctx.createRadialGradient(32, 32, 1, 32, 32, 7);
-  core.addColorStop(0, "rgba(255,245,220,1)");
-  core.addColorStop(1, "rgba(255,225,170,0)");
+  core.addColorStop(0, "rgba(255,255,255,1)");
+  core.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = core;
   ctx.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(c);
@@ -1407,15 +1410,96 @@ function lampConeTexture(): THREE.CanvasTexture {
   c.height = 128;
   const ctx = c.getContext("2d")!;
   const g = ctx.createLinearGradient(0, 128, 0, 0);
+  // A soft peak two thirds of the way up rather than a flat plateau: a
+  // plateau is a band of constant brightness, and with the walls fading
+  // at their silhouettes (lampShaftMaterial) a constant band still reads
+  // as a sheet. Air lit by a lantern is brightest near the lantern.
   g.addColorStop(0.0, "rgba(220,231,255,0)");
-  g.addColorStop(0.25, "rgba(224,234,255,0.55)");
-  g.addColorStop(0.75, "rgba(228,238,255,0.55)");
+  g.addColorStop(0.2, "rgba(222,232,255,0.10)");
+  g.addColorStop(0.45, "rgba(224,234,255,0.36)");
+  g.addColorStop(0.67, "rgba(228,238,255,0.58)");
+  g.addColorStop(0.85, "rgba(229,239,255,0.30)");
   g.addColorStop(1.0, "rgba(230,240,255,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 8, 128);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/**
+ * The street lamp's visible shaft, drawn as lit air rather than as a
+ * lampshade.
+ *
+ * It was a MeshBasicMaterial on an open, double-sided cone, and that
+ * drew it as two flat sheets: inside the silhouette the eye summed the
+ * near and far walls at full strength, and at the silhouette it stopped
+ * dead. From the low cameras the ik stills use, a column 6 m off the
+ * lens put a hard grey triangle across a quarter of the sky (68 against
+ * a clear sky of 34, with a 3 px edge), and down the road a dozen of
+ * them stacked into a pyramid at the vanishing point.
+ *
+ * Real light in haze has no edge: the path a ray takes through a cone of
+ * lit air shrinks to nothing at the cone's silhouette. |N.V| is that
+ * path length's shape, near enough, so the wall fades toward the
+ * silhouette and is strongest where you look through it face-on. The
+ * shaft also fades in from 10 to 30 m — a cone you are standing in is
+ * only ever its own walls, filling the frame — and out from 90 to
+ * 180 m, where a dozen faint shafts otherwise sum into one bright one.
+ */
+function lampShaftMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: lampConeTexture() },
+      uColor: { value: new THREE.Color(0xdfeaff) },
+      uOpacity: { value: 0.05 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorld;
+      varying vec3 vN;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING
+          mat4 inst = instanceMatrix;
+        #else
+          mat4 inst = mat4(1.0);
+        #endif
+        vec4 wp = modelMatrix * inst * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        // The instance carries a non-uniform scale (the shaft's foot is
+        // stretched along the road), so the normal goes through the
+        // inverse-transpose: divide by the squared axis lengths.
+        mat3 m = mat3(inst);
+        vec3 n = normal / vec3(dot(m[0], m[0]), dot(m[1], m[1]), dot(m[2], m[2]));
+        vN = normalize(mat3(modelMatrix) * (m * n));
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      varying vec2 vUv;
+      varying vec3 vWorld;
+      varying vec3 vN;
+      void main() {
+        vec3 v = cameraPosition - vWorld;
+        float d = length(v);
+        float facing = abs(dot(normalize(vN), v / d));
+        float a = texture2D(map, vUv).a * uOpacity * facing * facing
+          * smoothstep(10.0, 30.0, d) * (1.0 - smoothstep(90.0, 180.0, d));
+        if (a < 1e-4) discard;
+        gl_FragColor = vec4(uColor * a, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
 }
 
 function windowTextures(): Skin {
@@ -3626,6 +3710,15 @@ export interface WorldHandle {
    * not move.
    */
   streetLamps: readonly THREE.Vector3[];
+  /**
+   * Where each lantern's light lands: the centre of its painted pool, on
+   * the road, index for index with streetLamps. The engine aims a real
+   * light from the one at the other, so the light on a car agrees with
+   * the pool painted under it.
+   */
+  streetLampPools: readonly THREE.Vector3[];
+  /** The photocell: 0 at noon, 1 after dark. */
+  lampLevel(): number;
 }
 
 /** The night-sky dome's radius, m. The engine's reflection probe draws
@@ -3997,6 +4090,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // Handles for the night-shimmer tick (assigned in the streetlight block)
   let glintMat: THREE.PointsMaterial | null = null;
+  /** The lamps' wet-road smears and coronas, which go out with them. */
+  let lampStreaks: THREE.InstancedMesh | null = null;
+  let lampCoronaPts: THREE.Points | null = null;
   /** Advances the traffic signals; assigned in the signal block. */
   let signalTick: ((t: number) => void) | null = null;
   let shimmerLampMat: THREE.MeshStandardMaterial | null = null;
@@ -4012,7 +4108,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let bodyDisc: THREE.Mesh | null = null;
   let bodyHalo: THREE.Sprite | null = null;
   let lampPoolMat: THREE.MeshBasicMaterial | null = null;
-  let lampConeMat: THREE.MeshBasicMaterial | null = null;
+  let lampConeMat: THREE.ShaderMaterial | null = null;
   /** 0 at noon, 1 after dark — scales everything the streetlights do. */
   let lampLevel = 1;
   /** Everyone standing at the roadside who turns to watch a car go past:
@@ -4074,6 +4170,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const probeHide: THREE.Object3D[] = [];
   /** The street lanterns' lenses, filled by the street-light block. */
   const streetLamps: THREE.Vector3[] = [];
+  const streetLampPools: THREE.Vector3[] = [];
 
   // Fog and light
   // Draw distance: at 0.0021 the world vanished by ~700 m, which hid the
@@ -5514,15 +5611,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // the head end never shows as a rim. 5.2 m at the road, stretched by
     // coneScl below to sit on the pool.
     const coneGeo = new THREE.CylinderGeometry(0.25, 5.2, CONE_LEN, 12, 1, true);
-    const coneMat = new THREE.MeshBasicMaterial({
-      map: lampConeTexture(),
-      transparent: true,
-      opacity: 0.08,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      fog: false,
-    });
+    // Not a MeshBasicMaterial: see lampShaftMaterial for the hard sheets
+    // that drew.
+    const coneMat = lampShaftMaterial();
     const cones = new THREE.InstancedMesh(coneGeo, coneMat, count);
     const poolQ = new THREE.Quaternion();
     const poolScl = new THREE.Vector3(1, 1, 1);
@@ -5540,7 +5631,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // 4.94 by 9.10: on it. Along the road is also along the chase
     // camera's line of sight, so the extra length is mostly seen end-on
     // and adds little to the lit area the exposure meters.
-    const coneScl = new THREE.Vector3(0.95, 1, 1.75);
+    // 1.3 along rather than 1.75: the long foot is seen end-on from the
+    // chase camera, and end-on is where the shafts down the road stacked.
+    const coneScl = new THREE.Vector3(0.95, 1, 1.3);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -5624,6 +5717,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       poolQ.setFromUnitVectors(zAxis2, tanV);
       poolScl.set(0.85, 1, 1.55);
       p.y = 0.045;
+      streetLampPools.push(new THREE.Vector3(p.x, 0, p.z));
       m.compose(p, poolQ, poolScl);
       pools.setMatrixAt(i, m);
 
@@ -5664,6 +5758,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fog: false,
     });
     const streaks = new THREE.InstancedMesh(streakGeo, streakMat, count);
+    lampStreaks = streaks;
     const q = new THREE.Quaternion();
     const zAxis = new THREE.Vector3(0, 0, 1);
     const scl = new THREE.Vector3(1, 1, 1);
@@ -5709,6 +5804,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // textured InstancedMesh in the scene, which is how tests/daynight.mjs
     // finds the lamp pool to read its opacity.
     scene.add(columns, lamps, pools, cones, streaks);
+    // The paint's probe sits inside the shaft it is passing under, where
+    // a cone is nothing but its own near walls.
+    probeHide.push(cones);
     // LED coronas under every lens
     // Tight: 2.8 m. A 4.6 m round corona was all you saw of a head up
     // close. The points sit 1.5 cm below the lens, and a point sprite is
@@ -5719,6 +5817,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // rather than a bulb. The arm and lid carry the fixture's shape at
     // distance, where the corona alone used to be the whole silhouette.
     const lampCoronas = coronaPoints(lampPositions, 0xdbe7ff, 2.8);
+    lampCoronaPts = lampCoronas;
     probeHide.push(lampCoronas);
     scene.add(lampCoronas);
     // Star glints: the sparkle each bright source throws at the lens
@@ -7686,6 +7785,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     },
     hemiLight: hemiRef!,
     streetLamps,
+    streetLampPools,
+    lampLevel: () => lampLevel,
     solvePlants(dt: number, wakes: readonly Wake[]) {
       solvePlants(dt, wakes);
     },
@@ -7832,7 +7933,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
             // and loses a little of its green, which is the whole reason
             // an afternoon sky photographs better than a noon one.
             [0.13, 0.26, 0.60],
-            [0.16, 0.34, 0.72]
+            // Bluer at the same brightness. The noon zenith was a pale
+            // blue that the grade's highlight desaturation finished off:
+            // the ik driver still read a flat 141,141,141 sky. More blue
+            // and less red at equal luminance (0.329 -> 0.326) puts the
+            // colour back without moving the noon exposure ladder, which
+            // is the trap the note above records.
+            [0.10, 0.33, 0.95]
           )
         );
         (u.uHorizon.value as THREE.Color).copy(
@@ -7842,7 +7949,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
             // And the horizon band goes to warm haze rather than the pale
             // blue of midday. This is the band the city sits in.
             [0.80, 0.70, 0.55],
-            [0.62, 0.74, 0.92]
+            // Equal luminance again (0.727 -> 0.705): a horizon haze that
+            // is still blue rather than white.
+            [0.52, 0.73, 1.0]
           )
         );
         (u.uGlow.value as THREE.Color).copy(
@@ -7861,7 +7970,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           [0.008, 0.012, 0.043],
           [0.098, 0.102, 0.172],
           [0.70, 0.62, 0.52],
-          [0.62, 0.71, 0.85]
+          // The noon fog follows the horizon it fades into (luminance
+          // 0.701 -> 0.684).
+          [0.55, 0.70, 0.92]
         )
       );
       // Thicker in the afternoon than at noon: the heat has been in the
@@ -8102,8 +8213,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (lampPoolMat) lampPoolMat.opacity = 0.42 * lampLevel;
       // The visible shafts die with the lamps: a beam of light in
       // daylight air is a projector effect, not a streetscape.
-      if (lampConeMat) lampConeMat.opacity = 0.08 * lampLevel;
+      // 0.05, not the 0.08 it was tuned at under the meter's 0.55 floor:
+      // the walls no longer hide their strength in a hard edge.
+      if (lampConeMat) lampConeMat.uniforms.uOpacity.value = 0.05 * lampLevel;
       if (glintMat) glintMat.visible = lampLevel > 0.05;
+      // The smears and coronas are pictures of a lit lamp too. They were
+      // left on at full strength by day: pale 12 m smears down a sunlit
+      // road and a glow on every unlit lantern in the noon driver still.
+      if (lampStreaks) {
+        (lampStreaks.material as THREE.MeshBasicMaterial).opacity = 0.42 * lampLevel;
+        lampStreaks.visible = lampLevel > 0.02;
+      }
+      if (lampCoronaPts) {
+        (lampCoronaPts.material as THREE.PointsMaterial).opacity = 0.85 * lampLevel;
+        lampCoronaPts.visible = lampLevel > 0.02;
+      }
       // Paint and sign faces stop glowing once the sun is lighting them
       for (const g of nightGlow) g.mat.emissiveIntensity = g.base * lampLevel;
     },

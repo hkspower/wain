@@ -145,8 +145,14 @@ export interface FilmSpec {
 /** Bare glass, before any film: the blue-green a windscreen already is. */
 export const FACTORY_GLASS = 0x121722;
 
-/** Factory glass, for a build that has never been to the tint shop. */
-export const CLEAR_OPACITY = 0.62;
+/** Factory glass, for a build that has never been to the tint shop.
+ *  0.45: at 0.62 the glass let 38% of the cabin through, and the ik
+ *  driver still, square on to the side glass at noon, showed a helmet
+ *  at 0/255 behind it. The reflection does not pay for this (cars.ts
+ *  draws the glass premultiplied, so its Fresnel is not scaled by it). */
+export const CLEAR_OPACITY = 0.45;
+/** Limo black: the darkest film, at full strength. */
+const TINT_MAX_OPACITY = 0.96;
 
 /**
  * The three products.
@@ -250,7 +256,9 @@ export function glassLook(film: TintFilm | undefined, pct: number): GlassLook {
   }
   const f = FILMS[film];
   return {
-    opacity: CLEAR_OPACITY + t * 0.34,
+    // The same 0.96 at full limo as always: the shop sells a range that
+    // ends where it ended, and only the clear end moved.
+    opacity: CLEAR_OPACITY + t * (TINT_MAX_OPACITY - CLEAR_OPACITY),
     color: mixHex(FACTORY_GLASS, f.core, t),
     envMapIntensity: 1.35 + t * f.sheen,
     roughness: 0.05 + t * f.haze,

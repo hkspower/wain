@@ -10,7 +10,7 @@ import { RIG } from "./rig";
 import { solveDriverRig, lookAheadFor } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
-import { glassLook, type TintFilm } from "./tint";
+import { CLEAR_OPACITY, glassLook, type TintFilm } from "./tint";
 import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
@@ -3106,8 +3106,37 @@ const glassMat = new THREE.MeshPhysicalMaterial({ name: "glass",
   ior: 1.5,
   envMapIntensity: 1.35,
   transparent: true,
-  opacity: 0.62,
+  opacity: CLEAR_OPACITY,
+  premultipliedAlpha: true,
 });
+premultiplyGlass(glassMat);
+
+/**
+ * Draw glass the way glass works: what you see through it is scaled by
+ * how much it lets through, and what it reflects is not.
+ *
+ * A transparent material in three outputs (light, alpha) and the blend
+ * multiplies ALL of the light by alpha — so the street reflected in a
+ * window got dimmer as the window got clearer, and the only way to see
+ * into a cabin was to give up the reflection that makes glass read as
+ * glass. Premultiplied, the shader decides: the diffuse share is scaled
+ * by alpha, the specular (Fresnel, the env reflection, the clearcoat) is
+ * added at full strength, and the blend lays that over what is behind
+ * at (1 - alpha).
+ */
+function premultiplyGlass(m: THREE.MeshPhysicalMaterial): void {
+  m.premultipliedAlpha = true;
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <opaque_fragment>",
+        "gl_FragColor = vec4(totalDiffuse * diffuseColor.a + (outgoingLight - totalDiffuse), diffuseColor.a);"
+      )
+      // Already premultiplied above; three's chunk would do it again.
+      .replace("#include <premultiplied_alpha_fragment>", "");
+  };
+  m.customProgramCacheKey = () => "glass-premultiplied";
+}
 
 /**
  * Window tint, as a material.
@@ -3138,6 +3167,8 @@ function tintedGlass(tintPct: number, film: TintFilm | undefined): THREE.MeshPhy
   // what it is claiming about them.
   const look = glassLook(film, tintPct);
   const m = glassMat.clone();
+  // clone() does not carry the shader hook across.
+  premultiplyGlass(m);
   m.opacity = look.opacity;
   m.color = new THREE.Color(look.color);
   m.envMapIntensity = look.envMapIntensity;
@@ -3152,7 +3183,10 @@ const seamMat = new THREE.MeshStandardMaterial({ name: "seam", color: 0x0a0b0d, 
 // Panel gaps read almost black and swallow light — that contrast against
 // the lit chamfer beside them is what sells a shut line.
 const gapMat = new THREE.MeshStandardMaterial({ name: "panel-gap", color: 0x050506, roughness: 1 });
-const interiorMat = new THREE.MeshStandardMaterial({ name: "interior", color: 0x14161a, roughness: 0.95 });
+// A dark grey trim, not the 0x14161a it was: at about 0.7% reflectance
+// the dash and headrests stayed black under any light that came in
+// through the glass, so a lit cabin and an unlit one looked the same.
+const interiorMat = new THREE.MeshStandardMaterial({ name: "interior", color: 0x2a2d32, roughness: 0.95 });
 const indicatorMat = new THREE.MeshStandardMaterial({ name: "indicator",
   color: 0xffa020,
   emissive: 0xff8c1a,
@@ -5415,6 +5449,13 @@ export function createCar(colors: CarColors): THREE.Group {
     tintPct > 0 && colors.tintFilm ? tintedGlass(tintPct, colors.tintFilm) : glassMat;
   const canopyShell = new THREE.Mesh(cGeo, glassLocal);
   canopyShell.userData.shell = "canopy";
+  // Glass lets the light through, so it casts no shadow. It used to: the
+  // whole glasshouse drew into the shadow map as a solid, and the cabin
+  // under it sat in its own shade at every hour — the ik driver still,
+  // shot at noon through the side glass, read a cabin median of 5/255.
+  // The painted roof panel still casts, so the driver's head is shaded
+  // and the torso, the arms and the dash take the sun through the glass.
+  canopyShell.userData.seeThrough = true;
   group.add(canopyShell);
   const roofShell = new THREE.Mesh(rGeo, bodyMat);
   roofShell.userData.shell = "roof";
@@ -6826,6 +6867,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // glass roof is what it costs.
     if (!colors.crew || colors.simple) {
       const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassLocal);
+      sunroof.userData.seeThrough = true;
       // On the roof's measured surface, like the rails below it. Seated on
       // the roof ANCHOR — the profile's top line — the glass sat 26 mm
       // under the paint on the saloons and never appeared.
@@ -8468,7 +8510,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
   group.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
-    o.castShadow = !o.userData.noShadow;
+    o.castShadow = !o.userData.noShadow && !o.userData.seeThrough;
     // And a car RECEIVES. It never used to — not one mesh on any car in
     // the game — so a car drove under a flyover in full moonlight, and
     // the car alongside you in a battle stayed lit through your own
@@ -8618,7 +8660,9 @@ export function createCar(colors: CarColors): THREE.Group {
     // still match it.
     const demonDriver = colors.livery === "demon";
     const driver = kuwaitiDriver(
-      demonDriver ? 0x0e0d11 : 0x1d2026,
+      // A charcoal race suit (about 4% reflectance) rather than the
+      // near-black 0x1d2026, which behind glass was a hole, not a man.
+      demonDriver ? 0x0e0d11 : 0x3a3f48,
       undefined,
       colors.simple === true,
       demonDriver

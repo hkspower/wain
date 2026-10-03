@@ -339,7 +339,16 @@ export function kuwaitiDriver(
       // lamps reads as painted plastic, and this one has to read as
       // something that does not reflect much of anything.
       ? new THREE.MeshStandardMaterial({ color: 0x0d0c10, roughness: 0.62, metalness: 0.12 })
-      : new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
+      // A white lid, glossy, rather than one in the suit's colour: it
+      // is the brightest thing in a cabin and the one shape that reads
+      // through tinted glass at any hour, the way a real helmet does.
+      : new THREE.MeshPhysicalMaterial({
+          color: 0xe6e6e0,
+          roughness: 0.25,
+          metalness: 0,
+          clearcoat: 1,
+          clearcoatRoughness: 0.08,
+        })
   );
   helmet.userData.driverPart = "helmet";
   crown.add(helmet);

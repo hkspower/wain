@@ -27,7 +27,7 @@ import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
 import { solveWing } from "./aero";
 import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
 import { BULBS, bulbColor, highBeamOf, kelvinColor, warmupOf } from "./bulbs";
-import { nightEnvironment } from "./env";
+import { dayEnvironment, nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
 import { textTexture, arabicUI } from "./text";
@@ -119,6 +119,14 @@ const KMH = 3.6;
  * that 153 and 15% over, for the frames where a drift's rate and a
  * spin's overlap.
  */
+/** The moon's PCF radius in texels of a 4096 map (about 15 cm); bigger
+ *  maps scale it so the penumbra stays the same size on the ground. */
+const MOON_SHADOW_RADIUS = 3.5;
+/** The bloom's threshold (on the exposed max channel), soft knee and
+ *  strength. See the bright-pass where the bloom is built. */
+const BLOOM = { threshold: 1.0, knee: 0.5, strength: 0.48 };
+/** A street lantern's light, candela, at decay 2 (see pickLamps). */
+const LAMP_CD = 290;
 const SMOKE_N = 176;
 
 // --- How smoke is lit and how thick it is ------------------------------
@@ -1009,12 +1017,17 @@ function headlightPoolTexture(): THREE.CanvasTexture {
   };
   ctx.globalCompositeOperation = "lighter";
   // Two lamp lobes, splayed and reaching up the road
-  lobe(S * 0.36, S * 0.56, S * 0.3, S * 0.42, 0.5);
-  lobe(S * 0.64, S * 0.56, S * 0.3, S * 0.42, 0.5);
+  //
+  // Nearer the bumper than they were (0.66/0.56 of the way up rather
+  // than 0.56/0.44), on a shorter plane that starts a metre past it: the
+  // old pool began four metres out and the ik lock still showed it as a
+  // warm patch floating on its own ahead of the car.
+  lobe(S * 0.36, S * 0.66, S * 0.3, S * 0.42, 0.5);
+  lobe(S * 0.64, S * 0.66, S * 0.3, S * 0.42, 0.5);
   // The shared hot spot where both beams overlap
-  lobe(S * 0.5, S * 0.44, S * 0.26, S * 0.3, 0.34);
+  lobe(S * 0.5, S * 0.56, S * 0.26, S * 0.3, 0.34);
   // Fade the very near edge so the pool does not start under the nose
-  const cut = ctx.createLinearGradient(0, S, 0, S * 0.74);
+  const cut = ctx.createLinearGradient(0, S, 0, S * 0.9);
   cut.addColorStop(0, "rgba(0,0,0,1)");
   cut.addColorStop(1, "rgba(0,0,0,0)");
   ctx.globalCompositeOperation = "destination-out";
@@ -1230,6 +1243,11 @@ export class GameEngine {
    *  beam LANDS, not part of the car — but follows the aim. */
   private poolPivot!: THREE.Group;
   private pool!: THREE.Mesh;
+  /** The two image-based lights, baked once (env.ts). */
+  private envNight: THREE.Texture | null = null;
+  private envDay: THREE.Texture | null = null;
+  /** The pool's opacity at this hour, before the view takes any off. */
+  private poolBaseOpacity = 0.4;
   /** Adaptive front lighting: how far the lamps have swivelled into the
    *  corner, in target-metres of lateral offset. Damped, so it leans
    *  rather than twitches. */
@@ -1803,6 +1821,29 @@ export class GameEngine {
    *  their squared distance, nearest first. */
   private smokeLampI = new Int32Array(4);
   private smokeLampD = new Float64Array(4);
+  /**
+   * The street lamps that really light things. The lanterns' pools are
+   * painted on the road (world.ts), so on their own they lit nothing: a
+   * car parked in a pool read as moonlit on a lamp-lit road, a dark
+   * shape on a brighter floor, which is what every night ik still
+   * showed. These are real SpotLights, a fixed four, that stand in the
+   * four lanterns nearest the player each frame (pickLamps).
+   *
+   * Always in the scene, never hidden: three bakes the light count into
+   * every lit program, so showing or hiding one recompiles the world. A
+   * light with nothing to do sits at intensity 0 instead.
+   */
+  private lampLights: THREE.SpotLight[] = [];
+  /** The car's own warm rim light, kept so the clock can dim it by day. */
+  private rimLight: THREE.PointLight | null = null;
+  /** Which lamp (index into world.streetLamps) each light is standing
+   *  in, or -1. A lamp keeps its light for as long as it stays among
+   *  the nearest, so no light ever jumps between lamps while lit. */
+  private lampSlot = new Int32Array([-1, -1, -1, -1]);
+  /** How many of the four the tier pays for (2 on battery). */
+  private lampLightCount = 4;
+  /** Whether the tier pays for their shadows (ultra only). */
+  private lampShadowTier = false;
 
   // Minimap
   /** Built on first use — see getRoadMap. */
@@ -2005,7 +2046,7 @@ export class GameEngine {
     // against. At 4.4 cm per texel, 3.5 texels is about 15 cm of
     // gradient: soft enough to read as a night shadow, tight enough that
     // a car still has a recognisable outline on the asphalt.
-    moon.shadow.radius = 3.5;
+    moon.shadow.radius = MOON_SHADOW_RADIUS;
     this.scene.add(moon.target);
     this.syncKeyDirection();
 
@@ -2055,10 +2096,49 @@ export class GameEngine {
     // that bright edges never smear across dark areas and tire the eye.
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.42,
+      BLOOM.strength,
       0.4,
-      0.85
+      BLOOM.threshold
     );
+    // Bloom is what a lens does with light it cannot hold, so only the
+    // EXCESS over the threshold glows, eased in through a soft knee.
+    // Three's stock bright-pass passes a pixel's whole value once its
+    // luminance crosses 0.85, which at the stills' pinned exposure was
+    // every lit window, sign face and whitened plate: the lock still's
+    // light bar sat in a white slab of its own halo. Measured on the
+    // max channel, not luminance, so a red tail lens (luminance a fifth
+    // of its red) can bloom at all.
+    {
+      const hp = this.bloomPass.materialHighPassFilter;
+      hp.uniforms.smoothWidth.value = BLOOM.knee;
+      hp.fragmentShader = /* glsl */ `
+        uniform sampler2D tDiffuse;
+        uniform float luminosityThreshold;
+        uniform float smoothWidth;
+        varying vec2 vUv;
+        void main() {
+          vec4 c = texture2D(tDiffuse, vUv);
+          float m = max(max(c.r, c.g), c.b);
+          float k = clamp(m - luminosityThreshold + smoothWidth, 0.0, 2.0 * smoothWidth);
+          float soft = k * k / (4.0 * smoothWidth + 1e-4);
+          float w = max(soft, m - luminosityThreshold) / max(m, 1e-4);
+          gl_FragColor = vec4(c.rgb * w, 1.0);
+        }
+      `;
+      hp.needsUpdate = true;
+      // And at one size of halo whatever the resolution. The blur's
+      // kernel is in texels of a chain that starts at half the buffer,
+      // so at 4K every halo came out half as wide, on screen, as the
+      // 1080p game's. Run the chain at a 1080-line base at most; above
+      // that, the halos are the ones the game was tuned with (and the
+      // pass is four times cheaper at 4K).
+      const bp = this.bloomPass;
+      const setSize = bp.setSize.bind(bp);
+      bp.setSize = (w: number, h: number) => {
+        const k = Math.min(1, 1080 / Math.max(1, h));
+        setSize(Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k)));
+      };
+    }
     this.composer.addPass(this.bloomPass);
     // OutputPass (tone map + sRGB encode) must run BEFORE the grade.
     // Grading scene-referred HDR meant the final clamp(0,1) clipped every
@@ -2344,6 +2424,26 @@ export class GameEngine {
     rim.name = "rim";
     rim.position.set(0, 2.6, -4.4);
     this.playerMesh.add(rim);
+    this.rimLight = rim;
+
+    // The street lamps' own light, four of them, positioned every frame
+    // by pickLamps. 0xe8f0ff is the painted pool's centre colour, so the
+    // car and the road under it agree. A 1.13 rad cone with a half
+    // penumbra covers the pool's bright core (about 9 m along by 5 m
+    // across) from 12 m up and dies out across its skirt; decay 2 and a
+    // 40 m reach are a lantern's, not a stage light's.
+    for (let i = 0; i < 4; i++) {
+      const l = new THREE.SpotLight(0xe8f0ff, 0, 40, 1.13, 0.5, 2);
+      l.name = "street";
+      l.castShadow = false;
+      l.shadow.mapSize.set(1024, 1024);
+      l.shadow.camera.near = 4;
+      l.shadow.camera.far = 40;
+      l.shadow.bias = -0.0005;
+      l.shadow.normalBias = 0.02;
+      this.scene.add(l, l.target);
+      this.lampLights.push(l);
+    }
 
     // The live paint probe. HalfFloat so HDR lamp emissives survive into
     // the clearcoat as real hot streaks — with an LDR fallback where float
@@ -2429,7 +2529,7 @@ export class GameEngine {
         this.beams.push(beam);
       }
       const pool = new THREE.Mesh(
-        new THREE.PlaneGeometry(8, 17),
+        new THREE.PlaneGeometry(7, 13),
         new THREE.MeshBasicMaterial({
           map: headlightPoolTexture(),
           transparent: true,
@@ -2443,7 +2543,7 @@ export class GameEngine {
       // Rotated flat, the plane's +v axis points back toward the car, so
       // the texture's near-edge cut lands at the bumper end.
       pool.rotation.z = Math.PI;
-      pool.position.set(0, 0.07, 10.5);
+      pool.position.set(0, 0.07, 8.5);
       // On a pivot rather than straight onto the car. The pool is where
       // the beam LANDS, so it has to swing with the aim — but it also
       // has to stay flat on the asphalt, which it would not if it
@@ -2506,9 +2606,12 @@ export class GameEngine {
   }
 
   /** The night the paint reflects — see env.ts. Shared with the main
-   *  menu's turntable so both are lit by the same city. */
+   *  menu's turntable so both are lit by the same city. And the day,
+   *  which applyDaylight swaps in once the sun is up. */
   private buildEnvironment(): void {
-    this.scene.environment = nightEnvironment(this.renderer);
+    this.envNight = nightEnvironment(this.renderer);
+    this.envDay = dayEnvironment(this.renderer);
+    this.scene.environment = this.envNight;
   }
 
   // ---------------------------------------------------------------- public
@@ -3228,6 +3331,7 @@ export class GameEngine {
     this.bloomPass.enabled = on;
     this.world.moonLight.castShadow = on;
     this.headlight.castShadow = on;
+    for (const l of this.lampLights) l.castShadow = on && this.lampShadowTier;
     this.msaaTarget.samples = on ? 4 : 0;
     this.fxaaPass.enabled = !on;
     this.liveReflections = on;
@@ -3260,6 +3364,20 @@ export class GameEngine {
     // Manual sits at 1.15, the hand-set exposure this game shipped with,
     // so zero on the slider is exactly the look it always had.
     u.uManual.value = 1.15;
+    this.grainPass.material.uniforms.uLiftScale.value = 1;
+  }
+
+  /**
+   * Pin the exposure to a value, for a still. The night shadow lift is
+   * sized for the meter's 0.55 floor, so above that it gives way in
+   * proportion (never below 0.4 of itself): the exposure has opened the
+   * shadows already, and the lift on top only greys the blacks.
+   */
+  setManualExposure(e: number): void {
+    const u = this.autoExp.exposureMat.uniforms;
+    u.uAuto.value = 0;
+    u.uManual.value = e;
+    this.grainPass.material.uniforms.uLiftScale.value = THREE.MathUtils.clamp(0.55 / e, 0.4, 1);
   }
 
   /** Current exposure and metered luminance. Reads back from the GPU, so
@@ -3485,11 +3603,12 @@ export class GameEngine {
     // sun that switches the headlights. Twilight gets a fraction of it,
     // which is what dusk on the corniche actually wants.
     const alt = Math.sin(((this.timeHours - 6) / 24) * Math.PI * 2);
-    this.grainPass.material.uniforms.uNight.value = THREE.MathUtils.clamp(
-      (0.05 - alt) / 0.4,
-      0,
-      1
-    );
+    const uNight = THREE.MathUtils.clamp((0.05 - alt) / 0.4, 0, 1);
+    this.grainPass.material.uniforms.uNight.value = uNight;
+    // Highlight desaturation is a night lamp's look — a sodium core that
+    // clips to white. At its night strength it also bleached the whole
+    // noon sky to grey, so by day it eases off to 0.3.
+    this.grainPass.material.uniforms.uHighlightDesat.value = 0.55 * uNight + 0.3 * (1 - uNight);
     // The dipped beam, recorded as well as written. A flash is a level
     // ABOVE this, applied every frame from here — so the hour can change
     // mid-flash, two flashes can overlap, and the lamps still come home
@@ -3499,8 +3618,45 @@ export class GameEngine {
     this.headlight.intensity = this.lampRest.spot;
     this.headlightR.intensity = this.lampRest.off;
     this.beamBaseOpacity = this.beamBaseOpacityNight * dark;
+    // And the pool is light that only shows in the dark: at noon a
+    // halogen adds nothing you could see to sunlit asphalt.
+    this.poolBaseOpacity = 0.4 * dark;
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
     for (const g of glows) g.opacity = 0.9 * dark;
+    // The rim is a night light: by day the sun is the key on the car and
+    // a 3.0 warm point behind the roof only adds a hot glint to it.
+    if (this.rimLight) this.rimLight.intensity = 3.0 * (0.25 + 0.75 * dark);
+    // Day or night image lighting. A swap, not a blend — three cannot
+    // mix two environments — hidden in the middle of the dawn and dusk
+    // ramp by dipping the strength to 0.6 either side of it. Both bakes
+    // are the same PMREM layout, so the swap recompiles nothing.
+    if (this.envNight && this.envDay) {
+      const t = THREE.MathUtils.smoothstep(this.daylight, 0.35, 0.65);
+      this.scene.environment = t > 0.5 ? this.envDay : this.envNight;
+      this.scene.environmentIntensity =
+        t > 0.5 ? THREE.MathUtils.lerp(0.6, 1, (t - 0.5) * 2) : THREE.MathUtils.lerp(1, 0.6, t * 2);
+    }
+  }
+
+  /**
+   * How many street-lamp lights the tier keeps, and whether they cast.
+   * Changing either recompiles every lit program, as the tier's other
+   * shadow switches already do, so it happens here and nowhere per frame.
+   */
+  private setLampLights(count: number, shadows: boolean): void {
+    this.lampLightCount = count;
+    this.lampShadowTier = shadows;
+    this.lampLights.forEach((l, k) => {
+      const on = k < count;
+      if (on && !l.parent) this.scene.add(l, l.target);
+      if (!on && l.parent) {
+        l.removeFromParent();
+        l.target.removeFromParent();
+        l.intensity = 0;
+      }
+      l.castShadow = on && shadows;
+    });
+    for (let k = count; k < 4; k++) this.lampSlot[k] = -1;
   }
 
   /**
@@ -3536,6 +3692,11 @@ export class GameEngine {
     this.bloomPass.enabled = high || balanced;
     this.world.moonLight.castShadow = high || balanced;
     this.headlight.castShadow = high || balanced;
+    // The street lamps' lights: four everywhere but battery, which pays
+    // for two; shadows from all four on ultra only. All four shadow, not
+    // just the nearest, because the nearest changes every 21 m at full
+    // strength and its shadow would jump between lamps.
+    this.setLampLights(tier === "battery" ? 2 : 4, ultra);
     // Multisampling where the machine can afford it, and FXAA only where
     // it cannot — never both.
     //
@@ -3570,7 +3731,13 @@ export class GameEngine {
       this.headlight.shadow.map?.dispose();
       this.headlight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
-    const moonSize = this.budget(ultra ? 16384 : 4096);
+    // 8192 on ultra, not 16384: at 16k the map's PCF radius, tuned in
+    // texels at 4096, shrank to a quarter of its width on the ground,
+    // and every ultra shadow came out pencil-edged (and the map alone
+    // was a gigabyte). The radius now scales with the map, so a
+    // shadow's penumbra is the same 15 cm on every tier.
+    const moonSize = this.budget(ultra ? 8192 : 4096);
+    this.world.moonLight.shadow.radius = MOON_SHADOW_RADIUS * (moonSize / 4096);
     if (this.world.moonLight.shadow.mapSize.x !== moonSize) {
       this.world.moonLight.shadow.mapSize.setScalar(moonSize);
       this.world.moonLight.shadow.map?.dispose();
@@ -6055,8 +6222,12 @@ export class GameEngine {
     // reach from the pitch — brake hard and the lit patch pulls in
     // toward the bumper, which is exactly what a diving nose does to it.
     this.poolPivot.rotation.y = this.carBody.rotation.y;
-    this.pool.position.x = this.lampSwivel * 0.5;
-    this.pool.position.z = 10.5 - this.pitch * 62;
+    this.pool.position.z = 8.5 - this.pitch * 62;
+    // Where the swivelled beam actually is at the pool's distance: the
+    // lamps aim lampSwivel across at 42 m, so at z it is z/42 of that.
+    // It was a flat 0.5 of it, which swung the pool 2.2x further than
+    // the light it is a picture of.
+    this.pool.position.x = this.lampSwivel * (this.pool.position.z / 42);
     // Lit-up rears visibly overspin the road speed — the launch tell.
     //
     // The wheels roll at the component of travel along the car's OWN
@@ -6980,6 +7151,18 @@ export class GameEngine {
     const behind = Math.max(0, align);
     const hide = behind * behind * (3 - 2 * behind); // smoothstep
     this.beamMat.opacity = this.beamBaseOpacity * (1 - hide);
+    // The pool is a decal, and from just in front of the car, looking
+    // back at it, a decal is all edge: there is no road ahead for it to
+    // light from where you stand. Fade it as the camera comes round in
+    // front and close.
+    const poolMat = this.pool?.material as THREE.MeshBasicMaterial | undefined;
+    if (poolMat) {
+      const near = 1 - THREE.MathUtils.smoothstep(
+        this.camera.position.distanceTo(this.playerMesh.position), 8, 12
+      );
+      const ahead = 1 - THREE.MathUtils.smoothstep(align, -0.6, -0.2);
+      poolMat.opacity = this.poolBaseOpacity * (1 - near * ahead);
+    }
   }
 
   /** Which shot is live. */
@@ -7787,6 +7970,7 @@ export class GameEngine {
 
     // Both pools are lit now that both have moved, and ordered far to
     // near from where the camera has already gone this frame.
+    this.pickLamps();
     this.lightSmoke(dt);
     this.smokeFx.sortFrom(this.camera.position);
     this.dustFx.sortFrom(this.camera.position);
@@ -8077,6 +8261,89 @@ export class GameEngine {
    * art light for the paint, not a lamp anything real could see, so it
    * is left out.
    */
+  /**
+   * Find the four street lamps nearest the player and stand the lamp
+   * lights in them. The smoke shader reads the same four.
+   */
+  private pickLamps(): void {
+    const lamps = this.world.streetLamps;
+    const pools = this.world.streetLampPools;
+    const p = this.playerMesh.position;
+    const bi = this.smokeLampI;
+    const bd = this.smokeLampD;
+    bi.fill(-1);
+    bd.fill(Infinity);
+    // The four nearest by distance along the ground, kept sorted as the
+    // scan goes. Columns stand one every 42 m, the verges alternating, so
+    // the nearest four always include every column within 42 m either
+    // way — most of a smoke plume, which at 32 m/s trails about 45 m (a
+    // 1.7 s life, less the 8 m the wake carries each puff forward).
+    for (let i = 0; i < lamps.length; i++) {
+      const dx = lamps[i].x - p.x;
+      const dz = lamps[i].z - p.z;
+      const d = dx * dx + dz * dz;
+      if (d >= bd[3]) continue;
+      let k = 3;
+      while (k > 0 && bd[k - 1] > d) {
+        bd[k] = bd[k - 1];
+        bi[k] = bi[k - 1];
+        k--;
+      }
+      bd[k] = d;
+      bi[k] = i;
+    }
+
+    // Stable slots. A light keeps its lamp while that lamp is still one
+    // of the nearest; a lamp new to the set takes a freed light. With
+    // four lights the set only ever changes at the far end, past 55 m,
+    // where the fade below has already taken a lamp to zero — so a light
+    // is never moved while it is lighting anything.
+    const n = this.lampLightCount;
+    const slot = this.lampSlot;
+    for (let k = 0; k < 4; k++) {
+      let keep = false;
+      for (let j = 0; j < n; j++) if (bi[j] === slot[k]) keep = true;
+      if (!keep || k >= n) slot[k] = -1;
+    }
+    for (let j = 0; j < n; j++) {
+      const i = bi[j];
+      if (i < 0) continue;
+      let has = false;
+      for (let k = 0; k < n; k++) if (slot[k] === i) has = true;
+      if (has) continue;
+      for (let k = 0; k < n; k++) {
+        if (slot[k] < 0) {
+          slot[k] = i;
+          break;
+        }
+      }
+    }
+    const level = this.world.lampLevel();
+    // Battery's two lights hand over between the nearest two, at full
+    // strength, so a lamp also fades as the next one in line closes on
+    // it (the rank gap); with four the 38-52 m fade does it alone.
+    const dNext = n < 4 && bi[n] >= 0 ? Math.sqrt(bd[n]) : Infinity;
+    for (let k = 0; k < 4; k++) {
+      const l = this.lampLights[k];
+      const i = slot[k];
+      if (!l || i < 0 || level <= 0) {
+        if (l) l.intensity = 0;
+        continue;
+      }
+      const q = lamps[i];
+      const d = Math.hypot(q.x - p.x, q.z - p.z);
+      l.position.set(q.x, q.y - 0.02, q.z);
+      l.target.position.copy(pools[i]);
+      let f = 1 - THREE.MathUtils.smoothstep(d, 38, 52);
+      if (dNext < Infinity) f *= THREE.MathUtils.smoothstep(dNext - d, 0, 6);
+      // 290 cd from 12 m: about 2 lux-units on the road under the lens
+      // and about 2.4 on a bonnet, twice the moon from straight above.
+      // The painted pool is a picture of that light on asphalt; this is
+      // the light itself, for everything else standing in it.
+      l.intensity = LAMP_CD * level * f;
+    }
+  }
+
   private lightSmoke(dt: number): void {
     const L = this.smokeLight;
     const dark = 1 - this.daylight;
@@ -8120,33 +8387,10 @@ export class GameEngine {
     L.uHeadCol.value.copy(hl.color).multiplyScalar(((hl.intensity + hr.intensity) / Math.PI) * SMOKE_HEAD);
     L.uHeadCos.value.set(Math.cos(hl.angle), Math.cos(hl.angle * (1 - hl.penumbra)));
 
-    // --- Street lanterns
+    // --- Street lanterns (the nearest four, found by pickLamps)
     if (!this.smokeFx.points.visible && !this.dustFx.points.visible) return;
     const lamps = this.world.streetLamps;
-    const p = this.playerMesh.position;
     const bi = this.smokeLampI;
-    const bd = this.smokeLampD;
-    bi.fill(-1);
-    bd.fill(Infinity);
-    // The four nearest by distance along the ground, kept sorted as the
-    // scan goes. Columns stand one every 42 m, the verges alternating, so
-    // the nearest four always include every column within 42 m either
-    // way — most of a plume, which at 32 m/s trails about 45 m (a 1.7 s
-    // life, less the 8 m the wake carries each puff forward).
-    for (let i = 0; i < lamps.length; i++) {
-      const dx = lamps[i].x - p.x;
-      const dz = lamps[i].z - p.z;
-      const d = dx * dx + dz * dz;
-      if (d >= bd[3]) continue;
-      let k = 3;
-      while (k > 0 && bd[k - 1] > d) {
-        bd[k] = bd[k - 1];
-        bi[k] = bi[k - 1];
-        k--;
-      }
-      bd[k] = d;
-      bi[k] = i;
-    }
     const w = SMOKE_LAMP * (0.15 + 0.85 * dark);
     for (let k = 0; k < 4; k++) {
       const v = L.uLamp.value[k];
