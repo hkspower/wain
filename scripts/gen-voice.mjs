@@ -12,7 +12,7 @@
  *   ELEVENLABS_API_KEY=...            # api key — the only required one
  *   ELEVEN_VOICE_SHOUQ=<voice-id>     # override شوق's voice
  *   ELEVEN_VOICE_SALEM=<voice-id>     # override سالم's voice
- *   ELEVEN_MODEL=eleven_multilingual_v2   # optional override
+ *   ELEVEN_MODEL=eleven_v4                # optional override
  *   ELEVEN_FORMAT=mp3_44100_64            # optional override
  *
  *   node scripts/gen-voice.mjs --sample   # ONE call: hear شوق before the rest
@@ -162,7 +162,9 @@ const RENDITION = {
 // eleven_multilingual_v2 on purpose, not turbo: turbo trades quality for
 // latency, and nothing here is realtime — every clip is rendered once at build
 // time and served as a static file.
-const MODEL = process.env.ELEVEN_MODEL ?? "eleven_multilingual_v2";
+// eleven_v4 since 3 October, with the bridge (tts-endpoint.php says why):
+// the model the owner chose both voices on by ear. audit:tts holds the two.
+const MODEL = process.env.ELEVEN_MODEL ?? "eleven_v4";
 
 // 64kbps rather than 128. These are short spoken lines over a mobile
 // connection, where speech at 64 is indistinguishable and the file is half the

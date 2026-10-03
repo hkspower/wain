@@ -96,6 +96,13 @@ bridge are still `eleven_multilingual_v2`, on purpose.
 `3AH0h1SXwwhE8vUUWuQW` (ar-kuwaiti), on the agent, in `gen-voice.mjs` and in
 `tts-endpoint.php`, by the owner's choice after hearing both.
 
+**And the clips and the bridge render on `eleven_v4` since then too** (they
+were `eleven_multilingual_v2`), the model both voices were chosen on. سالم is
+Mustafa Abdulla, `TbzNVcMOFmKd8tUT5liY`. `php tts.php probe [shouq|salem]` on
+the server makes one real render and prints what ElevenLabs answered — the
+only way to see that v4 accepts the voice settings, which nothing in the
+sandbox can reach.
+
 Stability, similarity, style and speed all matched. **The voice id alone did
 not**, which is the hardest field to notice going wrong: nothing breaks, no
 request fails, the audio plays — a different woman finishes the sentence.

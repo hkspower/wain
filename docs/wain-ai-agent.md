@@ -61,8 +61,8 @@
 - Similarity: 0.75 على الوكيل — والمقاطع المسجّلة 0.80، فرق صغير انحفظ من
   لوحة التحكم ٢ أكتوبر
 - Speed: 1.06 — الدليل يمشي أسرع من الراوي
-- Model: `eleven_v4_turbo` مع expressive mode — المقاطع والجسر يظلّون على
-  `eleven_multilingual_v2` عن قصد
+- Model: `eleven_v4_turbo` مع expressive mode — والمقاطع والجسر على
+  `eleven_v4` (من ٣ أكتوبر)، مو النسخة اللحظية
 
 ## اللغة
 

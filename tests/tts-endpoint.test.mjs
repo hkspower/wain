@@ -299,6 +299,25 @@ try {
        version().key === "EMPTY", version().key);
     writeFileSync(homeKey, "a-real-looking-key");
     ok("a filled key reads present", version().key === "present", version().key);
+
+    /* `probe` — one real render, so the key, the model and the voice settings
+       are proved together before a visitor meets a refusal (3 October, when
+       the model moved to eleven_v4 and nothing here could reach ElevenLabs to
+       see whether it accepts the settings). Against the stub upstream. */
+    const probe = (...args) =>
+      JSON.parse(execFileSync("php", [join(api, "tts.php"), "probe", ...args], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: fakeHome, WAIN_TTS_API_BASE: `http://127.0.0.1:${UPSTREAM_PORT}` },
+      }));
+    const pr = probe();
+    ok("probe renders through the real path and says ok", pr.ok === true && pr.status === 200 && pr.bytes >= 512, JSON.stringify(pr));
+    ok("it names the model and the voice it used", pr.model === "eleven_v4" && typeof pr.voiceId === "string", JSON.stringify(pr));
+    ok("and never prints the key", !JSON.stringify(pr).includes("a-real-looking-key"), JSON.stringify(pr));
+    ok("سالم can be probed by name", probe("salem").persona === "salem");
+    writeFileSync(homeKey, "");
+    const none = probe();
+    ok("with no key it says so instead of calling out", none.ok === false && none.error === "no_key", JSON.stringify(none));
+    writeFileSync(homeKey, "a-real-looking-key");
   }
 
   console.log("\n── `prune` clears the cache without clearing the spend cap ──");

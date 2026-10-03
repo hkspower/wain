@@ -89,12 +89,19 @@ const VOICES = [
     ],
 ];
 
-/* eleven_multilingual_v2 to match the CLIPS, deliberately not the agent's
-   eleven_flash_v2_5. شوق's conversational agent is right to run flash — it is
-   realtime and latency is the whole game there — but her agent voice is never
-   heard spliced into a recorded line, and these sentences are. The reference
-   for this file is gen-voice.mjs, not the agent. */
-const MODEL  = 'eleven_multilingual_v2';
+/* eleven_v4 since 3 October, on the owner's word («update elevenlabs 4 with
+   شوق»): the model they chose Maryam and Mustafa on by ear. Until then it was
+   eleven_multilingual_v2, to match the clips — and it still matches them,
+   because gen-voice.mjs moved in the same commit and audit:tts holds the two
+   together. Not the agent's eleven_v4_turbo: that is the realtime variant, and
+   nothing here is realtime — every sentence is rendered once and cached.
+
+   Whether v4 accepts the voice_settings below (stability 0.35, style…) could
+   not be checked from the sandbox, which cannot reach api.elevenlabs.io. A
+   refusal is not silent for the visitor — the bridge answers 502 and the device
+   voice speaks — but it is silent for us, so `php tts.php probe` exists to
+   make one real render and print what ElevenLabs answered. */
+const MODEL  = 'eleven_v4';
 const FORMAT = 'mp3_44100_64';
 
 /* Hosts allowed to ask. An Origin header is trivially forged, so this is not a
@@ -321,6 +328,52 @@ if (PHP_SAPI === 'cli') {
        the same shape, and the audit requires them to be equal. Each side is
        asked for its own values by its own interpreter, so the comparison
        survives a rename or a reformat that would defeat a regex. */
+    /* `probe` — one real render, to prove the key, the model and the voice
+     * settings work together BEFORE a visitor finds out they do not. It renders
+     * a short fixed greeting for one persona (shouq unless named), writes
+     * nothing to the cache, counts against no budget and prints ElevenLabs'
+     * status, byte count, time and — on an error — the first 300 characters of
+     * its body, which is where «invalid stability» or «voice_not_found» would
+     * be. The key itself is never printed. Costs one short render. */
+    if ($mode === 'probe') {
+        $persona = $argv[2] ?? 'shouq';
+        if (!isset(VOICES[$persona])) $out(['ok' => false, 'error' => 'unknown_persona', 'persona' => $persona]);
+        $key = is_file($keyFile) ? trim((string) @file_get_contents($keyFile)) : '';
+        if ($key === '') $out(['ok' => false, 'error' => 'no_key', 'key' => keyState($keyFile)]);
+        $voice = VOICES[$persona];
+        $base  = getenv('WAIN_TTS_API_BASE') ?: 'https://api.elevenlabs.io/v1/text-to-speech';
+        $t0 = microtime(true);
+        $ch = curl_init("$base/" . $voice['voiceId'] . '?output_format=' . FORMAT);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', "xi-api-key: $key"],
+            CURLOPT_POSTFIELDS     => json_encode([
+                'text' => 'هلا والله.', 'model_id' => MODEL, 'voice_settings' => $voice['settings'],
+            ], JSON_UNESCAPED_UNICODE),
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 20,
+        ]);
+        $body   = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $type   = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $cerr   = curl_error($ch);
+        curl_close($ch);
+        $good = $body !== false && $status === 200 && strlen((string) $body) >= 512;
+        $out(array_filter([
+            'ok'      => $good,
+            'persona' => $persona,
+            'voiceId' => $voice['voiceId'],
+            'model'   => MODEL,
+            'status'  => $status,
+            'type'    => $type,
+            'bytes'   => $body === false ? 0 : strlen((string) $body),
+            'ms'      => (int) round((microtime(true) - $t0) * 1000),
+            'curl'    => $cerr !== '' ? $cerr : null,
+            'upstream'=> $good || $body === false ? null : mb_substr((string) $body, 0, 300, 'UTF-8'),
+        ], static fn ($v) => $v !== null));
+    }
+
     if ($mode === 'table') {
         $out(['model' => MODEL, 'format' => FORMAT, 'voices' => VOICES]);
     }
@@ -451,7 +504,7 @@ if (PHP_SAPI === 'cli') {
 
     if ($mode !== 'install') {
         $out(['ok' => false, 'error' => 'usage',
-              'usage' => ['php tts.php install', 'php tts.php version', 'php tts.php table',
+              'usage' => ['php tts.php install', 'php tts.php version', 'php tts.php probe [shouq|salem]', 'php tts.php table',
                           'php tts.php log [n]', 'php tts.php logformat',
                           'php tts.php prune [--dry-run] [--days=N] [--all]']]);
     }

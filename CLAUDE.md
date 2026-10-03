@@ -5617,6 +5617,20 @@ Talya is — a workspace entry beside the library one — and rendered through t
 connector, which is strong evidence and not a call. One call on staging proves
 it.
 
+**Later the same day: سالم is Mustafa Abdulla (`TbzNVcMOFmKd8tUT5liY`), and the
+read-aloud renders on `eleven_v4`.** سالم was chosen by ear over Eid and two
+other Kuwaiti men (`docs/voice-sample/salem-voice-compare.txt`); the call's
+override, the app's config, `gen-voice.mjs` and `tts-endpoint.php` changed
+together. «update elevenlabs 4 with شوق» moved the clips' and the bridge's model
+from `eleven_multilingual_v2` to `eleven_v4` — the agent was already on
+`eleven_v4_turbo`. **Whether v4 accepts the voice settings (stability 0.35,
+style…) is unknown**: the sandbox cannot reach ElevenLabs and the connector
+shows no settings for any model. A refusal degrades to the device voice, so
+`php tts.php probe [shouq|salem]` makes one real render on the server and
+prints ElevenLabs' answer. **Run it the moment the key is in**, before
+believing the voices work. The server's copy (`015fcf35cbd31124`, installed
+this afternoon) predates the probe and the model change; reinstall first.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
