@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wain/data/landmarks.g.dart';
 import 'package:wain/map/wain_map.dart';
+import 'package:wain/screens/home_screen.dart';
 import 'package:wain/widgets/landmarks_show.dart';
 
 import 'app_smoke_test.dart' show pumpAt;
@@ -121,19 +122,27 @@ void main() {
     expect(find.text('place:liberation-tower'), findsOneWidget);
   });
 
+  // The home leaves the slideshow out while any picture is a drawn stand-in
+  // (kShowLandmarks), the web's rule; with real pictures it is under the hero.
   for (final size in const [Size(390, 844), Size(320, 568), Size(800, 1280)]) {
-    testWidgets('home at ${size.width.toInt()}px: the show is under the hero', (
-      t,
-    ) async {
-      await pumpAt(t, '/', size: size);
-      await t.scrollUntilVisible(
-        find.text('معالم الكويت'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await t.pump();
-      expect(find.byType(LandmarksShow), findsOneWidget);
-      expect(_showing('أبراج الكويت'), isTrue);
-    });
+    testWidgets(
+      'home at ${size.width.toInt()}px: the show is there exactly when its pictures are real',
+      (t) async {
+        await pumpAt(t, '/', size: size);
+        if (kShowLandmarks) {
+          await t.scrollUntilVisible(
+            find.text('معالم الكويت'),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await t.pump();
+          expect(find.byType(LandmarksShow), findsOneWidget);
+          expect(_showing('أبراج الكويت'), isTrue);
+        } else {
+          expect(kLandmarks.any((l) => l.standIn), isTrue);
+          expect(find.byType(LandmarksShow), findsNothing);
+        }
+      },
+    );
   }
 }

@@ -5,7 +5,7 @@
   "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/vendor-widget.mjs && next build && node scripts/vendor-widget.mjs --copy && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
+    "build": "node scripts/vendor-widget.mjs && next build && node scripts/vendor-widget.mjs --copy && node scripts/gen-landmarks.mjs --prune-out && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
     "start": "next start",
     "lint": "eslint .",
     "check:cache": "node scripts/check-cache-safety.mjs",

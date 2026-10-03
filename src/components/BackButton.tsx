@@ -97,7 +97,7 @@ export default function BackButton({
   if (!floating) return button;
   return (
     <>
-      {spacer && <div aria-hidden="true" className="h-13" />}
+      {spacer && <div aria-hidden="true" data-back-spacer className="h-13" />}
       {button}
     </>
   );

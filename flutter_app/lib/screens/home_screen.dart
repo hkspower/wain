@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
 import '../data/home_hero.g.dart';
+import '../data/landmarks.g.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/landmarks_show.dart';
@@ -16,6 +17,14 @@ import '../widgets/svg.dart';
 /// الكويت» one landmark at a time (LandmarksShow), the featured
 /// places, how it works, and the call to explore. The sun is one navigation,
 /// to /find, which asks how you want to search before showing anything.
+/// The slideshow waits for its real pictures, as on the web (app/page.tsx):
+/// drawn stand-ins are not shipped as the «realistic» pictures the owner
+/// asked for. `--dart-define=WAIN_SHOW_STANDINS=true` shows them in a build
+/// meant for looking at.
+final bool kShowLandmarks =
+    kLandmarks.every((l) => !l.standIn) ||
+    const bool.fromEnvironment('WAIN_SHOW_STANDINS');
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -23,12 +32,12 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: EdgeInsets.zero,
-      children: const [
-        _Hero(),
-        LandmarksShow(),
-        _Featured(),
-        _HowItWorks(),
-        _Cta(),
+      children: [
+        const _Hero(),
+        if (kShowLandmarks) const LandmarksShow(),
+        const _Featured(),
+        const _HowItWorks(),
+        const _Cta(),
       ],
     );
   }

@@ -38,7 +38,7 @@
  * compare image bytes, so an encoder upgrade does not fail it.
  */
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, rmdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -153,6 +153,23 @@ const leftovers = existsSync(WEB_DIR)
   ? readdirSync(WEB_DIR).filter((f) => !wanted.has(join(WEB_DIR, f)))
   : [];
 const standIns = entries.filter((e) => e.source !== "ai").map((e) => e.slug);
+
+// After `next build`: while any picture is a stand-in the home page leaves the
+// slideshow out (app/page.tsx), so its files are dropped from the export too —
+// a drawing uploaded and served to nobody is still a drawing on the live host.
+// A preview build (NEXT_PUBLIC_SHOW_STANDINS=1) keeps them.
+if (process.argv.includes("--prune-out")) {
+  const outDir = join(ROOT, "out/home/landmarks");
+  const keep = standIns.length === 0 || process.env.NEXT_PUBLIC_SHOW_STANDINS === "1";
+  if (!keep && existsSync(outDir)) {
+    for (const f of readdirSync(outDir)) unlinkSync(join(outDir, f));
+    rmdirSync(outDir);
+    console.log(`landmarks: ${standIns.length} stand-in(s) — the slideshow and its pictures are left out of this export`);
+  } else {
+    console.log(`landmarks: ${keep && standIns.length ? "preview build — stand-ins shipped" : "shipped"}`);
+  }
+  process.exit(0);
+}
 
 if (process.argv.includes("--check")) {
   const stale = [];

@@ -254,7 +254,11 @@ for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 
     const v = await page.evaluate(() => {
       // The page's own outermost box — the thing that sets the rhythm. Inner
       // cards have padding of their own and are none of this check's business.
-      const box = (document.querySelector("main") || document.body).firstElementChild;
+      // The back button's spacer (BackButton.tsx) comes first on the routes
+      // that render it above their shell; it is empty air, not the page box.
+      const box = [...(document.querySelector("main") || document.body).children].find(
+        (el) => !el.hasAttribute("data-back-spacer") && !el.matches("[data-back-button]")
+      );
       if (!box) return null;
       const cs = getComputedStyle(box);
       return `${Math.round(parseFloat(cs.paddingTop))}/${Math.round(parseFloat(cs.paddingBottom))}`;

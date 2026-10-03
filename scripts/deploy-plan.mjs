@@ -188,10 +188,12 @@ if (archiveBuild.digest !== build.digest) {
 const commit = archiveBuild.commit;
 
 // The landmarks slideshow was built on drawn stand-ins while its real pictures
-// could not be generated (scripts/gen-landmarks.mjs). They must not go live
-// passing for the realistic pictures the owner asked for, so read the
-// generated list AS IT WAS at the archive's commit — not the working tree,
-// which may already be ahead of what the server would receive.
+// could not be generated (scripts/gen-landmarks.mjs). While any remains, the
+// home page leaves the section out and the build drops its files — so what
+// must never ship is an archive whose home page SHOWS it with a stand-in in
+// it (a preview build, NEXT_PUBLIC_SHOW_STANDINS=1, released by mistake).
+// The list is read AS IT WAS at the archive's commit, and the page out of the
+// archive itself — not the working tree or out/, which may be ahead of it.
 {
   let list = "";
   try {
@@ -202,10 +204,16 @@ const commit = archiveBuild.commit;
   const standIns = [...list.matchAll(/\{\s*slug: "([^"]+)"[^}]*source: "([a-z-]+)"/g)]
     .filter((m) => m[2] !== "ai")
     .map((m) => m[1]);
-  if (standIns.length)
+  let home = "";
+  try {
+    home = execFileSync("unzip", ["-p", archive, "index.html"], { encoding: "utf8", maxBuffer: 1 << 24 });
+  } catch {
+    // No index.html is refused elsewhere.
+  }
+  if (standIns.length && home.includes('aria-labelledby="landmarks-h"'))
     fail(
-      `the archive's landmarks slideshow still shows ${standIns.length} drawn stand-in(s): ${standIns.join(", ")}.\n` +
-        `  Put the approved pictures in brand-source/landmarks/<slug>.jpg, run \`npm run landmarks\`, and release again.`
+      `the archive's home page shows the landmarks slideshow with ${standIns.length} drawn stand-in(s): ${standIns.join(", ")}.\n` +
+        `  That is a preview build. Release without NEXT_PUBLIC_SHOW_STANDINS, or put the approved pictures in first.`
     );
 }
 

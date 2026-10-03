@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 
 /**
  * «معالم الكويت», the slideshow under the home hero (LandmarksShow.tsx).
@@ -57,6 +58,24 @@ const seek = (p, ms) => p.evaluate((t) => {
     }
   }
 }, ms);
+
+// While any picture is still a drawn stand-in, the page leaves the section
+// out (app/page.tsx), so the live site never shows a drawing as the
+// «realistic» pictures. That is checked here; the slideshow itself is checked
+// on a preview build: NEXT_PUBLIC_SHOW_STANDINS=1 npm run build.
+const standIns = /source: "stand-in"/.test(readFileSync(new URL('../src/lib/landmarks.g.ts', import.meta.url), 'utf8'));
+{
+  const { ctx, p } = await open({ width: 390, height: 844 });
+  const present = (await p.locator('section[aria-labelledby="landmarks-h"]').count()) > 0;
+  await ctx.close();
+  if (!present) {
+    ok('with stand-ins left, the slideshow is not on the page', standIns, 'the section is missing although every picture is real');
+    console.log('\n  (the slideshow\'s own checks need a preview build: NEXT_PUBLIC_SHOW_STANDINS=1 npm run build)');
+    await browser.close();
+    console.log(`\n${pass} passed, ${fails.length} failed`);
+    process.exit(fails.length ? 1 : 0);
+  }
+}
 
 console.log('\n── six landmarks, one at a time ──');
 {

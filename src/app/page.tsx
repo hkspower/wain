@@ -11,6 +11,13 @@ export default function HomePage() {
   // Names and areas are read from the catalogue here, on the server, and the
   // slideshow gets six plain rows — it is a client component, and importing
   // places.ts there would ship all 52 records with the home page.
+  // Drawn stand-ins hold the slideshow's place until the approved pictures
+  // exist (scripts/gen-landmarks.mjs), and they do not go live as the
+  // «realistic» pictures the owner asked for: the section is left out of the
+  // page until every one is real. A preview build can show them with
+  // NEXT_PUBLIC_SHOW_STANDINS=1.
+  const showLandmarks =
+    LANDMARKS.every((l) => l.source === "ai") || process.env.NEXT_PUBLIC_SHOW_STANDINS === "1";
   const landmarks = LANDMARKS.map((l) => {
     const place = getPlace(l.slug);
     if (!place) throw new Error(`landmarks.g.ts names ${l.slug}, which is not in places.ts`);
@@ -52,7 +59,7 @@ export default function HomePage() {
       {/* ---------- Landmarks ---------- */}
       {/* Six of the famous places, one at a time (LandmarksShow.tsx). Under
           the search row, not on the picture: the hero is only the picture. */}
-      <LandmarksShow slides={landmarks} />
+      {showLandmarks && <LandmarksShow slides={landmarks} />}
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
