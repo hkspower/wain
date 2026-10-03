@@ -5335,12 +5335,30 @@ its tap-down only arrives after the 100ms press timeout, which the test pumps
 past (`sun_press_test.dart`, red with the haptic call removed). `ux-pass`
 section 5 is 6 red on the previous sun.
 
+**App CI at `c8d19a37` (the back-button deploy):** `flutter-ci` run
+37108149004 green — verify, build-ios and both simulators (17 Pro and 17e,
+first attempt); `android-flutter` run 37108147354 built both APKs
+(`wain-android-debug`, `wain-android-sideload`), and its emulator job sat in
+«Run the device suite» from 08:04 — the known hang, not this change's.
+
 **Making targets 40px broke a pin, and only a browser suite saw it.** The live
 map's zoom buttons took the tap floor, grew from 32 to 40px on touch, and
 covered a pin near the corner — `search-plan` could not tap it. They are 32px
 again, exempt like the pins (they sit on the map, and a finger pinches). And
 the desktop bar is a second `a[href="/find/"]` on the home page, so a bare
 `locator('a[href="/find/"]')` in `find.test` hit strict mode; it names the sun.
+
+**Live: `c9568001`.** `{"ok":true,"version":"1.1.0","deployed":266,"removed":0,
+"emptied":0,"at":"2026-10-03T08:54:01+00:00"}`, job `5ta28H4sRM` — the
+SECOND firing (created 08:52), so `removed: 0` is the idempotent pass; the
+disk settled it, `c9568001…/` the only build-id directory. Deleted and listed
+gone. `deploy:verify`: «c9568001 is live — verified at the root and 7 levels
+below it» (`build.json` digest `8072a2e03bad5531`, both stylesheets, the
+/search chunk 29,576, `explore/`, a place page, its og image, 52 og). After the
+purge, `/search/` through the edge: 200, `Last-Modified 08:54:01`, `DYNAMIC`.
+Archive `4dca6335`, one more blob. Gates before it: `scan`, `test:hangout`
+13/13, `test:journey` 40, `test:shouq` all 12 suites, Flutter 605.
+**Not measured:** the 40px chips, the press and the tick on a real phone.
 
 Two things to know: `pkill -f <pattern>` matches the shell that runs it when
 the pattern is in its own command line, and exits 144 — use `pgrep -f
