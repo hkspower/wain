@@ -58,12 +58,25 @@ export function makeRng(seed: number): Rng {
  */
 let stream: Rng = makeRng(WORLD_SEED);
 
+/** How many numbers the current build has drawn from the stream. The
+ *  stream's order IS the city: one draw added or dropped anywhere moves
+ *  every building, billboard and lamp placed after it, with no visible
+ *  error. tests/world.mjs holds this count to a recorded baseline. */
+let draws = 0;
+
 /** Start the world's stream over. Called once, by buildWorld. */
 export function resetWorldRng(seed: number = WORLD_SEED): void {
   stream = makeRng(seed);
+  draws = 0;
 }
 
 /** The world's random number. Drop-in for Math.random(). */
 export function rand(): number {
+  draws++;
   return stream();
+}
+
+/** Draws taken since the last reset (see `draws`). */
+export function worldDraws(): number {
+  return draws;
 }

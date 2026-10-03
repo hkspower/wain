@@ -12,6 +12,7 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { currentPaintHex } from "./paints";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
+import { worldDraws } from "./rand";
 import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
 // A patrol car that notices. The law is pure and lives on its own so it
@@ -1833,6 +1834,8 @@ export class GameEngine {
    * every lit program, so showing or hiding one recompiles the world. A
    * light with nothing to do sits at intensity 0 instead.
    */
+  /** Numbers the world build drew from the shared stream (rand.ts). */
+  worldDraws = 0;
   private lampLights: THREE.SpotLight[] = [];
   /** The car's own warm rim light, kept so the clock can dim it by day. */
   private rimLight: THREE.PointLight | null = null;
@@ -1999,6 +2002,9 @@ export class GameEngine {
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
+    // The stream's length is the city's fingerprint: tests/world.mjs
+    // holds it to a recorded baseline (rand.ts).
+    this.worldDraws = worldDraws();
     this.world.setPixelRatio(this.renderer.getPixelRatio());
     // After buildWorld, not before: the map marks the landmarks at the
     // distances the world actually placed them at, and until the world

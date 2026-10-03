@@ -1,0 +1,82 @@
+{
+ "__draws": {
+  "count": 258930,
+  "hash": "875de0516f12"
+ },
+ "cityBlocks": {
+  "count": 337,
+  "hash": "3356bf932bde"
+ },
+ "cityDrumCaps": {
+  "count": 26,
+  "hash": "1b19c840c0a5"
+ },
+ "cityDrums": {
+  "count": 26,
+  "hash": "7416f15e7390"
+ },
+ "cityMasts": {
+  "count": 6,
+  "hash": "ad20d6874d7a"
+ },
+ "cityParapets": {
+  "count": 337,
+  "hash": "bc24c73872fb"
+ },
+ "cityPlant": {
+  "count": 183,
+  "hash": "6a3604d3ac8b"
+ },
+ "cityPodiums": {
+  "count": 21,
+  "hash": "2fc602088347"
+ },
+ "citySetbacks": {
+  "count": 43,
+  "hash": "be7a5d6d9bd2"
+ },
+ "guardrail-post": {
+  "count": 2123,
+  "hash": "932bededb777"
+ },
+ "guardrail-post#1": {
+  "count": 2123,
+  "hash": "fb244512e1ab"
+ },
+ "guardrail-reflector": {
+  "count": 530,
+  "hash": "14c5c1aa7c27"
+ },
+ "guardrail-reflector#1": {
+  "count": 530,
+  "hash": "6daa0e074c6a"
+ },
+ "planting": {
+  "count": 438,
+  "hash": "7a2b30b6312c"
+ },
+ "planting#1": {
+  "count": 438,
+  "hash": "804b4620f992"
+ },
+ "planting#2": {
+  "count": 437,
+  "hash": "a5fb5d612606"
+ },
+ "road-dash": {
+  "count": 2124,
+  "hash": "8ff573eaa4bf"
+ },
+ "street-columns": {
+  "count": 202,
+  "hash": "e7167474758f"
+ },
+ "street-dash": {
+  "count": 4806,
+  "hash": "98e6dd580bf8"
+ },
+ "street-stop": {
+  "count": 114,
+  "hash": "d3f703ef7fed"
+ }
+}

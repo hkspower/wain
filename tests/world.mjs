@@ -15,8 +15,22 @@
 // one city. It compares the building instance matrices rather than a
 // screenshot, because that is exact — no auto-exposure settling, no
 // timing, no tolerance to argue about.
+//
+// And against a RECORDED city, not only against itself. Two loads that
+// agree prove the build is repeatable; they do not prove it is the same
+// city as yesterday's. The shared stream (rand.ts) is consumed in build
+// order, so one draw added or dropped anywhere moves everything placed
+// after it — every building, billboard and lamp — and two loads of the
+// moved city still agree perfectly. tests/baselines/world.json records
+// each named instanced group's hash and the stream's total draw count;
+// a change that is MEANT to move the city re-records it with
+//
+//   BASELINE=write node tests/world.mjs
+//
+// and says so in its commit. Groups listed in IGNORE are the ones a
+// change in hand is deliberately rebuilding (pass IGNORE=planting,palm).
 import { chromium } from "playwright-core";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 
 const C = [
@@ -58,6 +72,9 @@ const build = async () => {
   return page.evaluate(() => {
     const e = window.__grnEngine;
     const out = {};
+    // Several meshes share a name ("planting" is one per shrub shape),
+    // and keyed by name alone only the last of them was fingerprinted.
+    const seen = {};
     e.scene.traverse((o) => {
       if (!o.isInstancedMesh || !o.name) return;
       // Round hard. Float noise from matrix composition is not a
@@ -66,8 +83,11 @@ const build = async () => {
       const a = o.instanceMatrix.array;
       const q = new Array(a.length);
       for (let i = 0; i < a.length; i++) q[i] = Math.round(a[i] * 1000) / 1000;
-      out[o.name] = { count: o.count, m: q.join(",") };
+      const k = seen[o.name] ?? 0;
+      seen[o.name] = k + 1;
+      out[k ? `${o.name}#${k}` : o.name] = { count: o.count, m: q.join(",") };
     });
+    out.__draws = { count: e.worldDraws, m: String(e.worldDraws) };
     return out;
   });
 };
@@ -106,6 +126,33 @@ console.log(
   )} ${same}/${names.length} groups identical across two loads ` +
     `(cityBlocks ${first.cityBlocks ? digest(first.cityBlocks.m) : "-"})`
 );
+
+// --- Against the recorded city.
+{
+  const file = "tests/baselines/world.json";
+  const flat = Object.fromEntries(names.map((n) => [n, { count: first[n].count, hash: digest(first[n].m) }]));
+  if (process.env.BASELINE === "write") {
+    mkdirSync("tests/baselines", { recursive: true });
+    writeFileSync(file, JSON.stringify(flat, null, 1) + "\n");
+    console.log(`baseline  written: ${names.length} groups, ${first.__draws.count} draws -> ${file}`);
+  } else if (!existsSync(file)) {
+    check(false, `no ${file}: record one on a known-good commit with BASELINE=write`);
+  } else {
+    const base = JSON.parse(readFileSync(file, "utf8"));
+    const ignore = (process.env.IGNORE ?? "").split(",").filter(Boolean);
+    const skip = (n) => ignore.some((p) => n === p || n.startsWith(p) || n.startsWith(`${p}#`));
+    let held = 0, checked = 0;
+    for (const n of Object.keys(base)) {
+      if (skip(n)) continue;
+      checked++;
+      const now = flat[n];
+      if (now && now.count === base[n].count && now.hash === base[n].hash) held++;
+      else check(false, `"${n}" moved from the recorded city: ${now ? `${now.count} instances, hash ${now.hash}` : "missing"} (was ${base[n].count}, ${base[n].hash})`);
+    }
+    console.log(`recorded  ${check(held === checked, `${checked - held} group(s) moved`)} ${held}/${checked} groups and the stream length match ${file}` +
+      (ignore.length ? ` (ignoring ${ignore.join(", ")})` : ""));
+  }
+}
 
 await browser.close();
 if (fail.length) {
