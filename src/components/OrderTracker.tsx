@@ -10,11 +10,15 @@ import { usePoll } from "@/lib/usePoll";
 import { supabaseEnabled } from "@/lib/supabase";
 import {
   cancelOrder,
+  cancelOrderMessage,
   fetchOrderState,
   forgetOrder,
   formatKwd,
   isTerminalStatus,
   listOrders,
+  markCancelledByMe,
+  timeAr,
+  whatsappOrderUrl,
   type OrderState,
   type OrderStateResult,
   type OrderStatus,
@@ -29,6 +33,17 @@ import {
  * the browser's storage loses the list, which is the honest trade for not
  * asking anyone to sign up — so the reference is shown large enough to write
  * down, and the business can always find an order by it.
+ *
+ * Two kinds of card, by the order's channel (see orderChannel in orders.ts):
+ *
+ *   - **db**: the status is read from the database and drawn as three steps;
+ *     cancelling is an RPC, offered only while the order is still «placed».
+ *   - **whatsapp**: the order went to the shop as a message, and nothing here
+ *     can read what the shop did with it — so the card says that, shows what
+ *     the device remembers (the lines, the note), and its two actions are the
+ *     thread itself: open it, or send the cancel sentence into it. No steps,
+ *     no poll, and no «ما قدرنا نتأكد» line, because there was never a status
+ *     to confirm.
  */
 
 const STEPS: { id: OrderStatus; labelAr: string }[] = [
@@ -51,16 +66,8 @@ const LABEL: Record<OrderStatus, string> = {
   cancelled: "ملغي",
 };
 
-function timeAr(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map(Number);
-  if (Number.isNaN(h)) return hhmm;
-  const period = h < 12 ? "ص" : "م";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${toArabicDigits(h12)}:${toArabicDigits(String(m).padStart(2, "0"))} ${period}`;
-}
-
 /** "من ٥ دقايق" — how long ago, in words, without a date library. */
-function agoAr(iso: string | null): string {
+function agoAr(iso: string | null | undefined): string {
   if (!iso) return "";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (!Number.isFinite(mins) || mins < 0) return "";
@@ -78,9 +85,124 @@ function agoAr(iso: string | null): string {
  *  refreshes the moment the customer looks again. */
 const POLL_MS = 45_000;
 
-function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => void }) {
+const ACTION =
+  "inline-flex min-h-tap items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50";
+
+function CardHead({ order, chip }: { order: TrackedOrder; chip: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-display text-xl font-bold text-ink-900" dir="ltr">
+            {order.reference}
+          </span>
+          {chip}
+        </div>
+        <Link
+          href={`/places/${order.placeSlug}/`}
+          className="group mt-1 inline-flex items-center gap-1 text-sm font-semibold text-ink-700 transition hover:text-sea-700"
+        >
+          {order.placeNameAr}
+          <IconGo className="size-3.5 transition group-hover:-translate-x-0.5" />
+        </Link>
+      </div>
+      <span className="flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-sm font-semibold text-ink-700">
+        <IconClock className="size-4 text-sea-600" />
+        {timeAr(order.pickupAt)}
+      </span>
+    </div>
+  );
+}
+
+/** The order went to the shop as a WhatsApp message; the thread is the record. */
+function WhatsAppCard({ order, onForget, onChange }: { order: TrackedOrder; onForget: () => void; onChange: () => void }) {
+  const digits = order.whatsapp ?? "";
+  const cancelled = !!order.cancelledAt;
+  const thread = `https://wa.me/965${digits}`;
+  const cancelUrl = whatsappOrderUrl(digits, cancelOrderMessage(order.reference));
+
+  return (
+    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-card="whatsapp">
+      <CardHead
+        order={order}
+        chip={
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              cancelled ? TONE.cancelled : "bg-palm-500/12 text-palm-700"
+            }`}
+          >
+            {cancelled ? "طلبت إلغاءه" : "أرسلته عبر واتساب"}
+          </span>
+        }
+      />
+
+      <p className="mt-4 rounded-2xl bg-sand-100 p-3 text-sm font-semibold text-ink-600">
+        {cancelled
+          ? `طلبت الإلغاء عبر واتساب ${agoAr(order.cancelledAt)}. المكان يرد عليك هناك.`
+          : "المكان يرد عليك بالواتساب — الحالة ما تنعرض هني."}
+      </p>
+
+      {order.lines?.length ? (
+        <OrderLines lines={order.lines} totalFils={order.totalFils} />
+      ) : (
+        <p className="mt-4 text-sm text-ink-600">
+          المجموع التقريبي{" "}
+          <strong className="font-display text-base text-ink-900">{formatKwd(order.totalFils)}</strong>
+        </p>
+      )}
+      {order.noteAr && <p className="mt-2 text-sm text-ink-600">ملاحظتك: {order.noteAr}</p>}
+
+      {!cancelled && <CollectionDetails slug={order.placeSlug} />}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <span className="text-sm text-ink-500">الدفع عند الاستلام</span>
+        <span className="flex flex-wrap items-center gap-1">
+          {/* Anchors, not window.open: a tap on a link is never blocked, and
+              the thread is where every answer about this order lives. */}
+          <a
+            href={thread}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${ACTION} text-palm-700 hover:text-palm-800`}
+          >
+            افتح المحادثة
+          </a>
+          {!cancelled && (
+            <a
+              href={cancelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!window.confirm(`تبي تلغي الطلب ${order.reference}؟ بنفتح لك واتساب برسالة الإلغاء.`)) {
+                  e.preventDefault();
+                  return;
+                }
+                // Marked as the customer's own cancellation the moment the
+                // thread opens: nothing on this side can see whether the shop
+                // agreed, so the card says «طلبت» and not «ألغي».
+                markCancelledByMe(order.id);
+                haptic("success");
+                onChange();
+              }}
+              className={ACTION}
+            >
+              <IconClose className="size-4" />
+              ألغِ عبر واتساب
+            </a>
+          )}
+          <button type="button" onClick={() => { forgetOrder(order.id); onForget(); }} className={ACTION}>
+            احذفه من القائمة
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void }) {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [byMe, setByMe] = useState(!!order.cancelledByMe);
 
   const { value, settled, failures, refresh } = usePoll<OrderStateResult>(
     (signal) => fetchOrderState(order.id, order.token, signal),
@@ -114,6 +236,14 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
     const result = await cancelOrder(order.id, order.token);
     setCancelling(false);
     haptic(result.ok ? "success" : "error");
+    if (result.ok) {
+      // The database knows the status; the device remembers WHO cancelled,
+      // which the status alone cannot say. «ألغيت الطلب» for one's own act,
+      // «المكان ألغى الطلب» for the shop's — the old card said the second
+      // for both, and told a customer the shop had cancelled on them.
+      markCancelledByMe(order.id);
+      setByMe(true);
+    }
     // Either way the truth is now on the server, so the card is repainted from
     // it rather than from what this function hoped happened.
     refresh();
@@ -121,36 +251,22 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
   }
 
   return (
-    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-display text-xl font-bold text-ink-900" dir="ltr">
-              {order.reference}
-            </span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${TONE[status]}`}>
-              {LABEL[status]}
-            </span>
-          </div>
-          <Link
-            href={`/places/${order.placeSlug}/`}
-            className="group mt-1 inline-flex items-center gap-1 text-sm font-semibold text-ink-700 transition hover:text-sea-700"
-          >
-            {order.placeNameAr}
-            <IconGo className="size-3.5 transition group-hover:-translate-x-0.5" />
-          </Link>
-        </div>
-        <span className="flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-sm font-semibold text-ink-700">
-          <IconClock className="size-4 text-sea-600" />
-          {timeAr(order.pickupAt)}
-        </span>
-      </div>
+    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-card="db">
+      <CardHead
+        order={order}
+        chip={
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${TONE[status]}`}>
+            {LABEL[status]}
+          </span>
+        }
+      />
 
       {/* Progress — three steps, or one plain line if it was cancelled. */}
       {cancelled ? (
         <p className="mt-4 rounded-2xl bg-sand-100 p-3 text-sm font-semibold text-ink-600">
-          المكان ألغى الطلب{state?.cancelledAt ? ` ${agoAr(state.cancelledAt)}` : ""}. اتصل فيهم لو
-          تبي تتأكد.
+          {byMe ? "ألغيت الطلب" : "المكان ألغى الطلب"}
+          {state?.cancelledAt ? ` ${agoAr(state.cancelledAt)}` : ""}.
+          {byMe ? "" : " اتصل فيهم لو تبي تتأكد."}
         </p>
       ) : (
         <ol className="mt-4 flex items-center gap-1" aria-label="حالة الطلب">
@@ -221,21 +337,12 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
               quietly fails is worse than no button — that case sends them to
               the phone instead. */}
           {status === "placed" && (
-            <button
-              type="button"
-              onClick={cancel}
-              disabled={cancelling}
-              className="inline-flex min-h-tap items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
-            >
+            <button type="button" onClick={cancel} disabled={cancelling} className={ACTION}>
               <IconClose className="size-4" />
               {cancelling ? "نلغي…" : "ألغِ الطلب"}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => { forgetOrder(order.id); onForget(); }}
-            className="inline-flex min-h-tap items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
-          >
+          <button type="button" onClick={() => { forgetOrder(order.id); onForget(); }} className={ACTION}>
             احذفه من القائمة
           </button>
         </span>
@@ -288,11 +395,18 @@ export default function OrderTracker() {
     );
   }
 
+  const reload = () => setOrders(listOrders());
   return (
     <ul className="space-y-4">
-      {orders.map((o) => (
-        <OrderCard key={o.id} order={o} onForget={() => setOrders(listOrders())} />
-      ))}
+      {orders.map((o) =>
+        // Entries written before WhatsApp mode existed carry no channel and
+        // were all database orders.
+        (o.channel ?? "db") === "whatsapp" ? (
+          <WhatsAppCard key={o.id} order={o} onForget={reload} onChange={reload} />
+        ) : (
+          <DbCard key={o.id} order={o} onForget={reload} />
+        )
+      )}
     </ul>
   );
 }

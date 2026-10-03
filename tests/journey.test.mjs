@@ -75,7 +75,7 @@ await p.route('**/sb/**', async (route) => {
       created_at: '2026-08-21T09:00:00Z',
       ready_at: db.readyAt,
       collected_at: db.collectedAt,
-      cancelled_at: null,
+      cancelled_at: db.cancelledAt ?? null,
     }]);
   }
 
@@ -84,6 +84,7 @@ await p.route('**/sb/**', async (route) => {
     if (!db.order || db.order.id !== p_id || db.order.track_token !== p_token) return json(200, null);
     if (db.status !== 'placed') return json(200, db.status);
     db.status = 'cancelled';
+    db.cancelledAt = '2026-08-21T09:05:00Z';
     return json(200, 'cancelled');
   }
 
@@ -249,9 +250,41 @@ await p.waitForTimeout(2500);
 const after = requests.filter((r) => r.url.includes('order_status')).length;
 ok('and polling stopped — nothing changes after collection', after === before, `${before} → ${after}`);
 
+console.log('\n── 11. a second order, which she calls off herself ──');
+// The old card said «المكان ألغى الطلب» whoever had cancelled — so a customer
+// who pressed «ألغِ الطلب» was told the shop had cancelled on them. The device
+// remembers who did it; the database only knows that it happened.
+const first = db.order;
+db.order = null; db.status = 'placed'; db.readyAt = null; db.collectedAt = null; db.cancelledAt = null;
+await p.goto(`${B}/places/${SLUG}/`, { waitUntil: 'networkidle' });
+await p.locator('button[aria-label*="زد چاي كرك"]').click();
+await p.locator('#o-name').fill('نورة');
+await p.locator('#o-phone').fill('51234567');
+await p.selectOption('#o-time', { index: 1 });
+await p.locator('button:has-text("أرسل الطلب")').click();
+await p.waitForTimeout(800);
+ok('the second order was placed', db.order !== null && db.order.id !== first.id);
+await p.goto(`${B}/orders/`, { waitUntil: 'networkidle' });
+await p.waitForTimeout(800);
+await p.evaluate(() => { window.confirm = () => true; });
+// Scoped to the second order's card: the first one is collected, but the mock
+// now answers «no such order» for it, and a card with no readable status
+// falls back to «placed» and offers cancel too.
+const ref2 = db.order.id.replace(/-/g, '').slice(0, 6).toUpperCase();
+const cancelBtn = p.locator(`li[data-order-card="db"]:has-text("${ref2}") button:has-text("ألغِ الطلب")`);
+ok('cancelling is offered on the placed order', (await cancelBtn.count()) === 1);
+await cancelBtn.first().click().catch(() => {});
+await p.waitForTimeout(1200);
+body = await p.textContent('body');
+ok('the database says cancelled', db.status === 'cancelled');
+ok('and the card says SHE cancelled it', body.includes('ألغيت الطلب'), body.slice(0, 400));
+ok('…not that the shop did', !body.includes('المكان ألغى الطلب'));
+const remembered = JSON.parse(await p.evaluate(() => localStorage.getItem('wain:orders') || '[]'));
+ok('the device remembers it was hers', (remembered.find((o) => o.id === db.order.id) || {}).cancelledByMe === true);
+
 console.log('\n── the whole way through ──');
 ok('no page errors anywhere on the journey', errors.length === 0, errors.join(' | '));
-ok('exactly one order exists at the end', db.order !== null && db.status === 'collected');
+ok('the first order was collected and the second cancelled', first !== null && db.status === 'cancelled');
 
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();

@@ -113,6 +113,84 @@ ok('the empty state takes its place', body.includes('ما عندك طلبات'))
 const left = await p.evaluate(() => localStorage.getItem('wain:orders'));
 ok('and the device really forgot it', JSON.parse(left).length === 0, left);
 
+console.log('\n── an order that went by WhatsApp, beside one that went to the database ──');
+// A legacy entry (no `channel`, written before WhatsApp mode existed) and a
+// WhatsApp one on the same device. The first is a database order and keeps
+// its steps; the second has no status anything here can read, and must say
+// so instead of drawing «بانتظار التجهيز» over a message the shop may have
+// answered an hour ago.
+const WA = {
+  id: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d',
+  token: 'f1e2d3c4b5a60718293a4b5c6d7e8f90',
+  reference: '9A8B7C',
+  placeSlug: 'mubarakiya-tea-houses',
+  placeNameAr: 'مقاهي المباركية',
+  totalFils: 1000,
+  pickupAt: '09:30',
+  placedAt: new Date(Date.now() - 5 * 60000).toISOString(),
+  channel: 'whatsapp',
+  whatsapp: '51234567',
+  lines: [
+    { id: 'm1', nameAr: 'چاي كرك', priceFils: 250, qty: 2 },
+    { id: 'm2', nameAr: 'قهوة عربية', priceFils: 500, qty: 1 },
+  ],
+  noteAr: 'بدون سكر',
+};
+const ctx3 = await browser.newContext({ viewport: { width: 390, height: 900 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+await ctx3.addInitScript((seed) => {
+  navigator.vibrate = () => true;
+  window.confirm = () => true;
+  localStorage.setItem('wain:orders', JSON.stringify(seed));
+}, [WA, ...SEED]);
+const p3 = await ctx3.newPage();
+const errors3 = [];
+p3.on('pageerror', (e) => errors3.push(e.message));
+// The cancel control is a real link to wa.me; answer it locally so a tap
+// opens nothing on the network.
+await ctx3.route('https://wa.me/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '' }));
+await p3.goto(B + '/orders/', { waitUntil: 'networkidle' });
+await p3.waitForTimeout(600);
+const wa = p3.locator('li[data-order-card="whatsapp"]');
+const db = p3.locator('li[data-order-card="db"]');
+ok('both cards are drawn, each by its channel', (await wa.count()) === 1 && (await db.count()) === 1);
+const waText = (await wa.textContent().catch(() => '')) || '';
+const dbText = (await db.textContent().catch(() => '')) || '';
+ok('the legacy entry is still a database order with its steps', dbText.includes('وصل الطلب') && dbText.includes('بانتظار التجهيز'));
+ok('the WhatsApp card says it went by WhatsApp', waText.includes('أرسلته عبر واتساب'));
+ok('…and draws no steps', !waText.includes('وصل الطلب') && !waText.includes('بانتظار التجهيز'));
+ok('…and says the status is not shown here, rather than «could not confirm»',
+  waText.includes('الحالة ما تنعرض هني') && !waText.includes('ما قدرنا نتأكد'));
+ok('…shows the remembered lines', waText.includes('چاي كرك') && waText.includes('×٢') && waText.includes('١٫٠٠٠ د.ك'));
+ok('…and the note', waText.includes('ملاحظتك: بدون سكر'));
+ok('…and the time', waText.includes('٩:٣٠ ص'));
+ok('«افتح المحادثة» opens the thread with the shop',
+  (await wa.locator('a[href="https://wa.me/96551234567"]').count()) === 1);
+const cancelLink = wa.locator('a:has-text("ألغِ عبر واتساب")');
+ok('cancelling is a link into the same thread', (await cancelLink.count()) === 1);
+const cancelHref = (await cancelLink.getAttribute('href').catch(() => null)) || '';
+const cancelText = decodeURIComponent(cancelHref.slice(cancelHref.indexOf('?text=') + 6));
+ok('…to the shop\'s number', cancelHref.startsWith('https://wa.me/96551234567?text='), cancelHref.slice(0, 40));
+ok('…carrying the cancel sentence with the reference', cancelText.includes('ألغي الطلب رقم 9A8B7C'), cancelText);
+ok('it never claims payment either', !waText.includes('مدفوع') && waText.includes('الدفع عند الاستلام'));
+
+const popup = ctx3.waitForEvent('page', { timeout: 3000 }).catch(() => null);
+await cancelLink.click();
+const opened = await popup;
+await p3.waitForTimeout(400);
+const afterText = (await wa.textContent().catch(() => '')) || '';
+ok('tapping it marks the order as cancelled by the customer', afterText.includes('طلبت الإلغاء عبر واتساب'), afterText.slice(0, 200));
+ok('…in the words of a request, not a fact the shop confirmed', afterText.includes('طلبت إلغاءه') && !afterText.includes('المكان ألغى'));
+ok('…and the cancel link is gone', (await cancelLink.count()) === 0);
+ok('…while the thread link stays', (await wa.locator('a[href="https://wa.me/96551234567"]').count()) === 1);
+const stored3 = JSON.parse((await p3.evaluate(() => localStorage.getItem('wain:orders'))) || '[]');
+const waStored = stored3.find((o) => o.id === WA.id) || {};
+ok('the device remembers it was cancelled from here', waStored.cancelledByMe === true && typeof waStored.cancelledAt === 'string');
+ok('the database order beside it is untouched', !(stored3.find((o) => o.id === SEED[0].id) || {}).cancelledByMe);
+if (opened) await opened.close().catch(() => {});
+ok('no page errors on the mixed list', errors3.length === 0, errors3.join(' | '));
+await wa.screenshot({ path: `${process.env.WAIN_SHOTS || '.'}/orders-whatsapp.png` }).catch(() => {});
+await ctx3.close();
+
 console.log('\n── a corrupted store does not break the page ──');
 const ctx2 = await browser.newContext({ locale: 'ar-KW' });
 await ctx2.addInitScript(() => localStorage.setItem('wain:orders', '{not json'));
