@@ -5,10 +5,17 @@ policies. Everything below was checked; findings are separated from things
 that were verified clean, and residual risk is stated rather than implied.
 
 The shape of the system matters for reading this: the site is a **static
-export** served by Apache. There is no application server, so there is no
-server-side request handling to attack. The only live backend is Supabase,
-reached directly from the browser with the public anon key, where **row level
-security is the entire authorization boundary**.
+export** served by Apache. The pages have no application server behind them.
+The back end is three PHP files of wain's own under `/api/` on the same host
+(`tts.php`, `media.php` and, since 4 October, `wain.php` — `docs/backend.md`),
+each a single file with its state under `<domain>/storage/` outside the
+document root. For `wain.php`, **the admin secret and the per-row tokens are
+the entire authorization boundary**: public reads answer published rows only,
+public writes are rate-limited inserts, and everything else needs
+`X-Wain-Admin`. (This paragraph said «Supabase, reached directly from the
+browser with the public anon key, where row level security is the entire
+authorization boundary» — that back end was never configured on any build;
+its schema stays in `supabase/` as the unused alternative.)
 
 ## Fixed in this pass
 
@@ -124,7 +131,7 @@ The duplicate guard also normalises whitespace and case, so `' مقهى '` and
   inlines its hydration payload and a static export has no server to mint a
   per-request nonce. So the CSP is *not* a strong defence against injected
   inline script. What it does buy is real but narrower: script execution is
-  pinned to this origin plus unpkg, `connect-src` names Supabase and
+  pinned to this origin plus unpkg, `connect-src` names this origin and
   ElevenLabs so exfiltration to an arbitrary host is blocked, `form-action`
   stops an injected form posting offsite, `base-uri` stops a `<base>` tag
   re-pointing every relative URL, and `object-src 'none'` removes plugins.
@@ -137,9 +144,12 @@ The duplicate guard also normalises whitespace and case, so `' مقهى '` and
   **Pin an exact version** (`…/convai-widget-embed@X.Y.Z`) and add an
   `integrity` hash if the artifact allows. Inert until
   `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is set.
-- **The admin session lives in localStorage** (supabase-js `persistSession`).
-  Standard, but it means any XSS on `/admin` can lift the JWT. Given the CSP
-  caveat above, treat `/admin` as the sensitive surface it is.
+- **The admin secret lives in sessionStorage for the tab** (`wain:admin`,
+  `src/lib/backend.ts`) — not a cookie, so there is no CSRF surface, and gone
+  when the tab closes. But any XSS on `/admin` can lift it, and it IS the
+  board's whole credential. Given the CSP caveat above, treat `/admin` as the
+  sensitive surface it is; change the secret in `storage/admin.secret` to sign
+  every tab out at once.
 - **Submission spam has no CAPTCHA and no rate limit**, because there is no
   server to enforce one. Nothing publishes without a human, so the failure
   mode is a spammed review queue, not spam on the site. Escalation options are

@@ -21,21 +21,14 @@
  *
  * ## Who retries what
  *
- * Exactly one layer retries any given request, and this is not it.
- *
- * postgrest-js already retries GET and HEAD by itself — three further attempts
- * on a transport failure or a 503/520, backing off 1s, 2s, 4s. Adding a retry
- * loop here would multiply with that instead of adding to it: three of theirs
- * inside three of ours inside a `retry()` at the call site is thirty-six
- * requests to read one list. So reads are left to them.
- *
- * What they will not retry is a POST, which is every RPC — including the
- * order-status read, which is a POST only because that is how PostgREST calls
- * a function. Those are retried at the call site with `retry()` below, by code
- * that can see whether repeating the request is actually safe. `order_status`
- * is a `stable` function, so asking twice changes nothing; the order insert
- * carries its own primary key, so a repeat collides with itself rather than
- * duplicating. Nothing else is retried anywhere.
+ * Exactly one layer retries any given request, and this is not it. One request
+ * in, one request out — the repeating happens at the call site, with
+ * `retry()` below, by code that can see whether repeating is actually safe:
+ * the status reads (one row, nothing changes), and the order insert, which
+ * carries its own id, so a repeat either writes the row or meets the row it
+ * already wrote. Nothing else is retried anywhere. (This used to say more,
+ * about postgrest-js retrying GETs on its own; the back end is wain's own PHP
+ * since 4 October and nothing between here and it retries anything.)
  */
 
 /** Ordinary queries. Long enough for a cold Postgrest round trip on a slow
@@ -52,9 +45,9 @@ export type NetErrorKind = "offline" | "timeout" | "network";
 /**
  * Markers, not prose.
  *
- * A fetch rejection travels back through supabase-js, which keeps only the
- * message, so the message is where the classification has to live. It is never
- * shown to anyone — `describeNetError` turns it into Arabic at the edge.
+ * A fetch rejection can travel through layers that keep only the message, so
+ * the message is where the classification has to live. It is never shown to
+ * anyone — `describeNetError` turns it into Arabic at the edge.
  */
 const MARK: Record<NetErrorKind, string> = {
   offline: "wain/offline",
@@ -78,7 +71,7 @@ export function isDefinitelyOffline(): boolean {
 }
 
 /** What kind of failure this was, whether it arrived as a thrown NetError or
- *  as a Supabase error object that carries only the message. */
+ *  as an error object from another layer that carries only the message. */
 export function classifyError(err: unknown): NetErrorKind | null {
   if (err instanceof NetError) return err.kind;
   const message =
@@ -180,12 +173,10 @@ function backoffMs(attempt: number): number {
 }
 
 /**
- * The `fetch` every Supabase request goes through.
- *
- * Installed once, in loadSupabase(), which is why it covers Postgrest, auth
- * token refreshes and storage alike rather than only the calls somebody
- * remembered to wrap. One request in, one request out — the retrying happens
- * above this, where the code knows what it is repeating.
+ * The `fetch` every request to wain's own endpoints goes through —
+ * `/api/wain.php` via `backend.ts`, `/api/media.php` via `media.ts`. One
+ * request in, one request out: the retrying happens above this, where the
+ * code knows what it is repeating.
  */
 export async function deadlineFetch(
   input: RequestInfo | URL,
@@ -223,7 +214,7 @@ export interface RetryOptions<T> {
   attempts?: number;
   signal?: AbortSignal | null;
   /** Decides whether a *returned* value counts as a failure worth repeating —
-   *  Supabase resolves with `{ error }` rather than throwing. */
+   *  `call()` returns the server's refusals rather than throwing them. */
   shouldRetry?: (result: T) => boolean;
 }
 
@@ -231,9 +222,9 @@ export interface RetryOptions<T> {
  * Repeat something that is safe to repeat.
  *
  * Used at the call sites that can prove it: reads, and the one write that
- * carries its own primary key. `shouldRetry` exists because supabase-js
- * resolves with `{ data, error }` instead of throwing, so a transport failure
- * arrives as an ordinary value and would otherwise sail straight through.
+ * carries its own id. `shouldRetry` exists because `call()` returns the
+ * server's answer as a value even when it is a failure, so a 503 from a
+ * gateway would otherwise sail straight through as «answered».
  */
 export async function retry<T>(fn: () => Promise<T>, opts: RetryOptions<T> = {}): Promise<T> {
   const attempts = opts.attempts ?? 3;
@@ -258,14 +249,4 @@ export async function retry<T>(fn: () => Promise<T>, opts: RetryOptions<T> = {})
     }
   }
   throw last;
-}
-
-/** Whether a Supabase `{ error }` is worth sending again: transport trouble,
- *  yes; a constraint the database refused, never. */
-export function isRetryableSupabaseError(error: unknown): boolean {
-  if (!error) return false;
-  const code = (error as { code?: string }).code ?? "";
-  // A PostgreSQL SQLSTATE means the request arrived and was understood.
-  if (/^[0-9A-Z]{5}$/.test(code)) return false;
-  return classifyError(error) !== null;
 }

@@ -1,67 +1,19 @@
 "use client";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { deadlineFetch } from "@/lib/net";
 import { clampPrepMinutes, clampServiceMinutes, type CategoryId } from "@/lib/place-kit";
 // A type only, so this edge is erased at compile time. It matters which module
 // the VALUES come from: this file is reachable from the root layout through
-// OrdersLink, so importing a clamp from the catalogue put every place record
+// usePlaces, so importing a clamp from the catalogue put every place record
 // (36 at the time) on every page of the site.
 import type { Place } from "@/lib/places";
 
 /**
- * Supabase is optional. With no URL/key configured the site runs exactly as it
- * does today — every page still renders from the build-time snapshot in
- * places.ts — and /admin explains what is missing instead of erroring.
+ * A place as a database row, and the two mappings between that and `Place`.
  *
- * The anon key is public by design: row level security decides what it can do.
- * Reads are limited to published rows; every write additionally requires the
- * signed-in user to be listed in the `admins` table. Never put the service_role
- * key in this file — it bypasses RLS.
+ * The column names are `supabase/schema.sql`'s, which `/api/wain.php` kept
+ * when it replaced Postgres (4 October) — so this file moved out of the old
+ * `supabase.ts` unchanged and nothing that read a row had to change with it.
  */
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-export const supabaseEnabled = URL_.length > 0 && ANON.length > 0;
-
-/**
- * Loaded on demand, never at import time.
- *
- * supabase-js is about 60KB gzipped. Importing it statically put all of that
- * into /explore, /search and /add whether or not the site was configured to
- * use it — and with no URL and key set, every one of those bytes was
- * downloaded, parsed, and never called. Behind a dynamic import it becomes a
- * separate chunk that is only ever fetched when there is something to talk to.
- *
- * The promise is cached rather than the client, so two callers racing on the
- * first load share one import and one client instead of creating two.
- */
-let clientPromise: Promise<SupabaseClient> | null = null;
-
-export async function loadSupabase(): Promise<SupabaseClient | null> {
-  if (!supabaseEnabled) return null;
-  clientPromise ??= import("@supabase/supabase-js").then(({ createClient }) =>
-    createClient(URL_, ANON, {
-      auth: { persistSession: true, autoRefreshToken: true },
-      // Every request the client makes — queries, RPC, auth refreshes, storage
-      // uploads — goes through one fetch with a deadline on it. Without this,
-      // nothing in the app could fail from taking too long: a phone leaving
-      // Wi-Fi mid-request leaves the promise pending and the spinner turning
-      // forever. See src/lib/net.ts.
-      global: { fetch: deadlineFetch },
-    })
-  );
-  try {
-    return await clientPromise;
-  } catch {
-    // A failed chunk fetch must not wedge the app in a broken state — let the
-    // next call try again rather than caching the failure forever.
-    clientPromise = null;
-    return null;
-  }
-}
-
-/** Shape of a row in public.places. */
 export interface PlaceRow {
   id: string;
   slug: string;
@@ -72,7 +24,7 @@ export interface PlaceRow {
   area_ar: string;
   lat: number;
   lng: number;
-  rating: number;
+  rating: number | null;
   price_level: 1 | 2 | 3;
   emoji: string;
   tagline_ar: string;
@@ -142,6 +94,10 @@ export function rowToPlace(r: PlaceRow): Place {
   };
 }
 
+/** The row the server is asked to write. `scripts/gen-places-json.mjs` writes
+ *  the export's `data/places.json` in this exact shape, which is what `seed`
+ *  reads — so the catalogue, the admin's edits and the seed agree on one
+ *  spelling of every column. */
 export function placeToRow(p: Place & { published?: boolean; sortOrder?: number }) {
   return {
     slug: p.slug,
@@ -152,7 +108,7 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     area_ar: p.areaAr,
     lat: p.lat,
     lng: p.lng,
-    rating: p.rating,
+    rating: p.rating ?? null,
     price_level: p.priceLevel,
     emoji: p.emoji,
     tagline_ar: p.taglineAr,

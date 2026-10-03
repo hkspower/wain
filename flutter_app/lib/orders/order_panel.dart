@@ -1,7 +1,9 @@
 /// «اطلب مقدّماً» — order ahead, collect and pay at the place. Mirrors
-/// `OrderPanel.tsx` in its WhatsApp mode, the only mode the app has: pick
-/// items, a time and a name, and the order opens in WhatsApp as a message to
-/// the shop's number (`buildOrderMessage`, byte for byte the web's).
+/// `OrderPanel.tsx` in both its modes: with the back end on («db», the
+/// default) the order is sent to the shop's board and asks for a phone, so the
+/// shop can call; with it off («whatsapp») it opens in WhatsApp as a message
+/// to the shop's number (`buildOrderMessage`, byte for byte the web's). Which
+/// mode is `OrderStore.channelFor` — one per build, never both.
 ///
 /// Everything the customer is told here has to survive the moment they walk
 /// in and hand over money wain never saw: «الدفع عند الاستلام», never «مدفوع»,
@@ -41,9 +43,11 @@ class _OrderPanelState extends State<OrderPanel> {
   final _qty = <String, int>{};
   String? _pickupAt;
   final _name = TextEditingController();
+  final _phone = TextEditingController();
   final _note = TextEditingController();
   List<String> _errors = const [];
   WhatsAppOrderResult? _placed;
+  TrackedOrder? _placedDb;
   bool _copied = false;
   bool _busy = false;
   late final List<PickupSlot> _slots = pickupSlots(
@@ -59,6 +63,7 @@ class _OrderPanelState extends State<OrderPanel> {
   @override
   void dispose() {
     _name.dispose();
+    _phone.dispose();
     _note.dispose();
     super.dispose();
   }
@@ -98,10 +103,31 @@ class _OrderPanelState extends State<OrderPanel> {
       lines: lines,
       pickupAt: _pickupAt ?? '',
       customerName: _name.text,
+      customerPhone: _phone.text,
       noteAr: _note.text,
     );
+    final store = context.read<OrderStore>();
     setState(() => _busy = true);
-    final result = await context.read<OrderStore>().send(
+    if (store.channelFor(widget.place) == 'db') {
+      final r = await store.sendDb(input, attempt: _attempt);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        if (!r.ok) {
+          _errors = [r.problem!];
+          return;
+        }
+        _errors = const [];
+        _placedDb = r.tracked;
+      });
+      if (r.ok) {
+        HapticFeedback.lightImpact();
+      } else {
+        HapticFeedback.heavyImpact();
+      }
+      return;
+    }
+    final result = await store.send(
       input,
       digits: widget.place.orderWhatsApp!,
       attempt: _attempt,
@@ -130,7 +156,11 @@ class _OrderPanelState extends State<OrderPanel> {
 
   @override
   Widget build(BuildContext context) {
-    if (!ordersByWhatsApp(widget.place)) return const SizedBox.shrink();
+    final channel = context.read<OrderStore>().channelFor(widget.place);
+    if (channel == null) return const SizedBox.shrink();
+    final db = channel == 'db';
+    final placedDb = _placedDb;
+    if (placedDb != null) return _placedDbView(context, placedDb);
     final placed = _placed;
     if (placed != null) return _placedView(context, placed);
 
@@ -173,8 +203,11 @@ class _OrderPanelState extends State<OrderPanel> {
           ),
           const SizedBox(height: 6),
           Text(
-            'اختر اللي تبيه ووقت الاستلام، ويوصل طلبك للمكان على واتساب وهم يردون عليك هناك. '
-            'ما ندفع ولا نمسك فلوسك — تدفع لهم مباشرة.',
+            db
+                ? 'اختر اللي تبيه ووقت الاستلام، ويوصل طلبك للمكان مباشرة. '
+                      'ما ندفع ولا نمسك فلوسك — تدفع لهم وقت الاستلام.'
+                : 'اختر اللي تبيه ووقت الاستلام، ويوصل طلبك للمكان على واتساب وهم يردون عليك هناك. '
+                      'ما ندفع ولا نمسك فلوسك — تدفع لهم مباشرة.',
             style: wainText(WainText.sm, color: WainColors.ink500, height: 1.6),
           ),
           const SizedBox(height: 12),
@@ -243,6 +276,21 @@ class _OrderPanelState extends State<OrderPanel> {
           Text('اسمك', style: label),
           const SizedBox(height: 6),
           _field(_name, key: 'order-name', hint: 'عشان ينادونك', maxLength: 80),
+          if (db) ...[
+            const SizedBox(height: 12),
+            Text('رقمك', style: label),
+            const SizedBox(height: 6),
+            // The shop calls when the order is ready, or if something ran out;
+            // in WhatsApp mode the thread is the number, so none is asked.
+            _field(
+              _phone,
+              key: 'order-phone',
+              hint: '٥XXXXXXX',
+              maxLength: 20,
+              keyboard: TextInputType.phone,
+              ltr: true,
+            ),
+          ],
           const SizedBox(height: 12),
           Text('ملاحظة (اختياري)', style: label),
           const SizedBox(height: 6),
@@ -294,7 +342,7 @@ class _OrderPanelState extends State<OrderPanel> {
               ),
             ),
             child: Text(
-              'أرسل عبر واتساب',
+              db ? 'أرسل الطلب' : 'أرسل عبر واتساب',
               style: wainText(
                 WainText.base,
                 weight: FontWeight.w600,
@@ -323,10 +371,14 @@ class _OrderPanelState extends State<OrderPanel> {
     required String key,
     required String hint,
     required int maxLength,
+    TextInputType? keyboard,
+    bool ltr = false,
   }) => TextField(
     key: ValueKey(key),
     controller: c,
     maxLength: maxLength,
+    keyboardType: keyboard,
+    textDirection: ltr ? TextDirection.ltr : null,
     onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
     style: wainText(WainText.base, color: WainColors.ink800),
     decoration: InputDecoration(
@@ -420,6 +472,104 @@ class _OrderPanelState extends State<OrderPanel> {
               onTap: () => _bump(item.id, 1),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// «وصل طلبك» — the shop's board has it. OrderPanel.tsx's confirmation in
+  /// db mode: the reference to say at the counter, the lines, a way to
+  /// «طلباتي» where the status is followed.
+  Widget _placedDbView(BuildContext context, TrackedOrder tracked) {
+    final slot = _slots.where((s) => s.value == _pickupAt).firstOrNull;
+    return Container(
+      key: const ValueKey('order-placed'),
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: WainColors.palm600.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(WainRadius.s3xl),
+        border: Border.all(color: WainColors.palm600.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              WainSvg.icon('check', size: 20, color: WainColors.palm600),
+              const SizedBox(width: 8),
+              Text(
+                'وصل طلبك',
+                style: wainText(
+                  WainText.xl,
+                  weight: FontWeight.w700,
+                  color: WainColors.ink900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'رقم طلبك '),
+                TextSpan(
+                  text: tracked.reference,
+                  style: wainText(
+                    WainText.lg,
+                    weight: FontWeight.w700,
+                    color: WainColors.ink900,
+                  ),
+                ),
+                const TextSpan(text: ' — قوله لهم عند الاستلام.'),
+              ],
+            ),
+            style: wainText(WainText.sm, color: WainColors.ink600, height: 1.6),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'الدفع عند الاستلام في ${widget.place.nameAr}'
+            '${slot != null ? ' الساعة ${slot.labelAr}' : ''}.',
+            style: wainText(
+              WainText.sm,
+              weight: FontWeight.w600,
+              color: WainColors.ink700,
+            ),
+          ),
+          if (widget.place.orderNoteAr != null)
+            Text(
+              widget.place.orderNoteAr!,
+              style: wainText(WainText.xs, color: WainColors.ink500),
+            ),
+          const SizedBox(height: 12),
+          _Lines(lines: tracked.lines, totalFils: tracked.totalFils),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('order-track'),
+            onPressed: () => context.push('/orders'),
+            style: FilledButton.styleFrom(
+              backgroundColor: WainColors.ink900,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(WainRadius.xl),
+              ),
+            ),
+            icon: WainSvg.icon('go', size: 16, color: Colors.white),
+            label: Text(
+              'تابع طلبك',
+              style: wainText(
+                WainText.sm,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'تلقاه في «طلباتي» على هذا الجهاز، وتشوف حالته لمّا يجهّزونه.',
+            style: wainText(WainText.xs, color: WainColors.ink500),
+          ),
         ],
       ),
     );

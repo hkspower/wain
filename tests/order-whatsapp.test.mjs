@@ -1,7 +1,7 @@
 /**
  * The order panel in WhatsApp mode — the only mode a visitor can meet today.
  *
- * Runs against the fixture build run-orders.mjs makes: no Supabase, one place
+ * Runs against the fixture build run-orders.mjs makes: back end off, one place
  * with a menu AND a number (the panel), one with a menu and no number (no
  * panel — the shape audit:places refuses in the catalogue, which is why only
  * a test build can show it). `window.open` and the clipboard are spies, the

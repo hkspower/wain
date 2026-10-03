@@ -1,12 +1,20 @@
-/// «طلباتي» on this device, and the one way an order leaves the app.
+/// «طلباتي» on this device, and the two ways an order leaves the app.
 ///
-/// The app has no database (`docs/backend.md`), so its only channel is the
-/// web's WhatsApp mode: the order becomes a message to the shop's number,
-/// opened in WhatsApp, and this store is the whole record — the same JSON
-/// shape under the same key the web keeps in localStorage (`wain:orders`,
-/// `TrackedOrder` in `orders.ts`), so an entry reads the same on either side.
-/// Nothing here can learn what the shop did with the message; the card says
-/// so, and «ألغِ» is a sentence into the same thread, not a status change.
+/// With the back end on (the default — `order_api.dart`), an order is a row
+/// the shop reads on its board: `order_place`, then `order_status` polled while
+/// the card is on screen, and `order_cancel` from the card. That is the web's
+/// «db» channel (`orderChannel()` in orders.ts), and the shop's answer is a
+/// status this store caches per order.
+///
+/// With it off (`--dart-define=WAIN_BACKEND_URL=none`), the web's WhatsApp
+/// mode: the order becomes a message to the shop's number, opened in WhatsApp,
+/// and this store is the whole record. Nothing can learn what the shop did
+/// with the message; the card says so, and «ألغِ» is a sentence into the same
+/// thread, not a status change.
+///
+/// Either way the record is the same JSON shape under the same key the web
+/// keeps in localStorage (`wain:orders`, `TrackedOrder` in `orders.ts`), so an
+/// entry reads the same on either side.
 library;
 
 import 'dart:convert';
@@ -14,7 +22,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/models.dart';
+import '../data/text_kit.dart';
 import '../share/share_service.dart';
+import 'order_api.dart';
 import 'order_kit.dart';
 
 /// The web's localStorage key — one name for one thing.
@@ -36,7 +47,7 @@ class TrackedOrder {
   final String pickupAt;
   final String placedAt;
 
-  /// "whatsapp" for everything the app writes; the web also writes "db".
+  /// "db" for an order the shop's board holds, "whatsapp" for a message.
   final String channel;
   final String? whatsapp;
   final List<OrderLine> lines;
@@ -141,6 +152,20 @@ class OrderAttempt {
   String get reference => orderReference(id);
 }
 
+/// What `sendDb` ended in — `OrderResult` in orders.ts.
+class DbOrderResult {
+  final TrackedOrder? tracked;
+
+  /// The first validation message, or the server's refusal in Arabic.
+  final String? problem;
+
+  /// `invalid`, `disabled` (the place stopped taking orders, or no back end)
+  /// or `network`; null when it worked.
+  final String? reason;
+  const DbOrderResult._({this.tracked, this.problem, this.reason});
+  bool get ok => problem == null;
+}
+
 class WhatsAppOrderResult {
   final TrackedOrder? tracked;
   final String? text;
@@ -163,10 +188,20 @@ class WhatsAppOrderResult {
 }
 
 class OrderStore extends ChangeNotifier {
-  OrderStore._(this._prefs) : _orders = _read(_prefs);
+  OrderStore._(this._prefs, {required this.api}) : _orders = _read(_prefs);
 
   final SharedPreferences? _prefs;
   List<TrackedOrder> _orders;
+
+  /// The back end, or null when this build has none — then every order is a
+  /// WhatsApp message and nothing here talks to a server.
+  final OrderApi? api;
+
+  /// What the server last said about each «db» order, by id.
+  final Map<String, OrderState> _states = {};
+
+  /// Orders whose last status read could not be made at all.
+  final Set<String> _unreachable = {};
 
   /// Injected clock for tests; stamps `placedAt` and `cancelledAt`.
   DateTime Function() clock = DateTime.now;
@@ -174,18 +209,146 @@ class OrderStore extends ChangeNotifier {
   List<TrackedOrder> get orders => List.unmodifiable(_orders);
   int get count => _orders.length;
 
+  /// Where an order from this place goes — `orderChannel()` in orders.ts.
+  /// One channel per build, never both: two send buttons would be two orders
+  /// and a board that saw half of them.
+  String? channelFor(Place place) {
+    if (!acceptsOrders(place)) return null;
+    if (api != null) return 'db';
+    return (place.orderWhatsApp?.isNotEmpty ?? false) ? 'whatsapp' : null;
+  }
+
   /// A missing or unreadable store is not an error: nothing persists, the
   /// way a private window behaves on the web.
-  static Future<OrderStore> load() async {
+  ///
+  /// `backend` is the build's switch (`kBackendEnabled`); a test passes
+  /// `backend: false` for the WhatsApp channel, or its own [api].
+  static Future<OrderStore> load({OrderApi? api, bool? backend}) async {
+    final chosen = api ?? ((backend ?? kBackendEnabled) ? OrderApi() : null);
     try {
-      return OrderStore._(await SharedPreferences.getInstance());
+      return OrderStore._(await SharedPreferences.getInstance(), api: chosen);
     } catch (_) {
-      return OrderStore._(null);
+      return OrderStore._(null, api: chosen);
     }
   }
 
   /// In memory only: tests, and a device whose preferences cannot be opened.
-  static OrderStore ephemeral() => OrderStore._(null);
+  static OrderStore ephemeral({OrderApi? api, bool? backend}) => OrderStore._(
+    null,
+    api: api ?? ((backend ?? kBackendEnabled) ? OrderApi() : null),
+  );
+
+  OrderState? stateOf(String id) => _states[id];
+  bool isUnreachable(String id) => _unreachable.contains(id);
+
+  /// Place a «db» order. Validated WITH a phone (the shop calls when the
+  /// order is ready), sent with the attempt's own id so a lost reply and a
+  /// second press are one order, remembered once the server has it.
+  Future<DbOrderResult> sendDb(
+    OrderInput input, {
+    required OrderAttempt attempt,
+  }) async {
+    final problems = validateOrder(input, phoneRequired: true);
+    if (problems.isNotEmpty) {
+      return DbOrderResult._(problem: problems.first, reason: 'invalid');
+    }
+    final api = this.api;
+    if (api == null) {
+      return const DbOrderResult._(
+        problem: 'الطلب المسبق مو متاح حالياً. اتصل بالمكان مباشرة.',
+        reason: 'disabled',
+      );
+    }
+    final r = await api.placeOrder(
+      input,
+      id: attempt.id,
+      token: attempt.token,
+      phone: normalisePhone(input.customerPhone)!,
+    );
+    // `duplicate` is the same order already there — the first attempt landed
+    // and only its reply was lost — and reporting it as a success is what
+    // stops a bad signal from pressing send until the shop has four of
+    // everything (orders.ts says the same).
+    if (r.ok || r.error == 'duplicate') {
+      final tracked = TrackedOrder(
+        id: attempt.id,
+        token: attempt.token,
+        reference: attempt.reference,
+        placeSlug: input.placeSlug,
+        placeNameAr: input.placeNameAr,
+        totalFils: orderTotal(input.lines),
+        pickupAt: input.pickupAt,
+        placedAt: clock().toUtc().toIso8601String(),
+        channel: 'db',
+        lines: input.lines,
+        noteAr: input.noteAr.trim(),
+      );
+      remember(tracked);
+      _states[tracked.id] = const OrderState(status: 'placed');
+      return DbOrderResult._(tracked: tracked);
+    }
+    if (r.error == 'invalid') {
+      return const DbOrderResult._(
+        problem: 'في معلومة مو مضبوطة. راجع الطلب.',
+        reason: 'invalid',
+      );
+    }
+    if (r.error == 'closed') {
+      return const DbOrderResult._(
+        problem: 'المكان مو مستقبل طلبات مسبقة الحين. اتصل فيهم مباشرة.',
+        reason: 'disabled',
+      );
+    }
+    return DbOrderResult._(
+      problem: describeApiFailure(
+        r,
+        'ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية.',
+      ),
+      reason: 'network',
+    );
+  }
+
+  /// Read one «db» order's state from the server. A wrong pair or a vanished
+  /// order is `null` and is kept as the last known; a failed read is marked
+  /// unreachable so the card can say «ما قدرنا نتأكد» instead of a stale
+  /// status. Returns whether anything is left to poll for.
+  Future<bool> refresh(String id) async {
+    final api = this.api;
+    final order = _orders.where((o) => o.id == id).firstOrNull;
+    if (api == null || order == null || order.channel != 'db') return false;
+    final r = await api.orderStatus(order.id, order.token);
+    if (!r.ok) {
+      _unreachable.add(id);
+      notifyListeners();
+      return true;
+    }
+    _unreachable.remove(id);
+    final state = OrderState.fromJson(r.data['order']);
+    if (state != null) _states[id] = state;
+    notifyListeners();
+    return state == null ? false : !state.isFinal;
+  }
+
+  /// The customer calls a «db» order off. The server answers the status the
+  /// order ended up in; only a 'cancelled' is the customer's own act.
+  Future<String?> cancelDb(String id) async {
+    final api = this.api;
+    final order = _orders.where((o) => o.id == id).firstOrNull;
+    if (api == null || order == null) return 'network';
+    final r = await api.cancelOrder(order.id, order.token);
+    if (!r.ok) return 'network';
+    final status = r.data['status'];
+    if (status is! String) return 'unknown';
+    if (status == 'cancelled') {
+      markCancelledByMe(id);
+      _states[id] = OrderState(
+        status: 'cancelled',
+        cancelledAt: clock().toUtc().toIso8601String(),
+      );
+      notifyListeners();
+    }
+    return status;
+  }
 
   static List<TrackedOrder> _read(SharedPreferences? prefs) {
     try {

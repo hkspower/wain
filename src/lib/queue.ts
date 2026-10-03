@@ -1,13 +1,8 @@
 "use client";
 
 import { QUEUE_STORE_KEY } from "@/lib/live-keys";
-import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
-import {
-  describeNetError,
-  isDefinitelyOffline,
-  isRetryableSupabaseError,
-  retry,
-} from "@/lib/net";
+import { backendEnabled, call, describeApiFailure, isRetryableApiFailure } from "@/lib/backend";
+import { describeNetError, isDefinitelyOffline, retry } from "@/lib/net";
 import {
   DEFAULT_SERVICE_MINUTES,
   HOURS_COUNT,
@@ -26,14 +21,15 @@ import {
  * anything. A queue counting only the people who used the app would tell
  * everybody a position the room disagrees with.
  *
- * The number is assigned by the database, not here. Two people tapping at the
- * same moment would pick the same one, and two customers who are both «رقم ٧»
- * is worse than no queue at all. Verified with forty simultaneous joins:
- * forty distinct numbers, one to forty.
+ * The number is assigned by the server, under a lock, not here. Two people
+ * tapping at the same moment would pick the same one, and two customers who
+ * are both «رقم ٧» is worse than no queue at all. (Verified under Postgres
+ * with forty simultaneous joins — forty distinct numbers; the PHP back end's
+ * own suite holds the same under contention.)
  *
- * The id and the token are still made on the device, for the same reason as
- * orders: anon has no SELECT policy, and asking the database to hand back a
- * row it just wrote makes it check that policy and refuse.
+ * The id and the token are made on the device, for the same reason as orders:
+ * a ticket can be read back only by whoever holds both, and nothing about the
+ * customer travels back with it.
  */
 
 export type SalonKind = "men" | "women";
@@ -154,7 +150,7 @@ export function isFromToday(ticket: HeldTicket, now: Date = new Date()): boolean
   return ticket.day === kuwaitToday(now);
 }
 
-/* ── talking to the database ──────────────────────────────────────────── */
+/* ── talking to the back end ──────────────────────────────────────────── */
 
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -210,13 +206,12 @@ export type JoinResult =
 /**
  * Take a number.
  *
- * Not retried. join_queue writes a row and hands back the number it assigned,
- * and unlike the order insert there is no client-supplied key to collide on —
- * the id is ours but a retry after a lost reply would hit the primary key, so
- * a repeat is safe. It is still not repeated automatically: a second ticket
- * for the same person is exactly the failure this feature must not have, and
- * the unique index that would catch it is the last line of defence, not the
- * first. The customer can press again.
+ * Not retried. `queue_join` writes a row and hands back the number it
+ * assigned; a repeat with the same id would be refused as a duplicate, so a
+ * retry after a lost reply is safe — but it is still not repeated
+ * automatically: a second ticket for the same person is exactly the failure
+ * this feature must not have, and the server's check is the last line of
+ * defence, not the first. The customer can press again.
  */
 export async function joinQueue(
   input: JoinInput,
@@ -226,34 +221,44 @@ export async function joinQueue(
   const problems = validateJoin(input);
   if (problems.length) return { ok: false, reason: "invalid", message: problems[0] };
 
-  if (!supabaseEnabled) {
+  if (!backendEnabled) {
     return { ok: false, reason: "disabled", message: "الطابور مو متاح حالياً. اتصل بالصالون." };
   }
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, reason: "disabled", message: "الطابور مو متاح حالياً." };
 
-  const q = sb.rpc("join_queue", {
-    p_id: attempt.id,
-    p_token: attempt.token,
-    p_place_slug: input.placeSlug,
-    p_place_name_ar: input.placeNameAr,
-    p_customer_name: input.customerName.trim(),
-    p_customer_phone: normalisePhone(input.customerPhone) ?? "",
-    p_source: "online",
-  });
-  const { data, error } = await (signal ? q.abortSignal(signal) : q);
+  let result;
+  try {
+    result = await call<{ number: number; day: string }>(
+      "queue_join",
+      {
+        id: attempt.id,
+        track_token: attempt.token,
+        place_slug: input.placeSlug,
+        place_name_ar: input.placeNameAr,
+        customer_name: input.customerName.trim(),
+        customer_phone: normalisePhone(input.customerPhone) ?? "",
+        source: "online",
+      },
+      { signal }
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeNetError(err, "ما قدرنا ناخذ لك دور. جرّب مرة ثانية."),
+    };
+  }
 
-  if (error) {
-    // The unique index on (place, day, phone) where the ticket is still live.
-    if (error.code === "23505") {
+  if (!result.ok) {
+    // One live ticket per phone per salon per day.
+    if (result.error === "duplicate") {
       return {
         ok: false,
         reason: "duplicate",
         message: "عندك دور بهذا الصالون اليوم. افتح «دوري» عشان تشوفه.",
       };
     }
-    // Raised by join_queue when the salon has the queue switched off.
-    if (error.code === "23514") {
+    // The salon has the queue switched off, or is not published.
+    if (result.error === "closed") {
       return {
         ok: false,
         reason: "closed",
@@ -263,11 +268,11 @@ export async function joinQueue(
     return {
       ok: false,
       reason: "network",
-      message: describeNetError(error, "ما قدرنا ناخذ لك دور. جرّب مرة ثانية."),
+      message: describeApiFailure(result, "ما قدرنا ناخذ لك دور. جرّب مرة ثانية."),
     };
   }
 
-  const number = Number(data);
+  const number = Number(result.number);
   if (!Number.isFinite(number) || number < 1) {
     return { ok: false, reason: "network", message: "ما قدرنا ناخذ لك دور. جرّب مرة ثانية." };
   }
@@ -279,7 +284,9 @@ export async function joinQueue(
     placeSlug: input.placeSlug,
     placeNameAr: input.placeNameAr,
     salonKind: input.salonKind,
-    day: kuwaitToday(),
+    // The server's day, not the device's clock: a phone set wrong would
+    // otherwise file today's ticket under another date and lose it.
+    day: typeof result.day === "string" && result.day ? result.day : kuwaitToday(),
     joinedAt: new Date().toISOString(),
   };
   rememberTicket(ticket);
@@ -305,34 +312,27 @@ export type TicketStateResult =
   | { ok: true; state: TicketState | null }
   | { ok: false; offline: boolean };
 
-/** Retried: queue_status is `stable` and reads one row. */
+/** Retried: `queue_status` reads one row and changes nothing. */
 export async function fetchTicketState(
   id: string,
   token: string,
   signal?: AbortSignal | null
 ): Promise<TicketStateResult> {
-  if (!supabaseEnabled) return { ok: false, offline: false };
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, offline: false };
+  if (!backendEnabled) return { ok: false, offline: false };
 
   let result;
   try {
     result = await retry(
-      async () => {
-        const q = sb.rpc("queue_status", { p_id: id, p_token: token });
-        return await (signal ? q.abortSignal(signal) : q);
-      },
-      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+      () => call<{ ticket: Record<string, unknown> | null }>("queue_status", { id, token }, { signal }),
+      { signal, shouldRetry: isRetryableApiFailure }
     );
   } catch {
     return { ok: false, offline: isDefinitelyOffline() };
   }
+  if (!result.ok) return { ok: false, offline: isDefinitelyOffline() };
+  const r = result.ticket;
+  if (!r) return { ok: true, state: null };
 
-  const { data, error } = result;
-  if (error) return { ok: false, offline: isDefinitelyOffline() };
-  if (!Array.isArray(data) || data.length === 0) return { ok: true, state: null };
-
-  const r = data[0] as Record<string, unknown>;
   return {
     ok: true,
     state: {
@@ -368,30 +368,28 @@ export async function fetchQueueSize(
   placeSlug: string,
   signal?: AbortSignal | null
 ): Promise<QueueSize | null> {
-  if (!supabaseEnabled) return null;
-  const sb = await loadSupabase();
-  if (!sb) return null;
+  if (!backendEnabled) return null;
 
   let result;
   try {
     result = await retry(
-      async () => {
-        const q = sb.rpc("queue_size", { p_place_slug: placeSlug });
-        return await (signal ? q.abortSignal(signal) : q);
-      },
-      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+      () =>
+        call<{ waiting: number; now_serving: number | null; service_minutes: number }>(
+          "queue_size",
+          { place_slug: placeSlug },
+          { signal }
+        ),
+      { signal, shouldRetry: isRetryableApiFailure }
     );
   } catch {
     return null;
   }
-
-  const { data, error } = result;
-  if (error || !Array.isArray(data) || data.length === 0) return null;
-  const r = data[0] as Record<string, unknown>;
+  if (!result.ok) return null;
   return {
-    waiting: Number(r.waiting ?? 0),
-    nowServing: r.now_serving === null || r.now_serving === undefined ? null : Number(r.now_serving),
-    serviceMinutes: Number(r.service_minutes ?? DEFAULT_SERVICE_MINUTES),
+    waiting: Number(result.waiting ?? 0),
+    nowServing:
+      result.now_serving === null || result.now_serving === undefined ? null : Number(result.now_serving),
+    serviceMinutes: Number(result.service_minutes ?? DEFAULT_SERVICE_MINUTES),
   };
 }
 
@@ -407,27 +405,32 @@ export async function leaveQueue(
   token: string,
   signal?: AbortSignal | null
 ): Promise<LeaveResult> {
-  if (!supabaseEnabled) {
+  if (!backendEnabled) {
     return { ok: false, reason: "network", message: "ما نقدر نلغي الحين. اتصل بالصالون." };
   }
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, reason: "network", message: "ما نقدر نلغي الحين." };
 
-  const q = sb.rpc("leave_queue", { p_id: id, p_token: token });
-  const { data, error } = await (signal ? q.abortSignal(signal) : q);
-
-  if (error) {
+  let result;
+  try {
+    result = await call<{ status: string | null }>("queue_leave", { id, token }, { signal });
+  } catch (err) {
     return {
       ok: false,
       reason: "network",
-      message: describeNetError(error, "ما وصل الإلغاء. جرّب مرة ثانية."),
+      message: describeNetError(err, "ما وصل الإلغاء. جرّب مرة ثانية."),
     };
   }
-  if (data === null || data === undefined) {
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeApiFailure(result, "ما وصل الإلغاء. جرّب مرة ثانية."),
+    };
+  }
+  if (result.status === null || result.status === undefined) {
     return { ok: false, reason: "unknown", message: "ما لقينا دورك. اتصل بالصالون." };
   }
 
-  const status = String(data) as TicketStatus;
+  const status = String(result.status) as TicketStatus;
   if (status === "left") return { ok: true };
   return {
     ok: false,

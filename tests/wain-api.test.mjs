@@ -93,7 +93,7 @@ async function call(action, body = undefined, { admin = false, method, origin = 
   const res = await fetch(url, { method: m, headers, body: payload });
   const text = await res.text();
   let json = null;
-  try { json = JSON.parse(text); } catch {}
+  try { json = JSON.parse(text); } catch { /* not JSON: the host's own page */ }
   return { status: res.status, json, text, headers: res.headers };
 }
 
@@ -147,6 +147,8 @@ try {
     ok("an origin outside the allowlist is 403", evil.status === 403 && evil.json?.error === "origin_not_allowed", j(evil.json));
     const noOrigin = await call("ping", undefined, { origin: "" });
     ok("no Origin at all is allowed, as on the other bridges", noOrigin.status === 200, j(noOrigin.json));
+    const self = await call("order_cancel", { id: uuid(), token: tok() }, { origin: `http://127.0.0.1:${PORT}` });
+    ok("the page's own host is allowed whatever it is — a same-origin POST always carries one", self.status === 200, j(self.json));
     const opts = await fetch(`${BASE}?a=ping`, { method: "OPTIONS", headers: { Origin: ORIGIN } });
     ok("OPTIONS preflight is 204 with the admin header allowed", opts.status === 204 && /X-Wain-Admin/.test(opts.headers.get("access-control-allow-headers") ?? ""));
     const badJson = await call("order_place", undefined, { raw: "{not json" });
@@ -179,13 +181,11 @@ try {
   }
 
   console.log("\n── places: the public read, in PlaceRow shape ──");
-  let teaId;
   {
     const r = await call("places");
     const rows = r.json?.places ?? [];
     ok("published rows only, in sort order", rows.length === 2 && rows[0].slug === "tea-house" && rows[1].slug === "quiet-cafe", j(rows.map((x) => x.slug)));
     const tea = rows[0];
-    teaId = tea.id;
     ok("booleans are booleans, not 0/1", tea.accepts_orders === true && tea.takes_queue === true && tea.featured === false && tea.published === true);
     ok("JSON columns come back as arrays", Array.isArray(tea.menu_ar) && tea.menu_ar[1].soldOut === true && Array.isArray(tea.highlights_ar) && tea.highlights_ar[0] === "شاي");
     ok("numbers are numbers, and a missing rating is null", typeof tea.lat === "number" && tea.price_level === 2 && tea.rating === 4.4 && rows[1].rating === null);

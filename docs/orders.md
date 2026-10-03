@@ -25,21 +25,21 @@ receipt.
 
 ## Without a database: the order is a WhatsApp message
 
-Every build to date has no Supabase (see `docs/backend.md`), and until
-3 October that meant the panel could only say «مو متاح حالياً». Now **one
-channel per build** decides where an order goes — `orderChannel()` in
-`src/lib/orders.ts`:
+Until 3 October no build had a back end and the panel could only say «مو
+متاح حالياً». Since 4 October the site has its own back end, `/api/wain.php`
+on wainkw.com (`docs/backend.md`), and **one channel per build** decides
+where an order goes — `orderChannel()` in `src/lib/orders.ts`:
 
-| Supabase configured | place has `orderWhatsApp` | channel |
+| back end on (`NEXT_PUBLIC_WAIN_BACKEND` not «none») | place has `orderWhatsApp` | channel |
 |---|---|---|
 | no | yes | **whatsapp** — the order opens as a message to the shop's number |
 | no | no | no panel at all |
 | yes | any | **db** — a row the shop reads on «الطلبات المسبقة» |
 
 Never both. Two send buttons would be two orders, and a board that saw half
-of them. **The day the database is switched on, every shop stops receiving
-WhatsApp orders and has to watch the board instead** — tell them before you
-flip it.
+of them. The default build is the **db** row: a shop that takes orders has to
+watch the board. A build with `NEXT_PUBLIC_WAIN_BACKEND=none` is the WhatsApp
+mode — tell the shops which one they are on before you flip it.
 
 In WhatsApp mode:
 
@@ -184,7 +184,7 @@ A stable `OrderAttempt` id means pressing «أرسل الطلب» again after a 
 collides with the row already written rather than adding a second one. See
 [network.md](network.md) — the reasoning is the same for every write.
 
-### A bug this fixed
+### A bug this fixed (history — the Postgres route, kept in `supabase/`)
 
 The first version of `submitOrder` did `.insert(...).select("id").single()`.
 PostgreSQL applies the **SELECT** policy to rows returned by `RETURNING`, and
@@ -258,23 +258,17 @@ describing it. Both branches are covered by `npm run test:shouq`.
 
 ## What still needs you
 
-**Without a database**, ordering works the moment a shop's menu and number
-land in `places.ts` (the intake shape above) and the site is deployed. Nothing
-on the server changes.
+**A menu.** Ordering shows the moment a shop's menu (and, for a WhatsApp
+build, its number) lands in `places.ts` (the intake shape above) and the site
+is deployed.
 
-**To switch the database on** — which moves every shop's orders from WhatsApp
-to the board in one build:
-
-1. Create the Supabase project and run the **regenerated** `supabase/schema.sql`
-   (`npm run db:schema`; the committed file carries the seed with the menu
-   columns). Insert the admin row, turn off sign-ups (`docs/admin-setup.md`).
-2. Put `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` into
-   **this environment's secrets** (and GitHub's variables for CI). Say so.
-3. Rebuild (`npm run release`), confirm `build.json` says Supabase is on, run
-   `PATH=/usr/lib/postgresql/16/bin:$PATH npm run test:db` and `npm run
-   test:journey`, deploy.
-4. The live proof is one order placed from a phone appearing on **الطلبات
-   المسبقة** — the sandbox cannot reach a Supabase host.
+**The back end** (`docs/backend.md`, `docs/admin-setup.md`): `/api/wain.php`
+installed on the server by the cron route, `storage/admin.secret` filled in by
+you, and a deploy of a build whose `build.json` says `"backend": { "api":
+true }` — the default. The live proof is one order placed from a phone
+appearing on **الطلبات المسبقة**; the sandbox cannot reach the site, so
+`npm run test:backend` (the same journey against the real PHP on a local
+server) is the nearest thing here.
 
 ## Testing
 
@@ -287,10 +281,12 @@ byte, with and without a note, the URL round trip, the cancel sentence); the
 panel driven in a browser; 48 on «طلباتي», including a WhatsApp order beside a
 database one; and **54 on the WhatsApp flow against a fixture build** — a
 throwaway worktree (`tests/fixture-build.mjs`) with one place given a menu
-and a number, built with no Supabase, `window.open` and the clipboard
-replaced by spies. `npm run test:net` covers the rest — cancelling, and what
-happens to an order on a bad network; `npm run test:journey` walks the
-database path end to end, including a customer calling her own order off.
+and a number, built with `NEXT_PUBLIC_WAIN_BACKEND=none`, `window.open` and
+the clipboard replaced by spies. `npm run test:net` covers the rest —
+cancelling, and what happens to an order on a bad network; `npm run
+test:journey` walks the database path end to end against a mock of the API,
+including a customer calling her own order off, and `npm run test:backend`
+walks the same journey against the real `wain.php` on `php -S`.
 
 **The production-build panel layer skips, and will keep skipping until a
 business turns ordering on.** No shipped place has a menu, because inventing a
@@ -299,8 +295,8 @@ that café's counter is not something wain should do; the fixture build exists
 so the code is still exercised. When a real menu lands, that layer runs on the
 production build too.
 
-The tracking tests run against a static build with no Supabase, which is the
-case worth testing hardest: with the network silent a database order must still
+The tracking tests run against a static build with no back end answering,
+which is the case worth testing hardest: with the network silent a database order must still
 show the reference, the place and the time from what the device remembers, and
 must say it could not confirm the status rather than inventing one — and a
 WhatsApp order must say the status is not shown here at all.

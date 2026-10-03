@@ -50,8 +50,8 @@ export const MAX_PREP_MINUTES = 240;
  * Matches the CHECK on places.order_prep_minutes, so the form and the database
  * agree about what is allowed rather than differing by one.
  *
- * Lives here rather than in orders.ts because supabase.ts needs it to map a
- * row, and orders.ts needs supabase.ts — putting it there made an import cycle
+ * Lives here rather than in orders.ts because place-rows.ts needs it to map a
+ * row, and orders.ts needs the back end — putting it there made an import cycle
  * out of a pure arithmetic function.
  */
 export function clampPrepMinutes(value: number | undefined | null): number {
@@ -64,8 +64,8 @@ export const MIN_SERVICE_MINUTES = 5;
 export const MAX_SERVICE_MINUTES = 180;
 
 /** Matches the CHECK on places.queue_service_minutes. Here for the same reason
- *  as clampPrepMinutes: supabase.ts maps the row and must not depend on
- *  queue.ts, which depends on supabase.ts. */
+ *  as clampPrepMinutes: place-rows.ts maps the row and must not depend on
+ *  queue.ts, which depends on the back end. */
 export function clampServiceMinutes(value: number | undefined | null): number {
   if (!Number.isFinite(value ?? NaN)) return DEFAULT_SERVICE_MINUTES;
   return Math.min(MAX_SERVICE_MINUTES, Math.max(MIN_SERVICE_MINUTES, Math.round(value as number)));
@@ -301,7 +301,7 @@ export function getCategory(id: CategoryId): Category | undefined {
  *
  * Both live here rather than in `orders.ts` and `queue.ts`, where they were,
  * because each reads two fields off a Place and calls no service — while their
- * old homes are `"use client"` modules carrying the Supabase bridge and the
+ * old homes are `"use client"` modules carrying the back-end client and the
  * network layer. The search page needs the questions and none of the
  * machinery: asking them from there pulled 6KB of first-load JavaScript onto a
  * route that never places an order (measured, 148KB → 154KB).

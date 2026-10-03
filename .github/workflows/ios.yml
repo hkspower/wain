@@ -109,8 +109,10 @@ jobs:
       - name: Build static export (produces out/)
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # A bundle has no origin, so the relative default `/api/wain.php`
+          # would 404 against the WebView's own scheme — the same case the TTS
+          # URL once was. Absolute, and the production stage.
+          NEXT_PUBLIC_WAIN_BACKEND: https://www.wainkw.com/api/wain.php
         run: npm run build
 
       # ios/ is gitignored (see .gitignore) and scaffolded fresh every run,
@@ -206,8 +208,10 @@ jobs:
       - name: Build static export (produces out/)
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          # A bundle has no origin, so the relative default `/api/wain.php`
+          # would 404 against the WebView's own scheme — the same case the TTS
+          # URL once was. Absolute, and the production stage.
+          NEXT_PUBLIC_WAIN_BACKEND: https://www.wainkw.com/api/wain.php
         run: npm run build
 
       - name: Add the iOS platform

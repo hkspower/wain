@@ -52,7 +52,7 @@ what satisfies them. `npm run test:register` covers it.
    the same step (`status = 'approved'`, `published_slug` recorded).
 
 A new place appears in listings and search straight away, because those read
-live from Supabase. Its own `/places/<slug>/` page is generated at build time,
+live from `/api/wain.php`. Its own `/places/<slug>/` page is generated at build time,
 so it becomes reachable after the next deploy — the same as any place added
 in the admin. Everything *about* an already-published place is live: once the
 page exists, later edits to it need no deploy at all.
@@ -98,8 +98,10 @@ site speaking), and the photos become a gallery whose first image leads at
 double width. All three are optional and absent on the seeded places, so those
 pages are unchanged.
 
-**Note for `.htaccess`:** the CSP's `img-src` must include
-`https://*.supabase.co`, or approved images are blocked. It does.
+**Note for `.htaccess`:** approved photos are published into
+`/images/business/<slug>/` on the site's own origin, so `img-src 'self'`
+covers them; pending ones are shown to the admin through short-lived signed
+URLs on the same origin. No third-party image host is in the CSP for this.
 
 ## Why it is safe to let anonymous visitors insert
 
@@ -132,32 +134,30 @@ If the queue ever does get abused, the options in increasing order of effort:
 
 1. Delete the junk in the admin (or `delete from submissions where status =
    'pending' and created_at < now() - interval '7 days'`).
-2. Add a Cloudflare Turnstile / hCaptcha token and verify it in a Supabase
-   Edge Function that owns the insert, moving the anon insert policy off the
-   table entirely.
-3. Require an email one-time-password before the form submits — Supabase Auth
-   already supports it, at the cost of the "no account needed" promise.
+2. Add a Cloudflare Turnstile / hCaptcha token and verify it in `wain.php`'s
+   `submit` action before the insert.
+3. Require an email one-time-password before the form submits, at the cost
+   of the "no account needed" promise.
 
+`/api/wain.php` already caps public writes at 20 a minute per address and
+refuses a body over 64K, which bounds the rate but not the patience.
 Nothing here needs doing until it is actually a problem.
 
 ## Setup
 
-The form needs the same two environment variables as the admin
-(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) and the schema
-applied. See `docs/admin-setup.md`.
+The form needs the back end installed (`docs/backend.md`); it POSTs
+`submit` to `/api/wain.php` on the same origin and nothing has to be
+configured in the build. Photos go to `/api/media.php` first and the
+submission carries their pending paths.
 
-If you already ran `supabase/schema.sql` before this feature existed, run it
-again — it is written to be re-runnable, and adds `submissions` without
-touching your existing places.
-
-**Without the variables set**, `/add/` still renders and validates, but says
-plainly that registration is not connected and refuses to pretend a submission
-went through.
+**With `NEXT_PUBLIC_WAIN_BACKEND=none`**, `/add/` still renders and
+validates, but says plainly that registration is not connected and refuses to
+pretend a submission went through.
 
 ## Reaching the owner
 
 `contact_name`, `contact_email` and `contact_phone` are for you, never shown on
 the site. The form says so where the owner enters them. Approving a submission
 does not email anyone automatically — there is no server to send from. Reply
-from your own mailbox, or wire a Supabase Edge Function to
-`submissions` if you want that automated later.
+from your own mailbox; `wain.php`'s `submit` action is the place to add a
+mail call if you want that automated later.

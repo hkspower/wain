@@ -5,7 +5,7 @@
   "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/vendor-widget.mjs && next build && node scripts/vendor-widget.mjs --copy && node scripts/gen-landmarks.mjs --prune-out && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
+    "build": "node scripts/vendor-widget.mjs && next build && node scripts/gen-places-json.mjs && node scripts/vendor-widget.mjs --copy && node scripts/gen-landmarks.mjs --prune-out && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
     "start": "next start",
     "lint": "eslint .",
     "check:cache": "node scripts/check-cache-safety.mjs",
@@ -44,6 +44,7 @@
     "test:tts": "node tests/tts-endpoint.test.mjs",
     "test:media": "node tests/media-endpoint.test.mjs",
     "test:wain-api": "node tests/wain-api.test.mjs",
+    "test:backend": "node tests/run-backend.mjs",
     "test:db": "node tests/schema.test.mjs",
     "test:map": "node tests/map-frame.test.mjs",
     "test:find-moment": "node tests/find-moment.test.mjs",
@@ -97,7 +98,6 @@
   "dependencies": {
     "@capacitor/core": "8.5.2",
     "@capacitor/ios": "8.5.2",
-    "@supabase/supabase-js": "^2.112.1",
     "leaflet": "^1.9.4",
     "next": "^15.3.3",
     "react": "^19.1.0",

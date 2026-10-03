@@ -184,9 +184,11 @@ route, the difference being chunks hydration pulls in afterwards.
 
 ## What is already right
 
-**Code splitting works.** `@supabase/supabase-js` is 177KB raw and sits in its
-own chunk that **no page loads statically** — not even `/admin/`. It arrives
-only when something actually talks to the database.
+**Code splitting works.** `@supabase/supabase-js` was 177KB raw and sat in its
+own chunk that **no page loaded statically** — not even `/admin/`; it arrived
+only when something talked to the database. It is gone since 4 October: the
+back end is `/api/wain.php` and the client is `src/lib/backend.ts`, ~1K
+gzipped, so there is nothing left to split there.
 
 **No source maps.** None shipped, and no chunk carries a `sourceMappingURL`.
 The TypeScript, comments included, stays out of the browser.
@@ -222,7 +224,8 @@ the same edge would put the catalogue on every page from there instead)
        → supabase.ts → places.ts
 ```
 
-`supabase.ts` imported `clampPrepMinutes` and `clampServiceMinutes` from the
+`supabase.ts` (today `place-rows.ts`) imported `clampPrepMinutes` and
+`clampServiceMinutes` from the
 catalogue's module. Two small functions, one edge, and all 36 records landed on
 all 46 pages — because `places.ts` held both the catalogue and the small
 vocabulary everything else needs.

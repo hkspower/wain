@@ -2,12 +2,12 @@
 /**
  * The network suite:  npm run test:net
  *
- * Bundles the real src/lib/net.ts, src/lib/orders.ts and src/lib/usePoll.ts
+ * Bundles the real src/lib/net.ts, backend.ts, orders.ts, queue.ts and usePoll.ts
  * onto two blank pages, serves them, and lets Playwright play the server. No
- * Next build is involved and no Supabase is required: the client is pointed at
- * an address on the test's own origin, and every request to it is intercepted,
+ * Next build is involved and no PHP is required: the client is pointed at an
+ * address on the test's own origin, and every request to it is intercepted,
  * so the test decides whether a request fails in transit, stalls forever,
- * returns 503, or comes back with a duplicate-key error.
+ * returns 503, or comes back with the server's own `duplicate`.
  *
  * That is the only way to check most of this. "Retries three times", "does not
  * replay a POST", "a stalled request eventually gives up" and "a duplicate key
@@ -25,8 +25,7 @@ const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 const PORT = 4194;
 /** Same origin as the pages, so interception is simple and nothing real is
  *  ever contacted even if a route were somehow missed. */
-const SUPABASE_URL = `http://127.0.0.1:${PORT}/sb`;
-const ANON_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.test-key-not-real";
+const API_URL = `http://127.0.0.1:${PORT}/api/wain.php`;
 
 const run = (cmd, args, opts = {}) =>
   new Promise((resolve) => {
@@ -41,8 +40,7 @@ const bundle = (entry, outfile) =>
     "esbuild", entry,
     "--bundle", "--format=iife", "--jsx=automatic",
     `--alias:@=${join(ROOT, "src")}`,
-    `--define:process.env.NEXT_PUBLIC_SUPABASE_URL="${SUPABASE_URL}"`,
-    `--define:process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY="${ANON_KEY}"`,
+    `--define:process.env.NEXT_PUBLIC_WAIN_BACKEND="${API_URL}"`,
     "--define:process.env.NODE_ENV=\"production\"",
     `--outfile=${join(dir, outfile)}`,
     "--log-level=error",
@@ -87,7 +85,7 @@ if (!existsSync(CHROMIUM)) {
 } else {
   failed =
     (await run("node", ["tests/net.test.mjs"], {
-      env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT}`, WAIN_SB: SUPABASE_URL },
+      env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT}`, WAIN_API: API_URL },
     })) === 0
       ? 0
       : 1;

@@ -6,7 +6,7 @@ import { IconCheck, IconClock, IconClose } from "@/components/icons";
 import { CollectionDetails } from "@/components/OrderSummary";
 import { haptic } from "@/lib/haptics";
 import { toArabicDigits } from "@/lib/place-kit";
-import { supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled } from "@/lib/backend";
 import { usePoll } from "@/lib/usePoll";
 import {
   SALON_LABEL,
@@ -61,13 +61,13 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
     (signal) => fetchTicketState(ticket.id, ticket.token, signal),
     {
       intervalMs: POLL_MS,
-      enabled: supabaseEnabled,
+      enabled: backendEnabled,
       isFinal: (r) => r.ok && !!r.state && isTicketFinished(r.state.status),
     }
   );
 
   const state: TicketState | null = value?.ok ? value.state : null;
-  const unreachable = !supabaseEnabled || (settled && (failures > 0 || (!!value && !value.ok)));
+  const unreachable = !backendEnabled || (settled && (failures > 0 || (!!value && !value.ok)));
   const missing = !!value && value.ok && value.state === null;
   const status: TicketStatus = state?.status ?? "waiting";
   const live = status === "waiting" || status === "called";

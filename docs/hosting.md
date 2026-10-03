@@ -596,22 +596,23 @@ The build-id directories go too: `_next/static/<40-hex>/` holds only
 current one is ever requested. Read the live `build.json` to learn which that
 is. Do not infer it from `out/`.
 
-## The one thing still missing: the back end
+## The back end is wain's own now: `/api/wain.php`
 
-The live build carries no Supabase configuration, and a static export bakes
-those values in at build time — nothing can supply them afterwards. Every page
-renders from the catalogue in `places.ts`, but **ordering, the queue, business
-registration and the live-edit machinery are inert**, and `/admin` says so.
+This section used to be «the one thing still missing» and named two Supabase
+settings. Since 4 October the back end is a PHP file on this same host,
+`public_html/api/wain.php` (and `staging/api/wain.php`), installed by the same
+fetch-pin-run cron route as `tts.php` and `media.php`, with its database in
+`<domain>/storage/` (SQLite by default, MySQL when `storage/db.json` names one)
+and its admin password in `storage/admin.secret`. `docs/backend.md` has the
+whole of it; `docs/admin-setup.md` the owner's two steps.
 
-`deploy.yml` already passes them through, so this is two settings plus running
-`supabase/schema.sql`, not a code change:
-
-- variable `SUPABASE_URL`
-- secret `SUPABASE_ANON_KEY` — the anon key is public by design, RLS decides
-  what it can do; it lives in `secrets` only so it is masked in logs. **Never**
-  put the `service_role` key there.
-
-The build logs a warning naming this whenever it ships without them.
+What a deploy has to know: the export ships `data/places.json`, which
+`php …/api/wain.php seed` reads to insert catalogue places the table lacks;
+approved business photos live in `public_html/images/business/`, a directory
+`deploy.php`'s `PROTECTED_PATHS` never prunes; and a build carries the switch
+`NEXT_PUBLIC_WAIN_BACKEND` baked in (unset = `/api/wain.php`, `none` = off),
+recorded in `build.json` as `backend`. Deploying the site before `install` has
+run makes every order say «مو متاحة» — install first, deploy second.
 
 ## The `.htaccess`
 

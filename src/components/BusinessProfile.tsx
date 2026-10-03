@@ -11,7 +11,7 @@ import type { Place } from "@/lib/places";
  * pages render exactly as they did.
  *
  * Plain <img>: the site is a static export with no image optimiser, and these
- * are remote URLs from Supabase storage. Dimensions are declared so the layout
+ * are URLs under /images/business/ written by the back end. Dimensions are declared so the layout
  * does not jump when they load, and everything below the fold is lazy.
  */
 
@@ -61,7 +61,7 @@ export function BusinessBio({ place }: { place: Place }) {
  * guarded by `isHttpUrl` — the same http(s)-only rule as the CHECK on
  * places.website, checked again here rather than trusted from the database
  * alone, since this repository does not control whether that constraint
- * actually made it into whatever Supabase project is live.
+ * is enforced by whichever copy of `wain.php` is installed on the server.
  */
 export function BusinessContact({ place }: { place: Place }) {
   const phone = place.phone?.trim();

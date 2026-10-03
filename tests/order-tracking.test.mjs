@@ -3,8 +3,8 @@ import { chromium } from 'playwright';
 /**
  * طلباتي, driven in a browser.
  *
- * The tracker's live status comes from the order_status() RPC, which needs a
- * configured Supabase — a static build has none, so fetchOrderState() returns
+ * The tracker's live status comes from the `order_status` action, which needs
+ * `/api/wain.php` answering — a static build served alone has none, so fetchOrderState() returns
  * null here. That is exactly the case worth testing hardest: with the network
  * silent the screen must still show the customer their reference, their place
  * and their time from what the device remembers, and must say plainly that it

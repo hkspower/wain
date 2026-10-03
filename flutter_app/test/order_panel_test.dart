@@ -73,7 +73,8 @@ void main() {
     t.view.physicalSize = const Size(780, 2400);
     t.view.devicePixelRatio = 2;
     addTearDown(t.view.reset);
-    final store = OrderStore.ephemeral()..clock = () => at;
+    // The WhatsApp channel: this file is the app without a back end.
+    final store = OrderStore.ephemeral(backend: false)..clock = () => at;
     await t.pumpWidget(
       ChangeNotifierProvider<OrderStore>.value(
         value: store,

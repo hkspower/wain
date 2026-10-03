@@ -12,7 +12,7 @@ import {
   isTerminalStatus,
 } from "@/lib/orders";
 // Imported from the kit itself, not through orders.ts, so a kit that quietly
-// grew a Supabase or catalogue import would be the first thing to break here.
+// grew a back-end or catalogue import would be the first thing to break here.
 import {
   MAX_NOTE_CHARS,
   buildOrderMessage,

@@ -117,7 +117,7 @@ export default function PrivacyPage() {
           that loads without the visitor asking for it — شوق waits for a press,
           a business submission waits for a submit, and the map does not wait
           for anything. ("the submission webhook" is what this said, and it was
-          wrong twice over: submissions go to Supabase, and the n8n host it
+          wrong twice over: submissions go to wain's own /api/wain.php, and the n8n host it
           pointed at is in the CSP only as the NEXT_PUBLIC_WAIN_TTS_URL escape
           hatch. Nothing in the browser posts a submission to a webhook.)
           Leaving the map undisclosed was the page's one real
@@ -288,8 +288,11 @@ export default function PrivacyPage() {
         <h2 className="font-display text-xl font-semibold text-ink-900">الاستضافة</h2>
         {/* Was «ما فيه قاعدة بيانات» — no database — which stopped being true
             the day ordering shipped. The pages are still static files, but a
-            placed order is a row in Supabase, and a privacy page that denies
-            the database is worse than one that never mentioned it. */}
+            placed order is a row in a database — on wainkw.com itself since
+            4 October (`/api/wain.php`, docs/backend.md); it said «Supabase»
+            before, which described a back end that was never configured — and
+            a privacy page that denies the database is worse than one that
+            never mentioned it. */}
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           {/* Was «ما فيه سيرفر يشغّل كود» — no server running code — which was
               true of the pages and never of the account: /api/ holds wain's own
@@ -299,16 +302,19 @@ export default function PrivacyPage() {
           <p>
             صفحات وين ملفات ثابتة (static): ما فيه حسابات ولا تسجيل دخول
             للزوار، وتقدر تتصفّح الموقع كله وتدوّر وتقرا الأماكن بدون ما
-            تعطينا ولا معلومة. الاستثناءات الوحيدة طرفان على خادم وين تحت{" "}
-            <code dir="ltr">/api/</code>: واحد للنطق (فوق)، وواحد للنشر ما
-            يمسّه زائر أبداً.
+            تعطينا ولا معلومة. الاستثناءات الوحيدة ثلاثة أطراف على خادم وين
+            تحت <code dir="ltr">/api/</code>: واحد للنطق (فوق)، وواحد للنشر ما
+            يمسّه زائر أبداً، وواحد لقاعدة بيانات وين نفسها — الطلبات
+            والطابور وتسجيل المحلات.
           </p>
           <p>
-            الاستثناء الوحيد بيدك أنت: إذا طلبت طلب أو خذيت دور في الطابور، اللي
-            تكتبه — اسمك ورقمك وطلبك — ينحفظ في قاعدة بيانات{" "}
-            <strong className="text-ink-900">Supabase</strong> عشان المحل يشوف
-            طلبك ويجهّزه. هذي المرة الوحيدة اللي تطلع فيها بيانات منك، وما تصير
-            إلا بضغطة منك، ونسختك من الطلب تبقى محفوظة داخل متصفحك.
+            الاستثناء الوحيد بيدك أنت: إذا طلبت طلب أو خذيت دور في الطابور أو
+            سجّلت محلك، اللي تكتبه — اسمك ورقمك وطلبك — ينحفظ في قاعدة بيانات{" "}
+            <strong className="text-ink-900">على خادم وين نفسه</strong> (على
+            wainkw.com، مو عند طرف ثاني) عشان المحل يشوف طلبك ويجهّزه. هذي المرة
+            الوحيدة اللي تطلع فيها بيانات منك، وما تصير إلا بضغطة منك، ونسختك
+            من الطلب تبقى محفوظة داخل متصفحك. وسجلّ هالطرف يكتب نوع الطلب
+            ونتيجته بس — لا اسم ولا رقم ولا ملاحظة.
           </p>
           <p>
             ومزوّد الاستضافة — مثل أي استضافة — يسجّل طلبات الخوادم العادية

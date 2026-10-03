@@ -7,7 +7,7 @@ import { CollectionDetails, OrderLines } from "@/components/OrderSummary";
 import { haptic } from "@/lib/haptics";
 import { HOURS_COUNT, MINUTES_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import { usePoll } from "@/lib/usePoll";
-import { supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled } from "@/lib/backend";
 import {
   cancelOrder,
   cancelOrderMessage,
@@ -208,7 +208,7 @@ function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void
     (signal) => fetchOrderState(order.id, order.token, signal),
     {
       intervalMs: POLL_MS,
-      enabled: supabaseEnabled,
+      enabled: backendEnabled,
       // Collected and cancelled never change again, so stop asking entirely
       // rather than re-reading the same row until the tab closes.
       isFinal: (r) => r.ok && !!r.state && isTerminalStatus(r.state.status),
@@ -220,7 +220,7 @@ function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void
   // person reading the screen: we cannot tell them the status, and saying so
   // is better than a progress line they might read as confirmed.
   const unreachable =
-    !supabaseEnabled || (settled && (failures > 0 || (!!value && !value.ok)));
+    !backendEnabled || (settled && (failures > 0 || (!!value && !value.ok)));
   // Answered, and the order genuinely is not there — a different thing from
   // not being able to ask, and worth saying differently.
   const missing = !!value && value.ok && value.state === null;

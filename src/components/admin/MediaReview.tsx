@@ -7,9 +7,9 @@ import { signedPendingUrl } from "@/lib/media";
 /**
  * Look at what a business sent, and pick what goes public.
  *
- * Pending files live in a private bucket, so they are fetched through
- * short-lived signed URLs — an admin can see them, nobody else can, and the
- * link expires rather than leaking.
+ * Pending files live outside the document root on the server, so they are
+ * fetched through short-lived signed URLs — an admin can see them, nobody
+ * else can, and the link expires rather than leaking.
  *
  * Everything starts unselected. Approval is a decision someone makes, not a
  * default that happens when nobody looks.

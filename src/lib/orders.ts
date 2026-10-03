@@ -1,13 +1,8 @@
 "use client";
 
 import { ORDERS_STORE_KEY } from "@/lib/live-keys";
-import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
-import {
-  describeNetError,
-  isDefinitelyOffline,
-  isRetryableSupabaseError,
-  retry,
-} from "@/lib/net";
+import { backendEnabled, call, describeApiFailure, isRetryableApiFailure } from "@/lib/backend";
+import { describeNetError, isDefinitelyOffline, retry } from "@/lib/net";
 import { acceptsOrders } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
 import {
@@ -39,8 +34,8 @@ import {
  * The pure half — money, slots, the reference, validation and the WhatsApp
  * message — lives in `order-kit.ts` and is re-exported here so every caller
  * that already imports `@/lib/orders` keeps working. New callers that only
- * need the kit should import it directly: this module carries the Supabase
- * client and the device store, which a message builder does not need.
+ * need the kit should import it directly: this module carries the back-end
+ * calls and the device store, which a message builder does not need.
  */
 export * from "@/lib/order-kit";
 
@@ -61,7 +56,7 @@ export type OrderChannel = "db" | "whatsapp";
 
 export function orderChannel(place: Place): OrderChannel | null {
   if (!acceptsOrders(place)) return null;
-  if (supabaseEnabled) return "db";
+  if (backendEnabled) return "db";
   return place.orderWhatsApp ? "whatsapp" : null;
 }
 
@@ -69,12 +64,14 @@ export function orderChannel(place: Place): OrderChannel | null {
  * The order's id and the secret that proves it is yours.
  *
  * Both are made here, on the customer's device, and that is not a stylistic
- * choice. Anon has no SELECT policy on orders, and PostgreSQL checks the
- * SELECT policy on any row an `INSERT ... RETURNING` hands back — so asking
- * the database for the id it had just generated made the entire insert roll
- * back, and no order could be placed at all. The customer brings its own id,
- * keeps it, and uses it with the token to read the order's state back through
- * a function that is allowed to look.
+ * choice: it is what makes a retry safe. A request sent twice with the same
+ * id either writes the row or meets the row it already wrote, and the server
+ * answers «placed» both times (`again: true` the second). The token is the
+ * customer's proof: the order's state can be read back only by someone
+ * holding both, and a wrong pair is answered with nothing rather than with
+ * «no such order». (Under Postgres the same pair was also what let an
+ * anonymous INSERT work at all — anon had no SELECT policy, so the database
+ * could not hand the id back; the reason changed, the shape did not.)
  */
 export function newOrderId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -217,43 +214,33 @@ export type OrderStateResult =
 /**
  * The live state of one order.
  *
- * Goes through order_status(), which reaches past the deny-all SELECT policy
- * but only for a caller holding both the id and the token. It returns nothing
- * that identifies the customer — no name, no phone — so even a leaked token
- * discloses only what its holder already knew.
+ * `order_status` answers only a caller holding both the id and the token, and
+ * returns nothing that identifies the customer — no name, no phone — so even a
+ * leaked token discloses only what its holder already knew.
  *
- * Retried: the function is declared `stable` and reads one row, so asking
- * twice costs a round trip and changes nothing.
+ * Retried: it reads one row and changes nothing, so asking twice costs a
+ * round trip and nothing else.
  */
 export async function fetchOrderState(
   id: string,
   token: string,
   signal?: AbortSignal | null
 ): Promise<OrderStateResult> {
-  if (!supabaseEnabled) return { ok: false, offline: false };
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, offline: false };
+  if (!backendEnabled) return { ok: false, offline: false };
 
   let result;
   try {
     result = await retry(
-      // Awaited inside, not returned: the query builder is a thenable rather
-      // than a real Promise, so handing it straight back loses .catch().
-      async () => {
-        const q = sb.rpc("order_status", { p_id: id, p_token: token });
-        return await (signal ? q.abortSignal(signal) : q);
-      },
-      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+      () => call<{ order: Record<string, unknown> | null }>("order_status", { id, token }, { signal }),
+      { signal, shouldRetry: isRetryableApiFailure }
     );
   } catch {
     return { ok: false, offline: isDefinitelyOffline() };
   }
+  if (!result.ok) return { ok: false, offline: isDefinitelyOffline() };
+  const r = result.order;
+  if (!r) return { ok: true, state: null };
 
-  const { data, error } = result;
-  if (error) return { ok: false, offline: isDefinitelyOffline() };
-  if (!Array.isArray(data) || data.length === 0) return { ok: true, state: null };
-
-  const r = data[0] as Record<string, unknown>;
   return {
     ok: true,
     state: {
@@ -286,36 +273,40 @@ export type CancelResult =
 /**
  * Call the order off.
  *
- * Not retried. cancel_order is `volatile` and takes a row lock, and while a
- * repeat would be harmless — cancelling twice returns 'cancelled' — a write
- * that has not been proven safe to repeat is not repeated here. One attempt,
- * and the customer can press again.
+ * Not retried. A repeat would be harmless — cancelling twice answers
+ * 'cancelled' — but a write that has not been proven safe to repeat is not
+ * repeated here. One attempt, and the customer can press again.
  */
 export async function cancelOrder(
   id: string,
   token: string,
   signal?: AbortSignal | null
 ): Promise<CancelResult> {
-  if (!supabaseEnabled) {
+  if (!backendEnabled) {
     return { ok: false, reason: "network", message: "ما نقدر نلغي الحين. اتصل بالمكان." };
   }
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, reason: "network", message: "ما نقدر نلغي الحين. اتصل بالمكان." };
 
-  const q = sb.rpc("cancel_order", { p_id: id, p_token: token });
-  const { data, error } = await (signal ? q.abortSignal(signal) : q);
-
-  if (error) {
+  let result;
+  try {
+    result = await call<{ status: string | null }>("order_cancel", { id, token }, { signal });
+  } catch (err) {
     return {
       ok: false,
       reason: "network",
-      message: describeNetError(error, "ما وصل الإلغاء. جرّب مرة ثانية."),
+      message: describeNetError(err, "ما وصل الإلغاء. جرّب مرة ثانية."),
+    };
+  }
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeApiFailure(result, "ما وصل الإلغاء. جرّب مرة ثانية."),
     };
   }
 
   // null means no row matched the id and token pair — which for a device that
   // is holding both should not happen, so it is reported rather than hidden.
-  if (data === null || data === undefined) {
+  if (result.status === null || result.status === undefined) {
     return {
       ok: false,
       reason: "unknown",
@@ -323,7 +314,7 @@ export async function cancelOrder(
     };
   }
 
-  const status = String(data) as OrderStatus;
+  const status = String(result.status) as OrderStatus;
   if (status === "cancelled") return { ok: true };
 
   return {
@@ -433,15 +424,13 @@ export async function submitOrder(
   const problems = validateOrder(input);
   if (problems.length) return { ok: false, reason: "invalid", message: problems[0] };
 
-  if (!supabaseEnabled) {
+  if (!backendEnabled) {
     return {
       ok: false,
       reason: "disabled",
       message: "الطلب المسبق مو متاح حالياً. اتصل بالمكان مباشرة.",
     };
   }
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, reason: "disabled", message: "الطلب المسبق مو متاح حالياً." };
 
   const phone = normalisePhone(input.customerPhone);
   const { id, token } = attempt;
@@ -465,29 +454,27 @@ export async function submitOrder(
   let result;
   try {
     result = await retry(
-      async () => {
-        // No .select() here on purpose — see newOrderId(). Asking for the row
-        // back makes PostgreSQL apply the SELECT policy to it, and anon has
-        // none, so the insert would roll back and the order would never exist.
-        const q = sb.from("orders").insert({
-          id,
-          track_token: token,
-          place_slug: input.placeSlug,
-          place_name_ar: input.placeNameAr,
-          // The line prices are stored as sent, so the business sees exactly
-          // what the customer was shown — a mismatch with its own menu is
-          // visible to a human rather than silently reconciled.
-          lines: input.lines,
-          total_fils: totalFils,
-          pickup_at: input.pickupAt,
-          customer_name: input.customerName.trim(),
-          customer_phone: phone,
-          note_ar: input.noteAr.trim(),
-          status: "placed",
-        });
-        return await (signal ? q.abortSignal(signal) : q);
-      },
-      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+      () =>
+        call<{ again: boolean }>(
+          "order_place",
+          {
+            id,
+            track_token: token,
+            place_slug: input.placeSlug,
+            place_name_ar: input.placeNameAr,
+            // The line prices are stored as sent, so the business sees exactly
+            // what the customer was shown — a mismatch with its own menu is
+            // visible to a human rather than silently reconciled.
+            lines: input.lines,
+            total_fils: totalFils,
+            pickup_at: input.pickupAt,
+            customer_name: input.customerName.trim(),
+            customer_phone: phone,
+            note_ar: input.noteAr.trim(),
+          },
+          { signal }
+        ),
+      { signal, shouldRetry: isRetryableApiFailure }
     );
   } catch (err) {
     return {
@@ -497,22 +484,28 @@ export async function submitOrder(
     };
   }
 
-  const { error } = result;
-  if (!error) return succeed();
+  // `again: true` is the first attempt's reply arriving by another road: the
+  // row was written, only the answer was lost. Either way the order exists.
+  if (result.ok) return succeed();
 
-  // 23505 is unique_violation on the primary key: this exact order is already
-  // in the table. The first attempt landed and only its reply was lost, so
-  // this is a success — and reporting it as one is what stops a customer with
-  // a bad signal from pressing send until the shop has four of everything.
-  if (error.code === "23505") return succeed();
+  // `duplicate` is the same fact seen from the server's side — this id is
+  // already in the table — and reporting it as a success is what stops a
+  // customer with a bad signal from pressing send until the shop has four of
+  // everything.
+  if (result.error === "duplicate") return succeed();
 
-  if (error.code === "23514")
+  if (result.error === "invalid")
     return { ok: false, reason: "invalid", message: "في معلومة مو مضبوطة. راجع الطلب." };
+
+  // The place is not taking orders (or is unpublished) as far as the server
+  // knows — the panel was drawn from a snapshot the admin has since changed.
+  if (result.error === "closed")
+    return { ok: false, reason: "disabled", message: "المكان مو مستقبل طلبات مسبقة الحين. اتصل فيهم مباشرة." };
 
   return {
     ok: false,
     reason: "network",
-    message: describeNetError(error, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
+    message: describeApiFailure(result, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
   };
 }
 
@@ -521,6 +514,7 @@ export async function submitOrder(
  *
  * Defined in `place-kit.ts` and re-exported here, so callers that already import
  * this module keep working while callers that only want the question — the
- * search page — can ask it without pulling in Supabase. See the note there.
+ * search page — can ask it without pulling in the back-end calls. See the
+ * note there.
  */
 export { acceptsOrders } from "@/lib/place-kit";

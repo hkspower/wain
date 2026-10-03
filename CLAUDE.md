@@ -42,19 +42,30 @@ caught only by that audit — including one where a *re-export* in `orders.ts`
 gave it a value dependency on the catalogue and put all 52 records back on
 `/privacy` and `/about`.
 
-## The back end is not configured
+## The back end is wain's own PHP on wainkw.com (since 4 October) — and not installed yet
 
-`supabaseEnabled` is `NEXT_PUBLIC_SUPABASE_URL.length > 0 &&
-NEXT_PUBLIC_SUPABASE_ANON_KEY.length > 0`. Both are unset, in the repo and in
-the live build. So ordering, the queue, business registration and the
-live-edit machinery are **inert**, and `/admin` says so.
+This section said «not configured» for months: `supabaseEnabled` read two
+`NEXT_PUBLIC_SUPABASE_*` variables that were never set anywhere, so ordering,
+the queue, registration and live edits were inert and `/admin` said so. On
+4 October the owner chose their own server over a third party, and the back
+end is now **`/api/wain.php`** — `scripts/publish/wain-api.php`, installed the
+way `tts.php` and `media.php` are, with its database and its secret in
+`<domain>/storage/`. `backendEnabled` in `src/lib/backend.ts` is the switch:
+`NEXT_PUBLIC_WAIN_BACKEND` unset → `/api/wain.php`, «none» → off, a URL → the
+apps' absolute endpoint. `supabase.ts` is gone; `supabase/schema.sql` stays as
+the unused Postgres alternative. Full record: «wain's own back end — 4 October»
+below, and `docs/backend.md`.
 
-Also: `acceptsOrders(place)` needs `place.acceptsOrders && menuAr.length > 0`;
-`takesQueue(place)` needs `place.takesQueue && place.salonKind`. **0 of 52
-places satisfy either.** Order and queue panels return `null` everywhere
-today — check before describing them as visible.
+**Read `php …/api/wain.php version` before believing any of it is live.** The
+server has the file only after the cron install in that section has run, and
+every admin action is 503 `admin_unset` until the owner pastes
+`storage/admin.secret`. A deployed site whose server has no `wain.php` answers
+«مو متاحة» on every order — install first, deploy second.
 
-Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
+Still true: `acceptsOrders(place)` needs `place.acceptsOrders && menuAr.length
+> 0`; `takesQueue(place)` needs `place.takesQueue && place.salonKind`. **0 of
+52 places satisfy either** (`docs/content.md` counts). Order and queue panels
+return `null` everywhere today — check before describing them as visible.
 
 ## Deploying (see `docs/hosting.md` for the measured detail)
 
@@ -5948,15 +5959,137 @@ getting WhatsApp orders** — `docs/orders.md` says so; tell them first.
   `orderPrepMinutes`, `orderNoteAr`, `menuAr` with ids never renumbered once
   shipped) → `db:schema` → `flutter:catalogue` → `flutter:fixtures` →
   `ai:brief` → `content` → `scan` → screenshots → yes → deploy.
-- **Switching Supabase on**: the owner runs the regenerated `schema.sql`, and
-  puts the two `NEXT_PUBLIC_` values into **this environment's secrets**, not
-  only GitHub's — builds that reach the live site happen here, and
-  `DEPLOY_SECRET` has never been set (`docs/admin-setup.md`). The sandbox
-  cannot reach a Supabase host; the live proof is one order on the board.
+- **Switching Supabase on** was the plan here, and it is superseded the next
+  day: the back end is wain's own PHP file now (next section), the
+  `NEXT_PUBLIC_SUPABASE_*` pair no longer exists, and the WhatsApp channel is
+  what a `NEXT_PUBLIC_WAIN_BACKEND=none` build does.
 
 **Not measured:** whether `wa.me/965N?text=` opens WhatsApp with the text
 prefilled on a real iPhone or Android (and Safari's popup rule in practice),
-any Supabase round trip, the shop's side of the thread.
+the shop's side of the thread.
+
+## wain's own back end — 4 October (built and tested, NOT installed, NOT deployed)
+
+Asked: «make full dynamic backend». The owner chose **their own PHP + MySQL
+on wainkw.com** over Supabase, and all four features: orders on the board,
+the queue, registration with photos, live place edits. What exists is one
+file, a client, an admin board rewritten onto it, three test harnesses, and
+the Flutter app placing orders through it. Nothing has reached the server.
+
+**The shape is `tts.php`'s, for the data.** `scripts/publish/wain-api.php`
+(~1,000 lines) serves `/api/wain.php` on both stages from the same bytes:
+the stage is read off `__DIR__` containing `/staging/`, `storageDir()` walks
+up to `<domain>/storage/`, and each stage has its own database —
+`storage/wain.sqlite` / `storage/wain-staging.sqlite` (WAL, `busy_timeout`,
+0600), or MySQL when `storage/db.json` names a DSN for that stage. Every
+statement is in the subset both engines run (VARCHAR(191) keys, TEXT for
+JSON, INTEGER booleans, ISO-8601 UTC strings, no upserts; `Db::tx()` is
+`BEGIN IMMEDIATE` on SQLite and a `locks` row `FOR UPDATE` on MySQL).
+`php wain.php selftest [stage]` runs every statement on the configured
+engine in rows named `selftest-…` and deletes them — **the only MySQL proof
+this repository can have, because the sandbox has no MySQL server** (PHP
+8.4.19 here against 8.5.4 there; the API suite runs on SQLite). CLI:
+`install | version | migrate | seed [file] | selftest [stage] | log [n] |
+logformat | actions`. `install` copies to both stages, creates
+`storage/admin.secret` EMPTY at 0600, migrates each stage and seeds it from
+`<stage docroot>/data/places.json` when the export has been deployed there.
+
+**Actions**, `?a=` (GET for reads, POST JSON otherwise): public reads `ping
+places order_status queue_status queue_size media_get`; public writes
+`order_place order_cancel queue_join queue_leave submit`; admin `whoami
+places_all place_save place_delete place_publish place_location orders_list
+order_set_status queue_list queue_set_status submissions_list
+submission_reject submission_approve media_sign media_publish
+media_discard`, and `queue_join` with `source: walk_in`. The admin credential
+is `storage/admin.secret` in an `X-Wain-Admin` header, `hash_equals`, a wrong
+guess costs `usleep(250000)`; empty file ⇒ 503 `admin_unset` on every admin
+action, fail closed, the `elevenlabs.key` pattern. Pending photos reach the
+board through HMAC-signed ten-minute URLs keyed on that secret; approved ones
+are copied into `public_html/images/business/<slug>/` — `images` is in
+`deploy.php`'s `PROTECTED_PATHS`, so a deploy's prune never touches them.
+Errors are `{ok:false, error, status, field?}` with the Postgres route's
+codes (`invalid` 422, `duplicate` 409, `closed` 409, `rate_limited` 429); an
+`order_place` repeated with the same id and token answers `{ok:true,
+again:true}`; a wrong token on a status read answers `null`, the same as «no
+such row», on purpose. Rates: 120 requests and 20 public writes a minute per
+address, counted before validation; 64K body; admins exempt. The log is
+`storage/logs/wain.log`, the same format and rotation as the other two
+endpoints (`audit:logs` now checks all three), and it never carries a name,
+a phone, a note or an email.
+
+**The client**: `src/lib/backend.ts` (`call`, `callSafe`, `isRetryableApiFailure`,
+`describeApiFailure`, the sessionStorage token under `wain:admin`) over
+`deadlineFetch`; `src/lib/place-rows.ts` holds `PlaceRow`/`rowToPlace`/
+`placeToRow` unchanged from the old `supabase.ts`. `orders.ts`, `queue.ts`,
+`submissions.ts`, `media.ts`, `usePlaces.ts` and the admin components speak
+actions now; `@supabase/supabase-js` is uninstalled. `orderChannel` is `db`
+whenever the back end is on. `/admin` has five gates — `checking |
+unreachable | unset | signin | ready` — and says which file to fill rather
+than offering a password form that would refuse every password. The export
+ships `data/places.json` (`scripts/gen-places-json.mjs`, in `npm run build`)
+for `seed`; `build.json` records `backend: {api, url}`; `ios.yml` builds the
+wrapper with the absolute URL. The app: `lib/orders/order_api.dart`
+(`WAIN_BACKEND_URL` dart-define, empty → the live site, «none» → off),
+`OrderStore.channelFor` picks `db` with an API and `whatsapp` otherwise, the
+panel takes a phone in db mode, `/orders` polls every 45s and cancels through
+the API. The queue and registration stay out of the app, said plainly.
+
+**Proved**: `test:wain-api` (144 assertions against `php -S` on SQLite: every
+refusal by name, every write read back, the token answers, the queue under
+contention, the write cap, the log's promises); `test:net` 83 on the client's
+reading of every shape; **`test:backend`** — the fixture build served by a
+`php -S` router with the real `wain.php` and `media.php` beside it, the whole
+journey (46) and the admin board in a browser (24) on one real wire;
+`audit:schema` rewritten to ask `php wain-api.php actions` for the server's
+own lists and walk every `call(`/`callSafe(` with a bracket-depth parser
+(the regex version stopped at the first `)` inside a generic and went red on
+correct code); `audit:runtime`'s static server now answers `/api/wain.php`
+so a 404 console error is not mistaken for a page fault. Flutter 1288, 14 of
+them `order_db_test`. B1's three sabotages went red; `scan`, `test:orders`,
+`test:journey`, `test:register` and `test:hangout` are green on the tree.
+
+**Traps, all met on the way:**
+
+- **A same-origin POST carries `Origin`, and the allowlist refused it.** Every
+  browser write in `test:backend` was 403 `origin_not_allowed`: the page on
+  `127.0.0.1:4221` sent its own origin, which is in no allowlist. The check
+  now accepts the request's own `HTTP_HOST` (sans port) OR `ALLOWED_HOSTS` —
+  the page's host is the one origin a same-origin API can always trust.
+- **`php -S`'s router served `%5Bslug%5D` undecoded**, so the place page's
+  chunk 404'd and the order panel never mounted. `rawurldecode` the path.
+- **`pkill -f "php -S …"` matches its own shell** (the pattern is in its
+  command line) and exits 144 before the next command runs. `pgrep -f "^php
+  …"` and `kill`, the UX pass's lesson met again.
+- **The fixture worktree carried a deleted file**: `fixture-build.mjs` copied
+  the working tree's modified files and not its deletions, so the worktree
+  still had `supabase.ts` importing a package `npm ci` no longer installs.
+  It `rmSync`s files `git status` reports deleted now.
+- **Same-second rows sorted wrong**: «newest first» failed when two orders
+  shared a second. `nowIso()` carries microseconds.
+- **A Dart `State` reused across `pumpWidget`s**, and a `bool backend =
+  kBackendEnabled` default that is not const — one test per widget, and
+  `bool? backend` with `?? kBackendEnabled`.
+- **`WRITES_PER_MIN` tripped the suite itself** at 20; the test raises it
+  through the `WAIN_API_WRITES_PER_MIN` seam and still proves the cap once.
+
+**Installing it** (B8, the plan's last step, one cron job per command, read
+at the first firing, delete, list — the route every write path here uses):
+
+```
+wget -qO /home/u130124229/w.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/wain-api.php
+php /home/u130124229/w.php install
+rm -f /home/u130124229/w.php
+php /home/u130124229/domains/wainkw.com/public_html/api/wain.php version
+php /home/u130124229/domains/wainkw.com/public_html/api/wain.php selftest
+```
+
+Then the owner pastes a long secret into `storage/admin.secret` (hPanel File
+Manager, never chat or git; `docs/admin-setup.md`), optionally
+`storage/db.json` for MySQL, and a site deploy carries `data/places.json` for
+`seed` and the client that talks to it. **Deploy after install, never before.**
+
+**Not measured**: MySQL (no server here — `selftest` on the host is the
+check), anything on the live site, a real order from a phone on the board.
 
 ## Style
 

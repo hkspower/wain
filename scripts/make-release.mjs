@@ -103,20 +103,19 @@ const digest = hash.digest("hex").slice(0, 16);
 /**
  * Which back end this build carries.
  *
- * Supabase is read at BUILD time — this is a static export, so the pair is
- * baked into the bundle and nothing can supply it afterwards. A build made
- * without them ships ordering, the queue and the submission form inert, every
- * page still rendering from the snapshot in places.ts, and says so only on
- * /admin. That is a quiet way to deploy a shop that cannot take an order, so
- * the release records it where build.json can be read from anywhere.
- *
- * The URL's host is recorded, never the key.
+ * The back end's address is read at BUILD time — this is a static export, so
+ * it is baked into the bundle and nothing can supply it afterwards. The
+ * default is wain's own `/api/wain.php` on the same origin (src/lib/backend.ts);
+ * `NEXT_PUBLIC_WAIN_BACKEND=none` ships ordering, the queue and the submission
+ * form inert, every page still rendering from the snapshot in places.ts, and
+ * says so only on /admin. That is a quiet way to deploy a shop that cannot take
+ * an order, so the release records it where build.json can be read from
+ * anywhere.
  */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const backend = supabaseUrl && supabaseKey
-  ? { supabase: true, host: (() => { try { return new URL(supabaseUrl).host; } catch { return "invalid-url"; } })() }
-  : { supabase: false, host: null };
+const backendRaw = process.env.NEXT_PUBLIC_WAIN_BACKEND || "/api/wain.php";
+const backend = backendRaw === "none"
+  ? { api: false, url: null }
+  : { api: true, url: backendRaw };
 
 const build = {
   name: "wain",
@@ -135,7 +134,7 @@ writeFileSync(join(OUT, "build.json"), JSON.stringify(build, null, 2) + "\n");
 console.log(`\n▸ stamped out/build.json`);
 for (const [k, v] of Object.entries(build)) {
   const shown =
-    k === "backend" ? (v.supabase ? `supabase · ${v.host}` : "none — ordering and the queue are inert") : v;
+    k === "backend" ? (v.api ? `wain api · ${v.url}` : "none — ordering and the queue are inert") : v;
   console.log(`    ${k.padEnd(9)} ${shown}`);
 }
 
@@ -194,10 +193,9 @@ if (DRY) {
   console.log(`    checksum written to ${relative(ROOT, sums)}`);
 }
 
-if (!backend.supabase) {
-  console.log(`\n⚠  This build has NO back end.`);
-  console.log(`   NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY were not set,`);
-  console.log(`   and a static export bakes them in — nothing can supply them later.`);
+if (!backend.api) {
+  console.log(`\n⚠  This build has NO back end (NEXT_PUBLIC_WAIN_BACKEND=none).`);
+  console.log(`   A static export bakes that in — nothing can supply it later.`);
   console.log(`   Every page still renders from the catalogue, but ordering, the queue`);
   console.log(`   and the submission form are inert and /admin says so.`);
 }

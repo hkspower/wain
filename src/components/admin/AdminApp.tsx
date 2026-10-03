@@ -2,18 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { Session } from "@supabase/supabase-js";
 import WainLogo from "@/components/WainLogo";
 import { IconBack, IconCheck, IconSearch } from "@/components/icons";
 import { getCategory, toArabicDigits } from "@/lib/place-kit";
 import {
-  loadSupabase,
-  placeToRow,
-  rowToPlace,
-  supabaseEnabled,
-  type PlaceRow,
-} from "@/lib/supabase";
-import { describeNetError } from "@/lib/net";
+  adminToken,
+  backendEnabled,
+  callSafe,
+  describeApiFailure,
+  setAdminToken,
+} from "@/lib/backend";
+import { placeToRow, rowToPlace, type PlaceRow } from "@/lib/place-rows";
 import { useLatestRequest } from "@/lib/useLatest";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
 import MediaReview from "@/components/admin/MediaReview";
@@ -26,10 +25,25 @@ import type { SubmissionRow } from "@/lib/submissions";
 type View = { mode: "list" } | { mode: "edit"; place?: EditablePlace };
 type Tab = "places" | "submissions" | "orders" | "queue";
 
+/**
+ * What stands between the page and the board, in the order it is found out.
+ *
+ *   checking    — asking the server about itself (`ping`)
+ *   unreachable — nothing answered, or not with the API's JSON
+ *   unset       — the server has no admin secret yet; a password cannot work
+ *   signin      — a secret exists and this tab has none, or a wrong one
+ *   ready       — `whoami` answered with the stored token
+ *
+ * «unset» is its own state on purpose: a sign-in form in front of a server that
+ * would refuse every password is the kind of door this file keeps meeting
+ * (a key file created empty, a variable nobody filled), and the honest answer
+ * is to say which file to fill rather than to let the owner try passwords.
+ */
+type Gate = "checking" | "unreachable" | "unset" | "signin" | "ready";
+
 export default function AdminApp() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [checking, setChecking] = useState(true);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [gate, setGate] = useState<Gate>("checking");
+  const [stage, setStage] = useState("");
   const [rows, setRows] = useState<EditablePlace[]>([]);
   const [view, setView] = useState<View>({ mode: "list" });
   const [busy, setBusy] = useState(false);
@@ -50,74 +64,42 @@ export default function AdminApp() {
   const [approvedLogo, setApprovedLogo] = useState(false);
   const [approvedImages, setApprovedImages] = useState<string[]>([]);
 
-  // ---- auth ---------------------------------------------------------------
+  // ---- the gate ------------------------------------------------------------
   useEffect(() => {
-    // The client is now fetched on demand, so this has to await it. The
-    // subscription is captured in a ref-like local, since the cleanup runs
-    // whether or not the load finished.
-    let subscription: { unsubscribe: () => void } | null = null;
+    if (!backendEnabled) return;
     let cancelled = false;
     void (async () => {
-      const sb = await loadSupabase();
+      const ping = await callSafe<{ stage: string; admin: "set" | "unset" }>("ping");
       if (cancelled) return;
-      if (!sb) {
-        setChecking(false);
+      if (!ping.ok) {
+        setError(describeApiFailure(ping, "ما قدرنا نوصل للسيرفر."));
+        setGate("unreachable");
         return;
       }
-      const { data } = await sb.auth.getSession();
+      setStage(ping.stage);
+      if (ping.admin === "unset") return setGate("unset");
+      if (!adminToken()) return setGate("signin");
+      // A token from an earlier visit in this tab: still good, or thrown away.
+      const who = await callSafe("whoami", undefined, { admin: true });
       if (cancelled) return;
-      setSession(data.session);
-      setChecking(false);
-      subscription = sb.auth.onAuthStateChange((_e, s) => setSession(s)).data.subscription;
-      if (cancelled) subscription.unsubscribe();
-    })();
-    return () => {
-      cancelled = true;
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  // Being signed in is not the same as being allowed to edit; the admins table
-  // is the authority, and RLS enforces it server-side regardless of this check.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const sb = await loadSupabase();
-      if (cancelled) return;
-      if (!sb || !session) {
-        setIsAdmin(null);
-        return;
-      }
-      const { data } = await sb
-        .from("admins")
-        .select("user_id")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (!cancelled) setIsAdmin(!!data);
+      if (who.ok) return setGate("ready");
+      setAdminToken(null);
+      setGate("signin");
     })();
     return () => { cancelled = true; };
-  }, [session]);
+  }, []);
 
   const load = useCallback(async () => {
     await run(
-      async (signal) => {
-        const sb = await loadSupabase();
-        if (!sb) return null;
-        return await sb
-          .from("places")
-          .select("*")
-          .order("sort_order", { ascending: true })
-          .abortSignal(signal);
-      },
+      (signal) => callSafe<{ places: PlaceRow[] }>("places_all", undefined, { admin: true, signal }),
       (result) => {
-        if (!result) return;
-        if (result.error) {
-          setError(describeNetError(result.error, result.error.message));
+        if (!result.ok) {
+          setError(describeApiFailure(result, "ما قدرنا نقرأ الأماكن."));
           return;
         }
         setError("");
         setRows(
-          ((result.data ?? []) as PlaceRow[]).map((r) => ({
+          result.places.map((r) => ({
             ...rowToPlace(r),
             id: r.id,
             published: r.published,
@@ -129,26 +111,43 @@ export default function AdminApp() {
   }, [run]);
 
   useEffect(() => {
-    if (isAdmin) void load();
-  }, [isAdmin, load]);
+    if (gate === "ready") void load();
+  }, [gate, load]);
+
+  async function signIn(secret: string) {
+    setAdminToken(secret.trim());
+    const who = await callSafe("whoami", undefined, { admin: true });
+    if (who.ok) {
+      setError("");
+      setGate("ready");
+      return;
+    }
+    setAdminToken(null);
+    setError(describeApiFailure(who, "ما قدرنا ندخّلك."));
+  }
+
+  function signOut() {
+    setAdminToken(null);
+    setRows([]);
+    setView({ mode: "list" });
+    setGate("signin");
+  }
 
   // ---- states before the editor -------------------------------------------
-  if (!supabaseEnabled) return <NotConfigured />;
-  if (checking) return <Centered>نتحقق…</Centered>;
-  if (!session) return <SignIn onError={setError} error={error} />;
-  if (isAdmin === null) return <Centered>نتحقق من الصلاحيات…</Centered>;
-  if (isAdmin === false) return <NotAllowed email={session.user.email ?? ""} />;
+  if (!backendEnabled) return <NotConfigured />;
+  if (gate === "checking") return <Centered>نتحقق…</Centered>;
+  if (gate === "unreachable") return <Unreachable message={error} />;
+  if (gate === "unset") return <SecretUnset />;
+  if (gate === "signin") return <SignIn onSubmit={signIn} error={error} />;
 
   // ---- actions ------------------------------------------------------------
   async function save(p: EditablePlace) {
-    const sb = await loadSupabase();
-    if (!sb) return;
     setBusy(true);
     setError("");
 
-    // Approved media is copied into the public bucket first, so the place row
-    // is written with URLs that already resolve. Doing it the other way round
-    // publishes a page pointing at images that are not there yet.
+    // Approved media is published first, so the place row is written with
+    // URLs that already resolve. Doing it the other way round publishes a page
+    // pointing at images that are not there yet.
     const media: { logoUrl?: string; imageUrls?: string[] } = {};
     if (approving) {
       const failures: string[] = [];
@@ -172,26 +171,30 @@ export default function AdminApp() {
     }
 
     const payload = placeToRow({ ...p, ...media });
-    const res = p.id
-      ? await sb.from("places").update(payload).eq("id", p.id)
-      : await sb.from("places").insert(payload);
+    const res = await callSafe<{ place: PlaceRow }>(
+      "place_save",
+      { id: p.id ?? null, place: payload },
+      { admin: true }
+    );
     setBusy(false);
-    if (res.error) {
-      setError(res.error.message);
+    if (!res.ok) {
+      setError(
+        res.error === "duplicate"
+          ? "الرابط (slug) مستخدم لمكان ثاني. غيّره."
+          : res.error === "invalid"
+            ? `في حقل مو مضبوط${res.field ? ` (${res.field})` : ""}: ${res.message ?? ""}`
+            : describeApiFailure(res, "ما قدرنا نحفظ المكان.")
+      );
       return;
     }
     // If this save came from approving a submission, close that submission out
     // now — same click, so the queue cannot drift from reality.
     if (approving) {
-      const { error: e } = await sb
-        .from("submissions")
-        .update({
-          status: "approved",
-          published_slug: p.slug,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: session?.user.id ?? null,
-        })
-        .eq("id", approving.id);
+      const e = await callSafe(
+        "submission_approve",
+        { id: approving.id, published_slug: p.slug },
+        { admin: true }
+      );
 
       // The private originals have served their purpose. Rejected ones go too
       // — keeping photos nobody approved is the kind of thing that quietly
@@ -203,10 +206,10 @@ export default function AdminApp() {
       setApproving(null);
       setApprovedLogo(false);
       setApprovedImages([]);
-      if (e) {
+      if (!e.ok) {
         // The place saved; only the bookkeeping failed. Say exactly that rather
         // than implying the whole thing went wrong.
-        setError(`أضفنا المكان، بس ما قدرنا نقفل الطلب: ${e.message}`);
+        setError(`أضفنا المكان، بس ما قدرنا نقفل الطلب: ${describeApiFailure(e, e.error)}`);
         setView({ mode: "list" });
         void load();
         return;
@@ -224,11 +227,10 @@ export default function AdminApp() {
   }
 
   async function remove(p: EditablePlace) {
-    const sb = await loadSupabase();
-    if (!sb || !p.id) return;
+    if (!p.id) return;
     if (!confirm(`تبي تحذف «${p.nameAr}»؟ ما تقدر ترجعه.`)) return;
-    const { error: e } = await sb.from("places").delete().eq("id", p.id);
-    if (e) setError(e.message);
+    const r = await callSafe("place_delete", { id: p.id }, { admin: true });
+    if (!r.ok) setError(describeApiFailure(r, "ما قدرنا نحذفه."));
     else {
       setNotice("حذفناه.");
       void load();
@@ -236,13 +238,13 @@ export default function AdminApp() {
   }
 
   async function togglePublished(p: EditablePlace) {
-    const sb = await loadSupabase();
-    if (!sb || !p.id) return;
-    const { error: e } = await sb
-      .from("places")
-      .update({ published: !(p.published !== false) })
-      .eq("id", p.id);
-    if (e) setError(e.message);
+    if (!p.id) return;
+    const r = await callSafe(
+      "place_publish",
+      { id: p.id, published: !(p.published !== false) },
+      { admin: true }
+    );
+    if (!r.ok) setError(describeApiFailure(r, "ما قدرنا نغيّر النشر."));
     else void load();
   }
 
@@ -265,13 +267,11 @@ export default function AdminApp() {
     lat: number,
     lng: number
   ): Promise<{ ok: true } | { ok: false; message: string }> {
-    const sb = await loadSupabase();
-    if (!sb) return { ok: false, message: "ما قدرنا نتصل." };
-    const { error: e } = await sb.from("places").update({ lat, lng }).eq("id", id);
-    if (e) return { ok: false, message: e.message };
+    const r = await callSafe("place_location", { id, lat, lng }, { admin: true });
+    if (!r.ok) return { ok: false, message: describeApiFailure(r, "ما قدرنا نحفظ الموقع.") };
     // Keep the list in step without a full reload — the row the caller is
     // still editing keeps its own unsaved fields exactly as they are.
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, lat, lng } : r)));
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, lat, lng } : row)));
     return { ok: true };
   }
 
@@ -286,7 +286,9 @@ export default function AdminApp() {
           <WainLogo className="size-10" />
           <div>
             <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>
-            <p className="text-xs text-ink-500">{session.user.email}</p>
+            <p className="text-xs text-ink-500">
+              {stage === "staging" ? "البيئة التجريبية" : "الموقع الحي"} · <span dir="ltr">/api/wain.php</span>
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -298,7 +300,7 @@ export default function AdminApp() {
           </Link>
           <button
             type="button"
-            onClick={() => void loadSupabase().then((sb) => sb?.auth.signOut())}
+            onClick={signOut}
             className="rounded-xl bg-ink-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             خروج
@@ -435,6 +437,14 @@ export default function AdminApp() {
             {toArabicDigits(filtered.length)} من {toArabicDigits(rows.length)}
           </p>
 
+          {rows.length === 0 && !error && (
+            <p className="mb-3 rounded-2xl bg-sun-50 p-4 text-sm leading-relaxed text-sun-900">
+              الجدول فاضي. الأماكن تنزرع من الكتالوق بأمر{" "}
+              <code dir="ltr" className="rounded bg-white/70 px-1.5 py-0.5">php wain.php seed</code>{" "}
+              على السيرفر — لين ذاك الوقت الموقع يعرض نسخة البناء.
+            </p>
+          )}
+
           <ul className="space-y-2">
             {filtered.map((p) => (
               <li
@@ -531,22 +541,20 @@ function Banner({
   );
 }
 
+/** The build was made with the back end switched off (`NEXT_PUBLIC_WAIN_BACKEND=none`). */
 function NotConfigured() {
   return (
     <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم مو مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
-        ما فيه إعداد لقاعدة البيانات في هذا البناء. الموقع يشتغل عادي من بياناته
-        المدمجة، بس التحرير محتاج ربط Supabase.
+        هذا البناء مطفي فيه الخادم: الموقع يشتغل من بياناته المدمجة، بس التحرير
+        والطلبات والطابور محتاجة بناء يوصل لـ <code dir="ltr">/api/wain.php</code>.
       </p>
       <ol className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
-        <li>١. سوِّ مشروع في Supabase.</li>
-        <li>٢. شغّل <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">supabase/schema.sql</code> في محرّر SQL.</li>
+        <li>١. ركّب الخادم: <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">php wain.php install</code> على السيرفر.</li>
         <li>
-          ٣. حط{" "}
-          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">NEXT_PUBLIC_SUPABASE_URL</code> و{" "}
-          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{" "}
-          ثم أعد البناء.
+          ٢. أعد البناء بدون{" "}
+          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">NEXT_PUBLIC_WAIN_BACKEND=none</code>.
         </li>
       </ol>
       <p className="mt-5 text-sm text-ink-500">
@@ -556,39 +564,63 @@ function NotConfigured() {
   );
 }
 
-function NotAllowed({ email }: { email: string }) {
+/** The server answered, and said it has no admin secret yet. */
+function SecretUnset() {
   return (
-    <div className="mx-auto max-w-lg px-2.5 py-2 sm:px-4 sm:py-3 text-center">
-      <h1 className="font-display text-2xl font-bold text-ink-900">ما عندك صلاحية</h1>
+    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <h1 className="font-display text-2xl font-bold text-ink-900">الخادم شغّال، بس بدون كلمة سر</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
-        دخلت باسم <strong dir="ltr">{email}</strong>، بس هذا الحساب مو مضاف في
-        جدول <code dir="ltr">admins</code>.
+        ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
+        مرة واحدة، من مدير الملفات في hPanel:
+      </p>
+      <ol className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
+        <li>
+          ١. افتح{" "}
+          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">domains/wainkw.com/storage/admin.secret</code>
+          {" "}(خارج <span dir="ltr">public_html</span>).
+        </li>
+        <li>٢. الصق فيه كلمة سر طويلة وعشوائية (٣٢ حرف أو أكثر) واحفظ.</li>
+        <li>٣. حدّث هذي الصفحة وادخل بها.</li>
+      </ol>
+      <p className="mt-5 text-sm text-ink-500">
+        لا تكتب الكلمة في أي محادثة أو ملف في المشروع. التفاصيل في{" "}
+        <code dir="ltr">docs/admin-setup.md</code>.
+      </p>
+    </div>
+  );
+}
+
+function Unreachable({ message }: { message: string }) {
+  return (
+    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <h1 className="font-display text-2xl font-bold text-ink-900">ما وصلنا للخادم</h1>
+      <p className="mt-3 text-sm leading-relaxed text-ink-600">{message}</p>
+      <p className="mt-3 text-sm leading-relaxed text-ink-600">
+        لو هذي أول مرة: الملف <code dir="ltr">/api/wain.php</code> لازم يكون مركّب على
+        السيرفر (<code dir="ltr">php wain.php install</code>). التفاصيل في{" "}
+        <code dir="ltr">docs/admin-setup.md</code>.
       </p>
       <button
         type="button"
-        onClick={() => void loadSupabase().then((sb) => sb?.auth.signOut())}
+        onClick={() => window.location.reload()}
         className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white"
       >
-        خروج
+        جرّب مرة ثانية
       </button>
     </div>
   );
 }
 
-function SignIn({ error, onError }: { error: string; onError: (s: string) => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+function SignIn({ error, onSubmit }: { error: string; onSubmit: (secret: string) => Promise<void> }) {
+  const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const sb = await loadSupabase();
-    if (!sb) return;
+    if (!secret.trim()) return;
     setBusy(true);
-    onError("");
-    const { error: err } = await sb.auth.signInWithPassword({ email, password });
+    await onSubmit(secret);
     setBusy(false);
-    if (err) onError(err.message);
   }
 
   return (
@@ -599,32 +631,22 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
       </div>
       <form onSubmit={submit} className="space-y-4 rounded-3xl border border-line bg-white p-6 shadow-sm">
         {error && (
-          <p className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">{error}</p>
+          <p role="alert" className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">{error}</p>
         )}
         <div>
-          <label className="block text-sm font-semibold text-ink-800" htmlFor="a-email">البريد</label>
+          <label className="block text-sm font-semibold text-ink-800" htmlFor="a-secret">كلمة سر اللوحة</label>
           <input
-            id="a-email"
-            type="email"
-            dir="ltr"
-            required
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-ink-800" htmlFor="a-pass">كلمة السر</label>
-          <input
-            id="a-pass"
+            id="a-secret"
             type="password"
             required
             autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
             className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
           />
+          <p className="mt-1.5 text-xs text-ink-500">
+            هي نفس اللي في <code dir="ltr">storage/admin.secret</code> على السيرفر. تنحفظ في هذا التاب بس.
+          </p>
         </div>
         <button
           type="submit"

@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconClose, IconPhone } from "@/components/icons";
 import { chime, chimeEnabled } from "@/lib/chime";
-import { describeNetError } from "@/lib/net";
 import { toArabicDigits } from "@/lib/place-kit";
-import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled, callSafe, describeApiFailure, type ApiResult } from "@/lib/backend";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";
 import { newQueueAttempt, normalisePhone, type TicketStatus } from "@/lib/queue";
@@ -52,7 +51,7 @@ const STATUS_TONE: Record<TicketStatus, string> = {
 
 const POLL_MS = 20_000;
 
-type Result = { fatal: string } | { data: unknown; error: { message: string } | null };
+type Result = ApiResult<{ day: string; tickets: TicketRow[] }>;
 
 export default function Queue({ onCountChange }: { onCountChange?: (n: number) => void }) {
   const [error, setError] = useState("");
@@ -66,34 +65,21 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
   // Not paused while hidden, for the same reason as the orders queue: the tab
   // sits in the background at the counter all day, and that is exactly when a
   // new arrival has to be noticed.
+  // `queue_list` is today's tickets only — the server's Kuwait day, not this
+  // browser's clock. Yesterday's numbers restarted this morning, so mixing
+  // them in would show two people holding «رقم ٣». track_token is the
+  // customer's own key and the counter has no use for it; it never leaves the
+  // server.
   const { value, settled, refresh } = usePoll<Result>(
-    async (signal) => {
-      const sb = await loadSupabase();
-      if (!sb) return { fatal: "لوحة التحكّم مو مربوطة بقاعدة بيانات." };
-      return await sb
-        .from("queue_tickets")
-        // track_token is the customer's own key and the counter has no use for
-        // it, so it never leaves the database.
-        .select("id,number,status,source,place_slug,place_name_ar,customer_name,customer_phone,day,created_at,called_at")
-        .order("number", { ascending: true })
-        .limit(300)
-        .abortSignal(signal);
-    },
-    { intervalMs: POLL_MS, enabled: supabaseEnabled, pauseWhenHidden: false }
+    (signal) => callSafe<{ day: string; tickets: TicketRow[] }>("queue_list", undefined, { admin: true, signal }),
+    { intervalMs: POLL_MS, enabled: backendEnabled, pauseWhenHidden: false }
   );
 
-  const rows: TicketRow[] = useMemo(() => {
-    if (!value || "fatal" in value || value.error) return [];
-    // Today only. Yesterday's numbers restarted this morning, so mixing them
-    // in would show two people holding «رقم ٣».
-    const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
-    return ((value.data ?? []) as TicketRow[]).filter((r) => r.day === today);
-  }, [value]);
+  const rows: TicketRow[] = useMemo(() => (value?.ok ? value.tickets : []), [value]);
 
   useEffect(() => {
     if (!value) return;
-    if ("fatal" in value) return setError(value.fatal);
-    if (value.error) return setError(describeNetError(value.error, value.error.message));
+    if (!value.ok) return setError(describeApiFailure(value, `ما قدرنا نقرأ الطابور: ${value.error}`));
     setError("");
   }, [value]);
 
@@ -108,7 +94,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
   const seen = useRef<Set<string> | null>(null);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (!settled || !value || "fatal" in value || value.error) return;
+    if (!settled || !value?.ok) return;
     if (seen.current === null) { seen.current = new Set(waitingIds); return; }
     const fresh = waitingIds.filter((id) => !seen.current!.has(id));
     waitingIds.forEach((id) => seen.current!.add(id));
@@ -126,13 +112,10 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
     : rows.filter((r) => r.status === "waiting" || r.status === "called");
 
   async function setStatus(row: TicketRow, status: TicketStatus) {
-    const sb = await loadSupabase();
-    if (!sb) return;
     await run(
-      async (signal) =>
-        await sb.from("queue_tickets").update({ status }).eq("id", row.id).abortSignal(signal),
-      ({ error: e }) => {
-        if (e) setError(describeNetError(e, `ما قدرنا نحدّث الدور: ${e.message}`));
+      (signal) => callSafe("queue_set_status", { id: row.id, status }, { admin: true, signal }),
+      (r) => {
+        if (!r.ok) setError(describeApiFailure(r, `ما قدرنا نحدّث الدور: ${r.error}`));
         else {
           setFreshIds((prev) => { const next = new Set(prev); next.delete(row.id); return next; });
           refresh();
@@ -154,26 +137,33 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
     const phone = walkPhone.trim() ? normalisePhone(walkPhone) : "";
     if (phone === null) { setError("رقم الهاتف مو مضبوط. خلّه فاضي إذا ما عندك."); return; }
 
-    const sb = await loadSupabase();
-    if (!sb) return;
     const attempt = newQueueAttempt();
     const placeName = rows.find((r) => r.place_slug === chosen)?.place_name_ar ?? chosen;
     setAdding(true);
-    const { error: e } = await sb.rpc("join_queue", {
-      p_id: attempt.id,
-      p_token: attempt.token,
-      p_place_slug: chosen,
-      p_place_name_ar: placeName,
-      p_customer_name: walkName.trim(),
-      p_customer_phone: phone,
-      p_source: "walk_in",
-    });
+    // The same action the app uses, with `walk_in` — which the server accepts
+    // only with the admin token: a visitor claiming to be a walk-in would be
+    // inserting a customer who is not there.
+    const r = await callSafe(
+      "queue_join",
+      {
+        id: attempt.id,
+        track_token: attempt.token,
+        place_slug: chosen,
+        place_name_ar: placeName,
+        customer_name: walkName.trim(),
+        customer_phone: phone,
+        source: "walk_in",
+      },
+      { admin: true }
+    );
     setAdding(false);
-    if (e) {
+    if (!r.ok) {
       setError(
-        e.code === "23505"
+        r.error === "duplicate"
           ? "هذا الرقم عنده دور اليوم بالفعل."
-          : describeNetError(e, `ما قدرنا نضيفه: ${e.message}`)
+          : r.error === "closed"
+            ? "الصالون مو مستقبل أدوار: مو منشور، أو الطابور مطفي في بياناته."
+            : describeApiFailure(r, `ما قدرنا نضيفه: ${r.error}`)
       );
       return;
     }

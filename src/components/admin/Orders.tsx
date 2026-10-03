@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconClock, IconClose, IconPhone, IconSpeaker, IconSpeakerOff } from "@/components/icons";
-import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled, callSafe, describeApiFailure, type ApiResult } from "@/lib/backend";
 import { chime, chimeEnabled, setChimeEnabled } from "@/lib/chime";
-import { describeNetError } from "@/lib/net";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";
 import { toArabicDigits } from "@/lib/place-kit";
@@ -60,7 +59,7 @@ function timeAr(hhmm: string): string {
  *  enough to be nothing on a shop's connection. */
 const QUEUE_POLL_MS = 30_000;
 
-type QueueResult = { fatal: string } | { data: unknown; error: { message: string } | null };
+type QueueResult = ApiResult<{ orders: OrderRow[] }>;
 
 export default function Orders({ onCountChange }: { onCountChange?: (n: number) => void }) {
   const [error, setError] = useState("");
@@ -80,29 +79,15 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
    * paused while the tab is hidden, because a shop keeps this open in the
    * background all day and that is exactly when the alert has to land.
    */
+  // `orders_list` answers named columns: track_token is the customer's key to
+  // their own order and the board has no use for it, so it never leaves the
+  // server.
   const { value, settled, refresh } = usePoll<QueueResult>(
-    async (signal) => {
-      const sb = await loadSupabase();
-      if (!sb) return { fatal: "لوحة التحكّم مو مربوطة بقاعدة بيانات." };
-      return await sb
-        .from("orders")
-        // Named columns, not *: track_token is the customer's key to their own
-        // order and the queue has no use for it, so it never leaves the
-        // database.
-        .select(
-          "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
-        )
-        .order("created_at", { ascending: false })
-        .limit(200)
-        .abortSignal(signal);
-    },
-    { intervalMs: QUEUE_POLL_MS, enabled: supabaseEnabled, pauseWhenHidden: false }
+    (signal) => callSafe<{ orders: OrderRow[] }>("orders_list", undefined, { admin: true, signal }),
+    { intervalMs: QUEUE_POLL_MS, enabled: backendEnabled, pauseWhenHidden: false }
   );
 
-  const rows: OrderRow[] = useMemo(() => {
-    if (!value || "fatal" in value || value.error) return [];
-    return (value.data ?? []) as OrderRow[];
-  }, [value]);
+  const rows: OrderRow[] = useMemo(() => (value?.ok ? value.orders : []), [value]);
 
   const openIds = useMemo(
     () => rows.filter((r) => r.status === "placed").map((r) => r.id),
@@ -112,8 +97,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
 
   useEffect(() => {
     if (!value) return;
-    if ("fatal" in value) return setError(value.fatal);
-    if (value.error) return setError(describeNetError(value.error, `ما قدرنا نقرأ الطلبات: ${value.error.message}`));
+    if (!value.ok) return setError(describeApiFailure(value, `ما قدرنا نقرأ الطلبات: ${value.error}`));
     setError("");
   }, [value]);
 
@@ -128,7 +112,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
    */
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!settled || !value || "fatal" in value || value.error) return;
+    if (!settled || !value?.ok) return;
     if (seen.current === null) {
       seen.current = new Set(openIds);
       return;
@@ -153,12 +137,10 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
   }, [openCount]);
 
   async function setStatus(row: OrderRow, status: OrderRow["status"]) {
-    const sb = await loadSupabase();
-    if (!sb) return;
     await run(
-      async (signal) => await sb.from("orders").update({ status }).eq("id", row.id).abortSignal(signal),
-      ({ error: e }) => {
-        if (e) setError(describeNetError(e, `ما قدرنا نحدّث الطلب: ${e.message}`));
+      (signal) => callSafe("order_set_status", { id: row.id, status }, { admin: true, signal }),
+      (r) => {
+        if (!r.ok) setError(describeApiFailure(r, `ما قدرنا نحدّث الطلب: ${r.error}`));
         else {
           // Acted on, so it is no longer new to anybody.
           setFreshIds((prev) => { const next = new Set(prev); next.delete(row.id); return next; });

@@ -1,17 +1,16 @@
 "use client";
 
-import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled, call, describeApiFailure } from "@/lib/backend";
 import { describeNetError } from "@/lib/net";
 import type { CategoryId } from "@/lib/places";
 
 /**
  * Free business registration.
  *
- * A submission is not a place. It lands in public.submissions with status
+ * A submission is not a place. It lands in the `submissions` table with status
  * 'pending' and reaches the site only when an admin approves it, which copies
- * the fields into public.places. The anon key may insert here and nothing else
- * — it cannot read the table back, so one submitter can never see another's
- * phone number.
+ * the fields into `places`. A visitor can only ever add one; reading them back
+ * is an admin action, so one submitter can never see another's phone number.
  */
 export interface SubmissionInput {
   name: string;
@@ -28,7 +27,8 @@ export interface SubmissionInput {
   bioAr: string;
   /** What it sells or offers, one short line each. Capped at 20 by the table. */
   productsAr: string[];
-  /** Storage paths in the private bucket, filled in after upload. */
+  /** Paths under the server's private pending store, as `/api/media.php`
+   *  returned them after the upload. */
   logoPath: string | null;
   imagePaths: string[];
   phone: string;
@@ -132,60 +132,59 @@ export function fillWhatTheOwnerNeedNotWrite(input: SubmissionInput): {
 }
 
 export async function submitBusiness(input: SubmissionInput): Promise<SubmitResult> {
-  if (!supabaseEnabled) {
+  if (!backendEnabled) {
     return {
       ok: false,
       reason: "disabled",
       message: "التسجيل مو متاح حالياً. راسلنا وبنضيف مكانك يدوياً.",
     };
   }
-  const sb = await loadSupabase();
-  if (!sb) {
-    return { ok: false, reason: "disabled", message: "التسجيل مو متاح حالياً." };
-  }
 
   const filled = fillWhatTheOwnerNeedNotWrite(input);
-  const { error } = await sb.from("submissions").insert({
-    name: filled.name,
-    name_ar: input.nameAr.trim(),
-    category: input.category,
-    area_ar: input.areaAr.trim(),
-    address_ar: input.addressAr.trim(),
-    lat: input.lat,
-    lng: input.lng,
-    price_level: input.priceLevel,
-    tagline_ar: filled.taglineAr,
-    description_ar: input.descriptionAr.trim(),
-    bio_ar: input.bioAr.trim(),
-    products_ar: input.productsAr.map((x) => x.trim()).filter(Boolean).slice(0, 20),
-    logo_path: input.logoPath,
-    image_paths: input.imagePaths,
-    phone: input.phone.trim(),
-    instagram: normaliseInstagram(input.instagram),
-    website: input.website.trim(),
-    contact_name: input.contactName.trim(),
-    contact_email: input.contactEmail.trim(),
-    contact_phone: input.contactPhone.trim(),
-    // Sent explicitly so the row matches the RLS check rather than relying on
-    // column defaults, which the policy does not see.
-    status: "pending",
-    admin_note: "",
-  });
+  let result;
+  try {
+    result = await call<{ id: string }>("submit", {
+      name: filled.name,
+      name_ar: input.nameAr.trim(),
+      category: input.category,
+      area_ar: input.areaAr.trim(),
+      address_ar: input.addressAr.trim(),
+      lat: input.lat,
+      lng: input.lng,
+      price_level: input.priceLevel,
+      tagline_ar: filled.taglineAr,
+      description_ar: input.descriptionAr.trim(),
+      bio_ar: input.bioAr.trim(),
+      products_ar: input.productsAr.map((x) => x.trim()).filter(Boolean).slice(0, 20),
+      logo_path: input.logoPath,
+      image_paths: input.imagePaths,
+      phone: input.phone.trim(),
+      instagram: normaliseInstagram(input.instagram),
+      website: input.website.trim(),
+      contact_name: input.contactName.trim(),
+      contact_email: input.contactEmail.trim(),
+      contact_phone: input.contactPhone.trim(),
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeNetError(err, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
+    };
+  }
 
-  if (!error) return { ok: true };
+  if (result.ok) return { ok: true };
 
-  // 23505 is unique_violation — the partial index on (name_ar, area_ar) for
-  // pending rows, i.e. this business is already waiting for review.
-  if (error.code === "23505") {
+  // The same business, while its first submission is still pending.
+  if (result.error === "duplicate") {
     return {
       ok: false,
       reason: "duplicate",
       message: "هذا المكان مسجّل عندنا وينتظر المراجعة. بنرد عليك قريب.",
     };
   }
-  // 23514 is check_violation — a field failed a constraint the form should
-  // have caught first.
-  if (error.code === "23514") {
+  // A field failed a rule the form should have caught first.
+  if (result.error === "invalid") {
     return {
       ok: false,
       reason: "invalid",
@@ -195,6 +194,6 @@ export async function submitBusiness(input: SubmissionInput): Promise<SubmitResu
   return {
     ok: false,
     reason: "network",
-    message: describeNetError(error, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
+    message: describeApiFailure(result, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
   };
 }

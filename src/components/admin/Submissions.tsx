@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconClose, IconPinSolid } from "@/components/icons";
 import { getCategory, toArabicDigits } from "@/lib/place-kit";
-import { loadSupabase } from "@/lib/supabase";
-import { describeNetError } from "@/lib/net";
+import { callSafe, describeApiFailure } from "@/lib/backend";
 import { useLatestRequest } from "@/lib/useLatest";
 import type { SubmissionRow } from "@/lib/submissions";
 import type { EditablePlace } from "@/components/admin/PlaceForm";
@@ -85,59 +84,34 @@ export default function Submissions({
   const load = useCallback(async () => {
     setLoading(true);
     await run(
-      async (signal) => {
-        const sb = await loadSupabase();
-        if (!sb) return null;
-        let query = sb.from("submissions").select("*").order("created_at", { ascending: false });
-        if (filter === "pending") query = query.eq("status", "pending");
-        return await query.abortSignal(signal);
-      },
+      (signal) =>
+        callSafe<{ submissions: SubmissionRow[]; pending: number }>(
+          "submissions_list",
+          { status: filter },
+          { admin: true, signal }
+        ),
       (result) => {
         setLoading(false);
-        if (!result) return;
-        if (result.error) {
-          setError(describeNetError(result.error, result.error.message));
+        if (!result.ok) {
+          setError(describeApiFailure(result, `ما قدرنا نقرأ الطلبات: ${result.error}`));
           return;
         }
         setError("");
-        setRows((result.data ?? []) as SubmissionRow[]);
+        setRows(result.submissions);
+        // The badge counts what still needs a decision, regardless of the
+        // filter — the same answer carries it, so it is never a read behind.
+        onCountChange?.(result.pending);
       }
     );
-  }, [filter, run]);
+  }, [filter, run, onCountChange]);
 
   useEffect(() => { void load(); }, [load]);
-
-  // The badge counts what still needs a decision, regardless of the filter.
-  useEffect(() => {
-    if (!onCountChange) return;
-    let cancelled = false;
-    void (async () => {
-      const sb = await loadSupabase();
-      if (cancelled || !sb) return;
-      const { count } = await sb
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
-      if (!cancelled) onCountChange(count ?? 0);
-    })();
-    return () => { cancelled = true; };
-  }, [rows, onCountChange]);
 
   async function reject(s: SubmissionRow) {
     const note = window.prompt(`سبب رفض «${s.name_ar}»؟ (اختياري)`, "");
     if (note === null) return;
-    const sb = await loadSupabase();
-    if (!sb) return;
-    const { error: e } = await sb
-      .from("submissions")
-      .update({
-        status: "rejected",
-        admin_note: note,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: (await sb.auth.getUser()).data.user?.id ?? null,
-      })
-      .eq("id", s.id);
-    if (e) setError(e.message);
+    const r = await callSafe("submission_reject", { id: s.id, admin_note: note }, { admin: true });
+    if (!r.ok) setError(describeApiFailure(r, `ما قدرنا نرفضه: ${r.error}`));
     else void load();
   }
 
@@ -146,7 +120,7 @@ export default function Submissions({
       <p className="rounded-2xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm font-semibold text-coral-800">
         {error}
         <br />
-        لو الجدول مو موجود، شغّل <code dir="ltr">supabase/schema.sql</code> مرة ثانية.
+        لو السيرفر مو مجهّز، شغّل <code dir="ltr">php wain.php install</code> عليه مرة ثانية.
       </p>
     );
   }

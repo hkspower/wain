@@ -31,68 +31,120 @@ p.on('pageerror', (e) => errors.push(`${e.message}`));
 
 /* ── the shop's side of the counter ───────────────────────────────────────
    One order, held in memory. The tests drive its status the way the admin
-   queue would, so the customer's screen is reacting to a real change rather
-   than to something the test told it directly. */
-const db = { order: null, status: 'placed', readyAt: null, collectedAt: null };
+   board would, so the customer's screen is reacting to a real change rather
+   than to something the test told it directly.
+
+   Two ways to run. By default the site's requests to /api/wain.php are
+   intercepted here and answered in the server's own shapes (the ones
+   tests/wain-api.test.mjs proves against the PHP). With WAIN_REAL_BACKEND set,
+   nothing is intercepted: the fixture is served by a PHP server with the real
+   endpoint behind it, and the shop's side is driven through the admin actions
+   with the token in WAIN_ADMIN_SECRET — the same journey, a real back end. */
+const REAL = !!process.env.WAIN_REAL_BACKEND;
+const API_PATH = process.env.WAIN_API || '/api/wain.php';
+const db = { order: null, status: 'placed', readyAt: null, collectedAt: null, cancelledAt: null };
 const requests = [];
+const isApi = (url) => url.includes(API_PATH);
+const actionOf = (url) => { try { return new URL(url).searchParams.get('a'); } catch { return null; } };
 
-await p.route('**/sb/**', async (route) => {
-  const req = route.request();
-  const url = req.url();
-  const body = req.postData();
-  requests.push({ url, method: req.method(), body });
-  const json = (status, data) => route.fulfill({
-    status, contentType: 'application/json',
-    headers: { 'access-control-allow-origin': '*' },
-    body: JSON.stringify(data),
-  });
+if (!REAL) {
+  await p.route((url) => isApi(url.href), async (route) => {
+    const req = route.request();
+    const url = req.url();
+    const body = req.postData();
+    const a = actionOf(url);
+    requests.push({ url, action: a, method: req.method(), body });
+    const json = (status, data) => route.fulfill({
+      status, contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify(data),
+    });
 
-  // Placing the order.
-  if (url.includes('/orders') && req.method() === 'POST') {
-    const rows = JSON.parse(body);
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    if (db.order && db.order.id === row.id) {
-      // The same order sent twice — the duplicate primary key that means
-      // "already placed".
-      return json(409, { code: '23505', message: 'duplicate key' });
+    // Placing the order.
+    if (a === 'order_place') {
+      const row = JSON.parse(body);
+      if (db.order && db.order.id === row.id) {
+        // The same order sent twice: the server knows the id and the token,
+        // and answers «placed, again» — the proof it is already there.
+        return json(200, { ok: true, id: row.id, status: 'placed', again: true });
+      }
+      db.order = row;
+      return json(200, { ok: true, id: row.id, status: 'placed', again: false });
     }
-    db.order = row;
-    return json(201, {});
-  }
 
-  // Reading it back through the security-definer function.
-  if (url.includes('order_status')) {
-    const { p_id, p_token } = JSON.parse(body);
-    if (!db.order || db.order.id !== p_id || db.order.track_token !== p_token) return json(200, []);
-    return json(200, [{
-      status: db.status,
-      place_slug: db.order.place_slug,
-      place_name_ar: db.order.place_name_ar,
-      lines: db.order.lines,
-      total_fils: db.order.total_fils,
-      pickup_at: db.order.pickup_at,
-      note_ar: db.order.note_ar,
-      created_at: '2026-08-21T09:00:00Z',
-      ready_at: db.readyAt,
-      collected_at: db.collectedAt,
-      cancelled_at: db.cancelledAt ?? null,
-    }]);
-  }
+    // Reading it back with the id and the token.
+    if (a === 'order_status') {
+      const { id, token } = JSON.parse(body);
+      if (!db.order || db.order.id !== id || db.order.track_token !== token) return json(200, { ok: true, order: null });
+      return json(200, { ok: true, order: {
+        status: db.status,
+        place_slug: db.order.place_slug,
+        place_name_ar: db.order.place_name_ar,
+        lines: db.order.lines,
+        total_fils: db.order.total_fils,
+        pickup_at: db.order.pickup_at,
+        note_ar: db.order.note_ar,
+        created_at: '2026-08-21T09:00:00Z',
+        ready_at: db.readyAt,
+        collected_at: db.collectedAt,
+        cancelled_at: db.cancelledAt ?? null,
+      } });
+    }
 
-  if (url.includes('cancel_order')) {
-    const { p_id, p_token } = JSON.parse(body);
-    if (!db.order || db.order.id !== p_id || db.order.track_token !== p_token) return json(200, null);
-    if (db.status !== 'placed') return json(200, db.status);
-    db.status = 'cancelled';
-    db.cancelledAt = '2026-08-21T09:05:00Z';
-    return json(200, 'cancelled');
-  }
+    if (a === 'order_cancel') {
+      const { id, token } = JSON.parse(body);
+      if (!db.order || db.order.id !== id || db.order.track_token !== token) return json(200, { ok: true, status: null });
+      if (db.status !== 'placed') return json(200, { ok: true, status: db.status });
+      db.status = 'cancelled';
+      db.cancelledAt = '2026-08-21T09:05:00Z';
+      return json(200, { ok: true, status: 'cancelled' });
+    }
 
-  // Anything else — the live places read, auth refreshes — answers empty so
-  // the site falls back to its build-time snapshot, exactly as it would with
-  // an unconfigured database.
-  return json(200, []);
-});
+    // Anything else — the live places read — answers empty so the site falls
+    // back to its build-time snapshot, exactly as it would with a table that
+    // has not been seeded yet.
+    return json(200, { ok: true, places: [] });
+  });
+} else {
+  // Record the traffic without touching it, so the same counts can be read.
+  p.on('request', (req) => { if (isApi(req.url())) requests.push({ url: req.url(), action: actionOf(req.url()), method: req.method(), body: req.postData() }); });
+}
+
+/** The shop's side: in the mock, flip the in-memory row; against the real
+ *  server, the admin action the board itself would send. */
+const ADMIN = process.env.WAIN_ADMIN_SECRET || '';
+async function adminCall(action, body) {
+  const res = await fetch(`${B}${API_PATH}?a=${action}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Wain-Admin': ADMIN },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+async function shopSets(status) {
+  if (!REAL) {
+    db.status = status;
+    if (status === 'ready') db.readyAt = '2026-08-21T09:25:00Z';
+    if (status === 'collected') db.collectedAt = '2026-08-21T09:40:00Z';
+    return;
+  }
+  const r = await adminCall('order_set_status', { id: db.order.id, status });
+  if (!r.ok) throw new Error('the admin action failed: ' + JSON.stringify(r));
+  db.status = status;
+}
+/** What the server holds for the latest order placed by this page. */
+async function serverOrder() {
+  if (!REAL) return db.order;
+  const list = await adminCall('orders_list', { limit: 20 });
+  const placed = requests.filter((r) => r.action === 'order_place').map((r) => JSON.parse(r.body).id);
+  const row = (list.orders ?? []).find((o) => placed.includes(o.id));
+  if (row) db.order = { ...row, track_token: JSON.parse(requests.find((r) => r.action === 'order_place' && JSON.parse(r.body).id === row.id).body).track_token };
+  return row ?? null;
+}
+async function serverStatus() {
+  if (!REAL) return db.status;
+  const list = await adminCall('orders_list', { limit: 20 });
+  return (list.orders ?? []).find((o) => o.id === db.order?.id)?.status ?? null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 console.log('\n── 1. she opens the site ──');
@@ -172,24 +224,26 @@ await send.click();
 await p.waitForTimeout(400);
 let alert = (await p.locator('[role=alert]').allTextContents()).join(' ');
 ok('a landline is refused before anything is sent', alert.includes('رقم كويتي'), alert);
-ok('and nothing reached the server', requests.filter((r) => r.method === 'POST' && r.url.includes('/orders')).length === 0);
+ok('and nothing reached the server', requests.filter((r) => r.action === 'order_place').length === 0);
 
 console.log('\n── 7. she sends it, and the first attempt is lost ──');
 await p.locator('#o-phone').fill('51234567');
-// One dropped request, the way a phone behaves crossing a road.
+// One dropped request, the way a phone behaves crossing a road. The drop is
+// a route of its own so it works in both modes: against the real server the
+// first order_place is aborted before it leaves the browser.
 let dropped = false;
-await p.route('**/sb/rest/**', async (route) => {
-  if (!dropped && route.request().method() === 'POST') { dropped = true; return route.abort('failed'); }
+await p.route((url) => isApi(url.href) && url.searchParams.get('a') === 'order_place', async (route) => {
+  if (!dropped) { dropped = true; requests.push({ url: route.request().url(), action: 'order_place', method: 'POST', body: route.request().postData(), dropped: true }); return route.abort('failed'); }
   return route.fallback();
 });
 await send.click();
 await p.waitForTimeout(2500);
-ok('the dropped request did not lose the order', db.order !== null, JSON.stringify(db.order));
-const posts = requests.filter((r) => r.method === 'POST' && r.url.includes('/orders'));
-ok('it was sent again after the drop', posts.length >= 1, `${posts.length} reached the server`);
+ok('the dropped request did not lose the order', (await serverOrder()) !== null, JSON.stringify(db.order));
+const posts = requests.filter((r) => r.action === 'order_place');
+ok('it was sent again after the drop', posts.filter((r) => !r.dropped).length >= 1, `${posts.length} attempts, ${posts.filter((r) => !r.dropped).length} reached the server`);
 ok('and the retry carried the same order id, so there is only one order',
-  new Set(posts.map((r) => (JSON.parse(r.body)[0] ?? JSON.parse(r.body)).id)).size === 1,
-  posts.map((r) => (JSON.parse(r.body)[0] ?? JSON.parse(r.body)).id).join(', '));
+  new Set(posts.map((r) => JSON.parse(r.body).id)).size === 1,
+  posts.map((r) => JSON.parse(r.body).id).join(', '));
 body = await p.textContent('body');
 ok('she is told it arrived', body.includes('وصل طلبك'), body.slice(0, 200));
 
@@ -213,8 +267,7 @@ ok('the items are listed here too', body.includes('چاي كرك'));
 ok('with nobody claiming it is paid', !body.includes('مدفوع'));
 
 console.log('\n── 9. the shop marks it ready, and her screen catches up ──');
-db.status = 'ready';
-db.readyAt = '2026-08-21T09:25:00Z';
+await shopSets('ready');
 // She looks back at her phone — which is exactly when the tracker refreshes,
 // rather than up to a poll interval later.
 await p.evaluate(() => {
@@ -233,8 +286,7 @@ ok('and repeats the reference to say at the counter', body.includes(reference));
 ok('cancelling is no longer offered — the food exists', (await p.locator('button:has-text("ألغِ الطلب")').count()) === 0);
 
 console.log('\n── 10. she collects it, and the screen stops asking ──');
-db.status = 'collected';
-db.collectedAt = '2026-08-21T09:40:00Z';
+await shopSets('collected');
 await p.evaluate(() => {
   Object.defineProperty(document, 'hidden', { value: false, configurable: true });
   document.dispatchEvent(new Event('visibilitychange'));
@@ -243,11 +295,11 @@ await p.waitForTimeout(1200);
 body = await p.textContent('body');
 ok('the order shows as collected', body.includes('تسلّمته'), body.slice(0, 300));
 
-const before = requests.filter((r) => r.url.includes('order_status')).length;
+const before = requests.filter((r) => r.action === 'order_status').length;
 // Without this the check below passes on a tracker that never polled at all.
 ok('the tracker really was polling', before > 0, `${before} status reads`);
 await p.waitForTimeout(2500);
-const after = requests.filter((r) => r.url.includes('order_status')).length;
+const after = requests.filter((r) => r.action === 'order_status').length;
 ok('and polling stopped — nothing changes after collection', after === before, `${before} → ${after}`);
 
 console.log('\n── 11. a second order, which she calls off herself ──');
@@ -255,6 +307,7 @@ console.log('\n── 11. a second order, which she calls off herself ──');
 // who pressed «ألغِ الطلب» was told the shop had cancelled on them. The device
 // remembers who did it; the database only knows that it happened.
 const first = db.order;
+const placedBefore = requests.filter((r) => r.action === 'order_place').length;
 db.order = null; db.status = 'placed'; db.readyAt = null; db.collectedAt = null; db.cancelledAt = null;
 await p.goto(`${B}/places/${SLUG}/`, { waitUntil: 'networkidle' });
 await p.locator('button[aria-label*="زد چاي كرك"]').click();
@@ -263,7 +316,8 @@ await p.locator('#o-phone').fill('51234567');
 await p.selectOption('#o-time', { index: 1 });
 await p.locator('button:has-text("أرسل الطلب")').click();
 await p.waitForTimeout(800);
-ok('the second order was placed', db.order !== null && db.order.id !== first.id);
+ok('the second order was placed', (await serverOrder()) !== null && db.order.id !== first.id
+   && requests.filter((r) => r.action === 'order_place').length > placedBefore);
 await p.goto(`${B}/orders/`, { waitUntil: 'networkidle' });
 await p.waitForTimeout(800);
 await p.evaluate(() => { window.confirm = () => true; });
@@ -276,7 +330,7 @@ ok('cancelling is offered on the placed order', (await cancelBtn.count()) === 1)
 await cancelBtn.first().click().catch(() => {});
 await p.waitForTimeout(1200);
 body = await p.textContent('body');
-ok('the database says cancelled', db.status === 'cancelled');
+ok('the server says cancelled', (await serverStatus()) === 'cancelled');
 ok('and the card says SHE cancelled it', body.includes('ألغيت الطلب'), body.slice(0, 400));
 ok('…not that the shop did', !body.includes('المكان ألغى الطلب'));
 const remembered = JSON.parse(await p.evaluate(() => localStorage.getItem('wain:orders') || '[]'));
@@ -284,7 +338,7 @@ ok('the device remembers it was hers', (remembered.find((o) => o.id === db.order
 
 console.log('\n── the whole way through ──');
 ok('no page errors anywhere on the journey', errors.length === 0, errors.join(' | '));
-ok('the first order was collected and the second cancelled', first !== null && db.status === 'cancelled');
+ok('the first order was collected and the second cancelled', first !== null && (await serverStatus()) === 'cancelled');
 
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();

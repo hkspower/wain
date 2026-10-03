@@ -9,12 +9,12 @@ import {
  * validation, and the WhatsApp message an order becomes when there is no
  * database to send it to.
  *
- * Nothing in here may import the catalogue or Supabase — the `place-kit`
+ * Nothing in here may import the catalogue or `backend.ts` — the `place-kit`
  * rule. `orders.ts` (the half that talks to a back end and to localStorage)
  * re-exports all of it, so existing callers keep their import; what this
  * split buys is a module the Flutter app can be replayed against byte for
  * byte, and a place page that can send an order without carrying the
- * Supabase client for a back end that is unconfigured.
+ * back-end client when the build has the back end switched off.
  *
  * Deliberately not a payment system — see the header in orders.ts. The word
  * «مدفوع» appears nowhere, and the message below says who pays and when.

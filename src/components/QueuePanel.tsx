@@ -7,7 +7,7 @@ import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { haptic } from "@/lib/haptics";
 import { toArabicDigits } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
-import { supabaseEnabled } from "@/lib/supabase";
+import { backendEnabled } from "@/lib/backend";
 import { usePoll } from "@/lib/usePoll";
 import {
   SALON_LABEL,
@@ -52,7 +52,7 @@ export default function QueuePanel({ place }: { place: Place }) {
   // deciding on a queue length from five minutes ago.
   const { value: size } = usePoll<QueueSize | null>(
     (signal) => fetchQueueSize(place.slug, signal),
-    { intervalMs: 30_000, enabled: supabaseEnabled && open }
+    { intervalMs: 30_000, enabled: backendEnabled && open }
   );
 
   if (!open) return null;
@@ -143,7 +143,7 @@ export default function QueuePanel({ place }: { place: Place }) {
           </span>
         ) : (
           <span className="text-sm text-ink-500">
-            {supabaseEnabled ? "نشوف كم واحد بالطابور…" : "الطابور مو متاح حالياً."}
+            {backendEnabled ? "نشوف كم واحد بالطابور…" : "الطابور مو متاح حالياً."}
           </span>
         )}
       </div>
@@ -192,7 +192,7 @@ export default function QueuePanel({ place }: { place: Place }) {
       <button
         type="button"
         onClick={join}
-        disabled={busy || !supabaseEnabled}
+        disabled={busy || !backendEnabled}
         className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink-900 px-6 font-semibold text-white transition hover:bg-ink-800 active:scale-[0.99] disabled:opacity-50 sm:w-auto"
       >
         {busy ? "ناخذ لك دور…" : "خذ دوري"}

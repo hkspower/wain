@@ -80,8 +80,8 @@ const KNOWN_THIRD_PARTIES = new Map([
   ["api.elevenlabs.io", "the voice call itself, once connected"],
   ["api.us.elevenlabs.io", "the voice call itself, once connected"],
   // NOT "the submission webhook", which is what this said and what the comment
-  // in privacy/page.tsx said with it. Business submissions go to Supabase —
-  // src/lib/submissions.ts inserts into `submissions`, and nothing in the
+  // in privacy/page.tsx said with it. Business submissions go to wain's own
+  // /api/wain.php (`submit`; it was Supabase before 4 October), and nothing in the
   // browser has ever contacted this host for them. It is listed in the CSP for
   // one reason, given in public/.htaccess: NEXT_PUBLIC_WAIN_TTS_URL can still
   // point صوت وين's bridge back at n8n, and dropping the origin would leave

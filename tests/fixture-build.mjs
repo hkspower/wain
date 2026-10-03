@@ -11,9 +11,10 @@
  * somebody kills the run), build it with whatever environment the caller
  * wants, and serve the export.
  *
- * Two suites share this: the journey (a Supabase URL on the test's own
- * origin, so Playwright plays the server) and the WhatsApp order flow (no
- * Supabase at all, and the place carries `orderWhatsApp`). Extracted from
+ * Three suites share this: the journey (the default `/api/wain.php` on the
+ * test's own origin, so Playwright plays the server), the back-end run (the
+ * same build with the real PHP answering) and the WhatsApp order flow (the
+ * back end switched off, and the place carries `orderWhatsApp`). Extracted from
  * run-journey.mjs on 3 October, when the second one was written — a second
  * copy of the worktree dance would have drifted from the first the way every
  * duplicated helper in this repository has.
@@ -64,7 +65,7 @@ function inject(tree, slug, fields) {
  * catalogue and build. Returns the export directory. Throws on a failed build.
  *
  * `whatsapp`: give the fixture place a number (and a second place a menu
- * with none). `env`: extra build-time variables, e.g. the Supabase pair.
+ * with none). `env`: extra build-time variables, e.g. NEXT_PUBLIC_WAIN_BACKEND.
  */
 export function buildFixture({ tree, whatsapp = false, env = {} }) {
   rmSync(tree, { recursive: true, force: true });
@@ -87,7 +88,13 @@ export function buildFixture({ tree, whatsapp = false, env = {} }) {
     .stdout.trim().split("\n").filter(Boolean);
   const dirty = [...new Set([...changed, ...untracked])];
   for (const f of dirty) {
-    if (!existsSync(join(ROOT, f))) continue;
+    if (!existsSync(join(ROOT, f))) {
+      // Deleted here, still at HEAD: the worktree would keep the file, and a
+      // module nobody imports any more can still fail the type check (the
+      // old supabase.ts did, once its package was gone from node_modules).
+      rmSync(join(tree, f), { force: true });
+      continue;
+    }
     mkdirSync(dirname(join(tree, f)), { recursive: true });
     copyFileSync(join(ROOT, f), join(tree, f));
   }

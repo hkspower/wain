@@ -14,20 +14,22 @@ They cannot read a string, they cannot open a page, and they cannot tell you
 that a function exists but nothing calls it. These are the checks for the
 things they cannot see.
 
-### `audit:schema` — does the client ask for things the database has?
+### `audit:schema` — does the client ask for actions the API has?
 
-This was the blind spot. `.from("orders")`, `.rpc("cancel_order", { p_id })`,
-`.select("id,status,…")` — every one of those is a string. TypeScript cannot
-check it, the linter cannot, and no test suite does either, because they all
-run without Supabase or against a fake that answers whatever it is asked. A
-table renamed on one side only, a column dropped from a select list, an RPC
-whose argument names drifted: each is a runtime failure that first appears
-once the site is connected, in front of a customer, looking like "ordering is
-broken".
+This was the blind spot. `call("order_place", …)`, `callSafe("queue_list",
+…, { admin: true })` — every action name is a string. TypeScript cannot check
+it, the linter cannot, and most suites run against a fake that answers
+whatever it is asked. An action renamed on one side only, or a call that
+forgets the admin flag, is a runtime failure that first appears in front of a
+customer, looking like "ordering is broken".
 
-So it reads `schema.sql` and `src/` and compares: 5 tables, 9 functions, every
-RPC argument name, every explicit select list, and every column named in a
-filter, insert or update. 34 column references checked, all present.
+So it asks `php scripts/publish/wain-api.php actions` for the server's own
+lists (public reads, public writes, admin) and walks every `call(`/`callSafe(`
+in `src/` with a bracket-depth parser: each action must exist, and a call to
+an admin action must say `admin: true`. It also still holds
+`supabase/schema.sql` to naming every table the API writes. (Before 4 October
+it compared Supabase `.from`/`.rpc`/`.select` strings with the schema — 34
+column references; the shape of the check is the same, the wire changed.)
 
 It was wrong twice before it was right, both worth recording:
 

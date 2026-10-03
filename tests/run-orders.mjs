@@ -98,8 +98,9 @@ if (staleBuild(ROOT)) {
 // ---- the WhatsApp flow, on a build with a menu and no database --------------
 // The production build has neither, so the panel's WhatsApp mode — the only
 // mode a visitor can meet today — would otherwise never render in any test.
-// Same worktree fixture as the journey, built without the Supabase pair and
-// with the place's number set. See tests/fixture-build.mjs.
+// Same worktree fixture as the journey, built with the back end switched off
+// (NEXT_PUBLIC_WAIN_BACKEND=none) and with the place's number set. See
+// tests/fixture-build.mjs.
 console.log("\n════ the order as a WhatsApp message (fixture build, no database) ════");
 if (!existsSync(CHROMIUM)) {
   console.log(`  chromium not found at ${CHROMIUM} — set CHROMIUM_PATH.`);
@@ -114,7 +115,7 @@ if (!existsSync(CHROMIUM)) {
     out = buildFixture({
       tree: TREE,
       whatsapp: true,
-      env: { NEXT_PUBLIC_SUPABASE_URL: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "" },
+      env: { NEXT_PUBLIC_WAIN_BACKEND: "none" },
     });
   } catch (err) {
     console.error(err.message);

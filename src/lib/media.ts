@@ -1,39 +1,28 @@
 "use client";
 
-import { loadSupabase } from "@/lib/supabase";
+import { backendOrigin, callSafe, describeApiFailure } from "@/lib/backend";
 import { deadlineFetch, describeNetError } from "@/lib/net";
 // place-kit, not places: MediaUploader is a client component on /add, and
 // this one edge put all 52 records on that page for two number formatters.
-// Same shape as the supabase.ts clamp-helper edge that made place-kit exist.
+// Same shape as the place-rows clamp-helper edge that made place-kit exist.
 import { toArabicDigits, toArabicNumber } from "@/lib/place-kit";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the
  * place, reviewed before anything is shown.
  *
- * The upload half and the review half are on two different backends now, and
- * that split is deliberate rather than half-finished.
- *
- * `uploadPending()` posts to `/api/media.php` — wain's own bridge, matching
- * `/api/tts.php`'s pattern — because it used to go straight into Supabase
- * Storage, and Supabase is unconfigured here: both env vars are empty, so
- * every upload used to fail at `loadSupabase()` before a byte left the
- * browser. See `scripts/publish/media-endpoint.php`'s own header for why an
- * unauthenticated upload endpoint is safe enough to ship.
- *
- * `signedPendingUrl`, `publishMedia` and `discardPending` below are still
- * Supabase-only, UNTOUCHED, and that is not an oversight either:
- * `submitBusiness()` in `lib/submissions.ts` inserts into a Supabase table
- * that does not exist here, so admin review needs Supabase regardless of
- * which server holds the bytes — wiring these three to the new bridge now
- * would be building a review flow with nothing yet to review. A file that
- * uploads through the bridge and is never turned into a submission is an
- * orphan; `scripts/publish/media-endpoint.php`'s `prune` mode exists because
- * of that, not despite it.
+ * Two endpoints on one origin. `uploadPending()` posts the bytes to
+ * `/api/media.php` (`scripts/publish/media-endpoint.php`, whose header says
+ * why an unauthenticated upload endpoint is safe enough to ship); they land in
+ * `storage/business-pending/`, outside the document root, where no URL
+ * reaches them. The review half — `signedPendingUrl`, `publishMedia`,
+ * `discardPending` — goes through `/api/wain.php` with the admin secret: a
+ * pending file is looked at through a URL the server signs for ten minutes,
+ * and approving one copies it into `public_html/images/business/`, a
+ * directory the deploy's prune never touches. A file that uploads and is
+ * never turned into a submission is an orphan; media.php's `prune` mode
+ * exists because of that.
  */
-
-export const PENDING_BUCKET = "business-pending";
-export const PUBLIC_BUCKET = "business-media";
 
 /**
  * Same-origin by default, same reason `/api/tts.php` is: no CORS allowlist to
@@ -179,52 +168,34 @@ export async function uploadPending(
   return { ok: false, message: bridgeErrorMessage(code, file.name) };
 }
 
-/** A short-lived URL so an admin can look at something not yet public. */
-export async function signedPendingUrl(path: string, seconds = 600): Promise<string | null> {
-  const sb = await loadSupabase();
-  if (!sb) return null;
-  const { data } = await sb.storage.from(PENDING_BUCKET).createSignedUrl(path, seconds);
-  return data?.signedUrl ?? null;
+/** A short-lived URL so an admin can look at something not yet public. The
+ *  server signs it on the admin secret; it is good for ten minutes and for
+ *  one file, so a link that leaks is dead by the time it is read. */
+export async function signedPendingUrl(path: string): Promise<string | null> {
+  const r = await callSafe<{ url: string }>("media_sign", { path }, { admin: true });
+  return r.ok ? backendOrigin() + r.url : null;
 }
 
 /**
- * Approve one file: copy the bytes from the private bucket to the public one
- * and hand back the URL the site will render.
- *
- * Done as download-then-upload rather than a server-side copy so it works on
- * whatever storage version the project is running, and so the admin's own
- * session is what authorises the write.
+ * Approve one file: the server copies the bytes from the private pending store
+ * into the public `images/business/<slug>/` and hands back the URL the site
+ * will render. The name is the admin's (`logo`, `photo-1`…); the extension is
+ * whatever `getimagesize()` decided at upload.
  */
 export async function publishMedia(
   pendingPath: string,
   slug: string,
   name: string
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, message: "التخزين مو مهيّأ." };
-
-  const { data: blob, error: dlError } = await sb.storage
-    .from(PENDING_BUCKET)
-    .download(pendingPath);
-  if (dlError || !blob) {
-    return { ok: false, message: `ما قدرنا نقرأ ${pendingPath}: ${dlError?.message ?? "مو موجود"}` };
-  }
-
-  const ext = pendingPath.split(".").pop() ?? "jpg";
-  const target = `${slug}/${name}.${ext}`;
-  const { error: upError } = await sb.storage.from(PUBLIC_BUCKET).upload(target, blob, {
-    contentType: blob.type || "image/jpeg",
-    upsert: true,
-  });
-  if (upError) return { ok: false, message: `ما قدرنا ننشر الصورة: ${upError.message}` };
-
-  const url = sb.storage.from(PUBLIC_BUCKET).getPublicUrl(target).data.publicUrl;
-  return { ok: true, url };
+  const r = await callSafe<{ url: string }>("media_publish", { path: pendingPath, slug, name }, { admin: true });
+  if (r.ok) return { ok: true, url: backendOrigin() + r.url };
+  if (r.error === "not_found") return { ok: false, message: `ما قدرنا نقرأ ${pendingPath}: مو موجود` };
+  return { ok: false, message: describeApiFailure(r, `ما قدرنا ننشر الصورة: ${r.error}`) };
 }
 
-/** Drop a whole submission's pending folder once it has been dealt with. */
+/** Drop a whole submission's pending files once it has been dealt with. Best
+ *  effort: a file that outlives this is caught by media.php's `prune`. */
 export async function discardPending(paths: string[]): Promise<void> {
-  const sb = await loadSupabase();
-  if (!sb || paths.length === 0) return;
-  await sb.storage.from(PENDING_BUCKET).remove(paths);
+  if (paths.length === 0) return;
+  await callSafe("media_discard", { paths }, { admin: true });
 }

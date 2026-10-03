@@ -4,13 +4,14 @@
  *
  * The form asks for four things and fills two more on the way out, and those
  * two are the whole reason this file exists. `submissions.ts` imports the
- * Supabase client through the `@` alias, so the test is bundled before it is
+ * back-end client through the `@` alias, so the test is bundled before it is
  * run — the same shape as the logic layers in run-orders.mjs.
  *
  * There is no browser layer here on purpose. Sending a real submission needs
- * Supabase credentials, and a test that silently skips when they are absent
+ * `/api/wain.php` answering, and a test that silently skips when it is absent
  * reports a pass for a thing it never did. What can be checked without a
- * backend is checked here; the rest is `docs/business-registration.md`.
+ * backend is checked here; the wire itself is `tests/wain-api.test.mjs`
+ * (`submit` against the real PHP) and the rest is `docs/business-registration.md`.
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";

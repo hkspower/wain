@@ -1,24 +1,34 @@
 #!/usr/bin/env node
 /**
- * Does the app ask the database for things the database has?
+ * Does the site ask the back end for actions the back end has?
  *   npm run audit:schema
  *
  * This is the blind spot. TypeScript cannot check a string, the linter cannot
- * either, and none of the test suites can — they all run without Supabase or
- * against a fake one that answers whatever it is asked. A table renamed in
- * schema.sql and not in the client, a column dropped from a select list, an
- * RPC whose argument names drifted: every one of those is a runtime failure
- * that appears only once the site is actually connected, in front of a
- * customer, and looks like "ordering is broken".
+ * either, and none of the browser suites can — they all run against a fake
+ * back end that answers whatever it is asked. An action renamed in
+ * `wain-api.php` and not in the client, or a client calling an admin action
+ * without the admin flag, is a runtime failure that appears only once the site
+ * is actually connected, in front of a customer, and looks like "ordering is
+ * broken".
  *
- * So this reads both sides and compares them.
+ * So this reads both sides and compares them. The server's side is asked of
+ * the PHP BY the PHP (`php wain-api.php actions`), the way audit:tts asks each
+ * voice table for itself — a regex over the source would pass the day it was
+ * written. The client's side is every `call("…")` / `callSafe("…")` in src/.
+ *
+ * It also still holds `supabase/schema.sql` to one promise: every table the
+ * API writes is described there with the same name, so the Postgres route
+ * stays a true alternative rather than a stale one.
  */
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const schema = readFileSync(join(ROOT, "supabase/schema.sql"), "utf8");
+
+let problems = 0;
+const say = (msg) => { console.log("  ✗ " + msg); problems++; };
 
 /** Every .ts/.tsx under src/. */
 function walk(dir, out = []) {
@@ -31,121 +41,76 @@ function walk(dir, out = []) {
 }
 const files = walk(join(ROOT, "src"));
 
-// ---- what the database offers ---------------------------------------------
-const tables = new Set(
-  [...schema.matchAll(/create table if not exists public\.(\w+)/g)].map((m) => m[1])
-);
-/** name -> Set of argument names, from the CREATE FUNCTION signature. */
-const functions = new Map();
-for (const m of schema.matchAll(/create or replace function public\.(\w+)\s*\(([^)]*)\)/g)) {
-  const args = [...m[2].matchAll(/(?:^|,)\s*(\w+)\s+\w/g)].map((a) => a[1]);
-  functions.set(m[1], new Set(args));
+// ---- what the server offers ------------------------------------------------
+let server;
+try {
+  server = JSON.parse(
+    execFileSync("php", [join(ROOT, "scripts/publish/wain-api.php"), "actions"], { encoding: "utf8" })
+  );
+} catch (e) {
+  say(`\`php scripts/publish/wain-api.php actions\` did not answer: ${String(e.message).split("\n")[0]}`);
+  process.exit(1);
 }
-/** table -> Set of column names, from the CREATE TABLE body. */
-const columns = new Map();
-for (const m of schema.matchAll(/create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/g)) {
-  const cols = new Set();
-  for (const line of m[2].split("\n")) {
-    const c = line.match(/^\s{2}(\w+)\s+\S/);
-    if (c && !/^(primary|unique|check|constraint|foreign)$/i.test(c[1])) cols.add(c[1]);
-  }
-  // Columns added later by the upgrade blocks count too.
-  for (const a of schema.matchAll(
-    new RegExp(`alter table public\\.${m[1]}[\\s\\S]*?;`, "g")
-  )) {
-    for (const c of a[0].matchAll(/add column if not exists\s+(\w+)/g)) cols.add(c[1]);
-  }
-  columns.set(m[1], cols);
-}
+const offered = new Set([...server.read, ...server.publicWrites, ...server.admin]);
+const adminOnly = new Set(server.admin);
+console.log(`\nThe API offers ${offered.size} actions (${server.admin.length} admin-only).`);
 
-let problems = 0;
-const say = (msg) => { console.log("  ✗ " + msg); problems++; };
-
-console.log(`\nSchema offers ${tables.size} tables and ${functions.size} functions.`);
-
-// ---- what the app asks for -------------------------------------------------
-console.log("\n── tables the client reads or writes ──");
-const usedTables = new Map();
+// ---- what the client asks for -------------------------------------------------
+console.log("\n── actions the client calls ──");
+/** action -> [{file, admin}] */
+const used = new Map();
+const CALL = /\bcall(?:Safe)?(?:<[^>]*>)?\(\s*["'`]([a-z_]+)["'`]/g;
 for (const f of files) {
   const src = readFileSync(f, "utf8");
-  for (const m of src.matchAll(/\.from\(\s*["'](\w+)["']\s*\)/g)) {
-    if (!usedTables.has(m[1])) usedTables.set(m[1], new Set());
-    usedTables.get(m[1]).add(f.replace(ROOT + "/", ""));
-  }
-}
-for (const [t, where] of [...usedTables].sort()) {
-  // storage.from() is the storage client, not a table.
-  if (t === "business-pending" || t === "business-media") continue;
-  if (tables.has(t)) console.log(`  ✓ ${t}`);
-  else say(`public.${t} is used by ${[...where].join(", ")} but is not in schema.sql`);
-}
-
-console.log("\n── functions the client calls, and the arguments it passes ──");
-for (const f of files) {
-  const src = readFileSync(f, "utf8");
-  for (const m of src.matchAll(/\.rpc\(\s*["'](\w+)["']\s*,\s*\{([^}]*)\}/g)) {
-    const [, name, argBlock] = m;
-    const where = f.replace(ROOT + "/", "");
-    if (!functions.has(name)) { say(`public.${name}() called from ${where} does not exist`); continue; }
-    const passed = [...argBlock.matchAll(/(\w+)\s*:/g)].map((a) => a[1]);
-    const declared = functions.get(name);
-    const unknown = passed.filter((a) => !declared.has(a));
-    if (unknown.length) say(`${name}() called with ${unknown.join(", ")} — not in its signature (${[...declared].join(", ")})`);
-    else console.log(`  ✓ ${name}(${passed.join(", ")})`);
-  }
-}
-
-console.log("\n── columns named in select lists ──");
-for (const f of files) {
-  const src = readFileSync(f, "utf8");
-  // .from("t")….select("a,b,c") — the explicit lists, which are the ones that
-  // can name a column that is not there.
-  for (const m of src.matchAll(/\.from\(\s*["'](\w+)["']\s*\)([\s\S]{0,400}?)\.select\(\s*\n?\s*["']([^"']+)["']/g)) {
-    const [, table, , list] = m;
-    if (list.trim() === "*" || !columns.has(table)) continue;
-    const known = columns.get(table);
-    const missing = list.split(",").map((c) => c.trim()).filter((c) => c && !c.includes("(") && !known.has(c));
-    if (missing.length) say(`${table}.select names ${missing.join(", ")}, which ${table} does not have`);
-    else console.log(`  ✓ ${table}: ${list.split(",").length} columns all exist`);
-  }
-}
-
-console.log("\n── columns used in filters, inserts and updates ──");
-let checked = 0;
-for (const f of files) {
-  const src = readFileSync(f, "utf8");
-  for (const m of src.matchAll(/\.from\(\s*["'](\w+)["']\s*\)/g)) {
-    const table = m[1];
-    if (!columns.has(table)) continue;
-    const known = columns.get(table);
-    // The chain belongs to this .from() until the next one starts. A fixed
-    // window instead read straight past the end of the query: the window after
-    // .from("places") swallowed the .from("submissions").update() below it and
-    // reported four submissions columns as missing from places. Bounded here,
-    // so a chain is never blamed for the one after it.
-    const next = src.indexOf(".from(", m.index + 6);
-    const end = next === -1 ? src.length : next;
-    const tail = src.slice(m.index, Math.min(end, m.index + 900));
-    for (const eq of tail.matchAll(/\.(?:eq|neq|gt|lt|gte|lte|order)\(\s*["'](\w+)["']/g)) {
-      checked++;
-      if (!known.has(eq[1])) say(`${table}: filtered or ordered on "${eq[1]}", which it does not have`);
+  if (!/from "@\/lib\/backend"/.test(src)) continue;
+  for (const m of src.matchAll(CALL)) {
+    const action = m[1];
+    // The options object is the last argument, and the call's arguments can
+    // hold their own parentheses (and a type argument its own `;`) — so walk
+    // to the paren that closes THIS call, and look for `admin: true` inside.
+    const open = src.indexOf("(", m.index + m[0].indexOf("("));
+    let depth = 0, i = open;
+    for (; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === "(") depth++;
+      else if (ch === ")" && --depth === 0) break;
     }
-    // The object handed to insert()/update(): its keys are column names, and a
-    // wrong one is rejected by PostgREST at runtime and nowhere earlier.
-    for (const w of tail.matchAll(/\.(?:insert|update)\(\s*\{([\s\S]{0,700}?)\n\s*\}\)/g)) {
-      for (const key of w[1].matchAll(/^\s{2,}(\w+):/gm)) {
-        checked++;
-        if (!known.has(key[1])) say(`${table}: written with "${key[1]}", which it does not have`);
-      }
-    }
+    const admin = /admin:\s*true/.test(src.slice(open, i + 1));
+    if (!used.has(action)) used.set(action, []);
+    used.get(action).push({ file: f.replace(ROOT + "/", ""), admin });
   }
 }
-console.log(`  ${checked} column reference(s) checked.`);
-if (checked === 0) say("nothing was checked here — the scanner matched no filters, which cannot be right");
+for (const [a, sites] of [...used].sort()) {
+  const where = [...new Set(sites.map((s) => s.file))].join(", ");
+  if (!offered.has(a)) {
+    say(`«${a}» is called by ${where} but the API has no such action`);
+    continue;
+  }
+  const needsAdmin = adminOnly.has(a);
+  const withoutFlag = sites.filter((s) => needsAdmin && !s.admin);
+  if (withoutFlag.length) {
+    say(`«${a}» is admin-only, and ${withoutFlag.map((s) => s.file).join(", ")} calls it without { admin: true }`);
+    continue;
+  }
+  const withFlag = sites.filter((s) => !needsAdmin && s.admin && a !== "queue_join");
+  if (withFlag.length) {
+    say(`«${a}» is public, and ${withFlag.map((s) => s.file).join(", ")} sends the admin token for no reason`);
+    continue;
+  }
+  console.log(`  ✓ ${a}${needsAdmin ? " (admin)" : ""}`);
+}
+if (used.size === 0) say("no call() to the back end was found anywhere under src/ — the regex or the client moved");
 
-console.log(
-  problems
-    ? `\n${problems} mismatch(es) between the client and schema.sql.`
-    : "\nEvery table, function, argument and column the client names exists in schema.sql."
-);
+// ---- the Postgres alternative still describes the same tables -------------------
+console.log("\n── supabase/schema.sql still names every table the API writes ──");
+const schema = readFileSync(join(ROOT, "supabase/schema.sql"), "utf8");
+const php = readFileSync(join(ROOT, "scripts/publish/wain-api.php"), "utf8");
+const apiTables = new Set([...php.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).filter((t) => t !== "locks"));
+const pgTables = new Set([...schema.matchAll(/create table if not exists public\.(\w+)/g)].map((m) => m[1]));
+for (const t of [...apiTables].sort()) {
+  if (pgTables.has(t)) console.log(`  ✓ ${t}`);
+  else say(`the API has a table «${t}» that schema.sql does not describe`);
+}
+
+console.log(problems ? `\n${problems} problem(s)` : "\nالخادم والموقع متفقين — every action the site calls exists, with the right gate");
 process.exit(problems ? 1 : 0);

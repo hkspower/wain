@@ -11,7 +11,7 @@ import type { Place } from "@/lib/places";
  * `usePlaces` is the same hook /explore, /search and the ⌘K palette already
  * use: it starts from the build-time snapshot — so the first paint is the
  * prerendered HTML, instant and crawlable — and swaps in the live rows when
- * Supabase is configured. Three listing surfaces were already doing this and
+ * `/api/wain.php` answers. Three listing surfaces were already doing this and
  * the place's OWN page was not, which is the wrong way round: a visitor who
  * searched saw the corrected name in the results and the stale one after they
  * tapped it.
@@ -20,9 +20,9 @@ import type { Place } from "@/lib/places";
  * catalogue, and React shares the result between every component that calls it
  * on the same page.
  *
- * `initial` is the fallback rather than the source: with Supabase unset — which
- * is the case today — `places` is the snapshot and this resolves to exactly what
- * the server rendered, so the page is unchanged until a back end exists.
+ * `initial` is the fallback rather than the source: with the back end off, not
+ * installed, or its table empty, `places` is the snapshot and this resolves to
+ * exactly what the server rendered, so the page is unchanged until it answers.
  */
 export default function PlaceLive({
   slug,

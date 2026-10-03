@@ -886,6 +886,14 @@ if (PHP_SAPI === 'cli') {
               'lines' => count($all), 'showing' => min($n, count($all)), 'tail' => array_slice($all, -$n)]);
     }
 
+    /* `actions` — the three action lists as JSON, for `npm run audit:schema`:
+       the client's `call("<action>")` strings are checked against THIS, asked
+       of the PHP by the PHP, so a renamed action fails a scan rather than a
+       customer. The same argument audit:tts makes about the voice tables. */
+    if ($mode === 'actions') {
+        $out(['read' => READ_ACTIONS, 'publicWrites' => PUBLIC_WRITES, 'admin' => ADMIN_ACTIONS]);
+    }
+
     if ($mode === 'logformat') {
         $out([
             'name' => LOG_NAME, 'maxBytes' => LOG_MAX_BYTES, 'keep' => LOG_KEEP,
@@ -900,7 +908,7 @@ if (PHP_SAPI === 'cli') {
         $out(['ok' => false, 'error' => 'usage',
               'usage' => ['php wain.php install', 'php wain.php version', 'php wain.php migrate',
                           'php wain.php seed [places.json]', 'php wain.php selftest [production|staging]',
-                          'php wain.php log [n]', 'php wain.php logformat']]);
+                          'php wain.php log [n]', 'php wain.php logformat', 'php wain.php actions']]);
     }
 
     /* install: copy to both stages, create the empty secret, migrate each
@@ -975,7 +983,16 @@ $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
 if ($origin !== '') {
     $host = parse_url($origin, PHP_URL_HOST);
-    if (!is_string($host) || !in_array(strtolower($host), ALLOWED_HOSTS, true)) {
+    /* The page's own host is always allowed, whatever it is: a browser sends
+       Origin on every same-origin POST, and this file is same-origin by design
+       — a staging copy, a php -S in a test, a localhost build all talk to the
+       copy beside them. The allowlist covers the cross-origin case (the apps,
+       which have no origin, and a build pointed at another stage). Refusing
+       127.0.0.1 here is how tests/run-backend.mjs found every browser write
+       answering 403 while the API suite, which sent www.wainkw.com, was green. */
+    $self = strtolower(explode(':', (string) ($_SERVER['HTTP_HOST'] ?? ''))[0]);
+    $allowed = is_string($host) && ($self !== '' && strtolower($host) === $self || in_array(strtolower($host), ALLOWED_HOSTS, true));
+    if (!$allowed) {
         $fail(403, 'origin_not_allowed');
     }
     header("Access-Control-Allow-Origin: $origin");

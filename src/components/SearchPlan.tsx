@@ -5,7 +5,7 @@ import Link from "next/link";
 import ShareHangout from "@/components/ShareHangout";
 import { IconBag, IconClock, IconGo } from "@/components/icons";
 // From place-kit, not orders.ts/queue.ts: both of those are `"use client"`
-// modules carrying the Supabase bridge, and this page only asks the question.
+// modules carrying the back-end client, and this page only asks the question.
 import { acceptsOrders, takesQueue } from "@/lib/place-kit";
 import { CHOICE_MAX } from "@/lib/hangout";
 import type { Place } from "@/lib/places";

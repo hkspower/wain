@@ -31,11 +31,15 @@ Two things are missing from the shipping build, both deliberately:
   it to customers who will be charged at that café's counter is not something
   wain should do — so until a business opts in, the order panel has never
   rendered in a test and the browser order suite has always skipped.
-- **No Supabase.** Ordering cannot complete without a database.
+- **No back end on a plain static server.** Ordering cannot complete without
+  `/api/wain.php` answering.
 
 So the runner creates a **git worktree** — a clean checkout of HEAD, plus any
 uncommitted files carried across — gives one place a three-item menu there, and
-builds pointing at a Supabase URL on the test's own origin. The working tree is
+builds with the default back end (`/api/wain.php` on the test's own origin,
+which Playwright answers by action — or the real PHP file, in `npm run
+test:backend`, where the same suite runs with `WAIN_REAL_BACKEND=1` and
+reads the board back through the admin actions). The working tree is
 never touched. A test that patches `places.ts` in place leaves it patched the
 first time somebody kills the run, and that is a bad afternoon.
 

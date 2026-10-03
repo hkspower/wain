@@ -123,7 +123,9 @@ moment one switches it on. Both branches are covered by `npm run test:shouq`.
 
 ## What still needs you
 
-1. Run `supabase/schema.sql` — it now carries the queue.
+1. The back end installed and its secret set (`docs/backend.md`,
+   `docs/admin-setup.md`) — `/api/wain.php` carries the queue table and the
+   `queue_join` / `queue_status` / `queue_leave` actions.
 2. In the place editor, set the salon's kind, switch **يستقبل أدوار** on, and
    set how long one customer takes.
 

@@ -55,7 +55,28 @@ const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript
   ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon",
   ".webmanifest": "application/manifest+json", ".txt": "text/plain", ".xml": "application/xml" };
 const missed = new Set();
+/**
+ * The export is never served alone: beside it, on the same origin, sits
+ * `/api/wain.php` (scripts/publish/wain-api.php), and every page with a live
+ * listing asks it for `places` on load. A static server with no PHP answers
+ * that with a 404 — which the client handles (it keeps the build's snapshot),
+ * but the browser still logs the 404 as a console error, and that is the one
+ * thing this audit fails a page on. So the two reads a page makes before anyone
+ * touches anything are answered here the way an installed-but-unseeded server
+ * answers them; every other action says «not installed», which is the truth
+ * of this server and what the client reads as «unavailable now».
+ */
+function api(req, res) {
+  const action = new URL(req.url, "http://x").searchParams.get("a");
+  const body =
+    action === "places" ? { ok: true, places: [] }
+    : action === "ping" ? { ok: true, service: "wain-api", stage: "audit", engine: "none", admin: "unset" }
+    : { ok: false, error: "not_installed" };
+  res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+  res.end(JSON.stringify(body));
+}
 const server = createServer((req, res) => {
+  if (req.url.startsWith("/api/wain.php")) return api(req, res);
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p.endsWith("/")) p += "index.html";
   let f = join(OUT, p);

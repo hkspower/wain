@@ -1,9 +1,10 @@
 # The network layer
 
-Everything the browser sends lives behind `src/lib/net.ts`, installed once as
-the Supabase client's `global.fetch` — so it covers queries, RPC, auth token
-refreshes and storage uploads together, rather than only the calls somebody
-remembered to wrap.
+Everything the browser sends lives behind `src/lib/net.ts`: `deadlineFetch`
+is the only fetch `src/lib/backend.ts` uses, so every action against
+`/api/wain.php` — reads, writes, the admin board — goes through it, rather
+than only the calls somebody remembered to wrap. (It was installed as the
+Supabase client's `global.fetch` before 4 October; the property is the same.)
 
 ## The problem it was written for
 
@@ -97,7 +98,8 @@ npm run test:net
 39 checks. The real `net.ts`, `orders.ts` and `usePoll.ts` are bundled onto two
 blank pages and Playwright plays the server, so the test decides whether a
 request fails in transit, stalls forever, returns 503, or comes back with a
-duplicate-key error. No Supabase and no Next build are involved.
+duplicate-key error. No PHP and no Next build are involved — the real API's
+own answers are covered by `npm run test:wain-api` and `test:backend`.
 
 That is the only honest way to check most of this: "does not replay a POST",
 "a stalled request eventually gives up" and "a duplicate key means the order is
