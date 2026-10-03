@@ -202,7 +202,7 @@ $WANT = [
     'assets/product-cards.js' => '63c037fecc9332bca5d39229824f959ec830a4488efa96981bfdb61bd40cdf81',
     'assets/product-mobile-layout.js' => '482120d0035374350500e1daeaf29862806264f11e43cb26bed2f6df51f154af',
     'assets/product-photos.js' => 'a21739795ae5267bbf0dde2956f0190e8e128405fd7e27ad4611517a8892f4f6',
-    'assets/product-polish.js' => 'b0e7046e3e7c69a8370805e9fb3f9dd741d671116f46124c49abf3ee5acf558c',
+    'assets/product-polish.js' => 'fffc7b52ee995d68dbf5b89b6b84a117098e37a8bbe1d8224269f509b72de104',
     'assets/product-research.js' => '75c670733fbcbe5d0d2e6a5e121c5b3fd4f08c206d61d89b58e775c2200b6465',
     'assets/product-zoom.js' => '881bd8f6dd12c79a54b365ca6927326973f7c4fab2893b1c3cb112e815d23a5f',
     'assets/quick-add-size.js' => 'c97803b57a4a621197a29ce6e502b85419ba6af533f688abf7e6c24f15435425',
@@ -327,12 +327,12 @@ $WANT = [
     'pay/pay.php' => '172d1d33bed9170b5bee311b375d899d4d22cbb262da92f1893bd99bad9b11a5',
     'returns-request.html' => 'c60d4e4c7bdf9aaaddd9c4229a224f00c808b614221810f49df070a49ccd9540',
     'robots.txt' => '7139e922a29b7cee657145e6f4357b0ddde81335ecfaf5f76a8e12c61674436d',
-    'seo.php' => '482ee08e2e803deb5e7834320c82be10c0c7d9f1b8b2403525f6be7ea4a0b5ae',
+    'seo.php' => 'bfd8962743286e4f0fc37305f94c68b98ab38fbba4c4e7dd597f5343359fae5a',
     'site.webmanifest' => '34169e10f86b2efbf13f3762961d394f9039b7904ffb2110e7525790a2e88779',
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'e3312c6fdee9fa05b1ad2eaf81de7be6de761f06faddc46f1a65bcd98363aa40',
+    'sw.js' => 'cffff10b834677660c03cbcff73773a060dd09442cf26aef8f4f26a936e66823',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
