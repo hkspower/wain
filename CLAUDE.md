@@ -5744,6 +5744,10 @@ also on disk byte-exact: `pick/index.html` 21,342, the /pick chunk 4,585, the
 `/pick/` through the edge: 200, `Last-Modified: 17:53:02` (the deploy's minute),
 `x-hcdn-cache-status: DYNAMIC`; job `1xNebiidFk` read, deleted, listed gone.
 
+App CI at `df8c4af2`: `flutter-ci` run 37140225521 green — verify, build-ios and
+both simulators, first attempt; `android-flutter` run 37140227152 built both
+APKs, its emulator job in «Run the device suite» from 17:27 — the known hang.
+
 **Not measured**: real map tiles inside the chat (refused here), any of it on a
 phone, the app on a device.
 
