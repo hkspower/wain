@@ -78,7 +78,7 @@ const VOICES = [
         ],
     ],
     'salem' => [
-        'voiceId'  => 'Ywuz3KyW2N5pqKNpwcCL', // Eid — Gulf male, warm and clear
+        'voiceId'  => 'TbzNVcMOFmKd8tUT5liY', // Mustafa Abdulla — ar-kuwaiti, male (Eid until 3 October)
         'settings' => [
             'stability'         => 0.45,
             'similarity_boost'  => 0.8,

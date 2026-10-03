@@ -29,7 +29,7 @@ bool get kAgentEnabled => kAgentId.isNotEmpty;
 /// same prompt, tools and knowledge — with a different speaker. Her prompt is
 /// first-person feminine and her first message «أنا شوق», so he can still call
 /// himself her name on the wire. Fixing that means editing the live agent.
-const String kSalemVoiceId = 'Ywuz3KyW2N5pqKNpwcCL';
+const String kSalemVoiceId = 'TbzNVcMOFmKd8tUT5liY'; // Mustafa Abdulla since 3 October, as on the web
 
 const String kSalemName = 'سالم';
 const String kSalemRole = 'دليلك في الكويت';

@@ -317,7 +317,7 @@ to pick and nothing to set unless you disagree with the choice:
 | | voice | id |
 | --- | --- | --- |
 | شوق | Maryam — Kuwaiti Soft & Storytelling (`ar-kuwaiti`) | `3AH0h1SXwwhE8vUUWuQW` |
-| سالم | Eid — Warm, Clear, Confident (Gulf) | `Ywuz3KyW2N5pqKNpwcCL` |
+| سالم | Mustafa Abdulla (`ar-kuwaiti`) — Eid `Ywuz3KyW2N5pqKNpwcCL` until 3 October | `TbzNVcMOFmKd8tUT5liY` |
 
 **شوق changed voice on 3 October, on the owner's word.** The paragraph below
 explains why Talya was chosen in September over the two Kuwaiti Maryams. The

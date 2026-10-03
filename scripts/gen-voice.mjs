@@ -107,12 +107,17 @@ const MANIFEST_PATH = path.join(VOICE_DIR, "manifest.json");
  * library-only. The agent was switched the same day, so the clips, the bridge
  * and the call still name one woman.
  *
+ * سالم followed the same afternoon: Mustafa Abdulla, `TbzNVcMOFmKd8tUT5liY`,
+ * ar-kuwaiti, picked by the owner over Eid and two other Kuwaiti men from the
+ * same greeting in each (docs/voice-sample/salem-*.mp3). He was library-only
+ * until that render; the listing shows him in the workspace since.
+ *
  * ELEVEN_VOICE_SHOUQ / ELEVEN_VOICE_SALEM still override, and swapping either
  * now re-records — see the digest below, which did not use to include it.
  */
 const DEFAULT_VOICE_IDS = {
   shouq: "3AH0h1SXwwhE8vUUWuQW", // Maryam — ar-kuwaiti, female, soft (was Talya rh16DBXwtscjdPFeMBYf)
-  salem: "Ywuz3KyW2N5pqKNpwcCL", // Eid — Gulf male, warm and clear
+  salem: "TbzNVcMOFmKd8tUT5liY", // Mustafa Abdulla — ar-kuwaiti, male, calm (was Eid Ywuz3KyW2N5pqKNpwcCL)
 };
 const VOICE_IDS = {
   shouq: process.env.ELEVEN_VOICE_SHOUQ || DEFAULT_VOICE_IDS.shouq,

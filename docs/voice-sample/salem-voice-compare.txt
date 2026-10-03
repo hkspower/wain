@@ -1,0 +1,14 @@
+سالم's greeting in four voices, 3 October, for the owner's ear — he picked
+Mustafa Abdulla.
+
+    هلا! أنا سالم. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي. مقاهي
+    المباركية، في مدينة الكويت — أحلى وقت عقب المغرب.
+
+    salem-eid-v4.mp3        Eid              Ywuz3KyW2N5pqKNpwcCL  10.96s  (his voice until 3 Oct)
+    salem-mustafa-kw-v4.mp3 Mustafa Abdulla  TbzNVcMOFmKd8tUT5liY  10.48s  ← chosen
+    (not kept) Mohamed      KJe6YIQ4MHI94EGaDZC7  10.16s  Kuwaiti, business narrator
+    (not kept) Abu Salem    G1QUjBCuRBbLbAmYlTgl  10.24s  Kuwaiti voice-over artist
+
+All eleven_v4, 128 kbps, the connector's default settings (none of the
+agent's or the clip table's). Flow ZM4A1SSGrNPZtxCGHhH6 holds all four.
+The two not kept are not committed, to keep the repository light.

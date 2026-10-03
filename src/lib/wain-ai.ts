@@ -124,7 +124,7 @@ export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.length > 0;
  * Recorded so the next person does not read this as the tension having been
  * resolved — it has been accepted, on request, not solved.
  */
-export const SALEM_VOICE_ID = "Ywuz3KyW2N5pqKNpwcCL"; // Eid — Gulf male, warm and clear
+export const SALEM_VOICE_ID = "TbzNVcMOFmKd8tUT5liY"; // Mustafa Abdulla — Kuwaiti male, the owner's pick 3 October (was Eid)
 
 /**
  * سالم's own display identity — his name and role line, matching the shape
