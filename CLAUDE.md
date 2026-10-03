@@ -5631,7 +5631,7 @@ prints ElevenLabs' answer. **Run it the moment the key is in**, before
 believing the voices work. Installed on both stages at `d067f482e0e81f6f`
 (v4, Maryam, Mustafa, the probe), key still empty.
 
-## شوق and سالم's free answer, shortened and ordered once — 3 October (built, NOT live)
+## شوق and سالم's free answer, shortened and ordered once — 3 October (live as `a8b55dfe`)
 
 The owner's four decisions from a review of what she actually answered.
 
@@ -5669,11 +5669,30 @@ The owner's four decisions from a review of what she actually answered.
   `kGoingOut`/`kGoogleFigures`), and `search_parity.json` now replays 464
   answers — order and sentences — at four Kuwait clocks.
 
-**`/search` is 175.4K against the 175K budget** (HEAD 172.2K): the ordering
-module is 2.45K gzipped (0.64K of it the review figures), voice-lines +0.5K,
-search +0.24K. Not hidden behind a dynamic import, which would only move the
-cost out of the place that measures it; raising the ratchet is the owner's
-call.
+**`/search` came out at 175.4K against the 175K budget** (HEAD 172.2K): the
+ordering module is 2.45K gzipped (0.64K of it the review figures), voice-lines
++0.5K, search +0.24K. Not hidden behind a dynamic import, which would only move
+the cost out of the place that measures it. `place-reviews.ts` re-encoded its
+table as tuples (−0.3K, same shape out), and `audit:js`'s budget is **176K**
+now, with the reason at the constant — a real feature, measured, not a drift.
+
+**Live, with the read-aloud that goes a sentence per request.**
+`{"ok":true,"version":"1.1.0","deployed":270,"removed":49,"emptied":1,"at":
+"2026-10-03T16:04:02+00:00"}` through the installed caller, job `WM6UzWo6lX`
+read at its FIRST firing, deleted, listed gone (sporta's eight left).
+`removed: 49` is real: the renamed clip keys, the answer chunks and the old
+build-id directory. Archive `79ca5be1`, one more ~4MB blob with
+`DEPLOY_SECRET` unset. `deploy:verify`: «a8b55dfe is live — verified at the
+root and 7 levels below it» (`build.json` digest `9723a81beda37995`; both
+stylesheets 98,298 and 5,438; `a8b55dfe…/` the only build-id directory; the
+/search chunk 31,565; `explore/` 20,620; a place page 64,081; its og 44,217,
+52 og). After the cache purge, a cron `wget -S --spider` of `/search/`
+through the edge: 200, `Last-Modified: 16:04:02` (the deploy's minute),
+`x-hcdn-cache-status: DYNAMIC`; job `9J6arPKeCO` read, deleted, listed gone.
+**The voice is still the phone's** until the key
+is in `storage/elevenlabs.key`: the bridge answers 503 `not_configured`, which
+voice.ts remembers for the visit. Then `php …/api/tts.php probe shouq` and
+`probe salem`, one cron job each, before believing v4 takes the settings.
 
 ## Style
 
