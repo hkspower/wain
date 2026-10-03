@@ -18,6 +18,7 @@ import 'app/deep_link.dart';
 import 'app/offline_banner.dart';
 import 'app/online.dart';
 import 'app/router.dart';
+import 'orders/order_store.dart';
 import 'voice/platform_voice.dart';
 import 'voice/voice_service.dart';
 import 'data/catalogue.dart';
@@ -27,7 +28,8 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final state = await AppState.load();
-  runApp(WainApp(state: state));
+  final orders = await OrderStore.load();
+  runApp(WainApp(state: state, orderStore: orders));
 }
 
 class WainApp extends StatefulWidget {
@@ -43,6 +45,9 @@ class WainApp extends StatefulWidget {
   final CallKeepAlive? keepAlive;
   final String? agentId;
   final Online? online;
+
+  /// «طلباتي» on this device; tests seed one, production loads it.
+  final OrderStore? orderStore;
   const WainApp({
     super.key,
     required this.state,
@@ -52,6 +57,7 @@ class WainApp extends StatefulWidget {
     this.keepAlive,
     this.agentId,
     this.online,
+    this.orderStore,
   });
 
   @override
@@ -66,6 +72,7 @@ class _WainAppState extends State<WainApp> {
   late final CallKeepAlive _keepAlive = widget.keepAlive ?? PlatformKeepAlive();
 
   late final Online _online = widget.online ?? Online.platform();
+  late final OrderStore _orders = widget.orderStore ?? OrderStore.ephemeral();
 
   late final CallController _call = CallController(
     isOffline: () => _online.offline,
@@ -186,6 +193,7 @@ class _WainAppState extends State<WainApp> {
         ChangeNotifierProvider<CallController>.value(value: _call),
         ChangeNotifierProvider<VoiceService>.value(value: _voice),
         ChangeNotifierProvider<Online>.value(value: _online),
+        ChangeNotifierProvider<OrderStore>.value(value: _orders),
       ],
       child: MaterialApp.router(
         title: 'وين',

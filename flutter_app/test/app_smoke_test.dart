@@ -40,6 +40,7 @@ void main() {
     '/about': 'وين؟ شنو هذا',
     '/privacy': 'ما نتتبّعك — أبداً',
     '/add': 'سجّل مكانك في وين',
+    '/orders': 'طلباتي',
     '/places/kuwait-towers': 'أبراج الكويت',
     '/places/kuwait-towers?when=tonight-8': 'الليلة الساعة ٨',
     '/places/nope': 'وين رايح؟',

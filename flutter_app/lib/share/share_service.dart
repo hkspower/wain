@@ -31,7 +31,12 @@ abstract class ShareBackend {
 
   /// A file through the share sheet, same answers as [nativeShare]. Concrete
   /// with a «no sheet» default so the fakes written before it need no change.
-  Future<bool?> shareFile(List<int> bytes, String name, String mime, String title) async => null;
+  Future<bool?> shareFile(
+    List<int> bytes,
+    String name,
+    String mime,
+    String title,
+  ) async => null;
 
   /// Any URL in the browser or the app that claims it.
   Future<bool> openUrl(Uri uri) => openWhatsApp(uri);
@@ -41,7 +46,12 @@ class PlatformShareBackend implements ShareBackend {
   const PlatformShareBackend();
 
   @override
-  Future<bool?> shareFile(List<int> bytes, String name, String mime, String title) async {
+  Future<bool?> shareFile(
+    List<int> bytes,
+    String name,
+    String mime,
+    String title,
+  ) async {
     try {
       // `fileNameOverrides` is required: the io `XFile.fromData` ignores its
       // `name`, and without it the sheet is handed `<uuid>.ics`.
@@ -108,6 +118,12 @@ class PlatformShareBackend implements ShareBackend {
 @visibleForTesting
 ShareBackend? debugShareBackend;
 
+/// The backend in use: the platform's, or the fake a test installed. For
+/// callers outside this file (the order panel, «طلباتي»), which may not read
+/// the test-only field directly.
+ShareBackend get shareBackend =>
+    debugShareBackend ?? const PlatformShareBackend();
+
 Future<ShareOutcome> shareHangout({
   required String text,
   required String title,
@@ -137,12 +153,20 @@ Future<CalendarOutcome> shareCalendar({
   final backend = debugShareBackend ?? const PlatformShareBackend();
   final bytes = utf8.encode(entry.ics);
   final google = Uri.parse(entry.google);
-  final androidFirst = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  final androidFirst =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  if (androidFirst && await backend.openUrl(google)) return CalendarOutcome.link;
-  final sheet = await backend.shareFile(bytes, entry.filename, 'text/calendar', title);
+  if (androidFirst && await backend.openUrl(google))
+    return CalendarOutcome.link;
+  final sheet = await backend.shareFile(
+    bytes,
+    entry.filename,
+    'text/calendar',
+    title,
+  );
   if (sheet == true) return CalendarOutcome.file;
   if (sheet == false) return CalendarOutcome.cancelled;
-  if (!androidFirst && await backend.openUrl(google)) return CalendarOutcome.link;
+  if (!androidFirst && await backend.openUrl(google))
+    return CalendarOutcome.link;
   return CalendarOutcome.failed;
 }

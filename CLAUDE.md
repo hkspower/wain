@@ -5864,8 +5864,27 @@ built and inert: `supabaseEnabled` false and no place with a menu, so no visitor
 had ever seen the panel. The owner chose all four: make it work without a back
 end, prepare the Supabase switch-on, polish the flow, build it in the app. **The
 owner is sending the menus**; none exist, so every test runs on a fixture and
-the live site shows nothing new until a menu lands in `places.ts`. Web is done
-(`9c070502` field, `c3f68e60` kit, then the panel, the tracker, and this); the Flutter half is next.
+the live site shows nothing new until a menu lands in `places.ts`. Web first
+(`9c070502` field, `c3f68e60` kit, then the panel, the tracker, and this), then
+the app.
+
+**The app has one channel, WhatsApp, and replays the web.** `lib/orders/
+order_kit.dart` is `order-kit.ts` by hand, held to the web's answers by
+`orderKit` in `kit_parity.json` (`order_kit_parity_test`, 11, red on a
+two-digit fils pad). `OrderStore` keeps the same JSON under the same key
+(`wain:orders`) in shared_preferences and is the whole record; `OrderPanel`
+sits on the place page between contact and share (nothing drawn without a
+menu AND a number); `/orders` is a fourth shell branch whose tab «طلباتي»
+is drawn only while the device holds an order OR that branch is on screen,
+so a deep link to an empty list is never a bar with no tab. Opening WhatsApp
+goes through `shareBackend` (a public accessor added to `share_service.dart`
+— `debugShareBackend` is test-only and the analyzer says so), so the suites
+read the URL the tap would have launched. `order_panel_test` 6 and
+`orders_screen_test` 9, proved red by four sabotages (a number not required,
+the order remembered only after a successful open, the tab always drawn,
+cancel marking nothing: 5 failed). **A cascade after a closure binds to the
+closure** — `..clock = () => at..remember(x)` called `remember` on the
+DateTime; parenthesise the lambda. Flutter suite 1274.
 
 **One channel per build, never both** — `orderChannel(place)` in `orders.ts`:
 `null` unless `acceptsOrders`; `"db"` when Supabase is configured; else

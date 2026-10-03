@@ -8,6 +8,7 @@ import '../data/landmark_gate.dart';
 import '../data/models.dart';
 import '../data/text_kit.dart';
 import '../map/wain_map.dart';
+import '../orders/order_panel.dart';
 import '../share/directions.dart';
 import '../share/hangout.dart';
 import '../share/hangout_panel.dart';
@@ -248,7 +249,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ),
               ],
               _Contact(place: place),
-              KeyedSubtree(key: _shareKey, child: ShareHangout(place: place)),
+              // Renders nothing unless the place accepts orders and has a
+              // WhatsApp number — PlaceView's order, between contact and share.
+              OrderPanel(place: place),
+              KeyedSubtree(
+                key: _shareKey,
+                child: ShareHangout(place: place),
+              ),
               const SizedBox(height: 12),
               _InfoGrid(place: place),
               const SizedBox(height: 12),

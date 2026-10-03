@@ -7,7 +7,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../orders/order_store.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/svg.dart';
@@ -18,12 +20,14 @@ class _Tab {
   const _Tab(this.label, this.icon);
 }
 
-/// In branch order: router.dart's three StatefulShellBranches.
+/// In branch order: router.dart's StatefulShellBranches. The fourth,
+/// «طلباتي», is drawn only on a device that holds an order — see [AppShell].
 const _tabs = [
   _Tab('الرئيسية', 'home'),
   _Tab('استكشف', 'compass'),
   _Tab('بحث', 'search'),
 ];
+const _ordersTab = _Tab('طلباتي', 'bag');
 
 /// Re-tapping the tab you are already on: back to the top, the way every
 /// native tab bar answers it. The tab's page listens; the bar only announces.
@@ -105,6 +109,14 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final index = shell.currentIndex;
+    // «طلباتي» appears only while this device holds an order, the way the
+    // site's AppTabBar grows a tab for one: a permanent tab for a feature
+    // most visitors never use would advertise a door onto nothing. It also
+    // stays while that branch is the one on screen (a deep link, or the last
+    // order just forgotten), so the bar never shows no tab at all; it goes
+    // the moment the visitor leaves.
+    final hasOrders = context.watch<OrderStore>().count > 0;
+    final tabs = [..._tabs, if (hasOrders || index == 3) _ordersTab];
     // Android's back button on Explore or Search goes Home, the way a tabbed
     // app answers it; on Home it leaves the app as usual. Before this the
     // tabs were switched with `go`, which left nothing behind them, so back
@@ -125,10 +137,10 @@ class AppShell extends StatelessWidget {
             top: false,
             child: Row(
               children: [
-                for (var i = 0; i < _tabs.length; i++)
+                for (var i = 0; i < tabs.length; i++)
                   Expanded(
                     child: _TabButton(
-                      tab: _tabs[i],
+                      tab: tabs[i],
                       active: i == index,
                       onTap: () => _tap(i),
                     ),

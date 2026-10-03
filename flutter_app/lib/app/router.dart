@@ -12,6 +12,7 @@ import '../screens/explore_screen.dart';
 import '../screens/find_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/not_found_screen.dart';
+import '../screens/orders_screen.dart';
 import '../screens/pick_screen.dart';
 import '../screens/place_detail_screen.dart';
 import '../screens/privacy_screen.dart';
@@ -115,6 +116,17 @@ GoRouter buildRouter({String initialLocation = '/'}) {
                   2,
                   SearchScreen(initialQuery: s.uri.queryParameters['q'] ?? ''),
                 ),
+              ),
+            ],
+          ),
+          // «طلباتي» — a fourth branch that is always routable (a place's
+          // «تابع طلبك» pushes it), while the shell draws its tab only on a
+          // device that holds an order (the site's AppTabBar does the same).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/orders',
+                pageBuilder: (_, s) => _tab(s, 3, const OrdersScreen()),
               ),
             ],
           ),
