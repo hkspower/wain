@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 
 class UObject;
+class ULocalLightComponent;
 
 namespace GRNGraphics
 {
@@ -75,7 +76,9 @@ namespace GRNGraphics
 	void ApplyVrrPacing(UObject* WorldContext, float RefreshHz = 0.f);
 
 	/** Parse -grn4k / -grn2k / -grn1080 / -grndlss=off from the command
-	 *  line so a build can be pointed at a resolution without recompiling. */
+	 *  line so a build can be pointed at a resolution without recompiling.
+	 *  Also -grnnomegalights: MegaLights off for the session, and with it
+	 *  every lamp and headlight shadow (see MegaLightsActive). */
 	void ApplyCommandLineOverrides(UObject* WorldContext);
 
 	/**
@@ -86,16 +89,49 @@ namespace GRNGraphics
 	 * pixel, however many there are — which is what makes ~170 shadowed
 	 * sodium lamps along 7.3 km affordable at all. Without it each one is
 	 * its own shadow map, and the old unshadowed lamps are the right
-	 * answer. So: r.MegaLights.EnableForProject (the project switch,
-	 * DefaultEngine.ini) and r.MegaLights.Allow (the per-scalability-rung
-	 * and per-device-profile switch, DefaultScalability.ini). An engine
-	 * with no MegaLights has neither variable and answers false.
+	 * answer. Four things must say yes:
 	 *
-	 * What it cannot see is the GPU. The variables say what the project
-	 * asked for, not whether this card can run it; the MegaLights
+	 *  - r.MegaLights.EnableForProject, the project switch
+	 *    (DefaultEngine.ini). An engine with no MegaLights has no such
+	 *    variable and answers false.
+	 *  - r.MegaLights.Allow. NOT, at boot, the scalability rung's say:
+	 *    ApplyMax raises every group to Cinematic before the world is
+	 *    built, and Cinematic says yes, so the Low and Medium entries in
+	 *    DefaultScalability.ini are never what the first build reads. What
+	 *    can still say no here is what outranks scalability — a device
+	 *    profile, -grnnomegalights, the console — and a rung lowered later
+	 *    in the session (FollowMegaLights re-lights for that).
+	 *  - An SM6 renderer. MegaLights is SM6-only on desktop; a GPU that
+	 *    runs this game at SM5 has no MegaLights at all, and the project
+	 *    switch above says yes regardless.
+	 *  - Hardware ray tracing. The lamps keep MegaLights' default shadow
+	 *    method, ray tracing. Without hardware RT MegaLights falls back
+	 *    to tracing the global distance field, whose quality Epic calls
+	 *    significantly reduced, and whether 5.8 takes that path for every
+	 *    light on every such card is not something this repository could
+	 *    confirm. Saying no there costs the shadows on a GPU that might
+	 *    have drawn them; saying yes wrongly costs a shadow map per lamp.
+	 *
+	 * What it still cannot see is anything the renderer decides per view
+	 * (a post-process volume turning MegaLights off, say). The MegaLights
 	 * visualisation in the editor's view modes is the check for that.
-	 * Asked once at build time: a scalability change mid-session does
-	 * not re-light lamps that are already standing.
 	 */
 	bool MegaLightsActive();
+
+	/**
+	 * Make Light's shadows follow MegaLightsActive() — now, and again
+	 * whenever r.MegaLights.Allow or r.MegaLights.EnableForProject
+	 * changes for the rest of the process. Returns what it set.
+	 *
+	 * Asking once at build time is not enough on its own. MegaLights
+	 * reads r.MegaLights.Allow every frame; a lamp built once would not.
+	 * Without this, lowering the rung mid-session (`scalability 1`, or
+	 * sg.ShadowQuality) has DefaultScalability.ini switch MegaLights off
+	 * under ~170 lamps and ~30 headlights still built shadowed — one
+	 * shadow map each, the exact cost the rung was lowered to shed. Every
+	 * light made through here is tagged, so the change can find it again
+	 * in whatever world it is in, with no list of lights to outlive that
+	 * world.
+	 */
+	bool FollowMegaLights(ULocalLightComponent* Light);
 }

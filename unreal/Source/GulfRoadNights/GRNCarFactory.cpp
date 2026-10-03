@@ -403,8 +403,9 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	// Shadowed only where MegaLights is drawing it. Thirty-odd shadowed
 	// spot lights are a fixed per-pixel cost under MegaLights and thirty-
 	// odd shadow maps without it — the same reasoning, and the same
-	// switch, as the street lamps in GRNWorldBuilder.
-	Rig.Headlight->SetCastShadows(GRNGraphics::MegaLightsActive());
+	// switch, as the street lamps in GRNWorldBuilder; and like them it
+	// follows the switch if it changes while the car is on the road.
+	GRNGraphics::FollowMegaLights(Rig.Headlight);
 
 	return Rig;
 }

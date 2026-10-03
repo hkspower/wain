@@ -243,6 +243,8 @@ const HEADER_MODULE = [
   [/^(HttpModule\.h|Interfaces\/IHttpRequest\.h|Interfaces\/IHttpResponse\.h|GenericPlatform\/GenericPlatformHttp\.h)$/, "HTTP"],
   [/^(Dom\/JsonObject\.h|Serialization\/JsonReader\.h|Serialization\/JsonSerializer\.h)$/, "Json"],
   [/^ProceduralMeshComponent\.h$/, "ProceduralMeshComponent"],
+  [/^RenderUtils\.h$/, "RenderCore"],
+  [/^RHI\.h$/, "RHI"],
   [/^AssetRegistry\//, "AssetRegistry"],
   [/^EditorSubsystem\.h$/, "EditorSubsystem"],
   [/^MaterialEditingLibrary\.h$/, "MaterialEditor"],
@@ -392,6 +394,10 @@ const NEEDS = [
   [/->CreateMeshSection\s*\(/, "ProceduralMeshComponent.h"],
   [/\bUCameraComponent\b/, "Camera/CameraComponent.h"],
   [/\bACameraActor\b/, "Camera/CameraActor.h"],
+  [/\bULocalLightComponent\b/, "Components/LocalLightComponent.h"],
+  [/\bTObjectIterator\b/, "UObject/UObjectIterator.h"],
+  [/\bIsRayTracingEnabled\s*\(/, "RenderUtils.h"],
+  [/\bGMaxRHIFeatureLevel\b|\bERHIFeatureLevel::/, "RHI.h"],
 ];
 {
   const before = failed;
@@ -617,14 +623,27 @@ const iniValue = (lines, key) => {
 // =========================================================================
 // 5. MegaLights: shadows only where MegaLights is drawing them
 // =========================================================================
+//
+// The first version of this switch read the two variables and nothing
+// else, and in this game that was the project switch alone: ApplyMax
+// raises scalability to Cinematic before the world is built, so the
+// Low/Medium "no" in DefaultScalability.ini was never what it read, and
+// nothing asked whether the GPU could run MegaLights. A text check
+// cannot run the switch, but it can hold it to its four questions, to
+// the one door every lamp and headlight goes through, and to the escape
+// hatch the README promises.
 {
   const before = failed;
   const rt = modules[RUNTIME]?.src ?? {};
   for (const [f, src] of Object.entries(rt)) {
     const code = scrub(src);
-    // A hard-on shadow on a local light bypasses the fallback: with
-    // MegaLights off it is one shadow map per lamp.
-    if (/SetCastShadows\(\s*true\s*\)/.test(code)) fail(`${f} turns a light's shadows on unconditionally — ask GRNGraphics::MegaLightsActive()`);
+    // Every shadow decision goes through FollowMegaLights, which lives in
+    // GRNGraphics.cpp. A light that sets its own shadows is one a change
+    // of rung cannot find again: with MegaLights switched off under it,
+    // it is a shadow map per lamp.
+    if (f !== "GRNGraphics.cpp" && /->SetCastShadows\s*\(/.test(code)) {
+      fail(`${f} sets a light's shadows itself — use GRNGraphics::FollowMegaLights() so a change of answer re-lights it`);
+    }
     // Movable before RegisterComponent, for every spot light this port
     // makes. A light component defaults to Stationary.
     for (const m of code.matchAll(/(\w+(?:\.\w+)?)\s*=\s*NewObject<USpotLightComponent>/g)) {
@@ -634,19 +653,74 @@ const iniValue = (lines, key) => {
       if (mob < 0 || (reg >= 0 && mob > reg)) fail(`${f}: ${m[1]} must be set Movable before it registers`);
     }
   }
-  const lamps = scrub(rt["GRNWorldBuilder.cpp"] ?? "");
-  const lampVar = lamps.match(/const bool (\w+) = GRNGraphics::MegaLightsActive\(\)/)?.[1];
-  if (!lampVar || !new RegExp(`Lamp->SetCastShadows\\(${lampVar}\\)`).test(lamps)) {
-    fail("GRNWorldBuilder.cpp: the street lamps' shadows no longer follow GRNGraphics::MegaLightsActive()");
+  if (!/GRNGraphics::FollowMegaLights\(\s*Lamp\s*\)/.test(scrub(rt["GRNWorldBuilder.cpp"] ?? ""))) {
+    fail("GRNWorldBuilder.cpp: the street lamps' shadows no longer follow GRNGraphics::FollowMegaLights()");
   }
-  if (!/Headlight->SetCastShadows\(GRNGraphics::MegaLightsActive\(\)\)/.test(scrub(rt["GRNCarFactory.cpp"] ?? ""))) {
-    fail("GRNCarFactory.cpp: the headlight's shadows no longer follow GRNGraphics::MegaLightsActive()");
+  if (!/GRNGraphics::FollowMegaLights\(\s*Rig\.Headlight\s*\)/.test(scrub(rt["GRNCarFactory.cpp"] ?? ""))) {
+    fail("GRNCarFactory.cpp: the headlight's shadows no longer follow GRNGraphics::FollowMegaLights()");
   }
-  const gfx = scrub(rt["GRNGraphics.cpp"] ?? "", { keepStrings: true });
-  for (const cvar of ["r.MegaLights.EnableForProject", "r.MegaLights.Allow"]) {
-    if (!gfx.includes(`"${cvar}"`)) fail(`GRNGraphics::MegaLightsActive no longer reads ${cvar}`);
+
+  const gfxCode = scrub(rt["GRNGraphics.cpp"] ?? "", { keepStrings: true });
+  /** The body of a function defined in GRNGraphics.cpp, by brace matching. */
+  const bodyOf = (sig) => {
+    const m = gfxCode.match(sig);
+    if (!m) return null;
+    let depth = 0;
+    for (let j = gfxCode.indexOf("{", m.index); j < gfxCode.length; j++) {
+      if (gfxCode[j] === "{") depth++;
+      else if (gfxCode[j] === "}" && --depth === 0) return gfxCode.slice(m.index, j + 1);
+    }
+    return null;
+  };
+  const active = bodyOf(/\bbool\s+GRNGraphics::MegaLightsActive\s*\(\s*\)/);
+  if (!active) fail("GRNGraphics.cpp no longer defines GRNGraphics::MegaLightsActive()");
+  else {
+    const asks = [
+      [/"r\.MegaLights\.EnableForProject"/, "r.MegaLights.EnableForProject (the project switch)"],
+      [/"r\.MegaLights\.Allow"/, "r.MegaLights.Allow (device profile, -grnnomegalights, a rung lowered mid-session)"],
+      [/\bERHIFeatureLevel::SM6\b/, "the SM6 feature level (MegaLights has no SM5 path on desktop)"],
+      [/\bIsRayTracingEnabled\s*\(\s*\)/, "IsRayTracingEnabled() (the lamps' shadow method is ray tracing)"],
+    ];
+    // Asked AND answered: each must reach the return, directly or
+    // through a local initialised from it. A variable read and then left
+    // out of the return would pass a presence check and change nothing —
+    // which is how a gate that looks present can still never say no.
+    const ret = active.match(/\breturn\b([^;]*);/)?.[1] ?? "";
+    const locals = [...active.matchAll(/\b(\w+)\s*=\s*([^;]*);/g)].map((m) => [m[1], m[2]]);
+    const reaches = (re) => re.test(ret) ||
+      locals.some(([name, init]) => re.test(init) && new RegExp(`\\b${name}\\b`).test(ret));
+    for (const [re, what] of asks) {
+      if (!reaches(re)) fail(`GRNGraphics::MegaLightsActive no longer asks ${what}, or asks and ignores the answer`);
+    }
   }
-  if (failed === before) ok("MegaLights: lamps and headlights shadow only when it is on, every spot light Movable before it registers");
+  const follow = bodyOf(/\bbool\s+GRNGraphics::FollowMegaLights\s*\(/);
+  if (!follow) fail("GRNGraphics.cpp no longer defines GRNGraphics::FollowMegaLights()");
+  else {
+    if (!/\bMegaLightsActive\s*\(\s*\)/.test(follow)) fail("GRNGraphics::FollowMegaLights no longer asks MegaLightsActive()");
+    if (!/->SetCastShadows\s*\(/.test(follow)) fail("GRNGraphics::FollowMegaLights no longer sets the light's shadows");
+    if (!/->ComponentTags\.AddUnique\s*\(/.test(follow)) fail("GRNGraphics::FollowMegaLights no longer tags the light, so a change of answer cannot find it");
+    if (!/\bWatchMegaLights\s*\(\s*\)/.test(follow)) fail("GRNGraphics::FollowMegaLights no longer starts watching the MegaLights variables");
+  }
+  // What re-lights: the watched variables, hooked, and a walk that sets
+  // shadows on the tagged lights from the same answer.
+  const watch = bodyOf(/\bvoid\s+WatchMegaLights\s*\(\s*\)/);
+  if (!watch || !/"r\.MegaLights\.Allow"/.test(watch) || !/->OnChangedDelegate\(\)\.Add\w*\(/.test(watch)) {
+    fail("GRNGraphics.cpp: WatchMegaLights no longer hooks r.MegaLights.Allow's change — a rung lowered mid-session would leave the lamps shadowed under no MegaLights");
+  }
+  const relight = bodyOf(/\bvoid\s+RelightFollowers\s*\(/);
+  if (!relight || !/\bMegaLightsActive\s*\(\s*\)/.test(relight) || !/->SetCastShadows\s*\(/.test(relight) || !/\bComponentHasTag\s*\(/.test(relight)) {
+    fail("GRNGraphics.cpp: RelightFollowers no longer re-applies MegaLightsActive() to the tagged lights");
+  }
+  // The escape hatch: parsed where the README says, and doing what it says.
+  const readme = read("unreal/README.md");
+  if (!/^GulfRoadNights\.exe -grnnomegalights\b/m.test(readme)) fail("unreal/README.md's command-line list no longer documents -grnnomegalights");
+  if (!/FParse::Param\(\s*Cmd\s*,\s*TEXT\("grnnomegalights"\)\s*\)\s*\)\s*Run\(\s*WorldContext\s*,\s*TEXT\("r\.MegaLights\.Allow 0"\)\s*\)/.test(gfxCode)) {
+    fail("GRNGraphics.cpp: -grnnomegalights no longer sets r.MegaLights.Allow 0");
+  }
+  if (failed === before) {
+    ok("MegaLights: lamps and headlights shadow only through FollowMegaLights, which re-lights them when r.MegaLights.Allow changes; " +
+      "MegaLightsActive asks the project, Allow, SM6 and hardware RT; -grnnomegalights wired; every spot light Movable before it registers");
+  }
 }
 
 // =========================================================================

@@ -25,5 +25,11 @@ public class GulfRoadNights : ModuleRules
 			// Live data API client (GRNApi)
 			"HTTP", "Json", "JsonUtilities"
 		});
+
+		// GRNGraphics::MegaLightsActive asks the machine, not just the
+		// project: GMaxRHIFeatureLevel (RHI) for SM6, IsRayTracingEnabled
+		// (RenderCore) for hardware ray tracing. Private, because no header
+		// of this module names either, so nothing depending on it needs them.
+		PrivateDependencyModuleNames.AddRange(new string[] { "RHI", "RenderCore" });
 	}
 }

@@ -136,8 +136,9 @@ void AGRNWorldBuilder::BuildStreetLights(AGRNTrack* Track)
 	const float Spacing = GRN_M(42.f);
 	const int32 Count = FMath::FloorToInt(L / Spacing);
 
-	// Shadowed lamps, or the old unshadowed ones — decided once for the
-	// whole corniche, by whether MegaLights is drawing local lights.
+	// Shadowed lamps, or the old unshadowed ones — for the whole corniche
+	// at once, by whether MegaLights is drawing local lights, and again
+	// whenever that answer changes (GRNGraphics::FollowMegaLights).
 	//
 	// MegaLights prices a shadowed light per PIXEL, not per light: it
 	// samples a few lights at each pixel and traces their shadows, so the
@@ -145,8 +146,11 @@ void AGRNWorldBuilder::BuildStreetLights(AGRNTrack* Track)
 	// shadowed spot lights on one road is a sane thing to ask for. Without
 	// it each lamp is its own shadow map, which no frame budget survives,
 	// and the unshadowed lamps this always built are the right answer —
-	// so that is what an engine, a GPU rung or a device profile with
-	// MegaLights off still gets. See GRNGraphics::MegaLightsActive.
+	// so that is what an engine without MegaLights, a GPU without SM6 or
+	// hardware ray tracing, a device profile, -grnnomegalights, or a rung
+	// lowered mid-session still gets. Not the rung the game boots on:
+	// ApplyMax has made that Cinematic before this runs. See
+	// GRNGraphics::MegaLightsActive.
 	const bool bShadowed = GRNGraphics::MegaLightsActive();
 
 	for (int32 i = 0; i < Count; i++)
@@ -197,13 +201,13 @@ void AGRNWorldBuilder::BuildStreetLights(AGRNTrack* Track)
 		// shading parameter, so it is set whether or not the lamp casts.
 		Lamp->SetSourceRadius(GRN_M(0.06f));
 		Lamp->SetSourceLength(GRN_M(0.5f));
-		Lamp->SetCastShadows(bShadowed);
+		GRNGraphics::FollowMegaLights(Lamp);
 		Lamp->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("GRNWorldBuilder: %d street lamps every %.0f m, %s"), Count, Spacing / 100.f,
 		bShadowed ? TEXT("shadowed (MegaLights is drawing local lights)")
-		          : TEXT("unshadowed (MegaLights is off, and one shadow map per lamp is not affordable)"));
+		          : TEXT("unshadowed (MegaLights is off, or this GPU lacks SM6 or hardware ray tracing; one shadow map per lamp is not affordable)"));
 }
 
 void AGRNWorldBuilder::BuildRails(AGRNTrack* Track)

@@ -374,6 +374,7 @@ GulfRoadNights.exe -grn2k          # 2560 x 1440
 GulfRoadNights.exe -grn1080        # 1920 x 1080
 GulfRoadNights.exe -grndlss=perf   # DLSS Performance instead of Quality
 GulfRoadNights.exe -grnnonvidia    # skip the NVIDIA path entirely
+GulfRoadNights.exe -grnnomegalights  # MegaLights off; lamps and headlights unshadowed
 ```
 
 The shadow atlas and streaming pool scale with the preset rather than
@@ -448,12 +449,30 @@ the count climbs. So, in `GRNWorldBuilder::BuildStreetLights` and in the
 car factory's headlight:
 
 - **Shadows on — where MegaLights is drawing.**
-  `GRNGraphics::MegaLightsActive()` reads `r.MegaLights.EnableForProject`
-  (on, in `DefaultEngine.ini`) and `r.MegaLights.Allow` (per scalability
-  rung, `DefaultScalability.ini`: off on Low and Medium, on from High).
-  Where either says no, the lamps are built exactly as before —
-  unshadowed — so a rung, a device profile or an engine without
-  MegaLights never pays for 170 shadow maps. The log says which it built.
+  `GRNGraphics::MegaLightsActive()` needs four yeses:
+  `r.MegaLights.EnableForProject` (on, in `DefaultEngine.ini`),
+  `r.MegaLights.Allow`, an SM6 renderer (MegaLights has no SM5 path on
+  desktop) and hardware ray tracing (`IsRayTracingEnabled()`). Where any
+  says no, the lamps are built exactly as before — unshadowed — so an
+  engine without MegaLights, a GPU that cannot run it, a device profile
+  or `-grnnomegalights` never pays for 170 shadow maps. The log says
+  which it built.
+- **Not the boot rung.** `DefaultScalability.ini` says `r.MegaLights.Allow`
+  off on Low and Medium and on from High, but `ApplyMax` puts every group
+  at Cinematic — and saves it — before the world is built, so the first
+  build always reads Cinematic's yes. The first version of this switch
+  read nothing else, which made it the project switch alone: any GPU,
+  including one with no MegaLights, got ~170 lamps and ~30 headlights
+  shadowed the old way. What survives `ApplyMax` is what outranks
+  scalability (a device profile, `-grnnomegalights`, the console) and
+  the GPU itself, and those are what the switch now reads.
+- **Following the switch, not just asking once.** Every lamp and
+  headlight is made through `GRNGraphics::FollowMegaLights`, which tags
+  it and re-applies the answer whenever `r.MegaLights.Allow` or the
+  project switch changes. Without that, lowering the rung mid-session
+  (`scalability 1`) would turn MegaLights off under lights still built
+  shadowed — a shadow map each, the cost the rung was lowered to shed.
+  Now they go unshadowed with it, and come back when it is raised.
 - **A real source size.** The lamp is 12 cm across and 50 cm long, the
   emitting area of a cobra-head's refractor, and its tube lies along the
   arm as the lantern does. The headlight is 9 cm. A point source puts a
@@ -465,17 +484,25 @@ car factory's headlight:
   procedural project never builds.
 
 The lamps keep MegaLights' default shadow method (ray tracing, fixed
-cost); the virtual-shadow-map method is per-light expensive. What the
-variables cannot say is whether *this GPU* runs MegaLights — they say
-what the project asked for. The MegaLights visualisation in the editor's
-view modes is the check, and `ProfileGPU` is the cost.
+cost); the virtual-shadow-map method is per-light expensive. Hardware ray
+tracing is required on purpose: without it MegaLights falls back to
+tracing the global distance field, whose quality Epic calls significantly
+reduced, and whether 5.8 takes that fallback for every light on every
+such card could not be confirmed from here. Requiring it costs the
+shadows on a GPU that might have drawn them; not requiring it, if the
+fallback is not taken, costs a shadow map per lamp. What the switch
+still cannot see is what the renderer decides per view — a post-process
+volume turning MegaLights off, say. The MegaLights visualisation in the
+editor's view modes is the check, and `ProfileGPU` is the cost.
 
-**The road cannot be seen by MegaLights' software fallback.** It is a
+**The road cannot be seen by the software tracers.** It is a
 `UProceduralMeshComponent`, which has no mesh distance field, so on a GPU
-without hardware ray tracing the lamps' shadow rays (and Lumen's software
-path) pass straight through it. On hardware RT it is fine. Moving the
-road to `UDynamicMeshComponent`, which gained Lumen support around 5.5,
-is the fix and a separate job.
+without hardware ray tracing Lumen's software path (and MegaLights'
+distance-field fallback, for any shadowed light it draws there) passes
+straight through it. The lamps no longer take that path — without
+hardware RT they are unshadowed — but Lumen still does. On hardware RT it
+is fine. Moving the road to `UDynamicMeshComponent`, which gained Lumen
+support around 5.5, is the fix and a separate job.
 
 ## The car paint: a Substrate clear coat
 
@@ -613,7 +640,9 @@ changed, and why:
   legacy ray-traced passes were dropped in 5.4; `r.Lumen.TraceMeshSDFs`
   asked for detail traces deprecated in 5.6. Both are gone from the ini
   and from `GRNGraphics`. MegaLights and Substrate are on; mesh distance
-  fields stay on, because MegaLights' software fallback traces them.
+  fields stay on, because Lumen's software path traces them — and so
+  would MegaLights' fallback, for any shadowed light it drew without
+  hardware ray tracing. The lamps are not shadowed there any more.
 - **Two port bugs fixed on the way.** `AGRNGameMode::ApplyCar`'s no-API
   copy of `GetCar` dropped `LengthM`, so that path built the car at its
   silhouette's reference size; and the headlights and lamps were
@@ -742,7 +771,7 @@ grey.
   module includes belongs to a module its `Build.cs` depends on; the
   editor module calls nothing from the runtime module that is not inline
   (nothing there is exported, so a call would not link).
-- Every use of an engine type the check knows (48 today) has the header
+- Every use of an engine type the check knows (52 today) has the header
   that declares it, and every `.cpp`'s own header comes first.
 - No two `.cpp` files in a module keep a file-local name the other also
   keeps. A unity build pastes them into one translation unit, where two
@@ -754,8 +783,11 @@ grey.
 - The ini keys above are present, in sections that exist; the dead
   variables are gone; the always-cook list covers the paint and the hero
   art, derived from the paths in the code.
-- Lamps and headlights shadow only through `MegaLightsActive()`; every
-  spot light is Movable before it registers.
+- Lamps and headlights shadow only through `FollowMegaLights()` — no
+  other `SetCastShadows` anywhere in the runtime module — and
+  `MegaLightsActive()` reads both variables, the SM6 feature level and
+  `IsRayTracingEnabled()`; `-grnnomegalights` is parsed where this README
+  says it is; every spot light is Movable before it registers.
 - The paint's parameter names are spelled only in `GRNPaint.h`, declared
   by the graph and set by the instance; the fallback ladder is intact;
   the commandlet's run name matches what the docs and log messages quote.
@@ -777,6 +809,12 @@ grey.
 - That the Simple Clear Coat renders correctly in the Blendable format.
 - That `r.MegaLights.Allow` belongs in `ShadowQuality` — if 5.8's
   `BaseScalability.ini` sets it in a group applied later, that wins.
+- That `IConsoleVariable::OnChangedDelegate` fires for a scalability
+  change as it does for a console one (`scalability 1` then `scalability
+  4` in Play-In-Editor: the log line `GRNGraphics: MegaLights off, N
+  lamps and headlights re-lit unshadowed` and back), and that
+  `IsRayTracingEnabled()` and `GMaxRHIFeatureLevel` are still spelled so
+  in 5.8.
 - `r.MegaLights.NumSamplesPerPixel` 4 and 16: 2, 4 and 16 were the
   supported values when MegaLights shipped, and 5.8 may have moved them.
   5.8 also added `r.MegaLights.ScreenTraces.Quality`; its range is not
