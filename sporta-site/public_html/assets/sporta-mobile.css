@@ -354,3 +354,10 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-bran
   .app-header .sp-menubar__link { flex: 1 1 auto; justify-content: center; padding: 0 6px; }
   .app-header nav.sp-menubar a.sp-menubar__link { font-size: 13px !important; }
 }
+@media (max-width: 767px) {
+
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 12px;
+}
+}

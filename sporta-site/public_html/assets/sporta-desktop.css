@@ -618,3 +618,23 @@ html[data-theme] main section.sporta-home-products > h2.sporta-home-products__he
 @media (min-width: 768px) {
   .app-header .sp-menubar__link { min-height: 46px; padding: 0 20px; font-size: 15px; }
 }
+@media (min-width: 768px) {
+
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 12px;
+}
+}
+@media (min-width: 768px) {
+
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 12px;
+}
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    column-gap: 24px;
+    row-gap: 24px;
+  }
+}

@@ -102,9 +102,9 @@ try {
     check(m.border === '1px' && m.outline === 'none', `${L} a faint 1px card edge, and no outline on the photo`, `${m.border} ${m.outline}`)
     check(rgb(m.photoBg) === '255,255,255', `${L} a photographed card has a white image background`, m.photoBg)
     // more room since 2026-10-01 (the owner's "make more spacing"; it was 8-10px each way)
-    check(Math.round(m.colGap) === 12 && Math.round(m.rowGap) === 16, `${L} card spacing 12px across and 16px down on a phone`, `${m.colGap}/${m.rowGap}`)
+    check(Math.round(m.colGap) === 12 && Math.round(m.rowGap) === 12, `${L} card spacing 12px across and down on a phone (2026-10-03)`, `${m.colGap}/${m.rowGap}`)
     check(rgb(m.capBg) === '255,255,255' && m.capPad[0] >= 12 && m.capPad[1] >= 12, `${L} the caption is white, with at least 12px inside it`, `${m.capBg} ${m.capPad}`)
-    check(rgb(m.nameColour) === '194,65,12' && rgb(m.priceColour) === '194,65,12', `${L} the name and the price are the orange that reads on white (#c2410c)`, `${m.nameColour} / ${m.priceColour}`)
+    check(rgb(m.nameColour) === '23,26,30' && rgb(m.priceColour) === '194,65,12', `${L} the name is the dark ink and the price the orange that reads on white (2026-10-03)`, `${m.nameColour} / ${m.priceColour}`)
     const lum = (c) => { const v = (c.match(/[\d.]+/g) || []).slice(0, 3).map(Number); const f = /^color\(/.test(c) ? v : v.map((x) => x / 255); return f.map((x) => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4).reduce((a, x, i) => a + x * [0.2126, 0.7152, 0.0722][i], 0) }
     const ratios = m.lines.map((l) => ({ what: l.what, r: +((1.05) / (lum(l.colour) + 0.05)).toFixed(2) }))
     check(ratios.length >= 3 && ratios.every((x) => x.r >= 4.5), `${L} every line of the caption reads on its white (AA, ${ratios.length} lines measured)`, ratios.map((x) => `${x.what} ${x.r}`).join(', '))

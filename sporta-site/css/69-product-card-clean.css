@@ -1,0 +1,73 @@
+/* A CLEANER PRODUCT CARD, SAME LOOK — 2026-10-03.
+ * Asked for as "improve product grid style", with "ask before any thing". The owner chose: photo,
+ * caption, frame and grid spacing; "cleaner, keep current look"; 2 per row on a phone; the 4:5
+ * photo kept; and this plan, shown to them before any of it was written:
+ *   - the "photo coming soon" placeholder lighter and calmer
+ *   - the name in the dark ink, the price orange, the struck old price grey
+ *   - a softer 1px edge (replacing the 3.2:1 line of 2026-10-02), 14px corners, a faint shadow,
+ *     and a 2px lift on hover on a desktop
+ *   - 12px gaps on a phone, 24px from 768px
+ * One card (44-), so /shop, Best sellers, the category pages and "Complete the look" all follow.
+ * Later than 44-, 65- and sporta-dark.css's slate rules, and named as fully as each rule it moves. */
+
+main div.grid[class~="grid"][class~="grid-cols-2"] {
+  column-gap: 12px;
+  row-gap: 12px;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    column-gap: 24px;
+    row-gap: 24px;
+  }
+}
+
+/* --- the frame ----------------------------------------------------------- */
+main:not(.admin-content) div.grid[class~="grid"][class~="grid-cols-2"] > article {
+  border: 1px solid #e3e6ea;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 14px rgba(16, 24, 40, .06);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+@media (hover: hover) and (min-width: 768px) {
+  main:not(.admin-content) div.grid[class~="grid"][class~="grid-cols-2"] > article:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(16, 24, 40, .06), 0 10px 24px rgba(16, 24, 40, .10);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  main:not(.admin-content) div.grid[class~="grid"][class~="grid-cols-2"] > article {
+    transition: none;
+  }
+  main:not(.admin-content) div.grid[class~="grid"][class~="grid-cols-2"] > article:hover {
+    transform: none;
+  }
+}
+
+/* --- the placeholder: light and calm -------------------------------------
+ * "Photo coming soon" is the bundle's own data: picture, a dark panel with the logo. Inverting it
+ * and turning the hue back round gives a light grey panel with the logo still orange, without a
+ * second copy of the picture. The card behind it is light too, and the heart on it goes dark. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] {
+  background: #f1f3f5;
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > img[src^="data:"] {
+  filter: invert(1) hue-rotate(180deg) brightness(1.02) contrast(.9);
+}
+[data-theme] main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > img[src^="data:"] ~ button[aria-pressed] > svg {
+  color: #171a1e;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, .9));
+}
+
+/* --- the caption -------------------------------------------------------- */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
+  color: #171a1e !important;   /* the one dark ink, 17:1 on the white caption */
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .price-card :is(s, del, [class*="line-through"]) {
+  color: #6b7280 !important;   /* grey, 4.8:1 on white */
+}
+
+/* The + sat 3px above the price row's centre (measured 439.7 against 442.5 at 390px); 3px lower
+   lines the two up. Its 44px tap area still ends inside the card. */
+[data-theme] main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > button:not([aria-pressed]) {
+  bottom: 1px !important;
+}

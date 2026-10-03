@@ -4226,3 +4226,7 @@ All 165 `test:*` suites run in the sandbox plus the four live checks. **Live: cl
 ## Sporta features: no models, the rows inside the orange band — 2026-10-03
 
 "remove the models man and woman then put the text inside", asked first: the owner chose the orange band only, the rows inside it, white text. `features.webp` is now a 1600x600 band with no people (`make-features-image.py`, band covering x 0.225W–0.935W at every height) and is the PANEL's `background: … center/cover`, so a phone's crop lands on orange. The text is 19–20px bold, because white on the brand orange is 3.7:1 and passes AA only as large text. `test:menu-bar` samples the screenshot 4px outside each row at 360 and 1280 in both languages and requires orange there.
+
+## A cleaner product card, same look — 2026-10-03
+
+"improve product grid style", asked first; the owner approved a written plan (`css/69-product-card-clean.css`): the 4:5 photo kept; the "photo coming soon" placeholder made light (the bundle's dark data: picture inverted and hue-turned back, so the logo stays orange) with a dark heart on it; the name in the dark ink `#171a1e`, the price orange, the struck old price grey `#6b7280`; a soft `#e3e6ea` edge (replacing the 3.2:1 line of 2026-10-02), 14px corners, a faint shadow and a 2px hover lift on desktops (none under reduced motion); gaps 12px on a phone and 24px from 768px; the + lowered 3px to centre on the price row. `test:product-grid-spec` now expects the dark name and 12px row gaps.
