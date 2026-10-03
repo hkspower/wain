@@ -6,10 +6,12 @@
 // WHERE THE NUMBERS COME FROM
 //
 // The web build, which measured them. src/game/cars.ts builds the paint
-// as a basecoat at roughness 0.18 under a clearcoat, and sweeps of that
-// pair against live frames are recorded beside it (0.29/0.13 put 68% of
-// the body inside the highlight; 0.18/0.06 put 17% there and is the
-// knee). src/game/mods.ts carries the three finishes; cars.ts's
+// as a basecoat at roughness 0.24 (PAINT_BASE_ROUGHNESS) under a
+// clearcoat at 0.045, and sweeps of that pair against live frames are
+// recorded beside it (0.29/0.13 put 68% of the body inside the
+// highlight; 0.18/0.06 put 17% there and was the knee until the street
+// lamps lit the cars and the web's gloss pass moved both). src/game/
+// mods.ts carries the three finishes; cars.ts's
 // paintMetalness carries the metalness law. Every value below is one of
 // those, and scripts/check-unreal-project.mjs reads the TypeScript and
 // fails if any of them moves without this file moving with it.
@@ -49,7 +51,7 @@ namespace GRNPaintLaw
 {
 	/** Basecoat roughness before a finish adds to it. cars.ts:
 	 *  `roughness: 0.18 + FINISHES[finish].roughnessAdd`. */
-	constexpr float BaseRoughness = 0.18f;
+	constexpr float BaseRoughness = 0.24f;
 
 	/** Dielectric specular in the metalness workflow: 0.5 is F0 0.04,
 	 *  the 1.5-IOR plastic three.js's MeshPhysicalMaterial also assumes.
@@ -71,13 +73,15 @@ namespace GRNPaintLaw
 		float MetalScale;
 	};
 
-	/** mods.ts FINISHES, indexed by EGRNFinish. Gloss's clear coat at
-	 *  0.06 is the swept knee: at 0.13 it blurred the lamp it reflected
-	 *  into a smudge; at 0.03 a flawless coat reads as a neon strip. */
+	/** mods.ts FINISHES, indexed by EGRNFinish. Gloss's clear coat is
+	 *  0.045: at 0.13 it blurred the lamp it reflected into a smudge, and
+	 *  0.06 was the old knee, set while three's fixed 0.0525 floor hid
+	 *  anything below it (the web now lowers that floor where the probe
+	 *  can serve a sharper mip; Unreal has no such floor). */
 	constexpr FFinishSpec Finishes[3] = {
-		/* Gloss */ { 1.0f, 0.06f, 0.0f, 1.0f },
-		/* Satin */ { 0.45f, 0.42f, 0.16f, 0.8f },
-		/* Matte */ { 0.0f, 1.0f, 0.38f, 0.25f },
+		/* Gloss */ { 1.0f, 0.045f, 0.0f, 1.0f },
+		/* Satin */ { 0.45f, 0.42f, 0.10f, 0.8f },
+		/* Matte */ { 0.0f, 1.0f, 0.32f, 0.25f },
 	};
 
 	inline const FFinishSpec& Finish(EGRNFinish F)
@@ -108,8 +112,14 @@ namespace GRNPaintLaw
 	constexpr double LightKnee = 0.5;
 	/** How fast it falls past LightKnee, per unit of luminance. */
 	constexpr double LightSlope = 1.9;
-	/** The mid-tone metalness — the value the web's gloss was measured at. */
-	constexpr double Peak = 0.95;
+	/** Where the pale ramp starts from at LightKnee — the old 0.95 peak,
+	 *  kept so pale paints above luminance 0.605 are exactly what they were;
+	 *  the ramp is capped at Peak below that. */
+	constexpr double LightStart = 0.95;
+	/** The mid-tone metalness: 0.75 (cars.ts PAINT_METAL_TOP), down from
+	 *  0.95 once the web's street lamps started lighting cars and a
+	 *  quarter of diffuse kept reds red on panels that mirror the sky. */
+	constexpr double Peak = 0.75;
 	/** The least metal either end comes down to. */
 	constexpr double Floor = 0.18;
 	/** Below this luminance the paint ramps from Peak down to Floor.
@@ -180,7 +190,8 @@ namespace GRNPaintLaw
 		const double Lum = LumR * R + LumG * G + LumB * B;
 		if (Lum >= LightKnee)
 		{
-			const double V = Peak - (Lum - LightKnee) * LightSlope;
+			double V = LightStart - (Lum - LightKnee) * LightSlope;
+			if (V > Peak) V = Peak;
 			return V > Floor ? V : Floor;
 		}
 		if (Lum >= DarkKnee) return Peak;

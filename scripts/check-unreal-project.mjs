@@ -837,8 +837,10 @@ const FINISH_ORDER = ["gloss", "satin", "matte"];
       if (!(Math.abs(cpp[f][i] - web[f]?.[i]) < 1e-9)) fail(`finish ${f} ${n}: GRNPaintLaw.h ${cpp[f][i]} vs mods.ts ${web[f]?.[i]}`);
     });
   }
-  // Base roughness. cars.ts: `roughness: 0.18 + FINISHES[...].roughnessAdd`
-  const webBase = +carsTs.match(/roughness: ([\d.]+) \+ FINISHES\[/)?.[1];
+  // Base roughness. cars.ts: `roughness: PAINT_BASE_ROUGHNESS + F.roughnessAdd`,
+  // with the constant declared beside the law (it was a literal 0.18).
+  const webBase = +(carsTs.match(/export const PAINT_BASE_ROUGHNESS = ([\d.]+);/)?.[1] ??
+    carsTs.match(/roughness: ([\d.]+) \+ FINISHES\[/)?.[1]);
   const cppBase = +law.match(/BaseRoughness = ([\d.]+)f;/)?.[1];
   if (!(Math.abs(webBase - cppBase) < 1e-9)) fail(`base roughness: GRNPaintLaw.h ${cppBase} vs cars.ts ${webBase}`);
 
@@ -904,7 +906,12 @@ const FINISH_ORDER = ["gloss", "satin", "matte"];
   const body = carsTs.match(/export function paintMetalness\(hex: number\): number \{\n([\s\S]*?)\n\}\n/)?.[1];
   let webMetal = null;
   if (!body) fail("cars.ts no longer has `export function paintMetalness(hex: number): number` for this check to run");
-  else webMetal = new Function("PAINTS", "currentPaintHex", "hex", body).bind(null, PAINTS, currentPaintHex);
+  else {
+    // The law reads PAINT_METAL_TOP, declared beside it in cars.ts.
+    const top = +carsTs.match(/export const PAINT_METAL_TOP = ([\d.]+);/)?.[1];
+    if (!(top > 0)) fail("cars.ts no longer declares `export const PAINT_METAL_TOP = <n>;`, which paintMetalness reads");
+    webMetal = new Function("PAINTS", "currentPaintHex", "PAINT_METAL_TOP", "hex", body).bind(null, PAINTS, currentPaintHex, top);
+  }
 
   // The colours to compare on: the wall, the retired swatches, the
   // showroom, the rivals, every grey, and a fixed pseudo-random spread.
