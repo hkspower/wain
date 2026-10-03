@@ -40,7 +40,17 @@ const cleanCerts = () => { for (const f of ['pass.pem', 'pass.key', 'wwdr.pem'])
 // The stand-in certificate exists from here on; anything that fails before the main try (a stopped
 // database, say) must still take it away, or the next run refuses to start.
 let orderId, track, phone
-try { [orderId, track, phone] = sql("select id, track_id, customer_phone from orders where payment_status = 'paid' and customer_phone <> '' order by id limit 1").split('\t') }
+// A fresh sandbox has no paid order, and this rig used to pass only when another rig had left one. It
+// plants its own (track SPWALLETRIG) when there is none, and deletes exactly that row at the end.
+const OWN_TRACK = 'SPWALLETRIG'
+let plantedOrder = false
+try {
+  if (sql("select count(*) from orders where payment_status = 'paid' and customer_phone <> ''") === '0') {
+    sql(`insert into orders (track_id, amount, payment_status, payment_method, fulfilment_status, customer_name, customer_phone, paid_at, created_at) values ('${OWN_TRACK}', 12.5, 'paid', 'knet', 'unfulfilled', 'Wallet Rig', '96555519876', now(), now())`)
+    plantedOrder = true
+  }
+  ;[orderId, track, phone] = sql("select id, track_id, customer_phone from orders where payment_status = 'paid' and customer_phone <> '' order by id limit 1").split('\t')
+}
 catch (e) { cleanCerts(); console.error('sandbox database unreachable — run bash scripts/sandbox.sh'); process.exit(1) }
 sql(`delete r from wallet_registrations r join wallet_passes p on p.serial = r.serial where p.phone = '${phone}'`)
 sql(`delete from wallet_passes where phone = '${phone}'`)
@@ -127,6 +137,7 @@ try {
 } finally {
   sql(`delete r from wallet_registrations r join wallet_passes p on p.serial = r.serial where p.phone = '${phone}'`)
   sql(`delete from wallet_passes where phone = '${phone}'`)
+  if (plantedOrder) sql(`delete from orders where track_id = '${OWN_TRACK}'`)
   cleanCerts()
   rmSync(work, { recursive: true, force: true })
 }
