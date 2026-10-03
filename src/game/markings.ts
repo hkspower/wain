@@ -195,8 +195,31 @@ export const MARKINGS = deepFreeze({
    * 512 x 256 canvas carries 118 px glyphs, so a 6.0 m plane lays them
    * 2.77 m along travel — inside the UK TSM 2.8 m elongated legend for
    * roads above 40 mph — and 2.4 m across keeps it inside one lane.
+   *
+   * `back` is how far before the plaza's centre each pair sits. It was
+   * [75, 130], the two distances the old single plate used, set before
+   * there was a junction model to check them against. 75 put the near
+   * pair at s 473-479 — inside junction 4's box (428.63, 478.28], 14 m
+   * PAST its stop line (downstream face 458.93), under the signal heads
+   * at 471.78 and across the cross street itself (466.78-476.78), on
+   * asphalt where the lane lines are hidden because no lane continues
+   * through a junction. A driver read the arrows, the stop line, and then
+   * the circle's name painted in the middle of the intersection. The
+   * legend is lane paint, and lane paint stops at the box for the reason
+   * `box` gives (MUTCD §3B.08): it sits in a lane, on an approach, ahead
+   * of any junction it is not about.
+   *
+   * The clear stretch is between junction 3's mouth (353.83 + 6 = 359.83;
+   * 3 is unsignalised) and junction 4's solid approach (428.63): 68.8 m.
+   * 140 and 175 put the plates at 408-414 and 373-379 — 14.63 m short of
+   * the approach, 13.17 m past junction 3's mouth, near the middle of the
+   * stretch, the far pair 2 m before the advance board at plaza - 170.
+   * Keeping the old 55 m between them would need 61 m of the 68.8 and
+   * leave 3.9 m at each end; 35 m (1.3 s at 100 km/h) is a CHOICE, made
+   * for the clearances. tests/markings.mjs §16 holds every plate clear of
+   * every junction box, every street mouth and the swell, end to end.
    */
-  legend: { width: 2.4, length: 6.0, glyphPx: 118, canvasPx: 256, back: [75, 130], lanes: [2, 3], y: 0.05 },
+  legend: { width: 2.4, length: 6.0, glyphPx: 118, canvasPx: 256, back: [140, 175], lanes: [2, 3], y: 0.05 },
   /** The junction model's tolerances. */
   junction: { swellBack: 45, swellAhead: 10, swellTol: 0.05, signalEvery: 2, tunnelMarginU: 0.01 },
 });
@@ -685,6 +708,13 @@ export function streetCentreLine(
  * side, at both approach distances. It was one 4.6 m plate on lat 0,
  * straddling the lane line between two lanes. world.ts builds these
  * (the texture is a canvas, which this module does not touch).
+ *
+ * Laid from MARKINGS.legend.back alone, not shifted against junctions()
+ * at run time: a plate nudged out of a box by code lands wherever the
+ * nudge leaves it, and nobody chose that place. The distances are chosen
+ * in the spec, with the stretch they sit in written beside them, and the
+ * test fails if a change to the street grid or the signals walks a
+ * junction under one.
  */
 export function legendLayout(): Mark[] {
   const out: Mark[] = [];

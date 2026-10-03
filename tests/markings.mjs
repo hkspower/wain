@@ -769,22 +769,72 @@ const bbox = (geo) => { geo.computeBoundingBox(); const b = geo.boundingBox; ret
     `on the edge line's centre every ${MARKINGS.stud.spacing} m, emissive ${MARKINGS.stud.emissive}; matrices within ${(cc.worstPos * 1000).toFixed(2)} mm`);
 }
 
-// --- 16. The plaza legend: in a lane, and long ---------------------------
+// --- 16. The plaza legend: in a lane, long, and not in a junction --------
+// Centred in its lane and clear of the lines was all this used to ask, and
+// the near pair passed it from inside junction 4: s 473-479, past the stop
+// line (458.93), under the heads (471.78), across the cross street, where
+// the lane lines are hidden. So every plate is now walked end to end
+// against every junction: a signalised one's whole box (the solid
+// approach, arrows, stop line and the junction itself, which is where the
+// lane lines stop), and any cross street's mouth — its half plus the
+// metre the street paint keeps clear (§14) — signalised or not.
 {
   let worst = 0, clear = Infinity;
+  const mouth = STREETS.half + MARKINGS.street.mouth;
+  // What a plate laid over highway s [a, b] sits in, by name; empty if
+  // nothing. deltaAhead so the seam is not a blind spot.
+  const conflicts = (a, b) => {
+    const out = [];
+    for (const j of J) {
+      const lo = track.deltaAhead(j.s, a), hi = lo + (b - a);
+      if (j.signalised) {
+        const [f, t] = boxSpan(j);
+        if (hi > f - j.s && lo < t - j.s) out.push(`junction ${j.i}'s box (${f.toFixed(2)}, ${t.toFixed(2)}]`);
+      }
+      if (hi > -mouth && lo < mouth) out.push(`junction ${j.i}'s mouth ${(j.s - mouth).toFixed(2)}-${(j.s + mouth).toFixed(2)}`);
+    }
+    return out;
+  };
+  // Nearest thing either side, for the record and for a margin.
+  let near = Infinity;
+  const hit = [];
   for (const m of layout.legend) {
     const k = LANES.findIndex((l) => Math.abs(l - m.lat) < 0.5);
     worst = Math.max(worst, k < 0 ? Infinity : Math.abs(m.lat - LANES[k]));
     for (const line of laneLineLats()) clear = Math.min(clear, Math.abs(Math.abs(m.lat - line) - m.w / 2));
-    check(Math.abs(hw(m.s) - 7) < 1e-9, `a legend at s ${m.s} is on swollen tarmac`);
+    const a = m.s - m.l / 2, b = m.s + m.l / 2;
+    // Every half metre of the plate on 7 m tarmac, not just its centre.
+    let swollen = 0;
+    for (let s = a; s <= b + 1e-9; s += 0.5) if (Math.abs(hw(s) - 7) > 1e-9) swollen++;
+    check(swollen === 0, `a legend at s ${a}-${b} is on swollen tarmac at ${swollen} samples`);
+    const c = conflicts(a, b);
+    check(c.length === 0, `the legend at s ${a}-${b} lat ${m.lat} sits in ${c.join(" and ")}`);
+    if (c.length) hit.push(m);
+    for (const j of J) {
+      const ends = [j.s - mouth, j.s + mouth];
+      if (j.signalised) ends.push(...boxSpan(j));
+      for (const e of ends) {
+        const d = track.deltaAhead(e, a) >= 0 ? track.deltaAhead(e, a) : track.deltaAhead(b, e);
+        if (d >= 0) near = Math.min(near, d);
+      }
+    }
+    check(track.deltaAhead(DRIFT_PLAZA.s, m.s) < 0, `a legend at s ${m.s} is past the plaza it names`);
   }
+  // Sanity: the check sees the placement it was written for. The old
+  // near pair at plaza - 75 is inside junction 4's box and the street.
+  const old = conflicts(DRIFT_PLAZA.s - 75 - 3, DRIFT_PLAZA.s - 75 + 3);
+  check(old.some((x) => x.startsWith("junction 4's box")) && old.some((x) => x.startsWith("junction 4's mouth")),
+    `sanity: plaza - 75 should be inside junction 4's box and mouth, got ${old.join(", ") || "nothing"}`);
   const along = (MARKINGS.legend.length * MARKINGS.legend.glyphPx) / MARKINGS.legend.canvasPx;
   check(layout.legend.length === 4, `${layout.legend.length} legends, expected 4`);
   check(worst <= 0.05, `a legend is ${worst.toFixed(3)} m off its lane centre`);
   check(MARKINGS.legend.width <= 2.5, `the legend is ${MARKINGS.legend.width} m wide`);
   check(along >= 1.6, `the legend's glyphs are ${along.toFixed(2)} m along travel`);
   check(clear >= 0.3, `a legend comes within ${clear.toFixed(2)} m of a lane line`);
-  console.log(`\nlegend ${layout.legend.length} x ${MARKINGS.legend.width} m wide, glyphs ${along.toFixed(2)} m along travel (were 1.06), in lanes ${MARKINGS.legend.lanes.join(" and ")} (${clear.toFixed(2)} m clear of the lines)`);
+  check(hit.length > 0 || near >= 5, `a legend is ${near.toFixed(2)} m from a junction box or mouth (want 5)`);
+  const at = [...new Set(layout.legend.map((m) => `${m.s - m.l / 2}-${m.s + m.l / 2}`))].join(" and ");
+  console.log(`\nlegend ${layout.legend.length} x ${MARKINGS.legend.width} m wide, glyphs ${along.toFixed(2)} m along travel (were 1.06), in lanes ${MARKINGS.legend.lanes.join(" and ")} (${clear.toFixed(2)} m clear of the lines); ` +
+    `at s ${at}, ${near.toFixed(2)} m clear of every junction box and street mouth (plaza - 75 was inside junction 4: ${old.join(", ")})`);
 }
 
 // --- 17. The asphalt's own geometry --------------------------------------

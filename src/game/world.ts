@@ -7246,6 +7246,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // inside one lane and is drawn long: 2.4 m across, the plate 6.0 m
     // along, so the glyphs are 2.77 m, the UK TSM's elongated height for
     // roads above 40 mph. One texture and one material for all four.
+    // Both pairs sit before junction 4's approach (MARKINGS.legend.back):
+    // the near pair used to land inside that junction, past its stop line.
     {
       const spec = MARKINGS.legend;
       const legendMat = new THREE.MeshStandardMaterial({
