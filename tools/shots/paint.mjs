@@ -22,6 +22,28 @@
 //            black room.
 //   tight    fraction above half the highlight. A glossy surface puts
 //            its highlight in a small area; a matte one smears it.
+//   clip     fraction of body pixels at 250 or above — what a hotter
+//            lacquer spends of tests/grade.mjs's 1.4% clipping guard.
+//   grain    mean luma gradient inside the panels (the "detail" the 4K
+//            panel stats report). Whether the reflection has an image
+//            in it or is a smooth smear.
+//   crisp    the same gradient over the brightest 5% of panel pixels:
+//            how sharp the reflection is where there is one.
+//   hue      circular mean hue of the body, its error against the
+//            paint's own hue, and the median saturation. A red that
+//            mirrors a blue sky through a near-pure metal basecoat comes
+//            back purple; this is the number that says so.
+//
+// LEVERS (env):
+//
+//   FINISH=gloss|satin|matte|as-is   BODY=#c1272d
+//   TIER=high      the quality tier; balanced or battery measure the
+//                  BAKED reflection path (no live probe), which is what
+//                  most of those players and the menu draw
+//   VIEW=chase     the game's own camera; VIEW=flank stands 4 m off the
+//                  shell's +x side, 1 m up, where the flank mirrors the
+//                  lamps and the city rather than sky (flank2: -x side)
+//   SPOT=lamps|dark   PAINT="r,m,cc; ..."   PROBE="256;512"
 
 import { chromium } from "playwright-core";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -64,15 +86,13 @@ await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 await page.waitForTimeout(4500);
-if (process.env.MAP_SCALE) {
-  const v = Number(process.env.MAP_SCALE);
-  await page.evaluate((x) => { window.__mapScale = x; }, v);
-  console.log(`(normal scale forced to ${v})`);
-}
-if (process.env.REPEAT) {
-  const v = Number(process.env.REPEAT);
-  await page.evaluate((x) => { window.__repeat = x; }, v);
-  console.log(`(flake repeat forced to ${v})`);
+// MAP_SCALE, REPEAT, PAINT_NOMAPS and PEEL are gone. Each poked a normal
+// map on the paint — the flake's, or the clearcoat's orange peel — and
+// both maps were removed from cars.ts (see the note above chromeMat), so
+// every one of those levers had been setting properties on nothing and
+// printing the result as a measurement.
+for (const dead of ["MAP_SCALE", "REPEAT", "PAINT_NOMAPS", "PEEL"]) {
+  if (process.env[dead]) { console.error(`${dead}: the paint has no normal maps any more — nothing to set`); process.exit(2); }
 }
 if (process.env.PROBE_RED) {
   await page.evaluate(() => { window.__probeRed = true; });
@@ -100,10 +120,25 @@ if (FINISH !== "as-is") {
   await page.evaluate(([f, hex]) => { window.__finish = f; window.__body = hex; }, [FINISH, BODY]);
   console.log(`(measuring the ${FINISH} finish on ${BODY} — FINISH=as-is for the car as it ships)`);
 }
-if (process.env.PAINT_NOMAPS) {
-  await page.evaluate(() => { window.__noMaps = true; });
-  console.log("(flake and orange peel off)");
+// The tier. High has always been the default and stays it; anything below
+// High has no live probe, so TIER=balanced is how the baked path — and
+// with it the gains three used to drop there — gets measured at all.
+const TIER = process.env.TIER ?? "high";
+if (!["ultra", "high", "balanced", "battery"].includes(TIER)) {
+  console.error(`TIER=${TIER}: ultra, high, balanced or battery`);
+  process.exit(2);
 }
+// Where the camera stands. The chase camera sees the rear deck and the
+// roof, which face the sky, so it measures a paint mirroring a smooth
+// dome: doubling the lamps inside the probe moved nothing from there. A
+// flank stood off broadside mirrors the lamps and the city, which is
+// where a highlight's shape and a reflected image actually live.
+const VIEW = process.env.VIEW ?? "chase";
+if (!["chase", "flank", "flank2"].includes(VIEW)) {
+  console.error(`VIEW=${VIEW}: chase, flank or flank2`);
+  process.exit(2);
+}
+console.log(`(tier ${TIER}, ${VIEW} view)`);
 
 mkdirSync("press/paint", { recursive: true });
 
@@ -127,22 +162,11 @@ if (!SPOTS.length) { console.error(`no spot named ${process.env.SPOT}`); process
 // run of the game.
 const SCAN = (process.env.PAINT || "").split(";").map((t) => t.trim()).filter(Boolean);
 const SETTINGS = SCAN.length ? SCAN.map((t) => t.split(",").map(Number)) : [null];
-// The orange peel, on the same axis and through the same segmentation.
-//
-// A first sweep of the peel was taken with a FULL-FRAME grain reading and
-// it said the peel made the car LESS grainy, which is not a thing a
-// normal map can do. The number was right and the subject was wrong: most
-// of the frame is road and sky, the peel moves neither, and a peel that
-// darkens a few body pixels drags the whole-frame mean down. Whatever the
-// peel does, it does it on bodywork, so it has to be read on the pixels
-// this tool already segments out.
-//
-//   PEEL="off; 11,0.35; 6,0.35; 3,0.35" node tools/shots/paint.mjs
-//
-// Each entry is `repeat,scale` — tiles per world metre against the
-// material's normal scale — or `off` for no clearcoat normal at all.
-const PEELS = (process.env.PEEL || "").split(";").map((t) => t.trim()).filter(Boolean);
-const PEELSET = PEELS.length ? PEELS : [null];
+// (The PEEL lever that lived here swept the clearcoat normal map's repeat
+// and scale. The map is gone — see the note above chromeMat in cars.ts —
+// and the lever had been measuring nothing since. One lesson from it
+// still stands for any surface texture: read it on the segmented body
+// pixels, never full frame, where road and sky drown it.)
 // The reflection probe's face size, on the same axis. What the clearcoat
 // reflects is a cube rendered from the car, and the size of that cube is
 // a ceiling on how sharp the reflection can be whatever the lacquer's
@@ -155,24 +179,36 @@ const PROBES = (process.env.PROBE || "").split(";").map((t) => t.trim()).filter(
 const PROBESET = PROBES.length ? PROBES : [null];
 for (const [where, m] of SPOTS) {
  for (const set of SETTINGS) {
-  for (const peel of PEELSET) {
   for (const probe of PROBESET) {
-  const r = await page.evaluate(async ([m, set, peel, probe]) => {
+  const r = await page.evaluate(async ([m, set, probe, tier, view]) => {
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
     e.setPaused(true);
     if (window.__finish) {
-      // The same arithmetic cars.ts does, against the same table, so
-      // this measures the finish the game would build rather than an
-      // approximation of it.
+      // The game's own numbers, from the function createCar builds with
+      // (cars.ts paintParams), so this measures the finish the game
+      // would build rather than an approximation of it.
+      //
+      // It used to do the arithmetic itself. The basecoat roughness was a
+      // typed copy of 0.18, which the move to 0.24 would have left behind.
+      // And the metalness was __grnPaintMetalness(window.__body) — the CSS
+      // string "#c1272d", which the curve's bit maths read as luminance 0
+      // and answered 0.18 for, where the game built 0xc1272d at 0.95
+      // (0.75 now: cars.ts PAINT_METAL_TOP). So from a17dec76
+      // (Sep 5) until this, every "gloss #c1272d" figure — the peel
+      // table, the 128/256/512 probe table, the lamp-gain note — was
+      // taken on a paint at metalness 0.18 that no car wears. The hooks
+      // now throw on anything but a number.
       const bm = e.carBody.userData.bodyMat;
       const F = window.__grnFinishes[window.__finish];
-      bm.color.set(window.__body);
-      bm.roughness = 0.18 + F.roughnessAdd;
-      bm.metalness = window.__grnPaintMetalness(window.__body) * F.metalScale;
-      bm.clearcoat = F.clearcoat;
-      bm.clearcoatRoughness = F.clearcoatRoughness;
-      bm.envMapIntensity = 1.5 * F.envScale;
+      const hex = parseInt(window.__body.replace("#", ""), 16);
+      const P = window.__grnPaintParams(hex, window.__finish);
+      bm.color.setHex(hex);
+      bm.roughness = P.roughness;
+      bm.metalness = P.metalness;
+      bm.clearcoat = P.clearcoat;
+      bm.clearcoatRoughness = P.clearcoatRoughness;
+      bm.envMapIntensity = P.envMapIntensity;
       // And the scale the ENGINE reads. dressReflections sets the paint's
       // gain from the car's own userData.envScale whenever it re-dresses
       // the car — which applyQualityTier below does — so a finish poked
@@ -189,47 +225,12 @@ for (const [where, m] of SPOTS) {
       bm.clearcoatRoughness = set[2];
       bm.needsUpdate = true;
     }
-    if (peel) {
-      const bm = e.carBody.userData.bodyMat;
-      // Stash the map the game built before the first `off` throws it
-      // away, or the rest of the sweep measures a car with no lacquer
-      // texture and reports it as every setting.
-      window.__peelTex ??= bm.clearcoatNormalMap;
-      if (peel === "off") {
-        bm.clearcoatNormalMap = null;
-      } else {
-        const [rep, sc] = peel.split(",").map(Number);
-        bm.clearcoatNormalMap = window.__peelTex;
-        // The texture is shared by every car, so this is a global poke —
-        // which is what we want: one map, measured at several sizes.
-        bm.clearcoatNormalMap.repeat.set(rep, rep);
-        bm.clearcoatNormalScale.set(sc, sc);
-      }
-      bm.needsUpdate = true;
-    }
-    if (window.__mapScale !== undefined) {
-      const bm = e.carBody.userData.bodyMat;
-      bm.normalScale.set(window.__mapScale, window.__mapScale);
-      bm.clearcoatNormalScale.set(window.__mapScale, window.__mapScale);
-      bm.needsUpdate = true;
-    }
-    if (window.__repeat !== undefined) {
-      const bm = e.carBody.userData.bodyMat;
-      if (bm.normalMap) bm.normalMap.repeat.set(window.__repeat, window.__repeat);
-      bm.needsUpdate = true;
-    }
     if (window.__probeRed) {
       const bm = e.carBody.userData.bodyMat;
       bm.color.setHex(0xff0000);
       bm.needsUpdate = true;
     }
-    if (window.__noMaps) {
-      const bm = e.carBody.userData.bodyMat;
-      bm.normalMap = null;
-      bm.clearcoatNormalMap = null;
-      bm.needsUpdate = true;
-    }
-    e.applyQualityTier("high");
+    e.applyQualityTier(tier);
     if (probe) e.setProbeResolution(probe);
     e.timeReal = false; e.timeCycling = false; e.timeHours = 2.5;
     e.world.setTimeOfDay(2.5);
@@ -248,6 +249,29 @@ for (const [where, m] of SPOTS) {
       for (let i = 0; i < 30; i++) { e.update(1 / 60); park(); }
       for (let i = 0; i < 4; i++) e.composer.render();
     }
+    // VIEW=flank: 4 m off the shell's side, 1 m up, looking at the door.
+    // Placed after the last update, which is what sets the chase camera,
+    // and put back below; the shell's own axes, so it never has to know
+    // which way the road runs at this spot (as tools/shots/ik4k.mjs).
+    const cam = e.camera;
+    const fovWas = cam.fov;
+    if (view !== "chase") {
+      const body = e.carBody;
+      body.updateWorldMatrix(true, true);
+      const pos = new THREE.Vector3().setFromMatrixPosition(body.matrixWorld);
+      const side = new THREE.Vector3().setFromMatrixColumn(body.matrixWorld, 0).setY(0).normalize();
+      if (view === "flank2") side.negate();
+      cam.position.copy(pos).addScaledVector(side, 4);
+      cam.position.y = pos.y + 1.0;
+      cam.lookAt(pos.x, pos.y + 0.55, pos.z);
+      // 46 degrees vertical is about 72 across at 1100x640: the whole
+      // shell, nose to tail, from 4 m.
+      cam.fov = 46;
+      cam.updateProjectionMatrix();
+      cam.updateMatrixWorld(true);
+      // The lamp shafts and pool fade by where they are seen from.
+      e.updateBeamVisibility?.();
+    }
     // FILL THE PROBE. The paint reflects a cube rendered from the car,
     // and that cube is only ever rendered by the live frame loop — which
     // this tool pauses before it does anything. Worse, applyQualityTier
@@ -257,8 +281,13 @@ for (const [where, m] of SPOTS) {
     // the direct lamps alone, and the "env" it printed was a gain on
     // nothing. Six faces, one per call, exactly as the loop does it, from
     // where the car is now parked; the PMREM convolution the sixth face
-    // requests is consumed by the renders that follow.
-    for (let i = 0; i < 6; i++) e.renderProbe();
+    // requests is consumed by the renders that follow. From face 0, so
+    // the whole cube is from this spot. Not at all below High: there is
+    // no live probe there, and the paint reads the baked environment.
+    if (e.liveReflections) {
+      while (e.probeFace !== 0) e.renderProbe();
+      for (let i = 0; i < 6; i++) e.renderProbe();
+    }
     for (let i = 0; i < 4; i++) e.composer.render();
 
     const W = e.renderer.domElement.clientWidth || 1100;
@@ -339,42 +368,103 @@ for (const [where, m] of SPOTS) {
     // would otherwise be a smooth ramp — so this is the number that says
     // whether they are doing anything at all.
     let gN = 0, gSum = 0;
+    // Kept per pixel for `crisp` below.
+    const grad = new Float32Array(W * H).fill(-1);
     for (let y = 1; y < H - 1; y++) {
       for (let x = 1; x < W - 1; x++) {
         const p = y * W + x;
         if (!isBody(p) || !isBody(p - 1) || !isBody(p + 1) || !isBody(p - W) || !isBody(p + W)) continue;
-        gSum += (Math.abs(full[p + 1] - full[p - 1]) + Math.abs(full[p + W] - full[p - W])) / 2;
+        const g = (Math.abs(full[p + 1] - full[p - 1]) + Math.abs(full[p + W] - full[p - W])) / 2;
+        grad[p] = g;
+        gSum += g;
         gN++;
       }
     }
-    for (let p = 0; p < W * H; p++) if (isBody(p)) lum.push(full[p]);
+    // Hue and saturation over the whole body. The hue is a CIRCULAR mean
+    // — a red sits across 0/360, where a median or a plain average lands
+    // on cyan — over every pixel with any chroma at all; the same
+    // definition the scratch sweep behind the 0.95 -> 0.75 change used,
+    // so its 316 and 333 are comparable with what this prints.
+    let hx = 0, hy = 0;
+    const sats = [];
+    for (let p = 0; p < W * H; p++) {
+      if (!isBody(p)) continue;
+      lum.push(full[p]);
+      const i = p * 4;
+      const rr = beauty[i], gg = beauty[i + 1], bb = beauty[i + 2];
+      const mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb), d = mx - mn;
+      sats.push(mx ? d / mx : 0);
+      if (d > 0) {
+        let h = mx === rr ? ((gg - bb) / d) % 6 : mx === gg ? (bb - rr) / d + 2 : (rr - gg) / d + 4;
+        h *= Math.PI / 3;
+        hx += Math.cos(h);
+        hy += Math.sin(h);
+      }
+    }
     lum.sort((a, b) => a - b);
+    sats.sort((a, b) => a - b);
     const at = (q) => (lum.length ? lum[Math.min(lum.length - 1, Math.floor(q * lum.length))] : 0);
     const spec = at(0.99);
     const dead = lum.filter((v) => v <= 8).length;
     const tight = lum.filter((v) => v >= spec * 0.5).length;
+    const clip = lum.filter((v) => v >= 250).length;
+    // Crisp: the panel gradient over the brightest 5% of the body — the
+    // highlight's own edge, where grain averages it in with every smooth
+    // panel between. Neither is a sharpness meter for the REFLECTED
+    // IMAGE: the sweep that took gloss to 0.045 on a 512 probe saw the
+    // buildings' windows on the roof resolve from one blob into windows
+    // (+19% gradient on that patch) while grain went 7.10 -> 6.99 and
+    // crisp 29.3 -> 28.6. Look at the frame, and at VIEW=flank, for that.
+    const cut = at(0.95);
+    let cN = 0, cSum = 0;
+    for (let p = 0; p < W * H; p++) {
+      if (grad[p] >= 0 && full[p] >= cut) { cSum += grad[p]; cN++; }
+    }
+    const hueOf = (hex) => {
+      const rr = (hex >> 16) & 255, gg = (hex >> 8) & 255, bb = hex & 255;
+      const mx = Math.max(rr, gg, bb), d = mx - Math.min(rr, gg, bb);
+      if (!d) return null;
+      const h = (mx === rr ? ((gg - bb) / d) % 6 : mx === gg ? (bb - rr) / d + 2 : (rr - gg) / d + 4) * 60;
+      return (h + 360) % 360;
+    };
+    const hue = hx || hy ? ((Math.atan2(hy, hx) * 180) / Math.PI + 360) % 360 : null;
+    const own = hueOf(e.carBody.userData.bodyMat.color.getHex());
+    const hueErr = hue === null || own === null ? null : Math.abs(((hue - own + 540) % 360) - 180);
 
     for (let i = 0; i < 4; i++) e.composer.render();
     ctx.drawImage(e.renderer.domElement, 0, 0, W, H);
+    cam.fov = fovWas;
+    cam.updateProjectionMatrix();
     // SAY WHAT WAS MEASURED.
     //
     // Without this line the "current" row is uninterpretable, and it
     // misled the author of this comment for a whole sweep. The car the
     // tool loads is whatever the default save has on it — which is
     // paint-white in a SATIN finish, the least glossy combination in
-    // the game: metalness 0.14 because pale paint is pigment rather
-    // than flake, roughness 0.34 because satin adds 0.16, and a
+    // the game: metalness 0 because white is a declared solid, roughness
+    // 0.34 because satin adds 0.10 to the 0.24 basecoat, and a
     // clearcoat at 0.42. A gloss change to the gloss finish barely
     // moves that row, and the row looks like the change did nothing.
+    //
+    // And what the lacquer RENDERED at, which is not the material's
+    // number: the shader floors clearcoatRoughness at the shared uniform
+    // (cars.ts PAINT_UNIFORMS), and the source is the live probe or the
+    // bake depending on the tier.
     const bm2 = e.carBody.userData.bodyMat;
+    const floor = window.__grnPaintUniforms?.uCcFloor.value ?? 0.0525;
     const mat = {
       colour: "#" + bm2.color.getHexString(),
       metalness: +bm2.metalness.toFixed(3),
       roughness: +bm2.roughness.toFixed(3),
       ccRough: +bm2.clearcoatRoughness.toFixed(3),
+      ccDrawn: +Math.max(bm2.clearcoatRoughness, floor).toFixed(4),
       clearcoat: +bm2.clearcoat.toFixed(2),
       env: +bm2.envMapIntensity.toFixed(2),
-      probe: e.cubeRT.width,
+      source: !bm2.envMap
+        ? "NONE"
+        : bm2.envMap === e.cubeRT?.texture
+          ? `probe ${e.cubeRT.width}`
+          : "baked",
     };
     return {
       mat,
@@ -383,27 +473,38 @@ for (const [where, m] of SPOTS) {
       body: +at(0.5).toFixed(1),
       spec: +spec.toFixed(1),
       tight: lum.length ? +((tight / lum.length) * 100).toFixed(1) : 0,
+      clip: lum.length ? +((clip / lum.length) * 100).toFixed(2) : 0,
       grain: gN ? +(gSum / gN).toFixed(2) : 0,
+      crisp: cN ? +(cSum / cN).toFixed(2) : 0,
+      hue: hue === null ? null : Math.round(hue),
+      hueErr: hueErr === null ? null : Math.round(hueErr),
+      sat: sats.length ? +sats[Math.floor(sats.length / 2)].toFixed(2) : 0,
       png: c.toDataURL("image/png").split(",")[1],
     };
-  }, [m, set, peel, probe]);
-  if (!set && !peel && !probe) writeFileSync(`press/paint/${where}.png`, Buffer.from(r.png, "base64"));
+  }, [m, set, probe, TIER, VIEW]);
+  // The press frame is the chase view at High, as it always was; any
+  // other tier or view writes beside it rather than over it.
+  const suffix = `${TIER === "high" ? "" : `-${TIER}`}${VIEW === "chase" ? "" : `-${VIEW}`}`;
+  if (!set && !probe) writeFileSync(`press/paint/${where}${suffix}.png`, Buffer.from(r.png, "base64"));
   const ratio = r.body > 0 ? (r.spec / r.body).toFixed(1) : "inf";
-  const tag = probe ? `probe ${probe}` : peel ? (peel === "off" ? "peel off" : `peel ${peel}`) : null;
+  const tag = probe ? `probe ${probe}` : null;
   console.log(
     `${where.padEnd(6)} ${(set ? `r${set[0]} m${set[1]} cc${set[2]}` : tag ?? "current").padEnd(18)}` +
       `  dead ${String(r.dead).padStart(5)}%   ` +
       `body ${String(r.body).padStart(5)}   spec ${String(r.spec).padStart(5)}   ` +
       `ratio ${String(ratio).padStart(6)}   highlight ${String(r.tight).padStart(5)}%   ` +
-      `grain ${String(r.grain).padStart(5)}`
+      `clip ${String(r.clip).padStart(5)}%   grain ${String(r.grain).padStart(5)}   ` +
+      `crisp ${String(r.crisp).padStart(5)}   hue ${String(r.hue).padStart(3)} ` +
+      `(err ${String(r.hueErr).padStart(3)})   sat ${r.sat}`
   );
-  if (!set && !peel && !probe) {
+  if (!set && !probe) {
     console.log(
       `       on ${r.mat.colour} rough ${r.mat.roughness} metal ${r.mat.metalness} ` +
-        `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} env ${r.mat.env} probe ${r.mat.probe}` +
-        `${r.mat.clearcoat < 0.9 ? "  <- NOT the gloss finish" : ""}`
+        `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} (drawn at ${r.mat.ccDrawn}) ` +
+        `env ${r.mat.env} from ${r.mat.source}` +
+        `${r.mat.clearcoat < 0.9 ? "  <- NOT the gloss finish" : ""}` +
+        `${r.mat.source === "NONE" ? "  <- envMap null: three draws it at the scene's intensity" : ""}`
     );
-  }
   }
   }
  }

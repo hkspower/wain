@@ -14,7 +14,7 @@ import { currentPaintHex } from "./paints";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
 import { worldDraws } from "./rand";
 import type { Wake } from "./plants";
-import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, paintParams, PAINT_UNIFORMS, clearcoatFloorFor, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
 // A patrol car that notices. The law is pure and lives on its own so it
 // can be checked without a renderer, the way policeLamps is.
 import { provokes, patienceAfter, pursuitSpeed, PATIENCE } from "./police";
@@ -1189,6 +1189,22 @@ const PROBE_SKY_RADIUS = 380;
  * panel between them (envMapIntensity would lift both).
  */
 const PROBE_LAMP_GAIN = 3.5;
+// (Left at 3.5 on purpose. The 99-of-255 streak above was read on a paint
+// the instrument built at metalness 0.18, not the game's — see
+// tools/shots/paint.mjs — and from the chase camera, whose deck and roof
+// mirror sky rather than lamps: doubling this, on the real paint, moved
+// nothing there, spec 182.5 -> 182.3. Re-judge it from
+// paint.mjs's VIEW=flank, inside tests/grade.mjs's 1.4% clipping guard,
+// which stood at 1.31%.)
+
+/**
+ * The paint's gain on the BAKED environment, before the finish's own
+ * scale: createCar's 1.5. The live probe has its own 2.1, argued in
+ * dressReflections; the bake keeps the number the material was built
+ * with, which it had never actually been drawn at — see the note on
+ * three's environmentIntensity there.
+ */
+const BAKED_PAINT_GAIN = 1.5;
 
 export class GameEngine {
   private renderer: THREE.WebGLRenderer;
@@ -1247,6 +1263,11 @@ export class GameEngine {
   /** The two image-based lights, baked once (env.ts). */
   private envNight: THREE.Texture | null = null;
   private envDay: THREE.Texture | null = null;
+  /** The dawn/dusk dip on the baked environment (0.6..1) as the cars were
+   *  last dressed with it — applyDaylight writes it to the scene, and
+   *  dressReflections carries it onto the paint, which binds the bake
+   *  explicitly and so no longer inherits it. */
+  private envDip = 1;
   /** The pool's opacity at this hour, before the view takes any off. */
   private poolBaseOpacity = 0.4;
   /** Adaptive front lighting: how far the lamps have swivelled into the
@@ -2483,6 +2504,15 @@ export class GameEngine {
     // is inside the drift of 256, which is why Ultra keeps it and nobody
     // else pays for it. Per-frame cost is unchanged in shape — one face a
     // frame — and tests/framepacing.mjs holds the draw calls flat.
+    //
+    // Two things later found under this table. The tool built the paint
+    // at metalness 0.18, not the game's (a string where paintMetalness
+    // wants a number — fixed in paint.mjs), so these rows describe a
+    // different paint. And 512 sitting inside the drift was not noise: at
+    // the old gloss clearcoat roughness, 0.06, the shader asks for mip
+    // 7.69, a 207-texel face, so nothing above 256 could reach the
+    // lacquer. Gloss is 0.045 now, with the floor following the probe
+    // (PAINT_UNIFORMS in cars.ts), and Ultra's 512 is what renders it.
     this.cubeRT = new THREE.WebGLCubeRenderTarget(this.budget(256, "cube"), {
       generateMipmaps: false,
       minFilter: THREE.LinearFilter,
@@ -2618,6 +2648,8 @@ export class GameEngine {
     this.envNight = nightEnvironment(this.renderer);
     this.envDay = dayEnvironment(this.renderer);
     this.scene.environment = this.envNight;
+    // Any car dressed before the bake existed was dressed with nothing.
+    this.applyLiveReflections();
   }
 
   // ---------------------------------------------------------------- public
@@ -3638,9 +3670,20 @@ export class GameEngine {
     // are the same PMREM layout, so the swap recompiles nothing.
     if (this.envNight && this.envDay) {
       const t = THREE.MathUtils.smoothstep(this.daylight, 0.35, 0.65);
+      const was = this.scene.environment;
       this.scene.environment = t > 0.5 ? this.envDay : this.envNight;
-      this.scene.environmentIntensity =
+      const dip =
         t > 0.5 ? THREE.MathUtils.lerp(0.6, 1, (t - 0.5) * 2) : THREE.MathUtils.lerp(1, 0.6, t * 2);
+      this.scene.environmentIntensity = dip;
+      // The cars bind the bake explicitly (dressReflections), so they
+      // follow the swap and the dip only when told. This runs at 4 Hz;
+      // re-dressing is a uniform write per car unless the bake itself
+      // swapped, and 0.02 of the dip — 2% of a reflection — is under
+      // anything visible, so most ticks do nothing at all.
+      if (this.scene.environment !== was || Math.abs(dip - this.envDip) > 0.02) {
+        this.envDip = dip;
+        this.applyLiveReflections();
+      }
     }
   }
 
@@ -4551,10 +4594,31 @@ export class GameEngine {
     // The player's car is built before the probe exists, so this runs
     // once with nothing to point at; applyLiveReflections dresses every
     // car again as soon as the target is up.
-    const env = this.liveReflections && this.cubeRT ? this.cubeRT.texture : null;
+    const live = this.liveReflections && this.cubeRT ? this.cubeRT.texture : null;
+    // The baked environment is bound EXPLICITLY when the probe is off,
+    // never left as null. three's WebGLRenderer (r184, as shipped)
+    // replaces a material's envMapIntensity with
+    // scene.environmentIntensity whenever material.envMap is null and the
+    // scene has an environment — so with the probe off, every gain below
+    // was thrown away on the GPU and the paint ran at the scene's 1.0 (or
+    // the dusk dip) in every finish: gloss never got its 1.5, matte
+    // mirrored as hard as gloss with its 0.3 dropped, and the rims and
+    // chrome lost their own gains. That was Balanced, Battery, Auto's
+    // performance fallback and the menu. tests/vfx.mjs read the material's
+    // property, which was right, and passed. Pointing envMap at the same
+    // texture costs nothing: it is what the shader was sampling anyway.
+    // (Every other material leaning on scene.environment has the same
+    // property; only the cars' reflection policy is handled here.)
+    const env = live ?? this.scene.environment;
     const body = group.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
     if (body) {
-      body.envMap = env;
+      // A new program only when the source actually changes — the daylight
+      // dip re-dresses every car as the hour moves, and that has to stay
+      // a uniform write.
+      if (body.envMap !== env) {
+        body.envMap = env;
+        body.needsUpdate = true;
+      }
       // 2.1 on BOTH tiers. This was 1.35 on the live probe, on a clipping
       // argument recorded on the rims below — and measured on the road at
       // night the argument does not bind: swept 1.35 / 1.7 / 2.1 / 2.6 on
@@ -4573,21 +4637,30 @@ export class GameEngine {
       // rides on the group; multiply by it. One policy still dresses
       // every car — the same number times the finish it wears — which
       // is what tests/vfx.mjs holds it to.
-      body.envMapIntensity = 2.1 * ((group.userData.envScale as number | undefined) ?? 1);
-      body.needsUpdate = true;
+      //
+      // On the baked environment it is BAKED_PAINT_GAIN, createCar's own
+      // 1.5, times the dawn/dusk dip applyDaylight puts on the scene —
+      // the dip hides the day/night swap, and an explicit envMap no
+      // longer inherits it from the scene, so it is carried here.
+      const gain = live ? 2.1 : BAKED_PAINT_GAIN * this.envDip;
+      body.envMapIntensity = gain * ((group.userData.envScale as number | undefined) ?? 1);
     }
     // The rims, chrome and brake discs mirror the same world the paint
     // does. Higher gain than the paint: the probe is mostly night sky,
     // and a near-pure metal goes black under it — the lamps it does
-    // carry need amplifying for the alloy to read as alloy.
+    // carry need amplifying for the alloy to read as alloy. On the baked
+    // environment, their own gain times the dip — which is what they were
+    // always written to get, and never did while envMap was null.
     const metals = group.userData.reflectMats as
       | THREE.MeshStandardMaterial[]
       | undefined;
     for (const m of metals ?? []) {
       const base = (m.userData.baseEnvIntensity as number) ?? 1.5;
-      m.envMap = env;
-      m.envMapIntensity = this.liveReflections ? base * 1.9 : base;
-      m.needsUpdate = true;
+      if (m.envMap !== env) {
+        m.envMap = env;
+        m.needsUpdate = true;
+      }
+      m.envMapIntensity = live ? base * 1.9 : base * this.envDip;
     }
   }
 
@@ -4673,6 +4746,13 @@ export class GameEngine {
   private lodPos = new THREE.Vector3();
 
   private applyLiveReflections(): void {
+    // The lacquer's sharpest roughness follows the cube it is reading:
+    // three's 0.0525 on the baked bake and on a 256 probe, 0.038 on
+    // Ultra's 512 — see PAINT_UNIFORMS in cars.ts. One shared uniform, so
+    // every car moves with it and nothing recompiles.
+    PAINT_UNIFORMS.uCcFloor.value = clearcoatFloorFor(
+      this.liveReflections && this.cubeRT ? this.cubeRT.width : null
+    );
     for (const g of this.carGroups) this.dressReflections(g);
   }
 
@@ -8792,8 +8872,26 @@ export class GameEngine {
     // one the game builds — at which point the tool reports on a car
     // nobody drives.
     (window as unknown as { __grnFinishes: typeof FINISHES }).__grnFinishes = FINISHES;
+    // Both refuse anything but a number. Called from page.evaluate, the
+    // type system is not there to say so, and a CSS string — which is
+    // what paint.mjs passed from a17dec76 on — went through the bit maths
+    // as luminance 0 and came back as metalness 0.18: every gloss reading
+    // for a month was of a paint the game does not build.
+    const hexOnly = (hex: unknown): number => {
+      if (typeof hex !== "number" || !Number.isFinite(hex)) {
+        throw new TypeError(`paint hex must be a number like 0xc1272d, got ${JSON.stringify(hex)}`);
+      }
+      return hex;
+    };
     (window as unknown as { __grnPaintMetalness: (hex: number) => number })
-      .__grnPaintMetalness = paintMetalness;
+      .__grnPaintMetalness = (hex) => paintMetalness(hexOnly(hex));
+    // The whole paint, as createCar builds it — so a tool that sets a
+    // finish on the live material sets the game's numbers, not its own.
+    (window as unknown as { __grnPaintParams: typeof paintParams })
+      .__grnPaintParams = (hex, finish) => paintParams(hexOnly(hex), finish);
+    // The shared clearcoat floor, read back by paint.mjs so it can say
+    // what the lacquer actually rendered at.
+    (window as unknown as { __grnPaintUniforms: typeof PAINT_UNIFORMS }).__grnPaintUniforms = PAINT_UNIFORMS;
     // Where the sea stops being on your left, in metres. Derived from
     // COAST_U and the live track rather than typed, so it cannot drift
     // the way a second copy of a distance would: the lap has already

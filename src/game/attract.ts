@@ -623,6 +623,19 @@ export function buildAttract(
     for (const m of (built.userData.headGlowMats as THREE.SpriteMaterial[]) ?? []) {
       m.opacity *= rolling ? 0.3 : 0.18;
     }
+    // Bind the bake to the paint and the car's own metals explicitly.
+    // Left null, three draws them with scene.environmentIntensity (1.0
+    // here) in place of their own gains — so the showroom's gloss paint
+    // ran at 1.0 instead of createCar's 1.5, matte mirrored as hard as
+    // gloss, and the chrome and rims lost theirs. Same texture as before;
+    // only the gains it is drawn at change. engine.ts does the same for
+    // the race whenever its live probe is off (dressReflections).
+    const env = scene.environment;
+    const paintMat = built.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
+    if (paintMat) paintMat.envMap = env;
+    for (const m of (built.userData.reflectMats as THREE.MeshStandardMaterial[] | undefined) ?? []) {
+      m.envMap = env;
+    }
     rig.car = built;
     rig.wheels = (built.userData.wheels as THREE.Object3D[]) ?? [];
     rig.driver = (built.userData.driver as DriverRig | undefined) ?? null;

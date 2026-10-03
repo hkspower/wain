@@ -29,7 +29,9 @@ import {
   CARBON_KG, NOMINAL_CAR_KG, swatch, paintFromSwatch, lab, deltaE,
   RETIRED_SWATCHES, currentPaintHex,
 } from "../src/game/paints.ts";
-import { paintMetalness } from "../src/game/cars.ts";
+import {
+  paintMetalness, paintParams, clearcoatFloorFor, PAINT_FLOOR_PATCHED, PAINT_METAL_TOP,
+} from "../src/game/cars.ts";
 import { PARTS } from "../src/game/mods.ts";
 
 const fail = [];
@@ -259,6 +261,66 @@ const MIN_DE = 12;
     check(paintMetalness(p.hex) === 0, `${p.id} is declared solid but gets metalness ${paintMetalness(p.hex)}`);
   }
   console.log(`solids   ${PAINTS.filter((q) => q.solid).length} declared solids, metalness 0`);
+}
+
+// --- 8. The basecoat's metal has a ceiling, and the curve has no steps --
+//
+// A REGRESSION GUARD, not evidence; the evidence is the table on
+// PAINT_METAL_TOP in cars.ts. At 0.95 a mid-tone basecoat was almost all
+// reflection, so a red panel facing the night sky came back purple (hue
+// 316 against the paint's 357 on gloss #c1272d) and the street lights
+// had almost no diffuse to land on.
+//
+// Walked over every grey rather than over the palette, because the curve
+// is a law for ANY colour — a rival or the hub can send one the booth
+// does not sell — and it is the greys that cross both of its joins, at
+// luminance 0.16 and 0.5, where a mistyped constant would show as a step.
+{
+  let top = 0, step = 0;
+  for (let v = 0; v <= 255; v++) {
+    const m = paintMetalness((v << 16) | (v << 8) | v);
+    top = Math.max(top, m);
+    if (v) step = Math.max(step, Math.abs(m - paintMetalness(((v - 1) << 16) | ((v - 1) << 8) | (v - 1))));
+  }
+  // The ceiling itself is pinned as well as obeyed: putting it back to
+  // 0.95 is putting the purple back, and should be done with the table in
+  // cars.ts re-measured, not by editing one constant.
+  check(PAINT_METAL_TOP <= 0.75, `the mid-tone basecoat is back at metalness ${PAINT_METAL_TOP} — see PAINT_METAL_TOP in cars.ts`);
+  check(top <= PAINT_METAL_TOP + 1e-9, `a grey basecoat reaches metalness ${top.toFixed(3)}, above the ${PAINT_METAL_TOP} ceiling`);
+  // One grey level is 1/255 of luminance; the steepest legitimate slope
+  // is the pale ramp's 1.9 per unit, about 0.0075 a level (the dark ramp's
+  // is 0.57/0.16 per unit, about 0.014 a level). A join that jumps is a
+  // step many times that.
+  check(step < 0.02, `the metalness curve jumps ${step.toFixed(3)} between neighbouring greys`);
+  const red = paintParams(0xc1272d, "gloss");
+  check(red.metalness === PAINT_METAL_TOP, `gloss #c1272d builds at metalness ${red.metalness}, not the mid-tone ${PAINT_METAL_TOP}`);
+  console.log(`metal    ceiling ${top.toFixed(3)}, largest step between greys ${step.toFixed(4)}; gloss #c1272d at ${red.metalness}`);
+}
+
+// --- 9. The gloss lacquer is sharper than High's probe can show ----------
+//
+// three picks the env mip for a roughness r as -2 log2(1.16 r), capped at
+// log2(face). Gloss at 0.06 asked for mip 7.69 — a 207-texel face — so
+// Ultra's 512 probe could do nothing for it, which is why a probe sweep
+// once found 512 "inside the drift of 256". The guard is the relation,
+// not the numbers: the gloss clearcoat must want a mip finer than a 256
+// face holds (or Ultra buys the lacquer nothing) and no finer than a 512
+// face holds (or nothing can draw it). And the shader patch that lets the
+// floor move must still find the line it replaces — a three upgrade that
+// rewords it would otherwise leave every paint on three's fixed 0.0525
+// without a sound.
+{
+  const { FINISHES } = await import("../src/game/mods.ts");
+  const cc = FINISHES.gloss.clearcoatRoughness;
+  const mip = -2 * Math.log2(1.16 * cc);
+  check(PAINT_FLOOR_PATCHED, "the clearcoat floor patch no longer matches three's lights_physical_fragment");
+  check(clearcoatFloorFor(null) === 0.0525 && clearcoatFloorFor(256) === 0.0525,
+    "the baked bake and a 256 probe must keep three's own 0.0525 floor");
+  check(clearcoatFloorFor(128) === 0.0525, "a smaller probe must never make the lacquer softer than three's floor");
+  check(Math.abs(clearcoatFloorFor(512) - 0.0381) < 0.0005, `the 512 floor is ${clearcoatFloorFor(512).toFixed(4)}, not 0.0381`);
+  check(mip > 8, `gloss clearcoat ${cc} wants mip ${mip.toFixed(2)} — a 256 face already holds it, so Ultra's 512 buys nothing`);
+  check(cc >= clearcoatFloorFor(512), `gloss clearcoat ${cc} is below what even the 512 probe can draw`);
+  console.log(`lacquer  gloss ${cc} wants mip ${mip.toFixed(2)}; floor 0.0525 baked/256, ${clearcoatFloorFor(512).toFixed(4)} at 512`);
 }
 
 console.log(
