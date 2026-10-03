@@ -2,7 +2,11 @@
 
 import type { Place } from "@/lib/places";
 import { GENERIC_LINES, isSummerMonth, summerKey } from "@/lib/voice-lines";
-import { kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
+import { kuwaitDay, kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
+import { DAY_PARAM, parseDay, resolvePlan, type Day, type WhenId } from "@/lib/plan-date";
+
+export type { Day, WhenId } from "@/lib/plan-date";
+export { DAY_PARAM, resolvePlan } from "@/lib/plan-date";
 
 /**
  * «رسّلها للربع» — turning a place into a plan the group can act on.
@@ -24,16 +28,6 @@ import { kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
  * is WhatsApp.
  */
 
-export type WhenId =
-  | "now"
-  | "soon"
-  | "tonight-7"
-  | "tonight-8"
-  | "tonight-9"
-  | "tonight-10"
-  | "tomorrow"
-  | "weekend";
-
 export type WhenOption = { id: WhenId; labelAr: string; phraseAr: string };
 
 /**
@@ -46,10 +40,18 @@ export type WhenOption = { id: WhenId; labelAr: string; phraseAr: string };
  *
  * The evening hours drop off the list as they pass — offering «الليلة ٧
  * مساءً» at nine o'clock is offering a plan that already failed.
+ *
+ * «عقب المغرب» (3 October, on request) is the phrase شوق herself uses for
+ * every summer plan, and it was the one time the panel could not send. It
+ * sits first among the evening options; it goes at seven, when «الحين» is
+ * already after sunset. No clock time is attached to it anywhere a person
+ * reads — the calendar entry alone turns it into an hour, and says
+ * «تقريباً» when it does (plan-date.ts, SUNSET_KW).
  */
 const ALL: (WhenOption & { afterHour?: number })[] = [
   { id: "now", labelAr: "الحين", phraseAr: "الحين" },
   { id: "soon", labelAr: "بعد ساعة", phraseAr: "بعد ساعة" },
+  { id: "sunset", labelAr: "عقب المغرب", phraseAr: "عقب المغرب", afterHour: 19 },
   { id: "tonight-7", labelAr: "٧ مساءً", phraseAr: "الليلة الساعة ٧", afterHour: 19 },
   { id: "tonight-8", labelAr: "٨ مساءً", phraseAr: "الليلة الساعة ٨", afterHour: 20 },
   { id: "tonight-9", labelAr: "٩ مساءً", phraseAr: "الليلة الساعة ٩", afterHour: 21 },
@@ -61,7 +63,14 @@ const ALL: (WhenOption & { afterHour?: number })[] = [
 // The clock lives in kuwait-time.ts so that a page needing only the hour
 // does not carry the hangout planner with it; re-exported, so every caller
 // of these names is unchanged.
-export { kuwaitHour, kuwaitMonth, msToNextKuwaitHour } from "@/lib/kuwait-time";
+export { kuwaitDay, kuwaitHour, kuwaitMonth, msToNextKuwaitHour } from "@/lib/kuwait-time";
+
+/**
+ * How many places the panel offers to switch between, on /search and in
+ * سالم's chat alike. /search had five and the chat offered every result,
+ * which on «مطعم» was a row of twenty chips — a menu, not a choice.
+ */
+export const CHOICE_MAX = 5;
 
 /**
  * Daylight, for the purpose of "would this plan cook them".
@@ -125,6 +134,10 @@ export function defaultWhen(place: Place, now: Date = new Date()): WhenId {
   const options = new Set(whenOptions(now).map((o) => o.id));
   // An indoor place at midday is a perfectly good idea; an open-air one is not.
   const daytimeIsFine = place.setting === "indoor" || place.summerOk === true;
+  // In summer an open-air place is proposed for after sunset — the words شوق
+  // says about it, and until 3 October the one time this panel could not
+  // offer. Before seven only: after it «عقب المغرب» is the present tense.
+  if (!daytimeIsFine && isSummerMonth(kuwaitMonth(now)) && options.has("sunset")) return "sunset";
   // Daytime starts at nine, and the lower bound is the whole point of this
   // line. `hour < 12` alone is every hour before noon — including two in the
   // morning, where it proposed «بعد ساعة» for an indoor place and offered the
@@ -139,6 +152,22 @@ export function defaultWhen(place: Place, now: Date = new Date()): WhenId {
 
 export function phraseFor(id: WhenId): string {
   return ALL.find((o) => o.id === id)?.phraseAr ?? "";
+}
+
+/**
+ * The phrase with its day, when the day is known: «باچر الخميس», «الويكند —
+ * الجمعة». A message is read tomorrow morning and a link is opened days
+ * later; «باچر» on its own means a different day to each reader. Only the two
+ * day-words gain a weekday — «الليلة الساعة ٨» already says which night, and
+ * the hour a calendar guesses for «باچر» is never printed here (plan-date.ts).
+ */
+export function planPhrase(id: WhenId, day: Day | null | undefined, now: Date = new Date()): string {
+  const phrase = phraseFor(id);
+  if (!day || !phrase) return phrase;
+  const plan = resolvePlan(id, day, now);
+  if (id === "tomorrow") return `${phrase} ${plan.weekdayAr}`;
+  if (id === "weekend") return `${phrase} — ${plan.weekdayAr}`;
+  return phrase;
 }
 
 /**
@@ -185,12 +214,15 @@ export function hangoutMessage(opts: {
 
   const lines = [
     `${place.nameAr} — ${place.areaAr} 📍`,
-    phraseFor(when),
+    // The message is composed at the moment of sending, so the day is always
+    // known here — «باچر الخميس», never a bare «باچر» that means a different
+    // day to whoever reads it next morning.
+    planPhrase(when, kuwaitDay(now), now),
     "",
     place.taglineAr,
     ...(heat ? [heat] : []),
     "",
-    `الموقع: https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`,
+    `الموقع: ${mapsUrl(place)}`,
     url,
   ];
   return lines.join("\n");
@@ -226,8 +258,17 @@ export const INVITE_PARAM = "when";
  * a share of the second. A canonical URL cannot drift like that, and it also
  * strips whatever else happens to be in the bar.
  */
-export function inviteUrl(place: Place, when: WhenId, origin: string): string {
-  return `${origin.replace(/\/+$/, "")}/places/${place.slug}/?${INVITE_PARAM}=${when}`;
+export function inviteUrl(place: Place, when: WhenId, origin: string, day?: Day | null): string {
+  const base = `${origin.replace(/\/+$/, "")}/places/${place.slug}/?${INVITE_PARAM}=${when}`;
+  // The day it was sent, so «باچر» has a date to be tomorrow of and a link
+  // opened next week can say the plan has gone (plan-date.ts). Optional, so
+  // every link already in a chat keeps meaning what it meant.
+  return day ? `${base}&${DAY_PARAM}=${day}` : base;
+}
+
+/** The sending day in a link, or null — absent on links from before 3 October. */
+export function readInviteDay(search: string): Day | null {
+  return parseDay(new URLSearchParams(search).get(DAY_PARAM));
 }
 
 /**
@@ -254,7 +295,10 @@ export function readInvite(search: string): WhenId | null {
  * lets the reader judge, which is what they would do anyway from the chat
  * timestamp sitting directly above the link.
  */
-export function invitePassed(when: WhenId, now: Date = new Date()): boolean {
+export function invitePassed(when: WhenId, now: Date = new Date(), day?: Day | null): boolean {
+  // With the sending day in hand every kind of plan can be judged — a «باچر»
+  // from last week has plainly gone. Without it, the paragraph above holds.
+  if (day) return resolvePlan(when, day, now).passed;
   const option = ALL.find((o) => o.id === when);
   if (!option || option.afterHour === undefined) return false;
   return kuwaitHour(now) >= option.afterHour;
@@ -311,9 +355,10 @@ export function defaultWhenFor(list: Place[], now: Date = new Date()): WhenId {
 }
 
 /** `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like `inviteUrl`. */
-export function shortlistUrl(list: Place[], when: WhenId, origin: string): string {
+export function shortlistUrl(list: Place[], when: WhenId, origin: string, day?: Day | null): string {
   const slugs = list.slice(0, SHORTLIST_MAX).map((p) => p.slug).join(",");
-  return `${origin.replace(/\/+$/, "")}/pick/?${SHORTLIST_PARAM}=${slugs}&${INVITE_PARAM}=${when}`;
+  const base = `${origin.replace(/\/+$/, "")}/pick/?${SHORTLIST_PARAM}=${slugs}&${INVITE_PARAM}=${when}`;
+  return day ? `${base}&${DAY_PARAM}=${day}` : base;
 }
 
 /**
@@ -321,7 +366,10 @@ export function shortlistUrl(list: Place[], when: WhenId, origin: string): strin
  * the places that exist (`known`), duplicates dropped, three kept — the link
  * is whatever anyone pasted. Fewer than two left is not a shortlist.
  */
-export function readShortlist(search: string, known: (slug: string) => boolean): { slugs: string[]; when: WhenId | null } {
+export function readShortlist(
+  search: string,
+  known: (slug: string) => boolean
+): { slugs: string[]; when: WhenId | null; day: Day | null } {
   const params = new URLSearchParams(search);
   const raw = (params.get(SHORTLIST_PARAM) ?? "").split(",").map((s) => s.trim());
   const slugs: string[] = [];
@@ -329,16 +377,24 @@ export function readShortlist(search: string, known: (slug: string) => boolean):
     if (/^[a-z0-9-]+$/.test(s) && known(s) && !slugs.includes(s)) slugs.push(s);
     if (slugs.length === SHORTLIST_MAX) break;
   }
-  return { slugs: slugs.length >= 2 ? slugs : [], when: readInvite(search) };
+  return { slugs: slugs.length >= 2 ? slugs : [], when: readInvite(search), day: readInviteDay(search) };
+}
+
+/** The map link the messages carry — directions to the pin, not a search. */
+export function mapsUrl(place: Place): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`;
 }
 
 /**
  * The message: one time, the places numbered, and the link to vote.
  *
- * The heat line travels with it for the same reason as a single plan's: a
- * daytime plan in July that includes an open-air place is a plan the group
- * should be warned about before choosing it — once, for the first such place,
- * not three times.
+ * Each place gets the same three lines a single plan gets — what it is, why
+ * it is worth it, where it is — because the group chooses from THIS message:
+ * a bare «١. سوق المباركية — مدينة الكويت» sent three people off to look the
+ * places up before they could answer (3 October, on request). The heat line
+ * sits inside the block of the place it is about, every place that would
+ * bake, not once for the first: «لا تروح إلا عقب المغرب» floating under the
+ * list read as if it were about all three.
  */
 export function shortlistMessage(opts: { places: Place[]; when: WhenId; url: string; now?: Date }): string {
   const { places: list, when, url, now = new Date() } = opts;
@@ -346,21 +402,29 @@ export function shortlistMessage(opts: { places: Place[]; when: WhenId; url: str
   const hour = kuwaitHour(now);
   const arrival = when === "now" ? hour : when === "soon" ? hour + 1 : DAY_STARTS + 2;
   const daytimePlan = when === "now" || when === "soon" || when === "tomorrow" || when === "weekend";
-  const hot = daytimePlan ? list.find((p) => bakesInTheSun(p, arrival, month)) : undefined;
-  const lines = [
-    `وين نروح ${phraseFor(when)}؟ اختاروا:`,
-    ...list.slice(0, SHORTLIST_MAX).map((p, i) => `${ORDINAL_AR[i]}. ${p.nameAr} — ${p.areaAr}`),
-    ...(hot ? ["", GENERIC_LINES[summerKey(hot)]] : []),
-    "",
-    `صوّتوا هني: ${url}`,
-  ];
+  const blocks = list.slice(0, SHORTLIST_MAX).map((p, i) => {
+    const hot = daytimePlan && bakesInTheSun(p, arrival, month);
+    return [
+      `${ORDINAL_AR[i]}. ${p.nameAr} — ${p.areaAr}`,
+      p.taglineAr,
+      ...(hot ? [GENERIC_LINES[summerKey(p)]] : []),
+      `الموقع: ${mapsUrl(p)}`,
+    ].join("\n");
+  });
+  const lines = [`وين نروح ${planPhrase(when, kuwaitDay(now), now)}؟ اختاروا:`, "", blocks.join("\n\n"), "", `صوّتوا هني: ${url}`];
   return lines.join("\n");
 }
 
-/** «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap. */
-export function shortlistVoteMessage(place: Place, position: number, when: WhenId | null): string {
+/**
+ * «أنا مع ٢: سوق المباركية 👍» — a vote, as one tap. With the place's own
+ * link under it when the page has one: the group's chat then holds the plan
+ * for the winner the way a single-place proposal would have, instead of
+ * three names and a vote.
+ */
+export function shortlistVoteMessage(place: Place, position: number, when: WhenId | null, url?: string, day?: Day | null): string {
   const n = ORDINAL_AR[position] ?? String(position + 1);
-  return `أنا مع ${n}: ${place.nameAr} 👍${when ? ` — ${phraseFor(when)}` : ""}`;
+  const line = `أنا مع ${n}: ${place.nameAr} 👍${when ? ` — ${planPhrase(when, day)}` : ""}`;
+  return url ? `${line}\n${url}` : line;
 }
 
 /** The share sheet's title for a list. */

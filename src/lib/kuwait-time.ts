@@ -35,6 +35,15 @@ export function kuwaitMonth(now: Date = new Date()): number {
 }
 
 /**
+ * Kuwait's calendar day as `YYYY-MM-DD`, on the same clock. The hangout link
+ * carries this (plan-date.ts), so «باچر» has a date to be tomorrow OF; read
+ * off the shifted instant's UTC parts, never off the device's own date.
+ */
+export function kuwaitDay(now: Date = new Date()): string {
+  return new Date(now.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
+}
+
+/**
  * June to September in Kuwait — daytime highs around 45–50°C, when an open-air
  * recommendation stops being a recommendation. Months are 0-based, as from
  * Date#getMonth.

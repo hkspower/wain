@@ -24,6 +24,8 @@ const bundle = join(dir, "hangout.mjs");
 writeFileSync(
   entry,
   `export * from ${JSON.stringify(join(ROOT, "src/lib/hangout.ts"))};\n` +
+    `export { parseDay, addDays, weekday, SUNSET_KW, WEEKDAY_AR } from ${JSON.stringify(join(ROOT, "src/lib/plan-date.ts"))};\n` +
+    `export { calendarEntry, icsEscape, foldLine, kuwaitToUtcStamp, hasCalendarEntry, icsUid } from ${JSON.stringify(join(ROOT, "src/lib/hangout-calendar.ts"))};\n` +
     `export { places, getPlace } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n`
 );
 execSync(
@@ -174,8 +176,17 @@ console.log("\n── the default proposal suits the place and the hour ──")
 {
   const outdoor = H.places.find((p) => p.setting === "outdoor" && !p.summerOk);
   const indoor = H.places.find((p) => p.setting === "indoor");
-  ok("an open-air place at 09:00 is proposed for the evening",
-    H.defaultWhen(outdoor, atKuwait(9)) === "tonight-8", H.defaultWhen(outdoor, atKuwait(9)));
+  // `atKuwait` is an August day: an open-air place is proposed for after
+  // sunset — the words شوق uses for every summer plan, and until 3 October the
+  // one time this panel could not send. In December the evening hour is back.
+  ok("an open-air place at 09:00 in August is proposed for after sunset",
+    H.defaultWhen(outdoor, atKuwait(9)) === "sunset", H.defaultWhen(outdoor, atKuwait(9)));
+  ok("and in December for the evening",
+    H.defaultWhen(outdoor, new Date(Date.UTC(2026, 11, 15, 6, 30))) === "tonight-8",
+    H.defaultWhen(outdoor, new Date(Date.UTC(2026, 11, 15, 6, 30))));
+  ok("after seven in August the present tense takes over — no «عقب المغرب» to propose",
+    H.defaultWhen(outdoor, atKuwait(19)) !== "sunset" && !H.whenOptions(atKuwait(19)).some((o) => o.id === "sunset"),
+    H.defaultWhen(outdoor, atKuwait(19)));
   ok("an indoor place at 09:00 can be proposed for an hour from now",
     H.defaultWhen(indoor, atKuwait(9)) === "soon", H.defaultWhen(indoor, atKuwait(9)));
   ok("at 21:00 the default is a time still ahead",
@@ -265,6 +276,171 @@ console.log("\n── every option produces a sentence ──");
   const broken = H.hangoutMessage({ place, when: "nonsense", url: "x" });
   ok("a message with no valid time is visibly missing it, not silently wrong",
     broken.split("\n")[1] === "", JSON.stringify(broken.split("\n")[1]));
+}
+
+console.log("\n── the link carries the day it was sent ──");
+/**
+ * «باچر» on its own means a different day to each reader, and the module
+ * said so: «an invite for الحين opened three hours later is stale and
+ * nothing here can know it». The day travels in the link now (plan-date.ts).
+ * Everything below is on Kuwait's clock; the machine running this is on UTC.
+ */
+{
+  const place = H.getPlace("kuwait-towers");
+  const sent = new Date(Date.UTC(2026, 9, 3, 12, 0)); // Sat 3 Oct 2026, 15:00 Kuwait
+  ok("the day is Kuwait's, not UTC's: 23:30Z is already the 4th", H.kuwaitDay(new Date("2026-10-03T23:30:00Z")) === "2026-10-04");
+  const url = H.inviteUrl(place, "tomorrow", "https://www.wainkw.com", H.kuwaitDay(sent));
+  ok("the invite link carries the sending day", /[?&]d=2026-10-03$/.test(url), url);
+  ok("a link built without a day is exactly the old link",
+    H.inviteUrl(place, "tomorrow", "https://www.wainkw.com") === "https://www.wainkw.com/places/kuwait-towers/?when=tomorrow");
+  ok("the day is read back", H.readInviteDay("?when=tomorrow&d=2026-10-03") === "2026-10-03");
+  ok("and the time still is, unchanged", H.readInvite("?when=tomorrow&d=2026-10-03") === "tomorrow");
+  for (const junk of ["?d=2026-02-30", "?d=2026-13-01", "?d=2026-2-3", "?d=<script>", "?d=", "?when=now"]) {
+    ok(`«${junk}» carries no day`, H.readInviteDay(junk) === null, String(H.readInviteDay(junk)));
+  }
+  ok("a leap day is a real day", H.parseDay("2028-02-29") === "2028-02-29");
+  ok("a shortlist link carries it too and reads it back",
+    /&d=2026-10-03$/.test(H.shortlistUrl([place, H.getPlace("marina-beach")], "weekend", "https://www.wainkw.com", "2026-10-03")) &&
+      H.readShortlist("?p=kuwait-towers,marina-beach&when=weekend&d=2026-10-03", () => true).day === "2026-10-03");
+  ok("and without one reads null, not undefined", H.readShortlist("?p=kuwait-towers,marina-beach", () => true).day === null);
+}
+
+console.log("\n── what a dated plan means, and when it has gone ──");
+{
+  const at = (iso) => new Date(iso);
+  const r = (when, day, now) => H.resolvePlan(when, day, at(now));
+  // tonight-8 sent today: the hour decides, exactly as the undated rule did.
+  ok("tonight-8, same day, 19:59 Kuwait: not passed", !r("tonight-8", "2026-10-03", "2026-10-03T16:59:00Z").passed);
+  ok("tonight-8, same day, 20:00 Kuwait: passed", r("tonight-8", "2026-10-03", "2026-10-03T17:00:00Z").passed);
+  // The defect this fixes: an eight o'clock invite from yesterday, opened at
+  // ten in the morning, used to read as a plan still ahead.
+  ok("tonight-8 sent yesterday has passed at 10:00 today", r("tonight-8", "2026-10-02", "2026-10-03T07:00:00Z").passed);
+  ok("…and the undated rule still says it has not", !H.invitePassed("tonight-8", at("2026-10-03T07:00:00Z")));
+  ok("while the dated one, through invitePassed, says it has", H.invitePassed("tonight-8", at("2026-10-03T07:00:00Z"), "2026-10-02"));
+  // «باچر» is the day after the SENDING day, on Kuwait's calendar.
+  const tm = r("tomorrow", "2026-10-03", "2026-10-03T12:00:00Z");
+  ok("«باچر» sent on the 3rd is the 4th", tm.date === "2026-10-04", tm.date);
+  ok("…a Sunday", tm.weekdayAr === "الأحد", tm.weekdayAr);
+  ok("it carries the calendar's default hour, marked as a default", tm.hour === 20 && tm.hourKind === "default");
+  ok("not passed at 23:59 Kuwait on the 4th (20:59Z)", !r("tomorrow", "2026-10-03", "2026-10-04T20:59:00Z").passed);
+  ok("passed at 00:00 Kuwait on the 5th (21:00Z on the 4th)", r("tomorrow", "2026-10-03", "2026-10-04T21:00:00Z").passed);
+  ok("month rollover: «باچر» on 31 Oct is 1 Nov", r("tomorrow", "2026-10-31", "2026-10-31T12:00:00Z").date === "2026-11-01");
+  ok("year rollover: «باچر» on 31 Dec is 1 Jan", r("tomorrow", "2026-12-31", "2026-12-31T12:00:00Z").date === "2027-01-01");
+  ok("leap year: «باچر» on 28 Feb 2028 is the 29th", r("tomorrow", "2028-02-28", "2028-02-28T12:00:00Z").date === "2028-02-29");
+  // «الويكند»: the coming Friday — except on a Friday, where it means this
+  // weekend and resolves to Saturday; on Saturday it is next Friday.
+  const wk = (day) => r("weekend", day, `${day}T12:00:00Z`);
+  ok("«الويكند» on Wed 30 Sep is Fri 2 Oct", wk("2026-09-30").date === "2026-10-02" && wk("2026-09-30").weekdayAr === "الجمعة", wk("2026-09-30").date);
+  ok("on Thu 1 Oct it is Fri 2 Oct", wk("2026-10-01").date === "2026-10-02");
+  ok("on Fri 2 Oct it is Sat 3 Oct — this weekend, not next", wk("2026-10-02").date === "2026-10-03" && wk("2026-10-02").weekdayAr === "السبت");
+  ok("on Sat 3 Oct it is Fri 9 Oct", wk("2026-10-03").date === "2026-10-09");
+  ok("on Sun 4 Oct it is Fri 9 Oct", wk("2026-10-04").date === "2026-10-09");
+  ok("a weekend has passed once its Saturday has", r("weekend", "2026-09-30", "2026-10-04T12:00:00Z").passed && !r("weekend", "2026-09-30", "2026-10-03T12:00:00Z").passed);
+  // «الحين» has a day and no hour; it has gone once the day has.
+  ok("«الحين» sent yesterday has passed", r("now", "2026-10-02", "2026-10-03T07:00:00Z").passed && r("now", "2026-10-02", "2026-10-03T07:00:00Z").hour === null);
+  ok("«الحين» sent today has not", !r("now", "2026-10-03", "2026-10-03T07:00:00Z").passed);
+  // The phrase gains the weekday only where a day-word needs one.
+  ok("«باچر» is printed with its weekday", H.planPhrase("tomorrow", "2026-10-03") === "باچر الأحد", H.planPhrase("tomorrow", "2026-10-03"));
+  ok("so is «الويكند»", H.planPhrase("weekend", "2026-10-03") === "الويكند — الجمعة", H.planPhrase("weekend", "2026-10-03"));
+  ok("«الليلة الساعة ٨» is not", H.planPhrase("tonight-8", "2026-10-03") === "الليلة الساعة ٨");
+  ok("and without a day the phrase is the bare one", H.planPhrase("tomorrow", null) === "باچر");
+  const msg = H.hangoutMessage({ place: H.getPlace("kuwait-towers"), when: "tomorrow", url: "u", now: at("2026-10-03T12:00:00Z") });
+  ok("the message itself says which day «باچر» is", msg.split("\n")[1] === "باچر الأحد", msg.split("\n")[1]);
+}
+
+console.log("\n── «عقب المغرب» ──");
+{
+  const ids = (h) => H.whenOptions(atKuwait(h)).map((o) => o.id);
+  ok("it is offered in the afternoon", ids(15).includes("sunset"), ids(15).join(","));
+  ok("first among the evening options", ids(15).indexOf("sunset") < ids(15).indexOf("tonight-7"), ids(15).join(","));
+  ok("and gone from seven, like the seven o'clock slot", !ids(19).includes("sunset"), ids(19).join(","));
+  ok("its phrase is the words, with no clock time in them", H.phraseFor("sunset") === "عقب المغرب");
+  const bakes = H.places.find((p) => p.setting === "outdoor" && !p.summerOk);
+  const msg = H.hangoutMessage({ place: bakes, when: "sunset", url: "u", now: new Date(Date.UTC(2026, 6, 15, 9, 0)) });
+  ok("a July plan for after sunset carries no heat warning — it IS the advice", !/حر/.test(msg), msg);
+  ok("the sunset table has twelve months, all between 16:55 and 18:55",
+    H.SUNSET_KW.length === 12 && H.SUNSET_KW.every(([h, m]) => h * 60 + m >= 16 * 60 + 55 && h * 60 + m <= 18 * 60 + 55));
+  ok("latest in June and July, earliest in December",
+    H.SUNSET_KW[5][0] * 60 + H.SUNSET_KW[5][1] === Math.max(...H.SUNSET_KW.map(([h, m]) => h * 60 + m)) &&
+      H.SUNSET_KW[11][0] * 60 + H.SUNSET_KW[11][1] === Math.min(...H.SUNSET_KW.map(([h, m]) => h * 60 + m)));
+  const plan = H.resolvePlan("sunset", "2026-07-15", new Date(Date.UTC(2026, 6, 15, 9, 0)));
+  ok("a July sunset plan resolves to an approximate hour, marked as such", plan.hour === 18 && plan.minute === 55 && plan.hourKind === "approx");
+}
+
+console.log("\n── the shortlist says enough to choose from ──");
+{
+  const list = [H.getPlace("kuwait-towers"), H.getPlace("souq-al-mubarakiya"), H.getPlace("marina-beach")];
+  const now = new Date(Date.UTC(2026, 6, 15, 9, 0)); // July, noon Kuwait
+  const msg = H.shortlistMessage({ places: list, when: "tomorrow", url: "VOTE", now });
+  console.log("      " + msg.replace(/\n/g, "\n      "));
+  ok("every place is numbered", /١\. /.test(msg) && /٢\. /.test(msg) && /٣\. /.test(msg));
+  ok("every place says why it is worth it", list.every((p) => msg.includes(p.taglineAr)));
+  ok("and where it is, as a map link each", list.every((p) => msg.includes(`destination=${p.lat},${p.lng}`)));
+  ok("the heading says which day «باچر» is", msg.startsWith("وين نروح باچر الخميس؟"), msg.split("\n")[0]);
+  // July, a daytime plan: every open-air place on the list gets its line, the
+  // indoor one gets none — the warning sits in the block of the place it is
+  // about, not once under the whole list.
+  const blocks = msg.split("\n\n").slice(1, -1);
+  const hot = list.map((p) => p.setting !== "indoor" && !p.summerOk);
+  ok("the heat line is in each hot place's own block and in no other",
+    blocks.every((b, i) => /حر|المغرب|الصبح/.test(b) === hot[i]), blocks.map((b, i) => `${i}:${/حر|المغرب|الصبح/.test(b)}/${hot[i]}`).join(" "));
+  ok("the vote link is last", msg.trim().endsWith("صوّتوا هني: VOTE"));
+  const vote = H.shortlistVoteMessage(list[1], 1, "tomorrow", "https://www.wainkw.com/places/souq-al-mubarakiya/?when=tomorrow&d=2026-07-15", "2026-07-15");
+  ok("a vote names its number, the place and the day", vote.startsWith("أنا مع ٢: ") && vote.includes("باچر الخميس"), vote);
+  ok("and carries the place's link under it", vote.split("\n")[1]?.startsWith("https://www.wainkw.com/places/souq-al-mubarakiya/"), vote);
+  ok("without a link it is one line, as before", !H.shortlistVoteMessage(list[1], 1, "tomorrow").includes("\n"));
+  ok("five choices, everywhere", H.CHOICE_MAX === 5);
+}
+
+console.log("\n── the calendar entry ──");
+/**
+ * RFC 5545 is picky in ways a reader never sees: CRLF ends, lines of 75
+ * OCTETS (an Arabic letter is two), commas escaped. A file that breaks one
+ * of them opens as nothing on a phone, with no error anybody can read.
+ */
+{
+  const place = H.getPlace("kuwait-towers");
+  const now = new Date("2026-10-03T12:00:00Z");
+  const url = "https://www.wainkw.com/places/kuwait-towers/?when=tonight-8&d=2026-10-03";
+  const entry = H.calendarEntry({ place, when: "tonight-8", day: "2026-10-03", phrase: "الليلة الساعة ٨", url, mapsUrl: "https://www.google.com/maps/dir/?api=1&destination=1,2", now });
+  const lines = entry.ics.split("\r\n");
+  ok("CRLF line ends and no bare newline", !/[^\r]\n/.test(entry.ics) && entry.ics.endsWith("\r\n"));
+  const enc = new TextEncoder();
+  ok("no line longer than 75 octets", lines.every((l) => enc.encode(l).length <= 75), String(Math.max(...lines.map((l) => enc.encode(l).length))));
+  ok("continuation lines start with one space", lines.filter((l) => l.startsWith(" ")).length > 0);
+  // Unfold and read the fields back.
+  const unfolded = entry.ics.replace(/\r\n /g, "").split("\r\n");
+  const field = (k) => unfolded.find((l) => l.startsWith(k + ":") || l.startsWith(k + ";"))?.slice(k.length + 1);
+  ok("8 pm Kuwait on 3 Oct is 17:00Z", field("DTSTART") === "20261003T170000Z", field("DTSTART"));
+  ok("two hours long", field("DTEND") === "20261003T190000Z", field("DTEND"));
+  ok("stamped with the moment it was made", field("DTSTAMP") === "20261003T120000Z", field("DTSTAMP"));
+  ok("the id is deterministic", field("UID") === "2026-10-03-tonight-8-kuwait-towers@wainkw.com" && H.icsUid("x", "now", "2026-01-01") === "2026-01-01-now-x@wainkw.com");
+  ok("the summary names the place", field("SUMMARY").includes(place.nameAr));
+  ok("the Arabic comma in the location is untouched, the ASCII ones in the map link are escaped",
+    field("LOCATION").includes("،") && field("DESCRIPTION").includes("destination=1\\,2"), field("DESCRIPTION"));
+  ok("GEO carries the pin with a raw semicolon", field("GEO") === `${place.lat};${place.lng}`);
+  ok("the wain link is in URL", field("URL") === url);
+  ok("BEGIN and END are balanced", unfolded.filter((l) => l.startsWith("BEGIN:")).length === 2 && unfolded.filter((l) => l.startsWith("END:")).length === 2);
+  ok("the Google link carries the same dates and the Kuwait zone",
+    entry.google.includes("dates=20261003T170000Z%2F20261003T190000Z") && entry.google.includes("ctz=Asia%2FKuwait") && entry.google.includes("action=TEMPLATE"), entry.google);
+  ok("the file is named for the place and the day", entry.filename === "wain-kuwait-towers-2026-10-03.ics");
+  // Folding must never split a letter: every line decodes as whole UTF-8.
+  const long = H.foldLine("SUMMARY:" + "طلعة مع الربع على البحر ".repeat(8));
+  ok("a long Arabic line folds without splitting a letter",
+    long.split("\r\n").every((l) => enc.encode(l).length <= 75 && !/�/.test(new TextDecoder("utf-8", { fatal: false }).decode(enc.encode(l)))) &&
+      long.replace(/\r\n /g, "") === "SUMMARY:" + "طلعة مع الربع على البحر ".repeat(8));
+  ok("escaping: backslash, semicolon, comma, newline", H.icsEscape("a\\b;c,d\ne") === "a\\\\b\\;c\\,d\\ne");
+  // A 01:00 Kuwait start is 22:00Z the day before.
+  ok("a one o'clock start lands on the previous UTC day", H.kuwaitToUtcStamp("2026-10-04", 1, 0) === "20261003T220000Z");
+  // Which plans get an entry at all.
+  ok("«باچر» with a day gets an entry, at the default evening hour, flagged",
+    H.hasCalendarEntry("tomorrow", "2026-10-03") &&
+      H.calendarEntry({ place, when: "tomorrow", day: "2026-10-03", phrase: "باچر", url, mapsUrl: "m", now }).ics.includes("DTSTART:20261004T170000Z") &&
+      H.calendarEntry({ place, when: "tomorrow", day: "2026-10-03", phrase: "باچر", url, mapsUrl: "m", now }).ics.replace(/\r\n /g, "").includes("افتراضية"));
+  ok("«عقب المغرب» says the hour is approximate",
+    H.calendarEntry({ place, when: "sunset", day: "2026-10-03", phrase: "عقب المغرب", url, mapsUrl: "m", now }).ics.replace(/\r\n /g, "").includes("تقريبي"));
+  ok("«الحين» and «بعد ساعة» get none, nor does a link with no day",
+    !H.hasCalendarEntry("now", "2026-10-03") && !H.hasCalendarEntry("soon", "2026-10-03") && !H.hasCalendarEntry("tonight-8", null));
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);
