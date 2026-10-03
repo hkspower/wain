@@ -3,7 +3,7 @@
  * Do the two bridges keep the same log, and keep the same promises about it?
  *   npm run audit:logs
  *
- * `/api/tts.php` and `/api/media.php` each carry their own copy of the logging
+ * `/api/tts.php`, `/api/media.php` and `/api/wain.php` each carry their own copy of the logging
  * code, and that duplication is deliberate: each file has to stay
  * copy-installable on its own, fetched from a raw URL and run, with no include
  * path between them. The rate counter is already duplicated for the same
@@ -47,12 +47,13 @@ const ok = (m) => console.log(`  ✓ ${m}`);
 const ENDPOINTS = {
   tts: "scripts/publish/tts-endpoint.php",
   media: "scripts/publish/media-endpoint.php",
+  wain: "scripts/publish/wain-api.php",
 };
 
 /** The one field that is allowed to differ: each log is named for its app. */
 const PER_APP = new Set(["name"]);
 
-console.log("\n── both bridges describe the same log ──");
+console.log("\n── every bridge describes the same log ──");
 
 const formats = {};
 for (const [app, file] of Object.entries(ENDPOINTS)) {
@@ -65,25 +66,29 @@ for (const [app, file] of Object.entries(ENDPOINTS)) {
   }
 }
 
-if (Object.keys(formats).length === 2) {
-  const [a, b] = Object.keys(formats);
-  const keys = [...new Set([...Object.keys(formats[a]), ...Object.keys(formats[b])])].sort();
+if (Object.keys(formats).length === Object.keys(ENDPOINTS).length) {
+  const apps = Object.keys(formats);
+  const [a, ...rest] = apps;
+  const keys = [...new Set(apps.flatMap((x) => Object.keys(formats[x])))].sort();
   let same = 0;
   for (const k of keys) {
     if (PER_APP.has(k)) continue;
     const av = JSON.stringify(formats[a][k]);
-    const bv = JSON.stringify(formats[b][k]);
-    if (av === bv) { same++; continue; }
-    fail(`${k} differs between the two bridges`, `${a}: ${av}\n      ${b}: ${bv}`);
+    for (const b of rest) {
+      const bv = JSON.stringify(formats[b][k]);
+      if (av === bv) { same++; continue; }
+      fail(`${k} differs between ${a} and ${b}`, `${a}: ${av}\n      ${b}: ${bv}`);
+    }
   }
-  if (same && errors === 0) ok(`${same} shared field(s) agree — ${a} and ${b} keep one log format`);
+  if (same && errors === 0) ok(`${same} shared field(s) agree — ${apps.join(", ")} keep one log format`);
 
   // Named for its app, or two installs would append to one file and a reader
   // could not tell whose line is whose.
-  if (formats[a].name === formats[b].name) {
-    fail("both logs have the same filename", formats[a].name);
+  const names = apps.map((x) => formats[x].name);
+  if (new Set(names).size !== names.length) {
+    fail("two logs share a filename", names.join(", "));
   } else {
-    ok(`each is named for its app (${formats[a].name}, ${formats[b].name})`);
+    ok(`each is named for its app (${names.join(", ")})`);
   }
 
   /* The cap is the whole reason the log is safe to leave running on shared
@@ -105,7 +110,7 @@ if (Object.keys(formats).length === 2) {
   const never = new Set(formats[a].never ?? []);
   const missing = MUST_REFUSE.filter((x) => !never.has(x));
   if (missing.length) fail(`the promise list dropped: ${missing.join(", ")}`);
-  else ok(`both refuse ${MUST_REFUSE.length} kinds of content by declaration`);
+  else ok(`all refuse ${MUST_REFUSE.length} kinds of content by declaration`);
 }
 
 console.log(`\n${errors} error${errors === 1 ? "" : "s"}\n`);

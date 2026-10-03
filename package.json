@@ -43,6 +43,7 @@
     "test:api": "node tests/api.test.mjs",
     "test:tts": "node tests/tts-endpoint.test.mjs",
     "test:media": "node tests/media-endpoint.test.mjs",
+    "test:wain-api": "node tests/wain-api.test.mjs",
     "test:db": "node tests/schema.test.mjs",
     "test:map": "node tests/map-frame.test.mjs",
     "test:find-moment": "node tests/find-moment.test.mjs",
