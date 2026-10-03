@@ -67,6 +67,10 @@ export const viewport: Viewport = {
   // The app draws its own background behind the status bar area; without this
   // iOS reserves an opaque bar and the launch reads as a web view.
   viewportFit: "cover",
+  // The keyboard shrinks the page on Android instead of sliding over it, so a
+  // chat's box stays above it (/salem). iOS ignores this; /salem follows the
+  // visual viewport itself there.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

@@ -146,6 +146,85 @@ for (const [width, height, standalone] of [[390, 844, false], [320, 568, false],
   await ctx.close();
 }
 
+console.log('\n── a reply that cannot load is said, and the next one tries again ──');
+{
+  // The search engine is a chunk loaded at runtime. On a weak connection it
+  // can fail or crawl; the chat used to remember a failure for the whole visit,
+  // and to wait on a slow one with the box locked and the dots up for ever.
+  for (const mode of ['fails', 'crawls']) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+    // The engine's chunk is the one the page asks for later: not named in the
+    // page's HTML, and carrying `buildIndex` (the page's own chunk calls it,
+    // so the name alone would catch the page too).
+    const html = await (await ctx.request.get(`${B}/salem/`)).text();
+    const upfront = new Set([...html.matchAll(/_next\/static\/chunks\/[^"]+\.js/g)].map((m) => m[0]));
+    let block = true;
+    await ctx.route('**/_next/static/chunks/**', async (route) => {
+      const res = await route.fetch();
+      const body = await res.text();
+      const path = new URL(route.request().url()).pathname.slice(1);
+      if (!block || upfront.has(path) || !body.includes('buildIndex')) return route.fulfill({ response: res, body });
+      if (mode === 'fails') return route.fulfill({ status: 404, body: 'nope' });
+      await new Promise((r) => setTimeout(r, 15_000));
+      return route.fulfill({ response: res, body });
+    });
+    const p = await ctx.newPage();
+    await p.goto(`${B}/salem/`, { waitUntil: 'domcontentloaded' });
+    await p.waitForTimeout(800);
+    await p.locator('#salem-q').fill('قهوة', { timeout: 5000 }).catch(() => {});
+    await p.locator('#salem-q').press('Enter', { timeout: 5000 }).catch(() => {});
+    const said = await p.waitForFunction(
+      () => document.querySelector('[role="log"]')?.textContent.includes('ما وصلني رد'),
+      null, { timeout: 12_000 }
+    ).then(() => true, () => false);
+    ok(`the search ${mode}: سالم says he got nothing, within ten seconds or so`, said);
+    if (mode === 'fails') {
+      block = false;
+      await p.locator('#salem-q').fill('بحر', { timeout: 5000 }).catch(() => {});
+      await p.locator('#salem-q').press('Enter', { timeout: 5000 }).catch(() => {});
+      const answered = await p.waitForFunction(
+        () => document.querySelectorAll('[role="log"] a[href^="/places/"]').length > 0,
+        null, { timeout: 8000 }
+      ).then(() => true, () => false);
+      ok('…and the next question gets a real answer, not the same failure', answered);
+    }
+    await ctx.close();
+  }
+}
+
+console.log('\n── before the page is ready, the box waits ──');
+{
+  const ctx = await browser.newContext();
+  const html = await (await ctx.request.get(`${B}/salem/`)).text();
+  const input = html.match(/<input[^>]*id="salem-q"[^>]*>/)?.[0] ?? '';
+  ok('the box is disabled in the page as sent, until its script has run', /\sdisabled(=""|\s|>)/.test(input), input.slice(0, 160));
+  await ctx.close();
+}
+
+console.log('\n── the chat fits the screen that is visible, keyboard and all ──');
+{
+  // An iPhone keyboard shrinks the VISUAL viewport and leaves the layout one
+  // alone, so `100dvh` stays full height and the browser pans the page: the
+  // header slid off and the page scrolled. Chromium has no keyboard to open,
+  // so the visual viewport is played by a stand-in 400px tall.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await ctx.addInitScript(() => {
+    const vv = new EventTarget();
+    Object.assign(vv, { height: 400, width: 390, offsetTop: 0, offsetLeft: 0, scale: 1, pageTop: 0, pageLeft: 0 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => vv });
+  });
+  const p = await ctx.newPage();
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  const m = await p.evaluate(() => {
+    const input = document.getElementById('salem-q').getBoundingClientRect();
+    const header = document.querySelector('header').getBoundingClientRect();
+    return { inputBottom: Math.round(input.bottom), headerTop: Math.round(header.top) };
+  });
+  ok('with a keyboard over half the screen, the box sits above it', m.inputBottom <= 400, JSON.stringify(m));
+  ok('…and the header is still at the top', m.headerTop === 0, JSON.stringify(m));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

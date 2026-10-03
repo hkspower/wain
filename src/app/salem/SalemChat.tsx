@@ -92,6 +92,9 @@ const UNAVAILABLE_RETRY_MS = 30000;
  */
 const FREE = !WAIN_AI_AGENT_ENABLED;
 
+/** How long a free answer may take before the chat says it got none. */
+const FREE_REPLY_MS = 10_000;
+
 export default function SalemChat() {
   const [status, setStatus] = useState<SalemStatus>(FREE ? "connected" : "connecting");
   const [messages, setMessages] = useState<ChatLine[]>(() =>
@@ -127,8 +130,49 @@ export default function SalemChat() {
     let pending: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null =
       null;
     return () =>
-      (pending ??= import("@/lib/search").then((mod) => ({ mod, index: mod.buildIndex(places) })));
+      (pending ??= import("@/lib/search").then(
+        (mod) => ({ mod, index: mod.buildIndex(places) }),
+        (err) => {
+          // Forget a failure: a remembered rejection failed every message
+          // after the first, for the rest of the visit.
+          pending = null;
+          throw err;
+        }
+      ));
   }, [places]);
+
+  // The box is live in the server HTML, before the page's script has run, and
+  // a tap or an Enter then did nothing — or submitted the form the old way and
+  // reloaded the page with the question gone. It waits for this instead.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+
+  // Sized to the screen that is actually visible. `h-dvh` alone ignored the
+  // keyboard on iPhones (the browser panned the page and the header slid
+  // off), and inside a `min-h-screen` body the page scrolled under the chat by
+  // the height of the toolbar. The frame is fixed to the visual viewport now,
+  // and the page behind it does not scroll.
+  const frameRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = document.documentElement;
+    const before = root.style.overflow;
+    root.style.overflow = "hidden";
+    const vv = window.visualViewport;
+    const fit = () => {
+      const el = frameRef.current;
+      if (!el || !vv) return;
+      el.style.setProperty("--vvh", `${vv.height}px`);
+      el.style.top = `${vv.offsetTop}px`;
+    };
+    fit();
+    vv?.addEventListener("resize", fit);
+    vv?.addEventListener("scroll", fit);
+    return () => {
+      root.style.overflow = before;
+      vv?.removeEventListener("resize", fit);
+      vv?.removeEventListener("scroll", fit);
+    };
+  }, []);
 
   useEffect(() => {
     void loadIndex().catch(() => {
@@ -140,7 +184,13 @@ export default function SalemChat() {
   async function answerLocally(q: string) {
     setPending(true);
     try {
-      const { mod, index } = await loadIndex();
+      // Bounded: a search chunk stuck on a weak connection kept the dots up and
+      // the box locked for ever. Ten seconds, then say so; the next message
+      // tries again.
+      const { mod, index } = await Promise.race([
+        loadIndex(),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), FREE_REPLY_MS)),
+      ]);
       const hits = mod.search(q, index, { limit: 40 });
       const { slugs } = formatShowPlaces(q, hits, places);
       const found = slugs.flatMap((slug) => places.filter((p) => p.slug === slug));
@@ -330,7 +380,10 @@ export default function SalemChat() {
     // scroll-to-newest effect scrolled a list that could not scroll. Reported
     // as «she did not answer», 1 October. Installed, the body already pads
     // for the tab bar, so the frame is that much shorter.
-    <div className="flex h-dvh flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom))]">
+    <div
+      ref={frameRef}
+      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))]"
+    >
       <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
         {/* In the header, not floating: this page is one fixed frame, so the
             header never scrolls away and a floating circle would sit on his
@@ -447,6 +500,7 @@ export default function SalemChat() {
               <button
                 key={q}
                 type="button"
+                disabled={!ready}
                 onClick={() => submit(q)}
                 className="inline-flex min-h-6 items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
               >
@@ -500,14 +554,14 @@ export default function SalemChat() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
-          disabled={status !== "connected"}
+          disabled={!ready || status !== "connected"}
           // No `disabled:opacity-*` — the box already reads a normal white
           // field, and the header's own status line is what says "not yet".
           className="h-11 min-w-0 flex-1 rounded-full bg-white px-4 text-base text-ink-900 placeholder:text-ink-400 disabled:cursor-not-allowed"
         />
         <button
           type="submit"
-          disabled={status !== "connected" || pending || draft.trim() === ""}
+          disabled={!ready || status !== "connected" || pending || draft.trim() === ""}
           aria-label={WAIN_AI_CHAT_COPY.send}
           className="grid size-11 shrink-0 place-items-center rounded-full bg-sea-600 text-white transition hover:bg-sea-700 disabled:opacity-40"
         >

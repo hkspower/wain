@@ -180,8 +180,12 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const fresh = await fetch(req);
-          const cache = await caches.open(CACHE);
-          cache.put(req, fresh.clone()).catch(() => {});
+          // Only a real page is worth keeping: a 404 or a host's 503 stored
+          // here would be what this visitor sees offline from then on.
+          if (fresh.ok) {
+            const cache = await caches.open(CACHE);
+            cache.put(req, fresh.clone()).catch(() => {});
+          }
           return fresh;
         } catch {
           return (
@@ -203,8 +207,15 @@ self.addEventListener("fetch", (event) => {
         const hit = await caches.match(req);
         if (hit) return hit;
         const fresh = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone()).catch(() => {});
+        // Never a failure. This branch is cache-first, so whatever it stores
+        // is what every later request gets, for as long as this build lives:
+        // one 404 or 5xx on a chunk (a weak connection, a deploy half
+        // arrived) used to be served for ever, and /salem's search chunk
+        // failing once meant سالم never answered on that phone again.
+        if (fresh.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put(req, fresh.clone()).catch(() => {});
+        }
         return fresh;
       })()
     );
