@@ -21,6 +21,17 @@
 
   function onPanel() { return /^\/backends(\/|$)/.test(location.pathname) }
 
+  /* Arabic (٠-٩) and Persian (۰-۹) digits to 0-9. An Arabic phone's number pad
+     types those, and the strip below keeps only ASCII digits — so six taps left
+     the box empty and the keypad never submitted. Here as well as in
+     keyboard-hints.js so that this card never depends on that one loading. */
+  function west(s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, function (c) {
+      var n = c.charCodeAt(0)
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
+
   function api(route, body) {
     return fetch(API + route, {
       method: body ? 'POST' : 'GET',
@@ -99,7 +110,7 @@
       })
     }
     input.addEventListener('input', function () {
-      input.value = input.value.replace(/[^0-9]/g, '').slice(0, 6)
+      input.value = west(input.value).replace(/[^0-9]/g, '').slice(0, 6)
       if (input.value.length === 6) submit()
     })
     swap.addEventListener('click', function () {
@@ -158,7 +169,7 @@
       i.type = 'password'; i.inputMode = 'numeric'; i.maxLength = 6; i.autocomplete = 'off'
       i.placeholder = ph
       i.style.cssText = 'width:9em;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;font-size:14px;letter-spacing:.3em;text-align:center'
-      i.addEventListener('input', function () { i.value = i.value.replace(/[^0-9]/g, '').slice(0, 6) })
+      i.addEventListener('input', function () { i.value = west(i.value).replace(/[^0-9]/g, '').slice(0, 6) })
       return i
     }
     var p1 = pin('6 digits'), p2 = pin('repeat')

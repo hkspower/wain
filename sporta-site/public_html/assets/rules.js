@@ -249,13 +249,15 @@
      keyboard was refused as "not a number" while reading as one on screen, on
      a shop whose default language is Arabic. The app's lib/money.ts carries
      the same map; this is a second home for it only because the panel overlay
-     is plain ES5 with no build step and cannot import from src/. */
+     is plain ES5 with no build step and cannot import from src/.
+     The Persian digits (۰-۹, U+06F0-06F9) too: a Persian or Urdu number pad
+     types those, and they were refused as "not a number" the same way. */
   function westernDigits(s) {
-    return String(s).replace(/[٠-٩٫٬]/g, function (c) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9\u066B\u066C]/g, function (c) {
       var code = c.charCodeAt(0)
       if (code === 0x066B) return '.'   // the Arabic decimal separator
       if (code === 0x066C) return ''    // the Arabic thousands separator
-      return String(code - 0x0660)
+      return String(code >= 0x06F0 ? code - 0x06F0 : code - 0x0660)
     })
   }
 

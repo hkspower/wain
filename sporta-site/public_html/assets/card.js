@@ -51,10 +51,19 @@
      customer types; every real decision about what a Kuwaiti number is stays
      in store_phone() on the server, which is the one place that knows what the
      orders table holds. Normalising properly in two places is how the first
-     version of ?r=loyalty returned 403 to a customer who plainly existed. */
+     version of ?r=loyalty returned 403 to a customer who plainly existed.
+     Arabic (٠-٩) and Persian (۰-۹) digits become 0-9 FIRST: `\d` is ASCII-only,
+     so the number pad of an Arabic phone — this page's own placeholder, ٥٥٥١٢٣٤٥
+     — was stripped to nothing and refused as invalid_phone. */
+  var west = function (s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, function (c) {
+      var n = c.charCodeAt(0)
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
   var clean = function () {
     return {
-      phone: $('phone').value.replace(/[^\d]/g, ''),
+      phone: west($('phone').value).replace(/[^\d]/g, ''),
       track: $('track').value.trim().toUpperCase()
     }
   }

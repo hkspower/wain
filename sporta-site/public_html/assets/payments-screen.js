@@ -31,6 +31,29 @@
     if (text != null) n.textContent = text
     return n
   }
+  /* Arabic (٠-٩) and Persian (۰-۹) digits to 0-9, ٫ to "." and ٬ dropped —
+     what an Arabic phone's number pad types. These boxes were type=number,
+     which DROPS a digit it does not know: "٤" saved as "Check the numbers." and
+     "٥٫٥" as an empty box, which the old save read as 0 — NO LIMIT. */
+  function west(s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9\u066B\u066C]/g, function (c) {
+      var n = c.charCodeAt(0)
+      if (n === 0x066B) return '.'
+      if (n === 0x066C) return ''
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
+  /* KWD to fils, or null when it is not an amount. An EMPTY box is null, not 0:
+     0 means "no limit", and that must be typed, never inferred from a blank.
+     The comma rule is money.ts's and rules.js's: with a dot present a comma
+     groups thousands ("1,234.500"); alone it is the decimal point ("1,5"). */
+  function fils(v) {
+    var raw = west(v).trim()
+    if (raw === '') return null
+    raw = raw.indexOf('.') >= 0 ? raw.replace(/,/g, '') : raw.replace(',', '.')
+    if (!/^\d+(\.\d{1,3})?$/.test(raw)) return null
+    return Math.round(parseFloat(raw) * 1000)
+  }
   function call(route, body) {
     return fetch(API + route, {
       method: body ? 'POST' : 'GET',
@@ -140,9 +163,9 @@
     cod.appendChild(el('h2', 'spps-h', 'Cash on delivery limits'))
     cod.appendChild(el('p', 'spps-sub', 'A customer over a limit is told at the last step, not before — the checkout does not show these numbers.'))
     var r1 = el('label', 'spps-row'); r1.appendChild(el('span', 'spps-name', 'Unpaid cash orders one customer may have open'))
-    codOpen = el('input', 'spps-in'); codOpen.type = 'number'; codOpen.min = '1'; codOpen.max = '50'; r1.appendChild(codOpen)
+    codOpen = el('input', 'spps-in'); codOpen.type = 'text'; codOpen.inputMode = 'numeric'; codOpen.pattern = '[0-9]*'; codOpen.maxLength = 2; codOpen.dir = 'ltr'; r1.appendChild(codOpen)
     var r2 = el('label', 'spps-row'); r2.appendChild(el('span', 'spps-name', 'Largest cash order (KWD, 0 = no limit)'))
-    codMax = el('input', 'spps-in'); codMax.type = 'number'; codMax.min = '0'; codMax.step = '0.5'; r2.appendChild(codMax)
+    codMax = el('input', 'spps-in'); codMax.type = 'text'; codMax.inputMode = 'decimal'; codMax.dir = 'ltr'; r2.appendChild(codMax)
     cod.appendChild(r1); cod.appendChild(r2)
     s.appendChild(cod)
 
@@ -155,8 +178,9 @@
     })
     saveBtn.addEventListener('click', function () {
       var methods = Object.keys(NAMES).filter(function (k) { return boxes[k].checked })
-      var body = { payment_methods: methods, cod_open_max: codOpen.value.trim(), cod_max_fils: String(Math.round(parseFloat(codMax.value || '0') * 1000)) }
-      if (!/^\d+$/.test(body.cod_open_max) || isNaN(parseFloat(codMax.value || '0')) || parseFloat(codMax.value || '0') < 0) { say('Check the numbers.', false); return }
+      var openMax = west(codOpen.value).trim(), maxFils = fils(codMax.value)
+      if (!/^\d+$/.test(openMax) || maxFils === null) { say('Check the numbers.', false); return }
+      var body = { payment_methods: methods, cod_open_max: openMax, cod_max_fils: String(maxFils) }
       saveBtn.disabled = true; say('Saving…', true)
       call('settings_save', { name: 'rules', value: body }).then(function (r) {
         saveBtn.disabled = false

@@ -92,6 +92,16 @@
     return n
   }
 
+  /* Arabic (٠-٩) and Persian (۰-۹) digits to 0-9. The sort box was type=number,
+     which drops a digit it does not know, and the save read the empty box as
+     `|| 0` — so "١٢" typed on an Arabic number pad silently saved sort 0. */
+  function west(s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, function (c) {
+      var n = c.charCodeAt(0)
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
+
   function ask(route, body) {
     return fetch(API + route, {
       method: body ? 'POST' : 'GET',
@@ -365,7 +375,10 @@
     var sortWrap = el('label', 'hsl-field')
     sortWrap.appendChild(el('span', 'hsl-label', 'Sort order'))
     var sortIn = document.createElement('input')
-    sortIn.type = 'number'
+    sortIn.type = 'text'
+    sortIn.inputMode = 'numeric'
+    sortIn.pattern = '-?[0-9]*'
+    sortIn.dir = 'ltr'
     sortIn.value = String(s.sort)
     sortIn.className = 'hsl-input'
     sortWrap.appendChild(sortIn)
@@ -375,9 +388,19 @@
     save.type = 'button'
     save.disabled = !!state.busy
     save.addEventListener('click', function () {
+      // A box that is not a whole number is REFUSED, not saved as 0. The
+      // message goes into this box rather than through render(), which would
+      // rebuild the form and throw away the chosen pictures with it.
+      var sortRaw = west(sortIn.value).trim()
+      if (!/^-?\d+$/.test(sortRaw)) {   // a minus kept: an existing negative sort must still save
+        var n = box.querySelector('.hsl-note') || box.appendChild(el('p', 'hsl-note'))
+        n.textContent = 'Sort order must be a whole number, such as 10.'
+        sortIn.focus()
+        return
+      }
       saveSlide(s, {
         focal_x: parseInt(slider.value, 10),
-        sort: parseInt(sortIn.value, 10) || 0,
+        sort: parseInt(sortRaw, 10),
         file: fileIn.files[0] || null,
         mobileFile: mobileIn.files[0] || null,
       })

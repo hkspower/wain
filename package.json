@@ -60,6 +60,7 @@
     "test:cart": "node scripts/cart-test.mjs",
     "test:checkout": "node scripts/checkout-test.mjs",
     "test:keyboard-hints": "node scripts/keyboard-hints-test.mjs",
+    "test:numeric-keyboard": "node scripts/numeric-keyboard-test.mjs",
     "test:checkout-fields": "node scripts/checkout-fields-test.mjs",
     "test:hero-preload": "node scripts/hero-preload-test.mjs",
     "test:customer-ui": "node scripts/customer-account-ui-test.mjs",

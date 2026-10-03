@@ -232,6 +232,12 @@
       input.type = k === 'email' ? 'email' : 'text'
       input.autocomplete = 'off'
       if (/_ar$/.test(k)) input.dir = 'rtl'
+      // The WhatsApp number is digits (and a +): a phone pad. autocomplete stays
+      // off — it is the SHOP's number, and the owner's browser must not offer
+      // the owner's own. "Phone, as it should be printed" is NOT given one: it is
+      // display text printed exactly as typed, spaces included, and the iOS
+      // phone pad has no space key.
+      if (k === 'whatsapp') { input.inputMode = 'tel'; input.dir = 'ltr' }
       fields[k] = input
       wrap.appendChild(input)
       if (FIELDS[i][2]) wrap.appendChild(el('p', 'spc-hint', FIELDS[i][2]))

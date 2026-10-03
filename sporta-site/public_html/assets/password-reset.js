@@ -17,6 +17,16 @@
 
   function onPanel() { return /^\/backends(\/|$)/.test(location.pathname) }
 
+  /* Arabic (٠-٩) and Persian (۰-۹) digits to 0-9. admin.php keeps only ASCII
+     digits of the code, so a code typed on an Arabic number pad arrived empty,
+     was refused as reset_refused, and used up one of the attempts. */
+  function west(s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, function (c) {
+      var n = c.charCodeAt(0)
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
+
   function api(route, body) {
     return fetch(API + route, {
       method: 'POST',
@@ -89,7 +99,7 @@
     var email = field('email', T('Admin email', 'بريد المسؤول'), 'username')
     var send = button(T('Email me a code', 'أرسل لي رمزًا'), true)
     var code = field('text', T('8-digit code from the email', 'الرمز المكوّن من 8 أرقام'), 'one-time-code')
-    code.inputMode = 'numeric'; code.maxLength = 8
+    code.inputMode = 'numeric'; code.pattern = '[0-9]*'; code.maxLength = 8
     var p1 = field('password', T('New password (12+ characters)', 'كلمة مرور جديدة (12 حرفًا فأكثر)'), 'new-password')
     var p2 = field('password', T('New password again', 'أعد كتابة كلمة المرور'), 'new-password')
     var done = button(T('Set new password', 'تعيين كلمة المرور'), true)
@@ -126,7 +136,7 @@
     done.addEventListener('click', function () {
       if (busy) return
       busy = true; say('…', true)
-      api('password_reset_confirm', { email: email.value.trim(), code: code.value, password: p1.value, password2: p2.value }).then(function (r) {
+      api('password_reset_confirm', { email: email.value.trim(), code: west(code.value).replace(/\D/g, ''), password: p1.value, password2: p2.value }).then(function (r) {
         busy = false
         if (!r.ok) return say(WHY[r.j.error] || T('Could not reset the password.', 'تعذّر إعادة التعيين.'))
         p1.value = ''; p2.value = ''; code.value = ''

@@ -39,6 +39,17 @@
     if (text != null) n.textContent = text
     return n
   }
+  /* Arabic (٠-٩) and Persian (۰-۹) digits to 0-9. The server's stock check is
+     ASCII-only, so "١٢" typed on an Arabic number pad refused the WHOLE batch as
+     invalid_stock, and the low-stock line (then type=number) dropped it to an
+     empty box and saved null. Converted where each value is read, so nothing
+     here depends on keyboard-hints.js having loaded. */
+  function west(s) {
+    return String(s).replace(/[\u0660-\u0669\u06F0-\u06F9]/g, function (c) {
+      var n = c.charCodeAt(0)
+      return String(n >= 0x06F0 ? n - 0x06F0 : n - 0x0660)
+    })
+  }
   function call(route, method, body) {
     return fetch(API + route, {
       method: method || 'GET',
@@ -155,11 +166,12 @@
     // threshold
     var t = el('div', 'spinv-row spinv-field')
     t.appendChild(el('span', 'spinv-label', 'Low-stock line'))
-    var n = el('input', 'spinv-input spinv-num'); n.type = 'number'; n.min = '0'; n.max = '999'; n.value = String(st.line)
+    var n = el('input', 'spinv-input spinv-num'); n.type = 'text'; n.inputMode = 'numeric'; n.pattern = '[0-9]*'; n.maxLength = 3; n.size = 3; n.value = String(st.line)
     n.setAttribute('aria-label', 'Low-stock line')
     var ns = el('button', 'spinv-btn', 'Save line'); ns.type = 'button'
     ns.addEventListener('click', function () {
-      call('inventory_low_save', 'POST', { low: parseInt(n.value, 10) }).then(function (r) {
+      var lv = west(n.value).trim()
+      call('inventory_low_save', 'POST', { low: /^\d+$/.test(lv) ? parseInt(lv, 10) : null }).then(function (r) {
         if (r.ok) { S.meta.low = r.j.low; S.note = 'Low-stock line is ' + r.j.low + '.'; S.bad = false } else { S.note = 'That is not a number from 0 to 999.'; S.bad = true }
         render(); annotate()
       })
@@ -254,8 +266,8 @@
   function saveProduct() {
     var changes = []
     S.rows.filter(function (r) { return r.slug === S.slug }).forEach(function (r) {
-      var v = S.edit[r.sku]
-      if (v != null && String(v).trim() !== String(r.stock)) changes.push({ sku: r.sku, stock: String(v).trim() })
+      var v = S.edit[r.sku] != null ? west(S.edit[r.sku]).trim() : null
+      if (v != null && v !== String(r.stock)) changes.push({ sku: r.sku, stock: v })
     })
     if (!changes.length) { S.note = 'Nothing changed.'; S.bad = false; render(); return }
     applyList(changes, 'bulk')
@@ -312,7 +324,7 @@
       var rows = parseCsv(String(rd.result)), head = (rows.shift() || []).map(function (h) { return h.trim().toLowerCase() })
       var si = head.indexOf('sku'), ti = head.indexOf('stock')
       if (si === -1 || ti === -1) { S.note = 'The file needs a header row with "sku" and "stock" columns (Export CSV makes one).'; S.bad = true; S.preview = null; render(); return }
-      var changes = rows.map(function (r) { return { sku: (r[si] || '').trim(), stock: (r[ti] || '').trim() } })
+      var changes = rows.map(function (r) { return { sku: (r[si] || '').trim(), stock: west(r[ti] || '').trim() } })
       if (!changes.length) { S.note = 'The file has no rows.'; S.bad = true; render(); return }
       call('inventory_apply', 'POST', { changes: changes, reason: 'import', dry: true }).then(function (res) {
         if (!res.ok || !res.j) { S.note = 'Could not read the file: ' + ((res.j && res.j.error) || 'error'); S.bad = true; S.preview = null; render(); return }
@@ -335,7 +347,7 @@
     + '.spinv-c-out{border-color:#b3261e;background:rgba(179,38,30,.18)}'
     + '.spinv-c-low{border-color:#c98a1b;background:rgba(201,138,27,.18)}'
     + '.spinv-input{padding:8px 10px;min-height:44px;box-sizing:border-box;border-radius:8px;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit;font:inherit;flex:1 1 220px}'
-    + '.spinv-narrow{flex:0 1 200px}.spinv-num{flex:0 0 84px;text-align:end}'
+    + '.spinv-narrow{flex:0 1 200px}.spinv-num{flex:0 0 84px;min-width:0;text-align:end}'
     + '.spinv-btn,.spinv-go{padding:10px 16px;min-height:44px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit}'
     + '.spinv-go{border:0;background:var(--brand,#e0561c);color:#fff}.spinv-go[disabled],.spinv-btn[disabled]{opacity:.5;cursor:default}'
     + '.spinv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:10px 0}'
