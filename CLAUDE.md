@@ -5340,6 +5340,9 @@ section 5 is 6 red on the previous sun.
 first attempt); `android-flutter` run 37108147354 built both APKs
 (`wain-android-debug`, `wain-android-sideload`), and its emulator job sat in
 «Run the device suite» from 08:04 — the known hang, not this change's.
+**And at `660841cf` (the sun's haptic):** `flutter-ci` run 37111326533 green
+the same way, both simulators on the first attempt; `android-flutter` run
+37111328136 built both APKs, its emulator job cancelled at the cap (09:55).
 
 **Making targets 40px broke a pin, and only a browser suite saw it.** The live
 map's zoom buttons took the tap floor, grew from 32 to 40px on touch, and
