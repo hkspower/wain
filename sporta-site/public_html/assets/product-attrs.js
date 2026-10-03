@@ -20,8 +20,10 @@
  * are in stock; the server refuses the same thing by name, so the two agree.
  *
  * FIT IS NOT YET USED BY THE STOREFRONT. The bundle has no source here and
- * writes 'normal' for every order line, so the fits chosen here are recorded
- * and shown in this panel, not yet offered to shoppers.
+ * picks each order line's fit from its own per-garment default ('slim' for
+ * leggings and tops, 'normal' for the rest, none for accessories — the card's
+ * quick-add follows the same rule, see quick-add-size.js), so the fits chosen
+ * here are recorded and shown in this panel, not yet offered to shoppers.
  */
 (function () {
   'use strict'

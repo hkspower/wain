@@ -19,12 +19,19 @@
  *
  * The cart is `localStorage.sporta_cart`, a plain JSON array the bundle
  * reads on load — confirmed by watching a real add before writing a line of
- * this: `[{key,slug,size,fit,name:{en,ar},price,image,qty}]`, `key` is
- * `` `${slug}__${size}__${fit}` ``, and `fit` is always `'normal'` — checked
- * against the schema: `product_variants` has no fit column at all, and
- * neither does `products`. The bundle's own size/fit picker still writes
- * `'normal'` for every product, so that is not a choice this popover needs
- * to offer; there is only ever one fit to write.
+ * this: `[{key,slug,size,fit,name:{en,ar},price,image,qty}]`, and `key` is
+ * `` `${slug}__${size ?? '-'}__${fit ?? '-'}` `` (the bundle's own te()).
+ *
+ * THE FIT IS THE PRODUCT PAGE'S DEFAULT, NOT ALWAYS 'normal' (corrected
+ * 2026-10-03). This header used to say the bundle writes 'normal' for every
+ * product. It does not: its product page picks a default fit per garment —
+ * 'slim' for leggings, tights, tops and bras, 'normal' for the rest, none for
+ * accessories (the bundle's st()/ct(), ported below as defaultFit). Writing
+ * 'normal' here put a second cart row beside the product page's for the same
+ * size of the same leggings, and recorded the wrong fit on the order.
+ * defaultFit() is exported (window.sportaDefaultFit) together with the add
+ * itself (window.sportaCartAdd), so the card's size boxes (card-options.js)
+ * and this chooser make ONE kind of cart row.
  *
  * WRITING THE ARRAY IS NOT ENOUGH ON ITS OWN. Measured: a plain
  * `localStorage.setItem` with the page already open does NOT move the
@@ -145,6 +152,7 @@
         pBySlug[row2.slug] = {
           price: Number(row2.price) || 0,
           name: { en: String(row2.name_en || ''), ar: String(row2.name_ar || '') },
+          category: String(row2.category || ''),
         }
       }
       infoBySlug = pBySlug
@@ -206,10 +214,26 @@
     return null
   }
 
-  function addToCart(slug, size, img) {
-    var info = infoBySlug[slug]
-    if (!info) return false
-    var key = slug + '__' + size + '__normal'
+  /* THE PRODUCT PAGE'S DEFAULT FIT, ported from the bundle's st()/ct(). Accessories have no fit
+     (null, written as '-' in the key); otherwise the garment is read off the ENGLISH name, in the
+     bundle's own order. The bundle also has a per-slug table that it consults first; for every
+     product in it the name gives the same garment, which test:card-options checks against a real
+     product-page add rather than against this function. */
+  function defaultFit(category, nameEn) {
+    if (category === 'accessories') return null
+    var n = String(nameEn || '').toLowerCase()
+    if (/legging|tight/.test(n)) return 'slim'
+    if (/t-?shirt|tee\b/.test(n)) return 'normal'
+    if (/sweatshirt|hoodie/.test(n)) return 'normal'
+    if (/jacket/.test(n)) return 'normal'
+    if (/\btop\b|bra\b/.test(n)) return 'slim'
+    return 'normal'
+  }
+
+  /* One line into the saved cart, in the bundle's own shape and key (te()), and the bundle told. */
+  function writeCart(item, size, fit) {
+    if (!item || !item.slug) return false
+    var key = item.slug + '__' + (size == null ? '-' : size) + '__' + (fit == null ? '-' : fit)
     var raw = null
     try { raw = localStorage.getItem('sporta_cart') } catch (e) { return false }
     var cart = []
@@ -226,8 +250,8 @@
     }
     if (!found) {
       cart.push({
-        key: key, slug: slug, size: size, fit: 'normal',
-        name: info.name, price: info.price, image: img || '', qty: 1,
+        key: key, slug: item.slug, size: size == null ? null : size, fit: fit == null ? null : fit,
+        name: item.name, price: item.price, image: item.image || '', qty: 1,
       })
     }
 
@@ -241,6 +265,36 @@
     } catch (e) { return false }
     return true
   }
+
+  /* ONE ADD-TO-BAG PATH for every control on a card — this chooser's pills and the card's own size
+     boxes (card-options.js). item = { slug, name: {en, ar}, price, image }. Returns how it added:
+       'bundle'  the bundle's own cart took it (bag count, drawer and saved cart all moved)
+       'static'  a server-drawn page (category.php): written, and the page's bag badge repainted
+       'reload'  the bundle could not be reached: written, and the page reloads in 650ms so the
+                 bag the shopper sees is true (see the pill handler below for why)
+       false     nothing was added */
+  function cartAdd(item, size, fit) {
+    if (!item || !item.slug) return false
+    var cart = bundleCart()
+    if (cart) {
+      try { cart.add(item, 1, size, fit); return 'bundle' } catch (e) {}
+    }
+    if (!writeCart(item, size, fit)) return false
+    if (isStaticPage()) { paintStaticBag(); return 'static' }
+    // A REAL RELOAD, not a hope. The cart provider reads `localStorage.sporta_cart` exactly once,
+    // in its own useState initialiser — grepped the bundle before settling on this: there is a
+    // `storage` event listener near the wishlist's array state, and none anywhere near the cart's.
+    // A `StorageEvent` was tried first and DID get parsed and re-persisted by SOMETHING (proof the
+    // bundle even has that code path) — but the header's own "Bag, N item" label and the drawer
+    // opened afterward still read "empty" in the same tab, which is the one failure this file
+    // exists to avoid: told "Added", then shown an empty bag. Reloading is the only path that is
+    // actually true.
+    try { sessionStorage.setItem('qas-scroll-y', String(window.scrollY)) } catch (e2) {}
+    setTimeout(function () { location.reload() }, 650)
+    return 'reload'
+  }
+  window.sportaCartAdd = cartAdd
+  window.sportaDefaultFit = defaultFit
 
   function closePanel(anchor) {
     var panel = anchor.querySelector('.qas-panel')
@@ -284,39 +338,17 @@
         e.preventDefault()
         e.stopPropagation()
         var info = infoBySlug[slug]
-        var cart = bundleCart()
-        if (cart && info) {
-          cart.add({ slug: slug, name: info.name, price: info.price, image: imgSrc }, 1, size, 'normal')
-          row.style.display = 'none'
-          head.textContent = t('added')
-          setTimeout(function () { closePanel(anchor) }, 1100)
-          return
-        }
-        var ok = addToCart(slug, size, imgSrc)
+        var how = info
+          ? cartAdd({ slug: slug, name: info.name, price: info.price, image: imgSrc }, size, defaultFit(info.category, info.name.en))
+          : false
         row.style.display = 'none'
-        head.textContent = ok ? t('added') : ''
-        if (ok && isStaticPage()) {
-          paintStaticBag()
+        head.textContent = how ? t('added') : ''
+        if (how === 'bundle' || how === 'static') {
           setTimeout(function () { closePanel(anchor) }, 1100)
-          return
-        }
-        if (ok) {
-          // A REAL RELOAD, not a hope. The cart provider reads
-          // `localStorage.sporta_cart` exactly once, in its own useState
-          // initialiser — grepped the bundle before settling on this: there
-          // is a `storage` event listener near the wishlist's array state,
-          // and none anywhere near the cart's. A `StorageEvent` was tried
-          // first and DID get parsed and re-persisted by SOMETHING (proof
-          // the bundle even has that code path) — but the header's own "Bag,
-          // N item" label and the drawer opened afterward still read "empty"
-          // in the same tab, which is the one failure this file exists to
-          // avoid: told "Added", then shown an empty bag. Reloading is the
-          // only path that is actually true.
-          try { sessionStorage.setItem('qas-scroll-y', String(window.scrollY)) } catch (e2) {}
-          setTimeout(function () { location.reload() }, 650)
-        } else {
+        } else if (!how) {
           setTimeout(function () { closePanel(anchor) }, 900)
         }
+        /* 'reload': cartAdd has already scheduled the reload */
       }
       row.appendChild(pill)
     })
