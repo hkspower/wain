@@ -1,0 +1,9 @@
+/* THE WHOLE PHOTOGRAPH ON EVERY PRODUCT CARD — 2026-10-03, the owner's choice ("Show whole photo").
+   29 of the live shop's 38 photos are about 440x690 (0.64:1), narrower than the 4:5 card, so `cover`
+   cut about a fifth off the top and bottom of each. `contain` shows all of it on the card's white
+   ground; the sides get thin white strips. Sharpness is the upload's: bigger originals fix that.
+   The placeholder (a data: picture) keeps the bundle's own fit, as 44- already separates it. */
+main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) {
+  object-fit: contain !important;
+  object-position: 50% 50% !important;
+}

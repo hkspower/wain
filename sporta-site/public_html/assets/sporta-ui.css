@@ -2028,3 +2028,7 @@ main article .cardopt-size[data-cardopt-added]::after {
   white-space: nowrap;
   border: 0;
 }
+main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) {
+  object-fit: contain !important;
+  object-position: 50% 50% !important;
+}
