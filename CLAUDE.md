@@ -5693,6 +5693,9 @@ through the edge: 200, `Last-Modified: 16:04:02` (the deploy's minute),
 is in `storage/elevenlabs.key`: the bridge answers 503 `not_configured`, which
 voice.ts remembers for the visit. Then `php …/api/tts.php probe shouq` and
 `probe salem`, one cron job each, before believing v4 takes the settings.
+App CI at `79ca5be`: `flutter-ci` run 37135643828 green — verify, build-ios and
+both simulators, first attempt; `android-flutter` run 37135641826 built both
+APKs, its emulator job in «Run the device suite» from 16:12 — the known hang.
 
 ## Style
 
