@@ -6,8 +6,7 @@
 //
 // So this asserts the authored geometry is live on all five parts of
 // all four wheels (mirrored on the left) wherever the build ships that
-// wheel, and on the palm crowns, that
-// each piece still occupies the envelope the rest of the game is
+// wheel, that each piece still occupies the envelope the rest of the game is
 // positioned against, and — for the body shells, where the shipped
 // files have drifted off that envelope by up to 206 mm — that whatever
 // IS on the car got there for a recorded reason.
@@ -22,6 +21,15 @@
 // be authored and land in its envelope; every part it does not name
 // must still be THERE, procedurally, because that is the fallback the
 // whole module is built around.
+//
+// The palm crowns are the exception that proves it, in the other
+// direction: they are no longer authored at all. palm.glb could not
+// carry a leaflet texture (no UV layer) and swapped in seconds into play,
+// so the crown is built in src/game/palm.ts and tests/palms.mjs guards
+// its shape in node. What is asserted here is that the game actually
+// draws THAT crown — every corniche palm, procedural, the leaflet crown
+// and not something with a handful of fronds — and that the manifest has
+// not grown a palm.glb again that nothing would ever load.
 //
 //   npm run dev            # in another shell
 //   npm run test:assets
@@ -145,10 +153,12 @@ const r = await page.evaluate(() => {
     return { side, spokes: w.userData.spokes, parts };
   });
 
-  let palm = null;
+  const palms = [];
   root.traverse((o) => {
-    if (o.isInstancedMesh && o.geometry.userData.authored && !palm)
-      palm = { count: o.count, tris: (o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3 };
+    if (o.isInstancedMesh && /^palm-crowns/.test(o.name))
+      palms.push({ name: o.name, count: o.count, authored: !!o.geometry.userData.authored,
+                   fronds: o.geometry.userData.palm?.fronds ?? 0,
+                   tris: (o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3 });
   });
   // The driver's authored parts, by slot. These hang off joints an IK
   // solver moves every frame, so it is not enough that they loaded: the
@@ -168,7 +178,7 @@ const r = await page.evaluate(() => {
              +(bb.max.z - bb.min.z).toFixed(3)],
     };
   });
-  return { shells, wheels, palm, driver, wheelRadius: rig ? rig.wheelRadius : null,
+  return { shells, wheels, palms, driver, wheelRadius: rig ? rig.wheelRadius : null,
            shellSwap: e.carBody.userData.shellSwap ?? {} };
 });
 
@@ -234,8 +244,18 @@ for (const [i, w] of r.wheels.entries()) {
   const outboard = w.side > 0 ? lug.x[0] > 0 : lug.x[1] < 0;
   check(outboard, `wheel ${i} (side ${w.side}) lugs at x ${lug.x} are on the wrong face`);
 }
-console.log(`\npalm crowns: ${r.palm ? `${r.palm.tris} tris x ${r.palm.count} instances = ${r.palm.tris * r.palm.count} tris` : "NONE"}  ` +
-  check(!!r.palm, "palm crowns never upgraded"));
+console.log("\npalm crowns: procedural (src/game/palm.ts)");
+for (const p of r.palms) {
+  console.log(`  ${p.name.padEnd(18)} ${p.fronds} fronds, ${p.tris} tris x ${p.count} = ${p.tris * p.count} tris  ` +
+    check(!p.authored && p.fronds >= 48, `${p.name}: ${p.authored ? "authored" : `${p.fronds} fronds`} — not the leaflet crown`));
+}
+{
+  // floor(coastLen / 26): every corniche palm wears one of the crowns.
+  const total = r.palms.reduce((a, p) => a + p.count, 0);
+  console.log(`  ${r.palms.length} crown meshes, ${total} palms  ` +
+    check(r.palms.length >= 1 && total === 131, `palm crowns: ${r.palms.length} meshes holding ${total} palms, want 131`) + " " +
+    check(!ships("palm"), "build.json ships palm.glb but the crown is built in src/game/palm.ts — the manifest is stale"));
+}
 console.log(`\ndriver: ${SHIPS_DRIVER ? "authored (driver.glb is shipped)" : "procedural (no driver.glb in the build)"}`);
 for (const slot of ["helmet", "visor", "glove", "wheel", "pedal"]) {
   const d = r.driver[slot];

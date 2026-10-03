@@ -68,13 +68,6 @@
         "Tire"
       ]
     },
-    "palm": {
-      "tris": 3004,
-      "kb": 55.5,
-      "parts": [
-        "Crown"
-      ]
-    },
     "driver": {
       "tris": 27744,
       "kb": 443.6,

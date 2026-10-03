@@ -9,7 +9,6 @@ simply stands — nothing waits and nothing breaks.
 | --- | --- | --- |
 | `car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv}.glb` | Body, Canopy, Roof | the bevel-extruded body shells — all nine silhouettes |
 | `wheel-{5,6}.glb` | Tire, Barrel, Alloy, Rotor, Lugs | the hero wheel (5-spoke cast / 6-spoke forged) |
-| `palm.glb` | Crown | the corniche palm crown, one geometry for ~130 instances |
 | `driver.glb` | Helmet, Visor, Glove, Wheel, Pedal | the driver at the wheel. These hang off joints the IK solver moves every frame, so each part is modelled in its own joint's local frame and dimensioned from `src/game/rig.ts` (via the `rig` block in `profiles.json`) — an authored rim at the wrong radius leaves the solved hands gripping thin air |
 
 `build.json` records what the last build produced — quality preset,
@@ -108,7 +107,13 @@ npm run sync:models      # profiles.json from cars.ts → Blender → GLBs
 
 Quality is a flag, not a rebuild: `--quality max` (shipped, ~593k
 triangles across the seven files), `high` (roughly half), `draft` (fast,
-for iterating on shapes). `--only cars,wheels,palm,driver` narrows the build.
+for iterating on shapes). `--only cars,wheels,police,driver` narrows the build.
+
+There is no `palm.glb` any more. The date palm — crown, leaflet
+texture, trunk and bark — is built in `src/game/palm.ts` and guarded by
+`npm run test:palms`: the GLB had no UV layer, so it could not carry a
+leaflet texture, and swapping it in a few seconds into play left Green
+Island and the plaza on a different crown from the corniche.
 
 There is no `.blend` file: the models are *code*.
 `scripts/export-car-profiles.mjs` extracts the side profiles from
@@ -143,8 +148,7 @@ silently shrink the wheels back to the section's own size once it loads.
 Keep modeling to the section's numbers. Ride height, wheel arches, brake
 glow and skid marks are all positioned against the FITTED radius, so a
 "nicer" tire 5 mm larger than the section would lift the car off its own
-shadow just the same. The palm crown is a straight envelope with no such
-scale: it sits at the 6.1 m trunk top in the instanced frame.
+shadow just the same.
 
 The wheel is authored once, for the right-hand side; `models.ts` mirrors
 it for the left, winding and normals included. Scaling the mesh by -1
@@ -154,7 +158,8 @@ instead would reverse the direction the wheel appears to spin.
 
 | Piece | Source |
 | --- | --- |
-| Body, Canopy, Roof shells; hero wheels; palm crowns | **These GLBs** (geometry only) |
+| Body, Canopy, Roof shells; hero wheels; the driver; the patrol bar | **These GLBs** (geometry only) |
+| Date palms (corniche, Green Island, plaza) | Procedural (`palm.ts`) — no GLB |
 | Paint, glass, reflections, wheel finish | Game materials — the swap keeps each mesh's material, so resprays, bought wheel finishes and the live probe keep working |
 | Lamps, trim, aero kit, underglow, stickers | Procedural (`cars.ts`) |
 | Traffic cars and their wheels | Fully procedural — thirty background cars don't need the density |
@@ -163,9 +168,8 @@ instead would reverse the direction the wheel appears to spin.
 
 `models.ts` matches meshes by name, lower-cased, against the tags the
 game sets: `userData.shell` (`Body`, `Canopy`, `Roof`) and
-`userData.wheelPart` (`Tire`, `Barrel`, `Alloy`, `Rotor`, `Lugs`), plus
-`Crown` for the palm. Renaming a node in an export silently reverts that
-piece to procedural.
+`userData.wheelPart` (`Tire`, `Barrel`, `Alloy`, `Rotor`, `Lugs`).
+Renaming a node in an export silently reverts that piece to procedural.
 
 The exports carry no materials (`export_materials="NONE"`), and axes are
 converted by the exporter so +Z is the car's nose in-game.

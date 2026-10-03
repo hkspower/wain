@@ -176,7 +176,7 @@ tools/         Instruments, not tests: they measure and report a number
                rather than passing or failing.
   shots/       Browser probes that pose the game and read pixels.
   parity/      The TypeScript import hooks the suite runs under.
-  blender/     Mesh generation for the wheels and palms.
+  blender/     Mesh generation for the car shells, wheels and driver.
   elevenlabs/  Voice, music and sound-effect generation.
 scripts/       Repo-level generators and checkers: check-*, export-*.
 server/        The hub — crews, referrals, the live ledger. Deployable.

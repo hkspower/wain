@@ -18,9 +18,21 @@ import {
   BUILDING_FOOTING_M,
 } from "./track";
 import { applyTextureManifest } from "./assets";
-import { upgradePalmCrowns } from "./models";
 import { PARTS } from "./mods";
-import { bakeBendWeight, newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
+import { newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
+import {
+  buildPalmCrown,
+  palmBarkTextures,
+  palmLeafTexture,
+  palmSlots,
+  palmTrunkGeometry,
+  patchPalmLeafFragment,
+  placePalms,
+  PALM_KINDS,
+  PALM_PLACE,
+  TRUNK_REF_H,
+  type PalmFixture,
+} from "./palm";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import {
   kuwaitiFigure,
@@ -35,169 +47,69 @@ import { RIVALS } from "./rivals";
 import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
 
 /**
- * A date palm crown, procedurally — the head the game draws until the
- * authored one in palm.glb arrives, and on a slow machine that is tens
- * of seconds of play.
+ * The palms' two materials. Everything they are made of — the crown, the
+ * leaflet texture and its mips, the trunk, the bark — is built in
+ * palm.ts, where tests/palms.mjs measures it without a browser; these
+ * only dress it.
  *
- * It was eight flat boxes rotated DOWN from horizontal by a third of a
- * radian, which is a parasol. Three things separate a palm's head from
- * a parasol and all three are here now:
- *
- *   IT ARCHES. A frond leaves the crown going UP, carries on up for
- *   about a third of its length, and only then goes over and hangs
- *   below where it started. A straight stick tilted down does the one
- *   thing a palm frond never does.
- *
- *   IT IS BIG. 2 m fronds on a 6 m trunk gave a head a fifth of the
- *   tree's height, so the tree read as a pole with a smudge on top.
- *   A date palm's crown is roughly as wide as its trunk is tall.
- *
- *   IT IS CLOSED. Eight fronds leave gaps you see the trunk through.
- *   Twenty, on the golden angle so no two neighbours share a gap,
- *   closes the head.
- *
- * Kept deliberately cheaper than the authored crown — this one is a
- * stand-in, and the swap in upgradePalmCrowns replaces it whole — but
- * the same SHAPE, so the tree does not visibly change species when the
- * download lands.
+ * The bark: albedo and a real normal map, both drawn from the same
+ * height field. The old trunk used its own sRGB colour texture as a bump
+ * map at bumpScale 1.4, which is colour, not relief, on a chocolate
+ * #5a4327 (saturation 0.57; (58,35,20) at 0.66 in the lock still). Now
+ * grey-brown, mean linear Y about 0.10 at saturation 0.21, and the leaf
+ * bases stand 2.5 cm proud of their scars.
  */
-function palmCrownGeometry(): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-  const FRONDS = 20;
-  for (let i = 0; i < FRONDS; i++) {
-    const rank = i % 3;
-    const rise = [0.95, 0.62, 0.34][rank];
-    const fall = [0.55, 1.05, 1.55][rank];
-    const length = [2.45, 3.05, 3.35][rank] - (i % 5) * 0.08;
-    // Four segments per frond: enough to show the knee where it goes
-    // over, which is the whole reason this is not one box.
-    const SEG = 4;
-    for (let k = 0; k < SEG; k++) {
-      const t0 = k / SEG;
-      const t1 = (k + 1) / SEG;
-      const spine = (t: number) => rise * Math.sin(t * 1.9) - fall * t ** 2.6;
-      const y0 = spine(t0);
-      const y1 = spine(t1);
-      const d0 = t0 * length;
-      const d1 = t1 * length;
-      const seg = d1 - d0;
-      const rl = Math.hypot(seg, y1 - y0);
-      // Width tapers along the frond the way the leaflets do.
-      const w = Math.max(0.05, (0.30 - 0.20 * Math.abs((t0 + t1) / 2 - 0.4)) *
-        (1 - 0.52 * ((t0 + t1) / 2)));
-      const g = new THREE.BoxGeometry(w * 2, 0.03, rl);
-      g.translate(0, 0, rl / 2);
-      g.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.atan2(y1 - y0, seg)));
-      g.translate(0, y0, d0);
-      // The golden angle, for the same reason the authored crown uses
-      // it: successive fronds never land in each other's gap.
-      g.applyMatrix4(new THREE.Matrix4().makeRotationY(i * 2.39996));
-      parts.push(g);
-    }
-  }
-  // The spear: the unopened frond every date palm carries straight up
-  // out of the middle. Narrow, not the fat cone that used to be here.
-  const spear = new THREE.ConeGeometry(0.1, 1.35, 4);
-  spear.translate(0, 0.675, 0);
-  parts.push(spear);
-  const merged = mergeGeometries(parts.map((f) => f.toNonIndexed()))!;
-  merged.translate(0, 6.1, 0);
-  merged.computeVertexNormals();
-  return merged;
-}
-
-/**
- * Colour baked into a palm crown, by where each vertex is on the frond.
- *
- * Every frond on every palm was one flat green, which is what made the
- * crowns read as plastic: a date palm's frond is dark and olive at the
- * base where it is shaded by the ones above, green through the middle,
- * and sun-dried to a straw yellow-green at the tips — the part of a
- * palm that is actually lit in a Gulf summer. Distance from the trunk
- * axis carries it (0 at the heart, 1 at the longest tip), with the lower
- * ranks — the old, hanging fronds — a little yellower again. The colour
- * multiplies the material's, so the palette stays in one place.
- *
- * Works on the stand-in and on the authored crown alike: it is applied
- * again when the GLB swaps in, because the swap replaces the geometry.
- */
-export function bakeFrondColors(geo: THREE.BufferGeometry): void {
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  let reach = 0, top = -Infinity, bottom = Infinity;
-  for (let i = 0; i < pos.count; i++) {
-    reach = Math.max(reach, Math.hypot(pos.getX(i), pos.getZ(i)));
-    top = Math.max(top, pos.getY(i));
-    bottom = Math.min(bottom, pos.getY(i));
-  }
-  const col = new Float32Array(pos.count * 3);
-  const base = [0.56, 0.6, 0.48], mid = [1, 1, 1], tip = [1.32, 1.18, 0.74];
-  for (let i = 0; i < pos.count; i++) {
-    const r = Math.min(1, Math.hypot(pos.getX(i), pos.getZ(i)) / Math.max(1e-3, reach));
-    const hang = 1 - (pos.getY(i) - bottom) / Math.max(1e-3, top - bottom); // 1 = lowest
-    const k0 = Math.min(1, r / 0.45);
-    const k1 = Math.max(0, (r - 0.55) / 0.45) * (0.7 + 0.5 * hang);
-    for (let c = 0; c < 3; c++) {
-      col[i * 3 + c] = base[c] + (mid[c] - base[c]) * k0 + (tip[c] - mid[c]) * Math.min(1, k1);
-    }
-  }
-  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-}
-
-/**
- * The bark of a date palm: rings, not a smooth pole.
- *
- * A date palm's trunk is the stubs of every frond it has ever dropped,
- * cut off and stacked — a diamond-scaled column banded every few
- * centimetres. Drawn once as a small tiling image (and used as its own
- * bump map), laid on the trunk's cylinder so a 6 m trunk carries about
- * twenty-four rings. Its mean is the old flat trunk colour, so the
- * trees do not change tone at a distance, only close up.
- */
-let palmBarkTex: THREE.CanvasTexture | null = null;
-function palmBark(): THREE.CanvasTexture {
-  if (palmBarkTex) return palmBarkTex;
-  const c = document.createElement("canvas");
-  c.width = 64;
-  c.height = 64;
-  const x = c.getContext("2d")!;
-  x.fillStyle = "#5a4327";
-  x.fillRect(0, 0, 64, 64);
-  // Two rings per tile, each a dark scar under a lighter lip, staggered
-  // half a scale so the diamonds interlock.
-  for (let ring = 0; ring < 2; ring++) {
-    const y0 = ring * 32;
-    for (let k = 0; k < 4; k++) {
-      const off = (ring % 2) * 8 + k * 16;
-      const g = x.createLinearGradient(0, y0, 0, y0 + 32);
-      g.addColorStop(0, "#7a5c38");
-      g.addColorStop(0.45, "#5e4629");
-      g.addColorStop(0.8, "#3b2a17");
-      g.addColorStop(1, "#2e2112");
-      x.fillStyle = g;
-      x.beginPath();
-      x.moveTo(off, y0 + 2);
-      x.lineTo(off + 8, y0 + 30);
-      x.lineTo(off + 16, y0 + 2);
-      x.closePath();
-      x.fill();
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.repeat.set(3, 12);
-  palmBarkTex = t;
-  return t;
-}
 function palmTrunkMaterial(): THREE.MeshStandardMaterial {
-  const bark = palmBark();
+  const bark = palmBarkTextures();
   return new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    map: bark,
-    bumpMap: bark,
-    bumpScale: 1.4,
-    roughness: 0.95,
+    map: bark.map,
+    normalMap: bark.normalMap,
+    normalScale: new THREE.Vector2(1, 1),
+    roughness: 0.92,
   });
+}
+
+/**
+ * The leaf cards: a white material over the leaflet atlas, the palette in
+ * the vertex colours (PALM_LEAF), cut out by alpha.
+ *
+ * alphaTest 0.5 with alphaToCoverage: on the MSAA tiers (4 samples on
+ * high and ultra, 2 on balanced) A2C turns the leaflet edge into
+ * coverage instead of a stair; on the tiers with no samples r184's
+ * ALPHA_TO_COVERAGE branch still discards below 0.5, a hard cut-out,
+ * which is what the atlas's coverage-preserving mips are built for. The
+ * shadow map's depth variant picks up the map and the 0.5 cut on its own,
+ * double-sided, so the crown's shadow has leaflets in it too.
+ *
+ * Its OWN program key. plantBend tags every material it patches
+ * "grn-plant-bend", and the crown and the shrubs both wore that key while
+ * compiling to different shaders; the crown's fragment patch
+ * (patchPalmLeafFragment: no back-face flip, thin-leaf transmission)
+ * makes the collision a wrong program rather than a wasted one.
+ */
+function palmLeafMaterial(): THREE.MeshStandardMaterial {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: palmLeafTexture(),
+    vertexColors: true,
+    roughness: 0.62,
+    alphaTest: 0.5,
+    alphaToCoverage: true,
+    side: THREE.DoubleSide,
+  });
+  // A third of the direct light that lands on a frond's far side comes
+  // through it: a lamp under the crown lights the undersides you see from
+  // the road, where the old crown's core was near black (sweep p5 2,8,0).
+  mat.defines = { ...mat.defines, GRN_LEAF_TRANS: "0.35" };
+  plantBend(mat);
+  const bend = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    bend.call(mat, shader, renderer);
+    shader.fragmentShader = patchPalmLeafFragment(shader.fragmentShader);
+  };
+  mat.customProgramCacheKey = () => "grn-palm-leaf";
+  return mat;
 }
 
 // Night-time Gulf Road: the corniche leg runs right along the water —
@@ -2409,22 +2321,25 @@ function greenIsland(): THREE.Group {
   lawn.position.y = 0.7;
   g.add(lawn);
   // The island's palms were green cones — the "party hat" the corniche
-  // palms were rebuilt to get away from. The same crown and bark now.
+  // palms were rebuilt to get away from — and then, for as long as the
+  // corniche swapped to palm.glb, a different crown from the corniche's.
+  // The same crown, trunk and bark as the avenue now (palm.ts), with no
+  // swap to fall out of step with.
   const trunkMat = palmTrunkMaterial();
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
-  const islandCrown = palmCrownGeometry();
-  bakeFrondColors(islandCrown);
-  const islandTrunk = new THREE.CylinderGeometry(0.2, 0.32, 6, 10);
+  const crownMat = palmLeafMaterial();
+  const islandCrown = buildPalmCrown("kept");
+  const islandTrunk = palmTrunkGeometry();
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
     const r = 25 + (i % 3) * 18;
+    // A 6 m trunk standing on the lawn at 1.4 m: the reference trunk
+    // squeezed to 6 m, so its top — the crown's origin — is at 7.4.
     const trunk = new THREE.Mesh(islandTrunk, trunkMat);
-    trunk.position.set(Math.cos(a) * r, 4.4, Math.sin(a) * r);
+    trunk.position.set(Math.cos(a) * r, 1.4, Math.sin(a) * r);
+    trunk.scale.set(1, 6 / TRUNK_REF_H, 1);
     g.add(trunk);
-    // The crown geometry is built on its own trunk top at 6.1 m; the
-    // island trunk stands on the lawn at 1.4 m, so its top is at 7.4.
     const crown = new THREE.Mesh(islandCrown, crownMat);
-    crown.position.set(Math.cos(a) * r, 7.4 - 6.1, Math.sin(a) * r);
+    crown.position.set(Math.cos(a) * r, 7.4, Math.sin(a) * r);
     crown.rotation.y = a * 2.3;
     g.add(crown);
   }
@@ -3389,6 +3304,104 @@ function underFlyover(track: Track, s: number): boolean {
     if (Math.abs(track.deltaAhead(f.s, s)) < FLYOVER_CLEAR) return true;
   }
   return false;
+}
+
+/**
+ * The roadside fixtures' stations, named, because the palms now have to
+ * agree with them.
+ *
+ * These were literals in the loops that build them — 42 m and lat 8.6
+ * for the columns, every second cross street at 8.2 for the signals, 25 m
+ * into a district and 8.5 either side for a gantry, -11 for the flag
+ * masts — and the palm row was laid out without reference to any of
+ * them. Its pitch (26.13 m) times nine is 235.2 m, which is the signal
+ * pitch (235.9 m) to within a metre, so a palm stood 0-6 m from nearly
+ * every one of the fifteen coastal signals, the 6.3 m arm running through
+ * its crown; about fifteen of 131 crowns had a column, a signal, a gantry
+ * or the flag mast inside them (palm.ts placePalms has the rule that
+ * moves them). The loops read these now, so a fixture that moves takes
+ * the palms' clearance with it.
+ */
+export const LAMP_COLUMNS = { spacing: 42, lat: ROAD_HALF_WIDTH + 1.6 } as const;
+export const SIGNALS = { every: 2, poleLat: ROAD_HALF_WIDTH + 1.2 } as const;
+export const GANTRY = {
+  /** Metres into a district its sign hangs; the first district's hangs
+   *  this far before the line instead. */
+  lead: 25,
+  finish: 60,
+  postLat: ROAD_HALF_WIDTH + 1.2,
+  beamHalf: ROAD_HALF_WIDTH + 1.5,
+} as const;
+/** Kuwait's flag at the line, the region's masts back down the corniche
+ *  from it, all on the sea side. */
+export const FLAG_MASTS = { lat: -(ROAD_HALF_WIDTH + 4), restFrom: -26, restEvery: 13 } as const;
+/** The Sharq plaza's three floodlight masts: metres from the plaza centre
+ *  along the road, and metres outside the tarmac edge. */
+export const PLAZA_FLOODLIGHTS: ReadonlyArray<readonly [number, number]> = [
+  [-46, 2.4],
+  [0, 3.0],
+  [46, 2.4],
+];
+
+/** Whether a street column stands at `s`: none in the tunnel, none under
+ *  a flyover (see FLYOVER_CLEAR). */
+function lampColumnStands(track: Track, s: number): boolean {
+  const u = s / track.length;
+  return !((u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) || underFlyover(track, s));
+}
+
+/**
+ * Everything on the corniche's verges a palm crown must clear, for
+ * placePalms: every standing lamp column, every signal pole, both posts
+ * of every gantry, every flag mast, the plaza's floodlights, every cross
+ * street (inland palms only — the sea side has none), and every flyover.
+ *
+ * The flyovers are the one addition to the brief, and not a small one:
+ * two of the five cross the corniche (Sharq at 640 m, Salmiya at 2180),
+ * their decks reach (hw + 13) / cos(skew) either side of the centre line
+ * with the soffit at 6.4 m, and a crown sits 5.6-7.8 m up. The old row
+ * put the inland palm at 627-633 m and the sea palm at 2169-2175 m under
+ * a deck. A flyover keeps palms out of half its deck width along the
+ * road, plus the deck's skew across the widest palm lateral, plus a
+ * crown's reach.
+ */
+export function palmFixtures(track: Track): PalmFixture[] {
+  const L = track.length;
+  const out: PalmFixture[] = [];
+  const columns = Math.floor(L / LAMP_COLUMNS.spacing);
+  for (let i = 0; i < columns; i++) {
+    const s = i * LAMP_COLUMNS.spacing;
+    if (!lampColumnStands(track, s)) continue;
+    out.push({ s, lat: (i % 2 === 0 ? 1 : -1) * LAMP_COLUMNS.lat, kind: "column" });
+  }
+  const crossCount = Math.round(L / STREETS.crossEvery);
+  for (let i = 0; i < crossCount; i += SIGNALS.every) {
+    const s = (i / crossCount) * L;
+    const u = track.wrap(s) / L;
+    if (u > TUNNEL_U.from - 0.01 && u < TUNNEL_U.to + 0.01) continue;
+    out.push({ s, lat: SIGNALS.poleLat, kind: "signal" }, { s, lat: -SIGNALS.poleLat, kind: "signal" });
+  }
+  AREAS.forEach((_, i) => {
+    const s = i === 0 ? L - GANTRY.finish : AREAS[i - 1].to + GANTRY.lead;
+    out.push({ s, lat: GANTRY.beamHalf, kind: "gantry" }, { s, lat: -GANTRY.beamHalf, kind: "gantry" });
+  });
+  out.push({ s: 0, lat: FLAG_MASTS.lat, kind: "mast" });
+  FLAG_IDS.filter((id) => id !== "kw").forEach((_, i) =>
+    out.push({ s: track.wrap(FLAG_MASTS.restFrom - i * FLAG_MASTS.restEvery), lat: FLAG_MASTS.lat, kind: "mast" }));
+  for (const [ds, pad] of PLAZA_FLOODLIGHTS) {
+    const s = DRIFT_PLAZA.s + ds;
+    out.push({ s, lat: track.halfWidthAt(s) + pad, kind: "floodlight" });
+  }
+  for (let i = 0; i < crossCount; i++) {
+    const s = (i / crossCount) * L;
+    out.push({ s, lat: track.halfWidthAt(s), kind: "street" });
+  }
+  for (const f of FLYOVERS) {
+    const half =
+      f.deck / 2 / Math.cos(f.skew) + PALM_PLACE.latMax * Math.tan(Math.abs(f.skew)) + PALM_PLACE.crownReach;
+    out.push({ s: f.s, lat: 0, kind: "flyover", half });
+  }
+  return out;
 }
 
 function flyover(
@@ -4786,14 +4799,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // with it.
   //
   // Split around the swell rather than tracked to it. Tracking is the
-  // right long answer but not a change to make here: the palm row is
-  // pinned at the same constant and would be left standing on bare plaza
-  // asphalt, and the beach would bulge 12 m into the Gulf for 124 m. A
-  // gap is also the true thing — the plaza IS where the corniche opens
-  // out — and it costs one extra draw call per surface instead of a
-  // reshuffle of everything pinned to that constant. Moving the whole
-  // coastal-furniture family onto halfWidthAt, palms included, is its own
-  // job.
+  // right long answer but not a change to make here: the beach would
+  // bulge 12 m into the Gulf for 124 m. A gap is also the true thing —
+  // the plaza IS where the corniche opens out — and it costs one extra
+  // draw call per surface instead of a reshuffle of everything pinned to
+  // that constant. Moving the whole coastal-furniture family onto
+  // halfWidthAt is its own job. The palm row has made that move already
+  // (palm.ts placePalms): the three sea palms that stood 4.0-9.4 m
+  // inside the plaza's tarmac edge now stand 2.6 m outside it.
   const PLAZA_GAP = {
     from: (DRIFT_PLAZA.s - DRIFT_PLAZA.halfSpan) / track.length,
     to: (DRIFT_PLAZA.s + DRIFT_PLAZA.halfSpan) / track.length,
@@ -5426,7 +5439,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Streetlights: single-arm LED road lanterns on galvanised columns,
   // alternating sides
   {
-    const spacing = 42;
+    const spacing = LAMP_COLUMNS.spacing;
     const count = Math.floor(L / spacing);
     // Where each part of a column sits, in metres off the centre line and
     // up from the road. Named because four things below — the column, the
@@ -5435,7 +5448,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     //
     // The column's own station: 1.6 m behind the kerb, clear of the rail.
     // 8.6 m, where it has always stood.
-    const POLE_LAT = ROAD_HALF_WIDTH + 1.6;
+    const POLE_LAT = LAMP_COLUMNS.lat;
     // The centre of the pool on the asphalt: 4.6 m, over the outer lane,
     // 2.4 m inside the kerb. Also unchanged.
     const POOL_LAT = ROAD_HALF_WIDTH - 2.4;
@@ -5647,17 +5660,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const lampPositions: THREE.Vector3[] = [];
     for (let i = 0; i < count; i++) {
       const s = i * spacing;
-      const u = s / L;
       // No street columns inside the tunnel — and none under a flyover
       // either. A column is 11.85 m (12.2 m to the top of the lantern,
       // which reaches 3.3 m toward the road) and a deck soffit is at 6.4,
       // so an unfiltered column grows straight through the bridge; real
       // lighting stops short of a structure and the structure carries its
       // own, which is what flyover() puts on the parapet.
-      if (
-        (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) ||
-        underFlyover(track, s)
-      ) {
+      if (!lampColumnStands(track, s)) {
         columns.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
@@ -5865,7 +5874,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // junction by junction, and a lit lamp lens is close to unlit anyway.
   {
     const crossCount = Math.round(L / STREETS.crossEvery);
-    const every = 2; // signalised junctions, in cross streets
+    const every = SIGNALS.every; // signalised junctions, in cross streets
     const sides = 2;
     const heads: number[] = []; // s values, one per signalised approach
     const junctions: Array<{ s: number; sideSign: number }> = [];
@@ -5931,7 +5940,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // The pole stands back behind the kerb; the head hangs over the
       // inside lane, a little short of the stop bar so you can still see
       // it from behind the line.
-      track.pose(js, sideSign * (ROAD_HALF_WIDTH + 1.2), p, tmp);
+      track.pose(js, sideSign * SIGNALS.poleLat, p, tmp);
       m.makeTranslation(p.x, 3.2, p.z);
       poles.setMatrixAt(i, m);
 
@@ -6481,107 +6490,74 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // the shadow the crown casts stays still, because the depth pass does
   // not run the bend; at night, under sodium, nobody has ever seen a
   // palm's shadow move.
+  //
+  // Where each tree stands, how tall, which crown and its two matrices
+  // all come from placePalms (palm.ts), which tests/palms.mjs runs in node
+  // against this same track and these same fixtures. It draws from the
+  // shared stream exactly as this loop used to — 550 numbers, in the old
+  // order — so nothing placed after the palms moves.
+  //
+  // Three crowns, three InstancedMeshes: a trimmed one, an untrimmed one
+  // with its dead skirt, a young one. About 130 stamped clones of one
+  // head was the other thing (with the colour) that made the avenue read
+  // as a planted prop. Each mesh spans the whole coast, so each one's
+  // box stays a "ground plane" to tests/shadows.mjs (wider than 4 x
+  // orthoW) rather than a caster it must fit, as the single mesh's did.
   const palmSeeds: PlantSeed[] = [];
-  let palmRig: { crowns: THREE.InstancedMesh; bend: THREE.InstancedBufferAttribute } | null = null;
+  let palmRig: { meshes: THREE.InstancedMesh[]; slot: Uint16Array; variant: Uint8Array } | null = null;
   {
     const coastLen = (COAST_U.to - COAST_U.from) * L;
-    const count = Math.floor(coastLen / 26);
-    // Ten sides rather than six: at the walkway's distance a hexagonal
-    // trunk read as a pencil, and the bark wants a round column to wrap.
-    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 6, 10, 1);
-    trunkGeo.translate(0, 3, 0);
-    const trunkMat = palmTrunkMaterial();
-    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
+    // Lean and tint are drawn from their own generator, as before; size,
+    // girth and crown from a second one. The world's shared sequence
+    // places every building and lamp after this, and a single extra draw
+    // from it would move all of them.
+    const palmRng = makeRng((WORLD_SEED ^ 0x50414c4d) >>> 0); // "PALM"
+    const formRng = makeRng((WORLD_SEED ^ 0x504c4d32) >>> 0); // "PLM2"
+    const placed = placePalms(track, rand, palmRng, formRng, palmFixtures(track), {
+      from: COAST_U.from * L,
+      len: coastLen,
+    });
+    const count = placed.length;
+    const variant = Uint8Array.from(placed, (pl) => pl.variant);
+    const { slot, counts } = palmSlots(variant);
+
+    const trunks = new THREE.InstancedMesh(palmTrunkGeometry(), palmTrunkMaterial(), count);
+    trunks.name = "palm-trunks";
     // Trunks cast too, or the frond shadows float detached from the trees
     trunks.castShadow = true;
     trunks.receiveShadow = true;
-    const crownGeo = palmCrownGeometry();
-    bakeBendWeight(crownGeo, "radial");
-    bakeFrondColors(crownGeo);
-    // Roughness 0.8, not 1: a frond is waxy, and the low sun catches it.
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
-    plantBend(crownMat);
-    const crowns = new THREE.InstancedMesh(crownGeo, crownMat, count);
-    crowns.castShadow = true;
-    // The crown shades itself: the lower fronds sit under the upper ones.
-    crowns.receiveShadow = true;
-    const bend = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
-    bend.setUsage(THREE.DynamicDrawUsage);
-    crownGeo.setAttribute("grnBend", bend);
-    crowns.userData.bend = bend;
-    // One authored crown serves all ~130 instances. The swap replaces
-    // the GEOMETRY, and the weight and the bend attribute live on the
-    // geometry, so both are put back on the one that arrives.
-    void upgradePalmCrowns(crowns).then((swapped) => {
-      if (!swapped) return;
-      bakeBendWeight(crowns.geometry, "radial");
-      bakeFrondColors(crowns.geometry);
-      crowns.geometry.setAttribute("grnBend", bend);
+    const leaf = palmLeafMaterial();
+    const meshes = PALM_KINDS.map((kind, v) => {
+      const geo = buildPalmCrown(kind);
+      const im = new THREE.InstancedMesh(geo, leaf, counts[v]);
+      im.name = `palm-crowns-${kind}`;
+      im.castShadow = true;
+      // The crown shades itself: the lower fronds sit under the upper ones.
+      im.receiveShadow = true;
+      // The bend lives on the geometry, one per mesh, so each crown has
+      // its own (dirX, dirZ, strength) per instance.
+      const bend = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, counts[v]) * 3), 3);
+      bend.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute("grnBend", bend);
+      im.userData.bend = bend;
+      return im;
     });
-    const m = new THREE.Matrix4();
-    const p = new THREE.Vector3();
-    const tmp = new THREE.Vector3();
-    const tall = new THREE.Vector3();
-    const lean = new THREE.Matrix4();
-    const leanAxis = new THREE.Vector3();
     const tint = new THREE.Color();
-    // Lean and tint are drawn from their own generator. The world's
-    // shared sequence places every building and lamp after this, and a
-    // single extra draw from it would move all of them.
-    const palmRng = makeRng((WORLD_SEED ^ 0x50414c4d) >>> 0); // "PALM"
-    for (let i = 0; i < count; i++) {
-      const s = COAST_U.from * L + (i / count) * coastLen;
-      // Sea-side walkway edge, with the occasional inland palm
-      const lateral =
-        i % 5 === 4
-          ? ROAD_HALF_WIDTH + 3 + rand() * 4
-          : -(ROAD_HALF_WIDTH + 2.6);
-      const at = s + rand() * 6;
-      track.pose(at, lateral, p, tmp);
-      // Height, per tree. A hundred and thirty-one palms at exactly six
-      // metres is a fence, not an avenue: the eye reads the repeat long
-      // before it reads the trees. Uniform, so the crown grows with the
-      // trunk the way a real one does — a tall palm is not a short palm
-      // with a longer pole under it.
-      const grow = 0.82 + rand() * 0.36;
-      tall.set(grow, grow, grow);
-      // A lean, per tree: up to about six degrees, mostly out over the
-      // water the way a shore palm grows toward the light and away from
-      // the wind. A row of plumb-straight poles is the other half of what
-      // made the avenue read as a fence. The trunk and the crown lean
-      // together about the foot, so the crown stays on its trunk.
-      const tilt = (0.25 + 0.75 * palmRng()) * 0.1;
-      const toward = (palmRng() - 0.5) * 1.6; // radians off the seaward line
-      track.sideAt(at, tmp);
-      const seaX = -tmp.x, seaZ = -tmp.z;
-      const dx = seaX * Math.cos(toward) - seaZ * Math.sin(toward);
-      const dz = seaX * Math.sin(toward) + seaZ * Math.cos(toward);
-      leanAxis.set(dz, 0, -dx).normalize();
-      lean.makeRotationAxis(leanAxis, tilt);
-      m.makeScale(grow, grow, grow).premultiply(lean).setPosition(p.x, 0, p.z);
-      trunks.setMatrixAt(i, m);
-      // Random spin per crown so the frond pattern doesn't repeat
-      const yaw = rand() * Math.PI * 2;
-      m.makeRotationY(yaw).scale(tall).premultiply(lean).setPosition(p.x, 0, p.z);
-      crowns.setMatrixAt(i, m);
-      // And no two crowns quite the same green: some fresher, some
-      // dustier, a few browning — within a small range, so the avenue
-      // still reads as one planting.
-      tint.setHSL(0.26 + (palmRng() - 0.5) * 0.06, 0.9, 0.5);
-      const v = 0.85 + palmRng() * 0.3;
-      tint.setRGB(
-        THREE.MathUtils.lerp(1, tint.r * 2, 0.35) * v,
-        THREE.MathUtils.lerp(1, tint.g * 2, 0.35) * v,
-        THREE.MathUtils.lerp(1, tint.b * 2, 0.35) * v
-      );
-      crowns.setColorAt(i, tint);
-      palmSeeds.push({ s: track.wrap(at), x: p.x, z: p.z, yaw, phase: rand() * Math.PI * 2, kind: 1 });
-    }
+    placed.forEach((pl, j) => {
+      trunks.setMatrixAt(j, pl.trunk);
+      const im = meshes[pl.variant];
+      im.setMatrixAt(slot[j], pl.crown);
+      im.setColorAt(slot[j], tint.setRGB(pl.tint[0], pl.tint[1], pl.tint[2]));
+      palmSeeds.push({ s: pl.s, x: pl.x, z: pl.z, yaw: pl.yaw, phase: pl.phase, kind: 1 });
+    });
     trunks.instanceMatrix.needsUpdate = true;
-    crowns.instanceMatrix.needsUpdate = true;
-    if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
-    scene.add(trunks, crowns);
-    palmRig = { crowns, bend };
+    scene.add(trunks);
+    for (const im of meshes) {
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      scene.add(im);
+    }
+    palmRig = { meshes, slot, variant };
   }
 
   // Roadside planting — the shrub beds along both verges.
@@ -6825,13 +6801,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     plantsRef = {
       field,
       lapLen: L,
-      meshes: palms ? [...meshes, palms.crowns] : meshes,
+      meshes: palms ? [...meshes, ...palms.meshes] : meshes,
       write: (i, dx, dz, str) => {
         if (i < nShrub) {
           const im = meshes[i % SHAPES];
           (im.userData.bend as THREE.InstancedBufferAttribute).setXYZ(Math.floor(i / SHAPES), dx, dz, str);
         } else if (palms) {
-          palms.bend.setXYZ(i - nShrub, dx, dz, str);
+          // Palm j lives in the mesh of its crown, at its slot there.
+          const j = i - nShrub;
+          (palms.meshes[palms.variant[j]].userData.bend as THREE.InstancedBufferAttribute).setXYZ(palms.slot[j], dx, dz, str);
         }
       },
     };
@@ -7194,13 +7172,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       return g;
     };
 
-    placeBeside(track, mast("kw", 3, 14), 0, -(ROAD_HALF_WIDTH + 4));
+    placeBeside(track, mast("kw", 3, 14), 0, FLAG_MASTS.lat);
     // The rest of the region, back down the corniche from the line, on
     // matched shorter masts. Kuwait is skipped here — it is already
     // flying, taller, at the line.
     const rest = FLAG_IDS.filter((id) => id !== "kw");
     for (let i = 0; i < rest.length; i++) {
-      placeBeside(track, mast(rest[i], 2.1, 10), -26 - i * 13, -(ROAD_HALF_WIDTH + 4));
+      placeBeside(track, mast(rest[i], 2.1, 10), FLAG_MASTS.restFrom - i * FLAG_MASTS.restEvery, FLAG_MASTS.lat);
     }
   }
 
@@ -7270,16 +7248,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // of the lap rather than in the first metre of it.
   AREAS.forEach((area, i) => {
     const start = i === 0 ? 0 : AREAS[i - 1].to;
-    const s = i === 0 ? L - 60 : start + 25;
+    const s = i === 0 ? L - GANTRY.finish : start + GANTRY.lead;
     const g = new THREE.Group();
     const postMat = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 });
     for (const sideSign of [-1, 1]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 7.5, 8), postMat);
-      post.position.set(sideSign * (ROAD_HALF_WIDTH + 1.2), 3.75, 0);
+      post.position.set(sideSign * GANTRY.postLat, 3.75, 0);
       g.add(post);
     }
     const beam = new THREE.Mesh(
-      new THREE.BoxGeometry((ROAD_HALF_WIDTH + 1.5) * 2, 0.5, 0.5),
+      new THREE.BoxGeometry(GANTRY.beamHalf * 2, 0.5, 0.5),
       postMat
     );
     beam.position.y = 7.3;
@@ -7366,23 +7344,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     mosaic.position.y = 0.51;
     island.add(mosaic);
     // A ring of date palms around a central roundabout sign
-    // Real crowns, not cones — see the Green Island note. Scaled to the
-    // plaza's shorter 4.2 m trunks.
+    // The avenue's crown, trunk and bark (palm.ts) — see the Green Island
+    // note — scaled to the plaza's shorter 4.2 m trunks.
     const trunkMat = palmTrunkMaterial();
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
-    const plazaCrown = palmCrownGeometry();
-    bakeFrondColors(plazaCrown);
+    const crownMat = palmLeafMaterial();
+    const plazaCrown = buildPalmCrown("kept");
+    const plazaTrunk = palmTrunkGeometry();
     const PLAZA_K = 0.7;
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.5;
       const r = DRIFT_PLAZA.islandRadius - 1.7;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 10), trunkMat);
-      trunk.position.set(Math.cos(a) * r, 2.6, Math.sin(a) * r);
+      // Foot on the island at 0.5, 4.2 m tall and slimmer than the
+      // avenue's: the top, and the crown's origin, at 4.7.
+      const trunk = new THREE.Mesh(plazaTrunk, trunkMat);
+      trunk.position.set(Math.cos(a) * r, 0.5, Math.sin(a) * r);
+      trunk.scale.set(0.8, 4.2 / TRUNK_REF_H, 0.8);
       island.add(trunk);
-      // Trunk top at 2.6 + 2.1 = 4.7; the crown's own base is at 6.1.
       const crown = new THREE.Mesh(plazaCrown, crownMat);
       crown.scale.setScalar(PLAZA_K);
-      crown.position.set(Math.cos(a) * r, 4.7 - 6.1 * PLAZA_K, Math.sin(a) * r);
+      crown.position.set(Math.cos(a) * r, 4.7, Math.sin(a) * r);
       crown.rotation.y = i * 2.1;
       island.add(crown);
     }
@@ -7543,11 +7523,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       });
       const poolGeo = new THREE.CircleGeometry(11, 20);
       poolGeo.rotateX(-Math.PI / 2);
-      for (const [ds, latPad] of [
-        [-46, 2.4],
-        [0, 3.0],
-        [46, 2.4],
-      ]) {
+      for (const [ds, latPad] of PLAZA_FLOODLIGHTS) {
         const s = sPlaza + ds;
         const g = new THREE.Group();
         g.name = "plaza-floodlight";

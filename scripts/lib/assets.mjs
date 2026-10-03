@@ -57,7 +57,7 @@ export const ASSETS = [
   { path: "public/game", kind: "kept", ships: true, by: "—",
     what: "Icons, the manifest and the install art the browser asks for." },
   { path: "public/models", kind: "kept", ships: true, by: "scripts/export-car-profiles.mjs",
-    what: "Blender-authored shells, wheels, palms and the driver, plus build.json." },
+    what: "Blender-authored shells, wheels, the patrol bar and the driver, plus build.json." },
   { path: "public/music", kind: "kept", ships: true, by: "scripts/generate-music.mjs",
     what: "The station beds the radio plays." },
   { path: "public/radio", kind: "kept", ships: true, by: "—",
@@ -161,6 +161,7 @@ export const ASSETS = [
   // .gitignore entries that are doing exactly their job, which would
   // have been a tidy-up that reintroduced the bug.
   { path: "press/dark", kind: "scratch", optional: true, by: "tools/shots/dark.mjs", what: "Dark-area scan frames." },
+  { path: "press/palms", kind: "scratch", optional: true, by: "tools/shots/palms.mjs", what: "One corniche palm at noon, in the afternoon and at night." },
   { path: "press/edges", kind: "scratch", optional: true, by: "tools/shots/edges.mjs", what: "Edge-quality frames." },
   { path: "press/framing", kind: "scratch", optional: true, by: "tools/shots/framing.mjs", what: "Framing frames at each window size." },
   { path: "press/tint", kind: "scratch", optional: true, by: "tools/shots/tint.mjs", what: "Fifteen captures of one car at fifteen darknesses; the TABLE is the artefact." },

@@ -4214,7 +4214,7 @@ function raceCut(): { w: number; h: number } | null {
                   ["three.js", "WebGL scene graph, post-processing and PMREM lighting"],
                   ["Next.js + React", "The shell, the HUD and the menus"],
                   ["Web Audio API", "Every engine, tyre, wind and radio voice, synthesised live"],
-                  ["Blender", "The high-resolution wheel and palm meshes, swapped in at runtime"],
+                  ["Blender", "The high-resolution car shells and wheels, swapped in at runtime"],
                 ],
               },
               {
