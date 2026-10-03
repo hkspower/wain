@@ -21,6 +21,18 @@ import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { PARTS } from "./mods";
 import { bakeBendWeight, newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
+import {
+  SHRUB,
+  SHRUB_KINDS,
+  LEAF_TILE,
+  shrubGeometry,
+  leafDetailData,
+  patchLeafVertex,
+  patchLeafFragment,
+  layoutVerge,
+  burnLegacyVergeDraws,
+  type VergeAvoid,
+} from "./shrubs";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import {
   kuwaitiFigure,
@@ -2172,8 +2184,6 @@ const FACADE_TILE_M = { x: 39, y: 85 };
  * the same material still compiles for the handful of non-instanced
  * meshes that wear it.
  */
-/** Stem height of a roadside plant, metres. The crown sits on top. */
-const STEM_H = 0.28;
 
 /**
  * Bend an instanced plant along a per-instance lean.
@@ -2184,8 +2194,13 @@ const STEM_H = 0.28;
  * lean, and the top sinks a little as it leans (a stem arcs, it does
  * not shear), which is the second term. The normal is rotated toward
  * the lean by the same amount so the lit side follows the surface.
+ *
+ * `key` is the program cache key. A material that chains a further
+ * patch after this one (the shrubs' leaf tile) passes its own: two
+ * materials with the same key and the same parameters are handed the
+ * same compiled program, whichever patch built it.
  */
-function plantBend(mat: THREE.MeshStandardMaterial): void {
+function plantBend(mat: THREE.MeshStandardMaterial, key = "grn-plant-bend"): void {
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -2217,7 +2232,7 @@ function plantBend(mat: THREE.MeshStandardMaterial): void {
         #endif`
       );
   };
-  mat.customProgramCacheKey = () => "grn-plant-bend";
+  mat.customProgramCacheKey = () => key;
 }
 
 /** The verge, kept for the frame loop: the spring field, and how to
@@ -3081,15 +3096,166 @@ function paintPriceTexture(minKd: number, maxKd: number): THREE.CanvasTexture {
  * ring, stand on a forecourt or in the painter's bay? Both the
  * rectangles and the drums ask, and they used to each carry their own
  * copy of the station test — which is how the painter's would have
- * been left out of one of them.
+ * been left out of one of them. Exported for the verge (shrubs.ts
+ * layoutVerge takes it bound to the track) and for tests/shrubs.mjs.
  */
-function onForecourt(track: Track, s: number, half: number, lo: number, hi: number): boolean {
+export function onForecourt(track: Track, s: number, half: number, lo: number, hi: number): boolean {
   const hit = (site: { s: number; lat: number }, span: number) =>
     Math.abs(track.deltaAhead(site.s, s)) < span + half + 6 && lo < site.lat + 13 && hi > site.lat - 13;
   return (
     STATIONS.some((st) => hit(st, FORECOURT.halfSpan)) ||
     PAINT_SHOPS.some((sh) => hit(sh, PAINT_BAY.halfSpan))
   );
+}
+
+// ------------------------------------------------- what stands on the verge
+//
+// The band the shrub beds are planted in — halfWidthAt + 2.1 to + 3.95
+// — is not empty, and the old planting never asked what else was in it.
+// Measured on the real Track it put 109-126 plants on cross-street
+// pavement, 9-11 on the station and paint-shop aprons, and plants in
+// among the inland palms, the start-line crew, the plaza floodlights and
+// spectators and the Love Street sign posts. The streets and aprons are
+// rules layoutVerge applies itself; the things below are points, and
+// the tables are hoisted out of the blocks that build them so that the
+// block and the beds read the SAME numbers rather than two copies.
+
+/** The start-line crew: (s, metres beyond ROAD_HALF_WIDTH), along the
+ *  shoulder opposite the flag. */
+const START_CREW_SPOTS: ReadonlyArray<readonly [number, number]> = [
+  [-9, 2.6],
+  [-4.5, 3.4],
+  [3.5, 2.8],
+  [8.5, 3.6],
+];
+
+/** The plaza's floodlight masts: (metres from the plaza centre, metres
+ *  beyond halfWidthAt). */
+const PLAZA_FLOODLIGHTS: ReadonlyArray<readonly [number, number]> = [
+  [-46, 2.4],
+  [0, 3.0],
+  [46, 2.4],
+];
+
+/** The plaza crowd, in the same terms. */
+const PLAZA_SPECTATORS: ReadonlyArray<readonly [number, number]> = [
+  [-24, 3.2],
+  [-20.5, 4.1],
+  [21, 3.4],
+  [24.5, 3.9],
+];
+
+/** The Love Street boards' posts stand this far off the centreline. */
+const LOVE_SIGN_LAT = ROAD_HALF_WIDTH + 2.0;
+
+/** Bend chevrons: one board every `every` metres through a bend, its
+ *  post `lat` beyond halfWidthAt on the outside, the board `boardHalf`
+ *  either side of the post — ACROSS the verge, since it faces the
+ *  oncoming traffic. */
+const CHEVRON = { every: 26, lat: 1.9, boardHalf: 0.8 };
+
+/**
+ * Where the road actually turns, as clusters of sharp curvature.
+ *
+ * The geometry is measured, not guessed: the sharpest sweep is the
+ * Ras Al-Ard point at radius ≈178 m, with lesser curves at the Kuwait
+ * Towers hairpin and the city return — so the threshold sits at
+ * R < 260 m and everything gentler stays clean. The chevrons and the
+ * braking rubber are built on these, and the verge steps round the
+ * boards.
+ */
+function bendClusters(track: Track, L: number): Array<{ from: number; to: number; right: boolean }> {
+  const t0 = new THREE.Vector3();
+  const t1 = new THREE.Vector3();
+  const kappaAt = (s: number) => {
+    track.tangentAt(s - 14, t0);
+    track.tangentAt(s + 14, t1);
+    return { k: t0.angleTo(t1) / 28, right: t0.x * t1.z - t0.z * t1.x > 0 };
+  };
+  const THRESH = 1 / 260;
+  type Cluster = { from: number; to: number; right: boolean };
+  const clusters: Cluster[] = [];
+  let cur: Cluster | null = null;
+  for (let s = 0; s < L; s += 10) {
+    const { k, right } = kappaAt(s);
+    if (k <= THRESH) continue;
+    if (cur && s - cur.to <= 40 && cur.right === right) cur.to = s;
+    else clusters.push((cur = { from: s, to: s, right }));
+  }
+  // A bend straddling the lap seam shows up as two clusters — rejoin it
+  if (clusters.length > 1) {
+    const first = clusters[0];
+    const last = clusters[clusters.length - 1];
+    if (first.from <= 40 && L - last.to <= 40 && first.right === last.right) {
+      first.from = last.from - L;
+      clusters.pop();
+    }
+  }
+  return clusters;
+}
+
+/**
+ * A palm trunk's footprint radius, for the verge, metres. 0.3 at the
+ * foot × 1.18, the tallest grow, is 0.36 today; 0.45 leaves room for a
+ * flared foot without the beds having to be told.
+ */
+const PALM_FOOT_R = 0.45;
+
+/**
+ * Everything already standing in the verge band, as (s, lat, r), for
+ * layoutVerge to step round.
+ *
+ * THE PALMS COME FROM THE SEEDS. palmSeeds is what the palm block hands
+ * the spring field — one entry per corniche palm, at its trunk's foot —
+ * and that is the contract read here: wherever and however the palms
+ * are placed, a seed has to stand where its trunk stands, or the wake
+ * would sway a crown from a metre beside its own tree. Reading it back
+ * rather than re-deriving it from the palm loop's draws means the palms
+ * can be re-placed without this function knowing. The lateral is
+ * measured against the track at the seed's own s.
+ *
+ * The flag masts are the one entry written out rather than shared: the
+ * flag block's rule (Kuwait at s = 0, the rest at −26 − 13i, all at
+ * −(ROAD_HALF_WIDTH + 4), pole radius 0.0129 × its height at the foot).
+ * tests/planting.mjs measures every bed against the 'flag-mast' groups
+ * actually standing in the scene, so the two cannot drift apart quietly.
+ *
+ * Exported for tests/shrubs.mjs, which lays the real verge out against
+ * it under node.
+ */
+export function vergeFurniture(track: Track, palms: readonly PlantSeed[]): VergeAvoid[] {
+  const L = track.length;
+  const out: VergeAvoid[] = [];
+  const p = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  for (const seed of palms) {
+    track.pointAt(seed.s, p);
+    track.sideAt(seed.s, side);
+    out.push({ s: seed.s, lat: (seed.x - p.x) * side.x + (seed.z - p.z) * side.z, r: PALM_FOOT_R });
+  }
+  for (const s of [LOVE_STREET.from, LOVE_STREET.to]) out.push({ s, lat: LOVE_SIGN_LAT, r: 0.14 });
+  for (const [ds, latPad] of START_CREW_SPOTS) {
+    out.push({ s: track.wrap(ds), lat: ROAD_HALF_WIDTH + latPad, r: 0.6 });
+  }
+  for (const [ds, latPad] of PLAZA_FLOODLIGHTS) {
+    const s = DRIFT_PLAZA.s + ds;
+    out.push({ s, lat: track.halfWidthAt(s) + latPad, r: 0.4 });
+  }
+  for (const [ds, latPad] of PLAZA_SPECTATORS) {
+    const s = DRIFT_PLAZA.s + ds;
+    out.push({ s, lat: track.halfWidthAt(s) + latPad, r: 0.6 });
+  }
+  for (const c of bendClusters(track, L)) {
+    const outside = c.right ? -1 : 1;
+    for (let s = c.from; s <= c.to + 1; s += CHEVRON.every) {
+      out.push({ s: track.wrap(s), lat: outside * (track.halfWidthAt(s) + CHEVRON.lat), r: CHEVRON.boardHalf });
+    }
+  }
+  out.push({ s: 0, lat: -(ROAD_HALF_WIDTH + 4), r: 14 * 0.0129 });
+  for (let i = 0; i < FLAG_IDS.length - 1; i++) {
+    out.push({ s: track.wrap(-26 - i * 13), lat: -(ROAD_HALF_WIDTH + 4), r: 10 * 0.0129 });
+  }
+  return out;
 }
 
 /**
@@ -6586,12 +6752,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // Roadside planting — the shrub beds along both verges.
   //
-  // Gulf Road and the ring are planted the whole way: clipped mounds of
-  // shrub in irrigated beds with sand between them, kept low enough that
-  // nothing hides a sign. This game had date palms on the corniche and
-  // bare ground everywhere else, so every verge that was not the
-  // corniche read as a hard shoulder rather than as a street somebody
-  // waters twice a week.
+  // Gulf Road and the ring are planted the whole way: irrigated beds of
+  // clipped Conocarpus hedge, rows of clipped Ficus balls, loose heaps of
+  // bougainvillea and oleander, with sand between the beds, kept low
+  // enough that nothing hides a sign. This game had date palms on the
+  // corniche and bare ground everywhere else, so every verge that was
+  // not the corniche read as a hard shoulder rather than as a street
+  // somebody waters twice a week.
+  //
+  // THE SHAPES AND THE LAYOUT LIVE IN shrubs.ts, pure, where
+  // tests/shrubs.mjs builds and measures them without a browser. The
+  // first version of this block built its plants here, from one
+  // icosahedron whose every vertex took its own rand(): unwelded, so the
+  // copies of each corner moved apart and the plants rendered as torn
+  // green shards with the sky between them, every face flat-shaded, one
+  // colour per plant, dotted along a 7 m grid. See shrubs.ts for what
+  // replaced each of those and what each one measured.
   //
   // THE LATERAL COMES FROM halfWidthAt, NOT FROM THE CONSTANT, and this
   // file already records what the constant costs. The road is not a
@@ -6600,162 +6776,102 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // ROAD_HALF_WIDTH + 4 once put a tower block on the plaza, measured at
   // lat 18.02 against the road's own half-width of 18.00, a bug that
   // only became reproducible when the world was seeded. A bed planted
-  // on the racing line would be that same bug with leaves on. Following
-  // the real width also means the forecourts and the plaza need no
-  // special case: the beds step outward exactly as far as the tarmac
-  // does, and end up round the edge of both.
+  // on the racing line would be that same bug with leaves on. Every bed
+  // reads the width at its own s, and a hedge follows the widening line
+  // round a swell rather than the road's heading.
   //
   // WHICH SIDE. On the coastal leg the negative side is the SEA — the
   // same rule the billboards follow — so the coast is planted inland
   // only, and its sea side stays the palm walkway it already is. Past
   // the coast, both verges.
   //
-  // NO SHADOWS CAST. There are around a thousand of these and every one
-  // is knee high; the shadow budget belongs to the cars and the lamp
-  // posts. They RECEIVE, so the moon shadow and a passing headlight
-  // still cross them, which is the half that reads at night anyway.
+  // NO SHADOWS CAST. About 1,900 plants, every one about chest high; the
+  // shadow budget belongs to the cars and the lamp posts. They RECEIVE,
+  // so the moon shadow and a passing headlight still cross them, and the
+  // contact shadow they cannot cast is baked into the foot of each shape.
   {
-    // Three silhouettes rather than one. A single instanced geometry
-    // repeated a thousand times down a straight road is a wallpaper
-    // pattern, and the eye finds it immediately at speed; three is
-    // enough that it stops looking periodic, and costs two extra draw
-    // calls to fix.
-    const SHAPES = 3;
-    const SPACING = 7; // metres between beds along one verge
-    // Clear of the barrier line, which sits at halfWidth + 1.2 to + 1.6,
-    // and short of the flag masts and the city bands, which start at
-    // + 4. That leaves a band a metre and a half wide to plant in.
-    const LAT_MIN = 2.3;
-    const LAT_SPAN = 1.1;
+    // THE SHARED STREAM FIRST. The old block took its shapes and its
+    // layout from the world's shared rand(), and the underpass textures,
+    // the billboards' sides and the flyover concrete are all drawn from
+    // the same stream after it (concreteTexture, tunnelWallTexture, the
+    // billboard block). The beds below take nothing from it, so the
+    // stream is advanced here by exactly what the old block took: a
+    // replay of its loop, because how much it took depended on what it
+    // drew. tests/world.mjs holds the total (258,930) and every other
+    // instanced group to the recorded city; tests/shrubs.mjs holds the
+    // replay to a verbatim copy of the old loop.
+    burnLegacyVergeDraws(rand, L, TUNNEL_S, COAST_END_M);
 
-    // A mound: an icosahedron pushed down and roughened, so the
-    // silhouette is lumpy the way a clipped shrub is rather than
-    // spherical the way a ball is.
-    // A plant, in two parts on one geometry: a short woody stem and a
-    // crown of leaves on top of it. The old mound was an icosahedron
-    // pushed into the ground — a shape with no root and no top, which
-    // is why it could not bend: there was nothing to bend AT. The crown
-    // keeps the lumpy silhouette; the stem gives it a place to hinge.
-    //
-    // The bend WEIGHT rides in its own vertex attribute, grnWeight: 0 at
-    // the root, 1 at the tip. That is what the shader multiplies the lean
-    // by, so the base stays planted and the top does the moving, which
-    // is what a stem does. Baked once per shape, free per instance.
-    const mound = (seed: number): THREE.BufferGeometry => {
-      const crown = new THREE.IcosahedronGeometry(0.5, 1);
-      const pos = crown.attributes.position as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        const k = 0.72 + rand() * 0.5;
-        pos.setXYZ(
-          i,
-          pos.getX(i) * k * (1 + seed * 0.06),
-          // Lifted onto the stem: the crown's underside starts at the
-          // stem top rather than at the ground.
-          Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3) + STEM_H,
-          pos.getZ(i) * k
-        );
-      }
-      const stem = new THREE.CylinderGeometry(0.03, 0.05, STEM_H, 5, 1);
-      stem.translate(0, STEM_H / 2, 0);
-      // BOTH NON-INDEXED, or the merge returns null and takes the whole
-      // world build down with it. CylinderGeometry is indexed and
-      // IcosahedronGeometry is not — mergeGeometries requires the index
-      // attribute to exist on all of its inputs or on none, and answers
-      // a mismatch with null rather than a throw, so the first thing that
-      // fails is computeVertexNormals on nothing.
-      const g = mergeGeometries([stem.toNonIndexed(), crown.toNonIndexed()]);
-      if (!g) throw new Error("planting: stem and crown would not merge");
-      g.computeVertexNormals();
-      g.computeBoundingBox();
-      const top = g.boundingBox!.max.y;
-      const p2 = g.attributes.position as THREE.BufferAttribute;
-      const wgt = new Float32Array(p2.count);
-      for (let i = 0; i < p2.count; i++) {
-        const w = Math.max(0, Math.min(1, p2.getY(i) / top));
-        // Cubed: a stem is stiff at the root and whippy at the tip.
-        wgt[i] = w * w * w;
-      }
-      // Its own attribute, not the colour channel. `color` only exists in
-      // the shader under USE_COLOR, which vertexColors:false switches off
-      // — and switching it on would tint the leaves by the weight.
-      g.setAttribute("grnWeight", new THREE.BufferAttribute(wgt, 1));
-      return g;
-    };
+    // Four plantings, four shapes, one InstancedMesh each. Built once,
+    // in the unit frame, so an instance is scaled in metres.
+    const geos = SHRUB_KINDS.map((k, i) => shrubGeometry(k, i + 1));
 
-    // Foliage under sodium and moonlight: desert planting is grey-green
-    // and dusty, not a lawn. Roughness 1 — a leaf at this distance has
-    // no highlight worth drawing, and a specular one would read as wet.
+    // The leaf tile (shrubs.ts leafDetailData): 256² of leaves and gaps,
+    // tiled every 0.6 m in instance metres. NoColorSpace — it is a
+    // multiplier, not a colour, and an sRGB decode would darken it.
+    const leafTex = new THREE.DataTexture(leafDetailData(), LEAF_TILE.px, LEAF_TILE.px, THREE.RGBAFormat);
+    leafTex.wrapS = leafTex.wrapT = THREE.RepeatWrapping;
+    leafTex.generateMipmaps = true;
+    leafTex.minFilter = THREE.LinearMipmapLinearFilter;
+    leafTex.magFilter = THREE.LinearFilter;
+    leafTex.anisotropy = 4;
+    leafTex.colorSpace = THREE.NoColorSpace;
+    leafTex.needsUpdate = true;
+
+    // The colour is in the mesh now: albedo, the dark core and lit crown,
+    // the tips, the speckle and the flowers are baked per vertex, and the
+    // instance colour is a near-neutral tint per bed. White here so the
+    // material does not multiply a second green over the first.
+    // Roughness 0.9 rather than 1: a leaf is faintly waxy, and a little
+    // sheen under the white LED street lamps is what separates foliage
+    // from felt.
     const leafMat = new THREE.MeshStandardMaterial({
-      color: 0x3f5136,
-      roughness: 1,
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.9,
       metalness: 0,
     });
-    // THE BEND. A solved lean per instance, done where a thousand
+    // THE BEND. A solved lean per instance, done where two thousand
     // instances can afford it: in the vertex shader, from one attribute
     // per plant. The CPU decides how far each plant leans and which way
-    // — wind everywhere, plus the wake of the player's car as it passes
-    // — and writes (x, z, strength) into `grnBend`. The shader takes
-    // grnWeight (0 root, 1 tip) as the weight and displaces
-    // the vertex along the lean by strength x weight, bending the normal
-    // with it so the lit side moves too. Same shape as the facade UV
-    // patch above: replace an include, guard on USE_INSTANCING, and key
-    // the program cache so the instanced compile does not share an
-    // entry with a plain one.
-    plantBend(leafMat);
+    // — wind everywhere, plus the wake of every car as it passes — and
+    // writes it into `grnBend`; the shader displaces by it times the
+    // baked grnWeight (0 root, 1 tip). Then the leaf tile, chained after
+    // it with its own program key: the palm crowns also bend and also
+    // carry vertex and instance colour, and a shared key would let three
+    // hand one material the other's program.
+    plantBend(leafMat, "grn-plant-bend-leaf");
+    const bendOnly = leafMat.onBeforeCompile;
+    leafMat.onBeforeCompile = (shader, renderer) => {
+      bendOnly.call(leafMat, shader, renderer);
+      shader.uniforms.grnLeafMap = { value: leafTex };
+      shader.vertexShader = patchLeafVertex(shader.vertexShader);
+      shader.fragmentShader = patchLeafFragment(shader.fragmentShader);
+    };
 
-    // Collect the placements first and build to the exact count. An
-    // InstancedMesh sized from an estimate either wastes matrices or
-    // silently drops the tail of the road.
-    const spots: Array<{ s: number; lat: number }> = [];
-    for (let step = 0; step < L; step += SPACING) {
-      for (const side of [1, -1]) {
-        // Gaps on purpose: a continuous hedge for eight kilometres is a
-        // wall, and the real verge is beds with sand between them.
-        if (rand() < 0.28) continue;
-        // JITTER FIRST, THEN MEASURE. The width has to be read at the
-        // point the plant actually stands, not at the point the loop
-        // happened to step to. Reading it at the step and then nudging
-        // the plant up to four metres down the road put one bed 1.25 m
-        // from the tarmac where the carriageway was opening out for a
-        // forecourt — inside the barrier line, on a verge that is 2.3 m
-        // wide everywhere the road is not changing width. Same bug as
-        // the tower block on the drift plaza, one order smaller: a
-        // width measured somewhere other than where the thing is.
-        const at = step + rand() * SPACING * 0.6;
-        // Nothing grows in a tunnel, and the portal approach is walled.
-        if (at > TUNNEL_S.from - 20 && at < TUNNEL_S.to + 20) continue;
-        // The seaward verge only exists once the coast has handed over,
-        // AND it has to stop again before the lap closes. The margin is
-        // not decoration and the second half of the test is not either:
-        // the lap is a loop, so it has two seams, and guarding only the
-        // forward one left a plant two metres past the start line on the
-        // seaward side — correctly placed by its own arithmetic at
-        // s=8490, and standing in the Gulf by the time the road got
-        // there. A rule about "after the coast" on a closed circuit is a
-        // rule about a window, not about a threshold.
-        const SEAM = 40;
-        if (side < 0 && (at < COAST_END_M + SEAM || at > L - SEAM)) continue;
-        spots.push({
-          s: at,
-          lat: side * (track.halfWidthAt(at) + LAT_MIN + rand() * LAT_SPAN),
-        });
-      }
-    }
+    // Lay the beds out, clear of everything else on the verge.
+    const beds = layoutVerge({
+      track,
+      L,
+      tunnel: TUNNEL_S,
+      coastEnd: COAST_END_M,
+      coastU: COAST_U.to,
+      blockLen: L / Math.round(L / STREETS.crossEvery),
+      streetHalf: STREETS.half,
+      onForecourt: (s, half, lo, hi) => onForecourt(track, s, half, lo, hi),
+      avoid: vergeFurniture(track, palmSeeds),
+      rng: makeRng((WORLD_SEED ^ 0x53485242) >>> 0), // "SHRB"
+    });
 
-    const per = Math.ceil(spots.length / SHAPES);
     const meshes: THREE.InstancedMesh[] = [];
-    // Each shape's own height, so an instance can be scaled to a height
-    // in METRES rather than by a multiplier whose meaning depends on
-    // which of the three geometries it landed on.
-    const topOf: number[] = [];
-    for (let k = 0; k < SHAPES; k++) {
-      const g = mound(k);
-      g.computeBoundingBox();
-      topOf.push(g.boundingBox!.max.y);
-      const im = new THREE.InstancedMesh(g, leafMat, per);
+    const bends: THREE.InstancedBufferAttribute[] = [];
+    for (const [k, kind] of SHRUB_KINDS.entries()) {
+      const n = beds.filter((b) => b.kind === kind).length;
+      const g = geos[k];
+      const im = new THREE.InstancedMesh(g, leafMat, Math.max(1, n));
       // Per-plant lean: x, z of the direction, and how far. Dynamic, the
-      // wake rewrites the ones near the car every frame.
-      const bend = new THREE.InstancedBufferAttribute(new Float32Array(per * 3), 3);
+      // wake rewrites the ones near each car every frame.
+      const bend = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, n) * 3), 3);
       bend.setUsage(THREE.DynamicDrawUsage);
       g.setAttribute("grnBend", bend);
       im.userData.bend = bend;
@@ -6764,6 +6880,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       im.name = "planting";
       im.count = 0; // raised as instances are filled in
       meshes.push(im);
+      bends.push(bend);
     }
 
     const m = new THREE.Matrix4();
@@ -6771,41 +6888,46 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const pos = new THREE.Vector3();
     const scl = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0);
-    const p2 = new THREE.Vector3();
-    const tmp2 = new THREE.Vector3();
     const tint = new THREE.Color();
+    const nShrub = beds.length;
+    // Where each plant's lean goes: which mesh, which slot, and the two
+    // factors that turn the solver's unit lean into METRES on this
+    // instance. The shader bends in object units before the instance
+    // scale; without these a 3 m hedge segment leaned three times as far
+    // along the road as across it, and the same gust moved a wide plant
+    // up to 2.9 times as far as a narrow one.
+    const meshOf = new Uint8Array(nShrub);
+    const slotOf = new Uint32Array(nShrub);
+    const gx = new Float32Array(nShrub);
+    const gz = new Float32Array(nShrub);
     const shrubSeeds: PlantSeed[] = [];
-    for (const [i, spot] of spots.entries()) {
-      const im = meshes[i % SHAPES];
-      track.pose(spot.s, spot.lat, p2, tmp2);
-      pos.set(p2.x, 0, p2.z);
-      const yaw = rand() * Math.PI * 2;
-      q.setFromAxisAngle(up, yaw);
-      shrubSeeds.push({ s: track.wrap(spot.s), x: p2.x, z: p2.z, yaw, phase: 0, kind: 0 });
-      // Non-uniform, so a bed reads as several plants of different ages
-      // rather than one plant rendered at several sizes.
-      // HEIGHT IS SET AGAINST THE BARRIER, not by eye. The W-beam's top
-      // lip stands at 0.776 m — RAIL_Y plus the section's own crest —
-      // and the first build made these 0.19 to 0.77 m tall, which put
-      // every one of them behind the rail from the chase camera. They
-      // were placed correctly, tested correctly, and could not be seen
-      // from the road at all: a feature nobody can see is not subtle,
-      // it is absent, and it still costs 105,000 triangles.
-      //
-      // 0.85 to 1.7 m clears the rail on every instance and stays well
-      // under the sign gantries at 3.75 m, so nothing is hidden by a
-      // hedge. Real roadside shrub beds sit in that band too.
-      const h = 0.85 + rand() * 0.85;
-      const w = 0.8 + rand() * 1.5;
-      scl.set(w, h / topOf[i % SHAPES], w * (0.8 + rand() * 0.4));
+    for (const [i, b] of beds.entries()) {
+      const k = SHRUB_KINDS.indexOf(b.kind);
+      const im = meshes[k];
+      // ON THE CITY FLOOR, NOT ON THE ROAD'S PLANE. The verge is the
+      // city floor, CITY_GROUND_Y below the road, and a plant stood at
+      // y = 0 floated 80 mm over it — the gap track.ts records the whole
+      // skyline once had. A few centimetres below it, so the foot meets
+      // the ground in an intersection rather than a coplanar seam.
+      pos.set(b.x, CITY_GROUND_Y - SHRUB.sink, b.z);
+      q.setFromAxisAngle(up, b.yaw);
+      // HEIGHT IS SET AGAINST THE BARRIER. The W-beam's top lip stands
+      // at 0.776 m, and the first build's plants were 0.19 to 0.77 m
+      // tall: placed correctly, tested correctly, and invisible from the
+      // road behind the rail. Every planting's height range in shrubs.ts
+      // clears the lip by at least 5 cm after the sink, and stays well
+      // under the sign gantries at 3.75 m.
+      scl.set(b.sx, b.sy, b.sz);
       m.compose(pos, q, scl);
+      meshOf[i] = k;
+      slotOf[i] = im.count;
+      gx[i] = b.gx;
+      gz[i] = b.gz;
       im.setMatrixAt(im.count, m);
-      // A little spread of green, warmer where a sodium lamp would be
-      // washing it and cooler where it would not. Cheap variety: one
-      // material, a thousand slightly different plants.
-      tint.setHSL(0.24 + rand() * 0.06, 0.18 + rand() * 0.16, 0.42 + rand() * 0.22);
+      tint.setRGB(b.tint[0], b.tint[1], b.tint[2]);
       im.setColorAt(im.count, tint);
       im.count++;
+      shrubSeeds.push({ s: track.wrap(b.s), x: b.x, z: b.z, yaw: b.yaw, phase: b.phase, kind: 0 });
     }
     for (const im of meshes) {
       im.instanceMatrix.needsUpdate = true;
@@ -6814,12 +6936,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       scene.add(im);
     }
     // Hand the verge to the frame loop: the shrubs and, after them, the
-    // palm crowns, as one spring field; and the plants' own phase so the
-    // wind does not move them all in step. The phases are drawn here,
-    // after everything else in this block, so the seeded build lays the
-    // beds out exactly as it did before there was a field.
-    for (const seed of shrubSeeds) seed.phase = rand() * Math.PI * 2;
-    const nShrub = shrubSeeds.length;
+    // palm crowns, as one spring field.
     const field = newPlantField([...shrubSeeds, ...palmSeeds]);
     const palms = palmRig;
     plantsRef = {
@@ -6828,8 +6945,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       meshes: palms ? [...meshes, palms.crowns] : meshes,
       write: (i, dx, dz, str) => {
         if (i < nShrub) {
-          const im = meshes[i % SHAPES];
-          (im.userData.bend as THREE.InstancedBufferAttribute).setXYZ(Math.floor(i / SHAPES), dx, dz, str);
+          bends[meshOf[i]].setXYZ(slotOf[i], dx * gx[i], dz * gz[i], str);
         } else if (palms) {
           palms.bend.setXYZ(i - nShrub, dx, dz, str);
         }
@@ -7173,6 +7289,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     });
     const mast = (id: FlagId, height: number, poleH: number): THREE.Group => {
       const g = new THREE.Group();
+      // Named so tests/planting.mjs can hold the verge's beds clear of
+      // the masts actually standing here (see vergeFurniture).
+      g.name = "flag-mast";
       const pole = new THREE.Mesh(
         new THREE.CylinderGeometry(poleH * 0.0086, poleH * 0.0129, poleH, 6),
         poleMat
@@ -7235,15 +7354,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const tmp = new THREE.Vector3();
     // Spread along the shoulder opposite the flag, turned to watch the
     // road rather than each other.
-    const spots: Array<[number, number]> = [
-      [-9, 2.6],
-      [-4.5, 3.4],
-      [3.5, 2.8],
-      [8.5, 3.6],
-    ];
+    // START_CREW_SPOTS — hoisted so the verge can keep its beds off them.
     looks.forEach((look, i) => {
       const fig = kuwaitiRacer(look);
-      const [ds, latPad] = spots[i];
+      const [ds, latPad] = START_CREW_SPOTS[i];
       track.pose(ds, ROAD_HALF_WIDTH + latPad, p, tmp);
       fig.position.copy(p);
       track.pointAt(ds, tmp);
@@ -7331,7 +7445,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     g.add(board);
     const p = new THREE.Vector3();
     const tmp2 = new THREE.Vector3();
-    track.pose(s, ROAD_HALF_WIDTH + 2.0, p, tmp2);
+    track.pose(s, LOVE_SIGN_LAT, p, tmp2);
     track.tangentAt(s, tmp2);
     g.position.copy(p);
     g.lookAt(p.clone().sub(tmp2));
@@ -7543,11 +7657,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       });
       const poolGeo = new THREE.CircleGeometry(11, 20);
       poolGeo.rotateX(-Math.PI / 2);
-      for (const [ds, latPad] of [
-        [-46, 2.4],
-        [0, 3.0],
-        [46, 2.4],
-      ]) {
+      for (const [ds, latPad] of PLAZA_FLOODLIGHTS) {
         const s = sPlaza + ds;
         const g = new THREE.Group();
         g.name = "plaza-floodlight";
@@ -7576,12 +7686,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     {
       const crowd = new THREE.Group();
       crowd.name = "spectators";
-      const figures: Array<[THREE.Group, number, number]> = [
-        [kuwaitiFigure("dishdasha", "check"), -24, 3.2],
-        [kuwaitiFigure("dishdasha", "white"), -20.5, 4.1],
-        [kuwaitiFigure("dishdasha", "check"), 21, 3.4],
-        [kuwaitiFigure("abaya", "white"), 24.5, 3.9],
+      // Where they stand is PLAZA_SPECTATORS, hoisted so the verge can
+      // keep its beds off them; who they are stays here.
+      const who = [
+        kuwaitiFigure("dishdasha", "check"),
+        kuwaitiFigure("dishdasha", "white"),
+        kuwaitiFigure("dishdasha", "check"),
+        kuwaitiFigure("abaya", "white"),
       ];
+      const figures: Array<[THREE.Group, number, number]> = PLAZA_SPECTATORS.map(
+        ([ds, latPad], i) => [who[i], ds, latPad]
+      );
       let seed = 0;
       for (const [fig, ds, latPad] of figures) {
         const s = sPlaza + ds;
@@ -7606,44 +7721,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   // --------------------------------------------------- bend furniture
-  // Chevron boards and braking rubber go where the road actually turns.
-  // The geometry is measured, not guessed: the sharpest sweep is the
-  // Ras Al-Ard point at radius ≈178 m, with lesser curves at the Kuwait
-  // Towers hairpin and the city return — so the threshold sits at
-  // R < 260 m and everything gentler stays clean.
+  // Chevron boards and braking rubber go where the road actually turns
+  // (bendClusters, which the verge's beds also read to keep clear of
+  // the boards).
   {
-    const t0 = new THREE.Vector3();
-    const t1 = new THREE.Vector3();
-    const kappaAt = (s: number) => {
-      track.tangentAt(s - 14, t0);
-      track.tangentAt(s + 14, t1);
-      return { k: t0.angleTo(t1) / 28, right: t0.x * t1.z - t0.z * t1.x > 0 };
-    };
-    const THRESH = 1 / 260;
-    type Cluster = { from: number; to: number; right: boolean };
-    const clusters: Cluster[] = [];
-    let cur: Cluster | null = null;
-    for (let s = 0; s < L; s += 10) {
-      const { k, right } = kappaAt(s);
-      if (k <= THRESH) continue;
-      if (cur && s - cur.to <= 40 && cur.right === right) cur.to = s;
-      else clusters.push((cur = { from: s, to: s, right }));
-    }
-    // A bend straddling the lap seam shows up as two clusters — rejoin it
-    if (clusters.length > 1) {
-      const first = clusters[0];
-      const last = clusters[clusters.length - 1];
-      if (first.from <= 40 && L - last.to <= 40 && first.right === last.right) {
-        first.from = last.from - L;
-        clusters.pop();
-      }
-    }
+    const clusters = bendClusters(track, L);
 
     const chevrons = new THREE.Group();
     chevrons.name = "bend-chevrons";
     const postGeo = new THREE.CylinderGeometry(0.07, 0.09, 1.7, 6);
     const postMat = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 });
-    const boardGeo = new THREE.PlaneGeometry(1.6, 0.62);
+    const boardGeo = new THREE.PlaneGeometry(CHEVRON.boardHalf * 2, 0.62);
     const boardMats = {
       right: new THREE.MeshStandardMaterial({
         map: chevronTexture(true),
@@ -7670,7 +7758,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Boards through the arc, on the outside of the bend, facing
       // oncoming traffic; the arrows point into the turn.
       const outside = c.right ? -1 : 1;
-      for (let s = c.from; s <= c.to + 1; s += 26) {
+      for (let s = c.from; s <= c.to + 1; s += CHEVRON.every) {
         const g = new THREE.Group();
         const post = new THREE.Mesh(postGeo, postMat);
         post.position.y = 0.85;
@@ -7678,7 +7766,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         const board = new THREE.Mesh(boardGeo, c.right ? boardMats.right : boardMats.left);
         board.position.y = 1.55;
         g.add(board);
-        track.pose(s, outside * (track.halfWidthAt(s) + 1.9), p, tmp);
+        track.pose(s, outside * (track.halfWidthAt(s) + CHEVRON.lat), p, tmp);
         track.tangentAt(s, tmp);
         g.position.copy(p);
         g.lookAt(p.x - tmp.x, p.y, p.z - tmp.z);
