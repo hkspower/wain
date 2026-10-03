@@ -9,7 +9,6 @@ Produces, at the chosen quality (default `max`):
 
   car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv}.glb   body shells: Body, Canopy, Roof
   wheel-{5,6}.glb              hero wheel: Tire, Barrel, Alloy, Rotor, Lugs
-  palm.glb                     corniche palm crown: Crown
   driver.glb                   the driver at the wheel: Helmet, Visor,
                                Glove, Wheel, Pedal
 
@@ -24,9 +23,8 @@ a Catmull-Rom spline through the top run, straight rocker, and a
 quarter-circle side bevel that bulges the mid-section outward by the
 bevel radius. Every anchored detail (pop-up doors, tail garnish, wipers)
 was positioned against that bulged surface, so the authored shells must
-land on it exactly — just far smoother. The wheel and palm are modelled
-rather than lofted, but they hold the same envelope the runtime meshes
-occupy: a 0.36 m tire radius, a 0.26 m section width, a 0.2 m rotor.
+land on it exactly — just far smoother. The wheel is modelled rather
+than lofted, but it holds the same envelope the runtime mesh occupies: a 0.36 m tire radius, a 0.26 m section width, a 0.2 m rotor.
 Break those and the car sits at the wrong ride height.
 
 Axes: built in Blender coordinates (X = width, -Y = nose, Z = up); the
@@ -52,7 +50,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # under a moving streetlight.
 #
 #   samples/span, bevel steps, tire radial segs, tire profile segs,
-#   alloy radial segs, palm leaflet pairs
+#   alloy radial segs, palm leaflet pairs (no longer read: the palm is
+#   built in src/game/palm.ts — kept so a manifest's recorded settings
+#   still match and a partial rebuild is not refused)
 #
 # IS `max` ALREADY ENOUGH? YES — MEASURED
 #
@@ -525,111 +525,11 @@ def build_wheel(spokes):
 
 
 # ------------------------------------------------------------------- palm
-def build_palm():
-    """A date palm crown: fronds that ARCH — up first, then over and
-    down — carrying two rows of leaflets that shorten toward the tip.
-
-    The shape is the whole point, and the old one had it wrong in three
-    ways that a render of the corniche shows at once.
-
-    IT DID NOT RISE. The spine was `z = -droop*t^2*len*0.6 + 0.18*sin(2.2t)`,
-    which peaks 76 mm above its own base on a 2 m frond. Every frond
-    therefore left the trunk flat and stayed flat, and the tree read as a
-    parasol on a pole. A date palm's fronds go UP out of the crown for
-    a third of their length before their own weight takes them over; that
-    arc is most of what makes the head read as a head rather than as a
-    disc.
-
-    IT WAS TOO SMALL. 2.05 m fronds give a crown 4.1 m across on a 6 m
-    trunk — a fifth of the tree's height. A date palm carries 3 to 4 m
-    fronds and its crown is about as wide as the trunk is tall.
-
-    THERE WERE TOO FEW. Fourteen fronds leave gaps you can see the trunk
-    through from the road. A mature date palm carries thirty to fifty
-    live fronds, and the number is not decoration: it is what closes the
-    head up.
-
-    Sits at the trunk top (6 m) in the same local frame as the runtime
-    geometry, so the instanced placement is unchanged."""
-    parts = []
-    fronds = 26
-    for f in range(fronds):
-        # A shallow spiral rather than a wheel: the golden angle spreads
-        # successive fronds so no two neighbours share a gap, which is
-        # how a palm closes its head with a countable number of leaves.
-        yaw = f * 2.39996
-        # Three ranks. The inner ones stand up and are shorter and
-        # newer, the outer ones are long and hang below horizontal —
-        # that spread IS the crown's depth.
-        rank = f % 3
-        rise = (0.95, 0.62, 0.34)[rank]
-        fall = (0.55, 1.05, 1.55)[rank]
-        length = (2.45, 3.05, 3.35)[rank] - (f % 5) * 0.08
-        rings = []
-        steps = Q["leaflets"]
-        for k in range(steps + 1):
-            t = k / steps
-            d = t * length
-            # Up, then over. `rise` is how far the spine climbs before
-            # the knee at t=0.38; `fall` is how far below its own base
-            # the tip ends up. One expression, two constants, and the
-            # whole range of a crown comes out of the rank table above.
-            z = rise * math.sin(t * 1.9) - fall * (t ** 2.6)
-            # Leaflets, as a serrated outline rather than a smooth
-            # blade. A frond is pinnate: a spine with a hundred narrow
-            # leaflets off it in a herringbone. Modelling them is not
-            # worth the triangles at this distance, but a ribbon with a
-            # SMOOTH edge reads as a sword, so the half-span steps in
-            # and out ring by ring and the silhouette gets its teeth.
-            base = (0.30 - 0.20 * abs(t - 0.40)) * (1.0 - 0.52 * t)
-            half = max(base * (1.0 if k % 2 else 0.72), 0.014)
-            fold = 0.075 * (1.0 - t)  # the V-fold of the frond
-            ring = [
-                (0.0, -half, -fold),
-                (0.0, 0.0, 0.016),
-                (0.0, half, -fold),
-                (0.0, 0.0, -0.016),
-            ]
-            rings.append([(d, y, z + zz) for (_, y, zz) in ring])
-        # Orient the frond: built along +X, rotated about Z by yaw
-        ca, sa = math.cos(yaw), math.sin(yaw)
-        rings = [[(x * ca - y * sa, x * sa + y * ca, z) for (x, y, z) in ring]
-                 for ring in rings]
-        parts.append(mesh_from_quads(f"Frond{f}", rings, close_rings=True, cap=True))
-    # The spear: the unopened frond at the centre, which every date palm
-    # has and which is a narrow blade standing straight up, not the
-    # 0.22 m cone that used to sit here and read as a party hat.
-    spear = []
-    for k in range(7):
-        t = k / 6
-        w = 0.085 * (1 - t) ** 0.7
-        spear.append([
-            (-w, -w * 0.5, t * 1.35),
-            (w, -w * 0.5, t * 1.35),
-            (w, w * 0.5, t * 1.35),
-            (-w, w * 0.5, t * 1.35),
-        ])
-    parts.append(mesh_from_quads("Spear", spear, close_rings=True, cap=True))
-    # The frond-base collar: the stub ends of last year's leaves, cut
-    # off where the gardener took them. It is the most recognisable
-    # thing about a date palm's trunk after the head itself, and without
-    # it the crown floats on a smooth pole.
-    for c in range(12):
-        a = (c / 12) * math.tau + 0.13
-        ca, sa = math.cos(a), math.sin(a)
-        ring0 = []
-        ring1 = []
-        for i in range(4):
-            u = (i / 4) * math.tau
-            y, z = 0.085 * math.cos(u), 0.085 * math.sin(u)
-            ring0.append((0.20 * ca - y * sa, 0.20 * sa + y * ca, z - 0.30))
-            ring1.append((0.44 * ca - y * sa, 0.44 * sa + y * ca, z - 0.16))
-        parts.append(mesh_from_quads(f"Stub{c}", [ring0, ring1],
-                                     close_rings=True, cap=True))
-    crown = join("Crown", parts)
-    crown.location = (0, 0, 6.1)
-    bpy.context.view_layer.update()
-    return [crown]
+# The date palm is not built here any more. Its crown is alpha-tested
+# leaflet cards with a UV layer and a coverage-preserving mip chain, its
+# trunk and bark come with it, and the same crown serves the corniche,
+# Green Island and the plaza: src/game/palm.ts, guarded by
+# tests/palms.mjs. There is no palm.glb, and nothing here can make one.
 
 
 # ----------------------------------------------------------------- police
@@ -861,8 +761,8 @@ def main():
     # this to four was this default.
     ap.add_argument("--styles", default="sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv")
     ap.add_argument("--quality", default="max", choices=sorted(QUALITY))
-    ap.add_argument("--only", default="cars,wheels,palm,police,driver",
-                    help="comma-separated subset of cars,wheels,palm,police,driver")
+    ap.add_argument("--only", default="cars,wheels,police,driver",
+                    help="comma-separated subset of cars,wheels,police,driver")
     ap.add_argument("--overwrite-max", action="store_true",
                     help="rebuild car shells that were modelled in 3ds Max (tools/max) too")
     args = ap.parse_args(sys.argv[1:])
@@ -906,10 +806,6 @@ def main():
     if "police" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         emit(args.out, "police", build_police(), report)
-    if "palm" in only:
-        bpy.ops.wm.read_factory_settings(use_empty=True)
-        emit(args.out, "palm", build_palm(), report)
-
     if "driver" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         emit(args.out, "driver", build_driver(profiles["rig"]), report)
@@ -930,7 +826,7 @@ def main():
     # loss — models.ts's shipped() treats build.json as the list of what
     # exists, and parts() returns null for anything not in it, so one
     # partial rebuild silently switched off every authored shell, wheel,
-    # driver and palm crown in the game. Derived from the argument's own
+    # and driver in the game. Derived from the argument's own
     # default now, so adding an asset cannot leave this behind.
     ALL_ASSETS = set(ap.get_default("only").split(","))
     if os.path.exists(manifest_path) and only < ALL_ASSETS:

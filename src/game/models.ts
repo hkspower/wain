@@ -6,10 +6,17 @@ import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, tyreBandFor, t
 // Blender-authored graphics.
 //
 // The game builds everything procedurally first — car shells, hero
-// wheels, palm crowns — and tags the meshes that have an authored
-// counterpart. This module fetches the matching file from public/models/
-// (built by tools/blender/build_assets.py) and swaps the *geometry* of
-// those tagged meshes in place.
+// wheels, the driver, the patrol car's roof bar — and tags the meshes
+// that have an authored counterpart. This module fetches the matching
+// file from public/models/ (built by tools/blender/build_assets.py) and
+// swaps the *geometry* of those tagged meshes in place.
+//
+// The palm crown was one of them and is not any more. palm.glb had no UV
+// layer, so it could not carry a leaflet texture; it replaced the crown
+// a few seconds into play, so anything done to the procedural one
+// vanished from the corniche; and Green Island and the plaza were never
+// upgraded, so the map wore two different palms. The crown is built in
+// src/game/palm.ts now, once, for all of them.
 //
 // Geometry-only replacement is the point: the mesh objects, their
 // materials (paint with the live reflection probe, glass, the wheel
@@ -643,19 +650,5 @@ export function upgradePoliceBar(bar: THREE.Object3D): Promise<boolean> {
       swapped++;
     });
     return swapped > 0;
-  });
-}
-
-/**
- * Upgrade the corniche palm crowns. One geometry serves every instance
- * of the InstancedMesh, so this is the cheapest upgrade in the game and
- * the most visible — the crowns line the whole coastal leg.
- */
-export function upgradePalmCrowns(mesh: THREE.Mesh): Promise<boolean> {
-  return parts("palm").then((kit) => {
-    const geo = kit?.crown;
-    if (!geo) return false;
-    mesh.geometry = geo;
-    return true;
   });
 }
