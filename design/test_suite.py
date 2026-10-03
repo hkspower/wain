@@ -710,6 +710,7 @@ def browser_checks():
         totals_alignment_checks(br)
         mobile_checks(br)
         fit_checks(br)
+        alignment_checks(br)
         portal_checks(pg)
         font_checks(pg)
         app_icon_checks(pg)
@@ -917,7 +918,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "761", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "765", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -950,7 +951,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "761", "0", "100%"], str(finals))
+          finals == ["4", "765", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3045,6 +3046,85 @@ def fit_checks(br):
     check(S, "the password button hugs its label", bw < 200, f"{bw:.0f}px")
     pg.evaluate("localStorage.clear()")
     c.close()
+
+
+ALIGN_JS = r"""() => {
+ const vis = e => e.checkVisibility() && e.getBoundingClientRect().width > 0;
+ const name = e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/).slice(0,2).join('.') : '');
+ const out = { icon: [], row: [], edge: [] };
+ // 1. icon beside text: centres within 1.5px
+ for (const svg of document.querySelectorAll('svg.ic, svg.ti')) {
+   if (!vis(svg) || svg.closest('.tile, .scene')) continue;
+   const host = svg.parentElement; if (!host || !vis(host)) continue;
+   const r = document.createRange(); let tr = null;
+   for (const n of host.childNodes) if (n.nodeType === 3 && n.textContent.trim()) { r.selectNodeContents(n); tr = r.getBoundingClientRect(); break; }
+   if (!tr) { const t = [...host.children].find(c => c !== svg && c.tagName !== 'svg' && c.textContent.trim() && vis(c)); if (t) { r.selectNodeContents(t); tr = r.getBoundingClientRect(); } }
+   if (!tr || !tr.height) continue;
+   const s = svg.getBoundingClientRect();
+   if (s.bottom <= tr.top + 2 || s.top >= tr.bottom - 2) continue;   // stacked, not side by side
+   const d = (s.top + s.height / 2) - (tr.top + tr.height / 2);
+   if (Math.abs(d) > 1.5) out.icon.push([name(host), Math.round(d * 10) / 10]);
+ }
+ // 2. flex/grid row siblings: same top
+ for (const p of document.querySelectorAll('body *')) {
+   const cs = getComputedStyle(p); if (!vis(p)) continue;
+   const flexRow = cs.display.includes('flex') && !cs.flexDirection.startsWith('column') && cs.flexWrap === 'nowrap';
+   if (!flexRow || cs.alignItems === 'baseline') continue;
+   const kids = [...p.children].filter(k => vis(k) && getComputedStyle(k).position !== 'absolute');
+   if (kids.length < 2) continue;
+   const al = cs.alignItems;
+   const val = k => { const r = k.getBoundingClientRect(); return al === 'center' ? (r.top + r.bottom) / 2 : al === 'flex-end' || al === 'end' ? r.bottom : r.top; };
+   const v = kids.map(val), spread = Math.max(...v) - Math.min(...v);
+   if (spread > 1.5 && spread < 8 && (al === 'center' || al === 'flex-start' || al === 'start' || al === 'stretch' || al === 'normal' || al === 'flex-end'))
+     out.row.push([name(p), al, Math.round(spread * 10) / 10]);
+ }
+ // 3. block start edges (RTL: right) near, but not on, the parent's content edge
+ for (const e of document.querySelectorAll('main h2, main h3, main p, main .card, main .tile, main form, main .fig, main table, main .row, main .sub, footer p, footer h3, footer ul')) {
+   if (!vis(e)) continue; const p = e.parentElement; const pc = getComputedStyle(p);
+   const pr = p.getBoundingClientRect().right - parseFloat(pc.paddingRight) - parseFloat(pc.borderRightWidth);
+   const off = pr - e.getBoundingClientRect().right;
+   if (Math.abs(off) > 1 && Math.abs(off) < 8 && getComputedStyle(e).textAlign !== 'center') out.edge.push([name(e), Math.round(off * 10) / 10]);
+ }
+ const dedup = a => [...new Map(a.map(x => [x.join('|'), x])).values()];
+ return { icon: dedup(out.icon), row: dedup(out.row), edge: dedup(out.edge) };
+}"""
+
+ALIGN_FIXTURE = """<!doctype html><html dir="rtl"><body><main>
+<div style="display:flex;align-items:center;flex-wrap:nowrap"><span style="height:20px;width:20px;display:block">a</span><span style="height:20px;width:20px;display:block;margin-top:8px">b</span></div>
+<p style="margin-right:3px">edge</p>
+<button><svg class="ic" width="16" height="16" style="vertical-align:top;margin-top:6px"></svg>نص طويل هنا</button>
+</main></body></html>"""
+
+
+def alignment_checks(br):
+    """Full alignment, measured (owner's «make full aligment», 2026-10-03):
+    an icon centred on the text beside it, a row's siblings on one line, and
+    no block standing 1–8px off its container's start edge — a near miss is
+    the defect, a deliberate indent is not. The scan first proves, on a page
+    planted with one of each, that it can still see all three."""
+    S = "align"
+    c = br.new_context(viewport={"width": 800, "height": 600}); pg = c.new_page()
+    pg.set_content(ALIGN_FIXTURE)
+    r = pg.evaluate(ALIGN_JS)
+    check(S, "the alignment scan sees a planted off-centre icon, row and edge",
+          bool(r["icon"]) and bool(r["row"]) and bool(r["edge"]), str(r))
+    c.close()
+    pages = ["index.html", "nokhatha.html#/", "nokhatha.html#/register", "nizam.html#/position",
+             "nizam.html#/safi", "nizam.html#/xbrl", "nizam.html#/delivery", "nizam.html#/social", "admin.html"]
+    for w, h, mob in ((1440, 900, False), (390, 844, True), (320, 640, True)):
+        c = br.new_context(viewport={"width": w, "height": h}, is_mobile=mob, has_touch=mob,
+                           device_scale_factor=2 if mob else 1)
+        pg = c.new_page(); bad = []
+        for u in pages:
+            pg.goto(f"{BASE}/{u}", wait_until="networkidle"); pg.wait_for_timeout(300)
+            pg.evaluate("document.documentElement.classList.remove('motion');"
+                        "document.querySelectorAll('[data-reveal]').forEach(e=>e.classList.add('in'));"
+                        "document.querySelectorAll('.callfab').forEach(e=>e.remove())")
+            pg.wait_for_timeout(150)
+            r = pg.evaluate(ALIGN_JS)
+            bad += [f"{u} {k} {x}" for k, v in r.items() for x in v]
+        check(S, f"every icon, row and edge lines up at {w}px", not bad, " | ".join(bad[:4]))
+        c.close()
 
 
 def portal_checks(pg):
