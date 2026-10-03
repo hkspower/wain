@@ -116,6 +116,20 @@ await page.waitForTimeout(3000);
 await page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
+  // PIN THE TIER, then fill the probe it built.
+  //
+  // This used to take whatever tier Auto had reached by now. Auto's
+  // governor decides once, six seconds in, whether this machine keeps up,
+  // and on a software rasteriser at two frames a second it can decide
+  // not to — performance mode, which turns the live probe off (the note
+  // on the two environments below records it landing both ways on
+  // different days). Until d7915c61 that left the paint's envMap null
+  // and the probe column printed "—", which at least said so. Since then
+  // a car with the probe off is bound to the BAKE explicitly (engine.ts
+  // dressReflections), so the same run would have shot the bake at 1.5
+  // and printed it under "probe". An explicit tier also locks the
+  // governor, so nothing changes tier underneath the run.
+  e.applyQualityTier("high");
   // Sweep the reflection probe by hand, all six faces, before reading
   // anything. A metallic paint takes most of its colour from the
   // environment, and the environment is the live probe — which is
@@ -125,10 +139,18 @@ await page.evaluate(() => {
   // reliably a sweep. One run read every paint at a fifth of its
   // brightness and 37 collapsed pairs, and it was not the paint: the
   // probe had just been resized for the high tier and never filled.
+  // From face 0, so the whole cube is from one spot (as paint.mjs).
+  while (e.probeFace !== 0) e.renderProbe();
   for (let i = 0; i < 6; i++) e.renderProbe();
 });
 
-console.log("paint                 chosen  sky-tier  probe-tier  hue err   chroma  (hue and chroma judged on the sky-tier render)");
+// "baked" is Balanced, Battery, Auto's fallback and the menu, at the gain
+// printed beside it; "probe" is High's live probe. Hue and chroma are
+// judged on the baked render.
+console.log(
+  `${"paint".padEnd(20)} ${"chosen".padEnd(7)}  ${"baked".padEnd(7)} ${"gain".padEnd(5)}  ` +
+  `${"probe".padEnd(7)}  ${"hue err".padStart(8)}  chroma  (judged on baked)`
+);
 const rows = [];
 for (const p of paints) {
   const px = await page.evaluate(async (paintId) => {
@@ -159,6 +181,9 @@ for (const p of paints) {
     const stage = new THREE.Scene();
     let root = e.world.moonLight; while (root.parent) root = root.parent;
     stage.environment = root.environment;
+    // three substitutes this for the paint's own gain only when its
+    // envMap is null; the baked column below sets it to the game's when
+    // the engine leaves it so.
     stage.environmentIntensity = 1.0;
     // THE GAME'S OWN RIG, not a studio one.
     //
@@ -200,15 +225,50 @@ for (const p of paints) {
     // us and never said which.
     //
     // On the high tier the paint's envMap is the LIVE PROBE: a night sky
-    // at the car's position, and dark. On lower tiers it is null and the
-    // material falls back to the static sky PMREM, which is brighter.
-    // The auto tier on this headless box landed on different sides of
-    // that line on different days, so one run read Corniche White at
-    // #a1acbd and the next at #2b303e with nothing changed but the
-    // benchmark — and a session was spent hunting a paint regression
-    // that was a tier. So both are rendered, both are reported, and the
-    // hue solve reads the static-sky column, where there is enough
-    // chroma left to measure a hue at all.
+    // at the car's position, and dark. Below it — Balanced, Battery,
+    // Auto's performance fallback, and the menu — it is the BAKED sky
+    // PMREM, which is brighter. The auto tier on this headless box landed
+    // on different sides of that line on different days, so one run read
+    // Corniche White at #a1acbd and the next at #2b303e with nothing
+    // changed but the benchmark — and a session was spent hunting a paint
+    // regression that was a tier. So both are rendered, both are
+    // reported, and the hue solve reads the baked column, where there is
+    // enough chroma left to measure a hue at all.
+    //
+    // Both are DRESSED BY THE ENGINE, never by this tool. The baked
+    // column used to set envMap = null and envMapIntensity = 2.1 itself,
+    // and three (r184) never drew that 2.1: with a null envMap it draws
+    // at scene.environmentIntensity, the 1.0 the stage is given above.
+    // That happened to match the game while the game also left envMap
+    // null. Since d7915c61 the game binds the bake explicitly at 1.5 x
+    // the dusk dip x the finish's envScale — gloss 1.5, satin 0.93, matte
+    // 0.45 at night — and a column still drawn at 1.0 would have judged
+    // every finish at a gain no player sees: half a stop low on gloss,
+    // more than a stop high on matte, and blind to any colour change the
+    // new gains made. So the column switches the live probe off and asks
+    // applyLiveReflections to re-dress, which is the step Balanced,
+    // Battery and the fallback all go through (applyQualityTier and
+    // setEffects both end in it); it carries the clearcoat floor with it.
+    // Not applyQualityTier("balanced") itself: that also resizes the
+    // frame and its MSAA, twice a paint, for nothing the stage renders.
+    // The menu (attract.ts) binds the same bake at createCar's 1.5 x
+    // envScale with no dip, which at night is the same number.
+    //
+    // What the stale column hid, one run each, all 31 paints on the
+    // gloss Deera:
+    //
+    //                               mean hue err  past 15°  pairs < 12
+    //   f1a525c4, drawn at 1.0          21.0°        15         48
+    //   d7915c61, old column (1.0)      19.7°        13         45
+    //   d7915c61, as drawn (1.5)        21.9°        15         31
+    //
+    // The old column called d7915c61 an improvement in hue. As drawn it
+    // is 0.9° worse on the mean and better on collapsed pairs, and the
+    // gain alone (rows two to three) moved mudbrick 26 -> 37°, sage 30 ->
+    // 38°, sand 19 -> 26°, molasses 32 -> 39°, maroon 45 -> 51°, took
+    // olive and mint past 15°, and took silver from 14.6 chroma to 21.7,
+    // past where a grey reads as one. Run to run the same build moves
+    // under a degree.
     const shoot = () => {
       const prevRT = e.renderer.getRenderTarget();
       e.renderer.setRenderTarget(rt);
@@ -227,16 +287,39 @@ for (const p of paints) {
       }
       return n > 200 ? [r/n, g2/n, b/n, n] : null;
     };
-    const liveEnv = paintMat.envMap;
-    const liveGain = paintMat.envMapIntensity;
-    // Static sky: what a balanced-tier player sees.
-    paintMat.envMap = null; paintMat.envMapIntensity = 2.1; paintMat.needsUpdate = true;
+    // The bake: what a Balanced, Battery or fallback player sees, at the
+    // gain the engine gives it. The gain is returned and printed, so the
+    // column says what it was drawn at rather than leaving it to be
+    // assumed — the assumption is what went stale last time.
+    e.liveReflections = false;
+    e.applyLiveReflections();
+    // At the gain three will really draw. A bound envMap is drawn at its
+    // own envMapIntensity. A null one — what the engine did before
+    // d7915c61 — is drawn at the scene's environmentIntensity whatever
+    // the material says, so the stage takes the game's value and the
+    // column reports that. Either way the same tool reads both sides of
+    // the change, which is what comparing the two commits needs.
+    let bakedGain;
+    if (paintMat.envMap === root.environment) {
+      bakedGain = paintMat.envMapIntensity;
+    } else if (paintMat.envMap === null) {
+      stage.environmentIntensity = root.environmentIntensity;
+      bakedGain = root.environmentIntensity;
+    } else {
+      e.liveReflections = true;
+      e.applyLiveReflections();
+      throw new Error("with the probe off the paint is on neither the scene's bake nor null; the baked column no longer models the game");
+    }
     const sky = shoot();
-    // Live probe: what a high-tier player sees. Restored exactly.
-    paintMat.envMap = liveEnv; paintMat.envMapIntensity = liveGain; paintMat.needsUpdate = true;
-    const probe = liveEnv ? shoot() : null;
+    // The live probe: what a High player sees. Put back by the same
+    // re-dress, which is also what leaves every other car as it was.
+    e.liveReflections = true;
+    e.applyLiveReflections();
+    // Only if the paint really is on the probe. A non-null envMap no
+    // longer means that: the bake is non-null too.
+    const probe = paintMat.envMap === e.cubeRT.texture ? shoot() : null;
     rt.dispose(); ball.geometry.dispose();
-    return sky ? { sky, probe } : null;
+    return sky ? { sky, probe, bakedGain } : null;
   }, p.id);
 
   if (!px) { console.log(`${p.id.padEnd(20)}  could not read the paint`); continue; }
@@ -267,7 +350,7 @@ for (const p of paints) {
   rows.push([p.id, err, keep, c0, drift, wl, gl]);
   const hex = "#" + [skyPx[0],skyPx[1],skyPx[2]].map((v) => Math.round(v).toString(16).padStart(2,"0")).join("");
   console.log(
-    `${p.id.padEnd(20)} ${want}  ${hex}  ${probeHex}  ` +
+    `${p.id.padEnd(20)} ${want}  ${hex} ×${px.bakedGain.toFixed(2)}  ${probeHex}  ` +
     (keep === null ? "      —" : err.toFixed(1).padStart(7) + "°") + "  " +
     (keep === null
       ? `near-grey, picked up ${drift.toFixed(1)} chroma`
