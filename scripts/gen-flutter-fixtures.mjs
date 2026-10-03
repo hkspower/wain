@@ -31,6 +31,7 @@ writeFileSync(
     `export { parseDay, addDays, weekday, hasCalendarEntry } from ${JSON.stringify(join(ROOT, "src/lib/plan-date.ts"))};`,
     `export { calendarEntry } from ${JSON.stringify(join(ROOT, "src/lib/hangout-calendar.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/find-moment.ts"))};`,
+    `export { formatKwd, parseKwd, timeAr, pickupSlots, orderReference, normalisePhone, validateOrder, buildOrderMessage, whatsappOrderUrl, cancelOrderMessage, MAX_NOTE_CHARS } from ${JSON.stringify(join(ROOT, "src/lib/order-kit.ts"))};`,
     `export { places } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};`,
   ].join("\n")
 );
@@ -210,6 +211,66 @@ for (let month = 0; month < 12; month++)
     const m = K.findMoment(hour, month);
     F.findMoment.push({ hour, month, part: m.part, shouq: K.findGreeting("شوق", m), salem: K.findGreeting("سالم", m) });
   }
+
+// The order kit: money, slots, the reference, the phone shape, validation and
+// the WhatsApp message — `lib/orders/order_kit.dart` replays every answer.
+{
+  const O = {};
+  O.formatKwd = [0, 5, 250, 1000, 2750, 12345, 50000, -250, 999].map((fils) => ({ fils, out: K.formatKwd(fils) }));
+  O.parseKwd = ["0.250", "1.5", "2", "٢٫٧٥٠", "1.2345", "abc", "", "-1.000", "3.125", " 1,250 ", "٠٫٠٠٥", "12345.999", "123456"]
+    .map((s) => ({ s, out: K.parseKwd(s) }));
+  O.timeAr = ["18:30", "09:00", "00:30", "12:00", "23:59", "7:05", "soon", ""].map((t) => ({ t, out: K.timeAr(t) }));
+  O.orderReference = ["3f8a1c2d-4e5b-6789-abcd-ef0123456789", "00000000-0000-4000-8000-000000000000", "abcdef12-3456-4789-8abc-def012345678"]
+    .map((id) => ({ id, out: K.orderReference(id) }));
+  O.normalisePhone = ["51234567", "+965 5123 4567", "00965-66112233", "٩٩٨٨٧٧٦٦", "22345678", "5123456", "512345678", "call me", "96551234567", "9651234567", " 6 1 2 3 4 5 6 7 "]
+    .map((s) => ({ s, out: K.normalisePhone(s) }));
+  // Wall-clock components, built as a LOCAL date on both sides, so the
+  // fixture does not depend on the zone the generator ran in.
+  const clocks = [[2026, 8, 20, 18, 5], [2026, 8, 20, 18, 0], [2026, 8, 20, 18, 30], [2026, 1, 1, 23, 45], [2026, 12, 31, 9, 59], [2026, 6, 15, 0, 0]];
+  O.pickupSlots = clocks.flatMap(([y, mo, d, h, mi]) =>
+    [undefined, 5, 15, 30, 90, 240, 1, 9999].map((prep) => ({
+      at: [y, mo, d, h, mi], prep: prep ?? null, count: 4,
+      out: K.pickupSlots(new Date(y, mo - 1, d, h, mi), 4, prep),
+    })));
+  O.maxNoteChars = K.MAX_NOTE_CHARS;
+  const baskets = [
+    [{ id: "m1", nameAr: "چاي كرك", priceFils: 250, qty: 2 }, { id: "m2", nameAr: "قهوة عربية", priceFils: 500, qty: 1 }],
+    [{ id: "m3", nameAr: "كيك اليوم", priceFils: 1750, qty: 1 }],
+    [{ id: "a", nameAr: "شاورما لحم (كبير)", priceFils: 1250, qty: 3 }, { id: "b", nameAr: "عصير برتقال", priceFils: 750, qty: 2 }, { id: "c", nameAr: "ماي", priceFils: 100, qty: 20 }],
+  ];
+  const notes = [undefined, "", "  بدون سكر  ", "ملاحظة فيها رموز: 100% + 'اقتباس' & (قوس) / شرطة-مائلة"];
+  O.messages = baskets.flatMap((lines, i) => notes.map((noteAr) => {
+    const reference = ["3F2B1C", "9A8B7C", "FD4195"][i];
+    const text = K.buildOrderMessage({
+      placeNameAr: ["مقاهي المباركية", "سوق المباركية", "مطعم تجريبي"][i], reference, lines,
+      pickupAt: ["18:30", "09:00", "00:30"][i], customerName: [" سالم ", "نورة", "أبو خالد"][i], noteAr,
+      url: `https://www.wainkw.com/places/${["mubarakiya-tea-houses", "souq-al-mubarakiya", "x-y"][i]}/`,
+    });
+    return { basket: i, noteAr: noteAr ?? null, text, url: K.whatsappOrderUrl("51234567", text), cancel: K.cancelOrderMessage(reference) };
+  }));
+  const good = { placeSlug: "deera-cafe", placeNameAr: "مقهى الديرة", lines: baskets[0], pickupAt: "18:30", customerName: "سالم", customerPhone: "51234567", noteAr: "" };
+  const cases = [
+    good,
+    { ...good, lines: [] },
+    { ...good, customerPhone: "123" },
+    { ...good, customerPhone: "" },
+    { ...good, customerName: "" },
+    { ...good, customerName: " ن " },
+    { ...good, pickupAt: "" },
+    { ...good, pickupAt: "6:30" },
+    { ...good, lines: [{ ...baskets[0][0], qty: 0 }] },
+    { ...good, lines: [{ ...baskets[0][0], qty: 21 }] },
+    { ...good, lines: [{ ...baskets[0][0], priceFils: -100 }] },
+    { ...good, lines: Array.from({ length: 21 }, (_, n) => ({ id: `x${n}`, nameAr: "x", priceFils: 1, qty: 1 })) },
+    { ...good, noteAr: "ن".repeat(K.MAX_NOTE_CHARS) },
+    { ...good, noteAr: "ن".repeat(K.MAX_NOTE_CHARS + 1) },
+    { ...good, lines: [], customerName: "", customerPhone: "", pickupAt: "" },
+  ];
+  O.validate = cases.flatMap((input) => [true, false].map((phoneRequired) => ({
+    input, phoneRequired, out: K.validateOrder(input, { phoneRequired }),
+  })));
+  F.orderKit = O;
+}
 
 const text = JSON.stringify(F, null, 1) + "\n";
 if (CHECK) {
