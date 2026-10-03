@@ -22,6 +22,8 @@
   2160
  ],
  "scene": "a civilian through Ras Al-Ard at 120 km/h",
+ "trafficLat": -1.75,
+ "lat": 1.7582629764012772,
  "trafficRoll": -2.5,
  "trafficHubs": [
   0,
@@ -32,5 +34,8 @@
  "trafficFronts": [
   0.169,
   0.188
- ]
+ ],
+ "camLat": 2.75,
+ "roadHalfWidth": 7,
+ "lanes": "as staged"
 }

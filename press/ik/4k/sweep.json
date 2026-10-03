@@ -22,6 +22,8 @@
   2160
  ],
  "scene": "Ras Al-Ard at 120 km/h, wheel straight",
+ "lat": -1.7419408346484029,
+ "rivalLat": 1.75,
  "rival": "storm-s8",
  "rivalRoll": -0.94,
  "rivalHubs": [
@@ -34,5 +36,8 @@
   0.166,
   0.186
  ],
- "rivalWing": -0.022
+ "rivalWing": -0.022,
+ "camLat": 5.6,
+ "roadHalfWidth": 7,
+ "lanes": "as staged"
 }

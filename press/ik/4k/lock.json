@@ -21,5 +21,9 @@
   3840,
   2160
  ],
- "scene": "full lock at 15 km/h, front quarter"
+ "scene": "full lock at 15 km/h, front quarter",
+ "lat": -1.75,
+ "camLat": 3.94,
+ "roadHalfWidth": 7,
+ "lanes": "mirrored"
 }

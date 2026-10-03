@@ -21,5 +21,9 @@
   3840,
   2160
  ],
- "scene": "drift, 23 frames in"
+ "scene": "drift, 23 frames in",
+ "lat": 1.75,
+ "camLat": 1.04,
+ "roadHalfWidth": 7,
+ "lanes": "as staged"
 }

@@ -22,7 +22,11 @@
   2160
  ],
  "scene": "driver at 85% lock, through the side glass, 16 h",
+ "lat": 1.75,
  "handWheel": -2.04,
  "hour": 16,
- "sunOnFlank": 0.43
+ "sunOnFlank": 0.43,
+ "camLat": -1.85,
+ "roadHalfWidth": 7,
+ "lanes": "as staged"
 }

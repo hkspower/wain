@@ -16,10 +16,14 @@
  ],
  "wing": 0.462,
  "speedKmh": 155,
- "latAccel": -1.45,
+ "latAccel": -1.46,
  "buffer": [
   3840,
   2160
  ],
- "scene": "braking from 200 km/h, rear quarter"
+ "scene": "braking from 200 km/h, rear quarter",
+ "lat": 1.75,
+ "camLat": -1.45,
+ "roadHalfWidth": 7,
+ "lanes": "as staged"
 }
