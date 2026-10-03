@@ -22,7 +22,7 @@ import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite, billowAtlas, smokeLight } from "./vfx";
-import { BLOOM, BRIGHT_PASS_FRAG, SPARK, sparkShower } from "./flare";
+import { BLOOM, BRIGHT_PASS_FRAG, HEAD_FLARE, SPARK, setFlareBack, sparkShower } from "./flare";
 import { solveTwoBone } from "./ik";
 import { solveSuspension, steerAngles } from "./suspension";
 import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
@@ -5045,7 +5045,15 @@ export class GameEngine {
     }
   }
 
-  /** The rival flashes back — the reveal. */
+  /** The rival flashes back — the reveal.
+   *
+   *  Seen from BEHIND: a challenge is issued from 2 m or more back, and
+   *  the engine keeps drawing under the challenge card while it is
+   *  paused, which is where this plays. All there is of it from there is
+   *  these sprites — the nose faces away — and their facing fade puts
+   *  them at 0 from behind, so each "on" lifts the floor under the fade
+   *  to the whole flare and each "off" drops it back to 0 (flare.ts,
+   *  HEAD_FLARE). 0 is its rest: nothing else raises a rival's. */
   private flashRival(r: Rival): void {
     const mat = r.mesh.userData.headMat as THREE.MeshStandardMaterial | undefined;
     if (!mat) return;
@@ -5056,11 +5064,17 @@ export class GameEngine {
     const id = setInterval(() => {
       const on = mat.emissiveIntensity <= base;
       mat.emissiveIntensity = on ? base * 4 : base;
-      glows.forEach((m, i) => (m.opacity = on ? Math.min(1, baseGlow[i] * 2.1) : baseGlow[i]));
+      glows.forEach((m, i) => {
+        m.opacity = on ? Math.min(1, baseGlow[i] * 2.1) : baseGlow[i];
+        setFlareBack(m, on ? HEAD_FLARE.flashBack : 0);
+      });
       if (++n >= 6 || this.disposed) {
         clearInterval(id);
         mat.emissiveIntensity = base;
-        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
+        glows.forEach((m, i) => {
+          m.opacity = baseGlow[i];
+          setFlareBack(m, 0);
+        });
       }
     }, 110);
   }
@@ -5076,6 +5090,14 @@ export class GameEngine {
    * Level rather than animation: the film's clock decides when, this
    * decides how much, and nothing here owns a timer that could outlive
    * the shot it belongs to.
+   *
+   * The flare sprites also come up from behind, with the boost: the
+   * CHALLENGE shot that fires these hits is 160 to 173 degrees off the
+   * lamps' axis from start to end, where their facing fade is 0, so
+   * without the floor the 2.1x below was multiplied by nothing and the
+   * three hits moved only the cone and the pool (flare.ts, HEAD_FLARE).
+   * Between hits, and at the 0 endCinematic sends, it is 0 again — the
+   * orbit and flank shots that follow keep no flare from behind.
    */
   private applyCineBeam(boost: number): void {
     const base = this.cine?.lamps;
@@ -5087,6 +5109,7 @@ export class GameEngine {
     if (headMat) headMat.emissiveIntensity = base.emissive * (1 + 1.6 * boost);
     glows.forEach((m, i) => {
       m.opacity = Math.min(1, (base.glow[i] ?? m.opacity) * (1 + 1.1 * boost));
+      setFlareBack(m, HEAD_FLARE.flashBack * boost);
     });
     if (this.beamMat) this.beamMat.opacity = Math.min(1, base.beam * (1 + 1.3 * boost));
   }
@@ -5135,6 +5158,14 @@ export class GameEngine {
     // Aimed up for main beam: toward the horizon, past the dipped cut-off.
     this.headlight.target.position.y = -0.55 + hb.aim;
     this.headlightR.target.position.y = -0.55 + hb.aim;
+    // The flare from behind, which is where the chase camera sees these
+    // lamps from: the facing fade puts it at 0 there, so a flash lifts the
+    // floor under the fade with its own boost and nothing else does —
+    // not main beam held (highBeamK), which would be the white star at
+    // the tail for as long as the stalk is up (flare.ts, HEAD_FLARE).
+    // Before the rest branch, so a flash that has just ended is put back
+    // to 0 by the frame that sees it end.
+    for (const g of glows) setFlareBack(g, HEAD_FLARE.flashBack * boost);
     if (boost <= 0 && this.highBeamK < 1e-3 && warm.output >= 1) {
       // At rest, BY DEFINITION — so this is where the rest state is
       // learned, rather than at the start of a flash where it might be
@@ -7523,6 +7554,11 @@ export class GameEngine {
       // slightly outboard, at bumper height, and drifts inboard as it
       // creeps forward, which brings the rival off the player's shoulder
       // and into clear air by the time the third hit lands.
+      //
+      // From here the lamps are 160 to 173 degrees off their own axis,
+      // where the flare sprites' facing fade is 0 — so applyCineBeam
+      // lifts the floor under that fade with each hit, or "the lamps
+      // that are firing" would be only the cone and the pool.
       const k = ease(t / CINE_FLASH_END);
       this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
       this.track.tangentAt(p.s, this.v3);

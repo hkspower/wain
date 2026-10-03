@@ -181,6 +181,33 @@ export const BRIGHT_PASS_FRAG = /* glsl */ `
  * owning it: full within 53 degrees of the axis, 0.48 at 70, and gone
  * past 84 all the way round to the back.
  *
+ * EXCEPT WHILE A FLASH IS FIRING. Three things animate these sprites in
+ * order to be seen from behind, and the fade alone took all three away:
+ *
+ *   - the film's CHALLENGE shot (engine.ts, updateCineCamera), whose
+ *     whole job is to hold "the lamps that are firing" from behind the
+ *     player: back 7.4 -> 5.2 m, out 2.9 -> 1.5 m, 0.82 -> 1.05 m up,
+ *     against a lamp at about z 2.3, x +-0.6, is 160 to 173 degrees off
+ *     the lamp's axis for the whole shot, so applyCineBeam's 2.1x on each
+ *     of the three hits was multiplied by a facing of 0;
+ *   - the rival's answering flash (flashRival), which the player sees
+ *     from behind it — a challenge is issued 2 m or more back — and
+ *     which is only its nose and these sprites;
+ *   - the player's own flash (applyFlashBeam), seen from the chase
+ *     camera.
+ *
+ * So each material has a floor under the fade, its own uniform
+ * (userData.flareBack, written through setFlareBack), and those three
+ * writers raise it with their flash: flashBack x boost, which at the top
+ * of a hit is 1 — a lamp seen from behind flares exactly as it did before
+ * the fade existed, at the flash's own opacity — and at rest is 0, so the
+ * drift still, the brake still and a car held on main beam keep no
+ * flare from behind. Main beam held does NOT raise it: a held beam seen
+ * from behind is the white star at the tail all over again; a flash is
+ * over in well under a second (a film hit 0.38 s, the player's two
+ * pulses 0.55 s, the rival's three 110 ms blinks) and is meant to be
+ * seen.
+ *
  * THEY GREW WITHOUT LIMIT. A 1.7 m sprite is 4.7% of the frame's height
  * on an oncoming car at 30 m — right — and 49% at 6.5 m through the lock
  * still's 30-degree lens, where its vertical arm stood up out of the
@@ -223,16 +250,21 @@ export const HEAD_FLARE = {
   /** cos(angle off the lamp's axis) where the flare starts to show and
    *  where it is whole: gone past 84 degrees, whole inside 53. */
   facing: [0.1, 0.6] as const,
+  /** The floor under the facing fade per unit of flash boost: at a hit's
+   *  peak (boost 1) a lamp seen from behind flares whole, as it did
+   *  before the fade; at rest (boost 0) not at all. */
+  flashBack: 1,
   /** The most of the viewport's height the star may span. */
   capFrac: 0.14,
 } as const;
 
 /** How much of a lamp's flare shows at `cosOff`, the cosine of the angle
- *  between the lamp's axis and the direction to the eye. */
-export function flareFacing(cosOff: number): number {
+ *  between the lamp's axis and the direction to the eye, over a floor of
+ *  `back` (the material's flareBack: 0 unless a flash is firing). */
+export function flareFacing(cosOff: number, back = 0): number {
   const [lo, hi] = HEAD_FLARE.facing;
   const u = Math.min(1, Math.max(0, (cosOff - lo) / (hi - lo)));
-  return u * u * (3 - 2 * u);
+  return back + (1 - back) * (u * u * (3 - 2 * u));
 }
 
 /** The factor a lamp sprite is drawn at, `dist` metres from a camera
@@ -268,8 +300,11 @@ const once = (s: string, a: string): boolean => {
  *
  * The lamp's axis is the car's +z — every lamp is built facing it, and
  * the sprite is a child of the car — so it comes out of the sprite's own
- * modelViewMatrix: no uniform, nothing to update per frame, and the same
- * program for every lamp on every car.
+ * modelViewMatrix: no uniform for it, nothing to update per frame, and
+ * the same program for every lamp on every car. The one uniform is the
+ * floor under the fade, flareBack, which only a flash writes (see
+ * HEAD_FLARE, "except while a flash is firing"); the vertex shader mixes
+ * it in, so the fragment shader is untouched by it.
  */
 export function patchLampFlare(shader: { vertexShader: string; fragmentShader: string }): boolean {
   const A = FLARE_ANCHORS;
@@ -283,12 +318,12 @@ export function patchLampFlare(shader: { vertexShader: string; fragmentShader: s
   }
   const [lo, hi] = HEAD_FLARE.facing;
   shader.vertexShader = shader.vertexShader
-    .replace(A.vertexPars, `${A.vertexPars}\nvarying float vFlareFacing;`)
+    .replace(A.vertexPars, `${A.vertexPars}\nuniform float flareBack;\nvarying float vFlareFacing;`)
     .replace(
       A.vertexScale,
       `${A.vertexScale}
 	vec3 flareAxis = normalize( ( modelViewMatrix * vec4( 0.0, 0.0, 1.0, 0.0 ) ).xyz );
-	vFlareFacing = smoothstep( ${glf(lo)}, ${glf(hi)}, dot( flareAxis, normalize( - mvPosition.xyz ) ) );
+	vFlareFacing = mix( flareBack, 1.0, smoothstep( ${glf(lo)}, ${glf(hi)}, dot( flareAxis, normalize( - mvPosition.xyz ) ) ) );
 	if ( isPerspectiveMatrix( projectionMatrix ) ) {
 		scale *= min( 1.0, - mvPosition.z / ( projectionMatrix[ 1 ][ 1 ] * ${glf(FLARE_NEAR_K)} ) );
 	}`
@@ -299,15 +334,42 @@ export function patchLampFlare(shader: { vertexShader: string; fragmentShader: s
   return true;
 }
 
-/** One function for every lamp sprite, so three's program cache (keyed
- *  on onBeforeCompile's source) builds the patched sprite program once. */
-function compileLampFlare(shader: { vertexShader: string; fragmentShader: string }): void {
-  patchLampFlare(shader);
+/** A lamp sprite's floor under the facing fade: its own uniform object,
+ *  kept on the material so it exists before the first compile and the
+ *  flash code can write it without the renderer's help. */
+function flareBackUniform(m: THREE.Material): { value: number } {
+  return (m.userData.flareBack ??= { value: 0 }) as { value: number };
+}
+
+/** How much of a lamp sprite shows from behind, 0..1: the flash code's
+ *  only handle on the fade. 0 is its rest, and nothing but a flash
+ *  raises it. */
+export function setFlareBack(m: THREE.Material, back: number): void {
+  flareBackUniform(m).value = Math.min(1, Math.max(0, back));
+}
+
+/**
+ * One function for every lamp sprite, so three's program cache (keyed
+ * on onBeforeCompile's source) builds the patched sprite program once.
+ *
+ * And per material all the same: three calls onBeforeCompile as a method
+ * of each material on its first compile, with that material's own clone
+ * of the sprite uniforms (r184, WebGLRenderer getProgram), so `this` is
+ * the material and the flareBack put on its uniforms here is its own —
+ * the program is shared, the floor is not, and it goes up with the
+ * opacity uniform whenever the renderer switches to the material.
+ */
+function compileLampFlare(
+  this: THREE.Material,
+  shader: { vertexShader: string; fragmentShader: string; uniforms: { [name: string]: THREE.IUniform } }
+): void {
+  if (patchLampFlare(shader)) shader.uniforms.flareBack = flareBackUniform(this);
 }
 
 /** Mark a sprite material as a headlamp flare. */
 export function lampFlareMaterial<T extends THREE.SpriteMaterial>(m: T): T {
   m.onBeforeCompile = compileLampFlare;
+  flareBackUniform(m);
   return m;
 }
 

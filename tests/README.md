@@ -296,6 +296,12 @@ plain functions beside the GLSL that runs them. This holds the arithmetic:
 - **flare** — the head halo and star fade with the angle off the lamp's
   axis (none from behind), cap their share of the frame up close, and the
   patch is checked against three's own sprite shader, anchor by anchor;
+  from behind they show only while a flash is firing — each material has
+  its own floor under the fade, the film's three hits, the player's flash
+  and the rival's reply lift it with their boost and put it back, and the
+  film's CHALLENGE shot, flown on the engine's own camera numbers (159 to
+  173 degrees off the lamps' axis), sees the flare whole at each hit's
+  peak and not at all between;
 - **sparks** — thousands of seeded showers flown through the real
   integrator never pass `SPARK.ceiling` (0.56 m; the old throw reached
   0.81), each spark still draws the same eleven numbers, and the shower

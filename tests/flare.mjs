@@ -14,9 +14,12 @@
 //             clearcoat glint at 500 goes in at 5, and no pixel anywhere
 //             puts more into the bloom than the pass it replaced
 //   flare     the headlamp halo and star fade with the angle off the
-//             lamp's axis (gone from behind), cap their size up close,
-//             and the star is smaller and quieter than it was; and the
-//             patch lands on three's own sprite shader
+//             lamp's axis (gone from behind, unless a flash is firing:
+//             each material's floor under the fade, which the film's
+//             hits, the player's flash and the rival's reply lift with
+//             their boost), cap their size up close, and the star is
+//             smaller and quieter than it was; and the patch lands on
+//             three's own sprite shader
 //   sparks    the real integrator, flying thousands of seeded showers,
 //             never takes one above SPARK.ceiling; each spark still draws
 //             the same eleven numbers; the shower is modestly dimmer
@@ -29,7 +32,7 @@ import * as THREE from "three";
 import { readFileSync } from "node:fs";
 import {
   BLOOM, brightPass, BRIGHT_PASS_FRAG,
-  HEAD_FLARE, flareFacing, flareScale, patchLampFlare, lampFlareMaterial, FLARE_ANCHORS,
+  HEAD_FLARE, flareFacing, flareScale, patchLampFlare, lampFlareMaterial, setFlareBack, FLARE_ANCHORS,
   SPARK, sparkShower,
 } from "../src/game/flare.ts";
 import { ParticleSystem } from "../src/game/vfx.ts";
@@ -164,6 +167,8 @@ const after = (c) => brightPass(c[0], c[1], c[2]);
   check(/diffuseColor\.a \*= vFlareFacing;/.test(sh.fragmentShader), "the fragment shader does not fade by vFlareFacing");
   check(/smoothstep\( 0\.1, 0\.6, dot\( flareAxis, normalize\( - mvPosition\.xyz \) \) \)/.test(sh.vertexShader),
     "the shader's facing fade is not HEAD_FLARE.facing");
+  check(/uniform float flareBack;/.test(sh.vertexShader) && /vFlareFacing = mix\( flareBack, 1\.0, smoothstep\(/.test(sh.vertexShader),
+    "the shader's facing fade has no flareBack floor under it — a flash cannot show from behind");
   const nearK = HEAD_FLARE.starSize / (2 * HEAD_FLARE.capFrac);
   check(sh.vertexShader.includes(`projectionMatrix[ 1 ][ 1 ] * ${nearK.toFixed(6).replace(/0+$/, "")}`),
     "the shader's size cap is not starSize / (2 capFrac)");
@@ -177,7 +182,26 @@ const after = (c) => brightPass(c[0], c[1], c[2]);
     "two lamp sprites would compile two programs");
   check(a.customProgramCacheKey() !== new THREE.SpriteMaterial().customProgramCacheKey(),
     "a lamp sprite would share the stock sprite's program and never be patched");
-  console.log(`flare      patch lands on three r${THREE.REVISION}'s sprite shader; one program for every lamp`);
+  // ...but a floor each. Compiled the way r184's getProgram does it: a
+  // clone of the sprite uniforms per material, and onBeforeCompile called
+  // as a method of that material.
+  const compile = (m) => {
+    const p = { vertexShader: lib.vertexShader, fragmentShader: lib.fragmentShader, uniforms: THREE.UniformsUtils.clone(lib.uniforms) };
+    m.onBeforeCompile(p, null);
+    return p;
+  };
+  const pa = compile(a), pb = compile(b);
+  check(pa.uniforms.flareBack !== undefined && pa.uniforms.flareBack === a.userData.flareBack,
+    "a lamp sprite's compiled uniforms do not hold its own flareBack");
+  check(pa.uniforms.flareBack !== pb.uniforms.flareBack, "two lamp sprites share one flareBack — one flash would lift every car's");
+  check(pa.uniforms.flareBack.value === 0 && pb.uniforms.flareBack.value === 0, "a lamp sprite is built with a floor under its fade");
+  setFlareBack(a, 0.7);
+  check(pa.uniforms.flareBack.value === 0.7 && pb.uniforms.flareBack.value === 0,
+    "setFlareBack does not reach the uniform the renderer uploads, or reaches the wrong material's");
+  setFlareBack(a, 3);
+  check(pa.uniforms.flareBack.value === 1, "setFlareBack lets the floor past the whole flare");
+  setFlareBack(a, 0);
+  console.log(`flare      patch lands on three r${THREE.REVISION}'s sprite shader; one program for every lamp, a floor for each`);
 
   // Facing, at the angles the stills are taken from (camera relative to
   // the lamp's axis), and an oncoming car.
@@ -192,6 +216,46 @@ const after = (c) => brightPass(c[0], c[1], c[2]);
   let mono = true, prev = 2;
   for (let d = 0; d <= 180; d += 1) { const f = flareFacing(deg(d)); if (f > prev + 1e-12) mono = false; prev = f; }
   check(mono, "the flare comes back as the lamp turns further away");
+
+  // ...except while a flash is firing. The film's CHALLENGE shot is the
+  // case that has to work, flown on its own camera numbers, read out of
+  // the engine (back 7.4 -> 5.2 m, out 2.9 -> 1.5 m, 0.82 -> 1.05 m up as
+  // written), against a lamp about z 2.3, x +-0.6 — swept over the lamp
+  // heights and noses the shells have. All of it sits in the fade's dead
+  // zone, so only the floor can show the three hits.
+  {
+    const engSrc = readFileSync("src/game/engine.ts", "utf8");
+    const shot = engSrc.slice(engSrc.indexOf("// THE CHALLENGE."), engSrc.indexOf("// THE ANSWER."));
+    const lerpOf = (re) => { const m = shot.match(re); return m ? [Number(m[1]), Number(m[2])] : null; };
+    const OUT = lerpOf(/const out = THREE\.MathUtils\.lerp\(([\d.]+), ([\d.]+), k\)/);
+    const BACK = lerpOf(/const back = THREE\.MathUtils\.lerp\(([\d.]+), ([\d.]+), k\)/);
+    const UP = lerpOf(/this\.v1\.y \+ THREE\.MathUtils\.lerp\(([\d.]+), ([\d.]+), k\)/);
+    check(OUT && BACK && UP, "the CHALLENGE shot's camera numbers could not be read out of engine.ts");
+    let lo = 180, hi = 0, worstPeak = 1;
+    for (let k = 0; k <= 1 + 1e-9 && OUT && BACK && UP; k += 0.05) {
+      const out = OUT[0] + (OUT[1] - OUT[0]) * k, back = BACK[0] + (BACK[1] - BACK[0]) * k, h = UP[0] + (UP[1] - UP[0]) * k;
+      for (const lx of [-0.6, 0.6]) for (const ly of [0.5, 0.65, 0.8]) for (const lz of [2.0, 2.3, 2.5]) {
+        const dx = out - lx, dy = h - ly, dz = -back - lz;
+        const c = dz / Math.hypot(dx, dy, dz);
+        const a = (Math.acos(c) * 180) / Math.PI;
+        lo = Math.min(lo, a); hi = Math.max(hi, a);
+        worstPeak = Math.min(worstPeak, flareFacing(c, HEAD_FLARE.flashBack * 1));
+      }
+    }
+    const half = flareFacing(deg(lo), HEAD_FLARE.flashBack * 0.5);
+    console.log(`           CHALLENGE shot: ${F(lo, 0)}-${F(hi, 0)} degrees off the lamps' axis; ` +
+      `flare at rest ${F(flareFacing(deg(lo)))}, half a hit ${F(half)}, a hit's peak ${F(worstPeak)}`);
+    check(Math.abs(worstPeak - 1) < 1e-12, `at a hit's peak the CHALLENGE shot sees the flare at ${F(worstPeak)}, not whole`);
+    check(Math.abs(flareFacing(deg(180), HEAD_FLARE.flashBack * 0.5) - 0.5) < 1e-12, "the floor is not in proportion to the flash");
+    // Never less than either half of the mix: the floor only adds.
+    for (let d = 0; d <= 180; d += 5) {
+      for (const bk of [0, 0.3, 1]) {
+        const f = flareFacing(deg(d), bk);
+        check(f >= bk - 1e-12 && f >= flareFacing(deg(d)) - 1e-12 && f <= 1 + 1e-12,
+          `the floor took flare away at ${d} degrees, floor ${bk}`);
+      }
+    }
+  }
 
   // Size: what share of the viewport's height the star spans.
   const p11 = (fov) => 1 / Math.tan((fov * Math.PI) / 360);
@@ -230,6 +294,29 @@ const after = (c) => brightPass(c[0], c[1], c[2]);
   const eng = readFileSync("src/game/engine.ts", "utf8");
   check(/g\.opacity = \(\(g\.userData\.nightOpacity as number \| undefined\) \?\? 0\.9\) \* dark;/.test(eng),
     "the clock sets every flare sprite to one level again");
+
+  // The three flashes lift the floor with their own boost, and put it
+  // back. Each method's body, from its signature to the next member.
+  const body = (sig) => {
+    const i = eng.indexOf(sig);
+    if (i < 0) return "";
+    const j = eng.indexOf("\n  }\n", i);
+    return eng.slice(i, j < 0 ? undefined : j);
+  };
+  const cine = body("private applyCineBeam(boost: number): void {");
+  check(/setFlareBack\(m, HEAD_FLARE\.flashBack \* boost\)/.test(cine),
+    "the film's hits do not lift the floor under the fade — the CHALLENGE shot shows no flare");
+  const own = body("private applyFlashBeam(): void {");
+  const ownAt = own.indexOf("setFlareBack(g, HEAD_FLARE.flashBack * boost)");
+  check(ownAt >= 0, "the player's flash does not lift the floor under the fade — the chase camera sees no flash");
+  check(ownAt >= 0 && ownAt < own.indexOf("if (boost <= 0 && this.highBeamK"),
+    "the player's floor is set after the rest branch, so a flash that ends leaves it up");
+  check(!/setFlareBack\([^)]*highBeamK/.test(own), "main beam held lifts the floor — the white star at the tail for as long as the stalk is up");
+  const rival = body("private flashRival(r: Rival): void {");
+  check(/setFlareBack\(m, on \? HEAD_FLARE\.flashBack : 0\)/.test(rival) && /setFlareBack\(m, 0\)/.test(rival),
+    "the rival's reply does not lift the floor with each flash and put it back — from behind it is invisible");
+  const writers = (eng.match(/setFlareBack\(/g) ?? []).length;
+  check(writers === 4, `the engine writes a lamp's floor in ${writers} places, not the three flashes' four`);
 }
 
 // --- 3. The sparks -----------------------------------------------------
