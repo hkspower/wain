@@ -279,6 +279,39 @@ randomness moved into how big the flame is, which is where it belonged.
 npm run test:vfx
 ```
 
+## flare.mjs — the hot things, toned down and held there
+
+No browser. Four things in the night frame read as blown rather than
+bright — a big red halo round every braking tail, a headlamp's white star
+hanging off the back of the car, star glints on the wheel arches, and the
+scrape sparks — and `src/game/flare.ts` fixes each where it is made, as
+plain functions beside the GLSL that runs them. This holds the arithmetic:
+
+- **bloom** — the bright pass weighs a pixel by the geometric mean of its
+  luminance and its max channel and caps the excess at 5: a braking tail
+  core goes into the blur at 1.48 instead of 2.60 at the stills'
+  exposure, a white head core exactly as before, a 500 clearcoat glint at
+  5, and across 100,000 seeded colours no pixel puts in more than the
+  pass it replaced;
+- **flare** — the head halo and star fade with the angle off the lamp's
+  axis (none from behind), cap their share of the frame up close, and the
+  patch is checked against three's own sprite shader, anchor by anchor;
+  from behind they show only while a flash is firing — each material has
+  its own floor under the fade, the film's three hits, the player's flash
+  and the rival's reply lift it with their boost and put it back, and the
+  film's CHALLENGE shot, flown on the engine's own camera numbers (159 to
+  173 degrees off the lamps' axis), sees the flare whole at each hit's
+  peak and not at all between;
+- **sparks** — thousands of seeded showers flown through the real
+  integrator never pass `SPARK.ceiling` (0.56 m; the old throw reached
+  0.81), each spark still draws the same eleven numbers, and the shower
+  is 24% dimmer at a pixel;
+- **stream** — none of it draws from the world's shared stream.
+
+```bash
+npm run test:flare
+```
+
 ## audio.mjs — the sound is doing something
 
 Audio is the easiest system to "add" without adding anything: a node

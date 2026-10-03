@@ -22,6 +22,7 @@ import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite, billowAtlas, smokeLight } from "./vfx";
+import { BLOOM, BRIGHT_PASS_FRAG, HEAD_FLARE, SPARK, setFlareBack, sparkShower } from "./flare";
 import { solveTwoBone } from "./ik";
 import { solveSuspension, steerAngles } from "./suspension";
 import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
@@ -123,9 +124,9 @@ const KMH = 3.6;
 /** The moon's PCF radius in texels of a 4096 map (about 15 cm); bigger
  *  maps scale it so the penumbra stays the same size on the ground. */
 const MOON_SHADOW_RADIUS = 3.5;
-/** The bloom's threshold (on the exposed max channel), soft knee and
- *  strength. See the bright-pass where the bloom is built. */
-const BLOOM = { threshold: 1.0, knee: 0.5, strength: 0.48 };
+// The bloom's threshold, knee, strength, luminance weight and cap live in
+// flare.ts (BLOOM), beside the bright pass they drive and the arithmetic
+// tests/flare.mjs holds them to.
 /** A street lantern's light, candela, at decay 2 (see pickLamps). */
 const LAMP_CD = 290;
 const SMOKE_N = 176;
@@ -2111,26 +2112,25 @@ export class GameEngine {
     // Three's stock bright-pass passes a pixel's whole value once its
     // luminance crosses 0.85, which at the stills' pinned exposure was
     // every lit window, sign face and whitened plate: the lock still's
-    // light bar sat in a white slab of its own halo. Measured on the
-    // max channel, not luminance, so a red tail lens (luminance a fifth
-    // of its red) can bloom at all.
+    // light bar sat in a white slab of its own halo.
+    //
+    // Measured on the geometric mean of luminance and the max channel,
+    // and capped. The max channel alone (the lighting commit) let a red
+    // tail lens bloom at all — its luminance is a fifth of its red — but
+    // as hard as a white lamp of the same red, which was the big red
+    // halo round every braking tail; and an uncapped excess let a few
+    // pixels of clearcoat glint at 500 halo like a whole headlamp, which
+    // was the star on each wheel arch. flare.ts (BLOOM) has the numbers:
+    // a braking tail core 2.60 -> 1.48 at the stills' exposure, a head
+    // core 3.62 -> 3.62, a 500 glint 499 -> 5.
     {
       const hp = this.bloomPass.materialHighPassFilter;
       hp.uniforms.smoothWidth.value = BLOOM.knee;
-      hp.fragmentShader = /* glsl */ `
-        uniform sampler2D tDiffuse;
-        uniform float luminosityThreshold;
-        uniform float smoothWidth;
-        varying vec2 vUv;
-        void main() {
-          vec4 c = texture2D(tDiffuse, vUv);
-          float m = max(max(c.r, c.g), c.b);
-          float k = clamp(m - luminosityThreshold + smoothWidth, 0.0, 2.0 * smoothWidth);
-          float soft = k * k / (4.0 * smoothWidth + 1e-4);
-          float w = max(soft, m - luminosityThreshold) / max(m, 1e-4);
-          gl_FragColor = vec4(c.rgb * w, 1.0);
-        }
-      `;
+      // Ours, on the pass's own uniform object, so the pass's threshold
+      // setter and anything that swaps the shader for an A/B still work.
+      hp.uniforms.bloomLumaWeight = { value: BLOOM.lumaWeight };
+      hp.uniforms.bloomCap = { value: BLOOM.cap };
+      hp.fragmentShader = BRIGHT_PASS_FRAG;
       hp.needsUpdate = true;
       // And at one size of halo whatever the resolution. The blur's
       // kernel is in texels of a chain that starts at half the buffer,
@@ -2193,20 +2193,31 @@ export class GameEngine {
     // So the white-out that 0.4 was set against does not happen any
     // more — nothing pins, at any age, and the shower is a thirtieth of
     // a percent of the picture. And the bloom threshold does NOT sit
-    // below them: it is 0.85, the sparks never reach it, and disabling
-    // the bloom pass entirely changes what a shower puts on screen by
-    // -1% — which is noise. Sparks bloom not at all.
+    // below them: it was 0.85 then, the sparks never reached it, and
+    // disabling the bloom pass entirely changed what a shower puts on
+    // screen by -1% — which is noise. Sparks bloom not at all.
     //
-    // Both are left as they are. Whether a shower should be brighter is
-    // a design call, not a bug, and the instrument now exists to take
-    // it with numbers in front of you: npm run check:sparks.
+    // Measured once more after the lighting commit moved the bloom to an
+    // excess-only pass with its knee at 0.5 (same instrument, 0.18 s):
+    // 280 px lit, peak +41, and the old pass, the new one and no bloom at
+    // all within 5 px and 1 level of each other. Still no bloom in them,
+    // and further from it now: the bright pass weights by luminance, and
+    // by that measure their core (0xffd08a) counts at 0.83 of its max
+    // channel. One spark at birth is 0.34 of it, far under the knee.
+    //
+    // Toned down since, on request and where the light is made: a warmer
+    // core, a little less opacity and a little less size, 24% less at
+    // any one pixel and 36% less from the shower in all; and a lower
+    // throw, so none climbs past 0.56 m. SPARK in flare.ts has every
+    // number and tests/flare.mjs holds them; npm run check:sparks is the
+    // instrument for the picture.
     this.sparkFx = new ParticleSystem(140, {
       map: radialSprite(0.35, 1.4),
-      colorA: 0xffdf9e, // hot, with headroom left above it
-      colorB: 0xff5a12,
+      colorA: SPARK.colorA, // hot, with more headroom left above it
+      colorB: SPARK.colorB,
       blending: THREE.AdditiveBlending,
       grow: 0.5, // sparks shrink as they cool
-      opacity: 0.4,
+      opacity: SPARK.opacity,
       fadeIn: 0.02,
     });
     this.scene.add(this.sparkFx.points);
@@ -3636,8 +3647,12 @@ export class GameEngine {
     // And the pool is light that only shows in the dark: at noon a
     // halogen adds nothing you could see to sunlit asphalt.
     this.poolBaseOpacity = 0.4 * dark;
+    // Each flare sprite at its own night level, which the car was built
+    // with: the halo 0.9 as it always was, the star 0.55 rather than the
+    // same 0.9, and a smoked lens's tint kept rather than overwritten
+    // (flare.ts, HEAD_FLARE). 0.9 for a car built before those existed.
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
-    for (const g of glows) g.opacity = 0.9 * dark;
+    for (const g of glows) g.opacity = ((g.userData.nightOpacity as number | undefined) ?? 0.9) * dark;
     // The rim is a night light: by day the sun is the key on the car and
     // a 3.0 warm point behind the roof only adds a hot glint to it.
     if (this.rimLight) this.rimLight.intensity = 3.0 * (0.25 + 0.75 * dark);
@@ -5039,7 +5054,15 @@ export class GameEngine {
     }
   }
 
-  /** The rival flashes back — the reveal. */
+  /** The rival flashes back — the reveal.
+   *
+   *  Seen from BEHIND: a challenge is issued from 2 m or more back, and
+   *  the engine keeps drawing under the challenge card while it is
+   *  paused, which is where this plays. All there is of it from there is
+   *  these sprites — the nose faces away — and their facing fade puts
+   *  them at 0 from behind, so each "on" lifts the floor under the fade
+   *  to the whole flare and each "off" drops it back to 0 (flare.ts,
+   *  HEAD_FLARE). 0 is its rest: nothing else raises a rival's. */
   private flashRival(r: Rival): void {
     const mat = r.mesh.userData.headMat as THREE.MeshStandardMaterial | undefined;
     if (!mat) return;
@@ -5050,11 +5073,17 @@ export class GameEngine {
     const id = setInterval(() => {
       const on = mat.emissiveIntensity <= base;
       mat.emissiveIntensity = on ? base * 4 : base;
-      glows.forEach((m, i) => (m.opacity = on ? Math.min(1, baseGlow[i] * 2.1) : baseGlow[i]));
+      glows.forEach((m, i) => {
+        m.opacity = on ? Math.min(1, baseGlow[i] * 2.1) : baseGlow[i];
+        setFlareBack(m, on ? HEAD_FLARE.flashBack : 0);
+      });
       if (++n >= 6 || this.disposed) {
         clearInterval(id);
         mat.emissiveIntensity = base;
-        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
+        glows.forEach((m, i) => {
+          m.opacity = baseGlow[i];
+          setFlareBack(m, 0);
+        });
       }
     }, 110);
   }
@@ -5070,6 +5099,14 @@ export class GameEngine {
    * Level rather than animation: the film's clock decides when, this
    * decides how much, and nothing here owns a timer that could outlive
    * the shot it belongs to.
+   *
+   * The flare sprites also come up from behind, with the boost: the
+   * CHALLENGE shot that fires these hits is 160 to 173 degrees off the
+   * lamps' axis from start to end, where their facing fade is 0, so
+   * without the floor the 2.1x below was multiplied by nothing and the
+   * three hits moved only the cone and the pool (flare.ts, HEAD_FLARE).
+   * Between hits, and at the 0 endCinematic sends, it is 0 again — the
+   * orbit and flank shots that follow keep no flare from behind.
    */
   private applyCineBeam(boost: number): void {
     const base = this.cine?.lamps;
@@ -5081,6 +5118,7 @@ export class GameEngine {
     if (headMat) headMat.emissiveIntensity = base.emissive * (1 + 1.6 * boost);
     glows.forEach((m, i) => {
       m.opacity = Math.min(1, (base.glow[i] ?? m.opacity) * (1 + 1.1 * boost));
+      setFlareBack(m, HEAD_FLARE.flashBack * boost);
     });
     if (this.beamMat) this.beamMat.opacity = Math.min(1, base.beam * (1 + 1.3 * boost));
   }
@@ -5129,6 +5167,14 @@ export class GameEngine {
     // Aimed up for main beam: toward the horizon, past the dipped cut-off.
     this.headlight.target.position.y = -0.55 + hb.aim;
     this.headlightR.target.position.y = -0.55 + hb.aim;
+    // The flare from behind, which is where the chase camera sees these
+    // lamps from: the facing fade puts it at 0 there, so a flash lifts the
+    // floor under the fade with its own boost and nothing else does —
+    // not main beam held (highBeamK), which would be the white star at
+    // the tail for as long as the stalk is up (flare.ts, HEAD_FLARE).
+    // Before the rest branch, so a flash that has just ended is put back
+    // to 0 by the frame that sees it end.
+    for (const g of glows) setFlareBack(g, HEAD_FLARE.flashBack * boost);
     if (boost <= 0 && this.highBeamK < 1e-3 && warm.output >= 1) {
       // At rest, BY DEFINITION — so this is where the rest state is
       // learned, rather than at the start of a flash where it might be
@@ -7517,6 +7563,11 @@ export class GameEngine {
       // slightly outboard, at bumper height, and drifts inboard as it
       // creeps forward, which brings the rival off the player's shoulder
       // and into clear air by the time the third hit lands.
+      //
+      // From here the lamps are 160 to 173 degrees off their own axis,
+      // where the flare sprites' facing fade is 0 — so applyCineBeam
+      // lifts the floor under that fade with each hit, or "the lamps
+      // that are firing" would be only the cone and the pool.
       const k = ease(t / CINE_FLASH_END);
       this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
       this.track.tangentAt(p.s, this.v3);
@@ -7759,7 +7810,8 @@ export class GameEngine {
     }
 
     // --- Sparks: they cool, fall, and skitter along the asphalt
-    this.sparkFx.update(dt, { gravity: 17, drag: 0.7, bounce: 0.42, groundY: 0.03 });
+    // (17, 0.7, 0.42, 0.03 — the numbers SPARK.ceiling is worked out on.)
+    this.sparkFx.update(dt, SPARK.motion);
 
     // --- Tire smoke: off the tyres that are actually sliding, rising a
     // little, thrown out of the slide, dragged along in the car's wake
@@ -8426,32 +8478,20 @@ export class GameEngine {
   private spawnSparks(side = 0, intensity = 1): void {
     const p = this.playerMesh.position;
     this.track.tangentAt(this.player.s, this.v3);
-    const sx = -this.v3.z;
-    const sz = this.v3.x;
-    const n = Math.round(26 + 34 * intensity);
-    for (let i = 0; i < n; i++) {
-      const along = -0.6 + Math.random() * 1.2;
-      const lat = side * (0.95 + Math.random() * 0.15);
-      const back = -(5 + Math.random() * 12) * (0.6 + intensity * 0.6);
-      this.sparkFx.spawn(
-        p.x + sx * lat + this.v3.x * along,
-        0.22 + Math.random() * 0.3,
-        p.z + sz * lat + this.v3.z * along,
-        this.v3.x * back + sx * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
-        // Upward throw. This was 1.5-6.5 m/s, which against the 17 m/s^2
-        // the spark system pulls puts the apex 1.2 m ABOVE the sill it
-        // came off: measured, sparks reached 1.48 m and a tenth of them
-        // spent their life above a metre — arcing over the roof of the
-        // car that made them. Grinding steel on a barrier throws sparks
-        // out and back along the panel, not into the air. 0.5-3.5 m/s
-        // tops out around 0.36 m of climb, so they skip along the flank
-        // and die on the asphalt where they belong.
-        0.5 + Math.random() * 3,
-        this.v3.z * back + sz * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
-        0.35 + Math.random() * 0.5,
-        0.09 + Math.random() * 0.07
-      );
-    }
+    // The shower's law lives in flare.ts (sparkShower), where a node test
+    // can fly it. Upward throw: this was 1.5-6.5 m/s once, which against
+    // the 17 m/s^2 the spark system pulls put the apex 1.2 m ABOVE the
+    // sill it came off: measured, sparks reached 1.48 m and a tenth of
+    // them spent their life above a metre — arcing over the roof of the
+    // car that made them. Then 0.5-3.5 m/s from 0.22-0.52 m, which could
+    // still climb to 0.88 m before drag (0.81 m flown, tests/flare.mjs),
+    // over the barrier rail. Now 0.4-2.2 m/s from 0.2-0.42 m: 0.56 m at
+    // the very most, 0.53 m flown. Grinding steel on a barrier
+    // throws sparks out and back along the panel, not into the air, and
+    // they skip along the flank and die on the asphalt where they belong.
+    sparkShower(Math.random, p.x, p.z, this.v3.x, this.v3.z, side, intensity, (s) =>
+      this.sparkFx.spawn(s.x, s.y, s.z, s.vx, s.vy, s.vz, s.life, s.size)
+    );
   }
 
   private updateAudio(): void {
