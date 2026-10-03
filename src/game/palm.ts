@@ -1018,13 +1018,18 @@ export const PALM_PLACE = {
    *  comes from age). The old draw scaled trunk AND crown by 0.82-1.18
    *  together, so a tall palm was a short palm enlarged.
    *
-   *  5.8 m at the bottom, not the 5.6 first proposed. Over 50 streams the
-   *  lowest crown vertex over the carriageway came out at 3.401 m with
-   *  5.6 — an inland palm leaning roadward on a 5.67 m trunk at crown
-   *  scale 1.05 — which is on the 3.4 m headroom bar rather than over it.
-   *  At 5.8 the worst is 3.66 m. The top, 8.0 m plus a 2.6 m crown, stays
-   *  more than a metre under the 12 m lanterns, and no crown is within
-   *  5 m of a column anyway. */
+   *  5.8 m at the bottom. Over 50 streams, on EVERY crown vertex, the
+   *  trimmed crown's lowest point over the carriageway is 3.76 m still
+   *  and 3.66 m bent roadward at the most the wind and a pair of passing
+   *  cars ever lean a palm (tests/palms.mjs) — an inland palm on a
+   *  5.86 m trunk. A 5.6 m bottom (span 2.4) would measure 3.60 / 3.46.
+   *  This comment used to say 3.66 m at 5.8 and 3.401 m at 5.6, and both
+   *  came from a check that read only every fifth vertex, which skips
+   *  most frond tips, and the tips are the lowest points of a crown. The
+   *  3.401 does not come back on this crown at either span. The headroom
+   *  the row was really short of was the untrimmed crown's: see fullMinH.
+   *  The top, 8.0 m plus a 2.6 m crown, stays more than a metre under the
+   *  12 m lanterns, and no crown is within 5 m of a column anyway. */
   trunkMin: 5.8,
   trunkSpan: 2.2,
   crownMin: 0.92,
@@ -1032,8 +1037,21 @@ export const PALM_PLACE = {
   girthMin: 0.9,
   girthSpan: 0.2,
   /** The untrimmed crown hangs to -2.98 m, so it only goes on a trunk at
-   *  least this tall, which keeps it over the carriageway's headroom. */
-  fullMinH: 6.3,
+   *  least this tall, which keeps it over the carriageway's headroom.
+   *
+   *  6.6, not 6.3. At 6.3 the lowest vertex over the carriageway in 50
+   *  streams was the dead skirt of a full crown on a 6.35 m sea-side
+   *  trunk: 3.49 m standing still, and 3.24 m once the wind leaned it.
+   *  The bend costs 0.25 m there, and almost none of it is the 0.5 s^2
+   *  arc drop (2 cm at the 0.2 lean the field reaches). Nearly all of it
+   *  is sideways: the skirt hangs just outside the asphalt edge, and a
+   *  lean of 0.2 swings each frond tip 0.21 m toward the road and over
+   *  it. At 6.6 the full crown's worst is 3.73 m still and 3.63 m with
+   *  every crown bent straight at the road, the worst way. The cost
+   *  is about five untrimmed palms a build (25.9 -> 21.0 of 131) on the
+   *  6.3-6.6 m trunks, which take the trimmed crown. Only which crown a
+   *  palm wears changes: the form stream draws the same three numbers. */
+  fullMinH: 6.6,
   /** Variant split on the form stream: below the first, kept; below the
    *  second, full (where tall enough); above, young. */
   split: [0.6, 0.85],

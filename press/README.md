@@ -58,6 +58,7 @@ whether it belongs in the history at all.
 | `sparks/` | One scrape, held still. The TABLE is the artefact — what the shower covers, what it casts, and how round it reads. | `tools/shots/sparks.mjs` | regenerated |
 | `smoke/` | One drift, held still: what the plume covers, how bright, and what it veils. | `tools/shots/smoke.mjs` | regenerated |
 | `dark/` | Dark-area scan frames. | `tools/shots/dark.mjs` | regenerated |
+| `palms/` | One corniche palm at noon, in the afternoon and at night. | `tools/shots/palms.mjs` | regenerated |
 | `edges/` | Edge-quality frames. | `tools/shots/edges.mjs` | regenerated |
 | `framing/` | Framing frames at each window size. | `tools/shots/framing.mjs` | regenerated |
 | `tint/` | Fifteen captures of one car at fifteen darknesses; the TABLE is the artefact. | `tools/shots/tint.mjs` | regenerated |
@@ -100,7 +101,7 @@ Runtime assets live under `public/`, not in the press kit:
 
 | Path | What | Rebuild |
 | --- | --- | --- |
-| `public/models/*.glb` | Blender-authored car shells, wheels, palms, driver | `npm run sync:models` |
+| `public/models/*.glb` | Blender-authored car shells, wheels, the patrol bar, driver | `npm run sync:models` |
 | `public/sfx/` | Recorded sound effects + manifest | `npm run sfx` |
 | `public/voices/` | Rival voice lines + manifest | `node scripts/generate-voices.mjs` |
 

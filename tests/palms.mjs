@@ -48,6 +48,8 @@ import {
 import { palmFixtures, LAMP_COLUMNS, SIGNALS } from "../src/game/world.ts";
 import { Track, COAST_U } from "../src/game/track.ts";
 import { makeRng, WORLD_SEED } from "../src/game/rand.ts";
+import { newPlantField, solvePlantField } from "../src/game/plants.ts";
+import { RIG } from "../src/game/rig.ts";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
@@ -374,9 +376,55 @@ console.log("6. placement");
   console.log(`  L ${L.toFixed(3)} m, coast ${coast.len.toFixed(1)} m, fixtures ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(", ")}`);
   const cross = Math.round(L / 118);
   const crown = PALM_KINDS.map((k) => crowns[k]);
+  // Headroom reads EVERY crown vertex. It used to read every fifth, and
+  // a frond is 44 vertices, so most frond tips — the lowest points of a
+  // crown — were never looked at: it printed 3.66 m where the crowns
+  // really came down to 3.49.
+  const crownPos = crown.map((g) => g.getAttribute("position").array);
+  const crownW = crown.map((g) => g.getAttribute("grnWeight").array);
+
+  // And it reads them bent, because the crowns are not still. The bend
+  // is plantBend's, in the crown's own frame before the instance matrix:
+  // xz moves by s = lean x weight along the lean, y drops by s^2 x
+  // arcDrop. The lean is the most the real spring field gives a palm:
+  // ten minutes of wind, several turns of its direction, and two cars
+  // abreast at full wake strength coming both ways, the near one on the
+  // asphalt edge itself — 2.6 m from a sea palm's trunk, closer than the
+  // wall lets a car get. Every crown is then bent that far straight at
+  // the road, which is the worst way for the headroom to go.
+  //
+  // What the bend costs is mostly not the arc drop — 2 cm at a 0.2 lean.
+  // It is the sideways swing: a frond tip hanging just outside the
+  // asphalt edge moves 0.2 m in and is over the road, lower than any
+  // still vertex there. With fullMinH at 6.3 that took the untrimmed
+  // crown's skirt from 3.49 m still to 3.24 m bent.
+  const leanPeak = (() => {
+    const P = RIG.plant, LAP = 4000, DT = 1 / 60, v = 80;
+    const seeds = [];
+    for (let k = 0; k < 40; k++) seeds.push({ s: 200 + k * 90, x: -2.6, z: 200 + k * 90, yaw: k, phase: k * 0.7, kind: 1 });
+    const field = newPlantField(seeds);
+    let peak = 0;
+    const out = (i, dx, dz, str) => { if (str > peak) peak = str; };
+    // Ten minutes. The wind's direction turns once in 126 s, the gust
+    // swells every 17 s and the pair laps every 50 s, and the worst of
+    // all three does not line up inside one turn: 131 s finds 0.161,
+    // 300 s and anything longer 0.197. A second of run time, about.
+    const T = 600;
+    for (let i = 0; i < T * 60; i++) {
+      const t = i * DT, s = (t * v) % LAP;
+      const wakes = [0, 3].flatMap((x) => [
+        { s, x, z: s, dirX: 0, dirZ: 1, speed: v, len: 4.6 },
+        { s: LAP - s, x, z: LAP - s, dirX: 0, dirZ: -1, speed: v, len: 4.6 },
+      ]);
+      solvePlantField(field, t, DT, wakes, LAP, out);
+    }
+    return peak;
+  })();
+  const arcDrop = RIG.plant.arcDrop;
 
   let drawsOk = true, roleOk = true, leanOk = true, formOk = true;
-  let worstClear = Infinity, worstStreet = Infinity, worstFly = Infinity, worstLat = Infinity, worstHead = Infinity;
+  let worstClear = Infinity, worstStreet = Infinity, worstFly = Infinity, worstLat = Infinity, worstHead = Infinity, worstBent = Infinity;
+  const headBy = [Infinity, Infinity, Infinity], bentBy = [Infinity, Infinity, Infinity];
   let maxShift = 0, minGap = Infinity, plazaOk = true, spanOk = true, slotOk = true;
   const share = [0, 0, 0];
   for (let seed = 1; seed <= 50; seed++) {
@@ -427,14 +475,33 @@ console.log("6. placement");
         const dl = Math.abs(p.lat - f.lat);
         if (dl < 5) worstClear = Math.min(worstClear, ds - Math.sqrt(25 - dl * dl));
       }
-      // Headroom over the carriageway: every 5th crown vertex.
+      // Headroom over the carriageway, every crown vertex: still, and bent
+      // leanPeak straight at the road.
       track.pointAt(p.at, rp);
       track.sideAt(p.at, side);
-      const pos = crown[p.variant].getAttribute("position");
-      for (let i = 0; i < pos.count; i += 5) {
-        v.fromBufferAttribute(pos, i).applyMatrix4(p.crown);
-        const lat = (v.x - rp.x) * side.x + (v.z - rp.z) * side.z;
-        if (Math.abs(lat) < hw) worstHead = Math.min(worstHead, v.y);
+      const pos = crownPos[p.variant], wgt = crownW[p.variant];
+      const e = p.crown.elements;
+      // Toward the centre line in the ground plane, turned back by the
+      // yaw into the crown's own frame, as plants.ts does for the shader.
+      v.set(rp.x - p.x, 0, rp.z - p.z).normalize();
+      const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+      const ox = v.x * cy - v.z * sy, oz = v.x * sy + v.z * cy;
+      const vr = p.variant;
+      for (let i = 0, n = wgt.length; i < n; i++) {
+        let x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+        for (let pass = 0; pass < 2; pass++) {
+          if (pass === 1) {
+            const s = leanPeak * wgt[i];
+            x += ox * s; z += oz * s; y -= s * s * arcDrop;
+          }
+          const wx = e[0] * x + e[4] * y + e[8] * z + e[12];
+          const wy = e[1] * x + e[5] * y + e[9] * z + e[13];
+          const wz = e[2] * x + e[6] * y + e[10] * z + e[14];
+          const lat = (wx - rp.x) * side.x + (wz - rp.z) * side.z;
+          if (Math.abs(lat) >= hw) continue;
+          if (pass === 0) { if (wy < headBy[vr]) headBy[vr] = wy; }
+          else if (wy < bentBy[vr]) bentBy[vr] = wy;
+        }
       }
       if (p.sea && p.s >= 489 && p.s <= 613 && p.lat > -(hw + 2.5)) plazaOk = false;
     }
@@ -457,9 +524,13 @@ console.log("6. placement");
     if (counts[0] + counts[1] + counts[2] !== pl.length) slotOk = false;
   }
   const n = 50 * want;
+  worstHead = Math.min(...headBy);
+  worstBent = Math.min(...bentBy);
+  const byKind = (a) => PALM_KINDS.map((k, i) => `${k} ${f3(a[i])}`).join(", ");
   console.log(`  ${want} palms per build; shared draws per build 550 ${drawsOk ? "every time" : "NOT every time"}, in the old roles (jitter, size, yaw, phase, inland lateral) ${roleOk}; lean stream 4/palm ${leanOk}, form stream 3/palm ${formOk}`);
   console.log(`  clearance: point fixtures ${f3(worstClear)} m spare at worst, cross streets ${f3(worstStreet)}, flyovers ${f3(worstFly)}; trunk ${f3(worstLat)} m outside hw + 1.5 at worst; largest move ${f2(maxShift)} m; closest same-side neighbours ${f2(minGap)} m`);
-  console.log(`  headroom: lowest crown vertex over the carriageway ${f2(worstHead)} m; crowns kept/full/young ${share.map((s) => (s / n).toFixed(2)).join("/")}`);
+  console.log(`  headroom, every vertex over the carriageway: still ${f3(worstHead)} m (${byKind(headBy)}); bent ${f3(leanPeak)} at the road (the field's peak palm lean) ${f3(worstBent)} m (${byKind(bentBy)})`);
+  console.log(`  crowns kept/full/young ${share.map((s) => (s / n).toFixed(2)).join("/")} (${share.map((s) => (s / 50).toFixed(1)).join("/")} a build); full only on trunks >= ${PALM_PLACE.fullMinH} m`);
   check(drawsOk, `the shared stream was not drawn exactly 550 times (131 x 4 + 26) — every building, lamp and billboard after the palms would move`);
   check(roleOk, "a shared draw changed role or order — the same 550 numbers must mean what they meant");
   check(leanOk, "the lean/tint stream is not 4 draws per palm");
@@ -469,7 +540,11 @@ console.log("6. placement");
   check(worstStreet >= -1e-6, `an inland palm is ${f3(-worstStreet)} m into a cross street's clearance`);
   check(worstFly >= -1e-6, `a palm is ${f3(-worstFly)} m under a flyover's clearance`);
   check(worstLat >= -1e-6, `a trunk stands ${f3(-worstLat)} m inside hw + 1.5 — on the asphalt`);
-  check(worstHead >= 3.4, `a crown hangs to ${f2(worstHead)} m over the carriageway, want >= 3.4`);
+  check(worstHead >= 3.4, `a crown hangs to ${f3(worstHead)} m over the carriageway, want >= 3.4`);
+  check(worstBent >= 3.4, `bent ${f3(leanPeak)} toward the road, a crown hangs to ${f3(worstBent)} m over the carriageway, want >= 3.4`);
+  // The lean is measured, not assumed: if the field ever stops leaning a
+  // palm at all, the bent check above is a still check under another name.
+  check(leanPeak > 0.1 && leanPeak < RIG.plant.maxLean, `the field's peak palm lean is ${f3(leanPeak)}, want 0.1..${RIG.plant.maxLean}`);
   check(plazaOk, "a sea palm at the Sharq plaza is inside -(hw + 2.5)");
   check(spanOk, "a crown variant is missing or spans under 1,500 m of coast — its InstancedMesh would fall inside shadows.mjs's ground-plane skip");
   check(share.every((s) => s > 0), `crown variants ${share.join("/")}: all three must appear`);
