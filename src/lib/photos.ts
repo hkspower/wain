@@ -10,10 +10,12 @@
  *
  * So a photo, where one exists, sits above both. The order is
  *
- *     photograph  →  the place's own drawing  →  the category's drawing
+ *     photograph  →  generated picture, tagged  →  the place's own drawing
+ *                                               →  the category's drawing
  *
  * and it degrades in that direction, which is why a place with no photograph
- * still looks finished rather than broken.
+ * still looks finished rather than broken. The second step exists for five
+ * places only; see «A generated picture is not a photograph» below.
  *
  * ## What may go in here
  *
@@ -25,14 +27,22 @@
  * it would be a lie told to somebody about to drive across town. A drawing
  * never claims to be a specific building; a photograph always does.
  *
- * The same rule rules out a generated image of a real landmark. There is no
- * such thing as an AI photograph of أبراج الكويت — only a picture of something
- * that looks like it.
+ * ## A generated picture is not a photograph
  *
- * The home page's «معالم الكويت» slideshow (LandmarksShow, 2 October) does
- * carry generated pictures, on request, and that is why it is not here: it is
- * a picture OF each landmark on the home page, built by its own generator
- * (scripts/gen-landmarks.mjs), and no place page ever shows one.
+ * There is no such thing as an AI photograph of أبراج الكويت — only a picture
+ * of something that looks like it — so none ever goes in PHOTOS, and nothing
+ * on the site ever calls one a photograph.
+ *
+ * The owner did ask for them to be SHOWN (3 October): the five «معالم الكويت»
+ * places carry a generated picture on their cards and at the top of their
+ * pages, beside the slideshow under the home hero. On those terms:
+ *
+ *   - it is marked «صورة توضيحية» wherever it appears, and on a place page
+ *     its alt says so in words;
+ *   - it comes from its own generator (scripts/gen-landmarks.mjs), and each one
+ *     is approved by the owner by eye before it is used — the tag does not
+ *     excuse a picture of the wrong building;
+ *   - a real photograph, the day there is one, wins over it — the order above.
  *
  * ## Adding one
  *

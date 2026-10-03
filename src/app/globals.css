@@ -408,81 +408,76 @@ h1, h2, h3 {
   animation: kb-b 21s cubic-bezier(0.35, 0, 0.65, 0.95) infinite alternate;
 }
 
-/* «معالم الكويت» under the home hero (LandmarksShow.tsx). The same two drifts
-   at 9s, so each slide's picture moves visibly in the 6s it is on screen.
+/* «معالم الكويت» under the home hero (LandmarksShow.tsx), direction A «القصة»
+   from the 3 October canvas.
 
-   One loop of 36s carries all six slides: each runs `landmark-fade` with a
-   6s × index delay, so it fades in over 0.9s (2.5%), holds, and fades out
-   while the next fades in. `visibility` moves with the opacity on purpose —
-   an invisible slide that could still take a tap or a Tab is the link under
-   the visitor's finger being somewhere other than the one on screen. Before
-   its first turn a slide sits on the 0% frame (`both`), hidden. */
-@keyframes landmark-fade {
-  0% {
-    opacity: 0;
-    visibility: hidden;
+   The slide on screen is `.is-on`; the others are transparent, hidden and
+   `inert`, so the link under a finger is always the one in view. `visibility`
+   waits for the fade before hiding, so the next slide fades in over the last.
+
+   **The clock is the progress bar.** The bar of the slide on screen fills over
+   6s (`landmark-fill`), and its `animationend` is what moves the show on — so
+   `.is-held` (paused, a mouse resting on it, a tab in the background) pauses
+   that one animation and the drift with it, and the bar shows what is left.
+
+   The drift is /find's `kb-a`/`kb-b`, once, on the slide on screen only. */
+@keyframes landmark-fill {
+  from {
+    transform: scaleX(0);
   }
-  2.5%,
-  16.67% {
-    opacity: 1;
-    visibility: visible;
+  to {
+    transform: scaleX(1);
   }
-  19.17%,
-  100% {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-@keyframes landmark-dot {
-  0% {
-    width: 0.5rem;
-    background: var(--color-line-strong);
-  }
-  2.5%,
-  16.67% {
-    width: 1.375rem;
-    background: var(--color-sea-600);
-  }
-  19.17%,
-  100% {
-    width: 0.5rem;
-    background: var(--color-line-strong);
-  }
-}
-.landmark-kb-a {
-  animation: kb-a 9s ease-out infinite alternate;
-}
-.landmark-kb-b {
-  animation: kb-b 9s ease-out infinite alternate;
 }
 .landmark-slide {
   opacity: 0;
   visibility: hidden;
-  animation: landmark-fade 36s linear infinite both;
+  transition:
+    opacity 0.7s ease,
+    visibility 0s linear 0.7s;
 }
-.landmark-dot {
-  animation: landmark-dot 36s linear infinite both;
+.landmark-slide.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 0.7s ease,
+    visibility 0s;
 }
-.landmark-show.is-paused :is(.landmark-slide, .landmark-dot, .landmark-kb-a, .landmark-kb-b) {
+.landmark-slide.is-on .landmark-drift.is-a {
+  animation: kb-a 7s ease-out both;
+}
+.landmark-slide.is-on .landmark-drift.is-b {
+  animation: kb-b 7s ease-out both;
+}
+/* The bars fill from the right: the row reads right to left like the page. */
+.landmark-seg > span {
+  transform: scaleX(0);
+  transform-origin: right;
+}
+.landmark-seg.is-done > span {
+  transform: scaleX(1);
+}
+.landmark-seg.is-run > span {
+  animation: landmark-fill 6s linear both;
+}
+.landmark-show.is-held :is(.landmark-seg.is-run > span, .landmark-drift) {
   animation-play-state: paused;
 }
-/* The global reduced-motion rule shortens every animation to nothing but
-   leaves the delays, so each slide would end on the last frame — hidden — and
-   the show would be an empty box. Here the first one simply stays. */
+/* The global reduced-motion rule shortens every animation to nothing — which
+   here would END the bar at once, and the show would spin through all six. So
+   the bar has no animation at all: nothing moves on, the first landmark stays,
+   and its bar stands full to say which one it is. */
 @media (prefers-reduced-motion: reduce) {
-  .landmark-slide,
-  .landmark-dot,
-  .landmark-kb-a,
-  .landmark-kb-b {
+  .landmark-seg.is-run > span {
+    animation: none !important;
+    transform: scaleX(1);
+  }
+  .landmark-drift {
     animation: none !important;
   }
-  .landmark-slide.is-first {
-    opacity: 1;
-    visibility: visible;
-  }
-  .landmark-dot.is-first {
-    width: 1.375rem;
-    background: var(--color-sea-600);
+  .landmark-slide,
+  .landmark-slide.is-on {
+    transition: none !important;
   }
 }
 

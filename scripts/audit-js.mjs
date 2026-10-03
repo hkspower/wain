@@ -253,6 +253,27 @@ if (existsSync(join(OUT, "sw.js"))) {
     );
 }
 
+/* ── 8. The landmarks' server-only half stays on the server ───────────────
+   gen-landmarks.mjs writes two modules. landmark-cards.g.ts holds the cards'
+   strips, and PlaceCard carries it into client bundles on purpose.
+   landmarks.g.ts holds the slideshow's and the page tops' 3:2 files with
+   their focus and alt, and only server code may import it: the slideshow is
+   handed its rows as props. A client import of it puts every slide's file
+   names into the JavaScript of whatever route reaches it — and while they are
+   drawn stand-ins, names files a normal export has left out. A 3:2 file is
+   told from a strip by its name: a strip's says `-card-`. */
+const SLIDE_FILE = /\/home\/landmarks\/[a-z-]+-[0-9a-f]{10}-(?:480|960|1440)\.(?:avif|webp)/;
+const slideNamed = [];
+for (const f of staticFiles.filter((x) => x.endsWith(".js"))) {
+  const m = SLIDE_FILE.exec(readFileSync(join(OUT, f.slice(1)), "utf8"));
+  if (m) slideNamed.push(`${f} (${m[0]})`);
+}
+if (slideNamed.length)
+  err(
+    `${slideNamed.length} chunk(s) name a slideshow or page-top picture — a client component imports ` +
+      `landmarks.g.ts, which is server-only (a card needs landmark-cards.g.ts): ${slideNamed.slice(0, 2).join(", ")}`
+  );
+
 /* ── report ───────────────────────────────────────────────────────────── */
 // `all` is the top level of chunks/ only; the app/ subtree is route chunks,
 // which are referenced by their own page by construction.

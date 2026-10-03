@@ -8,7 +8,17 @@ import ScrollMemory from "@/components/ScrollMemory";
 import { NavDepth } from "@/components/BackButton";
 import WainAi from "@/components/WainAi";
 import { OG_BASE, OG_DEFAULT_IMAGE } from "@/lib/site-meta";
+import { SHOW_STANDINS } from "@/lib/landmark-gate";
+import { LANDMARKS } from "@/lib/landmarks.g";
 import "./globals.css";
+
+/**
+ * A preview build that shows drawn stand-ins says so on every page, in a way
+ * a test and deploy:plan can read without guessing from pictures: the marker
+ * is what refuses such an export. Absent from every normal build, and from a
+ * preview build once every picture is real.
+ */
+const PREVIEW = SHOW_STANDINS && LANDMARKS.some((l) => l.source !== "ai") ? "stand-ins" : undefined;
 
 /**
  * One family for the whole site: IBM Plex Sans Arabic.
@@ -86,7 +96,7 @@ export default function RootLayout({
   // font-sans/font-display element silently fell back to the default
   // ui-sans-serif stack with the webfont never requested at all.
   return (
-    <html lang="ar" dir="rtl" className={plex.variable}>
+    <html lang="ar" dir="rtl" className={plex.variable} {...(PREVIEW ? { "data-preview": PREVIEW } : {})}>
       <body className="flex min-h-screen flex-col font-sans">
         {/* This link is NOT why the home page used to scroll sideways, however
             much it looked like it. `audit:mobile` names every element sitting

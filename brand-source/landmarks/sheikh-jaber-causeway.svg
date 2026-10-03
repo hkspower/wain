@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+<defs>
+<linearGradient id="sj-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4566b"/><stop offset="0.42" stop-color="#ef8f62"/><stop offset="0.82" stop-color="#f9c58a"/><stop offset="1" stop-color="#fde3b8"/></linearGradient>
+<radialGradient id="sj-glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff2cc" stop-opacity="0.95"/><stop offset="1" stop-color="#fff2cc" stop-opacity="0"/></radialGradient>
+<linearGradient id="sj-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7a47e"/><stop offset="0.16" stop-color="#4b93a6"/><stop offset="1" stop-color="#164c64"/></linearGradient>
+<linearGradient id="sj-pylon" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c9b9aa"/><stop offset="0.5" stop-color="#fbf4ea"/><stop offset="1" stop-color="#dfd0bf"/></linearGradient>
+</defs>
+<rect x="0" y="0" width="600" height="230" fill="url(#sj-sky)"/>
+<circle cx="140" cy="218" r="120" fill="url(#sj-glow)"/>
+<circle cx="140" cy="220" r="20" fill="#fff4d6"/>
+<rect x="0" y="226" width="600" height="174" fill="url(#sj-sea)"/>
+<path d="M430 227 L600 222 L600 229 L430 229 Z" fill="#a8706a" fill-opacity="0.55"/>
+<rect x="118" y="232" width="44" height="3" fill="#ffe7bd" fill-opacity="0.75"/>
+<rect x="110" y="242" width="60" height="2.5" fill="#ffe7bd" fill-opacity="0.55"/>
+<rect x="104" y="296" width="72" height="2.5" fill="#ffe7bd" fill-opacity="0.4"/>
+<rect x="98" y="312" width="84" height="2" fill="#ffe7bd" fill-opacity="0.3"/>
+<rect x="30" y="280" width="8" height="52" fill="#5b4a4e"/>
+<rect x="96" y="280" width="8" height="52" fill="#5b4a4e"/>
+<rect x="162" y="280" width="8" height="52" fill="#5b4a4e"/>
+<rect x="228" y="280" width="8" height="52" fill="#5b4a4e"/>
+<rect x="336" y="280" width="40" height="62" fill="#4d3f44"/>
+<rect x="426" y="280" width="9" height="56" fill="#5b4a4e"/>
+<rect x="494" y="280" width="9" height="58" fill="#5b4a4e"/>
+<rect x="562" y="280" width="10" height="60" fill="#5b4a4e"/>
+<path d="M0 336 h600" stroke="#fff3e2" stroke-opacity="0.12" stroke-width="3"/>
+<rect x="0" y="266" width="600" height="14" fill="#4a4045"/>
+<rect x="0" y="263" width="600" height="3" fill="#f2dcc4" fill-opacity="0.85"/>
+<path d="M340 62 L40 264 M329 96 L100 264 M320 129 L160 264 M316 163 L215 264 M314 198 L262 264" stroke="#fff6ea" stroke-opacity="0.8" stroke-width="1.3"/>
+<path d="M322 266 Q298 150 350 40 L386 266 Z" fill="url(#sj-pylon)" stroke="#9a8a7e" stroke-opacity="0.5" stroke-width="1.2"/>
+<path d="M338 290 L376 290 L370 378 L344 378 Z" fill="#fff2df" fill-opacity="0.1"/>
+<circle cx="60" cy="262" r="1.8" fill="#ffe7b0"/>
+<circle cx="180" cy="262" r="1.8" fill="#ffe7b0"/>
+<circle cx="450" cy="262" r="1.8" fill="#ffe7b0"/>
+<circle cx="560" cy="262" r="1.8" fill="#ffe7b0"/>
+</svg>

@@ -54,6 +54,7 @@ const SETTING_TONE = {
 export default function PlaceView({
   place,
   heroClass,
+  heroKind,
   art,
   credit,
   related,
@@ -70,6 +71,13 @@ export default function PlaceView({
    * text being right.
    */
   heroClass: string;
+  /**
+   * What the hero holds, which decides its shape: a drawing is a band cut from
+   * a 400×160 scene (see the ratio note below), a picture is shown whole at
+   * 3:2 — a photograph, or a landmark's generated picture (the owner's pick on
+   * the 3 October canvas: nothing of the building cut away).
+   */
+  heroKind: "picture" | "drawing";
   /** Hero photograph or drawing, rendered on the server. */
   art: ReactNode;
   /** Photo credit, which renders nothing unless a licence needs naming. */
@@ -109,7 +117,13 @@ export default function PlaceView({
         // name, chips and description below are flush to the start edge, so it
         // lined up with nothing. A block with max-width and no auto margins
         // sits at the start, which in RTL is the right — the heading's edge.
-        className={`relative flex aspect-[18/5] w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl shadow-lg ${heroClass}`}
+        //
+        // A picture is not a band: 18/5 kept 42% of a 3:2 picture's height,
+        // which on a tower is the middle of the shaft. It is shown whole, and
+        // max-w-xl keeps it to 576×384 on a computer.
+        data-place-hero
+        data-hero-kind={heroKind}
+        className={`relative flex ${heroKind === "picture" ? "aspect-[3/2]" : "aspect-[18/5]"} w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl shadow-lg ${heroClass}`}
       >
         {art}
         {place.rating !== undefined && (

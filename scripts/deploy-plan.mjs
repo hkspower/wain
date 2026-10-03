@@ -36,6 +36,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe as describeStandIns, standInProblems } from "./lib/stand-ins.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "out");
@@ -187,32 +188,27 @@ if (archiveBuild.digest !== build.digest) {
 }
 const commit = archiveBuild.commit;
 
-// The landmarks slideshow was built on drawn stand-ins while its real pictures
-// could not be generated (scripts/gen-landmarks.mjs). While any remains, the
-// home page leaves the section out and the build drops its files — so what
-// must never ship is an archive whose home page SHOWS it with a stand-in in
-// it (a preview build, NEXT_PUBLIC_SHOW_STANDINS=1, released by mistake).
-// The list is read AS IT WAS at the archive's commit, and the page out of the
-// archive itself — not the working tree or out/, which may be ahead of it.
+// The pictures of «معالم الكويت» were built on drawn stand-ins while the real
+// ones could not be generated (scripts/gen-landmarks.mjs), and a drawing must
+// not reach the live site in ANY slot — the slideshow, a card, a page top. A
+// normal build leaves them out and drops their files; what must never ship is
+// an archive that carries one anyway (a preview build, NEXT_PUBLIC_SHOW_STANDINS
+// =1, released by mistake). scripts/lib/stand-ins.mjs has the three ways to
+// tell. The stand-ins are read AS THEY WERE at the archive's commit, and the
+// pages out of the archive itself — not the working tree or out/, which may be
+// ahead of it.
 {
-  let list = "";
-  try {
-    list = git(["show", `${commit}:src/lib/landmarks.g.ts`]);
-  } catch {
-    // An archive from before the slideshow existed has nothing to refuse.
-  }
-  const standIns = [...list.matchAll(/\{\s*slug: "([^"]+)"[^}]*source: "([a-z-]+)"/g)]
-    .filter((m) => m[2] !== "ai")
-    .map((m) => m[1]);
-  let home = "";
-  try {
-    home = execFileSync("unzip", ["-p", archive, "index.html"], { encoding: "utf8", maxBuffer: 1 << 24 });
-  } catch {
-    // No index.html is refused elsewhere.
-  }
-  if (standIns.length && home.includes('aria-labelledby="landmarks-h"'))
+  const found = standInProblems(archive, (path) => {
+    try {
+      return git(["show", `${commit}:${path}`]);
+    } catch {
+      return ""; // an archive from before the module existed has nothing in it to refuse
+    }
+  });
+  const why = describeStandIns(found);
+  if (why.length)
     fail(
-      `the archive's home page shows the landmarks slideshow with ${standIns.length} drawn stand-in(s): ${standIns.join(", ")}.\n` +
+      `the archive carries drawn stand-ins of «معالم الكويت» (${found.standIns.join(", ") || "unknown"}): ${why.join("; ")}.\n` +
         `  That is a preview build. Release without NEXT_PUBLIC_SHOW_STANDINS, or put the approved pictures in first.`
     );
 }

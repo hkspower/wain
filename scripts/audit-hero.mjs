@@ -48,6 +48,16 @@ const PORT = 4231;
 const UNITS_NEEDED = 103;
 const VIEWBOX_WIDTH = 400;
 
+/**
+ * A picture is not a band. The five «معالم الكويت» places show their
+ * generated picture whole at the top of their page — 3:2, the owner's pick on
+ * the 3 October canvas — capped by max-w-xl, and a photograph would too. So a
+ * hero that says it holds a picture is held to that shape instead, and to the
+ * «صورة توضيحية» tag when the picture is a generated one.
+ */
+const PICTURE_RATIO = 3 / 2;
+const PICTURE_MAX_W = 576;
+
 if (!existsSync(join(OUT, "index.html"))) {
   console.error("out/ is missing — run npm run build first.");
   process.exit(1);
@@ -68,7 +78,11 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(PORT, r));
 
-/** One place with its own PlaceArt, one falling back to CategoryArt. */
+/**
+ * One place with its own PlaceArt, and one of the five whose page top is its
+ * generated picture once that is real — a drawing in a normal build until then,
+ * the picture in a preview build (NEXT_PUBLIC_SHOW_STANDINS=1).
+ */
 const slugs = readdirSync(join(OUT, "places"));
 const SAMPLE = ["grand-mosque", "kuwait-towers"].filter((s) => slugs.includes(s));
 if (SAMPLE.length === 0) SAMPLE.push(slugs[0]);
@@ -92,25 +106,44 @@ for (const width of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width, height: 900 }, locale: "ar-KW" });
   const page = await ctx.newPage();
   for (const slug of SAMPLE) {
-    await page.goto(`http://localhost:${PORT}/places/${slug}/`, { waitUntil: "domcontentloaded" });
+    await page.goto(`http://localhost:${PORT}/places/${slug}/`, { waitUntil: "load" });
     const band = await page.evaluate(() => {
-      const el = [...document.querySelectorAll("div")].find(
-        (d) => d.className.includes("overflow-hidden") && d.querySelector("svg"),
-      );
+      const el = document.querySelector("[data-place-hero]");
       if (!el) return null;
       const b = el.getBoundingClientRect();
-      return { w: b.width, h: b.height };
+      const img = el.querySelector("img");
+      return {
+        w: b.width,
+        h: b.height,
+        kind: el.getAttribute("data-hero-kind"),
+        loaded: img ? img.complete && img.naturalWidth > 0 : null,
+        generated: img?.getAttribute("data-generated") ?? null,
+        tagged: !!el.querySelector("[data-illustrative]"),
+      };
     });
     if (!band || band.w === 0 || band.h === 0) {
       console.log(`  ✗ ${width}px ${slug}: no hero band found`);
       problems++;
       continue;
     }
+    if (band.kind === "picture") {
+      // A picture is shown whole at 3:2 and no wider than max-w-xl. A
+      // generated one says so on it; a photograph does not need to.
+      const ratio = band.w / band.h;
+      const ok =
+        Math.abs(ratio - PICTURE_RATIO) <= 0.01 &&
+        band.w <= PICTURE_MAX_W + 0.5 &&
+        band.loaded !== false &&
+        (band.generated === null || band.tagged);
+      if (!ok) problems++;
+      rows.push({ width, slug, kind: "picture", w: Math.round(band.w), h: Math.round(band.h), ratio, ok, band });
+      continue;
+    }
     const units = (VIEWBOX_WIDTH * band.h) / band.w;
     if (units < worst) worst = units;
     const ok = units >= UNITS_NEEDED;
     if (!ok) problems++;
-    rows.push({ width, slug, w: Math.round(band.w), h: Math.round(band.h), units, ok });
+    rows.push({ width, slug, kind: "drawing", w: Math.round(band.w), h: Math.round(band.h), units, ok });
   }
   await ctx.close();
 }
@@ -119,13 +152,25 @@ await browser.close();
 server.close();
 
 console.log("\n── how much of the 400×160 drawing the hero shows ──");
-for (const r of rows) {
+for (const r of rows.filter((x) => x.kind === "drawing")) {
   const flag = r.ok ? " " : "✗";
   console.log(
-    `  ${flag} ${String(r.width).padStart(4)}px  band ${String(r.w).padStart(3)}×${String(r.h).padStart(3)}` +
+    `  ${flag} ${String(r.width).padStart(4)}px  ${r.slug.padEnd(14)} band ${String(r.w).padStart(3)}×${String(r.h).padStart(3)}` +
     `  ratio ${(r.w / r.h).toFixed(2)}  shows ${r.units.toFixed(0)} units` +
     (r.ok ? "" : `  — needs ${UNITS_NEEDED}`),
   );
+}
+const pictures = rows.filter((x) => x.kind === "picture");
+if (pictures.length) {
+  console.log("\n── the heroes that hold a picture: whole, at 3:2 ──");
+  for (const r of pictures) {
+    console.log(
+      `  ${r.ok ? " " : "✗"} ${String(r.width).padStart(4)}px  ${r.slug.padEnd(14)} ${String(r.w).padStart(3)}×${String(r.h).padStart(3)}` +
+      `  ratio ${r.ratio.toFixed(3)}` +
+      (r.ok ? "" : `  — wants 1.500 ± 0.01, at most ${PICTURE_MAX_W}px wide, loaded${r.band.generated ? ", tagged «صورة توضيحية»" : ""}` +
+        ` (loaded ${r.band.loaded}, tagged ${r.band.tagged})`),
+    );
+  }
 }
 
 console.log(

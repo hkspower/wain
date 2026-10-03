@@ -28,9 +28,14 @@
  *                   actually fires on the شوق tap, not just that the page
  *                   moves to /search — a navigation alone would not have
  *                   caught the nested-button bug the first draft shipped.
- *   landmarks     — «معالم الكويت» under the home hero: one landmark at a
- *                   time, only the one on screen takes a tap, a stop button
- *                   that stops it, and reduced motion leaves the first one up.
+ *   stand-ins     — deploy:plan's refusal of the drawn stand-ins of «معالم
+ *                   الكويت», both ways, on the export in out/ and on small
+ *                   archives made for it. No browser.
+ *   landmarks     — «معالم الكويت»: on a normal build, that none of it shows;
+ *                   on a preview build (NEXT_PUBLIC_SHOW_STANDINS=1), the
+ *                   slideshow under the hero (bars, jump, swipe, pause, reduced
+ *                   motion), the pictures on the five cards and at the top of
+ *                   their pages, and the «صورة توضيحية» tag on each.
  *   back-button   — the round back button on every page but home: where it
  *                   sits, that it covers nothing at rest, and where it goes.
  *   ux-pass       — the 3 October pass: 40px for a finger and 24 for a mouse,
@@ -66,6 +71,9 @@ failed += (await run("node", ["tests/hangout.test.mjs"])) === 0 ? 0 : 1;
 // very panel pass its new test before the code had been built — see
 // tests/stale-build.mjs.
 requireFreshBuild(ROOT);
+
+console.log("\n════ معالم الكويت: no drawn stand-in may ship ════");
+failed += (await run("node", ["tests/stand-ins.test.mjs"])) === 0 ? 0 : 1;
 
 console.log("\n════ الطلعة: the panel, and every way it can fail ════");
 {

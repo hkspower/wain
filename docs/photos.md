@@ -66,7 +66,15 @@ A drawing never claims to be a specific building. A photograph always does.
 
 The same rule rules out a generated image of a real landmark: there is no such
 thing as an AI photograph of أبراج الكويت, only a picture of something that
-looks like it.
+looks like it. So none ever goes in the manifest.
+
+The owner did ask for such pictures to be **shown** (3 October): the five
+«معالم الكويت» places carry a generated picture on their cards and at the top
+of their pages, beside the slideshow under the home hero. Each one is approved
+by the owner by eye, marked «صورة توضيحية» wherever it appears (and in words in
+a place page's alt), and made by its own generator, `scripts/gen-landmarks.mjs`.
+A photograph in the manifest still wins over it: photograph → generated
+picture → the place's drawing → the category's.
 
 ## Where photographs come from
 

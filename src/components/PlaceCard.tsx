@@ -1,6 +1,10 @@
 import Link from "next/link";
+import GeneratedPicture from "@/components/GeneratedPicture";
+import IllustrativeTag from "@/components/IllustrativeTag";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
+import { LANDMARK_CARDS } from "@/lib/landmark-cards.g";
+import { shown } from "@/lib/landmark-gate";
 import {
   categoryTint,
   distanceAr,
@@ -29,6 +33,12 @@ export default function PlaceCard({
   awayKm?: number;
 }) {
   const category = getCategory(place.category);
+  // The five «معالم الكويت» places carry their picture in the band the icon
+  // sat in — the owner's pick (card A, 3 October): the same 56px, so no card
+  // on the site changes height, and the other 47 keep their icon. A picture
+  // that is still a drawn stand-in is not shown outside a preview build.
+  const picture = LANDMARK_CARDS.find((c) => c.slug === place.slug);
+  const pictured = picture !== undefined && shown(picture);
 
   return (
     <Link
@@ -44,12 +54,27 @@ export default function PlaceCard({
           It is a category cue, not a picture, and a cue does not need 96px to
           land. */}
       <div
+        data-card-band={pictured ? "picture" : "icon"}
         className={`relative flex h-14 items-center justify-center overflow-hidden border-b border-line ${categoryTint(place.category)}`}
       >
-        <PlaceIcon
-          slug={place.slug}
-          className="size-8 transition duration-500 group-hover:scale-105"
-        />
+        {pictured ? (
+          <>
+            {/* Cut around the landmark when it was made (a 3:1 strip), so
+                the middle of it is the tower, whatever the card's width. The
+                tint under it is what shows while it loads. */}
+            <GeneratedPicture
+              {...picture}
+              sizes="(min-width: 1024px) 280px, (min-width: 640px) 33vw, 256px"
+              className="absolute inset-0 size-full transition duration-500 group-hover:scale-105"
+            />
+            <IllustrativeTag className="end-1.5 bottom-1.5" />
+          </>
+        ) : (
+          <PlaceIcon
+            slug={place.slug}
+            className="size-8 transition duration-500 group-hover:scale-105"
+          />
+        )}
         {/* No chip at all when there is no rating. A placeholder — a dash, a
             greyed star — would be a worse answer than silence: it draws the
             eye to a number that does not exist. */}

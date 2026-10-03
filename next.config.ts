@@ -50,6 +50,12 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   // No Node image optimizer exists on a static host.
   images: { unoptimized: true },
+  // The preview switch for the drawn stand-ins of «معالم الكويت», defined in
+  // every build so it is always inlined as a literal: a normal build reads "0",
+  // the minifier folds every `=== "1"` on it away, and the stand-ins' entries
+  // in landmark-cards.g.ts never reach the browser — a bundle naming files the
+  // export does not ship is what audit:assets refused (landmark-gate.ts).
+  env: { NEXT_PUBLIC_SHOW_STANDINS: process.env.NEXT_PUBLIC_SHOW_STANDINS === "1" ? "1" : "0" },
 };
 
 export default nextConfig;

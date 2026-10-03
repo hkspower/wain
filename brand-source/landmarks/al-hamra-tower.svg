@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="600" height="400">
+<defs>
+<linearGradient id="ah-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c1836"/><stop offset="0.5" stop-color="#26437a"/><stop offset="0.82" stop-color="#7b6f95"/><stop offset="1" stop-color="#e3a07a"/></linearGradient>
+<linearGradient id="ah-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b4f7e"/><stop offset="1" stop-color="#0f1c38"/></linearGradient>
+<linearGradient id="ah-lit" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a99479"/><stop offset="1" stop-color="#ead8bd"/></linearGradient>
+<linearGradient id="ah-cut" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4f4860"/><stop offset="1" stop-color="#8d7d86"/></linearGradient>
+<radialGradient id="ah-crown" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffe2a8" stop-opacity="0.8"/><stop offset="1" stop-color="#ffe2a8" stop-opacity="0"/></radialGradient>
+<pattern id="ah-win" width="9" height="8" patternUnits="userSpaceOnUse"><rect x="2" y="2" width="3" height="2" fill="#ffd38a" fill-opacity="0.8"/></pattern>
+</defs>
+<rect x="0" y="0" width="600" height="306" fill="url(#ah-sky)"/>
+<circle cx="70" cy="40" r="1.3" fill="#ffffff" fill-opacity="0.75"/>
+<circle cx="170" cy="86" r="1" fill="#ffffff" fill-opacity="0.6"/>
+<circle cx="452" cy="30" r="1.2" fill="#ffffff" fill-opacity="0.75"/>
+<circle cx="548" cy="96" r="1" fill="#ffffff" fill-opacity="0.55"/>
+<rect x="18" y="238" width="44" height="66" fill="#1a2748"/>
+<rect x="62" y="254" width="38" height="50" fill="#22315a"/>
+<rect x="100" y="214" width="30" height="90" fill="#1a2748"/>
+<rect x="130" y="246" width="56" height="58" fill="#22315a"/>
+<rect x="186" y="228" width="34" height="76" fill="#1a2748"/>
+<rect x="220" y="260" width="40" height="44" fill="#22315a"/>
+<rect x="364" y="250" width="42" height="54" fill="#22315a"/>
+<rect x="406" y="222" width="32" height="82" fill="#1a2748"/>
+<rect x="438" y="244" width="58" height="60" fill="#22315a"/>
+<rect x="496" y="208" width="36" height="96" fill="#1a2748"/>
+<rect x="532" y="250" width="56" height="54" fill="#22315a"/>
+<rect x="18" y="238" width="44" height="66" fill="url(#ah-win)" fill-opacity="0.55"/>
+<rect x="100" y="214" width="30" height="90" fill="url(#ah-win)" fill-opacity="0.6"/>
+<rect x="186" y="228" width="34" height="76" fill="url(#ah-win)" fill-opacity="0.5"/>
+<rect x="406" y="222" width="32" height="82" fill="url(#ah-win)" fill-opacity="0.6"/>
+<rect x="496" y="208" width="36" height="96" fill="url(#ah-win)" fill-opacity="0.55"/>
+<circle cx="300" cy="44" r="46" fill="url(#ah-crown)"/>
+<path d="M274 304 L282 46 L307 38 Q299 170 318 304 Z" fill="url(#ah-lit)"/>
+<path d="M307 38 L323 45 Q329 166 352 304 L318 304 Q299 170 307 38 Z" fill="url(#ah-cut)"/>
+<path d="M281 74 L303 70 M280 104 L301 101 M279 134 L301 132 M278 164 L302 163 M277 194 L304 194 M276 224 L307 225 M276 254 L311 256 M275 284 L315 286" stroke="#ffffff" stroke-opacity="0.16" stroke-width="1.2"/>
+<path d="M309 70 Q312 160 330 290" fill="none" stroke="#ffd9a0" stroke-opacity="0.35" stroke-width="1.4"/>
+<path d="M282 46 L307 38 L323 45" fill="none" stroke="#fff1d6" stroke-opacity="0.7" stroke-width="1.5"/>
+<rect x="0" y="304" width="600" height="7" fill="#2a3456"/>
+<rect x="0" y="311" width="600" height="89" fill="url(#ah-sea)"/>
+<rect x="284" y="318" width="34" height="3" fill="#e9cfa8" fill-opacity="0.5"/>
+<rect x="288" y="330" width="28" height="2.5" fill="#e9cfa8" fill-opacity="0.38"/>
+<rect x="291" y="343" width="24" height="2" fill="#e9cfa8" fill-opacity="0.28"/>
+<rect x="294" y="357" width="20" height="2" fill="#e9cfa8" fill-opacity="0.2"/>
+<path d="M40 324 h16 M118 334 h12 M196 322 h14 M418 328 h14 M508 320 h16 M552 340 h10" stroke="#ffd38a" stroke-opacity="0.35" stroke-width="2"/>
+</svg>

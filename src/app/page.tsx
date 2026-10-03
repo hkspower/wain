@@ -1,10 +1,11 @@
 import Link from "next/link";
 import HomeHero from "@/components/HomeHero";
 import StartBar from "@/components/StartBar";
-import LandmarksShow from "@/components/LandmarksShow";
+import LandmarksShow from "@/components/LandmarksShowLazy";
 import PlaceCard from "@/components/PlaceCard";
 import { IconCar, IconCompass, IconGo, IconSearch, IconSparkle } from "@/components/icons";
-import { LANDMARKS } from "@/lib/landmarks.g";
+import { shown } from "@/lib/landmark-gate";
+import { LANDMARKS, SHOW } from "@/lib/landmarks.g";
 import { getFeaturedPlaces, getPlace } from "@/lib/places";
 
 export default function HomePage() {
@@ -15,15 +16,16 @@ export default function HomePage() {
   // Drawn stand-ins hold the slideshow's place until the approved pictures
   // exist (scripts/gen-landmarks.mjs), and they do not go live as the
   // «realistic» pictures the owner asked for: the section is left out of the
-  // page until every one is real. A preview build can show them with
-  // NEXT_PUBLIC_SHOW_STANDINS=1.
-  const showLandmarks =
-    LANDMARKS.every((l) => l.source === "ai") || process.env.NEXT_PUBLIC_SHOW_STANDINS === "1";
-  const landmarks = LANDMARKS.map((l) => {
-    const place = getPlace(l.slug);
-    if (!place) throw new Error(`landmarks.g.ts names ${l.slug}, which is not in places.ts`);
-    return { slug: l.slug, name: place.nameAr, area: place.areaAr, avif: l.avif, webp: l.webp, src: l.src };
+  // page until every one is real (landmark-gate.ts). A preview build shows
+  // them with NEXT_PUBLIC_SHOW_STANDINS=1.
+  const landmarks = SHOW.map((slug) => {
+    const l = LANDMARKS.find((x) => x.slug === slug);
+    const place = getPlace(slug);
+    if (!l || !place) throw new Error(`the slideshow names ${slug}, which landmarks.g.ts or places.ts does not have`);
+    const { avif, webp, src, width, height, focus, source } = l;
+    return { slug, name: place.nameAr, area: place.areaAr, avif, webp, src, width, height, focus, source };
   });
+  const showLandmarks = landmarks.every(shown);
 
   return (
     <>

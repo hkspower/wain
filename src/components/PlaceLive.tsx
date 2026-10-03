@@ -28,6 +28,7 @@ export default function PlaceLive({
   slug,
   initial,
   heroClass,
+  heroKind,
   art,
   credit,
   related,
@@ -36,6 +37,7 @@ export default function PlaceLive({
   slug: string;
   initial: Place;
   heroClass: string;
+  heroKind: "picture" | "drawing";
   art: ReactNode;
   credit: ReactNode;
   related: ReactNode;
@@ -52,6 +54,7 @@ export default function PlaceLive({
     <PlaceView
       place={place}
       heroClass={heroClass}
+      heroKind={heroKind}
       art={art}
       credit={credit}
       related={related}

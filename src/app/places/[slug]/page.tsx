@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import CategoryArt from "@/components/CategoryArt";
+import GeneratedPicture from "@/components/GeneratedPicture";
+import IllustrativeTag from "@/components/IllustrativeTag";
 import PlaceArt, { hasPlaceArt } from "@/components/PlaceArt";
 import PlacePhoto, { PhotoCredit } from "@/components/PlacePhoto";
 import PlaceCard from "@/components/PlaceCard";
@@ -13,6 +15,8 @@ import {
   places,
 } from "@/lib/places";
 import { photoOf } from "@/lib/photos";
+import { LANDMARKS, PLACE_SLOTS } from "@/lib/landmarks.g";
+import { shown } from "@/lib/landmark-gate";
 import { OG_BASE } from "@/lib/site-meta";
 import BackButton from "@/components/BackButton";
 
@@ -86,8 +90,32 @@ export default async function PlacePage({
    * sake of live text. Passed as props it costs nothing — React sends the
    * output, not the code.
    */
+  /*
+   * photograph → the landmark's generated picture → its drawing → its
+   * category's drawing. A real photograph always wins (photos.ts); the
+   * generated picture is one of the five «معالم الكويت» places', shown whole at
+   * 3:2 and tagged «صورة توضيحية», and only once it is real (landmark-gate.ts).
+   * Its alt says it too, in words: the tag is for eyes.
+   */
+  const generated = PLACE_SLOTS.includes(place.slug)
+    ? LANDMARKS.find((l) => l.slug === place.slug)
+    : undefined;
+  const picture = !photoOf(place.slug) && generated && shown(generated) ? generated : undefined;
+  const heroKind = photoOf(place.slug) || picture ? "picture" : "drawing";
+
   const art = photoOf(place.slug) ? (
     <PlacePhoto slug={place.slug} className="absolute inset-0 h-full w-full" />
+  ) : picture ? (
+    <>
+      <GeneratedPicture
+        {...picture}
+        alt={picture.source === "ai" ? `صورة توضيحية: ${picture.alt}` : picture.alt}
+        sizes="(min-width: 600px) 576px, 100vw"
+        priority
+        className="absolute inset-0 h-full w-full"
+      />
+      <IllustrativeTag className="end-2.5 bottom-2.5" />
+    </>
   ) : hasPlaceArt(place.slug) ? (
     <PlaceArt place={place} className="absolute inset-0 h-full w-full" />
   ) : (
@@ -118,6 +146,7 @@ export default async function PlacePage({
         slug={slug}
         initial={place}
         heroClass={placeGradient(place)}
+        heroKind={heroKind}
         art={art}
         /* Renders nothing unless the photograph's licence needs it named. */
         credit={<PhotoCredit slug={place.slug} />}

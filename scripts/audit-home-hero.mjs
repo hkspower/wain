@@ -67,15 +67,35 @@ try {
   console.error(`${e.stderr}`.trim() + "\n— run `npm run home-hero` and commit the result");
   process.exit(1);
 }
-// The slideshow under the hero has its own generated half. A drawn stand-in
-// left in it is a warning here and a refusal in deploy:plan — see
-// scripts/gen-landmarks.mjs.
+// The pictures of «معالم الكويت» have their own generated half. A drawn
+// stand-in left in any slot is a warning here, naming the slots it holds back,
+// and a refusal in deploy:plan — see scripts/gen-landmarks.mjs.
 try {
-  const out = execFileSync("node", [join(ROOT, "scripts/gen-landmarks.mjs"), "--check"], { cwd: ROOT, encoding: "utf8", stdio: "pipe" });
-  if (/stand-ins/.test(out)) console.log(`  ! landmarks: ${out.trim()} — they may not be deployed`);
+  execFileSync("node", [join(ROOT, "scripts/gen-landmarks.mjs"), "--check"], { cwd: ROOT, encoding: "utf8", stdio: "pipe" });
 } catch (e) {
   console.error(`${e.stderr}`.trim() + "\n— run `npm run landmarks` and commit the result");
   process.exit(1);
+}
+const landmarksTs = readFileSync(join(ROOT, "src/lib/landmarks.g.ts"), "utf8");
+const LANDMARKS = (landmarksTs.match(/\{[^{}]*\}/g) ?? [])
+  .map((e) => ({
+    slug: /slug: "([^"]+)"/.exec(e)?.[1],
+    src: /src: "([^"]+)"/.exec(e)?.[1],
+    focus: (/focus: \[([^\]]+)\]/.exec(e)?.[1] ?? "0.5, 0.5").split(",").map(Number),
+    source: /source: "([a-z-]+)"/.exec(e)?.[1],
+  }))
+  .filter((l) => l.slug && l.src);
+const list = (name) => [...(new RegExp(`${name}: readonly string\\[\\] = \\[([^\\]]*)\\]`).exec(landmarksTs)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+const SHOW = list("SHOW");
+const PLACE_SLOTS = list("PLACE_SLOTS");
+{
+  const drawn = new Set(LANDMARKS.filter((l) => l.source !== "ai").map((l) => l.slug));
+  const held = [
+    SHOW.some((s) => drawn.has(s)) && `the slideshow (${SHOW.filter((s) => drawn.has(s)).length} of ${SHOW.length} drawn)`,
+    PLACE_SLOTS.some((s) => drawn.has(s)) && `${PLACE_SLOTS.filter((s) => drawn.has(s)).length} card(s) and page top(s)`,
+  ].filter(Boolean);
+  if (held.length)
+    console.log(`  ! landmarks: ${drawn.size} drawn stand-in(s) hold back ${held.join(" and ")} — they wait for the real pictures and may not be deployed`);
 }
 if (!existsSync(join(OUT, "index.html"))) {
   console.error("out/ is missing — run npm run build first.");
@@ -228,8 +248,89 @@ for (const [width, height] of VIEWPORTS) {
 await browser.close();
 server.close();
 
+/*
+ * ── «معالم الكويت»: the words on the slideshow's pictures ──
+ *
+ * Direction A (the owner's pick, 3 October) writes the name and the area in
+ * white on the picture, over a fade. audit:color cannot see that background —
+ * it is an <img> — so this does what it would, for every slide, whether its
+ * picture is real or a stand-in, at the two shapes the box takes:
+ *
+ *   phone  6:5 (and the 640–1023 band, which keeps the phone's type)   2:1 from 640
+ *   desk   2:1 inside max-w-6xl, with the larger type
+ *
+ * The picture is cut as CSS cuts it (object-cover, object-position = focus),
+ * the fade is laid over it as LandmarksShow.tsx draws it — ink-900 at 90% at
+ * the foot, 80% at 45% of the caption's height, nothing at its top — and white
+ * text is measured against the brightest result under each line: 4.5:1 for the
+ * area, 3:1 for the name (20px bold and up is large text). The lines' heights
+ * are the classes' own numbers, written out below.
+ *
+ * It is not run through a browser because nothing about it depends on one: the
+ * picture, the fade and the type are all known here.
+ */
+{
+  const INK = [0x14, 0x12, 0x0f];
+  // The fade's stops are read out of the component, not retyped here: a fade
+  // made lighter there must fail here.
+  const stops = /from-ink-900\/(\d+) via-ink-900\/(\d+) via-(\d+)% to-ink-900\/(\d+)/.exec(
+    readFileSync(join(ROOT, "src/components/LandmarksShow.tsx"), "utf8"),
+  );
+  if (!stops) {
+    console.log("  ✗ could not read the caption's fade (from-ink-900/… via-ink-900/… via-…% to-ink-900/…) out of LandmarksShow.tsx");
+    process.exit(1);
+  }
+  const [foot, mid, at, top] = [stops[1] / 100, stops[2] / 100, stops[3] / 100, stops[4] / 100];
+  const fade = (t) => (t <= at ? foot + (mid - foot) * (t / at) : mid + (top - mid) * ((t - at) / (1 - at)));
+  // Caption boxes, in CSS px from the box's foot: [from, to] for each line.
+  const LAYOUTS = [
+    { name: "phone", ratio: 6 / 5, boxW: 390, caption: 128.5, area: [14, 35], title: [37, 64.5] },
+    { name: "tablet", ratio: 2, boxW: 768, caption: 128.5, area: [14, 35], title: [37, 64.5] },
+    { name: "desk", ratio: 2, boxW: 1120, caption: 199.75, area: [24, 48], title: [52, 87.75] },
+  ];
+  console.log("\n── «معالم الكويت»: white words on each picture, over the fade ──");
+  for (const slug of SHOW) {
+    const l = LANDMARKS.find((x) => x.slug === slug);
+    if (!l) { console.log(`  ✗ ${slug}: in SHOW but not in landmarks.g.ts`); problems++; continue; }
+    const file = join(ROOT, "public", l.src);
+    if (!existsSync(file)) { console.log(`  ✗ ${slug}: ${l.src} is missing`); problems++; continue; }
+    const { data, info: im } = await sharp(file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const results = [];
+    for (const L of LAYOUTS) {
+      const boxH = L.boxW / L.ratio;
+      // object-cover: scale the picture to cover the box; object-position: the
+      // focus point of the picture lands on the same fraction of the box.
+      const scale = Math.max(L.boxW / im.width, boxH / im.height);
+      const offX = (im.width * scale - L.boxW) * l.focus[0];
+      const offY = (im.height * scale - boxH) * l.focus[1];
+      const worstOf = ([from, to], startShare) => {
+        let worst = Infinity;
+        for (let y = boxH - to; y <= boxH - from; y += 1) {
+          const t = (boxH - y) / L.caption;
+          const a = fade(t);
+          // The words stand at the start of the row — the right in RTL.
+          for (let x = L.boxW * (1 - startShare); x < L.boxW; x += 2) {
+            const sx = Math.min(im.width - 1, Math.floor((x + offX) / scale));
+            const sy = Math.min(im.height - 1, Math.floor((y + offY) / scale));
+            const i = (sy * im.width + sx) * 3;
+            const under = [0, 1, 2].map((c) => a * INK[c] + (1 - a) * data[i + c]);
+            worst = Math.min(worst, contrast([255, 255, 255], under));
+          }
+        }
+        return worst;
+      };
+      const area = worstOf(L.area, 0.7);
+      const title = worstOf(L.title, 0.7);
+      const ok = area >= 4.5 && title >= 3;
+      if (!ok) problems++;
+      results.push(`${ok ? "" : "✗ "}${L.name} ${title.toFixed(1)}/${area.toFixed(1)}`);
+    }
+    console.log(`  ${results.some((r) => r.startsWith("✗")) ? "✗" : "✓"} ${slug.padEnd(20)} ${l.source === "ai" ? "picture " : "stand-in"}  name/area ${results.join(" · ")}`);
+  }
+}
+
 if (problems) {
-  console.log(`\n${problems} problem(s) — see the header of scripts/audit-home-hero.mjs and src/components/HomeHero.tsx\n`);
+  console.log(`\n${problems} problem(s) — see the header of scripts/audit-home-hero.mjs, src/components/HomeHero.tsx and LandmarksShow.tsx\n`);
   process.exit(1);
 }
 console.log(`\n0 errors — the picture is whole and the sun is where it says and the search link is under it, at ${VIEWPORTS.length} sizes.\n`);
