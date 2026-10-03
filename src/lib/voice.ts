@@ -3,7 +3,6 @@
 import { useSyncExternalStore } from "react";
 import { deadlineFetch } from "@/lib/net";
 import { audioContext } from "@/lib/audio-context";
-import { WAIN_AI_AGENT_ENABLED } from "@/lib/wain-ai";
 import {
   PERSONAS,
   forSpeech,
@@ -55,11 +54,15 @@ export { PERSONAS, type PersonaId };
  * page, because `bridgeOff` below stops it asking again. This is an upgrade to
  * a path that already worked, never a dependency.
  */
-// The bridge renders with ElevenLabs on our server, so it follows شوق's
-// switch (wain-ai.ts): a free build — the live site since 2 October — never
-// asks it for anything, and only a sandbox build with the agent defaults to it.
-const TTS_CONFIGURED =
-  process.env.NEXT_PUBLIC_WAIN_TTS_URL || (WAIN_AI_AGENT_ENABLED ? "/api/tts.php" : "none");
+// On in every build since 3 October, the free one included. From 2 October it
+// followed شوق's switch (wain-ai.ts) and a free build never asked it for
+// anything, because every answer was ONE render of a sentence that echoed the
+// visitor's own words — a new paid render per listen. Now each sentence is its
+// own request (see speakLive), and almost all of them are fixed text the server
+// cache pays for once and serves free for ever: the owner's «full voices, not
+// ElevenLabs credits all the time». Unconfigured on the server (no key), it
+// answers 503 once and the device voice speaks, exactly as before.
+const TTS_CONFIGURED = process.env.NEXT_PUBLIC_WAIN_TTS_URL || "/api/tts.php";
 const TTS_URL = TTS_CONFIGURED.trim().toLowerCase() === "none" ? "" : TTS_CONFIGURED;
 
 /**
@@ -622,20 +625,18 @@ async function speakFallback(parts: SpeechPart[], mine: number) {
 
 /** The object URL of the last live render, so it can be revoked. One at a
  *  time is all this ever holds: a new utterance stops the previous one. */
-let liveUrl: string | null = null;
+/** The object URLs of the last live answer, so they can be revoked. One
+ *  answer at a time is all this ever holds: a new utterance stops the last. */
+let liveUrls: string[] = [];
 function releaseLive() {
-  if (liveUrl) {
-    URL.revokeObjectURL(liveUrl);
-    liveUrl = null;
-  }
+  for (const u of liveUrls) URL.revokeObjectURL(u);
+  liveUrls = [];
 }
 
-/** Render one sentence through the bridge. Resolves false for every reason a
- *  caller would do the same thing about — unconfigured, offline, slow, non-2xx,
- *  or a body that is not audio — so the fallback has exactly one condition. */
-async function speakLive(text: string, mine: number): Promise<boolean> {
-  if (!TTS_URL || bridgeOff) return false;
-  releaseLive();
+/** One sentence through the bridge, or null for every reason a caller would
+ *  do the same thing about — unconfigured, offline, slow, non-2xx, or a body
+ *  that is not audio. */
+async function renderLive(text: string): Promise<Blob | null> {
   try {
     const res = await deadlineFetch(TTS_URL, {
       method: "POST",
@@ -651,28 +652,57 @@ async function speakLive(text: string, mine: number): Promise<boolean> {
       // See bridgeOff: these three cannot change while this page is open, so
       // asking again only delays every later sentence by a round trip.
       if (res.status === 404 || res.status === 503 || res.status === 403) bridgeOff = true;
-      return false;
+      return null;
     }
     const blob = await res.blob();
     // A zero-length or non-audio body plays as silence, and silence is
     // indistinguishable from a working call — the visitor just thinks she
     // ignored them. An error page returned with a 200 is the realistic way
     // that happens.
-    if (blob.size < 512 || !blob.type.startsWith("audio/")) return false;
-    // The visitor moved on while this was in flight.
-    if (mine !== generation) return false;
-    liveUrl = URL.createObjectURL(blob);
-    update({ speaking: true });
-    // One render of the whole answer, so there is no second clip for it to be
-    // level with. Full volume, which also undoes any trim the last recorded
-    // clip left on the shared element.
-    queue = [{ src: liveUrl, volume: 1 }];
-    ensureAudio();
-    playNext();
-    return true;
+    if (blob.size < 512 || !blob.type.startsWith("audio/")) return null;
+    return blob;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Speak an answer through the bridge, A SENTENCE PER REQUEST.
+ *
+ * It used to be one render of the whole answer, joined. That made every answer
+ * its own cache entry, and every answer opened with the visitor's own words
+ * echoed back — so nearly every listen was a new, paid render, which is the
+ * one thing a cache in front of a metered voice exists to prevent. A sentence
+ * per request turns the cache into a recorded library built on demand: «مقاهي
+ * المباركية، في مدينة الكويت…» is the same text for every visitor who gets it,
+ * so it is paid for once, and a cache hit is served before the rate limit and
+ * the daily budget are even counted.
+ *
+ * The echo (`optional`) is skipped, the same rule the recorded path applies:
+ * it is the one sentence nobody else will ever ask for, and it is on screen.
+ *
+ * All or nothing, like the recorded path: the sentences are fetched together,
+ * and if any one fails the whole answer goes to the device voice. Half an
+ * answer in her voice and half in the robot's is the speaker changing
+ * mid-sentence.
+ */
+async function speakLive(parts: SpeechPart[], mine: number): Promise<boolean> {
+  if (!TTS_URL || bridgeOff) return false;
+  const lines = parts.filter((p) => !p.optional).map((p) => p.text);
+  if (lines.length === 0) return false;
+  releaseLive();
+  const blobs = await Promise.all(lines.map(renderLive));
+  // The visitor moved on while these were in flight.
+  if (mine !== generation) return false;
+  if (blobs.some((b) => b === null)) return false;
+  liveUrls = (blobs as Blob[]).map((b) => URL.createObjectURL(b));
+  update({ speaking: true });
+  // Full volume, which also undoes any trim the last recorded clip left on the
+  // shared element; SENTENCE_GAP_MS between them, as between clips.
+  queue = liveUrls.map((src) => ({ src, volume: 1 }));
+  ensureAudio();
+  playNext();
+  return true;
 }
 
 export function speak(parts: SpeechPart[]) {
@@ -692,12 +722,10 @@ export function speak(parts: SpeechPart[]) {
       playNext();
       return;
     }
-    // No clip for this sentence — it was assembled at runtime. Her real voice
-    // if the bridge can produce it, the browser's if it cannot. The bridge
-    // gets the whole answer in one render, punctuation and all, so it paces
-    // itself; the browser gets it a sentence at a time.
-    const text = parts.map((p) => p.text).join(" ");
-    void speakLive(text, mine).then((spoke) => {
+    // No clip for some sentence of it. Her real voice if the bridge can
+    // produce every sentence, the device's if it cannot — a sentence at a time
+    // either way.
+    void speakLive(parts, mine).then((spoke) => {
       if (mine !== generation || spoke) return;
       void speakFallback(parts, mine);
     });

@@ -113,7 +113,9 @@ void main() {
       const SpeechPart(key: 'best-kuwait-towers', text: 'أحلى وقت: الغروب.'),
     ]);
     expect(player.clips, isEmpty);
-    expect(posted, ['/api/tts.php'], reason: 'fell through to the bridge');
+    // One request per sentence since 3 October.
+    expect(posted, ['/api/tts.php', '/api/tts.php'],
+        reason: 'fell through to the bridge');
   });
 
   test('optional parts are skipped on the clip path', () {
@@ -174,6 +176,53 @@ void main() {
     expect(player.bytes.single, audio);
     expect(tts.spoken, isEmpty);
   });
+
+  test(
+    'an answer goes a sentence per request, without the echo; one failure sends all of it to the device voice',
+    () async {
+      final player = FakePlayer(), tts = FakeTts();
+      final texts = <String>[];
+      var failSecond = false;
+      final v = make(
+        MockClient((r) async {
+          if (r.url.path.endsWith('manifest.json'))
+            return http.Response('{}', 200);
+          final text =
+              (jsonDecode(r.body) as Map<String, dynamic>)['text'] as String;
+          texts.add(text);
+          if (failSecond && text.contains('ثاني'))
+            return http.Response('nope', 500);
+          return http.Response.bytes(
+            audio,
+            200,
+            headers: {'content-type': 'audio/mpeg'},
+          );
+        }),
+        player,
+        tts,
+      );
+      const answer = [
+        SpeechPart(text: 'قهوة هادية؟', optional: true),
+        SpeechPart(text: 'جملة أولى.'),
+        SpeechPart(text: 'جملة ثانية.'),
+        SpeechPart(text: 'جملة ثالثة.'),
+      ];
+      await v.speak(answer);
+      expect(texts, hasLength(3), reason: 'one request per sentence');
+      expect(texts.any((t) => t.contains('قهوة')), isFalse,
+          reason: 'the echo of the question is never sent');
+      expect(player.bytes, hasLength(3));
+      expect(tts.spoken, isEmpty);
+
+      texts.clear();
+      player.bytes.clear();
+      failSecond = true;
+      await v.speak(answer);
+      expect(player.bytes, isEmpty, reason: 'never half in her voice');
+      expect(tts.spoken.single, hasLength(4),
+          reason: 'the device voice reads the whole answer, echo included');
+    },
+  );
 
   for (final status in [404, 503, 403]) {
     test(
@@ -334,10 +383,9 @@ void main() {
   );
 
   test('resolveTtsUrl: absolute by default (a native app has no origin), none switches off', () {
-    // The bridge renders with ElevenLabs, so it is the sandbox build's only:
-    // a free build (the live app since 2 October) never asks it.
-    expect(resolveTtsUrl(''), '');
-    expect(resolveTtsUrl('', true), 'https://www.wainkw.com/api/tts.php');
+    // On in every build since 3 October: a sentence per request means the
+    // server cache pays for each fixed sentence once.
+    expect(resolveTtsUrl(''), 'https://www.wainkw.com/api/tts.php');
     expect(resolveTtsUrl('none'), '');
     expect(resolveTtsUrl('https://s.example/tts'), 'https://s.example/tts');
   });

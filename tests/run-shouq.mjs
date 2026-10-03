@@ -155,16 +155,18 @@ console.log("\n════ شوق: the voice ════");
   // output verbatim, and in an IIFE bundle for a browser that is a
   // ReferenceError thrown before window.voice is ever assigned — so the suite
   // times out waiting for a harness that died on its first line, and the
-  // timeout says nothing about which key was missing. Empty string is the
-  // branch these two suites are for: the bridge unconfigured, the clips and the
-  // browser voice doing all the work. The bundle further down turns it on.
+  // timeout says nothing about which key was missing. «none» is the branch
+  // these two suites are for: the bridge off, the clips and the browser voice
+  // doing all the work. The bundle further down turns it on. It was the empty
+  // string until 3 October, when the bridge became the default in every build
+  // and an empty value started meaning «on» — `||` again.
   const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
-    // voice.ts follows شوق's switch since 2 October (wain-ai.ts), so it reads
-    // this key too — the rule in the comment above, met again.
+    // Defined though voice.ts no longer reads it (3 October): anything the
+    // harness pulls in through wain-ai.ts would — the rule above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
-    '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL=""',
+    '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="none"',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the voice harness"); process.exit(1); }
   writeFileSync(join(vtmp, "voice.html"),
@@ -211,8 +213,8 @@ console.log("\n════ شوق: the live bridge ════");
   const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
-    // voice.ts follows شوق's switch since 2 October (wain-ai.ts), so it reads
-    // this key too — the rule in the comment above, met again.
+    // The bundle still reads شوق's switch through wain-ai.ts imports, so it
+    // has to be defined — the rule in the comment above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="/tts"',
     `--outfile=${join(btmp, "voice.js")}`, "--log-level=error"]);

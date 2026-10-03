@@ -226,10 +226,11 @@ export default function PrivacyPage() {
             <strong className="text-ink-900">المكالمة ما تنسجّل ولا تنحفظ.</strong>{" "}
             سؤالك الصوتي يتحوّل لنص عن طريق{" "}
             <strong className="text-ink-900">التعرف على الصوت في جوالك أو متصفحك</strong>،
-            والبحث نفسه يصير داخل جهازك بين أماكن وين، والجواب ينقرا بالصوت
-            العربي اللي في جهازك. تحويل الصوت لنص يمرّ على خدمة الشركة المطوّرة
-            للمتصفح أو الجوال (قوقل في كروم وأندرويد، آبل في سفاري والآيفون)
-            حسب سياساتهم — وما نرسل إحنا شي عنك لأي مكان.
+            والبحث نفسه يصير داخل جهازك بين أماكن وين، والجواب ينقرا بصوت شوق
+            أو سالم (شوف «صوت وين» تحت) — وكلامك أنت ما ينرسل للنطق. تحويل
+            الصوت لنص يمرّ على خدمة الشركة المطوّرة للمتصفح أو الجوال (قوقل في
+            كروم وأندرويد، آبل في سفاري والآيفون) حسب سياساتهم — وما نرسل إحنا
+            شي عنك لأي مكان.
           </p>
           <p>
             ومحادثة سالم المكتوبة نفس الشي: اللي تكتبه يبقى في جهازك، ونبحث فيه
@@ -252,24 +253,24 @@ export default function PrivacyPage() {
             Storage) عشان يبقى محفوظ لك بالزيارة الجاية — ما ينرسل لأي خادم ولا
             يُستخدم للتتبّع.
           </p>
+          {/* Rewritten 3 October, when read-aloud went to the bridge a sentence
+              at a time in every build. It used to say «most clips are files
+              inside the site» — none have ever been generated — and to describe
+              the bridge as for «sentences built at runtime», when what it now
+              receives is the fixed sentences about places. The visitor's own
+              question is the one thing it never receives (voice.ts skips the
+              echo), and that is the sentence worth stating. */}
           <p>
-            أغلب المقاطع الصوتية ملفات جاهزة من ضمن الموقع نفسه، وهذي ما يطلع
-            معها ولا شي من جهازك.
+            الجواب اللي ينقرا جُمل ثابتة عن الأماكن — اسم المكان ووينه، وأحلى
+            وقت له، وتنبيه الحر — وكل جملة منها تنرسل{" "}
+            <strong className="text-ink-900">بنصّها بس</strong>، بدون اسمك ولا
+            أي شي يعرّفك، لخادم وين وبعدها لمزوّد خدمة الصوت عشان ترجع صوتاً.
+            الصوت ينحفظ عندنا، فنفس الجملة ما تنرسل مرة ثانية لأي أحد.{" "}
+            <strong className="text-ink-900">سؤالك أنت ما ينرسل للنطق أبداً.</strong>
           </p>
-          {/* This paragraph replaces «بالحالتين ما يطلع أي شي من جهازك», which
-              described the site as it was before /api/tts.php existed and was
-              never updated when the bridge landed. It happens to be true today
-              only because the key file is empty — the bridge answers 503 and
-              nothing is sent — and «true because the feature is switched off»
-              is not something a privacy page should be relying on without
-              saying so. */}
           <p>
-            الجُمل اللي تتكوّن وقت الاستخدام ما لها مقطع جاهز، فإذا كان النطق
-            مشغّل على الخادم تنرسل{" "}
-            <strong className="text-ink-900">الجملة نفسها بس</strong> — بدون
-            اسمك ولا أي شي يعرّفك — لخادم وين وبعدها لخدمة النطق عشان ترجع
-            صوتاً. الصوت ينحفظ عندنا عشان نفس الجملة ما تنرسل مرة ثانية. وإذا
-            كان مو مشغّل، يستخدم المتصفح صوته العربي الداخلي وما يطلع شي.
+            وإذا النطق مو مشغّل على الخادم أو تعطّل، ينقرا الجواب بصوت جهازك
+            العربي الداخلي وما يطلع شي.
           </p>
         </div>
       </section>

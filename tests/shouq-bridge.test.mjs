@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readFileSync, readdirSync } from 'node:fs';
 
 /**
  * The live bridge — شوق's third rendering path.
@@ -35,10 +36,14 @@ const calls = [];
 /** How the next bridge call is answered. Set per scenario. */
 let mode = 'ok';
 
-// A tiny but genuine MP3 frame header plus padding: the size guard in voice.ts
-// rejects anything under 512 bytes, and a body that fails the guard would pass
-// this test for the wrong reason.
-const MP3 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x64]), Buffer.alloc(2048)]);
+// A real, decodable clip from the fixtures. It used to be an MP3 frame header
+// and 2KB of zeros, which passed the size guard in voice.ts and was fine while
+// an answer was ONE render — but the element really decodes what it is given,
+// a body of zeros fires `error`, and `error` ends the queue: an answer of three
+// sentences played one and stopped. Real audio is what the bridge serves.
+const MP3 = readFileSync(new URL('./fixtures/voice/shouq/' +
+  readdirSync(new URL('./fixtures/voice/shouq/', import.meta.url)).find((f) => f.endsWith('.mp3')),
+  import.meta.url));
 
 await page.route('**/tts', async (route) => {
   const req = route.request();
@@ -50,6 +55,13 @@ await page.route('**/tts', async (route) => {
   if (mode === 'html') return route.fulfill({ status: 200, contentType: 'text/html', body: '<html>error page</html>' });
   if (mode === 'empty') return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: '' });
   if (mode === 'slow') { await new Promise((r) => setTimeout(r, 6000)); return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 }); }
+  // One sentence of an answer fails and the rest render: the half-and-half
+  // case, which must not play half of it in her voice.
+  if (mode === 'one-fails') {
+    const text = req.postDataJSON?.()?.text ?? '';
+    if (/ثاني/.test(text)) return route.fulfill({ status: 500, contentType: 'text/plain', body: 'nope' });
+    return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 });
+  }
   return route.abort();
 });
 
@@ -91,6 +103,45 @@ console.log('\n── a runtime sentence goes to the bridge, in her voice ──
   ok('and the sentence', /مقهى/.test(calls[0]?.body?.text ?? ''), JSON.stringify(calls[0]?.body));
   ok('her voice played', playedLive(s.played), JSON.stringify(s.played));
   ok('and the robot did not', s.spoken.length === 0, JSON.stringify(s.spoken));
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n── an answer goes a sentence per request, without the echo ──');
+/**
+ * 3 October. The bridge used to get the whole answer as one render, and every
+ * answer began with the visitor's own words echoed back — so the server cache
+ * almost never hit and nearly every listen was a new, paid render. A sentence
+ * per request makes each fixed sentence one cache entry, paid for once.
+ */
+const sayAnswer = (ms = 900) => page.evaluate(async (wait) => {
+  window.resetSpy();
+  window.voice.speak([
+    { text: 'قهوة هادية؟', optional: true },
+    { text: 'جملة أولى ما لها تسجيل.' },
+    { text: 'جملة ثانية ما لها تسجيل.' },
+    { text: 'جملة ثالثة ما لها تسجيل.' },
+  ]);
+  await new Promise((r) => setTimeout(r, wait));
+  return { played: window.spy.played, spoken: window.spy.spoken };
+}, ms);
+{
+  mode = 'ok';
+  calls.length = 0;
+  const s = await sayAnswer(1500);
+  ok('one request per sentence', calls.length === 3, `${calls.length} calls`);
+  ok('each request is one sentence, not the joined answer',
+    calls.every((c) => (c.body?.text ?? '').split('جملة').length === 2), JSON.stringify(calls.map((c) => c.body?.text)));
+  ok('the echo of the question is never sent',
+    calls.every((c) => !/قهوة هادية/.test(c.body?.text ?? '')), JSON.stringify(calls.map((c) => c.body?.text)));
+  ok('all three played in her voice', s.played.filter((u) => BLOB.test(String(u))).length === 3, JSON.stringify(s.played));
+  ok('and the robot said nothing', s.spoken.length === 0, JSON.stringify(s.spoken));
+}
+{
+  mode = 'one-fails';
+  calls.length = 0;
+  const s = await sayAnswer(1500);
+  ok('one sentence failing: none of the answer plays in her voice', !playedLive(s.played), JSON.stringify(s.played));
+  ok('the device voice reads the whole answer instead', s.spoken.length >= 3, JSON.stringify(s.spoken));
 }
 
 // ---------------------------------------------------------------------------
