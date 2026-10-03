@@ -2562,6 +2562,35 @@ export class GameEngine {
         side: THREE.DoubleSide,
         fog: false,
       });
+      // Lit air, not a lampshade — the same fault and the same cure as the
+      // street lamps' shafts (world.ts lampShaftMaterial). An additive,
+      // double-sided cone sums its near and far walls at full strength
+      // inside its silhouette and stops dead at it, so from anywhere but
+      // behind the car (where updateBeamVisibility hides it) it drew as a
+      // hard-edged sheet: the ik traffic still, staged in lane with the
+      // camera ahead of the player, had the player's own beam as a brown
+      // plane across two thirds of the frame. |N.V|^2 fades each wall
+      // toward the silhouette, where a ray's path through lit haze goes to
+      // nothing, and a near fade (1.5 to 6 m) takes out the wall a camera
+      // is standing in. The opacity API is untouched, so the flash, the
+      // high beam and the view fade keep driving it as before.
+      beamMat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+          .replace("#include <common>", "#include <common>\nvarying vec3 vGrnBeamW;\nvarying vec3 vGrnBeamN;")
+          .replace(
+            "#include <project_vertex>",
+            "#include <project_vertex>\nvGrnBeamW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvGrnBeamN = normalize(mat3(modelMatrix) * normal);"
+          );
+        sh.fragmentShader = sh.fragmentShader
+          .replace("#include <common>", "#include <common>\nvarying vec3 vGrnBeamW;\nvarying vec3 vGrnBeamN;")
+          .replace(
+            "#include <opaque_fragment>",
+            "vec3 grnV = cameraPosition - vGrnBeamW; float grnD = max(length(grnV), 1e-4);\n" +
+              "float grnF = abs(dot(normalize(vGrnBeamN), grnV / grnD));\n" +
+              "diffuseColor.a *= grnF * grnF * smoothstep(1.5, 6.0, grnD);\n#include <opaque_fragment>"
+          );
+      };
+      beamMat.customProgramCacheKey = () => "grn-beam-soft";
       this.beamMat = beamMat;
       this.beamBaseOpacity = beamMat.opacity;
       this.beamBaseOpacityNight = beamMat.opacity;
