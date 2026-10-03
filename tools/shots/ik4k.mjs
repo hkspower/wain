@@ -17,6 +17,9 @@
 // written next to it in README.md, read off the engine at the moment of
 // the exposure — a still that only looks right is worth nothing here.
 //
+// Every car is staged in a lane (LANES, ±1.75), not on a lane line, and
+// every camera is checked to be standing on the road: see inLanes.
+//
 // Rendered through the game's own 4K pin (setResolution(2160)) and the
 // ultra tier, which is what a 4K panel gets: 4096/16384 shadow maps,
 // the 512 live paint probe, 4x MSAA. Headless SwiftShader takes a while
@@ -139,8 +142,35 @@ const shoot = async (name, stageSrc) => {
       });
     };
     const fronts = (mesh) => mesh.userData.wheels.slice(0, 2).map((w) => +w.rotation.y.toFixed(3));
-    const stage = new Function("e", "THREE", "V", "axes", "tilt", "hubs", "fronts", `return (async () => { ${src} })();`);
-    const s = await stage(e, THREE, V, axes, tilt, hubs, fronts);
+    // Stage in the lanes, never on a lane line. Every still used to pin
+    // its car to lat 0 or 3.4 — the -3.5 / 0 / +3.5 lines — so a dash ran
+    // under the middle of the car in lock, brake and drift, which a road
+    // engineer reads as a misaligned marking. The lane centres are LANES,
+    // ±1.75 and ±5.25. `run(k)` stages with its lane lats multiplied by
+    // k = ±1 and returns { cam, look, fov, note, s }; the cameras stand
+    // 3.2-5.5 m to one side of their subject, so from ±1.75 they stay on
+    // the tarmac only if the sign is the right one. If the camera lands
+    // within 0.8 m of the edge (or past it, behind the rail), the lane
+    // pair is mirrored and the staging run again. camLat goes in the note.
+    const inLanes = async (run) => {
+      const camLatAt = (cam, s) => {
+        const p = e.track.pointAt(s, new V());
+        const side = e.track.sideAt(s, new V());
+        return (cam[0] - p.x) * side.x + (cam[2] - p.z) * side.z;
+      };
+      let k = 1;
+      let r = await run(k);
+      let camLat = camLatAt(r.cam, r.s);
+      if (Math.abs(camLat) > e.track.halfWidthAt(r.s) - 0.8) {
+        k = -1;
+        r = await run(k);
+        camLat = camLatAt(r.cam, r.s);
+      }
+      return { cam: r.cam, look: r.look, fov: r.fov,
+        note: { ...r.note, camLat: +camLat.toFixed(2), roadHalfWidth: +e.track.halfWidthAt(r.s).toFixed(2), lanes: k > 0 ? "as staged" : "mirrored" } };
+    };
+    const stage = new Function("e", "THREE", "V", "axes", "tilt", "hubs", "fronts", "inLanes", `return (async () => { ${src} })();`);
+    const s = await stage(e, THREE, V, axes, tilt, hubs, fronts, inLanes);
     const cam = e.camera;
     cam.position.set(...s.cam);
     cam.lookAt(...s.look);
@@ -190,9 +220,11 @@ const results = {};
 
 // 1. Full lock, nearly stopped: the two fronts at their Ackermann angles.
 results.lock = await shoot("lock", `
-  e.player.s = 2400; e.player.lat = 0; e.player.speed = 4;
+  return inLanes(async (k) => {
+  const lat = 1.75 * k; // LANES[2], or LANES[1] mirrored
+  e.player.s = 2400; e.player.lat = lat; e.player.speed = 4;
   e.heading = 0; e.driftYaw = 0;
-  for (let i = 0; i < 80; i++) { e.setTouchInput({ steer: 1, throttle: 0.15, brake: 0 }); e.update(1/60); e.player.speed = 4; e.player.lat = 0; }
+  for (let i = 0; i < 80; i++) { e.setTouchInput({ steer: 1, throttle: 0.15, brake: 0 }); e.update(1/60); e.player.speed = 4; e.player.lat = lat; }
   const a = axes(e.carBody);
   // From ahead, on the side the wheels point to, low. The wheel group's
   // own z axis spins with the tyre, so the direction the tread points is
@@ -201,7 +233,8 @@ results.lock = await shoot("lock", `
   const wf = a.fwd.clone().applyAxisAngle(a.up, steerY).setY(0).normalize();
   const cam = a.pos.clone().add(wf.clone().multiplyScalar(6.5)).add(a.fwd.clone().multiplyScalar(1.5));
   cam.y = a.pos.y + 0.75;
-  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.55, a.pos.z], fov: 30, note: { scene: "full lock at 15 km/h, front quarter" } };
+  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.55, a.pos.z], fov: 30, s: e.player.s, note: { scene: "full lock at 15 km/h, front quarter", lat } };
+  });
 `);
 
 // 2. The sweep: shell rolled, hubs on the road, a rival leaning beside.
@@ -210,13 +243,17 @@ results.sweep = await shoot("sweep", `
   const r = e.rival;
   const away = e.track.wrap(3060 + e.track.length / 2);
   for (const t of e.traffic) t.s = away;
+  // Two lanes side by side, 3.5 m apart, which is what the rival's 3.4
+  // was meant to be — the player was on the lat-0 line and the rival
+  // 0.1 m off the +3.5 one.
+  return inLanes(async (k) => {
   e.roll = 0; e.rollVel = 0; e.pitch = 0; e.pitchVel = 0; e.heading = 0; e.driftYaw = 0; e.prevBeta = 0;
   // 33 m/s is what the cruise AI itself wants with the player this
   // close, so holding it there measures a rival driving, not one being
   // governed down (which would raise its brake and its airbrake).
-  r.state = "cruise"; r.lat = 3.4; r.targetLat = 3.4;
+  r.state = "cruise"; r.lat = 1.75 * k; r.targetLat = 1.75 * k;
   for (let i = 0; i < 90; i++) {
-    e.player.s = 3040 + i * 0.55; e.player.lat = 0; e.player.speed = 33; e.prevSpeed = 33;
+    e.player.s = 3040 + i * 0.55; e.player.lat = -1.75 * k; e.player.speed = 33; e.prevSpeed = 33;
     r.s = e.player.s + 0.8; r.speed = 33; r.sp = 100;
     e.setTouchInput({ steer: 0, throttle: 0, brake: 0 }); e.update(1/60);
   }
@@ -231,42 +268,49 @@ results.sweep = await shoot("sweep", `
   const cam = mid.clone().add(a.fwd.clone().multiplyScalar(7)).add(outside.multiplyScalar(-5.5));
   cam.y = a.pos.y + 1.1;
   const rt = tilt(r.mesh);
-  return { cam: cam.toArray(), look: [mid.x, a.pos.y + 0.55, mid.z], fov: 46,
-    note: { scene: "Ras Al-Ard at 120 km/h, wheel straight", rival: r.def.carId, rivalRoll: +(rt.roll*180/Math.PI).toFixed(2), rivalHubs: hubs(r.mesh), rivalFronts: fronts(r.mesh), rivalWing: r.mesh.userData.wing ? +r.mesh.userData.wing.rotation.x.toFixed(3) : null } };
+  return { cam: cam.toArray(), look: [mid.x, a.pos.y + 0.55, mid.z], fov: 46, s: e.player.s,
+    note: { scene: "Ras Al-Ard at 120 km/h, wheel straight", lat: e.player.lat, rivalLat: r.lat, rival: r.def.carId, rivalRoll: +(rt.roll*180/Math.PI).toFixed(2), rivalHubs: hubs(r.mesh), rivalFronts: fronts(r.mesh), rivalWing: r.mesh.userData.wing ? +r.mesh.userData.wing.rotation.x.toFixed(3) : null } };
+  });
 `);
 
 // 3. A 200 km/h stop: nose down, airbrake up, lamps lit.
 results.brake = await shoot("brake", `
   const r = e.rival; if (r) { r.s = e.track.wrap(e.player.s + e.track.length / 2); }
-  e.player.s = 2400; e.player.lat = 0; e.heading = 0; e.driftYaw = 0;
+  return inLanes(async (k) => {
+  const lat = 1.75 * k;
+  e.player.s = 2400; e.player.lat = lat; e.heading = 0; e.driftYaw = 0;
   e.roll = 0; e.rollVel = 0; e.pitch = 0; e.pitchVel = 0;
   e.player.speed = 200 / 3.6; e.prevSpeed = e.player.speed;
-  for (let i = 0; i < 6; i++) { e.setTouchInput({ steer: 0, throttle: 0, brake: 0 }); e.update(1/60); e.player.speed = 200/3.6; e.player.lat = 0; }
-  for (let i = 0; i < 22; i++) { e.setTouchInput({ steer: 0, throttle: 0, brake: 1 }); e.update(1/60); e.player.lat = 0; }
+  for (let i = 0; i < 6; i++) { e.setTouchInput({ steer: 0, throttle: 0, brake: 0 }); e.update(1/60); e.player.speed = 200/3.6; e.player.lat = lat; }
+  for (let i = 0; i < 22; i++) { e.setTouchInput({ steer: 0, throttle: 0, brake: 1 }); e.update(1/60); e.player.lat = lat; }
   const a = axes(e.carBody);
   const cam = a.pos.clone().add(a.fwd.clone().multiplyScalar(-7.5)).add(a.side.clone().multiplyScalar(3.2));
   cam.y = a.pos.y + 1.35;
-  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.7, a.pos.z], fov: 34, note: { scene: "braking from 200 km/h, rear quarter" } };
+  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.7, a.pos.z], fov: 34, s: e.player.s, note: { scene: "braking from 200 km/h, rear quarter", lat } };
+  });
 `);
 
 // 4. Sideways: the yaw on the shell, the hubs still on the road.
 results.drift = await shoot("drift", `
-  e.player.s = 2400; e.player.lat = 0; e.player.speed = 240 / 3.6;
-  e.heading = 0; e.steerSmooth = 0; e.slipVel = 0;
+  return inLanes(async (k) => {
+  const lat = 1.75 * k;
+  e.player.s = 2400; e.player.lat = lat; e.player.speed = 240 / 3.6;
+  e.heading = 0; e.steerSmooth = 0; e.slipVel = 0; e.driftYaw = 0;
   Object.assign(e.ds, window.__grnDriftModel.newDriftState());
   e.touch.drift = true;
   let frames = 0;
   while (frames < 360 && Math.abs(e.driftYaw) < 0.55) {
     e.player.speed = Math.max(20, e.player.speed);
     e.setTouchInput({ steer: 1, throttle: 1, brake: 0 });
-    e.update(1/60); e.player.lat = 0; frames++;
+    e.update(1/60); e.player.lat = lat; frames++;
   }
   e.touch.drift = false;
   const a = axes(e.carBody);
   // Behind and to the outside of the slide, chase height.
   const cam = a.pos.clone().add(a.fwd.clone().multiplyScalar(-6.5)).add(a.side.clone().multiplyScalar(-Math.sign(e.driftYaw) * 4));
   cam.y = a.pos.y + 1.6;
-  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.5, a.pos.z], fov: 34, note: { scene: "drift, " + frames + " frames in" } };
+  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.5, a.pos.z], fov: 34, s: e.player.s, note: { scene: "drift, " + frames + " frames in", lat } };
+  });
 `);
 
 // 5. A civilian through the same bend, taking a set.
@@ -277,10 +321,11 @@ results.traffic = await shoot("traffic", `
   const away = e.track.wrap(3060 + e.track.length / 2);
   for (const o of e.traffic) if (o !== t) o.s = away;
   if (e.rival) e.rival.s = away;
-  t.lat = 0;
+  return inLanes(async (k) => {
+  t.lat = -1.75 * k;
   for (let i = 0; i < 90; i++) {
     t.s = 3040 + i * 0.55; t.speed = 33;
-    e.player.s = t.s - 9; e.player.lat = 3.4; e.player.speed = 33; e.prevSpeed = 33;
+    e.player.s = t.s - 9; e.player.lat = 1.75 * k; e.player.speed = 33; e.prevSpeed = 33;
     e.update(1/60);
   }
   const a = axes(t.mesh);
@@ -288,8 +333,9 @@ results.traffic = await shoot("traffic", `
   const cam = a.pos.clone().add(a.fwd.clone().multiplyScalar(7)).add(outside.multiplyScalar(-4.5));
   cam.y = a.pos.y + 0.6;
   const tt = tilt(t.mesh);
-  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.55, a.pos.z], fov: 32,
-    note: { scene: "a civilian through Ras Al-Ard at 120 km/h", trafficRoll: +(tt.roll*180/Math.PI).toFixed(2), trafficHubs: hubs(t.mesh), trafficFronts: fronts(t.mesh) } };
+  return { cam: cam.toArray(), look: [a.pos.x, a.pos.y + 0.55, a.pos.z], fov: 32, s: t.s,
+    note: { scene: "a civilian through Ras Al-Ard at 120 km/h", trafficLat: t.lat, lat: e.player.lat, trafficRoll: +(tt.roll*180/Math.PI).toFixed(2), trafficHubs: hubs(t.mesh), trafficFronts: fronts(t.mesh) } };
+  });
 `);
 
 // 6. The driver at lock, through the glass, in the afternoon sun.
@@ -302,10 +348,12 @@ results.traffic = await shoot("traffic", `
 // afternoon (or morning) hours whose sun faces it.
 results.driver = await shoot("driver", `
   e.timeReal = false; e.timeCycling = false;
+  return inLanes(async (k) => {
+  const lat = 1.75 * k;
   const stageAt = (H) => {
     e.timeHours = H; e.world.setTimeOfDay(H); e.applyDaylight();
-    e.player.s = 2400; e.player.lat = 0; e.player.speed = 6; e.heading = 0; e.driftYaw = 0;
-    for (let i = 0; i < 50; i++) { e.setTouchInput({ steer: 0.85, throttle: 0.1, brake: 0 }); e.update(1/60); e.player.speed = 6; e.player.lat = 0; }
+    e.player.s = 2400; e.player.lat = lat; e.player.speed = 6; e.heading = 0; e.driftYaw = 0;
+    for (let i = 0; i < 50; i++) { e.setTouchInput({ steer: 0.85, throttle: 0.1, brake: 0 }); e.update(1/60); e.player.speed = 6; e.player.lat = lat; }
   };
   let hour = null, facing = 0, a = null, flank = null;
   for (const H of [15.5, 15, 16, 9, 14, 12.5]) {
@@ -329,9 +377,10 @@ results.driver = await shoot("driver", `
   // roofline showed nothing but the cabin floor.
   const cam = p.clone().add(flank.clone().multiplyScalar(3.6)).add(a.fwd.clone().multiplyScalar(0.3)); cam.y = p.y + 0.62;
   const look = p.clone().add(a.fwd.clone().multiplyScalar(0.05)); look.y = p.y + 0.58;
-  return { cam: cam.toArray(), look: look.toArray(), fov: 30, note: {
-    scene: "driver at 85% lock, through the side glass, " + hour + " h",
+  return { cam: cam.toArray(), look: look.toArray(), fov: 30, s: e.player.s, note: {
+    scene: "driver at 85% lock, through the side glass, " + hour + " h", lat,
     handWheel: +rig.wheel.rotation.z.toFixed(2), hour, sunOnFlank: +facing.toFixed(2) } };
+  });
 `);
 
 await browser.close();
@@ -356,6 +405,7 @@ const fmt = (s) => {
   if (s.trafficRoll !== undefined) parts.push(`civilian roll ${s.trafficRoll}°, hubs ${s.trafficHubs.map((h) => (h * 1000).toFixed(1)).join("/")} mm, fronts ${s.trafficFronts.join(" / ")}`);
   if (s.handWheel !== undefined) parts.push(`hand wheel ${s.handWheel} rad`);
   if (s.sunOnFlank !== undefined) parts.push(`sun on the driver's flank ${s.sunOnFlank} (cos)`);
+  if (s.camLat !== undefined) parts.push(`car in the lane at lat ${s.lat ?? s.trafficLat}, camera at lat ${s.camLat} of ±${s.roadHalfWidth}${s.lanes === "mirrored" ? " (lanes mirrored)" : ""}`);
   parts.push(`${s.speedKmh} km/h, ${s.latAccel} m/s² lateral, buffer ${s.buffer.join("x")}`);
   return parts.join("; ");
 };

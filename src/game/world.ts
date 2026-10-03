@@ -8,9 +8,7 @@ import {
   COAST_END_M,
   DRIFT_PLAZA,
   STATIONS,
-  FORECOURT,
   PAINT_SHOPS,
-  PAINT_BAY,
   LAP,
   spanU,
   TUNNEL_BOX,
@@ -33,6 +31,16 @@ import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
 import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
+import { buildRibbon, latAt, type LatOffset } from "./ribbon";
+import {
+  ASPHALT,
+  MARKINGS,
+  buildRoadMarkings,
+  junctions,
+  legendLayout,
+  onForecourt,
+  signalHeadS,
+} from "./markings";
 
 /**
  * A date palm crown, procedurally — the head the game draws until the
@@ -372,80 +380,13 @@ export function areaAt(track: Track, s: number) {
   return AREAS[AREAS.length - 1];
 }
 
-/** Lateral offset: a constant, or a function of s for widths that follow
- *  the drivable road (the Sharq plaza swell). */
-export type LatOffset = number | ((s: number) => number);
-const latAt = (o: LatOffset, s: number) => (typeof o === "number" ? o : o(s));
-
-/** Flat ribbon following the track between lateral offsets a..b at height y,
- *  optionally only over the lap fraction u0..u1. */
-export function buildRibbon(
-  track: Track,
-  a: LatOffset,
-  b: LatOffset,
-  y: number,
-  step = 8,
-  u0 = 0,
-  u1 = 1
-): THREE.BufferGeometry {
-  const span = (u1 - u0) * track.length;
-  const n = Math.ceil(span / step);
-  const positions = new Float32Array((n + 1) * 2 * 3);
-  const uvs = new Float32Array((n + 1) * 2 * 2);
-  const indices: number[] = [];
-  const p = new THREE.Vector3();
-  const side = new THREE.Vector3();
-
-  for (let i = 0; i <= n; i++) {
-    const s = u0 * track.length + (i / n) * span;
-    track.pointAt(s, p);
-    track.sideAt(s, side);
-    const av = latAt(a, s);
-    const bv = latAt(b, s);
-    const o = i * 6;
-    positions[o] = p.x + side.x * av;
-    positions[o + 1] = y;
-    positions[o + 2] = p.z + side.z * av;
-    positions[o + 3] = p.x + side.x * bv;
-    positions[o + 4] = y;
-    positions[o + 5] = p.z + side.z * bv;
-    const ou = i * 4;
-    uvs[ou] = 0;
-    uvs[ou + 1] = s / 14; // one texture tile per ~14 m of road
-    uvs[ou + 2] = 1;
-    uvs[ou + 3] = s / 14;
-    if (i < n) {
-      const v = i * 2;
-      // Wound to face UP, decided per quad from which offset is on the
-      // left. `side` is tangent x UP, so (lateral, along) is a
-      // left-handed pair and the natural index order faces the GROUND —
-      // and a ground quad facing down is back-face culled, which is the
-      // trap the cross streets fell into and documented below.
-      //
-      // Both edge lines fell into it too, and stayed there. The call site
-      // tried to correct the winding with an `edge < 0 ? 0.35 : 0.15`
-      // ternary, but negating both offsets for the far side already
-      // reverses their order, so the swap cancelled itself: b - a came
-      // out -0.20 on BOTH edges. Measured on the live curve, every vertex
-      // normal on both ribbons read -1.000 — the game's two lane edge
-      // lines had never been drawn at all. Neither had the corniche
-      // walkway, the beach, or the seaward half of the plaza kerb.
-      //
-      // Deciding it here rather than at each call site is the point: a
-      // caller cannot get this wrong if it is not the caller's to get
-      // wrong, and the ribbon knows which way round its own offsets are.
-      if (bv > av) indices.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
-      else indices.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
-    }
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
+// buildRibbon, LatOffset and latAt live in ribbon.ts now, so the marking
+// builder (markings.ts) can lay paint with the same function the road is
+// laid with, and a node test can call both. Re-exported here because
+// tests/markings.mjs and anything else that learned to find them in this
+// file keep finding them.
+export { buildRibbon };
+export type { LatOffset };
 
 /** Vertical band (guardrail/tunnel wall) following the track at lateral offset. */
 function buildWall(
@@ -586,8 +527,14 @@ const W_BEAM: ReadonlyArray<[number, number]> = [
  *  thousands of canvas paths — same look, ~100 ms instead of ~30 s.
  *  Returns the colour map and a matching normal map generated from the
  *  identical height field, so lighting lines up with the aggregate.
- *  Tiles every ~14 m of road. */
-function asphaltSurface(): {
+ *  Tiles every 14 m of road, along and across (ASPHALT.tileM).
+ *
+ *  Exported for tests/asphalt.mjs, which runs it against a stub canvas
+ *  to prove it takes the same numbers from the world's stream, in the
+ *  same order, as it always has: it is called partway through
+ *  buildWorld, so one draw more or less here would move every building,
+ *  billboard and lamp placed after it. */
+export function asphaltSurface(): {
   map: THREE.CanvasTexture;
   normalMap: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
@@ -664,9 +611,13 @@ function asphaltSurface(): {
   ctx.putImageData(img, 0, 0);
 
   // --- structural detail (few ops, drawn over the grain) ---------------
-  // Tyre-polished wear bands where the wheels track in each lane
-  for (const u of [0.125, 0.375, 0.625, 0.875]) {
-    for (const off of [-0.045, 0.045]) {
+  // Tyre-polished wear bands where the wheels track in each lane: the
+  // lane centre ± 0.78 m, a 1.55-1.6 m vehicle track and the same offset
+  // as the brake-rubber streaks on every bend approach. They were ± 0.045
+  // of the tile, 0.63 m: a 1.26 m track, narrower than any car's.
+  const wheelPathU = ASPHALT.wheelPathM / ASPHALT.tileM;
+  for (const u of ASPHALT.oilU) {
+    for (const off of [-wheelPathU, wheelPathU]) {
       const x = (u + off) * S;
       const g = ctx.createLinearGradient(x - 24, 0, x + 24, 0);
       g.addColorStop(0, "rgba(10,11,14,0)");
@@ -693,12 +644,42 @@ function asphaltSurface(): {
     ctx.fill();
   }
 
+  /*
+   * Crack sealant, and why it has a mask of its own.
+   *
+   * Every crack and seam is a dark stroke, and the roughness map below
+   * reads dark as tyre-polished: smooth. So the sealant came out at about
+   * 0.50 roughness against 0.92 for the open asphalt — the glossiest
+   * thing on the road — and at night each stroke mirrored the IBL's lamp
+   * ring. Measured on the 4K brake still, one seam read 61-92 luma
+   * against the asphalt around it, +31: a pale transverse line across all
+   * four lanes, every 4.7 m, which is a painted marking or a concrete
+   * slab joint, and asphalt has neither. Real crack sealant is black and
+   * dull. Each stroke is now a Path2D, stroked into the colour map as
+   * before and into this mask at the same width, and the roughness pass
+   * holds anything under the mask at ASPHALT.sealantRoughness or above.
+   *
+   * The world's stream: the strokes take exactly the rand() calls they
+   * always took, in the same order (tests/asphalt.mjs replays the old
+   * code against this one). This function runs partway through
+   * buildWorld, so a draw added or dropped here would move the city.
+   */
+  const mc = document.createElement("canvas");
+  mc.width = mc.height = S;
+  const mctx = mc.getContext("2d")!;
+  mctx.strokeStyle = "#fff";
+  const seal = (path: Path2D, width: number) => {
+    ctx.stroke(path);
+    mctx.lineWidth = width;
+    mctx.stroke(path);
+  };
+
   // Crack networks with branches
   const crack = (x: number, y: number, len: number, angle: number, depth: number) => {
     ctx.strokeStyle = `rgba(${8 + depth * 5},${9 + depth * 5},${11 + depth * 5},${0.8 - depth * 0.2})`;
     ctx.lineWidth = Math.max(0.7, 2.6 - depth * 0.8);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
+    const path = new Path2D();
+    path.moveTo(x, y);
     let cx = x;
     let cy = y;
     let a = angle;
@@ -707,9 +688,9 @@ function asphaltSurface(): {
       a += (rand() - 0.5) * 0.6;
       cx += Math.cos(a) * (len / steps);
       cy += Math.sin(a) * (len / steps);
-      ctx.lineTo(cx, cy);
+      path.lineTo(cx, cy);
     }
-    ctx.stroke();
+    seal(path, ctx.lineWidth);
     if (depth < 2 && rand() < 0.8) {
       crack(cx, cy, len * 0.55, a + (rand() < 0.5 ? 0.9 : -0.9), depth + 1);
     }
@@ -718,20 +699,31 @@ function asphaltSurface(): {
     crack(rand() * S, rand() * S, 110 + rand() * 240, rand() * 6.28, 0);
   }
 
-  // Sealed tar seams
+  // Sealed tar seams. Three per tile, all of them full width, were a
+  // jointed-slab rhythm: a transverse line across every lane every 4.7 m.
+  // One full-width joint per 14 m tile stays — a paving run's day joint
+  // — and the other two are patch edges across a single lane, the lane
+  // taken from the seam's own y so the stream is not asked for anything
+  // new. Both draws per seam are still taken, in the old order.
   for (let i = 0; i < 3; i++) {
     ctx.strokeStyle = "rgba(6,6,8,0.8)";
-    ctx.lineWidth = 4 + rand() * 4;
-    ctx.beginPath();
+    const width = 4 + rand() * 4;
+    ctx.lineWidth = width;
     const y0 = rand() * S;
-    ctx.moveTo(0, y0);
-    for (let x = 0; x <= S; x += 48) ctx.lineTo(x, y0 + Math.sin(x * 0.02) * 6);
-    ctx.stroke();
+    const x0 = i === 0 ? 0 : 0.25 * (Math.floor(y0) % 4) * S;
+    const x1 = i === 0 ? S : x0 + 0.25 * S;
+    const path = new Path2D();
+    path.moveTo(x0, y0 + Math.sin(x0 * 0.02) * 6);
+    for (let x = x0 + 48; x < x1; x += 48) path.lineTo(x, y0 + Math.sin(x * 0.02) * 6);
+    path.lineTo(x1, y0 + Math.sin(x1 * 0.02) * 6);
+    seal(path, width);
   }
 
-  // Oil drips down the lane centres
+  // Oil drips down the lane centres — the centres, u = LANES / 14 + 0.5.
+  // They were at u 0.25 / 0.5 / 0.75, which is lat -3.5 / 0 / +3.5: on
+  // the lane lines, where no car's sump ever is. Same three draws each.
   for (let i = 0; i < 20; i++) {
-    const x = [0.25, 0.5, 0.75][i % 3] * S + (rand() - 0.5) * 60;
+    const x = ASPHALT.oilU[i % ASPHALT.oilU.length] * S + (rand() - 0.5) * 60;
     const y = rand() * S;
     const r = 6 + rand() * 22;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -754,11 +746,15 @@ function asphaltSurface(): {
   rc.width = rc.height = S;
   const rctx = rc.getContext("2d")!;
   const shade = ctx.getImageData(0, 0, S, S).data;
+  const sealant = mctx.getImageData(0, 0, S, S).data;
+  const sealantV = ASPHALT.sealantRoughness * 255;
   const rimg = rctx.createImageData(S, S);
   for (let i = 0; i < S * S; i++) {
     // dark = tyre-polished = smoother; light = coarse aggregate = rougher
     const t = Math.min(1, Math.max(0, (shade[i * 4 + 1] - 9) / 26));
-    const v = (0.38 + t * 0.54) * 255;
+    let v = (0.38 + t * 0.54) * 255;
+    // ...except sealant, which is dark and dull (see the mask above).
+    if (sealant[i * 4 + 3] > 0) v = Math.max(v, sealantV);
     rimg.data[i * 4] = rimg.data[i * 4 + 1] = rimg.data[i * 4 + 2] = v;
     rimg.data[i * 4 + 3] = 255;
   }
@@ -1801,10 +1797,12 @@ function roundaboutSignTexture(): THREE.CanvasTexture {
   });
 }
 
-/** White thermoplastic road text, transparent everywhere else. */
+/** White thermoplastic road text, transparent everywhere else. The same
+ *  white as the lines (MARKINGS.paint.white, linear 0.73): it was
+ *  0xf2f2ee, 0.89, brighter than any paint laid on a road. */
 function roadTextTexture(text: string): THREE.CanvasTexture {
   return textTexture(512, 256, (ctx) => {
-    ctx.fillStyle = "#f2f2ee";
+    ctx.fillStyle = `#${MARKINGS.paint.white.toString(16).padStart(6, "0")}`;
     ctx.textAlign = "center";
     ctx.direction = "rtl";
     // Thermoplastic road lettering is drawn tall and heavy so it still
@@ -2943,7 +2941,8 @@ function fuelStation(): THREE.Group {
     const BAY_X0 = FRONT + 1.2; // a footway's width off the glass
     const BAYS = 6;
     const paintMat = new THREE.MeshStandardMaterial({
-      color: 0xf2f2ee,
+      // Road paint's white, not a brighter one of its own (MARKINGS.paint).
+      color: MARKINGS.paint.white,
       emissive: 0x8f8f88,
       emissiveIntensity: 0.35,
       roughness: 0.6,
@@ -3076,21 +3075,9 @@ function paintPriceTexture(minKd: number, maxKd: number): THREE.CanvasTexture {
   });
 }
 
-/**
- * Would a block or a tower of this half-width, on this band of the
- * ring, stand on a forecourt or in the painter's bay? Both the
- * rectangles and the drums ask, and they used to each carry their own
- * copy of the station test — which is how the painter's would have
- * been left out of one of them.
- */
-function onForecourt(track: Track, s: number, half: number, lo: number, hi: number): boolean {
-  const hit = (site: { s: number; lat: number }, span: number) =>
-    Math.abs(track.deltaAhead(site.s, s)) < span + half + 6 && lo < site.lat + 13 && hi > site.lat - 13;
-  return (
-    STATIONS.some((st) => hit(st, FORECOURT.halfSpan)) ||
-    PAINT_SHOPS.some((sh) => hit(sh, PAINT_BAY.halfSpan))
-  );
-}
+// onForecourt lives in markings.ts now: the buildings ask it whether a
+// block would stand on a forecourt, and the street paint asks whether a
+// centre line would be buried under one, and that is one rule.
 
 /**
  * The painter's.
@@ -3217,9 +3204,9 @@ function paintShop(): THREE.Group {
   g.add(pool);
 
   // The bay marked on the floor: where the picker is offered is where
-  // the lines say to stop.
+  // the lines say to stop. Road paint's white (MARKINGS.paint).
   const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xf2f2ee,
+    color: MARKINGS.paint.white,
     emissive: 0x8f8f88,
     emissiveIntensity: 0.35,
     roughness: 0.6,
@@ -4873,13 +4860,27 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     metalness: 0.0, // asphalt is a dielectric
     envMapIntensity: 1.15,
   });
+  // Out to the rail lip, not to halfWidthAt: the 0.60 m marginal strip
+  // (MARKINGS.strip) is paved, so the edge line sits on asphalt with
+  // asphalt outboard of it instead of on the last 150 mm before the
+  // verge. Nothing that reads halfWidthAt moves — not the car's clamp,
+  // not LANES, not the rail.
+  //
+  // And the texture is laid in metres across (uMetres = ASPHALT.tileM)
+  // rather than stretched edge to edge. At hw 7 that is the old mapping
+  // exactly; at the plaza's 19 it is what keeps the wheel paths in the
+  // lanes — stretched, they slid out across the ±3.5 lane lines once
+  // the road passed 14 m of half-width.
   const road = new THREE.Mesh(
     buildRibbon(
       track,
-      (s) => -track.halfWidthAt(s),
-      (s) => track.halfWidthAt(s),
+      (s) => -(track.halfWidthAt(s) + MARKINGS.strip.width),
+      (s) => track.halfWidthAt(s) + MARKINGS.strip.width,
       0.02,
-      3
+      3,
+      0,
+      1,
+      ASPHALT.tileM
     ),
     roadMat
   );
@@ -4964,17 +4965,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       return g;
     };
 
-    const crossCount = Math.round(L / STREETS.crossEvery);
-    for (let i = 0; i < crossCount; i++) {
-      // Spaced by an exact division of the lap so the last block closes
-      // onto the first instead of leaving a short stub at the seam.
-      const s = (i / crossCount) * L;
-      const u = track.wrap(s) / L;
-      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
-      // Start at the highway's own edge, which is wider at the plaza.
-      const edge = track.halfWidthAt(s);
-      parts.push(crossQuad(s, edge, outer + STREETS.half));
-      if (!onCoast) parts.push(crossQuad(s, -(outer + STREETS.half), -edge));
+    // One street per junction record (markings.ts), the same list the
+    // paint and the signals iterate — they used to be three loops that
+    // disagreed about which junctions existed.
+    for (const j of junctions(track, STREETS)) {
+      // Start where the highway's pavement ends: its own edge, which is
+      // wider at the plaza, plus the paved strip. Starting at the edge
+      // laid the street (y 0.016) under the strip (y 0.02) for 0.6 m,
+      // 4 mm apart, which z-fights at any distance.
+      const edge = track.halfWidthAt(j.s) + MARKINGS.strip.width;
+      parts.push(crossQuad(j.s, edge, outer + STREETS.half));
+      if (j.minus) parts.push(crossQuad(j.s, -(outer + STREETS.half), -edge));
     }
 
     // One mesh for the entire network: ~70 pieces would otherwise be ~70
@@ -4984,134 +4985,6 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     streets.receiveShadow = true;
     scene.add(streets);
     for (const g of parts) g.dispose();
-
-    // ----------------------------------------------- markings
-    //
-    // The grid was bare asphalt. The highway has had edge lines and lane
-    // dashes since the beginning and the streets crossing it had nothing
-    // at all, which is what made them read as grey ribbons laid over the
-    // ground rather than as roads.
-    //
-    // Built in road space for the same reason the streets themselves
-    // are: a dash placed at (s, lat) is on the street at (s, lat), so
-    // the centre line follows every bend without anyone solving for it.
-    //
-    // Paint on a side street is worn and lit by nothing but a passing
-    // headlight, so it is dimmer than the highway's — the route you are
-    // racing stays the brightest line in the scene.
-    const streetLineMat = new THREE.MeshStandardMaterial({
-      color: 0xdedcd2,
-      emissive: 0x6f6e68,
-      emissiveIntensity: 0.35,
-      roughness: 0.7,
-    });
-    const blockLen = L / Math.round(L / STREETS.crossEvery);
-    /** How close to a junction paint stops. A centre line that runs
-     *  straight through an intersection is the single thing that makes a
-     *  grid look printed on rather than built. */
-    const CLEAR = STREETS.half + 2.2;
-    const nearCross = (s: number) => {
-      const off = ((s % blockLen) + blockLen) % blockLen;
-      return Math.min(off, blockLen - off) < CLEAR;
-    };
-    const nearAvenue = (lat: number) =>
-      STREETS.avenues.some((d) => Math.abs(Math.abs(lat) - d) < CLEAR);
-
-    const DASH = { len: 2.4, gap: 13 };
-    const dashGeo = new THREE.PlaneGeometry(0.12, DASH.len);
-    dashGeo.rotateX(-Math.PI / 2);
-    // Sits above the street surface but below the highway's own paint,
-    // so nothing z-fights where the grid passes the road.
-    const paintY = STREETS.yCross + 0.006;
-
-    const mats: THREE.Matrix4[] = [];
-    const mp = new THREE.Vector3();
-    const mside = new THREE.Vector3();
-    const mtan = new THREE.Vector3();
-    const mq = new THREE.Quaternion();
-    const FWD = new THREE.Vector3(0, 0, 1);
-    const one = new THREE.Vector3(1, 1, 1);
-    const put = (pos: THREE.Vector3, along: THREE.Vector3) => {
-      mq.setFromUnitVectors(FWD, along);
-      mats.push(new THREE.Matrix4().compose(pos.clone().setY(paintY), mq, one));
-    };
-
-    // Centre line down every avenue, both sides of the highway. The
-    // seaward half only exists past the coast, exactly where its asphalt
-    // does — paint hanging over the Gulf would be worse than none.
-    for (const d of STREETS.avenues) {
-      for (const sign of [1, -1]) {
-        // Same exact division as the highway lane dashes, for the same
-        // reason: `s += DASH.gap` left a 3.0 m wrap gap against a nominal
-        // 13 m on all eight avenue carriageways, at the same lap
-        // position. Fixing one seam and leaving its twin is worse than
-        // fixing neither, because the next reader takes the fixed one as
-        // proof the pattern was audited.
-        const avSlots = Math.round(L / DASH.gap);
-        const avGap = L / avSlots;
-        for (let k = 0; k < avSlots; k++) {
-          const s = k * avGap;
-          if (nearCross(s)) continue;
-          if (sign < 0) {
-            const u = track.wrap(s) / L;
-            if (u < COAST_U.to) continue;
-          }
-          track.pose(s, sign * d, mp, mside);
-          track.tangentAt(s, mtan);
-          put(mp, mtan);
-        }
-      }
-    }
-
-    // Centre line out along every cross street, from the highway's edge
-    // to the far kerb of the outermost avenue.
-    for (let i = 0; i < crossCount; i++) {
-      const s = (i / crossCount) * L;
-      const u = track.wrap(s) / L;
-      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
-      const edge = track.halfWidthAt(s);
-      track.sideAt(s, mside);
-      for (const sign of [1, -1]) {
-        if (sign < 0 && onCoast) continue;
-        for (let lat = edge + CLEAR; lat < outer + STREETS.half; lat += DASH.gap) {
-          if (nearAvenue(lat)) continue;
-          track.pose(s, sign * lat, mp, mtan);
-          put(mp, mside);
-        }
-      }
-    }
-
-    const dashes = new THREE.InstancedMesh(dashGeo, streetLineMat, mats.length);
-    mats.forEach((m, i) => dashes.setMatrixAt(i, m));
-    dashes.instanceMatrix.needsUpdate = true;
-    dashes.name = "street-dash";
-    dashes.receiveShadow = true;
-    scene.add(dashes);
-
-    // A stop bar where each cross street meets the highway — the one
-    // junction the player drives past close enough to read.
-    const barGeo = new THREE.PlaneGeometry(0.45, STREETS.half * 1.7);
-    barGeo.rotateX(-Math.PI / 2);
-    const bars: THREE.Matrix4[] = [];
-    for (let i = 0; i < crossCount; i++) {
-      const s = (i / crossCount) * L;
-      const u = track.wrap(s) / L;
-      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
-      const edge = track.halfWidthAt(s);
-      track.tangentAt(s, mtan);
-      for (const sign of [1, -1]) {
-        if (sign < 0 && onCoast) continue;
-        track.pose(s, sign * (edge + 2.6), mp, mside);
-        mq.setFromUnitVectors(FWD, mtan);
-        bars.push(new THREE.Matrix4().compose(mp.clone().setY(paintY), mq, one));
-      }
-    }
-    const stopBars = new THREE.InstancedMesh(barGeo, streetLineMat, bars.length);
-    bars.forEach((m, i) => stopBars.setMatrixAt(i, m));
-    stopBars.instanceMatrix.needsUpdate = true;
-    stopBars.name = "street-stop";
-    stopBars.receiveShadow = true;
-    scene.add(stopBars);
   }
 
   // The Sharq plaza island's mosaic face — declared here beside the road
@@ -5163,107 +5036,62 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // headlit paint does not clip: at 0xa8a8a0 x 0.5 an unlit line was
   // about 84 of 255 at the night exposure, a grey stripe.
   const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xdeded6,
+    color: MARKINGS.paint.edge,
     emissive: 0xdcdcd4,
     emissiveIntensity: 0.6,
     roughness: 0.5,
   });
-  // The paint is named alongside the asphalt it sits on. It is the
-  // brightest thing on the road surface, so a levels reading that leaves
-  // it out understates the road's ceiling by most of what it has.
-  for (const edge of [-1, 1]) {
-    const line = new THREE.Mesh(
-      buildRibbon(
-        track,
-        // Plain offsets. The ternary that used to be here tried to fix
-        // the winding from the outside and cancelled itself — see
-        // buildRibbon. The band is what it always claimed: 200 mm wide,
-        // 150 to 350 mm inboard of the tarmac edge.
-        (s) => edge * (track.halfWidthAt(s) - 0.35),
-        (s) => edge * (track.halfWidthAt(s) - 0.15),
-        0.03,
-        4
-      ),
-      lineMat
-    );
-    line.name = "road-line";
-    // The markings receive too. They sit a centimetre proud of the
-    // asphalt they are painted on, and a lane line that stays bright
-    // inside a shadow crossing it is the loudest possible way to say
-    // that the shadow is not really there.
-    line.receiveShadow = true;
-    scene.add(line);
-  }
+  const dashMat = new THREE.MeshStandardMaterial({
+    // A touch duller than the edge line, as it was — a lane divide
+    // takes more tyre than the edge does. See lineMat for why neither
+    // of them is 0.96 white any more.
+    color: MARKINGS.paint.lane,
+    emissive: 0xd2d2ca,
+    emissiveIntensity: 0.5,
+    roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt
+  });
+  // Paint on a side street is worn and lit by nothing but a passing
+  // headlight, so it is dimmer than the highway's — the route you are
+  // racing stays the brightest line in the scene.
+  const streetLineMat = new THREE.MeshStandardMaterial({
+    color: MARKINGS.paint.street,
+    emissive: 0x6f6e68,
+    emissiveIntensity: 0.35,
+    roughness: 0.7,
+  });
+  // The raised studs on the edge lines. Emissive rather than
+  // retroreflective, the same cheat the rail reflectors make and for the
+  // same reason (see them below); 2.0 is the top of the band the
+  // nightGlow rule dims by day, so a stud is a piece of plastic at noon.
+  const studMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0xfff2c0,
+    emissiveIntensity: MARKINGS.stud.emissive,
+  });
 
-  {
-    const dashGeo = new THREE.PlaneGeometry(0.14, 3);
-    dashGeo.rotateX(-Math.PI / 2);
-    const dashMat = new THREE.MeshStandardMaterial({
-      // A touch duller than the edge line, as it was — a lane divide
-      // takes more tyre than the edge does. See lineMat for why neither
-      // of them is 0.96 white any more.
-      color: 0xd8d8d0,
-      emissive: 0xd2d2ca,
-      emissiveIntensity: 0.5,
-      roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt
-    });
-    // The three interior divides of a four-lane road. Nothing marks the
-    // middle one out, and that is correct rather than an omission: all
-    // four lanes run the same way — the AI spawns round-robin across
-    // LANES, there is a guardrail on both edges and no median object
-    // anywhere — so lat 0 is an ordinary lane divide, and painting it as
-    // a centre line would tell the driver about oncoming traffic that
-    // does not exist. It was the only number in this block with no
-    // justification against it.
-    const boundaries = [-3.5, 0, 3.5];
-    /**
-     * The lane line's cycle, metres: one 3 m mark plus the gap after it.
-     *
-     * 3 and 9 is the pattern a Gulf lane line is painted in — a 1:3 mark
-     * to gap, which is also what the US manual specifies in feet (10 and
-     * 30) and close to what most metric manuals use. The mark here was
-     * already 3 m. The cycle was 14, which made the gap 11 — a fifth
-     * longer than the standard and the only number in this block with
-     * nothing said for it.
-     *
-     * Its stated reason was that the lap divides exactly into 14 so the
-     * last dash closes onto the first, and that reason is real: at a
-     * nominal cycle that does NOT divide, the final gap came out 19 m
-     * against 11 everywhere else, sitting on the start line. But the
-     * division works at any nominal cycle — round(8492/12) = 708 slots,
-     * an 11.99 m spacing — so it never argued for 14 over 12.
-     *
-     * Stated plainly: this environment has no route to an authoritative
-     * Kuwaiti standard, so 3-and-9 is the widely used Gulf figure rather
-     * than a citation. It replaces a number with no argument at all.
-     */
-    const LANE_LINE_CYCLE_M = 12;
-    const slots = Math.round(L / LANE_LINE_CYCLE_M);
-    const spacing = L / slots;
-    const perLine = slots;
-    const dashes = new THREE.InstancedMesh(dashGeo, dashMat, perLine * boundaries.length);
-    const m = new THREE.Matrix4();
-    const p = new THREE.Vector3();
-    const side = new THREE.Vector3();
-    const tan = new THREE.Vector3();
-    const q = new THREE.Quaternion();
-    const fwd = new THREE.Vector3(0, 0, 1);
-    let idx = 0;
-    for (const b of boundaries) {
-      for (let i = 0; i < perLine; i++) {
-        const s = i * spacing;
-        track.pose(s, b, p, side);
-        track.tangentAt(s, tan);
-        q.setFromUnitVectors(fwd, tan);
-        p.y = 0.03;
-        m.compose(p, q, new THREE.Vector3(1, 1, 1));
-        dashes.setMatrixAt(idx++, m);
-      }
-    }
-    dashes.instanceMatrix.needsUpdate = true;
-    dashes.name = "road-dash";
-    dashes.receiveShadow = true;
-    scene.add(dashes);
+  // Every marking on the highway and the street grid, laid from one spec
+  // table and one junction model (markings.ts): the edge lines with
+  // their inner edge on the tarmac edge, the lane lines at the midpoints
+  // of LANES and hidden through every signalised junction, the stop
+  // lines, the solid approaches and the lane arrows, the studs, and the
+  // street centre lines. The names are the ones the rest of the game
+  // already finds them by — 'road-line', 'road-dash', 'street-dash' — and
+  // the studs are 'road-stud' now, so the levels tool counts them as the
+  // road they are rather than as "other". The paint is named alongside
+  // the asphalt it sits on: it is the brightest thing on the road
+  // surface, and a levels reading that leaves it out understates the
+  // road's ceiling by most of what it has.
+  //
+  // No rand() in any of it. The world's stream is consumed in build
+  // order (rand.ts), and paint that drew a number would move every
+  // building placed after it.
+  for (const o of buildRoadMarkings(track, STREETS, {
+    line: lineMat,
+    dash: dashMat,
+    street: streetLineMat,
+    stud: studMat,
+  })) {
+    scene.add(o);
   }
 
   // ------------------------------------------------------- the border
@@ -5382,9 +5210,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const reflectors = new THREE.InstancedMesh(refGeo, refMat, reflectorCount);
     reflectors.name = "guardrail-reflector";
     // ...and they stop glowing when the sun is up. A retroreflector in
-    // daylight is a piece of coloured plastic, not a lamp. The cat's
-    // eyes on the edge lines glow around the clock and that is a bug
-    // waiting to be noticed rather than a precedent worth copying.
+    // daylight is a piece of coloured plastic, not a lamp. The studs on
+    // the edge lines go the same way: their emissive is 2.0, inside the
+    // band the nightGlow rule at the end of buildWorld dims by day.
     nightGlow.push({ mat: refMat, base: refMat.emissiveIntensity });
 
     const mp = new THREE.Vector3();
@@ -5852,8 +5680,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // ------------------------------------------------- traffic signals
   //
-  // The junctions grew stop bars when the grid was painted and nothing
-  // to obey. A signal head on a mast arm over the carriageway, at every
+  // The junctions were painted before there was anything to obey. A
+  // signal head on a mast arm over the carriageway, at every
   // other cross street — signalising all seventy-two would put a gantry
   // every 118 m, which is denser than any real arterial and would make
   // the road read as a car park.
@@ -5863,20 +5691,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // so a shared one would light every red in the city at the same
   // moment; an unlit lens tinted through instanceColor can differ
   // junction by junction, and a lit lamp lens is close to unlit anyway.
+  //
+  // Which junctions are signalised is the junction model's answer
+  // (markings.ts), the same list that lays their stop lines: every other
+  // cross street, clear of the tunnel and of every swell. This loop used
+  // to make its own, from the constant half-width, and so put a pair of
+  // masts on the paint shop's 16.6 m forecourt at junction 50 — 33
+  // junctions and 66 heads now, against 34 and 68.
   {
-    const crossCount = Math.round(L / STREETS.crossEvery);
-    const every = 2; // signalised junctions, in cross streets
-    const sides = 2;
-    const heads: number[] = []; // s values, one per signalised approach
-    const junctions: Array<{ s: number; sideSign: number }> = [];
-    for (let i = 0; i < crossCount; i += every) {
-      const s2 = (i / crossCount) * L;
-      const u2 = track.wrap(s2) / L;
-      if (u2 > TUNNEL_U.from - 0.01 && u2 < TUNNEL_U.to + 0.01) continue;
-      for (let k = 0; k < sides; k++) junctions.push({ s: s2, sideSign: k === 0 ? 1 : -1 });
-      heads.push(s2);
+    const approaches: Array<{ s: number; sideSign: number }> = [];
+    for (const j of junctions(track, STREETS)) {
+      if (!j.signalised) continue;
+      for (const sideSign of [1, -1]) approaches.push({ s: signalHeadS(j), sideSign });
     }
-    const n = junctions.length;
+    const n = approaches.length;
     const steel = new THREE.MeshStandardMaterial({ color: 0x2f343a, roughness: 0.65 });
 
     const poleGeo = new THREE.CylinderGeometry(0.11, 0.17, 6.4, 8);
@@ -5921,7 +5749,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const one = new THREE.Vector3(1, 1, 1);
     const headPos: THREE.Vector3[] = [];
 
-    junctions.forEach(({ s: js, sideSign }, i) => {
+    approaches.forEach(({ s: js, sideSign }, i) => {
       track.tangentAt(js, tan);
       tan.y = 0;
       tan.normalize();
@@ -5929,8 +5757,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       q.setFromUnitVectors(xAxis, inward);
 
       // The pole stands back behind the kerb; the head hangs over the
-      // inside lane, a little short of the stop bar so you can still see
-      // it from behind the line.
+      // inside lane, over the cross street's centreline. The stop line is
+      // 13 m upstream (MARKINGS.stop), so a driver stopped at it has the
+      // head 12.85 m ahead — inside MUTCD's 12.2-55 m, and above the
+      // windscreen header rather than behind it. The constant half-width
+      // is honest here: no signalised junction has a swell within 45 m
+      // before it or 10 m after (junctions()).
       track.pose(js, sideSign * (ROAD_HALF_WIDTH + 1.2), p, tmp);
       m.makeTranslation(p.x, 3.2, p.z);
       poles.setMatrixAt(i, m);
@@ -5973,7 +5805,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // them in lockstep would be worse than either, because a whole city
     // changing colour at once is the one arrangement that never happens.
     const CYCLE = 19;
-    const offsets = junctions.map((_, i) => ((i * 7.31) % CYCLE));
+    const offsets = approaches.map((_, i) => ((i * 7.31) % CYCLE));
     const DARK = new THREE.Color(0x14161a);
     const BLACK = new THREE.Color(0x000000);
     const LIT = [new THREE.Color(0xff2a1e), new THREE.Color(0xffab12), new THREE.Color(0x2be561)];
@@ -5999,39 +5831,6 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (halos.instanceColor) halos.instanceColor.needsUpdate = true;
     };
     signalTick(0);
-  }
-
-  // Cat-eye road studs along both edge lines — they sparkle into the
-  // distance under the headlights
-  {
-    const spacing = 18;
-    const count = Math.floor(L / spacing) * 2;
-    const studGeo = new THREE.SphereGeometry(0.07, 6, 4);
-    const studMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xfff2c0,
-      emissiveIntensity: 1.6,
-    });
-    const studs = new THREE.InstancedMesh(studGeo, studMat, count);
-    const m = new THREE.Matrix4();
-    const p = new THREE.Vector3();
-    const tmp = new THREE.Vector3();
-    let idx = 0;
-    for (let i = 0; i < count / 2; i++) {
-      const s = i * spacing;
-      for (const sideSign of [-1, 1]) {
-        // The line these delineate is drawn at halfWidthAt(s), not at
-        // the constant, so reading the constant here marched a row of
-        // reflectors 11.58 m out across the open drift plaza at s = 558 —
-        // the same class of mistake this file already records fixing for
-        // a scenery band that put a tower block on the plaza.
-        track.pose(s, sideSign * (track.halfWidthAt(s) - 0.25), p, tmp);
-        m.makeTranslation(p.x, 0.06, p.z);
-        studs.setMatrixAt(idx++, m);
-      }
-    }
-    studs.instanceMatrix.needsUpdate = true;
-    scene.add(studs);
   }
 
   // City blocks with lit windows
@@ -7399,7 +7198,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // outboard. Swept over every angle it now clears by 300 mm.
       new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 2.2, DRIFT_PLAZA.islandRadius + 2.6, 48),
       new THREE.MeshStandardMaterial({
-        color: 0xf2f2ee,
+        // Road paint's white (MARKINGS.paint), not 0xf2f2ee — linear 0.89,
+        // above any thermoplastic, and the brightest paint on the plaza
+        // beside lines at 0.73.
+        color: MARKINGS.paint.white,
         emissive: 0x9a9a92,
         emissiveIntensity: 0.4,
         roughness: 0.55,
@@ -7434,30 +7236,41 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       scene.add(skid);
     }
 
-    // Arabic paint on the approach asphalt: the circle's name, twice
-    for (const back of [75, 130]) {
-      const s = sPlaza - back;
-      const paint = new THREE.Mesh(
-        new THREE.PlaneGeometry(4.6, 2.3),
-        new THREE.MeshStandardMaterial({
-          map: roadTextTexture(DRIFT_PLAZA.arabic),
-          transparent: true,
-          roughness: 0.55,
-          emissive: 0x9a9a92,
-          emissiveIntensity: 0.35,
-        })
-      );
-      const g = new THREE.Group();
-      paint.rotation.x = -Math.PI / 2;
-      paint.position.y = 0.05;
-      g.add(paint);
-      const p = new THREE.Vector3();
-      track.pointAt(s, p);
-      track.tangentAt(s, tmp);
-      g.position.copy(p);
-      // Lay the text so an oncoming driver reads it upright
-      g.lookAt(p.clone().sub(tmp));
-      scene.add(g);
+    // Arabic paint on the approach asphalt: the circle's name, in the two
+    // right-hand lanes (the island's side), at two distances.
+    //
+    // It was one 4.6 m by 2.3 m plate on lat 0 — across the lane line,
+    // half in each of two lanes — and its 118 px glyphs on a 256 px canvas
+    // came out 1.06 m along travel, which at a driver's 1.1 m eye height
+    // and 40 m out foreshortens to almost nothing. A road legend sits
+    // inside one lane and is drawn long: 2.4 m across, the plate 6.0 m
+    // along, so the glyphs are 2.77 m, the UK TSM's elongated height for
+    // roads above 40 mph. One texture and one material for all four.
+    {
+      const spec = MARKINGS.legend;
+      const legendMat = new THREE.MeshStandardMaterial({
+        map: roadTextTexture(DRIFT_PLAZA.arabic),
+        transparent: true,
+        roughness: 0.55,
+        emissive: 0x9a9a92,
+        emissiveIntensity: 0.35,
+      });
+      const legendGeo = new THREE.PlaneGeometry(spec.width, spec.length);
+      for (const mk of legendLayout()) {
+        const paint = new THREE.Mesh(legendGeo, legendMat);
+        paint.name = "road-legend";
+        const g = new THREE.Group();
+        paint.rotation.x = -Math.PI / 2;
+        paint.position.y = mk.y;
+        g.add(paint);
+        const p = new THREE.Vector3();
+        track.pose(mk.s, mk.lat, p, tmp);
+        track.tangentAt(mk.s, tmp);
+        g.position.copy(p);
+        // Lay the text so an oncoming driver reads it upright
+        g.lookAt(p.clone().sub(tmp));
+        scene.add(g);
+      }
     }
 
     // Advance sign on the right shoulder before the swell begins
@@ -7485,7 +7298,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
 
     // Red-and-white kerbing rides the swell on both edges — it follows
-    // halfWidthAt exactly, so the paint stays glued to the physics.
+    // halfWidthAt exactly, so the paint stays glued to the physics. On
+    // the paved strip, outboard of the edge line's outer edge and inside
+    // the rail lip (MARKINGS.kerb): at hw+0.05..0.45 it was laid straight
+    // over the line it borders once the line moved out onto the tarmac
+    // edge.
     {
       const kerbTex = stripeTexture("#c8342b", "#f2f2ee");
       kerbTex.wrapS = kerbTex.wrapT = THREE.RepeatWrapping;
@@ -7506,8 +7323,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         const kerb = new THREE.Mesh(
           buildRibbon(
             track,
-            (s) => sign * (track.halfWidthAt(s) + 0.05),
-            (s) => sign * (track.halfWidthAt(s) + 0.45),
+            (s) => sign * (track.halfWidthAt(s) + MARKINGS.kerb.inner),
+            (s) => sign * (track.halfWidthAt(s) + MARKINGS.kerb.outer),
             0.06,
             2,
             DRIFT_PLAZA.s / L - uSpan,
