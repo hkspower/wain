@@ -565,7 +565,7 @@
     /* the flagship row catches the light once on arrival, then stays still */
     .product.lead::after {
       content: ""; position: absolute; inset: 0; border-radius: 12px; pointer-events: none;
-      background: linear-gradient(90deg, transparent 40%, rgba(227,165,86,.16) 50%, transparent 60%);
+      background: linear-gradient(90deg, transparent 40%, rgba(138,145,154,.18) 50%, transparent 60%);
       background-size: 250% 100%; animation: sheen 2.4s ease-out 1 .4s;
     }
     /* a live dot on the flagship: the system is running, not a screenshot */
@@ -622,20 +622,20 @@
        hard at the hero's bounds). The motion lives in the shapes instead. */
     .heroart { position: absolute; inset: 0; pointer-events: none;
       background:
-        radial-gradient(340px 260px at 84% 18%, rgba(227,165,86,.08), transparent 68%),
+        radial-gradient(340px 260px at 84% 18%, rgba(51,56,63,.05), transparent 68%),
         radial-gradient(320px 260px at 10% 80%, rgba(51,56,63,.05), transparent 68%); }
     @keyframes bob { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(-14px) rotate(8deg); } }
     @keyframes bob2 { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(12px) rotate(-10deg); } }
     .shape { position: absolute; opacity: .5; }
-    .shape.tri { width: 34px; height: 34px; background: rgba(227,165,86,.35);
+    .shape.tri { width: 34px; height: 34px; background: rgba(51,56,63,.22);
       clip-path: polygon(100% 0, 100% 100%, 0 100%); top: 18%; inset-inline-start: 12%;
       animation: bob 11s ease-in-out infinite alternate; }
     .shape.ring { width: 44px; height: 44px; border: 2px solid rgba(51,56,63,.22); border-radius: 999px;
       top: 62%; inset-inline-start: 8%; animation: bob2 13s ease-in-out infinite alternate; }
-    .shape.sq { width: 26px; height: 26px; border: 2px solid rgba(227,165,86,.4); border-radius: 8px;
+    .shape.sq { width: 26px; height: 26px; border: 2px solid rgba(51,56,63,.28); border-radius: 8px;
       top: 24%; inset-inline-end: 10%; transform: rotate(18deg);
       animation: bob 12s ease-in-out infinite alternate; }
-    .shape.ring2 { width: 26px; height: 26px; border: 2px solid rgba(227,165,86,.45); border-radius: 999px;
+    .shape.ring2 { width: 26px; height: 26px; border: 2px solid rgba(51,56,63,.3); border-radius: 999px;
       top: 70%; inset-inline-end: 14%; animation: bob2 10s ease-in-out infinite alternate; }
     .shape.dot { width: 10px; height: 10px; border-radius: 999px; background: rgba(51,56,63,.25);
       top: 42%; inset-inline-start: 22%; animation: bob 9s ease-in-out infinite alternate; }
@@ -646,7 +646,7 @@
     .hero > .heroart { position: absolute; background: none; }
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
-      color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+      color: var(--tint); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
       align-self: center;
     }
     .hero h1 { font-size: clamp(28px, 4.4vw, 44px); margin: 8px 0 4px; line-height: 1.4; text-wrap: balance; }
@@ -716,7 +716,7 @@
     h2.section { font-size: 20px; margin: 32px 0 4px; }
     h2.section::after {
       content: ""; display: block; width: 46px; height: 2px; border-radius: 2px;
-      margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
+      margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--border));
     }
     .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
 
@@ -751,7 +751,7 @@
     ul.feats { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
     ul.feats li { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel-2);
       border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px;  line-height: var(--lh-ui); }
-    .card:hover ul.feats li { border-color: var(--sand-vivid); }
+    .card:hover ul.feats li { border-color: var(--tint); }
 
     /* mini feature cards on the edge rail: icon + claim, nothing else */
 
@@ -1000,7 +1000,7 @@
     .callfab span { font-size: 12px; color: var(--on-bar); display: block; }
     /* a live ring: the assistant is answering now, not a form that waits */
     .callfab .halo { position: absolute; inset: 0; border-radius: 999px;
-      border: 2px solid var(--sand-vivid); opacity: 0; pointer-events: none; }
+      border: 2px solid #fff; opacity: 0; pointer-events: none; }
     html.motion .callfab .halo { animation: halo 2.6s ease-out infinite; }
     @keyframes halo {
       0%   { opacity: .7; transform: scale(1); }
@@ -1039,7 +1039,7 @@
     footer { background: var(--panel-2); border-top: 1px solid var(--border); margin-top: 32px;
       color: var(--muted); font-size: 13px; line-height: 1.9; }
     footer::before { content: ""; display: block; height: 2px;
-      background: linear-gradient(270deg, var(--tint), var(--sand-vivid)); }
+      background: linear-gradient(270deg, var(--tint), var(--border)); }
     .fcols { max-width: 1060px; margin: 0 auto; padding: 32px 20px 24px;
       display: flex; flex-wrap: wrap; gap: 32px 24px; }
     .fcols > div { flex: 1 1 180px; min-width: 0; }
