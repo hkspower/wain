@@ -265,11 +265,11 @@ def with_symbols(html):
 
 def main():
     check = "--check" in sys.argv
-    want = {
-        SITE / "logo.svg": logo_svg(),
-        SITE / "favicon.svg": favicon_svg(),
-        PAGE: with_masthead(with_symbols(PAGE.read_text())),
-    }
+    # Since 2026-10-03 the masthead, logo.svg and favicon.svg fly the
+    # illustrated boum (design/ship_mark.py). The pixel forms stay in the
+    # sprite for what still draws them — the matrix logo, the logo pack, the
+    # Instagram set, the ads and the film.
+    want = {PAGE: with_symbols(PAGE.read_text())}
     stale = [p.name for p, t in want.items() if p.read_text() != t]
     if check:
         if stale:

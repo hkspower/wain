@@ -7,7 +7,7 @@ the mark. The manifest offered SVG only, and used the same drawing as its
 `maskable` icon. Android builds the installed icon from PNGs.
 
 The two marks stay apart, as the identity requires:
-  * the company page (index.html) gets the pixel boum — favicon.svg's bitmap;
+  * the company page (index.html) gets the illustrated boum — favicon.svg;
   * النوخذة, the installable app (manifest.webmanifest), keeps the ⚓ — icon.svg.
 
 All of it is FULL-BLEED: iOS and Android launchers cut their own shape, and a
@@ -30,12 +30,10 @@ BROWN = "#6f3f1c"
 
 
 def boum_touch():
-    """180×180: the 16×16 bitmap at exactly 10px a cell, 10px of brown round it."""
-    cells = pb.square_cells()
-    d = "".join(f"M{10 + x * 10} {10 + y * 10}h10v10h-10z" for x, y in cells)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">'
-            f'<rect width="180" height="180" fill="{BROWN}"/>'
-            f'<path fill="#ffffff" shape-rendering="crispEdges" d="{d}"/></svg>')
+    """180×180: the illustrated boum on the brand brown — favicon.svg's own tile,
+    drawn full-bleed (iOS cuts its own shape)."""
+    svg = (SITE / "favicon.svg").read_text()
+    return svg.replace('rx="96" ', "", 1)
 
 
 def anchor(full_bleed):

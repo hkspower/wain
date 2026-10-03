@@ -578,10 +578,16 @@ def identity_checks():
           gen.returncode == 0, (gen.stdout + gen.stderr).strip())
     fav = (ROOT / "favicon.svg").read_text()
     wide_d, sq_d = pb.wide_d(), pb.square_d(1.5)
-    check(S, "the wide pixel boum is the mark: logo.svg and the #i-boum symbol",
-          'id="i-boum"' in home and wide_d in home and wide_d in logo)
-    check(S, "favicon.svg is the same 16×16 bitmap as #i-sail, not a second ship",
-          'id="i-sail"' in home and sq_d in home and pb.square_d(32) in fav)
+    # Since 2026-10-03 the company flies the illustrated boum (owner's
+    # approval: logo only, the brown bar kept), drawn over the same polygons;
+    # design/ship_mark.py writes #i-ship, logo.svg and favicon.svg
+    sm_gen = subprocess.run([_sys.executable, str(ROOT.parent / "design" / "ship_mark.py"), "--check"],
+                            capture_output=True, text=True)
+    check(S, "the illustrated boum is generated from one drawing (ship_mark --check)",
+          sm_gen.returncode == 0, (sm_gen.stdout + sm_gen.stderr).strip())
+    check(S, "logo.svg and favicon.svg fly the illustrated boum, white on brown",
+          'id="i-ship"' in home and "ship_mark.py" in logo and "ship_mark.py" in fav
+          and "#6f3f1c" in logo and "#6f3f1c" in fav)
     # Four things make her a boum; each is asserted on the drawing itself.
     tris = [p for p in ml.BOUM if len(p) == 3]
     check(S, "she carries two filled lateen sails, not bare poles",
@@ -600,11 +606,11 @@ def identity_checks():
     check(S, "the square form keeps a one-cell margin, so the tile's corners clip nothing",
           sq_rows[0].strip(".") == "" and sq_rows[-1].strip(".") == ""
           and all(r[0] == "." and r[-1] == "." for r in sq_rows))
-    check(S, "the masthead flies the wide mark; the footer keeps the square",
-          '<use href="#i-boum"/>' in home.split("<footer>")[0].split('class="brand"')[1]
-          and '<use href="#i-sail"/>' in home.split("<footer>")[1])
-    check(S, "the page carries both forms of the mark, not an emoji or a letter",
-          '<use href="#i-boum"/>' in home and '<use href="#i-sail"/>' in home)
+    check(S, "the masthead and the footer fly the illustrated boum",
+          '<use href="#i-ship"/>' in home.split("<footer>")[0].split('class="brand"')[1]
+          and '<use href="#i-ship"/>' in home.split("<footer>")[1])
+    check(S, "the pixel boum stays in the sprite for what still draws it",
+          'id="i-boum"' in home and 'id="i-sail"' in home and wide_d in home and sq_d in home)
     check(S, "the wordmark is set in Reem Kufi, Almuhallab Code in Share Tech Mono",
           re.search(r'\.brand \.name \{[^}]*font-family: "Reem Kufi"', home) is not None
           and re.search(r'\.brand \.en \{[^}]*font-family: "Share Tech Mono"', home) is not None)
@@ -704,7 +710,6 @@ def browser_checks():
         totals_alignment_checks(br)
         mobile_checks(br)
         fit_checks(br)
-        crisp_mark_checks(br)
         portal_checks(pg)
         font_checks(pg)
         app_icon_checks(pg)
@@ -910,7 +915,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "726", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "725", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -943,7 +948,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "726", "0", "100%"], str(finals))
+          finals == ["4", "725", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -974,7 +979,7 @@ def home_checks(pg):
     icons = pg.eval_on_selector_all("main use", "n=>n.length")
     check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
     check(S, "the header carries the Almuhallab mark",
-          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-boum")
+          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-ship")
     check(S, "the wordmark reads المهلب",
           pg.inner_text("header .name").strip() == "المهلب")
     centred = pg.evaluate("""(() => {
@@ -1585,8 +1590,8 @@ def scan_checks(pg, br):
     import sys as _sys
     _sys.path.insert(0, str(ROOT.parent / "design"))
     import pixel_boum as pb
-    check(S, "the favicon file draws the pixel boum",
-          pb.square_d(32) in fav)
+    check(S, "the favicon file draws the illustrated boum",
+          "ship_mark.py" in fav and 'fill="#6f3f1c"' in fav)
 
     # Home-screen icons. Every page used to point apple-touch-icon at an SVG,
     # which iOS ignores — "Add to Home Screen" showed a screenshot of the page.

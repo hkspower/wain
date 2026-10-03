@@ -20,12 +20,12 @@ BROWN = "#6f3f1c"
 
 
 def wide_mark() -> str:
-    """Lift the wide boum straight out of the page sprite."""
+    """Lift the illustrated boum straight out of the page sprite (#i-ship)."""
     html = (SITE / "index.html").read_text(encoding="utf-8")
-    m = re.search(r'<symbol id="i-boum" viewBox="([^"]+)">(.*?)</symbol>', html, re.S)
+    m = re.search(r'<symbol id="i-ship" viewBox="([^"]+)">(.*?)</symbol>', html, re.S)
     if not m:
-        sys.exit("i-boum symbol not found in index.html — did the mark move?")
-    return f'<svg viewBox="{m.group(1)}" style="width:460px;height:230px;color:#fff">{m.group(2)}</svg>'
+        sys.exit("i-ship symbol not found in index.html — did the mark move?")
+    return f'<svg viewBox="{m.group(1)}" style="width:340px;height:auto;color:#fff;--ship-cut:#6f3f1c">{m.group(2)}</svg>'
 
 
 def build() -> str:

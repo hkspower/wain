@@ -346,34 +346,15 @@
        (one block, so no margin of its own), 13 to the descriptor. It was
        24 / 12 / 13, the first nine of the 24 being empty rows of her box. */
     .brand { gap: 6px; }
-    /* The boum is sized in whole cells, never in free pixels: --cell is the
-       CSS size of one of her 36×20 cells, and the hint below (written by
-       design/pixel_boum.py) turns it into whole device pixels per cell with a
-       whole-pixel seam between them. 148×74 put 3.08px in a cell and the
-       seams fell between pixels — a grey, uneven ship. Her box is cropped to
-       her cells, so the gap under her is the gap you see. */
+    /* the mark is the illustrated boum (design/ship_mark.py, approved
+       2026-10-03); her cut lines take the bar's own brown */
     .brand .logo { --cell: 3; display: block; flex: none; color: var(--on-bar);
       overflow: visible;   /* a box the browser rounds to whole CSS px must not clip her keel */
       transition: width .22s ease, height .22s ease; }
-    /* pixel-boum:hint */
-    /* Written by design/pixel_boum.py, which explains it — edit it there.
-       --cell is the CSS size of one cell; the bar sets it per state. --qmin
-       is the fewest device pixels a cell may take: 2 draws 1 lit + 1 seam, a
-       tan mesh rather than a white ship, so the compact states ask for 3. */
-    .brand .logo { width: calc(var(--cell) * 36px); height: calc(var(--cell) * 20px); }
-    @supports (width: calc(round(nearest, 1.5px, 1px))) {
-      .brand .logo {
-        --q: max(var(--qmin, 2), round(nearest, calc(var(--cell) * var(--dpr, 1)), 1));
-        --g: max(1, round(nearest, calc(var(--q) * 0.18), 1));
-        width: calc(var(--q) / var(--dpr, 1) * 36px); height: calc(var(--q) / var(--dpr, 1) * 20px); }
-      @supports (d: path("M0 0")) {
-        #i-boum path { d: path("M24 1.5h2M23 2.5h3M22 3.5h4M20 4.5h6M19 5.5h7M18 6.5h8M34 6.5h1M17 7.5h9M33 7.5h2M16 8.5h10M33 8.5h2M15 9.5h11M32 9.5h3M6 10.5h2M14 10.5h12M31 10.5h5M6 11.5h3M13 11.5h13M30 11.5h6M7 12.5h2M11 12.5h15M30 12.5h6M8 13.5h1M10 13.5h16M29 13.5h7M40 13.5h2M8 14.5h18M28 14.5h8M39 14.5h3M9 15.5h1M25 15.5h1M34 15.5h1M38 15.5h3M9 16.5h32M10 17.5h31M10 18.5h30M12 19.5h26M16 20.5h19");
-          fill: none; stroke: currentColor; shape-rendering: crispEdges;
-          stroke-width: calc(1 - var(--g) / var(--q)); stroke-dasharray: calc(1 - var(--g) / var(--q)) calc(var(--g) / var(--q));
-          transform: translate(calc(0.0625px / var(--q)), calc((0.0625 - var(--g) / 2) * 1px / var(--q))); }
-      }
-    }
-    /* /pixel-boum:hint */
+    /* --cell is the bar state's size step (top 3, compact 2, folded row 1.34):
+       the ship is 40px wide per step, her height following her own drawing */
+    .brand .logo { width: calc(var(--cell) * 40px); height: auto; aspect-ratio: 444 / 265;
+      --ship-cut: var(--tint-strong); }
     .brand .name { display: block; font-family: "Reem Kufi", "Cairo", sans-serif; font-size: 32px; font-weight: 700;
       color: var(--on-bar); line-height: 1.35;
       transition: font-size .22s ease; }
@@ -394,7 +375,7 @@
        company's name is not a masthead. */
     html.scrolled header { padding-top: 8px; }
     html.scrolled .brand { gap: 4px; }
-    html.scrolled .brand .logo { --cell: 2; --qmin: 3; }   /* never the 1+1 mesh at 1× */
+    html.scrolled .brand .logo { --cell: 2; }
     html.scrolled .brand .name { font-size: 20px; }
     html.scrolled .brand .en { font-size: 11px; }   /* ~104px under a 72–108px ship */
     html.scrolled .brand small { max-height: 0; opacity: 0; margin-top: 0; }
@@ -1103,6 +1084,7 @@
     .base { border-top: 1px solid var(--border); padding: 16px 20px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
     .base .made { display: inline-flex; align-items: center; gap: 6px; }
+    .base .made .ship { width: 24px; --ship-cut: var(--panel-2); }   /* the ship on the grey base */
     .base .top { display: inline-flex; align-items: center; gap: 6px; color: var(--tint);
       font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
       background: var(--panel); transition: border-color .18s ease, transform .18s ease; }
@@ -1219,22 +1201,6 @@
     if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return;
     location.replace("https:" + location.href.slice(location.protocol.length));
   })();
-  /* The masthead draws the boum on whole device pixels (design/pixel_boum.py
-     writes how), and CSS cannot read the pixel ratio — so it is handed over
-     here, before the bar paints, and again whenever it changes: a zoom, or a
-     window dragged to another screen. Without it the bar assumes 1, which is
-     exact at 1×, 2× and 3× anyway; this is what makes 1.25×, 1.5× and a
-     2.625× phone exact too. */
-  (function () {
-    var root = document.documentElement;
-    function track() {
-      var r = window.devicePixelRatio || 1;
-      root.style.setProperty("--dpr", r);
-      var mq = window.matchMedia && matchMedia("(resolution: " + r + "dppx)");
-      if (mq && mq.addEventListener) mq.addEventListener("change", track, { once: true });
-    }
-    track();
-  })();
 </script>
 </head>
 <body id="top">
@@ -1245,6 +1211,7 @@
        the tab icon is favicon.svg). Drawn 2026-08-09 from the photograph of
        the ship, at the owner's direction. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-ship" viewBox="-12 -18 444 265"><defs><clipPath id="i-ship-cs1"><path fill="#000" d="M42.0 126.0 Q109.2 65.1 218.4 8.4 L235.2 130.2 Q138.6 132.3 42.0 126.0Z"/></clipPath><clipPath id="i-ship-cs2"><path fill="#000" d="M256.2 130.2 Q281.4 91.1 331.8 54.6 L352.8 130.2 Q304.5 136.5 256.2 130.2Z"/></clipPath></defs><path fill="currentColor" d="M42.0 126.0 Q109.2 65.1 218.4 8.4 L235.2 130.2 Q138.6 132.3 42.0 126.0Z"/><path fill="currentColor" fill-opacity=".78" d="M256.2 130.2 Q281.4 91.1 331.8 54.6 L352.8 130.2 Q304.5 136.5 256.2 130.2Z"/><path clip-path="url(#i-ship-cs1)" stroke="var(--ship-cut, #6f3f1c)" stroke-width="2.2" d="M94.9 90.7 L230.3 93.7"/><path clip-path="url(#i-ship-cs1)" stroke="var(--ship-cut, #6f3f1c)" stroke-width="2.2" d="M139.0 61.3 L226.1 63.2"/><path clip-path="url(#i-ship-cs1)" stroke="var(--ship-cut, #6f3f1c)" stroke-width="2.2" d="M179.6 34.3 L222.4 35.2"/><path clip-path="url(#i-ship-cs2)" stroke="var(--ship-cut, #6f3f1c)" stroke-width="2" d="M290.2 96.2 L343.4 96.2"/><path stroke="currentColor" stroke-width="3.2" stroke-linecap="round" d="M224.7 4.2 L224.7 140.7"/><path fill="currentColor" fill-opacity=".78" d="M224.7 4.2 l29.4 6.0 l-29.4 6.0z"/><path stroke="currentColor" stroke-width="3.2" stroke-linecap="round" d="M333.9 50.4 L333.9 140.7"/><path fill="currentColor" fill-opacity=".78" d="M333.9 50.4 l17.6 6.0 l-17.6 6.0z"/><path fill="currentColor" d="M0.0 90.3 L25.2 90.3 L46.2 138.6 L373.8 138.6 L399.0 115.5 L420.0 115.5 L399.0 163.8 L310.8 182.7 L142.8 182.7 L54.6 165.9Z"/><path fill="none" stroke="var(--ship-cut, #6f3f1c)" stroke-width="2.4" d="M46.2 147.0 Q210.0 153.3 386.4 134.4"/><path fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.6" d="M75.6 163.8 Q210.0 172.2 361.2 155.4"/><circle cx="4.2" cy="90.3" r="3" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" d="M25.2 195.3 q29.4 -9 58.8 0 t58.8 0 t58.8 0 t58.8 0 t58.8 0"/><path fill="none" stroke="currentColor" stroke-opacity=".78" stroke-width="3" stroke-linecap="round" d="M54.6 207.9 q29.4 -9 58.8 0 t58.8 0 t58.8 0 t58.8 0 t58.8 0"/><path fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="3" stroke-linecap="round" d="M84.0 220.5 q29.4 -9 58.8 0 t58.8 0 t58.8 0 t58.8 0 t58.8 0"/></symbol>
     <symbol id="i-boum" viewBox="0 0 48 24"><path fill="currentColor" stroke="none" d="M24.09 1.09h0.82v0.82h-0.82zM25.09 1.09h0.82v0.82h-0.82zM23.09 2.09h0.82v0.82h-0.82zM24.09 2.09h0.82v0.82h-0.82zM25.09 2.09h0.82v0.82h-0.82zM22.09 3.09h0.82v0.82h-0.82zM23.09 3.09h0.82v0.82h-0.82zM24.09 3.09h0.82v0.82h-0.82zM25.09 3.09h0.82v0.82h-0.82zM20.09 4.09h0.82v0.82h-0.82zM21.09 4.09h0.82v0.82h-0.82zM22.09 4.09h0.82v0.82h-0.82zM23.09 4.09h0.82v0.82h-0.82zM24.09 4.09h0.82v0.82h-0.82zM25.09 4.09h0.82v0.82h-0.82zM19.09 5.09h0.82v0.82h-0.82zM20.09 5.09h0.82v0.82h-0.82zM21.09 5.09h0.82v0.82h-0.82zM22.09 5.09h0.82v0.82h-0.82zM23.09 5.09h0.82v0.82h-0.82zM24.09 5.09h0.82v0.82h-0.82zM25.09 5.09h0.82v0.82h-0.82zM18.09 6.09h0.82v0.82h-0.82zM19.09 6.09h0.82v0.82h-0.82zM20.09 6.09h0.82v0.82h-0.82zM21.09 6.09h0.82v0.82h-0.82zM22.09 6.09h0.82v0.82h-0.82zM23.09 6.09h0.82v0.82h-0.82zM24.09 6.09h0.82v0.82h-0.82zM25.09 6.09h0.82v0.82h-0.82zM34.09 6.09h0.82v0.82h-0.82zM17.09 7.09h0.82v0.82h-0.82zM18.09 7.09h0.82v0.82h-0.82zM19.09 7.09h0.82v0.82h-0.82zM20.09 7.09h0.82v0.82h-0.82zM21.09 7.09h0.82v0.82h-0.82zM22.09 7.09h0.82v0.82h-0.82zM23.09 7.09h0.82v0.82h-0.82zM24.09 7.09h0.82v0.82h-0.82zM25.09 7.09h0.82v0.82h-0.82zM33.09 7.09h0.82v0.82h-0.82zM34.09 7.09h0.82v0.82h-0.82zM16.09 8.09h0.82v0.82h-0.82zM17.09 8.09h0.82v0.82h-0.82zM18.09 8.09h0.82v0.82h-0.82zM19.09 8.09h0.82v0.82h-0.82zM20.09 8.09h0.82v0.82h-0.82zM21.09 8.09h0.82v0.82h-0.82zM22.09 8.09h0.82v0.82h-0.82zM23.09 8.09h0.82v0.82h-0.82zM24.09 8.09h0.82v0.82h-0.82zM25.09 8.09h0.82v0.82h-0.82zM33.09 8.09h0.82v0.82h-0.82zM34.09 8.09h0.82v0.82h-0.82zM15.09 9.09h0.82v0.82h-0.82zM16.09 9.09h0.82v0.82h-0.82zM17.09 9.09h0.82v0.82h-0.82zM18.09 9.09h0.82v0.82h-0.82zM19.09 9.09h0.82v0.82h-0.82zM20.09 9.09h0.82v0.82h-0.82zM21.09 9.09h0.82v0.82h-0.82zM22.09 9.09h0.82v0.82h-0.82zM23.09 9.09h0.82v0.82h-0.82zM24.09 9.09h0.82v0.82h-0.82zM25.09 9.09h0.82v0.82h-0.82zM32.09 9.09h0.82v0.82h-0.82zM33.09 9.09h0.82v0.82h-0.82zM34.09 9.09h0.82v0.82h-0.82zM6.09 10.09h0.82v0.82h-0.82zM7.09 10.09h0.82v0.82h-0.82zM14.09 10.09h0.82v0.82h-0.82zM15.09 10.09h0.82v0.82h-0.82zM16.09 10.09h0.82v0.82h-0.82zM17.09 10.09h0.82v0.82h-0.82zM18.09 10.09h0.82v0.82h-0.82zM19.09 10.09h0.82v0.82h-0.82zM20.09 10.09h0.82v0.82h-0.82zM21.09 10.09h0.82v0.82h-0.82zM22.09 10.09h0.82v0.82h-0.82zM23.09 10.09h0.82v0.82h-0.82zM24.09 10.09h0.82v0.82h-0.82zM25.09 10.09h0.82v0.82h-0.82zM31.09 10.09h0.82v0.82h-0.82zM32.09 10.09h0.82v0.82h-0.82zM33.09 10.09h0.82v0.82h-0.82zM34.09 10.09h0.82v0.82h-0.82zM35.09 10.09h0.82v0.82h-0.82zM6.09 11.09h0.82v0.82h-0.82zM7.09 11.09h0.82v0.82h-0.82zM8.09 11.09h0.82v0.82h-0.82zM13.09 11.09h0.82v0.82h-0.82zM14.09 11.09h0.82v0.82h-0.82zM15.09 11.09h0.82v0.82h-0.82zM16.09 11.09h0.82v0.82h-0.82zM17.09 11.09h0.82v0.82h-0.82zM18.09 11.09h0.82v0.82h-0.82zM19.09 11.09h0.82v0.82h-0.82zM20.09 11.09h0.82v0.82h-0.82zM21.09 11.09h0.82v0.82h-0.82zM22.09 11.09h0.82v0.82h-0.82zM23.09 11.09h0.82v0.82h-0.82zM24.09 11.09h0.82v0.82h-0.82zM25.09 11.09h0.82v0.82h-0.82zM30.09 11.09h0.82v0.82h-0.82zM31.09 11.09h0.82v0.82h-0.82zM32.09 11.09h0.82v0.82h-0.82zM33.09 11.09h0.82v0.82h-0.82zM34.09 11.09h0.82v0.82h-0.82zM35.09 11.09h0.82v0.82h-0.82zM7.09 12.09h0.82v0.82h-0.82zM8.09 12.09h0.82v0.82h-0.82zM11.09 12.09h0.82v0.82h-0.82zM12.09 12.09h0.82v0.82h-0.82zM13.09 12.09h0.82v0.82h-0.82zM14.09 12.09h0.82v0.82h-0.82zM15.09 12.09h0.82v0.82h-0.82zM16.09 12.09h0.82v0.82h-0.82zM17.09 12.09h0.82v0.82h-0.82zM18.09 12.09h0.82v0.82h-0.82zM19.09 12.09h0.82v0.82h-0.82zM20.09 12.09h0.82v0.82h-0.82zM21.09 12.09h0.82v0.82h-0.82zM22.09 12.09h0.82v0.82h-0.82zM23.09 12.09h0.82v0.82h-0.82zM24.09 12.09h0.82v0.82h-0.82zM25.09 12.09h0.82v0.82h-0.82zM30.09 12.09h0.82v0.82h-0.82zM31.09 12.09h0.82v0.82h-0.82zM32.09 12.09h0.82v0.82h-0.82zM33.09 12.09h0.82v0.82h-0.82zM34.09 12.09h0.82v0.82h-0.82zM35.09 12.09h0.82v0.82h-0.82zM8.09 13.09h0.82v0.82h-0.82zM10.09 13.09h0.82v0.82h-0.82zM11.09 13.09h0.82v0.82h-0.82zM12.09 13.09h0.82v0.82h-0.82zM13.09 13.09h0.82v0.82h-0.82zM14.09 13.09h0.82v0.82h-0.82zM15.09 13.09h0.82v0.82h-0.82zM16.09 13.09h0.82v0.82h-0.82zM17.09 13.09h0.82v0.82h-0.82zM18.09 13.09h0.82v0.82h-0.82zM19.09 13.09h0.82v0.82h-0.82zM20.09 13.09h0.82v0.82h-0.82zM21.09 13.09h0.82v0.82h-0.82zM22.09 13.09h0.82v0.82h-0.82zM23.09 13.09h0.82v0.82h-0.82zM24.09 13.09h0.82v0.82h-0.82zM25.09 13.09h0.82v0.82h-0.82zM29.09 13.09h0.82v0.82h-0.82zM30.09 13.09h0.82v0.82h-0.82zM31.09 13.09h0.82v0.82h-0.82zM32.09 13.09h0.82v0.82h-0.82zM33.09 13.09h0.82v0.82h-0.82zM34.09 13.09h0.82v0.82h-0.82zM35.09 13.09h0.82v0.82h-0.82zM40.09 13.09h0.82v0.82h-0.82zM41.09 13.09h0.82v0.82h-0.82zM8.09 14.09h0.82v0.82h-0.82zM9.09 14.09h0.82v0.82h-0.82zM10.09 14.09h0.82v0.82h-0.82zM11.09 14.09h0.82v0.82h-0.82zM12.09 14.09h0.82v0.82h-0.82zM13.09 14.09h0.82v0.82h-0.82zM14.09 14.09h0.82v0.82h-0.82zM15.09 14.09h0.82v0.82h-0.82zM16.09 14.09h0.82v0.82h-0.82zM17.09 14.09h0.82v0.82h-0.82zM18.09 14.09h0.82v0.82h-0.82zM19.09 14.09h0.82v0.82h-0.82zM20.09 14.09h0.82v0.82h-0.82zM21.09 14.09h0.82v0.82h-0.82zM22.09 14.09h0.82v0.82h-0.82zM23.09 14.09h0.82v0.82h-0.82zM24.09 14.09h0.82v0.82h-0.82zM25.09 14.09h0.82v0.82h-0.82zM28.09 14.09h0.82v0.82h-0.82zM29.09 14.09h0.82v0.82h-0.82zM30.09 14.09h0.82v0.82h-0.82zM31.09 14.09h0.82v0.82h-0.82zM32.09 14.09h0.82v0.82h-0.82zM33.09 14.09h0.82v0.82h-0.82zM34.09 14.09h0.82v0.82h-0.82zM35.09 14.09h0.82v0.82h-0.82zM39.09 14.09h0.82v0.82h-0.82zM40.09 14.09h0.82v0.82h-0.82zM41.09 14.09h0.82v0.82h-0.82zM9.09 15.09h0.82v0.82h-0.82zM25.09 15.09h0.82v0.82h-0.82zM34.09 15.09h0.82v0.82h-0.82zM38.09 15.09h0.82v0.82h-0.82zM39.09 15.09h0.82v0.82h-0.82zM40.09 15.09h0.82v0.82h-0.82zM9.09 16.09h0.82v0.82h-0.82zM10.09 16.09h0.82v0.82h-0.82zM11.09 16.09h0.82v0.82h-0.82zM12.09 16.09h0.82v0.82h-0.82zM13.09 16.09h0.82v0.82h-0.82zM14.09 16.09h0.82v0.82h-0.82zM15.09 16.09h0.82v0.82h-0.82zM16.09 16.09h0.82v0.82h-0.82zM17.09 16.09h0.82v0.82h-0.82zM18.09 16.09h0.82v0.82h-0.82zM19.09 16.09h0.82v0.82h-0.82zM20.09 16.09h0.82v0.82h-0.82zM21.09 16.09h0.82v0.82h-0.82zM22.09 16.09h0.82v0.82h-0.82zM23.09 16.09h0.82v0.82h-0.82zM24.09 16.09h0.82v0.82h-0.82zM25.09 16.09h0.82v0.82h-0.82zM26.09 16.09h0.82v0.82h-0.82zM27.09 16.09h0.82v0.82h-0.82zM28.09 16.09h0.82v0.82h-0.82zM29.09 16.09h0.82v0.82h-0.82zM30.09 16.09h0.82v0.82h-0.82zM31.09 16.09h0.82v0.82h-0.82zM32.09 16.09h0.82v0.82h-0.82zM33.09 16.09h0.82v0.82h-0.82zM34.09 16.09h0.82v0.82h-0.82zM35.09 16.09h0.82v0.82h-0.82zM36.09 16.09h0.82v0.82h-0.82zM37.09 16.09h0.82v0.82h-0.82zM38.09 16.09h0.82v0.82h-0.82zM39.09 16.09h0.82v0.82h-0.82zM40.09 16.09h0.82v0.82h-0.82zM10.09 17.09h0.82v0.82h-0.82zM11.09 17.09h0.82v0.82h-0.82zM12.09 17.09h0.82v0.82h-0.82zM13.09 17.09h0.82v0.82h-0.82zM14.09 17.09h0.82v0.82h-0.82zM15.09 17.09h0.82v0.82h-0.82zM16.09 17.09h0.82v0.82h-0.82zM17.09 17.09h0.82v0.82h-0.82zM18.09 17.09h0.82v0.82h-0.82zM19.09 17.09h0.82v0.82h-0.82zM20.09 17.09h0.82v0.82h-0.82zM21.09 17.09h0.82v0.82h-0.82zM22.09 17.09h0.82v0.82h-0.82zM23.09 17.09h0.82v0.82h-0.82zM24.09 17.09h0.82v0.82h-0.82zM25.09 17.09h0.82v0.82h-0.82zM26.09 17.09h0.82v0.82h-0.82zM27.09 17.09h0.82v0.82h-0.82zM28.09 17.09h0.82v0.82h-0.82zM29.09 17.09h0.82v0.82h-0.82zM30.09 17.09h0.82v0.82h-0.82zM31.09 17.09h0.82v0.82h-0.82zM32.09 17.09h0.82v0.82h-0.82zM33.09 17.09h0.82v0.82h-0.82zM34.09 17.09h0.82v0.82h-0.82zM35.09 17.09h0.82v0.82h-0.82zM36.09 17.09h0.82v0.82h-0.82zM37.09 17.09h0.82v0.82h-0.82zM38.09 17.09h0.82v0.82h-0.82zM39.09 17.09h0.82v0.82h-0.82zM40.09 17.09h0.82v0.82h-0.82zM10.09 18.09h0.82v0.82h-0.82zM11.09 18.09h0.82v0.82h-0.82zM12.09 18.09h0.82v0.82h-0.82zM13.09 18.09h0.82v0.82h-0.82zM14.09 18.09h0.82v0.82h-0.82zM15.09 18.09h0.82v0.82h-0.82zM16.09 18.09h0.82v0.82h-0.82zM17.09 18.09h0.82v0.82h-0.82zM18.09 18.09h0.82v0.82h-0.82zM19.09 18.09h0.82v0.82h-0.82zM20.09 18.09h0.82v0.82h-0.82zM21.09 18.09h0.82v0.82h-0.82zM22.09 18.09h0.82v0.82h-0.82zM23.09 18.09h0.82v0.82h-0.82zM24.09 18.09h0.82v0.82h-0.82zM25.09 18.09h0.82v0.82h-0.82zM26.09 18.09h0.82v0.82h-0.82zM27.09 18.09h0.82v0.82h-0.82zM28.09 18.09h0.82v0.82h-0.82zM29.09 18.09h0.82v0.82h-0.82zM30.09 18.09h0.82v0.82h-0.82zM31.09 18.09h0.82v0.82h-0.82zM32.09 18.09h0.82v0.82h-0.82zM33.09 18.09h0.82v0.82h-0.82zM34.09 18.09h0.82v0.82h-0.82zM35.09 18.09h0.82v0.82h-0.82zM36.09 18.09h0.82v0.82h-0.82zM37.09 18.09h0.82v0.82h-0.82zM38.09 18.09h0.82v0.82h-0.82zM39.09 18.09h0.82v0.82h-0.82zM12.09 19.09h0.82v0.82h-0.82zM13.09 19.09h0.82v0.82h-0.82zM14.09 19.09h0.82v0.82h-0.82zM15.09 19.09h0.82v0.82h-0.82zM16.09 19.09h0.82v0.82h-0.82zM17.09 19.09h0.82v0.82h-0.82zM18.09 19.09h0.82v0.82h-0.82zM19.09 19.09h0.82v0.82h-0.82zM20.09 19.09h0.82v0.82h-0.82zM21.09 19.09h0.82v0.82h-0.82zM22.09 19.09h0.82v0.82h-0.82zM23.09 19.09h0.82v0.82h-0.82zM24.09 19.09h0.82v0.82h-0.82zM25.09 19.09h0.82v0.82h-0.82zM26.09 19.09h0.82v0.82h-0.82zM27.09 19.09h0.82v0.82h-0.82zM28.09 19.09h0.82v0.82h-0.82zM29.09 19.09h0.82v0.82h-0.82zM30.09 19.09h0.82v0.82h-0.82zM31.09 19.09h0.82v0.82h-0.82zM32.09 19.09h0.82v0.82h-0.82zM33.09 19.09h0.82v0.82h-0.82zM34.09 19.09h0.82v0.82h-0.82zM35.09 19.09h0.82v0.82h-0.82zM36.09 19.09h0.82v0.82h-0.82zM37.09 19.09h0.82v0.82h-0.82zM16.09 20.09h0.82v0.82h-0.82zM17.09 20.09h0.82v0.82h-0.82zM18.09 20.09h0.82v0.82h-0.82zM19.09 20.09h0.82v0.82h-0.82zM20.09 20.09h0.82v0.82h-0.82zM21.09 20.09h0.82v0.82h-0.82zM22.09 20.09h0.82v0.82h-0.82zM23.09 20.09h0.82v0.82h-0.82zM24.09 20.09h0.82v0.82h-0.82zM25.09 20.09h0.82v0.82h-0.82zM26.09 20.09h0.82v0.82h-0.82zM27.09 20.09h0.82v0.82h-0.82zM28.09 20.09h0.82v0.82h-0.82zM29.09 20.09h0.82v0.82h-0.82zM30.09 20.09h0.82v0.82h-0.82zM31.09 20.09h0.82v0.82h-0.82zM32.09 20.09h0.82v0.82h-0.82zM33.09 20.09h0.82v0.82h-0.82zM34.09 20.09h0.82v0.82h-0.82z"/></symbol><symbol id="i-sail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M15.045 1.545h1.41v1.41h-1.41zM13.545 3.045h1.41v1.41h-1.41zM15.045 3.045h1.41v1.41h-1.41zM12.045 4.545h1.41v1.41h-1.41zM13.545 4.545h1.41v1.41h-1.41zM15.045 4.545h1.41v1.41h-1.41zM10.545 6.045h1.41v1.41h-1.41zM12.045 6.045h1.41v1.41h-1.41zM13.545 6.045h1.41v1.41h-1.41zM15.045 6.045h1.41v1.41h-1.41zM9.045 7.545h1.41v1.41h-1.41zM10.545 7.545h1.41v1.41h-1.41zM12.045 7.545h1.41v1.41h-1.41zM13.545 7.545h1.41v1.41h-1.41zM15.045 7.545h1.41v1.41h-1.41zM7.545 9.045h1.41v1.41h-1.41zM9.045 9.045h1.41v1.41h-1.41zM10.545 9.045h1.41v1.41h-1.41zM12.045 9.045h1.41v1.41h-1.41zM13.545 9.045h1.41v1.41h-1.41zM15.045 9.045h1.41v1.41h-1.41zM6.045 10.545h1.41v1.41h-1.41zM7.545 10.545h1.41v1.41h-1.41zM9.045 10.545h1.41v1.41h-1.41zM10.545 10.545h1.41v1.41h-1.41zM12.045 10.545h1.41v1.41h-1.41zM13.545 10.545h1.41v1.41h-1.41zM15.045 10.545h1.41v1.41h-1.41zM4.545 12.045h1.41v1.41h-1.41zM6.045 12.045h1.41v1.41h-1.41zM7.545 12.045h1.41v1.41h-1.41zM9.045 12.045h1.41v1.41h-1.41zM10.545 12.045h1.41v1.41h-1.41zM12.045 12.045h1.41v1.41h-1.41zM13.545 12.045h1.41v1.41h-1.41zM15.045 12.045h1.41v1.41h-1.41zM3.045 13.545h1.41v1.41h-1.41zM4.545 13.545h1.41v1.41h-1.41zM6.045 13.545h1.41v1.41h-1.41zM7.545 13.545h1.41v1.41h-1.41zM9.045 13.545h1.41v1.41h-1.41zM10.545 13.545h1.41v1.41h-1.41zM12.045 13.545h1.41v1.41h-1.41zM13.545 13.545h1.41v1.41h-1.41zM15.045 13.545h1.41v1.41h-1.41zM1.545 15.045h1.41v1.41h-1.41zM15.045 15.045h1.41v1.41h-1.41zM21.045 15.045h1.41v1.41h-1.41zM1.545 16.545h1.41v1.41h-1.41zM3.045 16.545h1.41v1.41h-1.41zM15.045 16.545h1.41v1.41h-1.41zM19.545 16.545h1.41v1.41h-1.41zM21.045 16.545h1.41v1.41h-1.41zM3.045 18.045h1.41v1.41h-1.41zM4.545 18.045h1.41v1.41h-1.41zM6.045 18.045h1.41v1.41h-1.41zM7.545 18.045h1.41v1.41h-1.41zM9.045 18.045h1.41v1.41h-1.41zM10.545 18.045h1.41v1.41h-1.41zM12.045 18.045h1.41v1.41h-1.41zM13.545 18.045h1.41v1.41h-1.41zM15.045 18.045h1.41v1.41h-1.41zM16.545 18.045h1.41v1.41h-1.41zM18.045 18.045h1.41v1.41h-1.41zM19.545 18.045h1.41v1.41h-1.41zM4.545 19.545h1.41v1.41h-1.41zM6.045 19.545h1.41v1.41h-1.41zM7.545 19.545h1.41v1.41h-1.41zM9.045 19.545h1.41v1.41h-1.41zM10.545 19.545h1.41v1.41h-1.41zM12.045 19.545h1.41v1.41h-1.41zM13.545 19.545h1.41v1.41h-1.41zM15.045 19.545h1.41v1.41h-1.41zM16.545 19.545h1.41v1.41h-1.41zM18.045 19.545h1.41v1.41h-1.41zM6.045 21.045h1.41v1.41h-1.41zM7.545 21.045h1.41v1.41h-1.41zM9.045 21.045h1.41v1.41h-1.41zM10.545 21.045h1.41v1.41h-1.41zM12.045 21.045h1.41v1.41h-1.41zM13.545 21.045h1.41v1.41h-1.41zM15.045 21.045h1.41v1.41h-1.41zM16.545 21.045h1.41v1.41h-1.41z"/></symbol>
     <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M6.19 3.69h2.62l1.62 4-2 1.5a12.5 12.5 0 0 0 6.38 6.38l1.5-2 4 1.62v2.62c0 1.38-1.12 2.5-2.5 2.5A18.25 18.25 0 0 1 3.69 6.19c0-1.38 1.12-2.5 2.5-2.5Z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.1" cy="6.9" r="1.15" fill="currentColor" stroke="none"/></symbol>
@@ -1289,7 +1256,7 @@
 
   <header>
     <div class="brand">
-      <svg class="logo" viewBox="6 1 36 20" aria-hidden="true"><svg width="48" height="24"><use href="#i-boum"/></svg></svg>
+      <svg class="logo" viewBox="-12 -18 444 265" aria-hidden="true"><use href="#i-ship"/></svg>
       <div><span class="name">المهلب</span>
         <span class="en">Almuhallab&nbsp;Code</span>
         <small>شركة برمجة وأنظمة</small></div>
@@ -1364,7 +1331,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="726">726</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="725">725</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1722,7 +1689,7 @@
     <div class="fcols">
       <div class="fbrand">
         <div class="fmark">
-          <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
+          <svg class="logo" viewBox="-12 -18 444 265" aria-hidden="true"><use href="#i-ship"/></svg>
           <span class="name">المهلب<small class="en">Almuhallab&nbsp;Code</small></span>
         </div>
         <p>شركة برمجة وأنظمة في الكويت. نبني المواقع وتطبيقات الجوال
@@ -1767,7 +1734,7 @@
     </div>
     <div class="base">
       <span>© <span dir="ltr">2026</span> المهلب كود — Almuhallab Code · جميع الحقوق محفوظة</span>
-      <span class="made"><svg class="ic sm" aria-hidden="true"><use href="#i-sail"/></svg> صُنع في الكويت</span>
+      <span class="made"><svg class="ic sm ship" viewBox="-12 -18 444 265" aria-hidden="true"><use href="#i-ship"/></svg> صُنع في الكويت</span>
       <a class="top" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg> إلى الأعلى</a>
     </div>
   </footer>
