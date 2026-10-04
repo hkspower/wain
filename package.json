@@ -236,7 +236,8 @@
     "test:css-build": "node scripts/build-css.mjs --check",
     "test:rules-live": "node scripts/rules-live-test.mjs",
     "test:product-photo-shape": "node scripts/product-photo-shape-test.mjs",
-    "test:menu-bar": "node scripts/menu-bar-test.mjs"
+    "test:menu-bar": "node scripts/menu-bar-test.mjs",
+    "test:catalog-feed": "node scripts/catalog-feed-test.mjs"
   },
   "private": true
 }
