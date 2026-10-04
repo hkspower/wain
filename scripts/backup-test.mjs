@@ -43,6 +43,9 @@ const API = BASE + '/api/admin.php?r='
 const EMAIL = 'manager@sporta.com.kw'
 const PASSWORD = 'correct horse'
 const ADMIN_PHP = new URL('../sporta-site/public_html/api/admin.php', import.meta.url).pathname
+// The export builder moved to api/backup-build.php on 2026-10-04 (cron-backup.php shares it); the
+// redaction mutation edits THAT file, the route guards still live in admin.php.
+const BUILD_PHP = new URL('../sporta-site/public_html/api/backup-build.php', import.meta.url).pathname
 const CONFIG_PHP = new URL('../sporta-site/public_html/api/config.php', import.meta.url).pathname
 
 let fails = 0
@@ -83,13 +86,15 @@ const BACKUP_TABLES = [
 ]
 
 const originalAdminPhp = readFileSync(ADMIN_PHP, 'utf8')
+const originalBuildPhp = readFileSync(BUILD_PHP, 'utf8')
 function mutate(from, to, label) {
-  const src = readFileSync(ADMIN_PHP, 'utf8')
-  if (!src.includes(from)) { check(false, `mutation fixture found: ${label}`, 'the string to mutate is not in admin.php any more'); return false }
-  writeFileSync(ADMIN_PHP, src.replace(from, to))
+  const file = readFileSync(BUILD_PHP, 'utf8').includes(from) ? BUILD_PHP : ADMIN_PHP
+  const src = readFileSync(file, 'utf8')
+  if (!src.includes(from)) { check(false, `mutation fixture found: ${label}`, 'the string to mutate is in neither admin.php nor backup-build.php any more'); return false }
+  writeFileSync(file, src.replace(from, to))
   return true
 }
-function restore() { writeFileSync(ADMIN_PHP, originalAdminPhp) }
+function restore() { writeFileSync(ADMIN_PHP, originalAdminPhp); writeFileSync(BUILD_PHP, originalBuildPhp) }
 
 try {
   /* -------------------------------------------------------------- sign in */

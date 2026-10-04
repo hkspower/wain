@@ -347,7 +347,10 @@ Options -Indexes
   # changeable.
   RewriteRule ^admin(/.*)?$ https://www.sporta.com.kw/backends$1 [R=302,L]
 
-  RewriteRule ^backends(/.*)?$         /index.html [L]
+  # /backends goes through panel.php (2026-10-04): index.html with the storefront-only scripts
+  # (`data-shop`) dropped, the mirror of what seo.php does with `data-panel` for shoppers. ~35
+  # requests fewer on every panel load. panel.php fails towards serving the shell whole.
+  RewriteRule ^backends(/.*)?$         /panel.php [L]
 </IfModule>
 
 # Unknown URL -> SPA shell rendered with a real 404 status (not a soft 404).
@@ -514,6 +517,10 @@ FileETag MTime Size
   <Files "seo.php">
     Header set Cache-Control "no-cache, must-revalidate"
   </Files>
+  # and panel.php, which is what /backends actually is (2026-10-04), for the same two reasons.
+  <Files "panel.php">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
 
   # THE HAND-WRITTEN OVERRIDE FILES, which matched NOTHING and so were guessed
   # at by every cache in the path.
@@ -649,7 +656,7 @@ FileETag MTime Size
   # of immutable caching, so an edit to them never reached a returning
   # browser. The rig derives its list from the directory; this line does not
   # and cannot, which is why the rig has to be run with Apache installed.
-  <FilesMatch "^(sporta-ui|sporta-dark|sporta-mobile|sporta-desktop|driver)\.css$|^(admin-upload|driver|order-tracking-panel|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|passcode-login|password-reset|login-log|payments-screen|apple-signin|panel-settings|social-links|social-setup|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|footer-links|footer-editor|seo-keep|seo-screen|force-password-notice|first-admin|panel-tabbar-fade|activity-log|backup|card-badges|card-heart|category-tiles|category-topbar|contact-emails|crm|hero-slides|home-products|home-banner|home-banner-editor|panel-save-bar|panel-tabbar-autocenter|product-mobile-layout|product-research|product-attrs|inventory-tools|api-dedupe|product-cards|checkout-speed|keyboard-hints|checkout-fields|hero-preload|hero-lazy|customer-account|product-polish|order-progress|notification-center|quick-add-size|site-text|site-text-editor|theme-colors|wallet-setup|brand-image-picker|rules-live|panel-ux|category-art|product-zoom|device-theme|grid-name-fit|menu-bar|card-options)\.js$">
+  <FilesMatch "^(sporta-ui|sporta-dark|sporta-mobile|sporta-desktop|driver)\.css$|^(admin-upload|driver|order-tracking-panel|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|passcode-login|password-reset|login-log|payments-screen|apple-signin|panel-settings|social-links|social-setup|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|footer-links|footer-editor|seo-keep|seo-screen|force-password-notice|first-admin|panel-tabbar-fade|activity-log|backup|card-badges|card-heart|category-tiles|category-topbar|contact-emails|crm|hero-slides|home-products|home-banner|home-banner-editor|panel-save-bar|panel-tabbar-autocenter|product-mobile-layout|product-research|product-attrs|inventory-tools|api-dedupe|product-cards|checkout-speed|keyboard-hints|checkout-fields|hero-preload|hero-lazy|customer-account|product-polish|order-progress|notification-center|quick-add-size|site-text|site-text-editor|theme-colors|wallet-setup|brand-image-picker|rules-live|panel-ux|category-art|product-zoom|device-theme|grid-name-fit|menu-bar|card-options|setup-screen|panel-tidy)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

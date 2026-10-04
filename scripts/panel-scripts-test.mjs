@@ -82,6 +82,59 @@ for (const [path, w] of [['/?lang=en', 390], ['/?lang=ar', 390], ['/shop?lang=en
   check(a.errs.length === 0, `${path} @${w}: no script errors without them`, a.errs.join(' | ').slice(0, 100))
   check(a.scripts < b.scripts, `${path} @${w}: fewer scripts requested`, `${a.scripts} vs ${b.scripts}`)
 }
+// 4. THE OTHER DIRECTION (2026-10-04): the storefront-only scripts carry `data-shop`, panel.php
+//    drops them from /backends, and the SIGNED-IN panel must look the same with and without them.
+//    A script the panel quietly depended on (theme.js, keyboard-hints.js, home-banner.js's preview
+//    export…) cannot be marked by mistake without this going red.
+const shopMarked = [...new Set([...RAW.matchAll(/<script\b[^>]*\ssrc="([^"?]+)[^"]*"[^>]*\sdata-shop\b/g), ...RAW.matchAll(/<script\b[^>]*\sdata-shop\b[^>]*\ssrc="([^"?]+)/g)].map((m) => m[1]))]
+check(shopMarked.length >= 30, 'index.html marks the storefront-only scripts (an empty list would pass everything below)', `${shopMarked.length} marked`)
+check(shopMarked.every((s) => !all.includes(s)), 'no script is marked both data-shop and data-panel')
+const leakedToPanel = shopMarked.filter((s) => panel.includes(s))
+check(!/data-shop/.test(panel) && leakedToPanel.length === 0, '/backends carries no storefront-only script tag', leakedToPanel.slice(0, 3).join(' '))
+for (const keep of ['/assets/api-dedupe.js', '/assets/theme.js', '/assets/keyboard-hints.js', '/assets/home-banner.js', '/config.js']) {
+  check(panel.includes(keep), `/backends keeps ${keep}`)
+}
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const login = await ctx.request.post(`${BASE}/api/admin.php?r=login`, { headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' }, data: { email: 'manager@sporta.com.kw', password: 'correct horse' }, failOnStatusCode: false })
+  check(login.status() === 200, 'signed in to the panel', String(login.status()))
+  const panelSnap = async (full, screen) => {
+    const p = await ctx.newPage()
+    if (full) {
+      await p.route('**/*', async (route) => {
+        if (route.request().resourceType() === 'document' && /^\/backends/.test(new URL(route.request().url()).pathname)) {
+          return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: RAW })
+        }
+        return route.continue()
+      })
+    }
+    const errs = []
+    p.on('pageerror', (e) => errs.push(String(e)))
+    await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
+    await p.waitForTimeout(1500)
+    if (screen) {
+      await p.evaluate((s) => { [...document.querySelectorAll('.admin-sidebar button')].find((b) => new RegExp('^\\s*' + s + '\\s*$').test(b.textContent))?.click() }, screen)
+      await p.waitForTimeout(2500)
+    }
+    const out = await p.evaluate(() => ({
+      text: document.body.innerText.replace(/\d+/g, '#').replace(/\s+/g, ' ').trim(),
+      tags: document.querySelectorAll('body *:not(script):not(style)').length,
+      scripts: performance.getEntriesByType('resource').filter((r) => r.initiatorType === 'script').length,
+      bytes: performance.getEntriesByType('resource').filter((r) => r.initiatorType === 'script').reduce((n, r) => n + (r.transferSize || r.encodedBodySize || 0), 0),
+    }))
+    await p.close()
+    return { ...out, errs }
+  }
+  for (const screen of [null, 'Settings', 'Inventory', 'Orders']) {
+    const a = await panelSnap(false, screen), b = await panelSnap(true, screen)
+    const name = screen || 'Overview'
+    check(a.text === b.text && a.text.length > 50, `/backends ${name}: the same words with and without the storefront scripts`, a.text === b.text ? `${a.text.length} chars` : `slim ${a.text.length} vs full ${b.text.length}`)
+    check(Math.abs(a.tags - b.tags) <= 3, `/backends ${name}: the same structure`, `${a.tags} vs ${b.tags} elements`)
+    check(a.errs.length === 0, `/backends ${name}: no script errors without them`, a.errs.join(' | ').slice(0, 100))
+    if (!screen) check(a.scripts < b.scripts - 20, `/backends: far fewer scripts requested`, `${a.scripts} vs ${b.scripts} (${Math.round(a.bytes / 1024)} vs ${Math.round(b.bytes / 1024)} kB)`)
+  }
+  await ctx.close()
+}
 await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nall ok — the shop no longer downloads the panel, and looks the same')
+console.log(fails ? `\n${fails} failed` : '\nall ok — the shop no longer downloads the panel, the panel no longer downloads the shop, and both look the same')
 process.exit(fails ? 1 : 0)

@@ -142,5 +142,14 @@ foreach ($flat as $pattern => $target) {
     }
 }
 
+// /backends -> panel.php (2026-10-04): index.html without the storefront-only scripts, the panel's
+// mirror of seo.php. Included, as seo.php is, so it is the same one internal hop as live.
+//   .htaccess: RewriteRule ^backends(/.*)?$ /panel.php [L]
+if (preg_match('#^/backends(/|$)#', $uri) && is_file($_SERVER['DOCUMENT_ROOT'] . '/panel.php')) {
+    $_SERVER['SCRIPT_NAME'] = '/panel.php';
+    require $_SERVER['DOCUMENT_ROOT'] . '/panel.php';
+    exit;
+}
+
 // Everything else: exactly what the built-in server would have done.
 return false;

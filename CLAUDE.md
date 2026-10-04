@@ -4332,3 +4332,39 @@ old table 500s).
 - `npm run test:live-tracking` (36 checks, phone contexts with a faked granted geolocation). Mutation-
   tested: the signature check removed (D2) and the 30-minute freshness removed (D7). The rig's own first
   "no personal data" pattern matched `courier_name` — a check that names words finds its own words.
+
+## The panel's own entry, a setup checklist, folds and a daily backup — 2026-10-04
+
+"improve all backend setup"; the owner chose all four.
+
+- **`/backends` is served by `panel.php`, not index.html.** The mirror of seo.php: index.html marks
+  36 storefront-only scripts `data-shop` and panel.php drops them (49 scripts / 950 kB against 85 /
+  1254 kB on a signed-in load), fails towards serving the shell whole, ETag + `no-cache`. `.htaccess`
+  and `dev-router.php` changed together. **Not marked, because the panel uses them:** api-dedupe.js,
+  config.js, theme.js, custom-css.js, keyboard-hints.js, home-banner.js (its `preview` export).
+  `test:panel-scripts` now renders the SIGNED-IN panel (Overview, Settings, Inventory, Orders) with and
+  without the marked scripts and requires the same screen — that is what stops a script the panel
+  quietly depends on being marked. The earlier CLAUDE.md line "/backends never goes through seo.php"
+  is still true; it goes through panel.php. api-dedupe.js also collapses the panel's own repeated
+  admin.php reads (me, couriers, products_all, …) within 2 s.
+- **Setup screen** (`assets/setup-screen.js`, a nav button after SEO) draws `admin.php?r=setup_status`:
+  23 items, each a STATE (ready / partial / placeholder / missing) and WHERE it is set; panel items get
+  an "Open …" button, api/config.php keys say so. **Placeholder is its own state** (`YOUR_*`,
+  `SANDBOX_NOT_A_REAL_*`, `PLACEHOLDER`): pay/config.php shipped `YOUR_CLIENT_ID` aimed at the live
+  gateway, and "is it set?" calls that ready. The route prints no value, and the rig scans its body for
+  the sandbox's own secrets (mutation-tested: printing the cron key is caught).
+- **Folds** (`assets/panel-tidy.js`): every overlay `section > h2` card directly in `.admin-content`
+  gets a Show/Hide toggle beside (not inside) the heading, remembered per title in
+  `localStorage.sporta_panel_tidy`, default open, Collapse all / Expand all bar. A folded card's body
+  is `display:none`, so nothing in it can take focus — a `focusin` guard was dead code; any text change
+  inside a folded card (a save result written to its note) opens it, the toggle's own label excepted
+  (the first version re-opened every card it had just folded).
+- **`api/cron-backup.php`** writes `~/backups/sporta-<date>.json.gz` (0600 in 0700, outside the
+  docroot), the same export as the Backup card (`api/backup-build.php`, now shared, TOTP secret null),
+  keeps 14. Live job: daily at 03:17 through the loopback form with the cron key (the key is in the
+  panel's existing commands, never here). **`scripts/admin-input-audit.mjs`** (`test:admin-input`)
+  splits the five API files into route blocks and FAILS on SQL, a file path or an echo built from a
+  request value (mutation-tested on a planted route: all three caught); 302 request reads, 6 raw and
+  listed by route. `test:backend-setup` (35 checks) covers all four.
+- **Sandbox only:** `home-banner` and `inventory` fail because the sandbox has ZERO product_images rows
+  after the own-photo work; the live shop is unaffected. Reseed before reading them as code faults.

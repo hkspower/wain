@@ -358,11 +358,11 @@
          is discovered a round trip sooner. -->
     <script src="/assets/api-dedupe.js?v=20260929" defer></script>
     <script src="/config.js" defer></script>
-    <script src="/assets/hero-preload.js" defer></script>
-    <script src="/assets/hero-lazy.js" defer></script>
-    <script src="/assets/customer-account.js" defer></script>
-    <script src="/assets/product-polish.js" defer></script>
-    <script src="/assets/order-progress.js" defer></script>
+    <script src="/assets/hero-preload.js" data-shop defer></script>
+    <script src="/assets/hero-lazy.js" data-shop defer></script>
+    <script src="/assets/customer-account.js" data-shop defer></script>
+    <script src="/assets/product-polish.js" data-shop defer></script>
+    <script src="/assets/order-progress.js" data-shop defer></script>
 
     <!-- Fonts are self-hosted; the @font-face rules live in the app stylesheet
          under styles/. The Google Fonts
@@ -663,21 +663,21 @@
          moves nothing on the page. Deleting this tag reverts the feature.
          `defer` because it must not delay first paint: a stale phone number
          for 200ms is nothing, a slower shop is not. -->
-    <script src="/assets/contact.js" defer></script>
+    <script src="/assets/contact.js" data-shop defer></script>
     <!-- The footer's prose, editable from /backends. Same technique as
          contact.js above: a text swap after render, empty means leave it. -->
-    <script src="/assets/footer.js" defer></script>
-    <script src="/assets/footer-links.js" defer></script>
-    <script src="/assets/seo-keep.js" defer></script>
+    <script src="/assets/footer.js" data-shop defer></script>
+    <script src="/assets/footer-links.js" data-shop defer></script>
+    <script src="/assets/seo-keep.js" data-shop defer></script>
 
     <!-- The footer's social icons from the panel's Social media card: Snapchat and YouTube added
          beside the three the bundle draws, all pointed at the owner's links. -->
-    <script src="/assets/social-links.js" defer></script>
+    <script src="/assets/social-links.js" data-shop defer></script>
     <!-- A small generic icon on the footer's existing KNET and Cash-on-
          delivery pills — no card-network artwork, and no method added beyond
          the two this shop actually accepts (see the file's own header for
          why Visa/Mastercard marks are deliberately not here). -->
-    <script src="/assets/footer-payment-icons.js" defer></script>
+    <script src="/assets/footer-payment-icons.js" data-shop defer></script>
     <!-- The owner's colours, fonts and corner radius, from /backends. Every
          field is empty by default and empty changes nothing, so a shop that
          has never opened the editor looks exactly as it does today. It cannot
@@ -689,18 +689,18 @@
          own; this is the missing half, in the same .brand-chip markup.
          2026-09-20: moved from the photo's corner to above the product name,
          at the owner's request — see the file's own header. -->
-    <script src="/assets/brand-badge.js" defer></script>
+    <script src="/assets/brand-badge.js" data-shop defer></script>
 
     <!-- A small "Sale" badge on grid cards already showing a discounted
          price (the bundle's own strikethrough), added 2026-09-20 at the
          owner's request. No "New" badge — the products API exposes no
          created_at/freshness signal; see the file's own header for what was
          checked before leaving it out. -->
-    <script src="/assets/card-badges.js" defer></script>
-    <script src="/assets/product-cards.js?v=20260930" defer></script>
-    <script src="/assets/checkout-speed.js" defer></script>
+    <script src="/assets/card-badges.js" data-shop defer></script>
+    <script src="/assets/product-cards.js?v=20260930" data-shop defer></script>
+    <script src="/assets/checkout-speed.js" data-shop defer></script>
     <script src="/assets/keyboard-hints.js" defer></script>
-    <script src="/assets/checkout-fields.js" defer></script>
+    <script src="/assets/checkout-fields.js" data-shop defer></script>
 
     <!-- A "+" quick-add button, with a size popover, on grid cards for a
          sized product — the bundle's own quick-add button only ever
@@ -710,20 +710,20 @@
          to its pattern), so a browser that fetched one holds it for a year and
          will not ask again. Fixing the header only helps new fetches; a new
          URL is the only thing that frees the old copy. -->
-    <script src="/assets/quick-add-size.js?v=20261003a" defer></script>
+    <script src="/assets/quick-add-size.js?v=20261003a" data-shop defer></script>
     <!-- Colour circles and size boxes on every product card (2026-10-03): one tap on a size adds
          it to the bag through quick-add-size.js's own path, so it comes after that file. -->
-    <script src="/assets/card-options.js" defer></script>
+    <script src="/assets/card-options.js" data-shop defer></script>
 
     <!-- The returns window, the delivery fee and the checkout's governorate
          list follow the rules set in /backends instead of the bundle's fixed
          copy. Does nothing at the shipped defaults; see the file's header. -->
-    <script src="/assets/rules-live.js" defer></script>
+    <script src="/assets/rules-live.js" data-shop defer></script>
 
     <!-- Puts a link to /returns/request (a flat page, like /card) on the
          /returns policy page. Same class of thing as contact.js: DOM surgery
          on a bundle whose source is not here. Deleting this line reverts it. -->
-    <script src="/assets/returns-link.js" defer></script>
+    <script src="/assets/returns-link.js" data-shop defer></script>
 
     <!-- The two bulk uploaders on the panel, and the helpers they share.
          ORDER MATTERS: admin-upload.js defines window.sportaUpload and the
@@ -783,7 +783,7 @@
     <!-- The product photo viewer (2026-09-29): pinch, double-tap, drag, swipe.
          Takes the tap on the gallery before the bundle's own lightbox, which
          opened on its grey placeholder. Product pages only; no dependencies. -->
-    <script src="/assets/product-zoom.js" defer></script>
+    <script src="/assets/product-zoom.js" data-shop defer></script>
 
     <!-- Four more email addresses, also on the Settings screen — an
          alternative, one for orders, one for B2B and one for customers.
@@ -828,7 +828,7 @@
          The 51 kB catalogue is fetched ONLY by the editor, on this panel. What
          a shopper's page fetches is the overrides alone: `{}` for a shop that
          has never opened it. -->
-    <script src="/assets/site-text.js" defer></script>
+    <script src="/assets/site-text.js" data-shop defer></script>
     <script src="/assets/site-text-editor.js?v=20260923" data-panel defer></script>
 
     <!-- Every admin write, on the Settings screen — the read side of the
@@ -880,6 +880,7 @@
     <script src="/assets/social-setup.js" data-panel defer></script>
     <script src="/assets/footer-editor.js" data-panel defer></script>
     <script src="/assets/seo-screen.js" data-panel defer></script>
+    <script src="/assets/setup-screen.js" data-panel defer></script>
 
     <!-- The website panel's Settings screen: an editor for Privacy, Terms and
          Returns, which had none — writes the same `legal` row
@@ -909,6 +910,7 @@
          the activity log as eight deliberate edits. Panel-only. -->
     <script src="/assets/panel-save-bar.js?v=20260923" data-panel defer></script>
     <script src="/assets/panel-ux.js" data-panel defer></script>
+    <script src="/assets/panel-tidy.js" data-panel defer></script>
 
     <!-- "Look it up": the Catalogue screen gets a card that searches the web
          for a product and PROPOSES only the fields that are empty — desc_en,
@@ -948,7 +950,7 @@
          steppers and "Remove" all grow to a proper tap target under
          `pointer: coarse`. The payment-method radios need nothing — their
          real tap target is already a 316x64 label. Checkout-only. -->
-    <script src="/assets/checkout-tap-targets.js" defer></script>
+    <script src="/assets/checkout-tap-targets.js" data-shop defer></script>
 
     <!-- The mobile product page's 12-section order the owner asked for,
          2026-09-20: reorders name/price/size/delivery/description with CSS
@@ -957,19 +959,19 @@
          Rating, color and reviews are not built — the shop stores none of
          that data; see the file's own header for what was checked before
          saying so. Product page only, mobile only. -->
-    <script src="/assets/product-mobile-layout.js?v=20260923" defer></script>
+    <script src="/assets/product-mobile-layout.js?v=20260923" data-shop defer></script>
 
     <!-- Removes the home page's "Shop the essentials" section outright —
          sporta-ui.css hides the main menu itself; this is the other half
          of the same request. -->
-    <script src="/assets/essentials.js" defer></script>
+    <script src="/assets/essentials.js" data-shop defer></script>
 
     <!-- The main menu: "About us" becomes a plain link to /terms, because a
          React Router Link's href cannot be repointed by editing the DOM —
          see the file's own header. Storefront-wide, since the header is on
          every page; sporta-ui.css hides "Shop" outright and hides "About"
          only once this script has a working replacement in place. -->
-    <script src="/assets/nav-menu.js" defer></script>
+    <script src="/assets/nav-menu.js" data-shop defer></script>
 
     <!-- The brand-logo strip under the hero carousel was removed at the
          owner's request, 2026-09-20. assets/brand-strip.js is left in the
@@ -983,25 +985,25 @@
          revert if it is ever wanted back.
          BACK, 2026-10-02: the owner asked for a picture beside its three rows
          and a fixed "1 KWD" delivery line, so the script is deployed again. -->
-    <script src="/assets/trust-strip.js" defer></script>
+    <script src="/assets/trust-strip.js" data-shop defer></script>
 
     <!-- A product grid on the home page, right under "Shop by category" —
          asked for 2026-09-22. Reads the same `featured`/`featured_sort`
          fields the Expo app's own home screen already uses, falling back to
          the first 8 active products until the owner marks some Featured in
          /backends. Renders nothing if the catalogue itself is empty. -->
-    <script src="/assets/home-products.js?v=20261001" defer></script>
+    <script src="/assets/home-products.js?v=20261001" data-shop defer></script>
     <script src="/assets/home-banner.js" defer></script>
-    <script src="/assets/card-heart.js" defer></script>
-    <script src="/assets/menu-bar.js" defer></script>
-    <script src="/assets/grid-name-fit.js" defer></script>
+    <script src="/assets/card-heart.js" data-shop defer></script>
+    <script src="/assets/menu-bar.js" data-shop defer></script>
+    <script src="/assets/grid-name-fit.js" data-shop defer></script>
 
     <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
          panel-written text below the "Last updated" line on Privacy/Terms,
          and the one descriptive paragraph above the order-lookup card on
          Returns. Renders nothing until an owner has written something; the
          live shop has no override yet. -->
-    <script src="/assets/legal-pages.js" defer></script>
+    <script src="/assets/legal-pages.js" data-shop defer></script>
 
     <!-- "Sign in with Google" on /backends, beside the password form rather
          than instead of it. Google sign-in can fail for reasons this shop
@@ -1034,7 +1036,7 @@
          adds the attribute the bundle cannot be edited to include, and the
          browser does the rest in the visitor's own language. Same class of
          thing as the two above. Deleting this line reverts it. -->
-    <script src="/assets/track-guard.js" defer></script>
+    <script src="/assets/track-guard.js" data-shop defer></script>
 
     <!-- The home page's women's tile carries the ENGLISH composition in Arabic
          — figure and baked-in copy on the wrong side — while the men's tile
@@ -1043,14 +1045,14 @@
          here. The artwork now exists at both crops; this points the tile at it,
          and reverts itself on any load error so the worst case is today's
          picture rather than a blank tile. Deleting this line reverts it. -->
-    <script src="/assets/tile-art.js" defer></script>
+    <script src="/assets/tile-art.js" data-shop defer></script>
 
     <!-- The same four home-page tiles all still linked to /shop, from before
          /men /women /accessories /outlet existed as pages of their own.
          Points each at the right one instead — see the script's own header
          for why a plain href swap is not enough against a React Router Link.
          Deleting this line reverts every tile to /shop. -->
-    <script src="/assets/category-tiles.js" defer></script>
+    <script src="/assets/category-tiles.js" data-shop defer></script>
 
     <!-- The website panel's order-detail drawer: a link to the archived PDF
          invoice. api/invoice-pdf.php, api/cron-invoice.php and
@@ -1070,6 +1072,6 @@
          file's own header for why. Reverts itself if assistant-bot.webp is
          ever missing: the swap happens only after the new file's own load
          succeeds. -->
-    <script src="/assets/assistant-icon.js" defer></script>
+    <script src="/assets/assistant-icon.js" data-shop defer></script>
   </body>
 </html>

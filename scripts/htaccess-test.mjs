@@ -190,6 +190,9 @@ try {
 
   for (const p of ['/backends', '/backends/orders', '/backends/inventory']) {
     check(get(p).status === 200, `${p} is served by the app (deep links and refreshes work)`)
+    // Through panel.php (2026-10-04), which drops the storefront-only scripts — same rig-scoped
+    // "the body is the PHP source" reasoning as the seo.php check below.
+    check(bodyOf(p).includes("THE PANEL'S ENTRY"), `${p} is rendered through panel.php, not straight from index.html`)
   }
 
   console.log('\n--- the shop')

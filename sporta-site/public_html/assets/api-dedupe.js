@@ -26,6 +26,13 @@
   window.__sportaDedupe = true
 
   var ROUTES = /[?&]r=(products|slides|footer|theme|fonts|contact|legal|site_text)(&|$)/
+  // THE PANEL'S READS TOO (2026-10-04, "faster panel"): measured on the login page, ?r=me was asked
+  // NINE times and google_config/apple_config/passcode_status twice each — one per overlay, each unaware
+  // of the others; the Catalogue screen asked products_all four times. These are reads (admin.php GETs
+  // that write nothing), so sharing one answer for two seconds changes nothing but the request count.
+  // me/stats/notifications are per-session answers, which is fine: the key below includes the path and
+  // the cookie travels with every one of them.
+  var ADMIN_ROUTES = /[?&]r=(me|google_config|apple_config|passcode_status|couriers|products_all|brands|orders|variants|stats|notifications|rules|revenue|products_state|settings)(&|$)/
   var HOLD = 2000
   var seen = Object.create(null)
   var native = window.fetch.bind(window)
@@ -42,16 +49,21 @@
           if (p === 'headers') {
             var h = init.headers
             if (!h || typeof h !== 'object' || Array.isArray(h) || typeof h.forEach === 'function') return null
-            for (var q in h) if (q.toLowerCase() !== 'accept') return null
+            // Accept, and the panel's own two (a marker header and a JSON content type on a GET):
+            // none of them changes what a read answers.
+            for (var q in h) { var ql = q.toLowerCase(); if (ql !== 'accept' && ql !== 'x-sporta-admin' && ql !== 'content-type') return null }
             continue
           }
           if (p === 'method' && String(init.method).toUpperCase() === 'GET') continue
+          if (p === 'cache' && (init.cache === 'no-store' || init.cache === 'default')) continue   // the panel passes it on reads; the answer is the same
           return null
         }
       }
       if (typeof input !== 'string' && !(input instanceof URL)) return null
       var u = new URL(String(input), location.href)
-      if (u.origin !== location.origin || !/\/api\/api\.php$/.test(u.pathname)) return null
+      if (u.origin !== location.origin) return null
+      if (/\/api\/admin\.php$/.test(u.pathname)) return ADMIN_ROUTES.test(u.search) ? u.pathname + u.search : null
+      if (!/\/api\/api\.php$/.test(u.pathname)) return null
       return ROUTES.test(u.search) ? u.pathname + u.search : null
     } catch (e) { return null }
   }

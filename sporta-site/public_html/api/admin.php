@@ -977,6 +977,88 @@ if ($r === 'courier' && $method === 'POST') {
     store_out(['ok' => true, 'courier' => $courier === '' ? null : $courier, 'courier_ref' => $ref === '' ? null : $ref,
                'courier_url' => store_courier_url($courier, $ref)]);
 }
+// ---- the setup checklist (2026-10-04, "improve all backend setup"): what is still unconfigured, where
+// to fix it, and NEVER a value — only ready / missing / placeholder / partial. The same questions the
+// live-*-check scripts ask, answered inside the panel. Reads only.
+if ($r === 'setup_status') {
+    $cfg = store_config();
+    $set = static function (string $v): string {
+        $v = trim($v);
+        if ($v === '') return 'missing';
+        if (stripos($v, 'YOUR_') === 0 || stripos($v, 'SANDBOX_NOT_A_REAL') !== false || stripos($v, 'CHANGEME') !== false || stripos($v, 'PLACEHOLDER') !== false) return 'placeholder';
+        return 'ready';
+    };
+    $keys = static function (array $src, array $ks) use ($set): string {
+        $states = array_map(fn ($k) => $set((string) ($src[$k] ?? '')), $ks);
+        if (in_array('placeholder', $states, true)) return 'placeholder';
+        $ready = count(array_filter($states, fn ($x) => $x === 'ready'));
+        return $ready === count($ks) ? 'ready' : ($ready === 0 ? 'missing' : 'partial');
+    };
+    $items = [];
+    $add = static function (string $key, string $state, string $where, array $detail = []) use (&$items) {
+        $items[] = ['key' => $key, 'state' => $state, 'where' => $where] + $detail;
+    };
+    // payments
+    $pay = @include dirname(__DIR__) . '/pay/config.php';
+    $pay = is_array($pay) ? $pay : [];
+    $add('cbk', $pay ? $keys($pay, ['client_id', 'client_secret', 'encrp_key']) : 'missing', 'payments',
+         ['env' => ($pay['env'] ?? '') === 'test' ? 'test' : 'production']);
+    $knetRow = store_setting($db, 'knet');
+    $knetFile = @include dirname(__DIR__) . '/knet/config.php';
+    $knetFile = is_array($knetFile) ? $knetFile : [];
+    $tid = trim((string) ($knetRow['tranportal_id'] ?? '')) !== '' ? (string) $knetRow['tranportal_id'] : (string) ($knetFile['tranportal_id'] ?? '');
+    $add('knet_tranportal', $set($tid), 'payments', ['source' => trim((string) ($knetRow['tranportal_id'] ?? '')) !== '' ? 'panel' : 'file']);
+    $methods = store_rule($db, 'payment_methods');
+    $add('payment_methods', is_array($methods) && $methods ? 'ready' : 'missing', 'payments', ['count' => is_array($methods) ? count($methods) : 0]);
+    // messages
+    $add('whatsapp', $keys($cfg, ['whatsapp_token', 'whatsapp_phone_number_id']), 'config', [
+        'templates' => count(array_filter(['whatsapp_template_confirmed', 'whatsapp_template_shipped', 'whatsapp_template_packed', 'whatsapp_template_delivered', 'whatsapp_template_review'], fn ($k) => trim((string) ($cfg[$k] ?? '')) !== '')) . '/5']);
+    $add('mail', $keys($cfg, ['mail_from']), 'config', ['warehouse' => $set((string) ($cfg['warehouse_email'] ?? ''))]);
+    $add('push', $keys($cfg, ['vapid_public', 'vapid_private']), 'config');
+    $add('assistant_n8n', $keys($cfg, ['n8n_webhook', 'n8n_secret']), 'config');
+    $add('voice', $keys($cfg, ['tts_key', 'tts_voice_id']), 'config');
+    $add('ai_research', $keys($cfg, ['ai_key']), 'config');
+    $add('cron_key', $keys($cfg, ['cron_key']), 'config');
+    // sign-in
+    $g = store_setting($db, 'google_auth'); $add('google_signin', trim((string) ($g['client_id'] ?? '')) !== '' ? 'ready' : 'missing', 'security');
+    $ap = store_setting($db, 'apple_auth'); $add('apple_signin', trim((string) ($ap['client_id'] ?? '')) !== '' ? 'ready' : 'missing', 'security');
+    $me = store_session_admin();
+    $tf = $me ? $db->prepare('select totp_enabled, email_otp_enabled from admin_users where id = ?') : null;
+    if ($tf) { $tf->execute([(int) $me['id']]); $row = $tf->fetch() ?: []; }
+    $add('two_factor', !empty($row['totp_enabled']) || !empty($row['email_otp_enabled']) ? 'ready' : 'missing', 'security');
+    // wallet
+    require_once __DIR__ . '/wallet-setup.php';
+    $w = wallet_status($cfg);
+    $add('wallet', $w['ready'] ? 'ready' : (($w['certificate'] || $w['key'] || $w['request_pending']) ? 'partial' : 'missing'), 'settings', ['expires' => $w['expires'], 'expired' => $w['expired']]);
+    // content
+    $active = (int) $db->query('select count(*) from products where active = 1')->fetchColumn();
+    $withPhoto = (int) $db->query('select count(distinct p.slug) from products p join product_images i on i.slug = p.slug where p.active = 1')->fetchColumn();
+    $add('product_photos', $active === 0 ? 'missing' : ($withPhoto === $active ? 'ready' : ($withPhoto === 0 ? 'missing' : 'partial')), 'catalogue', ['with' => $withPhoto, 'of' => $active]);
+    $brands = $db->query('select slug from brands')->fetchAll(PDO::FETCH_COLUMN);
+    $logos = count(array_filter($brands, fn ($b) => store_brand_logo_file((string) $b) !== null));
+    $add('brand_logos', !$brands ? 'missing' : ($logos === count($brands) ? 'ready' : ($logos === 0 ? 'missing' : 'partial')), 'brands', ['with' => $logos, 'of' => count($brands)]);
+    $withBrand = (int) $db->query("select count(*) from products where active = 1 and coalesce(brand_slug,'') <> ''")->fetchColumn();
+    $add('product_brands', $active === 0 ? 'missing' : ($withBrand === $active ? 'ready' : ($withBrand === 0 ? 'missing' : 'partial')), 'catalogue', ['with' => $withBrand, 'of' => $active]);
+    $noDesc = (int) $db->query("select count(*) from products where active = 1 and (coalesce(desc_en,'') = '' or coalesce(desc_ar,'') = '')")->fetchColumn();
+    $add('product_descriptions', $active === 0 ? 'missing' : ($noDesc === 0 ? 'ready' : ($noDesc === $active ? 'missing' : 'partial')), 'catalogue', ['with' => $active - $noDesc, 'of' => $active]);
+    $slides = (int) $db->query('select count(*) from hero_slides where active = 1')->fetchColumn();
+    $add('hero_slides', $slides > 0 ? 'ready' : 'missing', 'slides', ['count' => $slides]);
+    $social = store_setting($db, 'social');
+    $add('instagram', trim((string) ($social['instagram'] ?? '')) !== '' ? 'ready' : 'missing', 'settings');
+    $seo = store_setting($db, 'seo');
+    $add('google_verification', trim((string) ($seo['google_verification'] ?? '')) !== '' ? 'ready' : 'missing', 'seo');
+    $contact = store_setting($db, 'contact');
+    $add('contact', trim((string) ($contact['phone'] ?? $cfg['shop_phone'] ?? '')) !== '' ? 'ready' : 'missing', 'settings');
+    // backups
+    $bdir = rtrim((string) ($cfg['backup_dir'] ?? ''), '/'); if ($bdir === '') $bdir = dirname(__DIR__, 3) . '/backups';
+    $bk = glob("$bdir/sporta-*.json.gz") ?: []; rsort($bk, SORT_STRING);
+    $newest = $bk ? (int) filemtime($bk[0]) : 0;
+    $add('daily_backup', !$bk ? 'missing' : (time() - $newest > 2 * 86400 ? 'partial' : 'ready'), 'cron', ['count' => count($bk), 'newest' => $newest ? gmdate('Y-m-d', $newest) : null]);
+    $summary = ['ready' => 0, 'partial' => 0, 'placeholder' => 0, 'missing' => 0];
+    foreach ($items as $i) $summary[$i['state']]++;
+    store_out(['items' => $items, 'summary' => $summary]);
+}
+
 if ($r === 'couriers') {
     $out = [];
     foreach (STORE_COURIERS as $k => [$en, $ar, $tpl]) $out[] = ['key' => $k, 'name_en' => $en, 'name_ar' => $ar, 'has_page' => $tpl !== null];
@@ -4879,77 +4961,7 @@ if ($r === 'audit_log') {
 // code does a delete-then-insert inside one transaction rather than an
 // `on duplicate key update` that could leave a live-only row untouched and
 // call that a restore.
-const BACKUP_TABLES = [
-    'brands', 'products', 'product_variants', 'product_images',
-    'customers', 'orders', 'order_items', 'reviews', 'discounts',
-    'blocked_customers', 'hero_slides', 'settings', 'admin_users', 'assistant_qa',
-];
-
-// The one non-'id' key. A hand-written exception list is the same shape as
-// the size/fit lists elsewhere in this project that had to be read out of the
-// schema rather than restated — this one is short enough, and stable enough
-// (a primary-key column does not change casually), to state directly rather
-// than introspect on every request.
-function backup_pk(string $table): string {
-    return $table === 'settings' ? 'name' : 'id';
-}
-
-// Every REAL column of a table this shop knows, the only names an insert
-// built from an uploaded file may ever use.
-//
-// backup_import BUILDS ITS INSERT FROM THE UPLOADED FILE'S OWN KEYS —
-// array_keys($row) — because a genuine export can carry a column this list
-// does not enumerate by hand without the two drifting apart the moment the
-// schema changes. That is safe only because those keys are checked against
-// something real BEFORE they are ever concatenated into SQL; unchecked, a
-// "column name" is an unescaped IDENTIFIER, and a row is an attacker-shaped
-// value the moment it is anything other than the shop's own export — a
-// backup is a file, and a file can be replaced before it is ever uploaded.
-// `show columns` is queried with `$table` alone in the identifier position,
-// and $table only ever comes from BACKUP_TABLES, never from the file.
-function backup_columns(PDO $db, string $table): array {
-    $out = [];
-    foreach ($db->query('show columns from `' . $table . '`')->fetchAll() as $c) {
-        $out[] = (string) $c['Field'];
-    }
-    return $out;
-}
-
-// Builds the exported form of one table: every column, every row, streamed
-// off a PDO cursor rather than fetchAll()'d whole — orders and order_items
-// are the tables here most likely to grow large, and a cursor means this
-// route's peak memory is one row, not one table.
-function backup_table_rows(PDO $db, string $table): array {
-    $stmt = $db->query('select * from `' . $table . '`');
-    $rows = [];
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if ($table === 'admin_users') {
-            // THE SECOND FACTOR NEVER TRAVELS. See the comment above this
-            // block for the reasoning; this is the one line that enforces it.
-            $row['totp_secret'] = null;
-            $row['totp_enabled'] = 0;
-            $row['totp_last_step'] = null;
-        }
-        $rows[] = $row;
-    }
-    return $rows;
-}
-
-function backup_build(PDO $db): array {
-    $out = [
-        // A format version, not the shop's own VERSION (sw.js) — this is the
-        // shape of the FILE, so a future change to what a backup contains can
-        // tell an old file from a new one without guessing from what keys
-        // happen to be present.
-        'format'      => 1,
-        'exported_at' => gmdate('c'),
-        'tables'      => [],
-    ];
-    foreach (BACKUP_TABLES as $t) {
-        $out['tables'][$t] = backup_table_rows($db, $t);
-    }
-    return $out;
-}
+require_once __DIR__ . '/backup-build.php';   // BACKUP_TABLES, backup_pk, backup_columns, backup_table_rows, backup_build
 
 // Diffs a backup's rows against the live table by primary key, WITHOUT
 // writing anything — this function only ever runs selects. `added` and
