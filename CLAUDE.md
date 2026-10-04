@@ -4475,3 +4475,8 @@ order not critical — without the tables every session is alive, passkeys answe
   `sessions: []` found it); and `.htaccess` already carried `Cross-Origin-Opener-Policy "same-origin"`
   (28131aa) — a second `same-origin-allow-popups` line was removed before it shipped, since the LAST
   `Header set` wins and two lines for one header are two homes for it.
+- **Live, 2026-10-04 07:08 UTC:** `publish-all` converged (337 files), `migrate-security` `tables=2/2
+  READY`, `live-admin-gate` `routes=154 public=16 guarded=138 answering200=0` (the two passkey doors
+  are the only new public ones), `live-login-check` normal. **The cron list was ELEVEN**: the ten
+  known jobs plus a foreign `* * * * *` `rm -f /home/u130124229/w.php` — not ours, not deleted.
+  `cron-push` is back on `* * * * *` (uid fP0uh7aTlC) — restored by the owner, not by this session.
