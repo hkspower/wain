@@ -43,6 +43,7 @@ $WANT = [
     'api/assistantqa.mysql.sql' => 'd272b606f750484f5ea9981f63792c084cb7a1335f62624996fd303fc671c3b2',
     'api/attribution.mysql.sql' => 'bd9486d8589c699881329c7a9fba716cef49f916f5f9f7cf837944d4bfc5ef58',
     'api/brands.mysql.sql' => '7f781441054267db1cfb90a356cfdc8817d62d80670ced83d9ba0be047bba110',
+    'api/catalog-feed.php' => '0afe5972b740f9860a32d1f73383f276b6b941bbee23028be534e08ea001c08e',
     'api/categoryart.mysql.sql' => '7773fd8278b03e92472a483e48879d5d26418868973513bc547f6040f7da872a',
     'api/config.example.php' => '139e99cd4d86122c4c085c7a4ecbc5dda3c80bd94ed85f935cdb502a9d942cfe',
     'api/cron-assistant.php' => '08fde52104005ba3d6f27e7bb3d869a9707787f980ccf8825e5f73a7caf423c9',
