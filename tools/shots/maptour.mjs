@@ -7,16 +7,18 @@
 //   node tools/shots/maptour.mjs --encode-only      # encode whatever frames are on disk
 //   node tools/shots/maptour.mjs --jobs 2           # two browsers, alternate frames
 //
-// THE CUT, 120 s at the racing hour (02:30):
+// THE CUT, 64 s at the racing hour (02:30) (--len for another length;
+// the opening and the ending keep their 8 s and the districts share the
+// rest):
 //
 //     0-8    the whole circuit from 2.6 km up, the route traced in sodium
 //            light and every district named where it lies; the title.
-//     8-110  the ten districts in lap order, ~10.2 s each: a drone pass
+//     8-56   the ten districts in lap order, 4.8 s each: a drone pass
 //            along that district's road (the aerial half), then a cut to
 //            driving it in the chase view with traffic in the lanes (the
 //            road half), under a lower-third card — the district in Arabic
 //            and Latin, its road, where it is on the lap.
-//   110-120  rising back out over the whole map; the end card.
+//    56-64   rising back out over the whole map; the end card.
 //
 // Rendered the way tools/shots/trailer.mjs renders the trailer, for the
 // same reason: a screen recording of a software renderer is a recording
@@ -53,7 +55,7 @@ const arg = (name, fallback) => {
 const FPS = Number(arg("fps", 24));
 const WIDTH = Number(arg("width", 1920));
 const HEIGHT = Math.round((WIDTH * 9) / 16);
-const LEN = Number(arg("len", 120));
+const LEN = Number(arg("len", 64));
 const TIER = arg("tier", "high");
 /** The 3D's own line count (render.ts Resolution: 1080 or 720); the cards
  *  are always drawn at the output's full size. */
@@ -391,7 +393,10 @@ if (!process.argv.includes("--encode-only")) {
         look(centre.x, 0, centre.z);
       };
 
-      const SEG0 = 8, SEG1 = 110, AERIAL = 0.45; // the aerial share of each district
+      // The opening and the ending are 8 s each whatever the length, so
+      // the opening's frames survive a change of --len (every frame is a
+      // function of t and these three numbers alone).
+      const SEG0 = 8, SEG1 = LEN - 8, AERIAL = 0.45; // the aerial share of each district
       window.__mapFrame = (t, dt) => {
         const hour = 2.5;
         let fade = 1;
