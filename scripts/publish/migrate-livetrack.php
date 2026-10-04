@@ -22,7 +22,8 @@ if (!is_file($sqlPath)) { line('api/livetrack.mysql.sql is not on the server —
 $sql = (string) file_get_contents($sqlPath);
 $body = preg_replace('/--[^\n]*/', '', $sql);
 if (stripos($body, 'create table if not exists order_location') === false
-    || preg_match('/\b(delete|truncate|drop\s+table)\b/i', $body)
+    || preg_match('/\b(truncate|drop\s+table)\b/i', $body)
+    || preg_match('/\bdelete\b(?!\s+cascade)/i', $body)   // 'on delete cascade' is a foreign-key rule, not a write
     || preg_match('/\bupdate\b(?!\s+current_timestamp)/i', $body)   // 'on update current_timestamp' is a column default, not a write
     || preg_match_all('/\balter\s+table\s+orders\s+add\s+column\s+if\s+not\s+exists\b/i', $body) !== 4
     || stripos($body, "check (kind in ('confirmed','packed','shipped','delivered','review'))") === false) {
