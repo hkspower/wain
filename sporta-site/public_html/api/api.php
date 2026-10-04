@@ -1128,12 +1128,26 @@ if ($r === 'status') {
     // nobody had touched. Still NO personal data here — no name, phone or address — because track_id is
     // chosen by the client and is not a secret (see return_items above); what an order number alone may
     // reveal is where the parcel is, not whose it is.
-    $q = $db->prepare('select payment_status, payment_method, amount, fulfilment_status, created_at, paid_at, fulfilled_at
-                         from orders where track_id = ?');
+    // Live tracking (2026-10-04): a time per step, the carrier's tracking link, and the driver's
+    // position — the last only while the order is 'shipped' and the position is under 30 minutes
+    // old, so a stale point never shows a van that is somewhere else. The page polls this every ten
+    // seconds; the throttle allows that for a few open tabs and no more.
+    store_throttle($db, 'status', 120, 60);
+    $q = $db->prepare('select o.id, o.payment_status, o.payment_method, o.amount, o.fulfilment_status, o.created_at, o.paid_at,
+                              o.packed_at, o.shipped_at, o.fulfilled_at, o.courier, o.courier_ref,
+                              l.lat, l.lng, l.accuracy_m, l.updated_at as loc_at, timestampdiff(second, l.updated_at, now()) as loc_age
+                         from orders o left join order_location l on l.order_id = o.id where o.track_id = ?');
     $q->execute([trim((string)($_GET['id'] ?? ''))]);
     $row = $q->fetch();
     if (!$row) store_out(null);
     $row['amount'] = (float)$row['amount'];
+    $row['courier_name'] = $row['courier'] !== null ? (STORE_COURIERS[$row['courier']] ?? null) : null;
+    if (is_array($row['courier_name'])) $row['courier_name'] = ['en' => $row['courier_name'][0], 'ar' => $row['courier_name'][1]];
+    $row['courier_url'] = store_courier_url($row['courier'], $row['courier_ref']);
+    $live = $row['fulfilment_status'] === 'shipped' && $row['lat'] !== null && (int)$row['loc_age'] <= 1800;
+    $row['location'] = $live ? ['lat' => (float)$row['lat'], 'lng' => (float)$row['lng'], 'accuracy_m' => $row['accuracy_m'] === null ? null : (int)$row['accuracy_m'],
+                                'updated_at' => $row['loc_at'], 'age_sec' => (int)$row['loc_age']] : null;
+    unset($row['id'], $row['lat'], $row['lng'], $row['accuracy_m'], $row['loc_at'], $row['loc_age']);
     store_out($row);
 }
 

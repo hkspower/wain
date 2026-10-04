@@ -863,9 +863,11 @@ function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
     // The customer's own language, defaulting to Arabic. See the column note.
     $lang = ($o['customer_lang'] ?? '') === 'en' ? 'en' : 'ar';
     $tplKey = match ($kind) {
-        'shipped' => 'whatsapp_template_shipped',
-        'review'  => 'whatsapp_template_review',
-        default   => 'whatsapp_template_confirmed',
+        'packed'    => 'whatsapp_template_packed',      // live tracking, 2026-10-04: one message per step
+        'shipped'   => 'whatsapp_template_shipped',
+        'delivered' => 'whatsapp_template_delivered',
+        'review'    => 'whatsapp_template_review',
+        default     => 'whatsapp_template_confirmed',
     };
     $template = (string)($cfg[$tplKey] ?? '');
     if ($template === '') return;   // template not configured: nothing to send
@@ -3734,6 +3736,42 @@ function store_review_token_ok(string $trackId, string $token): bool {
     // file. Fail closed rather than issue codes to strangers.
     if (($cfg['cron_key'] ?? '') === '') return false;
     return hash_equals(store_review_sig($trackId), $token);
+}
+
+// ------------------------------------------------------ live tracking, 2026-10-04
+//
+// THE DRIVER LINK. api/driver.php accepts a position for ONE order when the request carries this
+// signature — the same shape as the review link above (HMAC on cron_key, 32 hex), minted for the
+// owner by admin.php?r=driver_link. A different prefix, so a review token never opens a driver page.
+function store_driver_sig(string $trackId): string {
+    $cfg = store_config();
+    return substr(hash_hmac('sha256', 'driver' . "\0" . $trackId, (string)($cfg['cron_key'] ?? '')), 0, 32);
+}
+function store_sig_ok(string $expected, string $given): bool {
+    $cfg = store_config();
+    if (($cfg['cron_key'] ?? '') === '') return false;   // fail closed, as the review token does
+    return strlen($given) === 32 && hash_equals($expected, $given);
+}
+
+// THE CARRIERS /backends can name, and where each one's tracking page is. The customer's /track links
+// to it. A carrier not in this list cannot be saved — a typed URL would be a link the shop did not
+// write, on the page shoppers trust most. 'own' is the shop's own driver: no page, the map instead.
+const STORE_COURIERS = [
+    'own'     => ['Sporta delivery', 'توصيل سبورتا', null],
+    'aramex'  => ['Aramex', 'أرامكس', 'https://www.aramex.com/track/results?ShipmentNumber=%s'],
+    'dhl'     => ['DHL', 'دي إتش إل', 'https://www.dhl.com/kw-en/home/tracking.html?tracking-id=%s'],
+    'fedex'   => ['FedEx', 'فيديكس', 'https://www.fedex.com/fedextrack/?trknbr=%s'],
+    'ups'     => ['UPS', 'يو بي إس', 'https://www.ups.com/track?tracknum=%s'],
+    'smsa'    => ['SMSA', 'سمسا', 'https://www.smsaexpress.com/trackingdetails?tracknumbers=%s'],
+    'kwpost'  => ['Kuwait Post', 'البريد الكويتي', 'https://www.kuwaitpost.gov.kw/track/%s'],
+    'armada'  => ['Armada', 'أرمادا', null],
+    'other'   => ['Courier', 'شركة التوصيل', null],
+];
+function store_courier_url(?string $courier, ?string $ref): ?string {
+    $tpl = STORE_COURIERS[(string)$courier][2] ?? null;
+    $ref = trim((string)$ref);
+    if ($tpl === null || $ref === '' || !preg_match('/^[A-Za-z0-9-]{3,80}$/', $ref)) return null;
+    return sprintf($tpl, rawurlencode($ref));
 }
 
 // The order a review link points at, or null. Only real, non-cancelled orders

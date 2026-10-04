@@ -187,6 +187,8 @@ return [
     //   {{1}} customer name   {{2}} order number   {{3}} amount in KWD
     'whatsapp_template_confirmed' => '',
     'whatsapp_template_shipped'   => '',
+    'whatsapp_template_packed'    => '',   // live tracking: optional, one message per step
+    'whatsapp_template_delivered' => '',
     // The review invitation, sent once an order is marked DELIVERED. Its
     // variables differ from the two above because it carries a link:
     //   {{1}} customer name   {{2}} order number

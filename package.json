@@ -237,7 +237,8 @@
     "test:rules-live": "node scripts/rules-live-test.mjs",
     "test:product-photo-shape": "node scripts/product-photo-shape-test.mjs",
     "test:menu-bar": "node scripts/menu-bar-test.mjs",
-    "test:catalog-feed": "node scripts/catalog-feed-test.mjs"
+    "test:catalog-feed": "node scripts/catalog-feed-test.mjs",
+    "test:live-tracking": "node scripts/live-tracking-test.mjs"
   },
   "private": true
 }

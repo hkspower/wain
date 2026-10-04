@@ -934,10 +934,21 @@ if ($r === 'fulfilment' && $method === 'POST') {
         store_fail('invalid_status');
     }
     $orderId = (int)($b['order_id'] ?? 0);
+    // Each step keeps its own time (live tracking, 2026-10-04): set when the step is first reached,
+    // never cleared, so re-marking an order does not lose when it really left.
     $db->prepare('update orders set fulfilment_status = ?,
+                    packed_at    = case when ? = \'packed\'    and packed_at    is null then now() else packed_at    end,
+                    shipped_at   = case when ? = \'shipped\'   and shipped_at   is null then now() else shipped_at   end,
                     fulfilled_at = case when ? = \'delivered\' then now() else fulfilled_at end
                   where id = ?')
-       ->execute([$status, $status, $orderId]);
+       ->execute([$status, $status, $status, $status, $orderId]);
+    // A delivered or cancelled order has no van to follow: its driver position goes, and the
+    // driver link stops being accepted (driver.php checks the status).
+    if (in_array($status, ['delivered', 'cancelled'], true)) {
+        $db->prepare('delete from order_location where order_id = ?')->execute([$orderId]);
+    }
+    if ($status === 'packed') store_queue_whatsapp($db, $orderId, 'packed');
+    if ($status === 'delivered') store_queue_whatsapp($db, $orderId, 'delivered');
     // Tell the customer it is on its way. Only on 'shipped': 'packed' is an
     // internal state that means nothing to a shopper, and 'delivered' arrives
     // after they are holding the bag. The unique index makes this safe to call
@@ -951,6 +962,43 @@ if ($r === 'fulfilment' && $method === 'POST') {
     // send a second invitation.
     if ($status === 'delivered') store_queue_whatsapp($db, $orderId, 'review');
     store_out(['ok' => true]);
+}
+
+// ---- live tracking (2026-10-04): the carrier and its number, the driver link, the last position.
+if ($r === 'courier' && $method === 'POST') {
+    $b = store_body();
+    $orderId = (int)($b['order_id'] ?? 0);
+    $courier = trim((string)($b['courier'] ?? ''));
+    $ref = trim((string)($b['courier_ref'] ?? ''));
+    if ($courier !== '' && !isset(STORE_COURIERS[$courier])) store_fail('invalid_courier');
+    if ($ref !== '' && !preg_match('/^[A-Za-z0-9-]{3,80}$/', $ref)) store_fail('invalid_courier_ref');
+    $db->prepare('update orders set courier = ?, courier_ref = ? where id = ?')
+       ->execute([$courier === '' ? null : $courier, $ref === '' ? null : $ref, $orderId]);
+    store_out(['ok' => true, 'courier' => $courier === '' ? null : $courier, 'courier_ref' => $ref === '' ? null : $ref,
+               'courier_url' => store_courier_url($courier, $ref)]);
+}
+if ($r === 'couriers') {
+    $out = [];
+    foreach (STORE_COURIERS as $k => [$en, $ar, $tpl]) $out[] = ['key' => $k, 'name_en' => $en, 'name_ar' => $ar, 'has_page' => $tpl !== null];
+    store_out($out);
+}
+if ($r === 'driver_link') {
+    $q = $db->prepare('select track_id, fulfilment_status from orders where id = ?');
+    $q->execute([(int)($_GET['order_id'] ?? 0)]);
+    $o = $q->fetch();
+    if (!$o) store_fail('order_not_found', 404);
+    $cfg = store_config();
+    if (($cfg['cron_key'] ?? '') === '') store_fail('no_cron_key', 503);
+    $path = '/api/driver.php?o=' . rawurlencode($o['track_id']) . '&t=' . store_driver_sig($o['track_id']);
+    store_out(['path' => $path, 'url' => 'https://www.sporta.com.kw' . $path,
+               'usable' => in_array($o['fulfilment_status'], ['packed', 'shipped'], true), 'status' => $o['fulfilment_status']]);
+}
+if ($r === 'location') {
+    $q = $db->prepare('select lat, lng, accuracy_m, updated_at, timestampdiff(second, updated_at, now()) as age_sec from order_location where order_id = ?');
+    $q->execute([(int)($_GET['order_id'] ?? 0)]);
+    $l = $q->fetch();
+    store_out($l ? ['lat' => (float)$l['lat'], 'lng' => (float)$l['lng'], 'accuracy_m' => $l['accuracy_m'] === null ? null : (int)$l['accuracy_m'],
+                    'updated_at' => $l['updated_at'], 'age_sec' => (int)$l['age_sec']] : null);
 }
 
 // Settle (or un-settle) a cash order. The one narrow path that may touch

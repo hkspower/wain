@@ -24,24 +24,25 @@
 --   5. 5-missing-variants.sql the size rows fifteen seeded garments lack
 --   6. wallet.mysql.sql       Apple Wallet passes
 --   7. walletweb.mysql.sql    card tokens and registered phones
---   8. 7-returns.sql          return and exchange requests
---   9. 8-email-otp.sql        the admin's second factor by email
---   10. 9-product-brands.sql   which brand each garment belongs to
---   11. 10-must-change-password.sql force a new password after a cron-set temporary one
---   12. 11-admin-audit-log.sql every admin write, logged centrally
---   13. 12-known-login-ips.sql which addresses have signed an admin in before
---   14. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
---   15. assistantqa.mysql.sql  the answers the shop writes itself
---   16. customernotes.mysql.sql private notes and tags per customer
---   17. categoryart.mysql.sql  the home tile pictures, when the owner replaces them
---   18. homebanner.mysql.sql   the product banner above the categories, edited in /backends
---   19. seo.mysql.sql          per-product search titles and the default share picture, edited in /backends
---   20. productattrs.mysql.sql colour and fits picked in /backends
---   21. productthumbs.mysql.sql resized once, read back
---   22. stocklog.mysql.sql     every change to a stock count
---   23. admindevices.mysql.sql the /backends passcode unlock
---   24. adminreset.mysql.sql   forgot-password by email at /backends
---   25. adminloginlog.mysql.sql every attempt with address and country
+--   8. livetrack.mysql.sql    step times, carrier, driver position
+--   9. 7-returns.sql          return and exchange requests
+--   10. 8-email-otp.sql        the admin's second factor by email
+--   11. 9-product-brands.sql   which brand each garment belongs to
+--   12. 10-must-change-password.sql force a new password after a cron-set temporary one
+--   13. 11-admin-audit-log.sql every admin write, logged centrally
+--   14. 12-known-login-ips.sql which addresses have signed an admin in before
+--   15. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
+--   16. assistantqa.mysql.sql  the answers the shop writes itself
+--   17. customernotes.mysql.sql private notes and tags per customer
+--   18. categoryart.mysql.sql  the home tile pictures, when the owner replaces them
+--   19. homebanner.mysql.sql   the product banner above the categories, edited in /backends
+--   20. seo.mysql.sql          per-product search titles and the default share picture, edited in /backends
+--   21. productattrs.mysql.sql colour and fits picked in /backends
+--   22. productthumbs.mysql.sql resized once, read back
+--   23. stocklog.mysql.sql     every change to a stock count
+--   24. admindevices.mysql.sql the /backends passcode unlock
+--   25. adminreset.mysql.sql   forgot-password by email at /backends
+--   26. adminloginlog.mysql.sql every attempt with address and country
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -1882,6 +1883,38 @@ create table if not exists wallet_registrations (
   primary key (device_id, serial),
   key idx_wallet_reg_serial (serial)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- ========================================================================
+-- live tracking — step times, carrier, driver position
+-- (livetrack.mysql.sql)
+-- ========================================================================
+
+-- Live order tracking (2026-10-04). Safe to run twice; adds and never drops data.
+--
+--  orders.packed_at / shipped_at   when each step happened, so /track shows a time per step
+--  orders.courier / courier_ref    the carrier and its tracking number (/track links to the carrier)
+--  order_location                  the driver's last position for an order on its way (one row per
+--                                  order, overwritten; deleted when the order is delivered or cancelled)
+--  whatsapp_outbox.kind            'packed' and 'delivered' join the three kinds the queue knew
+set names utf8mb4;
+
+alter table orders add column if not exists packed_at   timestamp null default null;
+alter table orders add column if not exists shipped_at  timestamp null default null;
+alter table orders add column if not exists courier     varchar(24) null default null;
+alter table orders add column if not exists courier_ref varchar(80) null default null;
+
+create table if not exists order_location (
+  order_id    int unsigned not null primary key,
+  lat         decimal(9,6) not null,
+  lng         decimal(9,6) not null,
+  accuracy_m  int unsigned null,
+  updated_at  timestamp not null default current_timestamp on update current_timestamp,
+  constraint fk_loc_order foreign key (order_id) references orders(id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+alter table whatsapp_outbox drop constraint if exists wa_kind_ck;
+alter table whatsapp_outbox add constraint wa_kind_ck
+  check (kind in ('confirmed','packed','shipped','delivered','review'));
 
 -- ========================================================================
 -- returns — return and exchange requests

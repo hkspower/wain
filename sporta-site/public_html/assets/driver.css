@@ -1,0 +1,17 @@
+/* The driver's location page (api/driver.php). Dark like the header, one big button. */
+.drv{margin:0;min-height:100svh;background:#2d3034;color:#fff;font-family:Alexandria,'IBM Plex Sans Arabic',system-ui,sans-serif}
+.drv-main{max-width:480px;margin:0 auto;padding:32px 20px 48px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.drv-logo{width:140px;height:auto;margin-bottom:8px}
+.drv-title{margin:0;font-size:24px;font-weight:700}
+.drv-order{margin:0;font-size:16px;color:#c9ced3}
+.drv-order b{color:#fff;font-weight:700}
+.drv-help,.drv-bad{margin:0;font-size:15px;line-height:1.7;color:#dbdfe4}
+.drv-bad{color:#ffb4a0}
+.drv-btn{appearance:none;border:0;border-radius:999px;min-height:56px;padding:0 36px;font:inherit;font-size:18px;font-weight:700;cursor:pointer;width:100%;max-width:320px}
+.drv-start{background:#e0561c;color:#fff}
+.drv-stop{background:#fff;color:#171a1e}
+.drv-btn:disabled{opacity:.6;cursor:default}
+.drv-status{margin:0;min-height:1.5em;font-size:14px;color:#c9ced3}
+.drv-status[data-kind="on"]{color:#9be7b0}
+.drv-status[data-kind="err"]{color:#ffb4a0}
+.drv-lang{appearance:none;background:none;border:1px solid #5a5f66;border-radius:999px;color:#c9ced3;font:inherit;font-size:14px;padding:8px 18px;margin-top:8px;cursor:pointer}
