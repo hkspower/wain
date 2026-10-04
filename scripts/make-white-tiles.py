@@ -421,8 +421,8 @@ def save(img, crop, name, rtl_src=None):
     mirror = (rtl_src or img).convert('RGB').transpose(Image.FLIP_LEFT_RIGHT)
     for n, im in [(name, rgb), (name + '-rtl', mirror)]:
         p = os.path.join(ROOT, crop, f'art-{n}')
-        im.save(p + '.jpg', quality=86, optimize=True, progressive=True)
-        im.save(p + '.webp', quality=82, method=6)
+        im.save(p + '.jpg', quality=92, optimize=True, progressive=True)
+        im.save(p + '.webp', quality=90, method=6)
         print(crop, n, im.size)
 
 

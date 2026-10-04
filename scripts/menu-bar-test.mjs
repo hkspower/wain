@@ -85,9 +85,9 @@ for (const lang of ['en', 'ar']) {
   if (!s) { await p.close(); continue }
   check(s.rows === 2, `${lang}: two rows (exchange, delivery)`, String(s.rows))
   check(s.inside, `${lang} ${width}: the rows sit inside the picture panel`)
-  // 2026-10-04: only the owner's own photographs on the site, so the drawn band picture is gone too; the
-  // panel is the plain brand colour (the orange-sampling checks below still prove it is orange).
-  check(s.people === 0 && s.bg === 'none', `${lang} ${width}: the panel is plain brand colour, no picture of any kind`, s.bg)
+  // 2026-10-04 (later the same day): the owner brought the generated art back, so the band picture is
+  // the panel's background again (the orange-sampling checks below still prove the rows sit on orange).
+  check(s.people === 0 && /features\.webp/.test(s.bg), `${lang} ${width}: the panel is the band picture, no model image`, s.bg)
   check(s.textColour === 'rgb(255, 255, 255)', `${lang} ${width}: the text is white`, s.textColour)
   // White text must land on ORANGE: sample the panel 4px outside each row's left and right ends.
   await p.evaluate(() => document.querySelector('.sts-panel').scrollIntoView({ block: 'center', behavior: 'instant' }))
