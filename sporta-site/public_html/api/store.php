@@ -2022,6 +2022,7 @@ function store_session_start(string $kind = 'admin'): void {
 // the browser holding an id that still resolves, which is how a "signed out"
 // admin turns out not to be.
 function store_session_end(): void {
+    if (!empty($_SESSION['admin_id'])) { require_once __DIR__ . '/security.php'; sec_session_revoke_current(); }
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
@@ -2060,6 +2061,10 @@ function store_session_admin(): ?array {
         store_session_end();
         return null;
     }
+    // A session signed out from another browser (the ledger's revoked_at) ends here, on its next
+    // request. Without the ledger's tables every session is alive, as before.
+    require_once __DIR__ . '/security.php';
+    if (!sec_session_alive((int)$_SESSION['admin_id'])) { store_session_end(); return null; }
     $_SESSION['seen_at'] = $now;
     return ['id' => (int)$_SESSION['admin_id'], 'email' => $_SESSION['admin_email'] ?? ''];
 }
@@ -2528,6 +2533,13 @@ function store_login(string $email, string $password): array {
     // account with both should be asked for the stronger one, and offering a
     // choice would let an attacker pick the weaker.
     $hasEmail = !$hasTotp && (int)($u['email_otp_enabled'] ?? 0) === 1;
+    // THE require_2fa POLICY (settings row `security`, 2026-10-04): an account with neither factor
+    // enrolled is asked for an emailed code anyway. The code is issued and sent exactly like the
+    // enrolled email factor; pending_forced tells store_login_code() to accept it although
+    // email_otp_enabled is 0. The policy cannot be saved without a mailer (sec_policy_validate).
+    require_once __DIR__ . '/security.php';
+    $forced = !$hasTotp && !$hasEmail && !empty(sec_policy($db)['require_2fa']);
+    if ($forced) $hasEmail = true;
 
     if ($hasTotp || $hasEmail) {
         store_session_start();
@@ -2538,6 +2550,7 @@ function store_login(string $email, string $password): array {
         $_SESSION['pending_admin_id'] = (int)$u['id'];
         $_SESSION['pending_at'] = time();
         $_SESSION['pending_via'] = $hasTotp ? 'totp' : 'email';
+        $_SESSION['pending_forced'] = $forced;
 
         $out = ['id' => (int)$u['id'], 'email' => $u['email'], 'need_code' => true,
                 'code_via' => $hasTotp ? 'totp' : 'email'];
@@ -2564,7 +2577,7 @@ function store_login(string $email, string $password): array {
 // The half of sign-in that actually hands over the shop. Shared by the
 // one-factor path above and the code-verifying path below, so the two cannot
 // drift into different ideas of what a signed-in admin looks like.
-function store_admin_grant(PDO $db, array $u): void {
+function store_admin_grant(PDO $db, array $u, string $method = 'password'): void {
     $db->prepare('update admin_users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = ?')
        ->execute([$u['id']]);
 
@@ -2588,6 +2601,10 @@ function store_admin_grant(PDO $db, array $u): void {
     $_SESSION['admin_email'] = $u['email'];
     $_SESSION['started_at'] = time();
     $_SESSION['seen_at'] = time();
+    // THE SESSION LEDGER (2026-10-04): one row per signed-in browser, so the owner can see every
+    // device and sign one out. Recorded here because this is the one place every grant ends in.
+    require_once __DIR__ . '/security.php';
+    sec_session_record($db, (int)$u['id'], $method);
 }
 
 // NEVER BLOCKS A SIGN-IN. A mail server down, a table not yet migrated, a
@@ -2868,7 +2885,7 @@ function store_login_code(string $code): array {
     // before the thing it is waiting for.
     $window = $via === 'email' ? STORE_EMAIL_OTP_SECONDS : STORE_TOTP_PENDING_SECONDS;
     if ($id === 0 || $since === 0 || time() - $since > $window) {
-        unset($_SESSION['pending_admin_id'], $_SESSION['pending_at'], $_SESSION['pending_via']);
+        unset($_SESSION['pending_admin_id'], $_SESSION['pending_at'], $_SESSION['pending_via'], $_SESSION['pending_forced']);
         store_fail('code_expired', 401);
     }
 
@@ -2887,6 +2904,7 @@ function store_login_code(string $code): array {
     // from the body would let a caller who holds the password say "check my
     // email code instead" on an account that is protected by TOTP.
     $expected = $via === 'email' ? (int)($u['email_otp_enabled'] ?? 0) : (int)($u['totp_enabled'] ?? 0);
+    if ($via === 'email' && !empty($_SESSION['pending_forced'])) $expected = 1; // the require_2fa policy's code
     if (!$u || $expected !== 1) store_fail('code_expired', 401);
 
     $ok = $via === 'email'

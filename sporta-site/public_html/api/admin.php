@@ -59,8 +59,9 @@ store_throttle($db, 'admin', 1200, 60);
 // answered, so the doors themselves are untouched.
 const ADMIN_LOGIN_ROUTES = [
     'login' => 'password', 'login_code' => 'code', 'google_login' => 'google', 'apple_login' => 'apple',
-    'passcode_unlock' => 'passcode', 'password_reset_confirm' => 'reset',
+    'passcode_unlock' => 'passcode', 'password_reset_confirm' => 'reset', 'passkey_login' => 'passkey',
 ];
+require_once __DIR__ . '/security.php';   // sessions, passkeys, policies, breached passwords (2026-10-04)
 if ($method === 'POST' && isset(ADMIN_LOGIN_ROUTES[$r])) {
     ob_start();
     register_shutdown_function(function () use ($db, $r) {
@@ -96,6 +97,7 @@ if ($method === 'POST' && isset(ADMIN_LOGIN_ROUTES[$r])) {
 // ------------------------------------------------------------------- session
 if ($r === 'login' && $method === 'POST') {
     store_require_admin_header();
+    sec_signin_ip_gate($db);
     $b = store_body();
     $who = store_login((string)($b['email'] ?? ''), (string)($b['password'] ?? ''));
     // need_code is the whole point of the answer when a second factor is
@@ -168,7 +170,7 @@ if ($r === 'register' && $method === 'POST') {
     // TWELVE, because that is what changing a password already demands further
     // down this file. A floor lower at the door than in the corridor protects
     // nothing.
-    if (strlen($pass) < 12) store_fail('password_too_short');
+    sec_password_refuse($pass, $email);
     // Twelve characters proves nothing on its own — see store_password_is_weak().
     if (($weak = store_password_is_weak($pass, $email)) !== null) store_fail($weak);
 
@@ -262,6 +264,7 @@ if ($r === 'google_config') {
 // about who it is survives past store_google_verify(); the only thing that
 // signs anyone in is Google's signature over claims naming this client id.
 if ($r === 'google_login' && $method === 'POST') {
+    sec_signin_ip_gate($db);
     store_require_admin_header();
     $b = store_body();
     $who = store_google_login((string)($b['credential'] ?? ''));
@@ -324,6 +327,7 @@ if ($r === 'apple_config') {
 }
 
 if ($r === 'apple_login' && $method === 'POST') {
+    sec_signin_ip_gate($db);
     store_require_admin_header();
     $b = store_body();
     $who = store_apple_login((string)($b['id_token'] ?? ''));
@@ -431,9 +435,8 @@ if ($r === 'password_reset_confirm' && $method === 'POST') {
     }
     // The code is right; now the password. A refusal here does NOT burn the code,
     // so a too-short first try does not cost the owner their reset.
-    if (strlen($new) < 12) store_fail('password_too_short');
     if (!hash_equals($new, (string) ($b['password2'] ?? ''))) store_fail('password_mismatch');
-    if (($weak = store_password_is_weak($new, (string) $row['email'])) !== null) store_fail($weak);
+    sec_password_refuse($new, (string) $row['email']);
 
     $db->prepare('update admin_users set password_hash = ?, must_change_password = 0, failed_attempts = 0, locked_until = null where id = ?')
        ->execute([password_hash($new, PASSWORD_DEFAULT), $row['id']]);
@@ -572,6 +575,7 @@ if ($r === 'passcode_status') {
 }
 
 if ($r === 'passcode_unlock' && $method === 'POST') {
+    sec_signin_ip_gate($db);
     store_require_admin_header();
     store_throttle($db, 'admin_passcode', 30, 900);
     $b = store_body();
@@ -599,6 +603,34 @@ if ($r === 'passcode_unlock' && $method === 'POST') {
     passcode_set_cookie(passcode_cookie_token(), $exp);
     store_admin_grant($db, ['id' => (int)$u['id'], 'email' => $u['email']]);
     store_out(['email' => $u['email']]);
+}
+
+// PASSKEYS — the two public halves (sign-in). The registration halves sit behind the gate below.
+if ($r === 'passkey_options_login' && $method === 'POST') {
+    store_require_admin_header();
+    sec_signin_ip_gate($db);
+    if (!sec_tables_ready($db)) store_fail('passkeys_not_ready', 503);
+    store_throttle($db, 'passkey_options', 60, 300);
+    store_out(sec_passkey_login_options($db));
+}
+if ($r === 'passkey_login' && $method === 'POST') {
+    store_require_admin_header();
+    sec_signin_ip_gate($db);
+    if (!sec_tables_ready($db)) store_fail('passkeys_not_ready', 503);
+    $u = sec_passkey_login($db, store_body());
+    $hasTotp = (int)($u['totp_enabled'] ?? 0) === 1 && (string)($u['totp_secret'] ?? '') !== '';
+    $hasEmail = !$hasTotp && (int)($u['email_otp_enabled'] ?? 0) === 1;
+    if (!$u['uv'] && ($hasTotp || $hasEmail)) {
+        // No biometric/PIN on this authenticator: it counts as the password did, so the second factor is asked.
+        store_session_start(); session_regenerate_id(true);
+        unset($_SESSION['admin_id'], $_SESSION['admin_email']);
+        $_SESSION['pending_admin_id'] = (int)$u['id']; $_SESSION['pending_at'] = time(); $_SESSION['pending_via'] = $hasTotp ? 'totp' : 'email'; $_SESSION['pending_forced'] = false;
+        $out = ['email' => $u['email'], 'need_code' => true, 'code_via' => $hasTotp ? 'totp' : 'email'];
+        if ($hasEmail) { $code = store_email_otp_issue($db, $u); $out['code_sent_to'] = store_mask_email((string)$u['email']); $out['code_sent'] = store_email_otp_send($u, $code); }
+        store_out($out);
+    }
+    store_admin_grant($db, $u, 'passkey');
+    store_out(['email' => $u['email'], 'need_code' => false, 'via' => 'passkey']);
 }
 
 if ($r === 'logout' && $method === 'POST') {
@@ -653,6 +685,48 @@ if ($r === 'me') {
 // forces a password change but blocks the only route that changes one would
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
+
+// ---- sign-in security (api/security.php, 2026-10-04): the signed-in half
+if ($r === 'security_state') {
+    $ready = sec_tables_ready($db);
+    $pk = []; $sess = [];
+    if ($ready) {
+        $q = $db->prepare('select id, label, alg, transports, created_at, last_used_at from admin_passkeys where admin_id = ? order by id'); $q->execute([(int) $admin['id']]);
+        foreach ($q->fetchAll() as $k) $pk[] = ['id' => (int) $k['id'], 'label' => $k['label'], 'alg' => (int) $k['alg'], 'transports' => $k['transports'], 'created_at' => $k['created_at'], 'last_used_at' => $k['last_used_at']];
+        $sess = sec_sessions_list($db, (int) $admin['id']);
+    }
+    $uq = $db->prepare('select totp_enabled, email_otp_enabled from admin_users where id = ?'); $uq->execute([(int) $admin['id']]); $me = $uq->fetch() ?: [];
+    $cfg = store_config();
+    store_out(['ready' => $ready, 'passkeys' => $pk, 'sessions' => $sess, 'policy' => sec_policy($db), 'ip' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+               'mail_ready' => trim((string) ($cfg['mail_from'] ?? '')) !== '', 'totp' => !empty($me['totp_enabled']), 'email_otp' => !empty($me['email_otp_enabled']),
+               'webauthn_rp' => sec_rp_id()]);
+}
+if ($r === 'passkey_options_register' && $method === 'POST') {
+    if (!sec_tables_ready($db)) store_fail('passkeys_not_ready', 503);
+    store_out(sec_passkey_register_options($db, $admin));
+}
+if ($r === 'passkey_register' && $method === 'POST') {
+    if (!sec_tables_ready($db)) store_fail('passkeys_not_ready', 503);
+    store_out(sec_passkey_register($db, $admin, store_body()));
+}
+if ($r === 'passkey_remove' && $method === 'POST') {
+    if (!sec_tables_ready($db)) store_fail('passkeys_not_ready', 503);
+    $id = (int) (store_body()['id'] ?? 0);
+    $q = $db->prepare('delete from admin_passkeys where id = ? and admin_id = ?'); $q->execute([$id, (int) $admin['id']]);
+    if ($q->rowCount() === 0) store_fail('passkey_not_found', 404);
+    store_out(['ok' => true]);
+}
+if ($r === 'session_revoke' && $method === 'POST') {
+    if (!sec_tables_ready($db)) store_fail('sessions_not_ready', 503);
+    $id = (int) (store_body()['id'] ?? 0);
+    $q = $db->prepare('update admin_sessions set revoked_at = now() where id = ? and admin_id = ? and revoked_at is null and sid_hash <> ?'); $q->execute([$id, (int) $admin['id'], sec_sid_hash()]);
+    if ($q->rowCount() === 0) store_fail('session_not_found', 404);
+    store_out(['ok' => true]);
+}
+if ($r === 'sessions_revoke_others' && $method === 'POST') {
+    if (!sec_tables_ready($db)) store_fail('sessions_not_ready', 503);
+    store_out(['ok' => true, 'revoked' => sec_sessions_revoke_others($db, (int) $admin['id'])]);
+}
 
 // ---- payment status + connection test (signed in)
 if ($r === 'payment_check') {
@@ -3109,6 +3183,10 @@ if ($r === 'settings_save' && $method === 'POST') {
             'autoplay' => !empty($v['autoplay']),
             'size'     => in_array($v['size'] ?? '', ['short', 'tall', 'full'], true) ? $v['size'] : 'tall',
         ]);
+    } elseif ($name === 'security') {
+        // SIGN-IN POLICIES: require a second factor; an IP allowlist for signing in. sec_policy_validate
+        // refuses a list that would lock out the browser saving it, and require_2fa without a mailer.
+        store_setting_save($db, 'security', sec_policy_validate($db, $v));
     } elseif ($name === 'home_layout') {
         // THE HOME PAGE'S SHAPE — store_home_layout_validate() says what is accepted and what is
         // refused by name. Empty lists mean "the built-in", which is also the state before any save.
@@ -4689,10 +4767,13 @@ if ($r === 'account_update' && $method === 'POST') {
         // Twelve, the same floor setup-admin.php and reset-admin.php enforce.
         // Three places agreeing is the point: a password rule that is stricter
         // in one door than another is the weakest of the three.
-        if (strlen($new) < 12) store_fail('password_too_short');
         // Typed twice, for the same reason reset-admin.php asks twice: a typo
         // here signs you out of a shop you can no longer sign in to.
         if (!hash_equals($new, (string)($b['new_password2'] ?? ''))) store_fail('password_mismatch');
+        // Length, the weak-pattern list and the breach check — the same bar the reset route sets (2026-10-04).
+        sec_password_refuse($new, (string) $u['email']);
+        // A new password signs every OTHER browser out (the sessions ledger); this one stays.
+        try { if (sec_tables_ready($db)) sec_sessions_revoke_others($db, (int) $admin['id']); } catch (Throwable $e) {}
         $sets[] = 'password_hash = ?';
         $args[] = password_hash($new, PASSWORD_DEFAULT);
         // THIS is where must_change_password clears — a chosen password is a

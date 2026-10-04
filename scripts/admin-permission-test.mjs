@@ -155,9 +155,13 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // person who cannot sign in. Neither reveals whether an address has an account
 // (identical answer), the code is hashed, expires and burns after five tries,
 // and a reset never signs anybody in.
+// passkey_options_login / passkey_login (2026-10-04): a passkey is a sign-in door, so it sits above the
+// gate like login. The options route hands out only a random challenge (no credential list, so it cannot
+// say who has an account); passkey_login verifies the signature against admin_passkeys and a wrong,
+// unknown or forged assertion is one 400/401. Both are IP-gated with the other doors (sec_signin_ip_gate).
 const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register',
                        'google_config', 'google_login', 'apple_config', 'apple_login', 'passcode_status', 'passcode_unlock',
-                       'password_reset_request', 'password_reset_confirm']
+                       'password_reset_request', 'password_reset_confirm', 'passkey_options_login', 'passkey_login']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length

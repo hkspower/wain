@@ -4440,3 +4440,38 @@ switches the five neutral hero slides on and the own-photo slides off; `trust-st
 - **The sandbox had ZERO `product_variants` rows** before this (every size gone — some earlier rig or
   the own-photo work), which is what `test:inventory` and `test:home-banner` had been failing on.
   `bash scripts/sandbox.sh` reseeds them (162 rows, stock 20). Product photos are still 0 in the seed.
+
+## Backend sign-in hardened — sessions, passkeys, policies, leaked passwords — 2026-10-04
+
+"make full backend login improve and full secure backend". `api/security.php` + `api/security.mysql.sql`
+(`admin_sessions`, `admin_passkeys`; live: `scripts/publish/migrate-security.php` after `publish-all`,
+order not critical — without the tables every session is alive, passkeys answer `passkeys_not_ready`).
+
+- **Session ledger.** `store_admin_grant($db, $u, $method)` records the browser (sid hash, ip, agent,
+  method); `store_session_admin()` ends a session whose row is `revoked_at`; `store_session_end()`
+  revokes its own row. Routes `security_state`, `session_revoke` (never your own: 404 — use logout),
+  `sessions_revoke_others`; `account_update` revokes the others on a password change. Rows missing from
+  the table (sessions older than the migration) are ADOPTED on their next request, so nobody is signed out.
+- **Passkeys (WebAuthn)**: `passkey_options_register/register/remove` (gated), `passkey_options_login/
+  passkey_login` (public, IP-gated). Own CBOR decoder, ES256/RS256 only, challenge in the session, user
+  verification REQUIRED at registration; a UV assertion grants with method `passkey`, a non-UV one goes
+  to the pending 2FA marker like a password. Sign counter and `last_used_at` recorded.
+- **Policies** (settings row `security`): `require_2fa` — an account with neither TOTP nor email OTP is
+  asked for an EMAILED code anyway (`pending_forced`; refused to save without `mail_from`); `ip_allow`
+  (IPs or CIDRs) refuses every sign-in door — login, passkey, Google, Apple, passcode — with 403
+  `ip_not_allowed` and a log line, and `sec_policy_validate` refuses a list that would lock out the
+  browser saving it (`ip_allow_locks_you_out`) or a bad rule by position (`ip_allow_bad_rule_N`).
+  A browser already signed in is not affected.
+- **Leaked passwords**: `store_password_pwned()` asks HIBP's k-anonymity range (5 hex chars sent, fail-
+  open on any network fault) at first-admin, password reset and account_update → `password_pwned`.
+- **Login page** (`assets/login-polish.js`): passkey button, show/hide, Caps Lock warning, autofocus,
+  `autocomplete="username webauthn"`, plain-words lines under the form for `locked` / `ip_not_allowed`
+  (the login fetch is observed, not replaced). **Security card** (`assets/security-plus.js`, Security screen).
+- `npm run test:security-plus` (≈40 checks; MUTATE=1: revoked rows ignored → A3, A6 fail). Caps Lock
+  cannot be pressed through CDP (its modifiers are Alt/Ctrl/Meta/Shift only) — the rig dispatches a key
+  event with `modifierCapsLock`. HIBP is unreachable from this container, so D1 is skipped here and
+  the fail-open path is what the sandbox exercises.
+- **Found on the way:** the first attempt's store.php edits had NOT been applied at all (the rig's A1
+  `sessions: []` found it); and `.htaccess` already carried `Cross-Origin-Opener-Policy "same-origin"`
+  (28131aa) — a second `same-origin-allow-popups` line was removed before it shipped, since the LAST
+  `Header set` wins and two lines for one header are two homes for it.
