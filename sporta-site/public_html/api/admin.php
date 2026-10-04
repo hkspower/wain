@@ -2225,7 +2225,15 @@ if ($r === 'inventory_meta') {
     $hidden = $db->query('select slug from products where active = 0')->fetchAll(PDO::FETCH_COLUMN);
     $logReady = true;
     try { $db->query('select 1 from stock_log limit 1'); } catch (Throwable $e) { $logReady = false; }
-    store_out(['low' => $low, 'hidden' => array_values($hidden), 'log_ready' => $logReady]);
+    // The badge count (2026-10-04): sizes of ACTIVE products at or under the line, and how many of those are out.
+    $att = $db->prepare('select count(*) as n, sum(v.stock = 0) as o from product_variants v join products p on p.slug = v.slug where p.active = 1 and v.stock <= ?');
+    $att->execute([$low]); $a = $att->fetch();
+    $purchasing = true;
+    try { $db->query('select 1 from purchase_orders limit 1'); } catch (Throwable $e) { $purchasing = false; }
+    store_out(['low' => $low, 'hidden' => array_values($hidden), 'log_ready' => $logReady,
+               'attention' => (int) ($a['n'] ?? 0), 'out' => (int) ($a['o'] ?? 0),
+               'alert_email' => (string) ($set['alert_email'] ?? ''), 'alert_sent_on' => (string) ($set['alert_sent_on'] ?? ''),
+               'purchasing_ready' => $purchasing]);
 }
 
 if ($r === 'inventory_low_save' && $method === 'POST') {
@@ -2235,8 +2243,15 @@ if ($r === 'inventory_low_save' && $method === 'POST') {
     if ($low < 0 || $low > 999) store_fail('invalid_low');
     $set = store_setting($db, 'inventory');
     $set['low'] = $low;
+    // The alert address (cron-lowstock.php): optional; a bad one is refused by name, an empty one clears it.
+    $b0 = store_body();
+    if (array_key_exists('alert_email', $b0)) {
+        $ae = trim((string) $b0['alert_email']);
+        if ($ae !== '' && (mb_strlen($ae) > 120 || !filter_var($ae, FILTER_VALIDATE_EMAIL))) store_fail('invalid_alert_email');
+        $set['alert_email'] = $ae;
+    }
     store_setting_save($db, 'inventory', $set);
-    store_out(['ok' => true, 'low' => $low]);
+    store_out(['ok' => true, 'low' => $low, 'alert_email' => (string) ($set['alert_email'] ?? '')]);
 }
 
 if ($r === 'inventory_log') {
@@ -2267,7 +2282,7 @@ if ($r === 'inventory_apply' && $method === 'POST') {
     $changes = is_array($b['changes'] ?? null) ? $b['changes'] : [];
     if (!$changes) store_fail('nothing_to_apply');
     if (count($changes) > 600) store_fail('too_many_rows');
-    $reason = in_array($b['reason'] ?? '', ['bulk', 'import'], true) ? $b['reason'] : 'bulk';
+    $reason = in_array($b['reason'] ?? '', ['bulk', 'import', 'undo', 'scan'], true) ? $b['reason'] : 'bulk';
     $dry = !empty($b['dry']);
     $get = $db->prepare('select slug, size, stock from product_variants where sku = ?');
     $out = []; $bad = 0; $seen = [];
@@ -2305,6 +2320,200 @@ if ($r === 'inventory_apply' && $method === 'POST') {
         store_fail('failed', 500);
     }
     store_out(['ok' => true, 'rows' => $out, 'errors' => 0, 'changed' => $changed]);
+}
+
+// ------------------------------------------------------------- purchasing
+// 2026-10-04, "improve inventory" → purchasing & suppliers. Tables in api/purchasing.mysql.sql. Every
+// route answers `purchasing_not_ready` (503) until they exist. A purchase order is a plan until it is
+// RECEIVED; receiving is the only moment stock moves, through the same stock_log every other change
+// uses (reason 'purchase', ref 'PO-<id>'). The wholesale cost stays inside the gate.
+function admin_purchasing_ready(PDO $db): void {
+    try { $db->query('select 1 from purchase_orders limit 1'); } catch (Throwable $e) { store_fail('purchasing_not_ready', 503); }
+}
+if ($r === 'suppliers') {
+    admin_purchasing_ready($db);
+    $rows = $db->query('select s.id, s.name, s.contact, s.lead_days, s.note, (select count(*) from variant_supplier vs where vs.supplier_id = s.id) as skus from suppliers s order by s.name')->fetchAll();
+    foreach ($rows as &$x) { $x['id'] = (int) $x['id']; $x['lead_days'] = (int) $x['lead_days']; $x['skus'] = (int) $x['skus']; }
+    store_out($rows);
+}
+if ($r === 'supplier_save' && $method === 'POST') {
+    admin_purchasing_ready($db);
+    $b = store_body();
+    $id = (int) ($b['id'] ?? 0);
+    $name = mb_substr(trim((string) ($b['name'] ?? '')), 0, 80);
+    if ($name === '') store_fail('supplier_name_required');
+    $contact = mb_substr(trim((string) ($b['contact'] ?? '')), 0, 160);
+    $lead = (int) ($b['lead_days'] ?? 14);
+    if ($lead < 0 || $lead > 365) store_fail('invalid_lead_days');
+    $note = mb_substr(trim((string) ($b['note'] ?? '')), 0, 300);
+    if ($id > 0) {
+        $db->prepare('update suppliers set name = ?, contact = ?, lead_days = ?, note = ? where id = ?')->execute([$name, $contact, $lead, $note, $id]);
+    } else {
+        $db->prepare('insert into suppliers (name, contact, lead_days, note) values (?, ?, ?, ?)')->execute([$name, $contact, $lead, $note]);
+        $id = (int) $db->lastInsertId();
+    }
+    // Which sizes this supplier provides: a list of SKUs replaces the previous list for THIS supplier only.
+    if (array_key_exists('skus', $b) && is_array($b['skus'])) {
+        $known = $db->prepare('select 1 from product_variants where sku = ?');
+        $db->prepare('delete from variant_supplier where supplier_id = ?')->execute([$id]);
+        $put = $db->prepare('insert into variant_supplier (sku, supplier_id) values (?, ?) on duplicate key update supplier_id = values(supplier_id)');
+        foreach (array_slice($b['skus'], 0, 2000) as $sku) {
+            $sku = trim((string) $sku); if ($sku === '') continue;
+            $known->execute([$sku]); if (!$known->fetchColumn()) store_fail('unknown_sku:' . $sku);
+            $put->execute([$sku, $id]);
+        }
+    }
+    store_out(['ok' => true, 'id' => $id]);
+}
+if ($r === 'supplier_delete' && $method === 'POST') {
+    admin_purchasing_ready($db);
+    $id = (int) (store_body()['id'] ?? 0);
+    $open = $db->prepare("select count(*) from purchase_orders where supplier_id = ? and status = 'open'"); $open->execute([$id]);
+    if ((int) $open->fetchColumn() > 0) store_fail('supplier_has_open_orders');
+    $db->prepare('delete from suppliers where id = ?')->execute([$id]);
+    store_out(['ok' => true]);
+}
+// WHAT TO REORDER. For every size of an active product: units sold in the last 30 days (paid or cash
+// orders that were not cancelled), the daily rate, the days of cover left, and a suggested quantity
+// when cover is short of the supplier's lead time plus a 14-day cushion. Suggested = ceil(rate ×
+// (lead + 14)) − stock − already on open orders, never under 1 when the size is sold out and has
+// sold at all. Pure arithmetic over the shop's own orders — no forecast, no model.
+if ($r === 'reorder_suggestions') {
+    admin_purchasing_ready($db);
+    $days = max(7, min(180, (int) ($_GET['days'] ?? 30)));
+    $sold = $db->prepare("select p.slug, oi.size, sum(oi.qty) as n from order_items oi join orders o on o.id = oi.order_id join products p on p.id = oi.product_id
+                          where o.created_at >= date_sub(now(), interval ? day) and o.fulfilment_status <> 'cancelled' and o.payment_status in ('paid','pending')
+                          group by p.slug, oi.size");
+    $sold->execute([$days]);
+    $rate = [];
+    foreach ($sold->fetchAll() as $x) $rate[$x['slug'] . '|' . ($x['size'] ?? '')] = (int) $x['n'];
+    $onOrder = [];
+    foreach ($db->query("select i.sku, sum(i.qty) as q from purchase_order_items i join purchase_orders po on po.id = i.po_id where po.status = 'open' group by i.sku")->fetchAll() as $x) $onOrder[$x['sku']] = (int) $x['q'];
+    $rows = $db->query('select v.sku, v.slug, v.size, v.stock, v.cost_aed, p.name_en, p.price, vs.supplier_id, s.name as supplier, coalesce(s.lead_days, 14) as lead_days
+                        from product_variants v join products p on p.slug = v.slug left join variant_supplier vs on vs.sku = v.sku left join suppliers s on s.id = vs.supplier_id
+                        where p.active = 1 order by p.name_en, v.sku')->fetchAll();
+    $out = [];
+    foreach ($rows as $v) {
+        $n = $rate[$v['slug'] . '|' . $v['size']] ?? 0;
+        $daily = $n / $days;
+        $stock = (int) $v['stock']; $lead = (int) $v['lead_days']; $open = $onOrder[$v['sku']] ?? 0;
+        $cover = $daily > 0 ? ($stock + $open) / $daily : null;
+        $horizon = $lead + 14;
+        $suggest = 0;
+        if ($daily > 0 && ($cover === null || $cover < $horizon)) $suggest = max(0, (int) ceil($daily * $horizon) - $stock - $open);
+        if ($stock === 0 && $n > 0 && $suggest < 1) $suggest = 1;
+        if ($suggest <= 0) continue;
+        $out[] = ['sku' => $v['sku'], 'slug' => $v['slug'], 'name_en' => $v['name_en'], 'size' => $v['size'], 'stock' => $stock, 'on_order' => $open,
+                  'sold' => $n, 'per_day' => round($daily, 2), 'days_cover' => $cover === null ? null : (int) floor($cover),
+                  'suggest' => $suggest, 'supplier_id' => $v['supplier_id'] === null ? null : (int) $v['supplier_id'], 'supplier' => $v['supplier'], 'lead_days' => $lead,
+                  'cost_aed' => $v['cost_aed'] === null ? null : (float) $v['cost_aed']];
+    }
+    usort($out, fn ($a, $b2) => ($a['days_cover'] ?? -1) <=> ($b2['days_cover'] ?? -1) ?: $b2['suggest'] <=> $a['suggest']);
+    store_out(['days' => $days, 'rows' => $out]);
+}
+if ($r === 'po_list') {
+    admin_purchasing_ready($db);
+    $status = in_array($_GET['status'] ?? '', ['open', 'received', 'cancelled'], true) ? $_GET['status'] : null;
+    $sql = 'select po.id, po.supplier_id, s.name as supplier, po.status, po.note, po.expected_on, po.created_by, po.created_at, po.received_at,
+                   (select count(*) from purchase_order_items i where i.po_id = po.id) as lines_n, (select coalesce(sum(i.qty),0) from purchase_order_items i where i.po_id = po.id) as units
+            from purchase_orders po left join suppliers s on s.id = po.supplier_id' . ($status ? ' where po.status = ?' : '') . ' order by po.status = "open" desc, po.id desc limit 100';
+    $q = $db->prepare($sql); $q->execute($status ? [$status] : []);
+    $pos = $q->fetchAll();
+    $items = $db->prepare('select i.sku, i.qty, i.cost_aed, v.size, v.slug, p.name_en from purchase_order_items i left join product_variants v on v.sku = i.sku left join products p on p.slug = v.slug where i.po_id = ? order by p.name_en, v.sku');
+    foreach ($pos as &$po) {
+        $po['id'] = (int) $po['id']; $po['lines_n'] = (int) $po['lines_n']; $po['units'] = (int) $po['units'];
+        $items->execute([$po['id']]);
+        $po['items'] = array_map(fn ($i) => ['sku' => $i['sku'], 'qty' => (int) $i['qty'], 'cost_aed' => $i['cost_aed'] === null ? null : (float) $i['cost_aed'], 'size' => $i['size'], 'slug' => $i['slug'], 'name_en' => $i['name_en']], $items->fetchAll());
+    }
+    store_out($pos);
+}
+if ($r === 'po_save' && $method === 'POST') {
+    admin_purchasing_ready($db);
+    $b = store_body();
+    $id = (int) ($b['id'] ?? 0);
+    $supplier = isset($b['supplier_id']) && (int) $b['supplier_id'] > 0 ? (int) $b['supplier_id'] : null;
+    if ($supplier !== null) { $k = $db->prepare('select 1 from suppliers where id = ?'); $k->execute([$supplier]); if (!$k->fetchColumn()) store_fail('unknown_supplier'); }
+    $note = mb_substr(trim((string) ($b['note'] ?? '')), 0, 300);
+    // A plain date (the card's date box), optional; anything else is refused by name.
+    $expRaw = trim((string) ($b['expected_on'] ?? ''));
+    $expected = null;
+    if ($expRaw !== '') {
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $expRaw, $dm) || !checkdate((int) $dm[2], (int) $dm[3], (int) $dm[1])) store_fail('invalid_expected_on');
+        $expected = $expRaw;
+    }
+    $items = is_array($b['items'] ?? null) ? $b['items'] : [];
+    if (!$items) store_fail('po_empty');
+    if (count($items) > 300) store_fail('too_many_rows');
+    $known = $db->prepare('select 1 from product_variants where sku = ?');
+    $clean = []; $seen = [];
+    foreach ($items as $i => $it) {
+        $sku = trim((string) ($it['sku'] ?? '')); $qty = (int) ($it['qty'] ?? 0);
+        if ($sku === '' || isset($seen[$sku])) store_fail('po_line_' . ($i + 1) . ($sku === '' ? '_no_sku' : '_duplicate'));
+        $seen[$sku] = true;
+        $known->execute([$sku]); if (!$known->fetchColumn()) store_fail('unknown_sku:' . $sku);
+        if ($qty < 1 || $qty > 100000) store_fail('po_line_' . ($i + 1) . '_qty');
+        $cost = isset($it['cost_aed']) && $it['cost_aed'] !== '' && $it['cost_aed'] !== null ? (float) $it['cost_aed'] : null;
+        if ($cost !== null && ($cost < 0 || $cost > 1000000)) store_fail('po_line_' . ($i + 1) . '_cost');
+        $clean[] = [$sku, $qty, $cost];
+    }
+    try {
+        $db->beginTransaction();
+        if ($id > 0) {
+            $st = $db->prepare('select status from purchase_orders where id = ? for update'); $st->execute([$id]);
+            $cur = $st->fetchColumn();
+            if ($cur === false) store_fail('po_not_found', 404);
+            if ($cur !== 'open') store_fail('po_not_open');
+            $db->prepare('update purchase_orders set supplier_id = ?, note = ?, expected_on = ? where id = ?')->execute([$supplier, $note, $expected, $id]);
+            $db->prepare('delete from purchase_order_items where po_id = ?')->execute([$id]);
+        } else {
+            $db->prepare('insert into purchase_orders (supplier_id, note, expected_on, created_by) values (?, ?, ?, ?)')->execute([$supplier, $note, $expected, $admin['email'] ?? null]);
+            $id = (int) $db->lastInsertId();
+        }
+        $ins = $db->prepare('insert into purchase_order_items (po_id, sku, qty, cost_aed) values (?, ?, ?, ?)');
+        foreach ($clean as [$sku, $qty, $cost]) $ins->execute([$id, $sku, $qty, $cost]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ($e instanceof StoreFail) throw $e;
+        error_log('po_save: ' . $e->getMessage()); store_fail('failed', 500);
+    }
+    store_out(['ok' => true, 'id' => $id, 'lines' => count($clean)]);
+}
+// RECEIVING: stock += qty for every line, in one transaction, each line logged. Idempotent by state:
+// a PO already received answers po_not_open and moves nothing.
+if ($r === 'po_receive' && $method === 'POST') {
+    admin_purchasing_ready($db);
+    $id = (int) (store_body()['id'] ?? 0);
+    try {
+        $db->beginTransaction();
+        $st = $db->prepare('select status from purchase_orders where id = ? for update'); $st->execute([$id]);
+        $cur = $st->fetchColumn();
+        if ($cur === false) store_fail('po_not_found', 404);
+        if ($cur !== 'open') store_fail('po_not_open');
+        $lines = $db->prepare('select i.sku, i.qty, i.cost_aed, v.slug, v.size, v.stock from purchase_order_items i join product_variants v on v.sku = i.sku where i.po_id = ? for update');
+        $lines->execute([$id]);
+        $upd = $db->prepare('update product_variants set stock = stock + ?, cost_aed = coalesce(?, cost_aed) where sku = ?');
+        $moved = 0;
+        foreach ($lines->fetchAll() as $l) {
+            $upd->execute([(int) $l['qty'], $l['cost_aed'], $l['sku']]);
+            store_stock_log($db, (string) $l['sku'], (string) $l['slug'], (string) $l['size'], (int) $l['qty'], (int) $l['stock'] + (int) $l['qty'], 'purchase', $admin['email'] ?? null, 'PO-' . $id);
+            $moved += (int) $l['qty'];
+        }
+        $db->prepare("update purchase_orders set status = 'received', received_at = now() where id = ?")->execute([$id]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ($e instanceof StoreFail) throw $e;
+        error_log('po_receive: ' . $e->getMessage()); store_fail('failed', 500);
+    }
+    store_out(['ok' => true, 'id' => $id, 'units' => $moved]);
+}
+if ($r === 'po_cancel' && $method === 'POST') {
+    admin_purchasing_ready($db);
+    $id = (int) (store_body()['id'] ?? 0);
+    $n = $db->prepare("update purchase_orders set status = 'cancelled' where id = ? and status = 'open'"); $n->execute([$id]);
+    if ($n->rowCount() === 0) store_fail('po_not_open');
+    store_out(['ok' => true, 'id' => $id]);
 }
 
 // ------------------------------------------------------------------- slides

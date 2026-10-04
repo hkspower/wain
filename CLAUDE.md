@@ -4406,3 +4406,37 @@ switches the five neutral hero slides on and the own-photo slides off; `trust-st
   triples (editable through the menu now) and strings built by functions.
 - `npm run test:home-layout` (55 checks, mutation: the href validator removed → 4 fail). Sections
   that are not on the page (banner off, no featured products) are simply not ordered.
+
+## Inventory, round two — alerts, faster editing, purchasing, labels — 2026-10-04
+
+"improve inventory"; the owner chose all four offered.
+
+- **Low-stock alerts.** `api/cron-lowstock.php` (key-gated, daily at 03:40 live) mails every size of
+  an active product at or under the low-stock line to `inventory.alert_email` (set in the Inventory
+  tools card; falls back to `warehouse_email`), once a day (`inventory.alert_sent_on`; `&force=1`
+  resends), nothing low = no mail. It prints STATE and the reason when it does not send
+  (`no_address`, `nothing_low`, `already_today`, `mail_failed`). **The sandbox has no mailer, so the
+  rig asserts `mail_failed`**, never a quiet ok. `inventory_meta` carries `attention` (sizes ≤ line)
+  and `inventory-tools.js` wears it as a badge on the Inventory button on every panel screen.
+- **Faster editing** in the tools grid: −/+ per size, ↑/↓ step, ←/→ next size, Enter saves; a
+  click on a row of the bundle's list selects that product; **Undo** reverses the last applied batch
+  through the same `inventory_apply` route (reason `undo`), remembered in sessionStorage because an
+  apply reloads the panel.
+- **Purchasing** (`api/purchasing.mysql.sql`, `migrate-purchasing.php` after `publish-all`):
+  `suppliers`, `variant_supplier`, `purchase_orders`, `purchase_order_items`. `reorder_suggestions`
+  is arithmetic over the shop's own orders: units sold in the window ÷ days = rate; cover = (stock +
+  on open orders) ÷ rate; suggested = ceil(rate × (lead + 14)) − stock − on order. **Receiving is
+  the one moment stock moves** (`po_receive`, one `stock_log` row per line, reason `purchase`, ref
+  `PO-n`, the agreed cost written to `cost_aed`); receiving twice is `po_not_open`; cancelling moves
+  nothing. The card is `assets/purchasing.js` under the tools card. Dates on a PO are plain
+  `YYYY-MM-DD` — `store_datetime()` wants a datetime and refused the date box's value (`invalid_date`),
+  which the rig caught.
+- **Labels & scan.** `api/labels.php` (gated like orders-print.php, by session) prints Code 128 B
+  barcodes of the SKU as inline SVG, 3 × 60×32 mm per A4 row; the rig DECODES the bars back to
+  symbols and verifies START B, the text and the checksum. `assets/inventory-scan.js` opens a sheet
+  that reads the camera with `BarcodeDetector` where it exists and takes a typed/USB-scanner code
+  everywhere; a known code selects the product and focuses its size (`window.sportaInventory.select`).
+- `npm run test:inventory-plus` (43 checks; MUTATE=1: receiving no longer adds stock → 3 fail).
+- **The sandbox had ZERO `product_variants` rows** before this (every size gone — some earlier rig or
+  the own-photo work), which is what `test:inventory` and `test:home-banner` had been failing on.
+  `bash scripts/sandbox.sh` reseeds them (162 rows, stock 20). Product photos are still 0 in the seed.

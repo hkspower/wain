@@ -208,6 +208,7 @@
     "test:backend-setup": "node scripts/backend-setup-test.mjs",
     "test:admin-input": "node scripts/admin-input-audit.mjs",
     "test:home-layout": "node scripts/home-layout-test.mjs",
+    "test:inventory-plus": "node scripts/inventory-plus-test.mjs",
     "make:overlay-strings": "node scripts/make-overlay-strings.mjs",
     "test:overlay-strings": "node scripts/make-overlay-strings.mjs --check",
     "test:hero-mobile": "node scripts/hero-mobile-test.mjs",
