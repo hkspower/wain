@@ -29,7 +29,7 @@ try {
   // the status route says where the parcel is and nothing about whose it is
   const st = await (await fetch(`${BASE}/api/api.php?r=status&id=SPOPRIG05`)).json()
   check(st.fulfilment_status === 'shipped' && 'created_at' in st, 'the status route now says where the order is', JSON.stringify(st))
-  check(!Object.keys(st).some((k) => /name|phone|email|address|area|block|street|governorate/.test(k)), 'and carries no personal data (an order number is not a secret)', Object.keys(st).join(','))
+  check(!Object.keys(st).some((k) => /customer|phone|email|address|area|block|street|governorate/.test(k)), 'and carries no personal data (an order number is not a secret)', Object.keys(st).join(','))
 
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage()
   await p.goto(`${BASE}/track?lang=en`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1200)

@@ -4299,3 +4299,36 @@ Five things, each measured by the reviewer and each now a check (`test:card-opti
   Measured, iPhone 14, CPU 4x, /shop, median of 5 alternating runs (frames over 33ms / main-thread task ms / style recalc ms): **base `b8825bc` 15.2% / 1232 / 871; base + the nav-menu fix 2.9% / 386 / 140; this build 2.5% / 428 / 150.** `test:scroll`: this build `3/2/3` (median 3%), base `17/15/18` (fails). So with the loop gone the card rows cost about what they look like they cost — +10% task time over 15% more frames (the page is taller) — and the shop scrolls five times better than before the card existed.
 
 The mutation table above gains seven rows: `min-height` dropped (B: Arabic boxes at 36px, two checks), the grid left unmarked (B: rows 23px apart, the + touching a box), the guard back on the card (C8, six checks), the language taken from the photo link (B on /shop and C4), the rows inserted a frame late (C9: 35 of 35 loaded cards missing their rows at their first frame), an element inside a size box (B), and the price not bottom-aligned (B: the + 23.6px off its price).
+
+## Live order tracking — 2026-10-04
+
+"create live tracking order"; the owner chose all four: a self-updating /track, the driver on a map,
+WhatsApp updates per step, and a carrier tracking link. Schema in `api/livetrack.mysql.sql`
+(`scripts/publish/migrate-livetrack.php` — **run it in the same minute as `publish-all`**: the new
+`admin.php` writes `packed_at`/`shipped_at` on every status change, so marking an order against the
+old table 500s).
+
+- **`?r=status` now carries `packed_at`, `shipped_at`, `courier`, `courier_ref`, `courier_name`,
+  `courier_url` and `location`** — the last only while the order is `shipped` AND the point is under 30
+  minutes old; a stale point is not a van. Throttled 120/min per IP: `order-progress.js` polls every 10 s
+  while the tab is visible and the order is moving, redraws only when the JSON changed, and keeps the
+  Leaflet map across redraws. Still no name, phone or address.
+- **The driver link is the key** (`api/driver.php?o=<track>&t=<sig>`, HMAC on `cron_key` with a
+  `driver` prefix, minted by `admin.php?r=driver_link`): whoever holds it can post ONE order's position
+  and nothing else; it answers 410 once the order is delivered/cancelled, and those statuses delete the
+  position row. The page's logic is `assets/driver.js` — **an inline script would be blocked**, the CSP
+  names inline scripts by hash. Positions are one row per order (`order_location`), overwritten, never
+  logged.
+- **Carriers are a fixed list** (`STORE_COURIERS` in store.php, with the tracking-page URL per carrier);
+  a typed URL is refused, so /track never links where the shop did not write. `own` = the shop's driver.
+- **The map is Leaflet, self-hosted** (`assets/leaflet/`, loaded only when a position exists) with tiles
+  from `tile.openstreetmap.org`, which the CSP `img-src` now allows (both policies). "How far from me?"
+  uses the shopper's own geolocation in the browser only; nothing is sent.
+- **WhatsApp**: `packed` and `delivered` joined the outbox kinds (`whatsapp_template_packed/delivered`
+  in config). Still dormant: no token on the live shop, so nothing is queued (fail-closed as before).
+  No SMS provider exists; that is a separate decision.
+- **The panel card** (`assets/order-tracking-panel.js`, on the Orders screen like crm.js) lists packed +
+  shipped orders: carrier/number, the driver link (copy / WhatsApp), the last position.
+- `npm run test:live-tracking` (36 checks, phone contexts with a faked granted geolocation). Mutation-
+  tested: the signature check removed (D2) and the 30-minute freshness removed (D7). The rig's own first
+  "no personal data" pattern matched `courier_name` — a check that names words finds its own words.
