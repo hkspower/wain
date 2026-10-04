@@ -71,7 +71,11 @@ function compose(int $w, int $h, array $photos, bool $rtl, float $bandFrom, floa
     if ($photos) {
         // The cards must stay on the far side: the bundle prints the category name on the near side,
         // over the white. So the whole fan fits between bandFrom-4% and bandTo+2%, shrinking if needed.
+        // NEVER ENLARGE A PHOTOGRAPH (2026-10-04, "fix that": the hero looked soft). A card is at most
+        // the photograph's own pixel height, so every photo is drawn at 1:1 or smaller and stays as
+        // sharp as the upload; a small upload means a smaller card, never a blurrier one.
         $ch = (int) round($h * $photoH);
+        $ch = min($ch, min(array_map(fn ($p) => imagesy($p), $photos)));
         $fan = function (int $ch) use ($photos) {
             $widths = array_map(fn ($p) => cardWidth($p, $ch), $photos);
             $step = (int) round(max($widths) * 0.62);
