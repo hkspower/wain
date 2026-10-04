@@ -105,6 +105,7 @@ $r = $_GET['r'] ?? '';
 // serves the shipped file — a tile must never be the thing that breaks because
 // a table is missing. See store_cat_art_serve(). Never returns.
 if ($r === 'cat_art') store_cat_art_serve();
+if ($r === 'site_image') store_site_image_serve();
 
 $db = store_db();
 
@@ -769,6 +770,9 @@ if ($r === 'slides') {
         'hero'      => $hero,
         'promo_bar' => $bar,
         'rules'     => store_rules_public($db),
+        // THE HOME PAGE'S SHAPE (2026-10-04): menu links, section order, features rows — read by
+        // menu-bar.js, home-sections.js and trust-strip.js, which already ask for this route.
+        'layout'    => store_setting($db, 'home_layout'),
     ]);
 }
 

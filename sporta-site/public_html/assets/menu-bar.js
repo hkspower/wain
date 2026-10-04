@@ -27,6 +27,23 @@
 
   function isEn() { return document.documentElement.lang === 'en' }
 
+  /* THE OWNER'S LINKS (2026-10-04): home_layout.menu from /backends -> Home slides -> Menu & sections,
+     read from ?r=slides (already fetched by other overlays; api-dedupe collapses them). Empty = ITEMS. */
+  var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
+  var own = null, asked = false
+  function items() {
+    if (own && own.length) return own.map(function (m) { return [m.href, m.label_en || m.label_ar, m.label_ar || m.label_en] })
+    return ITEMS
+  }
+  function loadOwn() {
+    if (asked) return
+    asked = true
+    fetch(api + '/api.php?r=slides', { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (d) { var m = d && d.layout && d.layout.menu; own = Array.isArray(m) ? m : []; place() })
+      .catch(function () { own = [] })
+  }
+
   function build() {
     var en = isEn()
     var nav = document.createElement('nav')
@@ -34,12 +51,14 @@
     nav.setAttribute(MARK, en ? 'en' : 'ar')
     nav.setAttribute('aria-label', en ? 'Shop menu' : 'قائمة المتجر')
     var path = location.pathname.replace(/\/+$/, '') || '/'
-    for (var i = 0; i < ITEMS.length; i++) {
+    var list = items()
+    nav.dataset.menu = own && own.length ? 'own' : 'builtin'
+    for (var i = 0; i < list.length; i++) {
       var a = document.createElement('a')
       a.className = 'sp-menubar__link'
-      a.href = ITEMS[i][0] + (en ? '?lang=en' : '')
-      a.textContent = en ? ITEMS[i][1] : ITEMS[i][2]
-      if (path === ITEMS[i][0]) a.setAttribute('aria-current', 'page')
+      a.href = list[i][0] + (en ? (list[i][0].indexOf('?') >= 0 ? '&' : '?') + 'lang=en' : '')
+      a.textContent = en ? list[i][1] : list[i][2]
+      if (path === list[i][0]) a.setAttribute('aria-current', 'page')
       nav.appendChild(a)
     }
     return nav
@@ -52,10 +71,12 @@
       if (existing && existing.parentNode) existing.parentNode.removeChild(existing)
       return
     }
+    loadOwn()
     var want = isEn() ? 'en' : 'ar'
     var path = location.pathname.replace(/\/+$/, '') || '/'
+    var src = own && own.length ? 'own' : 'builtin'
     if (existing && existing.parentNode === header && existing.getAttribute(MARK) === want
-        && existing.dataset.path === path) return
+        && existing.dataset.path === path && existing.dataset.menu === src) return
     var fresh = build()
     fresh.dataset.path = path
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing)

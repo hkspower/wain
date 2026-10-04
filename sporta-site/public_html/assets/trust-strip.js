@@ -95,6 +95,10 @@
   var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
   var returnDays = null   /* null = not fetched yet */
   var fetching = false
+  /* THE OWNER'S ROWS (2026-10-04, home_layout.features from /backends -> Home slides -> Menu &
+     sections): title, rows (icon + text per language) and whether the band picture is drawn. Empty =
+     the built-in COPY below. Kept beside the day count because both come from the same request. */
+  var layout = null
 
   function loadReturnDays(cb) {
     if (returnDays !== null) { cb(returnDays); return }
@@ -105,10 +109,13 @@
       .then(function (data) {
         var n = data && data.rules && data.rules.return_days
         returnDays = (typeof n === 'number' && n > 0) ? n : 0
+        var f = data && data.layout && data.layout.features
+        layout = (f && typeof f === 'object' && ((f.rows && f.rows.length) || f.title_en || f.title_ar || f.picture === false)) ? f : null
         cb(returnDays)
       })
       .catch(function () { returnDays = 0; cb(returnDays) })
   }
+  function layoutKey() { return layout ? JSON.stringify(layout) : '' }
 
   /* Three minimal, single-colour glyphs — drawn here rather than borrowed from
    * any icon set, so nothing is pulled in for three shapes. Each branch below
@@ -135,9 +142,28 @@
           '<circle cx="7" cy="19" r="1.7" /><circle cx="18" cy="19" r="1.7" />' +
           '</svg>'
         break
+      case 'payment':
+        span.innerHTML = SVG + '<rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></svg>'
+        break
+      case 'shield':
+        span.innerHTML = SVG + '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg>'
+        break
+      case 'star':
+        span.innerHTML = SVG + '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" /></svg>'
+        break
+      case 'truck':
+        span.innerHTML = SVG + '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.7" /><circle cx="18" cy="18" r="1.7" /></svg>'
+        break
+      case 'chat':
+        span.innerHTML = SVG + '<path d="M4 5h16v10H9l-5 4z" /></svg>'
+        break
+      case 'gift':
+        span.innerHTML = SVG + '<rect x="3" y="9" width="18" height="12" rx="1.5" /><path d="M3 13h18M12 9v12M12 9c-2-4-6-4-6-1.5S10 9 12 9zm0 0c2-4 6-4 6-1.5S14 9 12 9z" /></svg>'
+        break
     }
     return span
   }
+  var SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
 
   function build(days) {
     var c = COPY[lang()]
@@ -145,10 +171,12 @@
     section.setAttribute(MARK, '1')
     section.className = 'sts-wrap'
 
+    var L = lang(), own = layout
     var title = document.createElement('h2')
     title.className = 'sts-title'
-    title.textContent = c.title
+    title.textContent = (own && (own['title_' + L] || own['title_' + (L === 'ar' ? 'en' : 'ar')])) || c.title
     section.appendChild(title)
+    if (own && own.picture === false) section.className += ' sts-nopic'
 
     // THE ROWS SIT INSIDE THE PICTURE (owner, 2026-10-03): no models, the orange band as the
     // panel's background, white text on it. The band is central and the panel is `cover`, so
@@ -164,6 +192,13 @@
       ['returns', c.returns(days)],
       ['delivery', c.delivery],
     ]
+    if (own && own.rows && own.rows.length) {
+      items = []
+      for (var r = 0; r < own.rows.length; r++) {
+        var t = own.rows[r]['text_' + L] || own.rows[r]['text_' + (L === 'ar' ? 'en' : 'ar')]
+        if (t) items.push([own.rows[r].icon || 'star', t])
+      }
+    }
 
     for (var i = 0; i < items.length; i++) {
       var item = document.createElement('div')
@@ -201,7 +236,7 @@
         // Rebuilt ONLY when one of those two changed. It used to replace itself on every
         // observer tick, which is itself a DOM change — so it re-triggered the observer for ever
         // and re-created the picture each time.
-        var key = lang() + '|' + days
+        var key = lang() + '|' + days + '|' + layoutKey()
         if (current.getAttribute('data-key') === key) return
         var fresh = build(days)
         fresh.setAttribute('data-key', key)
@@ -217,7 +252,7 @@
       var brandStrip = document.querySelector('[data-sporta-brand-strip]')
       var anchor = brandStrip && brandStrip.parentNode ? brandStrip : hero2
       var section = build(days)
-      section.setAttribute('data-key', lang() + '|' + days)
+      section.setAttribute('data-key', lang() + '|' + days + '|' + layoutKey())
       anchor.parentNode.insertBefore(section, anchor.nextSibling)
     })
   }
@@ -230,6 +265,7 @@
     'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
     '.sts-panel{display:flex;align-items:center;justify-content:center;min-height:200px;padding:28px 20px;border-radius:16px;' +
     'background:var(--brand,#e0561c) url(/assets/features.webp) center/cover no-repeat;}' +
+    '.sts-nopic .sts-panel{background-image:none;}' +
     '.sts{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;width:100%;max-width:300px;}' +
     // White on the brand orange is 3.7:1, so the text is LARGE bold (>=18.66px, 700): AA for large text.
     '.sts-item{display:flex;align-items:center;gap:14px;padding:0;border:0;background:none;color:#fff;}' +

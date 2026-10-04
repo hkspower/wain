@@ -1,0 +1,5 @@
+/* The home page's sections in the owner's order (assets/home-sections.js, 2026-10-04).
+   Only while the script has marked <main>; the flex column stacks the same block sections the same
+   way, and each section's inline `order` decides the stacking. Nothing is moved in the DOM. */
+main[data-home-order] { display: flex; flex-direction: column; }
+main[data-home-order] > * { min-width: 0; }

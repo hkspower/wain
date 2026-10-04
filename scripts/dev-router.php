@@ -56,6 +56,16 @@ if (preg_match('#^/cats/(desktop|mobile)/art-(men|women|accessories|outlet)(-rtl
     return true;
 }
 
+// The logo and the features band -> api.php?r=site_image (2026-10-04), mirroring .htaccess:
+//   RewriteRule ^(logo|logo-white)\.(png|webp)$ /api/api.php?r=site_image&k=$1&fmt=$2
+//   RewriteRule ^assets/features\.webp$ /api/api.php?r=site_image&k=features&fmt=webp
+if (preg_match('#^/(logo|logo-white)\.(png|webp)$#', $uri, $m) || ($uri === '/assets/features.webp' && ($m = [null, 'features', 'webp']))) {
+    $_GET = ['r' => 'site_image', 'k' => $m[1], 'fmt' => $m[2]] + $_GET;
+    $_SERVER['SCRIPT_NAME'] = '/api/api.php';
+    require __DIR__ . '/../sporta-site/public_html/api/api.php';
+    return true;
+}
+
 // THE SEO SHIM, mirroring .htaccess:
 //     RewriteRule ^$ /seo.php [L]
 //     RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]

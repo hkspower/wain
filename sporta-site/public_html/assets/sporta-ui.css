@@ -2032,3 +2032,5 @@ main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) {
   object-fit: contain !important;
   object-position: 50% 50% !important;
 }
+main[data-home-order] { display: flex; flex-direction: column; }
+main[data-home-order] > * { min-width: 0; }

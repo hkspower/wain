@@ -1237,6 +1237,127 @@ function store_cat_art_decode(?string $raw, string $fmt, int $w, int $h): string
     return $bytes;
 }
 
+// ------------------------------------------------- the site's own pictures
+//
+// 2026-10-04, "make all website full dynamic to edit at backend". The shop logo and the features
+// band ship as files at fixed URLs; .htaccess sends those URLs here, and a row in site_images
+// (siteimages.mysql.sql) wins over the file. Same shape as the category tiles: fails towards the
+// shipped file on any fault, no-cache + ETag so a replacement shows on the next load.
+const STORE_SITE_IMAGES = [   // name => [formats, file for each format (relative to public_html), max w, max h]
+    'logo'       => ['fmts' => ['png', 'webp'], 'file' => ['png' => 'logo.png', 'webp' => 'logo.webp'], 'max' => [2000, 2000]],
+    'logo-white' => ['fmts' => ['png', 'webp'], 'file' => ['png' => 'logo-white.png', 'webp' => 'logo-white.webp'], 'max' => [2000, 2000]],
+    'features'   => ['fmts' => ['webp'], 'file' => ['webp' => 'assets/features.webp'], 'max' => [4000, 2000]],
+];
+const STORE_SITE_IMAGE_MAX_BYTES = 600000;   // decoded
+
+function store_site_image_serve(): void {
+    $name = (string)($_GET['k'] ?? '');
+    $fmt  = (string)($_GET['fmt'] ?? '');
+    $spec = STORE_SITE_IMAGES[$name] ?? null;
+    if ($spec === null || !in_array($fmt, $spec['fmts'], true)) { http_response_code(404); exit; }
+    $bytes = null; $etag = null;
+    try {
+        $c = store_config();
+        $pdo = new PDO("mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4", $c['db_user'], $c['db_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_TIMEOUT => 5]);
+        $q = $pdo->prepare('select bytes, etag from site_images where name = ? and fmt = ?');
+        $q->execute([$name, $fmt]);
+        $row = $q->fetch();
+        if ($row) { $bytes = (string)$row['bytes']; $etag = (string)$row['etag']; }
+    } catch (Throwable $e) {
+        // fall through to the shipped file
+    }
+    if ($bytes === null) {
+        $path = dirname(__DIR__) . '/' . $spec['file'][$fmt];
+        $bytes = is_file($path) ? file_get_contents($path) : false;
+        if ($bytes === false) { http_response_code(404); exit; }
+        $etag = md5($bytes);
+    }
+    header('Content-Type: ' . ($fmt === 'webp' ? 'image/webp' : 'image/png'));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('ETag: "' . $etag . '"');
+    $inm = (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
+    foreach (explode(',', $inm) as $t) {
+        $t = trim($t);
+        if (str_starts_with($t, 'W/')) $t = substr($t, 2);
+        if ($t === '"' . $etag . '"') { http_response_code(304); exit; }
+    }
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+// One uploaded site picture: a data: URI of the stated type, really that type, within the cap and
+// no larger than the name's ceiling. The logo keeps whatever size the owner supplies (the page
+// scales it); the features band is background `cover`, so any shape is drawn, but a tiny one
+// would blur — the panel says so.
+function store_site_image_decode(?string $raw, string $name, string $fmt): string {
+    $spec = STORE_SITE_IMAGES[$name] ?? null;
+    if ($spec === null || !in_array($fmt, $spec['fmts'], true)) store_fail('site_image_bad_name');
+    $v = trim((string)$raw);
+    if (!preg_match('#^data:image/' . $fmt . ';base64,([A-Za-z0-9+/=\s]+)$#', $v, $m)) store_fail('site_image_bad_format');
+    $bytes = base64_decode(preg_replace('/\s+/', '', $m[1]), true);
+    if ($bytes === false || strlen($bytes) < 64) store_fail('site_image_bad_format');
+    if (strlen($bytes) > STORE_SITE_IMAGE_MAX_BYTES) store_fail('site_image_too_large');
+    $ok = $fmt === 'webp' ? (str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') : str_starts_with($bytes, "\x89PNG\r\n\x1a\n");
+    if (!$ok) store_fail('site_image_not_an_image');
+    $info = @getimagesizefromstring($bytes);
+    if (!$info || (int)$info[0] < 16 || (int)$info[1] < 16) store_fail('site_image_not_an_image');
+    if ((int)$info[0] > $spec['max'][0] || (int)$info[1] > $spec['max'][1]) store_fail('site_image_too_big');
+    return $bytes;
+}
+
+// THE HOME PAGE'S SHAPE, validated. Returns the stored shape or fails by name. Blank menu items and
+// blank feature rows are DROPPED (an empty list means "the built-in"); a half-filled one is refused
+// by position so the owner knows which. Section keys are the five the page has, in the order given;
+// a key left out is appended, switched on, so no section can vanish by omission.
+const STORE_HOME_SECTIONS = ['hero', 'banner', 'categories', 'features', 'bestsellers'];
+const STORE_FEATURE_ICONS = ['returns', 'delivery', 'payment', 'shield', 'star', 'truck', 'chat', 'gift'];
+function store_home_layout_validate(array $v): array {
+    $menu = [];
+    foreach (array_slice(is_array($v['menu'] ?? null) ? $v['menu'] : [], 0, 8) as $i => $m) {
+        if (!is_array($m)) continue;
+        $le = mb_substr(trim((string)($m['label_en'] ?? '')), 0, 30);
+        $la = mb_substr(trim((string)($m['label_ar'] ?? '')), 0, 30);
+        $href = trim((string)($m['href'] ?? ''));
+        if ($le === '' && $la === '' && $href === '') continue;
+        if ($le === '' && $la === '') store_fail('menu_label_' . ($i + 1));
+        $h = store_internal_href($href);
+        if ($h === null) store_fail('menu_target_' . ($i + 1));
+        $menu[] = ['label_en' => $le, 'label_ar' => $la, 'href' => $h];
+    }
+    $sections = [];
+    $seen = [];
+    foreach (is_array($v['sections'] ?? null) ? $v['sections'] : [] as $sec) {
+        if (!is_array($sec)) continue;
+        $k = (string)($sec['key'] ?? '');
+        if (!in_array($k, STORE_HOME_SECTIONS, true)) store_fail('unknown_section');
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true;
+        $sections[] = ['key' => $k, 'on' => !array_key_exists('on', $sec) || !empty($sec['on'])];
+    }
+    if ($sections) foreach (STORE_HOME_SECTIONS as $k) if (!isset($seen[$k])) $sections[] = ['key' => $k, 'on' => true];
+    $f = is_array($v['features'] ?? null) ? $v['features'] : [];
+    $rows = [];
+    foreach (array_slice(is_array($f['rows'] ?? null) ? $f['rows'] : [], 0, 6) as $i => $r) {
+        if (!is_array($r)) continue;
+        $te = mb_substr(trim((string)($r['text_en'] ?? '')), 0, 120);
+        $ta = mb_substr(trim((string)($r['text_ar'] ?? '')), 0, 120);
+        $icon = (string)($r['icon'] ?? 'star');
+        if ($te === '' && $ta === '') continue;
+        if (!in_array($icon, STORE_FEATURE_ICONS, true)) store_fail('feature_icon_' . ($i + 1));
+        $rows[] = ['icon' => $icon, 'text_en' => $te, 'text_ar' => $ta];
+    }
+    $features = [];
+    $tE = mb_substr(trim((string)($f['title_en'] ?? '')), 0, 60);
+    $tA = mb_substr(trim((string)($f['title_ar'] ?? '')), 0, 60);
+    if ($rows || $tE !== '' || $tA !== '' || array_key_exists('picture', $f)) {
+        $features = ['title_en' => $tE, 'title_ar' => $tA, 'rows' => $rows, 'picture' => !array_key_exists('picture', $f) || !empty($f['picture'])];
+    }
+    return ['menu' => $menu, 'sections' => $sections, 'features' => $features];
+}
+
 // ------------------------------------------- the home page's product banner
 //
 // Asked for on 2026-10-01 as a bar editor "upper the categories, product image
@@ -2954,6 +3075,9 @@ const STORE_SETTING_DEFAULTS = [
     // built to say. The original text is stored beside each replacement so the
     // storefront overlay needs nothing but this row to do its work.
     'site_text' => [],
+    // THE HOME PAGE'S SHAPE (2026-10-04): menu links, section order/visibility, the features rows.
+    // Empty = the built-in menu-bar.js / trust-strip.js / page order. admin.php validates each.
+    'home_layout' => ['menu' => [], 'sections' => [], 'features' => []],
     'theme'     => ['brand' => '', 'accent' => '',
                     'accent_text_light' => '', 'accent_text_dark' => '',
                     'font_head' => '', 'font_body' => '',

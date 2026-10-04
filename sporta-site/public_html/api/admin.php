@@ -1514,6 +1514,52 @@ if ($r === 'cat_art_list') {
     store_out(['ready' => $ready, 'tiles' => $tiles, 'sizes' => STORE_CAT_VARIANTS]);
 }
 
+// THE SITE'S OWN PICTURES (2026-10-04): the logo (dark and white marks) and the features band,
+// replaced from the panel as rows that win over the shipped files (store_site_image_serve).
+if ($r === 'site_images') {
+    $out = [];
+    foreach (STORE_SITE_IMAGES as $name => $spec) $out[$name] = ['fmts' => $spec['fmts'], 'max' => $spec['max'], 'replaced' => []];
+    try {
+        foreach ($db->query('select name, fmt, etag, updated_at from site_images')->fetchAll() as $r2) {
+            if (isset($out[$r2['name']])) $out[$r2['name']]['replaced'][$r2['fmt']] = ['etag' => $r2['etag'], 'at' => $r2['updated_at']];
+        }
+        $ready = true;
+    } catch (Throwable $e) { $ready = false; }
+    store_out(['ready' => $ready, 'images' => $out]);
+}
+if ($r === 'site_image_save' && $method === 'POST') {
+    $b = store_body();
+    $name = (string)($b['name'] ?? '');
+    $spec = STORE_SITE_IMAGES[$name] ?? null;
+    if ($spec === null) store_fail('site_image_bad_name');
+    $imgs = is_array($b['images'] ?? null) ? $b['images'] : [];
+    $rows = [];
+    foreach ($spec['fmts'] as $fmt) $rows[$fmt] = store_site_image_decode($imgs[$fmt] ?? null, $name, $fmt);
+    try {
+        $db->beginTransaction();
+        $db->prepare('delete from site_images where name = ?')->execute([$name]);
+        $ins = $db->prepare('insert into site_images (name, fmt, bytes, etag) values (?, ?, ?, ?)');
+        foreach ($rows as $fmt => $bytes) {
+            $ins->bindValue(1, $name); $ins->bindValue(2, $fmt); $ins->bindValue(3, $bytes, PDO::PARAM_LOB); $ins->bindValue(4, md5($bytes));
+            $ins->execute();
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('site_image_save: ' . $e->getMessage());
+        store_fail('site_image_not_ready', 503);
+    }
+    store_out(['ok' => true, 'name' => $name, 'replaced' => true]);
+}
+if ($r === 'site_image_reset' && $method === 'POST') {
+    $b = store_body();
+    $name = (string)($b['name'] ?? '');
+    if (!isset(STORE_SITE_IMAGES[$name])) store_fail('site_image_bad_name');
+    try { $db->prepare('delete from site_images where name = ?')->execute([$name]); }
+    catch (Throwable $e) { store_fail('site_image_not_ready', 503); }
+    store_out(['ok' => true, 'name' => $name, 'replaced' => false]);
+}
+
 if ($r === 'cat_art_save' && $method === 'POST') {
     $b = store_body();
     $tile = (string)($b['tile'] ?? '');
@@ -2854,6 +2900,10 @@ if ($r === 'settings_save' && $method === 'POST') {
             'autoplay' => !empty($v['autoplay']),
             'size'     => in_array($v['size'] ?? '', ['short', 'tall', 'full'], true) ? $v['size'] : 'tall',
         ]);
+    } elseif ($name === 'home_layout') {
+        // THE HOME PAGE'S SHAPE — store_home_layout_validate() says what is accepted and what is
+        // refused by name. Empty lists mean "the built-in", which is also the state before any save.
+        store_setting_save($db, 'home_layout', store_home_layout_validate($v));
     } elseif ($name === 'promo_bar') {
         store_setting_save($db, 'promo_bar', [
             'enabled'   => !empty($v['enabled']),

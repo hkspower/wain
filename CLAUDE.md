@@ -4368,3 +4368,41 @@ old table 500s).
   listed by route. `test:backend-setup` (35 checks) covers all four.
 - **Sandbox only:** `home-banner` and `inventory` fail because the sandbox has ZERO product_images rows
   after the own-photo work; the live shop is unaffected. Reseed before reading them as code faults.
+
+## The generated art is back, and the home page is the owner's to shape — 2026-10-04
+
+"undo use ai generate for hero and slide and category with render improve" → the owner chose to bring
+the generated art back. `scripts/publish/restore-generated-art.php` deletes the `category_art` rows
+(the shipped `/cats/` files serve again, re-encoded webp q90 / jpg q92, `ART_VERSION 20261004a`),
+switches the five neutral hero slides on and the own-photo slides off; `trust-strip.js` draws
+`features.webp` again. Live: `generatedSlidesOn=5/5 ownPhotoSlidesOn=0 activeSlides=7`.
+
+"make all website full dynamic to edit at backend" → all four groups chosen. What is new:
+
+- **`home_layout` settings row** (validated by `store_home_layout_validate`, public on `?r=slides`
+  as `layout`): `menu` (≤8 links, label per language + a path on this shop via
+  `store_internal_href`, which refuses by its own name `invalid_link`; a blank target is
+  `menu_target_N`), `sections` (the five home sections in order with on/off; a key left out is
+  appended ON, so nothing vanishes by omission), `features` (title, ≤6 rows of icon + text, `picture`
+  on/off). Empty = the built-in. `menu-bar.js` and `trust-strip.js` read it; **`home-sections.js`
+  never moves a DOM node**: `<main>` becomes a flex column (`css/72-home-sections.css`, only while
+  marked) and each section gets an inline `order`; hidden = `display:none`. React's hero and tiles
+  are untouched.
+- **`site_images` table** (`api/siteimages.mysql.sql`, `migrate-site-images.php` after
+  `publish-all`): `/logo.png`, `/logo.webp`, `/logo-white.png|webp` and `/assets/features.webp` are
+  rewritten to `api.php?r=site_image` (`.htaccess` + `dev-router.php` together); a row wins over the
+  shipped file, fails towards the file, no-cache + ETag. Panel: `assets/site-images.js` (Pictures
+  card on Home slides) encodes the chosen file to every format the name serves (canvas, so PNG keeps
+  its transparency) and `admin.php` measures each again.
+- **Panel editor** `assets/home-layout-editor.js` (Menu & sections, Home slides screen, above the
+  banner editor). It reads the public row from `?r=slides` and writes through `settings_save`.
+- **The overlays' own words are in the Site wording editor.** `scripts/make-overlay-strings.mjs`
+  harvests 115 English/Arabic literals out of the 39 storefront overlays (ternaries, `en:/ar:`
+  pairs, `['en','ar']` pairs, keyed dictionaries) into `scripts/overlay-strings.json`, which
+  `extract-site-strings.mjs` merges into `site-strings.json` as `overlay.<file>.<n>` — **underscores,
+  not hyphens: `settings_save` refuses a key with a hyphen** (the first harvest saved 400). A literal
+  used as an aria-label/placeholder/title is listed FIXED (not a text node). `test:overlay-strings`
+  fails when a listed literal leaves its file. Not harvested: the menu's `['/men','Men','رجالي']`
+  triples (editable through the menu now) and strings built by functions.
+- `npm run test:home-layout` (55 checks, mutation: the href validator removed → 4 fail). Sections
+  that are not on the page (banner off, no featured products) are simply not ordered.
