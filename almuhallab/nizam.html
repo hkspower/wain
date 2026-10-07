@@ -344,7 +344,7 @@
 
     #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(16px);
       background:var(--tint-strong); color:#fff; padding: 8px 16px; border-radius:999px;
-      font-size:13.5px; font-weight:700; opacity:0; pointer-events:none; transition:.2s; z-index:80; }
+      font-size:13.5px; font-weight:700; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:80; }
     #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
 
     /* ═══════ mobile: the unified system behaves like an installed app ═══════
@@ -813,7 +813,7 @@
   function cueScroll(w) {
     function u() { var max = w.scrollWidth - w.clientWidth;
       w.classList.toggle("more", max > 4 && Math.abs(w.scrollLeft) < max - 4); }
-    if (!w.dataset.cued) { w.dataset.cued = "1"; w.addEventListener("scroll", u); window.addEventListener("resize", u); }
+    if (!w.dataset.cued) { w.dataset.cued = "1"; w.addEventListener("scroll", u, { passive: true }); window.addEventListener("resize", u); }
     u();
   }
   function cueTables() { [].forEach.call(document.querySelectorAll(".table-wrap"), cueScroll); }

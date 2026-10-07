@@ -723,6 +723,7 @@ def browser_checks():
         fit_checks(br)
         alignment_checks(br)
         mobile_layout_checks(br)
+        code_quality_checks(br)
         portal_checks(pg)
         font_checks(pg)
         app_icon_checks(pg)
@@ -930,7 +931,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "768", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "772", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -963,7 +964,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "768", "0", "100%"], str(finals))
+          finals == ["4", "772", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3157,6 +3158,51 @@ def mobile_layout_checks(br):
       return b.length === 2 && b[0] === b[1]; })""")
     check(S, "each channel's open and copy buttons share one row on a 320px phone",
           len(rows) == 3 and all(rows), str(rows))
+    c.close()
+
+def code_quality_checks(br):
+    """«full improve css and js» (2026-10-07). Each fix is pinned where it
+    lives: in the running page, not in a grep of the source."""
+    S = "code"
+    # every scroll listener is passive: a blocking one makes the browser wait
+    # for script before it may scroll a touch screen
+    rx = re.compile(r'addEventListener\(\s*["\']scroll["\']\s*,[^;]*?\)\s*;', re.S)
+    planted = rx.findall('a.addEventListener("scroll", f);')
+    loose = [f"{p}: {m[:60]}" for p in PAGES for m in rx.findall((ROOT / p).read_text()) if "passive" not in m]
+    check(S, "every scroll listener is passive (the scan sees a planted blocking one)",
+          len(planted) == 1 and not loose, " | ".join(loose[:3]))
+    # the flow map's current runs on the compositor
+    c = br.new_context(viewport={"width": 1440, "height": 900}); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle")
+    pg.evaluate("document.querySelector('.flowmap').scrollIntoView({behavior:'instant',block:'center'})")
+    pg.wait_for_timeout(600)
+    props = pg.evaluate("""() => document.getAnimations()
+      .filter(a => a.effect && a.effect.target && a.effect.target.classList.contains('wire'))
+      .map(a => Object.keys(a.effect.getKeyframes().at(-1)).filter(k => !['offset','easing','composite','computedOffset'].includes(k)).join())""")
+    check(S, "the flow map's wires animate transform, not background-position",
+          len(props) >= 3 and all(p == "transform" for p in props), str(props))
+    c.close()
+    # a re-render keeps the keyboard where it was
+    c = br.new_context(viewport={"width": 1280, "height": 900}); pg = c.new_page()
+    users = {f"u{i}@x.c": {"name": f"عميل {i}", "email": f"u{i}@x.c", "hash": "x" * 64, "salt": "y" * 32,
+                           "iter": 310000, "plan": 0, "status": "active",
+                           "createdAt": "2026-01-01T00:00:00Z", "renewAt": None} for i in range(3)}
+    pg.goto(f"{BASE}/admin.html", wait_until="networkidle")
+    pg.evaluate("localStorage.clear(); localStorage.setItem('nokhatha-users-v1', %s)"
+                % json.dumps(json.dumps(users, ensure_ascii=False)))
+    pg.reload(wait_until="networkidle")
+    pg.fill('input[name="pass"]', "code-check-pass-1"); pg.fill('input[name="confirm"]', "code-check-pass-1")
+    pg.click("#gate-btn"); pg.wait_for_timeout(400)
+    pg.click('button[data-tab="customers"]'); pg.wait_for_timeout(200)
+    box = 'input.sel[data-email="u1@x.c"]'
+    pg.focus(box); pg.keyboard.press("Space"); pg.wait_for_timeout(150)
+    on_box = pg.evaluate("document.activeElement.matches('input.sel[data-email=\"u1@x.c\"]') && document.activeElement.checked")
+    check(S, "ticking a customer from the keyboard keeps focus on that box", on_box)
+    btn = 'button[data-act="toggle"][data-email="u1@x.c"]'
+    pg.focus(btn); pg.keyboard.press("Enter"); pg.wait_for_timeout(150)
+    on_btn = pg.evaluate("document.activeElement.matches('button[data-act=\"toggle\"][data-email=\"u1@x.c\"]')")
+    check(S, "suspending a customer from the keyboard keeps focus on that row's button", on_btn)
+    pg.evaluate("localStorage.clear()")
     c.close()
 
 def portal_checks(pg):
