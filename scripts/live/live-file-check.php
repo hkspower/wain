@@ -301,7 +301,7 @@ $WANT = [
     'cats/mobile/art-women.webp' => '30f55756442e08cc806c29ecc25fa6b95ff6e994bd6c093f1441d34da99d275f',
     'cats/mobile/infobar.jpg' => '3f737a054397e2946c175444e14c76c7eb2356dc81be7cd504afa05fb9494a16',
     'cats/mobile/infobar.webp' => '4f553a7affcdfdb7b367508df5b725d3ef8d000e676339e11a2b10958b9c19c8',
-    'config.js' => 'a85fd8085d3e71a73b06e8a136791f7965db0905a41890d9e0f783d5d3f6ebde',
+    'config.js' => 'c5d7606453dc6836ed83b2a3e2f8d716c96431a7cc198d4e2a18fccb1a4633d5',
     'favicon-192.png' => 'f9b1c55f2c5d3b7201203c702bfebe871cf32fdfb7db6f9a0a6aac3688a56b6c',
     'favicon-32.png' => 'c2cec10309c45382d25a70804f4d3af38372d6a69365784a1e2236d9872dfb15',
     'favicon-maskable.png' => 'db212cac661a0b04f20eae91586c8362746ee1306c173aeb0c9b8f4a929a143f',
@@ -365,7 +365,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'f253a8a9c9b7cd89364f452b57aafa1f1906ee59f118a37f8d11eec135b031ef',
+    'sw.js' => '81dd79498f58e2db364515c42ef2d15866b6722e7547dfcbe8f9962558220e62',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
