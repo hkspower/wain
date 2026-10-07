@@ -194,10 +194,20 @@ void main() {
           (sl['urls'] as List)[i],
         );
       }
+      // With a poll, and with a value that is not one (7 October).
+      final n = lists.length;
+      expect(
+        shortlistUrl(lists[0], WhenId.tomorrow, 'https://www.wainkw.com', '2026-10-07', 'abc123def456'),
+        (sl['urls'] as List)[n],
+      );
+      expect(
+        shortlistUrl(lists[0], WhenId.tomorrow, 'https://www.wainkw.com', '2026-10-07', 'NOT-a-poll'),
+        (sl['urls'] as List)[n + 1],
+      );
       for (final r in (sl['read'] as List).cast<Map>()) {
         final got = readShortlist(r['q'] as String, known.contains);
         expect(
-          {'slugs': got.slugs, 'when': got.when?.wire, 'day': got.day},
+          {'slugs': got.slugs, 'when': got.when?.wire, 'day': got.day, 'poll': got.poll},
           r['out'],
           reason: r['q'] as String,
         );

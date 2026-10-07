@@ -11880,7 +11880,9 @@
    "https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=tonight-8",
    "https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=tonight-8",
    "https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=tonight-8",
-   "https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=tonight-8"
+   "https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=tonight-8",
+   "https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=tomorrow&d=2026-10-07&v=abc123def456",
+   "https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=tomorrow&d=2026-10-07"
   ],
   "read": [
    {
@@ -11892,7 +11894,8 @@
       "kuwait-towers"
      ],
      "when": "tonight-8",
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11903,7 +11906,8 @@
       "souq-al-mubarakiya"
      ],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11911,7 +11915,8 @@
     "out": {
      "slugs": [],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11922,7 +11927,8 @@
       "al-shaheed-park"
      ],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11934,7 +11940,8 @@
       "al-shaheed-park"
      ],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11945,7 +11952,8 @@
       "souq-al-mubarakiya"
      ],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11956,7 +11964,8 @@
       "souq-al-mubarakiya"
      ],
      "when": "now",
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11967,7 +11976,8 @@
       "souq-al-mubarakiya"
      ],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11975,7 +11985,8 @@
     "out": {
      "slugs": [],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11983,7 +11994,8 @@
     "out": {
      "slugs": [],
      "when": null,
-     "day": null
+     "day": null,
+     "poll": null
     }
    },
    {
@@ -11991,7 +12003,44 @@
     "out": {
      "slugs": [],
      "when": "tonight-8",
-     "day": null
+     "day": null,
+     "poll": null
+    }
+   },
+   {
+    "q": "?p=kuwait-towers,souq-al-mubarakiya&when=tomorrow&d=2026-10-07&v=abc123def456",
+    "out": {
+     "slugs": [
+      "kuwait-towers",
+      "souq-al-mubarakiya"
+     ],
+     "when": "tomorrow",
+     "day": "2026-10-07",
+     "poll": "abc123def456"
+    }
+   },
+   {
+    "q": "?p=kuwait-towers,souq-al-mubarakiya&v=short",
+    "out": {
+     "slugs": [
+      "kuwait-towers",
+      "souq-al-mubarakiya"
+     ],
+     "when": null,
+     "day": null,
+     "poll": null
+    }
+   },
+   {
+    "q": "?p=kuwait-towers,souq-al-mubarakiya&v=UPPER123456",
+    "out": {
+     "slugs": [
+      "kuwait-towers",
+      "souq-al-mubarakiya"
+     ],
+     "when": null,
+     "day": null,
+     "poll": null
     }
    }
   ],

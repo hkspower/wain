@@ -7,8 +7,9 @@ import PlaceCard from "@/components/PlaceCard";
 import SearchMap from "@/components/SearchMap";
 import { IconCheck, IconSend } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
-import { getCategory } from "@/lib/place-kit";
+import { countAr, getCategory, VOTES_COUNT } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
+import { castVote, leader, myVote, readVotes, type Tally } from "@/lib/votes";
 import {
   invitePassed,
   inviteUrl,
@@ -39,11 +40,37 @@ import {
  */
 export default function PickClient() {
   const { places } = usePlaces();
-  const [read, setRead] = useState<{ slugs: string[]; when: WhenId | null; day: Day | null } | null>(null);
+  const [read, setRead] = useState<{ slugs: string[]; when: WhenId | null; day: Day | null; poll: string | null } | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [voted, setVoted] = useState<{ slug: string; outcome: ShareOutcome } | null>(null);
   const [busy, setBusy] = useState(false);
+  // The group's count, when the link carries a poll (lib/votes.ts). Read on
+  // arrival and every twenty seconds while the page is in front of someone,
+  // so a friend's vote shows without a reload; nothing at all for an old
+  // link with no poll, or when the server cannot be reached.
+  const [tally, setTally] = useState<Tally | null>(null);
+  const [mine, setMine] = useState<string | null>(null);
+  const poll = read?.poll ?? null;
+  const slugsKey = read?.slugs.join(",") ?? "";
+  useEffect(() => {
+    if (!poll || !slugsKey) return;
+    setMine(myVote(poll));
+    const options = slugsKey.split(",");
+    let live = true;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void readVotes(poll, options).then((t) => { if (live && t) setTally(t); });
+    };
+    refresh();
+    const timer = setInterval(refresh, 20_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [poll, slugsKey]);
 
   useEffect(() => {
     const known = new Set(places.map((p) => p.slug));
@@ -71,6 +98,12 @@ export default function PickClient() {
     // The vote carries the place's own link, so the chat ends up holding the
     // winner's plan the way a single proposal would have.
     const url = when ? inviteUrl(place, when, window.location.origin, day) : undefined;
+    // Counted first, and not waited on: the share sheet holds the page until
+    // it closes, and the count is worth showing the moment it is in.
+    if (poll) {
+      setMine(place.slug);
+      void castVote(poll, place.slug, read.slugs).then((t) => t && setTally(t));
+    }
     const outcome = await shareHangout({ text: shortlistVoteMessage(place, i, when, url, day), title: shortlistTitle() });
     if (outcome === "shared" || outcome === "whatsapp" || outcome === "copied") haptic("success");
     setVoted({ slug: place.slug, outcome });
@@ -102,6 +135,7 @@ export default function PickClient() {
     );
   }
 
+  const top = leader(tally);
   const category = getCategory(list[0].category);
   const ask = category ? `${category.ar} ${list[0].areaAr}` : list[0].areaAr;
 
@@ -113,10 +147,19 @@ export default function PickClient() {
       <p className="mt-1 text-ink-600">
         {when ? `وين نروح ${phrase}؟` : "وين نروح؟"} اختار واحد ورد عليهم.
       </p>
+      {tally && tally.total > 0 && (
+        <p className="mt-2 text-sm font-semibold text-ink-700" role="status" data-tally-summary="">
+          {`صوّتوا: ${countAr(tally.total, VOTES_COUNT)}`}
+          {top ? ` — الأكثر: ${list.find((p) => p.slug === top)?.nameAr ?? ""}` : " — متعادلين"}
+        </p>
+      )}
 
       <ol className="mt-5 space-y-3">
         {list.map((place, i) => {
-          const mine = voted?.slug === place.slug;
+          const replied = voted?.slug === place.slug;
+          const chosen = mine === place.slug;
+          const n = tally?.tally[place.slug] ?? 0;
+          const share = tally && tally.total > 0 ? Math.round((n / tally.total) * 100) : 0;
           return (
             <li
               key={place.slug}
@@ -140,13 +183,27 @@ export default function PickClient() {
                   onClick={() => vote(i)}
                   disabled={busy || passed}
                   aria-label={`أنا مع ${["١", "٢", "٣"][i]}: ${place.nameAr}`}
+                  aria-pressed={poll ? chosen : undefined}
                   className={`inline-flex min-h-tap items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition disabled:opacity-50 ${
-                    mine ? "bg-palm-700 text-white" : "bg-coral-700 text-white hover:bg-coral-800"
+                    replied || chosen ? "bg-palm-700 text-white" : "bg-coral-700 text-white hover:bg-coral-800"
                   }`}
                 >
-                  {mine ? <IconCheck className="size-4" /> : <IconSend className="size-4" />}
-                  {mine ? "رديت" : "أنا معه"}
+                  {replied || chosen ? <IconCheck className="size-4" /> : <IconSend className="size-4" />}
+                  {replied ? "رديت" : chosen ? "صوتك هني" : "أنا معه"}
                 </button>
+                {tally && (
+                  <span className="mt-1.5 text-center text-xs font-semibold text-ink-600" data-tally={place.slug}>
+                    {countAr(n, VOTES_COUNT)}
+                  </span>
+                )}
+                {tally && tally.total > 0 && (
+                  <span aria-hidden="true" className="mt-1 h-1.5 overflow-hidden rounded-full bg-sand-200">
+                    <span
+                      className={`block h-full rounded-full ${top === place.slug ? "bg-palm-600" : "bg-sand-500"}`}
+                      style={{ width: `${share}%` }}
+                    />
+                  </span>
+                )}
               </div>
             </li>
           );

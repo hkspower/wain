@@ -252,6 +252,15 @@ export const RESULTS_COUNT: CountForms = {
   many: "نتيجة",
 };
 
+/** "صوت واحد" / "صوتين" / "٣ أصوات" / "١٢ صوت" — a shortlist's tally (/pick). */
+export const VOTES_COUNT: CountForms = {
+  zero: "ما فيه أصوات",
+  one: "صوت واحد",
+  two: "صوتين",
+  few: "أصوات",
+  many: "صوت",
+};
+
 
 /**
  * How far one place is from another, said the way a person says it.

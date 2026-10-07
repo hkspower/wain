@@ -707,6 +707,35 @@ create trigger queue_tickets_stamp before update on public.queue_tickets
   for each row execute function public.stamp_queue_status();
 
 -- ---------------------------------------------------------------------------
+-- Shortlist votes (/pick, 7 October)
+--
+-- The live back end is wain's own PHP (scripts/publish/wain-api.php), where
+-- vote_cast/votes_get read and write this table. It is described here so the
+-- Postgres alternative names every table the API does (audit:schema), locked
+-- the way every other table is: no anonymous access at all, admins read.
+-- A vote carries no name: the voter is a random id the device keeps.
+-- ---------------------------------------------------------------------------
+create table if not exists public.votes (
+  poll        text not null check (poll ~ '^[a-z0-9]{10,16}$'),
+  voter       text not null check (length(voter) between 20 and 64),
+  place_slug  text not null check (place_slug ~ '^[a-z0-9-]+$'),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  primary key (poll, voter)
+);
+create index if not exists votes_poll_idx on public.votes (poll, place_slug);
+create index if not exists votes_age_idx on public.votes (updated_at);
+
+alter table public.votes enable row level security;
+revoke all on public.votes from anon, authenticated;
+grant select on public.votes to authenticated;
+
+drop policy if exists "admins read the votes" on public.votes;
+create policy "admins read the votes"
+  on public.votes for select
+  using (public.is_admin());
+
+-- ---------------------------------------------------------------------------
 -- Taking a number
 --
 -- The number cannot come from the device. Two people tapping at once would

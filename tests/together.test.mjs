@@ -271,7 +271,49 @@ console.log('\n── 6. «خلّهم يختارون»: a shortlist, and /pick �
     const voted = await v.p.evaluate(() => window.__shared.at(-1)?.text ?? '');
     ok('a vote is one tap: «أنا مع ٢: …»', voted.startsWith('أنا مع ٢:') && voted.includes('باچر'), voted);
     ok('and none of the three leads to سالم', (await soft(() => v.p.getByRole('link', { name: 'اسأل سالم عن غيرها' }).getAttribute('href'), '')).startsWith('/salem/?q='));
+    ok('a link with no poll shows no count', (await soft(() => v.p.locator('[data-tally]').count(), 0)) === 0);
     await v.ctx.close();
+  }
+
+  // 7 October: the votes are counted on wain's own server. The real
+  // endpoint is proved in test:wain-api; here a stand-in answers the same
+  // two actions, so what is under test is the page's half.
+  const poll = /&v=([a-z0-9]{10,16})/.exec(sent)?.[1] ?? null;
+  ok('the list\'s link carries a poll of its own', !!poll, sent);
+  if (link) {
+    const slugs = link[1].split(',');
+    const votes = new Map([['friend-a', slugs[0]], ['friend-b', slugs[0]], ['friend-c', slugs[2]]]);
+    const vctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+    await vctx.addInitScript(() => { window.__shared = []; navigator.share = async (d) => { window.__shared.push(d); }; });
+    await vctx.route('**/api/wain.php*', async (route) => {
+      const a = new URL(route.request().url()).searchParams.get('a');
+      const body = route.request().postDataJSON?.() ?? {};
+      if (a === 'vote_cast') votes.set(body.voter, body.place_slug);
+      if (a !== 'vote_cast' && a !== 'votes_get') return route.fulfill({ status: 404, body: '' });
+      const tally = Object.fromEntries(slugs.map((s) => [s, [...votes.values()].filter((x) => x === s).length]));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, tally, total: votes.size }) });
+    });
+    const vp = await vctx.newPage();
+    await vp.goto(`${B}/pick/?p=${link[1]}&when=tomorrow&v=abcdef123456`, { waitUntil: 'networkidle' });
+    const first = await soft(() => vp.locator(`[data-tally="${slugs[0]}"]`).textContent({ timeout: 5000 }), '');
+    ok('the count the group has cast is on the page', first === 'صوتين', first);
+    const summary = await soft(() => vp.locator('[data-tally-summary]').textContent({ timeout: 3000 }), '');
+    ok('with the total and who leads', summary.includes('٣ أصوات') && summary.includes('الأكثر'), summary);
+    await soft(() => vp.getByRole('button', { name: /^أنا مع ٣/ }).click());
+    await vp.waitForTimeout(500);
+    const third = await soft(() => vp.locator(`[data-tally="${slugs[2]}"]`).textContent(), '');
+    ok('a vote adds to its place at once', third === 'صوتين', third);
+    ok('and the place says it holds this vote', (await soft(() => vp.getByRole('button', { name: /^أنا مع ٣/ }).getAttribute('aria-pressed'), '')) === 'true');
+    const tie = await soft(() => vp.locator('[data-tally-summary]').textContent(), '');
+    ok('two places level is said as a tie, not a winner', tie.includes('متعادلين'), tie);
+    ok('the reply still goes to the chat', (await vp.evaluate(() => window.__shared.length)) === 1);
+    // Back later: the device remembers its vote and moves it, never adds one.
+    await vp.reload({ waitUntil: 'networkidle' });
+    await soft(() => vp.getByRole('button', { name: /^أنا مع ١/ }).click());
+    await vp.waitForTimeout(500);
+    const total = await soft(() => vp.locator('[data-tally-summary]').textContent(), '');
+    ok('changing your mind moves your vote — still four in all', total.includes('٤ أصوات'), total);
+    await vctx.close();
   }
   const bad = await fresh('/pick/?p=not-a-place,also-not');
   ok('a link with no real places says so, with a way on',

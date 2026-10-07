@@ -334,6 +334,20 @@ export function inviteAcceptMessage(place: Place, when: WhenId): string {
  */
 export const SHORTLIST_MAX = 3;
 export const SHORTLIST_PARAM = "p";
+/** The poll a shortlist's votes are counted under (lib/votes.ts). Random per
+ *  message sent, so two groups sent the same three places do not share one
+ *  count. A link without it still works — the votes go back by WhatsApp
+ *  only, as before 7 October. */
+export const POLL_PARAM = "v";
+const RE_POLL = /^[a-z0-9]{10,16}$/;
+
+/** A fresh poll id: twelve characters of [a-z0-9]. */
+export function newPollId(): string {
+  const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => abc[b % abc.length]).join("");
+}
 
 const ORDINAL_AR = ["١", "٢", "٣"];
 
@@ -355,10 +369,11 @@ export function defaultWhenFor(list: Place[], now: Date = new Date()): WhenId {
 }
 
 /** `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like `inviteUrl`. */
-export function shortlistUrl(list: Place[], when: WhenId, origin: string, day?: Day | null): string {
+export function shortlistUrl(list: Place[], when: WhenId, origin: string, day?: Day | null, poll?: string | null): string {
   const slugs = list.slice(0, SHORTLIST_MAX).map((p) => p.slug).join(",");
   const base = `${origin.replace(/\/+$/, "")}/pick/?${SHORTLIST_PARAM}=${slugs}&${INVITE_PARAM}=${when}`;
-  return day ? `${base}&${DAY_PARAM}=${day}` : base;
+  const dated = day ? `${base}&${DAY_PARAM}=${day}` : base;
+  return poll && RE_POLL.test(poll) ? `${dated}&${POLL_PARAM}=${poll}` : dated;
 }
 
 /**
@@ -369,15 +384,21 @@ export function shortlistUrl(list: Place[], when: WhenId, origin: string, day?: 
 export function readShortlist(
   search: string,
   known: (slug: string) => boolean
-): { slugs: string[]; when: WhenId | null; day: Day | null } {
+): { slugs: string[]; when: WhenId | null; day: Day | null; poll: string | null } {
   const params = new URLSearchParams(search);
+  const poll = params.get(POLL_PARAM) ?? "";
   const raw = (params.get(SHORTLIST_PARAM) ?? "").split(",").map((s) => s.trim());
   const slugs: string[] = [];
   for (const s of raw) {
     if (/^[a-z0-9-]+$/.test(s) && known(s) && !slugs.includes(s)) slugs.push(s);
     if (slugs.length === SHORTLIST_MAX) break;
   }
-  return { slugs: slugs.length >= 2 ? slugs : [], when: readInvite(search), day: readInviteDay(search) };
+  return {
+    slugs: slugs.length >= 2 ? slugs : [],
+    when: readInvite(search),
+    day: readInviteDay(search),
+    poll: RE_POLL.test(poll) ? poll : null,
+  };
 }
 
 /** The map link the messages carry — directions to the pin, not a search. */

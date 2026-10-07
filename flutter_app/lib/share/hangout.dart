@@ -233,16 +233,23 @@ WhenId defaultWhenFor(List<Place> list, [DateTime? now]) {
 }
 
 /// `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like [inviteUrl].
+/// The poll a shortlist's votes are counted under on wainkw.com (the web's
+/// `POLL_PARAM`, lib/votes.ts). Random per message sent.
+const String pollParam = 'v';
+final RegExp _pollShape = RegExp(r'^[a-z0-9]{10,16}$');
+
 String shortlistUrl(
   List<Place> list,
   WhenId when,
   String origin, [
   String? day,
+  String? poll,
 ]) {
   final slugs = list.take(kShortlistMax).map((p) => p.slug).join(',');
   final base =
       '${origin.replaceAll(RegExp(r'/+$'), '')}/pick/?$shortlistParam=$slugs&$inviteParam=${when.wire}';
-  return day != null ? '$base&$dayParam=$day' : base;
+  final dated = day != null ? '$base&$dayParam=$day' : base;
+  return poll != null && _pollShape.hasMatch(poll) ? '$dated&$pollParam=$poll' : dated;
 }
 
 final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
@@ -250,7 +257,7 @@ final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
 /// The slugs and the time in a shortlist link. Each slug is checked against
 /// the places that exist ([known]), duplicates dropped, three kept — the link
 /// is whatever anyone pasted. Fewer than two left is not a shortlist.
-({List<String> slugs, WhenId? when, String? day}) readShortlist(
+({List<String> slugs, WhenId? when, String? day, String? poll}) readShortlist(
   String search,
   bool Function(String slug) known,
 ) {
@@ -266,6 +273,9 @@ final RegExp _slugShape = RegExp(r'^[a-z0-9-]+$');
     slugs: slugs.length >= 2 ? slugs : const <String>[],
     when: readInvite(search),
     day: readInviteDay(search),
+    poll: _pollShape.hasMatch(_firstParam(search, pollParam) ?? '')
+        ? _firstParam(search, pollParam)
+        : null,
   );
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AddToCalendar from "@/components/AddToCalendar";
 import { IconCheck, IconSend } from "@/components/icons";
+import { backendEnabled } from "@/lib/backend";
 import { haptic } from "@/lib/haptics";
 import type { Place } from "@/lib/places";
 import {
@@ -19,6 +20,7 @@ import {
   shareHangout,
   shortlistMessage,
   shortlistTitle,
+  newPollId,
   shortlistUrl,
   whenOptions,
   whenOptionsFor,
@@ -170,7 +172,12 @@ export default function ShareHangout({
     const origin = typeof window === "undefined" ? "" : window.location.origin;
     const day = kuwaitDay();
     const text = listMode
-      ? shortlistMessage({ places: listed, when, url: shortlistUrl(listed, when, origin, day) })
+      ? shortlistMessage({
+          places: listed,
+          when,
+          // A fresh poll per message, so /pick can count this group's votes.
+          url: shortlistUrl(listed, when, origin, day, backendEnabled ? newPollId() : null),
+        })
       : hangoutMessage({ place, when, url: inviteUrl(place, when, origin, day) });
     setSent({ text, when, day, list: listMode });
     const result = await shareHangout({ text, title: listMode ? shortlistTitle() : hangoutTitle(place) });

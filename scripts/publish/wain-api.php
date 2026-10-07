@@ -101,10 +101,20 @@ const MEDIA_EXTS = ['jpg', 'png', 'webp'];
 /** Read-only actions accept GET; everything else is POST with a JSON body. */
 const READ_ACTIONS = ['ping', 'places', 'order_status', 'queue_status', 'queue_size',
                       'media_get', 'whoami', 'places_all', 'orders_list', 'queue_list',
-                      'submissions_list'];
+                      'submissions_list', 'votes_get'];
 
 /** Public writes the per-address write cap applies to. */
-const PUBLIC_WRITES = ['order_place', 'order_cancel', 'queue_join', 'queue_leave', 'submit'];
+const PUBLIC_WRITES = ['order_place', 'order_cancel', 'queue_join', 'queue_leave', 'submit', 'vote_cast'];
+
+/* A shortlist's vote (/pick). A poll is the random id the sender's link
+   carries — nothing registers it, so nothing here knows a poll's places
+   until a vote names them. No names: a voter is a random id the device
+   keeps, and the tally is all that is ever read back. Old polls go after
+   VOTE_KEEP_DAYS, and a poll stops at VOTE_MAX_VOTERS so one link cannot
+   fill the table. */
+const RE_POLL         = '/^[a-z0-9]{10,16}$/';
+const VOTE_KEEP_DAYS  = 30;
+const VOTE_MAX_VOTERS = 200;
 
 /** Actions that need `X-Wain-Admin`. `queue_join` with `source: walk_in` joins
  *  this list at runtime — a walk-in is somebody staff saw. */
@@ -433,8 +443,17 @@ final class Db {
               created_at VARCHAR(32) NOT NULL)');
         $this->ensureIndex('submissions_status_idx', 'submissions', 'status, created_at');
 
+        $x('CREATE TABLE IF NOT EXISTS votes (
+              poll VARCHAR(16) NOT NULL,
+              voter VARCHAR(64) NOT NULL,
+              place_slug VARCHAR(191) NOT NULL,
+              created_at VARCHAR(32) NOT NULL, updated_at VARCHAR(32) NOT NULL,
+              PRIMARY KEY (poll, voter))');
+        $this->ensureIndex('votes_poll_idx', 'votes', 'poll, place_slug');
+        $this->ensureIndex('votes_age_idx', 'votes', 'updated_at');
+
         $ignore = $this->driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
-        foreach (['queue', 'orders', 'submissions', 'places'] as $lock) {
+        foreach (['queue', 'orders', 'submissions', 'places', 'votes'] as $lock) {
             $this->run("$ignore INTO locks (name) VALUES (?)", [$lock]);
         }
     }
@@ -775,7 +794,7 @@ if (PHP_SAPI === 'cli') {
         $db = $openDb($stage);
         $out(['ok' => true, 'stage' => $stage, 'engine' => $db->driver,
               'tables' => array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                    ['places', 'orders', 'queue_tickets', 'submissions'])]);
+                                    ['places', 'orders', 'queue_tickets', 'submissions', 'votes'])]);
     }
 
     if ($mode === 'seed') {
@@ -855,6 +874,22 @@ if (PHP_SAPI === 'cli') {
                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                 [uuid4(), 'pending', 'Selftest', $tag, 'coffee', 'اختبار', '', 29.37, 47.97, 2, 'tagline here', '', '', '', '',
                  'Owner', 'o@example.com', '', null, '[]', '', '[]', '', null, null, $now]));
+            $step('cast and change a vote under lock', function () use ($db, $tag, $now) {
+                $poll = substr(str_replace('-', '', $tag), 0, 16);
+                foreach (['a', 'b'] as $slug) {
+                    $db->tx('votes', function (Db $d) use ($poll, $slug, $now) {
+                        if ($d->scalar('SELECT 1 FROM votes WHERE poll = ? AND voter = ?', [$poll, 'selftestvoter']) === null) {
+                            $d->run('INSERT INTO votes (poll, voter, place_slug, created_at, updated_at) VALUES (?,?,?,?,?)',
+                                [$poll, 'selftestvoter', $slug, $now, $now]);
+                        } else {
+                            $d->run('UPDATE votes SET place_slug = ?, updated_at = ? WHERE poll = ? AND voter = ?', [$slug, $now, $poll, 'selftestvoter']);
+                        }
+                    });
+                }
+                $rows = $db->all('SELECT place_slug, COUNT(*) AS n FROM votes WHERE poll = ? GROUP BY place_slug', [$poll]);
+                if (count($rows) !== 1 || $rows[0]['place_slug'] !== 'b' || (int) $rows[0]['n'] !== 1) throw new RuntimeException('the changed vote did not read back');
+                $db->run('DELETE FROM votes WHERE poll = ?', [$poll]);
+            });
             $step('read back counts', function () use ($db, $tag) {
                 foreach (['orders' => 'place_slug', 'queue_tickets' => 'place_slug', 'submissions' => 'name_ar'] as $t => $col) {
                     $n = (int) $db->scalar("SELECT COUNT(*) FROM $t WHERE $col = ?", [$tag]);
@@ -871,7 +906,7 @@ if (PHP_SAPI === 'cli') {
             $report['cleaned'] = true;
         }
         $report['counts'] = array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                      ['places', 'orders', 'queue_tickets', 'submissions']);
+                                      ['places', 'orders', 'queue_tickets', 'submissions', 'votes']);
         $out($report);
     }
 
@@ -1111,6 +1146,16 @@ $pendingFile = static function (string $path) use ($storage): ?string {
 
 $mediaSig = static fn(string $path, int $exp) => hash_hmac('sha256', "$path|$exp", $secret);
 
+/** A poll's tally, limited to the places the asker's link offers — a vote for
+ *  anything else (a link edited by hand) is counted nowhere it can be seen. */
+$tally = static function (string $poll, array $options) use ($db): array {
+    $counts = array_fill_keys($options, 0);
+    foreach ($db->all('SELECT place_slug, COUNT(*) AS n FROM votes WHERE poll = ? GROUP BY place_slug', [$poll]) as $r) {
+        if (array_key_exists($r['place_slug'], $counts)) $counts[$r['place_slug']] = (int) $r['n'];
+    }
+    return ['tally' => $counts, 'total' => array_sum($counts)];
+};
+
 try {
     switch ($action) {
 
@@ -1257,6 +1302,37 @@ try {
         $minutes = $db->scalar('SELECT queue_service_minutes FROM places WHERE slug = ? AND published = 1', [$slug]);
         $ok(['waiting' => $waiting, 'now_serving' => $serving === null ? null : (int) $serving,
              'service_minutes' => $minutes === null ? 20 : (int) $minutes]);
+    }
+
+    case 'vote_cast': {
+        $poll  = vRe($in, 'poll', RE_POLL, '10–16 lowercase letters and digits');
+        $voter = vToken($in, 'voter');
+        $slug  = vRe($in, 'place_slug', RE_SLUG, 'a slug');
+        $options = vStrList($in, 'options', 3, 191);
+        foreach ($options as $o) if (!preg_match(RE_SLUG, $o)) throw new Invalid('options', 'options must be slugs');
+        if (count($options) < 2 || !in_array($slug, $options, true)) throw new Invalid('place_slug', 'the vote must name one of the options');
+        $now = nowIso();
+        $cutoff = gmdate('Y-m-d\TH:i:s', time() - VOTE_KEEP_DAYS * 86400);
+        $result = $db->tx('votes', function (Db $d) use ($poll, $voter, $slug, $now, $cutoff) {
+            $d->run('DELETE FROM votes WHERE updated_at < ?', [$cutoff]);
+            if ($d->scalar('SELECT 1 FROM votes WHERE poll = ? AND voter = ?', [$poll, $voter]) !== null) {
+                $d->run('UPDATE votes SET place_slug = ?, updated_at = ? WHERE poll = ? AND voter = ?', [$slug, $now, $poll, $voter]);
+                return 'changed';
+            }
+            if ((int) $d->scalar('SELECT COUNT(*) FROM votes WHERE poll = ?', [$poll]) >= VOTE_MAX_VOTERS) return 'closed';
+            $d->run('INSERT INTO votes (poll, voter, place_slug, created_at, updated_at) VALUES (?,?,?,?,?)', [$poll, $voter, $slug, $now, $now]);
+            return 'cast';
+        });
+        if ($result === 'closed') $fail(409, 'closed');
+        $ok(['vote' => $result] + $tally($poll, $options), ['poll' => substr($poll, 0, 6), 'v' => $result]);
+    }
+
+    case 'votes_get': {
+        $poll = vRe($in, 'poll', RE_POLL, '10–16 lowercase letters and digits');
+        $raw = $in['options'] ?? [];
+        $options = vStrList(['options' => is_string($raw) ? explode(',', $raw) : $raw], 'options', 3, 191);
+        foreach ($options as $o) if (!preg_match(RE_SLUG, $o)) throw new Invalid('options', 'options must be slugs');
+        $ok($tally($poll, $options), ['poll' => substr($poll, 0, 6)]);
     }
 
     case 'submit': {

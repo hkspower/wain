@@ -6461,7 +6461,13 @@ firing, deleted, listed gone. `deploy:verify`: «127350ba is live — verified a
 n8n), `Last-Modified 09:57:02`, `DYNAMIC`. **The hosa listing stops above `chunks/app/search/`** — read that chunk
 by path with `website-content` (`size_bytes`), as before.
 
-## «full check شوق and سالم, /find and /search» — 7 October (fixed in the repository, NOT deployed)
+## «full check شوق and سالم, /find and /search» — 7 October (live as `74ec594e`)
+
+**Deployed the same day.**
+- Agent build from a clean `.next`, archive `3d13afe` (sha256 `71e5d087…`). One more permanent ~4MB blob.
+- Job `2sKWLWINhv`, read at its FIRST firing: `{"ok":true,"deployed":278,"removed":12,"emptied":1,"at":"2026-10-07T11:56:02"}`. Deleted, and the listing showed sporta's jobs only.
+- `deploy:verify`: «74ec594e is live — verified at the root and 7 levels below it» (digest `68c0f64527f0e485`).
+- After the purge, `build.json` through the edge: 200, `Last-Modified 11:56:02`, `DYNAMIC`.
 
 **What the live state is.**
 - **The agent matches what the pages send.** `agents_get` on Main `agtvrsn_6801…`:

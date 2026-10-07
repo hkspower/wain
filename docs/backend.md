@@ -121,6 +121,19 @@ submission_reject submission_approve media_sign media_publish media_discard`.
 `queue_join` with `source: walk_in` is admin too. `php wain.php actions`
 prints the lists and `audit:schema` checks the client against them.
 
+**Shortlist votes (7 October):** `vote_cast {poll, voter, place_slug, options}`
+and `votes_get {poll, options}`, both public, both answering `{tally, total}`.
+They use the `votes` table, keyed `(poll, voter)`, so a second vote from the same
+device moves rather than adds.
+- `poll` is the random `v=` a shortlist link carries (`newPollId()`), and nothing
+  registers it in advance.
+- `options` is the link's two or three slugs. A vote outside them is 422, and the
+  tally counts only them.
+- No name and no phone are stored. The voter is a random id the device keeps.
+- Rows older than 30 days are deleted on the next vote, and a poll stops at 200
+  voters.
+- The Postgres alternative in `supabase/schema.sql` has no twin of this table.
+
 Errors are `{ ok: false, error, status, field? }`: `invalid` 422 (with the
 field), `duplicate` 409, `closed` 409, `rate_limited` 429, `admin_unset` 503.
 A wrong token on `order_status`/`queue_status` answers `null`, the same as «no

@@ -42,7 +42,7 @@ class PickScreen extends StatefulWidget {
 }
 
 class _PickScreenState extends State<PickScreen> {
-  late final ({List<String> slugs, WhenId? when, String? day}) _read =
+  late final ({List<String> slugs, WhenId? when, String? day, String? poll}) _read =
       readShortlist(widget.query, (s) => getPlace(s) != null);
   late final List<Place> _list = [for (final s in _read.slugs) ?getPlace(s)];
   String? _active;

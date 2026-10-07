@@ -123,7 +123,7 @@ try {
   console.log("\n── install-time CLI: migrate, seed, version ──");
   {
     const m = cli("migrate");
-    ok("migrate creates the four tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 4, j(m));
+    ok("migrate creates the five tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 5, j(m));
     ok("the database file is 0600", (await import("node:fs")).statSync(join(storage, "wain.sqlite")).mode.toString(8).endsWith("600"));
     const s1 = cli("seed");
     ok("seed inserts the three rows of data/places.json", s1.ok && s1.inserted === 3 && s1.skipped === 0 && s1.total === 3, j(s1));
@@ -453,10 +453,37 @@ try {
     ok("the log file is 0600", (await import("node:fs")).statSync(join(storage, "logs", "wain.log")).mode.toString(8).endsWith("600"));
   }
 
+  console.log("\n── a shortlist's vote: cast, change, count ──");
+  {
+    const poll = "abc123def456";
+    const options = ["tea-house", "beach", "museum"];
+    const voterA = tok(), voterB = tok();
+    const a = await call("vote_cast", { poll, voter: voterA, place_slug: "beach", options });
+    ok("a vote is cast and the tally comes back with it", a.status === 200 && a.json.vote === "cast" && a.json.tally.beach === 1 && a.json.total === 1, j(a.json));
+    ok("every option is in the tally, zeros included", Object.keys(a.json.tally).join(",") === options.join(","), j(a.json));
+    const b = await call("vote_cast", { poll, voter: voterB, place_slug: "beach", options });
+    ok("a second voter adds to it", b.json.tally.beach === 2 && b.json.total === 2, j(b.json));
+    const c = await call("vote_cast", { poll, voter: voterA, place_slug: "museum", options });
+    ok("the same voter changing their mind moves the vote, it does not add one", c.json.vote === "changed" && c.json.tally.beach === 1 && c.json.tally.museum === 1 && c.json.total === 2, j(c.json));
+    const g = await call("votes_get", { poll, options: options.join(",") });
+    ok("anyone with the link reads the same tally", g.status === 200 && g.json.tally.museum === 1 && g.json.tally.beach === 1 && g.json.total === 2, j(g.json));
+    const other = await call("votes_get", { poll: "zzz999zzz999", options: options.join(",") });
+    ok("another poll counts nothing of this one", other.json.total === 0, j(other.json));
+    const bad = await call("vote_cast", { poll, voter: tok(), place_slug: "elsewhere", options });
+    ok("a vote for a place the link does not offer is refused", bad.status === 422 && bad.json.field === "place_slug", j(bad.json));
+    const one = await call("vote_cast", { poll, voter: tok(), place_slug: "beach", options: ["beach"] });
+    ok("a poll of one place is not a poll", one.status === 422, j(one.json));
+    const badPoll = await call("vote_cast", { poll: "x", voter: tok(), place_slug: "beach", options });
+    ok("a malformed poll id is refused", badPoll.status === 422 && badPoll.json.field === "poll", j(badPoll.json));
+    ok("casting is POST only", (await call("vote_cast", { poll, voter: tok(), place_slug: "beach" }, { method: "GET" })).status === 405);
+    const log = readFileSync(join(storage, "logs", "wain.log"), "utf8");
+    ok("the log names the poll by six characters and never the voter", /a=vote_cast poll=abc123 v=cast/.test(log) && !log.includes(voterA), "");
+  }
+
   console.log("\n── selftest on this engine ──");
   {
     const st = cli("selftest");
-    ok("selftest passes on SQLite and cleans up", st.ok === true && st.cleaned === true && st.steps.length === 8, j(st));
+    ok("selftest passes on SQLite and cleans up", st.ok === true && st.cleaned === true && st.steps.length === 9, j(st));
     const places = (await call("places")).json.places;
     ok("…leaving no selftest row behind", !places.some((p) => p.slug.startsWith("selftest-")));
   }

@@ -138,7 +138,12 @@ F.shortlist = {
       ),
     })),
   })),
-  urls: lists.map((list) => K.shortlistUrl(list, "tonight-8", "https://www.wainkw.com//")),
+  urls: [
+    ...lists.map((list) => K.shortlistUrl(list, "tonight-8", "https://www.wainkw.com//")),
+    // With a poll (7 October), and with one that is not a poll id.
+    K.shortlistUrl(lists[0], "tomorrow", "https://www.wainkw.com", "2026-10-07", "abc123def456"),
+    K.shortlistUrl(lists[0], "tomorrow", "https://www.wainkw.com", "2026-10-07", "NOT-a-poll"),
+  ],
   read: [
     `?p=${lists[0].map((p) => p.slug).join(",")}&when=tonight-8`,
     `?p=${ps[0].slug},${ps[0].slug},${ps[1].slug}`,
@@ -149,6 +154,9 @@ F.shortlist = {
     `?p=${ps[0].slug},UPPER,../x,${ps[1].slug}&when=now`,
     `?p=${ps[0].slug}%2C${ps[1].slug}`,
     "", "?p=", "?when=tonight-8",
+    `?p=${ps[0].slug},${ps[1].slug}&when=tomorrow&d=2026-10-07&v=abc123def456`,
+    `?p=${ps[0].slug},${ps[1].slug}&v=short`,
+    `?p=${ps[0].slug},${ps[1].slug}&v=UPPER123456`,
   ].map((q) => ({ q, out: K.readShortlist(q, (s) => known.has(s)) })),
   votes: [0, 1, 2, 3].flatMap((i) => [null, "tonight-8", "now"].map((w) => K.shortlistVoteMessage(ps[i], i, w))),
   // A vote with the place's link and day under it (3 October).
