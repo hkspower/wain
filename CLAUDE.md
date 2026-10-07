@@ -6440,6 +6440,27 @@ too big for the context lands in a file. `scripts/publish/agent-archive.php` pul
 `<domain>/storage/agent-live/` (0700/0600, never pruned by deploys), refusing any file whose sha256 differs from
 `MANIFEST.json` (`node scripts/gen-agent-manifest.mjs`). Re-run both after changing anything there.
 
+## «improve css and js» — 7 October: `127350ba` is live, the CSP lost its dead hosts
+
+Measured before touching anything: /search 175.0K of 176K, shared floor 117.5K, the catalogue (~13K) only on
+the routes that search it, one site stylesheet of 100K raw / 16K gzipped, no source maps, nothing of ours in the
+console. The build is lean; there was no large win to take, so none was invented. Two real defects:
+
+- **The CSP allowed four hosts nothing reaches**: `https://*.supabase.co` (img-src and connect-src),
+  `wss://*.supabase.co` and `https://sportake.app.n8n.cloud`. Removed. `audit:htaccess` now checks the policy
+  in both directions (a host in the policy must be used by a chunk or by the widget file in
+  `_next/static/media`), red on the old policy with exactly those four. `test:widget-csp` 6/6 on the agent
+  build, no violation, audio leaves the page.
+- **/find's scrim used a raw `rgb(19 44 66)`** — exactly `--color-sea-950`. Now `color-mix(…var(--color-sea-950)…)`;
+  Tailwind emits the same `#132c429e`/`#132c4259` fallback, so the pixels did not move.
+
+Deployed the agent build (`NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701… NEXT_PUBLIC_WAIN_TTS_URL=none`), archive
+`60345eb`: `{"ok":true,"deployed":278,"removed":11,"emptied":1}` at 09:57:02, job `5AwfInp1wv` read at its first
+firing, deleted, listed gone. `deploy:verify`: «127350ba is live — verified at the root and 7 levels below it»
+(digest `a0ab81893b7d20a2`). After the purge, `/find/` through the edge carried the new CSP (no supabase, no
+n8n), `Last-Modified 09:57:02`, `DYNAMIC`. **The hosa listing stops above `chunks/app/search/`** — read that chunk
+by path with `website-content` (`size_bytes`), as before.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
