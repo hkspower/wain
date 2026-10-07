@@ -1,9 +1,9 @@
 {
  "car": "zeta-300-gtr",
  "tier": "ultra",
- "roll": -1.06,
+ "roll": -1.08,
  "pitch": 1.1,
- "yaw": 0.7,
+ "yaw": 0,
  "fronts": [
   0,
   0
@@ -16,14 +16,14 @@
  ],
  "wing": -0.022,
  "speedKmh": 119,
- "latAccel": 5.91,
+ "latAccel": 5.97,
  "buffer": [
   3840,
   2160
  ],
  "scene": "a civilian through Ras Al-Ard at 120 km/h",
  "trafficLat": -1.75,
- "lat": 1.7582629764012772,
+ "lat": 1.7578580060560125,
  "trafficRoll": -2.5,
  "trafficHubs": [
   0,
@@ -33,7 +33,7 @@
  ],
  "trafficFronts": [
   0.169,
-  0.188
+  0.187
  ],
  "camLat": 2.75,
  "roadHalfWidth": 7,
