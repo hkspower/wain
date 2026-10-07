@@ -6826,3 +6826,31 @@ build green. `boxes_test.dart` is 2 of 2 red on the old `lib/`. Gates: `scan` 0,
 Flutter 1,309 and analyze clean, `audit:flutter` current.
 
 **Not done:** /search's result rows and the call sheet were not in the six and keep their corners. Not deployed.
+
+## One edge system — 7 October, night (built, NOT deployed)
+
+Asked: «improve all layout borders». Every border, ring and divider in `src/` was counted first. The owner picked
+three of four fixes, site and app. Status boxes keep their five tinted edges; that option was not picked.
+
+- **A control's edge is `line-control` (3.30:1).** The theme's own comment says so, and 14 controls broke it with
+  `line` (1.42:1, for cards and dividers). Among them were /explore's search box and category chips, while /search's
+  had the dark edge. Most were the inactive branch of a ternary, which a per-line grep reads as the active one.
+- **One hover per kind:** boxes go to `line-strong`, controls to `sea-300`. Coral stays only where it means something:
+  - شوق's own card (`ShouqAnswer`) and her voice buttons (`VoiceControls`), whose «on» state is coral already;
+  - the admin's «ارفض» and «ما حضر», where coral warns.
+- **A 1px ring is not a border.** The share panel's time chips, «دوّر باسم المكان» and the orders tray (and its pill)
+  were outlined by `ring-1`, a box-shadow that layout never sees. They are borders now, so they grow by 2px.
+  Ink rings over a photo or a map (back button, /find, map pins) stay: there they separate the control from the
+  picture.
+
+`audit:theme` «edges» reads every class STRING, which is what a ternary needs. It was red on the old source with 14,
+7 and 4 problems. A `<li>` badge at `min-h-9` was a false hit, so `9` left the trigger. `LiveMap`'s «حرّك بإصبعك»
+had no trigger (no tap class, no hover) and was fixed by hand.
+
+`tests/borders.test.mjs` (in `test:hangout`) reads computed edges: 7 of 7 red on the old build. In the app,
+`borders_test.dart` scans `lib/` for an `OutlinedButton`, `OutlineInputBorder` or `StadiumBorder` drawn in
+`WainColors.line`; it named exactly the ten controls changed. The app has no hover and no rings, so only the first
+pick applies to it.
+
+**Gates:** `scan` 0, `test:hangout` all suites, `test:orders` and `test:journey` green, Flutter 1,311 and analyze clean, `audit:flutter` current. **Not
+deployed.**
