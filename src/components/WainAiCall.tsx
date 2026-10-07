@@ -21,6 +21,7 @@ import {
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
 import { loadWidget, takeLocalRecognition } from "@/lib/wain-ai-bus";
+import { agentAvailable, isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -145,6 +146,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    */
   const { places } = usePlaces();
   const [phase, setPhase] = useState<Phase>("idle");
+  /**
+   * Is THIS call the agent's? The build says whether there is an agent at all;
+   * each dial asks whether it is worth trying (lib/agent-health.ts). A device
+   * that met a refusal for credits gets the free call — the phone's own
+   * recogniser and our search — instead of a widget that will only say no.
+   */
+  const [agentMode, setAgentMode] = useState(WAIN_AI_AGENT_ENABLED);
   const [transcript, setTranscript] = useState("");
   const [errorText, setErrorText] = useState("");
   const [seconds, setSeconds] = useState(0);
@@ -232,7 +240,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * volume-reactive orb in the slot below, which is driven by the audio it can
    * actually hear. She blinks throughout either way — that is being present.
    */
-  const talking = !WAIN_AI_AGENT_ENABLED && phase === "answering";
+  const talking = !agentMode && phase === "answering";
   /* Hoisted from just above the render. Two effects start work on it now —
      the widget bundle and the search index — and both sit higher up the file
      than the line that used to declare it. */
@@ -364,7 +372,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // mounted — see `started` — so the clock waits for that too. A clock running
   // over a widget nobody has pressed Start on is the same lie as the word
   // «متصل» beside it.
-  const clockRunning = phase === "live" && (!WAIN_AI_AGENT_ENABLED || started);
+  const clockRunning = phase === "live" && (!agentMode || started);
   useEffect(() => {
     if (!clockRunning) return;
     const startedAt = Date.now();
@@ -592,23 +600,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [places]);
 
   useEffect(() => {
-    if (!WAIN_AI_AGENT_ENABLED || !dialling) return;
+    if (!agentMode || !dialling) return;
     void loadIndex().catch(() => {
       // The tool call retries and falls through to its generic wording.
     });
-  }, [dialling, loadIndex]);
+  }, [agentMode, dialling, loadIndex]);
 
   useEffect(() => {
-    if (!WAIN_AI_AGENT_ENABLED || phase !== "live" || started) {
+    if (!agentMode || phase !== "live" || started) {
       setStartHint(false);
       return;
     }
     const t = window.setTimeout(() => setStartHint(true), START_NUDGE_MS);
     return () => window.clearTimeout(t);
-  }, [phase, started]);
+  }, [agentMode, phase, started]);
 
   useEffect(() => {
-    if (!WAIN_AI_AGENT_ENABLED) return;
+    if (!agentMode) return;
     const register = (event: Event) => {
       // The widget only dispatches this once the visitor has pressed its Start
       // button and cleared its terms gate — it is the one honest «the call is
@@ -709,7 +717,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // registration left in place across an admin edit would answer from the
     // rows as they were when the call started — the same staleness this
     // change is about, only narrower and therefore harder to notice.
-  }, [router, places, loadIndex]);
+  }, [agentMode, router, places, loadIndex]);
 
 
   /**
@@ -724,7 +732,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * actually loaded, and rejects once if it never does.
    */
   useEffect(() => {
-    if (!WAIN_AI_AGENT_ENABLED || !dialling || agentReady || agentFailed) return;
+    if (!agentMode || !dialling || agentReady || agentFailed) return;
     let alive = true;
     loadWidget().then(
       () => alive && setAgentReady(true),
@@ -733,11 +741,11 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     return () => {
       alive = false;
     };
-  }, [dialling, agentReady, agentFailed]);
+  }, [agentMode, dialling, agentReady, agentFailed]);
 
   useEffect(() => {
     const slot = slotRef.current;
-    if (!WAIN_AI_AGENT_ENABLED || !dialling || !agentReady || !slot) return;
+    if (!agentMode || !dialling || !agentReady || !slot) return;
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
       el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
@@ -767,7 +775,37 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (phaseRef.current !== "ringing") return;
     silenceRing();
     setPhase("live");
-  }, [dialling, agentReady, silenceRing, persona]);
+  }, [agentMode, dialling, agentReady, silenceRing, persona]);
+
+  /**
+   * The account out of credits, read where the widget writes it.
+   *
+   * 7 October: the account ran dry on the live site, and the widget took the
+   * refusal into its own panel — «[quota_exceeded] You've run out of credits»,
+   * in English — and told the page nothing (0.19.0 dispatches one event, the
+   * call event, before the session opens). So the sheet kept saying «على
+   * الخط» over a call that had already been refused. Its shadow root is open,
+   * so the refusal is read off the text it renders; the widget goes, the sheet
+   * says so, and this device skips the agent for a while — the redial is the
+   * free call (lib/agent-health.ts).
+   */
+  useEffect(() => {
+    const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
+    if (!agentMode || !dialling || !agentReady || !root) return;
+    const check = () => {
+      if (!isQuotaRefusal(root.textContent ?? "")) return;
+      observer.disconnect();
+      markAgentUnavailable();
+      slotRef.current?.replaceChildren();
+      teardown();
+      setErrorText(WAIN_AI_COPY.agentUnavailable);
+      setPhase("error");
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    check();
+    return () => observer.disconnect();
+  }, [agentMode, dialling, agentReady, started, persona, teardown]);
 
   // A widget that never loads is a call that never connects — say so rather
   // than ringing for ever.
@@ -863,8 +901,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setErrorText(WAIN_AI_COPY.noAnswer);
       setPhase("error");
     }, DIAL_TIMEOUT_MS);
+    const agent = agentAvailable();
+    setAgentMode(agent);
     setPhase("ringing");
-    if (!WAIN_AI_AGENT_ENABLED) startListening();
+    if (!agent) startListening();
     else checkMic(++micProbe.current);
   }, [phase, startListening, checkMic, silenceRing, teardown]);
 
@@ -941,7 +981,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     phase === "ringing"
       ? WAIN_AI_COPY.ringing
       : phase === "live"
-        ? WAIN_AI_AGENT_ENABLED && !started
+        ? agentMode && !started
           ? WAIN_AI_COPY.readyToStart
           : WAIN_AI_COPY.onCall
         : phase === "answering"
@@ -1063,10 +1103,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     ? WAIN_AI_COPY.connectingLine
                     : phase === "answering"
                       ? WAIN_AI_COPY.answering
-                      : WAIN_AI_AGENT_ENABLED && !started
+                      : agentMode && !started
                         ? WAIN_AI_COPY.pressStart
                         : transcript ||
-                          (WAIN_AI_AGENT_ENABLED ? WAIN_AI_COPY.onTheLine : WAIN_AI_COPY.listening)}
+                          (agentMode ? WAIN_AI_COPY.onTheLine : WAIN_AI_COPY.listening)}
                 </p>
                 {startHint && (
                   <p className="mt-2 text-sm font-semibold text-coral-800">{WAIN_AI_COPY.startNudge}</p>
@@ -1079,7 +1119,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {WAIN_AI_COPY.greeting}
                   </p>
                 )}
-                {phase === "live" && !transcript && (!WAIN_AI_AGENT_ENABLED || started) && (
+                {phase === "live" && !transcript && (!agentMode || started) && (
                   <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
                 )}
 
@@ -1090,7 +1130,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     carries a coral ring: «بدء مكالمة» is inside it and is the
                     one thing to press, so the box is what gets pointed at
                     rather than the page around it. */}
-                {WAIN_AI_AGENT_ENABLED && (
+                {agentMode && (
                   <div
                     className={`wain-ai-slot flex flex-col justify-center rounded-3xl bg-sand-100 p-3 ${
                       phase === "live" && !started
@@ -1131,7 +1171,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     one column: two 44px targets with a gap between them, not
                     two small pills side by side that can touch at 320px. */}
                 <div className="mt-auto flex flex-col gap-2 pt-4">
-                  {WAIN_AI_AGENT_ENABLED && phase === "live" && started && (
+                  {agentMode && phase === "live" && started && (
                     <button
                       type="button"
                       onClick={switchPersona}

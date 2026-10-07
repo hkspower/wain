@@ -9,8 +9,8 @@ import ShareHangout from "@/components/ShareHangout";
 import ShouqCallButton from "@/components/ShouqCallButton";
 import { IconGo, IconMap, IconSend, IconSpeaker, IconSpeakerOff } from "@/components/icons";
 import type { Place } from "@/lib/places";
+import { WAIN_AI_CHAT_COPY } from "@/lib/salem-copy";
 import {
-  WAIN_AI_CHAT_COPY,
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_RECORDING,
   SALEM_NAME,
@@ -20,6 +20,7 @@ import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voi
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
+import { agentAvailable, markAgentUnavailable } from "@/lib/agent-health";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 import { CHOICE_MAX } from "@/lib/hangout";
@@ -114,10 +115,20 @@ const UNAVAILABLE_RETRY_MS = 30000;
  */
 const FREE = !WAIN_AI_AGENT_ENABLED;
 
+/**
+ * An agent build answers this way too when the agent cannot: a refusal for
+ * credits (lib/agent-health.ts) used to leave «سالم مو متاح» over a page whose
+ * search engine was already loaded. So «free» is state, not only the build:
+ * it starts as the build says, and turns on at a refusal, or at mount when
+ * this device met one in the last quarter hour.
+ */
+
 /** How long a free answer may take before the chat says it got none. */
 const FREE_REPLY_MS = 10_000;
 
 export default function SalemChat() {
+  const [free, setFree] = useState(FREE);
+  const freeRef = useRef(FREE);
   const [status, setStatus] = useState<SalemStatus>(FREE ? "connected" : "connecting");
   const [messages, setMessages] = useState<ChatLine[]>(() =>
     FREE ? [{ role: "agent", text: WAIN_AI_CHAT_COPY.freeGreeting }] : []
@@ -212,7 +223,11 @@ export default function SalemChat() {
     } catch {
       /* private mode — off */
     }
-    if (!FREE) return;
+    // The HTML of an agent build says «connecting»; a device that met a
+    // refusal in the last quarter hour is answered here instead, at once.
+    const fallback = !FREE && !agentAvailable();
+    if (!FREE && !fallback) return;
+    if (fallback) answerHere(false);
     try {
       const raw = sessionStorage.getItem(KEPT);
       const kept = raw ? (JSON.parse(raw) as { messages?: ChatLine[]; ctx?: ChatContext | null }) : null;
@@ -226,7 +241,7 @@ export default function SalemChat() {
     restoredRef.current = true;
   }, []);
   useEffect(() => {
-    if (!FREE || !restoredRef.current) return;
+    if (!freeRef.current || !restoredRef.current) return;
     try {
       sessionStorage.setItem(KEPT, JSON.stringify({ messages: messages.slice(-KEPT_LINES), ctx: ctxRef.current }));
     } catch {
@@ -371,6 +386,29 @@ export default function SalemChat() {
   }
 
   /**
+   * From here on he answers from our own search, as the free build does. Said
+   * once in the transcript — the notice under the box changes with it, since
+   * nothing typed leaves the device any more. `refused` is the refusal itself;
+   * otherwise this device met one earlier and the agent is not tried at all.
+   */
+  function answerHere(refused: boolean) {
+    freeRef.current = true;
+    restoredRef.current = true;
+    handleRef.current?.close();
+    handleRef.current = null;
+    setFree(true);
+    setFailure(null);
+    setPending(false);
+    setAwaitingGreeting(false);
+    setStatus("connected");
+    setMessages((prev) => [
+      ...prev,
+      { role: "system", text: WAIN_AI_CHAT_COPY.agentFallback },
+      ...(refused && prev.some((m) => m.role === "agent") ? [] : [{ role: "agent" as const, text: WAIN_AI_CHAT_COPY.freeGreeting }]),
+    ]);
+  }
+
+  /**
    * Opens a session and points `handleRef` at it. Called once on mount, and
    * again by the "ابدأ من جديد" button once `status` has settled to
    * "error" or "disconnected" — before this, retrying meant a page reload,
@@ -388,6 +426,14 @@ export default function SalemChat() {
     );
     const handle = startSalemChat({
       onStatus: (s, f) => {
+        // A refusal for credits: he answers from our own search instead, and
+        // this device skips the agent for a while (lib/agent-health.ts).
+        if (s === "error" && f === "unavailable") {
+          markAgentUnavailable();
+          answerHere(true);
+          return;
+        }
+        if (freeRef.current) return;
         setStatus(s);
         if (s === "error" || s === "disconnected") setAwaitingGreeting(false);
         setFailure(s === "error" ? (f ?? "refused") : null);
@@ -443,7 +489,7 @@ export default function SalemChat() {
   }
 
   useEffect(() => {
-    if (FREE) return;
+    if (FREE || !agentAvailable()) return;
     connect();
     return () => handleRef.current?.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` through refs, and a build-time constant; re-running this effect on every render would open a new socket each time
@@ -486,7 +532,7 @@ export default function SalemChat() {
   function submit(raw: string): boolean {
     const text = raw.trim();
     if (!text || status !== "connected" || pending) return false;
-    if (FREE) {
+    if (freeRef.current) {
       stickRef.current = true;
       setMessages((prev) => [...prev, { role: "user", text }]);
       void answerLocally(text);
@@ -571,7 +617,7 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.failedDropped
         : WAIN_AI_CHAT_COPY.failed;
 
-  const statusLine = FREE
+  const statusLine = free
     ? WAIN_AI_CHAT_COPY.freeStatus
     : status === "connecting"
       ? WAIN_AI_CHAT_COPY.connecting
@@ -779,7 +825,7 @@ export default function SalemChat() {
         )}
         {/* "error" and "disconnected" are the two states a fresh socket can
             actually answer differently. The free build never reaches either. */}
-        {!FREE && (status === "error" || status === "disconnected") && retryReady && (
+        {!free && (status === "error" || status === "disconnected") && retryReady && (
           <div className="text-center">
             <button
               type="button"
@@ -800,7 +846,7 @@ export default function SalemChat() {
           a recording notice over a chat that records nothing would be the
           same overstatement in the other direction. */}
       <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200 md:px-[calc(50%-21rem)]">
-        {FREE ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
+        {free ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
         <Link href="/privacy/#wain-ai" className="inline-flex min-h-tap items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
         </Link>

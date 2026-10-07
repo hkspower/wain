@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
 
 /**
  * Agent mode — the path that runs once NEXT_PUBLIC_ELEVENLABS_AGENT_ID is set.
@@ -70,6 +71,14 @@ async function makeCtx(micError, seen) {
               const ev = new CustomEvent('elevenlabs-convai:call', { bubbles: true, composed: true, detail: { config: {} } });
               this.dispatchEvent(ev);
               window.__convaiConfig = ev.detail.config;
+              // The account out of credits: the real widget writes the
+              // server's refusal into its own shadow DOM and says nothing to
+              // the page (read out of the 0.19.0 bundle).
+              if (window.__quota) setTimeout(() => {
+                const box = document.createElement('div');
+                box.innerHTML = "<p>حدث خطأ</p><p>[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.</p>";
+                root.appendChild(box);
+              }, 300);
             });
           }
         }
@@ -520,6 +529,57 @@ for (const [name, want, label] of [
   ok(`and does not offer to talk to a widget that cannot hear (${name})`,
     !(await m.locator('#wain-ai-panel').textContent()).includes('اضغط «بدء مكالمة»'));
   await mctx.close();
+}
+
+console.log('\n── out of credits: the call says so, and the next one is ours ──');
+{
+  // 7 October: the account ran dry on the live site and every call met
+  // «[quota_exceeded]» inside the widget — in English, inside its own panel —
+  // while the sheet went on saying «على الخط». The refusal is read out of the
+  // widget's shadow DOM, the sheet says it plainly, and the redial goes to the
+  // free call (the phone's recogniser → /search), which needs no account.
+  const qseen = [];
+  const qctx = await makeCtx(null, qseen);
+  await qctx.addInitScript(() => {
+    window.__quota = true;
+    window.__recStarts = 0;
+    class Rec {
+      constructor() { this.lang = ''; }
+      start() { window.__recStarts++; setTimeout(() => this.onstart?.(), 10); }
+      stop() { this.onend?.(); }
+      abort() {}
+    }
+    window.SpeechRecognition = Rec;
+    window.webkitSpeechRecognition = Rec;
+  });
+  const q = await qctx.newPage();
+  const qerr = [];
+  q.on('pageerror', (e) => qerr.push(e.message));
+  const manifestAsks = [];
+  q.on('request', (r) => { if (r.url().includes('/voice/manifest.json')) manifestAsks.push(r.url()); });
+  await dial(q);
+  const start = q.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
+  await start.waitFor({ timeout: 8000 }).catch(() => {});
+  await start.click().catch(() => {});
+  const said = await q.waitForFunction(
+    () => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes('دليل وين'),
+    null, { timeout: 6000 }
+  ).then(() => true, () => false);
+  ok('the sheet says she is not available and what the next call does', said,
+    (await q.locator('#wain-ai-panel').textContent().catch(() => '')).slice(0, 160));
+  ok('the widget is gone from the sheet', await q.locator('#wain-ai-panel elevenlabs-convai').count() === 0);
+  ok('the device remembers the refusal', await q.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0));
+  const again = q.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' });
+  await again.click({ timeout: 4000 }).catch(() => {});
+  await q.waitForFunction(() => window.__recStarts > 0, null, { timeout: 4000 }).catch(() => {});
+  ok('the redial listens with the phone\'s own recogniser', await q.evaluate(() => window.__recStarts > 0));
+  ok('and mounts no widget', await q.locator('#wain-ai-panel elevenlabs-convai').count() === 0);
+  ok('no page errors through it', qerr.length === 0, qerr.join(' | '));
+  // Every tap primes the voice, and that used to fetch the clip manifest — a
+  // 404 on every call, since no build of the site has ever shipped clips.
+  ok('two dials asked for no clip manifest the export does not carry',
+    manifestAsks.length === 0 || existsSync(new URL('../out/voice/manifest.json', import.meta.url)), manifestAsks.join(', '));
+  await qctx.close();
 }
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));

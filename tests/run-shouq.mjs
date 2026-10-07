@@ -166,6 +166,7 @@ console.log("\n════ شوق: the voice ════");
     // Defined though voice.ts no longer reads it (3 October): anything the
     // harness pulls in through wain-ai.ts would — the rule above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
+    '--define:process.env.NEXT_PUBLIC_WAIN_VOICE_CLIPS="1"',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="none"',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the voice harness"); process.exit(1); }
@@ -216,6 +217,7 @@ console.log("\n════ شوق: the live bridge ════");
     // The bundle still reads شوق's switch through wain-ai.ts imports, so it
     // has to be defined — the rule in the comment above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
+    '--define:process.env.NEXT_PUBLIC_WAIN_VOICE_CLIPS="1"',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="/tts"',
     `--outfile=${join(btmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the bridge harness"); process.exit(1); }

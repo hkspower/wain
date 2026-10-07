@@ -29,6 +29,7 @@
  * this repository carries; say so rather than claim more.
  */
 import { WAIN_AI_AGENT_ID, SALEM_VOICE_ID } from "@/lib/wain-ai";
+import { isQuotaRefusal } from "@/lib/agent-health";
 
 export interface SalemMessage {
   role: "user" | "agent";
@@ -56,7 +57,7 @@ export type SalemFailure = "timeout" | "refused" | "dropped" | "unavailable";
  * same text is read the same way in case it arrives first.
  */
 export function isUnavailable(reason: string): boolean {
-  return /quota_exceeded|run out of credits|insufficient[_ ]credits/i.test(reason);
+  return isQuotaRefusal(reason);
 }
 
 export interface SalemChatHandle {

@@ -389,17 +389,23 @@ for (const [width, height, standalone] of [[390, 844, false], [320, 568, false],
   await lctx.close();
 }
 
-console.log('\n── out of credits: said as it is, and no instant retry ──');
+console.log('\n── out of credits: he answers from وين\'s own search instead ──');
 {
   // 2 October: every conversation ended at 0 s, «[quota_exceeded] You've run
   // out of credits», and this page answered «جرّب مرة ثانية» with a button that
-  // could only meet the same refusal. The reason arrives as the close reason.
+  // could only meet the same refusal. That became an honest «مو متاح» — and on
+  // 7 October the account ran dry again on the LIVE site, where «مو متاح» is a
+  // dead end with a working search engine sitting in the same bundle. So a
+  // refusal for credits now hands the chat to the free path, and the device
+  // remembers it for a quarter of an hour (lib/agent-health.ts). The reason
+  // arrives as the close reason.
   const qctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW',
   });
   await qctx.addInitScript(() => {
+    window.__sockets = 0;
     class FakeSocket {
-      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; window.__sockets++; }
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
       send(data) { this.sent.push(data); }
       close() { this.readyState = 3; }
@@ -409,24 +415,49 @@ console.log('\n── out of credits: said as it is, and no instant retry ──
     window.WebSocket = FakeSocket;
   });
   const qp = await qctx.newPage();
-  await qp.clock.install();
   await qp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
-  await qp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 });
+  await qp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
   await qp.evaluate(() => {
     const s = window.__salemSocket;
+    if (!s) return;
     s.readyState = 1;
     s.emit('open', {});
     s.readyState = 3;
     s.emit('close', { code: 1008, reason: "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation." });
   });
-  const alert = qp.locator('p[role="alert"]');
-  await alert.waitFor({ timeout: 4000 }).catch(() => {});
-  const said = (await alert.textContent().catch(() => '')) ?? '';
-  ok('the banner says he is not available, not «جرّب مرة ثانية»', said.includes('مو متاح الحين') && !said.includes('جرّب مرة ثانية'), said);
-  ok('the header says so too', await qp.locator('header', { hasText: 'مو متاح الحين' }).isVisible());
-  ok('no retry button on the spot', await qp.getByRole('button', { name: /جرّب مرة ثانية|ابدأ من جديد/ }).count() === 0);
-  await qp.clock.runFor(31000);
-  ok('one comes back after a wait', await qp.getByRole('button', { name: 'جرّب مرة ثانية' }).isVisible().catch(() => false));
+  const log = qp.locator('[role="log"]');
+  await log.getByText('دليل وين').first().waitFor({ timeout: 4000 }).catch(() => {});
+  ok('the transcript says the voice service is out and he answers from the guide',
+    await log.getByText('دليل وين').count() > 0);
+  ok('no dead-end banner', await qp.locator('p[role="alert"]').count() === 0);
+  await qp.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+  ok('the box is open', await qp.locator('#salem-q').isEnabled().catch(() => false));
+  ok('and the notice under it says nothing leaves the device now',
+    await qp.locator('form').locator('xpath=preceding-sibling::p[1]').textContent().then((t) => (t ?? '').includes('يبقى بجهازك')).catch(() => false));
+  const sentBefore = await qp.evaluate(() => window.__salemSocket?.sent.length ?? 0);
+  await qp.locator('#salem-q').fill('قهوة').catch(() => {});
+  await qp.locator('#salem-q').press('Enter').catch(() => {});
+  await log.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
+  ok('a question gets places from our own search', await log.locator('a[href^="/places/"]').count() > 0);
+  ok('and nothing went down the dead socket',
+    await qp.evaluate((n) => (window.__salemSocket?.sent.length ?? 0) === n, sentBefore));
+  ok('the device remembers the refusal', await qp.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0));
+
+  // The next page in this quarter hour does not knock on the same door.
+  const again = await qctx.newPage();
+  await again.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await again.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+  ok('a fresh visit opens no socket', await again.evaluate(() => window.__sockets === 0));
+  ok('and is ready to answer at once', await again.locator('#salem-q').isEnabled().catch(() => false));
+  ok('with his own greeting', await again.locator('[role="log"]').getByText('أنا سالم').count() > 0);
+  await again.close();
+
+  // And after it, the agent is tried again.
+  const later = await qctx.newPage();
+  await later.addInitScript(() => localStorage.setItem('wain:agent-off', String(Date.now() - 16 * 60_000)));
+  await later.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await later.waitForFunction(() => window.__sockets > 0, null, { timeout: 4000 }).catch(() => {});
+  ok('a quarter of an hour later the agent is tried again', await later.evaluate(() => window.__sockets > 0));
   await qctx.close();
 }
 

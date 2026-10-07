@@ -223,10 +223,16 @@ export function useVoice(): VoiceState {
 const EMPTY_MANIFEST: Manifest = { version: 0, clips: {} };
 let manifestPromise: Promise<Manifest> | null = null;
 
+/** next.config: "0" when the export carries no clips, so there is nothing to
+ * ask for — the request was a 404 on every visit to a page that can speak. */
+const CLIPS_SHIPPED = process.env.NEXT_PUBLIC_WAIN_VOICE_CLIPS !== "0";
+
 function loadManifest(): Promise<Manifest> {
-  manifestPromise ??= fetch("/voice/manifest.json")
-    .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : EMPTY_MANIFEST))
-    .catch(() => EMPTY_MANIFEST);
+  manifestPromise ??= CLIPS_SHIPPED
+    ? fetch("/voice/manifest.json")
+        .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : EMPTY_MANIFEST))
+        .catch(() => EMPTY_MANIFEST)
+    : Promise.resolve(EMPTY_MANIFEST);
   return manifestPromise;
 }
 

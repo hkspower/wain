@@ -5,6 +5,7 @@ import {
 } from "@/lib/wain-ai";
 import { WAIN_AI_WIDGET_INTEGRITY } from "@/lib/widget-src.g";
 import { getRecognition, speechLang, type SpeechRecognitionLike } from "@/lib/speech";
+import { agentAvailable } from "@/lib/agent-health";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -171,7 +172,9 @@ let warmed = false;
  * already reached for the button, and free to anyone who never does.
  */
 export function warmCall(): void {
-  if (warmed || !WAIN_AI_AGENT_ENABLED || typeof document === "undefined") return;
+  // Nothing to warm for a device the agent refused lately (lib/agent-health.ts):
+  // its next call is the free one.
+  if (warmed || typeof document === "undefined" || !agentAvailable()) return;
   warmed = true;
   // The widget itself is on this origin now (vendor-widget.mjs), so only the
   // API is left to warm. Its fetches are CORS, hence `crossorigin`.
@@ -253,6 +256,7 @@ export function loadWidget(): Promise<void> {
  * pull 451KB for somebody who was on their way past.
  */
 export function armCall(): void {
+  if (!agentAvailable()) return;
   warmCall();
   void loadWidget().catch(() => {
     /* The dial will retry and report it honestly. Nothing to say here. */

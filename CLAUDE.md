@@ -6890,3 +6890,46 @@ and listed gone. `deploy:verify`: «b314ab1a is live — verified at the root an
 commit and digest. After the purge, `/privacy/` through the edge returned 200 with `Last-Modified 21:51:02` and
 `DYNAMIC`. Another session's per-minute `XJzV79HdF4` (`publish-all.php`) was left alone. **Not measured:** a phone.
 The app changes reach phones only through a new build.
+
+## When the agent is out of credits, سالم and شوق answer from our own search — 7 October, night (built, NOT deployed)
+
+Asked: «full improve css and js / fix javascripts for salem and shoug». The live agent build was failing for
+a reason no code had caused: `conv_2101m4c3zg74f82vy4znffhwhz8c`, 21:23 UTC, `js_sdk`, 0 s, error 3000
+«[quota_exceeded] You've run out of credits», `call_initialization_error`. **The account ran dry again**, so every
+typed سالم chat said «سالم مو متاح» and every call sat on «على الخط» over a widget that had already been refused,
+while the free path, our own search, was in the same bundle unused.
+
+- **`src/lib/agent-health.ts`** remembers a refusal for credits on the device (`wain:agent-off`, one timestamp,
+  15 minutes) and holds the one quota test (`isQuotaRefusal`), which `salem-chat.ts`'s `isUnavailable` now uses.
+- **سالم:** `free` is state, not only the build. A refusal (close reason or message) turns it on: a line in the
+  transcript («الخدمة الصوتية مو متاحة الحين — أجاوبك من دليل وين»), the greeting, `answerLocally`, and the free
+  notice under the box. Within the 15 minutes a fresh visit opens no socket at all; after them the agent is tried
+  again. A handed-over `?q=` is answered locally like any other question.
+- **شوق:** the call decides agent or local **per dial** (`agentMode` state, from `agentAvailable()`). The widget
+  tells the page nothing about a refusal (0.19.0 dispatches only the call event), but it writes the server's
+  message into its open shadow root, so a `MutationObserver` reads it there. The widget is removed, the sheet says
+  «شوق مو متاحة الحين — اتصل مرة ثانية وأدوّر لك من دليل وين», and the redial is the free call. The button starts
+  local recognition in the tap whenever the agent is off, and `warmCall`/`armCall` skip the preconnect and the
+  1.5MB widget for such a device.
+- **The voice manifest 404 is gone.** `primeAudio` fetched `/voice/manifest.json` on every call tap, and no build
+  has ever shipped clips, so it was a 404 every time. `next.config.ts` now defines `NEXT_PUBLIC_WAIN_VOICE_CLIPS`
+  from `public/voice/manifest.json` existing at build time; with "0", voice.ts asks for nothing. The two harness
+  bundles in `run-shouq.mjs` define it as "1".
+- **JS:** the fallback put `/search` 0.2K over its 176K budget (175.8K at HEAD). Paid for by a real defect found
+  on the way: `WAIN_AI_CHAT_COPY` (~40 of /salem's sentences) sat in `wain-ai.ts`, which the call button puts in
+  the chunk every page loads. One `callShouq` read from the button made it look like the button's fault, but
+  **webpack keeps an export in a module whenever any chunk uses it**, so moving the one string was not enough;
+  the object moved to `src/lib/salem-copy.ts`, imported by /salem alone. Shared 117.6K → **117.1K**, `/search`
+  175.8K → **175.3K**, `/privacy` 118.5K → 118.0K.
+
+Tests, each red against HEAD's code with the build green: `salem-agent` «out of credits» rewritten (9 of 11 red:
+the fallback line, open box, local answer with no socket send, the flag, no socket on a fresh visit, the agent
+tried again after 16 minutes); `shouq-agent` gained a quota section, its stub writing the refusal into its shadow
+root on Start (6 red: the sheet said «متصل · على الخط» over the refusal) and the manifest check (red: one
+request per dial). `test:shouq` all suites green in both builds afterwards.
+
+**The app is not changed**: its builds are free (no `WAIN_AI_AGENT_ID` in CI), so it never meets the agent.
+**Not measured:** the real widget's refusal text on a phone. The observer matches the server's own words
+(`quota_exceeded`, «run out of credits»), the ones the 2 October screenshot showed inside the widget.
+**The owner's step:** top up the ElevenLabs account. Until then, a deploy of this makes both answer from the
+guide instead of refusing.

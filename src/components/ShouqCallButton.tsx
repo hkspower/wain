@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
-import { WAIN_AI_AGENT_ENABLED, WAIN_AI_CHAT_COPY, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_COPY } from "@/lib/wain-ai";
+import { agentAvailable } from "@/lib/agent-health";
 import { armCall, onPhase, requestCall, startLocalRecognition, warmCall } from "@/lib/wain-ai-bus";
 import type { Phase } from "@/components/WainAiCall";
 
@@ -148,7 +149,7 @@ export default function ShouqCallButton({
      * gesture, and the call that used to start it is a chunk and an effect
      * away from this tap.
      */
-    if (free && !WAIN_AI_AGENT_ENABLED) startLocalRecognition();
+    if (free && !agentAvailable()) startLocalRecognition();
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
     requestCall();
     onTapped?.();
@@ -171,7 +172,7 @@ export default function ShouqCallButton({
           : size === "pill"
             ? // Its visible words, first and whole, for the same voice-control
               // reason as «اتصال» on the big button.
-              WAIN_AI_CHAT_COPY.callShouq
+              WAIN_AI_COPY.callShouq
             : `${size === "call" ? "اتصال — " : ""}${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`
       }
       aria-labelledby={labelledBy}
@@ -234,7 +235,7 @@ export default function ShouqCallButton({
       )}
       {size === "pill" && (
         <span aria-hidden="true" className="sr-only min-[400px]:not-sr-only">
-          {WAIN_AI_CHAT_COPY.callShouq}
+          {WAIN_AI_COPY.callShouq}
         </span>
       )}
       {phase === "ringing" && (

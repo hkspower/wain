@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * A build id that is the same for the same source, instead of a fresh random
@@ -55,7 +57,15 @@ const nextConfig: NextConfig = {
   // the minifier folds every `=== "1"` on it away, and the stand-ins' entries
   // in landmark-cards.g.ts never reach the browser — a bundle naming files the
   // export does not ship is what audit:assets refused (landmark-gate.ts).
-  env: { NEXT_PUBLIC_SHOW_STANDINS: process.env.NEXT_PUBLIC_SHOW_STANDINS === "1" ? "1" : "0" },
+  //
+  // Whether this export carries the recorded clips at all (voice.ts). They are
+  // generated only where ElevenLabs can be reached, and no build of the live
+  // site ever has been, so every page that could speak asked for
+  // /voice/manifest.json and got a 404 — on every visit, for nothing.
+  env: {
+    NEXT_PUBLIC_SHOW_STANDINS: process.env.NEXT_PUBLIC_SHOW_STANDINS === "1" ? "1" : "0",
+    NEXT_PUBLIC_WAIN_VOICE_CLIPS: existsSync(join(process.cwd(), "public/voice/manifest.json")) ? "1" : "0",
+  },
 };
 
 export default nextConfig;
