@@ -239,9 +239,11 @@ export default function ShareHangout({
         رسّلها للربع
       </h2>
       {/* The plan, ready: what and when, in one line, with «غيّر» for the
-          chips. aria-live so a change made in the chips is heard here too. */}
+          chips. Not a live region: on /search it would be a second announcer
+          beside شوق's answer (shouq-search counts them), and a chip already
+          says it was chosen through aria-pressed. */}
       <div className="mt-3 flex items-start justify-between gap-3 rounded-2xl bg-sand-50 p-3 ring-1 ring-line" data-plan-line="">
-        <div className="min-w-0" aria-live="polite">
+        <div className="min-w-0">
           <p className="truncate font-semibold text-ink-900" data-plan-what="">
             {listMode ? listed.map((c) => c.nameAr).join("، ") : place.nameAr}
           </p>
