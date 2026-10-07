@@ -199,3 +199,10 @@ press/unity/unity.log
 
 # tools/export-media.mjs: copies of every deliverable, and their zips.
 /press/export/
+
+# The UE5 showcase's frames (unreal/Showcase, rendered on a Mac): PNG and
+# EXR frames are heavy and rebuilt; the JPEG copies, turntable.mp4 and
+# build.json are what the repository keeps.
+press/unreal/**/*.png
+press/unreal/**/*.exr
+press/unreal/**/logs/

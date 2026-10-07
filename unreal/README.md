@@ -824,6 +824,18 @@ grey.
   compare stills against the web build's at the same paint colour.
 - Gamepad and keyboard input in Play-In-Editor.
 
+## The Black Demon showcase
+
+`Showcase/` renders one car — the catalogue's Black Demon, the same
+export behind `press/renders/black-demon.png` — in this engine on a Mac:
+three 4K studio stills lit and framed exactly as the Blender set, a
+ten-second turntable, and the car parked on the night Gulf Road the
+game builds for itself. `Showcase/README.md` has the steps
+(`Showcase/run.sh probe`, `build`, `preview hero`, `render all`, `night
+city`). Like the rest of this port it has not been run here, and says
+so; `npm run test:showcase` holds its arithmetic and its control flow
+against a stand-in engine.
+
 ## Where to take it next
 
 - **Cars**: the primitive rigs drive and read correctly today; Nanite

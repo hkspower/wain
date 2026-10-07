@@ -993,4 +993,63 @@ if (failed) {
   console.error(`\n${failed} problem${failed === 1 ? "" : "s"} in the Unreal project. None of this needed a compiler to find.`);
   process.exit(1);
 }
+// --- The Black Demon showcase (unreal/Showcase) -------------------------
+//
+// A kit of Python the editor runs, a Mac wrapper and the car's GLB. What
+// a text check can hold: the files are there, the GLB is whole and has
+// the paint material the kit dresses, the wrapper's commands are the
+// ones its README teaches, the plugins the Python needs are enabled, and
+// the night shot's C++ handle is in the runtime module.
+{
+  const before = failed;
+  const kit = "unreal/Showcase";
+  for (const f of ["README.md", "run.sh", "grn_showcase.py", "grn_night.py", "init_unreal.py",
+    "showcase_math.py", "test_showcase_math.py", "test_dry_run.py", "black-demon.glb"]) {
+    if (!existsSync(join(kit, f))) fail(`${kit}/${f} is missing`);
+  }
+  const glbPath = join(kit, "black-demon.glb");
+  if (existsSync(glbPath)) {
+    const buf = readFileSync(glbPath);
+    const whole = buf.length >= 20 && buf.toString("latin1", 0, 4) === "glTF" && buf.readUInt32LE(8) === buf.length;
+    if (!whole) fail(`${glbPath} is not a whole glTF binary — re-copy it from press/renders/glb/`);
+    else {
+      const jlen = buf.readUInt32LE(12);
+      let doc = null;
+      try { doc = JSON.parse(buf.toString("utf8", 20, 20 + jlen)); } catch (e) { fail(`${glbPath}: ${e.message}`); }
+      if (doc) {
+        if (!(doc.materials ?? []).some((m) => m.name === "paint")) fail(`${glbPath} has no material called paint`);
+        const names = new Set((doc.nodes ?? []).map((n) => n.name));
+        for (const n of ["lamp-core", "tail-lamps"]) {
+          if (!names.has(n)) fail(`${glbPath} has no node called ${n} — the kit finds the car's nose by it`);
+        }
+      }
+    }
+  }
+  if (existsSync(join(kit, "run.sh")) && existsSync(join(kit, "README.md"))) {
+    const sh = read(join(kit, "run.sh"));
+    const md = read(join(kit, "README.md"));
+    const cmds = [...sh.matchAll(/^\s{2}([a-z|]+)\)$/gm)].flatMap((m) => m[1].split("|")).filter((c) => c !== "*");
+    for (const c of ["probe", "build", "preview", "render", "night", "encode"]) {
+      if (!cmds.includes(c)) fail(`${kit}/run.sh has no ${c} command`);
+      if (!md.includes(`run.sh ${c}`)) fail(`${kit}/README.md does not show run.sh ${c}`);
+    }
+  }
+  if (existsSync(UPROJECT)) {
+    const plugins = new Set((JSON.parse(read(UPROJECT)).Plugins ?? []).filter((p) => p.Enabled).map((p) => p.Name));
+    for (const p of ["PythonScriptPlugin", "EditorScriptingUtilities", "SequencerScripting", "MovieRenderPipeline"]) {
+      if (!plugins.has(p)) fail(`${UPROJECT} does not enable ${p}, which ${kit} needs`);
+    }
+  }
+  const showcaseCpp = join(SOURCE, RUNTIME, "GRNShowcase.cpp");
+  if (!existsSync(showcaseCpp)) fail(`${showcaseCpp} is missing — the night shot's handle on the game`);
+  else {
+    const src = read(showcaseCpp);
+    for (const fn of ["SelectCar", "WearArt", "ParkPlayer", "ClearOthers"]) {
+      if (!src.includes(`UGRNShowcase::${fn}(`)) fail(`GRNShowcase.cpp no longer defines ${fn}`);
+    }
+    if (!/\bHeroAssets\b/.test(src)) fail("GRNShowcase.cpp no longer dresses the car through the pawn's HeroAssets slot");
+  }
+  if (failed === before) ok("the Black Demon showcase kit is whole: files, GLB, commands, plugins, and its C++ handle");
+}
+
 console.log("\nThe Unreal project is consistent as text. Compiling it still needs Unreal 5.8 — see unreal/README.md.");
