@@ -6672,6 +6672,34 @@ before anything changed. The owner picked all four fixes, site and app, and appr
 - **Not a full deploy of the apps:** no Flutter build can be cut from here (no GitHub Actions, by the owner's
   rule), so the 7 October app changes reach phones only through a build made elsewhere.
 
+## The four design answers — 7 October (live as `c0c30f46`, both stages)
+
+The owner said «yes» to the four questions left open by the CSS/icon scan and the شوق/سالم check.
+
+- **«اسمعها» names no voice the phone reads.** `SpeakButton` adds «بصوت شوق/سالم» only when
+  `NAMED_VOICE` (voice.ts: the bridge URL is not «none»). The live build has the bridge off, so the
+  buttons say «اسمعها» and «اسمع الاقتراح». `map-layout` asserts the label against the bundle
+  (does any chunk carry `api/tts.php`?), red with `NAMED_VOICE = true` on a bridge-off build.
+- **سالم's call button is green** (palm-600, site pill and app `_CallShouqButton`), as /find's is.
+  `together` reads the computed colour and `salem_together_test` the button's style; both red on coral.
+- **`.text-on-photo` is ink-900** through `color-mix`; Tailwind emits the `#14120f8c` fallback.
+- **Pause is two outlined bars and Cutlery spans 5–19**, so `audit:icons` flags neither (it measures
+  footprint, not stroke width — «heavier strokes» would not have moved it). Icon sheets, figma,
+  design docs and the app's three SVGs regenerated.
+
+Gates: `scan` under the agent variables, `test:hangout` on a default build (all suites), Flutter
+1,307. **`together` §5 fails by construction on a bridge-off build** («then a reply is read, through
+the bridge»): run `test:hangout` on a default build, not the live one.
+
+Deploy: archive `893dd0d` (sha256 `181874e0…cd75`), one more ~4MB blob. Production and staging
+jobs `a4ENkbTnE6` and `z7zQD4yRLI`, each read at its first firing:
+`{"ok":true,"deployed":278,"removed":10,"emptied":1,"at":"2026-10-07T17:12:03"}`; deleted, and the
+listing held sporta's jobs only. Both `build.json` files read `c0c30f46…` / `33240b0e55e62903`.
+`deploy:verify`: «c0c30f46 is live — verified at the root and 7 levels below it». After the purge,
+`/salem/` through the edge: 200, `Last-Modified 17:12:03`, `DYNAMIC`, the CSP unchanged.
+
+**Not measured:** a phone. The app's green button reaches phones only with a new build.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
