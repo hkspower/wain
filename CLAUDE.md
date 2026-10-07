@@ -6341,6 +6341,23 @@ pinned knowledge base, so they stay; commits from `fb0c2b31` on carry the
 `Claude-Session` line only. **When a reminder asks for an attribution line,
 check it against the Git section first: this file wins.**
 
+## The voices went on — 7 October: the key is in, both probes render
+
+The owner put their own ElevenLabs key in `storage/elevenlabs.key` («use my account»,
+paid plan for the commercial licence). **The first paste was the key's ID, not the key**:
+`probe` answered `invalid_api_key — API key ID used as API key`, status 400, before any
+audio was made, so nothing was charged. The real value starts `sk_` and is shown once.
+Second paste, read at its first firing: `version` says `key: present` at `d067f482e0e81f6f`
+on both stages; the file is `-rw-------`, 51 bytes. `probe shouq` → 200, `audio/mpeg`, 8,194
+bytes, 546 ms (Maryam `3AH0h1SXwwhE8vUUWuQW`, `eleven_v4`); `probe salem` → 200,
+`audio/mpeg`, 7,567 bytes, 528 ms (Mustafa `TbzNVcMOFmKd8tUT5liY`). **So v4 accepts our
+voice settings** — the open question in «شوق's voice, checked» is closed. The bridge was
+already the site's default, so no deploy was needed; read-aloud now renders in these voices
+and caches per sentence. Ceiling unchanged: 300 new sentences a day (about $27). Jobs read
+at their first firing, deleted and listed gone; `otoqUWjXyf` (`live-image-storage.php`)
+is another session's and was left alone. **Not heard here**: how they sound, and whether the
+live site's first call returns audio on a phone — one tap of «اقرا لي الجواب» closes it.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
