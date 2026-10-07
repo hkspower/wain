@@ -6268,12 +6268,12 @@ tests reached the search map's pins directly and now tap the bar first
 **Not done:** anything on a real phone — the tiles are refused here, so every screenshot shows
 the broken-image ground where the basemap would be.
 
-## Switching between شوق and سالم — 7 October (built, NOT deployed)
+## Switching between شوق and سالم — 7 October (live as `e96f17f0`; the app has it in the repository)
 
 Asked: «improve switching between شوق and سالم». The owner picked all four:
 سالم keeps her answer, the chat says where a question came from, her call is
-placed from his header, and the app does the same. Build, show, then ask
-before deploying.
+placed from his header, and the app does the same. Built, shown, and deployed
+on «deploy now».
 
 - **A handover was read against an older chat, and that was a real defect.**
   `/salem/?q=` asked the question as the visitor's own message, and the chat's
@@ -6313,6 +6313,30 @@ sabotages each turned the matching test red. Gates: `scan` 0, `test:hangout`,
 
 **Not measured**: any of it on a real phone, and a handover from a real agent
 call (the socket is refused here).
+
+**Live.** `{"ok":true,"version":"1.1.0","deployed":277,"removed":11,"emptied":1,
+"at":"2026-10-07T07:00:02+00:00"}` through the installed caller, job
+`ZAWQEqGZj4` read at its FIRST firing (created about a minute before it fired,
+so `removed: 11` is the real prune), deleted and listed gone. Archive
+`fb0c2b3/wain-1.1.0.zip` (sha256 `c7cfe0bd…3ddf`, one more permanent blob,
+`DEPLOY_SECRET` still unset). Free build: no `convai-` file on the server.
+`deploy:verify`: «e96f17f0 is live — verified at the root and 7 levels below
+it» (`build.json` digest `7ae5f4c375c1e528`; stylesheets 99,517 and 5,426;
+`e96f17f0…/` the only build-id directory; the /search chunk
+`page-d93aa2fad32c721c.js` 21,333 — it carries `toSalem` and the handover;
+`explore/` 19,407; a place page 64,602; its og 44,217, 52 og present). After
+the purge, `/salem/` through the edge: 200, `Last-Modified: 07:00:02` (the
+deploy's minute), `x-hcdn-cache-status: DYNAMIC`; probe job `1x1Bei57St` read,
+deleted, listed gone. The crontab then held sporta's standing jobs and one
+that is not ours, `ZHK1peYxbr` (`publish-all.php`, another session's, left
+alone). **The app reaches phones only through a new build**, and none can be
+cut from here: no GitHub Actions, by the owner's rule.
+
+**A rule slipped here and is recorded rather than hidden**: the switching
+commits (`e96f17f0` and the two before it) carry a `Co-Authored-By` line naming
+a model, which the Git section above forbids. They are pushed and a rewrite is
+barred by شوق's pinned knowledge base, so they stay; commits from
+`fb0c2b31` on carry the `Claude-Session` line only.
 
 ## Style
 
