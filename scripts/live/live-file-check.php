@@ -126,7 +126,7 @@ $WANT = [
     'assets/AdminApp-Chmxw88_.js' => 'be965ff4bbafdd95ce6da2a5df977240a498c9dfa4e2ba8ce00f0b7c436a5875',
     'assets/AssistantPanel-Dx280GRS.js' => 'a64dcf99a568e8c5a494398e0467e8c83ec169f0342496505c607cb245be0bc4',
     'assets/Cart-B71Jo6gk.js' => 'ea09191791d9d90e0ffd1f41e32ab6667b58aabdb8c5ce415cf896c613ac40be',
-    'assets/Checkout-Dk5_ETdy.js' => '82083f34a19e3c883c0c3a6df1da25be5983bf527022580efb313fb6221bd4be',
+    'assets/Checkout-Dk5_ETdy.js' => 'ac684bb4b3e4ca454f2d58e25805aa3227dca48534cf0c7a578bfa356718da02',
     'assets/CheckoutSteps-BfD7s0hA.js' => 'd09fafabec5b286d6688e29c542419aaf1b05eb86248ddbc9412979d509b4cf9',
     'assets/Contact-HoZaOGvS.js' => '31575cd174c01ad975ae06332c20b360610ef66f2e2819f18b7565ed587bae46',
     'assets/Invoice-BRGavJXu.js' => 'e252bee1bd62d91c320e7d12affde39cc56978814955d35686eb8e38d3fd48b5',
@@ -254,7 +254,7 @@ $WANT = [
     'assets/sporta-dark.css' => '7b9445725c3d0c8a3e01720914dc10d39b503248c598510b135043fbce0b9a7f',
     'assets/sporta-desktop.css' => '40608ba719b94ef7d1fe5b7debb1753e7bc6be3ff7b5efa4abcf06f50c4e42a3',
     'assets/sporta-mobile.css' => '704c330c4892d16f52981f001c84d74276a614b4f198359af1420de7e4f7f89a',
-    'assets/sporta-ui.css' => '8835f1c83dc8b82da8b33ae3ecf036840c437879cc89551a4d9bb211db12a9a4',
+    'assets/sporta-ui.css' => '16c8cf0f50fe94d64119a517b90438bf97337a89dee2bf75141538bdd926804c',
     'assets/theme-colors.js' => 'ed913d1b97ccbef2f52c3f24ffe8fbeac31142894173a274014d4d1327d37811',
     'assets/theme.js' => 'cf0044660306b1eedd3c830ed9ec432a7400d15e27aabdd3ce57d435b7c60403',
     'assets/tile-art.js' => '30ca13b0aff1ccf8a91b4629b1e93484d5469dfcfec884da8d0b37cdd591ac2c',
@@ -301,7 +301,7 @@ $WANT = [
     'cats/mobile/art-women.webp' => '30f55756442e08cc806c29ecc25fa6b95ff6e994bd6c093f1441d34da99d275f',
     'cats/mobile/infobar.jpg' => '3f737a054397e2946c175444e14c76c7eb2356dc81be7cd504afa05fb9494a16',
     'cats/mobile/infobar.webp' => '4f553a7affcdfdb7b367508df5b725d3ef8d000e676339e11a2b10958b9c19c8',
-    'config.js' => 'c5d7606453dc6836ed83b2a3e2f8d716c96431a7cc198d4e2a18fccb1a4633d5',
+    'config.js' => 'ddf413fb4ab285c934230d9c4f78bc43bf883d4c54aec053fbf773f7cd00a794',
     'favicon-192.png' => 'f9b1c55f2c5d3b7201203c702bfebe871cf32fdfb7db6f9a0a6aac3688a56b6c',
     'favicon-32.png' => 'c2cec10309c45382d25a70804f4d3af38372d6a69365784a1e2236d9872dfb15',
     'favicon-maskable.png' => 'db212cac661a0b04f20eae91586c8362746ee1306c173aeb0c9b8f4a929a143f',
@@ -365,7 +365,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '81dd79498f58e2db364515c42ef2d15866b6722e7547dfcbe8f9962558220e62',
+    'sw.js' => 'ce37f289d98fbc6c023c22e0e2c272d2ff50d510581582af10108869d1d727a8',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
