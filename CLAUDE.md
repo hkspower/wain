@@ -6198,7 +6198,7 @@ Manager, never chat or git; `docs/admin-setup.md`), optionally
 **Not measured**: MySQL (no server here — `selftest` on the host is the
 check), anything on the live site, a real order from a phone on the board.
 
-## The maps' layout — 7 October (built and tested, NOT deployed; the app is untouched)
+## The maps' layout — 7 October (live as `e658295b`; the app is untouched)
 
 Asked: «improve map layout». Measured first, then the owner picked: all three
 maps, a bar on a phone, a tall sticky map on a desktop. What was wrong, read
@@ -6235,6 +6235,17 @@ is asked for» failed, and the desktop map measured 282px against the 400 floor.
 `scan` exit 0, `test:hangout` all suites, `test:journey` 46. **`/search` is
 175.8K against the 176K budget** (174.6K before; the portal and `PhoneMap`):
 there is 0.2K left, so the next thing added to /search must be paid for.
+
+**Live, the same morning.** Archive `252b4f6` (4.1MB, sha256 `ceebf00d…b498`,
+one more permanent blob with `DEPLOY_SECRET` unset), job `vFko2z5YcN` read at
+its FIRST firing: `{"ok":true,"version":"1.1.0","deployed":277,"removed":7,
+"emptied":1,"at":"2026-10-07T05:19:02+00:00"}`, deleted and listed gone
+(sporta's jobs only). `deploy:verify`: «e658295b is live — verified at the root
+and 7 levels below it» (`build.json` digest `95a995bb7ecffb8c`; stylesheets
+99,480 and 5,426; `e658295b…/` the only build-id directory; the /search chunk
+`page-d4658c75f0f0b472.js` 23,917, the only file there). After the cache purge,
+a cron `wget -S --spider` of `/search/` through the edge: 200,
+`Last-Modified: 05:19:02` (the deploy's minute), `x-hcdn-cache-status: DYNAMIC`.
 
 **Not done:** the Flutter app's own search map (this is the web only), and
 anything on a real phone — the tiles are refused here, so every screenshot shows
