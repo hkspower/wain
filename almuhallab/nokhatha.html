@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#25292f" />
+  <meta name="theme-color" content="#0a0908" />
   <!-- Preload every weight the masthead and the first screen actually render,
        measured rather than assumed. Without this the browser cannot know a
        font exists until it has parsed ~220 lines of inline CSS, so each file
@@ -66,7 +66,7 @@
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
        every device instead of depending on what the OS happens to have.
-       Arabic subset only; Latin and digits stay on the system face. */
+       Arabic subset only; Cairo's Latin file and the logo's faces below carry the rest. */
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:400;
       font-display:swap; src:url("fonts/cairo-400.woff2") format("woff2");
       unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
@@ -101,31 +101,51 @@
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    /* The logo's Latin faces (design/site_fonts.py): Chakra Petch for the
+       Latin half of a display line, JetBrains Mono for figures, handles and
+       the ">_" prompt. Latin-only subsets with Cairo's Latin range, so they
+       claim no Arabic and Cairo keeps every Arabic letter. SIL OFL. */
+    @font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/chakrapetch-600.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    @font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/chakrapetch-700.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800;
+      font-display:swap; src:url("fonts/jetbrainsmono-latin.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
     :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
-      color-scheme: light;   /* the site is white on every device, dark preference included */
-      --bg: #ffffff;
-      --panel: #ffffff;
-      --panel-2: #f1f4f8;
-      --border: #d0d7e1; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
-      --text: #1b2430;
-      --muted: #434d55;
-      --tint: #33383f;
-      --tint-strong: #25292f;
-      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
-         on it used to be white at an alpha, and an alpha is not a colour: it
-         composites against whatever is underneath and the result is a value
-         nobody solved. Over #25292f the .82 tagline resolved to #e5dcd6 — a
-         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
-         own no-beige rule, invisible to the existing check because that check
-         reads declared surface tokens and this was a composited ink. And the
-         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
-         for a boundary you have to see in order to click. */
-      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
-      --on-bar-bd: #8a919a;     /* the only boundary for a control on it · 4.51:1 */
-      --on-bar-fill: #454b54;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
-      --sand: #7c4403;   /* warnings only · 7.8:1 on white */
-      --danger: #ce1925;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color-scheme: dark;   /* one dark theme on every device: the logo's own ground */
+      /* THE LOGO'S THEME (owner's approval, 2026-10-07): the near-black ground
+         of the English logo, its amber, its white. Every value is solved in
+         OKLCH against WCAG, never picked by eye. The surfaces lift the ground's
+         own lightness at its own hue, so they stay near-neutral (red minus blue
+         at most 3: no brown paper). On a dark page the binding surface is the
+         LIGHTEST one an ink can land on, so every ink is graded on panel-3. */
+      --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
+      --border: #363534;        /* card and rule hairlines: decoration, not a control's edge */
+      --border-input: #76706a;  /* a field's edge, 3.21:1 on panel-3 */
+      --text: #ececec;          /* 13.29:1 on panel-3 */
+      --muted: #a8aeb5;         /* 7.02:1 on panel-3 */
+      --tint: #e6a95c;          /* the logo's amber: links, focus, accents, 7.62:1 on panel-3 */
+      --tint-hover: #fabc6f;    /* the amber one step lighter, for a hovered amber fill */
+      --on-tint: #0a0908;       /* ink on an amber fill, 9.66:1. White on amber is 2.06:1 */
+      --stripe: #7f5d33;        /* the logo's dark band: the amber at 55% */
+      --tint-strong: #0a0908;   /* the bar: the logo's ground. theme-color matches it */
+      --on-bar: #f4f4f4;        /* every label on the bar, 18.09:1 */
+      --on-bar-bd: #79736c;     /* the only edge of a control on the bar, 4.25:1 */
+      --on-bar-fill: #272625;   /* hover and active fill on the bar, its labels 13.73:1 */
+      --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
+      --good: #37b671; --danger: #f37e77; --info: #66a3f0;   /* each 6:1 on panel-3 */
+      --warn-bg: #141211;
+      /* charts: one amber ramp, every step at least 2:1 on the card, monotone
+         in lightness so later steps carry more ink */
+      --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
+      --viz-pos: #37b671; --viz-neg: #f37e77; --viz-zero: #64615e; --viz-grid: #2c2b2a;
+      /* type: Cairo for Arabic everywhere. The logo's own Latin faces carry
+         Latin-only ranges, so Arabic in the same element falls through to Cairo */
+      --display: "Chakra Petch", "Cairo", system-ui, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Cairo", monospace;
       --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
     }
 
@@ -138,11 +158,10 @@
     }
     a { color: var(--tint); text-decoration: none; }
 
-    /* The masthead is brown on every page (owner's request, 2026-07-31) — one
-       shell across the site. It is the only brown *surface*; everything below
-       stays white. White on --tint-strong measures 8.7:1. These app screens
-       keep their row layout so the nav and tabs stay within reach; the company
-       page centres its mark. */
+    /* The masthead is the logo's own ground on every page, one shell across
+       the site, closed by a hairline. --on-bar measures 18.09:1 on it. These
+       app screens keep their row layout so the nav and tabs stay within
+       reach; the company page centres its mark. */
     header {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
       padding: 12px 20px; background: var(--tint-strong);
@@ -150,9 +169,10 @@
       position: sticky; top: 0; z-index: 50;
     }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
+    /* النوخذة keeps its anchor: amber on a raised tile, as icon.svg draws it */
     .brand .logo {
       width: 34px; height: 34px; border-radius: 8px;
-      background: var(--on-bar-fill); color: var(--on-bar);
+      background: var(--on-bar-fill); color: var(--tint);
       display: grid; place-items: center; font-size: 17px;
     }
     .brand small { display: block; font-weight: 500; color: var(--on-bar); font-size: 12px; }
@@ -164,37 +184,41 @@
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     }
     /* the drawn icon set, written in by design/app_sprite.py: the ink follows
-       the text it sits beside, so one icon serves the white bar and a card */
+       the text it sits beside, so one icon serves the bar, a fill and a card */
     .ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
       stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.22em; }
     .ic.sm { width: 16px; height: 16px; stroke-width: 2; }
     .ic.back { transform: scaleX(-1); }   /* RTL: back points to the right */
-    /* on the brown bar the nav inverts: white links, a white pill for the one
-       call to action, and an outlined logout — the brand red measures 1.6:1
-       against this brown and is unreadable, so it stays for in-page use only */
+    /* on the bar: light links, the amber pill (dark ink: white on amber is
+       2.06:1) for the one call to action, and an outlined logout. Red never
+       sits on the bar; it stays for in-page use only */
     nav a { color: var(--on-bar); }
     nav a:hover { background: var(--on-bar-fill); }
     nav a.active { background: var(--on-bar-fill); border-color: var(--on-bar-bd); color: var(--on-bar); }
-    nav .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
+    nav .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
     nav .btn.outline { background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
     nav .btn.danger { background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
-    nav .btn.outline:hover, nav .btn.danger:hover { background: var(--on-bar-fill); }
+    /* the edge lightens with the fill, so the hover reads on the bar and the
+       in-page danger hover below can never paint its red edge up here */
+    nav .btn.outline:hover, nav .btn.danger:hover { background: var(--on-bar-fill); border-color: var(--on-bar); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
     /* a focused field showed only a 1px border shifting between two greys
        (2.1:1) — the other three pages draw a 2px brand ring. Scoped to main and
-       the footer: unscoped, .btn:focus-visible would outrank the bar's white
-       ring and paint brown on brown */
+       the footer: unscoped, .btn:focus-visible would outrank the bar's light
+       ring and paint amber on the amber pill */
     main .btn:focus-visible, main a:focus-visible, main input:focus-visible,
     main select:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
     .btn { font-weight: 700; }                  /* nav links stay 600, as on the system page */
-    .btn.primary { background: var(--tint-strong); color: #fff; }
-    .btn.outline { border-color: var(--border); background: var(--panel-2); }
-    .btn.danger { color: var(--danger); }
-    /* states, the same on every page: a hover that can be seen (opacity .88
-       moved a grey fill 1.01:1 — invisible), a disabled that still reads */
-    .btn:hover { background: var(--border); border-color: var(--border-input); }
-    .btn.primary:hover { background: var(--tint); }
+    .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
+    .btn.outline { border-color: var(--border-input); background: var(--panel-2); color: var(--text); }
+    .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+    /* states, the same on every page: a hover that can be seen (the edge turns
+       amber; a fill step alone is 1.1:1 here), a disabled that still reads */
+    .btn:hover { background: var(--panel-3); border-color: var(--tint); }
+    .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
+    .btn.danger:hover { background: var(--panel-3); border-color: var(--danger); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .btn.outline:disabled:hover { background: var(--panel-2); border-color: var(--border-input); }
 
     main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 56px;  line-height: var(--lh-text); }
     .page { display: none; }
@@ -202,12 +226,22 @@
 
     /* Hero */
     .hero { text-align: center; padding: 40px 0 40px; }
+    /* the kicker is the logo's own line: an amber ">_" prompt, then light
+       text. The prompt stands in for the anchor here (the bar carries it just
+       above) and is drawn as the logo draws it, in its own LTR isolate: RTL
+       would mirror ">" into "<" */
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
-      color: var(--tint); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+      color: var(--text); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+    }
+    .hero .kicker .ic { display: none; }
+    .hero .kicker::before {
+      content: ">_"; display: inline-block; direction: ltr; unicode-bidi: isolate;
+      font-family: var(--mono); font-weight: 700; color: var(--tint); margin-inline-end: 8px;
     }
     .hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 16px 0 8px; line-height: 1.4; text-wrap: balance; }
     .hero h1 .en { color: var(--tint); direction: ltr; display: block; unicode-bidi: isolate;
+      font-family: var(--display); font-weight: 700;
       /* the English reads longer than the Arabic at the same size, so it wrapped
          to two lines and outweighed the line it translates */
       font-size: .68em; margin-top: 2px; text-wrap: balance; }
@@ -222,6 +256,7 @@
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 12px; }
     /* each unit is headed by its icon in a tile, as the company page's cards are */
     .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2);
+      border: 1px solid var(--border);   /* panel-2 on the card is 1.06:1: the hairline draws the tile */
       display: grid; place-items: center; flex: none; color: var(--tint); }
     .tile .ic { width: 21px; height: 21px; }
     .chip { display: inline-flex; align-items: center; gap: 4px; }
@@ -238,7 +273,7 @@
        different baselines — 700, 678 and 746 — inside cards that all end at
        the same height. */
     .grid .card > .chip { margin-top: auto; }
-    .chip.on { color: var(--tint); border-color: var(--tint-strong); }
+    .chip.on { color: var(--tint); border-color: var(--tint); }
 
 
     /* Arabic in Cairo needs line-height >= 1.35 at display sizes, or a damma
@@ -254,7 +289,9 @@
     .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px;
       max-width: 420px; margin-inline: auto; }   /* one free plan — a single centred card */
     .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
-    .plan.featured { border-color: var(--tint-strong); box-shadow: 0 0 0 1px var(--tint-strong); }
+    /* the page's one focal card: an amber ring and the faint amber glow */
+    .plan.featured { border-color: var(--tint);
+      box-shadow: 0 0 0 1px var(--tint), 0 0 24px rgba(230,169,92,.18); }
     .plan .name { font-weight: 800; font-size: 17px; }
     .plan .price { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .plan .price small { font-size: 13px; color: var(--muted); font-weight: 600; }
@@ -270,38 +307,51 @@
       color: var(--text); padding: 8px 12px; font-size: 14px; font-family: var(--sans); outline: none;
     }
     input:focus, select:focus { border-color: var(--tint); }
+    input::placeholder { color: var(--muted); opacity: 1; }
+    input[aria-invalid="true"] { border-color: var(--danger); }   /* the refused field, not only the message */
+    /* the browser's autofill paints its own light-blue field: keep it on the theme */
+    input:-webkit-autofill { -webkit-text-fill-color: var(--text); caret-color: var(--text);
+      box-shadow: 0 0 0 40px var(--panel-2) inset; }
     /* a keyboard journey starts at the content, not seven stops of chrome */
-    .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint-strong);
-      color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 700; }
-    .skip:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
+    .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint);
+      color: var(--on-tint); padding: 8px 12px; border-radius: 8px; font-weight: 700; }
+    .skip:focus { top: 8px; outline: 2px solid var(--on-bar); outline-offset: 2px; }
     main:focus, [tabindex="-1"]:focus { outline: none; }
     .form-note { font-size: 12.5px; color: var(--muted); line-height: 1.7; margin: 0; }
     .error { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
 
     /* Dashboard */
     .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-    .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--tint), var(--on-bar-fill)); display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 18px; }
-    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint-strong); color: var(--tint); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; }
+    /* an amber disc carries a dark initial: white on amber is 2.06:1 */
+    .avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--tint); display: grid; place-items: center; font-weight: 800; color: var(--on-tint); font-size: 18px; }
+    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint); color: var(--tint); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; }
     .plan-badge.free { border-color: var(--border); color: var(--muted); }
     .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
     /* drawn as the system page draws its figures, so the portal and the
        system it opens read as one product */
     .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
-    .stat .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; }
+    /* figures in the logo's mono. Cairo comes next, not the system mono, so
+       the Arabic «مجاناً» in the third tile still paints in Cairo */
+    .stat .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.35;
+      font-family: "JetBrains Mono", var(--sans); }
     .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; }
     .demo-banner {
       background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
       border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.8; margin-bottom: 20px;
     }
+    /* a raised panel edged in amber: a shadow would show nothing on this ground */
     .toast {
       position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: var(--tint-strong); color: #fff; padding: 8px 16px; border-radius: 999px;
+      background: var(--panel-3); color: var(--text); border: 1px solid var(--tint);
+      padding: 8px 16px; border-radius: 999px;
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 99;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast .ic { color: var(--tint); }
     .toast .ic, .offline-banner .ic, .demo-banner .ic { margin-inline-end: 6px; }
+    /* full-bleed under the bar, so it is edged above and below, not at the sides */
     .offline-banner {
-      background: var(--warn-bg); border-bottom: 1px solid var(--sand); color: var(--sand);
+      background: var(--warn-bg); border-block: 1px solid var(--sand); color: var(--sand);
       padding: 8px 20px; font-size: 13px; font-weight: 600; text-align: center; line-height: 1.7;
     }
     /* ═══════ mobile ═══════ */

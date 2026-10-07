@@ -40,8 +40,8 @@ GROUND = "#0a0908"          # the banner's near-black
 AMBER = "#E6A95C"           # the banner's accent
 CODE_INK = "#f4f4f4"
 TAG_INK = "#ececec"
-LIGHT_CODE = "#25292f"      # the site's --tint-strong
-LIGHT_TAG = "#33383f"       # the site's --tint
+LIGHT_CODE = "#25292f"      # dark grey ink for light grounds (14.6:1 on white)
+LIGHT_TAG = "#33383f"       # (11.8:1 on white)
 STRIPE = 0.55               # the dark band is the amber at 55%, as on the banner
 
 
@@ -264,28 +264,33 @@ def stripe_bands(cap, n=None):
 
 
 def snap_bands(bands, top, edges, tol):
-    """The bands in absolute y, each edge moved onto a flat outline edge it
-    falls within `tol` of (one pixel of the finished PNG), so no sliver of
-    amber or of dark is left along a stroke's top or foot."""
+    """The bands in absolute y, each edge moved onto the ONE flat outline edge
+    nearest it, if that is within `tol` (one pixel of the finished image), so
+    no sliver of amber or of dark is left along a stroke's top or foot. A snap
+    that would squash or swell its band past 40% is refused: chaining every
+    edge in turn once dragged both edges of a band onto the same line and the
+    band vanished (the masthead, where a pixel is half a band)."""
+    def near(v):
+        cands = [e for e in edges if 0 < abs(v - e) <= tol]
+        return min(cands, key=lambda e: abs(v - e)) if cands else v
+    def fair(lo, hi, h):
+        return 0.6 * h <= hi - lo <= 1.4 * h
     out = []
     for y, h in bands:
         a, b = top + y, top + y + h
-        for e in edges:
-            if 0 < abs(a - e) <= tol:
-                a = e
-            if 0 < abs(b - e) <= tol:
-                b = e
-        if b - a > 1e-6:
-            out.append((a, b - a))
+        na, nb = near(a), near(b)
+        if not fair(na, nb, h):
+            na, nb = (na, b) if fair(na, b, h) else ((a, nb) if fair(a, nb, h) else (a, b))
+        out.append((na, nb - na))
     return out
 
 
-def lockup(with_tag=True):
+def lockup(with_tag=True, bands=None):
     """Every shape of the lockup, centred on x = 0 with the wordmark's
     baseline at y = 0, the ink box of the whole, and the glow's sigma."""
     shapes = []
     wx = -WORD.ink_w / 2 - WORD.bounds[0]
-    shapes.append(("striped", WORD.path(wx, 0), -WORD.cap, WORD.cap, None, WORD.flat_edges(wx, 0)))
+    shapes.append(("striped", WORD.path(wx, 0), -WORD.cap, WORD.cap, bands, WORD.flat_edges(wx, 0)))
     word_top = -WORD.cap
 
     code_base = GAP_WORD_CODE + CODE.cap
@@ -373,10 +378,10 @@ FILES = {
 }
 
 
-def geometry(shape):
+def geometry(shape, bands=None):
     if shape == "monogram":
         return monogram()
-    return lockup(with_tag=(shape == "logo"))
+    return lockup(with_tag=(shape == "logo"), bands=bands)
 
 
 def frame(shape):
@@ -396,11 +401,12 @@ def frame(shape):
     return (l - PAD, (t + b) / 2 - vh / 2, vw, vh), (PNG_W, px_h)
 
 
-def svg(name):
-    shape, ground = FILES[name]
+def svg(name, shape=None, ground=None, bands=None, framing=None):
+    if shape is None:
+        shape, ground = FILES[name]
     bg, amber, code_ink, tag_ink, glow = GROUNDS[ground]
-    shapes, _, sigma = geometry(shape)
-    vb, (pw, ph) = frame(shape)
+    shapes, _, sigma = geometry(shape, bands)
+    vb, (pw, ph) = framing or frame(shape)
     dark = shade(amber, STRIPE)
     vbs = " ".join(_num(v) for v in vb)
     tol = vb[2] / pw          # one pixel of the finished PNG, in user units
@@ -476,19 +482,124 @@ def rasterise(br, name):
     an alpha channel. The floor is exact, since the glow only adds light:
     in its far tail 8-bit compositing rounded a contour of pixels one level
     below the ground, which shows as a faint ring once brightened or printed."""
-    from PIL import Image, ImageChops
     _, ground = FILES[name]
     vb, (w, h) = frame(FILES[name][0])
+    return render(br, svg(name), w, h, GROUNDS[ground][0])
+
+
+def render(br, text, w, h, ground=None):
+    from PIL import Image, ImageChops
     pg = br.new_page(viewport={"width": w, "height": h}, device_scale_factor=1)
     pg.set_content('<!doctype html><html><head><style>html,body{margin:0;background:transparent}'
-                   f'svg{{display:block;width:{w}px;height:{h}px}}</style></head><body>{svg(name)}</body></html>')
+                   f'svg{{display:block;width:{w}px;height:{h}px}}</style></head><body>{text}</body></html>')
     pg.wait_for_timeout(150)
     raw = pg.screenshot(omit_background=True, clip={"x": 0, "y": 0, "width": w, "height": h})
     pg.close()
     im = Image.open(io.BytesIO(raw))
-    if GROUNDS[ground][0]:
-        im = ImageChops.lighter(im.convert("RGB"), Image.new("RGB", im.size, GROUNDS[ground][0]))
+    if ground:
+        im = ImageChops.lighter(im.convert("RGB"), Image.new("RGB", im.size, ground))
     return im
+
+
+# ── the site's own marks ─────────────────────────────────────────────────
+# Since the dark theme (owner's approval, 2026-10-07) the company flies this
+# logo, and every mark the site serves is written here, so none can drift
+# from the kit: the masthead wordmark inline in index.html, favicon.svg (the
+# AC monogram on a rounded tile), logo.svg, the touch icon, the square logo
+# the structured data names, and the share card.
+
+SITE = HERE.parent.parent / "almuhallab"
+# At masthead size the kit's twenty bands are sub-pixel (a 280px word has a
+# 31.7px cap: twenty bands leave each dark one 0.4px). Three: the only count
+# from three to seven whose EVEN bands clear every flat edge of ALMUHALLAB
+# (the M, the H's bar, the A's crossbar, the B's bowls) by more than a
+# device pixel at 2x (1.56), so nothing needs snapping and the bands stay
+# even; four left an edge 0.09px off the M and, snapped, ran 7.3 to 10.6
+# units tall. Each dark band is 2.3px at the top of the bar, 1.4px compact.
+MAST_BANDS = 3
+MAST_PX = 280
+MAST_OPEN = "<!-- logo-en:masthead · written by design/logo-en/build.py, do not edit by hand -->"
+MAST_CLOSE = "<!-- /logo-en:masthead -->"
+
+
+def masthead():
+    _, (l, t, r, b), _ = geometry("wordmark", MAST_BANDS)
+    m = 4
+    vb = (l - m, t - m, r - l + 2 * m, b - t + 2 * m)
+    # the snap tolerance is one DEVICE pixel at 2x (the SVG's own size is
+    # stripped for the inline copy, so this size serves the tolerance only)
+    px = (MAST_PX * 2, round(MAST_PX * 2 * vb[3] / vb[2]))
+    text = svg("site-mast", shape="wordmark", ground="for-dark", bands=MAST_BANDS, framing=(vb, px))
+    lines = text.splitlines()
+    lines[0] = re.sub(r' width="\d+" height="\d+" role="img" aria-label="Almuhallab Code">',
+                      ' class="logo" role="img" aria-label="المهلب كود · Almuhallab Code" focusable="false">', lines[0])
+    assert 'class="logo"' in lines[0], lines[0]
+    lines = [x for x in lines if "<!-- Almuhallab Code, the English logo" not in x and "JetBrains Mono (SIL OFL)" not in x]
+    return "\n".join("      " + x for x in lines)
+
+
+def with_masthead(html):
+    pat = re.compile(re.escape(MAST_OPEN) + r".*?" + re.escape(MAST_CLOSE), re.S)
+    if not pat.search(html):
+        sys.exit("index.html has no logo-en:masthead markers")
+    return pat.sub(lambda _: MAST_OPEN + "\n" + masthead() + "\n      " + MAST_CLOSE, html, count=1)
+
+
+def favicon():
+    """The AC monogram on its own dark tile with the rounded corners of a
+    favicon (the same 96/512 the site's tab icons always had)."""
+    text = svg("almuhallab-code-monogram-dark")
+    vb, _ = frame("monogram")
+    text = re.sub(r' width="\d+" height="\d+"', "", text, count=1)
+    ground = (f'<rect x="{_num(vb[0])}" y="{_num(vb[1])}" width="{_num(vb[2])}" height="{_num(vb[3])}" '
+              f'fill="{GROUND}"/>')
+    assert ground in text
+    return text.replace(ground, ground.replace(' fill=', f' rx="{_num(vb[2] * 96 / 512)}" fill='))
+
+
+def og(br):
+    """The share card, 1200×630: the dark lockup with its glow, the company
+    named in Arabic beneath it in Cairo, and the address in JetBrains Mono,
+    as on the banner. Fonts load from the site's own files."""
+    from PIL import Image
+    fonts = SITE / "fonts"
+    lock = svg("almuhallab-code-logo-dark")
+    lock = re.sub(r' width="\d+" height="\d+"', ' width="900" height="327"', lock, count=1)
+    ar = "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E"
+    html = f"""<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face {{ font-family: Cairo; font-weight: 700; src: url("{(fonts / 'cairo-700.woff2').as_uri()}") format("woff2"); unicode-range: {ar}; }}
+@font-face {{ font-family: "JetBrains Mono"; font-weight: 100 800; src: url("{(fonts / 'jetbrainsmono-latin.woff2').as_uri()}") format("woff2"); }}
+html, body {{ margin: 0; background: {GROUND}; }}
+.c {{ width: 1200px; height: 630px; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+svg {{ display: block; width: 900px; height: 327px; }}
+.ar {{ font: 700 34px/1.5 Cairo; color: {TAG_INK}; margin-top: 10px; }}
+.url {{ font: 500 20px/1 "JetBrains Mono"; letter-spacing: .32em; color: {AMBER}; margin-top: 26px; direction: ltr; }}
+</style></head><body><div class="c">{lock}<div class="ar" dir="rtl">المهلب كود · شركة برمجة وأنظمة</div>
+<div class="url">www.almuhallab-code.com</div></div></body></html>"""
+    tmp = HERE / ".og.html"
+    tmp.write_text(html)
+    pg = br.new_page(viewport={"width": 1200, "height": 630}, device_scale_factor=1)
+    pg.goto(tmp.as_uri())
+    pg.evaluate("Promise.all([document.fonts.load('700 34px Cairo', 'المهلب'), document.fonts.load('500 20px \"JetBrains Mono\"', 'www')])")
+    pg.wait_for_timeout(200)
+    ok = pg.evaluate("document.fonts.check('700 34px Cairo', 'المهلب') && document.fonts.check('500 20px \"JetBrains Mono\"', 'www')")
+    raw = pg.screenshot(clip={"x": 0, "y": 0, "width": 1200, "height": 630})
+    pg.close()
+    tmp.unlink()
+    if not ok:
+        sys.exit("the share card's faces failed to load: refusing to draw a fallback")
+    return Image.open(io.BytesIO(raw)).convert("RGB")
+
+
+def site_text():
+    return {SITE / "favicon.svg": favicon(), SITE / "logo.svg": svg("almuhallab-code-logo-dark")}
+
+
+def site_pngs(br):
+    mono = svg("almuhallab-code-monogram-dark")
+    return {SITE / "apple-touch-icon.png": render(br, mono, 180, 180, GROUND),
+            SITE / "logo-512.png": render(br, mono, 512, 512, GROUND),
+            SITE / "og.png": og(br)}
 
 
 def sheet(br, out_path=None):
@@ -634,6 +745,10 @@ def main():
     want[HERE / "README.md"] = readme()
     if "--check" in sys.argv:
         stale = [p.name for p, t in want.items() if not p.exists() or p.read_text() != t]
+        stale += [f"site/{p.name}" for p, t in site_text().items() if not p.exists() or p.read_text() != t]
+        page = (SITE / "index.html").read_text()
+        if with_masthead(page) != page:
+            stale.append("site/index.html (the masthead wordmark)")
         owners = {}
         for p, t in want.items():
             for i in re.findall(r'\bid="([^"]+)"', t):
@@ -651,6 +766,10 @@ def main():
                 bad = _differs(rasterise(br, n), Image.open(path))
                 if bad:
                     stale.append(f"{n}.png ({bad})")
+            for path, im in site_pngs(br).items():
+                bad = _differs(im, Image.open(path)) if path.exists() else "missing"
+                if bad:
+                    stale.append(f"site/{path.name} ({bad})")
             if not (HERE / "preview-sheet.png").exists():
                 stale.append("preview-sheet.png (missing)")
             else:
@@ -663,7 +782,8 @@ def main():
             br.close()
         if stale:
             sys.exit("English logo drifted: " + ", ".join(stale))
-        print(f"English logo is current: {len(FILES)} SVGs, {len(FILES)} PNGs and the sheet re-rendered, README")
+        print(f"English logo is current: {len(FILES)} SVGs, {len(FILES)} PNGs and the sheet re-rendered, README; "
+              "the site's favicon, logo, masthead, touch icon, square logo and share card")
         return
     for old in HERE.glob("almuhallab-code-*"):
         if old.stem not in FILES:
@@ -680,6 +800,15 @@ def main():
             print("  wrote", f"{n}.png", f"{im.size[0]}×{im.size[1]}", im.mode)
         sheet(br)
         print("  wrote preview-sheet.png")
+        for path, t in site_text().items():
+            path.write_text(t)
+            print("  wrote site", path.name)
+        page = SITE / "index.html"
+        page.write_text(with_masthead(page.read_text()))
+        print("  wrote site index.html masthead")
+        for path, im in site_pngs(br).items():
+            im.save(path, optimize=True)
+            print("  wrote site", path.name, f"{im.size[0]}×{im.size[1]}", f"{path.stat().st_size // 1024} KB")
         br.close()
 
 

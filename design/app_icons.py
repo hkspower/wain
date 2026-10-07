@@ -6,9 +6,10 @@ there — "Add to Home Screen" showed a blurred screenshot of the page instead o
 the mark. The manifest offered SVG only, and used the same drawing as its
 `maskable` icon. Android builds the installed icon from PNGs.
 
-The two marks stay apart, as the identity requires:
-  * the company page (index.html) gets the illustrated boum — favicon.svg;
-  * النوخذة, the installable app (manifest.webmanifest), keeps the ⚓ — icon.svg.
+The two marks stay apart, as the identity requires: the company page's
+touch icon is the AC monogram, written by design/logo-en/build.py with the
+rest of the company's marks; this script draws النوخذة's, the installable
+app (manifest.webmanifest), from its anchor, icon.svg.
 
 All of it is FULL-BLEED: iOS and Android launchers cut their own shape, and a
 tile with transparent rounded corners gets black corners on iOS.
@@ -20,20 +21,9 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import pixel_boum as pb  # noqa: E402  the one bitmap of the square mark
-
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "almuhallab"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
-BROWN = "#25292f"
-
-
-def boum_touch():
-    """180×180: the illustrated boum on the brand brown — favicon.svg's own tile,
-    drawn full-bleed (iOS cuts its own shape)."""
-    svg = (SITE / "favicon.svg").read_text()
-    return svg.replace('rx="96" ', "", 1)
 
 
 def anchor(full_bleed):
@@ -48,7 +38,6 @@ def anchor(full_bleed):
 
 
 JOBS = [  # (file, svg, size)
-    ("apple-touch-icon.png", boum_touch(), 180),
     ("nokhatha-touch-icon.png", anchor(True), 180),
     ("icon-192.png", anchor(False), 192),
     ("icon-512.png", anchor(False), 512),

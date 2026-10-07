@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v43";
+var CACHE = "nokhatha-v44";   /* v44: the dark theme and the English logo */
 var ASSETS = [
   "./",
   "index.html",
@@ -27,14 +27,18 @@ var ASSETS = [
   "icon-maskable-512.png",
   "apple-touch-icon.png",
   "nokhatha-touch-icon.png",
-  "fonts/reemkufi-700.woff2",
-  "fonts/sharetechmono-400.woff2",
+  "fonts/chakrapetch-600.woff2",
+  "fonts/chakrapetch-700.woff2",
+  "fonts/jetbrainsmono-latin.woff2",
 ];
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE).then(function (cache) {
-      return cache.addAll(ASSETS);
+      /* cache: "reload" goes past the browser's HTTP cache: images and fonts
+         are served with a week's max-age, so a plain addAll stored a returning
+         visitor's OLD favicon.svg and logo.svg under the new cache name */
+      return cache.addAll(ASSETS.map(function (u) { return new Request(u, { cache: "reload" }); }));
     }).then(function () {
       return self.skipWaiting();
     })

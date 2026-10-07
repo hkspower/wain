@@ -121,6 +121,14 @@ def dp_svg(view_box: str, body: str) -> str:
 """
 
 
+
+# RETIRED (2026-10-07): the company flies the English logo, and its marks are
+# built by design/logo-en/build.py. This script draws the retired boum; run as
+# it stands it would mix the two identities, so it refuses.
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit("retired: the company's marks are built by design/logo-en/build.py")
+
 def main() -> int:
     html = SPRITE_SRC.read_text()
     symbols = sprite_symbols(html)

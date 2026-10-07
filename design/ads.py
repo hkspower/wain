@@ -119,8 +119,8 @@ def page(w, h, kicker, headline, lines, proof, vb, body, story):
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-500.woff2") format("woff2"); font-weight:500; font-display:block; }}
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-800.woff2") format("woff2"); font-weight:800; font-display:block; }}
-  @font-face {{ font-family:"Reem Kufi"; src:url("{fonts}/reemkufi-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
-  @font-face {{ font-family:"Share Tech Mono"; src:url("{fonts}/sharetechmono-400.woff2") format("woff2"); font-weight:400; font-display:block; }}
+  @font-face {{ font-family:"Reem Kufi"; src:url("../logo-modern/fonts/reemkufi-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
+  @font-face {{ font-family:"Share Tech Mono"; src:url("../logo-modern/fonts/sharetechmono-400.woff2") format("woff2"); font-weight:400; font-display:block; }}
   * {{ box-sizing:border-box; margin:0; padding:0; }}
   /* The decorative mark is meant to bleed off the edge, so it must be
      clipped, not merely allowed to hang. Without this it widened the document

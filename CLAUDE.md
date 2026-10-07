@@ -3,13 +3,14 @@
 ## Design preferences
 
 - **No beige.** Never use beige, cream, sand-tinted or warm "paper" tones for
-  backgrounds and surfaces. Use **white** for the page and cards, with
-  near-neutral cool greys for recessed surfaces (inputs, hover) and borders.
-  This applies to the website, the app, and any generated document or mockup.
-  The brand amber (`--sand-vivid`, used in the logo gradient and for warning
-  accents) and the brand **brown** (`--tint` / `--tint-strong`, the primary
-  accent since the identity change) are deliberate inks on white surfaces and
-  are not affected by this rule — it governs backgrounds and surfaces only.
+  backgrounds and surfaces. Since the dark logo theme (owner's approval,
+  2026-10-07) the page is the logo's near-black ground `#0a0908` and the cards
+  sit one near-neutral step above it (`--panel` · `--panel-2` · `--panel-3`).
+  This applies to the website, the app, and any generated document or mockup;
+  a printed statement or any light-ground deliverable is white, never cream.
+  The logo's **amber** (`--tint` `#e6a95c`, banded with its dark `--stripe`)
+  is the one accent and always an ink, never a surface; warnings are a
+  separate yellow (`--sand`). This rule governs backgrounds and surfaces.
 
 ## Almuhallab Code — `almuhallab/`
 
@@ -47,12 +48,12 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | **Since 2026-10-03 the company flies the illustrated boum** (owner's «approve all», logo only — the brown bar kept): the same ship drawn as a flat illustration over the `BOUM` polygons by `design/logo-modern/build.py` — lateen sails with panel seams, planked hull, pennants, three waves — white on the brand brown. `design/ship_mark.py` writes `#i-ship` (inks `currentColor`, cut lines `var(--ship-cut)` so one symbol sits on the bar, the brown tile and the grey footer), `logo.svg` and `favicon.svg`; `--check` pins them, and `og.png` and the home-screen icon are drawn from them. The pixel forms below stay in the sprite for the matrix logo, logo pack, Instagram set, ads and film, which have not been redrawn. — History: a **Kuwaiti boum under sail drawn as a pixel grid** — the matrix-code identity the owner adopted 2026-09-28, replacing the stroked boum. One drawing: the ship's polygons in `design/matrix_logo.py` (`BOUM`), and nothing else draws her. `design/pixel_boum.py` rasterises them into the **wide form** (`#i-boum`, `logo.svg`: 36×24 lit cells centred in the 48×24 box, coverage-sampled so the thin stem joins the hull) and holds the **square form** (`#i-sail`, `favicon.svg`) as a hand-set **16×16 bitmap** with a one-cell margin, so at 16px every cell is exactly one screen pixel — that is the small-size fix, and why it is set by hand. Four things make her a boum and the suite asserts each on the polygons: **double-ended** with a raked stem and sternpost rising from one hull shape (never a transom), **two filled lateen sails**, the **tall mainmast forward** of the short mizzen, the sheer rising into both ends. The gaps between cells are the code texture — never fill them. **Colour: white ship on brand brown** (owner's request 2026-09-28) — `logo.svg` and `favicon.svg` carry their own `#6f3f1c` ground (the favicon's amber gradient is gone), and the footer sets the square mark white on a brown tile; the masthead was already white on the brown bar. `pixel_boum.py --check` is the mark's signature in the suite; a hand edit to any of its outputs fails it. **In the masthead she is hinted like a font** (owner's request «improve logo style at top bar», 2026-10-01): the same 331 lit cells, but each cell a whole number of device pixels (`q = max(--qmin, round(--cell × --dpr))`) with a whole-pixel seam (`g = max(1, round(0.18q))`), so the seams are visible on every screen instead of falling between pixels — 148×74 had put 3.08px in a cell and the white ship read grey, 1.75px once scrolled. pixel_boum.py writes three more pieces into index.html and `--check` covers them: the masthead window (`viewBox="6 1 36 20"`, cropped to her cells, around an inner 48×24 svg so the symbol is not shrunk), the `/* pixel-boum:hint */` block (CSS `d` swaps the path for 38 row runs dashed into cells, crispEdges, a 1/16-px nudge), and it refuses to write if `#i-boum` is used anywhere but the masthead, because the hint styles the symbol itself. A head script hands CSS the pixel ratio (`--dpr`); without it the bar is still exact at 1×/2×/3×. Each bar state sets `--cell` (top 3, compact 2, folded row 1.34); compact states set `--qmin: 3`, because 2 device px is 1 lit + 1 seam — a tan mesh, not a white ship. The entrance animation fills `backwards`, not `both`: a fill that outlives it keeps the mark on its own layer, resampled at a fractional offset on a 2.625× phone. The suite renders the ship at 1×–3× and fails on a single blended pixel At display sizes the glyph-field version (`design/matrix-logo/`) is the same ship in code characters |
-| Wordmark | **المهلب** in **Reem Kufi** 700, then `Almuhallab Code` in **Share Tech Mono**, tracked, on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة» in Cairo. Both faces SIL OFL, subset and self-hosted in `almuhallab/fonts/` (the CSP forbids a CDN), precached by `sw.js`, and used by the lockup only — body text stays Cairo. On the brown bar all three are white. The lockup is balanced on the ship's ink: the Latin line is tracked (.1em, 12px) to her width (~110px), «المهلب» 32px desktop / 28px phone, ink gaps 13 / 7 / 13. `scroll-margin-top` must clear the compact bar in every state — 192px desktop (the 1× compact bar is 184px, its ship held at 3 device px a cell), 176px phone |
-| Brand ink | **Dark grey and white since 2026-10-03** (owner's «new theme style, main color dark gray and white»): `--tint` `#33383f` (11.8:1 on white) · `--tint-strong` `#25292f` (the bar; white on it 14.6:1) · `--on-bar-fill` `#454b54` (8.8:1) · `--on-bar-bd` `#8a919a` (4.6:1) · chart ramp `#a3abb4`→`#30363d`. Before: brown `#7a4418` / `#6f3f1c` |
-| Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is dark grey** (`--tint-strong`, brown until 2026-10-03) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
+| Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, `MAST_BANDS = 3` so every band clears every flat letter edge at 2×, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png` (the JSON-LD logo) and `og.png`; `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py` and `instagram_covers.py` refuse to run until they are redrawn from the logo-en kit |
+| Masthead & type | The masthead **is the logo** (280px desktop · 220px phone · 200px short landscape; 168 / 140 once scrolled) over a terminal line `>_ شركة برمجة وأنظمة ▌`, prompt and cursor in amber, the cursor static; the line folds away once scrolled. **Cairo** sets all Arabic and body text; **Chakra Petch** 600/700 (`--display`) the Latin display halves: the hero's English line, the counters, the footer's ALMUHALLAB CODE; **JetBrains Mono** (`--mono`) figures, codes and every `>_`. The two logo faces are Latin subsets written by `design/site_fonts.py` (`--check` pins the bytes and the glyphs the pages set) under Cairo's own Latin `unicode-range`, so Arabic in the same element falls through to Cairo. Reem Kufi and Share Tech Mono are retired to `design/logo-modern/fonts/`. `scroll-margin-top` clears the **top** bar, because a jump from the top compacts the bar on the way and the page rises by the difference: 184px desktop (160 + 24), 168px phone (142 + 26), 160px short landscape (132 + 28) |
+| Brand ink | **Amber on near-black since 2026-10-07**: `--tint` `#e6a95c` (9.66:1 on the page, 7.62:1 on `--panel-3`) · `--tint-hover` `#fabc6f` · `--on-tint` `#0a0908`, the ink ON amber (white on amber is 2.06:1: never white on `--tint`) · `--stripe` `#7f5d33` (amber × .55, the logo's band) · the bar `--tint-strong` `#0a0908` with `--on-bar` `#f4f4f4`, `--on-bar-bd` `#79736c`, `--on-bar-fill` `#272625` · chart ramp `#624621`→`#e6a95c` · warnings `--sand` `#f2d855`, a yellow kept apart from the accent. Before: dark grey `#33383f`/`#25292f` (2026-10-03), brown `#7a4418`/`#6f3f1c` |
+| Surfaces | **the logo's dark on every device**: `--bg` `#0a0908` (page and bar), `--panel` `#141211` (cards), `--panel-2` `#1a1918` (fields, recessed rows), `--panel-3` `#242321` (the lightest step: inks are graded on it); `--border` `#363534` hairlines, `--border-input` `#76706a` control edges (3.21:1 on panel-3). `color-scheme: dark` on `:root`, no `prefers-color-scheme` block, `theme-color` `#0a0908`. Printing `nizam.html` swaps the tokens to white paper and dark ink. Amber is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · `ol.steps` as a slider timeline · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them; «لماذا المهلب كود» (the commitments `.band`) and «التقنيات» (the technology cloud) went the same way at the owner's word, 2026-10-02 — «too much crowd contents»: the band repeated the hero's counters, the cloud listed tools rather than work) · the four-column footer on a recessed grey base |
+| Layout | full-height hero with real counters and a **code rain** in its margins (Arabic letters, digits and code marks in two seeded copies, one translate animation; masked to the outer 20% on each side so no visible column crosses the text; not drawn on phones, where the text runs edge to edge) · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · `ol.steps` as a slider timeline · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them; «لماذا المهلب كود» (the commitments `.band`) and «التقنيات» (the technology cloud) went the same way at the owner's word, 2026-10-02 — «too much crowd contents»: the band repeated the hero's counters, the cloud listed tools rather than work) · the four-column footer on the `--panel` base |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -110,14 +111,15 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   carry the identical token set** — divergence between pages has been a real bug
   before.
 - Colour values are **solved numerically against WCAG targets**, never picked by
-  eye. Text ≥ 4.5:1 (body ≥ 7:1) against the darkest surface it can land on;
+  eye. Text ≥ 4.5:1 (body ≥ 7:1) against the surface it can land on that is
+  closest to it in lightness: on this dark theme that is the lightest one,
+  `--panel-3`;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
-- **The company's real identity, from the live site**: the mark is a Kuwaiti
-  boum under sail as a pixel grid — wide form in `logo.svg`/`#i-boum` (masthead), square form in
-  `favicon.svg`/`#i-sail` (footer, tab) — the
-  wordmark is **المهلب** in Reem Kufi, brand brown, and the palette is brown on white.
-  النوخذة keeps the ⚓ anchor (`icon.svg`) — the company and the product are
-  marked differently on purpose.
+- **The company's identity is the English logo** (`design/logo-en/`):
+  ALMUHALLAB CODE in striped amber on near-black, with the AC monogram as its
+  square form (`favicon.svg`: footer, tab, touch icon). النوخذة keeps the ⚓
+  anchor (`icon.svg`), now amber on the same ground: the company and the
+  product are marked differently on purpose.
 - Contact channels are the real ones and must not be replaced with placeholders:
   واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · البريد
   `hello@almuhallab-code.com`.
@@ -127,8 +129,11 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Cairo, Almarai, Readex Pro, Alexandria and IBM Plex Sans Arabic side by side
   in the page's own copy and looking at them. Plex is ruled out — that is the
   face the owner rejected when asking for a better Arabic font. Never link a
-  webfont CDN — the CSP blocks it. Any new page must declare the five
-  `@font-face` rules, carry `font-src 'self'`, and be precached. Arabic set in
+  webfont CDN — the CSP blocks it. Any new page must declare the thirteen
+  `@font-face` rules (five Cairo weights, each an Arabic and a Latin face,
+  plus Chakra Petch 600/700 and JetBrains Mono), carry `font-src 'self'`, and
+  be precached. A logo face is preloaded only where the first screen paints
+  it; the suite's preload check asks for files by family, weight and script. Arabic set in
   Cairo needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
   the line above. **The Arabic files are Arabic-only** — no digits, no Latin, not
   even a full stop — so each weight is a pair: the Arabic face under an Arabic
@@ -140,20 +145,23 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   every character, misses the glyph, and the browser skips to the next family
   instead of the Latin file. The suite asks the engine what actually painted
   (`CSS.getPlatformFontsForNode`). Redirect stubs load no webfont at all.
-- **There is no dark theme.** The site is white whatever the device prefers:
-  no `prefers-color-scheme: dark` block anywhere and `color-scheme: light` on
-  `:root`. `theme-color` is the masthead brown `#6f3f1c` on every page so the
-  browser chrome continues the bar — that is not a dark theme, and the page
-  below the bar stays white. The suite fails if a dark override reappears.
-- **The masthead is a sticky brown bar on all four pages** (owner's request,
+- **There is one theme, and it is dark** (owner's choice 2026-10-07, «Dark,
+  like the logo», reversing the white rule of 2026-07): `color-scheme: dark`
+  on `:root` and no `prefers-color-scheme` block, so a device set to light
+  gets the same site. `theme-color` is `#0a0908` on every page and in the
+  manifest, so the browser chrome continues the bar; the redirect stubs and
+  the 404 paint `#0a0908` too, so no page flashes white. The suite fails if a
+  light override appears.
+- **The masthead is a sticky bar on all four pages** (owner's request,
   2026-07-31): the company page centres the mark above the wordmark and
   shrinks the bar once scrolled (two thresholds — 60px down, 24px up — or a
   bar that changes the page's height retriggers itself forever); the app
-  screens keep their row layout so nav and tabs stay in reach. On brown the
-  ink inverts: white links, a **white pill** for the one call to action, and
-  outlined white for logout — the brand red measures **1.6:1** on this brown
-  and must never appear there. Set `color:#fff` on `.brand` itself, not only
-  on its children: two pages shipped a dark wordmark because their markup was
+  screens keep their row layout so nav and tabs stay in reach. The bar is the
+  logo's own ground (`--tint-strong` `#0a0908`) with an `--on-bar-fill`
+  hairline and an amber fade beneath. On it: `--on-bar` links, an **amber
+  pill** with dark `--on-tint` ink for the one call to action, and outlined
+  light for logout; red never appears there (a logout is not a deletion). Set
+  the bar's ink on `.brand` itself, not only on its children: two pages shipped a dark wordmark because their markup was
   a `<div>`/`<span>` the colour rule never named. The suite measures every
   masthead label on every page.
   **On a phone, "in reach" decides the pattern** (2026-10-01): the system
@@ -181,12 +189,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   hold a *signed* seven-digit figure, the widest value it can show.
 - The **footer is the site's map**, not a copyright line: four columns (the
   company and its channels written out in full · الشركة · الخدمات · النوخذة's
-  units), on the one recessed grey surface, opened by the brand hairline. Do
+  units), on the `--panel` surface, opened by an amber fade hairline. Do
   not put an icon-only channel row beside the written one — it repeats the
   same three links while hiding the values.
 - **A sticky bar hides whatever an in-page link jumps to.** Every anchor
-  target carries `scroll-margin-top` (192px desktop, 176px phone, clearing the
-  compact bar — 184px on a 1× desktop, ~106px on a phone) and `html` uses `scroll-behavior: smooth`, off under
+  target carries `scroll-margin-top` (184px desktop, 168px phone, 160px short
+  landscape). It clears the **top** bar (160 / 142 / 132px), not the compact
+  one (105 / 95px): a jump from the top compacts the bar on the way and the
+  page rises by the difference, which the suite measures from the top. `html` uses `scroll-behavior: smooth`, off under
   reduced motion. Tests that measure scroll positions must pass
   `behavior:'instant'` or they race the animation and read mid-flight values.
 - **المهلب is the company; النوخذة is النظام الموحد it built and runs.** The
@@ -294,7 +304,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   company page never needs (download, print, check …) are drawn in that script
   on the same 24 grid and 1.8 pen — and `--check` in the suite fails on any
   hand edit. App icons take `stroke: currentColor`, so one drawing serves a
-  white bar, a brown tab and a red status. In RTL "back" points right: back
+  the bar's light ink, an amber tab and a red status. In RTL "back" points right: back
   links flip the chevron (`.ic.back`), forward actions use it as drawn. A toast
   takes its icon as an argument (`toast(msg, "i-check")`) and keeps its text as
   `textContent` — the icon is built from fixed ids, never from data.
@@ -305,11 +315,15 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   **dark bar is white** — an unscoped `.btn:focus-visible` (0,2,0) outranks
   `header a:focus-visible` (0,1,1) and painted grey on grey at 1.24:1, so the
   brand ring is scoped to `main` and `footer` on every page. Four radii only
-  (999 · 12 · 8 · 2); the app pages had 9/10/14/16. Amber is for warnings, and
-  nothing else: the old brown palette's amber companions kept painting heading
-  rules, the kicker, hover chips, hero shapes and an avatar gradient whose
-  white initial sat at 2.15:1. The suite scans every computed colour outside
-  the warning components for a warm hue and fails on one.
+  (999 · 12 · 8 · 2); the app pages had 9/10/14/16. Since the dark theme the
+  logo's amber is the accent and warnings are yellow (`--sand`), and the suite
+  scans every computed colour, gradients included: it fails on a warm hue
+  outside the amber family (hue 31–36.5°), on warning yellow outside a
+  warning, and on any warm light surface. Planted fixtures prove it flags an
+  off-brand `#e07b39`, a cream panel and stray yellow, and passes `#e6a95c`
+  as ink, fill, edge and fade. Before the theme it flagged amber itself: the
+  brown palette's amber companions had painted an avatar whose white initial
+  sat at 2.15:1, which is also why ink on amber is `--on-tint`, never white.
 - **An action answers, asks or stays honest** (UX audit, 2026-10-03). The
   console's `mutate()` ignored `wr()`'s answer and toasted «تم تحديث الحالة»
   over a save that never happened — every write's result now decides the
@@ -363,10 +377,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Numbers are formatted with an **explicit `"en-US"` locale**. A bare
   `toLocaleString()` follows the visitor's device and printed Arabic-Indic digits
   beside Latin ones in the same table.
-- `favicon.svg` (the company boum) is the tab icon for `index.html`; `icon.svg`
-  (the ⚓ anchor) is النوخذة's. Don't cross them.
+- `favicon.svg` (the company's AC monogram) is the tab icon for `index.html`;
+  `icon.svg` (the ⚓ anchor) is النوخذة's. Don't cross them.
 - The units print: `nizam.html` carries an `@media print` block that strips the
-  chrome, forms and row actions so a statement prints as a document.
+  chrome, forms and row actions so a statement prints as a document, and
+  swaps the dark tokens for white paper and dark ink: a printer drops
+  backgrounds, and near-white ink on a dropped black page prints nothing.
 
 ## Working practice
 
@@ -431,9 +447,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **A brochure site nobody can find is not finished.** The site carries
   `robots.txt`, a `sitemap.xml` of exactly the three indexable pages, canonical
   URLs on all three, Open Graph + Twitter cards, and JSON-LD (Organization ·
-  WebSite · SoftwareApplication). The share card `og.png` is **drawn from the
-  page's own sprite** by `design/og_image.py`, so it cannot drift from the mark
-  — re-run it after any change to the logo. The structured data states only
+  WebSite · SoftwareApplication). The share card `og.png` is **drawn by
+  `design/logo-en/build.py`** from the logo kit (the lockup, «المهلب كود ·
+  شركة برمجة وأنظمة» in Cairo, the address in JetBrains Mono), so it cannot
+  drift from the mark; its `--check` re-renders it. The structured data states only
   facts already on the page: the real channels, النوخذة at 0 KWD, and
   **never an aggregateRating** — invented review markup earns a manual action.
   The six non-public pages carry `noindex`, and the suite fails if the sitemap
@@ -445,7 +462,11 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   الاصطناعي · تصميم UI/UX · الحلول السحابية · **تطوير الألعاب**, added at the
   owner's request 2026-08-13), each asserted to appear verbatim on the page, and the two
   inner pages carry a `BreadcrumbList`.
-- `design/instagram_covers.py` draws the whole Instagram set from the page
+- **Retired with the boum (2026-10-07)**: `design/instagram_covers.py` now
+  exits rather than draw the old mark; redraw it from the logo-en kit (the
+  monogram was judged in a circle at 150/110/44/32px for exactly this) before
+  it is used again. What it did, and the lessons that still hold:
+  it drew the whole Instagram set from the page
   sprite (1080×1080, brown fill, white mark) — `design/instagram/`: twelve
   highlight covers **and the account's profile picture** (`profile-dp`). The DP
   is sized differently on purpose — a cover is one of twelve read at ~64px under
@@ -476,14 +497,19 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   first-line `<!-- @dsCard group="…" -->` marker, so the folder uploads to
   Claude Design unchanged once a design-system authorization exists (it needs
   `/design-login`, which wants an interactive terminal — not available in the
-  web container). Three traps, all hit while building it: extraction must be
+  web container). The marks are **copied** from the site's own files
+  (`logo.svg`, the monogram, the anchor) and shown as images, so no mark is
+  redrawn and two copies of one SVG cannot fight over their ids. Three traps, all hit while building it: extraction must be
   scoped to `<style>` blocks or a line of **JavaScript** gets swept in
   (`ev.target.closest(".btn.primary")` parses as a rule) and one syntax error
   silently voids every rule after it; a selector must be matched anywhere in
   the selector *list*, since the base button is written `nav.site a, .btn {`;
   and `.btn.danger` lives in `admin.html`, not on the company page. Pinned by
   `--check` in the suite.
-- `design/logo_pack.py` builds `design/logo-pack/` — the 39-file delivery pack a
+- **Retired with the boum (2026-10-07)**: `design/logo_pack.py` exits rather
+  than build a pack of the old mark; the logo-en kit (SVG and 4096px PNG on
+  three grounds) is the delivery pack now. What it built:
+  `design/logo-pack/`, the 39-file delivery pack a
   printer or a partner asks for: SVG in brown/white/black for both forms, the
   gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing
   clear space (height ÷ 4), the minimum sizes (wide 90px/20mm, square 16px) and
@@ -499,9 +525,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   plus 4096px (2048 square) PNG. Every letter is an outline shaped with
   HarfBuzz from the bundled OFL fonts, and each PNG is rasterised from its
   SVG; `--check` compares the SVGs as text **and re-renders every PNG** to
-  compare pixels, and the suite runs it. It is a design asset beside the
-  site, not the site's mark: the masthead keeps the boum and «المهلب» in
-  Reem Kufi. Traps a two-round review caught, all fixed and measured: a
+  compare pixels, and the suite runs it. Since the dark theme it is also the
+  site's mark (see the identity table): it writes `logo.svg`, `favicon.svg`,
+  the inline masthead logo, the touch icon, `logo-512.png` and `og.png`, and
+  `og.png` refuses to draw if its fonts fail to load. Snapping the stripes
+  for the masthead once chained, dragging both edges of a band onto one flat
+  letter edge until it vanished: each edge now snaps to its nearest single
+  flat edge, and a snap that changes a band by more than ±40% is refused.
+  Traps a two-round review caught, all fixed and measured: a
   `<pattern>` stripe fill is resampled and leaves see-through seams inside
   the letters (use solid fill plus clipped band rects); a rounded PNG height
   letterboxes the ground and leaves the edge rows of an "opaque" PNG partly

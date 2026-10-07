@@ -127,6 +127,14 @@ README = """# حزمة شعار المهلب كود — Almuhallab Code logo pac
 """
 
 
+
+# RETIRED (2026-10-07): the company flies the English logo, and its marks are
+# built by design/logo-en/build.py. This script draws the retired boum; run as
+# it stands it would mix the two identities, so it refuses.
+if __name__ == "__main__":
+    import sys as _sys
+    _sys.exit("retired: the company's marks are built by design/logo-en/build.py")
+
 def main():
     from playwright.sync_api import sync_playwright
 

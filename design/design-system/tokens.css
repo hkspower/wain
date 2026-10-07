@@ -30,47 +30,48 @@
 @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("../fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family:"Reem Kufi"; font-style:normal; font-weight:700;
-      font-display:swap; src:url("../fonts/reemkufi-700.woff2") format("woff2"); }
-@font-face { font-family:"Share Tech Mono"; font-style:normal; font-weight:400;
-      font-display:swap; src:url("../fonts/sharetechmono-400.woff2") format("woff2"); }
+@font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("../fonts/chakrapetch-600.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("../fonts/chakrapetch-700.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800;
+      font-display:swap; src:url("../fonts/jetbrainsmono-latin.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
 :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
-      color-scheme: light;   /* the site is white on every device, dark preference included */
-      --bg: #ffffff;
-      --panel: #ffffff;
-      --panel-2: #f1f4f8;
-      --border: #d0d7e1; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
-      --text: #1b2430;
-      --muted: #434d55;
-      --tint: #33383f;
-      --tint-strong: #25292f;
-      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
-         on it used to be white at an alpha, and an alpha is not a colour: it
-         composites against whatever is underneath and the result is a value
-         nobody solved. Over #25292f the .82 tagline resolved to #e5dcd6 — a
-         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
-         own no-beige rule, invisible to the existing check because that check
-         reads declared surface tokens and this was a composited ink. And the
-         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
-         for a boundary you have to see in order to click. */
-      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
-      --on-bar-bd: #8a919a;     /* the only boundary for a control on it · 4.51:1 */
-      --on-bar-fill: #454b54;
-
-      /* FOUR RADII, AND EACH HAS A JOB. There were ten — 2, 7, 8, 9, 10, 11,
-         12, 14, 16 and 50% — over seventy-seven declarations, with 7px, 9px,
-         10px and 11px each appearing exactly once or twice. That is not a
-         system, it is the residue of seventy-seven separate decisions, and at
-         a glance it reads as a page whose corners never agree.
-           999px  pills and discs        12px  every card, panel and tile
-             8px  anything you touch      2px  the flow wires' hairline caps
-         50% is gone: every element carrying it was square, where 50% and
-         999px are the same curve — but on anything that later stops being
-         square they stop being the same, silently. */   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
-      --sand: #7c4403;   /* warnings only · 7.8:1 on white */
-      --danger: #ce1925;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      color-scheme: dark;   /* one dark theme on every device: the logo's own ground */
+      /* THE LOGO'S THEME (owner's approval, 2026-10-07): the near-black ground
+         of the English logo, its amber, its white. Every value is solved in
+         OKLCH against WCAG, never picked by eye. The surfaces lift the ground's
+         own lightness at its own hue, so they stay near-neutral (red minus blue
+         at most 3: no brown paper). On a dark page the binding surface is the
+         LIGHTEST one an ink can land on, so every ink is graded on panel-3. */
+      --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
+      --border: #363534;        /* card and rule hairlines: decoration, not a control's edge */
+      --border-input: #76706a;  /* a field's edge, 3.21:1 on panel-3 */
+      --text: #ececec;          /* 13.29:1 on panel-3 */
+      --muted: #a8aeb5;         /* 7.02:1 on panel-3 */
+      --tint: #e6a95c;          /* the logo's amber: links, focus, accents, 7.62:1 on panel-3 */
+      --tint-hover: #fabc6f;    /* the amber one step lighter, for a hovered amber fill */
+      --on-tint: #0a0908;       /* ink on an amber fill, 9.66:1. White on amber is 2.06:1 */
+      --stripe: #7f5d33;        /* the logo's dark band: the amber at 55% */
+      --tint-strong: #0a0908;   /* the bar: the logo's ground. theme-color matches it */
+      --on-bar: #f4f4f4;        /* every label on the bar, 18.09:1 */
+      --on-bar-bd: #79736c;     /* the only edge of a control on the bar, 4.25:1 */
+      --on-bar-fill: #272625;   /* hover and active fill on the bar, its labels 13.73:1 */
+      --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
+      --good: #37b671; --danger: #f37e77; --info: #66a3f0;   /* each 6:1 on panel-3 */
+      --warn-bg: #141211;
+      /* charts: one amber ramp, every step at least 2:1 on the card, monotone
+         in lightness so later steps carry more ink */
+      --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
+      --viz-pos: #37b671; --viz-neg: #f37e77; --viz-zero: #64615e; --viz-grid: #2c2b2a;
+      /* type: Cairo for Arabic everywhere. The logo's own Latin faces carry
+         Latin-only ranges, so Arabic in the same element falls through to Cairo */
+      --display: "Chakra Petch", "Cairo", system-ui, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Cairo", monospace;
       --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
 }
 
@@ -80,13 +81,14 @@ body { margin: 0; background: var(--bg); color: var(--text);
 /* the site's own link reset — without it every button here is underlined,
    which would be the card inventing a difference the site does not have */
 a { color: var(--tint); text-decoration: none; }
-.ds-head { background: var(--tint-strong); color: #fff; padding: 24px 32px; }
+.ds-head { background: var(--tint-strong); color: var(--on-bar); padding: 24px 32px;
+  border-bottom: 1px solid var(--on-bar-fill); }
 .ds-head h1 { margin: 0; font-size: 22px; line-height: 1.4; }
-.ds-head p { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,.82); }
+.ds-head p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .ds-body { padding: 32px; display: grid; gap: 24px; }
 .ds-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
 .ds-note { color: var(--muted); font-size: 13px; margin: 0; }
-.ds-panel { background: var(--panel-2); border: 1px solid var(--border);
+.ds-panel { background: var(--panel); border: 1px solid var(--border);
   border-radius: 12px; padding: 20px; }
 table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 th, td { padding: 12px 16px; text-align: start; border-bottom: 1px solid var(--border); }
@@ -94,7 +96,7 @@ th { background: var(--panel-2); font-weight: 800; }
 /* A hex value or a token name is LTR text sitting in an RTL paragraph, and
    its leading `#` or `--` is bidi-neutral: it drifts to whichever side the
    paragraph pulls it. Rendered, `#ce1925` came out as `ce1925#` while
-   `#7a4418` did not — the resolution depends on whether the first character
+   `#7a4418` did not: the resolution depends on whether the first character
    after it is a letter or a digit. Isolate them and it stops being luck. */
 code { font-family: var(--mono); font-size: 12.5px;
   direction: ltr; unicode-bidi: isolate; }

@@ -7,7 +7,7 @@
   <meta name="referrer" content="no-referrer" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#25292f" />
+  <meta name="theme-color" content="#0a0908" />
   <!-- Preload every weight the masthead and the first screen actually render,
        measured rather than assumed. Without this the browser cannot know a
        font exists until it has parsed ~220 lines of inline CSS, so each file
@@ -24,7 +24,7 @@
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
        every device instead of depending on what the OS happens to have.
-       Arabic subset only; Latin and digits stay on the system face. */
+       Arabic subset only; Cairo's Latin file and the logo's faces below carry the rest. */
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:400;
       font-display:swap; src:url("fonts/cairo-400.woff2") format("woff2");
       unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
@@ -59,33 +59,52 @@
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    /* The logo's Latin faces (design/site_fonts.py): Chakra Petch for the
+       Latin half of a display line, JetBrains Mono for figures, handles and
+       the ">_" prompt. Latin-only subsets with Cairo's Latin range, so they
+       claim no Arabic and Cairo keeps every Arabic letter. SIL OFL. */
+    @font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/chakrapetch-600.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    @font-face { font-family:"Chakra Petch"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/chakrapetch-700.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+    @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800;
+      font-display:swap; src:url("fonts/jetbrainsmono-latin.woff2") format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
     :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
-      color-scheme: light;   /* the site is white on every device, dark preference included */
-      --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
-      --border: #d0d7e1; --border-input: #7c858c;
-      --text: #1b2430; --muted: #434d55;
-      --tint: #33383f; --tint-strong: #25292f;
-      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
-         on it used to be white at an alpha, and an alpha is not a colour: it
-         composites against whatever is underneath and the result is a value
-         nobody solved. Over #25292f the .82 tagline resolved to #e5dcd6 — a
-         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
-         own no-beige rule, invisible to the existing check because that check
-         reads declared surface tokens and this was a composited ink. And the
-         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
-         for a boundary you have to see in order to click. */
-      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
-      --on-bar-bd: #8a919a;     /* the only boundary for a control on it · 4.51:1 */
-      --on-bar-fill: #454b54;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
-      --sand: #7c4403;   /* warnings only · 7.8:1 on white */
-      --good: #02783d; --danger: #ce1925; --info: #1964ce; --warn-bg: #ffffff;
-      /* ordinal ramp — one hue, monotone lightness, every step >= 2:1 on the card */
-      --ord-1: #a3abb4; --ord-2: #838c96; --ord-3: #656e79; --ord-4: #4a525c; --ord-5: #30363d;
-      /* diverging — two poles + a neutral midpoint; sign is also carried by direction + label */
-      --viz-pos: #02783d; --viz-neg: #ce1925; --viz-zero: #acb4bf;
-      --viz-grid: #dee4ec;
+      color-scheme: dark;   /* one dark theme on every device: the logo's own ground */
+      /* THE LOGO'S THEME (owner's approval, 2026-10-07): the near-black ground
+         of the English logo, its amber, its white. Every value is solved in
+         OKLCH against WCAG, never picked by eye. The surfaces lift the ground's
+         own lightness at its own hue, so they stay near-neutral (red minus blue
+         at most 3: no brown paper). On a dark page the binding surface is the
+         LIGHTEST one an ink can land on, so every ink is graded on panel-3. */
+      --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
+      --border: #363534;        /* card and rule hairlines: decoration, not a control's edge */
+      --border-input: #76706a;  /* a field's edge, 3.21:1 on panel-3 */
+      --text: #ececec;          /* 13.29:1 on panel-3 */
+      --muted: #a8aeb5;         /* 7.02:1 on panel-3 */
+      --tint: #e6a95c;          /* the logo's amber: links, focus, accents, 7.62:1 on panel-3 */
+      --tint-hover: #fabc6f;    /* the amber one step lighter, for a hovered amber fill */
+      --on-tint: #0a0908;       /* ink on an amber fill, 9.66:1. White on amber is 2.06:1 */
+      --stripe: #7f5d33;        /* the logo's dark band: the amber at 55% */
+      --tint-strong: #0a0908;   /* the bar: the logo's ground. theme-color matches it */
+      --on-bar: #f4f4f4;        /* every label on the bar, 18.09:1 */
+      --on-bar-bd: #79736c;     /* the only edge of a control on the bar, 4.25:1 */
+      --on-bar-fill: #272625;   /* hover and active fill on the bar, its labels 13.73:1 */
+      --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
+      --good: #37b671; --danger: #f37e77; --info: #66a3f0;   /* each 6:1 on panel-3 */
+      --warn-bg: #141211;
+      /* charts: one amber ramp, every step at least 2:1 on the card, monotone
+         in lightness so later steps carry more ink */
+      --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
+      --viz-pos: #37b671; --viz-neg: #f37e77; --viz-zero: #64615e; --viz-grid: #2c2b2a;
+      /* type: Cairo for Arabic everywhere. The logo's own Latin faces carry
+         Latin-only ranges, so Arabic in the same element falls through to Cairo */
+      --display: "Chakra Petch", "Cairo", system-ui, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Cairo", monospace;
       --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
 
     * { box-sizing: border-box; }
@@ -99,8 +118,9 @@
       width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
       border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px;
     }
-    .gate .mark { color: #fff; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
-      background: linear-gradient(135deg, var(--on-bar-fill), var(--tint-strong)); font-size: 22px; }
+    /* النوخذة's amber anchor on one surface step up, as on the bar's tile */
+    .gate .mark { color: var(--tint); width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--panel-3); border: 1px solid var(--border); font-size: 22px; }
 
     label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
     input, select {
@@ -108,22 +128,29 @@
       color: var(--text); padding: 8px 12px; font-size: 14px; font-family: var(--sans); outline: none; width: 100%;
     }
     input:focus, select:focus { border-color: var(--tint); }
+    input::placeholder { color: var(--muted); opacity: 1; }
     .err { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
     .note { font-size: 12.5px; color: var(--muted); line-height: 1.75; margin: 0; }
 
     .btn {
       font-size: 14px; line-height: var(--lh-ui); font-weight: 700; border-radius: 8px; padding: 12px 16px;
-      border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border-input); background: var(--panel-2); color: var(--text);
     }
-    .btn.primary { background: var(--tint-strong); border-color: transparent; color: #fff; }
-    .btn.danger { color: var(--danger); }
+    /* amber fill, near-black ink: white on the amber is 2.06:1 */
+    .btn.primary { background: var(--tint); border-color: var(--tint); color: var(--on-tint); }
+    /* outlined, never a red fill under light ink */
+    .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
     .btn.sm { padding: 6px 12px; font-size: 12px; }
-    /* states, the same on every page: a hover that can be seen (opacity .88
-       moved a grey fill 1.01:1 — invisible), a disabled that still reads */
-    .btn:hover { background: var(--border); border-color: var(--border-input); }
-    .btn.primary:hover { background: var(--tint); }
+    /* states, the same on every page: a hover that can be seen (a fill step
+       alone is about 1.1:1 on this dark ground, so the edge turns amber), a
+       disabled that still reads and does not answer the pointer */
+    .btn:hover { background: var(--panel-3); border-color: var(--tint); }
+    .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
+    .btn.danger:hover { background: var(--panel-3); border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
-    .btn:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    .btn:disabled:hover { background: var(--panel-2); border-color: var(--border-input); }
+    .btn.danger:disabled:hover { background: transparent; border-color: var(--danger); box-shadow: none; }
+    .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
     nav.tabs button:hover { color: var(--tint); background: var(--panel-2); }
     nav.tabs button:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
     header .btn:focus-visible, nav.site .btn:focus-visible { outline-color: var(--on-bar); }
@@ -137,25 +164,26 @@
     /* a display rule on label or .btn must never resurrect a [hidden] one:
        label is display:flex here, so #lbl-confirm showed outside setup */
     [hidden] { display: none !important; }
-    /* a checkbox feeds the bulk delete — 24px, the floor for any control */
-    input.tick { width: 24px; height: 24px; padding: 0; margin: 0; accent-color: var(--tint-strong); }
+    /* a checkbox feeds the bulk delete — 24px, the floor for any control.
+       Amber, or a near-black tick vanishes into the dark field */
+    input.tick { width: 24px; height: 24px; padding: 0; margin: 0; accent-color: var(--tint); }
 
     /* ---------- shell ---------- */
     .shell { display: none; }
     .shell.on { display: block; }
     /* One shell for the whole site — header, nav and footer are identical on
        every page; only what sits between them changes. */
-    /* The masthead is brown on every page (owner's request, 2026-07-31) — one
-       shell across the site. It is the only brown *surface*; everything below
-       stays white. White on --tint-strong measures 8.7:1. These app screens
-       keep their row layout so the nav and tabs stay within reach; the company
-       page centres its mark. */
+    /* The masthead is the logo's own near-black ground on every page, one
+       shell across the site, with a hairline to the dark page below it.
+       --on-bar measures 18.09:1 on it. These app screens keep their row
+       layout so the nav and tabs stay within reach; the company page centres
+       its mark. The anchor tile carries النوخذة's amber. */
     header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
       background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
     .brand .logo { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
-      font-size: 17px; background: var(--on-bar-fill); color: var(--on-bar); }
+      font-size: 17px; background: var(--on-bar-fill); color: var(--tint); }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
     .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
@@ -165,17 +193,20 @@
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
     nav.site .btn { color: var(--on-bar); border-color: var(--on-bar-bd); background: transparent; }
-    nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
-    /* the brand red measures 1.6:1 on the brown bar — unreadable. On this
-       surface the logout control is white like its neighbours; the word
-       خروج carries the meaning, and the danger red stays for in-page use. */
     /* the refresh and logout controls sit directly in the header, outside
-       nav.site: on the brown bar they invert too. The brand red measures
-       1.6:1 against this brown, so خروج is outlined white here and the
+       nav.site: on the bar they are outlined in the bar's own light ink. Red
+       never sits on the bar; the word خروج carries the meaning, and the
        danger red stays for in-page use. */
     header > .btn, header > .btn.danger, nav.site .btn, nav.site .btn.danger {
       background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
-    header > .btn:hover, nav.site .btn:hover { background: var(--on-bar-fill); }
+    /* a hover on the bar lifts the fill and lights the edge, in the bar's ink:
+       never the page's amber edge, never the danger ring */
+    header > .btn:hover, header > .btn.danger:hover, nav.site .btn:hover, nav.site .btn.danger:hover {
+      background: var(--on-bar-fill); color: var(--on-bar); border-color: var(--on-bar); box-shadow: none; }
+    /* the one call to action on the bar is amber with near-black ink: white
+       on amber is 2.06:1 */
+    nav.site .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
+    nav.site .btn.primary:hover { background: var(--tint-hover); color: var(--on-tint); border-color: var(--tint-hover); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
     .topbar { position: sticky; top: 0; z-index: 20; }
@@ -203,7 +234,12 @@
     /* ---------- tiles ---------- */
     .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(186px, 1fr)); gap: 12px; }
     .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
-    .tile .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; white-space: nowrap; }
+    /* figures are set in the logo's mono, .6em a character: a signed
+       seven-digit figure (14 characters) at 18px is 151px, inside the
+       narrowest tile's 154px (186 less its 32px of padding). 20px overran
+       it by 15px at 1024 wide */
+    .tile .n { font-family: var(--mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+      line-height: 1.35; white-space: nowrap; }
     .tile .n small { font-size: 13px; font-weight: 700; color: var(--muted); margin-inline-start: 3px; }
 
     /* A SIGNED FIGURE IS AN LTR RUN. Measured in the browser: «+0.000» in a
@@ -236,9 +272,9 @@
 
     #tip {
       position: fixed; pointer-events: none; opacity: 0; transition: opacity .12s;
-      background: var(--panel); border: 1px solid var(--border-input); border-radius: 8px;
+      background: var(--panel-3); border: 1px solid var(--border-input); border-radius: 8px;
       padding: 6px 12px; font-size: 12.5px; font-weight: 600; z-index: 60;
-      box-shadow: 0 6px 20px rgba(0,0,0,.18); white-space: nowrap;
+      white-space: nowrap;   /* lifted by its surface and edge: a dark shadow shows nothing here */
     }
     #tip.on { opacity: 1; }
     #tip b { font-variant-numeric: tabular-nums; }
@@ -256,17 +292,21 @@
     .table-wrap.more { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), rgba(0,0,0,.12));
       mask-image: linear-gradient(to left, #000 calc(100% - 40px), rgba(0,0,0,.12)); }
     /* a keyboard journey starts at the content, not seven stops of chrome */
-    .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint-strong);
-      color: #fff; padding: 8px 12px; border-radius: 8px; font-weight: 700; }
-    .skip:focus { top: 8px; outline: 2px solid #fff; outline-offset: 2px; }
+    .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint);
+      color: var(--on-tint); padding: 8px 12px; border-radius: 8px; font-weight: 700; }
+    .skip:focus { top: 8px; outline: 2px solid var(--on-bar); outline-offset: 2px; }
     main:focus, [tabindex="-1"]:focus { outline: none; }
 
     th.sortable:hover { color: var(--tint); }
-    tbody tr:hover { background: var(--panel-3); }
+    tbody tr:hover { background: var(--panel-2); }
     tr:last-child td { border-bottom: 0; }
-    td.num { font-variant-numeric: tabular-nums; }
+    /* order ids, dates, counts and amounts are figures: the logo's mono. A
+       signed profit is an LTR run, as in the tiles: in the RTL row «+12.000»
+       painted «12.000+». The explicit text-align above keeps it right-aligned */
+    td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+    /* a status keeps its semantic ink as text and edge, on a recessed fill */
     .pill { display: inline-block; font-size: 12px; font-weight: 800; border-radius: 999px;
-      padding: 4px 8px; border: 1px solid currentColor; }
+      padding: 4px 8px; border: 1px solid currentColor; background: var(--panel-2); }
     .pos { color: var(--good); } .neg { color: var(--danger); } .dim { color: var(--muted); }
     .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13.5px; }
     .rowacts { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -275,13 +315,17 @@
       align-items: start; }     /* a short card no longer stretches to its tall neighbour */
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px; }
     .card h3 { margin: 0 0 8px; font-size: 14.5px; }
+    /* a settled fact, as on the system page: a card edged in its status ink */
+    .check { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: 13.5px;
+      line-height: 1.85; margin: 12px 0; background: var(--panel); }
+    .check.ok { border-color: var(--good); color: var(--good); }
 
     .audit { max-height: 340px; overflow-y: auto; font-size: 12.5px; }
     .audit div { padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
     .audit time { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
 
     #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(16px);
-      background: var(--tint-strong); color: #fff; padding: 8px 16px; border-radius: 999px;
+      background: var(--panel-3); color: var(--text); border: 1px solid var(--tint); padding: 8px 16px; border-radius: 999px;
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 80; }
     #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -298,7 +342,8 @@
       nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30; gap: 0;
         border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
         padding-bottom: env(safe-area-inset-bottom, 0px);
-        box-shadow: 0 -1px 8px rgba(11, 18, 32, .06); overflow: visible; }
+        background: var(--panel);   /* set off by its edge: a dark shadow shows nothing here */
+        overflow: visible; }
       nav.tabs button { flex: 1 1 auto; min-width: 0; border-bottom: 0; border-top: 2px solid transparent;
         font-size: 12px; padding: 6px 4px; min-height: 52px; line-height: 1.75; }
       nav.tabs button.on { border-top-color: var(--tint); }
@@ -310,10 +355,10 @@
       .btn.sm { min-height: 34px; }
       /* two figures a row where they fit, as on the system page */
       .tiles { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
-      /* a signed 7-digit figure («+1,234,567.890», 144px at 21px) overran a
-         half-width tile by 9px: 12px sides and a 20px figure hold it with room */
+      /* a signed 7-digit figure («+1,234,567.890») must fit a half-width
+         tile: 12px sides and the mono at 17px, drawn in a touch, hold it */
       .tile { padding: 12px; }
-      .tile .n { font-size: 20px; }
+      .tile .n { font-size: 17px; letter-spacing: -.02em; }
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
     }
     /* iOS zooms on focus into any field under 16px — on a landscape phone and

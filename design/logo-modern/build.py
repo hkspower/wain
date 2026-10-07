@@ -75,7 +75,12 @@ def ship_svg():
 
 
 def font(name):
-    return base64.b64encode((ROOT / "almuhallab/fonts" / name).read_bytes()).decode()
+    # the retired wordmark faces live beside this project since the site
+    # moved to the logo's own type (2026-10-07); Cairo stays with the site
+    path = HERE / "fonts" / name
+    if not path.exists():
+        path = ROOT / "almuhallab/fonts" / name
+    return base64.b64encode(path.read_bytes()).decode()
 
 
 def page(layout, ship):

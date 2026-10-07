@@ -18,7 +18,7 @@ inside it, entered at `/nokhatha` — not the front door.
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the portal |
-| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg`, `favicon.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company mark (the boum) |
+| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg`, `favicon.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company marks (the English logo and its AC monogram, written by `design/logo-en/build.py`) |
 | `SECURITY.md` | security measures and their limits |
 
 ## النوخذة — the portal (`/nokhatha`)
@@ -164,11 +164,12 @@ visitor's OS happens to have installed.
 python3 design/test_suite.py     # 467 checks, exits non-zero on failure
 ```
 
-Covers the **pinned Almuhallab identity** (the boum mark, the المهلب wordmark,
-the brown ink values in both themes, white surfaces, and the real contact
-channels — these are final and the suite fails on any drift), the company/product
+Covers the **pinned Almuhallab identity** (the English logo and AC monogram,
+the logo's amber and near-black values, the one dark theme, the logo's faces,
+and the real contact channels — these are final and the suite fails on any
+drift), the company/product
 split (the root is the company site and carries no
-account UI), token consistency and contrast in both themes, SAFI/XBRL/delivery
+account UI), token consistency and contrast, SAFI/XBRL/delivery
 arithmetic against hand-computed expectations, the cross-module derivation
 (portfolio value → non-current assets, delivered orders → revenue), XBRL well-formedness and fact
 values, authentication (hashing, lockout, suspension, session expiry), XSS and

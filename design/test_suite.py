@@ -225,24 +225,22 @@ def static_checks():
     check(S, "no em dash on any page, in the manifest or llms.txt (the scan sees a planted one, skips comments)",
           len(planted) == 1 and not bad, " | ".join(bad[:3]) or str(planted))
 
-    # every page carries the same token set, light and dark
-    def tokens(src, dark=False):
-        pat = (r"prefers-color-scheme: dark\)\s*\{\s*:root\s*\{(.*?)\}" if dark
-               else r":root\s*\{(.*?)\}")
-        m = re.search(pat, src, re.S)
+    # every page carries the same token set: one dark theme (owner's approval,
+    # 2026-10-07), the logo's ground, amber and white
+    def tokens(src):
+        m = re.search(r":root\s*\{(.*?)\}", src, re.S)
         return dict(re.findall(r"--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})", m.group(1))) if m else {}
-    light = {p: tokens(t) for p, t in texts.items()}
+    theme = {p: tokens(t) for p, t in texts.items()}
     CORE = ["bg", "panel", "panel-2", "panel-3", "border", "border-input",
-            "text", "muted", "tint", "tint-strong", "sand", "good", "danger", "info"]
-    for label, sets in (("light", light),):
-        keys = sorted({k for d in sets.values() for k in d})
-        # a token defined on two pages must hold the same value on both
-        conflict = [k for k in keys if len({d[k] for d in sets.values() if k in d}) > 1]
-        check(S, f"{label}: no token holds different values across pages",
-              not conflict, f"conflicting: {conflict[:6]}")
-        missing = {p: [c for c in CORE if c not in d] for p, d in sets.items()}
-        missing = {p: v for p, v in missing.items() if v}
-        check(S, f"{label}: every page defines the core token set", not missing, str(missing))
+            "text", "muted", "tint", "tint-hover", "on-tint", "stripe", "tint-strong",
+            "on-bar", "on-bar-bd", "on-bar-fill", "sand", "good", "danger", "info"]
+    keys = sorted({k for d in theme.values() for k in d})
+    # a token defined on two pages must hold the same value on both
+    conflict = [k for k in keys if len({d[k] for d in theme.values() if k in d}) > 1]
+    check(S, "theme: no token holds different values across pages", not conflict, f"conflicting: {conflict[:6]}")
+    missing = {p: [c for c in CORE if c not in d] for p, d in theme.items()}
+    missing = {p: v for p, v in missing.items() if v}
+    check(S, "theme: every page defines the core token set", not missing, str(missing))
 
     # no undefined custom properties, and every script parses
     for p, t in texts.items():
@@ -251,96 +249,108 @@ def static_checks():
         check(S, f"{p}: no undefined CSS variables", not undefined, str(undefined[:5]))
         check(S, f"{p}: has a Content-Security-Policy", "Content-Security-Policy" in t)
 
-    # the no-beige rule, enforced numerically: light surfaces must not be warm
-    L = light["index.html"]
+    # NO BROWN PAPER. The old rule was "no beige": a light surface with red
+    # above blue reads as cream. Its dark twin is a near-black that creeps
+    # brown, and lifting the logo's slightly warm ground at its own hue is
+    # exactly how one gets made (#14110e sits at the edge). Surfaces, the
+    # bar included, stay near-neutral, numerically.
+    L = theme["index.html"]
     warm = []
-    for tok in ("bg", "panel", "panel-2", "panel-3", "border"):
+    for tok in ("bg", "panel", "panel-2", "panel-3", "border", "tint-strong", "on-bar-fill"):
         r, g, b = _rgb(L[tok])
-        if r > b + 6:                       # red meaningfully above blue == a warm/cream cast
+        if r > b + 6:                       # red meaningfully above blue == a brown cast
             warm.append(f"{tok}={L[tok]}")
-    check(S, "light surfaces are not beige (no warm cast)", not warm, ", ".join(warm))
+    check(S, "dark surfaces are near-neutral (no brown cast)", not warm, ", ".join(warm))
 
-    # NO BEIGE, COMPUTED — NOT DECLARED. The check above reads five DECLARED
-    # surface tokens, so it could never see the beige the site actually shipped:
-    # the masthead tagline and البحار's second line were rgba(255,255,255,.82)
-    # over #6f3f1c, which composites to #e5dcd6 — red thirteen above blue,
-    # luminance 0.74, a beige — and the البحار pill's outline composited to
-    # #a98c77 at 2.79:1, under the boundary floor. An alpha is not a colour:
-    # it is a promise to become one against whatever turns out to be behind it.
-    # So every white alpha that lands on the brown ground is composited here
-    # and judged as the ink or boundary it becomes.
-    BROWN = L["tint-strong"]
-    def _over(alpha, bg):
-        f, b = _rgb("#ffffff"), _rgb(bg)
-        return "#%02x%02x%02x" % tuple(round(f[i] * alpha + b[i] * (1 - alpha))
-                                       for i in range(3))
+    # AN ALPHA IS NOT A COLOUR: it is a promise to become one against whatever
+    # turns out to be behind it. On the old brown bar a white .82 tagline
+    # composited to a beige at 6.47:1. Every translucent fill or ink that lands
+    # on the bar (white or amber) is composited over the bar's real ground and
+    # judged as the colour it becomes: never a brown surface, never a beige ink.
+    BAR = L["tint-strong"]
+    def _over(fg, alpha, bg):
+        f, b = _rgb(fg), _rgb(bg)
+        return "#%02x%02x%02x" % tuple(round(f[i] * alpha + b[i] * (1 - alpha)) for i in range(3))
     composited = []
     for page, txt in texts.items():
         styles = "".join(re.findall(r"<style[^>]*>(.*?)</style>", txt, re.S))
-        for decl in re.findall(r"[^;{}\n]*rgba\(\s*255\s*,\s*255\s*,\s*255\s*,"
+        for decl in re.findall(r"[^;{}\n]*rgba\(\s*(?:255\s*,\s*255\s*,\s*255|230\s*,\s*169\s*,\s*92)\s*,"
                                r"\s*(?:0?\.\d+)\s*\)[^;{}\n]*", styles):
-            if ".rip" in decl or "railwrap" in decl or "gradient" in decl:
-                continue            # not on the bar: a ripple and two fades over --bg
+            if "gradient" in decl or "shadow" in decl or ".rip" in decl:
+                continue            # a rule, a glow or a ripple: light that fades, not a surface
             if not re.search(r"(?:^|[\s;{])(?:color|background|background-color|"
                              r"border|border-color|border-top|border-bottom|fill|stroke)\s*:", decl):
-                continue            # box-shadow is exempt: a shadow IS a translucent overlay
-            a = float(re.search(r"rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*(0?\.\d+)", decl).group(1))
-            got = _over(a, BROWN)
+                continue
+            m = re.search(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0?\.\d+)", decl)
+            fg = "#%02x%02x%02x" % tuple(int(m.group(i)) for i in (1, 2, 3))
+            got = _over(fg, float(m.group(4)), BAR)
             r, g, b = _rgb(got)
-            if r > b + 6 and lum(got) > 0.35:
-                composited.append(f"{page}: {got} (a={a})")
-    check(S, "no alpha over the brown bar composites to a beige",
+            if r > b + 6 and lum(got) < 0.35:
+                composited.append(f"{page}: {got} ({fg} a={m.group(4)})")
+    check(S, "no alpha over the bar composites to a brown or beige",
           not composited, ", ".join(composited[:4]))
 
-    # the site is white on every device — a dark preference must not repaint it
+    # one dark theme on every device: color-scheme: dark in the token block
+    # (so native selects, date pickers, scrollbars and autofill are dark too),
+    # and no prefers-color-scheme block to repaint it either way
     for p, t in texts.items():
-        check(S, f"{p}: carries no dark-theme override", "prefers-color-scheme: dark" not in t)
-        check(S, f"{p}: declares color-scheme: light", "color-scheme: light" in t)
+        root = re.search(r":root\s*\{(.*?)\}", t, re.S)
+        check(S, f"{p}: carries no colour-scheme override", "prefers-color-scheme" not in t)
+        check(S, f"{p}: declares color-scheme: dark in its tokens",
+              bool(root) and re.search(r"(?:^|[;{\s])color-scheme:\s*dark\s*;", root.group(1)) is not None)
 
-    # contrast, both themes
-    for label, P in (("light", light["index.html"]),):
-        bad = []
-        for ink in ("text", "muted", "tint", "sand", "good", "danger", "info"):
-            for surf in ("panel", "bg", "panel-2", "panel-3"):
-                need = 7.0 if ink == "text" else 4.5
-                r = contrast(P[ink], P[surf])
-                if r < need: bad.append(f"{ink}/{surf}={r:.2f}")
-        check(S, f"{label}: every ink clears contrast on every surface", not bad, ", ".join(bad[:4]))
-        check(S, f"{label}: white on primary button >= 4.5",
-              contrast("#ffffff", P["tint-strong"]) >= 4.5,
-              f"{contrast('#ffffff', P['tint-strong']):.2f}")
-        # THE BINDING GROUND IS THE DARKEST SURFACE THE INK CAN LAND ON.
-        # This check used to name --panel-2 and only --panel-2, where the
-        # border measured 3.04:1 and passed by four hundredths — while the
-        # same border sat on --panel-3 at nizam.html:149 and :177 measuring
-        # 2.80:1, below the floor, for as long as the check existed. A check
-        # that tests the second-darkest surface cannot see the darkest one.
-        worst = min(("panel", "bg", "panel-2", "panel-3"),
-                    key=lambda s: contrast(P["border-input"], P[s]))
-        check(S, f"{label}: field border >= 3:1 on EVERY surface",
-              contrast(P["border-input"], P[worst]) >= 3.0,
-              f"worst is {worst} at {contrast(P['border-input'], P[worst]):.2f}")
+    # contrast. ON A DARK PAGE THE BINDING GROUND IS THE LIGHTEST SURFACE an ink
+    # can land on (panel-3), not the darkest: min() over every surface finds it
+    P = L
+    SURF = ("panel", "bg", "panel-2", "panel-3")
+    bad = []
+    for ink in ("text", "muted", "tint", "sand", "good", "danger", "info"):
+        for surf in SURF:
+            need = 7.0 if ink in ("text", "muted") else 4.5
+            r = contrast(P[ink], P[surf])
+            if r < need: bad.append(f"{ink}/{surf}={r:.2f}")
+    check(S, "theme: every ink clears contrast on every surface", not bad, ", ".join(bad[:4]))
+    # an amber fill carries the ground's ink: white on amber is 2.06:1
+    check(S, "theme: the ink on an amber fill >= 4.5, at rest and hovered",
+          min(contrast(P["on-tint"], P["tint"]), contrast(P["on-tint"], P["tint-hover"])) >= 4.5,
+          f"{contrast(P['on-tint'], P['tint']):.2f} / {contrast(P['on-tint'], P['tint-hover']):.2f}")
+    worst = min(SURF, key=lambda s: contrast(P["border-input"], P[s]))
+    check(S, "theme: field border >= 3:1 on EVERY surface",
+          contrast(P["border-input"], P[worst]) >= 3.0,
+          f"worst is {worst} at {contrast(P['border-input'], P[worst]):.2f}")
+    # warnings are a yellow, the accent an amber: they must be told apart by
+    # lightness as well as hue, or the XBRL audit's warn and sug collapse
+    lw, lt = lum(P["sand"]), lum(P["tint"])
+    check(S, "theme: a warning is visibly not the accent (lightness differs by >= 1.3:1)",
+          (max(lw, lt) + .05) / (min(lw, lt) + .05) >= 1.3, f"{(max(lw, lt) + .05) / (min(lw, lt) + .05):.2f}")
+    # the chart ramp: every step a mark (>= 2:1 on the card), each step more ink than the last
+    ramp = [P.get(f"ord-{i}") for i in range(1, 6)]
+    if all(ramp):
+        cs = [contrast(c, P["panel"]) for c in ramp]
+        check(S, "theme: the chart ramp marks >= 2:1 on the card and rises step by step",
+              min(cs) >= 2.0 and all(b > a for a, b in zip(cs, cs[1:])), str([round(c, 2) for c in cs]))
 
-        # --muted carries running copy — .sub leads, card lines, footer text —
-        # so it is body, and body is 7:1. It was graded at 4.5 above with the
-        # non-body inks and measured 4.67:1 on --panel-3: passing the wrong
-        # floor by a sixth of a point.
-        mworst = min(("panel", "bg", "panel-2", "panel-3"),
-                     key=lambda s: contrast(P["muted"], P[s]))
-        check(S, f"{label}: --muted is body-grade (>= 7:1) on every surface",
-              contrast(P["muted"], P[mworst]) >= 7.0,
-              f"worst is {mworst} at {contrast(P['muted'], P[mworst]):.2f}")
+    # THE BAR IS ITS OWN GROUND with its own ink set: the logo's near-black
+    check(S, "theme: bar ink >= 4.5 on the bar",
+          contrast(P["on-bar"], P["tint-strong"]) >= 4.5, f"{contrast(P['on-bar'], P['tint-strong']):.2f}")
+    check(S, "theme: the amber >= 4.5 on the bar",
+          contrast(P["tint"], P["tint-strong"]) >= 4.5, f"{contrast(P['tint'], P['tint-strong']):.2f}")
+    check(S, "theme: bar control boundary >= 3:1 on the bar",
+          contrast(P["on-bar-bd"], P["tint-strong"]) >= 3.0, f"{contrast(P['on-bar-bd'], P['tint-strong']):.2f}")
+    check(S, "theme: bar ink on the bar's own fill >= 4.5",
+          contrast(P["on-bar"], P["on-bar-fill"]) >= 4.5, f"{contrast(P['on-bar'], P['on-bar-fill']):.2f}")
 
-        # THE BROWN BAR IS A FOURTH GROUND with its own ink set.
-        check(S, f"{label}: bar ink >= 4.5 on the bar",
-              contrast(P["on-bar"], P["tint-strong"]) >= 4.5,
-              f"{contrast(P['on-bar'], P['tint-strong']):.2f}")
-        check(S, f"{label}: bar control boundary >= 3:1 on the bar",
-              contrast(P["on-bar-bd"], P["tint-strong"]) >= 3.0,
-              f"{contrast(P['on-bar-bd'], P['tint-strong']):.2f}")
-        check(S, f"{label}: white on the bar's own fill >= 4.5",
-              contrast("#ffffff", P["on-bar-fill"]) >= 4.5,
-              f"{contrast('#ffffff', P['on-bar-fill']):.2f}")
+    # the redirect stubs and the 404 paint the dark ground before they move
+    # on: a white flash on every redirect of a dark site (none of them is in
+    # PAGES, so nothing measured them)
+    stubs = ["404.html", "safi.html", "xbrl.html", "delivery.html", "nokha1.html"] + \
+            [f"{d}/index.html" for d in ("nokhatha", "nizam", "admin", "safi", "xbrl", "delivery")]
+    light_stub = [n for n in stubs if (ROOT / n).exists() and
+                  not re.search(r"background(?:-color)?\s*:\s*#0a0908", (ROOT / n).read_text())]
+    check(S, "the 404 and every redirect stub paint the dark ground", not light_stub, ", ".join(light_stub))
+    no_scheme = [n for n in stubs if (ROOT / n).exists() and "dark" not in
+                 " ".join(re.findall(r"color-scheme[^;\n>]*", (ROOT / n).read_text()))]
+    check(S, "the 404 and every redirect stub declare a dark colour scheme", not no_scheme, ", ".join(no_scheme))
 
     # links and the service-worker precache must resolve to real files
     broken = []
@@ -429,6 +439,10 @@ def seo_checks():
         check(S, f"{f}: twitter card is the large one",
               'name="twitter:card" content="summary_large_image"' in h)
         check(S, f"{f}: og:image carries alt text", 'property="og:image:alt"' in h)
+        alt = re.search(r'property="og:image:alt" content="([^"]*)"', h)
+        check(S, f"{f}: the share card's alt describes the logo it shows, not the retired boum",
+              bool(alt) and "ALMUHALLAB CODE" in alt.group(1) and "بوم" not in alt.group(1),
+              alt.group(1) if alt else "missing")
         check(S, f"{f}: is not accidentally noindexed", 'name="robots"' not in h)
         title = re.search(r"<title>([^<]*)</title>", h)
         desc = re.search(r'name="description" content="([^"]*)"', h)
@@ -581,90 +595,99 @@ def identity_checks():
     home = (ROOT / "index.html").read_text()
     logo = (ROOT / "logo.svg").read_text()
 
-    # The mark is the pixel boum (owner's decision 2026-09-28, replacing the
-    # stroked boum): the ship's polygons in design/matrix_logo.py, rasterised
-    # by design/pixel_boum.py into the sprite, logo.svg and favicon.svg. The
-    # generator's --check is the signature now: any hand edit to any of the
-    # four places, or any drift between them, fails it.
+    # THE MARK (owner's approval, 2026-10-07): the company flies the English
+    # logo. design/logo-en/build.py outlines it from the bundled OFL fonts and
+    # writes every mark the site serves: the masthead wordmark inline in
+    # index.html, favicon.svg (the AC monogram), logo.svg, the touch icon,
+    # the square logo the structured data names and the share card. Its
+    # --check (run in seo_checks) compares all of it, PNGs pixel by pixel; the
+    # facts below pin what those files must be.
     import subprocess
     import sys as _sys
     _sys.path.insert(0, str(ROOT.parent / "design"))
     import pixel_boum as pb
     import matrix_logo as ml
+    fav = (ROOT / "favicon.svg").read_text()
+    check(S, "logo.svg and favicon.svg are the English logo, written by its generator",
+          "design/logo-en/build.py" in logo and "design/logo-en/build.py" in fav)
+    check(S, "favicon.svg is the AC monogram on the logo's ground, amber and white",
+          'fill="#0a0908"' in fav and "#E6A95C" in fav and "#f4f4f4" in fav and " rx=" in fav)
+    mast = re.search(r"<!-- logo-en:masthead.*?-->(.*?)<!-- /logo-en:masthead -->", home, re.S)
+    check(S, "the masthead flies the outlined wordmark, named for a screen reader",
+          bool(mast) and 'class="logo" role="img"' in mast.group(1)
+          and 'aria-label="المهلب كود · Almuhallab Code"' in mast.group(1) and "<text" not in mast.group(1))
+    check(S, "the masthead's stripes are a whole pixel: three even bands, not the kit's twenty",
+          bool(mast) and len(re.findall(r'<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+"/>', mast.group(1))) == 3)
+    check(S, "the footer and its made-in line carry the AC monogram",
+          'src="favicon.svg"' in home.split("<footer>")[1])
+    check(S, "the retired boum is gone from every page's markup",
+          all("#i-ship" not in (ROOT / q).read_text() for q in PAGES))
+    # The pixel boum (2026-09-28) stays in the sprite as the source the film
+    # and the legacy creatives read; nothing on a page draws it. Its polygons
+    # still assert the four things that made her a boum, so the legacy assets
+    # cannot be regenerated wrong.
     gen = subprocess.run([_sys.executable, str(ROOT.parent / "design" / "pixel_boum.py"), "--check"],
                          capture_output=True, text=True)
-    check(S, "the mark is generated from the ship's one drawing (pixel_boum --check)",
+    check(S, "the legacy pixel boum is generated from the ship's one drawing (pixel_boum --check)",
           gen.returncode == 0, (gen.stdout + gen.stderr).strip())
-    fav = (ROOT / "favicon.svg").read_text()
     wide_d, sq_d = pb.wide_d(), pb.square_d(1.5)
-    # Since 2026-10-03 the company flies the illustrated boum (owner's
-    # approval: logo only, the brown bar kept), drawn over the same polygons;
-    # design/ship_mark.py writes #i-ship, logo.svg and favicon.svg
-    sm_gen = subprocess.run([_sys.executable, str(ROOT.parent / "design" / "ship_mark.py"), "--check"],
-                            capture_output=True, text=True)
-    check(S, "the illustrated boum is generated from one drawing (ship_mark --check)",
-          sm_gen.returncode == 0, (sm_gen.stdout + sm_gen.stderr).strip())
-    check(S, "logo.svg and favicon.svg fly the illustrated boum, white on dark grey",
-          'id="i-ship"' in home and "ship_mark.py" in logo and "ship_mark.py" in fav
-          and "#25292f" in logo and "#25292f" in fav)
-    # Four things make her a boum; each is asserted on the drawing itself.
     tris = [p for p in ml.BOUM if len(p) == 3]
-    check(S, "she carries two filled lateen sails, not bare poles",
+    check(S, "legacy boum: two filled lateen sails, not bare poles",
           len(tris) == 2 and all(min(y for _, y in t) < 0.3 for t in tris))
     masts = [p for p in ml.BOUM if len(p) == 4]
     tops = sorted((min(y for _, y in m), min(x for x, _ in m)) for m in masts)
-    check(S, "the tall mainmast is forward of the short mizzen, as a boum is rigged",
+    check(S, "legacy boum: the tall mainmast is forward of the short mizzen",
           len(masts) == 2 and tops[0][1] < tops[1][1])
     hull = max(ml.BOUM, key=len)
     deck = sorted(y for _, y in hull)[len(hull) // 2]
-    check(S, "she is double-ended: stem and sternpost rise above the deck at both ends",
+    check(S, "legacy boum: double-ended, stem and sternpost rise above the deck",
           min(y for x, y in hull if x < 0.1) < deck and min(y for x, y in hull if x > 0.9) < deck)
     sq_rows = pb.SQUARE
-    check(S, "the square form is a 16×16 bitmap, one cell per pixel at 16px",
-          len(sq_rows) == 16 and all(len(r) == 16 for r in sq_rows))
-    check(S, "the square form keeps a one-cell margin, so the tile's corners clip nothing",
-          sq_rows[0].strip(".") == "" and sq_rows[-1].strip(".") == ""
+    check(S, "legacy boum: the square form is a 16×16 bitmap with a one-cell margin",
+          len(sq_rows) == 16 and all(len(r) == 16 for r in sq_rows)
+          and sq_rows[0].strip(".") == "" and sq_rows[-1].strip(".") == ""
           and all(r[0] == "." and r[-1] == "." for r in sq_rows))
-    check(S, "the masthead and the footer fly the illustrated boum",
-          '<use href="#i-ship"/>' in home.split("<footer>")[0].split('class="brand"')[1]
-          and '<use href="#i-ship"/>' in home.split("<footer>")[1])
-    check(S, "the pixel boum stays in the sprite for what still draws it",
+    check(S, "the legacy pixel boum stays in the sprite for what still reads it",
           'id="i-boum"' in home and 'id="i-sail"' in home and wide_d in home and sq_d in home)
-    check(S, "the wordmark is set in Reem Kufi, Almuhallab Code in Share Tech Mono",
-          re.search(r'\.brand \.name \{[^}]*font-family: "Reem Kufi"', home) is not None
-          and re.search(r'\.brand \.en \{[^}]*font-family: "Share Tech Mono"', home) is not None)
-    for f in ("reemkufi-700.woff2", "sharetechmono-400.woff2"):
-        check(S, f"the wordmark face {f} is bundled, not fetched",
-              (ROOT / "fonts" / f).is_file() and f'fonts/{f}' in home
-              and f'"fonts/{f}"' in (ROOT / "sw.js").read_text())
-    check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
-    check(S, "Almuhallab Code sits on its own line beneath المهلب",
-          '<span class="en">Almuhallab&nbsp;Code</span>' in home
-          and home.index('<span class="name">المهلب</span>') < home.index('<span class="en">'))
 
-    def tok(src, name, dark=False):
-        import re
-        pat = (r"prefers-color-scheme: dark\)\s*\{\s*:root\s*\{(.*?)\}" if dark
-               else r":root\s*\{(.*?)\}")
-        block = re.search(pat, src, re.S).group(1)
-        return re.search(rf"--{name}:\s*(#[0-9a-fA-F]{{6}})", block).group(1)
+    # THE TYPE: the logo's Latin faces, subset and bundled (design/site_fonts.py),
+    # declared on every page with a Latin-only range so Cairo keeps the Arabic
+    sf = subprocess.run([_sys.executable, str(ROOT.parent / "design" / "site_fonts.py"), "--check"],
+                        capture_output=True, text=True)
+    check(S, "the logo's Latin faces are subset from the kit's fonts (site_fonts --check)",
+          sf.returncode == 0, (sf.stdout + sf.stderr).strip())
+    swt = (ROOT / "sw.js").read_text()
+    for f in ("chakrapetch-600.woff2", "chakrapetch-700.woff2", "jetbrainsmono-latin.woff2"):
+        check(S, f"{f} is bundled, declared on every page with a Latin range, and precached",
+              (ROOT / "fonts" / f).is_file() and f'"fonts/{f}"' in swt
+              and all(re.search(rf'url\("fonts/{re.escape(f)}"\) format\("woff2"\);\s*unicode-range: U\+0000-00FF',
+                                (ROOT / q).read_text()) for q in PAGES))
+    check(S, "the retired wordmark faces are gone from the site",
+          not (ROOT / "fonts" / "reemkufi-700.woff2").exists() and not (ROOT / "fonts" / "sharetechmono-400.woff2").exists()
+          and all("Reem Kufi" not in (ROOT / q).read_text() and "Share Tech Mono" not in (ROOT / q).read_text() for q in PAGES))
+    check(S, "the masthead says what the company is, in Arabic, behind the logo's prompt",
+          re.search(r'<small class="term"><span class="pr"[^>]*>&gt;_</span> شركة برمجة وأنظمة', home) is not None)
 
-    PINNED = {"tint": "#33383f", "tint-strong": "#25292f"}
+    def tok(src, name):
+        block = re.search(r":root\s*\{(.*?)\}", src, re.S).group(1)
+        m = re.search(rf"--{name}:\s*(#[0-9a-fA-F]{{6}})", block)
+        return m.group(1).lower() if m else None
+
+    PINNED = {"bg": "#0a0908", "tint": "#e6a95c", "on-tint": "#0a0908", "stripe": "#7f5d33",
+              "tint-strong": "#0a0908", "text": "#ececec"}
     for name, want in PINNED.items():
         got = tok(home, name)
-        check(S, f"--{name} is {want}", got == want, got)
+        check(S, f"--{name} is {want}", got == want, str(got))
+    check(S, "the stripe is the amber at 55%, as on the logo",
+          tok(home, "stripe") == "#%02x%02x%02x" % tuple(round(int(tok(home, "tint")[i:i + 2], 16) * .55) for i in (1, 3, 5)))
 
-    check(S, "the page and its cards stay white",
-          tok(home, "bg") == "#ffffff" and tok(home, "panel") == "#ffffff")
-
-    # the masthead is dark grey on every page — one shell, no divergence (owner's
-    # request, 2026-07-31). It is the only brown surface; the page stays white.
+    # the masthead is the logo's ground on every page: one shell, no divergence
     for p in PAGES:
         t = (ROOT / p).read_text()
-        check(S, f"{p}: the masthead bar is dark grey",
+        check(S, f"{p}: the masthead bar is the logo's ground",
               re.search(r"header\s*\{[^}]*background:\s*var\(--tint-strong\)", t, re.S) is not None)
         check(S, f"{p}: the browser chrome matches it",
-              'name="theme-color" content="#25292f"' in t)
+              'name="theme-color" content="#0a0908"' in t)
 
     for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
         check(S, f"contact channel kept: {want}", want in home)
@@ -830,8 +853,8 @@ def home_checks(pg):
           art and art["faded"] == 0 and art["parts"] >= 12, str(art))
     check(S, "its current animates when motion is allowed",
           art and art["flowing"] == "current", str(art))
-    # `.shape` is the hero's floating geometry and is absolutely positioned:
-    # a card class that collided with it once stacked a whole rail in one cell
+    # a card class that collided with the old hero's absolutely positioned
+    # geometry (`.shape`) once stacked a whole rail in one grid cell
     check(S, "the drawing is in the flow, not absolutely positioned",
           art and not art["absolute"] and not art["overflows"], str(art))
     for heading in ("النوخذة: النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
@@ -1002,38 +1025,38 @@ def home_checks(pg):
           not pg.evaluate(r"/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/u.test(document.body.innerText)"))
     icons = pg.eval_on_selector_all("main use", "n=>n.length")
     check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
-    check(S, "the header carries the Almuhallab mark",
-          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-ship")
-    check(S, "the wordmark reads المهلب",
-          pg.inner_text("header .name").strip() == "المهلب")
+    # the masthead flies the English logo (owner's approval, 2026-10-07):
+    # the outlined wordmark, named for a screen reader, above the terminal line
+    logo = pg.evaluate("""(() => { const l = document.querySelector('header .logo');
+      return l ? [l.tagName, l.getAttribute('role'), l.getAttribute('aria-label') || ''] : null; })()""")
+    check(S, "the header carries the Almuhallab logo, named",
+          bool(logo) and logo[0] == "svg" and logo[1] == "img" and "Almuhallab Code" in logo[2], str(logo))
+    check(S, "the terminal line says what the company is",
+          "شركة برمجة وأنظمة" in pg.inner_text("header .term"))
     centred = pg.evaluate("""(() => {
       const mid = document.querySelector('header').getBoundingClientRect();
       const logo = document.querySelector('header .logo').getBoundingClientRect();
-      const name = document.querySelector('header .name').getBoundingClientRect();
+      const term = document.querySelector('header .term').getBoundingClientRect();
       const cx = mid.left + mid.width / 2;
       return Math.abs((logo.left + logo.width / 2) - cx) < 2
-          && Math.abs((name.left + name.width / 2) - cx) < 2
-          && name.top >= logo.bottom - 1;
+          && Math.abs((term.left + term.width / 2) - cx) < 2
+          && term.top >= logo.bottom - 1;
     })()""")
-    check(S, "the masthead is centred: mark above wordmark on one axis", centred)
-    # the masthead is the site's one brown surface (owner's request 2026-07-31):
-    # sticky, brown, with the mark and wordmark in white
+    check(S, "the masthead is centred: logo above the terminal line on one axis", centred)
     bar = pg.evaluate("""(() => {
-      const h = document.querySelector('header');
-      const cs = getComputedStyle(h);
-      return { pos: cs.position, bg: cs.backgroundColor, top: h.getBoundingClientRect().top,
-               name: getComputedStyle(document.querySelector('header .name')).color,
-               mark: getComputedStyle(document.querySelector('header .logo')).color };
+      const h = document.querySelector('header'), cs = getComputedStyle(h);
+      const inks = [...new Set([...document.querySelectorAll('header .logo [fill]')]
+        .map(e => e.getAttribute('fill')).filter(f => /^#[0-9a-f]{6}$/i.test(f)))];
+      return { pos: cs.position, bg: cs.backgroundColor, top: h.getBoundingClientRect().top, inks };
     })()""")
     check(S, "the masthead is sticky", bar["pos"] == "sticky", bar["pos"])
-    check(S, "the masthead is dark grey", bar["bg"] == "rgb(37, 41, 47)", bar["bg"])
-    check(S, "the wordmark and mark are white on it",
-          bar["name"] == "rgb(255, 255, 255)" and bar["mark"] == "rgb(255, 255, 255)",
-          f'{bar["name"]} / {bar["mark"]}')
-    # white on the brand brown must clear the body-text bar by measurement
-    check(S, "white on the masthead dark grey clears 7:1",
-          round(contrast("#ffffff", "#25292f"), 2) >= 7,
-          f'{contrast("#ffffff", "#25292f"):.2f}:1')
+    check(S, "the masthead is the logo's ground", bar["bg"] == "rgb(10, 9, 8)", bar["bg"])
+    # the logo's letters, measured on the bar they fly on: the amber and CODE's
+    # white (the dark stripe is inside the amber letters, not an ink of its own)
+    letters = [c for c in bar["inks"] if c.lower() != "#7f5d33"]
+    weakest = min((contrast(c, "#0a0908") for c in letters), default=0)
+    check(S, "the logo's letters clear 4.5:1 on the bar",
+          len(letters) >= 2 and weakest >= 4.5, f"{letters} weakest {weakest:.2f}:1")
     # it must actually stay put, and shrink rather than eat the viewport.
     # measure the full state from the top: earlier checks in this section
     # scroll the page, and the bar is compact whenever it is scrolled
@@ -1051,7 +1074,10 @@ def home_checks(pg):
         animations know when they are done; ask them."""
         pg.evaluate("""async () => {
           const h = document.querySelector('header');
+          /* an endless animation (a blinking cursor, a glow) never finishes:
+             awaiting it would hang the suite, so only finite ones are waited for */
           await Promise.all(h.getAnimations({subtree: true})
+                             .filter(a => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
                              .map(a => a.finished.catch(() => {})));
           await new Promise(r => requestAnimationFrame(() => r()));
         }""")
@@ -1080,48 +1106,48 @@ def home_checks(pg):
     check(S, "and returns to full height at the top",
           pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height") > short + 10)
 
-    # Every visible label on the brown bar must be legible against it, on every
+    # Every visible label on the bar must be legible against it, on every
     # page. Two real bugs lived here: a wordmark that stayed dark ink (1.8:1)
     # because its markup was a <div> rather than an <h1>, and a logout control
-    # in brand red (1.6:1). Measured, not eyeballed.
+    # in brand red (1.6:1). Measured against the bar's REAL computed ground.
+    def flatten(css_colour, under):
+        m = re.findall(r"[\d.]+", css_colour)
+        r, g, b = (float(x) for x in m[:3])
+        a = float(m[3]) if len(m) > 3 else 1.0
+        u = [int(under[i:i + 2], 16) for i in (1, 3, 5)]
+        return "#%02x%02x%02x" % tuple(round(a * v + (1 - a) * u[i]) for i, v in enumerate((r, g, b)))
     for page in PAGES:
         pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(400)
+        hb = pg.eval_on_selector("header", "e=>getComputedStyle(e).backgroundColor")
+        BARHEX = flatten(hb, "#000000")
         rows = pg.evaluate("""(() => {
           const h = document.querySelector('header'), out = [];
           h.querySelectorAll('*').forEach(e => {
             if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return;
             const cs = getComputedStyle(e);
             if (cs.display === 'none' || !e.getClientRects().length) return;
-            out.push([e.textContent.trim().slice(0, 20), cs.color, cs.backgroundColor]);
+            out.push([e.textContent.trim().slice(0, 20), cs.color, cs.backgroundColor, !!e.closest('.brand')]);
           });
           return out;
         })()""")
-
-        def flatten(css_colour, under):
-            m = re.findall(r"[\d.]+", css_colour)
-            r, g, b = (float(x) for x in m[:3])
-            a = float(m[3]) if len(m) > 3 else 1.0
-            u = [int(under[i:i + 2], 16) for i in (1, 3, 5)]
-            return "#%02x%02x%02x" % tuple(round(a * v + (1 - a) * u[i]) for i, v in enumerate((r, g, b)))
-
-        worst, label = 99.0, ""
-        for text, colour, own in rows:
-            base = "#25292f" if own.startswith("rgba(0, 0, 0, 0") else flatten(own, "#25292f")
+        worst, label, bworst = 99.0, "", 99.0
+        for text, colour, own, in_brand in rows:
+            base = BARHEX if own.startswith("rgba(0, 0, 0, 0") else flatten(own, BARHEX)
             c = contrast(flatten(colour, base), base)
             if c < worst: worst, label = c, text
+            if in_brand: bworst = min(bworst, c)
         check(S, f"{page}: every masthead label clears 4.5:1",
               worst >= 4.5, f"{worst:.2f}:1 on “{label}”")
-        # both real bugs were "ink that stayed page-coloured on a brown bar":
-        # the brand text must be white, and no header control may keep the
-        # brand red — it measures 1.6:1 here and passed a bare ratio check
-        # only because it sat on a leftover pale pill.
-        brand = pg.eval_on_selector(".brand", "e=>getComputedStyle(e).color")
-        kids = pg.eval_on_selector_all(".brand *", "n=>n.map(e=>getComputedStyle(e).color)")
-        check(S, f"{page}: the brand reads white on the bar",
-              all(c.startswith("rgb(255, 255, 255") or "255, 255, 255" in c
-                  for c in [brand] + kids), f"{brand} / {kids}")
-        reds = pg.eval_on_selector_all(
-            "header *", "n=>n.filter(e=>getComputedStyle(e).color==='rgb(206, 25, 37)').length")
+        # the brand's own text must read on the bar (the old bug: it stayed page ink)
+        check(S, f"{page}: the brand reads on the bar", bworst >= 4.5 and bworst < 99, f"{bworst:.2f}:1")
+        # no header control may keep the danger red: read the live token, so the
+        # check keeps testing something whatever the red is re-solved to
+        reds = pg.evaluate("""(() => {
+          const d = getComputedStyle(document.documentElement).getPropertyValue('--danger').trim();
+          const probe = document.createElement('i'); probe.style.color = d; document.body.appendChild(probe);
+          const red = getComputedStyle(probe).color; probe.remove();
+          return [...document.querySelectorAll('header *')].filter(e => getComputedStyle(e).color === red).length;
+        })()""")
         check(S, f"{page}: no masthead control keeps the danger red", reds == 0, str(reds))
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(400)
     check(S, "every icon reference resolves to a symbol",
@@ -1143,18 +1169,21 @@ def home_checks(pg):
     reduced.close()
 
     # a sticky bar covers whatever an anchor jumps to unless every target keeps
-    # headroom: before scroll-margin-top, "خدماتنا" landed under the masthead
+    # headroom: before scroll-margin-top, "خدماتنا" landed under the masthead.
+    # Each jump starts from the top: the bar compacts on the way and the page
+    # rises by the difference, which is the case the headroom has to cover
     for sel in ("#services", "#contact", "#process"):
+        pg.evaluate("window.scrollTo({top: 0, behavior: 'instant'})"); pg.wait_for_timeout(500)
         # scrollIntoView honours scroll-margin-top and lands deterministically,
         # where a hash navigation races the page's smooth-scroll animation
         pg.evaluate("(s) => document.querySelector(s).scrollIntoView({behavior:'instant'})", sel)
-        pg.wait_for_timeout(400)
+        pg.wait_for_timeout(900)
         gap = pg.evaluate("""(sel) => {
           const t = document.querySelector(sel).getBoundingClientRect().top;
           const h = document.querySelector('header').getBoundingClientRect().bottom;
           return t - h;
         }""", sel)
-        check(S, f"{sel} lands clear of the sticky masthead", gap >= 0, f"{gap:.0f}px")
+        check(S, f"{sel} lands clear of the sticky masthead", gap >= 12, f"{gap:.0f}px")
     # and the footer offers the way back up
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(400)
     check(S, "the footer offers a way back to the top",
@@ -1599,6 +1628,15 @@ def scan_checks(pg, br):
     check(S, "print hides the chrome, the forms and the row actions", hidden)
     check(S, "print keeps the holdings table",
           pg.eval_on_selector("#safi-rows", "e=>getComputedStyle(e).display") != "none")
+    # the screen is the logo's dark; paper is white. A statement printed in
+    # near-white ink on a page whose background the printer drops is blank
+    inks = pg.evaluate("""(() => { const c = s => { const e = document.querySelector(s);
+        return e ? [getComputedStyle(e).color, getComputedStyle(e).backgroundColor] : null; };
+      return { body: c('body'), th: c('#tab-safi th'), td: c('#safi-rows td'), h: c('#tab-safi h2, #tab-safi h3') }; })()""")
+    rgb = lambda v: "#%02x%02x%02x" % tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+    low = [f"{k} {v[0]}" for k, v in inks.items() if v and contrast(rgb(v[0]), "#ffffff") < 7]
+    check(S, "print sets the statement in dark ink on white paper",
+          inks["body"] and rgb(inks["body"][1]) == "#ffffff" and not low, f"{inks} {low}")
     pg.emulate_media(media="screen")
 
     # every shipped page carries a CSP, stubs included
@@ -1608,14 +1646,11 @@ def scan_checks(pg, br):
 
     # the company tab shows the company mark, not النوخذة's anchor
     home = (ROOT / "index.html").read_text()
-    check(S, "the company favicon is the sail, not the anchor",
+    check(S, "the company favicon is the AC monogram, not the anchor",
           'href="favicon.svg"' in home and 'href="icon.svg"' not in home)
     fav = (ROOT / "favicon.svg").read_text()
-    import sys as _sys
-    _sys.path.insert(0, str(ROOT.parent / "design"))
-    import pixel_boum as pb
-    check(S, "the favicon file draws the illustrated boum",
-          "ship_mark.py" in fav and 'fill="#25292f"' in fav)
+    check(S, "the favicon file draws the AC monogram, from the logo's generator",
+          "design/logo-en/build.py" in fav and 'fill="#0a0908"' in fav)
 
     # Home-screen icons. Every page used to point apple-touch-icon at an SVG,
     # which iOS ignores — "Add to Home Screen" showed a screenshot of the page.
@@ -1630,7 +1665,7 @@ def scan_checks(pg, br):
         if ok:
             check(S, f"{f}: the home-screen icon is 180×180",
                   _Img.open(ROOT / touch[f]).size == (180, 180), str(_Img.open(ROOT / touch[f]).size))
-    check(S, "the company's home-screen icon is the boum, the app's the anchor — not crossed",
+    check(S, "the company's home-screen icon is the AC monogram, the app's the anchor, not crossed",
           touch["index.html"] == "apple-touch-icon.png"
           and touch["nokhatha.html"] == touch["nizam.html"] == "nokhatha-touch-icon.png")
     man = json.loads((ROOT / "manifest.webmanifest").read_text())
@@ -1644,6 +1679,23 @@ def scan_checks(pg, br):
     if mask and (ROOT / mask).is_file():
         check(S, "the maskable icon is full-bleed (no transparent corners to be cut)",
               _Img.open(ROOT / mask).convert("RGBA").getpixel((0, 0))[3] == 255)
+    # the home-screen and app icons wear the dark theme: the logo's ground in
+    # the corner, its amber in the drawing (a file name alone let the old
+    # boum PNG pass untouched)
+    def _amber_on_ground(name):
+        im = _Img.open(ROOT / name).convert("RGB")
+        corner = im.getpixel((1, 1))
+        amber = sum(1 for p in im.getdata() if p[0] > 190 and 130 < p[1] < 190 and p[2] < 120)
+        return max(abs(a - b) for a, b in zip(corner, (10, 9, 8))) <= 3 and amber > 20, f"corner {corner}, {amber} amber px"
+    for name in ("apple-touch-icon.png", "logo-512.png", "nokhatha-touch-icon.png", "icon-512.png", "icon-maskable-512.png"):
+        ok, why = _amber_on_ground(name)
+        check(S, f"{name} is the amber mark on the logo's ground", ok, why)
+    ld = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S).group(1))
+    org = next((e for e in ld.get("@graph", []) if e.get("@type") == "Organization"), {})
+    lg = org.get("logo", {})
+    check(S, "the structured data names a square logo that exists (512×512)",
+          lg.get("url", "").endswith("/logo-512.png") and (ROOT / "logo-512.png").is_file()
+          and _Img.open(ROOT / "logo-512.png").size == (512, 512) and lg.get("width") == 512, str(lg))
 
     # document structure: exactly one h1 per page
     for f in list(PAGES) + list(STUBS) + ["404.html"]:
@@ -1699,10 +1751,13 @@ def scan_checks(pg, br):
           .map(e => (e.textContent || '').trim().slice(0, 20) || e.tagName))]""")
         check(S, f"{f}: interactive targets clear 24px", not small, str(small))
 
-    # the installed app's colour follows the masthead, like every page's meta
+    # the installed app's colour follows the masthead, like every page's meta,
+    # and its splash screen is the dark ground, not a white flash
     mani = json.loads((ROOT / "manifest.webmanifest").read_text())
-    check(S, "the manifest's theme colour is the masthead dark grey",
-          mani.get("theme_color") == "#25292f", str(mani.get("theme_color")))
+    check(S, "the manifest's theme colour is the logo's ground",
+          mani.get("theme_color") == "#0a0908", str(mani.get("theme_color")))
+    check(S, "the manifest's splash background is the logo's ground",
+          mani.get("background_color") == "#0a0908", str(mani.get("background_color")))
 
     # every shipped page belongs in the offline shell — 404.html did not
     sw = (ROOT / "sw.js").read_text()
@@ -2074,7 +2129,7 @@ def drawing_contrast_checks(pg):
           const c = getComputedStyle(n).backgroundColor;
           if (c && !c.includes('rgba(0, 0, 0, 0)') && !c.endsWith(', 0)')) return c;
           n = n.parentElement; }
-        return 'rgb(255, 255, 255)'; };
+        return getComputedStyle(document.body).backgroundColor; };
       const out = [];
       const seen = new Set();
       document.querySelectorAll('svg.scene .soft, .claimart .site *, .claimart .mods rect, .claimart .wires path')
@@ -2101,45 +2156,58 @@ def drawing_contrast_checks(pg):
 
 
 def preload_checks(pg):
-    """Every font weight the first screen renders must be preloaded.
+    """Every font file the first screen renders must be preloaded.
 
-    A weight that is only declared in the inline CSS cannot be discovered until
+    A face that is only declared in the inline CSS cannot be discovered until
     the browser has parsed some 220 lines of it, so on a high-latency link each
     file starts a full round trip late and the text repaints in the fallback
     face first. Measured on a server delaying 150ms per request: with only
     cairo-400 preloaded the four files finished at 404ms; preloading the four
     the first screen uses brought that to 321ms. It saves no bytes — the same
-    files are fetched either way."""
+    files are fetched either way.
+
+    Since the dark theme the check is family-aware: the logo's Chakra Petch
+    and JetBrains Mono set the Latin halves, while Arabic in the same element
+    falls through to Cairo. So a text node asks for a file by its script as
+    well as its family and weight: Arabic letters always need the Cairo
+    weight's Arabic file, Latin letters in a display or mono element need
+    that face's file. Cairo's own Latin file is shared by every weight and
+    stays a normal fetch, as it was before the theme."""
     S = "preload"
     for page in ("index.html", "nokhatha.html", "nizam.html", "admin.html"):
         pg.goto(f"{BASE}/{page}", wait_until="networkidle")
         pg.wait_for_timeout(900)
         used = pg.evaluate("""() => {
-          const w = new Set();
+          const files = new Set();
           const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
           let n;
           while ((n = walk.nextNode())) {
             const t = n.nodeValue.trim(); if (!t) continue;
             const el = n.parentElement; if (!el.offsetParent) continue;
             const r = el.getBoundingClientRect();
-            if (r.top < innerHeight && r.bottom > 0 && r.width) {
+            if (!(r.top < innerHeight && r.bottom > 0 && r.width)) continue;
+            const cs = getComputedStyle(el);
+            const fam = cs.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
+            const fw = +cs.fontWeight;
+            if (/[\u0600-\u06FF\uFE70-\uFEFF]/.test(t))
               // 600 has no file of its own — the 500 face serves that slot
-              const fw = getComputedStyle(el).fontWeight;
-              w.add(fw === '600' ? '500' : fw);
+              files.add('cairo-' + (fw === 600 ? 500 : fw) + '.woff2');
+            if (/[A-Za-z0-9]/.test(t)) {
+              if (fam === 'Chakra Petch') files.add('chakrapetch-' + (fw <= 600 ? 600 : 700) + '.woff2');
+              if (fam === 'JetBrains Mono') files.add('jetbrainsmono-latin.woff2');
             }
           }
-          return [...w];
+          return [...files];
         }""")
         links = pg.eval_on_selector_all(
             'link[rel="preload"][as="font"]', "n=>n.map(e=>e.getAttribute('href'))")
-        missing = [w for w in used
-                   if not any(f"cairo-{w}.woff2" in (h or "") for h in links)]
-        check(S, f"{page}: every weight on the first screen is preloaded",
-              not missing, f"missing {missing} · has {links}")
+        have = {(h or "").rsplit("/", 1)[-1] for h in links}
+        missing = sorted(f for f in used if f not in have)
+        check(S, f"{page}: every font file on the first screen is preloaded",
+              not missing, f"missing {missing} · has {sorted(have)}")
         # and nothing is preloaded that the page never uses — an unused preload
         # is bytes fetched at the highest priority for nothing
-        spare = [h for h in links
-                 if not any(f"cairo-{w}.woff2" in h for w in used)]
+        spare = sorted(have - set(used))
         check(S, f"{page}: nothing is preloaded that it does not render",
               not spare, str(spare))
 
@@ -2720,21 +2788,23 @@ def layout_checks(br):
         check(S, f"{wname}: no horizontal overflow", not overflow, ", ".join(overflow))
         c.close()
 
-    # a device set to dark must still get the white site — this is the whole
-    # point of dropping the navy theme
+    # one theme whatever the device prefers: since 2026-10-07 the site is the
+    # logo's dark, and a device set to light must not get a second, light site
     for scheme in ("light", "dark"):
         c = br.new_context(viewport={"width": 1280, "height": 860},
                            color_scheme=scheme, locale="ar-KW")
         p = c.new_page()
-        for page in ("index.html", "nokhatha.html", "nizam.html"):
+        for page in ("index.html", "nokhatha.html", "nizam.html", "admin.html"):
             p.goto(f"{BASE}/{page}", wait_until="networkidle"); p.wait_for_timeout(300)
             bg = p.evaluate("getComputedStyle(document.body).backgroundColor")
             card = p.evaluate("""(() => {
-              const el = document.querySelector('.card, .tile, .product, form');
-              return el ? getComputedStyle(el).backgroundColor : 'rgb(255, 255, 255)';
+              const el = [...document.querySelectorAll('.card, .tile, .product, form, .panel')]
+                .find(e => e.offsetParent && getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)');
+              return el ? getComputedStyle(el).backgroundColor : '';
             })()""")
-            check(S, f"{scheme} preference: {page} stays white",
-                  bg.startswith("rgb(255, 255, 255") and card.startswith("rgb(255, 255, 255"),
+            ch = [int(x) for x in re.findall(r"\d+", card)[:3]]
+            check(S, f"{scheme} preference: {page} stays on the logo's dark ground",
+                  bg == "rgb(10, 9, 8)" and len(ch) == 3 and max(ch) <= 40,
                   f"body={bg} card={card}")
         c.close()
 
@@ -2839,48 +2909,6 @@ def mobile_checks(br):
 
     c.close()
 
-def mark_pixels(br, base, w, h, dpr, mob, scroll):
-    """The masthead ship as rendered: (q, g, lit-run widths, part-lit pixels).
-    q is the cell in device px, g the seam. A pixel-true ship has no pixel that
-    is neither the brown bar nor white, and every lit run is exactly q − g."""
-    import io, re as _re
-    from PIL import Image as _Img
-    c = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=dpr, is_mobile=mob, has_touch=mob)
-    pg = c.new_page(); pg.goto(f"{base}/index.html", wait_until="networkidle"); pg.wait_for_timeout(900)
-    if scroll:
-        pg.evaluate(f"window.scrollTo({{top:{scroll},behavior:'instant'}})"); pg.wait_for_timeout(800)
-    r = pg.evaluate("()=>{const b=document.querySelector('header .logo').getBoundingClientRect();return [b.left,b.top,b.right,b.bottom]}")
-    vbw = pg.evaluate("document.querySelector('header .logo').viewBox.baseVal.width") or 48
-    im = _Img.open(io.BytesIO(pg.screenshot())).convert("L"); c.close()
-    q = round((r[2] - r[0]) / vbw * dpr); g = max(1, round(q * .18))
-    x0, y0, x1, y1 = [int(round(v * dpr)) for v in r]
-    runs, part = set(), 0
-    for y in range(y0 - 1, y1 + 1):
-        row = "".join("L" if im.getpixel((x, y)) > 235 else ("G" if im.getpixel((x, y)) < 125 else "P")
-                      for x in range(x0 - 1, x1 + 1))
-        part += row.count("P"); runs |= {len(m) for m in _re.findall(r"L+", row)}
-    return q, g, sorted(runs), part
-
-
-def crisp_mark_checks(br):
-    """The ship's cells sit on whole device pixels with a whole-pixel seam.
-
-    148×74 put 3.08px in a cell: the 0.18 seams fell between pixels and the
-    white ship read grey and uneven, worst once scrolled (1.75px a cell). The
-    hint pixel_boum.py writes fixes it per screen; this asks the browser."""
-    S = "identity"
-    states = [(1440, 900, 1, False, 0), (1440, 900, 1, False, 1200), (1440, 900, 1.25, False, 0),
-              (1440, 900, 2, False, 1200), (412, 915, 2.625, True, 1200), (412, 915, 2.625, True, 1201),
-              (390, 844, 3, True, 0)]
-    bad = []
-    for w, h, dpr, mob, scroll in states:
-        q, g, runs, part = mark_pixels(br, BASE, w, h, dpr, mob, scroll)
-        if part or runs != [q - g] or g < 1:
-            bad.append(f"{w}@{dpr}x{' scrolled ' + str(scroll) if scroll else ''}: {part} part-lit, runs {runs}, want {q - g}")
-    check(S, "the masthead ship is pixel-true: whole cells, a whole-pixel seam, nothing blended",
-          not bad, "; ".join(bad[:3]))
-
-
 def fit_checks(br):
     """Boxes sized to what they hold, on every width a phone can be.
 
@@ -2950,12 +2978,42 @@ def fit_checks(br):
 
     c = ctx(1440, 900, mob=False); pg = c.new_page()
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
-    art = pg.eval_on_selector(".heroart", "e=>[getComputedStyle(e).position, e.getBoundingClientRect().height, getComputedStyle(e).backgroundImage]")
-    tops = pg.eval_on_selector_all(".heroart .shape", "n=>n.map(e=>Math.round(e.getBoundingClientRect().top))")
-    # `.hero > *` outranked the layer and stacked every shape on one line
-    check(S, "the hero's geometry is spread over the hero, not stacked on one line",
-          art[0] == "absolute" and art[1] > 300 and len(set(tops)) == len(tops) == 5, f"{art[:2]}, tops {tops}")
-    check(S, "the hero's art layer paints no wash — the page stays white", art[2] == "none", art[2][:40])
+    art = pg.eval_on_selector(".heroart", """e => [getComputedStyle(e).position, e.getBoundingClientRect().height,
+      getComputedStyle(e).backgroundImage, e.getAttribute('aria-hidden'), e.querySelectorAll('.rain i').length]""")
+    # `.hero > *` outranked the layer once and made it a 0px-tall relative box
+    check(S, "the hero's code rain is a full-height, hidden-from-AT layer with glyphs in it",
+          art[0] == "absolute" and art[1] > 300 and art[3] == "true" and art[4] > 50, str(art[:2] + art[3:]))
+    check(S, "the hero's art layer paints no wash behind the text", art[2] == "none", art[2][:40])
+    # the rain falls through the hero's whole height, so a column that is not
+    # masked out will cross every line it shares an x-range with, sooner or later:
+    # compare columns against the ink of the text, not the boxes of its elements
+    hit = pg.evaluate("""() => {
+      const art = document.querySelector('.heroart').getBoundingClientRect();
+      const alpha = x => { const f = (x - art.left) / art.width;
+        return f < .2 ? 1 - f / .2 : f > .8 ? (f - .8) / .2 : 0; };
+      const cols = new Map();
+      document.querySelectorAll('.rain i').forEach(g => { const r = g.getBoundingClientRect();
+        if (alpha((r.left + r.right) / 2) > .1) cols.set(Math.round(r.left), [r.left, r.right]); });
+      const ink = [];
+      const walk = document.createTreeWalker(document.querySelector('.hero'), NodeFilter.SHOW_TEXT);
+      let n; while ((n = walk.nextNode())) {
+        if (!n.nodeValue.trim() || n.parentElement.closest('.heroart')) continue;
+        const rg = document.createRange(); rg.selectNodeContents(n);
+        for (const r of rg.getClientRects()) if (r.width) ink.push([r.left, r.right, n.nodeValue.trim().slice(0, 12)]); }
+      const out = [];
+      for (const [l, r] of cols.values()) for (const [a, b, t] of ink)
+        if (l < b && r > a) out.push(Math.round(l) + 'px over «' + t + '»');
+      return [cols.size, out];
+    }""")
+    check(S, "no visible column of the rain falls across the hero's text",
+          hit[0] >= 4 and not hit[1], f"{hit[0]} visible columns; " + "; ".join(hit[1][:4]))
+    c.close()
+
+    c = ctx(390, 844); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+    ph = pg.eval_on_selector(".heroart", "e=>[getComputedStyle(e).display, e.querySelectorAll('.rain i').length]")
+    # on a phone the text runs edge to edge, so there is no margin to rain in
+    check(S, "on a phone the rain is not drawn at all", ph == ["none", 0], str(ph))
     c.close()
 
     # ── النوخذة's screens on a phone
@@ -3341,34 +3399,44 @@ def app_icon_checks(pg):
 
 
 def theme_state_checks(pg):
-    """The grey theme is one theme, and every control has visible states.
+    """One theme, one accent, and every control has visible states.
 
-    Pinned after the 2026-10-03 theme audit: the brown palette's amber
-    companions kept painting decoration (heading rules, the kicker, hover
-    chips, hero shapes, an avatar whose white initial sat at 2.15:1); on the
-    dark bar the brand-ink focus ring measured 1.24:1 because an unscoped
-    .btn:focus-visible outranked the bar's white one; secondary buttons'
-    hover moved a grey fill 1.01:1; tab buttons had no hover or focus at all."""
+    Pinned after the 2026-10-03 theme audit and re-aimed for the dark logo
+    theme (2026-10-07). The audit found the brown palette's amber companions
+    painting decoration everywhere; now amber IS the accent, so the scan asks
+    the opposite question: is every warm colour on the page the logo's amber
+    family (hue 31-36.5°, the tint, its hover, its dark stripe, the chart
+    ramp), and is there no warm light surface (beige, cream, sand paper)
+    anywhere? An off-brand orange, a warning yellow outside a warning, and a
+    cream panel all fail. On the bar the brand-ink focus ring once measured
+    1.24:1 because an unscoped .btn:focus-visible outranked the bar's own;
+    secondary buttons' hover moved a fill 1.01:1; tab buttons had no hover or
+    focus at all."""
     S = "theme"
-    import colorsys
     WARM = r"""() => {
-      const warm = c => { const m = c.match(/[\d.]+/g); if (!m || (m[3] !== undefined && +m[3] < .2)) return false;
-        const [r, g, b] = m.slice(0, 3).map(v => +v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-        if (mx - mn < .12) return false; const d = mx - mn;
-        let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
-        return h >= 15 && h <= 50 && d / mx > .25; };
+      const hsv = c => { const m = c.match(/[\d.]+/g); if (!m) return null;
+        const a = m[3] === undefined ? 1 : +m[3];
+        const [r, g, b] = m.slice(0, 3).map(v => +v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+        let h = !d ? 0 : mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
+        return { h, d, s: mx ? d / mx : 0, v: mx, a }; };
+      const brand = x => x.h >= 31 && x.h <= 36.5 && x.s >= .45 && x.s <= .72;
+      const offWarm = c => { const x = hsv(c); return !!x && x.a >= .2 && x.h >= 15 && x.h <= 55 && x.d >= .12 && x.s > .25 && !brand(x); };
+      const paper = c => { const x = hsv(c); return !!x && x.a >= .2 && x.h >= 15 && x.h <= 60 && x.d >= .03 && x.v > .7 && !brand(x); };
       const SEM = '.demo-banner, .offline-banner, .banner, #xbrl-audit, .st-0, .warn, #xbrl-check';
       const out = [];
       for (const e of document.querySelectorAll('body *')) {
         if (e.closest(SEM) || e.closest('svg') || !e.checkVisibility()) continue;
+        const who = e.tagName + '#' + e.id + '.' + (typeof e.className === 'string' ? e.className : '');
         for (const pse of ['', '::before', '::after']) {
           const cs = getComputedStyle(e, pse || null);
-          for (const k of ['color', 'backgroundColor', 'borderTopColor', 'outlineColor']) if (warm(cs[k])) out.push(e.tagName + '#' + e.id + '.' + e.className + pse + ' ' + k + ' ' + cs[k]);
-          if (/rgba?\((2[0-9][0-9]|1[5-9][0-9]), (1[0-9][0-9]|[6-9][0-9]), ([0-9]|[1-9][0-9]|1[0-2][0-9])[,)]/.test(cs.backgroundImage)) out.push(e.tagName + '#' + e.id + '.' + e.className + pse + ' gradient');
+          for (const k of ['color', 'backgroundColor', 'borderTopColor', 'outlineColor']) if (offWarm(cs[k])) out.push(who + pse + ' ' + k + ' ' + cs[k]);
+          if (paper(cs.backgroundColor)) out.push(who + pse + ' paper ' + cs.backgroundColor);
+          for (const g of cs.backgroundImage.match(/rgba?\([^)]*\)/g) || [])
+            if (offWarm(g) || paper(g)) { out.push(who + pse + ' gradient ' + g); break; }
         }
       }
       return out; }"""
-    for page in ("index.html", "nokhatha.html#/dashboard"):
+    for page in ("index.html", "nizam.html#/position", "nokhatha.html#/dashboard"):
         if "dashboard" in page:
             pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
             f = "#form-register "
@@ -3378,25 +3446,44 @@ def theme_state_checks(pg):
             pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(1200)
             pg.evaluate("document.documentElement.classList.remove('motion');document.querySelectorAll('[data-reveal]').forEach(e=>e.classList.add('in'))")
         warm = pg.evaluate(WARM)
-        check(S, f"{page.split('#')[0]}: no warm colour paints outside a warning", not warm, "; ".join(warm[:4]))
-    # the scan must see: plant an amber label and an amber gradient
-    pg.evaluate("document.body.insertAdjacentHTML('beforeend', '<p id=\"plant\" style=\"color:#e3a556\">x</p><p id=\"plant2\" style=\"background:linear-gradient(90deg,#33383f,#e3a556)\">y</p>')")
-    seen = pg.evaluate(WARM); pg.evaluate("plant.remove(); plant2.remove()")
-    check(S, "the warm-colour scan flags a planted amber label and gradient",
-          any("plant" in w and "color" in w for w in seen) and any("plant2" in w and "gradient" in w for w in seen), str(seen))
+        check(S, f"{page.split('#')[0]}: every warm colour is the logo's amber, and no surface is paper",
+              not warm, "; ".join(warm[:4]))
+    # the scan must see, and must not see: an off-brand orange label and
+    # gradient, a cream panel and the warning yellow outside a warning are
+    # caught; the logo's amber as ink, fill and gradient is not
+    pg.evaluate("""document.body.insertAdjacentHTML('beforeend',
+      '<p id="plant" style="color:#e07b39">x</p>' +
+      '<p id="plant2" style="background:linear-gradient(90deg,#141211,#e07b39)">y</p>' +
+      '<p id="plant3" style="background:#f5e6c8">z</p>' +
+      '<p id="plant4" style="color:#f2d855">w</p>' +
+      '<p id="brand1" style="color:#e6a95c;background:#7f5d33;border-top:1px solid #fabc6f">a</p>' +
+      '<p id="brand2" style="background:linear-gradient(90deg,rgba(230,169,92,.6),rgba(230,169,92,0))">b</p>')""")
+    seen = pg.evaluate(WARM)
+    pg.evaluate("['plant','plant2','plant3','plant4','brand1','brand2'].forEach(i => document.getElementById(i).remove())")
+    check(S, "the warm-colour scan flags an off-brand orange, its gradient, a cream panel and stray warning yellow",
+          any("#plant." in w and "color" in w for w in seen) and any("#plant2." in w and "gradient" in w for w in seen)
+          and any("#plant3." in w and "paper" in w for w in seen) and any("#plant4." in w for w in seen), str(seen))
+    check(S, "the warm-colour scan passes the logo's amber as ink, fill, edge and fade",
+          not any("brand" in w for w in seen), str([w for w in seen if "brand" in w]))
     pg.evaluate("localStorage.clear()")
 
-    def ring(sel, bg):
+    def ring(sel, bg=None):
+        """The focus ring's colour against the ground it is drawn on: the bar,
+        or the first opaque surface behind the control."""
         pg.focus(sel); pg.keyboard.press("Shift+Tab"); pg.keyboard.press("Tab")
-        c, w = pg.eval_on_selector(sel, "e=>[getComputedStyle(e).outlineColor, parseFloat(getComputedStyle(e).outlineWidth)]")
-        m = [int(v) for v in re.findall(r"\d+", c)[:3]]
-        return contrast("#%02x%02x%02x" % tuple(m), bg), w
+        c, w, under = pg.eval_on_selector(sel, """e => { let n = e.parentElement, g = '';
+          while (n) { const b = getComputedStyle(n).backgroundColor;
+            if (b && !/rgba\\(.*, 0\\)$/.test(b)) { g = b; break; } n = n.parentElement; }
+          return [getComputedStyle(e).outlineColor, parseFloat(getComputedStyle(e).outlineWidth),
+                  g || getComputedStyle(document.body).backgroundColor]; }""")
+        hexof = lambda v: "#%02x%02x%02x" % tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+        return contrast(hexof(c), bg or hexof(under)), w
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(600)
-    r, w = ring("header .btn.primary", "#25292f")
+    r, w = ring("header .btn.primary", "#0a0908")
     check(S, "the bar's call to action shows a focus ring you can see on the bar", w >= 2 and r >= 3, f"{r:.2f}:1, {w}px")
     for page, sel in (("nizam.html#/safi", "#safi-export"), ("index.html", ".qform input[name=name]")):
         pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(500)
-        r, w = ring(sel, "#ffffff")
+        r, w = ring(sel)
         check(S, f"{page.split('#')[0]} {sel}: a 2px brand ring on focus", w >= 2 and r >= 3, f"{r:.2f}:1, {w}px")
     for page in ("nizam.html#/safi", "admin.html"):
         pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(500)
@@ -3404,9 +3491,11 @@ def theme_state_checks(pg):
             pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
             pg.fill('input[name="pass"]', "theme-pass-123"); pg.fill('input[name="confirm"]', "theme-pass-123"); pg.click("#gate-btn"); pg.wait_for_timeout(400)
         sel = "nav.tabs button:nth-child(2)"
-        r, w = ring(sel, "#ffffff")
-        rest = pg.eval_on_selector(sel, "e=>getComputedStyle(e).backgroundColor"); pg.hover(sel); pg.wait_for_timeout(200)
-        hov = pg.eval_on_selector(sel, "e=>getComputedStyle(e).backgroundColor")
+        r, w = ring(sel)
+        look = "e=>{const c=getComputedStyle(e);return [c.backgroundColor,c.color,c.borderBottomColor,c.borderTopColor].join(' ')}"
+        pg.mouse.move(0, 0); pg.wait_for_timeout(200)
+        rest = pg.eval_on_selector(sel, look); pg.hover(sel); pg.wait_for_timeout(250)
+        hov = pg.eval_on_selector(sel, look)
         check(S, f"{page.split('#')[0]}: tab buttons show focus and hover", w >= 2 and r >= 3 and rest != hov, f"{r:.2f}:1, hover {rest}→{hov}")
         rest = pg.eval_on_selector(".btn:not(.primary)", "e=>getComputedStyle(e).borderTopColor"); pg.hover(".btn:not(.primary)"); pg.wait_for_timeout(200)
         hov = pg.eval_on_selector(".btn:not(.primary)", "e=>getComputedStyle(e).borderTopColor")
@@ -3533,6 +3622,10 @@ def font_checks(pg):
           fam.strip().startswith('"Cairo"') or fam.strip().startswith("Cairo"), fam)
     faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Cairo').length")
     check(S, "every declared weight is present, Arabic and Latin", faces == 10, f"{faces} faces")
+    # the logo's two Latin faces: Chakra Petch 600 and 700, JetBrains Mono variable
+    logo = pg.evaluate("[...document.fonts].filter(f=>f.family==='Chakra Petch'||f.family==='JetBrains Mono').map(f=>f.family+' '+f.weight).sort()")
+    check(S, "the logo's Latin faces are declared: Chakra Petch 600/700 and JetBrains Mono",
+          logo == ["Chakra Petch 600", "Chakra Petch 700", "JetBrains Mono 100 800"], str(logo))
     # The bundled Cairo was an Arabic-only subset, so every digit, every Latin
     # word and every full stop on the site painted in the device's own face —
     # DejaVu here, Segoe or SF elsewhere — and no check noticed, because
@@ -3545,17 +3638,23 @@ def font_checks(pg):
         pg.wait_for_timeout(250)
         nid = cdp.send("DOM.querySelector", {"nodeId": root, "selector": sel})["nodeId"]
         return sorted({f["familyName"] for f in cdp.send("CSS.getPlatformFontsForNode", {"nodeId": nid})["fonts"]})
-    for sel, what in ((".stat .num", "a counter's digits"), ("h1", "the Arabic headline"),
-                      ('footer a[href^="https://wa.me"] .v', "the phone number")):
+    # each asks for one face and must paint in exactly that one: the counters
+    # and the prompt are the logo's Latin faces, the rest Cairo (Arabic and
+    # its Latin subset alike)
+    for sel, face, what in ((".stat .num", "Chakra Petch", "a counter's digits"),
+                            ("header .term .pr", "JetBrains Mono", "the masthead's >_ prompt"),
+                            ("h1", "Cairo", "the Arabic headline"),
+                            ('footer a[href^="https://wa.me"] .v', None, "the phone number")):
+        asked = pg.evaluate("s => getComputedStyle(document.querySelector(s)).fontFamily.split(',')[0].trim().replace(/^[\"']|[\"']$/g, '')", sel)
         fams = painted(sel)
-        check(S, f"{what} paint in Cairo, not a fallback",
-              bool(fams) and all(f.startswith("Cairo") for f in fams), str(fams))
+        check(S, f"{what} paint in {face or asked}, not a fallback",
+              (face is None or asked == face) and bool(fams) and all(f.startswith(asked) for f in fams),
+              f"asked {asked}, painted {fams}")
     cdp.detach()
     # Arabic reading text never drops below 12px (171 lines sat at 11px until
     # 2026-09-30). The exceptions are named, not a threshold: SVG <text> inside
-    # the drawings, whose size is in drawing units, and the Latin mono line of
-    # the wordmark lockup, which is part of the locked identity.
-    allowed_small = {"html.scrolled .brand .en", ".scene .tab", ".scene text", ".fbrand .name .en"}
+    # the drawings, whose size is in drawing units.
+    allowed_small = {".scene .tab", ".scene text"}
     small = []
     for f in ("index.html", "nizam.html", "nokhatha.html", "admin.html"):
         src = (ROOT / f).read_text()
@@ -3580,12 +3679,12 @@ def font_checks(pg):
         ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
         : [])""")
     # every bundled face by name — Cairo's four Arabic files and its Latin
-    # one, and the wordmark's two;
+    # one, and the logo's three (Chakra Petch 600/700, JetBrains Mono);
     # a count alone would pass with the right number of the wrong files
     bundled = sorted(f.name for f in (ROOT / "fonts").glob("*.woff2"))
     got = sorted(p.rsplit("/", 1)[-1] for p in cached if p.endswith(".woff2"))
     check(S, "fonts are precached for offline use",
-          got == bundled and len(bundled) == 7, f"{got} vs {bundled}")
+          got == bundled and len(bundled) == 8, f"{got} vs {bundled}")
 
 # ═══════════════════════════════════════════ run
 static_checks()

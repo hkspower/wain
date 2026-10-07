@@ -82,9 +82,9 @@ TEMPLATE = """<meta charset="utf-8">
   @font-face {{ font-family:"Cairo"; font-weight:800; font-display:block;
     src:url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); }}
   @font-face {{ font-family:"Reem Kufi"; font-weight:700; font-display:block;
-    src:url("../../almuhallab/fonts/reemkufi-700.woff2") format("woff2"); }}
+    src:url("../logo-modern/fonts/reemkufi-700.woff2") format("woff2"); }}
   @font-face {{ font-family:"Share Tech Mono"; font-weight:400; font-display:block;
-    src:url("../../almuhallab/fonts/sharetechmono-400.woff2") format("woff2"); }}
+    src:url("../logo-modern/fonts/sharetechmono-400.woff2") format("woff2"); }}
   html,body {{ margin:0; background:#fff; overflow:hidden; }}
   canvas {{ display:block; }}
 </style>
