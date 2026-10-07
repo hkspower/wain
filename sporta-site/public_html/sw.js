@@ -103,7 +103,7 @@
 //
 // So: a fix to the RULES only helps arrivals. A VERSION bump is what reaches
 // the people the fix was written for, and it costs one re-download each.
-const VERSION = 'v246-fast-login'
+const VERSION = 'v247-cart-motion'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 

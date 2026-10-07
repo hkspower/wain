@@ -516,6 +516,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <script src="/assets/grid-name-fit.js" defer></script>
 <script src="/assets/quick-add-size.js?v=20261004a" defer></script>
 <script src="/assets/card-options.js" defer></script>
+<script src="/assets/cart-motion.js" defer></script>
 <script src="/assets/grid-price.js" defer></script>
 <script src="/assets/customer-account.js" defer></script>
 <script src="/assets/brand-badge.js" defer></script>
