@@ -111,6 +111,7 @@ async function run({ withPolicy }) {
       window.__violations.push(`${e.violatedDirective} ${e.blockedURI.slice(0, 100)}`));
   });
   const page = await ctx.newPage();
+  const hangup = { ready: "not reached", live: "not reached" };
   // /find: the one page with a call button since 1 October.
   await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
   await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
@@ -119,12 +120,14 @@ async function run({ withPolicy }) {
   try {
     await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
     await page.waitForTimeout(2500);
+    hangup.ready = await hangupFree(page);
     const widget = page.locator("#wain-ai-panel elevenlabs-convai");
     await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
     await page.waitForTimeout(1200);
     const accept = widget.getByRole("button", { name: /قبول/ }).first();
     if (await accept.count()) await accept.click({ timeout: 5000 });
     await page.waitForTimeout(5000);
+    hangup.live = await hangupFree(page);
   } catch (e) {
     console.log(`  · the call did not get as far as the widget: ${String(e.message).split("\n")[0]}`);
   }
@@ -132,7 +135,29 @@ async function run({ withPolicy }) {
   const violations = await page.evaluate(() => window.__violations);
   await browser.close();
   server.close();
-  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, violations };
+  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, violations, hangup };
+}
+
+/**
+ * Is our hang-up button the thing under its own centre? The widget draws its
+ * UI with `position: fixed`, and until 7 October that put its «بدء مكالمة»
+ * card, then its whole chat panel, over the sheet — hang-up included. Only the
+ * real bundle shows it: the test stubs render inline.
+ */
+async function hangupFree(page) {
+  return page.evaluate(() => {
+    const b = [...document.querySelectorAll("#wain-ai-panel button")].find((x) => /إنهاء المكالمة/.test(x.textContent ?? ""));
+    if (!b) return "no hang-up button";
+    // Its top edge as well as its middle: the live chat panel overlapped the
+    // top of the button and left the middle clear, so a centre-only probe
+    // passed with the bug in place.
+    const r = b.getBoundingClientRect();
+    for (const y of [r.y + 6, r.y + r.height / 2]) {
+      const el = document.elementFromPoint(r.x + r.width / 2, y);
+      if (!b.contains(el)) return `covered by <${el?.tagName.toLowerCase()}> at ${Math.round(y)}px`;
+    }
+    return "free";
+  });
 }
 
 console.log(`\n── the real widget (${WIDGET_PATH}), a fake microphone, a mock socket ──`);
@@ -145,6 +170,8 @@ const shipped = await run({ withPolicy: true });
 ok("the header says connected (it said so throughout the bug)", /متصل/.test(shipped.header), shipped.header);
 ok("the socket opened and sent its initiation", shipped.sent.includes("conversation_initiation_client_data"));
 ok("the widget triggers no Content-Security-Policy violation at all", shipped.violations.length === 0, shipped.violations.join("; "));
+ok("the widget stays in its box: hang-up is uncovered before Start", shipped.hangup.ready === "free", shipped.hangup.ready);
+ok("and once the call is live", shipped.hangup.live === "free", shipped.hangup.live);
 ok("audio leaves the page — a granted microphone is HEARD", shipped.chunks > 20, `${shipped.chunks} chunks; script-src needs blob: for the widget's AudioWorklet`);
 
 console.log(`\n${passed} passed, ${failed} failed`);

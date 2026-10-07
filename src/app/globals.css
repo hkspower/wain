@@ -709,3 +709,15 @@ h1, h2, h3 {
 .shouq--talking [data-part="mouth"] {
   animation: shouq-speak 1.5s ease-in-out infinite;
 }
+
+/* The call widget draws its own UI with `position: fixed` inside its shadow
+   root, so it ignored the box it was mounted in and floated over the whole
+   sheet: its «بدء مكالمة» card sat on our hang-up button, and once started
+   its chat panel covered the screen (7 October, measured on the live build).
+   A transform makes this box the containing block for fixed descendants —
+   shadow DOM included, since that follows the flat tree — so the widget
+   lands inside the box, and `overflow: hidden` keeps it there. */
+.wain-ai-slot {
+  transform: translateZ(0);
+  overflow: hidden;
+}

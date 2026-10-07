@@ -16,6 +16,7 @@ import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/svg.dart';
 import 'call_controller.dart';
 import 'config.dart';
 
@@ -204,10 +205,17 @@ class _Sheet extends StatelessWidget {
               // A voice switch needs the agent; the free call speaks with
               // the phone's own voice.
               if (live && !call.local)
-                TextButton(
+                TextButton.icon(
                   key: const ValueKey('call-switch-voice'),
                   onPressed: call.switchVoice,
-                  child: Text(
+                  // A speaker drawn in the icon set, not the 🔊 emoji the
+                  // label used to start with (the web's switch, 7 October).
+                  icon: WainSvg.icon(
+                    'speaker',
+                    size: 16,
+                    color: WainColors.sand100,
+                  ),
+                  label: Text(
                     call.salemVoice
                         ? CallCopy.switchToShouq
                         : CallCopy.switchToSalem,

@@ -268,8 +268,8 @@ export const WAIN_AI_COPY = {
   // 15 seconds on the ready screen with Start unpressed: the widget's own
   // button is the only way forward and nothing else on the sheet can press it.
   startNudge: "للحين ما بدأت المكالمة — اضغط «بدء مكالمة» تحت.",
-  switchToSalem: "🔊 بصوت سالم",
-  switchToShouq: "🔊 بصوت شوق",
+  switchToSalem: "بصوت سالم",
+  switchToShouq: "بصوت شوق",
   ended: "انتهت المكالمة",
   callFailed: "ما قدرنا نوصلك بشوق — جرّب مرة ثانية.",
   // A call that rang out. Said separately from callFailed because the caller

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconClose, IconPhone, IconPinSolid, IconSend, IconShouq } from "@/components/icons";
+import { IconClose, IconPhone, IconSend, IconShouq, IconSpeaker } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { getRecognition, isInAppBrowser, speechLang, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
@@ -986,8 +986,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   so one event was announced twice; what it shows the rest of
                   the time is the caller's own words read back to them, which
                   is not news to the person who just said them. */}
+              {/* No icon before the status: it was a map pin, which said
+                  «location» on a line that reports a call. */}
               <span className="flex items-center gap-1 text-xs text-coral-50">
-                <IconPinSolid className="size-3" />
                 <span aria-live="polite">{status}</span>
                 {/* Outside the live region on purpose — see `status`. Visible,
                     readable by navigating to it, never announced. `ended`
@@ -1031,15 +1032,28 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
            <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="flex flex-1 flex-col text-center">
-                {/* `mt-8` is not decoration: `animate-ping` scales the halo to 2×, so it
-                    reaches half the face's own width past each edge, and with the
-                    body's p-4 above this it needs 48px to stay out of the header. */}
-                <span className="relative mx-auto mt-8 grid size-20 shrink-0 place-items-center sm:size-24">
+                {/* Her photo, as on /find, with the drawn face as a small
+                    badge: the badge is what moves its mouth while she
+                    answers (`shouq--talking`), the photo is who she is.
+                    The halo breathes in place (`animate-pulse`) instead of
+                    `animate-ping`, which scaled it to 2× and laid it over
+                    the headline under the face. */}
+                <span className="relative mx-auto mt-4 grid size-24 shrink-0 place-items-center sm:size-28">
                   {phase !== "answering" && (
-                    <span className="absolute inset-0 animate-ping rounded-full bg-coral-200 motion-reduce:animate-none" />
+                    <span className="absolute -inset-2 animate-pulse rounded-full bg-coral-100 motion-reduce:animate-none" />
                   )}
-                  <span className="relative grid size-16 place-items-center rounded-full bg-coral-600 text-white shadow-md sm:size-20">
-                    <IconShouq className={`size-8 shouq sm:size-10 ${talking ? "shouq--talking" : ""}`} />
+                  {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
+                  <img
+                    src="/find/shouq-face.jpg"
+                    alt=""
+                    aria-hidden="true"
+                    width={320}
+                    height={320}
+                    decoding="async"
+                    className="relative size-24 rounded-full object-cover shadow-md ring-4 ring-white sm:size-28"
+                  />
+                  <span className="absolute -bottom-1 -end-1 grid size-9 place-items-center rounded-full bg-coral-600 text-white ring-2 ring-white">
+                    <IconShouq className={`size-5 shouq ${talking ? "shouq--talking" : ""}`} />
                   </span>
                 </span>
 
@@ -1078,10 +1092,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     rather than the page around it. */}
                 {WAIN_AI_AGENT_ENABLED && (
                   <div
-                    className={`flex min-h-32 flex-col justify-center rounded-3xl bg-sand-100 p-3 ${
+                    className={`wain-ai-slot flex flex-col justify-center rounded-3xl bg-sand-100 p-3 ${
                       phase === "live" && !started
-                        ? "my-auto ring-2 ring-coral-400"
-                        : "mt-5 flex-1"
+                        ? "my-auto h-44 ring-2 ring-coral-400"
+                        : "mt-4 min-h-[19rem] flex-1"
                     }`}
                   >
                     {agentReady ? (
@@ -1123,6 +1137,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                       onClick={switchPersona}
                       className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                     >
+                      <IconSpeaker className="size-4" aria-hidden="true" />
                       {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
                     </button>
                   )}

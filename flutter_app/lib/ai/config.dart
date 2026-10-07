@@ -85,8 +85,8 @@ abstract final class CallCopy {
   static const toSalem = 'كمّل مع سالم';
   static const didSearch = 'دوّرت لك';
   static const didOpen = 'فتحت لك صفحة';
-  static const switchToSalem = '🔊 بصوت سالم';
-  static const switchToShouq = '🔊 بصوت شوق';
+  static const switchToSalem = 'بصوت سالم';
+  static const switchToShouq = 'بصوت شوق';
   static const ended = 'انتهت المكالمة';
   static const callFailed = 'ما قدرنا نوصلك بشوق — جرّب مرة ثانية.';
   static const noAnswer =
