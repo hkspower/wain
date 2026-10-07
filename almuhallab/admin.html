@@ -80,12 +80,15 @@
          own lightness at its own hue, so they stay near-neutral (red minus blue
          at most 3: no brown paper). On a dark page the binding surface is the
          LIGHTEST one an ink can land on, so every ink is graded on panel-3. */
-      --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
-      --border: #363534;        /* card and rule hairlines: decoration, not a control's edge */
-      --border-input: #76706a;  /* a field's edge, 3.21:1 on panel-3 */
-      --text: #ececec;          /* 13.29:1 on panel-3 */
-      --muted: #a8aeb5;         /* 7.02:1 on panel-3 */
-      --tint: #e6a95c;          /* the logo's amber: links, focus, accents, 7.62:1 on panel-3 */
+      --bg: #0a0908; --panel: #161514; --panel-2: #1e1c1b; --panel-3: #272524;
+      /* clarity pass (2026-10-07): OKLCH L .141 · .197 · .229 · .266 at hue 70,
+         chroma .0035, so a card is 1.09:1 off the page (was 1.07) and the
+         hairline 1.79:1 on a card (was 1.53) */
+      --border: #42413f;        /* card and rule hairlines, 1.79:1 on a card: decoration, not a control's edge */
+      --border-input: #7c7670;  /* a field's edge, 3.40:1 on panel-3 */
+      --text: #ececec;          /* 12.92:1 on panel-3, 15.44:1 on a card */
+      --muted: #b4bac1;         /* 7.80:1 on panel-3, 9.32:1 on a card (was 7.02) */
+      --tint: #e6a95c;          /* the logo's amber: links, focus, accents, 7.41:1 on panel-3 */
       --tint-hover: #fabc6f;    /* the amber one step lighter, for a hovered amber fill */
       --on-tint: #0a0908;       /* ink on an amber fill, 9.66:1. White on amber is 2.06:1 */
       --stripe: #7f5d33;        /* the logo's dark band: the amber at 55% */
@@ -94,12 +97,12 @@
       --on-bar-bd: #79736c;     /* the only edge of a control on the bar, 4.25:1 */
       --on-bar-fill: #272625;   /* hover and active fill on the bar, its labels 13.73:1 */
       --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
-      --good: #37b671; --danger: #f37e77; --info: #66a3f0;   /* each 6:1 on panel-3 */
-      --warn-bg: #141211;
+      --good: #3ab873; --danger: #f68179; --info: #68a6f3;   /* each 6.0:1 on panel-3 */
+      --warn-bg: #161514;
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */
       --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
-      --viz-pos: #37b671; --viz-neg: #f37e77; --viz-zero: #64615e; --viz-grid: #2c2b2a;
+      --viz-pos: #3ab873; --viz-neg: #f68179; --viz-zero: #64615e; --viz-grid: #31302f;
       /* type: Cairo for Arabic everywhere. The logo's own Latin faces carry
          Latin-only ranges, so Arabic in the same element falls through to Cairo */
       --display: "Chakra Petch", "Cairo", system-ui, sans-serif;

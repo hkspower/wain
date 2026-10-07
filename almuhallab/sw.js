@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v48";   /* v48: top bar logo: whole-pixel cap, 1px rules, scaled glow, crisp anchor */
+var CACHE = "nokhatha-v49";   /* v49: theme clarity: re-solved surface steps, hairline, secondary ink and status inks */
 var ASSETS = [
   "./",
   "index.html",
