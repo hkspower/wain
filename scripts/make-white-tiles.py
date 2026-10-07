@@ -32,7 +32,10 @@ WHITE = (255, 255, 255)
 # and all products bigger for the mobile version"): one tile per row on a phone, drawn at 1080x1080 so
 # `cover` crops nothing. Desktop is unchanged.
 SIZES = {'desktop': {'tall': (1216, 988), 'wide': (1216, 418)},
-         'mobile':  {'tall': (1080, 1080), 'wide': (1080, 545)}}
+         'mobile':  {'tall': (1290, 968), 'wide': (1290, 545)}}
+# 4:3 ON A PHONE since 2026-10-07 ("improve category images size to perfectly fit mobile version"):
+# a square tile was a whole screen-height each (412px on a 412px phone) and the four took four
+# screens of scrolling; at 4:3 two fit on one screen. 1290px wide = sharp on a 3x phone up to 430px.
 rng = np.random.default_rng(3)
 
 
@@ -434,7 +437,7 @@ for crop, sz in SIZES.items():
     if square:
         # the go-button is in the FAR bottom corner in both languages, and the Arabic frame is a
         # mirror, so one composition serves both
-        save(compose_accessories_square(w, h), crop, 'accessories')
+        save(compose_accessories_square(w, h, far=0.06, bottom=0.10), crop, 'accessories')   # 4:3, like desktop
         save(compose_outlet(w, h), crop, 'outlet')
         continue
     # All four tiles share one shape since 2026-09-28: the wide 2.9:1 strip left

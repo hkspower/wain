@@ -40,8 +40,11 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
   .cat-tile.tile-men, .cat-tile.tile-women,
-  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1 / 1 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 4 / 3 !important; }
 }
+/* 4:3 SINCE 2026-10-07 ("improve category images size to perfectly fit mobile version"): the
+ * square tile was a whole screen-height each and the four took four screens of scrolling; at 4:3
+ * two fit on one screen. The artwork is drawn at 1290x968 to match, so `cover` still crops nothing. */
 
 /* A FOCUS RING YOU CAN SEE, 2026-10-01. The faint resting edge above is an `outline`,
  * and at equal specificity it replaced the site's focus outline: a tile reached by Tab

@@ -175,8 +175,8 @@ $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 // (scripts/make-white-tiles.py), so $hasRtlArt no longer decides either.
 // ?v= for the same reason as assets/tile-art.js's ART_VERSION: /cats/ may be
 // shown stale for days, so a changed picture needs a new URL. Keep them equal.
-$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261004a';
-$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261004a';
+$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261007a';
+$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261007a';
 
 // THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
 // for as "fix aspect ration heros images". The <img> below carried a single
@@ -514,7 +514,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <script src="/assets/category-topbar.js" defer></script>
 <script src="/assets/card-heart.js" defer></script>
 <script src="/assets/grid-name-fit.js" defer></script>
-<script src="/assets/quick-add-size.js?v=20261004a" defer></script>
+<script src="/assets/quick-add-size.js?v=20261007a" defer></script>
 <script src="/assets/card-options.js" defer></script>
 <script src="/assets/cart-motion.js" defer></script>
 <script src="/assets/grid-price.js" defer></script>

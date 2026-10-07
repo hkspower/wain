@@ -27,7 +27,7 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
       const box = t.w / t.h, art = t.nw / t.nh
       check(Math.abs(box - art) / art < 0.01, `${name} ${lang} ${t.k}: the whole picture shows, nothing cropped`, `box ${box.toFixed(3)} art ${art.toFixed(3)} (${t.nw}x${t.nh})`)
       if (name === 'phone') {
-        check(Math.abs(box - 1) < 0.01, `${name} ${lang} ${t.k}: square`, `box ${box.toFixed(3)}`)
+        check(Math.abs(box - 4 / 3) < 0.01, `${name} ${lang} ${t.k}: 4:3 (since 2026-10-07; square before)`, `box ${box.toFixed(3)}`)
         check(t.w >= t.page - 1, `${name} ${lang} ${t.k}: the full row, edge to edge`, `${Math.round(t.w)} of ${t.page}px`)
       } else {
         const grew = WAS[name] / box

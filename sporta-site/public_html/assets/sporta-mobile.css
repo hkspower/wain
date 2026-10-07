@@ -149,7 +149,7 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
     grid-template-columns: minmax(0, 1fr) !important;
   }
   .cat-tile.tile-men, .cat-tile.tile-women,
-  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1 / 1 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 4 / 3 !important; }
 }
 @media (max-width: 767px) {
 .cat-tile .eyebrow {
