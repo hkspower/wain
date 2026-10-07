@@ -722,6 +722,7 @@ def browser_checks():
         mobile_checks(br)
         fit_checks(br)
         alignment_checks(br)
+        mobile_layout_checks(br)
         portal_checks(pg)
         font_checks(pg)
         app_icon_checks(pg)
@@ -929,7 +930,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "766", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "768", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -962,7 +963,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "766", "0", "100%"], str(finals))
+          finals == ["4", "768", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3137,6 +3138,26 @@ def alignment_checks(br):
         check(S, f"every icon, row and edge lines up at {w}px", not bad, " | ".join(bad[:4]))
         c.close()
 
+
+def mobile_layout_checks(br):
+    """«impove mobile layout» (2026-10-07), measured at 320px: the portfolio
+    chart sat flush on its tile grid (0px, its neighbours on the other tabs
+    keep 12), and a channel card on التواصل split its two actions, the copy
+    button wrapping beside the value and «فتح القناة» alone two lines down."""
+    S = "mobile"
+    c = br.new_context(viewport={"width": 320, "height": 640}, is_mobile=True, has_touch=True)
+    pg = c.new_page()
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); pg.wait_for_timeout(300)
+    g = pg.evaluate("document.getElementById('safi-chart').getBoundingClientRect().top"
+                    " - document.getElementById('safi-tiles').getBoundingClientRect().bottom")
+    check(S, "the portfolio chart keeps the 12px gap below its tiles", 11 <= g <= 13, f"{g:.0f}px")
+    pg.goto(f"{BASE}/nizam.html#/social", wait_until="networkidle"); pg.wait_for_timeout(300)
+    rows = pg.evaluate("""() => [...document.querySelectorAll('#soc-channels .soc')].map(c => {
+      const b = [...c.querySelectorAll('.btn')].map(e => Math.round(e.getBoundingClientRect().top));
+      return b.length === 2 && b[0] === b[1]; })""")
+    check(S, "each channel's open and copy buttons share one row on a 320px phone",
+          len(rows) == 3 and all(rows), str(rows))
+    c.close()
 
 def portal_checks(pg):
     """النوخذة's front door, as a first-time visitor and a keyboard meet it."""

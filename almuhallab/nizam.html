@@ -310,6 +310,9 @@
     .soc .head { display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
     .soc .head b { font-size:15px; }
     .soc .head .btn { margin-inline-start:auto; }
+    /* a channel's two actions share one row: on a phone the copy button used
+       to wrap beside the value and «فتح القناة» sat alone two lines below */
+    .soc .acts { display:flex; gap: 8px; flex-wrap:wrap; }
     .soc .val { font-weight:700; color:var(--tint); direction:ltr; unicode-bidi:isolate; }
     .soc p { margin:0; font-size:13.5px; line-height:1.85; white-space:pre-line; }
     .soc .tags { font-size:13px; color:var(--muted); line-height:1.9; }
@@ -328,6 +331,7 @@
     /* the link between modules, stated rather than implied */
     .flow { background:var(--panel); border:1px solid var(--border); border-radius: 12px;
       padding: 16px 16px; margin-top: 12px; }
+    #safi-chart { margin-top: 12px; }
     .flow h3 { margin: 0 0 8px; font-size:14.5px; }
     .flow .line { display:flex; align-items:center; gap: 8px; flex-wrap:wrap;
       padding: 8px 0; border-bottom:1px solid var(--border); font-size:13px; }
@@ -1430,9 +1434,10 @@
     CLIP = [];
     el("soc-channels").innerHTML = CHANNELS.map(function (c) {
       return '<div class="soc"><div class="head"><b>' + esc(c[0]) + '</b>' +
-        '<span class="val">' + esc(c[1]) + "</span>" + clipBtn(c[1]) + "</div>" +
+        '<span class="val">' + esc(c[1]) + "</span></div>" +
         '<p class="note" style="margin:0">' + esc(c[3]) + "</p>" +
-        '<div><a class="btn sm" href="' + esc(c[2]) + '" target="_blank" rel="noopener noreferrer">فتح القناة</a></div></div>';
+        '<div class="acts"><a class="btn sm" href="' + esc(c[2]) + '" target="_blank" rel="noopener noreferrer">فتح القناة</a>' +
+        clipBtn(c[1]) + "</div></div>";
     }).join("");
 
     el("soc-assets").innerHTML = ASSETS.map(function (a) {
