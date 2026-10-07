@@ -6510,6 +6510,40 @@ by path with `website-content` (`size_bytes`), as before.
 - **«اسمعها بصوت شوق» is not her voice on the live site.** The bridge is off (`NEXT_PUBLIC_WAIN_TTS_URL=none`), so the phone's voice reads it, and on an iPhone that may be a man's. The label needs the owner's word before it changes.
 - **/salem's header call button is a red handset**, which reads as «hang up» on a phone. Also a design question for the owner.
 
+## /pick counts the group's votes — 7 October (live as `84dbd477`)
+
+Asked: «improve hangout and orders». The owner picked all of the following:
+- **Hangout:** a live vote count, a simpler share panel, smarter suggestions, and the app mirror.
+- **Orders:** menus from them, the admin board unlocked, a polished order flow, and shop notifications by email.
+
+This section records the first piece.
+
+**The vote count.** Before, a shortlist vote was only a WhatsApp reply, and nothing counted it.
+- A shortlist link now carries `v=<poll>`, a random 12-character id per message sent (`newPollId()`).
+- `/pick` reads `votes_get` on arrival, then every 20 seconds while the tab is visible.
+- A vote calls `vote_cast` and still sends the chat reply.
+- Each place shows «صوتين»/«٣ أصوات» (`VOTES_COUNT`) and a bar. The header says the total and who leads, or «متعادلين».
+- A device's second vote moves its vote rather than adding one: it keeps a random voter id in `localStorage`.
+- A link with no `v` shows no count.
+- Back end: the `votes` table keyed `(poll, voter)`, the tally limited to the link's own places, no names, deleted after 30 days, and a poll stops at 200 voters. Twin in `schema.sql`, because `audit:schema` requires it. `/privacy` says it.
+
+**Tests.**
+- `test:wain-api` 155 (+11), `together` 81 (+9).
+- Red with the poll and the count removed (3 failed), green with them.
+- `test:db` 38, `audit:rls` 6 tables.
+
+**Live.**
+- Back end installed by fetch-pin-run on both stages at fingerprint `876228710788962d`.
+- `selftest` on the server: 9 of 9, including «cast and change a vote under lock».
+- Site archive `37ec2af`: `{"ok":true,"deployed":278,"removed":15,"emptied":1}`, read at its first firing.
+- `deploy:verify`: «84dbd477 is live — verified at the root and 7 levels below it» (digest `6a577d8e8f35aeaa`).
+- A cron `wget` of `votes_get` through the edge answered `{"ok":true,"tally":{…0,…0},"total":0}`.
+- All jobs deleted, and the crontab is back to sporta's.
+
+**`admin.secret` is still EMPTY** (install's own report), so the board stays shut until the owner fills it.
+
+**Not measured:** a real group voting from their phones.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
