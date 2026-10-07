@@ -103,6 +103,15 @@ if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
     exit('Invalid amount.');
 }
 
+// CBK manual v3.02 p.8: the return URL must be a secure (https://) URL of at most 200 characters, with no
+// query string. A bad one is refused by the gateway only AFTER the customer has chosen how to pay, so it is
+// refused here, before any token is requested.
+if (!preg_match('#^https://[^\s?\#]{1,192}$#i', (string) ($cfg['return_url'] ?? ''))) {
+    cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => 'return_url_invalid']);
+    http_response_code(500);
+    exit('Payment is not configured correctly (return URL).');
+}
+
 try {
     $token = cbk_get_access_token($cfg);
 } catch (Throwable $e) {
