@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { assetUrl } from "./cdn";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, tyreBandFor, type BodyStyle } from "./cars";
+import { crownFor, crownShell, TIRE_HALF_W, TIRE_RADIUS, WHEEL_R_K, WHEEL_W_K, tyreBandFor, type BodyStyle } from "./cars";
 
 // Blender-authored graphics.
 //
@@ -175,7 +175,19 @@ function addTireUvs(geo: THREE.BufferGeometry, halfWidth = 0.13): void {
   const v = new Float64Array(n0);
   for (let i = 0; i < n0; i++) {
     u[i] = Math.atan2(pos.getZ(i), pos.getY(i)) / (Math.PI * 2) + 0.5;
-    v[i] = Math.min(1, Math.max(0, 0.5 + pos.getX(i) / (2 * halfWidth)));
+    // Along the section, in the authored tyre's own units (0.13 half
+    // width, 0.36 radius): the tread is linear across x, which is where
+    // its grooves are drawn; the sidewall runs by RADIUS, bead to
+    // shoulder, because it is nearly vertical and x alone would squeeze
+    // the whole wall into a few percent of the map.
+    const xa = (pos.getX(i) / halfWidth) * 0.13;
+    const ra = (Math.hypot(pos.getY(i), pos.getZ(i)) / TIRE_RADIUS) * 0.36;
+    if (Math.abs(xa) <= 0.075) {
+      v[i] = 0.2 + (0.6 * (xa + 0.075)) / 0.15;
+    } else {
+      const f = Math.min(1, Math.max(0, (ra - 0.205) / (0.358 - 0.205)));
+      v[i] = xa < 0 ? 0.2 * f : 1 - 0.2 * f;
+    }
   }
 
   const idx = geo.getIndex();

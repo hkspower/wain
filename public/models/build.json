@@ -47,8 +47,8 @@
       ]
     },
     "wheel-5": {
-      "tris": 16500,
-      "kb": 305.1,
+      "tris": 21940,
+      "kb": 400.7,
       "parts": [
         "Alloy",
         "Barrel",
@@ -58,8 +58,8 @@
       ]
     },
     "wheel-6": {
-      "tris": 16836,
-      "kb": 311,
+      "tris": 22276,
+      "kb": 406.6,
       "parts": [
         "Alloy",
         "Barrel",

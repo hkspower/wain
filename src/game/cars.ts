@@ -2447,8 +2447,8 @@ let tireSurfShared: {
 
 function tireSurface() {
   if (tireSurfShared) return tireSurfShared;
-  const W = 192;
-  const H = 256;
+  const W = 256;
+  const H = 512;
   const h = new Float32Array(W * H);
   // Deterministic hash noise: a tire that is grainy differently on every
   // reload is a tire whose screenshots never match.
@@ -2457,6 +2457,11 @@ function tireSurface() {
     return s - Math.floor(s);
   };
   const ridge = (t: number, c: number, w: number) => Math.max(0, 1 - Math.abs(t - c) / w);
+  // A smooth bump: 1 at c, 0 at c +/- w, no corner for the normal to snap on.
+  const bump = (t: number, c: number, w: number) => {
+    const k = Math.max(0, 1 - Math.abs(t - c) / w);
+    return k * k * (3 - 2 * k);
+  };
 
   for (let y = 0; y < H; y++) {
     const v = y / (H - 1);
@@ -2464,29 +2469,60 @@ function tireSurface() {
       const u = x / W;
       let e: number;
       if (v < 0.2 || v > 0.8) {
-        // Sidewall: gently domed, with the mould's ribbing kept FINE and
-        // faint. At 0.09 of the height field, through the normal map's
-        // 3.2 gain, it read as deep lathe grooves, concentric rings
-        // stepping down every sidewall in every studio render. A real
-        // sidewall is a smooth satin face; the ribbing is something you
-        // see only with your nose on it.
-        const d = v < 0.5 ? v / 0.2 : (1 - v) / 0.2;
-        e = 0.4 + 0.018 * Math.sin(v * 420) * (0.3 + 0.7 * d) + 0.08 * d;
+        // Sidewall, by distance from the bead: d is 0 at the bead and 1
+        // at the shoulder. The authored tyre's UVs run by radius (models.ts
+        // addTireUvs), so this is laid out the way the wall is.
+        //
+        //   0.02-0.05   the rim-protector rib, a rounded ridge standing
+        //               proud of the wall, with a fine groove under it
+        //   0.07-0.15   a smooth lettering panel, edged by a thin raised
+        //               line at each side — the part that carries the
+        //               sticker, and the part that catches one soft
+        //               highlight along its length
+        //   0.165-0.195 the shoulder: short moulded ribs round the
+        //               circumference, the notching every tyre has where
+        //               the wall turns into the tread
+        //
+        // The ribbing is kept FINE and faint everywhere else. At 0.09 of
+        // the height field, through the normal map's 3.2 gain, it read as
+        // deep lathe grooves, concentric rings stepping down every
+        // sidewall in every studio render.
+        const vv = v < 0.5 ? v : 1 - v;
+        e = 0.4 + 0.08 * (vv / 0.2);
+        e += 0.2 * bump(vv, 0.032, 0.016); // the rib
+        e -= 0.1 * bump(vv, 0.052, 0.006); // the groove under it
+        e += 0.05 * bump(vv, 0.072, 0.005) + 0.05 * bump(vv, 0.152, 0.005); // panel edges
+        if (vv > 0.16 && vv < 0.2) {
+          // Shoulder ribs, twelve a block period, staggered one row to
+          // the next so they read as moulded rather than ruled.
+          const row = Math.floor((vv - 0.16) / 0.0133);
+          const pu = ((u * 12 + row * 0.5) % 1 + 1) % 1;
+          e += 0.08 * bump(pu, 0.5, 0.3) * bump(vv, 0.18, 0.02) * 1.0;
+        }
+        e += 0.012 * Math.sin(vv * 700) * (vv < 0.07 || vv > 0.152 ? 0.4 : 0.15);
       } else {
-        // Tread: three circumferential grooves, and one lateral sipe per
-        // tile raked across so the blocks are not a chequerboard.
+        // Tread: four circumferential grooves round a wide centre rib,
+        // matching the four cut into the authored tyre's profile
+        // (tools/blender/build_assets.py build_tire), and lateral sipes
+        // raked in a V so the blocks are directional, not a chequerboard.
         const t = (v - 0.2) / 0.6;
         e = 0.74;
-        for (const c of [0.22, 0.5, 0.78]) e -= 0.55 * ridge(t, c, 0.055);
-        const raked = (u + (t - 0.5) * 0.14 + 1) % 1;
-        e -= 0.4 * Math.max(0, 1 - Math.abs(raked - 0.5) / 0.07);
+        for (const c of [0.2, 0.38, 0.62, 0.8]) e -= 0.55 * bump(t, c, 0.05);
+        // Outer blocks (between groove and shoulder, and groove and rib):
+        // a sipe each, raked by distance from the centre line.
+        const off = Math.abs(t - 0.5);
+        const raked = (u * 2 + off * 0.9 + 4) % 1;
+        const inBlock = (off > 0.15 && off < 0.27) || off > 0.33;
+        if (inBlock) e -= 0.42 * ridge(raked, 0.5, 0.075);
+        // The centre rib gets small stagger notches, not full sipes.
+        if (off < 0.1) e -= 0.16 * ridge((u * 4 + 8) % 1, 0.5, 0.08);
         // Where the tread turns over the edge it breaks into shoulder
         // blocks — the part you actually see when the car is sideways.
-        if (t < 0.12 || t > 0.88) {
-          e -= 0.2 * Math.max(0, 1 - Math.abs(((u * 2) % 1) - 0.5) / 0.18);
+        if (t < 0.1 || t > 0.9) {
+          e -= 0.22 * Math.max(0, 1 - Math.abs(((u * 2) % 1) - 0.5) / 0.2);
         }
       }
-      h[y * W + x] = Math.min(1, Math.max(0, e + (grain(x, y) - 0.5) * 0.05));
+      h[y * W + x] = Math.min(1, Math.max(0, e + (grain(x, y) - 0.5) * 0.04));
     }
   }
 
@@ -3183,26 +3219,99 @@ const FLARE_TUBE_FRAC = 0.62;
  * the way every other shell in this file is.
  */
 const flareGeoCache = new Map<string, THREE.BufferGeometry>();
-function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
-  const key = `${kit}:${front ? "f" : "r"}`;
+
+/**
+ * How far a flare stands out at a point along its arc, as a fraction of
+ * `proud`: zero at both ends, where the flare dies flat into the door
+ * and the quarter, one over the crown. The tube this replaced ended in
+ * two open mouths, each a ring of hollow pipe, and read as hose clamped
+ * over the arch. A real flare has no end to see; it grows out of the
+ * panel.
+ */
+export function flareRise(a: number): number {
+  return Math.pow(Math.max(0, Math.sin(a)), 0.6);
+}
+
+/**
+ * The section of a flare across its arc, as (radial offset from the
+ * arch radius, lateral offset from the skin), from the wheel side to
+ * the body side. A flat crown with rounded shoulders, which is what a
+ * pressed lip is — a superellipse rather than the circle a tube is —
+ * fuller on the wheel side, where it rolls down into the opening, and a
+ * long feather on the body side, where it runs back into the panel. Both
+ * ends continue below the skin so no seam can show.
+ */
+function flareSection(proud: number, rise: number, band: number): Array<[number, number]> {
+  const tube = proud * FLARE_TUBE_FRAC;
+  const wheelHalf = tube * 0.86 * band;
+  const bodyHalf = tube * 1.25 * band;
+  const h = proud * rise;
+  const K = 7;
+  const pts: Array<[number, number]> = [[-wheelHalf, -0.012]];
+  // sin spacing puts the points where the curve turns hardest.
+  for (let k = 0; k <= K; k++) {
+    const f = Math.cos((k / K) * (Math.PI / 2)); // 1 at the foot, 0 at the crown
+    pts.push([-wheelHalf * f, h * Math.pow(Math.max(0, 1 - Math.pow(f, 3)), 1 / 3)]);
+  }
+  for (let k = 1; k <= K; k++) {
+    const f = Math.sin((k / K) * (Math.PI / 2)); // 0 at the crown, 1 at the foot
+    pts.push([bodyHalf * f, h * Math.pow(Math.max(0, 1 - Math.pow(f, 2.4)), 1 / 2.4)]);
+  }
+  pts.push([bodyHalf, -0.012]);
+  return pts;
+}
+
+/**
+ * A flare traces the SAME arc as the arch lip it sits over — same radius,
+ * same half-turn — just fatter and further out. Tracing a different curve
+ * is what made the first attempt at this read as scaffolding: two arcs
+ * over one wheel, disagreeing about where the wheel was.
+ *
+ * The geometry carries its own lateral offsets from the flank, so it is
+ * built per side and the mesh sits at the flank itself; a section that
+ * is not symmetric cannot be mirrored by sign alone without turning its
+ * triangles inside out. Twelve of them (three kits, front and rear, two
+ * sides), built once and shared like every other shell in this file.
+ */
+function flareGeo(kit: KitLevel, front: boolean, side: number): THREE.BufferGeometry {
+  const key = `${kit}:${front ? "f" : "r"}:${side > 0 ? "p" : "n"}`;
   const hit = flareGeoCache.get(key);
   if (hit) return hit;
-  const tube = WIDE[kit].proud * FLARE_TUBE_FRAC;
-  // The same counts as the lip each flare sits over, raised with it:
-  // the measured rule here is that flare and lip must trace the same
-  // arc — "two arcs that agree about where the wheel is read as one
-  // fender" — and that now includes agreeing about the tessellation.
-  // The flare tube is two to four times fatter than the lip's, so
-  // smoothing only the lip would have left the WORST faceting on the
-  // most visible torus of every kitted car.
-  const geo = new THREE.TorusGeometry(
-    front ? ARCH_R_F : ARCH_R_R,
-    tube,
-    12,
-    front ? 64 : 60,
-    Math.PI
-  );
-  geo.rotateY(Math.PI / 2);
+  const P = WIDE[kit].proud;
+  const R = front ? ARCH_R_F : ARCH_R_R;
+  // The same counts as the lip each flare sits over, raised with it: the
+  // measured rule here is that flare and lip must trace the same arc,
+  // and that includes agreeing about the tessellation.
+  const N = front ? 64 : 60;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  let M = 0;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI;
+    const rise = flareRise(a);
+    // The band narrows toward the ends as well, so the tips are tips.
+    const sec = flareSection(P, rise, 0.5 + 0.5 * rise);
+    M = sec.length;
+    for (const [rho, lat] of sec) {
+      const rad = R + rho;
+      pos.push(side * lat, rad * Math.sin(a), -rad * Math.cos(a));
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < M - 1; j++) {
+      const p = i * M + j;
+      const q = p + M;
+      // Wound so the outward face is the front: the section runs wheel
+      // side to body side, so the ring's own normal points along -x for
+      // a positive side.
+      if (side > 0) idx.push(p, p + 1, q, p + 1, q + 1, q);
+      else idx.push(p, q, p + 1, p + 1, q, q + 1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
   flareGeoCache.set(key, geo);
   return geo;
 }
@@ -3537,6 +3646,100 @@ const gapMat = new THREE.MeshStandardMaterial({ name: "panel-gap", color: 0x0505
 // the dash and headrests stayed black under any light that came in
 // through the glass, so a lit cabin and an unlit one looked the same.
 const interiorMat = new THREE.MeshStandardMaterial({ name: "interior", color: 0x2a2d32, roughness: 0.95 });
+
+/**
+ * Seat padding: quilted leather, charcoal with a pale thread.
+ *
+ * The cabin had two grey rounded boxes behind the glass, called
+ * headrests, and a driver sitting on nothing. A seat is five padded
+ * pieces — squab, back, two bolsters, headrest — and what makes padding
+ * read as padding at 4K through a side window is not its shape but its
+ * surface: diamond quilting puffed between seams, with a dashed
+ * stitch along each seam that is the one place the cabin picks up a
+ * highlight. One 128 px tile of one diamond, drawn once and shared.
+ *
+ * Built lazily, like the tyre: this module is imported by node tests that
+ * have no canvas.
+ */
+const PAD_TILE_M = 0.07;
+let padMatShared: THREE.MeshStandardMaterial | null = null;
+function getPadMat(): THREE.MeshStandardMaterial {
+  if (padMatShared) return padMatShared;
+  const N = 128;
+  const h = new Float32Array(N * N);
+  const colC = document.createElement("canvas");
+  const nrmC = document.createElement("canvas");
+  colC.width = colC.height = nrmC.width = nrmC.height = N;
+  const col = colC.getContext("2d")!.createImageData(N, N);
+  const nrm = nrmC.getContext("2d")!.createImageData(N, N);
+  // The diamonds run on the tile's diagonals: f and g are the two
+  // diagonal coordinates, each 0 on a seam and 1 at the other.
+  const frac = (x: number) => x - Math.floor(x);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const u = x / N;
+      const v = y / N;
+      const f = frac(u + v);
+      const g = frac(u - v);
+      const pf = Math.sin(Math.PI * f);
+      const pg = Math.sin(Math.PI * g);
+      h[y * N + x] = Math.pow(pf * pg, 0.55);
+    }
+  }
+  const at = (x: number, y: number) => h[((y + N) % N) * N + ((x + N) % N)];
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = (y * N + x) * 4;
+      const e = at(x, y);
+      const u = x / N;
+      const v = y / N;
+      // Seam distance in the diagonal frame, and a dash along it.
+      const f = frac(u + v);
+      const g = frac(u - v);
+      const d = Math.min(f, 1 - f, g, 1 - g);
+      const along = d === Math.min(f, 1 - f) ? frac(u - v) : frac(u + v);
+      const thread = d < 0.018 && frac(along * 6) < 0.62 ? 1 : 0;
+      const lit = 30 + e * 22;
+      col.data[i] = thread ? 150 : lit;
+      col.data[i + 1] = thread ? 152 : lit * 1.02;
+      col.data[i + 2] = thread ? 158 : lit * 1.08;
+      col.data[i + 3] = 255;
+      // Normals by central difference, green -dy: the glTF convention
+      // every normal map in this file is written in.
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 2.6;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 2.6;
+      const len = Math.hypot(dx, dy, 1);
+      nrm.data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 2] = Math.round((1 / len) * 0.5 * 255 + 127.5);
+      nrm.data[i + 3] = 255;
+    }
+  }
+  colC.getContext("2d")!.putImageData(col, 0, 0);
+  nrmC.getContext("2d")!.putImageData(nrm, 0, 0);
+  const map = new THREE.CanvasTexture(colC);
+  const normalMap = new THREE.CanvasTexture(nrmC);
+  map.colorSpace = THREE.SRGBColorSpace;
+  normalMap.colorSpace = THREE.NoColorSpace;
+  for (const t of [map, normalMap]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    // ExtrudeGeometry's flat faces carry world metres as UV (faceUV).
+    t.repeat.set(1 / PAD_TILE_M, 1 / PAD_TILE_M);
+    t.anisotropy = 8;
+  }
+  padMatShared = new THREE.MeshStandardMaterial({
+    name: "seat-pad",
+    color: 0xffffff,
+    map,
+    normalMap,
+    // Y negative: authored for the file format, carried into three's frame.
+    normalScale: new THREE.Vector2(0.9, -0.9),
+    roughness: 0.5,
+    metalness: 0,
+    envMapIntensity: 0.9,
+  });
+  return padMatShared;
+}
 const indicatorMat = new THREE.MeshStandardMaterial({ name: "indicator",
   color: 0xffa020,
   emissive: 0xff8c1a,
@@ -7719,9 +7922,8 @@ export function createCar(colors: CarColors): THREE.Group {
     // radius, the same half-turn, a fatter tube and further out. Two
     // arcs that agree about where the wheel is read as one fender with
     // an edge rolled over it, which is what a flare is.
-    const tube = flareTube;
-    const flare = new THREE.Mesh(flareGeo(kit, front), bodyMat);
-    flare.position.set(side * (flankX + wide.proud - tube), ARCH_MESH_Y, wz);
+    const flare = new THREE.Mesh(flareGeo(kit, front, side), bodyMat);
+    flare.position.set(side * flankX, ARCH_MESH_Y, wz);
     flare.userData.archFlare = true;
     group.add(flare);
 
@@ -7745,7 +7947,7 @@ export function createCar(colors: CarColors): THREE.Group {
         // dozen as geometry that never paints a pixel. Seated with most
         // of the head proud, the way a fastener sits.
         rivet.position.set(
-          side * (flankX + wide.proud - RIVET_R * 0.35),
+          side * (flankX + wide.proud * flareRise(a) - RIVET_R * 0.35),
           ARCH_MESH_Y + R * Math.sin(a),
           wz - R * Math.cos(a)
         );
@@ -8088,8 +8290,35 @@ export function createCar(colors: CarColors): THREE.Group {
     // driver is seated by, not off the dash. Hung off the dash it stayed
     // put while he moved, which on the pony left a headrest 400 mm in
     // front of the man it was supposed to be behind.
+    //
+    // And the rest of a seat under him. Everything is placed off the
+    // driver's own origin (the seat base, RIG.driver) so it sits where
+    // his hip and shoulder are, and rides in seatRiders so a refit of the
+    // cabin moves the lot together.
+    const padMat = colors.simple ? interiorMat : getPadMat();
+    const seatZ = headZ - RIG.driver.headZ;
+    const seatPiece = (
+      w: number, hh: number, dd: number, r: number,
+      x: number, y: number, z: number, mat: THREE.Material = padMat
+    ) => {
+      const m = new THREE.Mesh(roundedBox(w, hh, dd, r), mat);
+      m.position.set(x, seatY + y, seatZ + z);
+      group.add(m);
+      seatRiders.push(m);
+      return m;
+    };
     for (const sx of [-DRIVER_X, DRIVER_X]) {
-      const headrest = new THREE.Mesh(roundedBox(0.26, 0.22, 0.12, 0.04), interiorMat);
+      // The bucket behind it all, plain and dark: the shell the pads sit in.
+      seatPiece(0.5, 0.62, 0.04, 0.015, sx, 0.34, -0.29, interiorMat);
+      // Back, and the bolsters that wrap the ribs.
+      seatPiece(0.34, 0.36, 0.1, 0.04, sx, 0.29, -0.2);
+      for (const bs of [-1, 1]) seatPiece(0.075, 0.34, 0.15, 0.03, sx + bs * 0.205, 0.28, -0.15);
+      // Squab, and its two bolsters.
+      seatPiece(0.34, 0.1, 0.46, 0.04, sx, 0.02, 0.12);
+      for (const bs of [-1, 1]) seatPiece(0.07, 0.12, 0.44, 0.03, sx + bs * 0.205, 0.05, 0.12);
+      // Headrest: at the height of the head, off the same fit the driver is
+      // seated by.
+      const headrest = new THREE.Mesh(roundedBox(0.26, 0.22, 0.12, 0.05), padMat);
       headrest.position.set(sx, seatY + driverHeadTop() - 0.14, headZ - 0.15);
       group.add(headrest);
       seatRiders.push(headrest);

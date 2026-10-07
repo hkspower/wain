@@ -391,24 +391,41 @@ HUB_R = 0.06
 
 
 def build_tire():
-    """A tire section, not a puck: tread crown, shouldered edges, three
-    circumferential grooves, a sidewall bulge and a bead seat."""
+    """A tire section, not a puck: a bead seat, a rim-protector rib, a
+    sidewall that bulges and then tucks into a rounded shoulder, a crown
+    and four circumferential grooves round a wide centre rib.
+
+    The sidewall used to be four points on a near-vertical wall, widest
+    at the bead, so there was nothing for a highlight to travel along
+    and no rib to catch one; at 4K it read as a flat black disc. The
+    widest point is now the bulge, at TIRE_HALF_W exactly, which is the
+    contract the arch fitment is dimensioned against."""
     grooves = []
-    profile = [(-TIRE_HALF_W, BEAD_R)]          # inboard bead
-    profile += [(-0.118, 0.245), (-0.108, 0.30), (-0.100, 0.339)]  # sidewall
-    profile += [(-0.093, 0.352), (-0.084, TIRE_R - 0.004)]         # shoulder
-    # Tread face with three grooves cut into it
+    # Inboard side, bead outward. The rib stands at the full half width
+    # and steps in to a shallow valley before the bulge.
+    side = [
+        (-TIRE_HALF_W, BEAD_R),
+        (-TIRE_HALF_W, 0.222),                    # rim-protector rib
+        (-0.1255, 0.2300), (-0.1215, 0.2385),     # ...and its step down
+        (-0.1245, 0.2600), (-0.1285, 0.2800),
+        (-TIRE_HALF_W, 0.3000),                   # the bulge
+        (-0.1262, 0.3250), (-0.1160, 0.3450),     # sidewall tucks in
+        (-0.1030, 0.3535), (-0.0940, 0.3568),     # shoulder
+        (-0.0840, TIRE_R - 0.0030),
+    ]
+    profile = list(side)
+    # Tread: 17 points across 150 mm, grooves at 3, 6, 10 and 13 so the
+    # centre rib is the widest block, as on a performance tyre. The
+    # texture (cars.ts tireSurface) draws its own grooves at the same x.
     tread = []
-    for i in range(13):
-        x = -0.075 + i * 0.0125
-        deep = i in (3, 6, 9)
-        tread.append((x, TIRE_R - (0.012 if deep else 0.0)))
+    for i in range(17):
+        x = -0.075 + i * (0.15 / 16)
+        deep = i in (3, 6, 10, 13)
+        tread.append((x, TIRE_R - (0.011 if deep else 0.0)))
         if deep:
             grooves.append(len(profile) + len(tread) - 1)
     profile += tread
-    profile += [(0.084, TIRE_R - 0.004), (0.093, 0.352)]           # shoulder
-    profile += [(0.100, 0.339), (0.108, 0.30), (0.118, 0.245)]     # sidewall
-    profile += [(TIRE_HALF_W, BEAD_R)]                             # outboard bead
+    profile += [(-x, r) for x, r in reversed(side)]
     return revolve("Tire", profile, Q["tire_r"], sharp_edges=set(grooves))
 
 
