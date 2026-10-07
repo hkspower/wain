@@ -344,6 +344,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   (a timer is what popup blockers stop) and leaves a real link behind.
   Overflowing tables and the phone nav fade their hidden end until scrolled
   there (`.more`, set by `cueScroll`).
+- **النوخذة is one column** (layout pass, 2026-10-07): the bar, the tab strip
+  and the content of `nokhatha.html`, `nizam.html` and `admin.html` share one
+  1020px column (`padding-inline: max(20px, calc((100% - 1020px) / 2))` on the
+  bar and tabs, `main` 1060px on all three; the console had run 1200px). A
+  screen leads with its task: the dashboard is account, then the units to
+  open, and only then the fixed facts and the demo notice (flex `order`, no
+  markup moved); the console's storage notice closes a tab rather than
+  opening it. A form's submit sits at the end of its last row, never alone on
+  a row of its own; a grid of four never shows three and an orphan; an odd
+  last chart spans. Before/after at six sizes: `design/out/nokhatha-layout/`.
 - **A `display` rule beats the `[hidden]` attribute.** Every page carries
   `[hidden] { display: none !important; }`: the console's `label` is
   `display:flex`, so the login gate showed a second password box after the

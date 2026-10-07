@@ -409,6 +409,28 @@
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer a { display: inline-block; padding: 6px 4px; }
       @media (min-width: 641px) { header { padding-block: 8px; } }
+  
+    /* ═══════ one column (layout pass, 2026-10-07) ═══════
+       The bar, the tab strip and the content share one 1020px column on all
+       three النوخذة pages: the brand sat 210px outside the cards it headed at
+       1440, and the console ran 1200px wide beside the system's 1020. */
+    @media (min-width: 641px) {
+      header, nav.tabs { padding-inline: max(20px, calc((100% - 1020px) / 2)); }
+    }
+
+    /* the dashboard leads with its task: who is signed in, then the units to
+       open. The three fixed facts and the demo notice follow them instead of
+       pushing the units below the fold */
+    #page-dashboard.visible { display: flex; flex-direction: column; }
+    #page-dashboard > * { order: 2; }
+    #page-dashboard > .dash-head { order: 0; }
+    #page-dashboard > h2.section, #page-dashboard > .sub, #page-dashboard > .grid { order: 1; }
+    #page-dashboard > .demo-banner { order: 3; margin: 0; }
+    #page-dashboard > .stat-row { margin-top: 32px; }
+    #page-dashboard > h2.section { margin-top: 16px; }
+    /* four units: four across, two by two on a tablet, never three and an orphan */
+    .grid { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+    @media (min-width: 560px) and (max-width: 1023px) { .grid { grid-template-columns: 1fr 1fr; } }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and

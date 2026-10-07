@@ -283,7 +283,8 @@
     .skip:focus { top: 8px; outline: 2px solid var(--on-bar); outline-offset: 2px; }
     main:focus, [tabindex="-1"]:focus { outline: none; }
 
-    #del-courier-form { grid-template-columns: 2fr 1fr auto; }
+    /* a name and a phone are short: 2fr ran the name field 600px wide */
+    #del-courier-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
 
     .fig { margin: 0 0 20px; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
@@ -487,6 +488,31 @@
       @media (min-width: 641px) { header { padding-block: 8px; } }
       .fig .plot { max-width: 640px; margin-inline: auto; }
     @media (max-width: 640px) { th, td { padding: 12px; } }
+  
+    /* ═══════ one column (layout pass, 2026-10-07) ═══════
+       The bar, the tab strip and the content share one 1020px column on all
+       three النوخذة pages: the brand sat 210px outside the cards it headed at
+       1440, and the console ran 1200px wide beside the system's 1020. */
+    @media (min-width: 641px) {
+      header, nav.tabs { padding-inline: max(20px, calc((100% - 1020px) / 2)); }
+    }
+
+    /* a new order is seven controls: two even rows with the submit at the
+       row's end, not an orphan button on a third row of its own */
+    @media (min-width: 900px) {
+      #del-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      #del-form .btn { grid-column: -2 / -1; }
+    }
+    @media (min-width: 641px) and (max-width: 899px) {
+      #del-form { grid-template-columns: 1fr 1fr; }
+      #del-form .btn { grid-column: 1 / -1; }
+    }
+    @media (max-width: 640px) { #del-form .btn { grid-column: 1 / -1; } }
+    /* the entity block: the registered name takes two columns, so five fields
+       fill two rows instead of leaving the date alone on the second */
+    @media (min-width: 900px) {
+      #xbrl-form fieldset:first-of-type { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and

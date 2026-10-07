@@ -372,6 +372,21 @@
       @media (min-width: 641px) { header { padding-block: 8px; } }
       .fig .plot { max-width: 640px; margin-inline: auto; }
     @media (max-width: 640px) { th, td { padding: 12px; } }
+  
+    /* ═══════ one column (layout pass, 2026-10-07) ═══════
+       The bar, the tab strip and the content share one 1020px column on all
+       three النوخذة pages: the brand sat 210px outside the cards it headed at
+       1440, and the console ran 1200px wide beside the system's 1020. */
+    @media (min-width: 641px) {
+      header, nav.tabs { padding-inline: max(20px, calc((100% - 1020px) / 2)); }
+    }
+
+    main { max-width: 1060px; display: flex; flex-direction: column; }
+    /* the local-storage notice is context, not the task: it closes each tab
+       instead of opening it */
+    main > .banner { order: 1; margin: 24px 0 0; }
+    /* three charts in two columns left a chart-sized hole: the odd one spans */
+    .charts > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
