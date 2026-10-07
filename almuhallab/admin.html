@@ -237,7 +237,7 @@
 
     /* ---------- tiles ---------- */
     .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(186px, 1fr)); gap: 12px; }
-    .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     /* figures are set in the logo's mono, .6em a character: a signed
        seven-digit figure (14 characters) at 18px is 151px, inside the
        narrowest tile's 154px (186 less its 32px of padding). 20px overran
@@ -262,7 +262,7 @@
        sideways; and a <figure> keeps the browser's 16px 40px margin unless
        told otherwise, which inset the charts 40px from the tiles above */
     .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr)); gap: 12px; }
-    .fig { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 12px; }
+    .fig { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
     .fig .cap { margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
     .fig .plot { direction: ltr; }
@@ -317,7 +317,7 @@
 
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 12px;
       align-items: start; }     /* a short card no longer stretches to its tall neighbour */
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
     .card h3 { margin: 0 0 8px; font-size: 14.5px; }
     /* a settled fact, as on the system page: a card edged in its status ink */
     .check { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: 13.5px;
@@ -346,12 +346,12 @@
       nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30; gap: 0;
         border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
         padding-bottom: env(safe-area-inset-bottom, 0px);
-        background: var(--panel);   /* set off by its edge: a dark shadow shows nothing here */
+        background: var(--panel-3);   /* raised like the toast and tip: lifted by its surface step and edge, since a dark shadow shows nothing here */
         overflow: visible; }
       nav.tabs button { flex: 1 1 auto; min-width: 0; border-bottom: 0; border-top: 2px solid transparent;
         font-size: 12px; padding: 6px 4px; min-height: 52px; line-height: 1.75; }
       nav.tabs button.on { border-top-color: var(--tint); }
-      main { padding: 12px 12px calc(56px + env(safe-area-inset-bottom, 0px)); }
+      main { padding: 12px 16px calc(56px + env(safe-area-inset-bottom, 0px)); }
       footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       #toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       input, select { font-size: 16px; }
@@ -362,6 +362,7 @@
       /* a signed 7-digit figure («+1,234,567.890») must fit a half-width
          tile: 12px sides and the mono at 17px, drawn in a touch, hold it */
       .tile { padding: 12px; }
+      .card { padding: 16px; }
       .tile .n { font-size: 17px; letter-spacing: -.02em; }
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
     }

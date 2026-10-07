@@ -205,7 +205,7 @@
     h2 { font-size:18px; margin: 24px 0 12px; } h2:first-child { margin-top: 4px; }
 
     .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(186px,1fr)); gap: 12px; }
-    .tile { background:var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .tile { background:var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px; }
     /* figures are set in the logo's mono. At 18px «+1,234,567.890» measures
        151px and the narrowest desktop tile holds 153px (24px Cairo overran it) */
     .tile .n { font-family:var(--mono); font-size:18px; font-weight:700; font-variant-numeric:tabular-nums;
@@ -328,7 +328,7 @@
       fieldset label.total { flex-direction: column; align-items: stretch; gap: 4px; }
       fieldset label.total input { max-width: none; }
     }
-    fieldset { border:1px solid var(--border); border-radius: 12px; background:var(--panel); padding: 16px;
+    fieldset { border:1px solid var(--border); border-radius: 12px; background:var(--panel); padding: 20px 16px;
       margin: 0 0 12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
     legend { font-size:13px; font-weight:800; color:var(--tint); padding: 0 8px; }
 
@@ -411,7 +411,7 @@
       .topbar { position: static; }              /* only the bottom bar is fixed */
       nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30;
         border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
-        background: var(--panel);   /* set off by its edge: a dark shadow shows nothing here */
+        background: var(--panel-3);   /* raised like the toast and tip: lifted by its surface step and edge, since a dark shadow shows nothing here */
         padding-bottom: env(safe-area-inset-bottom, 0px); }
       /* icon over label, each tab its own column: five labels side by side at
          4px apart read as one run-on line on a 360px phone (2026-10-01).
@@ -446,7 +446,8 @@
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
       #del-courier-form { grid-template-columns: 1fr 1fr; }
       #del-courier-form .btn { grid-column: 1 / -1; }
-      main { padding-top: 12px; }
+      main { padding-top: 12px; padding-inline: 16px; }
+      fieldset { padding: 16px; }
       h2 { margin-top: 20px; }
       /* when the flow line wraps, the amount takes its own full row at the
          reading start instead of hanging at the line-box's far edge */

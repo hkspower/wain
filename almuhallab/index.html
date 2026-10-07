@@ -594,8 +594,9 @@
 
     .card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
     .card:hover { transform: translateY(-3px); border-color: var(--tint);
-      box-shadow: 0 10px 28px rgba(230, 169, 92, .12); }
-    .channel:hover { transform: translateY(-3px); }
+      box-shadow: 0 8px 24px rgba(230, 169, 92, .18); }   /* raised: the same amber lift as the resting call pill */
+    .channel:hover { transform: translateY(-3px); border-color: var(--tint);
+      box-shadow: 0 8px 24px rgba(230, 169, 92, .18); }
     .card:hover .tile, .channel:hover .tile { background: var(--tint); }
     .card:hover .tile .ic, .channel:hover .tile .ic { stroke: var(--on-tint); color: var(--on-tint); }
     .tile { transition: background .22s ease; }
@@ -724,7 +725,7 @@
     .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
 
     .card {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
       display: flex; flex-direction: column; gap: 6px;
     }
     /* One drawn icon family instead of emoji: emoji are a different typeface on
@@ -1122,7 +1123,8 @@
       .brand .logo { width: 220px; }
       nav.site { padding-bottom: 4px; }
       nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
-      main { padding: 16px 12px 40px; }
+      main { padding: 16px 16px 40px; }
+      .card { padding: 16px; }
       .hero { padding: 16px 0 24px; min-height: 0; }
       h2.section { margin-top: 24px; }
       .hero .lead { font-size: 16px; }
@@ -1146,7 +1148,7 @@
       /* in a column the 240px flex-basis meant as a width becomes each pill's
          height: three 240px pills holding 58px of content each */
       .channel { flex: none; }
-      .fcols { gap: 24px 20px; padding: 24px 12px 20px; }
+      .fcols { gap: 24px 20px; padding: 24px 16px 20px; }
       /* the company keeps a full row; الشركة and الخدمات share one — their
          longest label is 125px, and a full row each left them 17% filled */
       .fcols .fbrand { flex: 1 1 100%; }

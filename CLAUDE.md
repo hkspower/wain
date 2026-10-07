@@ -103,6 +103,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   56. Interactive rows (`.btn`, nav links, table cells) sit at `12px 16px` so they
   measure ~44px — set by intent, not by snapping to the scale. Before this, the
   four pages carried 27 distinct values, 7 off any scale.
+- **Padding is one value per component on every page** (owner's «improve padding», 2026-10-07, measured at six viewports): content cards 20px (16 on phones), tiles and stats 16 (12 on phones, for the signed seven-digit figure), figures 16, fieldsets 20 16 (inline stays 16: the suite's full-width total row allows 40px of fieldset padding plus border), and **every phone side gutter is 16** (main and footer columns; the portal, console and company page sat at 12, the system page at 20). Measured with `getBoundingClientRect` on text, not read from the source.
+- **Elevation on near-black is surface and edge, not shadow** (owner's «improve shadows», 2026-10-07): resting cards and tiles sit on `--panel` with a `--border` hairline; anything raised (toast, `#tip`, the fixed bottom tab bar) steps to `--panel-3`; a hovered card or channel lifts 3px with an amber border and the one shared raised glow `0 8px 24px rgba(230,169,92,.18)`, the same as the resting call pill. No black shadow anywhere: on `#0a0908` it paints nothing.
 - **A computed total is a statement total, not another input.** Every readonly
   field in the XBRL filing carries `label.total` and owns a full-width row —
   label at the RTL start, amount at the end, `border-top` separator (heavier for
