@@ -6620,6 +6620,9 @@ before anything changed. The owner picked all four fixes, site and app, and appr
   listed gone.
 - `deploy:verify`: «142a0d50 is live — verified at the root and 7 levels below it» (digest `2a499ae3fcfed9e3`).
   `_next/static/` holds only `142a0d50…/`, and `convai-0.19.0` is present.
+- After the purge, a cron `wget -S --spider` of `/pick/` through the edge returned 200 with
+  `Last-Modified: 14:11:02` (the deploy's minute) and `DYNAMIC`. The probe job was deleted, and the crontab was
+  back to sporta's jobs.
 - Other sessions' per-minute jobs were left alone: `c6vVvRPHnx`, `nlyGXAf2qx` and `fzcNTqNs3L`.
 
 **Not measured:** a painted tile (OSM is refused here), and the maps on a real phone.
