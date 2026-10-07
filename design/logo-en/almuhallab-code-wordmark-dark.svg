@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-814.78 -260.4 1629.56 489.2" width="1629.56" height="489.2" role="img" aria-label="Almuhallab Code">
+  <!-- Almuhallab Code, the English logo. Letters are outlines from Chakra Petch and
+       JetBrains Mono (SIL OFL). Written by design/logo-en/build.py; do not edit by hand. -->
+  <defs>
+    <pattern id="stripes" patternUnits="userSpaceOnUse" x="0" y="-148.4" width="16" height="7.16">
+      <rect width="16" height="5.12" fill="#E6A95C"/>
+      <rect y="5.12" width="16" height="2.05" fill="#7f5d33"/>
+    </pattern>
+    <linearGradient id="fade-l" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#E6A95C" stop-opacity="0"/><stop offset="1" stop-color="#E6A95C" stop-opacity="0.55"/></linearGradient>
+    <linearGradient id="fade-r" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#E6A95C" stop-opacity="0.55"/><stop offset="1" stop-color="#E6A95C" stop-opacity="0"/></linearGradient>
+    <filter id="glow" x="-10%" y="-70%" width="120%" height="240%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="20" result="blur"/>
+      <feFlood flood-color="#E6A95C" flood-opacity="0.32"/>
+      <feComposite in2="blur" operator="in" result="halo"/>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="-814.78" y="-260.4" width="1629.56" height="489.2" fill="#0a0908"/>
+  <path d="M-648.51 -148.4H-622.22L-567.95 0H-597.2L-609.29 -32.86H-661.44L-673.52 0H-702.78ZM-615.65 -56.6 -635.36 -113H-635.79L-654.87 -56.6ZM-548.87 -148.4H-520.04V-24.38H-445.84V0H-548.87ZM-425.7 -148.4H-398.98L-354.89 -52.58H-354.46L-310.16 -148.4H-283.44V0H-311.22V-90.31H-311.64L-345.77 -20.78H-363.58L-397.5 -90.31H-397.92V0H-425.7ZM-251.64 -25.44V-148.4H-222.81V-35.4L-212 -24.59H-170.45L-159.64 -35.4V-148.4H-130.8V-25.44L-156.24 0H-226.2ZM-99 -148.4H-70.17V-86.28H-7.42V-148.4H21.41V0H-7.42V-61.69H-70.17V0H-99ZM94.76 -148.4H121.05L175.32 0H146.07L133.98 -32.86H81.83L69.75 0H40.49ZM127.62 -56.6 107.91 -113H107.48L88.4 -56.6ZM194.4 -148.4H223.24V-24.38H297.44V0H194.4ZM317.58 -148.4H346.41V-24.38H420.61V0H317.58ZM482.3 -148.4H508.59L562.86 0H533.6L521.52 -32.86H469.37L457.28 0H428.03ZM515.16 -56.6 495.44 -113H495.02L475.94 -56.6ZM581.94 -148.4H675.01L696.21 -127.2V-85.65L687.73 -76.96L702.78 -61.69V-22.9L679.88 0H581.94ZM660.17 -86.28 667.8 -93.92V-116.81L660.38 -124.23H610.14V-86.28ZM665.26 -24.17 674.37 -33.28V-54.06L665.26 -63.18H610.14V-24.17Z" fill="url(#stripes)" filter="url(#glow)"/>
+  <path d="M-168.71 107.31V67.49L-159.22 58H-131.67L-122.35 67.32V75.05H-132.09V70.77L-136.54 66.4H-154.18L-158.97 71.1V103.7L-154.18 108.4H-136.54L-132.09 104.03V99.75H-122.35V107.48L-131.67 116.8H-159.22ZM-72.37 107.31V67.49L-62.87 58H-33.81L-24.32 67.49V107.31L-33.81 116.8H-62.87ZM-38.85 108.4 -34.06 103.7V71.1L-38.85 66.4H-57.83L-62.62 71.1V103.7L-57.83 108.4ZM28.6 58H64.97L74.8 67.83V106.97L64.97 116.8H28.6ZM60.27 108.4 65.06 103.7V71.1L60.27 66.4H38.35V108.4ZM127.72 58H168.71V66.32H137.47V83.12H166.28V91.35H137.47V108.48H168.71V116.8H127.72Z" fill="#f4f4f4"/>
+  <rect x="-590" y="86.4" width="391.29" height="2" fill="url(#fade-l)"/>
+  <rect x="198.71" y="86.4" width="391.29" height="2" fill="url(#fade-r)"/>
+</svg>

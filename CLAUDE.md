@@ -491,6 +491,17 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   printer for a proof, it is not a colour-managed conversion). Every file is
   generated from the page's own sprite, so the pack cannot drift from the mark
   the site flies. Re-run it after any change to the logo.
+- `design/logo-en/build.py` builds the **English logo kit** (owner's request,
+  2026-10-07): ALMUHALLAB in Chakra Petch Bold with the striped amber fill,
+  CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, as on
+  the English banner. Full lockup and wordmark on three grounds (`-dark`,
+  `-for-dark`, `-for-light`) plus a square tile, SVG and 4096px PNG. Every
+  letter is an outline shaped with HarfBuzz from the bundled OFL fonts, and
+  each PNG is rasterised from its SVG, so neither needs a font installed nor
+  can drift from the other. The light version's amber is solved to 3:1 on
+  white. It is a design asset beside the site, not the site's mark: the
+  masthead keeps the boum and «المهلب» in Reem Kufi. `--check` fails on a
+  hand edit.
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,
