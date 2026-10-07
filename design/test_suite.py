@@ -962,7 +962,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "802", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "806", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -995,7 +995,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "802", "0", "100%"], str(finals))
+          finals == ["4", "806", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2282,6 +2282,39 @@ def motion_pause_checks(pg):
     pg.set_viewport_size({"width": 1440, "height": 900})
 
 
+def film_mark_findings(page, site, logo_svg):
+    """What film_checks asserts about the film's marks, as (name, ok, detail)
+    so a planted fixture can prove each one still fails.
+
+    The film carries the site's current marks: النوخذة's amber anchor, the
+    exact <symbol> the site's sprite holds, and the logo-en lockup, written
+    by the kit's own generator (ids prefixed by the file's name, Chakra
+    Petch outlines, the amber and its stripe) with dark bands at least two
+    frame pixels thick where the page shows it. The retired boum must not
+    come back."""
+    out = []
+    m = re.search(r'<symbol id="i-anchor".*?</symbol>', site, re.S)
+    out.append(("the film's anchor is the site's own symbol, not a copy",
+                bool(m) and m.group(0) in page and 'href="#i-anchor"' in page, ""))
+    out.append(("the film carries no retired boum or sail",
+                "i-boum" not in page and "i-sail" not in page, ""))
+    out.append(("the close shows the film's logo-en lockup",
+                'src="logo-film.svg"' in page, ""))
+    out.append(("the lockup is the kit's, in the logo's amber and stripe",
+                "design/logo-en/build.py" in logo_svg and "#e6a95c" in logo_svg.lower()
+                and "#7f5d33" in logo_svg.lower()
+                and 'id="almuhallab-code-logo-film-' in logo_svg, ""))
+    vb = re.search(r'viewBox="[-\d.]+ [-\d.]+ ([\d.]+) [\d.]+"', logo_svg)
+    shown = re.search(r'\.logo\s*\{[^}]*width:\s*(\d+)px', page)
+    hs = [float(h) for h in re.findall(r'<rect [^>]*height="([\d.]+)"/>', logo_svg)
+          if 0 < float(h) < 20]
+    thin = (min(hs) * float(shown.group(1)) / float(vb.group(1))
+            if vb and shown and hs else 0)
+    out.append(("every dark band of the lockup is >= 2 frame px",
+                len(hs) >= 5 and thin >= 2, f"{len(hs)} bands, thinnest {thin:.2f}px"))
+    return out
+
+
 def film_checks():
     """The film — a subsystem that had grown to seven scripts with nothing
     pinning it.
@@ -2358,11 +2391,12 @@ def film_checks():
     for figure in ("249.750", "4,205.750", "4,455.500"):
         check(S, f"the filing scene still shows {figure}", figure in page)
 
-    # ---- it flies the company's own mark, not a redrawn one ----
-    sprite = (ROOT / "index.html").read_text()
-    m = re.search(r'<symbol id="i-boum".*?</symbol>', sprite, re.S)
-    check(S, "the film's mark is the site's own path, not a copy",
-          bool(m) and m.group(0) in page)
+    # ---- it flies the site's current marks, not redrawn or retired ones ----
+    logo_svg = F / "logo-film.svg"
+    for name, ok, detail in film_mark_findings(
+            page, (ROOT / "index.html").read_text(),
+            logo_svg.read_text() if logo_svg.exists() else ""):
+        check(S, name, ok, detail)
     check(S, "the film uses the bundled Cairo, not a webfont CDN",
           "fonts/cairo-" in page and "fonts.googleapis" not in page)
 

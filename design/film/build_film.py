@@ -32,7 +32,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 SITE = HERE.parent.parent / "almuhallab"
 
 # ── the sprite, taken from the page rather than redrawn ────────────────────
-WANT = ["i-boum", "i-anchor", "i-chart", "i-delivery", "i-report", "i-lock",
+WANT = ["i-anchor", "i-chart", "i-delivery", "i-report", "i-lock",
         "i-globe", "i-whatsapp", "i-instagram", "i-mail", "i-shield", "i-bolt",
         "i-blocks", "i-code"]
 
@@ -46,6 +46,25 @@ def sprite():
             raise SystemExit(f"the sprite has no #{name} — the film cannot draw it")
         out.append(m.group(0))
     return "\n  ".join(out)
+
+
+# ── the close's lockup, drawn by the logo kit at the film's own size ───────
+# The kit's lockup carries ~20 bands, each dark band 2.05 units: shown 900px
+# wide on a 1920 frame that is 1.1px, and the stripes blurred into a flat
+# dull amber. The film asks the same generator for fewer, thicker bands so every
+# dark band is at least 2 frame pixels (the masthead does the same at 3).
+FILM_LOGO_PX = 900
+FILM_BANDS = 9
+
+
+def film_logo():
+    import sys
+    sys.path.insert(0, str(HERE.parent / "logo-en"))
+    import build as kit
+    vb, (pw, ph) = kit.frame("logo")
+    framing = (vb, (FILM_LOGO_PX, round(FILM_LOGO_PX * ph / pw)))
+    return kit.svg("almuhallab-code-logo-film", shape="logo", ground="for-dark",
+                   bands=FILM_BANDS, framing=framing) + "\n"
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
@@ -241,7 +260,7 @@ def scenes():
     # 8 ─ the close: the company, then how to reach it
     def close(t):
         return f"""
-        <img class="logo" src="../logo-en/almuhallab-code-logo-for-dark.svg"
+        <img class="logo" src="logo-film.svg"
              alt="Almuhallab Code" style="{a('pop', t+0.3, 0.9)}">
         <div class="word" style="font-size:80px;{a('rise', t+0.9, 0.8)}">المهلب كود</div>
         <div class="sub" style="{a('fade', t+1.4, 0.7, 'ease')}">شركة برمجة وأنظمة</div>
@@ -371,6 +390,7 @@ def build():
             .replace("<!--TIMELINE-->", json.dumps(
                 {"total": total, "lines": timing}, ensure_ascii=False)))
     (HERE / "film.html").write_text(page)
+    (HERE / "logo-film.svg").write_text(film_logo())
 
     # the narration, as the voice will read it — one line per caption
     txt = ["# نص التعليق الصوتي — فيلم النوخذة",

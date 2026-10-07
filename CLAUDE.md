@@ -413,7 +413,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 802 checks covering
+- `python3 design/test_suite.py` is the full system test — 806 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -511,7 +511,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   CMYK) and `--check` compares it byte for byte. The boum version was the 39-file delivery pack a
   printer or a partner asks for: SVG in brown/white/black for both forms, the
   gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing
-  clear space (height ÷ 4), the minimum sizes (wide 90px/20mm, square 16px) and
+  clear space (height ÷ 4), the minimum sizes (wide 90px/20mm, square 16px; the AC monogram's is 24px/8mm since its stripes merge below that, 16px kept only for the favicon/`.ico`) and
   the CMYK figure for `#6F3F1C` (0·43·75·56, computed from sRGB — ask the
   printer for a proof, it is not a colour-managed conversion). Every file is
   generated from the page's own sprite, so the pack cannot drift from the mark

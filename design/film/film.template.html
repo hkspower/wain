@@ -9,9 +9,9 @@
   Everything the site is made of is here already: the tokens, the drawn sprite,
   the bundled Cairo, hand-written CSS motion. Building the film the same way
   means it cannot drift from the product — the anchor on the title card is the
-  same path النوخذة flies, the close is the logo-en lockup, and the amber
-  is the same amber. (#i-boum stays in the sprite only because the suite
-  pins that the film carries the site's own path; nothing draws it.)
+  same path النوخذة flies, the close is the logo-en lockup (drawn by the kit's
+  own generator, with bands thick enough for a 1080p frame), and the amber is
+  the same amber.
 
   It is driven by ONE timeline. Every animation starts at t=0 with its own
   delay, runs once, and fills both ends; nothing loops and nothing depends on
@@ -105,7 +105,8 @@
   .mark { width: 300px; height: 300px; stroke: var(--tint); color: var(--tint);
           fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
           filter: drop-shadow(0 0 28px rgba(230,169,92,.28)); }
-  /* the company's mark is the logo-en lockup itself, shown, not redrawn */
+  /* the company's mark is the logo-en lockup, written by the kit's own
+     generator at 900px with nine bands, so each dark band is >= 2 frame px */
   .logo { width: 900px; height: auto; display: block; margin: -40px 0 -30px; }
 
   .word { font-size: 130px; font-weight: 800; color: var(--text); line-height: 1.35; }

@@ -150,9 +150,11 @@ Measured on the ink (not the file's padded box):
 |---|---|---|---|
 | Lockup | 340 px wide | 70 mm wide | the tag line's capitals reach 6 px (1.2 mm) |
 | Wordmark | 120 px wide | 30 mm wide | the stripes inside ALMUHALLAB stay distinct (cap ~13 px); CODE stays legible |
-| Monogram | 16 px tall | 6 mm tall | the A's bands and the C still read as two letters |
+| Monogram | 24 px tall | 8 mm tall | the A's bands stay distinct and the C still reads as a second letter |
 
 Below the lockup's minimum use the wordmark; below the wordmark's, the monogram.
+The A's stripes merge into one mottled fill below 24 px, so 16 px survives only
+as the favicon and `.ico` size, where a browser tab requires it.
 
 ## Colours
 
