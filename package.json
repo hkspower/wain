@@ -249,7 +249,8 @@
     "test:menu-bar": "node scripts/menu-bar-test.mjs",
     "test:catalog-feed": "node scripts/catalog-feed-test.mjs",
     "test:live-tracking": "node scripts/live-tracking-test.mjs",
-    "test:checkout-pay": "node scripts/checkout-pay-test.mjs"
+    "test:checkout-pay": "node scripts/checkout-pay-test.mjs",
+    "scan:panel-content": "node scripts/panel-content-scan.mjs"
   },
   "private": true
 }
