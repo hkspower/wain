@@ -1,0 +1,26 @@
+/* Invoice preview on the order-confirmation page (assets/invoice-preview.js), 2026-10-07.
+   A white paper sheet with dark ink, whatever the page around it does. */
+.ivp{width:100%;margin-top:20px;padding:16px;border:1px solid #e3e6ea;border-radius:14px;background:#fff;color:#171a1e;text-align:start;box-shadow:0 1px 3px rgba(17,24,39,.06);font-size:14px;line-height:1.5}
+.ivp-wait{text-align:center;color:#4b5563}
+.ivp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:10px;border-bottom:2px solid #171a1e}
+.ivp-title{font-size:16px;font-weight:700}
+.ivp-chip{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.ivp-paid{background:#047857;color:#fff}
+.ivp-unpaid{background:#fde68a;color:#78350f}
+.ivp-meta,.ivp-sum{margin-top:10px}
+.ivp-row{display:flex;justify-content:space-between;gap:12px;padding:2px 0}
+.ivp-num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+.ivp-to{margin-top:10px;padding:10px;border-radius:10px;background:#f3f4f6}
+.ivp-label{font-size:12px;font-weight:700;color:#4b5563}
+.ivp-name{font-weight:700}
+.ivp-items{margin-top:12px;border-top:1px solid #e3e6ea}
+.ivp-it{display:grid;grid-template-columns:minmax(0,1fr) 3.2em 2.2em 6.5em;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid #e3e6ea}
+.ivp-it>span:nth-child(n+2){text-align:end}
+.ivp-th{font-size:12px;font-weight:700;color:#4b5563}
+.ivp-nm{overflow-wrap:anywhere}
+.ivp-sum{padding-top:4px}
+.ivp-grand{margin-top:6px;padding-top:8px;border-top:2px solid #171a1e;font-size:16px;font-weight:700}
+.ivp-dl{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:14px;border-radius:999px;background:#c2410c;color:#fff;font-weight:700;text-decoration:none}
+.ivp-dl:hover{background:#9a3412}
+.ivp-dl:focus-visible{outline:3px solid #171a1e;outline-offset:2px}
+@media (min-width:768px){.ivp{padding:20px}}

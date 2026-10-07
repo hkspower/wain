@@ -692,3 +692,4 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
     bottom: 7.5px !important;
   }
 }
+@media (min-width:768px){.ivp{padding:20px}}
