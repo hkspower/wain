@@ -62,7 +62,7 @@ export default function PlaceCard({
       // because grid items stretch; in the home page's scroll rail the <li>
       // stretches and the card inside it would not, leaving short cards
       // floating above a ragged bottom edge.
-      className="card-defer group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
+      className="card-defer group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-xs transition duration-300 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md"
     >
       {/* The tint band was h-24 with a size-14 mark floating in it — most of a
           card's height spent on one icon, repeated 52 times down /explore.
@@ -105,7 +105,7 @@ export default function PlaceCard({
             // images, or the row itself, are bigger — audit:type surfaced
             // all four as one ٤٫٧-shaped bucket at two sizes; this is the
             // rule that explains the two, not a slip.
-            className="absolute start-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-white/95 px-1.5 py-0.5 text-2xs font-semibold text-ink-800 shadow-sm backdrop-blur"
+            className="absolute start-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-white/95 px-1.5 py-0.5 text-2xs font-semibold text-ink-800 backdrop-blur"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-3 text-sun-500" />

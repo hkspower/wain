@@ -332,6 +332,23 @@ console.log("\n── written down, not improvised ──");
   for (const h of tinted)
     console.log(`  a coloured glow, which the ink elevation scale does not model: ${loc(h)}`);
   if (!shadowRot.length) console.log(`  no ink elevation improvised ✓`);
+
+  /* A rounded box filled with the page's own colour. `--color-sand-50` is
+     #ffffff, the same white as every card and panel, so a «nested tile» on
+     sand-50 inside one of them is drawn and never seen: the share panel's plan
+     line was exactly that for weeks, visible only by a hairline ring (7
+     October). A page band on sand-50 has no corners; a box that has corners is
+     a box inside something, and it wants sand-100. */
+  const surfaceHex = css.match(/--color-sand-50:\s*(#[0-9a-f]{6})/i)?.[1]?.toLowerCase();
+  const cardHex = "#ffffff";
+  const unseen =
+    surfaceHex === cardHex
+      ? grep(String.raw`className=[^>]*\brounded-(lg|xl|2xl|3xl)\b[^>]*\bbg-sand-50\b|className=[^>]*\bbg-sand-50\b[^>]*\brounded-(lg|xl|2xl|3xl)\b`)
+      : [];
+  if (unseen.length) {
+    fail(`${unseen.length} rounded box(es) on bg-sand-50, which is the cards' own white — use sand-100:`);
+    unseen.forEach((h) => console.log("      " + loc(h)));
+  } else console.log(`  no inner box painted in the cards' own white ✓`);
 }
 
 console.log(

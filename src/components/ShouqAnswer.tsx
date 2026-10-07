@@ -103,7 +103,7 @@ export default function ShouqAnswer({
        */
       aria-live="polite"
       aria-atomic="true"
-      className="mb-4 rounded-2xl border border-coral-200 bg-gradient-to-b from-coral-50/80 to-white p-3 shadow-sm"
+      className="mb-4 rounded-3xl border border-coral-200 bg-white p-4 shadow-xs"
     >
       <div className="flex items-start gap-2.5">
         <span aria-hidden="true" className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-coral-600 text-white">
@@ -144,7 +144,7 @@ export default function ShouqAnswer({
           share panel a screen further down, unmentioned), or carry on with
           سالم — the same question, typed, with his memory of it. */}
       {(recommended || query) && (
-        <div className="mt-2 flex flex-wrap gap-2 border-t border-coral-100 pt-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {recommended && onShare && (
             <button
               type="button"
@@ -189,7 +189,7 @@ function Part({ part, lead = false }: { part: SpeechPart; lead?: boolean }) {
 
   if (isWarning(part.key)) {
     return (
-      <p className="mt-2 rounded-xl bg-sun-500/12 px-3 py-2 text-sm leading-relaxed text-sun-800">
+      <p className="mt-2 rounded-2xl bg-sun-500/12 px-3 py-2 text-sm leading-relaxed text-sun-800">
         {part.text}
       </p>
     );

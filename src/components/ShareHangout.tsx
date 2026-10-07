@@ -233,7 +233,7 @@ export default function ShareHangout({
   const ready = now !== null && when !== null;
 
   return (
-    <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 shadow-sm">
+    <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 shadow-xs">
       <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
         <IconSend className="size-5 text-coral-700" />
         رسّلها للربع
@@ -242,7 +242,7 @@ export default function ShareHangout({
           chips. Not a live region: on /search it would be a second announcer
           beside شوق's answer (shouq-search counts them), and a chip already
           says it was chosen through aria-pressed. */}
-      <div className="mt-3 flex items-start justify-between gap-3 rounded-2xl bg-sand-50 p-3 ring-1 ring-line" data-plan-line="">
+      <div className="mt-3 flex items-start justify-between gap-3 rounded-2xl bg-sand-100 p-3" data-plan-line="">
         <div className="min-w-0">
           <p className="truncate font-semibold text-ink-900" data-plan-what="">
             {listMode ? listed.map((c) => c.nameAr).join("، ") : place.nameAr}
@@ -268,7 +268,7 @@ export default function ShareHangout({
           match the filter chips above the results rather than inventing a
           second selected-chip style for the same page. */}
       {canList && (
-        <div className="mt-4 inline-flex rounded-full bg-sand-100 p-1 ring-1 ring-line" role="group" aria-label="كم مكان ترسل؟">
+        <div className="mt-4 inline-flex rounded-full bg-sand-100 p-1" role="group" aria-label="كم مكان ترسل؟">
           {(
             [
               ["one", "مكان واحد"],
@@ -405,7 +405,7 @@ export default function ShareHangout({
             rows={6}
             aria-label="نص الرسالة"
             onFocus={(e) => e.currentTarget.select()}
-            className="mt-2 w-full rounded-xl border border-line bg-sand-50 p-2 text-sm leading-relaxed text-ink-800"
+            className="mt-2 w-full rounded-xl border border-line bg-sand-100 p-2 text-sm leading-relaxed text-ink-800"
           />
           <button
             type="button"

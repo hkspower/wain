@@ -299,7 +299,7 @@ export default function SearchMap({
         // inside it — that measurement happens in a layout effect, so this
         // state is never painted.
         style={f ? { aspectRatio: String(f.aspect) } : undefined}
-        className="relative w-full overflow-hidden rounded-2xl border border-line bg-sand-100 shadow-sm"
+        className="relative w-full overflow-hidden rounded-3xl border border-line bg-sand-100 shadow-xs"
       >
         {/* Ground for before the tiles paint — and for offline, where the pins
             still carry the answer on their own. */}

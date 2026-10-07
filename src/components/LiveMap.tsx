@@ -407,7 +407,7 @@ export default function LiveMap({
       {/* Required, and so rendered by the map rather than by whoever remembers
           to. See map-tiles.ts: using the tiles directly is what makes this an
           obligation, where the iframe embed carried its own. */}
-      <p className="absolute bottom-0 left-0 z-30 bg-white/85 px-1.5 py-0.5 text-2xs leading-tight text-ink-600">
+      <p className="absolute bottom-2 left-2 z-30 rounded-full bg-white/90 px-2 py-0.5 text-2xs leading-tight text-ink-600">
         {ATTRIBUTION_AR}
       </p>
     </>

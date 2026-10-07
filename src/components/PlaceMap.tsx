@@ -54,7 +54,7 @@ export default function PlaceMap({
         <IconMap className="size-6 text-sea-600" />
         وينه بالضبط؟
       </h2>
-      <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-xs">
         <PlaceMapFrame place={place} related={related} />
         <div className="flex flex-wrap items-center gap-3 border-t border-line p-4">
           <a

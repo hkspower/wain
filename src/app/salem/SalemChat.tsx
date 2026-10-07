@@ -892,7 +892,7 @@ function SalemPlacesResult({
             data-slug={place.slug}
             onPointerEnter={() => choose(place.slug)}
             onFocus={() => choose(place.slug)}
-            className={`w-40 shrink-0 snap-start rounded-2xl transition ${
+            className={`w-40 shrink-0 snap-start rounded-3xl transition ${
               place.slug === activeSlug ? "ring-2 ring-sun-400 ring-offset-2 ring-offset-sea-950" : ""
             }`}
           >
@@ -900,7 +900,7 @@ function SalemPlacesResult({
           </li>
         ))}
       </ul>
-      <div className="rounded-3xl bg-white p-3 text-ink-900">
+      <div className="rounded-3xl border border-line bg-white p-4 text-ink-900">
         <SearchMap places={places} active={activeSlug} onActive={choose} compact />
         <Link
           href={`/search/?q=${encodeURIComponent(query)}`}
@@ -935,7 +935,7 @@ function SalemPlacesResult({
 /** «وين بالضبط؟» — one place, on the map, with the way there. */
 function SalemWhere({ place }: { place: Place }) {
   return (
-    <div className="space-y-2 rounded-3xl bg-white p-3 text-ink-900">
+    <div className="space-y-2 rounded-3xl border border-line bg-white p-4 text-ink-900">
       <SearchMap places={[place]} active={place.slug} compact />
       <div className="flex flex-wrap gap-2">
         <a

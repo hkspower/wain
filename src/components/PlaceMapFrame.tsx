@@ -258,7 +258,7 @@ export default function PlaceMapFrame({
           )}
 
           {live.failed && (
-            <p className="absolute bottom-3 left-3 z-30 rounded-lg bg-white/95 px-2 py-1 text-2xs text-ink-600 shadow-sm">
+            <p className="absolute bottom-3 left-3 z-30 rounded-full bg-white/95 px-2.5 py-1 text-2xs text-ink-600">
               ما قدرنا نحمّل الخريطة المتحركة
             </p>
           )}
