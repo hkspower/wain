@@ -42,7 +42,7 @@ caught only by that audit — including one where a *re-export* in `orders.ts`
 gave it a value dependency on the catalogue and put all 52 records back on
 `/privacy` and `/about`.
 
-## The back end is wain's own PHP on wainkw.com (since 4 October) — and not installed yet
+## The back end is wain's own PHP on wainkw.com (since 4 October) — installed and seeded 7 October; admin waits for its secret
 
 This section said «not configured» for months: `supabaseEnabled` read two
 `NEXT_PUBLIC_SUPABASE_*` variables that were never set anywhere, so ordering,
@@ -6031,7 +6031,51 @@ getting WhatsApp orders** — `docs/orders.md` says so; tell them first.
 prefilled on a real iPhone or Android (and Safari's popup rule in practice),
 the shop's side of the thread.
 
-## wain's own back end — 4 October (built and tested, NOT installed, NOT deployed)
+## The 7 October deploy — `52dbf39c` is live: the back-end client, the dated hangout, the calendar
+
+What shipped since `17dd9b44`, in one archive: the client that speaks `/api/wain.php`
+(orders, queue, registration, the admin board), the dated hangout link and
+«أضفها للتقويم», WhatsApp orders, سالم and شوق as one, and the widget pin
+`0.19.0` (inert: a free build ships no widget). Free build, production only.
+
+`{"ok":true,"version":"1.1.0","deployed":277,"removed":30,"emptied":1,"at":
+"2026-10-07T04:08:01+00:00"}` through the installed caller, one cron job
+(`bsytqMwvLM`), read at its FIRST firing (the job was created about a minute
+before it fired, so `removed: 30` is the real prune), deleted, and the listing
+then held sporta's nine and nothing else. Archive `59a112f4/wain-1.1.0.zip`
+(3.92MB, sha256 `981bf2fd…bb01`): one more permanent blob, `DEPLOY_SECRET`
+still unset.
+
+`deploy:verify`: «52dbf39c is live — verified at the root and 7 levels below
+it» (`build.json` `52dbf39c…` / `e53b1c691275aca2`, with `backend: {api: true,
+url: "/api/wain.php"}`; both stylesheets 5,426 and 99,453; `52dbf39c…/` the only
+build-id directory; the /search chunk 22,712; `explore/` 19,407; a place page
+64,602; its og image 44,217; `data/places.json` 65,496). 24 of 277 files were
+read; the rest are covered by the deploy's own sha256 check.
+
+After the cache purge, a cron `wget -S --spider` of `/admin/` from the server
+out through the edge: 200, `Last-Modified: 04:09:01` (the second firing's
+minute), `x-hcdn-cache-status: DYNAMIC`. **The CSP still names
+`*.supabase.co` in `img-src` and `connect-src`**, which nothing uses now; not
+changed here, and worth removing in the next `.htaccess` edit.
+
+**Seeded, same sitting.** `php …/api/wain.php seed` as one cron job, read at
+the second firing: `{"stage":"production","engine":"sqlite","ok":true,
+"inserted":0,"skipped":52,"refused":[],"total":52}`. `inserted: 0` is the
+idempotent second pass (seed never overwrites); the table holds all 52 places.
+The back end was installed 6 October at fingerprint `fb8760b2c2a3aa3a`,
+`selftest` 8 of 8 on SQLite. **The earlier «NOT installed» wording above is
+superseded.**
+
+**Still waiting on the owner:** `storage/admin.secret` is EMPTY, so every admin
+action answers 503 `admin_unset` and `/admin` says which file to fill — paste a
+long secret into it with hPanel File Manager (never chat or git;
+`docs/admin-setup.md`). Orders and the queue stay inert on the live site: no
+place has a menu (`docs/content.md`). **Not measured:** a real order through
+the API from a phone, MySQL (SQLite is what is configured), the dated hangout
+and calendar import on a real phone.
+
+## wain's own back end — 4 October (built and tested; installed 6 October, deployed and seeded 7 October)
 
 Asked: «make full dynamic backend». The owner chose **their own PHP + MySQL
 on wainkw.com** over Supabase, and all four features: orders on the board,
