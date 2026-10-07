@@ -614,7 +614,21 @@ export const GradeShader = {
       float d2 = hash(vUv + vec2(0.73, 0.19));
       c.rgb += (d1 + d2 - 1.0) * uDither / 255.0;
 
-      gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
+      // Opaque, always. This wrote the scene's alpha through, and the
+      // scene's alpha is not coverage: the sky dome, every additive glow
+      // and every blended surface leave it under 1 — at noon EVERY pixel
+      // of the frame was under 250/255 and the zenith at 140. On screen
+      // that is invisible, because the canvas sits on a black backdrop
+      // and premultiplied colour over black is the colour. But anything
+      // that READS the canvas — toDataURL for the 4K stills and the film
+      // frames, drawImage for every instrument in tools/shots — divides
+      // the colour by that alpha to un-premultiply it. 60,141,222 at
+      // alpha 140 came back 109,255,255: a blown cyan sky, a white car
+      // 39% at the ceiling, red paint clipped pink along every flank.
+      // Measured on the same frame: 0.01% of it blown read off the GPU,
+      // 8% through the canvas. That was most of the "shine" in the
+      // stills, and it was never in the light.
+      gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), 1.0);
     }`,
 };
 

@@ -14,7 +14,7 @@ import { currentPaintHex } from "./paints";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
 import { worldDraws } from "./rand";
 import type { Wake } from "./plants";
-import { createCar, crownShell, CROWN, paintMetalness, paintParams, PAINT_UNIFORMS, clearcoatFloorFor, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
+import { createCar, setCarNightFloors, crownShell, CROWN, paintMetalness, paintParams, PAINT_UNIFORMS, clearcoatFloorFor, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
 // A patrol car that notices. The law is pure and lives on its own so it
 // can be checked without a renderer, the way policeLamps is.
 import { provokes, patienceAfter, pursuitSpeed, PATIENCE } from "./police";
@@ -3714,6 +3714,12 @@ export class GameEngine {
     // (flare.ts, HEAD_FLARE). 0.9 for a car built before those existed.
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
     for (const g of glows) g.opacity = ((g.userData.nightOpacity as number | undefined) ?? 0.9) * dark;
+    // Every car's night floors — livery, plates, painted stripes, passive
+    // reflectors — on the world's own lamp level, so a door roundel stops
+    // glowing exactly when the road paint and the sign faces do (cars.ts,
+    // NIGHT_FLOORS). By day the sun lights the ink, and the floor on top
+    // was what blew it to paper white.
+    setCarNightFloors(this.world?.lampLevel?.() ?? dark);
     // The rim is a night light: by day the sun is the key on the car and
     // a 3.0 warm point behind the roof only adds a hot glint to it.
     if (this.rimLight) this.rimLight.intensity = 3.0 * (0.25 + 0.75 * dark);

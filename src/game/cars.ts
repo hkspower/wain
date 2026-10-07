@@ -21,6 +21,43 @@ import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 //
 // group.userData: { wheels: Group[4] (fl, fr, rl, rr), tailMat }
 
+// --- Night floors -------------------------------------------------------
+//
+// A printed livery, a plate, a painted stripe and a passive reflector each
+// carry a small emissive so they still read between street lamps: that is
+// what a night game needs and what the world's own sign faces and road
+// paint do too. The world switches its floors off by day (world.ts,
+// nightGlow, scaled by lampLevel). The cars never did, so at four in the
+// afternoon a white door roundel was lit by the sun AND by its own 0.28
+// glow on top: flat paper white with its texture gone, the "84" on the
+// ik driver still clipped to 250+ and the beltline stripe beside it a
+// sticker with no shading. These are registered here and scaled by the
+// same darkness the engine dims the headlamp flares with.
+//
+// Only floors: a lamp that is ON by day (a lit tail, an indicator, the
+// headlamp lens) is not in this set and keeps its intensity.
+
+const NIGHT_FLOORS = new Set<THREE.MeshStandardMaterial>();
+let nightFloorLevel = 1;
+
+/** Register a material's emissive as a night floor; `base` is its full
+ *  night intensity (default: what it has now). Returns the material. */
+function nightFloor<M extends THREE.MeshStandardMaterial>(m: M, base = m.emissiveIntensity): M {
+  m.userData.nightFloor = base;
+  m.emissiveIntensity = base * nightFloorLevel;
+  if (!NIGHT_FLOORS.has(m)) {
+    NIGHT_FLOORS.add(m);
+    m.addEventListener("dispose", () => NIGHT_FLOORS.delete(m));
+  }
+  return m;
+}
+
+/** How dark it is, 0 (noon) to 1 (night): every car's night floors follow. */
+export function setCarNightFloors(dark: number): void {
+  nightFloorLevel = Math.min(1, Math.max(0, dark));
+  for (const m of NIGHT_FLOORS) m.emissiveIntensity = (m.userData.nightFloor as number) * nightFloorLevel;
+}
+
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
 export type BodyStyle =
@@ -2913,12 +2950,12 @@ const rivetGeo = new THREE.SphereGeometry(RIVET_R, 6, 5);
 // The hot-hatch nose stripe: painted red, not a lamp, but it carries a
 // little glow so it still reads at night when nothing is lighting the
 // bumper directly.
-const hotStripeMat = new THREE.MeshStandardMaterial({ name: "hot-stripe",
+const hotStripeMat = nightFloor(new THREE.MeshStandardMaterial({ name: "hot-stripe",
   color: 0xc8102e,
   roughness: 0.35,
   emissive: 0x3a0409,
   emissiveIntensity: 0.6,
-});
+}));
 
 /**
  * Where the painted skin actually is.
@@ -3462,19 +3499,19 @@ const housingMat = new THREE.MeshStandardMaterial({ name: "lamp-housing",
   envMapIntensity: 1.2,
 });
 // Passive rear reflectors: catch light, never emit
-const reflectorMat = new THREE.MeshStandardMaterial({ name: "reflector",
+const reflectorMat = nightFloor(new THREE.MeshStandardMaterial({ name: "reflector",
   color: 0x7a1016,
   roughness: 0.25,
   metalness: 0.3,
   emissive: 0x30060a,
   emissiveIntensity: 0.4,
-});
-const amberReflectorMat = new THREE.MeshStandardMaterial({ name: "reflector-amber",
+}));
+const amberReflectorMat = nightFloor(new THREE.MeshStandardMaterial({ name: "reflector-amber",
   color: 0xa66414,
   roughness: 0.25,
   emissive: 0x5a3208,
   emissiveIntensity: 0.4,
-});
+}));
 
 /**
  * The lens. Deliberately calmer than it was.
@@ -4942,7 +4979,8 @@ function seg0Pitch(p: number): number {
 }
 
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  // A night floor (see NIGHT_FLOORS): sunlight lights the ink by day.
+  return nightFloor(new THREE.MeshStandardMaterial({
     name: "decal",
     map,
     transparent: true,
@@ -4958,12 +4996,14 @@ function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
     emissiveIntensity: 0.28,
     polygonOffset: true,
     polygonOffsetFactor: -2,
-  });
+  }));
 }
 
 function plateMat(colors: CarColors, front: boolean): THREE.MeshStandardMaterial {
   const map = plateTexture(plateReg(colors));
-  return new THREE.MeshStandardMaterial({
+  // The plate lamp is on by day too, but against sunlit sheeting it adds
+  // nothing anyone could see except a plate whiter than paper: a floor.
+  return nightFloor(new THREE.MeshStandardMaterial({
     name: "plate",
     map,
     // Retroreflective sheeting, not painted metal: a plate is the
@@ -4979,7 +5019,7 @@ function plateMat(colors: CarColors, front: boolean): THREE.MeshStandardMaterial
     emissive: 0xffffff,
     emissiveMap: map,
     emissiveIntensity: front ? 0.15 : 0.35,
-  });
+  }));
 }
 
 /**
@@ -8294,7 +8334,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // the only thing on the car that is not black, and on a road whose
     // light is one sodium lamp every thirty metres a decal at the shared
     // 0.16 is as dark as the paint around it for most of a lap.
-    mark.emissiveIntensity = 0.42;
+    nightFloor(mark, 0.42);
     // Flanks. The rear quarter, which is the one panel clear on every
     // silhouette in this fleet: no arch through it, no door handle, and
     // the beltline stripe already stops short of it.
@@ -8442,7 +8482,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // building it into geometry is a second law to keep in step with the
     // eight silhouettes flankRibbon already handles.
     const bandTex = policeBandTexture();
-    const bandMat = new THREE.MeshStandardMaterial({
+    const bandMat = nightFloor(new THREE.MeshStandardMaterial({
       name: "police-band",
       map: bandTex,
       transparent: true,
@@ -8460,7 +8500,7 @@ export function createCar(colors: CarColors): THREE.Group {
       envMapIntensity: 1.15,
       polygonOffset: true,
       polygonOffsetFactor: -2,
-    });
+    }));
     // How DEEP the wrap is, asked of the body rather than typed in.
     //
     // POLICE.bandH is what it wants, and 0.46 m is most of a door — but

@@ -313,6 +313,26 @@ plain functions beside the GLSL that runs them. This holds the arithmetic:
 npm run test:flare
 ```
 
+## shine.mjs — the bright end, as a canvas read sees it
+
+No browser. Most of the "spark and shine" in the stills and the
+instruments was not in the light. The grade, the last pass to write the
+canvas, passed the scene's alpha through, and the sky and every blended
+surface leave it under 1. On screen that is invisible over the black
+backdrop, but `toDataURL` and `drawImage` un-premultiply: a 60,141,222
+noon zenith at alpha 140 came back 109,255,255, and the same frame was
+0.01% blown read off the GPU against 8% through the canvas. This holds:
+
+- **alpha** — the grade writes `gl_FragColor` once, at alpha 1.0;
+- **floors** — car decals, plates, the painted stripe, both reflectors,
+  the police band and the demon mark are night floors, scaled by the
+  world's lamp level so they switch off in sunlight; the indicator and
+  reverse lamps are not.
+
+The pixels are `tools/shots/highlights.mjs` (`npm run check:highlights`):
+blown share, single-channel clips and frame-to-frame sparkle on the chase
+camera at night and at noon.
+
 ## audio.mjs — the sound is doing something
 
 Audio is the easiest system to "add" without adding anything: a node
