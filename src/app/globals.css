@@ -381,10 +381,10 @@ h1, h2, h3 {
   animation: bubble-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* /find's two halves are full-bleed AI-illustrated portraits (شوق on top,
-   سالم below — see FindChoice.tsx), each with its own slow Ken Burns
-   pan/zoom on the <img> itself. One period per half (18s / 21s) and
-   opposite easing curves, so the two photos never breathe together. */
+/* Slow Ken Burns pan/zoom. /find's typed half drifts on `kb-b`; its call half
+   lost its photo to the phone in 512c1f1b, and `.animate-kb-a` went with it.
+   The `kb-a` keyframes stay because the landmarks slideshow drifts on them
+   (below). */
 @keyframes kb-a {
   from {
     transform: scale(1) translate(0, 0);
@@ -400,9 +400,6 @@ h1, h2, h3 {
   to {
     transform: scale(1) translate(0, 0);
   }
-}
-.animate-kb-a {
-  animation: kb-a 18s cubic-bezier(0.65, 0.05, 0.35, 1) infinite alternate;
 }
 .animate-kb-b {
   animation: kb-b 21s cubic-bezier(0.35, 0, 0.65, 0.95) infinite alternate;
