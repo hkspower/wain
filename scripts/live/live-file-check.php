@@ -171,7 +171,7 @@ $WANT = [
     'assets/contact-emails.js' => '891af6643d1346da3162448bea85885e4ef6e21f0a803df87e64d565a8e811d7',
     'assets/contact.js' => '3a8fd66908f61d4e68fcac5241a8a2dd659b7069a19237177132577871a575ef',
     'assets/crm.js' => '1a7cb682e214d5fdd07b364cc15f66cf6b115cfe824a7623f287def587fc8fd0',
-    'assets/custom-css.js' => 'ef8e440a043719ca3e43f6bcc32854396904c450200ff433a98e886b721793ab',
+    'assets/custom-css.js' => 'c298fe8377f475a2de604c15a4ee5ebbe112862bd846408424460317e3001dac',
     'assets/customer-account.js' => '9f3213d2b563b50b1fd3718281417e352388561268720cfcb1e458fb98a5bb0a',
     'assets/device-theme.js' => 'b00ba3a56a6a78030fb29fe7cfe3fca48e9725c30cb4807aa9134454a0fa64c3',
     'assets/driver.css' => 'bc0603c400d9165d10ba991c7cbfd26efbd63ee7e353b2ae73f572380f906d59',
@@ -368,7 +368,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'f6adf080629b1140d3163b8a0997a3cc032d2c275e08e4f44158b2f9fa1be484',
+    'sw.js' => 'a4e593bc2e0dc3cb75d279386ec88de1a7ffcf595c6884a8b928b32abb815337',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
