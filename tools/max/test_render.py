@@ -169,9 +169,24 @@ if paint.set.get("coat_affect_color") != 0.0 or paint.set.get("coat_affect_rough
     fails.append("coat still darkens/roughens the base")
 tyre = next((m for m in built if m.name == "tire"), None)
 if tyre is not None:
-    nm = tyre.set.get("bump_map").set.get("normal_map")
+    nb = tyre.set.get("bump_map")
+    nm = nb.set.get("normal_map")
     if nm is None or getattr(nm, "bitmap", None) is None or nm.bitmap.gamma != 1.0:
         fails.append("tyre normal map not loaded raw (gamma 1.0)")
+    # The pack carries what the game draws the tyre with, and the material
+    # takes all of it: the normal map's strength (the game's normalScale,
+    # 0.85 on the rubber) as Normal_Bump's multiplier, the 18x repeat
+    # around the tyre on the normal map too, and the roughness map (0.7
+    # sidewall, 0.86 tread) in place of a 0.5 scalar.
+    tm = mats["tire"]
+    if "normal_strength" not in tm or abs(nb.set.get("mult_spin", -1) - tm["normal_strength"]) > 1e-6:
+        fails.append(f"tyre normal strength: pack {tm.get('normal_strength')} -> Normal_Bump {nb.set.get('mult_spin')}")
+    if "normal_tex_map" not in tm or abs(nm.coords.set.get("U_Tiling", 0) - tm["normal_tex_map"]["scale"][0]) > 1e-6:
+        fails.append(f"tyre normal map tiling: pack {tm.get('normal_tex_map')} -> {nm.coords.set}")
+    if "roughness_tex" not in tm or "roughness_map" not in tyre.set:
+        fails.append(f"tyre roughness map: pack {tm.get('roughness_tex')} -> {sorted(tyre.set)}")
+    if not 0.65 <= tm.get("roughness", 0) <= 0.95:
+        fails.append(f"tyre roughness scalar {tm.get('roughness')} is not the map's mean (0.7 sidewall / 0.86 tread)")
 
 # Lights: five quads, a skydome; positions and aim.
 lights = [o for o in scene["objects"] if o.cls == "Arnold_Light"]

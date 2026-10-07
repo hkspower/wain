@@ -2232,6 +2232,16 @@ function tireSurface() {
       rgh.data[i] = rgh.data[i + 1] = rgh.data[i + 2] = rv;
       rgh.data[i + 3] = 255;
       // Normals by central difference on the same field.
+      //
+      // Green is -dy: the glTF convention, +Y = image up, with canvas rows
+      // running down. three itself reads green along +dv of a flipY
+      // canvas, which is the other way — but GLTFExporter flips the image
+      // rows and writes normalTexture.scale from normalScale.x alone, so a
+      // map authored for three's frame left the GLB with its green
+      // reversed, and the Blender and Max renders had every tread block
+      // sunk. The map is authored for the file format, and getTireMat
+      // carries a negative normalScale.y to put it in three's frame —
+      // exactly what GLTFLoader does for a derivative tangent frame.
       const dx = (at(x + 1, y) - at(x - 1, y)) * 3.2;
       const dy = (at(x, y + 1) - at(x, y - 1)) * 3.2;
       const len = Math.hypot(dx, dy, 1);
@@ -2340,22 +2350,23 @@ function tyreStickerTexture(id: TyreSticker): { map: THREE.CanvasTexture; normal
   // Long and thin, because the surface is.
   const W = 4096;
   const H = 160;
-  const draw = (ctx: CanvasRenderingContext2D, fill: string) => {
+  const moulded = id === "moulded";
+  const draw = (ctx: CanvasRenderingContext2D, fill: string, dy = 0) => {
     ctx.fillStyle = fill;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (let i = 0; i < 2; i++) {
       const cx = (i + 0.5) * (W / 2);
       ctx.font = `800 112px ${latinDisplay()}`;
-      ctx.fillText(spec.name, cx - 300, H / 2 + 4);
+      ctx.fillText(spec.name, cx - 300, H / 2 + 4 + dy);
       // The fitment code, smaller and set apart the way it is on a real
       // sidewall: the name is what you read at a glance, the code is
       // what you read standing still.
       ctx.font = `700 54px ${latinDisplay()}`;
-      ctx.fillText(spec.sub, cx + 420, H / 2 + 2);
+      ctx.fillText(spec.sub, cx + 420, H / 2 + 2 + dy);
       // A short rule either side of the code, moulded in with it.
-      ctx.fillRect(cx + 250, H / 2 - 3, 50, 6);
-      ctx.fillRect(cx + 540, H / 2 - 3, 50, 6);
+      ctx.fillRect(cx + 250, H / 2 - 3 + dy, 50, 6);
+      ctx.fillRect(cx + 540, H / 2 - 3 + dy, 50, 6);
     }
   };
   const canvas = () => {
@@ -2369,13 +2380,28 @@ function tyreStickerTexture(id: TyreSticker): { map: THREE.CanvasTexture; normal
   const colC = canvas();
   const col = colC.getContext("2d")!;
   col.clearRect(0, 0, W, H);
-  draw(col, spec.ink);
+  if (moulded) {
+    // Unpainted letters show by their RELIEF, and under the game's lights
+    // the normal map alone did not show it: the letters read only because
+    // their ink, #2a2a2e, was four times as bright as the rubber under
+    // them, which is a pale paint, not a moulding. So the emboss is baked
+    // into the colour as well — a lit edge toward the tread (canvas top)
+    // and a shadowed edge toward the hub, three pixels each, under a face
+    // close to the rubber's own tone — and the height map's bevel is
+    // deeper (6 px against the painted letters' 2.5) with a stronger
+    // relief (normalScale 3), so the lamps draw the letters, not the ink.
+    draw(col, "#3e3e44", -3);
+    draw(col, "#050506", 3);
+    draw(col, "#202024");
+  } else {
+    draw(col, spec.ink);
+  }
   // Height: the same letters, blurred for a bevel, on black.
   const hC = canvas();
   const hx = hC.getContext("2d")!;
   hx.fillStyle = "#000";
   hx.fillRect(0, 0, W, H);
-  hx.filter = "blur(2.5px)";
+  hx.filter = moulded ? "blur(6px)" : "blur(2.5px)";
   draw(hx, "#fff");
   hx.filter = "none";
   const hd = hx.getImageData(0, 0, W, H).data;
@@ -2391,8 +2417,11 @@ function tyreStickerTexture(id: TyreSticker): { map: THREE.CanvasTexture; normal
       const len = Math.hypot(dx, dy, 1);
       const i = (y * W + x) * 4;
       nd.data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
-      // Canvas rows run down, texture v runs up: flip the y slope.
-      nd.data[i + 1] = Math.round(((dy / len) * 0.5 + 0.5) * 255);
+      // Green -dy: the glTF convention, the same as tireSurface's map and
+      // for the same reason (the GLB export keeps this sign and drops the
+      // material's); tyreStickerMat's negative normalScale.y puts it in
+      // three's frame.
+      nd.data[i + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255);
       nd.data[i + 2] = Math.round((1 / len) * 0.5 * 255 + 127.5);
       nd.data[i + 3] = 255;
     }
@@ -2421,13 +2450,19 @@ function tyreStickerMat(id: TyreSticker): THREE.MeshPhysicalMaterial {
     name: `tire-sticker-${id}`,
     map: tex.map,
     normalMap: tex.normalMap,
-    normalScale: new THREE.Vector2(1.6, 1.6),
+    // Moulded letters stand on relief alone, so theirs is the deeper one;
+    // y negative because the map is in the glTF convention (see the
+    // texture).
+    normalScale: new THREE.Vector2(id === "moulded" ? 3 : 1.6, id === "moulded" ? -3 : -1.6),
     transparent: true,
-    // Moulded letters are rubber, and rubber is not glossy. Painted ones
-    // are paint over rubber, a little less matt.
-    roughness: id === "moulded" ? 0.8 : 0.62,
+    // Painted letters are paint over rubber, a little less matt than the
+    // sidewall. Moulded ones are the rubber itself, but a moulding's
+    // raised faces are what catch a lamp — satin (0.5), with the specular
+    // of the painted ones — or the relief that is their whole point is
+    // never seen.
+    roughness: id === "moulded" ? 0.5 : 0.62,
     metalness: 0,
-    specularIntensity: id === "moulded" ? 0.7 : 0.9,
+    specularIntensity: 0.9,
     envMapIntensity: 0.9,
     // It sits a few millimetres off a surface curving away from it:
     // depth-test against the tyre, but do not fight it.
@@ -2584,7 +2619,9 @@ function getTireMat(): THREE.MeshPhysicalMaterial {
     name: "tire",
     map: s.map,
     normalMap: s.normalMap,
-    normalScale: new THREE.Vector2(0.85, 0.85),
+    // y negative: the map is in the glTF convention (tireSurface), as
+    // GLTFLoader sets it for a map without tangents.
+    normalScale: new THREE.Vector2(0.85, -0.85),
     roughnessMap: s.roughnessMap,
     color: 0xffffff,
     roughness: 1, // the map carries the real range

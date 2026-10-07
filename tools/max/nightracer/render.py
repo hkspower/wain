@@ -194,12 +194,29 @@ def physical(name, m, pack, mode):
         if t:
             set_prop(p, "base_color_map", t)
     if m.get("normal_tex"):
-        t = bitmap(pack, m["normal_tex"], raw=True)
+        # The same transform and clamp as the colour map: the tyre's maps
+        # repeat 18x around and clamp across, and a normal map that does
+        # not follow them puts the lettering's relief somewhere else.
+        t = bitmap(pack, m["normal_tex"], m.get("normal_tex_map"), clamp=m.get("normal_tex_clamp", False), raw=True)
         if t:
             nb = rt.Normal_Bump()
             set_prop(nb, "normal_map", t)
+            # The game's normalScale, carried as the Normal Map node's
+            # strength (1.6 on the tyre lettering): Normal_Bump's own
+            # multiplier, so the relief in Max is the relief in the game.
+            set_prop(nb, "mult_spin", float(m.get("normal_strength", 1.0)))
             set_prop(p, "bump_map", nb)
             set_prop(p, "bump_map_amt", 1.0)
+    if m.get("roughness_tex"):
+        # Roughness from the map where the game has one (the tyre: 0.7
+        # sidewall, 0.86 tread), not the 0.5 the scalar used to say.
+        t = bitmap(pack, m["roughness_tex"], m.get("roughness_tex_map"), clamp=m.get("roughness_tex_clamp", False), raw=True)
+        if t:
+            # glTF keeps roughness in the green channel; the game writes the
+            # same value to all three, so the bitmap's intensity (monoOutput
+            # 0) is that channel, and Physical reads roughness_map as mono.
+            set_prop(t, "monoOutput", 0)
+            set_prop(p, "roughness_map", t)
     # Glass: the game blends it at alpha ~0.94 over a dark tint, which is a
     # thin, dark, reflective pane, not a solid lens.
     if m.get("blend") and m.get("alpha", 1) < 1 and not m.get("alpha_tex"):

@@ -72,13 +72,65 @@ def linked_image(socket):
     return n if n is not None and n.type == "TEX_IMAGE" else None
 
 
+def roughness_of(socket):
+    """The Principled roughness as a number Max can use.
+
+    Unlinked, it is the socket's value. Linked to a texture (glTF puts
+    roughness in the green channel of metallicRoughness, and the tyre's
+    is the only one in the fleet), the socket's default_value is just
+    the Principled default, 0.5 — which is what was recorded, and what
+    gave the tyres a half-gloss in Max against the game's 0.7 sidewall
+    and 0.86 tread. So the linked case reads the image: the mean of its
+    green channel times any "Roughness Factor" Math node on the way, as
+    Max's scalar; the map itself is recorded beside it (roughness_tex)
+    for the renderer that can take one."""
+    if not socket.is_linked:
+        return round(float(socket.default_value), 4)
+    n = socket.links[0].from_node
+    factor = 1.0
+    if n.type == "MATH" and n.operation == "MULTIPLY":
+        linked = [i for i in n.inputs if i.is_linked]
+        plain = [i for i in n.inputs if not i.is_linked]
+        if plain:
+            factor = float(plain[0].default_value)
+        n = linked[0].links[0].from_node if linked else None
+    img = linked_image(socket)
+    if img is None or img.image is None:
+        return 0.5
+    px = img.image.pixels[:]
+    if not px:
+        return 0.5
+    g = px[1::4]
+    return round(factor * sum(g) / len(g), 4)
+
+
 def mapping_of(tex_node):
-    """KHR_texture_transform comes in as a Mapping node in front of the image."""
+    """KHR_texture_transform comes in as a Mapping node in front of the image.
+
+    Not always DIRECTLY in front. For a texture whose wrap modes differ
+    (the tyre's: REPEAT around, CLAMP across, with an 18x repeat), the
+    importer puts Separate XYZ, Math and Combine XYZ nodes between the
+    Mapping node and the image to do the clamp, and the Mapping node sits
+    behind them. Walk upstream until it is found; the tyre's 18x repeat
+    was being dropped, and Max drew one tread block stretched round the
+    whole tyre."""
     v = tex_node.inputs.get("Vector")
     if v is None or not v.is_linked:
         return None
-    m = v.links[0].from_node
-    if m.type != "MAPPING":
+    stack, seen = [v.links[0].from_node], set()
+    m = None
+    while stack:
+        n = stack.pop()
+        if n.name in seen:
+            continue
+        seen.add(n.name)
+        if n.type == "MAPPING":
+            m = n
+            break
+        for i in n.inputs:
+            if i.is_linked:
+                stack.append(i.links[0].from_node)
+    if m is None:
         return None
     return {"offset": [round(float(x), 6) for x in m.inputs["Location"].default_value[:2]],
             "rotation": round(float(m.inputs["Rotation"].default_value[2]), 6),
@@ -144,7 +196,7 @@ def pack(car):
         rec_m = {
             "base": base, "base_srgb": tuple(round(v, 6) for v in srgb(base)),
             "metalness": round(float(g("Metallic").default_value), 4),
-            "roughness": round(float(g("Roughness").default_value), 4),
+            "roughness": roughness_of(g("Roughness")),
             "coat": round(float(g("Coat Weight").default_value), 4) if g("Coat Weight") else 0.0,
             "coat_roughness": round(float(g("Coat Roughness").default_value), 4) if g("Coat Roughness") else 0.0,
             "alpha": round(float(g("Alpha").default_value), 4),
@@ -168,11 +220,36 @@ def pack(car):
                     rec_m[key + "_clamp"] = True
         nrm = g("Normal")
         if nrm is not None and nrm.is_linked and nrm.links[0].from_node.type == "NORMAL_MAP":
-            node = linked_image(nrm.links[0].from_node.inputs["Color"])
+            nm = nrm.links[0].from_node
+            node = linked_image(nm.inputs["Color"])
             if node:
                 rec_m["normal_tex"] = save_image(node)
+                # The map alone is not the relief: the game's normalScale
+                # (1.6 on the tyre lettering, 0.85 on the rubber) arrives as
+                # the Normal Map node's Strength, and Max's Normal_Bump has
+                # its own multiplier for it. Left out, the lettering stood
+                # 37% shallower in Max than in the game and in Blender.
+                rec_m["normal_strength"] = round(float(nm.inputs["Strength"].default_value), 4)
+                mp = mapping_of(node)
+                if mp:
+                    rec_m["normal_tex_map"] = mp
+                if node.extension == "EXTEND" and not node.inputs["Vector"].is_linked:
+                    rec_m["normal_tex_clamp"] = True
+        # The roughness map, where there is one (the tyre's: satin
+        # sidewall 0.7, matte tread 0.86, in the green channel), with the
+        # transform the colour map has.
+        rs = g("Roughness")
+        if rs.is_linked:
+            node = linked_image(rs)
+            if node:
+                rec_m["roughness_tex"] = save_image(node)
+                mp = mapping_of(node)
+                if mp:
+                    rec_m["roughness_tex_map"] = mp
+                if node.extension == "EXTEND" and not node.inputs["Vector"].is_linked:
+                    rec_m["roughness_tex_clamp"] = True
         if g("Roughness").is_linked or g("Metallic").is_linked:
-            rec_m["note"] = "metal/rough from a texture in the game; the factor is used"
+            rec_m["note"] = "metal/rough from a texture in the game; the scalar is the map's mean"
         mats[m.name] = rec_m
 
     # The FBX: the car, nothing else.

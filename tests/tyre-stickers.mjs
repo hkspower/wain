@@ -233,5 +233,46 @@ const sidewalls = PARTS.filter((p) => p.cat === "sidewall");
   check(r && parseFloat(r[1]) >= 0.68 && parseFloat(r[1]) <= 0.76, `sidewall roughness floor ${r?.[1]}: the satin is 0.68-0.76`);
 }
 
+// --- 7. Normal maps that survive the export --------------------------
+// Both tyre normal maps are canvases (flipY on) with no tangent attribute.
+// three reads green along +dv; GLTFExporter flips the image rows and writes
+// normalTexture.scale from normalScale.x only, so a map authored for
+// three's frame comes out of the GLB with its green reversed against the
+// glTF convention (+Y = image up) — the Blender and Max renders had the
+// lettering sunk where the game had it raised. So both maps are authored
+// in the glTF convention (green from -dy, canvas rows running down) and
+// the materials carry a NEGATIVE normalScale.y, which is exactly what
+// GLTFLoader does for a derivative tangent frame (it flips normalScale.y).
+// The game and the export then agree.
+{
+  const src = readFileSync("src/game/cars.ts", "utf8");
+  for (const fn of ["function tireSurface", "function tyreStickerTexture"]) {
+    const start = src.indexOf(fn);
+    const body = src.slice(start, src.indexOf("\n}\n", start));
+    const g = [...body.matchAll(/data\[i \+ 1\] = Math\.round\(\(\((-?)dy \/ len\)/g)].map((m) => m[1]);
+    check(g.length === 1 && g[0] === "-", `${fn}: green must be -dy (glTF convention), found ${JSON.stringify(g)}`);
+  }
+  const car = createCar({ style: "sedan", body: 0x9c1c2c, accent: 0x222222, kit: "street", tyreSticker: "moulded" });
+  const mats = { tire: null, sticker: null };
+  car.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.userData.wheelPart === "tire") mats.tire = o.material;
+    if (o.material?.name === "tire-sticker-moulded") mats.sticker = o.material;
+  });
+  for (const [k, m] of Object.entries(mats)) {
+    check(m !== null, `no ${k} material`);
+    if (m) check(m.normalScale.y < 0 && m.normalScale.x > 0, `${k} normalScale ${m.normalScale.x},${m.normalScale.y}: y must be negative for a glTF-convention map`);
+  }
+  if (mats.sticker) {
+    // Moulded lettering is rubber: a touch glossier than the sidewall it
+    // stands on so the raised faces catch a highlight, its ink near the
+    // rubber's own tone so the relief, not a pale paint, is what reads.
+    check(mats.sticker.roughness <= 0.55 && (mats.sticker.specularIntensity ?? 1) >= 0.85,
+      `moulded lettering roughness ${mats.sticker.roughness} / specular ${mats.sticker.specularIntensity}: the relief has to catch the light`);
+    check(mats.sticker.normalScale.x >= 2.5, `moulded normalScale ${mats.sticker.normalScale.x}: the emboss is what makes unpainted letters visible`);
+  }
+  console.log(`normal maps: glTF-convention green on both, normalScale.y negative on tyre and lettering`);
+}
+
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");
 process.exit(fail.length ? 1 : 0);
