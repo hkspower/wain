@@ -42,7 +42,8 @@
   function form() { var pw = pwField(); if (!pw || document.querySelector('.admin-content')) return null; return pw.closest('form') || pw.parentElement }
 
   var CSS = ''
-    + '.splp-wrap{position:relative}.splp-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);min-width:44px;min-height:44px;border:0;background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer;opacity:.75}'
+    + '[data-splp-col]{flex-direction:column;gap:0}[data-splp-col]>*:not(form){width:100%;max-width:24rem;box-sizing:border-box}'
+    + '.splp-wrap{position:relative}.splp-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);min-width:44px;min-height:44px;border:0;background:transparent;color:#334155;font:inherit;font-size:13px;font-weight:600;cursor:pointer}'
     + '.splp-caps{margin:6px 0 0;font-size:12.5px;color:#b45309}.splp-why{margin:8px 0 0;font-size:13px;color:#b91c1c}'
     + '.splp-pk{display:block;width:100%;margin-top:12px;min-height:44px;padding:10px 14px;border-radius:8px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font:inherit;font-weight:700;cursor:pointer}'
     + '.splp-pk[disabled]{opacity:.6;cursor:default}.splp-or{text-align:center;font-size:12px;opacity:.6;margin:10px 0 0}'
@@ -79,6 +80,13 @@
       var eye = el('button', 'splp-eye', T('Show', 'إظهار')); eye.type = 'button'; eye.setAttribute('aria-label', T('Show password', 'إظهار كلمة المرور')); eye.setAttribute('aria-pressed', 'false'); eye.setAttribute('data-splp-eye', '1')
       eye.addEventListener('click', function () { var show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; eye.textContent = show ? T('Hide', 'إخفاء') : T('Show', 'إظهار'); eye.setAttribute('aria-pressed', show ? 'true' : 'false'); pw.focus() })
       if (wrap) wrap.appendChild(eye)
+      /* The bundle puts the password box straight inside the form, so the form is the
+         positioning parent: sit the toggle on the box's own vertical centre and inside
+         the form's padding, instead of at the middle of the whole card. */
+      if (wrap === f) {
+        var place = function () { var cs = getComputedStyle(f); eye.style.top = (pw.offsetTop + pw.offsetHeight / 2) + 'px'; eye.style[(document.documentElement.dir === 'rtl') ? 'left' : 'right'] = (parseFloat(cs.paddingRight) + 6) + 'px'; eye.style[(document.documentElement.dir === 'rtl') ? 'right' : 'left'] = 'auto' }
+        place(); window.addEventListener('resize', place); pw.addEventListener('focus', place)
+      }
       pw.style.paddingInlineEnd = '56px'
       var caps = el('p', 'splp-caps', T('Caps Lock is on', 'مفتاح الأحرف الكبيرة مفعّل')); caps.hidden = true; caps.setAttribute('data-splp-caps', '1')
       ;(wrap || f).insertAdjacentElement('afterend', caps)
@@ -88,6 +96,7 @@
     var email = f.querySelector('input[type="email"], input[autocomplete="username"]')
     if (email && !email.value && document.activeElement === document.body && !email.hasAttribute('data-splp-focused')) { email.setAttribute('data-splp-focused', '1'); try { email.focus({ preventScroll: true }) } catch (e) {} }
     if (email && window.PublicKeyCredential && !email.hasAttribute('data-splp-webauthn')) { email.setAttribute('data-splp-webauthn', '1'); if (!/webauthn/.test(email.getAttribute('autocomplete') || '')) email.setAttribute('autocomplete', (email.getAttribute('autocomplete') || 'username') + ' webauthn') }
+    if (f.parentElement && f.parentElement.getAttribute('data-splp-col') == null) f.parentElement.setAttribute('data-splp-col', '1')
     if (!existing && window.PublicKeyCredential) {
       var box = el('div'); box.setAttribute(MARK, '1')
       box.appendChild(el('p', 'splp-or', T('or', 'أو')))
