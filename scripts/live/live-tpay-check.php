@@ -23,4 +23,7 @@ $auth = 'skipped(credentials not all set)';
 if ($id === 'set' && $sec === 'set' && $key === 'set') {
   try { [$s, $res] = cbk_http('POST', cbk_base($cfg) . '/ePay/api/cbk/online/pg/merchant/Authenticate', $cfg, ['ClientId' => $cfg['client_id'], 'ClientSecret' => $cfg['client_secret'], 'ENCRP_KEY' => $cfg['encrp_key']]);
     $auth = 'http=' . $s . ' Status=' . (is_array($res) ? ($res['Status'] ?? '?') : 'not-json'); } catch (Throwable $e) { $auth = 'error'; } }
+$file = cbk_config_file(); $dbOn = cbk_db_configured($file) ? "yes" : "NO"; $rowEnv = "?";
+if (is_array($a)) { try { $q = $db->query("select value from settings where name='knet'")->fetchColumn(); $k = $q ? json_decode($q, true) : null; $rowEnv = is_array($k) ? (string) ($k['env'] ?? '(unset)') : 'no-row'; } catch (Throwable $e) { $rowEnv = 'db-error'; } }
+echo "WHY fileEnv=" . ($file['env'] ?? '?') . " savedRowEnv=$rowEnv cbkSeesDb=$dbOn\n";
 echo "TPAY env=" . ($cfg['env'] ?? '?') . " gateway=$host clientId=$id clientSecret=$sec encrpKey=$key returnUrl=$ruOk payTypeDefault='" . ($cfg['pay_type'] ?? '') . "' methods=$methods configJsTpayEnabled=$tp auth=$auth\n";
