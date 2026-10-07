@@ -172,7 +172,7 @@ try {
     }
     return {
       dir: shell ? getComputedStyle(shell).direction : 'no-shell',
-      own: own ? geo(own) : null,
+      own: own ? { ...geo(own), bg: getComputedStyle(own).backgroundColor } : null,
       cards,
     }
   }, cardClasses)
@@ -189,9 +189,12 @@ try {
       'every overlay card has the bundle\'s own padding and radius',
       off.map((c) => `.${c.cls} ${c.pad}px/${c.radius}px vs ${m.own.pad}px/${m.own.radius}px`).join(', '))
 
-    const white = m.cards.filter((c) => c.bg === 'rgb(255, 255, 255)')
-    check(white.length === 0, 'and none of them is a white slab on the dark panel',
-      white.map((c) => `.${c.cls}`).join(', '))
+    // Since 2026-10-07 the panel is LIGHT by default; the invariant is unchanged in spirit: an overlay card has the
+    // bundle's own card ground, whichever mode the panel is in (a white slab on a dark panel, or a dark one on a light panel).
+    const seeThrough = (bg) => /rgba\([^)]*,\s*0(\.0\d*)?\)/.test(bg) // a near-transparent tint shows the panel's own ground
+    const white = m.cards.filter((c) => c.bg !== m.own.bg && !seeThrough(c.bg))
+    check(white.length === 0, 'and every one of them has the bundle card\'s own background',
+      white.map((c) => `.${c.cls}=${c.bg}`).join(', ') + ' own=' + m.own.bg)
   }
 
   /* ------------------------------------------------ how much it says ------ */

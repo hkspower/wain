@@ -103,7 +103,7 @@ for (const keep of ['/assets/api-dedupe.js', '/assets/theme.js', '/assets/keyboa
     if (full) {
       await p.route('**/*', async (route) => {
         if (route.request().resourceType() === 'document' && /^\/backends/.test(new URL(route.request().url()).pathname)) {
-          return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: RAW })
+          return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: RAW.replace('</head>', '<script src="/assets/panel-light.js"></script></head>') }) // panel.php adds the light-panel script; that is the panel's own, not a storefront one
         }
         return route.continue()
       })
