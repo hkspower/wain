@@ -6745,3 +6745,35 @@ forcing turned that into a filler. Both tools are back to `auto`, read back from
 
 **The latency is still there, and it is the model's.** Gemini-3.8-flash takes 2.2 s to decide on a tool call.
 What would shorten it is a smaller context or a faster model, neither tried here.
+
+## شوق's call screen polished — 7 October, night (built, NOT deployed)
+
+Asked: «improve shoug layout full polish css». Before any change, the agent build was rendered with the widget's
+config mocked. The real 0.19.0 bundle **does not render inside our slot**: it draws with `position: fixed`, so its
+«بدء مكالمة» card sat on our hang-up button, and once started its chat panel covered almost the whole sheet. The
+test stubs render inline, which is why nothing caught it. The owner picked all four fixes:
+
+- **Keep the widget inside.** `.wain-ai-slot { transform: translateZ(0); overflow: hidden }` in `globals.css`. A
+  transform makes the box the containing block for fixed descendants, shadow DOM included.
+  - `test:widget-csp` asserts on the real bundle that the hang-up is uncovered before Start and once live. It probes
+    the button's top edge as well as its middle.
+  - Both checks went red with the rule removed and the build green. The first version probed the centre only and
+    passed with the bug, because the live panel covered just the top of the button.
+- **Tidy the screen.**
+  - Her photo replaces the drawn face, which stays as a small talking badge (the `.shouq` tests read it).
+  - No map pin in the status line.
+  - The halo is `animate-pulse` in place instead of `animate-ping`, which had scaled it over the headline.
+  - «بصوت سالم/شوق» uses a speaker icon instead of 🔊, on the site and in the app.
+  - The sheet fits a 390×844 phone.
+- **Widget in our colours** (ElevenLabs config only: `agtvrsn_8401…`, `5101…`, `2001…`):
+  - buttons palm-600, our text and border colours;
+  - orb coral/sun, radii 16/24;
+  - `placement: bottom`, so the widget centres in its box;
+  - `file_input` off: the paperclip overlapped its own Arabic placeholder on desktop and has no use on a call.
+
+  «Powered by ElevenAgents» stays (Creator plan).
+
+Gates: `scan` (agent variables), `test:shouq` all suites, `test:hangout` on a default build, `test:widget-csp` 8/8,
+and Flutter analyze plus 1,307 tests. Commit `03d52fb8`. The owner saw the screenshots and chose «Change something
+first», so **nothing is deployed**: the live site still has the floating widget, and the colour and placement
+settings already apply to it.
