@@ -9,6 +9,7 @@
 #include "GameFramework/Pawn.h"
 #include "GRNTypes.h"
 #include "GRNSim.h"
+#include "GRNMotion.h"
 #include "GRNCarFactory.h"
 #include "GRNDriverRig.h"
 #include "GRNVehiclePawn.generated.h"
@@ -69,6 +70,21 @@ public:
 	float ScrapeCooldown = 0.f;
 
 	float Sp = 100.f;         // spirit points in a battle
+
+	// ------------------------------------------------------------- the body
+	//
+	// The shell on its springs. Stepped with the sim, at the fixed rate, so
+	// it is as repeatable as the handling it follows; applied to the car
+	// root every frame. See GRNMotion.h.
+	GRNMotion::FAttitude Attitude;
+	/** Roll at the lateral acceleration the target saturates at, radians:
+	 *  the car's gradient (mods.ts rollMaxFor) in the web's own units. The
+	 *  saloon's until a car says otherwise. */
+	double RollMax = GRNMotion::RollMaxRad(GRNMotion::SedanRollDegPerG);
+	/** What the body last pulled, for the springs: m/s², right turns and
+	 *  acceleration positive. */
+	double LastLatAccel = 0.0;
+	double LastLongAccel = 0.0;
 
 	// ------------------------------------------------- the solvers' state
 	//
@@ -133,6 +149,17 @@ private:
 	void CyclePressed();
 
 	float FovCurrent = 62.f;
+
+	/** Sideways travel the slide gives this step, m/s — sin(heading) times
+	 *  speed less the scrub; the slip angle the body's lean is read from. */
+	float TravelLatMs = 0.f;
+	double PrevBeta = 0.0;
+	float PrevSimSpeed = 0.f;
+	/** The pose the car is drawn at BEFORE the body's attitude goes on: the
+	 *  camera follows this, not the leaning shell. */
+	FRotator RenderBaseRot = FRotator::ZeroRotator;
+	/** The chase camera's place in that frame, centimetres. */
+	FVector CamOffset = FVector::ZeroVector;
 
 	// ------------------------------------------------------- the fixed tick
 	//

@@ -17,7 +17,8 @@ AGRNVehiclePawn::AGRNVehiclePawn()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("ChaseCam"));
 	Camera->SetupAttachment(CarRoot);
 	// Chase framing matches the web build: back and up, looking ahead
-	Camera->SetRelativeLocation(FVector(GRN_M(-9.5f), 0.f, GRN_M(3.4f)));
+	CamOffset = FVector(GRN_M(-9.5f), 0.f, GRN_M(3.4f));
+	Camera->SetRelativeLocation(CamOffset);
 	Camera->SetRelativeRotation(FRotator(-8.f, 0.f, 0.f));
 	Camera->FieldOfView = 62.f;
 
@@ -151,7 +152,16 @@ void AGRNVehiclePawn::Tick(float Dt)
 	// Lit-up rears visibly overspin the road speed — the launch tell.
 	// On the FRAME, not the step: a wheel's angle is a picture, not a
 	// state anything reads back.
-	GRNCarFactory::SpinWheels(Rig, SpeedMs + Wheelspin * 0.8f, Dt);
+	//
+	// Rolling along the car's OWN axis, not at road speed: sideways the
+	// tread turns slower than the car moves, at ninety degrees it stops,
+	// and past ninety it runs backwards. Locked wheels do not roll at all.
+	// Steered through Ackermann at the web's road lock, and dropped onto
+	// the road under the leaning shell (GRNCarFactory::MoveWheels).
+	GRNCarFactory::MoveWheels(Rig,
+		(SpeedMs * FMath::Cos(DriftYaw) * (1.f - (float)LastBrake.Lock)) + Wheelspin * 0.8f, Dt,
+		SteerSmooth * (float)GRNMotion::RoadWheelLock,
+		Attitude.Roll, Attitude.Pitch);
 	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift || LastBrake.Lock > 0.2);
 	UpdateDriver(Dt);
 }
@@ -179,12 +189,41 @@ void AGRNVehiclePawn::ApplyRenderPose()
 	Track->Pose(ShowS, ShowLat, Pos, Rot);
 	Rot.Yaw += FMath::RadiansToDegrees(ShowHeading * 0.85f + ShowDrift);
 	SetActorLocation(Pos);
-	CarRoot->SetWorldRotation(Rot);
+	RenderBaseRot = Rot;
+	// The shell on its springs: leaning out of the corner, diving under the
+	// brakes. Roll is positive right-side-down in both worlds; pitch is
+	// positive nose-DOWN in the model and nose-UP in FRotator, so it flips.
+	// Composed as a quaternion on the road pose rather than added to the
+	// rotator, because the road's own pitch and roll are already in it.
+	CarRoot->SetWorldRotation(Rot.Quaternion() * FRotator(
+		-FMath::RadiansToDegrees((float)Attitude.Pitch), 0.f,
+		FMath::RadiansToDegrees((float)Attitude.Roll)).Quaternion());
 }
 
 void AGRNVehiclePawn::StepSim(float Dt)
 {
 	UpdateHandling(Dt);
+
+	// The body's springs, fed what the car just did. Lateral acceleration
+	// is the rate the direction of TRAVEL turns, times speed: the road's
+	// own curvature plus the change in slip angle — bookkeeping the model
+	// already has rather than a new force, and the same law as the web
+	// build's (attitude.ts). A car holding lock on a straight leans only
+	// for the transient, as it does there.
+	const FVector T1 = Track->TangentAt(S).GetSafeNormal2D();
+	const FVector T2 = Track->TangentAt(S + GRN_M(8.f)).GetSafeNormal2D();
+	// Right turns positive: Unreal's yaw runs clockwise from above.
+	const double Cross = (double)T1.X * T2.Y - (double)T1.Y * T2.X;
+	const double Curvature = FMath::Asin(GRNMotion::Clamp(Cross, -1.0, 1.0)) / 8.0;
+	const double Beta = FMath::Atan2((double)TravelLatMs, (double)FMath::Max(1.f, SpeedMs));
+	const double BetaRate = bSimStarted ? (Beta - PrevBeta) / Dt : 0.0;
+	PrevBeta = Beta;
+	LastLatAccel = GRNMotion::LateralAccel(Curvature, SpeedMs, BetaRate);
+	// Pitch from what the car is DOING, not from the pedals: a car on its
+	// governor is at full throttle and not accelerating.
+	LastLongAccel = bSimStarted ? (SpeedMs - PrevSimSpeed) / Dt : 0.0;
+	PrevSimSpeed = SpeedMs;
+	GRNMotion::StepAttitude(Attitude, LastLatAccel, LastLongAccel, RollMax, Dt);
 }
 
 void AGRNVehiclePawn::UpdateDriver(float Dt)
@@ -316,7 +355,8 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 	// Lateral: sideways tires scrub translation while the body hangs out,
 	// plus any rebound still carrying the car off a barrier
 	const float Scrub = 1.f - DriftLatScrub * FMath::Min(1.f, FMath::Abs(DriftYaw) / 0.5f);
-	const float LatVelMs = FMath::Sin(Heading) * SpeedMs * Scrub + ReboundVel;
+	TravelLatMs = FMath::Sin(Heading) * SpeedMs * Scrub;
+	const float LatVelMs = TravelLatMs + ReboundVel;
 	Lat += GRN_M(LatVelMs) * Dt;
 	ReboundVel -= ReboundVel * FMath::Min(1.f, Dt * 2.5f);
 	ScrapeCooldown = FMath::Max(0.f, ScrapeCooldown - Dt);
@@ -386,6 +426,12 @@ void AGRNVehiclePawn::UpdateCamera(float Dt)
 	FVector Pos; FRotator RoadRot;
 	Track->Pose(ShowS, ShowLat, Pos, RoadRot);
 	const FRotator CamRot = RoadRot;
+	// The camera follows the pose the car is DRAWN at, without the body's
+	// lean: it is a child of the car root, so left alone it would swing a
+	// few tens of centimetres up and down with every dive and roll — a
+	// chase camera that heaves with the suspension of the thing it is
+	// chasing. Set in world space from the pre-attitude pose.
+	Camera->SetWorldLocation(GetActorLocation() + RenderBaseRot.RotateVector(CamOffset));
 	Camera->SetWorldRotation(FMath::RInterpTo(Camera->GetComponentRotation(),
 		CamRot + FRotator(-8.f, 0.f, FMath::RadiansToDegrees(DriftYaw) * 0.1f), Dt, 5.5f));
 

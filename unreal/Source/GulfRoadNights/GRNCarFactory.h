@@ -39,6 +39,26 @@ struct FGRNCarRig
 	 *  than the rolled primitive cylinder (axis along its own Z); the spin
 	 *  goes on a different local axis for each. */
 	bool bHeroWheels = false;
+
+	/** What a wheel is, so it can be steered, cambered, dropped on its
+	 *  spring and spun as one composed rotation instead of by whichever
+	 *  AddLocalRotation ran last. Parallel to Wheels. */
+	struct FWheelPose
+	{
+		/** Where the hub sits with the car level, relative to the car root (cm). */
+		FVector Rest = FVector::ZeroVector;
+		/** The orientation the mesh was built with: the primitive cylinder
+		 *  is rolled onto its side, a hero wheel is authored as it stands. */
+		FQuat Base = FQuat::Identity;
+		/** Total spin about the axle, degrees. Kept as a number here and
+		 *  composed each frame: a wheel's angle is a picture, not a state. */
+		float SpinDeg = 0.f;
+		bool bSteers = false;
+	};
+	TArray<FWheelPose> Poses;
+	/** Axle spacing and track in metres, for Ackermann. Zero until built. */
+	float WheelbaseM = 0.f;
+	float TrackM = 0.f;
 };
 
 /**
@@ -149,7 +169,21 @@ namespace GRNCarFactory
 		float PaintMetal = -1.f, EGRNFinish Finish = EGRNFinish::Gloss);
 
 	/** Advance wheel spin from road speed (m/s). */
-	void SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt);
+	void SpinWheels(FGRNCarRig& Rig, float SpeedMs, float Dt);
+
+	/**
+	 * Spin, steer and suspend the wheels in one call: the web build's
+	 * spinWheels plus applySuspension (engine.ts), through GRNMotion.h.
+	 *
+	 * SteerRad is the INSIDE front wheel's angle, right turns positive;
+	 * the fronts take Ackermann's two angles from it. Roll (right side
+	 * down) and PitchDown (nose down) are the body's attitude as written
+	 * to the car root, and each hub is dropped or lifted so its contact
+	 * patch stays on the road while the shell leans over it, with the
+	 * camber the geometry gains on the way.
+	 */
+	void MoveWheels(FGRNCarRig& Rig, float SpeedMs, float Dt, float SteerRad,
+		double Roll, double PitchDown);
 
 	/** Brake-light state: idle glow vs full flare. */
 	void SetBraking(const FGRNCarRig& Rig, bool bBraking);

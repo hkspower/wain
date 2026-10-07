@@ -1,4 +1,5 @@
 #include "GRNCarFactory.h"
+#include "GRNMotion.h"
 #include "GRNHeroArt.h"
 #include "GRNPaint.h"
 #include "GRNGraphics.h"
@@ -376,7 +377,15 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		}
 		Wheel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Rig.Wheels.Add(Wheel);
+		FGRNCarRig::FWheelPose Pose;
+		Pose.Rest = Wheel->GetRelativeLocation();
+		Pose.Base = Wheel->GetRelativeRotation().Quaternion();
+		Pose.bSteers = W.X > 0.f;
+		Rig.Poses.Add(Pose);
 	}
+
+	Rig.WheelbaseM = WzF - WzR;
+	Rig.TrackM = 1.88f * K;
 
 	// Headlight beam, warm like the web build.
 	//
@@ -410,19 +419,50 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	return Rig;
 }
 
-void GRNCarFactory::SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt)
+void GRNCarFactory::SpinWheels(FGRNCarRig& Rig, float SpeedMs, float Dt)
 {
-	// The tyre the web publishes → degrees per second at road speed
+	// Spin only: straight, level, and on the springs' rest heights — which
+	// is what a rival or a civilian gets until it is handed an attitude.
+	MoveWheels(Rig, SpeedMs, Dt, 0.f, 0.0, 0.0);
+}
+
+void GRNCarFactory::MoveWheels(FGRNCarRig& Rig, float SpeedMs, float Dt, float SteerRad,
+	double Roll, double PitchDown)
+{
+	// The tyre the web publishes -> degrees per second at road speed
 	const float DegPerSec = FMath::RadiansToDegrees(SpeedMs / GRN_TYRE_RADIUS_M);
-	// The primitive is a cylinder rolled onto its side, so its own Z is
-	// the axle and the spin is a local yaw; a hero wheel is authored with
-	// the axle along Y, so its spin is a local pitch.
-	const FRotator Step = Rig.bHeroWheels
-		? FRotator(DegPerSec * Dt, 0.f, 0.f)
-		: FRotator(0.f, DegPerSec * Dt, 0.f);
-	for (UStaticMeshComponent* W : Rig.Wheels)
+	// Ackermann from the car's own wheelbase and track. With no pair to
+	// steer (a body baked with its wheels) this is never read.
+	const GRNMotion::FSteer St = GRNMotion::SteerAngles(SteerRad, Rig.WheelbaseM, Rig.TrackM);
+	for (int32 i = 0; i < Rig.Wheels.Num(); ++i)
 	{
-		if (W) W->AddLocalRotation(Step);
+		UStaticMeshComponent* W = Rig.Wheels[i];
+		if (!W || !Rig.Poses.IsValidIndex(i)) continue;
+		FGRNCarRig::FWheelPose& P = Rig.Poses[i];
+		P.SpinDeg = FMath::Fmod(P.SpinDeg + DegPerSec * Dt, 360.f);
+
+		// Where this hub goes so its contact patch stays on the road while
+		// the shell leans over it. Metres in, centimetres out; Y is to the
+		// right, so a left wheel has negative Y.
+		const double RestZ = P.Rest.Z * 0.01;
+		const GRNMotion::FWheelSolve Hub = GRNMotion::SolveWheel(
+			RestZ, P.Rest.X * 0.01, P.Rest.Y * 0.01, Roll, PitchDown);
+		W->SetRelativeLocation(FVector(P.Rest.X, P.Rest.Y, (float)(Hub.Z * 100.0)));
+
+		// Steer about the hub's vertical, camber about the steered
+		// longitudinal axis, then spin about the axle that results: the
+		// knuckle in the order the metal has it. The primitive cylinder
+		// spins about its own Z (it is rolled onto its side), a hero wheel
+		// about its Y.
+		const float SteerDeg = P.bSteers
+			? FMath::RadiansToDegrees((float)(P.Rest.Y < 0.f ? St.Left : St.Right))
+			: 0.f;
+		const FQuat Steer = FRotator(0.f, SteerDeg, 0.f).Quaternion();
+		const FQuat Camber = FRotator(0.f, 0.f, FMath::RadiansToDegrees((float)Hub.Camber)).Quaternion();
+		const FQuat Spin = Rig.bHeroWheels
+			? FRotator(P.SpinDeg, 0.f, 0.f).Quaternion()
+			: FRotator(0.f, P.SpinDeg, 0.f).Quaternion();
+		W->SetRelativeRotation(Steer * Camber * P.Base * Spin);
 	}
 }
 

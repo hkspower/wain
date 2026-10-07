@@ -167,6 +167,7 @@
     "test:paints": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/paints.mjs",
     "test:paintshop": "node tests/paintshop.mjs",
     "test:pads": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/pads.mjs",
+    "test:motion": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/motion-parity.mjs",
     "test:parity": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/parity.mjs",
     "test:physics": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/physics.mjs",
     "test:planting": "node tests/planting.mjs",

@@ -304,6 +304,37 @@ emits `namespace GRNExact` at `double` precision alongside the `float`
 constants the engine code uses. The other was a stale duplicate line in
 the C++ left behind by a merge. Neither was visible to a constant diff.
 
+### The body on its springs
+
+The port used to lay a rigid shell on the road: a car through the sweeper
+at 1.4 g sat as flat as one parked, never dived under the brakes, and all
+four wheels pointed dead ahead at full lock. `GRNMotion.h` carries the web
+build's `attitude.ts` and `suspension.ts` over, engine-free like
+`GRNSim.h`:
+
+- **Roll and pitch** from what the car is doing — the road's curvature plus
+  the slip angle's rate, times speed, for the lean; the speed's own rate
+  for dive and squat — through the same underdamped springs, stepped in
+  the fixed sim and applied to the car root every frame
+  (`AGRNVehiclePawn::StepSim`, `ApplyRenderPose`).
+- **Hubs** dropped or lifted so each contact patch stays on the road under
+  the leaning shell, with the camber the geometry gains, and the front
+  pair steered through **Ackermann** at the web's 0.52 rad road lock
+  (`GRNCarFactory::MoveWheels`). Steer, camber and spin are composed as
+  one rotation, in the order the knuckle has them, instead of by whichever
+  `AddLocalRotation` ran last.
+- Wheels roll along the car's **own axis** (a slide slows them, ninety
+  degrees stops them) and locked wheels do not roll.
+- The **chase camera** follows the pose the car is drawn at *without* the
+  lean, so it does not heave with the suspension of the car it follows.
+
+`npm run test:motion` compiles `tools/parity/motion.cpp` and runs 3 000
+spring steps, 400 hubs and 200 steering geometries through both builds;
+the worst disagreement is 5e-13. What it cannot say is whether Unreal's
+`FRotator::Roll` is right-side-down on the editor's build — it is in every
+version this was written against, and the sign is the one thing to look at
+first on the Mac: a right-hander should lean the car to its left.
+
 ## What maps to what
 
 | Web build (`src/game/`) | UE5 (`Source/GulfRoadNights/`) |
