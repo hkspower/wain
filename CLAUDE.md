@@ -6422,6 +6422,15 @@ variables, then `git checkout -- wain-1.1.0.zip` so the committed archive is the
 **Not measured**: a real call or typed chat on the live site (the socket is refused here), the credit balance,
 and iOS Safari. The first call from a phone is the proof.
 
+**Later the same day: Main IS the tuned agent, and gets 100% again** («upload agent shoug and salem»). A merge
+could not carry the prompt (Main changed it, the branch did not, so a three-way merge keeps Main's), so the
+tuned prompt, `gemini-3.8-flash` at 0, the first message, TTS speed 1.06 without the phone filter, the turn
+settings and no background sound were written onto Main with the per-section update tools; the prompt read back
+**byte-identical** to `tuned-restore`'s. Main keeps its extra ASR keywords and ignore terms (supersets). Live
+version `agtvrsn_6801m4ass4apec1v9apsx2svzscw`; `tuned-restore` kept at 0%. So the dashboard's test widget now
+tests what callers get. Not re-run as a suite on Main. Its «show_places is not defined on client» errors are the
+test widget's (it has no client tools), not a fault: wainkw.com registers both. `docs/agent-live/README.md`.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
