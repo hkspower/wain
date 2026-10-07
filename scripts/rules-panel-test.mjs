@@ -122,10 +122,10 @@ try {
   }
   check(!(await page.locator('input[type=password]').count()), 'signed in to the website panel')
 
-  /* ------------------------------------------------- 1. it is on Settings -- */
-  await gotoScreen('Settings')
+  /* ------------------------------------------------- 1. it is on Payments -- */
+  await gotoScreen('Payments')
   await page.waitForSelector('.srl', { timeout: 8000 })
-  check(await page.locator('.srl').count() === 1, 'the Shop rules card is on Settings')
+  check(await page.locator('.srl').count() === 1, 'the Shop rules card is on the Payments screen')
 
   const inputs = await page.locator('.srl input[data-rule]').count()
   const chips = await page.locator('.srl input[data-list]').count()
@@ -145,7 +145,7 @@ try {
   await gotoScreen('Orders')
   check(await page.locator('.srl').count() === 0,
     'and it removes itself when the panel moves to another screen')
-  await gotoScreen('Settings')
+  await gotoScreen('Payments')
   await page.waitForSelector('.srl', { timeout: 8000 })
 
   /* ------------------------------------------ 3. an edit reaches the shop -- */

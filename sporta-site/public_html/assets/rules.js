@@ -401,12 +401,14 @@
     document.head.appendChild(s)
   }
 
-  /** The Settings screen, and only it. The panel swaps its content in place, so
-   *  this has to be answered again after every render — hence the observer. */
+  /** The Payments screen, and only it — since 2026-10-07 the shop's rules (delivery, returns, cash on
+   *  delivery, areas, sizes) live with the payment methods, as one checkout screen, instead of on Settings.
+   *  The panel swaps its content in place, so this has to be answered again after every render — hence the
+   *  observer. */
   function settingsHeading() {
     var hs = document.querySelectorAll('.admin-content h1, .admin-content h2')
     for (var i = 0; i < hs.length; i++) {
-      if (hs[i].textContent.trim() === 'Settings') return hs[i]
+      if (hs[i].textContent.trim() === 'Payments') return hs[i]
     }
     return null
   }
@@ -431,8 +433,9 @@
     busy = true
     style()
     card = el('div', 'srl')
-    var anchor = head.parentNode
-    anchor.parentNode.insertBefore(card, anchor.nextSibling)
+    card.setAttribute('data-sporta-panel', 'rules')
+    // AT THE END of the screen's parent, so it sits below the credentials card whichever overlay drew first.
+    head.parentNode.parentNode.appendChild(card)
     busy = false
 
     state.rules = null

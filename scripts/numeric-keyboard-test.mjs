@@ -587,7 +587,7 @@ try {
     await section('settings', async () => {
       await nav(p, 'Settings')
       await click(p, p.locator('.hsl .hsl-btn').filter({ hasText: /^Edit$/ }))
-      await screen(p, `${tag} Settings`, lang, { 'contact.whatsapp': 1, 'rules.money': 2, 'rules.count': 5, 'slide.sort': 1 }, ['contact.printed', 'hex'])
+      await screen(p, `${tag} Settings`, lang, { 'contact.whatsapp': 1, 'slide.sort': 1 }, ['contact.printed', 'hex'])
       // WhatsApp
       const wa = p.locator('section[data-sporta-panel=contact] .spc-field').filter({ has: p.locator('.spc-label', { hasText: /^WhatsApp number$/ }) }).locator('input')
       const wv = await ty(p, wa, dig('96555512345', set))
@@ -595,9 +595,6 @@ try {
       await click(p, p.locator('section[data-sporta-panel=contact] button').filter({ hasText: /^Save contact details$/ }))
       const cs = await body('settings_save', from)
       check(wv === '96555512345' && cs && cs.name === 'contact' && cs.value && cs.value.whatsapp === '96555512345', `${tag}: contact save SENDS whatsapp '96555512345'`, `${wv} ${JSON.stringify(cs && cs.value)}`)
-      // Shop rules
-      await ty(p, p.locator('input.srl-num[data-rule=return_days]'), dig('12', set))
-      await ty(p, p.locator('input.srl-num[data-rule=delivery_fee_fils]'), dig('1.500', set))
       from = since(sent)
       await click(p, p.locator('button').filter({ hasText: /^Save rules$/ }))
       const rs = await body('settings_save', from)
@@ -618,7 +615,10 @@ try {
 
     await section('payments', async () => {
       await nav(p, 'Payments')
-      await screen(p, `${tag} Payments`, lang, { 'pay.codOpen': 1, 'pay.codMax': 1 }, ['payment.cred'])
+      await screen(p, `${tag} Payments`, lang, { 'pay.codOpen': 1, 'pay.codMax': 1, 'rules.money': 2, 'rules.count': 5 }, ['payment.cred'])
+      // Shop rules (on the Payments screen since 2026-10-07)
+      await ty(p, p.locator('input.srl-num[data-rule=return_days]'), dig('12', set))
+      await ty(p, p.locator('input.srl-num[data-rule=delivery_fee_fils]'), dig('1.500', set))
       const ins = p.locator('[data-spps] input.spps-in')
       await ty(p, ins.nth(0), dig('4', set)); await ty(p, ins.nth(1), dig('5.5', set))
       let from = since(sent)

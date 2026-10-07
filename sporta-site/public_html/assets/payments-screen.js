@@ -64,7 +64,7 @@
   }
 
   var CSS = ''
-    + '.admin-content.spps-on>:not([' + MARK + ']):not([data-sporta-panel="payment"]){display:none!important}'
+    + '.admin-content.spps-on>:not([' + MARK + ']):not([data-sporta-panel="payment"]):not([data-sporta-panel="rules"]){display:none!important}'
     + '.spps-sec{border:1px solid var(--sp-pc-border,#494e54);border-radius:1rem;padding:1.25rem;margin:1rem 0;background:var(--sp-pc-bg,transparent)}'
     + '.spps-h{margin:0 0 4px;font-size:16px;font-weight:700}'
     + '.spps-sub{margin:0 0 12px;font-size:13px;opacity:.75;line-height:1.5}'
