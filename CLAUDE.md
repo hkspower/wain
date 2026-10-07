@@ -416,7 +416,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 806 checks covering
+- `python3 design/test_suite.py` is the full system test — 816 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -618,6 +618,25 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   while the toast said «تمت إضافة NBK». Every write now returns whether it
   happened and every caller checks before claiming success. Pinned by
   simulating a refusing `Storage.prototype.setItem`.
+- **"Every write is checked" means every write, and a batch is all or nothing**
+  (النوخذة audit, 2026-10-07). Five writes still answered success over a
+  refusal: the portal's `writeUsers()` returned nothing, so registration
+  welcomed a visitor whose account was never stored; the console's password
+  change and first setup toasted «تم التغيير» or opened the console with no
+  record saved; its backup import ignored every `wr()`. A batch that writes
+  two keys must restore the first when the second is refused:
+  `Nokhatha.import` once answered `{ok:false}` with the holdings already
+  replaced. A **backup import is an allow-list**: the console wrote whatever
+  key the file named, so a crafted backup replaced the admin password record;
+  it now takes the five data keys only, type-checked, never `almuhallab-admin-*`.
+  The qty rule extends to money: a negative cost, price or amount is refused,
+  not clamped to 0 (absent still means 0). A signed amount has **three**
+  cases: break-even (rounded to the fils) prints `0.000`, no sign, no gain
+  colour. A chart's label room is computed from its widest label, never a
+  fixed constant. Offline, the clean-URL stubs are precached at the address
+  they are fetched by (`nizam/`), and a product URL falls back to its own stub,
+  never to the company page. All pinned in `nokhatha_audit_checks`, each check
+  proved failing against the code before the fix.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse

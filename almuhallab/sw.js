@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v44";   /* v44: the dark theme and the English logo */
+var CACHE = "nokhatha-v45";   /* v45: clean-URL stubs precached, product-aware offline fallback */
 var ASSETS = [
   "./",
   "index.html",
@@ -13,6 +13,14 @@ var ASSETS = [
   "xbrl.html",
   "delivery.html",
   "admin.html",
+  /* the clean-URL stubs, at the address they are fetched by: without them a
+     first offline visit to /nizam/#/safi fell back to the company page */
+  "nokhatha/",
+  "nizam/",
+  "admin/",
+  "safi/",
+  "xbrl/",
+  "delivery/",
   "manifest.webmanifest",
   "icon.svg",
   "logo.svg",
@@ -74,7 +82,14 @@ self.addEventListener("fetch", function (event) {
         return res;
       }).catch(function () {
         // Offline and uncached: fall back to the app shell for page navigations.
-        if (req.mode === "navigate") return caches.match("index.html");
+        // A product address falls back to its own stub (which keeps the
+        // fragment's tab), never to the company brochure.
+        if (req.mode === "navigate") {
+          var m = /\/(nokhatha|nizam|admin|safi|xbrl|delivery)\/?$/.exec(url.pathname);
+          return (m ? caches.match(m[1] + "/") : Promise.resolve(null)).then(function (hit) {
+            return hit || caches.match("index.html");
+          });
+        }
         return cached;
       });
       return cached || refresh;

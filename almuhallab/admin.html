@@ -1201,10 +1201,34 @@
       rdr.onload = function () {
         try {
           var d = JSON.parse(rdr.result);
-          if (!d || !d.data) throw new Error("bad");
+          if (!d || !d.data || typeof d.data !== "object") throw new Error("bad");
+          /* An allow-list of the five data keys, each type-checked. The import
+             once wrote whatever key the file named, so a crafted backup could
+             replace the admin password record (almuhallab-admin-*) and plant
+             unrelated keys, under «تم الاستيراد». The admin's own keys and the
+             audit log are never restored from a file. */
+          var shape = {}; shape[K.users] = "object";
+          [K.safi, K.orders, K.couriers, K.xbrl].forEach(function (k) { shape[k] = "array"; });
+          var take = Object.keys(shape).filter(function (k) {
+            var v = d.data[k];
+            if (v === null || v === undefined) return false;
+            return shape[k] === "array" ? Array.isArray(v) : (typeof v === "object" && !Array.isArray(v));
+          });
+          if (!take.length) throw new Error("bad");
           if (!confirm("استبدال البيانات الحالية بالنسخة المستوردة؟")) return;
-          Object.keys(d.data).forEach(function (k) { if (d.data[k] !== null) wr(k, d.data[k]); });
-          audit("استيراد نسخة احتياطية"); toast("تم الاستيراد"); renderAll();
+          /* all or nothing: a refused write puts back what was already replaced */
+          var before = {}; take.forEach(function (k) { before[k] = localStorage.getItem(k); });
+          var done = [], refused = take.some(function (k) {
+            if (!wr(k, d.data[k])) return true; done.push(k); return false;
+          });
+          if (refused) {
+            done.forEach(function (k) {
+              try { before[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, before[k]); } catch (e2) {}
+            });
+            toast(STORAGE_FULL); return;
+          }
+          renderAll();
+          audit("استيراد نسخة احتياطية"); toast("تم الاستيراد");
         } catch (e) { toast("ملف غير صالح"); }
       };
       rdr.readAsText(f);
@@ -1227,7 +1251,9 @@
       if (f.nw.value.length < 10) { err.textContent = "الجديدة قصيرة جداً."; return; }
       var s = salt();
       return derive(f.nw.value, s).then(function (nh) {
-        wr(K.admin, { salt: s, hash: nh, iter: ITER, createdAt: rec.createdAt });
+        if (!wr(K.admin, { salt: s, hash: nh, iter: ITER, createdAt: rec.createdAt })) {
+          err.textContent = STORAGE_FULL; return;   // the old password is still the one in force
+        }
         err.textContent = ""; f.reset(); audit("تغيير كلمة مرور المشرف"); toast("تم التغيير"); renderSettings();
       });
     }).catch(function () { err.textContent = "تعذّر التحقق."; });
@@ -1256,7 +1282,9 @@
       if (pw !== f.confirm.value) { err.textContent = "التأكيد لا يطابق."; f.querySelector("button").disabled = false; return; }
       var s = salt();
       derive(pw, s).then(function (h) {
-        wr(K.admin, { salt: s, hash: h, iter: ITER, createdAt: new Date().toISOString() });
+        if (!wr(K.admin, { salt: s, hash: h, iter: ITER, createdAt: new Date().toISOString() })) {
+          err.textContent = STORAGE_FULL; return;   // no record stored: do not open the console
+        }
         audit("ضبط كلمة مرور المشرف"); sesSet(true); open_();
       }).catch(function () { err.textContent = "تعذّر التشفير في هذا المتصفح."; })
         .then(function () { f.querySelector("button").disabled = false; });

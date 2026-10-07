@@ -747,6 +747,7 @@ def browser_checks():
         timezone_checks(br)
         auth_checks(pg, ctx)
         tamper_checks(pg)
+        nokhatha_audit_checks(pg, br)
         offline_checks(ctx, br)
         layout_checks(br)
         totals_alignment_checks(br)
@@ -962,7 +963,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "806", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "816", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -995,7 +996,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "806", "0", "100%"], str(finals))
+          finals == ["4", "816", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2792,6 +2793,157 @@ def tamper_checks(pg):
     check(S, "unparseable storage does not break the page", not errs,
           errs[0] if errs else "")
     pg.evaluate("localStorage.clear()")
+
+# ───────────────────────────── النوخذة audit (2026-10-07): writes, import, zero, chart, offline
+def nokhatha_audit_checks(pg, br):
+    S = "nokhatha-audit"
+    REFUSE = """((key) => {
+      const real = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === key) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+        return real.call(this, k, v);
+      };
+      window.__restore = () => { Storage.prototype.setItem = real; };
+    })"""
+    def toast(p):
+        return p.eval_on_selector("#toast", "e => e.textContent.trim()")
+
+    # 1. the API refuses a negative cost/price/amount instead of storing 0
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
+    pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+    r = pg.evaluate("""[Nokhatha.addHolding({ticker:'KFH',qty:5,cost:-100,price:3}),
+                       Nokhatha.addHolding({ticker:'KFH',qty:5,cost:1,price:-3}),
+                       Nokhatha.addHolding({ticker:'KFH',qty:5,cost:'abc',price:3}),
+                       Nokhatha.addOrder({id:'N1',amount:-5}),
+                       Nokhatha.addHolding({ticker:'OK',qty:1}),
+                       Nokhatha.holdings().length, Nokhatha.orders().length]""")
+    check(S, "a negative or non-numeric cost, price or amount is refused, not stored as 0",
+          [x["ok"] for x in r[:4]] == [False] * 4 and r[4]["ok"] and r[5] == 1 and r[6] == 0, str(r))
+
+    # 2. import is atomic: a refused orders write leaves the holdings as they were
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("Nokhatha.addHolding({ticker:'NBK',qty:1,cost:1,price:1}); Nokhatha.addOrder({id:'A1',amount:1})")
+    pg.evaluate(REFUSE + "('nokhatha-delivery-orders-v1')")
+    r = pg.evaluate("Nokhatha.import({safi:[{ticker:'ZZZ',qty:1}],orders:[{id:'B2'}]})")
+    held = pg.evaluate("window.__restore(); Nokhatha.holdings().map(h => h.ticker)")
+    check(S, "a half-failed import puts the first unit back (atomic)",
+          not r["ok"] and held == ["NBK"], f"{r} holdings={held}")
+
+    # 3. a net zero P/L is not a profit: no sign, no gain colour
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("""Nokhatha.addHolding({ticker:'UP',qty:1,cost:1000,price:2000});
+                   Nokhatha.addHolding({ticker:'DN',qty:1,cost:2000,price:1000});
+                   Nokhatha.addHolding({ticker:'EV',qty:1,cost:1000,price:1000})""")
+    pg.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle"); pg.wait_for_timeout(300)
+    pp = pg.eval_on_selector("#p-pl", "e => [e.textContent.trim(), e.className]")
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); pg.wait_for_timeout(300)
+    sp = pg.eval_on_selector("#s-pl", "e => [e.textContent.trim(), e.className]")
+    ev = pg.evaluate("""[...document.querySelectorAll('#safi-chart svg text[font-weight="700"]')]
+                        .map(t => t.textContent.trim())""")
+    check(S, "a break-even P/L reads 0.000 with no sign and no gain colour (tiles and chart)",
+          pp[0] == "0.000" and "pos" not in pp[1] and sp[0] == "0.000" and "pos" not in sp[1]
+          and "0.000" in ev and "+0.000" not in ev, f"{pp} {sp} {ev}")
+
+    # 4. a full-span seven-digit loss label does not run into its ticker
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("""for (let i = 0; i < 6; i++) Nokhatha.addHolding({ticker:'T'+i, qty:1,
+                     cost: i % 2 ? 4999999 : 1, price: i % 2 ? 1 : 4999999})""")
+    pg.reload(wait_until="networkidle"); pg.wait_for_timeout(300)
+    gaps = pg.evaluate("""(() => {
+      const ts = [...document.querySelectorAll('#safi-chart svg text')];
+      const out = [];
+      for (let i = 0; i + 1 < ts.length; i += 2) {
+        const k = ts[i].getBBox(), v = ts[i + 1].getBBox();
+        out.push(Math.max(v.x - (k.x + k.width), k.x - (v.x + v.width)));
+      }
+      return out;
+    })()""")
+    check(S, "the chart's signed labels clear the ticker at full span (>= 4 units)",
+          gaps and min(gaps) >= 4, str([round(g, 1) for g in gaps]))
+    pg.evaluate("localStorage.clear()")
+
+    # 5. portal: a refused account write does not welcome anyone
+    pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle")
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate(REFUSE + "('nokhatha-users-v1')")
+    pg.fill('#form-register input[name="name"]', "Ali")
+    pg.fill('#form-register input[name="email"]', "a@b.co")
+    pg.fill('#form-register input[name="password"]', "correct-horse-2026")
+    pg.click('#form-register button[type="submit"]'); pg.wait_for_timeout(2600)
+    msg = pg.eval_on_selector("#register-error", "e => e.textContent.trim()")
+    ses = pg.evaluate("Object.keys(localStorage).filter(k => /session/.test(k))")
+    check(S, "a refused account write is reported, greets nobody and stores no session",
+          "تعذّر الحفظ" in msg and not ses and "أهلاً" not in toast(pg), f"msg={msg!r} ses={ses}")
+    pg.evaluate("window.__restore(); localStorage.clear()")
+
+    # 6-8. the console: password writes checked, backup import allow-listed
+    pg.goto(f"{BASE}/admin.html", wait_until="networkidle")
+    pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+    pg.evaluate(REFUSE + "('almuhallab-admin-v1')")
+    pg.fill('#gate-form input[name="pass"]', "AdminPass123")
+    pg.fill('#gate-form input[name="confirm"]', "AdminPass123")
+    pg.evaluate("document.getElementById('gate-form').requestSubmit()"); pg.wait_for_timeout(1500)
+    gate = pg.evaluate("[!!localStorage.getItem('almuhallab-admin-session-v1'), document.getElementById('gate-err').textContent]")
+    check(S, "console setup with a refused write opens nothing and says why",
+          not gate[0] and "تعذّر الحفظ" in gate[1], str(gate))
+    pg.evaluate("window.__restore(); localStorage.removeItem('almuhallab-admin-session-v1')")
+    pg.reload(wait_until="networkidle")
+    if not pg.evaluate("localStorage.getItem('almuhallab-admin-v1')"):
+        pg.fill('#gate-form input[name="pass"]', "AdminPass123")
+        pg.fill('#gate-form input[name="confirm"]', "AdminPass123")
+        pg.evaluate("document.getElementById('gate-form').requestSubmit()"); pg.wait_for_timeout(1500)
+    before = pg.evaluate("localStorage.getItem('almuhallab-admin-v1')")
+    pg.evaluate(REFUSE + "('almuhallab-admin-v1')")
+    pg.evaluate("""(() => { const f = document.getElementById('pw-form');
+      f.cur.value = 'AdminPass123'; f.nw.value = 'NewPass45678'; f.requestSubmit(); })()""")
+    pg.wait_for_timeout(1500)
+    after = pg.evaluate("[localStorage.getItem('almuhallab-admin-v1'), document.getElementById('pw-err').textContent]")
+    check(S, "a refused password change says so and does not claim «تم التغيير»",
+          before and after[0] == before and "تعذّر الحفظ" in after[1] and toast(pg) != "تم التغيير",
+          f"err={after[1]!r} toast={toast(pg)!r}")
+    pg.evaluate("window.__restore()")
+
+    import tempfile, os
+    def do_import(payload):
+        fd, path = tempfile.mkstemp(suffix=".json"); os.write(fd, json.dumps(payload).encode()); os.close(fd)
+        pg.once("dialog", lambda d: d.accept())
+        with pg.expect_file_chooser() as fc:
+            pg.evaluate("document.getElementById('btn-import').click()")
+        fc.value.set_files(path); pg.wait_for_timeout(800); os.unlink(path)
+    do_import({"data": {"almuhallab-admin-v1": {"salt": "00", "hash": "evil", "iter": 1},
+                        "random-key": "x", "nokhatha-safi-v1": [{"ticker": "IMP", "qty": 1}],
+                        "nokhatha-users-v1": "not-an-object"}})
+    st = pg.evaluate("""[localStorage.getItem('almuhallab-admin-v1'), localStorage.getItem('random-key'),
+                         localStorage.getItem('nokhatha-safi-v1'), localStorage.getItem('nokhatha-users-v1')]""")
+    check(S, "backup import writes only the five data keys, type-checked (never the admin record)",
+          st[0] == before and st[1] is None and "IMP" in (st[2] or "") and st[3] is None, str(st))
+    pg.evaluate(REFUSE + "('nokhatha-delivery-orders-v1')")
+    do_import({"data": {"nokhatha-safi-v1": [{"ticker": "NEW", "qty": 1}], "nokhatha-delivery-orders-v1": []}})
+    t = toast(pg)
+    safi = pg.evaluate("window.__restore(); localStorage.getItem('nokhatha-safi-v1')")
+    check(S, "a refused import write is reported, rolled back, and not called «تم الاستيراد»",
+          "تعذّر الحفظ" in t and "IMP" in (safi or "") and "NEW" not in (safi or ""), f"toast={t!r} safi={safi}")
+    pg.evaluate("localStorage.clear()")
+
+    # 9. offline: a never-visited clean URL opens النوخذة, keeping its tab
+    c = br.new_context(service_workers="allow")
+    p = c.new_page()
+    p.goto(f"{BASE}/index.html", wait_until="networkidle")
+    p.evaluate("navigator.serviceWorker.ready.then(() => 1)"); p.wait_for_timeout(2000)
+    if not p.evaluate("!!navigator.serviceWorker.controller"):
+        p.reload(wait_until="networkidle"); p.wait_for_timeout(800)
+    c.set_offline(True)
+    land = []
+    for u in ("nizam/#/safi", "nizam#/safi", "nokhatha/"):
+        try:
+            p.goto(f"{BASE}/{u}", wait_until="domcontentloaded", timeout=8000); p.wait_for_timeout(800)
+            land.append(p.url.replace(BASE, ""))
+        except Exception as e:
+            land.append(f"{u}: {e.__class__.__name__}")
+    c.set_offline(False); c.close()
+    check(S, "offline, a first visit to a clean product URL lands on the product with its tab",
+          land[0].endswith("/nizam.html#/safi") and land[1].endswith("/nizam.html#/safi")
+          and land[2].endswith("/nokhatha.html"), str(land))
 
 # ───────────────────────────── PWA / offline
 def offline_checks(ctx, br):

@@ -626,7 +626,7 @@
     return n + " " + one;                 /* 0, and 11 upward */
   }
       function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; } }
-      function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch (e) {} }
+      function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); return true; } catch (e) { return false; } }
       var SESSION_TTL = 24 * 60 * 60 * 1000; // sessions expire after 24h
       function session() {
         try {
@@ -891,7 +891,9 @@
             salt: salt, hash: hash, iter: PBKDF2_ITER,
             plan: 0, createdAt: new Date().toISOString()
           };
-          writeUsers(users);
+          // The account write decides the welcome, not only the session's:
+          // a refused users write once greeted a visitor with no account.
+          if (!writeUsers(users)) { err.textContent = STORAGE_FULL; return; }
           if (!setSession(email)) { err.textContent = STORAGE_FULL; return; }
           f.reset(); err.textContent = "";
           toast("أهلاً بك في النوخذة", "i-anchor");
@@ -945,7 +947,10 @@
           var ok = safeEqual(legacyObscure(password), String(user.pw));
           check = !ok ? Promise.resolve(false) : hashPassword(password, (user.salt = newSalt())).then(function (hash) {
             user.hash = hash; user.iter = PBKDF2_ITER; delete user.pw;
-            users[email] = user; writeUsers(users);
+            users[email] = user;
+            // the password checked out; a refused upgrade keeps the legacy
+            // record and is retried at the next sign-in, it is not a failure
+            writeUsers(users);
             return true;
           });
         } else {
@@ -969,7 +974,7 @@
         var planId = Number(btn.getAttribute("data-plan"));
         var users = readUsers();
         users[user.email].plan = planId;
-        writeUsers(users);
+        if (!writeUsers(users)) { toast(STORAGE_FULL); return; }
         toast("حسابك مفعّل: كل الوحدات مفتوحة", "i-check");
         location.hash = "#/dashboard"; route();
       });

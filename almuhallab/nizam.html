@@ -873,6 +873,11 @@
   function cleanTicker(s) { return String(s).toUpperCase().replace(/[^A-Z0-9.]/g, "").slice(0, 12); }
   function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
   function el(id) { return document.getElementById(id); }
+  /* A signed amount in three cases, not two: an exact break-even (as printed,
+     to the fils) carries no sign and no gain colour. `v >= 0` once showed a
+     netted-out portfolio as «+0.000» in green, a profit that was not there. */
+  function sgn(v) { var r = Math.round(Number(v) * 1000); return r > 0 ? 1 : r < 0 ? -1 : 0; }
+  function signed(v) { var s = sgn(v); return (s > 0 ? "+" : s < 0 ? "−" : "") + kwd(s ? Math.abs(v) : 0); }
   /* ICON names a sprite symbol; built from fixed ids only, never from data */
   function icon(id, cls) { return '<svg class="' + (cls || "ic") + '" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
   /* one fact on an order row: its icon, then its (already escaped) value */
@@ -968,13 +973,18 @@
     var H = P.t + rows.length * rowH + P.b;
     var span = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.v); })) || 1;
     var mid = P.l + (W - P.l - P.r) / 2;
-    var half = (W - P.l - P.r) / 2 - 52;
+    /* Label room is reserved from the widest signed label (11.5px bold,
+       ~7 units a glyph, plus the 7-unit gap and a margin), not a fixed 52:
+       a seven-digit loss at full span ran into its ticker («T1−4,999.998»). */
+    var lab = Math.max.apply(null, rows.map(function (r) { return (fmt(Math.abs(r.v)).length + 1) * 7; })) + 14;
+    var half = Math.max(40, (W - P.l - P.r) / 2 - lab);
     var body = rows.map(function (r, i) {
       var y = P.t + i * rowH + 7, h = 17;
       var w = Math.max(Math.abs(r.v) > 0 ? 3 : 0, Math.abs(r.v) / span * half);
-      var pos = r.v >= 0;
+      var sg = sgn(r.v), pos = sg >= 0;
+      if (!sg) w = 0;
       var x = pos ? mid : mid - w;
-      var sign = (pos ? "+" : "−") + fmt(Math.abs(r.v));
+      var sign = (sg > 0 ? "+" : sg < 0 ? "−" : "") + fmt(sg ? Math.abs(r.v) : 0);
       return '<text x="' + (P.l - 10) + '" y="' + (y + 12.5) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
              '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" ' +
              'fill="' + (pos ? "var(--viz-pos)" : "var(--viz-neg)") + '" data-tip="' + esc(r.k + ": " + sign) + '"/>' +
@@ -1017,8 +1027,8 @@
     var p = position();
     el("pos-tiles").innerHTML = tiles([
       ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), ar(p.portfolio.count, "سهم", "سهمان", "أسهم"), "", "p-value"],
-      ["ربح/خسارة المحفظة (د.ك)", (p.portfolio.pl >= 0 ? "+" : "−") + kwd(Math.abs(p.portfolio.pl)),
-       p.portfolio.pct.toFixed(1) + "%", p.portfolio.pl >= 0 ? "pos" : "neg", "p-pl"],
+      ["ربح/خسارة المحفظة (د.ك)", signed(p.portfolio.pl),
+       p.portfolio.pct.toFixed(1) + "%", ["neg", "", "pos"][sgn(p.portfolio.pl) + 1], "p-pl"],
       ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), ar(p.delivery.delivered, "طلب مسلّم", "طلبان مسلّمان", "طلبات مسلّمة"), "", "p-revenue"],
       ["الطلبات قيد التنفيذ", p.delivery.active, "من " + ar(p.delivery.total, "طلب", "طلبين", "طلبات", "طلب واحد"), "", "p-active"],
       ["إجمالي الموارد (د.ك)", kwd(p.netWorth), "المحفظة + الإيراد", "", "p-net"]
@@ -1039,8 +1049,8 @@
     el("safi-tiles").innerHTML = tiles([
       ["التكلفة (د.ك)", kwd(t.cost), "", "", "s-cost"],
       ["القيمة السوقية (د.ك)", kwd(t.value), "", "", "s-value"],
-      ["الربح/الخسارة (د.ك)", (t.pl >= 0 ? "+" : "−") + kwd(Math.abs(t.pl)),
-       t.pct.toFixed(1) + "%", t.pl >= 0 ? "pos" : "neg", "s-pl"],
+      ["الربح/الخسارة (د.ك)", signed(t.pl),
+       t.pct.toFixed(1) + "%", ["neg", "", "pos"][sgn(t.pl) + 1], "s-pl"],
       ["عدد الأسهم", t.count, "", "", "s-count"]
     ]);
     el("safi-chart").innerHTML = fig("الربح والخسارة بالسهم", "التغيّر عن التكلفة، بالدينار الكويتي",
@@ -1328,8 +1338,8 @@
       var profit = Number(r && r.profit) || 0;
       return "<tr><td>" + esc((r && r.entity) || "-") + "</td><td>" + esc((r && r.crn) || (r && r.period) || "-") +
         "</td><td>" + esc((r && r.periodEnd) || "-") + "</td><td>" + kwd(clamp(r && r.assets, 1e12)) +
-        "</td><td>" + kwd(clamp(r && r.revenue, 1e12)) + '</td><td class="' + (profit >= 0 ? "up" : "down") +
-        '">' + (profit >= 0 ? "+" : "−") + kwd(Math.abs(profit)) + "</td></tr>";
+        "</td><td>" + kwd(clamp(r && r.revenue, 1e12)) + '</td><td class="' + ["down", "", "up"][sgn(profit) + 1] +
+        '">' + signed(profit) + "</td></tr>";
     }).join("");
     el("xbrl-empty").style.display = reps.length ? "none" : "block";
   }
@@ -1646,6 +1656,10 @@
      and writes once; before this, import() called addHolding per record, and
      each of those re-read the list, re-wrote it, and re-rendered every screen
      — the work grew with the square of the backup's size. */
+  function badMoney(v) {
+    if (v === undefined || v === null || v === "") return false;
+    var n = Number(v); return !isFinite(n) || n < 0;
+  }
   function makeHolding(h, existing) {
     h = h || {};
     var ticker = cleanTicker(h.ticker || "");
@@ -1656,6 +1670,11 @@
     // the caller cannot have meant is a caller error, not a zero.
     var qty = Math.floor(clamp(h.qty, 1e9));
     if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
+    // The same rule for money as for qty: a negative or non-numeric cost or
+    // price was clamped to 0 and stored as a free holding, answered ok.
+    // Absent (undefined, null, "") still means 0; a value given must be one.
+    if (badMoney(h.cost)) return fail("التكلفة يجب أن تكون رقماً صفراً فأكثر");
+    if (badMoney(h.price)) return fail("السعر يجب أن يكون رقماً صفراً فأكثر");
     if (existing.some(function (x) { return x.ticker === ticker; }))
       return fail("هذا الرمز مضاف بالفعل: " + ticker);
     return ok({ ticker: ticker, name: String(h.name || "").slice(0, 80),
@@ -1679,6 +1698,7 @@
     if (!id) return fail("رقم الطلب مطلوب");
     if (existing.some(function (x) { return x.id === id; }))
       return fail("رقم الطلب مستعمل: " + id);
+    if (badMoney(o.amount)) return fail("المبلغ يجب أن يكون رقماً صفراً فأكثر");
     return ok({ id: id, customer: String(o.customer || "").slice(0, 80),
                 phone: String(o.phone || "").slice(0, 15),
                 address: String(o.address || "").slice(0, 160),
@@ -1759,7 +1779,6 @@
           var r = makeHolding(h, hs);
           if (r.ok) { hs.push(r.value); added++; } else { skipped++; }
         });
-        if (!wr(K.safi, hs)) return fail(STORAGE_FULL);
       }
       if (Array.isArray(data.orders)) {
         var os = merge ? orders() : [];
@@ -1767,7 +1786,23 @@
           var r = makeOrder(o, os);
           if (r.ok) { os.push(r.value); added++; } else { skipped++; }
         });
-        if (!wr(K.orders, os)) return fail(STORAGE_FULL);
+      }
+      // Atomic: both units are built before either is written, and a refused
+      // second write puts the first back. Before, a full quota on orders
+      // answered {ok:false} after the holdings had already been replaced.
+      var before = {}, done = [];
+      [[K.safi, hs], [K.orders, os]].forEach(function (u) {
+        if (u[1]) before[u[0]] = localStorage.getItem(u[0]);
+      });
+      var writes = [[K.safi, hs], [K.orders, os]].filter(function (u) { return u[1]; });
+      for (var wi = 0; wi < writes.length; wi++) {
+        if (!wr(writes[wi][0], writes[wi][1])) {
+          done.forEach(function (k) {
+            try { before[k] === null ? localStorage.removeItem(k) : localStorage.setItem(k, before[k]); } catch (e) {}
+          });
+          return fail(STORAGE_FULL);
+        }
+        done.push(writes[wi][0]);
       }
       fire("all");
       return ok({ added: added, skipped: skipped });
