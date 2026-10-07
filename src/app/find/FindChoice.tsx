@@ -183,7 +183,7 @@ export default function FindChoice() {
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/10 via-sea-950/40 to-sea-950/65"
         />
         <div className="relative isolate mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
-          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,rgb(19_44_66/0.62),rgb(19_44_66/0.35)_60%,transparent)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--color-sea-950)_62%,transparent),color-mix(in_srgb,var(--color-sea-950)_35%,transparent)_60%,transparent)]" />
           {/* A pill again, matching the call half's exactly — kicker text,
               equalizer, same markup, only `SALEM_ROLE` in place of
               `WAIN_AI_COPY.role`. It went missing when this half stopped

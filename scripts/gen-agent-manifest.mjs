@@ -45,7 +45,9 @@ if (process.argv.includes("--check")) {
   let current = "";
   try {
     current = readFileSync(OUT, "utf8");
-  } catch {}
+  } catch {
+    // no manifest yet — reported as stale below
+  }
   if (current !== text) {
     console.error("docs/agent-live/MANIFEST.json is stale — run node scripts/gen-agent-manifest.mjs");
     process.exit(1);

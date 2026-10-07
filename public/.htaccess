@@ -356,9 +356,11 @@ Options -Indexes
   #   * form-action 'self' stops an injected form posting credentials offsite.
   #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
   #   * object-src 'none' removes the plugin surface entirely.
-  #   * connect-src names Supabase, ElevenLabs and the old n8n speech bridge
-  #     explicitly, so exfiltration to an arbitrary host is blocked rather than
-  #     merely unlikely.
+  #   * connect-src names ElevenLabs alone beside 'self', so exfiltration to
+  #     an arbitrary host is blocked rather than merely unlikely. Supabase and
+  #     the old n8n speech bridge were listed here until 7 October, long after
+  #     nothing reached them; audit:htaccess now fails on a host the bundle
+  #     never uses, as well as on one it uses and the policy forgot.
   #
   # صوت وين's bridge is /api/tts.php on THIS origin now, so it needs nothing
   # here beyond the 'self' that is already there — which is half the reason it
@@ -367,9 +369,9 @@ Options -Indexes
   # robot voice, the deploy log still reports «live bridge», and nothing
   # anywhere says why.
   #
-  # sportake.app.n8n.cloud stays listed only because NEXT_PUBLIC_WAIN_TTS_URL
-  # can still point back at it. Removing it would make that override a switch
-  # wired to nothing, which is the exact failure described above.
+  # If NEXT_PUBLIC_WAIN_TTS_URL is ever pointed at another host again, that
+  # host lands in the bundle and audit:htaccess refuses the build until it is
+  # named here — so the override cannot become a switch wired to nothing.
   #
   # frame-src is www.openstreetmap.org for the STATIC map — their embed, in a
   # sandboxed iframe, which every map still draws until somebody asks to move
@@ -419,5 +421,5 @@ Options -Indexes
   # visitor's address reaches Google's storage host. Found by running the real
   # widget under this policy and listing every securitypolicyviolation
   # (tests/shouq-widget-csp.test.mjs asserts there are none).
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

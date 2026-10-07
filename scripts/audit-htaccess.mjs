@@ -251,6 +251,43 @@ if (!csp) {
         `belongs in a different directive, say which one in DIRECTIVE.`
     );
   }
+  /* And the other direction: a host the policy allows that nothing shipped
+     ever reaches. Supabase sat in img-src and connect-src (https and wss) for
+     days after the back end moved to /api/wain.php and the package was
+     uninstalled, and n8n's host after the speech bridge left it. A dead
+     allowance costs nothing until the day that host serves something hostile —
+     then it is a door the site holds open for no feature at all. The widget is
+     a file in _next/static/media, not a chunk, so it is read too; a free build
+     ships no widget, which is why its hosts are named below rather than
+     assumed. */
+  const mediaDir = join(OUT, "_next/static/media");
+  const shippedText = chunkText.join("\n") + "\n" + (existsSync(mediaDir)
+    ? readdirSync(mediaDir).filter((n) => n.endsWith(".js"))
+        .map((n) => readFileSync(join(mediaDir, n), "utf8")).join("\n")
+    : "");
+  const WIDGET_ONLY = [
+    // The call widget's orb texture; the widget ships only in an agent build.
+    "https://storage.googleapis.com/eleven-public-cdn/images/",
+    // The widget's US endpoints; the site's own typed chat uses api.elevenlabs.io.
+    "https://api.us.elevenlabs.io",
+    "wss://api.us.elevenlabs.io",
+  ];
+  const used = (source) => {
+    const m = source.match(/^(https|wss):\/\/(\*\.)?([^/]+)/);
+    if (!m) return true;
+    const [, scheme, wild, host] = m;
+    if (!wild) return shippedText.includes(`${scheme}://${host}`) || WIDGET_ONLY.includes(source);
+    return new RegExp(`${scheme}://([a-z0-9-]+\\.)+${host.replace(/\./g, "\\.")}`).test(shippedText);
+  };
+  for (const [directive, sources] of Object.entries(parsed)) {
+    for (const source of sources) {
+      if (!/^(https|wss):\/\//.test(source) || used(source)) continue;
+      errors.push(
+        `${source} is allowed in ${directive} but nothing shipped reaches it. Remove it from ` +
+          `public/.htaccess, or, if a feature outside the chunks needs it, name it here with the reason.`
+      );
+    }
+  }
   // Only claim coverage when it is true. Printing «covers all» beside an
   // uncovered origin is the checker contradicting itself in the same output.
   if (governed.every((o) => !missing(o).length))
