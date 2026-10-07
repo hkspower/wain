@@ -4,10 +4,10 @@
 Instagram crops a highlight cover to a circle and shows it about 64px wide on a
 white profile. Two consequences drive every choice here:
 
-  * A white cover would dissolve into Instagram's white page — the ring would be
-    all you saw. So the covers are filled with the brand brown (--tint-strong)
-    and the mark is white, which is exactly the treatment the site's masthead
-    now uses. The brand stays brown-on-white everywhere else.
+  * A white cover would dissolve into Instagram's white page, leaving only a
+    ring. So the covers are filled with the logo's near-black ground (#0a0908)
+    and the icon is drawn in the logo's amber (#e6a95c), the same treatment as
+    the site's dark theme and the English logo kit.
   * At 64px there is room for one shape and nothing else. No wordmarks, no
     Arabic labels inside the circle — Instagram already prints the title
     beneath it. One drawn icon, centred, large.
@@ -38,7 +38,10 @@ SPRITE_SRC = ROOT / "almuhallab" / "index.html"
 OUT = ROOT / "design" / "instagram"
 
 # Brand ink, identical to the site's tokens.
-BROWN = "#6f3f1c"          # --tint-strong, the masthead fill
+GROUND = "#0a0908"         # --bg, the logo's near-black ground
+AMBER = "#e6a95c"          # --tint, the logo's amber: an ink, never a surface
+MONOGRAM = ROOT / "design" / "logo-en" / "almuhallab-code-monogram-dark.svg"
+DP_SCALE = 1.45            # monogram viewBox widened so the A and C sit well inside the crop
 
 SIZE = 1080                # Instagram's cover upload size
 ICON = 500                 # icon box, ~46% — comfortably inside the circle crop
@@ -55,7 +58,7 @@ DP_ICON = 630
 # One cover per thing the company actually does or runs. The title under the
 # circle is set in Instagram itself; these names are the file names.
 COVERS = [
-    ("about",      "i-sail",       "من نحن"),
+    ("about",      "i-code",       "من نحن"),
     ("services",   "i-blocks",     "خدماتنا"),
     ("web",        "i-globe",      "المواقع"),
     ("apps",       "i-phone",      "التطبيقات"),
@@ -79,9 +82,9 @@ def sprite_symbols(html: str) -> dict:
 
 
 def cover_svg(view_box: str, body: str) -> str:
-    """Full-bleed brown square, the mark centred in white.
+    """Full-bleed near-black square, the icon centred in amber.
 
-    The brown fills the whole square rather than a drawn disc: Instagram crops
+    The ground fills the whole square rather than a drawn disc: Instagram crops
     to its own circle, and a disc of mine would only have to line up with it
     exactly — any mismatch shows as a pale rim. Filling the square makes the
     crop unable to go wrong. Nothing decorative sits inside either; a cover is
@@ -91,43 +94,40 @@ def cover_svg(view_box: str, body: str) -> str:
     off = (SIZE - ICON) / 2
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}"
      viewBox="0 0 {SIZE} {SIZE}" role="img">
-  <rect width="{SIZE}" height="{SIZE}" fill="{BROWN}"/>
+  <rect width="{SIZE}" height="{SIZE}" fill="{GROUND}"/>
   <svg x="{off}" y="{off}" width="{ICON}" height="{ICON}" viewBox="{view_box}"
-       fill="none" stroke="#ffffff" stroke-width="1.7"
-       stroke-linecap="round" stroke-linejoin="round" color="#ffffff">
+       fill="none" stroke="{AMBER}" stroke-width="1.7"
+       stroke-linecap="round" stroke-linejoin="round" color="{AMBER}">
     {body}
   </svg>
 </svg>
 """
 
 
-def dp_svg(view_box: str, body: str) -> str:
-    """The account's profile picture: the company mark, nothing else.
+def dp_svg() -> str:
+    """The account's profile picture: the AC monogram from the logo-en kit.
 
-    No wordmark. «المهلب» at 110px inside a circle would be four Arabic letters
-    about nine pixels tall, and Instagram already prints the handle underneath —
-    a name rendered twice, once illegibly, is not a stronger identity.
+    The monogram's own geometry is copied, not redrawn; only its ground rect is
+    dropped (the DP lays its own) and its viewBox widened by DP_SCALE, so the
+    striped A and white C sit well inside Instagram's circle crop. No wordmark:
+    Instagram already prints the handle underneath.
     """
-    off = (SIZE - DP_ICON) / 2
+    src = MONOGRAM.read_text()
+    vb = [float(v) for v in re.search(r'viewBox="([^"]+)"', src).group(1).split()]
+    cx, cy, half = vb[0] + vb[2] / 2, vb[1] + vb[3] / 2, vb[2] / 2 * DP_SCALE
+    body = src[src.index(">", src.index("<svg")) + 1:src.rindex("</svg>")]
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+    body = re.sub(r'<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" fill="#0a0908"/>', "", body, count=1)
+    # let the glow spread over the widened box instead of stopping at the old one
+    body = re.sub(r'(<filter [^>]*?)x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+"',
+                  lambda m: f'{m.group(1)}x="{cx-half:g}" y="{cy-half:g}" width="{2*half:g}" height="{2*half:g}"', body)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}"
-     viewBox="0 0 {SIZE} {SIZE}" role="img" aria-label="المهلب كود">
-  <rect width="{SIZE}" height="{SIZE}" fill="{BROWN}"/>
-  <svg x="{off}" y="{off}" width="{DP_ICON}" height="{DP_ICON}" viewBox="{view_box}"
-       fill="none" stroke="#ffffff" stroke-width="1.7"
-       stroke-linecap="round" stroke-linejoin="round" color="#ffffff">
-    {body}
-  </svg>
+     viewBox="0 0 {SIZE} {SIZE}" role="img" aria-label="المهلب كود · Almuhallab Code">
+  <rect width="{SIZE}" height="{SIZE}" fill="{GROUND}"/>
+  <svg width="{SIZE}" height="{SIZE}" viewBox="{cx-half:g} {cy-half:g} {2*half:g} {2*half:g}">{body}</svg>
 </svg>
 """
 
-
-
-# RETIRED (2026-10-07): the company flies the English logo, and its marks are
-# built by design/logo-en/build.py. This script draws the retired boum; run as
-# it stands it would mix the two identities, so it refuses.
-if __name__ == "__main__":
-    import sys as _sys
-    _sys.exit("retired: the company's marks are built by design/logo-en/build.py")
 
 def main() -> int:
     html = SPRITE_SRC.read_text()
@@ -145,9 +145,8 @@ def main() -> int:
         (OUT / f"{name}.svg").write_text(svg)
         written.append((name, title))
 
-    # the profile picture — the square boum, the company's own mark
-    dp_vb, dp_body = symbols["i-sail"]
-    (OUT / "profile-dp.svg").write_text(dp_svg(dp_vb, dp_body))
+    # the profile picture: the AC monogram, the company's square mark
+    (OUT / "profile-dp.svg").write_text(dp_svg())
 
     # Render to PNG through the same Chromium the rest of design/ uses. SVG in,
     # PNG out — no converter dependency, and what you see is what a browser
@@ -185,18 +184,18 @@ def main() -> int:
   figcaption {{ font-size: 11px; color: #586981; }}
   h1 {{ font-size: 15px; margin: 0 0 18px; }}
 </style>
-<h1>صورة الحساب — المهلب</h1>
+<h1>صورة الحساب: المهلب كود</h1>
 <div class="row" style="align-items:flex-end">
   <figure style="width:190px"><img src="profile-dp.png" alt=""
-      style="width:150px;height:150px"><figcaption>150px — الويب</figcaption></figure>
+      style="width:150px;height:150px"><figcaption>الويب<br>150px</figcaption></figure>
   <figure style="width:130px"><img src="profile-dp.png" alt=""
-      style="width:110px;height:110px"><figcaption>110px — الجوال</figcaption></figure>
-  <figure style="width:60px"><img src="profile-dp.png" alt=""
-      style="width:44px;height:44px"><figcaption>44px — منشور</figcaption></figure>
-  <figure style="width:48px"><img src="profile-dp.png" alt=""
-      style="width:32px;height:32px"><figcaption>32px — تعليق</figcaption></figure>
+      style="width:110px;height:110px"><figcaption>الجوال<br>110px</figcaption></figure>
+  <figure style="width:64px"><img src="profile-dp.png" alt=""
+      style="width:44px;height:44px"><figcaption>منشور<br>44px</figcaption></figure>
+  <figure style="width:56px"><img src="profile-dp.png" alt=""
+      style="width:32px;height:32px"><figcaption>تعليق<br>32px</figcaption></figure>
 </div>
-<h1 style="margin-top:26px">أبرز الحسابات — المهلب</h1>
+<h1 style="margin-top:26px">أبرز الأحداث: المهلب كود</h1>
 <div class="row">{cells}</div>
 """)
         pg.set_viewport_size({"width": 760, "height": 420})
@@ -205,6 +204,21 @@ def main() -> int:
         pg.screenshot(path=str(OUT / "contact-sheet.png"), full_page=True)
         sheet.unlink()
         br.close()
+
+    # pixel check: no ink outside the circle Instagram crops to
+    from PIL import Image
+    g = tuple(int(GROUND[i:i + 2], 16) for i in (1, 3, 5))
+    c, r2 = (SIZE - 1) / 2, (SIZE / 2) ** 2
+    for name, _ in written + [("profile-dp", "")]:
+        im = Image.open(OUT / f"{name}.png").convert("RGB")
+        px = im.load()
+        bad = sum(1 for y in range(SIZE) for x in range(SIZE)
+                  if (x - c) ** 2 + (y - c) ** 2 > r2
+                  and max(abs(a - b) for a, b in zip(px[x, y], g)) > 2)
+        if bad:
+            print(f"{name}: {bad} ink pixels outside the circle crop")
+            return 1
+    print("pixel check: no ink outside the circle on any of the 13 images")
 
     print(f"{len(written)} covers + the profile picture -> {OUT}"
           f"  ({SIZE}×{SIZE} PNG + SVG source)")

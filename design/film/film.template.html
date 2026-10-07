@@ -2,14 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<title>النوخذة — فيلم تعريفي</title>
+<title>النوخذة | فيلم تعريفي</title>
 <!--
   The film is a web page, not a video editor's project.
 
   Everything the site is made of is here already: the tokens, the drawn sprite,
   the bundled Cairo, hand-written CSS motion. Building the film the same way
-  means it cannot drift from the product — the boum on the title card is the
-  same path the masthead flies, and the brown is the same brown.
+  means it cannot drift from the product — the anchor on the title card is the
+  same path النوخذة flies, the close is the logo-en lockup, and the amber
+  is the same amber. (#i-boum stays in the sprite only because the suite
+  pins that the film carries the site's own path; nothing draws it.)
 
   It is driven by ONE timeline. Every animation starts at t=0 with its own
   delay, runs once, and fills both ends; nothing loops and nothing depends on
@@ -23,26 +25,41 @@
   for getAnimations() to seek, and the scene would arrive frozen at frame one.
 -->
 <style>
-  /* the site's own faces, from the site's own folder */
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight: 500; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight: 700; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight: 800; font-display: block; }
+  /* the site's own faces, from the site's own folder. Each Cairo weight is a
+     pair: the Arabic-only file under the Arabic range, Cairo's Latin file
+     under the Latin one, or every figure paints in the machine's face. */
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight: 400; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 400; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight: 500; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 500; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight: 800; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 800; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Chakra Petch"; src: url("../../almuhallab/fonts/chakrapetch-600.woff2") format("woff2"); font-weight: 600; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Chakra Petch"; src: url("../../almuhallab/fonts/chakrapetch-700.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../almuhallab/fonts/jetbrainsmono-latin.woff2") format("woff2"); font-weight: 400 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
+  /* the site's dark logo theme (2026-10-07): the logo's near-black ground,
+     cards one neutral step above it, amber as the one accent and always ink */
   :root {
-    color-scheme: light;
-    --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
-    --border: #d0d7e1; --border-input: #858d99;
-    --text: #1b2430; --muted: #586981;
-    --tint: #7a4418; --tint-strong: #6f3f1c;
-    --sand-vivid: #e3a556; --good: #02783d; --info: #1964ce;
+    color-scheme: dark;
+    --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
+    --border: #363534; --border-input: #76706a;
+    --text: #ececec; --muted: #a8aeb5;
+    --tint: #e6a95c; --stripe: #7f5d33; --on-tint: #0a0908; --on-bar: #f4f4f4;
+    --tint-strong: #0a0908; --on-bar-fill: #272625;
+    --good: #37b671; --info: #66a3f0;
     --sans: "Cairo", system-ui, sans-serif;
+    --display: "Chakra Petch", "Cairo", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     width: 1920px; height: 1080px; overflow: hidden;
-    background: var(--bg); color: var(--text);
+    background: radial-gradient(ellipse 60% 50% at 50% 42%, rgba(230,169,92,.07), transparent 70%), var(--bg);
+    color: var(--text);
     font-family: var(--sans); font-weight: 500;
     -webkit-font-smoothing: antialiased;
   }
@@ -71,11 +88,13 @@
   /* ── the caption band: the narration, written out ───────────────────────
      Burned in on purpose. The film is watched on a phone in a feed with the
      sound off more often than not, and a film that only speaks says nothing
-     there. The band is one colour on white and never moves. */
+     there. The band is the logo's own ground with light ink, and never moves. */
   .cap {
     position: absolute; left: 0; right: 0; bottom: 0; height: 150px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--tint-strong); color: #fff;
+    background: var(--tint-strong); color: var(--on-bar);
+    border-top: 1px solid var(--on-bar-fill);
+    box-shadow: 0 -1px 0 rgba(230,169,92,.18);
     font-size: 36px; font-weight: 500; line-height: 1.4; text-align: center;
     padding: 0 130px;
   }
@@ -83,10 +102,13 @@
   @keyframes line { 0%, 100% { opacity: 0; } 8%, 92% { opacity: 1; } }
 
   /* the mark, drawn rather than shown */
-  .mark { width: 640px; height: 320px; stroke: var(--tint-strong); color: var(--tint-strong); }
-  .mark.sm { width: 300px; height: 150px; }
+  .mark { width: 300px; height: 300px; stroke: var(--tint); color: var(--tint);
+          fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+          filter: drop-shadow(0 0 28px rgba(230,169,92,.28)); }
+  /* the company's mark is the logo-en lockup itself, shown, not redrawn */
+  .logo { width: 900px; height: auto; display: block; margin: -40px 0 -30px; }
 
-  .word { font-size: 130px; font-weight: 800; color: var(--tint-strong); line-height: 1.35; }
+  .word { font-size: 130px; font-weight: 800; color: var(--text); line-height: 1.35; }
   .sub  { font-size: 42px; color: var(--muted); margin-top: 8px; }
 
   /* ── generic motion, all single-shot ───────────────────────────────── */
@@ -162,8 +184,8 @@
   .row .amt { font-weight: 800; font-variant-numeric: tabular-nums; }
   .row.total { border-width: 3px; border-color: var(--tint); background: var(--panel-2); font-size: 34px; }
 
-  .core { width: 250px; height: 250px; border-radius: 50%; background: var(--tint-strong);
-          color: #fff; display: grid; place-items: center; text-align: center;
+  .core { width: 250px; height: 250px; border-radius: 50%; background: var(--tint);
+          color: var(--on-tint); box-shadow: 0 0 60px rgba(230,169,92,.3); display: grid; place-items: center; text-align: center;
           font-size: 30px; font-weight: 800; line-height: 1.4; padding: 24px;
           opacity: 0; animation: pop 1ms cubic-bezier(.2,.7,.3,1) both; }
 
@@ -178,6 +200,8 @@
           background: var(--panel); opacity: 0; animation: rise 1ms cubic-bezier(.2,.7,.3,1) both; }
   .chan svg { width: 34px; height: 34px; }
   .ltr { unicode-bidi: isolate; direction: ltr; }
+  .amt, .chan .ltr { font-family: var(--mono); }
+  .fact b { font-family: var(--display), var(--sans); }
 </style>
 </head>
 <body>

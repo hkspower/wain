@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Draw النوخذة's Windows app icon from the site's own sprite.
+"""Draw النوخذة's Windows app icon from its own mark.
 
 Windows shows this in the Start menu, the taskbar, Alt-Tab and the installer,
-at sizes from 256px down to 16px. It is built from the *square* boum — the wide
-form would be squashed into a square hole — and emitted as a real multi-size
+at sizes from 256px down to 16px. It is built from النوخذة's anchor, almuhallab/icon.svg
+(amber on the logo's near-black #0a0908, rounded tile), and emitted as a real multi-size
 .ico so Windows picks the right one instead of scaling a single bitmap badly.
 """
 import io, pathlib, re, sys

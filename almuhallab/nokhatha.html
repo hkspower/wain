@@ -320,6 +320,10 @@
     main:focus, [tabindex="-1"]:focus { outline: none; }
     .form-note { font-size: 12.5px; color: var(--muted); line-height: 1.7; margin: 0; }
     .error { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
+    /* a field's own line sits under its input; empty, it takes no room */
+    .error.field { min-height: 0; margin-top: -8px; }
+    .error.field:empty { display: none; }
+    form.auth .error:not(.field):empty { min-height: 0; }
 
     /* Dashboard */
     .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -496,9 +500,12 @@
     <section class="page" id="page-register">
       <h2 class="section" style="text-align:center">إنشاء حساب جديد</h2>
       <form class="auth" id="form-register" novalidate>
-        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" aria-describedby="register-error" placeholder="مثال: محمد العلي" /></label>
-        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" aria-describedby="register-error" /></label>
-        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" aria-describedby="register-error" placeholder="8 أحرف على الأقل" /></label>
+        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" aria-describedby="register-name-error register-error" placeholder="مثال: محمد العلي" /></label>
+        <p class="error field" id="register-name-error" role="alert"></p>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" aria-describedby="register-email-error register-error" /></label>
+        <p class="error field" id="register-email-error" role="alert"></p>
+        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" aria-describedby="register-password-error register-error" placeholder="8 أحرف على الأقل" /></label>
+        <p class="error field" id="register-password-error" role="alert"></p>
         <p class="error" id="register-error" role="alert"></p>
         <button class="btn primary" type="submit">إنشاء الحساب</button>
         <p class="form-note">لديك حساب؟ <a href="#/login">سجّل الدخول</a>. تُحفظ الحسابات في متصفحك فقط (نسخة تجريبية).</p>
@@ -509,8 +516,10 @@
     <section class="page" id="page-login">
       <h2 class="section" style="text-align:center">تسجيل الدخول</h2>
       <form class="auth" id="form-login" novalidate>
-        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" aria-describedby="login-error" /></label>
-        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" aria-describedby="login-error" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" aria-describedby="login-email-error login-error" /></label>
+        <p class="error field" id="login-email-error" role="alert"></p>
+        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" aria-describedby="login-password-error login-error" /></label>
+        <p class="error field" id="login-password-error" role="alert"></p>
         <p class="error" id="login-error" role="alert"></p>
         <button class="btn primary" type="submit">دخول</button>
         <p class="form-note">ليس لديك حساب؟ <a href="#/register">سجّل الآن</a></p>
@@ -714,17 +723,31 @@
 
       /* a refused field is marked, announced (the error is role=alert and each
          field points at it) and focused, so nobody is left on the button */
+      /* each field owns the line under it (its id is first in aria-describedby);
+         the form-level line keeps the errors no single field owns */
       function invalid(field, err, msg) {
-        err.textContent = msg; field.setAttribute("aria-invalid", "true"); field.focus();
+        clearInvalid(field.form); err.textContent = "";
+        var own = document.getElementById(field.getAttribute("aria-describedby").split(" ")[0]);
+        own.textContent = msg; field.setAttribute("aria-invalid", "true"); field.focus();
       }
       function clearInvalid(form) {
         var a = form.querySelectorAll("[aria-invalid]");
         for (var i = 0; i < a.length; i++) a[i].removeAttribute("aria-invalid");
+        var e = form.querySelectorAll(".error.field");
+        for (var j = 0; j < e.length; j++) e[j].textContent = "";
       }
       /* a stale error under a field the visitor has since corrected is a wrong message */
       ["form-register", "form-login"].forEach(function (id) {
         var form = document.getElementById(id), err = document.getElementById(id.replace("form-", "") + "-error");
-        form.addEventListener("input", function () { err.textContent = ""; clearInvalid(form); });
+        form.addEventListener("input", function (ev) {
+          err.textContent = "";
+          var t = ev.target;
+          if (t.getAttribute && t.getAttribute("aria-invalid")) {
+            t.removeAttribute("aria-invalid");
+            var own = document.getElementById(t.getAttribute("aria-describedby").split(" ")[0]);
+            if (own) own.textContent = "";
+          }
+        });
       });
 
       function unitCard(mcp, userPlan, showLock) {

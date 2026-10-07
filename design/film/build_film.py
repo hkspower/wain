@@ -102,11 +102,11 @@ def scenes():
     # 1 ─ the title card
     def title(t):
         return f"""
-        <svg class="mark" viewBox="0 0 48 24" style="{a('pop', t+0.3, 1.1)}">
-          <use href="#i-boum"/></svg>
+        <svg class="mark" viewBox="0 0 24 24" style="{a('pop', t+0.3, 1.1)}">
+          <use href="#i-anchor"/></svg>
         <div class="word" style="{a('rise', t+1.2, 0.9)}">النوخذة</div>
         <div class="sub"  style="{a('fade', t+2.0, 0.9, 'ease')}">
-          منصّة تُنجز مهمّات رجال الأعمال — من <b>المهلب كود</b></div>"""
+          منصّة تُنجز مهمّات رجال الأعمال، من <b>المهلب كود</b></div>"""
     S.append(("title", 8.0, [
         (0.6, 6.8, "النوخذة منصّة تُنجز مهمّات رجال الأعمال."),
         (7.0, 12.0, "المهمّة التي تأخذ أسبوعاً، تأخذ هنا ضغطة زر."),
@@ -168,7 +168,7 @@ def scenes():
         ])
         return f"""
         <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">المهمّة الثانية</div>
-        <h2 style="{a('rise', t+0.6, 0.8)}">صافي — محفظتك</h2>
+        <h2 style="{a('rise', t+0.6, 0.8)}">صافي: محفظتك</h2>
         <div style="display:flex;gap:80px;align-items:flex-end;margin-top:20px">
           <div class="bars">{bars}</div>
           <div class="rows" style="width:840px;margin-top:0">{rows}</div>
@@ -181,9 +181,9 @@ def scenes():
     # 4 ─ التوصيل
     def delivery(t):
         rows = "".join([
-            row("طلب رقم 1042 — سُلِّم", "78.500", t + 1.6),
-            row("طلب رقم 1043 — في الطريق", "126.000", t + 2.0),
-            row("طلب رقم 1044 — جاهز", "45.250", t + 2.4),
+            row("طلب رقم 1042 · سُلِّم", "78.500", t + 1.6),
+            row("طلب رقم 1043 · في الطريق", "126.000", t + 2.0),
+            row("طلب رقم 1044 · جاهز", "45.250", t + 2.4),
             # 78.500 + 126.000 + 45.250 = 249.750 — that is every order on the
             # screen, not only the delivered one. The label has to say so:
             # "إجمالي المُسلَّم" beside a sum that includes an order still on
@@ -192,7 +192,7 @@ def scenes():
         ])
         return f"""
         <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">المهمّة الثالثة</div>
-        <h2 style="{a('rise', t+0.6, 0.8)}">التوصيل — طلباتك</h2>
+        <h2 style="{a('rise', t+0.6, 0.8)}">التوصيل: طلباتك</h2>
         <div class="rows">{rows}</div>"""
     S.append(("delivery", 11.0, [
         (0.5, 5.4, "والتوصيل يتابع طلباتك من الطلب إلى التسليم."),
@@ -241,9 +241,9 @@ def scenes():
     # 8 ─ the close: the company, then how to reach it
     def close(t):
         return f"""
-        <svg class="mark sm" viewBox="0 0 48 24" style="{a('pop', t+0.3, 0.9)}">
-          <use href="#i-boum"/></svg>
-        <div class="word" style="font-size:96px;{a('rise', t+0.9, 0.8)}">المهلب</div>
+        <img class="logo" src="../logo-en/almuhallab-code-logo-for-dark.svg"
+             alt="Almuhallab Code" style="{a('pop', t+0.3, 0.9)}">
+        <div class="word" style="font-size:80px;{a('rise', t+0.9, 0.8)}">المهلب كود</div>
         <div class="sub" style="{a('fade', t+1.4, 0.7, 'ease')}">شركة برمجة وأنظمة</div>
         <div class="chans">
           {chan('i-whatsapp', '+965 6589 4110', t+2.2)}

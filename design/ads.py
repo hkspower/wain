@@ -16,18 +16,18 @@ and reels. A square stretched to a story is letterboxed with grey; a story
 cropped to a square loses its ends. They are laid out separately here, from the
 same content, rather than one being resized into the other.
 
-BUILT FROM THE SITE, NOT BESIDE IT. The mark is lifted from the page's own
-<symbol> sprite, the colours are the tokens, the type is the bundled Cairo. An
+BUILT FROM THE SITE, NOT BESIDE IT. The marks are the site's own files,
+the icons its <symbol> sprite, the colours the tokens, the type the bundled faces. An
 advertisement drawn by hand in a design tool drifts from the product the first
 time either changes, and nobody notices until a customer sees two different
 brown. Re-run this after changing the logo and the ads follow.
 
-WHITE PAPER, BROWN INK — the composition the site already uses: a brown bar at
-the top, white beneath it, a brown bar at the foot carrying the way to reach
-them. The covers in design/instagram/ are filled brown because a white circle
-would dissolve into Instagram's white profile page, and at 64px there is room
-for one shape; an advertisement is read at full width and has room to be the
-brand's own way round.
+THE LOGO'S DARK, AMBER INK (since 2026-10-07): the near-black ground, the
+English logo (design/logo-en/) heading every creative as the company's mark,
+amber as ink only. An ad for النوخذة also shows the product's own amber
+anchor (almuhallab/icon.svg): the company and the product are marked
+differently on purpose. Arabic in Cairo, Latin display in Chakra Petch,
+figures and the address in JetBrains Mono, all from almuhallab/fonts.
 
 EVERY CLAIM IS ONE THE COMPANY CAN MAKE. النوخذة is free, it runs offline, the
 records stay on the device, the XBRL file is filed through the Ministry of
@@ -43,13 +43,15 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "almuhallab"
 OUT = ROOT / "design" / "ads"
 
-# the site's own tokens, not approximations of them
-TINT = "#7a4418"
-TINT_STRONG = "#6f3f1c"
-TEXT = "#1b2430"
-MUTED = "#586981"
-PANEL_2 = "#f1f4f8"
-BORDER = "#d0d7e1"
+# the site's own tokens (the dark logo theme, 2026-10-07), not approximations
+BG = "#0a0908"        # --bg, the logo's ground
+PANEL = "#141211"     # --panel
+PANEL_3 = "#242321"   # --panel-3
+TINT = "#e6a95c"      # --tint, the logo's amber: always ink, never paper
+STRIPE = "#7f5d33"    # --stripe
+TEXT = "#f4f4f4"      # --on-bar
+MUTED = "#b9b3ab"
+BORDER = "#363534"    # --border
 
 POST = (1080, 1080)
 STORY = (1080, 1920)
@@ -70,7 +72,7 @@ ADS = [
      ["المحفظة والقيمة السوقية",
       "الميزانية السنوية وملف XBRL",
       "الطلبات من الطلب حتى التسليم"],
-     "يعمل بلا إنترنت · سجلاتك لا تغادر جهازك", "i-anchor"),
+     "يعمل بلا إنترنت · سجلاتك لا تغادر جهازك", "ANCHOR"),
 
     ("xbrl", "الميزانية السنوية", "ملف <b>XBRL</b> جاهز للبوابة.",
      ["الإجماليات تُحسب من سطورها",
@@ -112,79 +114,79 @@ def page(w, h, kicker, headline, lines, proof, vb, body, story):
 
     items = "".join(
         f'<li><span class="dot"></span>{t}</li>' for t in lines)
+    if vb is None:   # النوخذة: its own amber anchor tile, not a watermark
+        art = '<img class="anchor" src="../../almuhallab/icon.svg" alt="">'
+    else:
+        art = f'<svg class="art" viewBox="{vb}" aria-hidden="true">{body}</svg>'
+    logo = "../logo-en/almuhallab-code-logo-for-dark.svg"
+    lat = "U+0000-00FF,U+2000-206F"
+    ar = "U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF"
+    faces = "".join(
+        f'@font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-{w_}.woff2") format("woff2"); font-weight:{w_}; unicode-range:{ar}; font-display:block; }}\n'
+        f'@font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-latin.woff2") format("woff2"); font-weight:{w_}; unicode-range:{lat}; font-display:block; }}\n'
+        for w_ in (400, 500, 700, 800))
+    aw = 260 if story else 190
 
     return f"""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <style>
-  @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-400.woff2") format("woff2"); font-weight:400; font-display:block; }}
-  @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-500.woff2") format("woff2"); font-weight:500; font-display:block; }}
-  @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
-  @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-800.woff2") format("woff2"); font-weight:800; font-display:block; }}
-  @font-face {{ font-family:"Reem Kufi"; src:url("../logo-modern/fonts/reemkufi-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
-  @font-face {{ font-family:"Share Tech Mono"; src:url("../logo-modern/fonts/sharetechmono-400.woff2") format("woff2"); font-weight:400; font-display:block; }}
+  {faces}
+  @font-face {{ font-family:"Chakra Petch"; src:url("{fonts}/chakrapetch-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
+  @font-face {{ font-family:"JetBrains Mono"; src:url("{fonts}/jetbrainsmono-latin.woff2") format("woff2"); font-weight:400 800; font-display:block; }}
   * {{ box-sizing:border-box; margin:0; padding:0; }}
-  /* The decorative mark is meant to bleed off the edge, so it must be
-     clipped, not merely allowed to hang. Without this it widened the document
-     to 1160px — and because the document is RTL, the scroll origin is the
-     right edge, so the screenshot's window slid and every element was cut off
-     on the right. The picture looked wrong in a way that pointed at the type,
-     not at an eighty-pixel decoration behind it. Measured, not guessed:
-     scrollWidth 1160 against a clientWidth of 1080. */
+  /* The decorative mark bleeds off the edge, so it must be clipped: without
+     this the RTL document widened to 1160px and the screenshot slid. */
   html,body {{ width:{w}px; height:{h}px; overflow:hidden; }}
-  body {{ font-family:"Cairo",system-ui,sans-serif; background:#fff; color:{TEXT};
+  body {{ font-family:"Cairo",sans-serif; background:{BG}; color:{TEXT};
           display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }}
 
-  /* the masthead, the same brown bar the site wears */
-  .top {{ height:{bar}px; background:{TINT_STRONG}; color:#fff;
-          display:flex; align-items:center; gap:26px; padding:0 {pad}px; flex:none; }}
-  .top svg {{ width:{mark}px; height:{mark//2}px; color:#fff; }}
-  .top .name {{ font-family:"Reem Kufi","Cairo",sans-serif; font-weight:700; font-size:{lead + 8}px; line-height:1.35; }}
-  .top .name small {{ display:block; font-family:"Share Tech Mono",monospace; font-weight:400;
-                      font-size:{lead - 12}px; letter-spacing:.24em; direction:ltr; opacity:.92; }}
+  /* the masthead: the company's English logo on its own ground */
+  .top {{ height:{bar + 40}px; display:flex; align-items:center; justify-content:center;
+          flex:none; position:relative;
+          background:radial-gradient(60% 70% at 50% 55%, rgba(230,169,92,.10), transparent 70%); }}
+  .top img {{ height:{bar - 20}px; }}
+  .top::after, .cta::before {{ content:""; position:absolute; left:{pad}px; right:{pad}px; height:2px;
+          background:linear-gradient(90deg, transparent, {STRIPE}, {TINT}, {STRIPE}, transparent); }}
+  .top::after {{ bottom:0; }}
 
   .body {{ flex:1; padding:{pad}px; display:flex; flex-direction:column;
            position:relative; overflow:hidden;
            justify-content:center; gap:{gap}px; }}
-  .kicker {{ color:{TINT}; font-weight:700; font-size:{lead - 6}px; letter-spacing:2px; }}
+  .kicker {{ color:{TINT}; font-weight:700; font-size:{lead - 6}px; }}
+  .kicker .p {{ font-family:"JetBrains Mono",monospace; margin-left:14px; }}
   h1 {{ font-size:{head}px; font-weight:500; line-height:1.35; letter-spacing:-1px; }}
   h1 b {{ font-weight:800; color:{TINT}; }}
   ul {{ list-style:none; display:flex; flex-direction:column; gap:{gap - 8}px;
         margin-top:{gap//2}px; }}
   li {{ display:flex; align-items:center; gap:18px; font-size:{lead}px; color:{TEXT}; }}
-  .dot {{ width:14px; height:14px; border-radius:50%; background:{TINT};
-          flex:none; }}
-  .proof {{ margin-top:{gap}px; align-self:flex-start; background:{PANEL_2};
+  .dot {{ width:14px; height:14px; border-radius:2px; background:{TINT}; flex:none; }}
+  .proof {{ margin-top:{gap}px; align-self:flex-start; background:{PANEL_3};
             border:2px solid {BORDER}; border-radius:999px;
-            padding:{gap//2}px {gap + 8}px; font-size:{lead - 8}px; color:{MUTED}; }}
-  /* The sprite's icons are DRAWN, not filled: the site sets fill:none and
-     strokes them with currentColor. Dropped in without that, each one renders
-     as a solid silhouette — the anchor became a grey bowl and the document a
-     grey rectangle, both of which read as a failed image rather than as a
-     watermark. Same treatment as .ic on the site, at a weight that survives
-     being blown up to 600px. */
-  .art {{ position:absolute; opacity:.10; color:{TINT};
+            padding:{gap//2}px {gap + 8}px; font-size:{lead - 8}px; color:{TEXT}; }}
+  /* sprite icons are drawn, not filled: stroke with currentColor */
+  .art {{ position:absolute; opacity:.12; color:{TINT};
           fill:none; stroke:currentColor; stroke-width:0.9;
           stroke-linecap:round; stroke-linejoin:round;
-          {"bottom:" + str(bar + 40) + "px; left:-90px; width:620px; height:620px"
-           if story else "top:" + str(bar + 30) + "px; left:-80px; width:430px; height:430px"}; }}
+          {"bottom:40px; left:-90px; width:620px; height:620px"
+           if story else "top:30px; left:-80px; width:430px; height:430px"}; }}
+  .anchor {{ position:absolute; left:{pad}px; bottom:{pad}px;
+             width:{aw}px; height:{aw}px; }}
 
   /* the way to answer, which is the point of an advertisement */
-  .cta {{ height:{bar}px; background:{TINT_STRONG}; color:#fff; flex:none;
+  .cta {{ height:{bar}px; background:{PANEL}; color:{TEXT}; flex:none; position:relative;
           display:flex; align-items:center; justify-content:space-between;
           padding:0 {pad}px; }}
+  .cta::before {{ top:0; }}
   .cta .wa {{ display:flex; align-items:center; gap:16px;
-              font-size:{lead + 2}px; font-weight:800; }}
-  .cta .wa svg {{ width:{lead + 10}px; height:{lead + 10}px; stroke:#fff;
+              font-family:"JetBrains Mono",monospace; font-size:{lead}px; font-weight:800; }}
+  .cta .wa svg {{ width:{lead + 10}px; height:{lead + 10}px; stroke:{TINT};
                   fill:none; stroke-width:1.8; stroke-linecap:round; }}
-  .cta .site {{ font-size:{lead - 8}px; opacity:.92; }}
+  .cta .site {{ font-family:"JetBrains Mono",monospace; font-size:{lead - 12}px; color:{TINT}; }}
   .ltr {{ unicode-bidi:isolate; direction:ltr; }}
 </style></head><body>
-  <div class="top">
-    <svg viewBox="0 0 48 24" aria-hidden="true">{BOUM}</svg>
-    <div class="name">المهلب<small>Almuhallab Code</small></div>
-  </div>
+  <div class="top"><img src="{logo}" alt="Almuhallab Code"></div>
   <div class="body">
-    <svg class="art" viewBox="{vb}" aria-hidden="true">{body}</svg>
-    <div class="kicker">{kicker}</div>
+    {art}
+    <div class="kicker"><bdi class="p" dir="ltr">&gt;_</bdi>{kicker}</div>
     <h1>{headline}</h1>
     <ul>{items}</ul>
     <div class="proof">{proof}</div>
@@ -197,20 +199,18 @@ def page(w, h, kicker, headline, lines, proof, vb, body, story):
 </body></html>"""
 
 
-BOUM = ""   # filled in main() from the page's own sprite
 WA = ""
 
 
 def main() -> int:
-    global BOUM, WA
+    global WA
     html = (SITE / "index.html").read_text()
-    _, BOUM = sprite_symbol(html, "i-boum")
     _, WA = sprite_symbol(html, "i-whatsapp")
 
     OUT.mkdir(parents=True, exist_ok=True)
     written = []
     for name, kicker, headline, lines, proof, sid in ADS:
-        vb, body = sprite_symbol(html, sid)
+        vb, body = (None, None) if sid == "ANCHOR" else sprite_symbol(html, sid)
         for kind, (w, h) in (("post", POST), ("story", STORY)):
             src = page(w, h, kicker, headline, lines, proof, vb, body,
                        kind == "story")
@@ -244,11 +244,11 @@ def main() -> int:
             f'<figure><img src="{n}.png" style="width:{160 if h > w else 200}px">'
             f'<figcaption>{n}</figcaption></figure>' for n, w, h in written)
         sheet = f"""<!doctype html><meta charset="utf-8"><body style="margin:0;
-          padding:36px; background:#fff; font-family:system-ui; display:flex;
+          padding:36px; background:#0a0908; font-family:system-ui; display:flex;
           flex-wrap:wrap; gap:28px; align-items:flex-end">
           <style>figure{{margin:0;text-align:center}}
-                 img{{border:1px solid #d0d7e1;display:block}}
-                 figcaption{{font-size:12px;color:#586981;margin-top:8px}}</style>
+                 img{{border:1px solid #363534;display:block}}
+                 figcaption{{font-size:12px;color:#b9b3ab;margin-top:8px}}</style>
           {cells}</body>"""
         (OUT / "contact-sheet.html").write_text(sheet)
         pg = br.new_context(viewport={"width": 1180, "height": 900}).new_page()

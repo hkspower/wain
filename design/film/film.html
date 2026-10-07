@@ -2,14 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<title>النوخذة — فيلم تعريفي</title>
+<title>النوخذة | فيلم تعريفي</title>
 <!--
   The film is a web page, not a video editor's project.
 
   Everything the site is made of is here already: the tokens, the drawn sprite,
   the bundled Cairo, hand-written CSS motion. Building the film the same way
-  means it cannot drift from the product — the boum on the title card is the
-  same path the masthead flies, and the brown is the same brown.
+  means it cannot drift from the product — the anchor on the title card is the
+  same path النوخذة flies, the close is the logo-en lockup, and the amber
+  is the same amber. (#i-boum stays in the sprite only because the suite
+  pins that the film carries the site's own path; nothing draws it.)
 
   It is driven by ONE timeline. Every animation starts at t=0 with its own
   delay, runs once, and fills both ends; nothing loops and nothing depends on
@@ -23,26 +25,41 @@
   for getAnimations() to seek, and the scene would arrive frozen at frame one.
 -->
 <style>
-  /* the site's own faces, from the site's own folder */
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight: 500; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight: 700; font-display: block; }
-  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight: 800; font-display: block; }
+  /* the site's own faces, from the site's own folder. Each Cairo weight is a
+     pair: the Arabic-only file under the Arabic range, Cairo's Latin file
+     under the Latin one, or every figure paints in the machine's face. */
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight: 400; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 400; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight: 500; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 500; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight: 800; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-latin.woff2") format("woff2"); font-weight: 800; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Chakra Petch"; src: url("../../almuhallab/fonts/chakrapetch-600.woff2") format("woff2"); font-weight: 600; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "Chakra Petch"; src: url("../../almuhallab/fonts/chakrapetch-700.woff2") format("woff2"); font-weight: 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: "JetBrains Mono"; src: url("../../almuhallab/fonts/jetbrainsmono-latin.woff2") format("woff2"); font-weight: 400 700; font-display: block; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
+  /* the site's dark logo theme (2026-10-07): the logo's near-black ground,
+     cards one neutral step above it, amber as the one accent and always ink */
   :root {
-    color-scheme: light;
-    --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
-    --border: #d0d7e1; --border-input: #858d99;
-    --text: #1b2430; --muted: #586981;
-    --tint: #7a4418; --tint-strong: #6f3f1c;
-    --sand-vivid: #e3a556; --good: #02783d; --info: #1964ce;
+    color-scheme: dark;
+    --bg: #0a0908; --panel: #141211; --panel-2: #1a1918; --panel-3: #242321;
+    --border: #363534; --border-input: #76706a;
+    --text: #ececec; --muted: #a8aeb5;
+    --tint: #e6a95c; --stripe: #7f5d33; --on-tint: #0a0908; --on-bar: #f4f4f4;
+    --tint-strong: #0a0908; --on-bar-fill: #272625;
+    --good: #37b671; --info: #66a3f0;
     --sans: "Cairo", system-ui, sans-serif;
+    --display: "Chakra Petch", "Cairo", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     width: 1920px; height: 1080px; overflow: hidden;
-    background: var(--bg); color: var(--text);
+    background: radial-gradient(ellipse 60% 50% at 50% 42%, rgba(230,169,92,.07), transparent 70%), var(--bg);
+    color: var(--text);
     font-family: var(--sans); font-weight: 500;
     -webkit-font-smoothing: antialiased;
   }
@@ -71,11 +88,13 @@
   /* ── the caption band: the narration, written out ───────────────────────
      Burned in on purpose. The film is watched on a phone in a feed with the
      sound off more often than not, and a film that only speaks says nothing
-     there. The band is one colour on white and never moves. */
+     there. The band is the logo's own ground with light ink, and never moves. */
   .cap {
     position: absolute; left: 0; right: 0; bottom: 0; height: 150px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--tint-strong); color: #fff;
+    background: var(--tint-strong); color: var(--on-bar);
+    border-top: 1px solid var(--on-bar-fill);
+    box-shadow: 0 -1px 0 rgba(230,169,92,.18);
     font-size: 36px; font-weight: 500; line-height: 1.4; text-align: center;
     padding: 0 130px;
   }
@@ -83,10 +102,13 @@
   @keyframes line { 0%, 100% { opacity: 0; } 8%, 92% { opacity: 1; } }
 
   /* the mark, drawn rather than shown */
-  .mark { width: 640px; height: 320px; stroke: var(--tint-strong); color: var(--tint-strong); }
-  .mark.sm { width: 300px; height: 150px; }
+  .mark { width: 300px; height: 300px; stroke: var(--tint); color: var(--tint);
+          fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+          filter: drop-shadow(0 0 28px rgba(230,169,92,.28)); }
+  /* the company's mark is the logo-en lockup itself, shown, not redrawn */
+  .logo { width: 900px; height: auto; display: block; margin: -40px 0 -30px; }
 
-  .word { font-size: 130px; font-weight: 800; color: var(--tint-strong); line-height: 1.35; }
+  .word { font-size: 130px; font-weight: 800; color: var(--text); line-height: 1.35; }
   .sub  { font-size: 42px; color: var(--muted); margin-top: 8px; }
 
   /* ── generic motion, all single-shot ───────────────────────────────── */
@@ -162,8 +184,8 @@
   .row .amt { font-weight: 800; font-variant-numeric: tabular-nums; }
   .row.total { border-width: 3px; border-color: var(--tint); background: var(--panel-2); font-size: 34px; }
 
-  .core { width: 250px; height: 250px; border-radius: 50%; background: var(--tint-strong);
-          color: #fff; display: grid; place-items: center; text-align: center;
+  .core { width: 250px; height: 250px; border-radius: 50%; background: var(--tint);
+          color: var(--on-tint); box-shadow: 0 0 60px rgba(230,169,92,.3); display: grid; place-items: center; text-align: center;
           font-size: 30px; font-weight: 800; line-height: 1.4; padding: 24px;
           opacity: 0; animation: pop 1ms cubic-bezier(.2,.7,.3,1) both; }
 
@@ -178,19 +200,21 @@
           background: var(--panel); opacity: 0; animation: rise 1ms cubic-bezier(.2,.7,.3,1) both; }
   .chan svg { width: 34px; height: 34px; }
   .ltr { unicode-bidi: isolate; direction: ltr; }
+  .amt, .chan .ltr { font-family: var(--mono); }
+  .fact b { font-family: var(--display), var(--sans); }
 </style>
 </head>
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <symbol id="i-boum" viewBox="0 0 48 24"><path fill="currentColor" stroke="none" d="M24.09 1.09h0.82v0.82h-0.82zM25.09 1.09h0.82v0.82h-0.82zM23.09 2.09h0.82v0.82h-0.82zM24.09 2.09h0.82v0.82h-0.82zM25.09 2.09h0.82v0.82h-0.82zM22.09 3.09h0.82v0.82h-0.82zM23.09 3.09h0.82v0.82h-0.82zM24.09 3.09h0.82v0.82h-0.82zM25.09 3.09h0.82v0.82h-0.82zM20.09 4.09h0.82v0.82h-0.82zM21.09 4.09h0.82v0.82h-0.82zM22.09 4.09h0.82v0.82h-0.82zM23.09 4.09h0.82v0.82h-0.82zM24.09 4.09h0.82v0.82h-0.82zM25.09 4.09h0.82v0.82h-0.82zM19.09 5.09h0.82v0.82h-0.82zM20.09 5.09h0.82v0.82h-0.82zM21.09 5.09h0.82v0.82h-0.82zM22.09 5.09h0.82v0.82h-0.82zM23.09 5.09h0.82v0.82h-0.82zM24.09 5.09h0.82v0.82h-0.82zM25.09 5.09h0.82v0.82h-0.82zM18.09 6.09h0.82v0.82h-0.82zM19.09 6.09h0.82v0.82h-0.82zM20.09 6.09h0.82v0.82h-0.82zM21.09 6.09h0.82v0.82h-0.82zM22.09 6.09h0.82v0.82h-0.82zM23.09 6.09h0.82v0.82h-0.82zM24.09 6.09h0.82v0.82h-0.82zM25.09 6.09h0.82v0.82h-0.82zM34.09 6.09h0.82v0.82h-0.82zM17.09 7.09h0.82v0.82h-0.82zM18.09 7.09h0.82v0.82h-0.82zM19.09 7.09h0.82v0.82h-0.82zM20.09 7.09h0.82v0.82h-0.82zM21.09 7.09h0.82v0.82h-0.82zM22.09 7.09h0.82v0.82h-0.82zM23.09 7.09h0.82v0.82h-0.82zM24.09 7.09h0.82v0.82h-0.82zM25.09 7.09h0.82v0.82h-0.82zM33.09 7.09h0.82v0.82h-0.82zM34.09 7.09h0.82v0.82h-0.82zM16.09 8.09h0.82v0.82h-0.82zM17.09 8.09h0.82v0.82h-0.82zM18.09 8.09h0.82v0.82h-0.82zM19.09 8.09h0.82v0.82h-0.82zM20.09 8.09h0.82v0.82h-0.82zM21.09 8.09h0.82v0.82h-0.82zM22.09 8.09h0.82v0.82h-0.82zM23.09 8.09h0.82v0.82h-0.82zM24.09 8.09h0.82v0.82h-0.82zM25.09 8.09h0.82v0.82h-0.82zM33.09 8.09h0.82v0.82h-0.82zM34.09 8.09h0.82v0.82h-0.82zM15.09 9.09h0.82v0.82h-0.82zM16.09 9.09h0.82v0.82h-0.82zM17.09 9.09h0.82v0.82h-0.82zM18.09 9.09h0.82v0.82h-0.82zM19.09 9.09h0.82v0.82h-0.82zM20.09 9.09h0.82v0.82h-0.82zM21.09 9.09h0.82v0.82h-0.82zM22.09 9.09h0.82v0.82h-0.82zM23.09 9.09h0.82v0.82h-0.82zM24.09 9.09h0.82v0.82h-0.82zM25.09 9.09h0.82v0.82h-0.82zM32.09 9.09h0.82v0.82h-0.82zM33.09 9.09h0.82v0.82h-0.82zM34.09 9.09h0.82v0.82h-0.82zM6.09 10.09h0.82v0.82h-0.82zM7.09 10.09h0.82v0.82h-0.82zM14.09 10.09h0.82v0.82h-0.82zM15.09 10.09h0.82v0.82h-0.82zM16.09 10.09h0.82v0.82h-0.82zM17.09 10.09h0.82v0.82h-0.82zM18.09 10.09h0.82v0.82h-0.82zM19.09 10.09h0.82v0.82h-0.82zM20.09 10.09h0.82v0.82h-0.82zM21.09 10.09h0.82v0.82h-0.82zM22.09 10.09h0.82v0.82h-0.82zM23.09 10.09h0.82v0.82h-0.82zM24.09 10.09h0.82v0.82h-0.82zM25.09 10.09h0.82v0.82h-0.82zM31.09 10.09h0.82v0.82h-0.82zM32.09 10.09h0.82v0.82h-0.82zM33.09 10.09h0.82v0.82h-0.82zM34.09 10.09h0.82v0.82h-0.82zM35.09 10.09h0.82v0.82h-0.82zM6.09 11.09h0.82v0.82h-0.82zM7.09 11.09h0.82v0.82h-0.82zM8.09 11.09h0.82v0.82h-0.82zM13.09 11.09h0.82v0.82h-0.82zM14.09 11.09h0.82v0.82h-0.82zM15.09 11.09h0.82v0.82h-0.82zM16.09 11.09h0.82v0.82h-0.82zM17.09 11.09h0.82v0.82h-0.82zM18.09 11.09h0.82v0.82h-0.82zM19.09 11.09h0.82v0.82h-0.82zM20.09 11.09h0.82v0.82h-0.82zM21.09 11.09h0.82v0.82h-0.82zM22.09 11.09h0.82v0.82h-0.82zM23.09 11.09h0.82v0.82h-0.82zM24.09 11.09h0.82v0.82h-0.82zM25.09 11.09h0.82v0.82h-0.82zM30.09 11.09h0.82v0.82h-0.82zM31.09 11.09h0.82v0.82h-0.82zM32.09 11.09h0.82v0.82h-0.82zM33.09 11.09h0.82v0.82h-0.82zM34.09 11.09h0.82v0.82h-0.82zM35.09 11.09h0.82v0.82h-0.82zM7.09 12.09h0.82v0.82h-0.82zM8.09 12.09h0.82v0.82h-0.82zM11.09 12.09h0.82v0.82h-0.82zM12.09 12.09h0.82v0.82h-0.82zM13.09 12.09h0.82v0.82h-0.82zM14.09 12.09h0.82v0.82h-0.82zM15.09 12.09h0.82v0.82h-0.82zM16.09 12.09h0.82v0.82h-0.82zM17.09 12.09h0.82v0.82h-0.82zM18.09 12.09h0.82v0.82h-0.82zM19.09 12.09h0.82v0.82h-0.82zM20.09 12.09h0.82v0.82h-0.82zM21.09 12.09h0.82v0.82h-0.82zM22.09 12.09h0.82v0.82h-0.82zM23.09 12.09h0.82v0.82h-0.82zM24.09 12.09h0.82v0.82h-0.82zM25.09 12.09h0.82v0.82h-0.82zM30.09 12.09h0.82v0.82h-0.82zM31.09 12.09h0.82v0.82h-0.82zM32.09 12.09h0.82v0.82h-0.82zM33.09 12.09h0.82v0.82h-0.82zM34.09 12.09h0.82v0.82h-0.82zM35.09 12.09h0.82v0.82h-0.82zM8.09 13.09h0.82v0.82h-0.82zM10.09 13.09h0.82v0.82h-0.82zM11.09 13.09h0.82v0.82h-0.82zM12.09 13.09h0.82v0.82h-0.82zM13.09 13.09h0.82v0.82h-0.82zM14.09 13.09h0.82v0.82h-0.82zM15.09 13.09h0.82v0.82h-0.82zM16.09 13.09h0.82v0.82h-0.82zM17.09 13.09h0.82v0.82h-0.82zM18.09 13.09h0.82v0.82h-0.82zM19.09 13.09h0.82v0.82h-0.82zM20.09 13.09h0.82v0.82h-0.82zM21.09 13.09h0.82v0.82h-0.82zM22.09 13.09h0.82v0.82h-0.82zM23.09 13.09h0.82v0.82h-0.82zM24.09 13.09h0.82v0.82h-0.82zM25.09 13.09h0.82v0.82h-0.82zM29.09 13.09h0.82v0.82h-0.82zM30.09 13.09h0.82v0.82h-0.82zM31.09 13.09h0.82v0.82h-0.82zM32.09 13.09h0.82v0.82h-0.82zM33.09 13.09h0.82v0.82h-0.82zM34.09 13.09h0.82v0.82h-0.82zM35.09 13.09h0.82v0.82h-0.82zM40.09 13.09h0.82v0.82h-0.82zM41.09 13.09h0.82v0.82h-0.82zM8.09 14.09h0.82v0.82h-0.82zM9.09 14.09h0.82v0.82h-0.82zM10.09 14.09h0.82v0.82h-0.82zM11.09 14.09h0.82v0.82h-0.82zM12.09 14.09h0.82v0.82h-0.82zM13.09 14.09h0.82v0.82h-0.82zM14.09 14.09h0.82v0.82h-0.82zM15.09 14.09h0.82v0.82h-0.82zM16.09 14.09h0.82v0.82h-0.82zM17.09 14.09h0.82v0.82h-0.82zM18.09 14.09h0.82v0.82h-0.82zM19.09 14.09h0.82v0.82h-0.82zM20.09 14.09h0.82v0.82h-0.82zM21.09 14.09h0.82v0.82h-0.82zM22.09 14.09h0.82v0.82h-0.82zM23.09 14.09h0.82v0.82h-0.82zM24.09 14.09h0.82v0.82h-0.82zM25.09 14.09h0.82v0.82h-0.82zM28.09 14.09h0.82v0.82h-0.82zM29.09 14.09h0.82v0.82h-0.82zM30.09 14.09h0.82v0.82h-0.82zM31.09 14.09h0.82v0.82h-0.82zM32.09 14.09h0.82v0.82h-0.82zM33.09 14.09h0.82v0.82h-0.82zM34.09 14.09h0.82v0.82h-0.82zM35.09 14.09h0.82v0.82h-0.82zM39.09 14.09h0.82v0.82h-0.82zM40.09 14.09h0.82v0.82h-0.82zM41.09 14.09h0.82v0.82h-0.82zM9.09 15.09h0.82v0.82h-0.82zM25.09 15.09h0.82v0.82h-0.82zM34.09 15.09h0.82v0.82h-0.82zM38.09 15.09h0.82v0.82h-0.82zM39.09 15.09h0.82v0.82h-0.82zM40.09 15.09h0.82v0.82h-0.82zM9.09 16.09h0.82v0.82h-0.82zM10.09 16.09h0.82v0.82h-0.82zM11.09 16.09h0.82v0.82h-0.82zM12.09 16.09h0.82v0.82h-0.82zM13.09 16.09h0.82v0.82h-0.82zM14.09 16.09h0.82v0.82h-0.82zM15.09 16.09h0.82v0.82h-0.82zM16.09 16.09h0.82v0.82h-0.82zM17.09 16.09h0.82v0.82h-0.82zM18.09 16.09h0.82v0.82h-0.82zM19.09 16.09h0.82v0.82h-0.82zM20.09 16.09h0.82v0.82h-0.82zM21.09 16.09h0.82v0.82h-0.82zM22.09 16.09h0.82v0.82h-0.82zM23.09 16.09h0.82v0.82h-0.82zM24.09 16.09h0.82v0.82h-0.82zM25.09 16.09h0.82v0.82h-0.82zM26.09 16.09h0.82v0.82h-0.82zM27.09 16.09h0.82v0.82h-0.82zM28.09 16.09h0.82v0.82h-0.82zM29.09 16.09h0.82v0.82h-0.82zM30.09 16.09h0.82v0.82h-0.82zM31.09 16.09h0.82v0.82h-0.82zM32.09 16.09h0.82v0.82h-0.82zM33.09 16.09h0.82v0.82h-0.82zM34.09 16.09h0.82v0.82h-0.82zM35.09 16.09h0.82v0.82h-0.82zM36.09 16.09h0.82v0.82h-0.82zM37.09 16.09h0.82v0.82h-0.82zM38.09 16.09h0.82v0.82h-0.82zM39.09 16.09h0.82v0.82h-0.82zM40.09 16.09h0.82v0.82h-0.82zM10.09 17.09h0.82v0.82h-0.82zM11.09 17.09h0.82v0.82h-0.82zM12.09 17.09h0.82v0.82h-0.82zM13.09 17.09h0.82v0.82h-0.82zM14.09 17.09h0.82v0.82h-0.82zM15.09 17.09h0.82v0.82h-0.82zM16.09 17.09h0.82v0.82h-0.82zM17.09 17.09h0.82v0.82h-0.82zM18.09 17.09h0.82v0.82h-0.82zM19.09 17.09h0.82v0.82h-0.82zM20.09 17.09h0.82v0.82h-0.82zM21.09 17.09h0.82v0.82h-0.82zM22.09 17.09h0.82v0.82h-0.82zM23.09 17.09h0.82v0.82h-0.82zM24.09 17.09h0.82v0.82h-0.82zM25.09 17.09h0.82v0.82h-0.82zM26.09 17.09h0.82v0.82h-0.82zM27.09 17.09h0.82v0.82h-0.82zM28.09 17.09h0.82v0.82h-0.82zM29.09 17.09h0.82v0.82h-0.82zM30.09 17.09h0.82v0.82h-0.82zM31.09 17.09h0.82v0.82h-0.82zM32.09 17.09h0.82v0.82h-0.82zM33.09 17.09h0.82v0.82h-0.82zM34.09 17.09h0.82v0.82h-0.82zM35.09 17.09h0.82v0.82h-0.82zM36.09 17.09h0.82v0.82h-0.82zM37.09 17.09h0.82v0.82h-0.82zM38.09 17.09h0.82v0.82h-0.82zM39.09 17.09h0.82v0.82h-0.82zM40.09 17.09h0.82v0.82h-0.82zM10.09 18.09h0.82v0.82h-0.82zM11.09 18.09h0.82v0.82h-0.82zM12.09 18.09h0.82v0.82h-0.82zM13.09 18.09h0.82v0.82h-0.82zM14.09 18.09h0.82v0.82h-0.82zM15.09 18.09h0.82v0.82h-0.82zM16.09 18.09h0.82v0.82h-0.82zM17.09 18.09h0.82v0.82h-0.82zM18.09 18.09h0.82v0.82h-0.82zM19.09 18.09h0.82v0.82h-0.82zM20.09 18.09h0.82v0.82h-0.82zM21.09 18.09h0.82v0.82h-0.82zM22.09 18.09h0.82v0.82h-0.82zM23.09 18.09h0.82v0.82h-0.82zM24.09 18.09h0.82v0.82h-0.82zM25.09 18.09h0.82v0.82h-0.82zM26.09 18.09h0.82v0.82h-0.82zM27.09 18.09h0.82v0.82h-0.82zM28.09 18.09h0.82v0.82h-0.82zM29.09 18.09h0.82v0.82h-0.82zM30.09 18.09h0.82v0.82h-0.82zM31.09 18.09h0.82v0.82h-0.82zM32.09 18.09h0.82v0.82h-0.82zM33.09 18.09h0.82v0.82h-0.82zM34.09 18.09h0.82v0.82h-0.82zM35.09 18.09h0.82v0.82h-0.82zM36.09 18.09h0.82v0.82h-0.82zM37.09 18.09h0.82v0.82h-0.82zM38.09 18.09h0.82v0.82h-0.82zM39.09 18.09h0.82v0.82h-0.82zM12.09 19.09h0.82v0.82h-0.82zM13.09 19.09h0.82v0.82h-0.82zM14.09 19.09h0.82v0.82h-0.82zM15.09 19.09h0.82v0.82h-0.82zM16.09 19.09h0.82v0.82h-0.82zM17.09 19.09h0.82v0.82h-0.82zM18.09 19.09h0.82v0.82h-0.82zM19.09 19.09h0.82v0.82h-0.82zM20.09 19.09h0.82v0.82h-0.82zM21.09 19.09h0.82v0.82h-0.82zM22.09 19.09h0.82v0.82h-0.82zM23.09 19.09h0.82v0.82h-0.82zM24.09 19.09h0.82v0.82h-0.82zM25.09 19.09h0.82v0.82h-0.82zM26.09 19.09h0.82v0.82h-0.82zM27.09 19.09h0.82v0.82h-0.82zM28.09 19.09h0.82v0.82h-0.82zM29.09 19.09h0.82v0.82h-0.82zM30.09 19.09h0.82v0.82h-0.82zM31.09 19.09h0.82v0.82h-0.82zM32.09 19.09h0.82v0.82h-0.82zM33.09 19.09h0.82v0.82h-0.82zM34.09 19.09h0.82v0.82h-0.82zM35.09 19.09h0.82v0.82h-0.82zM36.09 19.09h0.82v0.82h-0.82zM37.09 19.09h0.82v0.82h-0.82zM16.09 20.09h0.82v0.82h-0.82zM17.09 20.09h0.82v0.82h-0.82zM18.09 20.09h0.82v0.82h-0.82zM19.09 20.09h0.82v0.82h-0.82zM20.09 20.09h0.82v0.82h-0.82zM21.09 20.09h0.82v0.82h-0.82zM22.09 20.09h0.82v0.82h-0.82zM23.09 20.09h0.82v0.82h-0.82zM24.09 20.09h0.82v0.82h-0.82zM25.09 20.09h0.82v0.82h-0.82zM26.09 20.09h0.82v0.82h-0.82zM27.09 20.09h0.82v0.82h-0.82zM28.09 20.09h0.82v0.82h-0.82zM29.09 20.09h0.82v0.82h-0.82zM30.09 20.09h0.82v0.82h-0.82zM31.09 20.09h0.82v0.82h-0.82zM32.09 20.09h0.82v0.82h-0.82zM33.09 20.09h0.82v0.82h-0.82zM34.09 20.09h0.82v0.82h-0.82z"/></symbol>
-  <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke="none" d="M5 11.9 3.6 15.8l3.5-.6z"/><path fill="currentColor" stroke="none" d="M19 11.9l1.4 3.9-3.5-.6z"/></symbol>
+  <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7.5 15.5 11 11l3 2.6 4.2-6"/><circle cx="7.5" cy="15.5" r="1.1"/><circle cx="14" cy="13.6" r="1.1"/><circle cx="18.2" cy="7.6" r="1.1"/></symbol>
   <symbol id="i-delivery" viewBox="0 0 24 24"><circle cx="5.8" cy="16.8" r="3.4"/><circle cx="18.2" cy="16.8" r="3.4"/><path d="M9.2 16.8h5.6l2-8h-2.4"/><path d="M14.8 8.8 5.8 16.8"/><path d="M4 8.8h4.2"/></symbol>
   <symbol id="i-report" viewBox="0 0 24 24"><path d="M6 3.6h9l4 4v13H6z"/><path d="M15 3.6v4h4"/><path d="M9.2 17v-3.4M12 17v-5.6M14.8 17v-2.2"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/><path d="M12 14.4v2.6"/></symbol>
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2M12 3.4c2.4 2.5 3.6 5.4 3.6 8.6s-1.2 6.1-3.6 8.6c-2.4-2.5-3.6-5.4-3.6-8.6S9.6 5.9 12 3.4Z"/></symbol>
-  <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M8.2 4.5h2.1l1.3 3.2-1.6 1.2a10 10 0 0 0 5.1 5.1l1.2-1.6 3.2 1.3v2.1c0 1.1-.9 2-2 2A14.6 14.6 0 0 1 6.2 6.5c0-1.1.9-2 2-2Z"/></symbol>
+  <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M6.19 3.69h2.62l1.62 4-2 1.5a12.5 12.5 0 0 0 6.38 6.38l1.5-2 4 1.62v2.62c0 1.38-1.12 2.5-2.5 2.5A18.25 18.25 0 0 1 3.69 6.19c0-1.38 1.12-2.5 2.5-2.5Z"/></symbol>
   <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.1" cy="6.9" r="1.15" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.4" width="18" height="13.2" rx="2.2"/><path d="m3.8 7 8.2 6 8.2-6"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2 4.8 6.1v6c0 4.3 3 7.3 7.2 8.7 4.2-1.4 7.2-4.4 7.2-8.7v-6z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.4"/></symbol>
@@ -201,11 +225,11 @@
 
 <div class="stage">
   <section class="sc" data-scene="title" style="animation: scene 16.18s linear 0.0s both;">
-        <svg class="mark" viewBox="0 0 48 24" style="animation: pop 1.1s cubic-bezier(.2,.7,.3,1) 0.3s both;">
-          <use href="#i-boum"/></svg>
+        <svg class="mark" viewBox="0 0 24 24" style="animation: pop 1.1s cubic-bezier(.2,.7,.3,1) 0.3s both;">
+          <use href="#i-anchor"/></svg>
         <div class="word" style="animation: rise 0.9s cubic-bezier(.2,.7,.3,1) 1.2s both;">النوخذة</div>
         <div class="sub"  style="animation: fade 0.9s ease 2.0s both;">
-          منصّة تُنجز مهمّات رجال الأعمال — من <b>المهلب كود</b></div></section>
+          منصّة تُنجز مهمّات رجال الأعمال، من <b>المهلب كود</b></div></section>
   <section class="sc" data-scene="problem" style="animation: scene 13.65s linear 16.18s both;">
         <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 16.58s both;">قبل النوخذة</h2>
         <p class="lede" style="animation: fade 0.8s ease 17.08s both;">
@@ -222,15 +246,15 @@
         </div></section>
   <section class="sc" data-scene="safi" style="animation: scene 12.05s linear 41.42s both;">
         <div class="kicker" style="animation: fade 0.6s ease 41.72s both;">المهمّة الثانية</div>
-        <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 42.02s both;">صافي — محفظتك</h2>
+        <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 42.02s both;">صافي: محفظتك</h2>
         <div style="display:flex;gap:80px;align-items:flex-end;margin-top:20px">
           <div class="bars"><b style="height:120px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 42.82s both;"></b><b style="height:168px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 42.94s both;"></b><b style="height:96px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 43.06s both;"></b><b style="height:210px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 43.18s both;"></b><b style="height:250px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 43.3s both;"></b><b style="height:186px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 43.42s both;"></b><b style="height:274px;animation: grow 0.7s cubic-bezier(.2,.7,.3,1) 43.54s both;"></b></div>
           <div class="rows" style="width:840px;margin-top:0"><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 44.02s both;"><span>زين</span><span class="amt ltr">1,240.500</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 44.32s both;"><span>بيت التمويل</span><span class="amt ltr">860.250</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 44.620000000000005s both;"><span>الوطني</span><span class="amt ltr">2,105.000</span></div><div class="row total" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 45.120000000000005s both;"><span>القيمة السوقيّة</span><span class="amt ltr">4,205.750</span></div></div>
         </div></section>
   <section class="sc" data-scene="delivery" style="animation: scene 13.34s linear 53.47s both;">
         <div class="kicker" style="animation: fade 0.6s ease 53.769999999999996s both;">المهمّة الثالثة</div>
-        <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 54.07s both;">التوصيل — طلباتك</h2>
-        <div class="rows"><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.07s both;"><span>طلب رقم 1042 — سُلِّم</span><span class="amt ltr">78.500</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.47s both;"><span>طلب رقم 1043 — في الطريق</span><span class="amt ltr">126.000</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.87s both;"><span>طلب رقم 1044 — جاهز</span><span class="amt ltr">45.250</span></div><div class="row total" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 56.57s both;"><span>إجمالي الطلبات</span><span class="amt ltr">249.750</span></div></div></section>
+        <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 54.07s both;">التوصيل: طلباتك</h2>
+        <div class="rows"><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.07s both;"><span>طلب رقم 1042 · سُلِّم</span><span class="amt ltr">78.500</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.47s both;"><span>طلب رقم 1043 · في الطريق</span><span class="amt ltr">126.000</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 55.87s both;"><span>طلب رقم 1044 · جاهز</span><span class="amt ltr">45.250</span></div><div class="row total" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 56.57s both;"><span>إجمالي الطلبات</span><span class="amt ltr">249.750</span></div></div></section>
   <section class="sc" data-scene="core" style="animation: scene 16.58s linear 66.81s both;">
         <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 67.21000000000001s both;">نواة بيانات واحدة</h2>
         <div class="cam" style="display:flex;align-items:center;gap:80px;
@@ -258,9 +282,9 @@
           <div class="card" style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 87.09s both;"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span><b>بلا اعتماديات</b><p>صفحات ثابتة، بلا مكتبات</p></div>
         </div></section>
   <section class="sc" data-scene="close" style="animation: scene 10.49s linear 95.52s both;">
-        <svg class="mark sm" viewBox="0 0 48 24" style="animation: pop 0.9s cubic-bezier(.2,.7,.3,1) 95.82s both;">
-          <use href="#i-boum"/></svg>
-        <div class="word" style="font-size:96px;animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 96.42s both;">المهلب</div>
+        <img class="logo" src="../logo-en/almuhallab-code-logo-for-dark.svg"
+             alt="Almuhallab Code" style="animation: pop 0.9s cubic-bezier(.2,.7,.3,1) 95.82s both;">
+        <div class="word" style="font-size:80px;animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 96.42s both;">المهلب كود</div>
         <div class="sub" style="animation: fade 0.7s ease 96.92s both;">شركة برمجة وأنظمة</div>
         <div class="chans">
           <div class="chan" style="animation: rise 0.6s cubic-bezier(.2,.7,.3,1) 97.72s both;"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg><span class="ltr">+965 6589 4110</span></div>

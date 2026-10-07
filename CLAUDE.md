@@ -48,7 +48,7 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, `MAST_BANDS = 3` so every band clears every flat letter edge at 2×, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png` (the JSON-LD logo) and `og.png`; `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py` and `instagram_covers.py` refuse to run until they are redrawn from the logo-en kit |
+| Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, `MAST_BANDS = 3` so every band clears every flat letter edge at 2×, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png` (the JSON-LD logo) and `og.png`; `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py`, `instagram_covers.py`, `ads.py` and the film were redrawn from the logo-en kit on the owner's «update all» (2026-10-07) |
 | Masthead & type | The masthead **is the logo** (280px desktop · 220px phone · 200px short landscape; 168 / 140 once scrolled) over a terminal line `>_ شركة برمجة وأنظمة ▌`, prompt and cursor in amber, the cursor static; the line folds away once scrolled. **Cairo** sets all Arabic and body text; **Chakra Petch** 600/700 (`--display`) the Latin display halves: the hero's English line, the counters, the footer's ALMUHALLAB CODE; **JetBrains Mono** (`--mono`) figures, codes and every `>_`. The two logo faces are Latin subsets written by `design/site_fonts.py` (`--check` pins the bytes and the glyphs the pages set) under Cairo's own Latin `unicode-range`, so Arabic in the same element falls through to Cairo. Reem Kufi and Share Tech Mono are retired to `design/logo-modern/fonts/`. `scroll-margin-top` clears the **top** bar, because a jump from the top compacts the bar on the way and the page rises by the difference: 184px desktop (160 + 24), 168px phone (142 + 26), 160px short landscape (132 + 28) |
 | Brand ink | **Amber on near-black since 2026-10-07**: `--tint` `#e6a95c` (9.66:1 on the page, 7.62:1 on `--panel-3`) · `--tint-hover` `#fabc6f` · `--on-tint` `#0a0908`, the ink ON amber (white on amber is 2.06:1: never white on `--tint`) · `--stripe` `#7f5d33` (amber × .55, the logo's band) · the bar `--tint-strong` `#0a0908` with `--on-bar` `#f4f4f4`, `--on-bar-bd` `#79736c`, `--on-bar-fill` `#272625` · chart ramp `#624621`→`#e6a95c` · warnings `--sand` `#f2d855`, a yellow kept apart from the accent. Before: dark grey `#33383f`/`#25292f` (2026-10-03), brown `#7a4418`/`#6f3f1c` |
 | Surfaces | **the logo's dark on every device**: `--bg` `#0a0908` (page and bar), `--panel` `#141211` (cards), `--panel-2` `#1a1918` (fields, recessed rows), `--panel-3` `#242321` (the lightest step: inks are graded on it); `--border` `#363534` hairlines, `--border-input` `#76706a` control edges (3.21:1 on panel-3). `color-scheme: dark` on `:root`, no `prefers-color-scheme` block, `theme-color` `#0a0908`. Printing `nizam.html` swaps the tokens to white paper and dark ink. Amber is ink, never paper |
@@ -462,11 +462,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   الاصطناعي · تصميم UI/UX · الحلول السحابية · **تطوير الألعاب**, added at the
   owner's request 2026-08-13), each asserted to appear verbatim on the page, and the two
   inner pages carry a `BreadcrumbList`.
-- **Retired with the boum (2026-10-07)**: `design/instagram_covers.py` now
-  exits rather than draw the old mark; redraw it from the logo-en kit (the
-  monogram was judged in a circle at 150/110/44/32px for exactly this) before
-  it is used again. What it did, and the lessons that still hold:
-  it drew the whole Instagram set from the page
+- **Redrawn from the logo-en kit (2026-10-07)**: `design/instagram_covers.py`
+  draws amber icons on `#0a0908` and the profile picture from the AC monogram,
+  and fails if any ink falls outside the circle. The lessons that still hold
+  from the boum version: it drew the whole Instagram set from the page
   sprite (1080×1080, brown fill, white mark) — `design/instagram/`: twelve
   highlight covers **and the account's profile picture** (`profile-dp`). The DP
   is sized differently on purpose — a cover is one of twelve read at ~64px under
@@ -506,10 +505,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the selector *list*, since the base button is written `nav.site a, .btn {`;
   and `.btn.danger` lives in `admin.html`, not on the company page. Pinned by
   `--check` in the suite.
-- **Retired with the boum (2026-10-07)**: `design/logo_pack.py` exits rather
-  than build a pack of the old mark; the logo-en kit (SVG and 4096px PNG on
-  three grounds) is the delivery pack now. What it built:
-  `design/logo-pack/`, the 39-file delivery pack a
+- **Rebuilt from the logo-en kit (2026-10-07)**: `design/logo_pack.py` builds
+  `design/logo-pack/` (59 files: SVG, PNG at set sizes on three grounds, a
+  monogram `.ico`, README with clear space, minimum sizes and sRGB-computed
+  CMYK) and `--check` compares it byte for byte. The boum version was the 39-file delivery pack a
   printer or a partner asks for: SVG in brown/white/black for both forms, the
   gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing
   clear space (height ÷ 4), the minimum sizes (wide 90px/20mm, square 16px) and

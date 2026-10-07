@@ -14,20 +14,24 @@ SH  = OUT / "shots"
 PV  = OUT / "pdf-preview"   # the small page previews, beside the PDF they come from
 PV.mkdir(parents=True, exist_ok=True)
 
-FONTS = "/root/.claude/skills/canvas-design/canvas-fonts/"
-F_DISP = FONTS + "Italiana-Regular.ttf"
-F_TECH = FONTS + "Jura-Light.ttf"
-F_MED  = FONTS + "Jura-Medium.ttf"
-F_MONO = FONTS + "GeistMono-Regular.ttf"
+# The logo's own faces, bundled beside the logo kit (OFL): Chakra Petch for
+# display, JetBrains Mono for figures and codes, Cairo for Arabic.
+LF = D / "logo-en" / "fonts"
+F_DISP = str(LF / "ChakraPetch-Bold.ttf")
+F_TECH = str(LF / "ChakraPetch-SemiBold.ttf")
+F_MED  = str(LF / "ChakraPetch-SemiBold.ttf")
+F_MONO = str(LF / "JetBrainsMono-Variable.ttf")
+LOCKUP = D / "logo-en" / "almuhallab-code-logo-dark.png"   # the full lockup on its own ground
 F_AR   = str(D.parent / "almuhallab" / "fonts" / "cairo-700.woff2")   # Cairo, the site's own face
 
-INK        = (255, 255, 255)   # --bg: white surfaces, no dark theme, on the page as on the site
-INK_SOFT   = (241, 244, 248)   # --panel-2: the cool near-neutral grey for recessed surfaces
-BORDER     = (208, 215, 225)   # --border
-INK_TEXT   = (27, 36, 48)      # --text: primary ink for headlines
-MUTED      = (67, 77, 85)      # --muted
-TINT       = (122, 68, 24)     # --tint: the brand brown
-BRASS      = (227, 165, 86)    # --sand-vivid: the brand amber accent
+# The site's dark tokens (the logo's ground): no white, no cream, no brown.
+INK        = (10, 9, 8)        # --bg #0a0908: the logo's near-black ground
+INK_SOFT   = (26, 25, 24)      # --panel-2 #1a1918: recessed rows
+BORDER     = (54, 53, 52)      # --border #363534: hairlines
+INK_TEXT   = (244, 244, 244)   # --on-bar #f4f4f4: primary ink
+MUTED      = (165, 160, 154)   # muted ink on the dark ground
+TINT       = (230, 169, 92)    # --tint #e6a95c: the logo's amber, always an ink
+BRASS      = (230, 169, 92)    # the same amber: one accent only
 
 def font(p, s): return ImageFont.truetype(p, s)
 
@@ -69,21 +73,25 @@ pages = []
 
 # ------------------------------------------------------------------ COVER
 im, dr = new_page()
-for i in range(H):                                   # slow vertical lift
-    t = i / H
-    c = tuple(int(INK[k] + (INK_SOFT[k] - INK[k]) * (1 - t) ** 2) for k in range(3))
+for i in range(H):                                   # a soft amber glow behind the mark
+    t = abs(i - 900) / H
+    a = max(0.0, 1 - t * 2.2) ** 2 * .06
+    c = tuple(int(INK[k] + (TINT[k] - INK[k]) * a) for k in range(3))
     dr.line([0, i, W, i], fill=c)
-anchor_mark(dr, W // 2, 700, 150, BRASS, 7)
-# The company is the cover; النوخذة is the system inside, named in the strip below.
-ls_text(dr, W // 2, 930, "ALMUHALLAB", font(F_DISP, 168), INK_TEXT, 30, "ct")
-ls_text(dr, W // 2, 1130, "CODE", font(F_MED, 132), BRASS, 40, "ct")
+# The company is the cover, in its own lockup; النوخذة is named in the strip below.
+logo = Image.open(LOCKUP).convert("RGB")
+lw = 2500; lh = round(logo.height * lw / logo.width)
+logo = logo.resize((lw, lh), Image.LANCZOS)
+lmask = Image.eval(logo.convert("L"), lambda v: 0 if v <= 12 else 255)   # drop the flat ground, keep the art
+im.paste(logo, ((W - lw) // 2, 300), lmask)
 dr.line([W // 2 - 430, 1310, W // 2 + 430, 1310], fill=BORDER, width=3)
-ls_text(dr, W // 2, 1372, "SOFTWARE  AND  SYSTEMS  —  KUWAIT", font(F_TECH, 54), MUTED, 15, "ct")
+ar_text(dr, W // 2, 1360, "المهلب كود، شركة برمجة وأنظمة في الكويت", 60, INK_TEXT, "mt")
 ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TINT, 22, "ct")
 ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), INK_TEXT, 4, "ct")
-ls_text(dr, W // 2, 1790, "NOKHATHA  ·  SAFI  ·  XBRL  ·  DELIVERY", font(F_TECH, 38), MUTED, 12, "ct")
+ar_text(dr, W // 2, 1760, "النوخذة، النظام الموحد", 50, TINT, "mt")
+ls_text(dr, W // 2, 1880, "SAFI  ·  XBRL  ·  DELIVERY", font(F_TECH, 38), MUTED, 12, "ct")
 dr.line([260, 2270, W - 260, 2270], fill=BORDER, width=2)
-ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP — OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
+ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP · OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
 ls_text(dr, W - 260, 2320, "12 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
 pages.append(im)
 
@@ -92,15 +100,15 @@ im, dr = new_page()
 ls_text(dr, 260, 240, "CONTENTS", font(F_DISP, 132), INK_TEXT, 22)
 dr.line([260, 470, W - 260, 470], fill=BORDER, width=3)
 rows = [
-    ("01", "Almuhallab Code", "المهلب كود", "The company — services, work, contact"),
-    ("02", "Al-Nokhatha — Portal", "النوخذة", "The system inside: hero, units, install"),
-    ("03", "Plans", "الاشتراكات", "Free — one plan, every unit open, nothing to upgrade to"),
+    ("01", "Almuhallab Code", "المهلب كود", "The company: services, work, contact"),
+    ("02", "The System Portal", "النوخذة", "The system inside: hero, units, install"),
+    ("03", "Plans", "الاشتراكات", "Free: one plan, every unit open, nothing to upgrade to"),
     ("04", "Registration", "إنشاء حساب", "PBKDF2-hashed credentials, validated"),
     ("05", "Dashboard", "لوحة التحكم", "Account, plan badge, unit access"),
     ("06", "SAFI", "صافي", "Portfolio, market value, profit and loss"),
     ("07", "XBRL", "الميزانية السنوية", "Kuwait annual filing: computed, audited, IFRS-tagged"),
     ("08", "Delivery", "التوصيل", "Orders, couriers, status pipeline"),
-    ("09", "Unified Position", "المركز المالي", "One core — portfolio and orders feed the filing"),
+    ("09", "Unified Position", "المركز المالي", "One core: portfolio and orders feed the filing"),
     ("10", "Mobile", "الجوال", "Installed app, three screens"),
     ("11", "Specification", "المواصفات", "Stack, security, deployment"),
 ]
@@ -118,12 +126,12 @@ pages.append(im)
 # ------------------------------------------------------------------ PLATES
 plates = [
     ("01-company",  "01", "Almuhallab Code", "المهلب كود", "/"),
-    ("02-landing",  "02", "النوخذة — Portal", "النوخذة", "/nokhatha"),
+    ("02-landing",  "02", "The System Portal", "النوخذة", "/nokhatha"),
     ("03-pricing",  "03", "Plans", "الاشتراكات", "/nokhatha#/pricing"),
     ("04-register", "04", "Registration", "إنشاء حساب", "/nokhatha#/register"),
     ("05-dashboard","05", "Dashboard", "لوحة التحكم", "/nokhatha#/dashboard"),
-    ("06-safi",     "06", "SAFI — Portfolio", "صافي", "/nizam#/safi"),
-    ("07-xbrl",     "07", "XBRL — Annual Filing", "الميزانية السنوية", "/nizam#/xbrl"),
+    ("06-safi",     "06", "SAFI Portfolio", "صافي", "/nizam#/safi"),
+    ("07-xbrl",     "07", "XBRL Annual Filing", "الميزانية السنوية", "/nizam#/xbrl"),
     ("08-delivery", "08", "Delivery", "التوصيل", "/nizam#/delivery"),
     ("09-position", "09", "Unified Position", "المركز المالي", "/nizam#/position"),
 ]
@@ -147,12 +155,12 @@ for fn, num, title, ar, url in plates:
 
     dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
     ls_text(dr, 250, H - 132, url, furl, MUTED, 2)
-    ls_text(dr, W - 250, H - 132, "NOKHATHA — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
+    ls_text(dr, W - 250, H - 132, "ALMUHALLAB CODE", font(F_MONO, 30), MUTED, 3, "rt")
     pages.append(im)
 
 # ------------------------------------------------------------------ MOBILE
 im, dr = new_page()
-ls_text(dr, 250, 150, "09", fnum_s, BRASS, 3)
+ls_text(dr, 250, 150, "10", fnum_s, BRASS, 3)
 ls_text(dr, 360, 138, "Installed on device", fttl, INK_TEXT, 5)
 ar_text(dr, W - 250, 138, "الجوال", 62, TINT, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
@@ -172,13 +180,13 @@ for i, (fn, cap) in enumerate(mobiles):
     im.paste(shot, (px, py))
     ar_text(dr, cx, py + nh + 56, cap, 52, TINT, "mt")
 dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
-ls_text(dr, 250, H - 132, "402 × 874 — ADD TO HOME SCREEN", furl, MUTED, 2)
-ls_text(dr, W - 250, H - 132, "NOKHATHA — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
+ls_text(dr, 250, H - 132, "402 × 874 · ADD TO HOME SCREEN", furl, MUTED, 2)
+ls_text(dr, W - 250, H - 132, "ALMUHALLAB CODE", font(F_MONO, 30), MUTED, 3, "rt")
 pages.append(im)
 
 # ------------------------------------------------------------------ SPEC
 im, dr = new_page()
-ls_text(dr, 250, 150, "10", fnum_s, BRASS, 3)
+ls_text(dr, 250, 150, "11", fnum_s, BRASS, 3)
 ls_text(dr, 360, 138, "Specification", fttl, INK_TEXT, 5)
 ar_text(dr, W - 250, 138, "المواصفات", 62, TINT, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
@@ -187,25 +195,24 @@ cols = [
     ("PLATFORM", [
         "HTML5 · CSS · vanilla JavaScript",
         "No framework, no build step",
-        "Progressive Web App — installable",
+        "Progressive Web App, installable",
         "Service worker precaches every page",
         "Full offline operation",
         "Arabic-first, RTL throughout",
-        "Responsive — phone to desktop",
+        "Responsive, phone to desktop",
     ]),
     ("SECURITY", [
         "PBKDF2-SHA256, 310,000 iterations",
         "16-byte random per-user salt",
         "Constant-time hash comparison",
-        "Login throttling — 5 tries, 5 min lock",
+        "Login throttling: 5 tries, 5 min lock",
         "Sessions expire after 24 hours",
         "CSP: default-src 'none'",
         "All rendered output HTML-escaped",
         "CSV formula-injection neutralised",
-        "Editor preview fully sandboxed",
     ]),
     ("DEPLOYMENT", [
-        "Static hosting — any provider",
+        "Static hosting, any provider",
         "Apache/LiteSpeed .htaccess included",
         "Forced HTTPS + HSTS",
         "Apex redirected to www",
@@ -230,7 +237,7 @@ for i, (head, items) in enumerate(cols):
 
 anchor_mark(dr, W // 2, 1900, 96, BRASS, 5)
 ar_text(dr, W // 2, 2060, "النوخذة", 64, INK_TEXT, "mt")
-ls_text(dr, W // 2, 2170, "ONE CAPTAIN — EVERY SERVICE — ONE SYSTEM",
+ls_text(dr, W // 2, 2170, "ONE CAPTAIN · EVERY SERVICE · ONE SYSTEM",
         font(F_TECH, 38), MUTED, 12, "ct")
 
 dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
