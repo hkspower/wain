@@ -77,7 +77,9 @@ renderers this repository can run: `cycles-hero.jpg`, `cycles-side.jpg`,
 `cycles-rear.jpg` from the Blender studio (`npm run max:preview --
 press/max/render/black-demon`, graded by `max:finish`), and
 `web-night-city.jpg`, `web-night-coast.jpg` from the game itself
-(`CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs`). The UE5
+(`CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs`). The Cycles turntable preview (120 frames, 540p) is not in git; it
+lives on the render board.
+The UE5
 hero should sit beside the Cycles hero with the same framing and the
 same light falling on the same panels; where it does not, the light
 scale and EV100 are the first two numbers to move.
