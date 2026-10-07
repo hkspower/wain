@@ -32,7 +32,7 @@ const note = (what) => console.log(`--   ${what}`)
 // counters at the top for the same reason; so does sandbox.sh.
 try {
   const { execFileSync } = await import('node:child_process')
-  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit'],
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit; delete from rate_bucket'],
     { stdio: 'ignore' })
 } catch { /* not the sandbox database — let a 429 speak for itself */ }
 

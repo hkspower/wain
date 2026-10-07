@@ -82,7 +82,7 @@ sql('drop table if exists home_banner_rig_backup')
 sql('create table home_banner_rig_backup as select * from home_banner')
 const sale0 = sql(`select concat_ws('|', ifnull(sale_price,'NULL'), ifnull(sale_starts_at,'NULL'), ifnull(sale_ends_at,'NULL')) from products where slug='${SLUG}'`).trim().split('\n')[1]
 sql('delete from home_banner')
-try { sql('delete from rate_limit') } catch {}
+try { sql('delete from rate_limit; delete from rate_bucket') } catch {}
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN ?? '/opt/pw-browsers/chromium' })
 const errors = []

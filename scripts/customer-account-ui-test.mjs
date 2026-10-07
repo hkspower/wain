@@ -9,7 +9,7 @@ let fails = 0
 const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${w}${d ? '   ' + d : ''}`) }
 const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-e', q], { encoding: 'utf8' }).trim()
 const EMAIL = 'ui-rig@example.com', TRACK = 'SPUIRIG0001'
-const clean = () => { sql(`delete from orders where track_id='${TRACK}'`); sql(`delete from customers where email='${EMAIL}'`); sql('delete from rate_limit') }
+const clean = () => { sql(`delete from orders where track_id='${TRACK}'`); sql(`delete from customers where email='${EMAIL}'`); sql('delete from rate_limit; delete from rate_bucket') }
 clean()
 const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 try {

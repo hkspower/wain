@@ -36,7 +36,7 @@ const API = `${SITE}/api`
 // the rig meeting its own defence. sandbox.sh clears these counters for the
 // same reason; this clears them again so the run is not a hostage to the last.
 try {
-  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit'],
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit; delete from rate_bucket'],
     { stdio: 'ignore' })
 } catch { /* not the sandbox database — carry on and let a 429 speak for itself */ }
 
@@ -533,7 +533,7 @@ console.log('\n--- what a flood cannot do')
   // signature at all, so it is the one that can be driven to its ceiling here
   // without a hundred requests.
   execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
-    '-e', 'delete from rate_limit'], { stdio: 'ignore' })
+    '-e', 'delete from rate_limit; delete from rate_bucket'], { stdio: 'ignore' })
   const t = made.tpay.track
   let throttled = 0
   for (let i = 0; i < 34; i++) {
@@ -548,7 +548,7 @@ console.log('\n--- what a flood cannot do')
   check(after?.payment_status === 'pending',
     `and the order it was aimed at is untouched (${after?.payment_status})`)
   execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
-    '-e', 'delete from rate_limit'], { stdio: 'ignore' })
+    '-e', 'delete from rate_limit; delete from rate_bucket'], { stdio: 'ignore' })
 }
 
 skip('whether CBK accepts the merchant credentials — needs the real pay/config.php and a route to pg.cbk.com')

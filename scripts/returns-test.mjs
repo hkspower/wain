@@ -88,7 +88,7 @@ const pick = (category) => {
 // bounded per IP over ten minutes — so run twice in a row it would start
 // refusing itself and report a bug in the shop. sandbox.sh clears the order
 // counters for exactly this reason; this clears the two that are ours.
-const clearThrottle = () => sql('delete from rate_limit')
+const clearThrottle = () => sql('delete from rate_limit; delete from rate_bucket')
 
 const cleanup = () => {
   // The FK on return_requests cascades from orders, and order_items cascades

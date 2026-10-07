@@ -103,7 +103,7 @@ const PHONE = '5' + String(Date.now()).slice(-7)
 // the way sandbox.sh does, and clear the throttle the order route quite
 // correctly applies to six writes from one address.
 db('update product_variants set stock = 20 where stock < 20')
-db('delete from rate_limit')
+db('delete from rate_limit; delete from rate_bucket')
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',

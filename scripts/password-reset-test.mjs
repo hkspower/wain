@@ -22,7 +22,7 @@ const call = async (route, body, hdr = true) => {
     headers: { 'Content-Type': 'application/json', ...(hdr ? { 'X-Sporta-Admin': '1' } : {}) }, body: JSON.stringify(body) })
   return { status: r.status, j: await r.json().catch(() => null) }
 }
-const clean = () => { sql(`delete from admin_password_resets where admin_id in (select id from admin_users where email='${EMAIL}')`); sql("delete from rate_limit") }
+const clean = () => { sql(`delete from admin_password_resets where admin_id in (select id from admin_users where email='${EMAIL}')`); sql("delete from rate_limit; delete from rate_bucket") }
 const setCode = (c) => sql(`update admin_password_resets set code_hash='${hash(c)}' where admin_id=(select id from admin_users where email='${EMAIL}')`)
 const rowOf = () => sql(`select attempts from admin_password_resets where admin_id=(select id from admin_users where email='${EMAIL}')`)
 

@@ -11,7 +11,7 @@ const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome
 let fails = 0
 const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${w}${d && !ok ? '   ' + d : ''}`) }
 const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
-const clean = () => { sql("delete from orders where track_id like 'SPLIVERIG%'"); sql('delete from rate_limit') }
+const clean = () => { sql("delete from orders where track_id like 'SPLIVERIG%'"); sql('delete from rate_limit; delete from rate_bucket') }
 
 // ---- admin session (cookie jar by hand: fetch keeps none)
 let cookie = ''

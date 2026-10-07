@@ -54,7 +54,7 @@ try {
 catch (e) { cleanCerts(); console.error('sandbox database unreachable — run bash scripts/sandbox.sh'); process.exit(1) }
 sql(`delete r from wallet_registrations r join wallet_passes p on p.serial = r.serial where p.phone = '${phone}'`)
 sql(`delete from wallet_passes where phone = '${phone}'`)
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 const work = mkdtempSync(join(tmpdir(), 'wallet-web-'))
 const unzip = (file, name) => execFileSync('unzip', ['-p', file, name])
 

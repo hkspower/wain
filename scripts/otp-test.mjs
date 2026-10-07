@@ -87,7 +87,7 @@ if (!CRON_KEY) {
   process.exit(1)
 }
 reset()
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 const ID = admin()
 console.log(`admin #${ID} ${EMAIL}\n`)
 
@@ -148,7 +148,7 @@ console.log(`admin #${ID} ${EMAIL}\n`)
 // ------------------------------------------------- signing in with the factor on
 {
   jar = ''
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   const r = await call('login', { email: EMAIL, password: PASSWORD })
   check(r.status === 200 && r.body?.need_code === true,
     'the password alone no longer signs in', JSON.stringify(r.body))
@@ -187,7 +187,7 @@ console.log(`admin #${ID} ${EMAIL}\n`)
   // shoulder, or left in a mailbox somebody else can reach, is worth nothing
   // once the owner has used it.
   jar = ''
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   const KNOWN = '246813'
   await call('login', { email: EMAIL, password: PASSWORD })
   sql(`update admin_users set email_otp_hash = '${hashOf(KNOWN)}',
@@ -204,7 +204,7 @@ console.log(`admin #${ID} ${EMAIL}\n`)
 {
   // AN EXPIRED CODE IS DEAD.
   jar = ''
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   const KNOWN = '112233'
   await call('login', { email: EMAIL, password: PASSWORD })
   sql(`update admin_users set email_otp_hash = '${hashOf(KNOWN)}',
@@ -216,7 +216,7 @@ console.log(`admin #${ID} ${EMAIL}\n`)
 {
   // FIVE WRONG GUESSES DESTROY THE CODE, so one code cannot be ground down.
   jar = ''
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   const KNOWN = '778899'
   await call('login', { email: EMAIL, password: PASSWORD })
   sql(`update admin_users set email_otp_hash = '${hashOf(KNOWN)}',
@@ -233,7 +233,7 @@ console.log(`admin #${ID} ${EMAIL}\n`)
   // THE FACTOR COMES FROM THE SESSION. An account on TOTP must not be
   // switchable to the email path by a caller who holds only the password.
   jar = ''
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   // THE FIVE WRONG CODES ABOVE LOCKED THE ACCOUNT, which is the intended
   // behaviour — a wrong code counts against the same five-strike lock the
   // password uses, so guessing at codes closes the account for a quarter of an
@@ -255,6 +255,6 @@ console.log(`admin #${ID} ${EMAIL}\n`)
 }
 
 reset()
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 console.log(fails ? `\n${fails} failed` : '\nall ok — the emailed code, against the real admin.php')
 process.exit(fails ? 1 : 0)

@@ -33,7 +33,7 @@ const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 
 const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
 const md5 = (b) => createHash('md5').update(b).digest('hex')
 const keepLayout = sql("select quote(value) from settings where name = 'home_layout'") || null
-sql('delete from rate_limit'); sql('delete from site_images')
+sql('delete from rate_limit; delete from rate_bucket'); sql('delete from site_images')
 const original = readFileSync(STORE_PHP, 'utf8')
 if (process.env.MUTATE) writeFileSync(STORE_PHP, original.replace("        $h = store_internal_href($href);\n        if ($h === null) store_fail('menu_target_' . ($i + 1));", "        $h = $href;"))
 

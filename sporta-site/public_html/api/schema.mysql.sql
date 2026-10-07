@@ -313,6 +313,16 @@ create table if not exists rate_limit (
 
 create index if not exists idx_rate_limit_sweep on rate_limit (window_start);
 
+-- The token bucket that store_throttle() uses first (2026-10-07). See api/ratebucket.mysql.sql.
+create table if not exists rate_bucket (
+  bucket_key  char(32)   not null,
+  tokens      double     not null,
+  refilled_at double     not null,
+  allowed     tinyint(1) not null default 1,
+  primary key (bucket_key),
+  key idx_rate_bucket_sweep (refilled_at)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 -- ------------------------------------------------------------------ discounts
 --
 -- Two kinds in one table, because they are the same arithmetic and splitting

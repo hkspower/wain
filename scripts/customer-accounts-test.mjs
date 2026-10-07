@@ -79,7 +79,7 @@ const PW = 'a-long-enough-password'
 // which reads as a broken shop and is the rig refusing itself. returns-test
 // learned the same lesson; it is written down and was walked into anyway, by
 // a mutation run that came out inconclusive because of it.
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 sql(`delete from customers where email like 'rig-%@sporta.test'`)
 sql(`delete from orders where track_id like 'SPCUST%'`)
 

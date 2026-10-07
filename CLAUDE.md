@@ -4528,3 +4528,27 @@ test) and could not look up an order's amount, so a card or T-Pay payment would 
 `scripts/publish/fix-gateway-db.php` empties those four values (backup first, only when their own login fails) so both inherit
 `api/config.php`; the backups were deleted afterwards at the owner's request. `scripts/live/live-tpay-check.php` reports the
 gateway as checkout sees it, and `live-gateway-db-check.php` / `live-cbk-env-why.php` say why it cannot read the database.
+
+## The API's rate limiter is a token bucket — 2026-10-07
+
+"make api token bucket"; the owner chose to REPLACE the fixed-window counter. `store_throttle($db, $bucket, $max, $windowSec)`
+keeps its signature and every caller, so each number means what it meant: `$max` per `$windowSec` is now a bucket holding `$max`
+tokens that refills at `$max / $windowSec` a second (table `rate_bucket`, `api/ratebucket.mysql.sql`, in the install bundle). A
+client can burst to `$max`, then is held to the steady rate; it is never weaker than the window (a window resets all at once, so
+spending an allowance at the end of one and the start of the next gets double — a bucket has no boundary to straddle).
+
+- **One statement decides**: an upsert refills the row, records in `allowed` whether a whole token was there, and spends it only
+  if so. **It must run in a transaction** — without one, a second request overwrites `allowed` between the upsert and the read, and
+  a denied caller can leave on somebody else's token (measured: 47 granted of a bucket of 50, i.e. the decisions were swapped).
+- **It fails towards the old counter** (`store_throttle_window`, the table `rate_limit`) when `rate_bucket` is missing, so publish
+  order does not matter. That also means a BROKEN bucket hides behind the fallback and every ordinary test stays green:
+  `test:rate-bucket` asserts the fallback table was NOT touched by real traffic. A mutation test that edited the SQL in a way that
+  threw (a placeholder count off by one) passed all 19 checks until that assertion existed.
+- **The sandbox web server is single-threaded**, so a concurrent-requests test cannot race it. The race is tested with 40 parallel
+  PHP PROCESSES against one bucket of 50 (exactly 50 granted). Mutation-tested: tokens never spent (8 fail), no transaction (the
+  race test fails 3 runs of 3), no refill (4 fail).
+- **Resetting counters in rigs now takes two statements**: `delete from rate_limit; delete from rate_bucket` (38 call sites and
+  `sandbox.sh` were changed). A rig that clears only `rate_limit` meets stale buckets and a 429.
+- The OTHER counters in store.php (`login_fail`, `totp`, the geo budget, the cbk_/knet_ over-limit helpers) are keyed counters of a
+  different kind and were not touched.
+- Live: run `scripts/publish/migrate-ratebucket.php` after `publish-all.php`; until then the old limiter answers.

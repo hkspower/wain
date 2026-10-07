@@ -93,7 +93,7 @@ try {
     record(L('account sheet'), await p.evaluate(MEASURE))
     await ctx.close()
   }
-} finally { sql("delete from orders where track_id='SPCOLRIG1'"); sql('delete from rate_limit'); await b.close() }
+} finally { sql("delete from orders where track_id='SPCOLRIG1'"); sql('delete from rate_limit; delete from rate_bucket'); await b.close() }
 
 console.log(`     ${checked} runs of text measured, ${photo} over a photograph (skipped)`)
 const list = [...bad.values()].sort((a, b) => a.ratio - b.ratio)

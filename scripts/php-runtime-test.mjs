@@ -57,7 +57,7 @@ if (!check(existsSync(LOG), `the sandbox is logging to ${LOG}`,
 // Clear the counters first: several routes below are throttled, and a 429 is
 // the rig meeting its own defence rather than the code being exercised.
 try {
-  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit'],
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit; delete from rate_bucket'],
     { stdio: 'ignore' })
 } catch { /* not the sandbox database */ }
 

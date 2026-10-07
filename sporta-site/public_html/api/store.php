@@ -1803,7 +1803,74 @@ function store_slug(string $s): string {
 // It counts only FAILED lookups. A customer with a real code who re-checks
 // their basket four times is not attacking anything, and throttling them would
 // break the feature to protect it.
+// ---------------------------------------------------------------- token bucket
+//
+// THE API'S RATE LIMITER IS A TOKEN BUCKET (2026-10-07, "make api token bucket"; the owner chose to REPLACE the
+// fixed-window counter). Every caller keeps the signature it always had — store_throttle($db, $bucket, $max, $windowSec)
+// — and the numbers keep their meaning: `$max` requests per `$windowSec` becomes a bucket that holds `$max` tokens and
+// refills at `$max / $windowSec` a second. A client can burst up to `$max`, then is held to the steady rate.
+//
+// WHY THAT IS NO WEAKER than the counter it replaces: a fixed window resets all at once, so a client that spends
+// its allowance at the end of one window and again at the start of the next gets TWICE the ceiling in a moment.
+// A bucket has no boundary to straddle; the most it can ever do is `$max` plus what has refilled while it spent them.
+//
+// ONE STATEMENT DECIDES, so two concurrent requests cannot both take the last token. The upsert refills the row,
+// records in `allowed` whether a whole token was there, and spends it only if it was; the row lock is held until the
+// transaction commits, so the select that follows reads THIS request's answer and nobody else's. (Without the
+// transaction a second request could overwrite `allowed` between the upsert and the read, and a denied caller would
+// be waved through on somebody else's token.)
+//
+// FAILS TOWARDS THE OLD COUNTER: until api/ratebucket.mysql.sql has run, or if the table cannot be read, the
+// fixed-window limiter below answers instead. A limiter that threw on a missing table would turn every request into a
+// 500, and one that fell open would be no limiter — so publish order does not matter.
+function store_bucket_take(PDO $db, string $key, int $max, int $windowSec): bool {
+    $cap  = (float) max(1, $max);
+    $rate = $cap / (float) max(1, $windowSec);
+    $now  = microtime(true);
+    $own  = !$db->inTransaction();
+    if ($own) $db->beginTransaction();
+    try {
+        $db->prepare(
+            'insert into rate_bucket (bucket_key, tokens, refilled_at, allowed) values (?, ?, ?, 1)
+             on duplicate key update
+               allowed     = (least(?, tokens + greatest(0, ? - refilled_at) * ?) >= 1),
+               tokens      = least(?, tokens + greatest(0, ? - refilled_at) * ?) - allowed,
+               refilled_at = ?'
+        )->execute([$key, $cap - 1.0, $now, $cap, $now, $rate, $cap, $now, $rate, $now]);
+        $q = $db->prepare('select allowed from rate_bucket where bucket_key = ?');
+        $q->execute([$key]);
+        $ok = (int) $q->fetchColumn() === 1;
+        if ($own) $db->commit();
+    } catch (Throwable $e) {
+        if ($own && $db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    // Opportunistic sweep, ~1 request in 50. A bucket idle for a whole window has refilled to full, which is exactly
+    // what a missing row means, so it can go; the day-old sweep catches buckets nobody visits any more.
+    if (random_int(1, 50) === 1) {
+        try {
+            $db->prepare('delete from rate_bucket where bucket_key = ? and refilled_at < ?')->execute([$key, $now - $windowSec - 1]);
+            $db->prepare('delete from rate_bucket where refilled_at < ?')->execute([$now - 86400]);
+        } catch (Throwable $e) { /* the sweep is housekeeping */ }
+    }
+    return $ok;
+}
+
 function store_throttle(PDO $db, string $bucket, int $max, int $windowSec): void {
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ip === '') return;
+    $key = substr(hash('sha256', $bucket . '|' . $ip), 0, 32);
+    try {
+        $ok = store_bucket_take($db, $key, $max, $windowSec);
+    } catch (Throwable $e) {
+        store_throttle_window($db, $bucket, $max, $windowSec);   // the table is not there (yet): the old counter answers
+        return;
+    }
+    // 429 with no detail: telling a guesser how long to wait is telling it how fast to go.
+    if (!$ok) store_fail('too_many_attempts', 429);
+}
+
+function store_throttle_window(PDO $db, string $bucket, int $max, int $windowSec): void {
     $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     if ($ip === '') return;
     // The IP is HASHED. This is abuse control, not a visitor log, and a table

@@ -35,7 +35,7 @@ const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-chara
 const original = readFileSync(SEC_PHP, 'utf8')
 if (process.env.MUTATE) writeFileSync(SEC_PHP, original.replace("if ($row['revoked_at'] !== null) return false;", "/* MUTATED */"))
 const keepSec = sql("select quote(value) from settings where name = 'security'") || null
-sql('delete from rate_limit'); sql("delete from settings where name = 'security'")
+sql('delete from rate_limit; delete from rate_bucket'); sql("delete from settings where name = 'security'")
 const adminId = Number(sql(`select id from admin_users where email = '${EMAIL}'`))
 sql(`delete from admin_passkeys where admin_id = ${adminId}`)
 const hashBefore = sql(`select password_hash from admin_users where email = '${EMAIL}'`)
@@ -179,7 +179,7 @@ try {
   sql(keepSec ? `insert into settings (name, value) values ('security', ${keepSec}) on duplicate key update value = values(value)` : "delete from settings where name = 'security'")
   sql(`delete from admin_passkeys where admin_id = ${adminId}`)
   sql(`update admin_users set locked_until = null, failed_attempts = 0 where email = '${EMAIL}'`)
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   await browser.close()
 }
 console.log(fails ? `\n${fails} failed` : '\nall ok — revocable sessions, passkeys, policies, breached-password checks and a kinder login page')

@@ -36,7 +36,7 @@ const cbkCfg = () => JSON.parse(php(`$_SERVER['HTTPS']='off'; require 'cbk.php';
 const knetCfg = () => JSON.parse(php(`require '../knet/knet.php'; $c=knet_config(); echo json_encode(['mode'=>$c['mode']??'','env'=>$c['env']??'','lang'=>$c['lang_en']??'']);`))
 
 try {
-  sql("delete from rate_limit")
+  sql("delete from rate_limit; delete from rate_bucket")
   await call('login', { email: 'manager@sporta.com.kw', password: 'correct horse' })
   const fileCbk = cbkCfg(), fileKnet = knetCfg()
   sql("delete from settings where name='knet'")

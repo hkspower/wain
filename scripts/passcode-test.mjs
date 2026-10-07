@@ -37,7 +37,7 @@ class Jar {
   }
   dropSession() { for (const k of Object.keys(this.c)) if (!/sporta_dev$/.test(k)) delete this.c[k] }
 }
-const clean = () => { sql('delete from admin_devices'); sql("delete from rate_limit") }
+const clean = () => { sql('delete from admin_devices'); sql("delete from rate_limit; delete from rate_bucket") }
 clean()
 
 const a = new Jar()

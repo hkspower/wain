@@ -31,7 +31,7 @@ const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 
 const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
 const keep = Object.fromEntries(['seo', 'crawl'].map((n) => [n, sql(`select quote(value) from settings where name = '${n}'`) || null]))
 sql('create table if not exists _rig_product_seo as select * from product_seo')
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 1200 } })

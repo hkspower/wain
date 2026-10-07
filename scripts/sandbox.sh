@@ -203,7 +203,7 @@ if [ "${SANDBOX_DB_NAME:-sporta}" = "sporta" ] && [ -z "${SANDBOX_NO_RESTOCK:-}"
   # is cleared here rather than the throttle being weakened in the shop.
   if mariadb -u sporta -plocaldev sporta -e "
        update product_variants set stock = 20 where stock < 20;
-       delete from rate_limit;" 2>/dev/null; then
+       delete from rate_limit; delete from rate_bucket;" 2>/dev/null; then
     echo "ok   stock topped up to 20 a size, throttle counters cleared"
   else
     echo "--   could not restock (not fatal; rigs may hit out_of_stock or 429)"

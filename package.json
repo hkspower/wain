@@ -251,7 +251,8 @@
     "test:live-tracking": "node scripts/live-tracking-test.mjs",
     "test:checkout-pay": "node scripts/checkout-pay-test.mjs",
     "scan:panel-content": "node scripts/panel-content-scan.mjs",
-    "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs"
+    "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs",
+    "test:rate-bucket": "node scripts/rate-bucket-test.mjs"
   },
   "private": true
 }

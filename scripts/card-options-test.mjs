@@ -56,7 +56,7 @@ const check = (ok, what, extra = '') => {
 const refuse = (why) => { console.log(`REFUSED: ${why}`); process.exit(2) }
 
 // ── preflight ────────────────────────────────────────────────────────────────
-try { sql('delete from rate_limit') } catch (e) { refuse('could not clear rate_limit: ' + String(e.message || e).split('\n')[0]) }
+try { sql('delete from rate_limit; delete from rate_bucket') } catch (e) { refuse('could not clear rate_limit: ' + String(e.message || e).split('\n')[0]) }
 const rows0 = await fetch(`${BASE}/api/api.php?r=products`).then((r) => r.json()).catch(() => null)
 if (!Array.isArray(rows0) || rows0.length < 10) refuse(`?r=products returned ${Array.isArray(rows0) ? rows0.length + ' rows' : 'nothing'} at ${BASE} — is the sandbox up? (bash scripts/sandbox.sh)`)
 

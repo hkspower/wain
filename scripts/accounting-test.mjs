@@ -33,7 +33,7 @@ const req = async (route, body) => {
 
 try {
   check((await req('acc_trial_balance')).status === 401, 'a visitor cannot read the books')
-  sql('delete from rate_limit')
+  sql('delete from rate_limit; delete from rate_bucket')
   await req('login', { email: 'manager@sporta.com.kw', password: 'correct horse' })
   sql('set foreign_key_checks=0; delete from journal_lines; delete from journal_entries; set foreign_key_checks=1')
   sql("delete from settings where name = 'accounting'")

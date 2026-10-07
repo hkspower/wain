@@ -45,7 +45,7 @@ const logStart = Number(sql('select coalesce(max(id),0) from stock_log'))
 const pid = Number(sql(`select id from products where slug = '${SLUG}'`))
 const original = readFileSync(ADMIN_PHP, 'utf8')
 if (process.env.MUTATE) writeFileSync(ADMIN_PHP, original.replace("$upd->execute([(int) $l['qty'], $l['cost_aed'], $l['sku']]);", "/* MUTATED */"))
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 sql("delete from purchase_order_items where po_id in (select id from purchase_orders where note like 'rig:%')"); sql("delete from purchase_orders where note like 'rig:%'"); sql("delete from suppliers where name like 'Rig Supplier%'")
 sql("delete from order_items where order_id in (select id from orders where track_id like 'SPINVPLUS%')"); sql("delete from orders where track_id like 'SPINVPLUS%'")
 

@@ -27,7 +27,7 @@ const last = () => sql('select method, result, ip, country, coalesce(admin_id,0)
 const count = () => Number(sql('select count(*) from admin_login_log'))
 const settle = async (n) => { for (let i = 0; i < 40 && count() < n; i++) await new Promise((r) => setTimeout(r, 100)) }
 
-sql('delete from admin_login_log'); sql('delete from admin_ip_geo'); sql('delete from rate_limit')
+sql('delete from admin_login_log'); sql('delete from admin_ip_geo'); sql('delete from rate_limit; delete from rate_bucket')
 
 let n = count()
 await post('login', { email: EMAIL, password: 'wrong password 123' }); await settle(n + 1)

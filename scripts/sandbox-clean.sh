@@ -30,7 +30,7 @@ delete from return_request_items;
 delete from return_requests;
 delete from order_items;
 delete from orders;
-delete from rate_limit;
+delete from rate_limit; delete from rate_bucket;
 -- The outbox is a record that the warehouse was told about an order that no
 -- longer exists. Cron would keep retrying rows whose order is gone.
 delete from fulfilment_outbox;

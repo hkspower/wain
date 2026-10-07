@@ -66,7 +66,7 @@ const PHONE_B = '55522200'   // never ordered, will be blocked
 const FULL_A = '965' + PHONE_A
 const FULL_B = '965' + PHONE_B
 
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 sql(`delete from orders where track_id like 'SPCRM%'`)
 sql(`delete from blocked_customers where phone in ('${FULL_A}', '${FULL_B}')`)
 sql(`delete from reviews where order_id in (select id from orders where track_id like 'SPCRM%')`)

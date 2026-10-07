@@ -31,7 +31,7 @@ const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 
 const sql = (q) => execFileSync('mariadb', ['-uroot', 'sporta', '--default-character-set=utf8mb4', '-N', '--raw', '-e', q], { encoding: 'utf8' }).trim()
 const cfg = JSON.parse(execFileSync('php', ['-r', 'echo json_encode(require $argv[1]);', ROOT + 'sporta-site/public_html/api/config.php'], { encoding: 'utf8' }))
 const payCfg = JSON.parse(execFileSync('php', ['-r', 'echo json_encode((array) @include $argv[1]);', ROOT + 'sporta-site/public_html/pay/config.php'], { encoding: 'utf8' }))
-sql('delete from rate_limit')
+sql('delete from rate_limit; delete from rate_bucket')
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })

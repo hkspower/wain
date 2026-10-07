@@ -133,7 +133,7 @@ async function call(route, body) {
 try {
   // A clean starting point: no secret, not enabled.
   sql(`update admin_users set totp_secret = null, totp_enabled = 0, totp_last_step = null where id = ${ID}`)
-  sql("delete from rate_limit")
+  sql("delete from rate_limit; delete from rate_bucket")
 
   const first = await call('login', { email: EMAIL, password: PASSWORD })
   check(first.status === 200 && !first.body?.need_code, 'signed in with no factor enrolled')

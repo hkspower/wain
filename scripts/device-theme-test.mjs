@@ -46,7 +46,7 @@ async function headerVar(width) {
 
 try {
   sql(`delete from settings where name = 'theme'`)
-  sql(`delete from rate_limit`)
+  sql(`delete from rate_limit; delete from rate_bucket`)
   const p = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 160)))

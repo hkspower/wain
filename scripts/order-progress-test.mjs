@@ -20,7 +20,7 @@ const CASES = [
   ['SPOPRIG08', 'knet', 'failed', 'unfulfilled', 'failed', /did not go through/],
 ]
 const EMAIL = 'op-rig@example.com'
-const clean = () => { sql(`delete from orders where track_id like 'SPOPRIG%'`); sql(`delete from customers where email='${EMAIL}'`); sql('delete from rate_limit') }
+const clean = () => { sql(`delete from orders where track_id like 'SPOPRIG%'`); sql(`delete from customers where email='${EMAIL}'`); sql('delete from rate_limit; delete from rate_bucket') }
 clean()
 for (const [id, m, pay, ful] of CASES)
   sql(`insert into orders (track_id, amount, payment_status, payment_method, fulfilment_status, customer_name, customer_phone, created_at, paid_at, fulfilled_at) values ('${id}', 12.5, '${pay}', '${m}', '${ful}', 'Op Rig', '55512345', now() - interval 2 day, ${pay === 'paid' ? 'now() - interval 2 day' : 'null'}, ${ful === 'delivered' ? 'now()' : 'null'})`)
