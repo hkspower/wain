@@ -6571,6 +6571,7 @@ The second and third pieces of «improve hangout and orders».
 - Back end at `1c185fbfe6a3d59d` on both stages by fetch-pin-run (`saved [95537/95537]`). `selftest` 9/9, and the counts now include `shop_contacts: 0`.
 - **The first `wget` used the short sha and was deleted before it ever fired.** The `install` job then answered «Could not open input file». Use the full sha, and read the job's output before deleting it.
 - Site archive `0139ff2` (agent build), job read at its first firing: `{"deployed":278,"removed":18,"emptied":1}`.
+- After the purge, through the edge: `/privacy/` 200, `DYNAMIC`, Last-Modified 13:27:02. That is the job's second, idempotent firing, before it was deleted.
 - `deploy:verify`: «a0b99c9f is live — verified at the root and 7 levels below it» (digest `44ca6eb950981fb1`). The proof list now includes the og image, which the observed file must carry or the check fails.
 - Two per-minute jobs that are not ours were in the crontab and were left alone: `qiwunUHQ2x` (`tail url-sec.txt`) and `Hs63G7IE0n` (`publish-all.php`).
 - `admin.secret` is still EMPTY.
