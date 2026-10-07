@@ -451,7 +451,11 @@ def svg(name, shape=None, ground=None, bands=None, framing=None):
             g = f' filter="url(#{pre}-glow)"' if glow else ""
             out.append(f'  <g{g}>')
             out.append(f'    <path d="{d}" fill="{amber}"/>')
-            out.append(f'    <g clip-path="url(#{pre}-letters-{i})" fill="{dark}">')
+            # crispEdges puts every band edge on a whole device pixel: smooth
+            # edges straddled two rows each and, at 1.1 to 1.4 px a band
+            # (the compact masthead at 1x, the share card), left one band at
+            # 72% of its depth beside another at 100%
+            out.append(f'    <g class="bands" clip-path="url(#{pre}-letters-{i})" fill="{dark}" shape-rendering="crispEdges">')
             for y, h in snap_bands(stripe_bands(cap, n), top, edges, tol):
                 out.append(f'      <rect x="{_num(vb[0])}" y="{_num(y)}" width="{_num(vb[2])}" height="{_num(h)}"/>')
             out.append("    </g>")
@@ -554,7 +558,22 @@ def favicon():
     ground = (f'<rect x="{_num(vb[0])}" y="{_num(vb[1])}" width="{_num(vb[2])}" height="{_num(vb[3])}" '
               f'fill="{GROUND}"/>')
     assert ground in text
-    return text.replace(ground, ground.replace(' fill=', f' rx="{_num(vb[2] * 96 / 512)}" fill='))
+    text = text.replace(ground, ground.replace(' fill=', f' rx="{_num(vb[2] * 96 / 512)}" fill='))
+    # Up to 48px a band is under a pixel (0.31px in a 16px tab, 0.62 at 32)
+    # and five of them wash the A into a muddy brown, so the A goes solid
+    # amber there. A media query inside an SVG image measures the image
+    # itself, in CSS px: resolution queries are not honoured there (tested:
+    # max-resolution matched at 2x too), so the footer's 44px mark is solid
+    # on every screen.
+    style = ("  <style>@media (max-width: 48px) "
+             "{ .bands { display: none } }</style>")
+    return text.replace("  <defs>", style + "\n  <defs>", 1)
+
+
+# The kit's twenty bands are 1.13px at the share card's 900px: ten keep the
+# fine stripe and give each band 2.2px, snapped to the outline within one
+# of the card's pixels.
+OG_BANDS = 10
 
 
 def og(br):
@@ -563,7 +582,8 @@ def og(br):
     as on the banner. Fonts load from the site's own files."""
     from PIL import Image
     fonts = SITE / "fonts"
-    lock = svg("almuhallab-code-logo-dark")
+    vb, _ = frame("logo")
+    lock = svg("almuhallab-code-logo-dark", bands=OG_BANDS, framing=(vb, (900, round(900 * vb[3] / vb[2]))))
     lock = re.sub(r' width="\d+" height="\d+"', ' width="900" height="327"', lock, count=1)
     ar = "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E"
     html = f"""<!doctype html><html><head><meta charset="utf-8"><style>

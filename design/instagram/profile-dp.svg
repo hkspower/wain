@@ -15,7 +15,7 @@
   
   <g filter="url(#almuhallab-code-monogram-dark-glow)">
     <path d="M-377 -700H-253L3 0H-135L-192 -155H-438L-495 0H-633ZM-222 -267 -315 -533H-317L-407 -267Z" fill="#E6A95C"/>
-    <g clip-path="url(#almuhallab-code-monogram-dark-letters-0)" fill="#7f5d33">
+    <g class="bands" clip-path="url(#almuhallab-code-monogram-dark-letters-0)" fill="#7f5d33" shape-rendering="crispEdges">
       <rect x="-904.15" y="-612.5" width="1808.3" height="35"/>
       <rect x="-904.15" y="-490" width="1808.3" height="35"/>
       <rect x="-904.15" y="-367.5" width="1808.3" height="35"/>

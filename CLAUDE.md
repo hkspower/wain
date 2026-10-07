@@ -550,7 +550,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `url(#id)` takes the document's first match (every id carries the file's
   name, and `--check` fails on a shared one); stripe edges a hair off a
   flat outline edge leave a sliver (bands snap to flat edges within a
-  pixel, and the monogram's five bands keep the A's crossbar in amber).
+  pixel, and the monogram's five bands keep the A's crossbar in amber). Quality
+  pass (2026-10-07, measured at 280/220/200/168/140 px × dpr 1/2/2.625/3):
+  antialiased band edges straddled two device rows each and, at 1.1 to
+  1.4 px a band (compact masthead at 1x), left bands at 72% depth beside
+  100%; the band group is `shape-rendering="crispEdges"`, which put every
+  band at full depth with no partial rows. The favicon's bands are 0.31 px
+  in a tab, so `favicon.svg` hides them up to 48 CSS px with a media query
+  inside the SVG (an SVG image measures itself; resolution queries are not
+  honoured there, so the footer's 44px mark is solid at 2x too); `og.png`
+  draws 10 bands (`OG_BANDS`), not the kit's 20 at 1.13 px.
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,
