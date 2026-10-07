@@ -111,13 +111,33 @@ try {
   const exp = (sql(`insert into customer_login_codes (email, code_hash, expires_at) values ('${CODE_NEW}', '${codeHash(CODE_NEW, '333444')}', now() - interval 1 minute)`), await req('customer_code_verify', { email: CODE_NEW, code: '333444' }))
   check(exp.status === 401 && exp.j.error === 'code_expired', 'B: an expired code is refused', exp.j.error)
   // pre-hijack: somebody registers the victim's address with their own password
-  const sq = await req('customer_register', { email: SQUAT, password: 'squatter-pass-123' })
+  const jarSq = {}
+  const sq = await req('customer_register', { email: SQUAT, password: 'squatter-pass-123' }, jarSq)
   check(sq.status === 200, 'B: (fixture) an account registered with a password, address unproved')
   sql(`insert into customer_login_codes (email, code_hash, expires_at) values ('${SQUAT}', '${codeHash(SQUAT, '555666')}', now() + interval 10 minute)`)
   const owner = await req('customer_code_verify', { email: SQUAT, code: '555666' })
   check(owner.status === 200, 'B: the real owner proves the address with a code')
   const squatter = await req('customer_login', { email: SQUAT, password: 'squatter-pass-123' })
   check(squatter.status === 401, 'B: and the squatter\'s password no longer works', squatter.status)
+  const sqMe = await req('customer_me', undefined, jarSq)
+  check(sqMe.j.customer === null, 'B: and the squatter\'s open session is ended too', JSON.stringify(sqMe.j))
+  // parallel wrong guesses cannot get more than five tries at one code
+  sql(`insert into customer_login_codes (email, code_hash, expires_at) values ('${CODE_NEW}', '${codeHash(CODE_NEW, '777888')}', now() + interval 10 minute)`)
+  sql('delete from rate_limit; delete from rate_bucket')
+  await Promise.all(Array.from({ length: 12 }, () => req('customer_code_verify', { email: CODE_NEW, code: '000001' })))
+  check(Number(sql(`select max(attempts) from customer_login_codes where email = '${CODE_NEW}'`)) <= 5, 'B: twelve parallel wrong guesses count at most five tries',
+    sql(`select max(attempts) from customer_login_codes where email = '${CODE_NEW}'`))
+  // daily cap: twenty wrong tries across codes close code sign-in for the address
+  sql(`update customer_login_codes set attempts = 20 where email = '${CODE_NEW}'`)
+  sql(`insert into customer_login_codes (email, code_hash, expires_at) values ('${CODE_NEW}', '${codeHash(CODE_NEW, '121212')}', now() + interval 10 minute)`)
+  const capped = await req('customer_code_verify', { email: CODE_NEW, code: '121212' })
+  check(capped.status === 401, 'B: after twenty wrong tries in a day even the right code is refused', capped.j.error)
+  // login CSRF: a cross-site text/plain post, or a foreign Origin, is refused
+  sql('delete from rate_limit; delete from rate_bucket')
+  const plain = await fetch(API + 'customer_login', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ email: SQUAT, password: 'x'.repeat(12) }) })
+  check(plain.status === 403, 'B: a text/plain post (a cross-site form) is refused before sign-in', plain.status)
+  const foreign = await fetch(API + 'customer_code_verify', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: '{}' })
+  check(foreign.status === 403, 'B: a post from another site\'s Origin is refused', foreign.status)
 
   // ------------------------------------------------------------------ E (remember)
   sql('delete from rate_limit; delete from rate_bucket')
@@ -198,10 +218,17 @@ try {
   check(start.status === 302 && loc.host === 'accounts.google.com' && loc.searchParams.get('client_id') === CLIENT
     && loc.searchParams.get('response_mode') === 'form_post' && loc.searchParams.get('redirect_uri') === `${BASE}/api/customer-google.php`,
     'D: start goes to Google with this shop\'s client and its own address to come back to', `${start.status} ${loc.host}`)
-  check(!(start.headers.getSetCookie?.() || []).length, 'D: and sets no cookie on the way out')
   const nonce = loc.searchParams.get('nonce'), state = loc.searchParams.get('state')
-  const post = (fields) => fetch(`${BASE}/api/customer-google.php`, { method: 'POST', redirect: 'manual',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields).toString() })
+  const bindOf = (r) => ((r.headers.getSetCookie?.() || []).find((c) => /sporta_gstate=[^;]/.test(c)) || '').split(';')[0]
+  const bind = bindOf(start)
+  check(/sporta_gstate=[0-9a-f]{64}$/.test(bind), 'D: start binds the trip to this browser with a short-lived cookie', bind.slice(0, 40))
+  const post = (fields, cookie = bind) => fetch(`${BASE}/api/customer-google.php`, { method: 'POST', redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(cookie ? { Cookie: cookie } : {}) }, body: new URLSearchParams(fields).toString() })
+  const csrf = await post({ id_token: mint({ nonce }), state }, '')
+  check(/signin=failed/.test(csrf.headers.get('location') || ''), 'D: a valid token and state posted from a browser that did not start the trip go back failed (login CSRF)', csrf.headers.get('location'))
+  const other2 = await fetch(`${BASE}/api/customer-google.php?return=/`, { redirect: 'manual' })
+  const csrf2 = await post({ id_token: mint({ nonce }), state }, bindOf(other2))
+  check(/signin=failed/.test(csrf2.headers.get('location') || ''), 'D: and so does one carrying another trip\'s cookie', csrf2.headers.get('location'))
   const bad1 = await post({ id_token: mint({ nonce: 'someone-elses' }), state })
   check(bad1.status === 303 && /signin=failed/.test(bad1.headers.get('location')), 'D: a token with another visit\'s nonce goes back failed', bad1.headers.get('location'))
   const bad2 = await post({ id_token: mint({ nonce }), state: state.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')) })
@@ -217,7 +244,7 @@ try {
   check(meD.j.customer && meD.j.customer.email === G && meD.j.customer.name === 'Fast Google', 'D: as the Google address, with its name', JSON.stringify(meD.j.customer || {}))
   const evil = await fetch(`${BASE}/api/customer-google.php?return=${encodeURIComponent('//evil.example/x')}`, { redirect: 'manual' })
   const st2 = new URL(evil.headers.get('location')).searchParams.get('state')
-  const ev = await post({ id_token: mint({ nonce: new URL(evil.headers.get('location')).searchParams.get('nonce') }), state: st2 })
+  const ev = await post({ id_token: mint({ nonce: new URL(evil.headers.get('location')).searchParams.get('nonce') }), state: st2 }, bindOf(evil))
   check(ev.headers.get('location') === '/?signin=google', 'D: a return address on another host is replaced by the home page', ev.headers.get('location'))
 
   // ------------------------------------------------------------------ F (sheet)

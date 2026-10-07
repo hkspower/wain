@@ -59,9 +59,27 @@ function customer_id(): ?int
         store_session_end();
         return null;
     }
+    // THE ACCOUNT'S KEY MUST STILL BE THE ONE SIGNED IN WITH. When the real owner proves an
+    // address, customer_verified_account() replaces an unverified account's password — and a
+    // squatter who was already signed in must lose that session too, not keep it for 90 days.
+    try {
+        $q = store_db()->prepare('select password_hash from customers where id = ? limit 1');
+        $q->execute([$id]);
+        $h = $q->fetchColumn();
+    } catch (Throwable $e) { $h = null; }
+    // A session signed in before this check existed carries no key: it adopts the current one once,
+    // rather than signing every existing customer out.
+    if (is_string($h) && !isset($_SESSION['customer_key'])) $_SESSION['customer_key'] = customer_key($h);
+    if ($h === false || ($h !== null && !hash_equals((string) ($_SESSION['customer_key'] ?? ''), customer_key((string) $h)))) {
+        store_session_end();
+        return null;
+    }
     $_SESSION['customer_seen'] = $now;
     return $id;
 }
+
+/** A short fingerprint of the account's password hash: changes whenever the password is replaced. */
+function customer_key(string $hash): string { return substr(hash('sha256', 'customer-key|' . $hash), 0, 32); }
 
 /**
  * Sign $id in, rotating the session id.
@@ -84,6 +102,9 @@ function customer_grant(int $id, bool $remember = true): void
     $_SESSION['customer_seen']  = time();
     $_SESSION['customer_since'] = time();
     $_SESSION['customer_short'] = $remember ? 0 : 1;
+    $q = store_db()->prepare('select password_hash from customers where id = ? limit 1');
+    $q->execute([$id]);
+    $_SESSION['customer_key'] = customer_key((string) $q->fetchColumn());
 }
 
 /** An email, normalised, or null if it is not one. */
@@ -321,11 +342,19 @@ function customer_code_verify(PDO $db, array $in): array
         $q->execute([$email]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) { return ['error' => 'code_not_available']; }
-    if (!$row || (int) $row['attempts'] >= 5) return ['error' => 'code_expired'];
-    if (!hash_equals((string) $row['code_hash'], customer_code_hash($email, $code))) {
-        $db->prepare('update customer_login_codes set attempts = attempts + 1 where id = ?')->execute([(int) $row['id']]);
-        return ['error' => 'bad_code'];
-    }
+    if (!$row) return ['error' => 'code_expired'];
+    // A DAILY CAP PER ADDRESS across every code: five tries a code and three codes every fifteen
+    // minutes would otherwise allow ~1,400 guesses a day at one account. Twenty wrong in a day
+    // closes code sign-in for that address until the day has passed.
+    $f = $db->prepare('select coalesce(sum(attempts), 0) from customer_login_codes where email = ? and created_at > now() - interval 1 day');
+    $f->execute([$email]);
+    if ((int) $f->fetchColumn() >= 20) return ['error' => 'code_expired'];
+    // The try is COUNTED FIRST, and only while under five, in one statement: parallel requests
+    // cannot each read "4 tries" and all get a guess.
+    $t = $db->prepare('update customer_login_codes set attempts = attempts + 1 where id = ? and attempts < 5 and used_at is null');
+    $t->execute([(int) $row['id']]);
+    if ($t->rowCount() !== 1) return ['error' => 'code_expired'];
+    if (!hash_equals((string) $row['code_hash'], customer_code_hash($email, $code))) return ['error' => 'bad_code'];
     // Spent BEFORE the account is opened, and only if still unspent: two requests racing with the
     // same code cannot both use it.
     $u = $db->prepare('update customer_login_codes set used_at = now() where id = ? and used_at is null');
@@ -404,6 +433,8 @@ function customer_passkey_register(PDO $db, int $id, array $b): array
     if (!$credId || !is_array($cose) || strlen($credId) > 400) store_fail('passkey_bad_attestation');
     $pem = sec_cose_to_pem($cose);
     if ($pem === null) store_fail('passkey_unsupported_key');
+    $n = $db->prepare('select count(*) from customer_passkeys where customer_id = ?'); $n->execute([$id]);
+    if ((int) $n->fetchColumn() >= 10) store_fail('passkey_limit', 409);
     $label = mb_substr(trim((string) ($b['label'] ?? '')), 0, 60);
     $transports = implode(',', array_slice(array_filter(array_map('strval', is_array($resp['transports'] ?? null) ? $resp['transports'] : [])), 0, 4));
     try {

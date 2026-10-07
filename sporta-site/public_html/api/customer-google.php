@@ -24,6 +24,15 @@ function cg_back(string $path, string $flag): void
     exit;
 }
 
+function cg_bind_cookie(string $v, int $life): void
+{
+    $https = store_is_https();
+    setcookie($https ? '__Host-sporta_gstate' : 'sporta_gstate', $v, [
+        'expires' => $life > 0 ? time() + $life : time() - 3600, 'path' => '/', 'secure' => $https,
+        'httponly' => true, 'samesite' => $https ? 'None' : 'Lax',
+    ]);
+}
+
 $client = customer_google_client($db);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -31,6 +40,12 @@ if ($method === 'GET') {
     $return = customer_return_path((string) ($_GET['return'] ?? '/'));
     if ($client === '' || (string) (store_config()['cron_key'] ?? '') === '') cg_back($return, 'failed');
     $nonce = sec_b64u(random_bytes(18));
+    // BOUND TO THIS BROWSER. Without it, anyone could finish a Google sign-in with THEIR account and
+    // post the result from their own page: the victim would be signed in as the attacker and type
+    // their address into the attacker's account. The cookie holds a hash of this trip's nonce and
+    // must come back with Google's post. SameSite=None because that post is cross-site (from
+    // accounts.google.com) — Lax would not be sent. It lives ten minutes and is cleared on return.
+    cg_bind_cookie(hash('sha256', 'cg|' . $nonce), 600);
     $q = http_build_query([
         'client_id'     => $client,
         'redirect_uri'  => sec_origin() . '/api/customer-google.php',
@@ -49,7 +64,10 @@ if ($method === 'GET') {
 if ($method !== 'POST') store_fail('method_not_allowed', 405);
 
 $state = customer_google_read_state((string) ($_POST['state'] ?? ''));
+$bound = (string) ($_COOKIE[store_is_https() ? '__Host-sporta_gstate' : 'sporta_gstate'] ?? '');
+cg_bind_cookie('', 0);
 if ($state === null) cg_back('/', 'failed');
+if ($bound === '' || !hash_equals(hash('sha256', 'cg|' . (string) ($state['n'] ?? '')), $bound)) cg_back(customer_return_path((string) ($state['r'] ?? '/')), 'failed');
 $return = customer_return_path((string) ($state['r'] ?? '/'));
 if ($client === '') cg_back($return, 'failed');
 

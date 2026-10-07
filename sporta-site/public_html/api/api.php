@@ -562,6 +562,18 @@ if ($r === 'products') {
 // account is linked to orders by `customer_id` and never by phone number.
 require_once __DIR__ . '/customer.php';
 
+// SAME-ORIGIN JSON ONLY for every customer write. store_body() reads JSON whatever the
+// Content-Type says, so without this a page on ANY site could post a text/plain form (no browser
+// preflight) and sign a visitor in to the ATTACKER's account (login CSRF): whatever they then type
+// at checkout lands in an account somebody else can read. A JSON content type forces a preflight
+// cross-site, and a stated Origin must be this shop.
+if (strpos($r, 'customer_') === 0 && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $ct = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+    $or = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+    $self = (store_is_https() ? 'https://' : 'http://') . strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if (strpos($ct, 'application/json') !== 0 || ($or !== '' && strtolower($or) !== $self)) store_fail('cross_site_refused', 403);
+}
+
 if ($r === 'customer_register' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $out = customer_register($db, $b = store_body());
     if (isset($out['error'])) store_fail($out['error'], $out['error'] === 'email_taken' ? 409 : 400);
