@@ -1528,6 +1528,69 @@ Also seen: the harness's assembled turn text splits Arabic words («الق
 1 October are clean, so it is read as a harness artefact, not a model
 defect — unverified.
 
+## «Update شوق with ElevenLabs» — 7 October: widget 0.19.0, and a prompt rewritten in the dashboard
+
+Asked again, the same words as 2 October. **Read the live agent before planning
+anything** paid off a second time: it was not the agent this file describes.
+
+**The widget is `0.19.0` now** (npm's latest; was 0.18.3), pinned exactly,
+`widget-src.g.ts` regenerated (`convai-0.19.0-bed4a1281647af42.js`).
+`audit:shouq-call` is green and `test:widget-csp` is **6 of 6 with zero CSP
+violations** on an agent build, so audio still leaves the page under the shipped
+policy. `@elevenlabs/client` 1.27.0 stays out (the 148KB reason is unchanged) and
+`elevenlabs_agents` 0.6.1 is still pub.dev's latest. **In the repository, not on
+the site**: production is a free build and ships no widget, so only the next
+staging deploy carries it. Not measured: a real call on the new bundle.
+
+**What happened to the agent on 6 October, 10:21 to 11:14 UTC.** About fifteen commits
+through the dashboard's own assistant, none through a test cycle: Kuwaiti
+vocabulary and phrasing, a restaurant background sound (0.01), the phone audio
+filter, turn eagerness and soft-timeout fillers, a long ASR keyword list on
+`scribe_realtime`, the LLM switched to `gemini-3.5-flash` at temperature 0.32
+(the version before it was `claude-opus-5-5` at 0; this file's «gemini-3.8-flash»
+is out of date), TTS speed 1.02 (the clip table says 1.06, the drift
+`docs/voice.md` already names), a new first message, and a **Sabah Al-Salem**
+section. Live is `agtvrsn_9001m48eqdd7fef8fykqqtrpqtx9`. The version before the
+session is `agtvrsn_1701m48bqsz4efwadjb8eabgawwt`, and it still holds the tuned
+prompt.
+
+**The prompt was replaced, not edited.** The tuned ~27K-character prompt
+recorded in this file became ~5K of generic «Personality /
+Environment / Tone». Gone: the summer override and its word bans, the area and
+mobility selection ladder, the four call habits (read-back, say what changed,
+**the closing question before a tool call**, one question), the tool-result rules,
+«حدودك» (no invented place, no invented brand inside a place), the four facts for
+a shop owner, and the order and queue lines. The Sabah Al-Salem section talks
+about «تجمعات» of cafés that are not in the knowledge base, which is the
+invention «حدودك» existed to stop. The «not defined on client» tool errors in the
+three real calls of that day are not defects: they came from the dashboard's own
+test widget (`react_sdk`), which has no `show_places` or `open_place`.
+
+**Measured: 18 of 25** (`suite_7601m4a77cwcemxrbh9a941tx4qz`, one repeat, 4,370
+credits), against 45 to 49 of 50 on every earlier version. All 22 answers that
+came back were `gemini-3.5-flash`; the backup never answered. Of the 7 failures,
+**six are the same shape — the turn ends at a tool call with no spoken line before
+it** (`ذكاء ١`, `ذكاء ٣`, `منطق ٢`, `منطق ٦`, both `شكل`), which is exactly the
+rule the rewrite deleted; the seventh is the shop-owner call, which promised to
+submit the registration and named none of the four facts. Read it as a score
+with the usual ±3 and one repeat's noise, and read the three «unknown» ones as a
+missing reply rather than a wrong one — the cause is still legible in all seven.
+
+**Nothing was changed on the agent**, and `scripts/wain-ai-brief.mjs` was not
+synced to the live prompt, because that would copy a regression into the
+repository. The site and the apps are free builds, so no visitor reaches this
+agent; only staging and the dashboard do. What is left is the owner's decision:
+restore the prompt from `agtvrsn_1701…` (keeping the voice, ASR and turn settings
+from the session), or keep the rewrite and put the tool-call and registration
+rules back. **A restore is a dashboard action here**: there is no restore-version
+call, and a branch forked from 1701 would not bring the prompt back through a
+merge, since a three-way merge keeps main's own change to it.
+
+**The lesson is the same one this file keeps recording from the other side:** a
+prompt edit made in the dashboard is a prompt edit with no test cycle. Run the 25
+after any dashboard session, and read `charging.llm_usage` for the model that
+answered before trusting the number.
+
 ## شوق, the ElevenLabs agent
 
 Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 25 attached tests; run them after

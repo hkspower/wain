@@ -106,7 +106,7 @@
   "devDependencies": {
     "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "8.5.2",
-    "@elevenlabs/convai-widget-embed": "0.18.3",
+    "@elevenlabs/convai-widget-embed": "0.19.0",
     "@eslint/eslintrc": "^3.3.6",
     "@eslint/js": "^9.39.5",
     "@tailwindcss/postcss": "^4.1.8",
