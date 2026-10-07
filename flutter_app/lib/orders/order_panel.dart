@@ -388,11 +388,11 @@ class _OrderPanelState extends State<OrderPanel> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(WainRadius.xl),
-        borderSide: const BorderSide(color: WainColors.line),
+        borderSide: const BorderSide(color: WainColors.lineControl),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(WainRadius.xl),
-        borderSide: const BorderSide(color: WainColors.line),
+        borderSide: const BorderSide(color: WainColors.lineControl),
       ),
     ),
   );
@@ -705,7 +705,7 @@ class _OrderPanelState extends State<OrderPanel> {
                   },
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 48),
-                    side: const BorderSide(color: WainColors.line),
+                    side: const BorderSide(color: WainColors.lineControl),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(WainRadius.xl),
                     ),

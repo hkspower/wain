@@ -106,11 +106,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(WainRadius.s2xl),
-                      borderSide: const BorderSide(color: WainColors.line),
+                      borderSide: const BorderSide(
+                        color: WainColors.lineControl,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(WainRadius.s2xl),
-                      borderSide: const BorderSide(color: WainColors.line),
+                      borderSide: const BorderSide(
+                        color: WainColors.lineControl,
+                      ),
                     ),
                   ),
                 ),

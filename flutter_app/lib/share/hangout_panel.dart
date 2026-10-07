@@ -504,7 +504,7 @@ class _ShareHangoutState extends State<ShareHangout> {
               },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 44),
-                side: const BorderSide(color: WainColors.line),
+                side: const BorderSide(color: WainColors.lineControl),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(WainRadius.xl),
                 ),
@@ -657,7 +657,7 @@ class _Chip extends StatelessWidget {
             shape: StadiumBorder(
               side: active
                   ? BorderSide.none
-                  : const BorderSide(color: WainColors.line),
+                  : const BorderSide(color: WainColors.lineControl),
             ),
             child: InkWell(
               customBorder: const StadiumBorder(),

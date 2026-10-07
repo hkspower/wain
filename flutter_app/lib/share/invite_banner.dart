@@ -199,7 +199,7 @@ class _InviteBannerState extends State<InviteBanner> {
                     ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(0, 44),
-                      side: const BorderSide(color: WainColors.line),
+                      side: const BorderSide(color: WainColors.lineControl),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(WainRadius.s2xl),
                       ),
@@ -225,7 +225,12 @@ class _InviteBannerState extends State<InviteBanner> {
                     when: widget.when,
                     day: widget.day,
                     phrase: phrase,
-                    url: inviteUrl(place, widget.when, kInviteOrigin, widget.day),
+                    url: inviteUrl(
+                      place,
+                      widget.when,
+                      kInviteOrigin,
+                      widget.day,
+                    ),
                     mapsUrl: mapsUrl(place),
                     clock: widget.clock,
                   ),

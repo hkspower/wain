@@ -67,7 +67,7 @@ class AddToCalendar extends StatelessWidget {
           },
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 48),
-            side: const BorderSide(color: WainColors.line),
+            side: const BorderSide(color: WainColors.lineControl),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(WainRadius.s2xl),
             ),

@@ -301,7 +301,7 @@ class _PausePill extends StatelessWidget {
       child: DecoratedBox(
         decoration: const ShapeDecoration(
           color: Colors.white,
-          shape: StadiumBorder(side: BorderSide(color: WainColors.line)),
+          shape: StadiumBorder(side: BorderSide(color: WainColors.lineControl)),
           shadows: WainShadows.sm,
         ),
         child: Material(
