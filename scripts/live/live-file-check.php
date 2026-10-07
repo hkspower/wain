@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => '5b52177e996f595e058be5b9d1eb1cfc054f1d7abddfc93a9811943a04529a84',
+    '.htaccess' => 'd7625c8cf576f9a9b7c0cac11cbef0a39b8e5d28f4072ff9722149a6866d67f7',
     'admin.webmanifest' => '2a36ff5a76af4f6e43877dad32f0a1ea3edc3b7afb8d3a5c06ef0897a979ca94',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
@@ -163,6 +163,7 @@ $WANT = [
     'assets/category-topbar.js' => '42fe8ed1f4a2fd767610bbca757d03bdbfbe5feea9cd77ccf8f23345bd4b51bd',
     'assets/checkout-CJW4l7Oz.js' => '77a829178518d422c4c4d9252e8cdae9e97739ac92156fce6dc2370f82f8c6f7',
     'assets/checkout-fields.js' => '8e8a1b13c731b5458ecc1e7f5617f73671641c87e3fd21a937a4ca082d7c0b11',
+    'assets/checkout-pay.js' => '74a30f2bd273b1ee5fe0a807e7829f06d962392d63bf155a1e6e067954247691',
     'assets/checkout-speed.js' => 'bc24aac476c329229ed86526f715ab6cfb330ccf4a42e7cf51fae54a54ca5012',
     'assets/checkout-tap-targets.js' => 'f84c5b331be1dd1226d906dcc8823d590e97558ac47b4b55c0fe414a65c907b2',
     'assets/contact-emails.js' => '891af6643d1346da3162448bea85885e4ef6e21f0a803df87e64d565a8e811d7',
@@ -252,7 +253,7 @@ $WANT = [
     'assets/sporta-dark.css' => '7b9445725c3d0c8a3e01720914dc10d39b503248c598510b135043fbce0b9a7f',
     'assets/sporta-desktop.css' => 'b348262a6bdeefaebbaa56ae5b3c0b026cb0a5a9cffea03c3103d3e737766781',
     'assets/sporta-mobile.css' => '8db1c3db5b6c8240b636db8d4457423049cf5c7297ef5eda4cb2afdb973cc82f',
-    'assets/sporta-ui.css' => '3a4b00245cbd104aaa3e1145eb06bfc033bc0770dfdeb79891b1b53f815a5620',
+    'assets/sporta-ui.css' => '8744260e9011dc96eef128e24996573be5e4c94acc8235354a135a84a1be9612',
     'assets/theme-colors.js' => 'ed913d1b97ccbef2f52c3f24ffe8fbeac31142894173a274014d4d1327d37811',
     'assets/theme.js' => 'cf0044660306b1eedd3c830ed9ec432a7400d15e27aabdd3ce57d435b7c60403',
     'assets/tile-art.js' => '30ca13b0aff1ccf8a91b4629b1e93484d5469dfcfec884da8d0b37cdd591ac2c',
@@ -338,7 +339,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => '95b81608744f74e19a67653b9c11e62641bb07287179c7bc7a8a883868d95456',
+    'index.html' => 'c0a466b1fd0f7259ed4138a8199b0262b48b8c2828bab7a4baad0169bb2f4a24',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => 'b97c587a569e9849b25aba4bf7dce88dcd5c7151d40c095b5ab2b48e0a81e62b',
     'knet/config.example.php' => 'b13cecaa5998ee52d5de1b11f272ac011eb2320f38494460da25e1455538ad09',
@@ -363,7 +364,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '85d7cccb5f606fe70e1fcd9ba74bf783c83f0279153311b2553d757509f14971',
+    'sw.js' => 'd0040b0402deb13658aca5dc3e14cd33cf98309855973b8371bba5a992f0a523',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
