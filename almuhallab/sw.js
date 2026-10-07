@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v47";   /* v47: top bar spacing: balanced, on-scale, 16px phone gutter */
+var CACHE = "nokhatha-v48";   /* v48: top bar logo: whole-pixel cap, 1px rules, scaled glow, crisp anchor */
 var ASSETS = [
   "./",
   "index.html",

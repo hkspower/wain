@@ -172,6 +172,13 @@
     /* the page's one focal glow: the logo's halo, amber at .32, sigma .19 of the mark */
     .brand .logo svg { filter: drop-shadow(0 0 4px rgba(230, 169, 92, .32)); }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
+    /* the brand's text block is a whole 40px, so the tile centred beside it
+       and the anchor inside it start on whole pixels: at 40.48 the tile sat
+       at y 13.44 and every stroke of the anchor was resampled */
+    /* the bar's control row is 44.9px, so a brand centred in it sat at
+       y 10.44: start it 2px down instead (the row's own 2.44, floored) */
+    @media (min-width: 641px) { header .brand { align-self: flex-start; margin-top: 2px; } }
+    .brand > div { height: 40px; display: flex; flex-direction: column; justify-content: center; }
     .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); line-height: var(--lh-ui); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 14px; line-height: var(--lh-ui); font-weight: 600; padding: 12px 16px;
@@ -573,7 +580,7 @@
   <div class="topbar">
     <header>
       <div class="brand">
-        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:24px;height:24px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 11h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
         <div><h1>النظام الموحد</h1><small>النوخذة: صافي · XBRL · التوصيل</small></div>
       </div>
       <nav class="site">

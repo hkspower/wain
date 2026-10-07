@@ -401,7 +401,7 @@ def frame(shape):
     return (l - PAD, (t + b) / 2 - vh / 2, vw, vh), (PNG_W, px_h)
 
 
-def svg(name, shape=None, ground=None, bands=None, framing=None):
+def svg(name, shape=None, ground=None, bands=None, framing=None, hairline=False):
     if shape is None:
         shape, ground = FILES[name]
     bg, amber, code_ink, tag_ink, glow = GROUNDS[ground]
@@ -423,7 +423,16 @@ def svg(name, shape=None, ground=None, bands=None, framing=None):
     for i, (kind, d, *rest) in enumerate(shapes):
         if kind == "striped":
             out.append(f'    <clipPath id="{pre}-letters-{i}"><path d="{d}"/></clipPath>')
-    if any(k in ("rule_l", "rule_r") for k, *_ in shapes):
+    if hairline:
+        # the masthead's rules: a gradient in user space (a zero-height line
+        # has no bounding box to stretch an objectBoundingBox gradient over)
+        for k, (x, y, w, h) in ((k, d) for k, d, *_ in shapes if k in ("rule_l", "rule_r")):
+            a, b = ("0", "0.55") if k == "rule_l" else ("0.55", "0")
+            out.append(f'    <linearGradient id="{pre}-fade-{k[-1]}" gradientUnits="userSpaceOnUse" '
+                       f'x1="{_num(x)}" x2="{_num(x + w)}" y1="0" y2="0">'
+                       f'<stop offset="0" stop-color="{amber}" stop-opacity="{a}"/>'
+                       f'<stop offset="1" stop-color="{amber}" stop-opacity="{b}"/></linearGradient>')
+    elif any(k in ("rule_l", "rule_r") for k, *_ in shapes):
         out += [f'    <linearGradient id="{pre}-fade-l" x1="0" x2="1" y1="0" y2="0">'
                 f'<stop offset="0" stop-color="{amber}" stop-opacity="0"/>'
                 f'<stop offset="1" stop-color="{amber}" stop-opacity="0.55"/></linearGradient>',
@@ -464,8 +473,16 @@ def svg(name, shape=None, ground=None, bands=None, framing=None):
             out.append(f'  <path d="{d}" fill="{code_ink}"/>')
         elif kind in ("rule_l", "rule_r"):
             x, y, w, h = d
-            out.append(f'  <rect x="{_num(x)}" y="{_num(y)}" width="{_num(w)}" height="{_num(h)}" '
-                       f'fill="url(#{pre}-fade-{kind[-1]})"/>')
+            if hairline:
+                # one CSS pixel at every masthead width, on a whole device row:
+                # the kit's 2-unit rule was 0.4px at 280 and 0.2px compact,
+                # painted as a grey smear a third of the amber's strength
+                out.append(f'  <line x1="{_num(x)}" x2="{_num(x + w)}" y1="{_num(y + h / 2)}" y2="{_num(y + h / 2)}" '
+                           f'stroke="url(#{pre}-fade-{kind[-1]})" stroke-width="1" '
+                           f'vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/>')
+            else:
+                out.append(f'  <rect x="{_num(x)}" y="{_num(y)}" width="{_num(w)}" height="{_num(h)}" '
+                           f'fill="url(#{pre}-fade-{kind[-1]})"/>')
         elif kind == "prompt":
             out.append(f'  <path d="{d}" fill="{amber}"/>')
         elif kind == "tag":
@@ -522,18 +539,27 @@ SITE = HERE.parent.parent / "almuhallab"
 # units tall. Each dark band is 2.3px at the top of the bar, 1.4px compact.
 MAST_BANDS = 3
 MAST_PX = 280
+MAST_CAP = 30      # the cap in px at 280: a multiple of 10, whole at x .6 and x .5 too
 MAST_OPEN = "<!-- logo-en:masthead · written by design/logo-en/build.py, do not edit by hand -->"
 MAST_CLOSE = "<!-- /logo-en:masthead -->"
 
 
 def masthead():
     _, (l, t, r, b), _ = geometry("wordmark", MAST_BANDS)
-    m = 4
-    vb = (l - m, t - m, r - l + 2 * m, b - t + 2 * m)
+    # The box is framed for whole pixels, not for the ink (topbar pass,
+    # 2026-10-07): the cap line sits ON the box's top edge, and the scale
+    # puts the cap at exactly MAST_CAP px at 280, so at 280, 168 (x .6) and
+    # 140 (x .5) the cap is 30, 18 and 15 px and both its top and the
+    # baseline fall on whole device rows at every dpr. The old frame (ink
+    # plus 4 units) gave a 29.39px cap starting 0.79px into the box, so every
+    # letter's top and foot was a half-tone row. The ink runs 1.4% wider
+    # than the box, inside the drop-shadow's own overflow.
+    vw = WORD.cap * MAST_PX / MAST_CAP
+    vb = ((l + r) / 2 - vw / 2, t, vw, b - t + 4)
     # the snap tolerance is one DEVICE pixel at 2x (the SVG's own size is
     # stripped for the inline copy, so this size serves the tolerance only)
     px = (MAST_PX * 2, round(MAST_PX * 2 * vb[3] / vb[2]))
-    text = svg("site-mast", shape="wordmark", ground="for-dark", bands=MAST_BANDS, framing=(vb, px))
+    text = svg("site-mast", shape="wordmark", ground="for-dark", bands=MAST_BANDS, framing=(vb, px), hairline=True)
     lines = text.splitlines()
     lines[0] = re.sub(r' width="\d+" height="\d+" role="img" aria-label="Almuhallab Code">',
                       ' class="logo" role="img" aria-label="المهلب كود · Almuhallab Code" focusable="false">', lines[0])

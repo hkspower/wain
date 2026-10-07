@@ -580,7 +580,22 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   in a tab, so `favicon.svg` hides them up to 48 CSS px with a media query
   inside the SVG (an SVG image measures itself; resolution queries are not
   honoured there, so the footer's 44px mark is solid at 2x too); `og.png`
-  draws 10 bands (`OG_BANDS`), not the kit's 20 at 1.13 px.
+  draws 10 bands (`OG_BANDS`), not the kit's 20 at 1.13 px. Top-bar pass (owner's «improve logo quality at topbar», 2026-10-07, crops
+  4-8x at 1440/1024/768/390/320/844x390, top and scrolled, dpr 1/2/2.625/3,
+  in `design/out/topbar-logo/`): the masthead's frame was ink plus 4 units,
+  so the cap was 29.39px and started 0.79px into the box, and every letter's
+  top and foot was a half-tone row; it is now framed for pixels, not ink:
+  the cap line is the box's top edge and `MAST_CAP = 30` sets the scale, so
+  the cap is 30 / 18 / 15 px at 280 / 168 / 140 (only a multiple of 10 is
+  whole at x.6 and x.5) and the ink runs 1.4% past the box. The kit's 2-unit
+  CODE rules were 0.4px (0.2 compact), a grey smear: the masthead draws them
+  as `<line>`s with `vector-effect="non-scaling-stroke"`, 1 CSS px, crisp,
+  with a `userSpaceOnUse` gradient (a zero-height line has no bounding box).
+  The glow is `--glow` scaled with the width (8 · 6 · 5 · 4px); a fixed 8px
+  on the 140px word was twice the logo's halo. The app bars' anchor was a
+  20px drawing of a 24 grid (1.42px strokes on half pixels) in a tile at
+  y 13.44: it is now drawn 1:1 at 24px with a 2px pen, stock on y 11, and
+  the brand's text block is a whole 40px started 2px into the row.
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,
