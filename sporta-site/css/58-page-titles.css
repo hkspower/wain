@@ -47,3 +47,10 @@ main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~
 main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
   inset-inline-start: calc(50% - 28px);
 }
+
+/* AN ICON BESIDE A TITLE sits on the WORDS, 2026-10-07 ("improve alignment"). The row centres its
+ * items, and the title's box is 16px taller than its words — the padding that makes room for the
+ * orange bar above — so the icon was centred on words-plus-bar and hung 7px below the words (/returns).
+ * 16px of margin matches the box; 12px more puts it on the LETTERS, which sit above the line box's
+ * centre (measured on the rendered ink, phone and desktop). */
+main div[class~="flex"][class~="items-center"]:has(> h1) > svg { margin-bottom: 28px; }
