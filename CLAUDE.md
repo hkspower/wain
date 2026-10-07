@@ -6799,3 +6799,30 @@ were already 40px.
 **Gates.** `scan`, `test:hangout`, and `salem`/`find` 54 + 51.
 
 **Not done.** The app's /find was not mirrored; it still says «اكتب» with the pill.
+
+## One box system — 7 October, night (built, NOT deployed; the widget's corners are live)
+
+Asked: «polish all boxes /design». The canvas (https://claude.ai/artifact/66dDTrWSs86WTGK5W85XuM) drew the six
+boxes as they shipped beside one system for them. The owner picked all four changes, on the site and in the app:
+
+- **Corners and borders.** An outer box has the 20px corner (`rounded-3xl` / `WainRadius.s3xl`), one `line` border
+  and the `xs` shadow. That covers the place card, the map frame, the share panel and her answer. A box inside one has 15px,
+  buttons 12, and badges are round with no shadow. The place card was 15 beside a 20px panel, and the map frame
+  was 15 too.
+- **Inner boxes are visible.** `--color-sand-50` is `#ffffff`, the same white as every card, so the share panel's
+  plan line (`bg-sand-50` with a ring) showed only by its ring. That was true on the site and in the app. It is
+  `sand-100` with no ring now, and so are the failed-send text and the mode toggle. **`audit:theme` fails on any
+  rounded box painted `bg-sand-50`** (red on the old panel, two lines). A page band on sand-50 has no corners, so
+  it is not caught.
+- **Her card without the gradient.** `ShouqAnswer` is white in its `coral-200` border, 20px, p-4. It was the only
+  gradient on the site. The divider over her buttons is gone. The app's card was a `sea-50` tint and now matches.
+- **A calmer hover, and the widget.** A card lifts 2px into `shadow-md`; it used to lift 4px into `xl`. The call
+  widget's own settings went to sheet 15, buttons and input 12, bubbles 15 (`agtvrsn_6801m4bzeh4qejjtxcvzdt9kcq6v`,
+  through `agents_update_widget` with `styles` alone; the reply held everything else). **That part is live already**,
+  because the widget reads its settings at runtime.
+
+`tests/boxes.test.mjs` (in `test:hangout`) reads computed styles: 9 of 11 red on the old components with the
+build green. `boxes_test.dart` is 2 of 2 red on the old `lib/`. Gates: `scan` 0, `test:hangout` all suites,
+Flutter 1,309 and analyze clean, `audit:flutter` current.
+
+**Not done:** /search's result rows and the call sheet were not in the six and keep their corners. Not deployed.
