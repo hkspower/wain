@@ -17,7 +17,8 @@ Everything below is a thing that has already gone wrong at least once.
   not dispatch, re-run or read `flutter-ci.yml`, `android-flutter.yml`,
   `deploy.yml` or any other workflow — and no GitHub MCP tools. Every section
   below that says «dispatched», «CI run» or «read the run» describes the past,
-  not a step to repeat.
+  not a step to repeat. **`git push` to this branch is fine** — the owner
+  said so the same day; the ban is on Actions and the GitHub tools.
 
 ## There is no server
 
