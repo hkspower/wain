@@ -25,6 +25,9 @@ STALE=(
   fonts/LICENSE-Tajawal.txt
   fonts/plex-arabic-400.woff2 fonts/plex-arabic-600.woff2 fonts/plex-arabic-700.woff2
   fonts/LICENSE.txt           # IBM Plex's licence; the site's faces carry LICENSE-<face>.txt
+  # retired with the dark logo theme (owner's «update all», 2026-10-07)
+  fonts/reemkufi-700.woff2 fonts/sharetechmono-400.woff2
+  fonts/LICENSE-ReemKufi.txt fonts/LICENSE-ShareTechMono.txt
 )
 PRESENT=()
 for p in "${STALE[@]}"; do [[ -e "$p" ]] && PRESENT+=("$p"); done
