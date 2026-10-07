@@ -13,6 +13,11 @@ Everything below is a thing that has already gone wrong at least once.
 - Do not open a pull request unless explicitly asked.
 - Never put a model name or identifier in a commit message, PR, code comment,
   or anything else that lands in the repository.
+- **Never use GitHub for wain** (the owner, 7 October). No GitHub Actions — do
+  not dispatch, re-run or read `flutter-ci.yml`, `android-flutter.yml`,
+  `deploy.yml` or any other workflow — and no GitHub MCP tools. Every section
+  below that says «dispatched», «CI run» or «read the run» describes the past,
+  not a step to repeat.
 
 ## There is no server
 
