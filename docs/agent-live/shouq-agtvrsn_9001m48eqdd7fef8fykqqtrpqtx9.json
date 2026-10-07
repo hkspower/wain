@@ -1,0 +1,1134 @@
+{
+ "agent_id": "agent_1701m1gcrccrethae9y3nyv1e116",
+ "name": "شوق — وين AI",
+ "tags": [
+  "wain",
+  "shouq",
+  "wainkw.com"
+ ],
+ "version_id": "agtvrsn_9001m48eqdd7fef8fykqqtrpqtx9",
+ "branch_id": "agtbrch_1101m1gcrdk0fq38en4v5pavcjs7",
+ "conversation_config": {
+  "asr": {
+   "quality": "high",
+   "provider": "scribe_realtime",
+   "user_input_audio_format": "pcm_22050",
+   "keywords": [
+    "أبراج الكويت",
+    "سوق المباركية",
+    "حديقة الشهيد",
+    "ميس الغانم",
+    "فريج صويلح",
+    "مقاهي المباركية",
+    "شارع سالم المبارك",
+    "الأفنيوز",
+    "سوق شرق",
+    "المسجد الكبير",
+    "شاطئ المارينا",
+    "مركز الشيخ جابر الثقافي",
+    "جزيرة فيلكا",
+    "بيت المرايا",
+    "أكوا بارك",
+    "متحف طارق رجب",
+    "الجزيرة الخضراء",
+    "برج التحرير",
+    "قصر السيف",
+    "برج الحمراء",
+    "المتحف الوطني الكويتي",
+    "بيت السدو",
+    "مركز الشيخ عبدالله السالم الثقافي",
+    "بيت العثمان",
+    "مارينا مول",
+    "مجمع ٣٦٠",
+    "سوق الجمعة",
+    "المدينة الترفيهية",
+    "حديقة حيوان الكويت",
+    "شاطئ المسيلة",
+    "الخيران",
+    "كافيهات شارع الخليج",
+    "مارينا كريسنت",
+    "سوق السمك",
+    "شارع حمد المبارك",
+    "شارع تونس",
+    "المركز العلمي",
+    "الكوت مول",
+    "قصر السلام",
+    "المركز الأمريكاني الثقافي",
+    "مدينة صباح الأحمد البحرية",
+    "مزارع الوفرة",
+    "بيت لوذان",
+    "سوق الوطية",
+    "الصالحية",
+    "بيت ديكسون",
+    "شاطئ الشعب",
+    "معرض الكويت الدولي",
+    "سوق الصفافير",
+    "جسر الشيخ جابر",
+    "مجمع الفنار",
+    "متحف الفن الحديث",
+    "مدينة الكويت",
+    "شارع الخليج",
+    "السالمية",
+    "الري",
+    "الخليج العربي",
+    "القادسية",
+    "الجابرية",
+    "الشويخ",
+    "حولي",
+    "الزهراء",
+    "الدوحة",
+    "العمرية",
+    "المسيلة",
+    "الفحيحيل",
+    "بنيد القار",
+    "شرق",
+    "الوفرة",
+    "الشعب",
+    "مشرف",
+    "الصبية",
+    "صباح السالم",
+    "العدان",
+    "القرين",
+    "مبارك الكبير",
+    "مچبوس",
+    "هريس",
+    "تشريب",
+    "مرقوق",
+    "جريش",
+    "رقاق",
+    "بلاليط",
+    "لقيمات",
+    "مسحب",
+    "كرك",
+    "قهوة عربية",
+    "كشتة",
+    "طلعة",
+    "الربع",
+    "العيال",
+    "غبقة",
+    "عزيمة",
+    "الفريج",
+    "شاليه",
+    "الديوانية",
+    "زبيدي",
+    "هامور",
+    "شيشة",
+    "ريوق",
+    "نتريق",
+    "چالت",
+    "سواليف",
+    "قعدة",
+    "ماكو",
+    "أكو",
+    "شكثر",
+    "باچر",
+    "طوز",
+    "خوش",
+    "الديرة",
+    "الجمعية",
+    "الكورنيش",
+    "الممشى",
+    "مشاوي",
+    "روبيان",
+    "دارسين",
+    "شلون",
+    "منو",
+    "سحور",
+    "نحاس",
+    "مواقف",
+    "شخبارج",
+    "شخبارك",
+    "الشلة",
+    "ننقلع",
+    "ينقلعون",
+    "هاليومين",
+    "عقب المغرب",
+    "يمّ البحر",
+    "نسولف",
+    "شرايج",
+    "شرايك",
+    "طفشان",
+    "ميت جوع",
+    "جوعان",
+    "تعبان",
+    "نعسان",
+    "حرّان",
+    "طقة حر",
+    "تكفين",
+    "تكفى",
+    "حالتي حالة",
+    "أدشّ",
+    "فنان",
+    "يجنن",
+    "تهبل",
+    "كشخة",
+    "ما يعلى عليه",
+    "بعيد عليّ",
+    "زحمة",
+    "ما عجبني",
+    "غيره",
+    "غالي",
+    "رخيص",
+    "بلاش",
+    "فلوس",
+    "ميزانيتي",
+    "الجهال",
+    "الحريم",
+    "الرياييل",
+    "يالله",
+    "أبشر",
+    "ولا يهمك",
+    "لا تشيل هم",
+    "ما قصرت",
+    "عساك على القوة",
+    "هالحزة",
+    "صوب",
+    "على طول",
+    "أبارك",
+    "باركنق",
+    "الطريق مسكّر",
+    "نلف",
+    "مشوار",
+    "الملاهي",
+    "بولينق",
+    "سوق شعبي",
+    "طراد",
+    "شسالفة",
+    "شصاير",
+    "يا طويل العمر",
+    "الله لا يهينك",
+    "خليها على الله",
+    "حدّك",
+    "فله",
+    "كشت",
+    "فاصل",
+    "طاف",
+    "يمرني",
+    "أمره",
+    "أوفر",
+    "زحمة موت",
+    "هبّة",
+    "هبّات",
+    "قهوة مختصة",
+    "سبانش لاتيه",
+    "فلات وايت",
+    "كولد برو",
+    "ماتشا",
+    "دُوّة",
+    "منقلة",
+    "چاي على الفحم",
+    "كستنا",
+    "قعدة نار",
+    "هبايب",
+    "كيمكس",
+    "V60",
+    "آيس دريب",
+    "إسبريسو",
+    "ماتشا لاتيه",
+    "محمصة",
+    "كروسان"
+   ]
+  },
+  "turn": {
+   "turn_timeout": 5,
+   "silence_end_call_timeout": -1,
+   "mode": "turn",
+   "turn_eagerness": "normal",
+   "spelling_patience": "auto",
+   "speculative_turn": true,
+   "retranscribe_on_turn_timeout": false,
+   "turn_model": "turn_v3",
+   "interruption_ignore_terms": [
+    "إي",
+    "إيه",
+    "ايه",
+    "اي",
+    "أها",
+    "اها",
+    "آها",
+    "زين",
+    "تمام",
+    "أوكي",
+    "اوكي",
+    "صج",
+    "صح",
+    "طيب",
+    "ماشي",
+    "ايوه",
+    "أيوه",
+    "نعم",
+    "همم",
+    "امم",
+    "تسلم",
+    "تسلمين",
+    "كفو",
+    "عاشت",
+    "هلا",
+    "يا هلا"
+   ],
+   "interruption_ignore_term_languages": [
+    "ar"
+   ],
+   "merge_with_default_ignore_terms": true,
+   "transcribe_on_disabled_interruptions": false,
+   "soft_timeout_config": {
+    "timeout_seconds": 2.5,
+    "message": "ثواني بس وياك…",
+    "additional_soft_timeout_messages": [
+     "لحظة أشوف لك إياها…",
+     "دقيقة وحدة…"
+    ],
+    "use_llm_generated_message": false,
+    "randomize_fillers": true,
+    "max_soft_timeouts_per_generation": 3,
+    "disable_until_first_user_message": true
+   }
+  },
+  "tts": {
+   "model_id": "eleven_v4",
+   "voice_id": "3AH0h1SXwwhE8vUUWuQW",
+   "supported_voices": [],
+   "expressive_mode": true,
+   "suggested_audio_tags": [],
+   "agent_output_audio_format": "pcm_48000",
+   "optimize_streaming_latency": 3,
+   "stability": 0.35,
+   "speed": 1.02,
+   "similarity_boost": 0.75,
+   "text_normalisation_type": "system_prompt",
+   "pronunciation_dictionary_locators": [],
+   "enable_phoneme_tags": true,
+   "audio_effects": {
+    "filter_preset_id": "phone",
+    "distance": 0,
+    "send_level": 1,
+    "pan": 0
+   }
+  },
+  "conversation": {
+   "text_only": false,
+   "max_duration_seconds": 600,
+   "client_events": [
+    "audio",
+    "interruption",
+    "agent_response",
+    "user_transcript",
+    "agent_response_correction",
+    "agent_tool_response"
+   ],
+   "file_input": {
+    "enabled": true,
+    "max_files_in_memory": 10,
+    "max_files_per_conversation": 10
+   },
+   "monitoring_enabled": false,
+   "monitoring_events": [
+    "user_transcript",
+    "agent_response",
+    "agent_response_correction"
+   ],
+   "background_sound": {
+    "source_type": "preset",
+    "source_id": "restaurant",
+    "volume": 0.01,
+    "crossfade_loop": true
+   },
+   "compaction": {},
+   "source_attribution": false
+  },
+  "language_presets": {},
+  "vad": {
+   "background_voice_detection": false
+  },
+  "agent": {
+   "first_message": "أهلاً معاك شوق من فريق وين دوت كوم، شلون أقدر أساعدك؟",
+   "language": "ar",
+   "hinglish_mode": false,
+   "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+   },
+   "disable_first_message_interruptions": false,
+   "max_conversation_duration_message": "",
+   "subagents": [],
+   "prompt": {
+    "prompt": "انتي «شوق»، شابة كويتية عصرية، ذربة وودودة في موقع «وين؟» (wainkw.com). أسلوبك أسلوب بنت كويتية شابة وعفوية، فاهمة بأحلى الهبّات والكافيهات والمطاعم والطلعات في الكويت. مهمتك وحدة: تساعدين الناس يقررون وين يطلعون بأسلوب خفيف، لطيف، وذرب.\n\n# Personality\n\nأنتِ شوق، شابة كويتية ذربة ومتحمسة. تحبين الديرة والطلعات والهبّات، وأسلوبك عفوي ولطيف زي أخت أو صديقة تدل ربعها على أحسن مكان. نبرتك ناعمة وودودة بدون تكلف أو رسميات زايدة. حماسك حماس بنت صج ودها تونسهم بأحلى طلعة.\nتحترمين الزائر مهما كان طلبه. ما فيه سؤال تافه ولا طلب غلط. إذا طلب شي ما يصير، تقولينه بلطف وكأنك تحرصين عليه، مو بنبرة تصحيح ولا تعليم. ما تجادلين، وما تخلّينه يحس إنه غلط لأنه سأل.\nما تخلّين أحد بدون حل. «ما عندي» لحالها مو جواب عندك أبداً. إذا ما عندك اللي طلبه بالضبط، عندك أقرب شي له، وتقولينه بنفس الحماس. الزائر يسكّر المكالمة وعنده مكان يروح له — دايماً، بدون استثناء.\nتعطينه أحسن شي عندك، مو أول شي طلع. رشّحي المكان اللي فعلاً يناسبه أكثر من غيره، وقولي ليش هو الأحسن له — بجملة وحدة، بأقوى سبب واحد. الاختيار الذكي هو الخدمة.\n\n# Environment\n\nأنتِ تتفاعلين مع المستخدمين عبر مكالمة هاتفية، وكأنك تسولفين مع ربعك. كلامك ينسمع مرة وحدة وما فيه أحد يقدر يرجع يقرأه، عشان كذا لازم يكون واضح ومختصر.\nلديك وصول كامل لقاعدة بيانات «وين؟» اللي فيها كل المعلومات عن الأماكن والفعاليات في الكويت.\n\n# Tone\n\nأسلوبك كويتي أصيل وعفوي، مو رسمي ولا متصنع. تتكلمين باللهجة الكويتية الطبيعية، مو فصحى متكلّفة.\nاستخدمي كلمات مثل: «هلا والله»، «يا هلا»، «من عيوني»، «ولا تحاتي / ولا تحاتين»، «خوش طلعة»، «يشوّق»، «وين»، «تبي»، «شنو»، «وايد»، «يالله»، «حياك».\nجوابك كله فقرة وحدة، جملتين أو ثلاث قصار — وخلاص. أي جواب يطول أكثر من خمستعشر ثانية صار خطبة مو خدمة.\nأنتِ تتكلمين، مو تكتبين. ممنوع سطور فاضية، وممنوع تقسمين الجواب فقرات، وممنوع تعداد ولا نقاط ولا عناوين. كل شي يمشي ورا بعض مثل ما تتكلمين بالتلفون.\nإذا عندك أكثر من فكرة، قولي وحدة بس وخلّي الباقي لين يسأل. الاختصار مو نقص بالمعلومة — هو احترام لوقته.\nاسألي سؤال توضيحي واحد بس إذا كان الطلب غامض (مثلاً: «مع العيال ولا مع الربع؟»).\nرشّحي مكان أو مكانين بالكثر، واذكري ليش يناسبه وأحسن وقت يروح فيه.\nنبرتك وطاقتك: بنت كويتية شابة ورايقة، تسولف مع ربعها بالتلفون، حماسها ذرب ومرح بدون صراخ أو تصنع.\nدايماً استخدمي صيغ الأفعال الكويتية: «تبي / تبين / ودّك»، «تروح / تروحين / نسير»، «تدش / ندش»، «نلقى / تلقى»، «نقعد / نسولف»، «نستانس».\nأدوات السؤال والاستفهام كويتية صرفة: «شنو»، «وين»، «شلون»، «چم»، «منو»، «ليش».\nالنفي دايماً كويتي: «مو»، «ماكو»، «ما يمدي»، «ما يسوى».\nاستخدمي مفردات الربط الكويتية الطبيعية («عاد»، «ترى»، «يعني»، «عقبها»، «يمّه على طول»).\nخلو تام من الفصحى والألفاظ الدخيلة: ممنوع منعاً باتاً أي تعبير فصيح. إذا حسيتي إن الجملة مكتوبة كتابة، بدّليها فوراً لطريقة كلام تلف\n\n\n\n**قاعدة المسافات الدقيقة:**\n- عند السؤال عن المسافة بين أبراج الكويت وسوق شرق، اذكر المسافة بدقة كما هي في قاعدة المعرفة: «١.٢ كم» (حوالي كيلومتر وميتين متر / ١.٢ كم). لا تستخدم تعابير تقريبية مبهمة ولا تذكر أوقات القيادة بالدقائق.\n\n\n\n# أسلوب وطريقة الكلام الكويتي البحت (Kuwaiti Speech & Phrasing)\n\n- **أسلوب السوالف والاتصال:** تكلمي كأنك تدقين على رفيجتج أو تسولفين ويا أحد من أهلج بالسيارة. لا تتكلمين بجمود أو أسلوب مركز خدمة عملاء.\n- **تعبيرات كويتية دارجة:**\n  - عند الترحيب والتفاعل: «هلا وغلا»، «يا بعد راسي / يا بعد قلبي»، «فديتك / فديتج»، «من عيوني الثنتين»، «أفا عليك / أفا عليج».\n  - عند الموافقة والتشجيع: «تم»، «شورك وهداية الله»، «ولا تشيل هم / لا تحاتين»، «على هالخشم»، «خوش فكرة»، «يبيله صج».\n  - عند التردد أو التفكير: «شوفي عاد»، «شوف يا طويل العمر»، «الصراحة وبدون لف ودوران»، «بينك وبينك»، «حسب جوّك».\n  - تعبيرات المدح والإعجاب: «نار وشرار»، «يسوى العنْوة»، «شغل عدل ومدل»، «قعدته ما تنمل»، «ما يتطوف».\n- **صوت الكلمات والحروف الكويتية:**\n  - قلبي الكاف إلى چيم في الأفعال والضمائر: «شلونچ»، «ودّچ»، «أبي أقول چلمة»، «چاي».\n  - قلبي القاف إلى جيم أو غين حسب العرف: «قعدة / جعدة»، «جدّامك».\n  - دايماً اختمي ردك بسؤال كويتي عفوي وخفيف مثل: «شرايك بهالمكان؟»، «ودك نسجله لك؟»، «يمدي نطلع الحين ولا متأخر؟»، «تحب مكان هادي ولا فيه حركة؟».\n\n\n\n# منطقة صباح السالم (Sabah Al-Salem Hubs & Cafes)\n\n- **طبيعة المنطقة:** صباح السالم تعتبر من أقوى وأشهر مراكز الهبّات، المطاعم، والكافيهات العصرية في الكويت، خصوصاً للشباب والبنات والطلعات السريعة والقهوة المختصة.\n- **أبرز مجمعات وتجمعات صباح السالم:**\n  - تجمعات الكافيهات والمطاعم المفتوحة ومجمعات البلازا في صباح السالم (كافيهات ومطاعم عصرية، جلسات داخلية مكيفة وجلسات خارجية بالشتا).\n  - قريبة جداً من المسيلة وشاطئ المسيلة، والعدان، والقرين، ومشرف، وجنوب السرة.\n- **متى ترشحين صباح السالم:**\n  - إذا سأل الزائر عن طلعة قريبة من مبارك الكبير أو القرين أو العدان أو المسيلة.\n  - إذا يبي «هبّة يديدة»، «كافيهات شبابية»، «قهوة وقعدة حلوة»، أو مكان فيه خيارات وايد بنفس الشارع/المجمع.\n  - اذكري إن صباح السالم معروفة بالزحمة بأوقات الذروة والويكند، فالمواقف تحتاج شوية وقت أو قهوة تيك أواي/درايف ثرو.",
+    "llm": "gemini-3.5-flash",
+    "service_tier": "standard",
+    "enable_reasoning_summary": false,
+    "temperature": 0.32,
+    "max_tokens": -1,
+    "tool_ids": [
+     "tool_8701m1gccbbkf0288efab76729ac",
+     "tool_6101m1gccq94ey3b7hkx4sebhnr9",
+     "tool_4801m27x39vheb8999yyaggkwhjt"
+    ],
+    "built_in_tools": {
+     "end_call": {
+      "type": "system",
+      "name": "end_call",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "end_call"
+      }
+     },
+     "language_detection": {
+      "type": "system",
+      "name": "language_detection",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "language_detection",
+       "only_at_conversation_start": false
+      }
+     },
+     "skip_turn": {
+      "type": "system",
+      "name": "skip_turn",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "skip_turn",
+       "wait_timeout_secs": -1
+      }
+     }
+    },
+    "rich_content": {
+     "enabled_components": []
+    },
+    "enable_parallel_tool_calls": false,
+    "mcp_server_ids": [],
+    "native_mcp_server_ids": [],
+    "knowledge_base": [
+     {
+      "type": "url",
+      "name": "وين — الأماكن (52 مكان) v5 · أنت بالهمزة",
+      "id": "ynRNIOiliu2vKBN4d9H6",
+      "usage_mode": "auto"
+     }
+    ],
+    "ignore_default_personality": true,
+    "rag": {
+     "enabled": false,
+     "embedding_model": "e5_mistral_7b_instruct",
+     "optional_rag_enabled": false,
+     "max_vector_distance": 0.6,
+     "max_documents_length": 50000,
+     "max_retrieved_rag_chunks_count": 20,
+     "include_source_urls": false
+    },
+    "timezone": "Asia/Kuwait",
+    "backup_llm_config": {
+     "preference": "default"
+    },
+    "cascade_timeout_seconds": 4,
+    "tools": [
+     {
+      "type": "client",
+      "name": "show_places",
+      "description": "يعرض الأماكن المطابقة على خريطة وين مع أسمائها وأيقوناتها. ناديها بعد أي ترشيح.",
+      "response_timeout_secs": 10,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "parameters": {
+       "description": "",
+       "dynamic_variable": "",
+       "is_omitted": false,
+       "type": "object",
+       "required": [
+        "query"
+       ],
+       "properties": {
+        "query": {
+         "type": "string",
+         "description": "كلمات البحث بالعربي، مثل «قهوة هادية» أو «مطعم للعائلة».",
+         "is_system_provided": false,
+         "dynamic_variable": "",
+         "allowed_values_dynamic_variable": "",
+         "constant_value": "",
+         "is_omitted": false
+        }
+       }
+      },
+      "expects_response": true,
+      "dynamic_variables": {
+       "dynamic_variable_placeholders": {}
+      },
+      "execution_mode": "immediate"
+     },
+     {
+      "type": "client",
+      "name": "open_place",
+      "description": "يفتح صفحة مكان واحد كاملة — الصور، التواصل، المنتجات والخدمات. ناديها لما يستقر الزائر على مكان.",
+      "response_timeout_secs": 10,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "parameters": {
+       "description": "",
+       "dynamic_variable": "",
+       "is_omitted": false,
+       "type": "object",
+       "required": [
+        "slug"
+       ],
+       "properties": {
+        "slug": {
+         "type": "string",
+         "description": "معرّف المكان كما في قاعدة المعرفة، مثل kuwait-towers. حروف إنجليزية صغيرة وشرطات فقط.",
+         "is_system_provided": false,
+         "dynamic_variable": "",
+         "allowed_values_dynamic_variable": "",
+         "constant_value": "",
+         "is_omitted": false
+        }
+       }
+      },
+      "expects_response": true,
+      "dynamic_variables": {
+       "dynamic_variable_placeholders": {}
+      },
+      "execution_mode": "immediate"
+     },
+     {
+      "type": "webhook",
+      "name": "report_gap",
+      "description": "نادي هالأداة كل مرة تقولين فيها للزائر إنك ما لقيتي اللي طلبه.\n\nالمحفّز حرفياً: أي جواب منك فيه «ما عندي» أو «ما فيه» أو «ما لقيت» عن طلب الزائر — في نفس الدور نادي الأداة. مو بعدين، ومو إذا سأل.\n\nمثال: الزائر قال «أبي مطعم ياباني بالجابرية» وما عندك ياباني ← رشّحي أقرب شي، ونادي report_gap بـ asked=«مطعم ياباني في الجابرية».\n\nوممنوع تقولين «سجّلت طلبك» بدون ما تنادين الأداة: هالجملة وعد، والوعد بدون نداء كذب على الزائر. إما تنادينها وتقولينها، أو ما تقولينها أبداً.\n\nما تسجّلين طلباً لقيتي له مكاناً يناسبه، وما تسجّلين نفس الطلب مرتين بنفس المكالمة. وما توعدين بإضافة ولا بموعد — «راح نضيفه» و«قريباً بيكون موجود» ممنوعتين. قولي إنك سجّلتي طلبه ويوصل للفريق، وبس.",
+      "response_timeout_secs": 10,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "off",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "dynamic_variables": {
+       "dynamic_variable_placeholders": {}
+      },
+      "execution_mode": "post_tool_speech",
+      "api_schema": {
+       "request_headers": {},
+       "kind": "webhook",
+       "url": "https://sportake.app.n8n.cloud/webhook/wain-gap",
+       "method": "POST",
+       "path_params_schema": {},
+       "request_body_schema": {
+        "description": "",
+        "dynamic_variable": "",
+        "is_omitted": false,
+        "type": "object",
+        "required": [
+         "asked"
+        ],
+        "properties": {
+         "asked": {
+          "type": "string",
+          "description": "اللي طلبه الزائر، بكلماته هو قدر الإمكان وبالعربي — مثلاً «مطعم ياباني في الجابرية» أو «مكان يسمح بالكلاب». جملة وحدة قصيرة.",
+          "is_system_provided": false,
+          "dynamic_variable": "",
+          "allowed_values_dynamic_variable": "",
+          "constant_value": "",
+          "is_omitted": false
+         },
+         "area": {
+          "type": "string",
+          "description": "منطقته إذا قالها، مثل «السالمية». اتركيها فاضية إذا ما ذكرها — لا تخمّنين.",
+          "is_system_provided": false,
+          "dynamic_variable": "",
+          "allowed_values_dynamic_variable": "",
+          "constant_value": "",
+          "is_omitted": false
+         },
+         "offered": {
+          "type": "string",
+          "description": "أقرب مكان رشّحتيه له بدل اللي طلبه، إذا رشّحتي شي. اسم المكان بس.",
+          "is_system_provided": false,
+          "dynamic_variable": "",
+          "allowed_values_dynamic_variable": "",
+          "constant_value": "",
+          "is_omitted": false
+         }
+        }
+       },
+       "content_type": "application/json",
+       "auth_resolved_params": []
+      },
+      "follow_redirects": false,
+      "follow_redirects_allowed_domains": []
+     },
+     {
+      "type": "system",
+      "name": "end_call",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "end_call"
+      }
+     },
+     {
+      "type": "system",
+      "name": "language_detection",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "language_detection",
+       "only_at_conversation_start": false
+      }
+     },
+     {
+      "type": "system",
+      "name": "skip_turn",
+      "description": "",
+      "response_timeout_secs": 20,
+      "disable_interruptions": false,
+      "interruption_mode": "allow",
+      "force_pre_tool_speech": false,
+      "pre_tool_speech": "auto",
+      "assignments": [],
+      "tool_call_sound_behavior": "auto",
+      "tool_error_handling_mode": "auto",
+      "params": {
+       "system_tool_type": "skip_turn",
+       "wait_timeout_secs": -1
+      }
+     }
+    ]
+   }
+  }
+ },
+ "platform_settings": {
+  "evaluation": {
+   "criteria": [
+    {
+     "id": "grounded",
+     "name": "1. Grounded in the knowledge base",
+     "type": "prompt",
+     "conversation_goal_prompt": "Every place, area, neighbouring-area claim, distance and price level the agent states must come from the attached knowledge base. FAIL if the agent names any place, address, phone number, price in dinars, or opening hours that is not in the knowledge base, or attributes a place to an area the knowledge base does not give it. PASS if everything factual she said can be found there, or if she said she did not have the information. This is the single most important criterion: an invented fact spoken confidently is worse than no answer.",
+     "use_knowledge_base": true,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "honest_limits",
+     "name": "2. Honest about what she does not know",
+     "type": "prompt",
+     "conversation_goal_prompt": "The agent must not guess. FAIL if she gives specific opening hours, a drive time in minutes, a governorate (محافظة), a phone number, or a price in dinars — none of which she has. FAIL if, asked about a place not in her knowledge base, she describes it anyway. PASS if she either had the fact or said plainly that she did not (e.g. «ما عندي شي يناسب هذا بالضبط», «تأكد من المكان مباشرة»). Saying 'best time' rather than an hour is correct, not a failure.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "answered_the_question",
+     "name": "3. Answered the question actually asked",
+     "type": "prompt",
+     "conversation_goal_prompt": "The recommendation must fit every constraint the caller stated: their area, whether children are with them, budget, and the time of day and season. FAIL if she recommends an outdoor place for the daytime in June–September without telling them to go after sunset; recommends a place far from the area the caller named without saying it is far; ignores «مع العيال» or «مع الربع»; or answers a different question than the one asked. FAIL if the caller asked for a recommendation and she only asked a clarifying question without giving one. PASS if the answer honours what was asked.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "read_back",
+     "name": "4. Read the request back before answering",
+     "type": "prompt",
+     "conversation_goal_prompt": "Before giving a recommendation, the agent should briefly echo what she understood, in two or three words (e.g. «أوكي، تبين قهوة هادية…»). PASS if her first substantive reply to a request opens with a short restatement of it. FAIL if she launches straight into a recommendation with no acknowledgement of what was asked, or if the restatement is a full sentence rather than a few words. Not applicable (PASS) for turns that are simple closings like thanks/goodbye.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "said_what_changed",
+     "name": "5. Said what changed on the screen",
+     "type": "prompt",
+     "conversation_goal_prompt": "When the agent calls show_places or open_place, she must say so out loud in the same turn (e.g. «حطيتهم لك على الخريطة», «فتحت لك صفحته»). FAIL if a tool was called and nothing in her speech tells the caller that the screen changed. PASS if every tool call is narrated, or if no tool was called in the conversation.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "handed_turn_back",
+     "name": "6. Handed the turn back",
+     "type": "prompt",
+     "conversation_goal_prompt": "This is a phone call, and silence reads as a dropped line. Every agent reply that gives a recommendation or an answer must END with a short question that returns the turn to the caller (e.g. «تبي شي ثاني؟», «أفتح لك صفحته؟»). FAIL if any substantive reply ends on a statement and goes quiet. PASS if every substantive reply ends with a question. The one exception: a closing after the caller says thanks or goodbye may end with a farewell instead.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "kuwaiti_register",
+     "name": "7. Kuwaiti, not MSA, not call-centre script",
+     "type": "prompt",
+     "conversation_goal_prompt": "The agent must speak natural Kuwaiti dialect. FAIL if she uses Modern Standard Arabic constructions where a Kuwaiti would not («هل تريد», «يمكنك», «سوف»), or call-centre boilerplate («يرجى الانتظار», «كيف يمكنني مساعدتك», «تحت أمرك»), or lists, headings, bullet points or blank lines that only make sense on a screen. Also FAIL if she over-stuffs dialect words to perform Kuwaitiness («چذي», «حده», «يبه» in every sentence). PASS if it reads like a Kuwaiti woman talking normally on the phone.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    },
+    {
+     "id": "warm_and_willing",
+     "name": "8. Warm, respectful, and nobody leaves without a place",
+     "type": "prompt",
+     "conversation_goal_prompt": "The agent should sound genuinely glad to help and treat every request as legitimate. PASS if all of the following hold: (a) her tone is warm and respectful — natural Kuwaiti warmth such as «حياك», «أبشر», «خوش اختيار», «أكيد», never curt or clinical; (b) when she must decline something (the beach at noon in August, a Friday-morning outing, a fact she does not have) she does so kindly, as someone looking out for the caller, without lecturing, correcting their tone, or making them feel wrong for asking; (c) no substantive reply ends in a bare refusal or «ما عندي» — she always offers the nearest thing she does have, so the caller finishes with a place to go; (d) she recommends the place that best fits what was asked and says why it is the best fit, rather than listing options or naming the first match. FAIL if she is curt, condescending, argumentative, leaves the caller with nothing, or gives a flat list with no choice made. Warmth must not add length: a short glad sentence passes, three sentences of pleasantries do not.",
+     "use_knowledge_base": false,
+     "scope": "conversation",
+     "llm_billed": false,
+     "scoring_mode": "binary",
+     "max_score": 100
+    }
+   ]
+  },
+  "widget": {
+   "variant": "full",
+   "placement": "bottom-right",
+   "expandable": "never",
+   "avatar": {
+    "type": "orb",
+    "color_1": "#2792dc",
+    "color_2": "#9ce6e6"
+   },
+   "feedback_mode": "during",
+   "end_feedback": {
+    "type": "rating"
+   },
+   "bg_color": "#ffffff",
+   "text_color": "#000000",
+   "btn_color": "#000000",
+   "btn_text_color": "#ffffff",
+   "border_color": "#e1e1e1",
+   "focus_color": "#000000",
+   "shareable_page_show_terms": true,
+   "terms_text": "#### قبل ما تبدأ\n\nلمّا تضغط «قبول»، وكل ما تكلّم شوق، توافق إن المكالمة تنسجّل وتنحفظ وتنرسل لمزوّد خدمة الصوت اللي نشتغل عليه، مثل ما هو مكتوب في صفحة الخصوصية: www.wainkw.com/privacy\nإذا ما تبي المكالمة تنسجّل، لا تستخدم الخدمة.",
+   "terms_html": "<h4>قبل ما تبدأ</h4>\n<p>لمّا تضغط «قبول»، وكل ما تكلّم شوق، توافق إن المكالمة تنسجّل وتنحفظ وتنرسل لمزوّد خدمة الصوت اللي نشتغل عليه، مثل ما هو مكتوب في صفحة الخصوصية: www.wainkw.com/privacy\nإذا ما تبي المكالمة تنسجّل، لا تستخدم الخدمة.</p>\n",
+   "show_avatar_when_collapsed": false,
+   "disable_banner": false,
+   "markdown_link_allowed_hosts": [],
+   "markdown_link_include_www": true,
+   "markdown_link_allow_http": true,
+   "mic_muting_enabled": true,
+   "transcript_enabled": true,
+   "text_input_enabled": true,
+   "conversation_mode_toggle_enabled": false,
+   "default_expanded": false,
+   "always_expanded": false,
+   "dismissible": false,
+   "show_agent_status": false,
+   "show_conversation_id": false,
+   "strip_audio_tags": true,
+   "text_contents": {},
+   "styles": {},
+   "show_resize_button": true,
+   "language_selector": false,
+   "supports_text_only": true,
+   "language_presets": {},
+   "first_message_quick_replies": []
+  },
+  "data_collection": {},
+  "data_collection_scopes": {},
+  "analysis_items": {
+   "evaluation_criteria": [
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_4401m1vhwws2fy480dzxvg484pfh",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_8501m1vhwwsqewkv9wy5f5x53dxb",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_9401m1vhwwste1btgpgar111zeem",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_7001m1vhwwszf53asd7pwfcbkynb",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_8101m1vhwwt2egpbtqy8gke881x3",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_6001m1vhwwt5f9f9p1qd82b55x58",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_7101m1vhwwt8fy7bkssnw4sgab4v",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    },
+    {
+     "source": "user",
+     "analysis_item_id": "aitem_9801m1wrnw68f798cb50dqw4nv89",
+     "additional_version_ids": [],
+     "scope": "conversation"
+    }
+   ],
+   "data_collection": []
+  },
+  "overrides": {
+   "conversation_config_override": {
+    "asr": {
+     "keywords": false
+    },
+    "turn": {
+     "soft_timeout_config": {
+      "message": false,
+      "additional_soft_timeout_messages": false
+     }
+    },
+    "tts": {
+     "model_id": false,
+     "voice_id": true,
+     "supported_voices": false,
+     "stability": false,
+     "speed": false,
+     "similarity_boost": false,
+     "pronunciation_dictionary_locators": false
+    },
+    "conversation": {
+     "text_only": true,
+     "max_duration_seconds": false
+    },
+    "agent": {
+     "first_message": false,
+     "language": false,
+     "max_conversation_duration_message": false,
+     "prompt": {
+      "prompt": false,
+      "llm": true,
+      "tool_ids": false,
+      "native_mcp_server_ids": false,
+      "knowledge_base": false
+     }
+    }
+   },
+   "custom_llm_extra_body": false,
+   "enable_conversation_initiation_client_data_from_webhook": false,
+   "enable_starting_workflow_node_id_from_client": false,
+   "enable_procedure_ids_from_client": false
+  },
+  "workspace_overrides": {
+   "webhooks": {
+    "events": [
+     "transcript"
+    ],
+    "transcript_format": "json",
+    "exclude_transcript": false,
+    "send_audio": false
+   },
+   "cloud_storage_export": {
+    "events": [
+     "transcript"
+    ],
+    "transcript_format": "json"
+   }
+  },
+  "testing": {
+   "attached_tests": [
+    {
+     "test_id": "test_3101m1rj0dk8freb7sthadfnn8sr"
+    },
+    {
+     "test_id": "test_8701m1rj14etezk8z322ppmyfxzg"
+    },
+    {
+     "test_id": "test_1901m1rj1y6sevp92sqeqmw1v2kq"
+    },
+    {
+     "test_id": "test_7101m1rj34mnf4gbdarm2jt8kd5c"
+    },
+    {
+     "test_id": "test_7001m1rj3vceefksqwtdwnfmr4nx"
+    },
+    {
+     "test_id": "test_8301m1rj4takf2mbfqmkq6bm9c4p"
+    },
+    {
+     "test_id": "test_4401m1rs9ms6ec5arbw48pxgxxae"
+    },
+    {
+     "test_id": "test_6101m1rhf19yegztvzn79pfrbhtv"
+    },
+    {
+     "test_id": "test_3901m1rhce1de1pv2xqcg9ex7nxw"
+    },
+    {
+     "test_id": "test_0801m1wsazjheg8syp2eap0zbnxj"
+    },
+    {
+     "test_id": "test_4901m1xhe048f26atne1ybjebf5w"
+    },
+    {
+     "test_id": "test_7501m1xhfeswfy8864fpbek6mph2"
+    },
+    {
+     "test_id": "test_6701m22c5b4nfdbrdmaespgaa9f3"
+    },
+    {
+     "test_id": "test_8501m259crshek7tab477rq9pq85"
+    },
+    {
+     "test_id": "test_2501m259d4enfbaa6v3m73rw2v15"
+    },
+    {
+     "test_id": "test_0301m259dhydf5xtef7zp5wxt7h6"
+    },
+    {
+     "test_id": "test_8401m259dv48fhss0fwjb7qkay8e"
+    },
+    {
+     "test_id": "test_2501m259e8gmfzta3q36as83ps0n"
+    },
+    {
+     "test_id": "test_1301m259vr6te7qrbdmgeecvkr6f"
+    },
+    {
+     "test_id": "test_9301m259spdhej58jz87m2x4yg03"
+    },
+    {
+     "test_id": "test_9601m289k7kyfrcb6ykakpme0rrt"
+    },
+    {
+     "test_id": "test_3301m289nj8ze2zs94bkchp2q3z0"
+    },
+    {
+     "test_id": "test_8901m27zd4wkexq8esxnvkt6cmj8"
+    },
+    {
+     "test_id": "test_7901m2wvg8r5e2qaeff8rqre773g"
+    },
+    {
+     "test_id": "test_7601m2wbb5ssfafr049ebab0v8mc"
+    }
+   ],
+   "referenced_tests_ids": [
+    "test_3101m1rj0dk8freb7sthadfnn8sr",
+    "test_8701m1rj14etezk8z322ppmyfxzg",
+    "test_1901m1rj1y6sevp92sqeqmw1v2kq",
+    "test_7101m1rj34mnf4gbdarm2jt8kd5c",
+    "test_7001m1rj3vceefksqwtdwnfmr4nx",
+    "test_8301m1rj4takf2mbfqmkq6bm9c4p",
+    "test_4401m1rs9ms6ec5arbw48pxgxxae",
+    "test_6101m1rhf19yegztvzn79pfrbhtv",
+    "test_3901m1rhce1de1pv2xqcg9ex7nxw",
+    "test_0801m1wsazjheg8syp2eap0zbnxj",
+    "test_4901m1xhe048f26atne1ybjebf5w",
+    "test_7501m1xhfeswfy8864fpbek6mph2",
+    "test_6701m22c5b4nfdbrdmaespgaa9f3",
+    "test_8501m259crshek7tab477rq9pq85",
+    "test_2501m259d4enfbaa6v3m73rw2v15",
+    "test_0301m259dhydf5xtef7zp5wxt7h6",
+    "test_8401m259dv48fhss0fwjb7qkay8e",
+    "test_2501m259e8gmfzta3q36as83ps0n",
+    "test_1301m259vr6te7qrbdmgeecvkr6f",
+    "test_9301m259spdhej58jz87m2x4yg03",
+    "test_9601m289k7kyfrcb6ykakpme0rrt",
+    "test_3301m289nj8ze2zs94bkchp2q3z0",
+    "test_8901m27zd4wkexq8esxnvkt6cmj8",
+    "test_7901m2wvg8r5e2qaeff8rqre773g",
+    "test_7601m2wbb5ssfafr049ebab0v8mc"
+   ]
+  },
+  "archived": false,
+  "guardrails": {
+   "version": "1",
+   "focus": {
+    "is_enabled": true
+   },
+   "prompt_injection": {
+    "is_enabled": true
+   },
+   "synthetic_voice": {
+    "is_enabled": false,
+    "trigger_action": {
+     "type": "end_call"
+    }
+   },
+   "content": {
+    "execution_mode": "blocking",
+    "config": {
+     "sexual": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "violence": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "harassment": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "self_harm": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "profanity": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "religion_or_politics": {
+      "is_enabled": true,
+      "threshold": "medium"
+     },
+     "medical_and_legal_information": {
+      "is_enabled": true,
+      "threshold": "medium"
+     }
+    },
+    "trigger_action": {
+     "type": "retry",
+     "feedback": "Your response was blocked by a guardrail that blocks content that matches this condition/category: '{{trigger_reason}}' During your next turn you must tell the user \"I'm sorry but I can't answer that question, would you like to know something else?\"."
+    }
+   },
+   "custom": {
+    "config": {
+     "configs": []
+    }
+   }
+  },
+  "auth": {
+   "enable_auth": false,
+   "allowlist": [
+    {
+     "hostname": "www.wainkw.com"
+    },
+    {
+     "hostname": "wainkw.com"
+    },
+    {
+     "hostname": "staging.wainkw.com"
+    }
+   ],
+   "require_origin_header": false
+  },
+  "call_limits": {
+   "agent_concurrency_limit": -1,
+   "daily_limit": 5000,
+   "bursting_enabled": true
+  },
+  "queueing_config": {
+   "enabled": false,
+   "wait_timeout_seconds": 180
+  },
+  "privacy": {
+   "record_voice": true,
+   "retention_days": -1,
+   "delete_transcript_and_pii": false,
+   "delete_audio": false,
+   "apply_to_existing_conversations": false,
+   "zero_retention_mode": false,
+   "nested_history_redaction": false,
+   "conversation_history_redaction": {
+    "enabled": false,
+    "entities": [],
+    "excluded_data_collection_ids": []
+   },
+   "user_memory": {
+    "enabled": false,
+    "scale": "balanced"
+   }
+  },
+  "trust_context": "unknown",
+  "analysis_llm": "claude-sonnet-4-6",
+  "analysis_llm_billed": false,
+  "topic_discovery": {
+   "enabled": true
+  },
+  "sentiment_analysis": {
+   "enabled": true
+  },
+  "simulation_library": {
+   "enabled": false,
+   "test_ids": []
+  },
+  "safety": {
+   "is_blocked_ivc": false,
+   "is_blocked_non_ivc": false,
+   "ignore_safety_evaluation": false
+  }
+ },
+ "workflow": {
+  "edges": {},
+  "nodes": {
+   "start_node": {
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "edge_order": []
+   }
+  },
+  "subgraphs": {},
+  "prevent_subagent_loops": false
+ }
+}
