@@ -33,5 +33,10 @@ window.SPORTA_CONFIG = {
   // which is worse for the customer than never being offered the choice.
   //
   // Set to true, save, reload. No rebuild.
-  tpayEnabled: false,
+  //
+  // SWITCHED ON 2026-10-07 at the owner's instruction, while the CBK ClientSecret and ENCRP_KEY were still
+  // placeholders (the gateway is in TEST mode, pgtest.cbk.com). Until they are saved in /backends -> Payments a shopper
+  // who chooses T-Pay is refused at the bank. To take it off again: set this back to false (or switch the method off in
+  // /backends -> Payments, which hides it without a publish).
+  tpayEnabled: true,
 }
