@@ -18,7 +18,19 @@ that `version_id`, minus the account-permission block.
 Restoring it is a dashboard action (there is no restore-version call, and a branch forked from it
 would not bring the prompt back through a merge). Read-only here; nothing in the repository sends it.
 
-## The live version (`agtvrsn_9001m48eqdd7fef8fykqqtrpqtx9`), summarised, not copied
+## Restored live, 7 October: branch `tuned-restore`
+
+`agtbrch_6101m4aqdpy7ej6aezd2qv2qjqeq`, forked from `agtvrsn_1701…` so the tuned prompt came back
+**byte for byte** (no retyping), with one change: `llm` → `gemini-3.8-flash` (the 1701 version ran
+`claude-opus-5-5`, which never answered inside the 4 s cascade). Suite `suite_3701m4aqfdf5fz5azjzqh990k7t6`,
+one repeat: **24 of 25**, answered by gemini-3.8-flash in all but a few cascaded turns; the one failure is the
+known turn-ends-at-a-tool-call shape («قهوة على البحر»). The rewrite on Main scored 18 of 25. The deployment
+sends **100% of traffic to `tuned-restore`; Main gets 0%**, so a dashboard edit on Main no longer reaches callers
+until the split changes again.
+
+`shouq-agtvrsn_9001m48eqdd7fef8fykqqtrpqtx9.json` is Main's rewrite, saved whole the same day.
+
+## Main's version (`agtvrsn_9001m48eqdd7fef8fykqqtrpqtx9`), summarised
 
 Not stored verbatim: the prompt there is the short dashboard rewrite that scored 18 of 25 against
 45–49 of 50 for the tuned one (see CLAUDE.md, «7 October: widget 0.19.0, and a prompt rewritten

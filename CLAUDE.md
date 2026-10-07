@@ -6393,6 +6393,35 @@ depth 2). After the purge, a cron `wget -S --spider` of `/salem/` through the ed
 pass the same variable** or the bridge URL is back in the bundle (it then 503s harmlessly while
 the key stays renamed). **The CSP still names `*.supabase.co`** — unchanged, still due.
 
+## شوق's real agent is live, with her tuned prompt — 7 October
+
+«i need to active shoug» → the owner chose her real AI voice and brain on the live site, knowing every call and
+typed سالم chat spends their ElevenLabs credits. Then «import them» → both: the live config saved to the
+repository, and the tuned prompt put back live. `docs/agent-live/` holds both versions and the README.
+
+**The prompt went back by a branch, not by retyping.** `tuned-restore` (`agtbrch_6101m4aqdpy7ej6aezd2qv2qjqeq`) is
+forked from `agtvrsn_1701…`, the last tuned version, with `llm` set to `gemini-3.8-flash`. 24 of 25 on one repeat
+(Main's rewrite: 18). `agents_create_deployment` sends 100% of traffic there and 0% to Main — **so dashboard edits
+on Main do not reach callers now**; edit the branch, or change the split. The `agents_get` trick that made this
+possible to save at all: a document over ~50K characters is written to a file instead of returned inline, so
+requesting overlapping `fields` (`conversation_config` and `conversation_config.agent` both) pushes a 40K
+document over the line and it lands on disk, where it can be copied without being retyped.
+
+**The site build**: `NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116
+NEXT_PUBLIC_WAIN_TTS_URL=none npm run release` (agent on, read-aloud bridge still off — the key stays renamed).
+Gates on it: `audit:shouq-call`, `js`, `assets`, `htaccess`, `voice` green; `test:widget-csp` 6/6, zero CSP
+violations, audio leaves the page; `test:shouq` all suites, both modes. Archive `5a48300` (sha256 `3551fc33…4291`),
+job `h3jJSiblDX` read at its FIRST firing: `{"ok":true,"deployed":278,"removed":10,"emptied":1,"at":
+"2026-10-07T08:36:02+00:00"}`, deleted, listed gone (sporta's jobs only). `deploy:verify`: «020fe67e is live —
+verified at the root and 7 levels below it»; `convai-0.19.0-bed4a1281647af42.js` 1,540,140 on disk, byte-equal to
+the archive, and the shared chunk `8623-…` carries the agent id. After the purge, through the edge: the widget
+200, `Cache-Control: public, max-age=31536000, immutable`, `Last-Modified: 08:36:02`. One more ~4MB blob.
+**The planner needs `out/build.json`**, and `test:shouq` leaves `out/` without it: rebuild with the same
+variables, then `git checkout -- wain-1.1.0.zip` so the committed archive is the one deployed.
+
+**Not measured**: a real call or typed chat on the live site (the socket is refused here), the credit balance,
+and iOS Safari. The first call from a phone is the proof.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
