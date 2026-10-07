@@ -6854,3 +6854,28 @@ pick applies to it.
 
 **Gates:** `scan` 0, `test:hangout` all suites, `test:orders` and `test:journey` green, Flutter 1,311 and analyze clean, `audit:flutter` current. **Not
 deployed.**
+
+## One box size and colour — 7 October, night
+
+Asked: «improve all boxes size and colors». Measured first, then the owner picked all four, site and app, and
+«deploy after these».
+
+- **One padding.** Outer boxes were padded 16, 20, 24 and 32px. They are 16px on a phone and 20px from `sm`
+  (`p-4 sm:p-5`): privacy ×6, about, /add, admin and the order and queue cards. The app is a phone, so 16.
+- **One inner fill.** Twelve boxes drew sand at 70%, 60% or 50%, which is four shades of one colour on the white
+  page. All are solid `sand-100` (the app's empty state too).
+- **One tint per colour, for status boxes:** `sea-50`, `coral-50`, `sun-50` and `palm-500/8`. Palm has no 50
+  step, hence the alpha. The yellow alerts (`sun-100`), the heat warning (`sun-500/12`) and the green boxes at
+  5/10/12% moved. Round status chips are not boxes and keep their stronger fills.
+- **One shadow and lift.** 27 boxes were still on `sm`, the about box on `md` and the home banner on `xl`. All
+  are `xs` now, and the home steps lift 2px into `md` like the cards. Buttons, icon tiles, the hero picture and
+  map pins keep theirs: they are not boxes.
+
+`audit:theme` «boxes» uses the «edges» per-string reading, with a box being a 15/20px corner that is not a
+control, picture or icon tile. It was red on the old source with 28, 12, 7 and 30 problems. The call sheet's
+widget slot is excluded (it is the widget's frame). `boxes.test` gained four computed checks (privacy 16/20px,
+the xs shadow, a solid empty state), 4 of 4 red on the old build. **Its first shadow check passed on the old
+build**: it looked for a value both shadows share. App: `boxes_test` scans `lib/` the same way, red on exactly
+the 14 hand-found spots, green after.
+
+**Gates:** build, `scan`, `test:hangout`, `test:orders`, `test:journey`; Flutter analyze clean, 1,312 tests.
