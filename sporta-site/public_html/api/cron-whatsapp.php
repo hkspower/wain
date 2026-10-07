@@ -139,7 +139,6 @@ function sporta_wa_send(array $cfg, array $row): array {
     $res  = curl_exec($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $cErr = curl_error($ch);
-    curl_close($ch);
 
     if ($res === false) return [false, null, 'curl: ' . $cErr];
     $j = json_decode((string)$res, true);

@@ -188,7 +188,6 @@ function sporta_push_fallback(array $cfg, array $row): array
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     if ($body === false) return [false, 'curl: ' . ($err !== '' ? $err : 'failed')];
     if ($code < 200 || $code >= 300) return [false, "n8n answered $code"];

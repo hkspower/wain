@@ -199,7 +199,6 @@ function wallet_install_cert(array $cfg, string $cerBytes, ?array $wwdrCandidate
                 CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2]);
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
             if (is_string($body) && $code === 200) $candidates[] = $body;
         }
     }

@@ -160,7 +160,6 @@ function photoguess_run(array $cfg, PDO $db, string $imageDataUri): array
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     if ($code !== 200 || !is_string($body)) {
         return ['error' => 'ai_failed', 'detail' => $code . ' ' . substr(

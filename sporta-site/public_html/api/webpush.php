@@ -260,7 +260,6 @@ function wp_send(array $sub, string $payload, array $vapid, int $ttl = 86400): a
     $res  = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $cerr = curl_error($ch);
-    curl_close($ch);
 
     if ($res === false) return [false, 0, 'curl: ' . ($cerr !== '' ? $cerr : 'failed')];
     if ($code >= 200 && $code < 300) return [true, $code, null];

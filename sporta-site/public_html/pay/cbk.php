@@ -361,7 +361,6 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
 
     $body = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     if ($body === false) {
         return [0, null];

@@ -26,7 +26,6 @@ function payment_check_reach(string $url): array {
     curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_errno($ch) ? mb_substr((string) curl_error($ch), 0, 120) : '';
-    curl_close($ch);
     return ['reachable' => $code > 0, 'http' => $code, 'error' => $err, 'host' => (string) parse_url($url, PHP_URL_HOST)];
 }
 

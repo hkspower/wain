@@ -245,7 +245,6 @@ function research_run(array $cfg, PDO $db, array $product, array $missing): arra
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     // SAY WHICH FAILURE IT WAS. assistant.php learned this the expensive way:
     // every failure there returned null, which is also what "not configured"

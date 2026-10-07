@@ -1052,7 +1052,6 @@ function store_wallet_push(array $tokens): void {
             curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
             if ($code !== 200) error_log("wallet push: HTTP $code for a registered phone");
-            curl_close($ch);
         }
     } catch (Throwable $e) { error_log('wallet push: ' . $e->getMessage()); }
 }
@@ -1583,7 +1582,7 @@ function store_image_thumb(string $bytes, int $width): ?array {
 
     $w = imagesx($src);
     $h = imagesy($src);
-    if ($w <= 0 || $h <= 0 || $w <= $width) { imagedestroy($src); return null; }
+    if ($w <= 0 || $h <= 0 || $w <= $width) { return null; }
 
     // MITCHELL, not GD's default. The default is a bilinear that samples a handful of
     // pixels, so shrinking a 2000px shoot to 400 aliases edges and loses fine detail;
@@ -1592,7 +1591,6 @@ function store_image_thumb(string $bytes, int $width): ?array {
     // where a GD build lacks the constant.
     $mode = defined('IMG_MITCHELL') ? IMG_MITCHELL : IMG_BILINEAR_FIXED;
     $out = imagescale($src, $width, (int) max(1, (int) round($h * ($width / $w))), $mode);
-    imagedestroy($src);
     if ($out === false) return null;
 
     // Both, and in this order, or a transparent PNG comes back with its
@@ -1603,7 +1601,6 @@ function store_image_thumb(string $bytes, int $width): ?array {
     ob_start();
     $ok = imagewebp($out, null, 88);
     $data = ob_get_clean();
-    imagedestroy($out);
 
     return ($ok && is_string($data) && $data !== '') ? [$data, 'webp'] : null;
 }
@@ -4395,7 +4392,6 @@ function store_google_jwks(): array {
                             CURLOPT_SSL_VERIFYPEER => true]);
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     if (is_string($body) && $code === 200) {
         $j = json_decode($body, true);
@@ -4584,7 +4580,6 @@ function store_apple_jwks(): array {
                             CURLOPT_SSL_VERIFYPEER => true]);
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
     if (is_string($body) && $code === 200) {
         $j = json_decode($body, true);

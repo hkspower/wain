@@ -1409,7 +1409,6 @@ function assistant_llm(array $cfg, string $message, string $facts, bool $ar): ?s
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     // SAY SO WHEN IT FAILS. Every failure here — a wrong key, a retired model,
     // a spent quota, a timeout — returned null, and null is also what "no AI
@@ -1917,7 +1916,6 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     $release = function () use ($lock, $lockPath) {
         if ($lock !== false) { @flock($lock, LOCK_UN); @fclose($lock); @unlink($lockPath); }
@@ -2120,7 +2118,6 @@ function assistant_handoff_send(array $cfg, array $row): array
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err  = curl_error($ch);
-    curl_close($ch);
 
     // THE RETURN VALUE IS NOW READ, which is the point of the rewrite.
     if ($body === false) return [false, 'curl: ' . ($err !== '' ? $err : 'failed')];
