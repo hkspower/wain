@@ -70,6 +70,18 @@ Movie Render Queue's temporal samples (32 on a still) doing the
 accumulation. Hardware ray tracing on an M2 is experimental and left to
 the project's own setting.
 
+## What to compare against
+
+`press/unreal/black-demon/stand-in/` holds the same shots made by the
+renderers this repository can run: `cycles-hero.jpg`, `cycles-side.jpg`,
+`cycles-rear.jpg` from the Blender studio (`npm run max:preview --
+press/max/render/black-demon`, graded by `max:finish`), and
+`web-night-city.jpg`, `web-night-coast.jpg` from the game itself
+(`CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs`). The UE5
+hero should sit beside the Cycles hero with the same framing and the
+same light falling on the same panels; where it does not, the light
+scale and EV100 are the first two numbers to move.
+
 ## The pieces
 
 | File | What |
