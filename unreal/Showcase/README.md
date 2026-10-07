@@ -118,7 +118,7 @@ lives on the render board.
 | `grn_showcase.py` | Runs inside the editor: `probe`, `build [id\|all]`, `report`. |
 | `grn_night.py`, `init_unreal.py` | The night shot's Movie Render Queue executor; it runs the game, not a map. |
 | `run.sh` | The Mac wrapper: finds the engine, runs each step, keeps the logs. |
-| `black-demon.glb` | The one car carried in git, 12 MB; the other 16 come from `run.sh export`. |
+| `black-demon.glb` | The one car carried in git, 8 MB; the other 16 come from `run.sh export`. |
 | `test_showcase_math.py`, `test_dry_run.py` | `npm run test:showcase`: the arithmetic, every exported GLB, and `build all` against a stand-in engine. |
 | `../../tools/shots/ue-compare.mjs` | The Blender-against-Unreal sheet; `npm run cars:ue-compare:rules` checks the tool. |
 | `../Source/GulfRoadNights/GRNShowcase.*` | The game's handle for the night shot: select the car, dress it, park it, clear the road. |
