@@ -3,6 +3,7 @@
 //   npm run dev
 //   node tools/shots/ik4k.mjs            # zeta-300-gtr
 //   CAR=kaiju-r node tools/shots/ik4k.mjs
+//   CAR=black-demon PAINT=factory node tools/shots/ik4k.mjs   # the card's own colour, not the red
 //   TIER=high node tools/shots/ik4k.mjs  # if ultra is too slow headless
 //   SHOTS=lock,brake node tools/shots/ik4k.mjs   # re-render some
 //
@@ -39,6 +40,10 @@ const exe = C.find((p) => existsSync(p));
 if (!exe) { console.error("no chromium"); process.exit(2); }
 
 const CAR = process.env.CAR ?? "zeta-300-gtr";
+// The paint the car wears: a garage paint id, or "factory" for the colour
+// on its card (the garage reads "paint-white" as "nothing bought", which
+// is how a car keeps its factory colour — mods.ts, tuneFor).
+const PAINT = (process.env.PAINT ?? "paint-red") === "factory" ? "paint-white" : process.env.PAINT ?? "paint-red";
 const TIER = process.env.TIER ?? "ultra";
 const W = 3840, H = 2160;
 const OUT = process.env.OUT ?? "press/ik/4k";
@@ -70,13 +75,13 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnEngine, null, { timeout: 600000 });
 console.log(`booted in ${secs()} s`);
 
-await page.evaluate(async ({ car, tier, ev }) => {
+await page.evaluate(async ({ car, tier, ev, paint }) => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.setSky("night");
   localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
     car, cars: [car], owned: [], kd: 99999,
-    equipped: { paint: "paint-red", glow: "glow-none" },
+    equipped: { paint, glow: "glow-none" },
   }));
   e.applyGarage();
   e.applyQualityTier(tier);
@@ -88,7 +93,7 @@ await page.evaluate(async ({ car, tier, ev }) => {
   e.setExposure(0, false);
   e.setManualExposure(0.55 * Math.pow(2, ev));
   await new Promise((r) => setTimeout(r, 300));
-}, { car: CAR, tier: TIER, ev: EV });
+}, { car: CAR, tier: TIER, ev: EV, paint: PAINT });
 
 // The authored shells and wheels arrive as async fetches; a 4K still of
 // the procedural stand-ins would be a still of the wrong car.
