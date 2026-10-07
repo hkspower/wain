@@ -6372,6 +6372,27 @@ needed.** Do not truncate the file: an ElevenLabs key is shown once and cannot b
 A visit costs one refused request to `/api/tts.php`, which is the price of leaving the bridge
 as the site's default.
 
+## The 7 October deploy, second — `ecd3456c` is live: the voice bridge out of the bundle
+
+«publish now» after the bridge was switched off. A free build with
+`NEXT_PUBLIC_WAIN_TTS_URL=none npm run release`, so the page no longer asks `/api/tts.php`
+for anything (no `api/tts.php` string in any chunk; the refused request per visit is gone).
+`audit:js`, `assets`, `htaccess`, `voice`, `tts` and `shouq-call` green on that export; the
+full `scan` and the browser suites were NOT re-run for this one (nothing but that constant
+changed since `e96f17f0`).
+
+`{"ok":true,"version":"1.1.0","deployed":277,"removed":0,"emptied":0,"at":
+"2026-10-07T08:05:01+00:00"}` through the installed caller, job `MfTC7CSbEA`. `removed: 0` was
+the second firing (the job sat a minute before the read); the disk settled it —
+`_next/static/` holds only `ecd3456c…/`. Archive `6b174ab/wain-1.1.0.zip` (sha256
+`7e64ad60…b160`), one more permanent ~4MB blob. `deploy:verify`: «ecd3456c is live —
+verified at the root and 7 levels below it» (`build.json` digest `70fea50762ca7af7`; the
+/search chunk `page-e1e14c90a66c4d85.js` 21,333 read by path because the listing stops at
+depth 2). After the purge, a cron `wget -S --spider` of `/salem/` through the edge: 200,
+`Last-Modified: 08:05:01`, `x-hcdn-cache-status: DYNAMIC`. Jobs deleted; **the next build must
+pass the same variable** or the bridge URL is back in the bundle (it then 503s harmlessly while
+the key stays renamed). **The CSP still names `*.supabase.co`** — unchanged, still due.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
