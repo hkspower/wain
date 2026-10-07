@@ -25,6 +25,11 @@ import argparse, glob, json, os, shutil, subprocess, sys
 
 import bpy
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "blender"))
+import version as _version  # noqa: E402
+
+_version.require()
+
 ap = argparse.ArgumentParser()
 ap.add_argument("folder")
 # Default: the exposure that makes Blender's ACES 1.3 view equal the
@@ -66,10 +71,7 @@ def encode(sc, pngs, mp4):
     bpy.data.images.remove(img)
     sc.sequence_editor_create()
     seq = sc.sequence_editor
-    # Blender 4.4+ calls them strips; older ones, sequences. (An empty
-    # collection is falsy, so test for the attribute, not the value.)
-    strips = seq.strips if hasattr(seq, "strips") else seq.sequences
-    strip = strips.new_image("tt", os.path.abspath(pngs[0]), 1, 1)
+    strip = seq.strips.new_image("tt", os.path.abspath(pngs[0]), 1, 1)
     for p in pngs[1:]:
         strip.elements.append(os.path.basename(p))
     strip.colorspace_settings.name = "sRGB"
@@ -79,8 +81,7 @@ def encode(sc, pngs, mp4):
     sc.view_settings.view_transform = "Standard"  # the PNGs are already graded
     sc.view_settings.exposure = 0.0
     r = sc.render
-    if hasattr(r.image_settings, "media_type"):  # Blender 5: pick video before the format
-        r.image_settings.media_type = "VIDEO"
+    r.image_settings.media_type = "VIDEO"  # Blender 5: pick video before the format
     r.image_settings.file_format = "FFMPEG"
     r.ffmpeg.format = "MPEG4"
     r.ffmpeg.codec = "H264"

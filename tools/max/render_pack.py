@@ -32,6 +32,11 @@ tools/max/preview_render.py renders the same pack in Cycles here.
 import argparse, json, math, os, sys
 
 import bpy
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "blender"))
+import version as _version  # noqa: E402
+
+_version.require()
 from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Studio beauty renders of every car in the catalogue, in Blender.
 
-    pip install bpy                                   # Blender as a module
+    pip install -r requirements-blender.txt           # Blender as a module (bpy 5.0.1)
     node tools/shots/export-cars.mjs                  # the cars, out of the game
     python3 tools/blender/render_cars.py              # all of them, 2560x1440
     python3 tools/blender/render_cars.py --only black-demon --preview
@@ -40,8 +40,8 @@ is logged and skipped rather than ending the batch, cars.json and
 renders.json are merged by id, and the log prints an ETA.
 
 COLOUR. The game tone-maps with ACESFilmic; Blender 5.0 ships ACES 1.3
-as a view transform, so a paint here lands where the game puts it. The
-fallbacks (Khronos PBR Neutral, Standard) are for older Blenders.
+as a view transform, so a paint here lands where the game puts it. There
+is no fallback: an older Blender is refused at start-up (version.py).
 
 Cycles on the CPU with OpenImageDenoise: measured on this project's
 build machine at 0.99 s per sample per megapixel under load, so a
@@ -56,6 +56,9 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import studio as studio_def  # noqa: E402  (the shared studio numbers)
+import version  # noqa: E402
+
+version.require()
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--glb-dir", default="press/renders/glb")
@@ -121,7 +124,6 @@ def studio(mn, mx):
     ground = bpy.context.active_object
     ground.name = "Ground"
     gm = bpy.data.materials.new("Stage")
-    gm.use_nodes = True
     b = gm.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (*fl["base"], 1.0)
     b.inputs["Metallic"].default_value = 0.0
@@ -150,8 +152,6 @@ def studio(mn, mx):
     if sc.world is None:
         sc.world = bpy.data.worlds.new("World")
     w = sc.world
-    if w.node_tree is None:
-        w.use_nodes = True
     wn = w.node_tree
     wn.nodes.clear()
     out = wn.nodes.new("ShaderNodeOutputWorld")
@@ -199,21 +199,21 @@ def configure(sc, out_png):
     cy.caustics_reflective = False
     cy.caustics_refractive = False
     cy.use_denoising = True
-    try_set(cy, "denoiser", "OPENIMAGEDENOISE")
-    try_set(cy, "denoising_input_passes", "RGB_ALBEDO_NORMAL")
-    try_set(cy, "denoising_prefilter", "ACCURATE")
-    try_set(cy, "denoising_quality", "HIGH")
-    try_set(cy, "denoising_use_gpu", False)
-    try_set(cy, "use_light_tree", True)
+    # Blender 5.0 has all of these; a rejected value is an error, not a
+    # quieter render.
+    cy.denoiser = "OPENIMAGEDENOISE"
+    cy.denoising_input_passes = "RGB_ALBEDO_NORMAL"
+    cy.denoising_prefilter = "ACCURATE"
+    cy.denoising_quality = "HIGH"
+    cy.denoising_use_gpu = False
+    cy.use_light_tree = True
     sc.render.film_transparent = False
     sc.render.filter_size = 1.5
-    for vt in ("ACES 1.3", "Khronos PBR Neutral", "Standard"):
-        if try_set(sc.view_settings, "view_transform", vt):
-            break
-    try_set(sc.view_settings, "look", "None")
+    sc.view_settings.view_transform = "ACES 1.3"
+    sc.view_settings.look = "None"
     sc.view_settings.exposure = args.exposure
     sc.view_settings.gamma = 1.0
-    try_set(sc.display_settings, "display_device", "sRGB")
+    sc.display_settings.display_device = "sRGB"
     r = sc.render
     r.resolution_x, r.resolution_y, r.resolution_percentage = args.width, args.height, 100
     r.image_settings.file_format = "PNG"

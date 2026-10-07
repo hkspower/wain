@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Model the game's graphics in Blender and export game-ready glTF.
 
-    pip install bpy
+    pip install -r requirements-blender.txt   # bpy 5.0.1
     node scripts/export-car-profiles.mjs        # refresh profiles.json
     python3 tools/blender/build_assets.py --out public/models
 
@@ -38,8 +38,13 @@ import math
 import os
 import sys
 
-import bpy
-import bmesh
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import version  # noqa: E402
+
+version.require()
+
+import bpy  # noqa: E402
+import bmesh  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

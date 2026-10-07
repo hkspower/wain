@@ -223,6 +223,7 @@
     "export:film": "node tools/shots/exportfilm.mjs",
     "film:map": "node tools/shots/maptour.mjs",
     "cars:export": "node tools/shots/export-cars.mjs",
+    "test:blender": "python3 tools/blender/test_version.py",
     "cars:render": "python3 tools/blender/render_cars.py"
   },
   "dependencies": {

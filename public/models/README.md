@@ -101,7 +101,7 @@ rebuild.
 ## Regenerating
 
 ```bash
-pip install bpy          # Blender as a Python module, no GUI needed
+pip install -r requirements-blender.txt          # Blender as a Python module, no GUI needed
 npm run sync:models      # profiles.json from cars.ts → Blender → GLBs
 ```
 
@@ -188,7 +188,7 @@ cars exactly as the game builds them — not of these shells alone, which
 carry no materials. `npm run cars:export` boots the game and exports
 every catalogue car (paint, kit, wheels, livery, lamps) as a GLB with
 three's GLTFExporter into `press/renders/glb/` (ignored, ~12 MB a car);
-`npm run cars:render` (`pip install bpy`, the same module the asset
+`npm run cars:render` (`pip install -r requirements-blender.txt`, the same module the asset
 build uses) imports each into a studio — dark glossy floor, key, fill,
 rim, a long strip over the roof and a sodium kicker — and renders it
 with Cycles at 2560x1440. `--preview` gives a 640x360 look in under a

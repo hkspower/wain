@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The car shells, out to 3ds Max as FBX: one file per body style.
 
-    pip install bpy
+    pip install -r requirements-blender.txt
     npm run max:export                      # all nine -> press/max/car-<style>.fbx
     python3 tools/max/export_for_max.py --styles gtr,sedan
 
@@ -55,7 +55,6 @@ SLOTS = ("Body", "Canopy", "Roof")
 def material(name, rgba, alpha=1.0):
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     m.diffuse_color = rgba
-    m.use_nodes = True
     b = m.node_tree.nodes.get("Principled BSDF")
     if b:
         b.inputs["Base Color"].default_value = rgba

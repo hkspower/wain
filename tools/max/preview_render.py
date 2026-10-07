@@ -14,6 +14,11 @@ grades them to ACES PNG and the MP4, the same way it grades Max's output.
 import argparse, json, math, os, sys, time
 
 import bpy
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "blender"))
+import version as _version  # noqa: E402
+
+_version.require()
 from mathutils import Matrix, Vector
 
 ap = argparse.ArgumentParser()
@@ -57,7 +62,6 @@ def build(pack, spec):
     bpy.ops.mesh.primitive_plane_add(size=fl["size"], location=fl["center"])
     ground = bpy.context.active_object
     gm = bpy.data.materials.new("Stage")
-    gm.use_nodes = True
     b = gm.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (*fl["base"], 1)
     b.inputs["Roughness"].default_value = fl["roughness"]
@@ -84,7 +88,6 @@ def build(pack, spec):
 
     w = bpy.data.worlds.new("World")
     sc.world = w
-    w.use_nodes = True
     wn = w.node_tree
     wn.nodes.clear()
     o_ = wn.nodes.new("ShaderNodeOutputWorld")

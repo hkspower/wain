@@ -7,7 +7,7 @@ The game builds everything else itself: lamps, trim, wheels, mirrors, paint and 
 ## The loop
 
 ```sh
-pip install bpy          # Blender as a Python module, once
+pip install -r requirements-blender.txt          # Blender as a Python module, once
 npm run max:export       # press/max/: car-<style>.fbx and car-<style>.nr.json, all nine styles
 ```
 
@@ -84,7 +84,7 @@ The car renders in the same studio as the Blender set (`press/renders`): the sam
    - *Half (test)* renders at half size.
    - *AA* sets Arnold's camera samples: 6 for the stills; the turntable uses AA − 2.
    - *lights x* scales every light, if the result is too bright or too dark.
-4. **Grade** (in the repo, or anywhere with `pip install bpy`):
+4. **Grade** (in the repo, or anywhere with `pip install -r requirements-blender.txt`):
 
    ```sh
    npm run max:finish -- press/max/render/black-demon/out

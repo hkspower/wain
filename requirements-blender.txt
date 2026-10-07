@@ -1,0 +1,3 @@
+# Blender as a Python module, for tools/blender and tools/max.
+# 5.0.1 is the newest build on PyPI; it needs Python 3.11.
+bpy==5.0.1
