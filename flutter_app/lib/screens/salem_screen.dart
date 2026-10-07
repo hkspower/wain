@@ -1071,7 +1071,7 @@ class _PlacesResultState extends State<_PlacesResult> {
                     duration: const Duration(milliseconds: 150),
                     width: _cardWidth,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(WainRadius.s2xl + 2),
+                      borderRadius: BorderRadius.circular(WainRadius.s3xl + 2),
                       border: Border.all(
                         color: p.slug == active
                             ? WainColors.sun400
@@ -1087,10 +1087,11 @@ class _PlacesResultState extends State<_PlacesResult> {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(WainRadius.s3xl),
+              border: Border.all(color: WainColors.line),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1208,10 +1209,11 @@ class _Where extends StatelessWidget {
     return Container(
       key: const ValueKey('chat-where'),
       margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(WainRadius.s3xl),
+        border: Border.all(color: WainColors.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

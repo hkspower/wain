@@ -691,10 +691,14 @@ class _AnswerLine extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     key: const ValueKey('search-answer'),
     margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.all(16),
+    // White in her coral border, the web's ShouqAnswer: one box system, the
+    // outer corner and the xs shadow, no tint of its own.
     decoration: BoxDecoration(
-      color: WainColors.sea50,
-      borderRadius: BorderRadius.circular(WainRadius.s2xl),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(WainRadius.s3xl),
+      border: Border.all(color: WainColors.coral200),
+      boxShadow: WainShadows.xs,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,7 +706,7 @@ class _AnswerLine extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            WainSvg.icon('shouq', size: 20, color: WainColors.sea700),
+            WainSvg.icon('shouq', size: 20, color: WainColors.coral700),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

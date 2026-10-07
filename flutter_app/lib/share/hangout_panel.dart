@@ -36,7 +36,9 @@ const String kUsualWhenKey = 'wain:usual-when';
 String newPollId([Random? rng]) {
   final r = rng ?? Random.secure();
   const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  return String.fromCharCodes([for (var i = 0; i < 12; i++) abc.codeUnitAt(r.nextInt(abc.length))]);
+  return String.fromCharCodes([
+    for (var i = 0; i < 12; i++) abc.codeUnitAt(r.nextInt(abc.length)),
+  ]);
 }
 
 class ShareHangout extends StatefulWidget {
@@ -90,7 +92,8 @@ class _ShareHangoutState extends State<ShareHangout> {
   /// The first few, until the visitor says otherwise; re-seeded when the
   /// choices change, so it never lists places no longer shown.
   void _seed() => _picked = [
-    for (final c in fitShortlist(widget.choices ?? const <Place>[], _now)) c.slug,
+    for (final c in fitShortlist(widget.choices ?? const <Place>[], _now))
+      c.slug,
   ];
 
   late bool _open = debugHangoutStartOpen;
@@ -182,7 +185,13 @@ class _ShareHangoutState extends State<ShareHangout> {
         ? shortlistMessage(
             places: listed,
             when: when,
-            url: shortlistUrl(listed, when, kInviteOrigin, day, kBackendEnabled ? newPollId() : null),
+            url: shortlistUrl(
+              listed,
+              when,
+              kInviteOrigin,
+              day,
+              kBackendEnabled ? newPollId() : null,
+            ),
             now: now,
           )
         : hangoutMessage(
@@ -233,7 +242,7 @@ class _ShareHangoutState extends State<ShareHangout> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(WainRadius.s3xl),
         border: Border.all(color: WainColors.line),
-        boxShadow: WainShadows.sm,
+        boxShadow: WainShadows.xs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,7 +266,9 @@ class _ShareHangoutState extends State<ShareHangout> {
             what: listMode
                 ? listed.map((c) => c.nameAr).join('، ')
                 : widget.place.nameAr,
-            when: selected == null ? '…' : planPhrase(selected, kuwaitDay(_now), _now),
+            when: selected == null
+                ? '…'
+                : planPhrase(selected, kuwaitDay(_now), _now),
             open: _open,
             onToggle: () {
               HapticFeedback.selectionClick();
@@ -275,7 +286,6 @@ class _ShareHangoutState extends State<ShareHangout> {
                 decoration: BoxDecoration(
                   color: WainColors.sand100,
                   borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: WainColors.line),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -353,34 +363,34 @@ class _ShareHangoutState extends State<ShareHangout> {
             ),
           ],
           if (_open) ...[
-          const SizedBox(height: 16),
-          Text(
-            'متى؟',
-            style: wainText(
-              WainText.xs,
-              weight: FontWeight.w600,
-              color: WainColors.ink600,
+            const SizedBox(height: 16),
+            Text(
+              'متى؟',
+              style: wainText(
+                WainText.xs,
+                weight: FontWeight.w600,
+                color: WainColors.ink600,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final o in options)
-                _Chip(
-                  key: ValueKey('when-${o.id.wire}'),
-                  label: o.labelAr,
-                  active: o.id == selected,
-                  activeColor: WainColors.coral700,
-                  onTap: () => setState(() {
-                    _when = o.id;
-                    _touched = true;
-                    _outcome = null;
-                  }),
-                ),
-            ],
-          ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final o in options)
+                  _Chip(
+                    key: ValueKey('when-${o.id.wire}'),
+                    label: o.labelAr,
+                    active: o.id == selected,
+                    activeColor: WainColors.coral700,
+                    onTap: () => setState(() {
+                      _when = o.id;
+                      _touched = true;
+                      _outcome = null;
+                    }),
+                  ),
+              ],
+            ),
           ],
           if (short)
             Padding(
@@ -400,36 +410,36 @@ class _ShareHangoutState extends State<ShareHangout> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-          FilledButton.icon(
-            key: const ValueKey('hangout-send'),
-            onPressed: _busy || short
-                ? null
-                : () {
-                    _when = selected;
-                    _send();
-                  },
-            style: FilledButton.styleFrom(
-              backgroundColor: WainColors.coral700,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(0, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(WainRadius.xl),
+              FilledButton.icon(
+                key: const ValueKey('hangout-send'),
+                onPressed: _busy || short
+                    ? null
+                    : () {
+                        _when = selected;
+                        _send();
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: WainColors.coral700,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WainRadius.xl),
+                  ),
+                ),
+                icon: WainSvg.icon('send', size: 16, color: Colors.white),
+                label: Text(
+                  _busy
+                      ? 'لحظة…'
+                      : listMode
+                      ? 'رسّل القائمة'
+                      : 'رسّلها',
+                  style: wainText(
+                    WainText.base,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-            ),
-            icon: WainSvg.icon('send', size: 16, color: Colors.white),
-            label: Text(
-              _busy
-                  ? 'لحظة…'
-                  : listMode
-                  ? 'رسّل القائمة'
-                  : 'رسّلها',
-              style: wainText(
-                WainText.base,
-                weight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
               // The other way to send, without opening the chips.
               if (_canList && !_open)
                 TextButton(
@@ -471,7 +481,7 @@ class _ShareHangoutState extends State<ShareHangout> {
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: WainColors.sand50,
+                color: WainColors.sand100,
                 borderRadius: BorderRadius.circular(WainRadius.xl),
                 border: Border.all(color: WainColors.line),
               ),
@@ -559,9 +569,10 @@ class _PlanLine extends StatelessWidget {
       key: const ValueKey('hangout-plan-line'),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: WainColors.sand50,
+        // sand-100, not sand-50: sand-50 is #ffffff, the panel's own white,
+        // so the line showed only by its border (the web had it too).
+        color: WainColors.sand100,
         borderRadius: BorderRadius.circular(WainRadius.s2xl),
-        border: Border.all(color: WainColors.line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,7 +588,11 @@ class _PlanLine extends StatelessWidget {
                     key: const ValueKey('plan-what'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: wainText(WainText.base, weight: FontWeight.w600, color: WainColors.ink900),
+                    style: wainText(
+                      WainText.base,
+                      weight: FontWeight.w600,
+                      color: WainColors.ink900,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -598,7 +613,11 @@ class _PlanLine extends StatelessWidget {
               style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
               child: Text(
                 open ? 'تمام' : 'غيّر',
-                style: wainText(WainText.sm, weight: FontWeight.w600, color: WainColors.sea700),
+                style: wainText(
+                  WainText.sm,
+                  weight: FontWeight.w600,
+                  color: WainColors.sea700,
+                ),
               ),
             ),
           ),

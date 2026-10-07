@@ -74,9 +74,9 @@ class PlaceCard extends StatelessWidget {
       onLongPressHint: 'شارك المكان',
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(WainRadius.s2xl),
+        borderRadius: BorderRadius.circular(WainRadius.s3xl),
         child: InkWell(
-          borderRadius: BorderRadius.circular(WainRadius.s2xl),
+          borderRadius: BorderRadius.circular(WainRadius.s3xl),
           onTap: () {
             HapticFeedback.selectionClick();
             context.push('/places/${place.slug}');
@@ -93,12 +93,12 @@ class PlaceCard extends StatelessWidget {
               // A fill is required: a BoxShadow on a transparent box shows
               // THROUGH it, which painted the whole card grey.
               color: Colors.white,
-              borderRadius: BorderRadius.circular(WainRadius.s2xl),
+              borderRadius: BorderRadius.circular(WainRadius.s3xl),
               border: Border.all(color: WainColors.line),
-              boxShadow: WainShadows.sm,
+              boxShadow: WainShadows.xs,
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(WainRadius.s2xl - 1),
+              borderRadius: BorderRadius.circular(WainRadius.s3xl - 1),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -360,7 +360,6 @@ class _RatingChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(99),
-            boxShadow: WainShadows.sm,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
