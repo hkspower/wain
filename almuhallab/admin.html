@@ -181,9 +181,13 @@
     header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
       background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50; }
+    header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
+      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); pointer-events: none; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
     .brand .logo { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
       font-size: 17px; background: var(--on-bar-fill); color: var(--tint); }
+    /* the page's one focal glow: the logo's halo, amber at .32, sigma .19 of the mark */
+    .brand .logo svg { filter: drop-shadow(0 0 4px rgba(230, 169, 92, .32)); }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
     .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
@@ -213,7 +217,7 @@
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
-      border-top: 1px solid var(--border); line-height: 1.9; }
+      border-top: 0; line-height: 1.9; background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)) top / 100% 1px no-repeat; }
 
     nav.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel);
       border-bottom: 1px solid var(--border); overflow-x: auto; }

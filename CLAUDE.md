@@ -145,6 +145,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   every character, misses the glyph, and the browser skips to the next family
   instead of the Latin file. The suite asks the engine what actually painted
   (`CSS.getPlatformFontsForNode`). Redirect stubs load no webfont at all.
+- **The logo's own marks are the page's ornaments** (scan of `design/logo-en`, 2026-10-07): every rule (masthead foot on all four bars, section rule, footer top) is the logo's CODE rule, amber at .55 fading to 0; every cursor is the logo's block, `.47em` x `1em`, amber at .85; the flagship row's edge carries the logo's stripe at its proportion, band 2 of every 7 (kit: 2.05 in 7.16); one focal glow per page at the logo's halo, amber .32, sigma .19 of the mark (masthead wordmark 8px on index, the English hero line on the portal, the anchor on the system and console). Tagline tracking (.3em) is not applied to the Arabic kickers: letter-spacing breaks Arabic joining.
 - **There is one theme, and it is dark** (owner's choice 2026-10-07, «Dark,
   like the logo», reversing the white rule of 2026-07): `color-scheme: dark`
   on `:root` and no `prefers-color-scheme` block, so a device set to light

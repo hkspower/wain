@@ -169,6 +169,8 @@
       border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50;
     }
+    header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
+      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); pointer-events: none; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
     /* النوخذة keeps its anchor: amber on a raised tile, as icon.svg draws it */
     .brand .logo {
@@ -236,6 +238,9 @@
       color: var(--text); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
     .hero .kicker .ic { display: none; }
+    /* the logo's cursor closes the line: .47em by one em, amber at .85, still */
+    .hero .kicker::after { content: ""; display: inline-block; width: .47em; height: 1em; vertical-align: -.12em;
+      background: var(--tint); opacity: .85; margin-inline-start: 8px; }
     .hero .kicker::before {
       content: ">_"; display: inline-block; direction: ltr; unicode-bidi: isolate;
       font-family: var(--mono); font-weight: 700; color: var(--tint); margin-inline-end: 8px;
@@ -245,7 +250,9 @@
       font-family: var(--display); font-weight: 700;
       /* the English reads longer than the Arabic at the same size, so it wrapped
          to two lines and outweighed the line it translates */
-      font-size: .68em; margin-top: 2px; text-wrap: balance; }
+      font-size: .68em; margin-top: 2px; text-wrap: balance;
+      /* the page's one focal glow: the logo's halo, amber at .32, sigma .19em (40 on its 212px word) */
+      text-shadow: 0 0 .38em rgba(230, 169, 92, .32); }
     .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
@@ -284,6 +291,8 @@
       line-height: 1.4;
     }
     h2.section { font-size: 20px; margin: 8px 0 4px; }
+    h2.section::after { content: ""; display: block; width: 96px; height: 2px; border-radius: 2px;
+      margin-top: 6px; background: linear-gradient(270deg, rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); }
     .sub { color: var(--muted); margin: 0 0 16px; line-height: 1.8; }
 
     /* Pricing */
@@ -393,7 +402,8 @@
        a tablet too, which the max-width rule above never reached */
     @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
-    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px; border-top: 1px solid var(--border); line-height: 1.9; }
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px; border-top: 0; line-height: 1.9;
+      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)) top / 100% 1px no-repeat; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer a { display: inline-block; padding: 6px 4px; }
       @media (min-width: 641px) { header { padding-block: 8px; } }
