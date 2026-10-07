@@ -1045,7 +1045,7 @@
       ["التكلفة (د.ك)", kwd(cost), "", ""],
       ["القيمة السوقية (د.ك)", kwd(val), "", ""],
       ["الربح/الخسارة (د.ك)", ((val - cost) >= 0 ? "+" : "−") + kwd(Math.abs(val - cost)), "",
-       cost ? ((val - cost) / cost * 100).toFixed(1) + "%" : ""],
+       cost ? ((val - cost) / cost * 100).toFixed(1).replace("-", "\u2212") + "%" : ""],
       ["تقارير XBRL", rd(K.xbrl, []).length, "", "محفوظة على الجهاز"]
     ]);
 

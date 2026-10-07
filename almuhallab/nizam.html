@@ -340,7 +340,7 @@
        new is the warning yellow, on the way the amber accent */
     .status { font-size:12px; font-weight:800; border-radius:999px; padding: 4px 12px; border:1px solid;
       background: var(--panel-2); }
-    .st-0{color:var(--sand);border-color:var(--sand)} .st-1{color:var(--info);border-color:var(--info)}
+    .st-0{color:var(--text);border-color:var(--border-input)} .st-1{color:var(--info);border-color:var(--info)}
     .st-2{color:var(--tint);border-color:var(--tint)} .st-3{color:var(--good);border-color:var(--good)}
     .st-4{color:var(--danger);border-color:var(--danger)}
     .order { background:var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px;
@@ -467,7 +467,7 @@
         --ord-1:#a3abb4; --ord-2:#838c96; --ord-3:#656e79; --ord-4:#4a525c; --ord-5:#30363d;
         --viz-pos:#02783d; --viz-neg:#ce1925; --viz-zero:#acb4bf; --viz-grid:#dee4ec; }
       .topbar, nav.tabs, footer.site, #toast, .row, form,
-      button, .btn, .empty { display: none !important; }
+      button, .btn, #tip, form, h2:has(+ form) { display: none !important; }
       main { max-width: none; padding: 0; }
       .tab { display: block !important; }          /* print what is on screen */
       .tab:not(.on) { display: none !important; }
