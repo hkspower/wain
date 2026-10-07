@@ -196,7 +196,7 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     $pw = pdf_text_width($font, $pill, 9) + 24;
     pdf_rrect($doc, $L, $y - 5, $pw, 18, 9, $paid ? $green : $amber);
     $T($pill, $L + $pw / 2, $y, 9, 'center', $paid ? $white : $ink, true, 1.0);
-    $T($ar($paid ? 'مدفوع' : 'غير مدفوع'), $R, $y, 11, 'right', $soft);
+    $T($ar($paid ? 'مدفوع' : 'غير مدفوع'), $R, $y, 12, 'right', $ink, true);
     $y -= 74;
 
     // --- the order, in a card -----------------------------------------------
@@ -210,7 +210,7 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     foreach ($cells as $i => [$en, $arLab, $val]) {
         $x = $L + 22 + $i * $cw;
         $T($en, $x, $y + 20, 8, 'left', $soft, true, 1.2);
-        $T($ar($arLab), $x + $cw - 40, $y + 20, 8, 'right', $soft);
+        $T($ar($arLab), $x + $cw - 40, $y + 20, 9.5, 'right', $soft, true);
         $T($val, $x, $y - 8, 12, 'left', $ink, true);
     }
     $y -= 84;
@@ -231,7 +231,7 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     $line = implode(', ', $addr);
 
     $T('DELIVER TO', $L, $y, 8, 'left', $soft, true, 1.2);
-    $T($ar('التوصيل إلى'), $R, $y, 8, 'right', $soft);
+    $T($ar('التوصيل إلى'), $R, $y, 9.5, 'right', $soft, true);
     $y -= 24;
     if (ar_has_arabic($name)) $T($ar($name), $R, $y, 13, 'right', $ink, true);
     else                      $T($name, $L, $y, 13, 'left', $ink, true);
@@ -245,7 +245,7 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     $tableHead = function () use (&$doc, &$y, $L, $R, $band, $white, $T, $ar, $cQty, $cPrice, $cTotal) {
         pdf_rrect($doc, $L, $y - 11, $R - $L, 32, 8, $band);
         $T('ITEM', $L + 18, $y, 8, 'left', $white, true, 1.2);
-        $T($ar('الصنف'), $L + 104, $y, 8, 'left', [0.72, 0.75, 0.79]);
+        $T($ar('الصنف'), $cQty - 30, $y, 9.5, 'right', $white, true);
         $T('QTY', $cQty, $y, 8, 'center', $white, true, 1.2);
         $T('PRICE', $cPrice, $y, 8, 'right', $white, true, 1.2);
         $T('TOTAL', $cTotal, $y, 8, 'right', $white, true, 1.2);
@@ -266,8 +266,8 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
         $en = trim((string) $row['name_en']);
         $arName = trim((string) $row['name_ar']);
         $size = trim((string) $row['size']);
-        $h = 48.0;
-        if ($n % 2 === 0) pdf_rect($doc, $L, $y - 21, $R - $L, $h, $zebra);
+        $h = 50.0;
+        if ($n % 2 === 0) pdf_rect($doc, $L, $y - 23, $R - $L, $h, $zebra);
 
         $T($en, $L + 18, $y + 2, 10.5, 'left', $ink, true);
         $T((string) (int) $row['qty'], $cQty, $y + 2, 10.5, 'center', $ink, true);
@@ -275,7 +275,7 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
         $T(invoice_kwd((float) $row['line_total']), $cTotal, $y + 2, 10.5, 'right', $ink, true);
         $sub = $size !== '' ? 'Size ' . $size : '';
         if ($sub !== '') $T($sub, $L + 18, $y - 14, 8.5, 'left', $soft);
-        if ($arName !== '') $T($ar($arName), $cQty - 40, $y - 14, 8.5, 'right', $soft);
+        if ($arName !== '') $T($ar($arName), $cQty - 30, $y - 15, 10, 'right', $ink);
         $y -= $h;
         $n++;
     }
@@ -303,22 +303,22 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     $rows[] = ['Delivery', 'التوصيل', (float) $o['delivery_fee']];
     foreach ($rows as [$en, $arLab, $val]) {
         $T($en, $bx, $y, 10, 'left', $soft);
-        $T($ar($arLab), $bx + 142, $y, 9, 'right', $soft);
+        $T($ar($arLab), $bx + 142, $y, 10.5, 'right', $soft);
         $T(($val < 0 ? '-' : '') . invoice_kwd(abs($val)) . ' KWD', $R - 6, $y, 10, 'right', $ink);
         $y -= 26;
     }
     $y -= 12;
     pdf_rrect($doc, $bx - 16, $y - 15, 278, 44, 10, $orange);
     $T('TOTAL', $bx, $y, 11, 'left', $white, true, 1.5);
-    $T($ar('الإجمالي'), $bx + 142, $y, 10, 'right', $white);
+    $T($ar('الإجمالي'), $bx + 142, $y, 12, 'right', $white, true);
     $T(invoice_kwd((float) $o['amount']) . ' KWD', $R - 6, $y, 14, 'right', $white, true);
 
     // --- foot ---------------------------------------------------------------
     pdf_rect($doc, $L, 124, $R - $L, 1.2, $hot);
     $T('Thank you for shopping with Sporta.', $L, 98, 10.5, 'left', $ink, true);
-    $T($ar('شكرًا لتسوقك من سبورتا'), $R, 98, 10.5, 'right', $ink, true);
+    $T($ar('شكرًا لتسوقك من سبورتا'), $R, 98, 12, 'right', $ink, true);
     $T('Delivery across Kuwait within 24 hours.', $L, 78, 8.5, 'left', $soft);
-    $T($ar('التوصيل داخل الكويت خلال ٢٤ ساعة'), $R, 78, 8.5, 'right', $soft);
+    $T($ar('التوصيل داخل الكويت خلال ٢٤ ساعة'), $R, 76, 10, 'right', $soft);
     $T('sporta.com.kw', $L, 56, 8.5, 'left', $soft);
 
     return pdf_render($doc);
