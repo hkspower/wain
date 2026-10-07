@@ -44,6 +44,8 @@ function cbk_db_configured(array $cfg): bool
     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
 }
 
+require_once __DIR__ . '/cbk-sets.php';   // cbk_saved_set(): which credential set a mode uses
+
 // The credentials and environment saved in /backends (the `knet` settings row),
 // laid over pay/config.php. Silent on ANY failure — no database, no table, bad
 // JSON — because none of those may turn a working file into a shop that cannot
@@ -63,15 +65,16 @@ function cbk_apply_saved(array $cfg): array
         $row = $q->fetchColumn();
         $val = is_string($row) && $row !== '' ? json_decode($row, true) : null;
         if (!is_array($val)) return $cfg;
-        foreach (['cbk_client_id' => 'client_id', 'cbk_client_secret' => 'client_secret', 'cbk_encrp_key' => 'encrp_key'] as $from => $to) {
-            $x = (string) ($val[$from] ?? '');
+        $env = strtolower(trim((string) ($val['env'] ?? '')));
+        if ($env === 'test' || $env === 'production') $cfg['env'] = $env;
+        // TWO CREDENTIAL SETS since 2026-10-07: the bank issues one set for its test gateway and
+        // another for the live one. The environment picks the set — see cbk_saved_set().
+        foreach (cbk_saved_set($val, ($cfg['env'] ?? '') === 'production' ? 'production' : 'test') as $to => $x) {
             if ($x !== '' && preg_match('/^[\x21-\x7E]{1,200}$/', $x)
                 && stripos($x, 'YOUR_') !== 0 && stripos($x, 'SANDBOX_NOT_A_REAL') !== 0) {
                 $cfg[$to] = $x;
             }
         }
-        $env = strtolower(trim((string) ($val['env'] ?? '')));
-        if ($env === 'test' || $env === 'production') $cfg['env'] = $env;
     } catch (Throwable $e) {
         error_log('cbk: saved settings unreadable, using config.php (' . $e->getMessage() . ')');
     }

@@ -117,7 +117,7 @@
 
 # Only pay.php and callback.php are entry points. config.php holds the merchant
 # secrets, cbk.php is the library, and the token cache is a bearer credential.
-<FilesMatch "^(config\.php|config\.example\.php|cbk\.php|\.cbk_token\.json)$">
+<FilesMatch "^(config\.php|config\.example\.php|cbk\.php|cbk-sets\.php|\.cbk_token\.json)$">
   Require all denied
 </FilesMatch>
 

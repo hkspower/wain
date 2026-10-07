@@ -263,7 +263,8 @@
     "test:customer-fast-login": "node scripts/customer-fast-login-test.mjs",
     "test:cart-motion": "node scripts/cart-motion-test.mjs",
     "test:touch-feedback": "node scripts/touch-feedback-test.mjs",
-    "test:alignment": "node scripts/alignment-test.mjs"
+    "test:alignment": "node scripts/alignment-test.mjs",
+    "test:knet-modes": "node scripts/knet-modes-test.mjs"
   },
   "private": true
 }

@@ -171,9 +171,10 @@ try {
   /* ------------------- 6. mode, environment, language and CBK credentials */
   check(await card().locator('select.spk-input').count() === 3, 'the card offers mode, environment and English-code choices')
   const cbkBox = card().locator('input[type=password]')
-  check(await cbkBox.count() === 5, 'and five write-only secret boxes (password, key, three CBK credentials)', `got ${await cbkBox.count()}`)
+  // eight since 2026-10-07: password, key, then the TEST set's three and the PRODUCTION set's three
+  check(await cbkBox.count() === 8, 'and eight write-only secret boxes (password, key, three Test and three Production CBK credentials)', `got ${await cbkBox.count()}`)
   await card().locator('select.spk-input').nth(1).selectOption('test')
-  await cbkBox.nth(2).fill('PANEL-CBK-ID')
+  await cbkBox.nth(5).fill('PANEL-CBK-ID')   // the Production Client ID
   const sent2 = p.waitForRequest((r) => r.url().includes('settings_save'))
   await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
   const body2 = (await sent2).postDataJSON()
@@ -183,6 +184,10 @@ try {
   check(JSON.parse(sql("select value from settings where name='knet'") || '{}').cbk_client_id === 'PANEL-CBK-ID', 'and it is stored')
 
   /* ------------------------ 7. the TEST <-> PRODUCTION switch (2026-10-01) */
+  // Going live needs a COMPLETE Production set since 2026-10-07 (test:knet-modes covers the refusal).
+  await cbkBox.nth(6).fill('PANEL-CBK-SECRET'); await cbkBox.nth(7).fill('PANEL-CBK-KEY')
+  await card().locator('.spk-save').click()
+  await p.waitForTimeout(1500)
   const sw = card().locator('.spk-envswitch')
   const badge = card().locator('.spk-envbadge')
   check(await sw.count() === 1 && await badge.count() === 1, 'the card has a Test / Production switch and a badge saying which one is in force')

@@ -3160,7 +3160,8 @@ if ($r === 'settings_save' && $method === 'POST') {
         // The CBK credentials: printable characters only, no spaces, capped.
         // A pasted newline or a trailing space is the commonest way to a
         // credential the bank refuses, and refusing it HERE names the fault.
-        foreach (['cbk_client_id', 'cbk_client_secret', 'cbk_encrp_key'] as $f) {
+        foreach (['cbk_client_id', 'cbk_client_secret', 'cbk_encrp_key',
+                  'cbk_test_client_id', 'cbk_test_client_secret', 'cbk_test_encrp_key'] as $f) {
             if (!array_key_exists($f, $v)) continue;
             $x = (string) $v[$f];
             if ($x !== trim($x) || ($x !== '' && !preg_match('/^[\x21-\x7E]{1,200}$/', $x))) {
@@ -3805,20 +3806,20 @@ if ($r === 'knet' && $method === 'GET') {
             // panel win over pay/config.php, exactly as cbk_apply_saved()
             // applies them, so this readiness cannot say "placeholder" about
             // a credential the shop is in fact sending.
-            foreach (['cbk_client_id' => 'client_id', 'cbk_client_secret' => 'client_secret', 'cbk_encrp_key' => 'encrp_key'] as $from => $to) {
-                if ((string) ($set[$from] ?? '') !== '') $cfg[$to] = $set[$from];
-            }
+            require_once __DIR__ . '/../pay/cbk-sets.php';
             if (in_array($set['env'] ?? '', ['test', 'production'], true)) $cfg['env'] = $set['env'];
-            $clientIdSet     = !$isPlaceholder($cfg['client_id'] ?? '');
-            $clientSecretSet = !$isPlaceholder($cfg['client_secret'] ?? '');
-            $encrpKeySet     = !$isPlaceholder($cfg['encrp_key'] ?? '');
-            $pay = [
-                'env'    => (($cfg['env'] ?? '') === 'production') ? 'production' : 'test',
-                'ready'  => $clientIdSet && $clientSecretSet && $encrpKeySet,
-                'client_id_set'     => $clientIdSet,
-                'client_secret_set' => $clientSecretSet,
-                'encrp_key_set'     => $encrpKeySet,
-            ];
+            $active = (($cfg['env'] ?? '') === 'production') ? 'production' : 'test';
+            // BOTH SETS are reported, each as the gateway would assemble it in that mode
+            // (cbk_saved_set(): production never borrows a test value; test falls back to the
+            // shared one), so the panel can say "Test ready, Production not" before the switch.
+            $sets = [];
+            foreach (['test', 'production'] as $mode) {
+                $c = $cfg;
+                foreach (cbk_saved_set($set, $mode) as $to => $x) if ($x !== '') $c[$to] = $x;
+                $a = !$isPlaceholder($c['client_id'] ?? ''); $b = !$isPlaceholder($c['client_secret'] ?? ''); $k = !$isPlaceholder($c['encrp_key'] ?? '');
+                $sets[$mode] = ['ready' => $a && $b && $k, 'client_id_set' => $a, 'client_secret_set' => $b, 'encrp_key_set' => $k];
+            }
+            $pay = ['env' => $active] + $sets[$active] + ['sets' => $sets];
         }
     }
 
@@ -3837,6 +3838,9 @@ if ($r === 'knet' && $method === 'GET') {
         'cbk_client_id_set'     => (string) ($set['cbk_client_id'] ?? '') !== '',
         'cbk_client_secret_set' => (string) ($set['cbk_client_secret'] ?? '') !== '',
         'cbk_encrp_key_set'     => (string) ($set['cbk_encrp_key'] ?? '') !== '',
+        'cbk_test_client_id_set'     => (string) ($set['cbk_test_client_id'] ?? '') !== '',
+        'cbk_test_client_secret_set' => (string) ($set['cbk_test_client_secret'] ?? '') !== '',
+        'cbk_test_encrp_key_set'     => (string) ($set['cbk_test_encrp_key'] ?? '') !== '',
         // null, not a fourth false — a MISSING or unreadable config.php is a
         // different fault from one that is readable and holds placeholders,
         // and the panel should be able to tell "not configured" from

@@ -82,11 +82,21 @@
   var envSel = null
   var langSel = null
   var cbk = {}
-  var CBK_FIELDS = [
-    ['cbk_client_id', 'CBK Client ID', 'Merchant API ID'],
-    ['cbk_client_secret', 'CBK Client Secret', 'Merchant API Password'],
-    ['cbk_encrp_key', 'CBK Encrypted account key', 'Merchant Encrypted account key'],
+  /* TWO CREDENTIAL SETS since 2026-10-07: the bank issues one set for its TEST gateway
+     (pgtest.cbk.com) and another for the LIVE one (pg.cbk.com). The Test/Production switch picks
+     the set (pay/cbk-sets.php). Production fields keep the old keys, so a set saved before the
+     split is the production set, and test mode borrows it until test credentials are saved. */
+  var CBK_PROD_FIELDS = [
+    ['cbk_client_id', 'Client ID', 'Merchant API ID'],
+    ['cbk_client_secret', 'Client Secret', 'Merchant API Password'],
+    ['cbk_encrp_key', 'Encrypted account key', 'Merchant Encrypted account key'],
   ]
+  var CBK_TEST_FIELDS = [
+    ['cbk_test_client_id', 'Client ID', 'the TEST Merchant API ID'],
+    ['cbk_test_client_secret', 'Client Secret', 'the TEST Merchant API Password'],
+    ['cbk_test_encrp_key', 'Encrypted account key', 'the TEST Merchant Encrypted account key'],
+  ]
+  var CBK_FIELDS = CBK_TEST_FIELDS.concat(CBK_PROD_FIELDS)
 
   function el(tag, cls, text) {
     var n = document.createElement(tag)
@@ -182,10 +192,12 @@
     CBK_FIELDS.forEach(function (f) {
       var c = cbk[f[0]]
       c.input.value = ''
+      var isTest = f[0].indexOf('cbk_test_') === 0
       c.line.textContent = k[f[0] + '_set']
         ? 'A value is saved here. Leave blank to keep it.'
-        : 'Using pay/config.php on the server.'
+        : (isTest ? 'Not saved — Test mode uses the Production value for this one.' : 'Using pay/config.php on the server.')
     })
+    lastKnet = k
     renderPay(k.pay)
     renderEnvBar(k)
   }
@@ -212,8 +224,16 @@
         : 'Switching to Production takes real cards. Check the details below first.')
   }
 
+  var lastKnet = null
   function switchEnv() {
     var target = envSwitch.getAttribute('data-target')
+    // NEVER TO A LIVE BANK WITH AN INCOMPLETE SET: every shopper who chose KNET or a card would be
+    // refused at the bank, after typing their address. Fill the Production set first.
+    var sets = lastKnet && lastKnet.pay && lastKnet.pay.sets
+    if (target === 'production' && sets && sets.production && !sets.production.ready) {
+      window.alert('The Production credentials are not complete yet.\n\nFill in all three Production fields (the LIVE values from the bank) and save, then switch.')
+      return
+    }
     var msg = target === 'production'
       ? 'Switch KNET and card payments to PRODUCTION?\n\nReal customers will be charged real money. Do this only when the bank has confirmed your live credentials.'
       : 'Switch KNET and card payments back to TEST?\n\nNo real money will move, and customers will not be able to pay for real.'
@@ -234,22 +254,28 @@
       ['client_secret_set', 'Client Secret'],
       ['encrp_key_set', 'Encrypted account key'],
     ]
-    var list = el('ul', 'spk-list')
-    for (var i = 0; i < rows.length; i++) {
-      var ok = !!pay[rows[i][0]]
-      var li = el('li', 'spk-item')
-      var dot = el('span', ok ? 'spk-dot spk-dot-ok' : 'spk-dot spk-dot-bad')
-      li.appendChild(dot)
-      li.appendChild(el('span', null, rows[i][1] + (ok ? ': set' : ': placeholder, not set')))
-      list.appendChild(li)
-    }
-    payBox.appendChild(list)
+    var sets = pay.sets || {}
+    sets[pay.env] = sets[pay.env] || pay
+    ;[['test', 'Test set (pgtest.cbk.com)'], ['production', 'Production set (pg.cbk.com — LIVE)']].forEach(function (m) {
+      var s = sets[m[0]]; if (!s) return
+      var active = pay.env === m[0]
+      payBox.appendChild(el('p', 'spk-setname', m[1] + (active ? ' — IN USE' : '')))
+      var list = el('ul', 'spk-list')
+      for (var i = 0; i < rows.length; i++) {
+        var ok = !!s[rows[i][0]]
+        var li = el('li', 'spk-item')
+        li.appendChild(el('span', ok ? 'spk-dot spk-dot-ok' : 'spk-dot spk-dot-bad'))
+        li.appendChild(el('span', null, rows[i][1] + (ok ? ': set' : ': placeholder, not set')))
+        list.appendChild(li)
+      }
+      payBox.appendChild(list)
+      payBox.appendChild(el('p', s.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
+        s.ready ? 'Complete' : 'Incomplete'))
+    })
     payBox.appendChild(el('p', 'spk-hint',
       'Values saved above win; otherwise pay/config.php on the server is used.'))
-    var envLine = el('p', pay.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
-      (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail')
-      + ' · environment: ' + pay.env)
-    payBox.appendChild(envLine)
+    payBox.appendChild(el('p', pay.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
+      (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail') + ' · environment: ' + pay.env))
   }
 
   function load() {
@@ -338,6 +364,8 @@
     + '.spk-dot-bad{background:#dc2626}'
     + '.spk-hint{margin:0 0 10px;font-size:12px;color:var(--sp-pc-muted,#a6adb5);line-height:1.4}'
     + '.spk-warn{margin:0;font-size:13px;color:#b91c1c}'
+    + '.spk-set{margin:18px 0 0;padding-top:12px;border-top:1px solid var(--sp-pc-border,#494e54);font-size:14px;font-weight:800;color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-setname{margin:10px 0 6px;font-size:13px;font-weight:700;color:var(--sp-pc-ink,#eaecee)}'
     + '.spk-status{margin:0;font-size:13px;font-weight:600}'
     + '.spk-status-ok{color:#15803d}'
     + '.spk-status-bad{color:#b91c1c}'
@@ -436,10 +464,15 @@
       'Only if KNET says its English code is USA or ENG.')
 
     c.appendChild(el('h3', 'spk-sub2', 'CBK gateway credentials (card, T-Pay, KNET-official)'))
-    CBK_FIELDS.forEach(function (f) {
-      var w = secretField(f[1], 'Leave blank to keep the current one — ' + f[2])
-      cbk[f[0]] = w
-      w.clear.addEventListener('click', function () { clearField(f[0], f[1], w.clear) })
+    c.appendChild(el('p', 'spk-hint', 'The bank gives you two sets: one for its test gateway and one for going live. The switch at the top decides which set is used.'))
+    ;[['Test credentials — used in Test mode (no real money)', CBK_TEST_FIELDS, 'Test '],
+      ['Production credentials — used in Production (LIVE)', CBK_PROD_FIELDS, 'Production ']].forEach(function (g) {
+      c.appendChild(el('h4', 'spk-set', g[0]))
+      g[1].forEach(function (f) {
+        var w = secretField(f[1], 'Leave blank to keep the current one — ' + f[2])
+        cbk[f[0]] = w
+        w.clear.addEventListener('click', function () { clearField(f[0], g[2] + f[1], w.clear) })
+      })
     })
 
     var foot = el('div', 'spk-foot')
