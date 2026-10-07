@@ -170,8 +170,17 @@ exit;
 // force the plain 302 if the bank confirms the browser-redirect style.
 function knet_send_customer_onward(array $cfg, string $url): void
 {
-    if (($cfg['callback_response'] ?? 'both') === 'redirect') {
+    $style = $cfg['callback_response'] ?? 'both';
+    if ($style === 'redirect') {
         header('Location: ' . $url, true, 302);
+        return;
+    }
+    // 'line': KNET's manual (K-064 v1.5, sections 5 and 10.2.1) says the notification URL must output ONLY the
+    // single line REDIRECT=<receipt URL> — no HTML, no tags, no redirects — and lists extra output as a cause of
+    // auto-void. For deployments where KNET calls this URL server to server, which is how the manual describes it.
+    if ($style === 'line') {
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'REDIRECT=' . $url;
         return;
     }
     // Order matters: KNET scans from the start of the body, so REDIRECT= comes

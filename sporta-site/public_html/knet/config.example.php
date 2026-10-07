@@ -152,6 +152,8 @@ return [
     //   'both'     (default) answers correctly in EITHER style — leave it here
     //              unless the bank tells you otherwise.
     //   'redirect' plain HTTP 302, browser-redirect deployments only.
+    //   'line'     ONLY the line REDIRECT=<url>, nothing else — what KNET's manual (K-064 v1.5, §5 and §10.2.1)
+    //              requires of the notification URL. Use it once the bank confirms server-to-server style.
     'callback_response' => 'both',
 
     // --- ORDERS DATABASE. REQUIRED for a live shop ---

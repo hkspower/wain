@@ -171,6 +171,9 @@ if ($lookup['state'] === 'off') {
     }
 }
 
+// K-064 v1.5 §10.1.1: UDF1-5 must not contain '@' or '/' (the gateway rejects them). Dropped, not refused.
+function knet_udf($v): string { return str_replace(['@', '/'], '', trim((string) $v)); }
+
 $trandata = knet_build_trandata([
     'id'           => $cfg['tranportal_id'],
     'password'     => $cfg['tranportal_password'],
@@ -183,11 +186,11 @@ $trandata = knet_build_trandata([
     // A reference unique to this ATTEMPT, so a retry after a decline is not
     // refused as a duplicate. Attempt one is the track id unchanged.
     'trackid'      => knet_attempt_ref($cfg, $trackid),
-    'udf1'         => (string)($in['udf1'] ?? ''),
-    'udf2'         => (string)($in['udf2'] ?? ''),
-    'udf3'         => (string)($in['udf3'] ?? ''),
-    'udf4'         => (string)($in['udf4'] ?? ''),
-    'udf5'         => (string)($in['udf5'] ?? ''),
+    'udf1'         => knet_udf($in['udf1'] ?? ''),
+    'udf2'         => knet_udf($in['udf2'] ?? ''),
+    'udf3'         => knet_udf($in['udf3'] ?? ''),
+    'udf4'         => knet_udf($in['udf4'] ?? ''),
+    'udf5'         => knet_udf($in['udf5'] ?? ''),
 ]);
 
 try {

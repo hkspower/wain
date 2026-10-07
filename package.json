@@ -83,6 +83,7 @@
     "test:invoice": "node scripts/invoice-test.mjs",
     "test:invoice-pdf": "node scripts/invoice-pdf-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
+    "test:knet-reply": "node scripts/knet-reply-test.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:admin": "node scripts/admin-smoke.mjs",
     "test:image-drop": "node scripts/image-drop-test.mjs",
