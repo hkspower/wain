@@ -216,7 +216,7 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-setup', '1')
-    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);'
+    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid var(--sp-pc-border,rgba(255,255,255,.14));'
       + 'border-radius:14px;font-family:inherit'
     card.innerHTML =
       '<h2 style="margin:0 0 6px;font-size:16px">Sign in with Apple</h2>'
@@ -231,7 +231,7 @@
     var input = document.createElement('input')
     input.type = 'text'
     input.placeholder = 'com.sporta.web.signin'
-    input.style.cssText = 'width:100%;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.2);'
+    input.style.cssText = 'width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--sp-pc-field-border,rgba(255,255,255,.2));'
       + 'background:transparent;color:inherit;font-size:13px;box-sizing:border-box'
     var row = document.createElement('label')
     row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:12px 0;font-size:13px'

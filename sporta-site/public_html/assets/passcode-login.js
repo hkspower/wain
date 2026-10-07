@@ -71,7 +71,7 @@
     input.maxLength = 6
     input.autocomplete = 'off'
     input.setAttribute('aria-label', T('6-digit passcode', 'الرمز السري من 6 أرقام'))
-    input.style.cssText = 'width:12em;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.25);'
+    input.style.cssText = 'width:12em;padding:12px;border-radius:12px;border:1px solid var(--sp-pc-field-border,rgba(255,255,255,.25));'
       + 'background:transparent;color:inherit;font-size:24px;letter-spacing:.5em;text-align:center;box-sizing:border-box'
     var msg = document.createElement('div')
     msg.setAttribute('role', 'status')
@@ -151,7 +151,7 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-card', '1')
-    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
+    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid var(--sp-pc-border,rgba(255,255,255,.14));border-radius:14px;font-family:inherit'
     var h = document.createElement('h2')
     h.style.cssText = 'margin:0 0 6px;font-size:16px'
     h.textContent = 'Passcode unlock'
@@ -168,7 +168,7 @@
       var i = document.createElement('input')
       i.type = 'password'; i.inputMode = 'numeric'; i.maxLength = 6; i.autocomplete = 'off'
       i.placeholder = ph
-      i.style.cssText = 'width:9em;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;font-size:14px;letter-spacing:.3em;text-align:center'
+      i.style.cssText = 'width:9em;padding:9px 11px;border-radius:9px;border:1px solid var(--sp-pc-field-border,rgba(255,255,255,.2));background:transparent;color:inherit;font-size:14px;letter-spacing:.3em;text-align:center'
       i.addEventListener('input', function () { i.value = west(i.value).replace(/[^0-9]/g, '').slice(0, 6) })
       return i
     }
@@ -194,7 +194,7 @@
         if (!r.j.devices.length) { list.textContent = 'No trusted devices yet.'; return }
         r.j.devices.forEach(function (d) {
           var line = document.createElement('div')
-          line.style.cssText = 'display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)'
+          line.style.cssText = 'display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--sp-pc-border,rgba(255,255,255,.1))'
           var t = document.createElement('span')
           t.textContent = (d.label || 'Device') + (d.current ? ' (this browser)' : '') + (d.locked ? ' — locked' : '')
             + ' · last used ' + fmt(d.last_used_at)

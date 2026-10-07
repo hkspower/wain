@@ -36,6 +36,10 @@ if ($html === false) {
 $stripped = @preg_replace('#[ \t]*<script\b(?=[^>]*\sdata-shop\b)(?=[^>]*\ssrc=)[^>]*></script>[ \t]*\r?\n?#', '', $html);
 if (is_string($stripped) && strlen($stripped) > 1000 && strpos($stripped, '</html>') !== false) $html = $stripped;
 
+// The light panel (assets/panel-light.js): a blocking script in <head>, so the first frame is already light.
+$withLight = is_string($html) ? preg_replace('#</head>#i', '<script src="/assets/panel-light.js"></script></head>', $html, 1) : null;
+if (is_string($withLight) && strpos($withLight, 'panel-light.js') !== false) $html = $withLight;
+
 $etag = '"' . sha1($html) . '"';
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-cache, must-revalidate');

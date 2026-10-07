@@ -32,7 +32,7 @@
   function cell(tr, text, style) {
     var td = document.createElement('td')
     td.textContent = text
-    td.style.cssText = 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top;' + (style || '')
+    td.style.cssText = 'padding:6px 8px;border-bottom:1px solid var(--sp-pc-border,rgba(255,255,255,.08));vertical-align:top;' + (style || '')
     tr.appendChild(td)
     return td
   }
@@ -45,7 +45,7 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK, '1')
-    card.style.cssText = 'margin:2rem 0;max-width:none;min-width:0;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
+    card.style.cssText = 'margin:2rem 0;max-width:none;min-width:0;box-sizing:border-box;padding:18px 20px;border:1px solid var(--sp-pc-border,rgba(255,255,255,.14));border-radius:14px;font-family:inherit'
     var h = document.createElement('h2'); h.style.cssText = 'margin:0 0 6px;font-size:16px'; h.textContent = 'Sign-in history'
     var sub = document.createElement('p'); sub.style.cssText = 'margin:0 0 12px;overflow-wrap:anywhere;font-size:13px;opacity:.75;line-height:1.5'
     var wrap = document.createElement('div'); wrap.style.cssText = 'overflow:auto;max-height:420px'

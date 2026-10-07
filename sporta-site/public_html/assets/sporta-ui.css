@@ -448,6 +448,21 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   --sp-pc-field-bg: #24272a;
   --sp-pc-field-border: #565c63;
 }
+html[data-theme='light'] { color-scheme: light; }
+html[data-theme='light'] .admin-shell {
+  --sp-pc-bg: #ffffff;
+  --sp-pc-border: #d3d9e0;
+  --sp-pc-ink: #1b2430;
+  --sp-pc-muted: #566270;
+  --sp-pc-field-bg: #f5f7fa;
+  --sp-pc-field-border: #8792a0;
+}
+html[data-theme='light'] .admin-shell .stc-good { color: #11703f !important; }
+html[data-theme='light'] .admin-shell .stc-ok { color: #8a5300 !important; }
+html[data-theme='light'] .admin-shell .stc-bad { color: #b3261e !important; }
+html[data-theme='light'] .admin-shell .bkp-warn { color: #b03a0c !important; }
+html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='255, 107, 107'] { color: #b3261e !important; }
+html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='251, 191, 36'] { color: #8a5300 !important; }
 [aria-live="polite"] > p.text-slate-400 {
   display: inline-block;
   max-width: 85%;

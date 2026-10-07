@@ -63,3 +63,25 @@
   --sp-pc-field-border: #565c63;
 }
 
+/* THE LIGHT PANEL — 2026-10-07, "add brighter colors for backend layout to be comfort to view"; the owner chose a light
+ * panel out of three options. assets/panel-light.js sets data-theme="light" on <html> for /backends only (the shop stays
+ * dark); the bundle's own cards were written light and simply show, and these tokens are the overlay cards' light values.
+ * Each pair is read against its own ground: ink 14:1 on white, muted 5.9:1, the field edge 3.2:1 (a box you can find). */
+html[data-theme='light'] { color-scheme: light; }
+html[data-theme='light'] .admin-shell {
+  --sp-pc-bg: #ffffff;
+  --sp-pc-border: #d3d9e0;
+  --sp-pc-ink: #1b2430;
+  --sp-pc-muted: #566270;
+  --sp-pc-field-bg: #f5f7fa;
+  --sp-pc-field-border: #8792a0;
+}
+/* Overlay text written in colours that read on a DARK card (bright green, amber, coral, orange) — on white they are
+ * 1.2:1 to 2.8:1. Same meaning, darker shade, each at 5:1 or better on white. Inline styles need !important to be beaten. */
+html[data-theme='light'] .admin-shell .stc-good { color: #11703f !important; }
+html[data-theme='light'] .admin-shell .stc-ok { color: #8a5300 !important; }
+html[data-theme='light'] .admin-shell .stc-bad { color: #b3261e !important; }
+html[data-theme='light'] .admin-shell .bkp-warn { color: #b03a0c !important; }
+html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='255, 107, 107'] { color: #b3261e !important; }
+html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='251, 191, 36'] { color: #8a5300 !important; }
+
