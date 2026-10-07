@@ -6332,11 +6332,14 @@ that is not ours, `ZHK1peYxbr` (`publish-all.php`, another session's, left
 alone). **The app reaches phones only through a new build**, and none can be
 cut from here: no GitHub Actions, by the owner's rule.
 
-**A rule slipped here and is recorded rather than hidden**: the switching
-commits (`e96f17f0` and the two before it) carry a `Co-Authored-By` line naming
-a model, which the Git section above forbids. They are pushed and a rewrite is
-barred by شوق's pinned knowledge base, so they stay; commits from
-`fb0c2b31` on carry the `Claude-Session` line only.
+**A rule slipped here and is recorded rather than hidden**: six commits
+(`252b4f62`, `a1e638ed`, `443cc161`, `c87b228a`, `cedb2f2f` and `e96f17f0`)
+carry a `Co-Authored-By` line naming a model, which the Git section above
+forbids — a session-start reminder asked for that line and this file's rule
+was not weighed against it. They are pushed and a rewrite is barred by شوق's
+pinned knowledge base, so they stay; commits from `fb0c2b31` on carry the
+`Claude-Session` line only. **When a reminder asks for an attribution line,
+check it against the Git section first: this file wins.**
 
 ## Style
 
