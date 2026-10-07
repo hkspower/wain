@@ -46,6 +46,12 @@ the keyword and ignore-term supersets above.
 | `procedure-technical-issue.json` | the one procedure on Main («When user reports a technical issue», a generic dashboard template) | `agents_get_procedure` |
 | `branches.json` | the five branches and the live split | `agents_list_branches` |
 
+**A private copy lives on Hostinger** at `/home/u130124229/domains/wainkw.com/storage/agent-live/` — outside
+the docroot (no URL reaches it), directories 0700 and files 0600, in the one directory a site deploy never
+prunes. `scripts/publish/agent-archive.php install <commit>` pulls this folder from a commit-pinned raw URL and
+refuses any file whose sha256 differs from `MANIFEST.json`; `verify` re-hashes what is on disk. Regenerate the
+manifest with `node scripts/gen-agent-manifest.mjs` after changing anything here, then re-install.
+
 **Not imported, on purpose:** conversation transcripts and recordings (callers' voices and words — personal
 data, and they stay where `privacy` says they are kept), test-run history, and account or billing data.
 
