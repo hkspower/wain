@@ -33,12 +33,15 @@
  *     and writes ~/url-sec.txt as it goes; the last line is DONE. A run that overruns reports nothing
  *     to the panel, which is why the answer lives in a file.
  *
- * Optional CLI for a local rig: php live-url-security.php <base-url> <docroot> [host-header] [out-file]
+ * Optional CLI for a local rig: php live-url-security.php <base-url> <docroot> [host-header] [out-file] [quick]
+ * Saved as q.php it runs the QUICK mode (probes only, ~1 minute) and writes ~/url-quick.txt.
  */
 $BASE = $argv[1] ?? 'https://127.0.0.1';
 $DOC = rtrim($argv[2] ?? '/home/u130124229/domains/sporta.com.kw/public_html', '/');
 $HOST = $argv[3] ?? 'www.sporta.com.kw';
-$OUT = $argv[4] ?? '/home/u130124229/url-sec.txt';
+$QUICK = ($argv[5] ?? '') === 'quick' || basename(__FILE__) === 'q.php';   // saved as q.php (a cron command is 255 characters at most) it runs quick
+$OUT = $argv[4] ?? ($QUICK ? '/home/u130124229/url-quick.txt' : '/home/u130124229/url-sec.txt');   // probes only: the home page, no docroot walk, no bare api scripts
+$unk = [];                                // every request the throttle or a timeout left unanswered
 $lockPath = $OUT . '.lock';
 $lock = fopen($lockPath, 'c');
 if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) exit(0);
@@ -90,6 +93,7 @@ foreach ($locs as $l) {
     }
 }
 foreach (['/', '/shop', '/cart', '/checkout', '/track', '/returns', '/backends', '/wishlist', '/card', '/men', '/women', '/accessories', '/outlet'] as $p) $urls[$p] = 'page';
+if ($QUICK) { $urls = ['/' => 'page']; }
 $pages = count($urls);
 $files = [];
 $stack = [$DOC];
@@ -104,6 +108,7 @@ while ($stack) {
     }
 }
 sort($files);
+if ($QUICK) $files = [];
 out('SCAN pages=' . $pages . ' docrootFiles=' . count($files) . ' base=' . $BASE);
 
 $SECRET = '/(^|\/)(config[^\/]*\.php|\.env[^\/]*|\.htaccess|\.user\.ini|[^\/]*\.(secret|pem|key|p12|pfx|cer|crt|sql|log|bak|old|orig|zip|gz|tar|rar|7z|swp|sqlite|db|md|lock))$|\/wallet-certs\/|\/invoices\//i';
@@ -114,7 +119,7 @@ out('PAGES');
 $hdrMiss = [];
 foreach ($urls as $path => $_) {
     $r = ask($BASE . $path); $counts['asked']++;
-    if ($r['code'] === 429 || $r['code'] === 503 || $r['code'] === 0) { $counts['unknown']++; continue; }
+    if ($r['code'] === 429 || $r['code'] === 503 || $r['code'] === 0) { $unk[] = $path; continue; }
     if ($r['code'] >= 300 && $r['code'] < 400) {
         $loc = hv($r, 'location');
         if (preg_match('#^https?://#i', $loc) && !preg_match('#^https?://(www\.|static\.)?sporta\.com\.kw#i', $loc)) finding('HIGH', $path, "redirects off the shop to $loc");
@@ -148,7 +153,7 @@ foreach ($files as $rel) {
     $isPhp = (bool) preg_match('/\.(php\d?|phtml|phar|inc)$/i', $rel);
     $r = ask($url, 'GET', [], 2048); $counts['asked']++;
     $c = $r['code'];
-    if ($c === 0 || $c === 429 || $c === 503) { $counts['unknown']++; $tally['unknown'] = ($tally['unknown'] ?? 0) + 1; continue; }
+    if ($c === 0 || $c === 429 || $c === 503) { $unk[] = substr($url, strlen($BASE)); $tally['unknown'] = ($tally['unknown'] ?? 0) + 1; continue; }
     $tally[$c] = ($tally[$c] ?? 0) + 1;
     if ($c !== 200) continue;
     if (strncmp(ltrim($r['body']), '<?php', 5) === 0)
@@ -166,7 +171,7 @@ foreach ($files as $rel) {
     if (!preg_match('#^/api/[^/]+\.php$#i', $rel)) continue;
     $r = ask($BASE . $rel, 'GET', [], 600); $counts['asked']++;
     $c = $r['code'];
-    if ($c === 0 || $c === 429 || $c === 503) { $counts['unknown']++; out("  ?    $rel unanswered/throttled"); continue; }
+    if ($c === 0 || $c === 429 || $c === 503) { $unk[] = $rel; out("  ?    $rel unanswered/throttled"); continue; }
     $b = substr(trim($r['body']), 0, 90);
     $note = '';
     if ($c === 200 && !preg_match('#config|store\.php#', $rel)) {
@@ -193,7 +198,7 @@ $listing = '/(<title>Index of|Parent Directory|<h1>Index of|Directory listing fo
 foreach ($probe as $p) {
     $r = ask($BASE . $p, 'GET', [], 4096); $counts['asked']++;
     $c = $r['code'];
-    if ($c === 0 || $c === 429 || $c === 503) { $counts['unknown']++; out("  ?    $p unanswered/throttled"); continue; }
+    if ($c === 0 || $c === 429 || $c === 503) { $unk[] = $p; out("  ?    $p unanswered/throttled"); continue; }
     $b = $r['body'];
     if ($c === 200) {
         if (preg_match($listing, $b)) finding('HIGH', $p, 'DIRECTORY LISTING');
@@ -208,7 +213,10 @@ foreach ($probe as $p) {
 }
 // methods
 $t = ask($BASE . '/', 'TRACE'); $counts['asked']++;
-if ($t['code'] === 200) finding('MED', '/', 'TRACE is enabled');
+$tmsg = stripos(hv($t, 'content-type'), 'message/http') !== false || strncmp(ltrim($t['body']), 'TRACE ', 6) === 0;
+out('  TRACE /  -> ' . $t['code'] . ' ' . hv($t, 'content-type') . ($tmsg ? ' (echoes the request)' : ' (does not echo the request)'));
+if ($t['code'] === 200 && $tmsg) finding('MED', '/', 'TRACE is enabled (the server echoes the request back)');
+elseif ($t['code'] === 200) finding('LOW', '/', 'answers 200 to TRACE without echoing it (the page is served for any verb; harmless, but not a refusal)');
 $o = ask($BASE . '/api/api.php?r=slides', 'OPTIONS', ['Origin' => 'https://evil.example', 'Access-Control-Request-Method' => 'POST']); $counts['asked']++;
 $acao = hv($o, 'access-control-allow-origin');
 if ($acao === '*' || stripos($acao, 'evil.example') !== false) finding('HIGH', '/api/api.php', "CORS allows a foreign origin: $acao");
@@ -220,7 +228,11 @@ if (stripos(hv($g, 'access-control-allow-credentials'), 'true') !== false && $ac
 foreach (['//evil.example/', '/\\evil.example', '/%2f%2fevil.example', '/?next=//evil.example', '/payment/result?trackid=%0d%0aSet-Cookie:x=1'] as $p) {
     $r = ask($BASE . $p); $counts['asked']++;
     $loc = hv($r, 'location');
-    if ($loc !== '' && preg_match('#evil\.example#i', $loc)) finding('HIGH', $p, "redirects to $loc");
+    // A redirect to https://www.sporta.com.kw/evil.example is the shop keeping the path on ITSELF; the fault is a
+    // Location whose HOST is the foreign one (including the scheme-relative //evil.example form).
+    $lh = $loc === '' ? '' : (string) parse_url(strncmp($loc, '//', 2) === 0 ? "https:$loc" : $loc, PHP_URL_HOST);
+    if ($lh !== '' && preg_match('#(^|\.)evil\.example$#i', $lh)) finding('HIGH', $p, "redirects to a foreign host: $loc");
+    elseif ($loc !== '' && stripos($loc, 'evil.example') !== false) out("  note  $p -> $loc (stays on the shop's own host: not an open redirect)");
     if (hv($r, 'set-cookie') !== '' && stripos($p, 'Set-Cookie') !== false) finding('HIGH', $p, 'header injection: a cookie was set from the URL');
 }
 $hh = @file_get_contents($BASE . '/', false, stream_context_create([
@@ -235,6 +247,25 @@ foreach (($http_response_header ?? []) as $line) { if (preg_match('#^HTTP/\S+ (\
 if ($BASE === 'https://127.0.0.1') {
     out("  plain http: $hc -> $hl");
     if (!in_array($hc, [301, 302, 308], true) || stripos($hl, 'https://') !== 0) finding('HIGH', 'http://', "plain http is not redirected to https ($hc $hl)");
+}
+
+// ---------------------------------------------------------------- 5b. second pass for the unanswered
+// The first pass reads a throttle as "no answer"; the cool-down and the slower pace give those a fair second ask.
+if ($unk) {
+    out('SECOND-PASS ' . count($unk) . ' unanswered, after a cool-down');
+    sleep(25);
+    $still = [];
+    foreach ($unk as $path) {
+        usleep(600000);
+        $r = ask($BASE . $path, 'GET', [], 4096);
+        if ($r['code'] === 0 || $r['code'] === 429 || $r['code'] === 503) { $still[] = $path; continue; }
+        $isSecret2 = (bool) preg_match($SECRET, $path);
+        out(sprintf('  %-4d %s', $r['code'], $path));
+        if ($r['code'] === 200 && strncmp(ltrim($r['body']), '<?php', 5) === 0) finding('CRITICAL', $path, 'answers with its own PHP SOURCE');
+        elseif ($r['code'] === 200 && $isSecret2 && !preg_match('#\.php$#', $path)) finding('HIGH', $path, 'a secret-looking file answers 200');
+    }
+    $counts['unknown'] = count($still);
+    if ($still) out('  STILL UNANSWERED: ' . implode(' ; ', $still));
 }
 
 // ---------------------------------------------------------------- 6. verdict
