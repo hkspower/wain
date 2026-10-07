@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي مكان على البحر بس ما أتحمل الحر أبداً، أبي شي مكيّف",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller gave two constraints that look contradictory: sea AND air-conditioned. The knowledge base contains places that satisfy BOTH, so the intelligent answer finds the intersection rather than declaring it impossible or dropping one constraint. PASS if the main recommendation is one of: سوق شرق (mall on the sea, tagged مكيّف + بحر), مارينا مول (mall linked to the beach, tagged مكيّف + بحر), الكوت مول (mall on the sea, tagged مكيّف + بحر), or المركز العلمي (air-conditioned aquarium on the seafront, tagged مكيّف + بحر). FAIL if she recommends an open-air beach (شاطئ المارينا, شاطئ المسيلة, شاطئ الشعب, الجزيرة الخضراء, الخيران), or a mall with no sea (الأفنيوز, مجمع ٣٦٠, الصالحية), or says nothing satisfies both, or just asks him to choose between sea and air-conditioning. Judge only whether she found a place carrying both constraints.",
+  "success_examples": [
+    {
+      "response": "أوكي، بحر بس مكيّف… سوق شرق يجمع الاثنين — مول مكيّف على الواجهة البحرية وكافيهاته مطلّة على المارينا. أحلى وقت له العصر. أفتح لك صفحته؟",
+      "type": "success"
+    },
+    {
+      "response": "مارينا مول بالسالمية: مكيّف ومربوط بالشاطئ بجسر مشاة، فتقعد بالبرد وتشوف البحر. تبي بديل بمدينة الكويت؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "صعبة شوي، البحر برا والمكيّف داخل. تبي بحر ولا مكيّف؟",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز مكيّف بالكامل وفيه كل شي. أفتح لك صفحته؟",
+      "type": "failure"
+    },
+    {
+      "response": "شاطئ المسيلة رمله ناعم وهادي، روح عقب المغرب.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_2501m259d4enfbaa6v3m73rw2v15",
+  "name": "منطق ٢ — قيدين متعارضين (بحر + مكيّف): تلقى المكان اللي يجمعهم"
+}

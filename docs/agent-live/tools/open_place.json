@@ -1,0 +1,45 @@
+{
+  "id": "tool_6101m1gccq94ey3b7hkx4sebhnr9",
+  "tool_config": {
+    "type": "client",
+    "name": "open_place",
+    "description": "يفتح صفحة مكان واحد كاملة — الصور، التواصل، المنتجات والخدمات. ناديها لما يستقر الزائر على مكان.",
+    "response_timeout_secs": 10,
+    "disable_interruptions": false,
+    "interruption_mode": "allow",
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "auto",
+    "assignments": [],
+    "tool_call_sound_behavior": "auto",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+      "description": "",
+      "dynamic_variable": "",
+      "is_omitted": false,
+      "type": "object",
+      "required": [
+        "slug"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "معرّف المكان كما في قاعدة المعرفة، مثل kuwait-towers. حروف إنجليزية صغيرة وشرطات فقط.",
+          "is_system_provided": false,
+          "dynamic_variable": "",
+          "allowed_values_dynamic_variable": "",
+          "constant_value": "",
+          "is_omitted": false
+        }
+      }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "execution_mode": "immediate"
+  },
+  "usage_stats": {
+    "total_calls": 3,
+    "avg_latency_secs": 0.41
+  }
+}

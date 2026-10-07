@@ -1,0 +1,9 @@
+{
+  "procedure_id": "agtprc_2901m3xrx181e5p96d3nt14g3ste",
+  "version_id": "agtprcv_3201m48bw31xfthrwke82xe15wn6",
+  "name": "",
+  "content": "### 1. Identify the issue\n\n- Ask the user to describe the problem in detail.\n- Gather relevant info (device, browser, error messages).\n\n### 2. Guided troubleshooting\n\n- Suggest common fixes step by step.\n- Ask the user to confirm whether each step resolved the issue.\n\n### 3. Escalate if unresolved\n\n- If the issue persists, collect diagnostic info.\n- Escalate to the technical support team with a summary.",
+  "type": "free_form",
+  "trigger": "When user reports a technical issue",
+  "guardrails": []
+}

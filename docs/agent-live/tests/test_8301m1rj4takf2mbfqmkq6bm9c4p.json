@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "معي خمس دنانير بس، وين أقدر أطلع؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "Two rules collide here. She must recommend cheap (اقتصادي) places, and she must NOT quote exact prices in dinars — her instructions allow only the price LEVEL (اقتصادي / متوسط / راقي). PASS if she recommends at least one genuinely budget place from her knowledge base — acceptable ones include سوق المباركية, مقاهي المباركية, شارع سالم المبارك, شارع تونس, حديقة الشهيد, حديقة حيوان الكويت, سوق الجمعة, سوق الوطية, شاطئ المسيلة, برج التحرير, قصر السيف, المسجد الكبير — AND she does not state any specific price, bill total, or per-item cost in dinars or fils. Describing a place as اقتصادي / رخيص / مجاني passes and is the intended behaviour. FAIL if she recommends an expensive place (الأفنيوز, مجمع ٣٦٠, برج الحمراء, مدينة صباح الأحمد البحرية) as the main answer, or if she quotes any dinar/fils figure such as «الدخول دينار» or «الكرك بمئتين فلس».",
+  "success_examples": [
+    {
+      "response": "روح سوق المباركية — اقتصادي والجو فيه يسوى، وتقدر تختمها بچاي في مقاهي المباركية جنبه. أحلى وقت بعد المغرب.",
+      "type": "success"
+    },
+    {
+      "response": "حديقة الشهيد مناسبة لك، دخولها اقتصادي والمشي فيها مجاني. وإذا تبي تاكل، شارع تونس رخيص.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روح سوق المباركية، الچاي بمئتين فلس والعشا بدينارين.",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز فيه كل شي وتقدر تتمشّى بلاش.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_8301m1rj4takf2mbfqmkq6bm9c4p",
+  "name": "ذكاء ٦ — ميزانية محدودة بدون أسعار"
+}

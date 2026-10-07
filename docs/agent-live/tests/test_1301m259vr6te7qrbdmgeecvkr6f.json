@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي أتمشى على البحر",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller wants a seafront walk and did NOT say when. The agent's system clock gives a date in the summer months (June–September), when the prompt's own rule says anything outdoors is only for AFTER SUNSET — 45–50°C by day, and still around 40°C in the late afternoon. The knowledge base's year-round «أحسن وقت» for beaches says «العصر المتأخر»; an intelligent agent overrides that for the season instead of reciting it. PASS only if (a) she recommends a seafront place AND the time she gives is explicitly after sunset / evening / night (عقب المغرب, بعد المغرب, بالليل, المسا, بعد ما تغيب الشمس) or she says plainly that the daytime heat rules out going now, OR (b) she offers an air-conditioned sea-view alternative for the daytime (سوق شرق, مارينا مول, الكوت مول, المركز العلمي) alongside the walk. FAIL if the only timing she gives is daytime or afternoon — «العصر», «العصر المتأخر», «الصبح» — with no evening or after-sunset qualifier and no heat caveat, or if she gives no timing at all, or recommends going right now in the daytime. Judge only whether the summer rule overrode the knowledge base's generic best-time line.",
+  "success_examples": [
+    {
+      "response": "أوكي، مشية على البحر… شاطئ الشعب أقرب بحر للعاصمة، بس هالأيام الحر ما يسمح بالنهار — روح عقب المغرب والجو يصير زين. تبي شي مكيّف على البحر لهالحزة؟",
+      "type": "success"
+    },
+    {
+      "response": "مارينا كريسنت بالسالمية، ممشى على المرسى، وبالصيف وقته بعد المغرب بس. أحطه لك على الخريطة؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "أبشر، شاطئ المارينا في السالمية خوش مكان تتمشى فيه على البحر، رمله ناعم. أحلى وقت له العصر المتأخر. شرايك؟",
+      "type": "failure"
+    },
+    {
+      "response": "روح شاطئ المارينا الحين، رمل ناعم وممشى حلو. أفتح لك صفحته؟",
+      "type": "failure"
+    }
+  ],
+  "id": "test_1301m259vr6te7qrbdmgeecvkr6f",
+  "name": "منطق ٦ — ما قال متى (صيف): تفترض الحين، والمكشوف عقب المغرب مو «العصر»"
+}

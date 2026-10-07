@@ -1,0 +1,71 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "agent",
+      "message": "هلا والله! أنا شوق من «وين». قل لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة مع العيال؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "user",
+      "message": "أبي مطعم ياباني، سوشي تحديداً، بالجابرية أو قريب منها.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 6,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "agent",
+      "message": "أبشر، ما عندي مطعم سوشي ياباني بالجابرية تحديداً، بس لو تبي مطاعم متنوّعة وقريبة، مارينا كريسنت بالسالمية فيها وايد خيارات حلوة على البحر. شرايك فيها؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 12,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "user",
+      "message": "لا، أنا أبي ياباني بالذات.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 18,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "tool",
+  "tool_call_parameters": {
+    "parameters": [],
+    "referenced_tool": {
+      "id": "tool_4801m27x39vheb8999yyaggkwhjt",
+      "type": "webhook"
+    },
+    "verify_absence": false
+  },
+  "check_any_tool_matches": true,
+  "id": "test_9601m289k7kyfrcb6ykakpme0rrt",
+  "name": "report_gap يننادى فعلاً عند الفجوة"
+}

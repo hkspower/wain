@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي كافيه هادي بالسالمية",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "This test checks call shape, not the place chosen. Look at the agent's SPOKEN message that comes immediately before any show_places or open_place tool call (if there is no tool call, look at her only message). PASS if that spoken message ends with a short question that hands the turn back to the caller — e.g. «أحطهم لك على الخريطة؟», «أفتح لك صفحته؟», «تبي شي ثاني؟», «شرايك؟». FAIL if that message ends on a statement (its last sentence has no question mark) — in particular if it ends on a best-time sentence such as «أحلى وقت له بعد العصر.» — and the turn then goes to a tool call or simply stops. A question that appears earlier in the message but is followed by a closing statement also FAILS: the LAST thing she says before the tool call must be the question.",
+  "success_examples": [
+    {
+      "response": "أوكي، كافيه هادي بالسالمية… شارع حمد المبارك أهدى من سالم المبارك اللي جنبه، كافيهات بجلسات خارجية ومحلات حلا. أحلى وقت بعد العصر. أحطهم لك على الخريطة؟",
+      "type": "success"
+    },
+    {
+      "response": "شارع حمد المبارك، قهوة بعد الدوام وهدوء أكثر من الشوارع اللي جنبه. تبي شي على البحر بداله؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "أبشر، شارع حمد المبارك بالسالمية خوش مكان، كافيهات بجلسات خارجية وأهدى من الشوارع المجاورة. أحلى وقت له بعد العصر وبالليل.",
+      "type": "failure"
+    },
+    {
+      "response": "شرايك بشارع حمد المبارك؟ كافيهاته هادية وأحلى وقت لها بعد العصر.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_9301m259spdhej58jz87m2x4yg03",
+  "name": "شكل — السؤال يجي قبل نداء show_places، مو بداله"
+}

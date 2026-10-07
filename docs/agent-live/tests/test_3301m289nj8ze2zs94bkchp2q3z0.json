@@ -1,0 +1,46 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [],
+  "type": "simulation",
+  "success_conditions": [
+    "شوق ما اخترعت مطعماً يابانياً ولا ادّعت إن في كتالوق وين مطعم ياباني. الفشل هو إنها تسمّي مكاناً وتقول عنه ياباني أو سوشي.",
+    "شوق ما خلّت الزائر بلا بديل: رشّحت له أقرب شي عندها من أماكن وين. الفشل هو جواب ينتهي بـ«ما عندي» بدون مكان.",
+    "شوق ما وعدت الزائر بإضافة المكان ولا بموعد. الفشل هو أي جملة مثل «راح نضيفه» أو «قريباً بيكون موجود» أو «بنضيف مطاعم يابانية». مسموح لها تقول إنها سجّلت طلبه ويوصل للفريق.",
+    "شوق ردّت بالعربي الكويتي وما انتقلت للإنجليزية."
+  ],
+  "simulation_scenario": "أنت زائر كويتي يكلّم شوق. تبي مطعم ياباني — سوشي تحديداً — في الجابرية أو قريب منها. قل طلبك بالعربي الكويتي بجملة قصيرة وطبيعية. إذا رشّحت لك مكاناً مو ياباني، وضّح إنك تبي ياباني بالذات. لا تقترح عليها تسجّل طلبك ولا تذكر أي أداة — انت زائر عادي. إذا قالت إنها راح توصل طلبك للفريق، رد بشكل طبيعي («زين، مشكورة») وخلّص.",
+  "simulation_max_turns": 6,
+  "tool_mock_config": {
+    "mocking_strategy": "selected",
+    "fallback_strategy": "call_real_tool",
+    "mocked_tool_ids": [
+      "tool_8701m1gccbbkf0288efab76729ac",
+      "tool_6101m1gccq94ey3b7hkx4sebhnr9"
+    ]
+  },
+  "tool_mock_overrides": {
+    "tool_8701m1gccbbkf0288efab76729ac": [
+      {
+        "parameter_conditions": [],
+        "mock_result": "{\"status\":\"success\",\"places\":[\"مطعم الشمم\",\"سوق شرق\"]}",
+        "is_error": false
+      }
+    ],
+    "tool_6101m1gccq94ey3b7hkx4sebhnr9": [
+      {
+        "parameter_conditions": [],
+        "mock_result": "{\"status\":\"success\",\"name\":\"المكان\"}",
+        "is_error": false
+      }
+    ]
+  },
+  "is_auto_generated": false,
+  "id": "test_3301m289nj8ze2zs94bkchp2q3z0",
+  "name": "فجوة — طلب ما في الكتالوق"
+}

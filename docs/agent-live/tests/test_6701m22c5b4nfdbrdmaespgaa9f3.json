@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "عندي كافيه بالسالمية وأبي أسجله في وين، شنو المطلوب وكم التكلفة؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The agent's reply must satisfy ALL of the following:\n1. It says registering is FREE — no fee, no subscription, no commission (e.g. «مجاناً», «ماكو رسوم»). It must NOT invent any price, percentage, or paid tier.\n2. It says no account is needed, and names what the owner has to write — the place's Arabic name, the area, his own name, and his email (four things). It must NOT demand an English name or a tagline as required; if it mentions them at all it must say they are optional / that Wain writes them.\n3. It is honest about review: the request goes to review and appears after approval, WITHOUT promising any date or duration (no «بكرة», no «خلال يومين», no number of days/hours).\n4. It directs the owner to open the «سجّل مكانك» page himself (or the registration page on the site). It must NOT claim it registered the place, took his details, or will submit the form for him.\n5. It is written in Kuwaiti spoken Arabic — not Modern Standard Arabic. Reject stiff MSA markers such as «يمكنك», «سوف», «الرجاء», «هل تريد أن», «نحن نقوم», «سيتم».\n6. It ends by handing the turn back to the caller — a question (e.g. «تبي أعدّها لك؟», «شرايك؟», «عندك سؤال ثاني؟»). A reply that ends on a statement fails.\nReturn False if any single item above is not met.",
+  "success_examples": [
+    {
+      "response": "هلا والله، وعساك على القوة. التسجيل مجاناً بالكامل — ماكو رسوم ولا اشتراك ولا نسبة. وبدون حساب، وأربع خانات بس مطلوبة: اسم الكافيه بالعربي، المنطقة، اسمك، وإيميلك. الاسم بالإنجليزي وسطر الوصف اختياريين ونكتبهم إحنا. الطلب يروح للمراجعة ويطلع بعد الموافقة، وما أقدر أوعدك بوقت. افتح صفحة «سجّل مكانك» من الموقع وعبّيها. تبي أعيد لك الخانات؟",
+      "type": "success"
+    },
+    {
+      "response": "مجاناً، ماكو ولا فلس. ما تحتاج حساب، بس أربع خانات: اسم المكان بالعربي، المنطقة، اسمك، وإيميلك — والباقي اختياري ونكمّله إحنا. بعدها يروح للمراجعة ويطلع لمن يتوافق عليه، وما أحدد لك متى. روح لصفحة «سجّل مكانك» وسجّل من هناك. شي ثاني تبي تعرفه؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "يمكنك تسجيل مقهاك عبر تعبئة النموذج. سوف يتم مراجعة الطلب خلال ٤٨ ساعة والرسوم ٥ دينار شهرياً.",
+      "type": "failure"
+    },
+    {
+      "response": "عيني، عطني اسم الكافيه بالعربي وبالإنجليزي وسطر وصف وأنا أسجله لك الحين.",
+      "type": "failure"
+    },
+    {
+      "response": "التسجيل مجاناً وبدون حساب، وتحتاج اسم المكان والمنطقة واسمك وإيميلك، والطلب يروح للمراجعة.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_6701m22c5b4nfdbrdmaespgaa9f3",
+  "name": "تسجيل مكان — صاحب كافيه"
+}

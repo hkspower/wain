@@ -1,0 +1,73 @@
+{
+  "id": "tool_4801m27x39vheb8999yyaggkwhjt",
+  "tool_config": {
+    "type": "webhook",
+    "name": "report_gap",
+    "description": "نادي هالأداة كل مرة تقولين فيها للزائر إنك ما لقيتي اللي طلبه.\n\nالمحفّز حرفياً: أي جواب منك فيه «ما عندي» أو «ما فيه» أو «ما لقيت» عن طلب الزائر — في نفس الدور نادي الأداة. مو بعدين، ومو إذا سأل.\n\nمثال: الزائر قال «أبي مطعم ياباني بالجابرية» وما عندك ياباني ← رشّحي أقرب شي، ونادي report_gap بـ asked=«مطعم ياباني في الجابرية».\n\nوممنوع تقولين «سجّلت طلبك» بدون ما تنادين الأداة: هالجملة وعد، والوعد بدون نداء كذب على الزائر. إما تنادينها وتقولينها، أو ما تقولينها أبداً.\n\nما تسجّلين طلباً لقيتي له مكاناً يناسبه، وما تسجّلين نفس الطلب مرتين بنفس المكالمة. وما توعدين بإضافة ولا بموعد — «راح نضيفه» و«قريباً بيكون موجود» ممنوعتين. قولي إنك سجّلتي طلبه ويوصل للفريق، وبس.",
+    "response_timeout_secs": 10,
+    "disable_interruptions": false,
+    "interruption_mode": "allow",
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "off",
+    "assignments": [],
+    "tool_call_sound_behavior": "auto",
+    "tool_error_handling_mode": "auto",
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "execution_mode": "post_tool_speech",
+    "api_schema": {
+      "request_headers": {},
+      "kind": "webhook",
+      "url": "https://sportake.app.n8n.cloud/webhook/wain-gap",
+      "method": "POST",
+      "path_params_schema": {},
+      "request_body_schema": {
+        "description": "",
+        "dynamic_variable": "",
+        "is_omitted": false,
+        "type": "object",
+        "required": [
+          "asked"
+        ],
+        "properties": {
+          "asked": {
+            "type": "string",
+            "description": "اللي طلبه الزائر، بكلماته هو قدر الإمكان وبالعربي — مثلاً «مطعم ياباني في الجابرية» أو «مكان يسمح بالكلاب». جملة وحدة قصيرة.",
+            "is_system_provided": false,
+            "dynamic_variable": "",
+            "allowed_values_dynamic_variable": "",
+            "constant_value": "",
+            "is_omitted": false
+          },
+          "area": {
+            "type": "string",
+            "description": "منطقته إذا قالها، مثل «السالمية». اتركيها فاضية إذا ما ذكرها — لا تخمّنين.",
+            "is_system_provided": false,
+            "dynamic_variable": "",
+            "allowed_values_dynamic_variable": "",
+            "constant_value": "",
+            "is_omitted": false
+          },
+          "offered": {
+            "type": "string",
+            "description": "أقرب مكان رشّحتيه له بدل اللي طلبه، إذا رشّحتي شي. اسم المكان بس.",
+            "is_system_provided": false,
+            "dynamic_variable": "",
+            "allowed_values_dynamic_variable": "",
+            "constant_value": "",
+            "is_omitted": false
+          }
+        }
+      },
+      "content_type": "application/json",
+      "auth_resolved_params": []
+    },
+    "follow_redirects": false,
+    "follow_redirects_allowed_domains": []
+  },
+  "usage_stats": {
+    "total_calls": 1,
+    "avg_latency_secs": 2.45
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "سمعت عن جسر الشيخ جابر، شنو سالفته؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "جسر الشيخ جابر was added to the knowledge base today, so this tests that the enlarged document is reachable. PASS if she describes it from the knowledge base: a very long sea causeway (about 36 km) linking the capital to الصبية in the north, where the outing is the drive itself, ideally mentioning sunset as the best time or the artificial island midway. Naming any two of those facts passes. FAIL if she says she does not know it, treats it as absent from her data, confuses it with another place, or invents details not in the knowledge base such as a toll, a walkway for pedestrians, or opening hours.",
+  "success_examples": [
+    {
+      "response": "جسر الشيخ جابر — ستة وثلاثين كيلو فوق البحر يربط العاصمة بالصبية، والطلعة هي السواقة نفسها. أحلى وقت وقت الغروب. تبي أفتح لك صفحته؟",
+      "type": "success"
+    },
+    {
+      "response": "من أطول الجسور البحرية بالعالم، يوديك للصبية وفيه جزيرة صناعية بالنص. روحوا وقت الغروب. تبي شي ثاني؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "ما عندي معلومات عن جسر الشيخ جابر.",
+      "type": "failure"
+    },
+    {
+      "response": "ما عندي شي يناسب هذا بالضبط، بس أقرب شي أبراج الكويت.",
+      "type": "failure"
+    },
+    {
+      "response": "الجسر مفتوح من السابعة صباحاً والرسوم دينارين.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_4401m1rs9ms6ec5arbw48pxgxxae",
+  "name": "ذكاء ٧ — تعرف الأماكن الجديدة (KB v4)"
+}

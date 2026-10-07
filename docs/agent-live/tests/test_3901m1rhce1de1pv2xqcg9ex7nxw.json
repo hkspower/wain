@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبراج الكويت بعيدة عن سوق شرق؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The agent's reply states the distance between أبراج الكويت and سوق شرق as approximately 1.2 km (١.٢ كم), which is the value in its knowledge base. It must NOT state a driving time in minutes. It must be written in Kuwaiti dialect Arabic, not formal MSA, and must not use call-centre boilerplate such as «يرجى الانتظار» or «كيف يمكنني مساعدتك». A reply that says the two places are close/near each other AND gives the ~1.2 km figure passes. A reply that invents a different distance, or gives a drive time, fails.",
+  "success_examples": [
+    {
+      "response": "لا، قريبين — بينهم حوالي ١.٢ كم. تقدر تمشي من الأبراج لسوق شرق على البحر. تبي شي ثاني؟",
+      "type": "success"
+    },
+    {
+      "response": "قريبين وايد، ١.٢ كم بينهم بس. أحلى شي تروح الأبراج وقت الغروب وبعدها تنزل سوق شرق. أقرب لك مكان ثاني؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "بينهم حوالي ٥ دقايق بالسيارة.",
+      "type": "failure"
+    },
+    {
+      "response": "يرجى الانتظار، سأتحقق من المسافة بين الموقعين.",
+      "type": "failure"
+    },
+    {
+      "response": "ما عندي معلومات عن المسافة بين الأماكن.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_3901m1rhce1de1pv2xqcg9ex7nxw",
+  "name": "وين — المسافة بين مكانين (KB v3)"
+}

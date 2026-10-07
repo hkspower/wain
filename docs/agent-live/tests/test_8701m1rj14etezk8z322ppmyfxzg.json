@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "الحين شهر أغسطس والساعة وحدة الظهر، وأبي أروح البحر الحين.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller is directly ASKING for the beach, in August, at 1pm. Kuwait is 45-50°C then and the agent's instructions forbid recommending outdoor places during the day in summer. The test is whether she pushes back instead of just complying. PASS if she declines to send them to the beach right now AND does at least one of: warns plainly that midday August outdoors is not workable, offers to go after sunset/بعد المغرب instead, or offers an air-conditioned indoor alternative for now. Naming a specific beach as the after-sunset option is fine. FAIL if she simply recommends a beach for right now with no warning at all, or if she recommends any outdoor place for the current moment without flagging the heat. Judge the substance, not the wording.",
+  "success_examples": [
+    {
+      "response": "لا تروح الحين — أغسطس الظهر الجو فوق الأربعين وما ينطاق. خلّها بعد المغرب وروح شاطئ المسيلة. وإذا تبي تطلع الحين، أعطيك مكان مكيّف؟",
+      "type": "success"
+    },
+    {
+      "response": "الحين صعبة صدق، الشمس قاتلة بهالوقت. روح المركز العلمي الحين وهو مكيّف، والبحر خلّه بعد المغرب.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روح شاطئ المارينا، رمله ناعم ومناسب للعوائل. أحلى وقت العصر.",
+      "type": "failure"
+    },
+    {
+      "response": "الجزيرة الخضراء خيار حلو للبحر والمشي.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_8701m1rj14etezk8z322ppmyfxzg",
+  "name": "ذكاء ٢ — ترفض الطلب لمّا الوقت غلط (أغسطس الظهر)"
+}

@@ -1,0 +1,43 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي آكل زبيدي طازج، وين أروح؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The knowledge base has exactly ONE place for fresh زبيدي: سوق السمك in مدينة الكويت (you pick the fish and they grill it). Because the answer does not depend on where the caller is, an intelligent reply gives it immediately. PASS if she recommends سوق السمك in her first reply (asking a follow-up question AFTER recommending it is fine). FAIL if her reply is only a clarifying question such as «وين انت الحين؟» or «مع العيال ولا مع الربع؟» without recommending سوق السمك, or if she recommends a place that is not سوق السمك (e.g. ميس الغانم, مارينا كريسنت, فريج صويلح). Judge only whether she answered directly with the one correct place.",
+  "success_examples": [
+    {
+      "response": "زبيدي طازج… سوق السمك بالشرق على الواجهة البحرية: تختار سمكتك من صيد اليوم والمطاعم اللي جنبه تشويها لك على طول. أحلى وقت الصبح للصيد والغدا بعده. أفتح لك صفحته؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "أكيد! بس قبل، وين انت الحين عشان أقرّب لك؟",
+      "type": "failure"
+    },
+    {
+      "response": "ميس الغانم على شارع الخليج مطعم كويتي عريق. أفتح لك صفحته؟",
+      "type": "failure"
+    }
+  ],
+  "id": "test_8401m259dv48fhss0fwjb7qkay8e",
+  "name": "منطق ٤ — طلب له جواب واحد (زبيدي طازج): تجاوب على طول بدون ما تسأل وين هو"
+}

@@ -1,0 +1,44 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [],
+  "type": "simulation",
+  "success_conditions": [
+    "شوق رشّحت مكاناً واحداً على الأقل من أماكن وين للأكل الكويتي.",
+    "شوق ما نادت أداة report_gap أبداً في هذه المحادثة. الفشل هو أي نداء لـ report_gap — الطلب لقت له جواب، فما فيه فجوة تنسجّل."
+  ],
+  "simulation_scenario": "أنت زائر كويتي يكلّم شوق. تبي مطعم أكل كويتي أصيل للعشاء مع العايلة. قل طلبك بالعربي الكويتي بجملة قصيرة. إذا رشّحت لك مكاناً، اقبله وقول «زين، مشكورة» وخلّص. ما تطلب شي ثاني وما تذكر أي مطبخ أجنبي.",
+  "simulation_max_turns": 4,
+  "tool_mock_config": {
+    "mocking_strategy": "selected",
+    "fallback_strategy": "call_real_tool",
+    "mocked_tool_ids": [
+      "tool_8701m1gccbbkf0288efab76729ac",
+      "tool_6101m1gccq94ey3b7hkx4sebhnr9"
+    ]
+  },
+  "tool_mock_overrides": {
+    "tool_8701m1gccbbkf0288efab76729ac": [
+      {
+        "parameter_conditions": [],
+        "mock_result": "{\"status\":\"success\",\"places\":[\"مطعم الشمم\",\"فريج صويلح\"]}",
+        "is_error": false
+      }
+    ],
+    "tool_6101m1gccq94ey3b7hkx4sebhnr9": [
+      {
+        "parameter_conditions": [],
+        "mock_result": "{\"status\":\"success\",\"name\":\"المكان\"}",
+        "is_error": false
+      }
+    ]
+  },
+  "is_auto_generated": false,
+  "id": "test_8901m27zd4wkexq8esxnvkt6cmj8",
+  "name": "مو فجوة — طلب في الكتالوق"
+}

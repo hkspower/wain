@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "بطلع مع الوالدة، كبيرة بالسن وما تقدر تمشي وايد، وين أوديها؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller is taking an elderly mother who cannot walk much. A correct answer picks somewhere air-conditioned or sheltered where she can sit, and avoids anything the knowledge base describes as a long walk, a full day, or a trip. PASS if the main recommendation is a sit-down place: ميس الغانم (restaurant, عزايم عوائل), مارينا كريسنت or مارينا مول (restaurants, seated), سوق شرق (mall with seated cafés), الصالحية, مجمع ٣٦٠ (quiet, seated), بيت العثمان or قصر السلام or بيت السدو (indoor museums, small), مقاهي المباركية (seated tea), كافيهات شارع الخليج (seated), or جسر الشيخ جابر (she stays seated in the car). FAIL if the main recommendation is a walking or full-day place: حديقة الشهيد (مسارات مشي), الأفنيوز (يوم كامل ما يكفيه, huge), سوق الجمعة (لفّة تاخذ ساعات), حديقة حيوان الكويت (مسارات), مركز الشيخ عبدالله السالم الثقافي (يوم كامل), المدينة الترفيهية, جزيرة فيلكا, الخيران, مزارع الوفرة, any beach, or the الجزيرة الخضراء. Judge only whether the mobility constraint was honoured.",
+  "success_examples": [
+    {
+      "response": "الله يحفظها… ميس الغانم على شارع الخليج، مطعم كويتي عريق وقعدته مريحة ومناسب للعوائل، تتغدّون وتشوفون البحر من الداخل. أحلى وقت العشا ويفضّل الحجز. أفتح لك صفحته؟",
+      "type": "success"
+    },
+    {
+      "response": "سوق شرق يناسبها: مكيّف، تقعدون بكافيه مطل على المارينا بدون مشي كثير. تبي بديل بالسالمية؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "حديقة الشهيد أحلى مكان، مسار مشي حول البحيرة.",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز، يوم كامل ما يكفيه.",
+      "type": "failure"
+    },
+    {
+      "response": "سوق الجمعة بالري، لفّة تاخذ ساعات بس تستاهل.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_2501m259e8gmfzta3q36as83ps0n",
+  "name": "منطق ٥ — مع الوالدة كبيرة بالسن: مكان فيه قعدة، مو مشي ولا يوم كامل"
+}

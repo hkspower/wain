@@ -1,0 +1,95 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "agent",
+      "message": "هلا والله! أنا شوق من «وين». قل لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة مع العيال؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "user",
+      "message": "هلا فيج، والله أبي مكان حلو أروح له اليوم.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 4,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "agent",
+      "message": "يا هلا فيك! أبشر، بس عشان أقدر أساعدك صح، تبي الطلعة مع العيال ولا مع الربع؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 6,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "user",
+      "message": "لا بروحي، أبي مكان على البحر فيه قهوة حلوة، يفضل بالسالمية أو على شارع الخليج.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 12,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "Judge the agent's SPOKEN message that comes immediately before any show_places/open_place tool call (or her only message if there is no tool call). PASS only if ALL FOUR hold.\n\n(1) READ-BACK — the message opens with a two-to-four-word echo of the request, before any place is named: «أوكي، قهوة على البحر…», «أبشر، قهوة على البحر بالسالمية…». A bare warmth word («أبشر», «حياك») on its own is NOT a read-back; the echo must restate sea / coffee / Salmiya or Gulf Road.\n\n(2) A NAMED PLACE from the knowledge base, on the sea, serving coffee. IMPORTANT — judge this by whether a knowledge-base ENTRY is named, not by whether the name sounds singular. «كافيهات شارع الخليج» IS such an entry and naming it SATISFIES this condition; so do «مارينا كريسنت», «مارينا مول» and «سوق شرق». Its plural form is the entry's real name, not a category, and must not be marked down as one. Fail (2) ONLY when no entry is named at all — a bare description such as «فيه كافيهات وايد حلوة على شارع الخليج» or «تلقى كافيهات على البحر» with no entry name in it — or when the venue named appears nowhere in the knowledge base.\n\n(3) If she gives a best time, it is after sunset — «عقب المغرب» or «بعد المغرب». It is September and the answer is an outdoor one, so any wording built on «العصر» («العصر», «بعد العصر», «من العصر», «العصر المتأخر») or on «الصبح» FAILS.\n\n(4) The LAST sentence of that message is a short question handing the turn back: «شرايك؟», «أحطهم لك على الخريطة؟», «أفتح لك صفحتها؟».\n\nFAIL if any of the four is missing. Judge only these four things.",
+  "success_examples": [
+    {
+      "response": "أوكي، قهوة على البحر… كافيهات شارع الخليج، جلسات مطلّة على البحر من الكرك لين القهوة المختصة، وأحلى وقت لها عقب المغرب. أحطهم لك على الخريطة؟",
+      "type": "success"
+    },
+    {
+      "response": "أبشر، قهوة على البحر بالسالمية… مارينا كريسنت فيه كافيهات على المارينا وجلسات برا، وأحلى وقت له عقب المغرب بالصيف. شرايك أفتح لك صفحته؟",
+      "type": "success"
+    },
+    {
+      "response": "أبشر، قهوة على البحر بالسالمية أو شارع الخليج… كافيهات شارع الخليج فيها جلسات على البحر وقهوة حلوة، وأحلى وقت لها عقب المغرب عشان الجو يكون ألطف. تبي شي ثاني بالسالمية؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "أبشر، كافيهات شارع الخليج وايد حلوة، تلقى فيها قهوة مختصة وجلسات على البحر مباشرة، وأحلى وقت لها الحين عقب المغرب. شرايك فيها؟",
+      "type": "failure"
+    },
+    {
+      "response": "أوكي، قهوة على البحر… فيه كافيهات وايد حلوة على شارع الخليج، أحلى وقت لها العصر. تبي شي ثاني؟",
+      "type": "failure"
+    },
+    {
+      "response": "أوكي، قهوة على البحر… كافيهات شارع الخليج، جلسات على البحر وقهوة مختصة. أحلى وقت لها عقب المغرب.",
+      "type": "failure"
+    },
+    {
+      "response": "أوكي، قهوة على البحر… مجمع الفنار بالسالمية، تصميمه مفتوح على شارع الخليج وفيه كافيهات هادية. أحلى وقت له الحين بعد العصر. تبي تشوف كافيهات شارع الخليج بداله؟",
+      "type": "failure"
+    }
+  ],
+  "id": "test_7901m2wvg8r5e2qaeff8rqre773g",
+  "name": "شكل — الإعادة بكلمتين ثم مكان بالاسم (قهوة على البحر، سبتمبر)"
+}

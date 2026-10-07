@@ -35,6 +35,31 @@ not archived, as the known-good copy).
 **Not re-tested on Main.** The suite (24 of 25) ran on `tuned-restore`; Main differs from it only by
 the keyword and ignore-term supersets above.
 
+## Full import (7 October) — everything ElevenLabs holds for this agent
+
+| path | what | how it was taken |
+|---|---|---|
+| `shouq-agent-full.json` | the whole agent document at Main's head: conversation config, widget, evaluation criteria, guardrails, auth, privacy, overrides, attached test ids, procedures, workflow | `agents_get` with no `fields`, saved from the tool's own file, minus the account-permission block |
+| `tools/{show_places,open_place,report_gap}.json` | the three custom tools as standalone records, with their ids and usage counts | `agents_get_tool` |
+| `tests/<id>.json`, `tests/index.md` | the 25 attached tests | `agents_get_test`, one by one |
+| `knowledge-base/<id>.md` + `.meta.json` | all eight knowledge-base documents in the workspace (only `ynRNIOiliu2vKBN4d9H6`, v5, is attached) | URL documents (v3–v7): the file at the commit each one is pinned to — the exact bytes ElevenLabs fetched. Text documents (v1, v2, «المطاعم والكافيهات العصرية الحديثة»): the text ElevenLabs returns, sizes equal to its `size_bytes` |
+| `procedure-technical-issue.json` | the one procedure on Main («When user reports a technical issue», a generic dashboard template) | `agents_get_procedure` |
+| `branches.json` | the five branches and the live split | `agents_list_branches` |
+
+**Not imported, on purpose:** conversation transcripts and recordings (callers' voices and words — personal
+data, and they stay where `privacy` says they are kept), test-run history, and account or billing data.
+
+| KB id | version | size | attached |
+|---|---|---|---|
+| `ynRNIOiliu2vKBN4d9H6` | v5, commit `e4af2de0` | 73,002 | **yes** |
+| `HVj2QHQpi6vhaxukWMOe` | v7, `8215f7d6` (rolled back) | 74,967 | no |
+| `QuTdGKOBOWd3gPSCW80m` | v6, `24b18c04` (rolled back) | 76,806 | no |
+| `xTqmrvefgSbzdcEyFjtG` | v4, `ab034b04` | 73,002 | no |
+| `42rJoevyIOEFNEZ7TfCW` | v3, `1ab701ab` | 61,962 | no |
+| `om8zzegLlJKtl4P5cyNb` | v2, text | 49,767 | no |
+| `WzkQSLRq7en4DX17AIyL` | v1, text | 22,420 | no |
+| `ANkRiRs8Xxy5poyujeTJ` | «المطاعم والكافيهات العصرية الحديثة», text | 3,496 | no — names places that are not in the catalogue |
+
 ## History in this folder
 
 - `shouq-agtvrsn_1701m48bqsz4efwadjb8eabgawwt.json` — the last tuned version before the dashboard

@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "يا شوق تكفين، أنا طفشان وميت جوع وطقة حر، ودي أدشّ مكان آكل فيه أكل كويتي عدل، بس حالتي حالة. وين؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller spoke in heavy Kuwaiti slang and stated FEELINGS rather than a request: تكفين (please, fem.), طفشان (bored, wants a change of scene), ميت جوع (starving — wants food NOW), طقة حر (it is extremely hot), أدشّ (go into), أكل كويتي عدل (proper Kuwaiti food), حالتي حالة (I am broke — NOT ill). PASS only if ALL hold: (1) she treated the feelings as the request — she recommends a place to eat Kuwaiti/popular food right now, from her knowledge base (e.g. سوق المباركية, مقاهي المباركية, ميس الغانم, فريج صويلح, شارع سالم المبارك, شارع تونس), and does not ask what he wants or what any word means; (2) the heat is honoured — the place is indoor/air-conditioned, or she explicitly says to go after sunset; (3) the budget is honoured — the place is described as economical/cheap or she otherwise acknowledges «حالتي حالة» as being short of money, and she quotes NO price in dinars or fils; (4) she did not treat «حالتي حالة» as illness or «طقة» as anything but heat; (5) natural Kuwaiti dialect with no MSA (FAIL on هل تريد, يمكنك, سوف, لا يوجد, أستطيع, حيث, لذلك, بالإضافة إلى, أهلاً بك); (6) ends by handing the turn back with a short question. FAIL if she recommends an expensive place (الأفنيوز, مجمع ٣٦٠, برج الحمراء) as the main answer, an outdoor place for right now without the sunset caveat, asks a clarifying question instead of recommending, or expresses concern for his health.",
+  "success_examples": [
+    {
+      "response": "حياك! أبشر، إذا جوعان وحرّان وميزانيتك على قدها، سوق المباركية أحلى شي لك — أكل شعبي رخيص ومكيّف من داخل، وتغيّر جوك بعد. أحلى وقت له عقب المغرب. أفتح لك صفحته؟",
+      "type": "success"
+    },
+    {
+      "response": "لا تشيل هم، ميس الغانم أكله كويتي أصيل ومكيّف، وإذا تبي أرخص، سوق المباركية فيه أكل شعبي ويسوى. شرايك؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "سلامات، شفيك حالتك حالة؟ إن شاء الله ما شر.",
+      "type": "failure"
+    },
+    {
+      "response": "شنو قصدك بطقة حر؟ وشنو نوع الأكل اللي تبيه؟",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز فيه كل المطاعم اللي تبيها.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_4901m1xhe048f26atne1ybjebf5w",
+  "name": "لهجة ٢ — يفهم المشاعر والسلنق (طفشان + ميت جوع + طقة حر + حالتي حالة)"
+}

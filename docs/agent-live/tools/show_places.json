@@ -1,0 +1,45 @@
+{
+  "id": "tool_8701m1gccbbkf0288efab76729ac",
+  "tool_config": {
+    "type": "client",
+    "name": "show_places",
+    "description": "يعرض الأماكن المطابقة على خريطة وين مع أسمائها وأيقوناتها. ناديها بعد أي ترشيح.",
+    "response_timeout_secs": 10,
+    "disable_interruptions": false,
+    "interruption_mode": "allow",
+    "force_pre_tool_speech": false,
+    "pre_tool_speech": "auto",
+    "assignments": [],
+    "tool_call_sound_behavior": "auto",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+      "description": "",
+      "dynamic_variable": "",
+      "is_omitted": false,
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "كلمات البحث بالعربي، مثل «قهوة هادية» أو «مطعم للعائلة».",
+          "is_system_provided": false,
+          "dynamic_variable": "",
+          "allowed_values_dynamic_variable": "",
+          "constant_value": "",
+          "is_omitted": false
+        }
+      }
+    },
+    "expects_response": true,
+    "dynamic_variables": {
+      "dynamic_variable_placeholders": {}
+    },
+    "execution_mode": "immediate"
+  },
+  "usage_stats": {
+    "total_calls": 4,
+    "avg_latency_secs": 0.29
+  }
+}

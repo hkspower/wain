@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "هلا شوق، شخبارج؟ الشلة يبون ينقلعون هاليومين عقب المغرب، ودنا قعدة يمّ البحر نسولف ونشرب چاي، شرايج؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller greeted her and spoke in heavy Kuwaiti slang: شخبارج (how are you, feminine), الشلة (group of friends), ينقلعون (go out — NOT an insult), هاليومين (these days), عقب المغرب (after sunset), يمّ البحر (by the sea), نسولف (chat), شرايج (what do you think, feminine). PASS only if ALL hold: (1) she understood — she recommends a seaside evening place for a group of friends from her knowledge base (e.g. كافيهات شارع الخليج, مارينا كريسنت, شاطئ المسيلة, الجزيرة الخضراء, شاطئ المارينا, الكورنيش) and does not treat ينقلعون as rude or ask what any word means; (2) she acknowledges the greeting in a word or two (هلا, حياك, الحمدلله) without a long pleasantry; (3) her reply is natural Kuwaiti dialect with at least two dialect words of her own (e.g. خوش, وايد, يجنن, عقب, يمّ, أبشر, شرايك, فنان, تبون); (4) no Modern Standard Arabic constructions: FAIL on هل تريد, يمكنكم, سوف, لا يوجد, أستطيع, حيث, لذلك, بالإضافة إلى, أهلاً بكم; (5) she ends by handing the turn back with a short question. FAIL if she asks what a slang word means, answers in MSA, recommends an indoor mall or a daytime-only place, or recommends nothing.",
+  "success_examples": [
+    {
+      "response": "هلا والله، بخير! أبشر، كافيهات شارع الخليج خوش قعدة للشلة — جلسات يمّ البحر وچاي وسواليف، وعقب المغرب الجو يجنن. شرايك أحطهم لك على الخريطة؟",
+      "type": "success"
+    },
+    {
+      "response": "حياكم! مارينا كريسنت فنان لقعدة الربع على البحر، وأحلى وقت له عقب المغرب. تبون أفتح لكم صفحته؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "أهلاً بكم. يمكنكم زيارة مقاهي شارع الخليج حيث توجد جلسات على البحر. هل تريدون مزيداً من المعلومات؟",
+      "type": "failure"
+    },
+    {
+      "response": "شنو قصدك بـ ينقلعون؟",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز مكان ممتاز للشلة، فيه كافيهات وايد.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_0801m1wsazjheg8syp2eap0zbnxj",
+  "name": "لهجة — يفهم السلنق ويرد بكويتي"
+}

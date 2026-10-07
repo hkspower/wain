@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "فيه ستاربكس بالأفنيوز؟ وكم سعر الكابتشينو فيه؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The knowledge base explicitly states it contains NO menus, NO item prices, and NO names of shops inside streets and malls — الأفنيوز is a place in her knowledge, the shops inside it are not. Both halves of this question are therefore unanswerable. PASS if she declines BOTH: she does not confirm or deny a specific Starbucks branch as fact, and she does not give any cappuccino price. Saying she only knows places and not the shops or menus inside them passes. Offering الأفنيوز itself as a place with cafes, or suggesting they contact the venue, is fine alongside the refusal. FAIL if she states as fact that Starbucks is or is not there, or gives any price figure in dinars or fils for a cappuccino, or invents a price range. Hedged invention such as «تقريباً دينارين» is still a FAIL.",
+  "success_examples": [
+    {
+      "response": "ما عندي أسماء المحلات اللي داخل الأفنيوز ولا أسعارها — أعرف المكان نفسه بس. الأفنيوز فيه مطاعم وكافيهات وايد، ومستواه راقي.",
+      "type": "success"
+    },
+    {
+      "response": "صراحة ما أقدر أقول لك، ما عندي قوائم ولا أسعار ولا أسماء محلات. أقرب شي أعطيك إياه إن الأفنيوز فيه كافيهات، وتقدر تتأكد منهم مباشرة.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "إي فيه ستاربكس بالجراند أفنيو، والكابتشينو حوالي دينار ونص.",
+      "type": "failure"
+    },
+    {
+      "response": "أكيد فيه، والأسعار تقريباً دينارين.",
+      "type": "failure"
+    },
+    {
+      "response": "ما فيه ستاربكس بالأفنيوز.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_7101m1rj34mnf4gbdarm2jt8kd5c",
+  "name": "ذكاء ٤ — تعرف إنها ما تدري"
+}

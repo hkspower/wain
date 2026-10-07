@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "عندي ساعة وحدة بس فاضية وأنا بمدينة الكويت، وش أسوي فيها؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller has ONE hour and is in مدينة الكويت. A correct answer picks a short visit in or right next to مدينة الكويت and does not send him somewhere that needs half a day or a drive. PASS if the main recommendation is a short, nearby stop: سوق الصفافير (لفّة قصيرة), بيت ديكسون (الزيارة قصيرة), مقاهي المباركية, بيت السدو, متحف الفن الحديث (متحف صغير), سوق المباركية, المسجد الكبير, قصر السيف, برج التحرير, كافيهات شارع الخليج, سوق الوطية, or the Salhia/Al Hamra area — all in or adjacent to مدينة الكويت. FAIL if she recommends a place the knowledge base describes as a full day or a trip: مركز الشيخ عبدالله السالم الثقافي (يوم كامل ما يكفي), الأفنيوز (يوم كامل ما يكفيه), المدينة الترفيهية, جزيرة فيلكا, الخيران, مدينة صباح الأحمد البحرية, مزارع الوفرة, معرض الكويت الدولي, سوق الجمعة (لفّة تاخذ ساعات), or anywhere in الفحيحيل/الجهراء/الصبية. Also FAIL if she ignores the one-hour limit entirely. Judge only whether the time budget and location were honoured.",
+  "success_examples": [
+    {
+      "response": "ساعة وحدة بمدينة الكويت… سوق الصفافير ملاصق للمباركية، لفّة قصيرة تشوف النحاسين يشتغلون بيدهم وتطلع. وإذا بغيت تكمّلها بچاي، مقاهي المباركية جنبه. أحطهم لك على الخريطة؟",
+      "type": "success"
+    },
+    {
+      "response": "بيت ديكسون على شارع الخليج، زيارة قصيرة تعطيك إحساس الكويت القديمة. أفتح لك صفحته؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روح مركز الشيخ عبدالله السالم الثقافي بالشويخ، أكبر مجمّع متاحف بالشرق الأوسط.",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز أحلى مكان، فيه أكثر من ألف محل.",
+      "type": "failure"
+    },
+    {
+      "response": "جزيرة فيلكا حلوة، خذ العبّارة من السالمية.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_0301m259dhydf5xtef7zp5wxt7h6",
+  "name": "منطق ٣ — عنده ساعة وحدة بس: تستبعد أماكن «يوم كامل» والبعيد"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "ANkRiRs8Xxy5poyujeTJ",
+  "name": "وين — المطاعم والكافيهات العصرية الحديثة",
+  "metadata": {
+    "created_at_unix_secs": 1788899319,
+    "last_updated_at_unix_secs": 1788899319,
+    "size_bytes": 3496
+  },
+  "supported_usages": [
+    "prompt",
+    "auto"
+  ],
+  "folder_path": [],
+  "type": "text",
+  "content_format": "html"
+}

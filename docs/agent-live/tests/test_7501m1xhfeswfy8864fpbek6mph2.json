@@ -1,0 +1,75 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي قعدة قهوة حلوة مع الربع الليلة.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "agent",
+      "message": "أبشر! مقاهي المباركية في مدينة الكويت خوش قعدة للربع، چاي وقهوة عربية في حوش السوق، وأحلى وقت لها عقب المغرب. شرايك أفتح لك صفحتها؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 3,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    },
+    {
+      "role": "user",
+      "message": "لا بعيدة عليّ ترى، أنا بالفحيحيل. وبعدين المباركية زحمة نهاية الأسبوع.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 12,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "This tests whether she RESPONDS TO FEEDBACK. She recommended مقاهي المباركية; the caller replied with two objections at once: it is too far (he is in الفحيحيل, in the south) and it is crowded at weekends. PASS only if ALL hold: (1) she acknowledges what he said in a word or two (e.g. «زين، بعيدة عليك», «صج», «عندك حق») without arguing that it is not far or not crowded; (2) she does NOT repeat or defend المباركية and does not ask him to reconsider it; (3) she recommends a DIFFERENT place from her knowledge base that is in الفحيحيل or that she presents as closer to him / in the south (الكوت مول in الفحيحيل is the ideal answer; مدينة صباح الأحمد البحرية or الخيران are acceptable if she says they are on his side of the country), OR she says plainly that she has nothing for coffee in الفحيحيل and offers the nearest thing she does have while saying it is a drive; (4) she says nothing that quotes a driving time in minutes; (5) natural Kuwaiti dialect, no MSA; (6) she ends with a short question handing the turn back. FAIL if she recommends المباركية again, recommends another place in مدينة الكويت or السالمية without acknowledging it is also far, ignores either objection, argues, or answers in MSA.",
+  "success_examples": [
+    {
+      "response": "زين، بعيدة عليك صج. إذا انت بالفحيحيل، الكوت مول عندك على البحر وفيه كافيهات تقعدون فيها عقب المغرب، وأهدى من المباركية نهاية الأسبوع. أحطه لك على الخريطة؟",
+      "type": "success"
+    },
+    {
+      "response": "عندك حق. أقرب لك الكوت مول بالفحيحيل — قعدة على البحر وما فيه زحمة المباركية. شرايك؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "المباركية تستاهل المشوار والزحمة جزء من جوها، جرّبها.",
+      "type": "failure"
+    },
+    {
+      "response": "طيب، كافيهات شارع الخليج حلوة وايد للربع. شرايك؟",
+      "type": "failure"
+    },
+    {
+      "response": "يمكنك زيارة الكوت مول حيث يوجد العديد من المقاهي.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_7501m1xhfeswfy8864fpbek6mph2",
+  "name": "رد فعل — يسمع الاعتراض (بعيد + زحمة) ويرشّح ثاني"
+}

@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أبي أتعشّى وبعدها أشرب قهوة، رتّبي لي الليلة.",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "This tests whether she CHAINS two places that are genuinely near each other, using the «قريب منه» distance data, rather than naming two unrelated places. PASS if she names one dinner place and one coffee place AND the two are actually close per the knowledge base, ideally saying so. Valid near pairs include: ميس الغانم + كافيهات شارع الخليج (400 m); فريج صويلح + شارع حمد المبارك (200 m); مارينا كريسنت + شارع حمد المبارك or مارينا مول; سوق المباركية or سوق السمك + مقاهي المباركية. Saying the second is «جنبه» / «على نفس الشارع» / giving the metres strengthens a pass but is not required. FAIL if the two places are far apart (for example dinner in الفحيحيل and coffee in السالمية, or dinner in حولي and coffee in مدينة الكويت), if she names only one place, or if she quotes a driving time in minutes.",
+  "success_examples": [
+    {
+      "response": "تعشّى في ميس الغانم، وبعدها القهوة في كافيهات شارع الخليج — على نفس الشارع، أربعمية متر بينهم.",
+      "type": "success"
+    },
+    {
+      "response": "عشا في فريج صويلح بالسالمية، وبعدها تمشي لشارع حمد المبارك للقهوة، جنبه بس.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "تعشّى في الكوت مول بالفحيحيل، والقهوة في شارع حمد المبارك بالسالمية.",
+      "type": "failure"
+    },
+    {
+      "response": "أنصحك بميس الغانم للعشا. تبي شي ثاني؟",
+      "type": "failure"
+    }
+  ],
+  "id": "test_1901m1rj1y6sevp92sqeqmw1v2kq",
+  "name": "ذكاء ٣ — ترتّب الليلة بالمسافات"
+}

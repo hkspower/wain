@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أنا ساكن بالزهراء، شنو المناطق القريبة مني؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "This tests whether the TAIL of the knowledge base survived. The area-proximity table at the very end of the document lists الزهراء as near only two areas: العمرية (٣.٦ كم) and الري (٤.٥ كم). PASS if the reply names العمرية and/or الري as the nearby areas, or names places in them such as الأفنيوز, سوق الجمعة, or حديقة حيوان الكويت, optionally with the km figures. It may also mention مجمع ٣٤٠, which is in الزهراء itself. FAIL if it says it does not know, names unrelated far areas such as الخيران or الوفرة as nearby, invents distances, or quotes a driving time in minutes.",
+  "success_examples": [
+    {
+      "response": "العمرية والري أقرب شي لك — ثلاثة ونص وأربعة ونص كم. فيه الأفنيوز وسوق الجمعة وحديقة الحيوان.",
+      "type": "success"
+    },
+    {
+      "response": "أقرب لك العمرية والري. مجمع ٣٤٠ عندك بالزهراء نفسها، والأفنيوز بالري.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "ما عندي معلومات عن المناطق القريبة من الزهراء.",
+      "type": "failure"
+    },
+    {
+      "response": "الخيران والوفرة قريبين منك.",
+      "type": "failure"
+    },
+    {
+      "response": "العمرية على بعد عشر دقايق بالسيارة.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_6101m1rhf19yegztvzn79pfrbhtv",
+  "name": "وين — ذيل قاعدة المعرفة (المناطق القريبة)"
+}

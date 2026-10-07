@@ -1,0 +1,16 @@
+{
+  "id": "om8zzegLlJKtl4P5cyNb",
+  "name": "وين — الأماكن (44 مكان) v2 · وصف + فيه + فهارس",
+  "metadata": {
+    "created_at_unix_secs": 1788382651,
+    "last_updated_at_unix_secs": 1788382651,
+    "size_bytes": 49767
+  },
+  "supported_usages": [
+    "prompt",
+    "auto"
+  ],
+  "folder_path": [],
+  "type": "text",
+  "content_format": "html"
+}

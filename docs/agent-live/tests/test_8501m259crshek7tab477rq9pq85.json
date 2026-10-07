@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "الحين الساعة أحدعش بالليل وأبي أطلع من البيت، وش ترشحين؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller stated the time is 11 pm. A correct answer recommends a place whose best time (per the knowledge base) is the evening or night, and does NOT recommend a place whose best time is the morning or daytime. PASS if the main recommendation is any of: شارع سالم المبارك (best بالليل بعد الثامنة), شارع تونس (best بالليل), مارينا كريسنت (best العشا), كافيهات شارع الخليج (العصر لين بعد المغرب), شارع حمد المبارك (بعد العصر وبالليل), مقاهي المباركية (العصر وبعد المغرب), سوق المباركية (بالليل بعد الخامسة), برج التحرير (بعد المغرب), الكوت مول (بعد المغرب), برج الحمراء (بالليل), أبراج الكويت (وقت الغروب — acceptable). FAIL if the main recommendation is a morning/daytime place: حديقة حيوان الكويت (الصبح بدري), سوق الجمعة (الصبح), المتحف الوطني الكويتي (الصبح), قصر السيف (الصبح), المركز العلمي (الصبح أول ما يفتح), قصر السلام (الصبح), سوق الوطية (الصبح), سوق الصفافير (الصبح), أكوا بارك (الصبح), or any museum/cultural centre that would be closed at 11 pm, or any beach without acknowledging it is night. Judge only the time logic, not the style.",
+  "success_examples": [
+    {
+      "response": "أوكي، طلعة بالليل… شارع سالم المبارك بالسالمية فنان هالحزة، مفتوح لوقت متأخر ومليان وجبات سريعة وحلا. تبي شي أهدى بداله؟",
+      "type": "success"
+    },
+    {
+      "response": "هالوقت كافيهات شارع الخليج أحلى شي، قعدة على البحر والجو بالليل زين. أحطهم لك على الخريطة؟",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روح حديقة حيوان الكويت، أحلى وقت لها الصبح بدري.",
+      "type": "failure"
+    },
+    {
+      "response": "المتحف الوطني الكويتي حلو، فيه آثار فيلكا والقبة الفلكية. أفتح لك صفحته؟",
+      "type": "failure"
+    }
+  ],
+  "id": "test_8501m259crshek7tab477rq9pq85",
+  "name": "منطق ١ — الساعة ١١ بالليل: ترشّح مكان وقته الليل، مو مكان وقته الصبح"
+}

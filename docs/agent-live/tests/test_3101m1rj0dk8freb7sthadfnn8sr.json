@@ -1,0 +1,51 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "أنا بالسالمية مع العيال والجو حار وايد، وين أوديهم؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "The caller gave THREE constraints at once: they are in السالمية, they have children (العيال), and it is very hot. A correct answer satisfies all three. PASS if the recommended place is (a) air-conditioned or indoor, (b) suitable for children, and (c) in السالمية or an adjacent area. المركز العلمي is the ideal answer (السالمية, مكيّف, tagged عيال). مارينا مول is acceptable (السالمية, مكيّف, عوائل). مركز الشيخ عبدالله السالم الثقافي is acceptable only if she acknowledges it is not in السالمية. FAIL if she recommends anywhere outdoor/مكشوف for right now (a beach, a park, مزارع الوفرة, الخيران, أكوا بارك outdoors), or somewhere with no child appeal, or somewhere far from السالمية without saying so. Ignore style; judge only whether the three constraints are all honoured.",
+  "success_examples": [
+    {
+      "response": "ودّهم المركز العلمي — بالسالمية عندك ومكيّف بالكامل، ونفق القروش يجنّن العيال. أحلى وقت أول ما يفتح قبل الزحمة. تبي بديل مكيّف ثاني؟",
+      "type": "success"
+    },
+    {
+      "response": "مارينا مول أقرب شي لك ومكيّف، وفيه مطاعم تناسب العوائل. وإذا تبي شي يفيدهم، المركز العلمي بنفس المنطقة.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روح شاطئ المارينا، العيال بيستانسون بالرمل.",
+      "type": "failure"
+    },
+    {
+      "response": "مزارع الوفرة حلوة وايد مع العيال.",
+      "type": "failure"
+    },
+    {
+      "response": "الأفنيوز بالري مكيّف وفيه كل شي.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_3101m1rj0dk8freb7sthadfnn8sr",
+  "name": "ذكاء ١ — قيود متعددة (منطقة + عيال + حر)"
+}

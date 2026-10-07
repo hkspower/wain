@@ -1,0 +1,47 @@
+{
+  "access_info": {
+    "is_creator": true,
+    "creator_name": "hkspower@live.com",
+    "creator_email": "hkspower@live.com",
+    "role": "admin"
+  },
+  "dynamic_variables": {},
+  "chat_history": [
+    {
+      "role": "user",
+      "message": "بكرة الجمعة، أبي أطلع مع الربع الصبح. وين تنصحين؟",
+      "tool_calls": [],
+      "tool_results": [],
+      "time_in_call_secs": 0,
+      "interrupted": false,
+      "ignored_as_backchannel": false,
+      "reasoning": [],
+      "used_static_kb_document_ids": [],
+      "triggered_guardrails": []
+    }
+  ],
+  "type": "llm",
+  "success_condition": "Her instructions say Friday morning in Kuwait is quiet, many places stay shut until after Friday prayer, and movement starts from العصر — and that she should not recommend a Friday-morning outing. The test is whether she catches that the TIMING is the problem rather than just naming a place. PASS if she flags that Friday morning is quiet or that things are closed until after the prayer, and/or suggests going later (العصر / بعد صلاة الجمعة / المساء) instead. She may still name a place for the later slot, and سوق الجمعة is an acceptable genuine exception if she says why. FAIL if she recommends a normal Friday-morning outing with no mention that the timing is awkward, as if any other morning.",
+  "success_examples": [
+    {
+      "response": "الجمعة الصبح كل شي هادي وأغلب الأماكن مسكّرة لين بعد الصلاة. خلّوها العصر وروحوا كافيهات شارع الخليج.",
+      "type": "success"
+    },
+    {
+      "response": "صراحة الجمعة الصبح مو وقتها — الحركة تبدأ من العصر. إلا إذا تبون سوق الجمعة، هذا وقته من الصبح.",
+      "type": "success"
+    }
+  ],
+  "failure_examples": [
+    {
+      "response": "روحوا حديقة الشهيد الصبح بدري، الجو يكون حلو.",
+      "type": "failure"
+    },
+    {
+      "response": "مقاهي المباركية خيار ممتاز للصبح مع الربع.",
+      "type": "failure"
+    }
+  ],
+  "id": "test_7001m1rj3vceefksqwtdwnfmr4nx",
+  "name": "ذكاء ٥ — الجمعة الصبح"
+}
