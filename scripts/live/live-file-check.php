@@ -159,7 +159,7 @@ $WANT = [
     'assets/card-badges.js' => '2140aa40823461aa06da59a2338b91eb789ddfb380ec6a115ad771d646c31a02',
     'assets/card-heart.js' => '9768f49b782e63c2190ee2bfccf524b1c555ab76a99798e0684296ef6a80f4fe',
     'assets/card-options.js' => 'ab899604e0e1f1d04203b65df3cb939c194acfb79571433428d7ff514be27339',
-    'assets/card.js' => '132155ae8d7d298b68f81ef4d34e3300db9298f15a6f2448da345da06f048ba8',
+    'assets/card.js' => '14e7627661762971039e509368f74c8ac69e7383a0c510867db699f2637b39c0',
     'assets/category-art.js' => '006bfce0325b78272735386ccb192f280c3b52d6eb1b8a32a513c9298dbbb89b',
     'assets/category-tiles.js' => 'f5b15ec381de0aa6eff490c9846cd8330d6e6188fc7936e9519d130b4d469aee',
     'assets/category-topbar.js' => '42fe8ed1f4a2fd767610bbca757d03bdbfbe5feea9cd77ccf8f23345bd4b51bd',
@@ -240,7 +240,7 @@ $WANT = [
     'assets/purchasing.js' => 'b25f9592910b8b299de54327695fbb1af86d9945437cd01ad28fbc9b350a6aa6',
     'assets/quick-add-size.js' => 'c97803b57a4a621197a29ce6e502b85419ba6af533f688abf7e6c24f15435425',
     'assets/react-vendor-CMgvnOJB.js' => '3f36bbb7b4c6de3289643869a25c08e7ec7055ebaeef06d597b0fa301525d579',
-    'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
+    'assets/returns-link.js' => 'e154784c72994c7bc6bce4cd96ac28361c94a37b85996d0532dacd4411094532',
     'assets/returns-request.js' => '660d4d3a5a8f1ebb470f39709063a1965133514f462105ebea5ea6117964c2c6',
     'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
     'assets/rules-live.js' => 'f390963369dc57bee77ee1f98b0241bfa55da8f751fd3ea0fdaa036f2c5d6766',
@@ -267,7 +267,7 @@ $WANT = [
     'assets/wallet-setup.js' => '89f60d952feddbb7e107181077f086ae2585f7bc86def9d9c66db2404fb18c4d',
     'assistant-bot.png' => 'a589c66921ceb50accebe71449e0ca595e11649ca595517f864246e339483e00',
     'assistant-bot.webp' => '74b4d1a0ffdb119ae12b735b98468ae0de461d4c6f5ac8d14f652ad89b279803',
-    'card.html' => 'ec1132381b6f8e80dc105bce84cacab7388b2358faa9ae2c74fad8a7a00158f7',
+    'card.html' => '1a0299603c78c43dafc569842ae841a5267e4d533b8093fad6acfcc23334418c',
     'category.php' => '140a5fcb9382e2d50ef02560eb1195411f1bcd32733a1071701d98f28370a255',
     'cats/desktop/art-accessories-rtl.jpg' => '0a81aa0cb3fcae6aa8fabf250ce5fc96558c18e0675cea4f14caee916469088a',
     'cats/desktop/art-accessories-rtl.webp' => 'f9eba2e81448fad79efda7b2f394a4731d457d7df318f4031a6257143308a1b8',
@@ -369,7 +369,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'c364798c875a06343ca65a6bb35bf55e50c17852e9e335ccec2ab23002f5c4f5',
+    'sw.js' => '26ae0ed63b46ba45f0593d7be3509f345fe233621cd6e570783051cfe254348f',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
