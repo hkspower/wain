@@ -43,6 +43,12 @@ COLOUR. The game tone-maps with ACESFilmic; Blender 5.0 ships ACES 1.3
 as a view transform, so a paint here lands where the game puts it. There
 is no fallback: an older Blender is refused at start-up (version.py).
 
+TRIED AND LEFT OUT (Blender 5.0.1, 1280x720, 64 samples against a 512
+sample render of the same car, RMSE of 8-bit pixels): path guiding took
+77 s against 48 s and was no closer (3.39 against 3.35); the blue-noise
+and automatic sampling patterns took the same time and came 1.3% closer
+(3.31), which is not worth re-rendering 17 cars for.
+
 Cycles on the CPU with OpenImageDenoise: measured on this project's
 build machine at 0.99 s per sample per megapixel under load, so a
 2560x1440 car at 128 samples is a few minutes on an idle 4-core box —
