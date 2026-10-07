@@ -18,8 +18,8 @@
   <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-700.woff2" crossorigin />
   <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-800.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
-  <meta name="description" content="لوحة إدارة النوخذة — المهلب كود: العملاء والعمليات والمالية وإعدادات النظام." />
-  <title>لوحة الإدارة — إدارة النوخذة</title>
+  <meta name="description" content="لوحة إدارة النوخذة من المهلب كود: العملاء والعمليات والمالية وإعدادات النظام." />
+  <title>لوحة الإدارة | إدارة النوخذة</title>
   <style>
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -387,7 +387,7 @@
     <button class="btn primary" type="submit" id="gate-btn">دخول</button>
     <p class="note">
       <svg class="ic sm" aria-hidden="true"><use href="#i-warn"/></svg> هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
-      محلية وليست تحققاً من خادم — راجع SECURITY.md.
+      محلية وليست تحققاً من خادم، راجع SECURITY.md.
     </p>
     <p class="note"><a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 4px"><svg class="ic sm back" aria-hidden="true"><use href="#i-chev"/></svg> العودة إلى النوخذة</a></p>
   </form>
@@ -399,7 +399,7 @@
     <header>
       <div class="brand">
         <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
-        <div><h1>لوحة الإدارة</h1><small>إدارة النوخذة — المهلب كود</small></div>
+        <div><h1>لوحة الإدارة</h1><small>إدارة النوخذة · المهلب كود</small></div>
       </div>
       <nav class="site">
         <a href="index.html"><svg class="ic back" aria-hidden="true"><use href="#i-chev"/></svg> المهلب كود</a>
@@ -497,7 +497,7 @@
 
     <!-- ---------------- FINANCE ---------------- -->
     <section class="tab" id="tab-finance">
-      <h2>المحفظة — صافي</h2>
+      <h2>المحفظة: صافي</h2>
       <div class="tiles" id="safi-kpis"></div>
       <div class="charts" style="margin-top:14px" id="safi-charts"></div>
       <h2>تقارير XBRL</h2>
@@ -506,14 +506,14 @@
           <thead><tr><th>المنشأة</th><th>الفترة</th><th>نهاية الفترة</th><th>الأصول</th><th>حقوق الملكية</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
           <tbody id="xbrl-rows"></tbody>
         </table>
-        <div class="empty" id="xbrl-empty" hidden>لا توجد تقارير محفوظة — وَلِّد تقريراً من صفحة XBRL.</div>
+        <div class="empty" id="xbrl-empty" hidden>لا توجد تقارير محفوظة، وَلِّد تقريراً من صفحة XBRL.</div>
       </div>
     </section>
 
     <!-- ---------------- SETTINGS ---------------- -->
     <section class="tab" id="tab-settings">
       <h2>الاشتراك</h2>
-      <div class="check ok">النوخذة مجاني بالكامل — كل الوحدات مفتوحة لكل حساب مسجّل، بلا باقات ولا رسوم.</div>
+      <div class="check ok">النوخذة مجاني بالكامل: كل الوحدات مفتوحة لكل حساب مسجّل، بلا باقات ولا رسوم.</div>
 
       <div class="grid2" style="margin-top:22px">
         <div class="card">
@@ -545,7 +545,7 @@
   </main>
 
   <footer class="site">
-    المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
+    المهلب كود · Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
     <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a>
   </footer>
 </div>
@@ -633,7 +633,7 @@
   }
   function num(v, max) { var n = Number(v); return (isFinite(n) && n >= 0) ? Math.min(n, max) : 0; }
   function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
-  function d2(iso) { if (!iso) return "—"; var d = new Date(iso); return isNaN(d) ? "—" : d.toISOString().slice(0, 10); }
+  function d2(iso) { if (!iso) return "-"; var d = new Date(iso); return isNaN(d) ? "-" : d.toISOString().slice(0, 10); }
   function el(id) { return document.getElementById(id); }
 
   function tiles(rows) {                       // [label, value, unit, sub]
@@ -645,7 +645,7 @@
     }).join("");
   }
 
-  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز — المساحة ممتلئة أو التصفح الخاص مفعّل.";
+  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز، المساحة ممتلئة أو التصفح الخاص مفعّل.";
   /* an overflowing row or table gives no sign of what lies past its edge: a
      class marks it until the end is reached, and the stylesheet fades that edge */
   function cueScroll(w) {
@@ -729,7 +729,7 @@
     }
     var dots = pts.map(function (p, i) {
       return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="9" fill="transparent" ' +
-             'data-tip="' + esc(p.k + " — " + fmt(p.v)) + '"/>' +
+             'data-tip="' + esc(p.k + ": " + fmt(p.v)) + '"/>' +
              (p.v > 0 ? '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) +
               '" r="3" fill="var(--ord-5)" stroke="var(--panel)" stroke-width="2"/>' : "");
     }).join("");
@@ -761,7 +761,7 @@
         '<path d="M' + (P.l - 20.9) + ' ' + (cy + 3.9) + 'L' + (P.l - 13.1) + ' ' + (cy - 3.9) + '" stroke="' + col + '" stroke-width="1.8" stroke-linecap="round"/>' : "";
       return ban + '<text x="' + lx + '" y="' + (y + 13) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
              '<rect x="' + P.l + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" fill="' + col + '" ' +
-             'data-tip="' + esc(r.k + " — " + fmt(r.v)) + '"/>' +
+             'data-tip="' + esc(r.k + ": " + fmt(r.v)) + '"/>' +
              '<text x="' + (P.l + w + 8).toFixed(1) + '" y="' + (y + 13) + '" font-size="11.5" fill="var(--muted)" font-weight="700">' + esc(fmt(r.v)) + '</text>';
     }).join("");
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + body + '</svg>';
@@ -784,7 +784,7 @@
       var sign = (pos ? "+" : "−") + fmt(Math.abs(r.v));
       return '<text x="' + (P.l - 10) + '" y="' + (y + 12.5) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
              '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" ' +
-             'fill="' + (pos ? "var(--viz-pos)" : "var(--viz-neg)") + '" data-tip="' + esc(r.k + " — " + sign) + '"/>' +
+             'fill="' + (pos ? "var(--viz-pos)" : "var(--viz-neg)") + '" data-tip="' + esc(r.k + ": " + sign) + '"/>' +
              '<text x="' + (pos ? mid + w + 7 : mid - w - 7).toFixed(1) + '" y="' + (y + 12.5) + '" font-size="11.5" font-weight="700" ' +
              'text-anchor="' + (pos ? "start" : "end") + '" fill="var(--muted)">' + esc(sign) + '</text>';
     }).join("");
@@ -811,7 +811,7 @@
       var u = o[email] || {};
       out.push({
         email: String(email).slice(0, 254),
-        name: String(u.name || "—").slice(0, 80),
+        name: String(u.name || "-").slice(0, 80),
         plan: Math.min(2, Math.max(0, Math.floor(Number(u.plan) || 0))),
         status: u.status === "suspended" ? "suspended" : "active",
         createdAt: u.createdAt || ""
@@ -849,7 +849,7 @@
 
     el("kpis").innerHTML = tiles([
       ["العملاء", u.length, "", ar(active.length, "حساب نشط", "حسابان نشطان", "حسابات نشطة")],
-      ["حسابات موقوفة", suspended.length, "", u.length ? Math.round(suspended.length / u.length * 100) + "% من العملاء" : "—"],
+      ["حسابات موقوفة", suspended.length, "", u.length ? Math.round(suspended.length / u.length * 100) + "% من العملاء" : "-"],
       ["الطلبات", o.length, "", ar(delivered.length, "طلب مُسلَّم", "طلبان مُسلَّمان", "طلبات مُسلَّمة")],
       ["إيراد التوصيل (د.ك)", kwd(rev), "", "من الطلبات المسلّمة"],
       ["قيمة المحفظة (د.ك)", kwd(aum), "", (pl >= 0 ? "+" : "−") + kwd(Math.abs(pl)) + " د.ك"]
@@ -878,7 +878,7 @@
           ordinalBars(pipe, function (v) { return ar(v, "طلب", "طلبان", "طلبات"); }),
           cancelled ? '<div class="legend"><span><i style="background:var(--ord-3)"></i>مراحل التنفيذ</span>' +
                       '<span><i style="background:var(--viz-neg)"></i><svg class="ic ban" aria-hidden="true"><use href="#i-ban"/></svg>ملغي</span></div>' : "") +
-      fig("ربح/خسارة المحفظة", "لكل سهم، بالدينار — الاتجاه والإشارة يوضحان النوع دون الاعتماد على اللون.",
+      fig("ربح/خسارة المحفظة", "لكل سهم، بالدينار: الاتجاه والإشارة يوضحان النوع دون الاعتماد على اللون.",
           divergingBars(h.slice(0, 8).map(function (a) { return { k: a.ticker, v: a.value - a.cost }; }), kwd),
           '<div class="legend"><span><i style="background:var(--viz-pos)"></i>+ ربح</span>' +
           '<span><i style="background:var(--viz-neg)"></i>− خسارة</span></div>');
@@ -945,7 +945,7 @@
     el("ops-rows").innerHTML = list.map(function (o) {
       var cls = o.status === 3 ? "pos" : (o.status === 4 ? "neg" : "dim");
       return '<tr><td class="num">' + esc(o.id) + '</td><td>' + esc(o.customer) + '</td>' +
-        '<td>' + esc(o.address) + '</td><td>' + esc(o.items) + '</td><td>' + esc(o.courier || "—") + '</td>' +
+        '<td>' + esc(o.address) + '</td><td>' + esc(o.items) + '</td><td>' + esc(o.courier || "-") + '</td>' +
         '<td class="num">' + esc(kwd(o.amount)) + '</td>' +
         '<td><span class="pill ' + cls + '">' + esc(STATUSES[o.status]) + '</span></td></tr>';
     }).join("");
@@ -953,7 +953,7 @@
 
     var byC = {};
     ordersArr().forEach(function (o) {
-      var c = o.courier || "— بدون —";
+      var c = o.courier || "بدون";
       byC[c] = byC[c] || { n: 0, done: 0, live: 0, rev: 0 };
       byC[c].n++;
       if (o.status === 3) { byC[c].done++; byC[c].rev += o.amount; }
@@ -986,7 +986,7 @@
       fig("القيمة السوقية لكل سهم", "مرتّبة تنازلياً بالقيمة.",
           ordinalBars(h.slice().sort(function (a, b) { return b.value - a.value; }).slice(0, 8)
             .map(function (a) { return { k: a.ticker, v: a.value }; }), kwd)) +
-      fig("الربح والخسارة", "الاتجاه يميناً ربح، يساراً خسارة — مع الإشارة والقيمة.",
+      fig("الربح والخسارة", "الاتجاه يميناً ربح، يساراً خسارة، مع الإشارة والقيمة.",
           divergingBars(h.map(function (a) { return { k: a.ticker, v: a.value - a.cost }; }), kwd),
           '<div class="legend"><span><i style="background:var(--viz-pos)"></i>+ ربح</span>' +
           '<span><i style="background:var(--viz-neg)"></i>− خسارة</span></div>');
@@ -1007,7 +1007,7 @@
     el("audit").innerHTML = log.length
       ? log.map(function (a) {
           return '<div><time>' + esc(new Date(a.ts).toLocaleString("en-GB", { hour12: false }).replace(",", ""))   /* the device's clock, not UTC */ + '</time><span>' +
-                 esc(a.action) + (a.detail ? " — " + esc(a.detail) : "") + '</span></div>';
+                 esc(a.action) + (a.detail ? ": " + esc(a.detail) : "") + '</span></div>';
         }).join("")
       : '<p class="note">لا توجد إجراءات مسجّلة بعد.</p>';
   }
@@ -1030,7 +1030,7 @@
     ["overview", "customers", "ops", "finance", "settings"].forEach(function (t) {
       el("tab-" + t).classList.toggle("on", t === b.getAttribute("data-tab"));
     });
-    document.title = b.textContent.trim() + " — لوحة الإدارة | النوخذة";
+    document.title = b.textContent.trim() + " · لوحة الإدارة | النوخذة";
     cueTables();
   });
 
@@ -1138,7 +1138,7 @@
   });
   el("btn-wipe").addEventListener("click", function () {
     if (!confirm("مسح كل بيانات النوخذة على هذا الجهاز؟ لا يمكن التراجع.")) return;
-    if (!confirm("تأكيد أخير — سيتم حذف الحسابات والطلبات والمحفظة والتقارير.")) return;
+    if (!confirm("تأكيد أخير: سيتم حذف الحسابات والطلبات والمحفظة والتقارير.")) return;
     [K.users, K.safi, K.orders, K.couriers, K.xbrl].forEach(function (k) { localStorage.removeItem(k); });
     audit("مسح كل البيانات"); toast("تم المسح"); renderAll();
   });
@@ -1173,7 +1173,7 @@
     e.preventDefault();
     var f = e.target, err = el("gate-err"), pw = f.pass.value;
     var left = lockLeft();
-    if (left) { err.textContent = "محاولات كثيرة — حاول بعد " + ar(left, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."; return; }
+    if (left) { err.textContent = "محاولات كثيرة: حاول بعد " + ar(left, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."; return; }
     f.querySelector("button").disabled = true;
 
     if (setupMode) {

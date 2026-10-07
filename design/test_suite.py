@@ -214,6 +214,17 @@ def static_checks():
     S = "static"
     texts = {p: (ROOT / p).read_text() for p in PAGES}
 
+    # no em dash in anything a visitor reads (owner's word, 2026-10-07):
+    # comments may keep theirs, markup, attributes and script strings may not
+    _cm = re.compile(r'<!--.*?-->|/\*.*?\*/|(?:^|(?<=[\s;{}(,]))//[^\n]*', re.S | re.M)
+    def dashes(src):
+        return [l.strip()[:60] for l in _cm.sub("", src).splitlines() if "\u2014" in l]
+    planted = dashes('<p>a \u2014 b</p><!-- c \u2014 d -->\n/* e \u2014 f */ var x = 1; // g \u2014 h')
+    site = {p: dashes((ROOT / p).read_text()) for p in PAGES + ["404.html", "safi.html", "xbrl.html", "delivery.html", "nokha1.html", "manifest.webmanifest", "llms.txt", "robots.txt"]}
+    bad = [f"{p}: {v[0]}" for p, v in site.items() if v]
+    check(S, "no em dash on any page, in the manifest or llms.txt (the scan sees a planted one, skips comments)",
+          len(planted) == 1 and not bad, " | ".join(bad[:3]) or str(planted))
+
     # every page carries the same token set, light and dark
     def tokens(src, dark=False):
         pat = (r"prefers-color-scheme: dark\)\s*\{\s*:root\s*\{(.*?)\}" if dark
@@ -813,7 +824,7 @@ def home_checks(pg):
     # a card class that collided with it once stacked a whole rail in one cell
     check(S, "the drawing is in the flow, not absolutely positioned",
           art and not art["absolute"] and not art["overflows"], str(art))
-    for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
+    for heading in ("النوخذة: النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     # المهلب is the company; النوخذة is the unified system it built and runs
     check(S, "the masthead names the company, not the product",
@@ -918,7 +929,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "765", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "766", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -951,7 +962,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "765", "0", "100%"], str(finals))
+          finals == ["4", "766", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",

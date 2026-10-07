@@ -288,7 +288,7 @@ code {{ font-family: var(--mono); font-size: 12.5px;
         "لا يُربط أبداً بخط من CDN — سياسة الأمان تمنعه.",
         """    <div class="ds-panel">
       <p style="font-size:34px;font-weight:800;margin:0 0 8px;line-height:1.4">نبني حلولاً رقمية قوية</p>
-      <p style="font-size:22px;font-weight:700;margin:0 0 8px;line-height:1.4">النوخذة — النظام الموحد</p>
+      <p style="font-size:22px;font-weight:700;margin:0 0 8px;line-height:1.4">النوخذة: النظام الموحد</p>
       <p style="font-size:16px;margin:0 0 8px">نصّ متن عادي بوزن 400، وهو الوزن الذي تُقرأ به الفقرات.</p>
       <p style="font-size:13px;color:var(--muted);margin:0">نصّ ثانوي بلون مكتوم.</p>
     </div>

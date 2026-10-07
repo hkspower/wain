@@ -1,7 +1,7 @@
 {
-  "name": "النوخذة — نظام المهلب الموحد",
+  "name": "النوخذة: نظام المهلب الموحد",
   "short_name": "النوخذة",
-  "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل — يعمل بدون إنترنت.",
+  "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل، يعمل بدون إنترنت.",
   "id": "nokhatha",
   "start_url": "nokhatha.html",
   "scope": "./",
@@ -56,7 +56,7 @@
       ]
     },
     {
-      "name": "صافي — SAFI",
+      "name": "صافي · SAFI",
       "short_name": "صافي",
       "url": "nizam.html#/safi",
       "icons": [
@@ -68,7 +68,7 @@
       ]
     },
     {
-      "name": "XBRL — التقارير المالية",
+      "name": "XBRL: التقارير المالية",
       "short_name": "XBRL",
       "url": "nizam.html#/xbrl",
       "icons": [
@@ -80,7 +80,7 @@
       ]
     },
     {
-      "name": "التوصيل — Delivery",
+      "name": "التوصيل · Delivery",
       "short_name": "التوصيل",
       "url": "nizam.html#/delivery",
       "icons": [

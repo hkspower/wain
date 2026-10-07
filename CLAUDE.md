@@ -190,7 +190,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   reduced motion. Tests that measure scroll positions must pass
   `behavior:'instant'` or they race the animation and read mid-flight values.
 - **المهلب is the company; النوخذة is النظام الموحد it built and runs.** The
-  masthead says «شركة برمجة وأنظمة», and the system is named «النوخذة — النظام
+  masthead says «شركة برمجة وأنظمة», and the system is named «النوخذة: النظام
   الموحد» wherever it is introduced. Never let the product name stand in for
   the company's.
 - **The النوخذة section carries a flow map**, not just prose: صافي · التوصيل →
@@ -243,6 +243,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   offers (أتمتة · تصميم · تطبيقات · برمجة خاصة · شعار وهوية) sit in their own
   rail beneath it, and the sub-line counts them — «خمسة نبدأ بها عادةً». Do not merge the two: filing
   an offer under "our work" presents it as something already delivered.
+- **No em dash anywhere a visitor reads** (owner's word, 2026-10-07): use
+  «:» for a label, «،» or «.» in a sentence, «·» between names, «|» in a
+  title, «-» in an empty cell. Comments may keep theirs. Pinned by the suite.
 - **One numeral system across the whole site**, not just the company page:
   placeholders read «٨ أحرف» and the not-found page was titled ٤٠٤ while every
   figure beside them was Latin. Pinned per page.
