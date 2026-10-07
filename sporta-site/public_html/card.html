@@ -148,8 +148,8 @@
 
   <!-- THE LOOKUP -->
   <section id="ask">
-    <h1>بطاقة الولاء</h1>
-    <p class="lede">نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا. أدخل رقمك ورقم أي طلب سابق لعرض رصيدك.</p>
+    <h1 data-i18n="title">بطاقة الولاء</h1>
+    <p class="lede" data-i18n="lede">نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا. أدخل رقمك ورقم أي طلب سابق لعرض رصيدك.</p>
 
     <div class="card">
       <div id="error" class="error" role="alert" hidden></div>
@@ -159,16 +159,16 @@
            JavaScript it would post to itself and change nothing, which is a
            better failure than a button that does nothing. -->
       <form id="form" novalidate>
-        <label for="phone">رقم الهاتف</label>
+        <label for="phone" data-i18n="phone">رقم الهاتف</label>
         <input id="phone" name="phone" type="tel" inputmode="numeric"
-               autocomplete="tel" placeholder="٥٥٥١٢٣٤٥" required>
+               autocomplete="tel" placeholder="٥٥٥١٢٣٤٥" data-i18n-ph="phonePh" required>
 
-        <label for="track">رقم أي طلب سابق</label>
+        <label for="track" data-i18n="track">رقم أي طلب سابق</label>
         <input id="track" name="track" type="text" inputmode="latin"
                autocomplete="off" spellcheck="false" placeholder="SP1A2B3C" required>
-        <p class="hint">نطلبه مرة واحدة فقط، للتأكد أن الرقم رقمك. تجده في رسالة تأكيد الطلب أو على الفاتورة.</p>
+        <p class="hint" data-i18n="hint">نطلبه مرة واحدة فقط، للتأكد أن الرقم رقمك. تجده في رسالة تأكيد الطلب أو على الفاتورة.</p>
 
-        <button id="go" type="submit">عرض رصيدي</button>
+        <button id="go" type="submit" data-i18n="go">عرض رصيدي</button>
       </form>
     </div>
   </section>
@@ -178,7 +178,7 @@
     <div class="card">
       <p class="who" id="who"></p>
       <p class="muted" id="orders"></p>
-      <p class="points"><span id="points">0</span> <span style="font-size:1rem;font-weight:400;color:var(--sp-silver)">نقطة</span></p>
+      <p class="points"><span id="points">0</span> <span style="font-size:1rem;font-weight:400;color:var(--sp-silver)" data-i18n="points">نقطة</span></p>
       <span class="tier" id="tier"></span>
       <div id="progress" hidden>
         <div class="bar"><i id="bar" style="width:0%"></i></div>
@@ -189,14 +189,14 @@
     <div class="card">
       <div id="addwrap">
         <p class="muted" style="margin-top:0" id="addnote"></p>
-        <button id="add" type="button">إضافة إلى Apple Wallet</button>
+        <button id="add" type="button" data-i18n="add">إضافة إلى Apple Wallet</button>
       </div>
-      <button class="ghost" id="again" type="button" style="margin-top:12px">رقم آخر</button>
+      <button class="ghost" id="again" type="button" style="margin-top:12px" data-i18n="again">رقم آخر</button>
     </div>
   </section>
 
   <footer class="muted">
-    <a href="/">العودة إلى المتجر</a>
+    <a href="/" data-i18n="back">العودة إلى المتجر</a>
   </footer>
 </main>
 <script src="/assets/theme.js" defer></script>

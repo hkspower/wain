@@ -17,28 +17,101 @@
   var ask = $('ask'), result = $('result'), form = $('form')
   var errorBox = $('error')
 
-  /* ARABIC-INDIC DIGITS, because the rest of the shop uses them and a balance
-     rendered in Latin numerals beside prices in ٠١٢٣ reads as a different
-     site. toLocaleString does this correctly for ar-EG, including grouping. */
+  /* WHICH LANGUAGE — the shop's own rule, copied from index.html's boot script (as
+     returns-request.js does) rather than invented: the saved CHOICE first, the query
+     parameter second, Arabic if neither. Not written back. The HTML ships Arabic so a
+     visitor with no JavaScript still gets a real page; translate() below is the swap. */
+  var LANG = (function () {
+    var saved = null
+    try { saved = localStorage.getItem('lang') } catch (e) { /* private mode */ }
+    if (saved === 'ar' || saved === 'en') return saved
+    var q = /[?&]lang=([A-Za-z-]{2,10})/.exec(location.search)
+    if (q) {
+      var tag = q[1].toLowerCase().split('-')[0]
+      if (tag === 'ar' || tag === 'en') return tag
+    }
+    return 'ar'
+  })()
+  var AR = LANG === 'ar'
+
+  /* ARABIC-INDIC DIGITS on the Arabic page, because the rest of the shop uses them and a
+     balance rendered in Latin numerals beside prices in ٠١٢٣ reads as a different site —
+     and Latin digits on the English page, for the same reason in reverse. toLocaleString
+     does this correctly for ar-EG, including grouping. */
   var digits = function (n) {
-    try { return Number(n).toLocaleString('ar-EG') } catch (e) { return String(n) }
+    try { return Number(n).toLocaleString(AR ? 'ar-EG' : 'en-US') } catch (e) { return String(n) }
   }
 
-  var TIERS = { base: 'أساسي', silver: 'فضي', gold: 'ذهبي' }
-
-  /* Every refusal the server can give, in Arabic. A JSON error code shown to a
-     customer is a customer who telephones. The default is deliberately vague
-     rather than echoing an unknown code — if this page has not been taught
-     about a failure, it should not pretend to explain it. */
-  var MESSAGES = {
-    invalid_phone: 'رقم الهاتف غير صحيح. أدخله بالأرقام فقط، مثل ٥٥٥١٢٣٤٥.',
-    order_not_found_for_phone: 'لم نجد طلبًا بهذا الرقم لهذا الهاتف. تأكد من الرقمين — رقم الطلب يبدأ بحرفي SP.',
-    too_many_attempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة.',
-    wallet_not_configured: 'البطاقة غير جاهزة بعد. رصيدك محفوظ ويظهر أعلاه.'
+  /* Every word on the page. The Arabic is the copy that was always here, unchanged; the
+     English is its translation. Every refusal the server can give is here too: a JSON error
+     code shown to a customer is a customer who telephones. The default is deliberately vague
+     rather than echoing an unknown code — if this page has not been taught about a failure,
+     it should not pretend to explain it. */
+  var T = {
+    ar: {
+      pageTitle: 'بطاقة الولاء — سبورتا', brand: 'سبورتا', back: 'العودة إلى المتجر',
+      title: 'بطاقة الولاء',
+      lede: 'نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا. أدخل رقمك ورقم أي طلب سابق لعرض رصيدك.',
+      phone: 'رقم الهاتف', phonePh: '٥٥٥١٢٣٤٥', track: 'رقم أي طلب سابق',
+      hint: 'نطلبه مرة واحدة فقط، للتأكد أن الرقم رقمك. تجده في رسالة تأكيد الطلب أو على الفاتورة.',
+      go: 'عرض رصيدي', checking: 'جارٍ التحقق…', points: 'نقطة',
+      add: 'إضافة إلى Apple Wallet', again: 'رقم آخر',
+      tiers: { base: 'أساسي', silver: 'فضي', gold: 'ذهبي' },
+      invalid_phone: 'رقم الهاتف غير صحيح. أدخله بالأرقام فقط، مثل ٥٥٥١٢٣٤٥.',
+      order_not_found_for_phone: 'لم نجد طلبًا بهذا الرقم لهذا الهاتف. تأكد من الرقمين — رقم الطلب يبدأ بحرفي SP.',
+      too_many_attempts: 'محاولات كثيرة خلال وقت قصير. انتظر دقيقة ثم أعد المحاولة.',
+      wallet_not_configured: 'البطاقة غير جاهزة بعد. رصيدك محفوظ ويظهر أعلاه.',
+      fallback: 'تعذّر عرض الرصيد الآن. حاول مرة أخرى بعد قليل.',
+      hello: function (n) { return 'أهلًا، ' + n }, welcome: 'أهلًا بك',
+      oneOrder: 'طلب واحد مدفوع', orders: function (n) { return n + ' طلبات مدفوعة' },
+      tier: function (x) { return 'المستوى: ' + x },
+      next: function (n) { return 'باقي ' + n + ' نقطة للمستوى التالي.' },
+      soon: 'بطاقة Apple Wallet قادمة قريبًا. رصيدك محفوظ ويُحدَّث مع كل طلب.',
+      iphone: 'بطاقة Apple Wallet متاحة على iPhone. افتح هذه الصفحة من هاتفك لإضافتها.',
+      have: 'بطاقتك موجودة. أضِفها مرة أخرى لتحديث الرصيد.',
+      addCard: 'أضِف البطاقة لعرض رصيدك من شاشة القفل.'
+    },
+    en: {
+      pageTitle: 'Loyalty card — Sporta', brand: 'Sporta', back: 'Back to the shop',
+      title: 'Loyalty card',
+      lede: 'One point for every 100 fils you spend at Sporta. Enter your number and any previous order number to see your balance.',
+      phone: 'Phone number', phonePh: '55512345', track: 'Any previous order number',
+      hint: 'We ask once, to make sure the number is yours. You will find it in your order confirmation message or on the invoice.',
+      go: 'Show my balance', checking: 'Checking…', points: 'points',
+      add: 'Add to Apple Wallet', again: 'Another number',
+      tiers: { base: 'Basic', silver: 'Silver', gold: 'Gold' },
+      invalid_phone: 'That phone number is not valid. Enter digits only, for example 55512345.',
+      order_not_found_for_phone: 'We could not find an order with this number for this phone. Check both numbers — the order number starts with the letters SP.',
+      too_many_attempts: 'Too many attempts in a short time. Wait a minute and try again.',
+      wallet_not_configured: 'The card is not ready yet. Your balance is saved and shown above.',
+      fallback: 'We could not show your balance right now. Please try again shortly.',
+      hello: function (n) { return 'Hello, ' + n }, welcome: 'Welcome',
+      oneOrder: '1 paid order', orders: function (n) { return n + ' paid orders' },
+      tier: function (x) { return 'Level: ' + x },
+      next: function (n) { return n + ' points to the next level.' },
+      soon: 'The Apple Wallet card is coming soon. Your balance is saved and updates with every order.',
+      iphone: 'The Apple Wallet card is available on iPhone. Open this page on your phone to add it.',
+      have: 'You already have the card. Add it again to refresh the balance.',
+      addCard: 'Add the card to see your balance from the lock screen.'
+    }
   }
+  var t = T[LANG]
+
+  function translate() {
+    document.documentElement.lang = LANG
+    document.documentElement.dir = AR ? 'rtl' : 'ltr'
+    document.title = t.pageTitle
+    var n = document.querySelectorAll('[data-i18n]'), i
+    for (i = 0; i < n.length; i++) { var v = t[n[i].getAttribute('data-i18n')]; if (typeof v === 'string') n[i].textContent = v }
+    n = document.querySelectorAll('[data-i18n-ph]')
+    for (i = 0; i < n.length; i++) { var p = t[n[i].getAttribute('data-i18n-ph')]; if (typeof p === 'string') n[i].setAttribute('placeholder', p) }
+    var img = document.querySelector('img.brand')
+    if (img) img.alt = t.brand
+  }
+  translate()
 
   var fail = function (code) {
-    errorBox.textContent = MESSAGES[code] || 'تعذّر عرض الرصيد الآن. حاول مرة أخرى بعد قليل.'
+    errorBox.textContent = (typeof t[code] === 'string' && /^(invalid_phone|order_not_found_for_phone|too_many_attempts|wallet_not_configured)$/.test(code) ? t[code] : t.fallback)
     errorBox.hidden = false
     // Move focus so a screen reader lands on the reason rather than staying
     // on a submit button that appears to have done nothing.
@@ -69,19 +142,18 @@
   }
 
   var show = function (data, sent) {
-    $('who').textContent = data.name ? ('أهلًا، ' + data.name) : 'أهلًا بك'
+    $('who').textContent = data.name ? t.hello(data.name) : t.welcome
     $('orders').textContent = data.paid_orders === 1
-      ? 'طلب واحد مدفوع'
-      : digits(data.paid_orders) + ' طلبات مدفوعة'
+      ? t.oneOrder
+      : t.orders(digits(data.paid_orders))
     $('points').textContent = digits(data.points)
-    $('tier').textContent = 'المستوى: ' + (TIERS[data.tier] || data.tier)
+    $('tier').textContent = t.tier(t.tiers[data.tier] || data.tier)
 
     if (data.next_tier_at) {
       $('progress').hidden = false
       var pct = Math.max(0, Math.min(100, (data.points / data.next_tier_at) * 100))
       $('bar').style.width = pct.toFixed(1) + '%'
-      $('next').textContent = 'باقي ' + digits(data.next_tier_at - data.points) +
-        ' نقطة للمستوى التالي.'
+      $('next').textContent = t.next(digits(data.next_tier_at - data.points))
     } else {
       $('progress').hidden = true
     }
@@ -102,15 +174,15 @@
     var add = $('add')
     if (!data.card_ready) {
       add.hidden = true
-      $('addnote').textContent = 'بطاقة Apple Wallet قادمة قريبًا. رصيدك محفوظ ويُحدَّث مع كل طلب.'
+      $('addnote').textContent = t.soon
     } else if (!isApple) {
       add.hidden = true
-      $('addnote').textContent = 'بطاقة Apple Wallet متاحة على iPhone. افتح هذه الصفحة من هاتفك لإضافتها.'
+      $('addnote').textContent = t.iphone
     } else {
       add.hidden = false
       $('addnote').textContent = data.has_card
-        ? 'بطاقتك موجودة. أضِفها مرة أخرى لتحديث الرصيد.'
-        : 'أضِف البطاقة لعرض رصيدك من شاشة القفل.'
+        ? t.have
+        : t.addCard
       add.onclick = function () {
         /* A NAVIGATION, not fetch + blob. iOS installs a .pkpass from a real
            navigation with the right content type; a Blob URL opens a file the
@@ -136,7 +208,7 @@
 
     var go = $('go')
     go.disabled = true
-    go.textContent = 'جارٍ التحقق…'
+    go.textContent = t.checking
 
     fetch('/api/wallet.php?r=balance&phone=' + encodeURIComponent(sent.phone) +
           '&track=' + encodeURIComponent(sent.track), { headers: { Accept: 'application/json' } })
@@ -148,7 +220,7 @@
       .catch(function () { fail() })
       .finally(function () {
         go.disabled = false
-        go.textContent = 'عرض رصيدي'
+        go.textContent = t.go
       })
   })
 

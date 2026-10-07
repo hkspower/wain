@@ -31,8 +31,15 @@
 
   var ID = 'sporta-returns-request-link'
 
+  /* THE PAGE'S OWN LANGUAGE: the policy page above is the bundle's and follows its toggle, so
+     this reads what the page is showing (<html lang>) rather than deciding for itself. The Arabic
+     is the wording that was always here; the English is its translation. */
+  var isEn = function () { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' }
+
   var build = function () {
+    var en = isEn()
     var a = document.createElement('a')
+    a.setAttribute('data-lang', en ? 'en' : 'ar')
     a.id = ID
     a.href = '/returns/request'
     /* A REAL NAVIGATION, not a router link. The app's router has never heard
@@ -51,17 +58,17 @@
     var text = document.createElement('span')
     var title = document.createElement('span')
     title.className = 'block font-bold'
-    title.textContent = 'اطلب الإرجاع أو الاستبدال من طلبك'
+    title.textContent = en ? 'Request a return or exchange for your order' : 'اطلب الإرجاع أو الاستبدال من طلبك'
     var sub = document.createElement('span')
     sub.className = 'block text-sm opacity-75'
-    sub.textContent = 'أدخل رقم طلبك وسنعرض لك القطع التي اشتريتها فعلًا، ونعطيك رقم متابعة.'
+    sub.textContent = en ? 'Enter your order number and we will show the items you actually bought, and give you a tracking number.' : 'أدخل رقم طلبك وسنعرض لك القطع التي اشتريتها فعلًا، ونعطيك رقم متابعة.'
     text.appendChild(title)
     text.appendChild(sub)
 
     var chevron = document.createElement('span')
     chevron.setAttribute('aria-hidden', 'true')
     chevron.className = 'shrink-0 text-xl'
-    chevron.textContent = '‹'          /* RTL page: the arrow points leftward */
+    chevron.textContent = en ? '›' : '‹'   /* RTL page: the arrow points leftward; LTR: rightward */
 
     a.appendChild(text)
     a.appendChild(chevron)
@@ -76,7 +83,9 @@
       if (stale && stale.parentNode) stale.parentNode.removeChild(stale)
       return
     }
-    if (document.getElementById(ID)) return          // already placed
+    var have = document.getElementById(ID)
+    if (have && have.getAttribute('data-lang') === (isEn() ? 'en' : 'ar')) return   // already placed, in this language
+    if (have && have.parentNode) have.parentNode.removeChild(have)                  // the toggle changed the language: rebuild
 
     /* The anchor: the page's own <h1>, inside the heading row. The card goes
        after that row, which is the first thing under the title in reading
