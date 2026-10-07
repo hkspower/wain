@@ -6711,3 +6711,37 @@ nobody had asked for in that form (a full-height phone hero, then a white
 Marhey label with «ابحث»), and the owner had both reverted (`b0ca02e9`,
 `7b1351ac`), so the hero is again exactly the live `273439f4`. From then on,
 show or describe the change and get a yes first.
+
+## «fix shoug feedback» — 7 October, night
+
+The owner's own call on the live site (20:59 Kuwait time, `conv_2001m4br9kvfftbv9wq9tqfbx2vh`, 16 s, widget 0.19.0)
+was read before anything changed. Three findings and three outcomes:
+
+- **The call dropping was not ours.** `Client disconnected: 1001` is the browser closing the socket on page
+  unload (tab closed, reloaded, or the page put away). The widget's own end is 1000 («User ended conversation»).
+  Our hang-up unmounts the widget, which is 1000 too. Nothing in `src/` ends a call on `visibilitychange` or
+  `pagehide`. There was no code fix. Her reply to «إنتي تبي تطلعي؟» had simply not arrived yet: ≈6 s from the end
+  of speech to audio (tool-call LLM 2.17 s + reply 1.47 s + TTS), with the 3 s soft-timeout «ثانية وحدة…» in
+  between.
+- **The rating prompt is Kuwaiti now** (widget `text_contents`, version `agtvrsn_3501m4brr1m7fe3bs6kx9zxhg5ps`):
+  - «شلون كانت المكالمة؟»
+  - «قول لنا أكثر»
+  - «مشكور على رأيك!»
+  - «سكّرت المكالمة» / «شوق سكّرت المكالمة»
+  - «صار خطأ»
+
+  «بدء مكالمة» is unchanged because our sheet names it.
+- **Her answer: one place, not the list.** She answered «بحر» with two beaches and their descriptions before the
+  map line. The caller spoke over her at second four, so the closing question never came. The call's
+  `show_places` reply now reads «اختاري منها مكان واحد بس … لا تعدّدين أماكن», in `WainAiCall.tsx` and the app's
+  `tools.dart`. It is asserted in `shouq-agent` and reaches callers only with a deploy.
+
+**Forcing pre-tool speech was tried and reverted.** `pre_tool_speech: force` on `show_places`/`open_place` was
+meant to replace the silence with «أدوّر لك…». Suite `suite_0401m4bsnegrfrmsgnsqdhjmyc4m` scored **41/50, 8
+failed** against 24/25 on the same prompt. Every failure had the same shape: the turn ended at a placeholder
+line instead of the answer, because the tuned prompt already has her speak the full answer *before* the tool, and
+forcing turned that into a filler. Both tools are back to `auto`, read back from the reply, and the run cost about
+8K credits.
+
+**The latency is still there, and it is the model's.** Gemini-3.8-flash takes 2.2 s to decide on a tool call.
+What would shorten it is a smaller context or a faster model, neither tried here.

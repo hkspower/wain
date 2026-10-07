@@ -664,9 +664,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             total > 0
               ? `${countAr(total, MATCHING_PLACES)} لـ «${q}» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. `
               : `الأماكن المطابقة لـ «${q}» الحين على الخريطة قدام الزائر. `;
+          // One place, not the list. On 7 October a live call answered «بحر»
+          // with two beaches and their descriptions before the map line, the
+          // caller spoke over her at the fourth second, and the closing
+          // question never came: on a phone line a list is the part nobody
+          // hears the end of.
           return (
             summary +
-            "قولي له بجملة وحدة إنها على الخريطة — وسمّي الأول لو ما ذكرتيه — واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
+            "اختاري منها مكان واحد بس يناسب طلبه، وقولي بجملة وحدة ليش وإنه على الخريطة قدامه، " +
+            "وبعدها سؤال قصير يرجّع له الدور. لا تعدّدين أماكن. لا تسكتين."
           );
         },
         open_place: async ({ slug }: { slug?: string }) => {

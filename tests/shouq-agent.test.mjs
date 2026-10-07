@@ -330,6 +330,10 @@ ok('show_places reports back to the agent', /قهوة هادية/.test(String(sh
 // back; both halves are what the next turn is for.
 ok('and tells her what the screen now shows', /على الخريطة/.test(String(shown)), String(shown));
 ok('and tells her to hand the turn back', /يرجّع له الدور/.test(String(shown)), String(shown));
+// One place, not the list: a live call on 7 October read out two beaches with
+// their descriptions, was talked over at the fourth second, and never reached
+// its closing question.
+ok('and asks her for one place, not a list', /مكان واحد بس/.test(String(shown)) && /لا تعدّدين/.test(String(shown)), String(shown));
 // And it tells her what is really there — the count the search page will
 // show and the first names — rather than «the matching places» whatever the
 // query. She used to confirm places on the map while the page said «ما لقينا
