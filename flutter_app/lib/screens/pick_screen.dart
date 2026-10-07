@@ -7,17 +7,22 @@
 /// counting in its own chat, which is where the votes go.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
 import '../data/models.dart';
+import '../data/text_kit.dart' show countAr, kVotesCount;
+import '../orders/order_api.dart' show kBackendEnabled;
 import '../map/wain_map.dart';
 import '../share/add_to_calendar.dart';
 import '../share/hangout.dart';
 import '../share/hangout_panel.dart' show kInviteOrigin;
 import '../share/share_service.dart';
+import '../share/votes.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/layout.dart';
@@ -33,7 +38,11 @@ class PickScreen extends StatefulWidget {
   /// Injected clock for tests.
   final DateTime Function() clock;
 
-  const PickScreen({super.key, required this.query, this.clock = _now});
+  /// The vote count's client (tests pass a fake); null = the live one
+  /// whenever the build has a back end.
+  final VoteClient? votes;
+
+  const PickScreen({super.key, required this.query, this.clock = _now, this.votes});
 
   static DateTime _now() => DateTime.now();
 
@@ -49,6 +58,39 @@ class _PickScreenState extends State<PickScreen> {
   ({String slug, ShareOutcome outcome})? _voted;
   bool _busy = false;
 
+  // The group's count, when the link carries a poll (votes.dart): read on
+  // arrival and every twenty seconds while this screen is up.
+  VoteClient? _votes;
+  Tally? _tally;
+  String? _mine;
+  Timer? _refresh;
+  List<String> get _options => [for (final p in _list) p.slug];
+
+  @override
+  void initState() {
+    super.initState();
+    final poll = _read.poll;
+    if (poll == null || _list.length < 2) return;
+    _votes = widget.votes ?? (kBackendEnabled ? VoteClient() : null);
+    if (_votes == null) return;
+    _votes!.myVote(poll).then((m) {
+      if (mounted && m != null) setState(() => _mine = m);
+    });
+    _load();
+    _refresh = Timer.periodic(const Duration(seconds: 20), (_) => _load());
+  }
+
+  Future<void> _load() async {
+    final t = await _votes?.read(_read.poll!, _options);
+    if (mounted && t != null) setState(() => _tally = t);
+  }
+
+  @override
+  void dispose() {
+    _refresh?.cancel();
+    super.dispose();
+  }
+
   Future<void> _vote(int i) async {
     if (_busy) return;
     final place = _list[i];
@@ -57,6 +99,14 @@ class _PickScreenState extends State<PickScreen> {
       _active = place.slug;
     });
     HapticFeedback.selectionClick();
+    // Counted first and not waited on: the share sheet holds the screen.
+    final poll = _read.poll;
+    if (poll != null && _votes != null) {
+      setState(() => _mine = place.slug);
+      unawaited(_votes!.cast(poll, place.slug, _options).then((t) {
+        if (mounted && t != null) setState(() => _tally = t);
+      }));
+    }
     // The vote carries the place's own link, so the chat ends up holding the
     // winner's plan the way a single proposal would have.
     final when = _read.when;
@@ -113,21 +163,41 @@ class _PickScreenState extends State<PickScreen> {
                 '${when != null ? 'وين نروح $phrase؟' : 'وين نروح؟'} اختار واحد ورد عليهم.',
                 style: wainText(WainText.base, color: WainColors.ink600),
               ),
+              if (_tally != null && _tally!.total > 0) ...[
+                const SizedBox(height: 8),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    'صوّتوا: ${countAr(_tally!.total, kVotesCount)}'
+                    '${_tally!.leader != null ? ' — الأكثر: ${_list.firstWhere((p) => p.slug == _tally!.leader, orElse: () => _list.first).nameAr}' : ' — متعادلين'}',
+                    key: const ValueKey('pick-tally-summary'),
+                    style: wainText(WainText.sm, weight: FontWeight.w600, color: WainColors.ink700),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
-              for (var i = 0; i < _list.length; i++)
+              for (var i = 0; i < _list.length; i++) ...[
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: EdgeInsets.only(bottom: _tally == null ? 12 : 4),
                   child: _Choice(
                     key: ValueKey('pick-${_list[i].slug}'),
                     number: _numbers[i],
                     place: _list[i],
                     active: _active == _list[i].slug,
-                    mine: _voted?.slug == _list[i].slug,
+                    mine: _voted?.slug == _list[i].slug || _mine == _list[i].slug,
                     enabled: !_busy && !passed,
                     onVote: () => _vote(i),
                     onPoint: () => setState(() => _active = _list[i].slug),
                   ),
                 ),
+                if (_tally != null)
+                  _TallyRow(
+                    key: ValueKey('pick-tally-${_list[i].slug}'),
+                    count: _tally!.tally[_list[i].slug] ?? 0,
+                    total: _tally!.total,
+                    lead: _tally!.leader == _list[i].slug,
+                  ),
+              ],
               if (_voted?.outcome == ShareOutcome.copied)
                 _Note('نسخنا ردّك — الصقه بالجروب.'),
               if (_voted?.outcome == ShareOutcome.failed)
@@ -328,6 +398,39 @@ class _Choice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One place's count and its share of the votes, under its row.
+class _TallyRow extends StatelessWidget {
+  final int count;
+  final int total;
+  final bool lead;
+  const _TallyRow({super.key, required this.count, required this.total, required this.lead});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 12, right: 48, left: 8),
+    child: Row(
+      children: [
+        Text(
+          countAr(count, kVotesCount),
+          style: wainText(WainText.xs, weight: FontWeight.w600, color: WainColors.ink600),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : count / total,
+              minHeight: 6,
+              backgroundColor: WainColors.sand200,
+              color: lead ? WainColors.palm600 : WainColors.sand500,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Note extends StatelessWidget {

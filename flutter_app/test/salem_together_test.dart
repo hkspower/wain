@@ -210,6 +210,10 @@ bool _selected(WidgetTester t, Finder f) =>
     t.getSemantics(f).flagsCollection.isSelected == Tristate.isTrue;
 
 void main() {
+  // The chips are behind «غيّر» since 7 October; this file drives them.
+  setUp(() => debugHangoutStartOpen = true);
+  tearDown(() => debugHangoutStartOpen = false);
+
   setUp(() {
     debugTileUrl = '';
     SalemTranscript.instance.clear();

@@ -59,6 +59,16 @@ const kResultsCount = CountForms(
   many: 'نتيجة',
 );
 
+/// «صوت واحد» / «صوتين» / «٣ أصوات» — a shortlist's tally (the web's
+/// VOTES_COUNT).
+const kVotesCount = CountForms(
+  zero: 'ما فيه أصوات',
+  one: 'صوت واحد',
+  two: 'صوتين',
+  few: 'أصوات',
+  many: 'صوت',
+);
+
 const kPlacesCount = CountForms(
   zero: 'ما فيه أماكن',
   one: 'مكان واحد',

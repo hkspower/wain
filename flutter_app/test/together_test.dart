@@ -84,6 +84,10 @@ Future<void> _centre(WidgetTester t, Finder f) async {
 }
 
 void main() {
+  // The chips are behind «غيّر» since 7 October; this file drives them.
+  setUp(() => debugHangoutStartOpen = true);
+  tearDown(() => debugHangoutStartOpen = false);
+
   setUp(() {
     debugTileUrl = '';
     SalemTranscript.instance.clear();

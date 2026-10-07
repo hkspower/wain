@@ -5,11 +5,14 @@
 library;
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/models.dart';
+import '../orders/order_api.dart' show kBackendEnabled;
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/layout.dart';
@@ -21,6 +24,20 @@ import 'share_service.dart';
 /// Where invitations point. The web is the canonical home of a place page, so
 /// a link forwarded from the app opens there for anyone without it.
 const String kInviteOrigin = 'https://www.wainkw.com';
+
+/// Tests that drive the chips open the panel from the start; the app always
+/// starts closed — the plan in one line, «غيّر» for the chips (7 October).
+bool debugHangoutStartOpen = false;
+
+/// The time this device sent last, the next default when still offered.
+const String kUsualWhenKey = 'wain:usual-when';
+
+/// A fresh poll id for a shortlist link (the web's `newPollId`).
+String newPollId([Random? rng]) {
+  final r = rng ?? Random.secure();
+  const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  return String.fromCharCodes([for (var i = 0; i < 12; i++) abc.codeUnitAt(r.nextInt(abc.length))]);
+}
 
 class ShareHangout extends StatefulWidget {
   final Place place;
@@ -73,9 +90,11 @@ class _ShareHangoutState extends State<ShareHangout> {
   /// The first few, until the visitor says otherwise; re-seeded when the
   /// choices change, so it never lists places no longer shown.
   void _seed() => _picked = [
-    for (final c in (widget.choices ?? const <Place>[]).take(kShortlistMax))
-      c.slug,
+    for (final c in fitShortlist(widget.choices ?? const <Place>[], _now)) c.slug,
   ];
+
+  late bool _open = debugHangoutStartOpen;
+  bool _touched = false;
 
   @override
   void initState() {
@@ -83,6 +102,31 @@ class _ShareHangoutState extends State<ShareHangout> {
     _arm();
     _when = defaultWhen(widget.place, _now);
     _seed();
+    _loadUsual();
+  }
+
+  /// The habit, read once: applied only if nobody has chosen a time yet and
+  /// it is on offer — the same list the chips are drawn from.
+  Future<void> _loadUsual() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final wire = prefs.getString(kUsualWhenKey);
+      if (!mounted || _touched || wire == null) return;
+      final usual = WhenId.values.where((w) => w.wire == wire).firstOrNull;
+      if (usual == null) return;
+      if (whenOptions(_now, widget.place).any((o) => o.id == usual)) {
+        setState(() => _when = usual);
+      }
+    } catch (_) {
+      // No preferences on this device: the rules alone decide.
+    }
+  }
+
+  Future<void> _rememberUsual(WhenId when) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(kUsualWhenKey, when.wire);
+    } catch (_) {}
   }
 
   /// Wake exactly once, when the offered list actually moves: every expiry is
@@ -138,7 +182,7 @@ class _ShareHangoutState extends State<ShareHangout> {
         ? shortlistMessage(
             places: listed,
             when: when,
-            url: shortlistUrl(listed, when, kInviteOrigin, day),
+            url: shortlistUrl(listed, when, kInviteOrigin, day, kBackendEnabled ? newPollId() : null),
             now: now,
           )
         : hangoutMessage(
@@ -156,6 +200,7 @@ class _ShareHangoutState extends State<ShareHangout> {
         result == ShareOutcome.whatsapp ||
         result == ShareOutcome.copied) {
       HapticFeedback.lightImpact();
+      unawaited(_rememberUsual(when));
     }
     if (!mounted) return;
     setState(() {
@@ -207,12 +252,19 @@ class _ShareHangoutState extends State<ShareHangout> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'اختر الوقت وارسل المكان للجروب — بالموقع والرابط، وخلّص النقاش.',
-            style: wainText(WainText.sm, color: WainColors.ink500, height: 1.6),
+          const SizedBox(height: 12),
+          _PlanLine(
+            what: listMode
+                ? listed.map((c) => c.nameAr).join('، ')
+                : widget.place.nameAr,
+            when: selected == null ? '…' : planPhrase(selected, kuwaitDay(_now), _now),
+            open: _open,
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() => _open = !_open);
+            },
           ),
-          if (_canList) ...[
+          if (_open && _canList) ...[
             const SizedBox(height: 16),
             Semantics(
               container: true,
@@ -251,7 +303,7 @@ class _ShareHangoutState extends State<ShareHangout> {
               ),
             ),
           ],
-          if (choices != null && choices.length > 1) ...[
+          if (_open && choices != null && choices.length > 1) ...[
             const SizedBox(height: 16),
             Text(
               listMode ? 'أي أماكن؟ (لين ٣)' : 'أي مكان؟',
@@ -300,6 +352,7 @@ class _ShareHangoutState extends State<ShareHangout> {
               ],
             ),
           ],
+          if (_open) ...[
           const SizedBox(height: 16),
           Text(
             'متى؟',
@@ -322,11 +375,13 @@ class _ShareHangoutState extends State<ShareHangout> {
                   activeColor: WainColors.coral700,
                   onTap: () => setState(() {
                     _when = o.id;
+                    _touched = true;
                     _outcome = null;
                   }),
                 ),
             ],
           ),
+          ],
           if (short)
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -339,7 +394,12 @@ class _ShareHangoutState extends State<ShareHangout> {
                 ),
               ),
             ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
           FilledButton.icon(
             key: const ValueKey('hangout-send'),
             onPressed: _busy || short
@@ -364,11 +424,34 @@ class _ShareHangoutState extends State<ShareHangout> {
                   ? 'رسّل القائمة'
                   : 'رسّلها',
               style: wainText(
-                WainText.sm,
+                WainText.base,
                 weight: FontWeight.w600,
                 color: Colors.white,
               ),
             ),
+          ),
+              // The other way to send, without opening the chips.
+              if (_canList && !_open)
+                TextButton(
+                  key: const ValueKey('hangout-list-toggle'),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _listMode = !_listMode;
+                      _outcome = null;
+                    });
+                  },
+                  style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                  child: Text(
+                    listMode ? 'مكان واحد بس' : 'خلّهم يختارون',
+                    style: wainText(
+                      WainText.sm,
+                      weight: FontWeight.w600,
+                      color: WainColors.ink600,
+                    ).copyWith(decoration: TextDecoration.underline),
+                  ),
+                ),
+            ],
           ),
           if (_outcome == ShareOutcome.copied)
             _Note(icon: true, text: 'انتسخت — الصقها بالجروب.'),
@@ -450,6 +533,75 @@ class _ShareHangoutState extends State<ShareHangout> {
                 clock: widget.clock,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The plan, ready: what and when in one line, and «غيّر» for the chips.
+class _PlanLine extends StatelessWidget {
+  final String what;
+  final String when;
+  final bool open;
+  final VoidCallback onToggle;
+
+  const _PlanLine({
+    required this.what,
+    required this.when,
+    required this.open,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('hangout-plan-line'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WainColors.sand50,
+        borderRadius: BorderRadius.circular(WainRadius.s2xl),
+        border: Border.all(color: WainColors.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Semantics(
+              liveRegion: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    what,
+                    key: const ValueKey('plan-what'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: wainText(WainText.base, weight: FontWeight.w600, color: WainColors.ink900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    when,
+                    key: const ValueKey('plan-when'),
+                    style: wainText(WainText.sm, color: WainColors.ink600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Semantics(
+            button: true,
+            expanded: open,
+            child: TextButton(
+              key: const ValueKey('hangout-change'),
+              onPressed: onToggle,
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+              child: Text(
+                open ? 'تمام' : 'غيّر',
+                style: wainText(WainText.sm, weight: FontWeight.w600, color: WainColors.sea700),
+              ),
+            ),
+          ),
         ],
       ),
     );

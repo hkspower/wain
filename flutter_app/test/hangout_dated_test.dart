@@ -71,6 +71,10 @@ List<String> _watchClipboard(WidgetTester t) {
 }
 
 void main() {
+  // The chips are behind «غيّر» since 7 October; this file drives them.
+  setUp(() => debugHangoutStartOpen = true);
+  tearDown(() => debugHangoutStartOpen = false);
+
   tearDown(() => debugShareBackend = null);
   setUp(() => debugTileUrl = '');
   tearDown(() => debugTileUrl = null);

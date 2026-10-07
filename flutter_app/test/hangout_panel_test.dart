@@ -61,6 +61,10 @@ class FakeShare extends ShareBackend {
 }
 
 void main() {
+  // The chips are behind «غيّر» since 7 October; this file drives them.
+  setUp(() => debugHangoutStartOpen = true);
+  tearDown(() => debugHangoutStartOpen = false);
+
   tearDown(() => debugShareBackend = null);
 
   group('the order of fallbacks', () {
@@ -294,6 +298,10 @@ void main() {
         await t.pump();
         await t.pump();
         final listed = [four[0], four[2], beach];
+        // A fresh poll per message (7 October) — random, so read it back
+        // from what was sent; its shape is the assertion.
+        final poll = RegExp(r'&v=([a-z0-9]{12})').firstMatch(b.lastText ?? '')?.group(1);
+        expect(poll, isNotNull, reason: 'the list link carries a poll');
         expect(b.lastTitle, shortlistTitle());
         expect(
           b.lastText,
@@ -306,6 +314,7 @@ void main() {
               WhenId.tonight9,
               kInviteOrigin,
               kuwaitDay(kuwaitJanuary2pm),
+              poll,
             ),
             now: kuwaitJanuary2pm,
           ),
