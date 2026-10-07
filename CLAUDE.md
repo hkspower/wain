@@ -6644,6 +6644,34 @@ before anything changed. The owner picked all four fixes, site and app, and appr
   The same tree rebuilt cleanly twice alone. Read it as memory pressure, not the upgrade; run the two apart.
 - **Not deployed.** Nothing visitor-facing changed. The app reaches phones only through a new build.
 
+## «make full deploy» — 7 October: `c4b5c267` on production AND staging
+
+- **What shipped since `142a0d50`:** `globals.css` alone (the dead `.animate-kb-a`; the stylesheet went from
+  100,254 to 100,174 bytes) and postcss 8.5.29. The server's PHP was already current: `wain-api.php` has not
+  changed since its `1c185fbf` install.
+- **The build:** agent mode with the read-aloud bridge off, the same as the live site. It is one archive for
+  both stages, `a624d01` (sha256 `896a4f01…9b48`), one more permanent ~4MB blob.
+- **`scan` failed once, and correctly:** run without the build's variables, `audit:shouq-call` reads an agent
+  build as a free build carrying the widget. With `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` and
+  `NEXT_PUBLIC_WAIN_TTS_URL=none` set as the build had them, it passed. **Scan an agent build under the
+  agent's variables.**
+- **The push failed five times with GitHub's own `Internal Server Error`** (a GitHub request ID, not the
+  sandbox proxy). It went through after a 150-second wait. The deploy waited for it, because the server
+  fetches the commit-pinned raw URL.
+- **Production:** job `Te3CbHhoIC`, read at its first firing:
+  `{"ok":true,"deployed":278,"removed":11,"emptied":1,"at":"2026-10-07T15:19:02"}`.
+  - `deploy:verify`: «c4b5c267 is live — verified at the root and 7 levels below it» (digest
+    `85a51c958be66a84`).
+  - After the purge, `/search/` through the edge: 200, `Last-Modified 15:19:01`, `DYNAMIC`.
+- **Staging, the same archive with `staging` as the last argument** (203 characters, under the cap): job
+  `n1re5MhLXR`, first firing: `{"ok":true,"deployed":278,"removed":49,"emptied":1,"at":"2026-10-07T15:20:01"}`.
+  - `removed: 49`: staging was several builds behind production. Now it matches: `staging/build.json` is the
+    same commit and digest, `c4b5c267…/` is its only build-id directory, and its stylesheet is the same 100,174.
+- **Cleanup:** all three jobs deleted, and the listing showed sporta's standing jobs plus another session's
+  `NAg2bJpZBS` (`publish-all.php`), left alone.
+- **Not a full deploy of the apps:** no Flutter build can be cut from here (no GitHub Actions, by the owner's
+  rule), so the 7 October app changes reach phones only through a build made elsewhere.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
