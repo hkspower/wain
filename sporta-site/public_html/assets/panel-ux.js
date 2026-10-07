@@ -50,7 +50,7 @@
     + 'background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:700;cursor:pointer}'
     + '.spux-toggle[aria-expanded=true]{border-color:var(--brand,#e0561c)}'
     + '.spux-toggle .spux-out{color:#f87171}'
-    + '.spux-jump{position:sticky;top:0;z-index:30;display:flex;gap:8px;overflow-x:auto;'
+    + '.spux-jump{position:sticky;top:0;z-index:30;display:flex;gap:8px;overflow-x:auto;width:0;min-width:100%;'
     + 'padding:10px 0;margin:0 0 12px;background:var(--sp-pc-bg,#1b1d20);'
     + 'border-bottom:1px solid var(--sp-pc-border,#494e54);scrollbar-width:thin}'
     + '.spux-jump b{flex:none;align-self:center;font-size:12px;opacity:.75}'

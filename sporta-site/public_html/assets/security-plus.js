@@ -85,12 +85,19 @@
     var ss = el('section', 'spsec-sec'); ss.setAttribute('data-spsec-sessions', '1')
     ss.appendChild(el('h3', 'spsec-h3', 'Where you are signed in'))
     if (!st.sessions.length) ss.appendChild(el('p', 'spsec-note', st.ready === false ? '' : 'Only this browser.'))
-    st.sessions.forEach(function (s) {
+    // The newest six; the rest are one press away. Thirty rows of 'Linux Chrome' pushed every other card off the screen.
+    var SHOW = 6, shown = S.showAll ? st.sessions : st.sessions.slice(0, SHOW)
+    shown.forEach(function (s) {
       var row = el('div', 'spsec-row' + (s.current ? ' spsec-me' : '')); row.setAttribute('data-session', String(s.id))
       row.appendChild(el('span', 'spsec-main', agentName(s.agent) + (s.current ? ' — this browser' : '') + ' · ' + (s.ip || '?') + ' · ' + s.method + ' · last seen ' + String(s.last_seen).slice(0, 16)))
       if (!s.current) { var out = el('button', 'spsec-btn2', 'Sign out'); out.type = 'button'; out.setAttribute('aria-label', 'Sign out session ' + s.id); out.addEventListener('click', function () { call('session_revoke', { id: s.id }).then(function (r) { if (!r.ok) { say(why(r.j && r.j.error), true); return } load() }) }); row.appendChild(out) }
       ss.appendChild(row)
     })
+    if (st.sessions.length > SHOW) {
+      var more = el('button', 'spsec-btn2', S.showAll ? 'Show fewer' : 'Show all ' + st.sessions.length); more.type = 'button'; more.setAttribute('data-spsec-more', '1')
+      more.addEventListener('click', function () { S.showAll = !S.showAll; render() })
+      ss.appendChild(more)
+    }
     var others = st.sessions.filter(function (s) { return !s.current }).length
     var all = el('button', 'spsec-btn2', 'Sign out everywhere else' + (others ? ' (' + others + ')' : '')); all.type = 'button'; all.disabled = !others; all.setAttribute('data-spsec-revoke-all', '1')
     all.addEventListener('click', function () { call('sessions_revoke_others', {}).then(function (r) { if (!r.ok) { say(why(r.j && r.j.error), true); return } load(function () { say('Signed out ' + r.j.revoked + ' other browser' + (r.j.revoked === 1 ? '' : 's') + '.', false) }) }) })
@@ -119,7 +126,8 @@
   function load(after) { call('security_state').then(function (r) { S.st = r.ok ? r.j : { ready: false, passkeys: [], sessions: [], policy: { require_2fa: false, ip_allow: [] }, ip: '', mail_ready: false }; render(); if (after) after() }) }
 
   var CSS = ''
-    + '.spsec{border:1px solid var(--sp-pc-border,#494e54);border-radius:1rem;padding:1.25rem;margin:1rem 0;background:var(--sp-pc-bg,transparent)}'
+    + '.spsec{border:1px solid var(--sp-pc-border,#494e54);border-radius:1rem;padding:1.25rem;margin:2rem auto;max-width:42rem;box-sizing:border-box;background:var(--sp-pc-bg,transparent)}'
+    + '.spsec [data-spsec-more]{margin-right:8px}'
     + '.spsec-h{margin:0 0 6px;font-size:16px;font-weight:700}.spsec-h3{margin:0 0 4px;font-size:14px;font-weight:700}.spsec-sec{padding:12px 0;border-top:1px solid rgba(128,128,128,.2)}.spsec-sec:first-of-type{border-top:0}'
     + '.spsec-sub{margin:0 0 10px;font-size:13px;opacity:.8;line-height:1.5}.spsec-note{margin:8px 0;font-size:13px;opacity:.8;line-height:1.5}'
     + '.spsec-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;font-size:13px}.spsec-main{flex:1 1 240px}.spsec-me{font-weight:600}'

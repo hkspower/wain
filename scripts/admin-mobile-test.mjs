@@ -71,8 +71,15 @@ async function heights(browser, contextOpts) {
       const el = document.querySelector(sel)
       return el ? Math.round(el.getBoundingClientRect().height) : null
     }
-    return { chip: height('.srl-chip'), sccChip: height('.scc-chip'), sccGo: height('.scc-go') }
+    return { sccChip: height('.scc-chip'), sccGo: height('.scc-go') }
   })
+  // The Shop rules card moved from Settings to the Payments screen on 2026-10-07.
+  for (const l of await page.$$('a, button')) {
+    const t = ((await l.textContent()) || '').trim()
+    if (t === 'Payments' && (await l.isVisible())) { await l.click(); break }
+  }
+  await page.waitForTimeout(1500)
+  h.chip = await page.evaluate(() => { const el = document.querySelector('.srl-chip'); return el ? Math.round(el.getBoundingClientRect().height) : null })
 
   await page.close()
   return { ...h, ...scroll }

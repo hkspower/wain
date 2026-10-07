@@ -216,7 +216,7 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-setup', '1')
-    card.style.cssText = 'margin:24px auto;max-width:640px;padding:18px 20px;border:1px solid rgba(255,255,255,.14);'
+    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);'
       + 'border-radius:14px;font-family:inherit'
     card.innerHTML =
       '<h2 style="margin:0 0 6px;font-size:16px">Sign in with Apple</h2>'
@@ -245,7 +245,7 @@
 
     card.appendChild(input); card.appendChild(row); card.appendChild(save); card.appendChild(note)
     // Above the two-factor card, with the other ways of getting in.
-    var host = anchor.parentNode
+    var host = (anchor.closest && anchor.closest('section')) || anchor.parentNode
     if (host && host.parentNode) host.parentNode.insertBefore(card, host)
     else document.body.appendChild(card)
 

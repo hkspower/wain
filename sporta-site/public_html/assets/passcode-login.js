@@ -151,7 +151,7 @@
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-card', '1')
-    card.style.cssText = 'margin:24px auto;max-width:640px;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
+    card.style.cssText = 'margin:2rem 0;max-width:none;box-sizing:border-box;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
     var h = document.createElement('h2')
     h.style.cssText = 'margin:0 0 6px;font-size:16px'
     h.textContent = 'Passcode unlock'
@@ -180,7 +180,7 @@
     note.style.cssText = 'font-size:13px;flex-basis:100%'
     row.appendChild(p1); row.appendChild(p2); row.appendChild(btn); row.appendChild(note)
     card.appendChild(list); card.appendChild(row)
-    var host = anchor.parentNode
+    var host = (anchor.closest && anchor.closest('section')) || anchor.parentNode
     if (host && host.parentNode) host.parentNode.insertBefore(card, host)
     else document.body.appendChild(card)
 
