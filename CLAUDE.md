@@ -6627,6 +6627,23 @@ before anything changed. The owner picked all four fixes, site and app, and appr
 
 **Not measured:** a painted tile (OSM is refused here), and the maps on a real phone.
 
+## «upgrade css and flutter to last version» — 7 October
+
+- **Already the newest: Tailwind 4.3.3 and Flutter stable 3.47.6 (Dart 3.13.5).** Checked against npm and
+  Flutter's `releases_linux.json`; the only newer Flutter is beta 3.49.0-0.2.pre, which is not taken.
+- **The `package.json` ranges now say what is installed**: `tailwindcss` and `@tailwindcss/postcss` `^4.3.3`
+  (they said `^4.1.8`).
+- **postcss is 8.5.29**, from 8.5.28, through the override.
+- **lightningcss stays 1.32.0.** `@tailwindcss/node` pins it exactly; 1.33 arrives with a Tailwind release.
+- **The built stylesheets are byte-identical** before and after, all three. `npm audit --omit=dev` reads 0.
+- **Flutter `pub upgrade` within ranges**: app_links 7.2.2, shared_preferences 2.5.6, url_launcher 6.3.3,
+  material_ui 1.6.0, cupertino_ui 1.1.2, jni_flutter 1.0.4+1, and app_links' platform packages.
+  - Held: `permission_handler` ^12 (the AGP/SDK-37 reason) and `cupertino_icons` 1.x.
+  - Results: analyze clean, 1,307 tests, `audit:flutter` current.
+- **One `next build` died in webpack's `WasmHash` on a null buffer while the Flutter suite ran beside it.**
+  The same tree rebuilt cleanly twice alone. Read it as memory pressure, not the upgrade; run the two apart.
+- **Not deployed.** Nothing visitor-facing changed. The app reaches phones only through a new build.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
