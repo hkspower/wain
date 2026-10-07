@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../ai/call_controller.dart';
+import '../ai/config.dart';
 import '../app/app_state.dart';
 import '../data/answer_order.dart';
 import '../data/catalogue.dart';
@@ -746,8 +748,16 @@ class _AnswerLine extends StatelessWidget {
             ),
             OutlinedButton(
               key: const ValueKey('answer-salem'),
-              onPressed: () =>
-                  context.push('/salem?q=${Uri.encodeQueryComponent(query)}'),
+              // Whether the question came from her call (the search a call's
+              // show_places opened) or from this box — his chat says which.
+              onPressed: () => context.push(
+                salemHandoff(
+                  query,
+                  from: context.read<CallController?>()?.lastQuery == query
+                      ? 'call'
+                      : 'shouq',
+                ),
+              ),
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
                 backgroundColor: Colors.white,
@@ -757,7 +767,7 @@ class _AnswerLine extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'كمّل مع سالم',
+                CallCopy.toSalem,
                 style: wainText(
                   WainText.sm,
                   weight: FontWeight.w600,

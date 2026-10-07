@@ -401,6 +401,24 @@ ok('a missing slug is rejected', refused(bad[2]), bad[2]);
 ok('an empty query is rejected', refused(bad[3]), bad[3]);
 ok('none of them navigated anywhere', p.url() === before, p.url());
 
+console.log('\n── hanging up hands the question to سالم ──');
+{
+  // 7 October, on request: switching from her call to his chat used to mean
+  // starting over — the last screen offered the place and another call, and
+  // سالم knew nothing. Nothing after this section uses the call.
+  await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'بحر' }));
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('بحر'), { timeout: 8000 }).catch(() => {});
+  await p.getByRole('button', { name: 'إنهاء المكالمة' }).first().click({ timeout: 4000 }).catch(() => {});
+  // In the sheet: her answer card on the /search page behind it has a link
+  // with the same words.
+  const carry = await p.locator('#wain-ai-panel').getByRole('link', { name: 'كمّل مع سالم' })
+    .getAttribute('href', { timeout: 4000 }).catch(() => null);
+  const u = carry ? new URL(carry, B) : null;
+  ok('the last screen offers «كمّل مع سالم»', !!carry, String(carry));
+  ok('with the last thing she searched for', u?.pathname === '/salem/' && u.searchParams.get('q') === 'بحر', String(carry));
+  ok('and says it came from her call', u?.searchParams.get('from') === 'call', String(carry));
+}
+
 /**
  * What happens BEFORE the tap, and what happens when the bundle never comes.
  *

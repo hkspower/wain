@@ -98,6 +98,7 @@ class CallController extends ChangeNotifier {
   CallPhase _phase = CallPhase.idle;
   String? _error;
   String? _lastAction;
+  String? _lastQuery;
   bool _salemVoice = false;
   Duration _elapsed = Duration.zero;
   bool _sheetOpen = false;
@@ -115,6 +116,10 @@ class CallController extends ChangeNotifier {
   CallPhase get phase => _phase;
   String? get error => _error;
   String? get lastAction => _lastAction;
+
+  /// What she last searched for in this call, for «كمّل مع سالم» on the last
+  /// screen and for /search to know its question came from her call.
+  String? get lastQuery => _lastQuery;
   bool get salemVoice => _salemVoice;
   Duration get elapsed => _elapsed;
   bool get sheetOpen => _sheetOpen;
@@ -176,6 +181,7 @@ class CallController extends ChangeNotifier {
     indexOf();
     _error = null;
     _lastAction = null;
+    _lastQuery = null;
     _heard = '';
     _elapsed = Duration.zero;
     _salemVoice = salem;
@@ -270,6 +276,7 @@ class CallController extends ChangeNotifier {
     if (r.query.isEmpty) return r.spoken;
     navigate('/search?q=${Uri.encodeQueryComponent(r.query)}');
     _lastAction = lastActionForSearch(r.query, r.total);
+    _lastQuery = r.query;
     notifyListeners();
     return r.spoken;
   }
@@ -305,6 +312,16 @@ class CallController extends ChangeNotifier {
       /* already gone */
     }
     session?.dispose();
+  }
+
+  /// «كمّل مع سالم» on the last screen: the same question, typed, with him.
+  /// Switching used to mean starting over — the sheet offered another call
+  /// and nothing else, and سالم knew nothing of what she had found.
+  void continueWithSalem() {
+    final q = _lastQuery;
+    if (q == null || active) return;
+    closeSheet();
+    navigate(salemHandoff(q, from: 'call'));
   }
 
   void closeSheet() {

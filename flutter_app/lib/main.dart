@@ -94,8 +94,10 @@ class _WainAppState extends State<WainApp> {
     places: kPlaces,
     indexOf: () => searchIndex,
     // A place opens ON TOP of whatever she was showing, so back returns
-    // there; a search is the Search tab, switched to with its query.
-    navigate: (location) => location.startsWith('/places/')
+    // there, and so does سالم's chat from the call's last screen; a search is
+    // the Search tab, switched to with its query.
+    navigate: (location) =>
+        location.startsWith('/places/') || location.startsWith('/salem')
         ? _router.push(location)
         : _router.go(location),
     checkMic: widget.checkMic ?? checkMicrophone,

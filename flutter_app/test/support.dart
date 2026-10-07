@@ -64,9 +64,11 @@ CallController testController({
   Duration dial = const Duration(seconds: 20),
   void Function(FakeSession)? configure,
   CallKeepAlive? keepAlive,
+  bool local = false,
 }) {
   return CallController(
     keepAlive: keepAlive,
+    local: local,
     sessionFactory: () {
       final s = FakeSession();
       configure?.call(s);

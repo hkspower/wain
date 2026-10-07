@@ -79,6 +79,10 @@ abstract final class CallCopy {
   static const answering = 'شوق ترد…';
   static const hangUp = 'إنهاء المكالمة';
   static const callAgain = 'اتصل مرة ثانية';
+
+  /// The same question, typed, with him — on her answer and on the call's
+  /// last screen (the web's `WAIN_AI_COPY.toSalem`).
+  static const toSalem = 'كمّل مع سالم';
   static const didSearch = 'دوّرت لك';
   static const didOpen = 'فتحت لك صفحة';
   static const switchToSalem = '🔊 بصوت سالم';
@@ -152,9 +156,28 @@ abstract final class ChatCopy {
   static const followLabel = 'تبي';
   static const noResults = 'ما لقينا شي لـ';
 
-  /// The other ways in, from inside the chat: the call (one button, on /find —
-  /// so a way there), the same answer as a full search, and his voice.
+  /// The other ways in, from inside the chat: the call (placed from his
+  /// header since 7 October, on request — it was a way to /find), the same
+  /// answer as a full search, and his voice.
   static const callShouq = 'كلّم شوق';
+
+  /// The line over a question handed to him from شوق (the web's
+  /// `WAIN_AI_CHAT_COPY.fromCall` / `fromShouq`).
+  static const fromCall = 'من مكالمتك مع شوق';
+  static const fromShouq = 'من جواب شوق';
   static const seeAll = 'شوف الكل بالبحث';
   static const readAloud = 'اقرا لي الردود';
+}
+
+/// `/salem?q=…&from=call|shouq` — a question handed to سالم, and where it came
+/// from. The chat asks it as a NEW question whatever it remembers: read
+/// against an older chat, «شي رخيص» from her became a narrowing of that
+/// chat's subject (the web's `salemHandoff`).
+String salemHandoff(String q, {String? from}) {
+  final t = q.trim();
+  final params = {
+    'q': t.length > 120 ? t.substring(0, 120) : t,
+    if (from == 'call' || from == 'shouq') 'from': from!,
+  };
+  return Uri(path: '/salem', queryParameters: params).toString();
 }

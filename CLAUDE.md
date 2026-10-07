@@ -1723,8 +1723,9 @@ did not contain an agent response». A test that had just passed in the full
 suite failed 2/2 minutes later with that shape. The harness drops the user turn
 sometimes; read the rationale before believing a regression, and re-run.
 
-**The launcher is `ShouqCallButton`, on /find and nowhere else (since 1 October,
-see «One call button» below); the call component lives in the root layout.**
+**The launcher is `ShouqCallButton`, on /find and in سالم's header (since 7 October,
+see «Switching between شوق and سالم» below — before that /find only); the call
+component lives in the root layout.**
 It spent September inside the /search query box, where it had replaced the
 box's own dictation mic; the box and the search dead end now carry a LINK to
 /find instead. The call cannot move with any button: `open_place` is a route change and
@@ -6266,6 +6267,52 @@ tests reached the search map's pins directly and now tap the bar first
 
 **Not done:** anything on a real phone — the tiles are refused here, so every screenshot shows
 the broken-image ground where the basemap would be.
+
+## Switching between شوق and سالم — 7 October (built, NOT deployed)
+
+Asked: «improve switching between شوق and سالم». The owner picked all four:
+سالم keeps her answer, the chat says where a question came from, her call is
+placed from his header, and the app does the same. Build, show, then ask
+before deploying.
+
+- **A handover was read against an older chat, and that was a real defect.**
+  `/salem/?q=` asked the question as the visitor's own message, and the chat's
+  memory (`salem-followup.ts`) read it against whatever this tab remembered:
+  «رخيص» is a narrowing word, so after a chat about coffee her «شي رخيص»
+  became «قهوة رخيص» and سالم led with `mubarakiya-tea-houses` where she had
+  named `souq-al-watiya`. Measured on the old build before fixing. A handover is now always a
+  NEW question (`ctxRef`/`_ctx` cleared first); asked fresh, the one ordering
+  (`answer-order.ts`) puts her place first, so no payload needed carrying.
+- **`?from=call|shouq`** (`salemHandoff()` in `wain-ai.ts`, Dart in
+  `config.dart`) draws «من مكالمتك مع شوق: «…»» or «من جواب شوق: «…»» above it,
+  and leaves the address bar with `q`. Her answer card knows it came from a call
+  by `wain:asked` (web) or `CallController.lastQuery` (app). The call's last
+  screen offers «كمّل مع سالم» with the last thing `show_places` searched — agent
+  mode only on the web, since the free call steps aside onto /search, where her
+  card carries the same button.
+- **Her call from his header**: `ShouqCallButton size="pill"` on the web — the
+  real component, for the gesture rule — and `placeShouqCall()` in the app,
+  which `ShouqCallButton` now uses too, so the two taps cannot drift. This
+  reverses «one call button, only on /find» (1 October) on request; `find.test`
+  counts /salem as 1.
+- **A trap in proving it**: the speech lines the button starts inside the tap
+  now live in a chunk /find and /salem both load up front, so `shouq-flow`'s
+  «the tap fetched the call machinery» found no `webkitSpeechRecognition` in
+  what the tap fetched. It reads the sheet's own marker (`shouq--talking`) now,
+  as its sibling check already did since 3 October.
+- **Another**: in the agent build the search page behind the ended sheet also
+  has «كمّل مع سالم», so an unscoped `getByRole('link')` hit strict mode and
+  returned null — scope to `#wain-ai-panel`.
+
+Tests: `together.test` §4b (13 new, red on the old build with the build green),
+`shouq-agent` (3, red with the button removed), `find.test`; app
+`salem_together_test` (4), `call_life_test` (2), `together_test` — four
+sabotages each turned the matching test red. Gates: `scan` 0, `test:hangout`,
+`test:shouq` all suites, `test:journey` 46; Flutter analyze clean, 1297 tests.
+`/search` 175.0K of 176K, `/salem` 167.1K.
+
+**Not measured**: any of it on a real phone, and a handover from a real agent
+call (the socket is refused here).
 
 ## Style
 

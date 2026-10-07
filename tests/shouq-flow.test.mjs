@@ -792,9 +792,15 @@ console.log('\n── the call is not paid for until it is placed ──');
   ok('and tapping it opens the call it did not ship',
     await p.locator('#wain-ai-panel').isVisible());
 
+  // The sheet's own marker, as `shipped()` reads above. It looked for
+  // `webkitSpeechRecognition` until 7 October, when سالم's header got the call
+  // button too: the button and the few lines of lib/speech it starts inside
+  // the tap became a chunk /find and /salem both load up front, so the tap no
+  // longer fetches that string — while the call it opens is still fetched on
+  // the tap, which is the claim.
   const late = await p.evaluate(async (urls) => {
     const bodies = await Promise.all(urls.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
-    return bodies.some((b) => b.includes('webkitSpeechRecognition'));
+    return bodies.some((b) => b.includes('shouq--talking'));
   }, fetched);
   ok(`the tap fetched the call machinery (${fetched.length} chunk(s))`, late, fetched.join(', '));
   await ctx.close();

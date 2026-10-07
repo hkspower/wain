@@ -196,7 +196,10 @@ console.log('\n── one call button, and it is here ──');
 {
   const routes = [
     ['/find/', 1], ['/', 0], ['/search/', 0], ['/search/?q=قهوة', 0],
-    ['/search/?q=صيدلية', 0], ['/explore/', 0], ['/places/kuwait-towers/', 0], ['/salem/', 0],
+    ['/search/?q=صيدلية', 0], ['/explore/', 0], ['/places/kuwait-towers/', 0],
+    // سالم's header calls her too since 7 October, on request — the switch from
+    // his chat to her call was a page and a second tap.
+    ['/salem/', 1],
   ];
   for (const [path, want] of routes) {
     const { ctx, p } = await fresh(path);

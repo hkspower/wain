@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SpeakButton } from "@/components/VoiceControls";
 import { IconSend, IconShouq } from "@/components/icons";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_COPY, salemHandoff } from "@/lib/wain-ai";
 import type { SpeechPart } from "@/lib/voice-lines";
 
 /**
@@ -65,11 +65,14 @@ const isWarning = (key: string | undefined) => key?.startsWith("summer-") ?? fal
 export default function ShouqAnswer({
   parts,
   query,
+  fromCall = false,
   onShare,
 }: {
   parts: SpeechPart[];
   /** The question, for «كمّل مع سالم» — the same question, in his chat. */
   query?: string;
+  /** The question came from her call, not the box — his chat says which. */
+  fromCall?: boolean;
   /** «رسّلها للربع» for the place she named: the page's own share panel, on it. */
   onShare?: (slug: string) => void;
 }) {
@@ -154,10 +157,10 @@ export default function ShouqAnswer({
           )}
           {query && (
             <Link
-              href={`/salem/?q=${encodeURIComponent(query)}`}
+              href={salemHandoff(query, fromCall ? "call" : "shouq")}
               className="inline-flex min-h-tap items-center rounded-xl border border-coral-200 bg-white px-3 text-sm font-semibold text-coral-800 transition hover:border-coral-300"
             >
-              كمّل مع سالم
+              {WAIN_AI_COPY.toSalem}
             </Link>
           )}
         </div>

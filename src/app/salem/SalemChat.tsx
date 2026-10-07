@@ -6,9 +6,16 @@ import BackButton from "@/components/BackButton";
 import PlaceCard from "@/components/PlaceCard";
 import SearchMap from "@/components/SearchMap";
 import ShareHangout from "@/components/ShareHangout";
-import { IconCall, IconGo, IconMap, IconSend, IconSpeaker, IconSpeakerOff } from "@/components/icons";
+import ShouqCallButton from "@/components/ShouqCallButton";
+import { IconGo, IconMap, IconSend, IconSpeaker, IconSpeakerOff } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ENABLED, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
+import {
+  WAIN_AI_CHAT_COPY,
+  WAIN_AI_AGENT_ENABLED,
+  WAIN_AI_RECORDING,
+  SALEM_NAME,
+  type SalemHandoffFrom,
+} from "@/lib/wain-ai";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext } from "@/lib/salem-followup";
@@ -218,13 +225,15 @@ export default function SalemChat() {
   // A question handed over from somewhere else — «كمّل مع سالم» on /search,
   // «اسأل سالم» on an invitation. Asked once, as the visitor's own message,
   // and taken off the address bar so a reload does not ask it again.
-  const handoffRef = useRef<string | null>(null);
+  const handoffRef = useRef<{ q: string; from: SalemHandoffFrom | null } | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("q")?.trim();
     if (!q) return;
-    handoffRef.current = q.slice(0, 120);
+    const from = params.get("from");
+    handoffRef.current = { q: q.slice(0, 120), from: from === "call" || from === "shouq" ? from : null };
     params.delete("q");
+    params.delete("from");
     const rest = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
   }, []);
@@ -484,10 +493,20 @@ export default function SalemChat() {
   // The handed-over question goes as soon as the chat can take it: at once in
   // the free build, after her greeting on a socket.
   useEffect(() => {
-    const q = handoffRef.current;
-    if (!q || !ready || status !== "connected" || pending || awaitingGreeting) return;
+    const handoff = handoffRef.current;
+    if (!handoff || !ready || status !== "connected" || pending || awaitingGreeting) return;
     handoffRef.current = null;
-    submit(q);
+    // A NEW question, whatever this tab remembers: read against an older chat,
+    // «شي رخيص» from her came out as a narrowing of that chat's subject, and
+    // the cards were not the ones she had just named. Asked fresh, the same
+    // ordering her answer uses (lib/answer-order.ts) puts the same place first.
+    ctxRef.current = null;
+    activeRef.current = null;
+    if (handoff.from) {
+      const label = handoff.from === "call" ? WAIN_AI_CHAT_COPY.fromCall : WAIN_AI_CHAT_COPY.fromShouq;
+      setMessages((prev) => [...prev, { role: "system", text: `${label}: «${handoff.q}»` }]);
+    }
+    submit(handoff.q);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- submit closes over the same state listed here
   }, [ready, status, pending, awaitingGreeting]);
 
@@ -608,17 +627,12 @@ export default function SalemChat() {
         >
           {readAloud ? <IconSpeaker className="size-5" /> : <IconSpeakerOff className="size-5" />}
         </button>
-        {/* The call is placed from /find — one call button on the site, on
-            request (1 October) — so this is the way there, not a second one. */}
-        <Link
-          href="/find/"
-          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-coral-600 px-3 text-sm font-semibold text-white transition hover:bg-coral-700"
-        >
-          <IconCall className="size-4" aria-hidden="true" />
-          {/* The words go before the name does: at 320 the header holds the
-              back button, his face, his name and two controls. */}
-          <span className="sr-only min-[400px]:not-sr-only">{WAIN_AI_CHAT_COPY.callShouq}</span>
-        </Link>
+        {/* The call itself, placed from here (7 October, on request). It was a
+            link to /find — one call button on the site — so switching to her
+            cost a page and a second tap. The real ShouqCallButton, never a
+            look-alike: the tap has to spend its gesture on the audio and the
+            recogniser, or the call rings silently. */}
+        <ShouqCallButton size="pill" className="shrink-0" />
       </header>
 
       {/* role="log": the transcript is the one thing on this page that changes

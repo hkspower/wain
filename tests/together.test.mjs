@@ -9,12 +9,14 @@ import { readFileSync } from 'node:fs';
  *     share panel point at one place together.
  *  2. He remembers his last answer: «أرخص», «غيره», «الثاني», «وين بالضبط؟».
  *  3. The chat survives a visit to a place page.
- *  4. The handoffs: /search → «كمّل مع سالم», /salem?q=, «كلّم شوق».
+ *  4. The handoffs: /search → «كمّل مع سالم», /salem?q=.
  *  5. His replies read aloud, in his voice, when asked.
  *  6. The shortlist: «خلّهم يختارون» on the share panel, and /pick where the
  *     group votes.
  *  7. شوق's answer on /search sends the place she named; an invitation leads
  *     to سالم and to the map.
+ *  4b. Switching: سالم starts from her answer whatever the tab remembers, says
+ *     where it came from, and calls her from his header.
  *
  * Every read is soft: a wait that times out fails its assertion and the run
  * goes on — an uncaught throw here once cancelled a whole file's sections.
@@ -145,15 +147,66 @@ console.log('\n── 4. the handoffs ──');
     (await soft(() => p.locator('[role="log"] p', { hasText: /^قهوة$/ }).count(), 0)) === 1);
   ok('and answers it', (await soft(() => p.locator('[data-salem-places]').count(), 0)) === 1);
   ok('the question leaves the address bar, so a reload does not ask it twice', !p.url().includes('q='), p.url());
-  ok('«كلّم شوق» leads to the one call button, on /find',
-    (await soft(() => p.locator('header a[href="/find/"]').count(), 0)) === 1);
-  ok('and is not a second call button', (await soft(() => p.locator('[data-shouq-call], button[aria-label*="شوق"]').count(), 0)) === 0);
   await ctx.close();
 
   const s = await fresh(`/search/?q=${encodeURIComponent('قهوة')}`);
   const carry = await soft(() => s.p.getByRole('link', { name: 'كمّل مع سالم' }).getAttribute('href'));
-  ok('/search: شوق\'s answer offers «كمّل مع سالم» with the same question', carry === `/salem/?q=${encodeURIComponent('قهوة')}`, carry);
+  const cu = carry ? new URL(carry, B) : null;
+  ok('/search: شوق\'s answer offers «كمّل مع سالم» with the same question',
+    cu?.pathname === '/salem/' && cu.searchParams.get('q') === 'قهوة', carry);
+  ok('…and says it is her answer, not a call', cu?.searchParams.get('from') === 'shouq', carry);
   await s.ctx.close();
+}
+
+console.log('\n── 4b. switching between them (7 October) ──');
+{
+  // The place شوق names first on /search, read off her answer card.
+  const herFirst = async (q) => {
+    const s = await fresh(`/search/?q=${encodeURIComponent(q)}`);
+    const href = await soft(() => s.p.locator('section[aria-label^="شوق"] a[href^="/places/"]').first().getAttribute('href', { timeout: 5000 }));
+    await s.ctx.close();
+    return href;
+  };
+  // …and the first card in سالم's newest answer.
+  const hisFirst = (p) => soft(() => p.locator('[data-salem-places]').last()
+    .locator('a[href^="/places/"]:not([data-share])').first().getAttribute('href', { timeout: 8000 }));
+
+  // «كمّل مع سالم»: he starts from the place she named.
+  const want = await herFirst('رخيص');
+  const { ctx, p } = await fresh(`/salem/?q=${encodeURIComponent('رخيص')}&from=shouq`);
+  await soft(() => p.waitForSelector('[data-salem-places]', { timeout: 8000 }));
+  ok('he opens on the place she named first', !!want && (await hisFirst(p)) === want, `${want} / ${await hisFirst(p)}`);
+  ok('and says where the question came from',
+    (await soft(() => p.locator('[role="log"] p[role="status"]', { hasText: 'من جواب شوق: «رخيص»' }).count(), 0)) === 1);
+  ok('the hand-over leaves the address bar', !p.url().includes('q=') && !p.url().includes('from='), p.url());
+
+  // The same hand-over in a tab that already chatted with him about something
+  // else. «رخيص» is a word his memory reads as narrowing the last answer, so
+  // without a fresh start it became «قهوة رخيص» and her place was not first.
+  const narrowed = await herFirst('قهوة رخيص');
+  ok('(the test can tell the two apart: «قهوة رخيص» leads with another place)', !!narrowed && narrowed !== want, `${narrowed} / ${want}`);
+  const t = await fresh('/salem/');
+  await ask(t.p, 'قهوة');
+  await soft(() => t.p.goto(`${B}/salem/?q=${encodeURIComponent('رخيص')}&from=call`, { waitUntil: 'networkidle' }));
+  await soft(() => t.p.waitForFunction(() => document.querySelectorAll('[data-salem-places]').length >= 2, null, { timeout: 8000 }));
+  ok('after an older chat, the hand-over is still asked as a new question', (await hisFirst(t.p)) === want, `${await hisFirst(t.p)} / ${want}`);
+  ok('and a question from her call says so',
+    (await soft(() => t.p.locator('[role="log"] p[role="status"]', { hasText: 'من مكالمتك مع شوق: «رخيص»' }).count(), 0)) === 1);
+  ok('the older chat is still there above it', (await soft(() => t.p.locator('[role="log"] p', { hasText: /^قهوة$/ }).count(), 0)) === 1);
+  await t.ctx.close();
+
+  // And back the other way: her call from his header, in one tap.
+  const call = p.locator('header button[aria-controls="wain-ai-panel"]');
+  ok('his header carries the real call button', (await soft(() => call.count(), 0)) === 1);
+  const box = await soft(() => call.boundingBox(), null);
+  ok('…a finger-sized target', !!box && box.width >= 44 && box.height >= 44, JSON.stringify(box));
+  ok('…named by its words', (await soft(() => call.getAttribute('aria-label'))) === 'كلّم شوق');
+  ok('there is no detour to /find left in the header', (await soft(() => p.locator('header a[href="/find/"]').count(), 0)) === 0);
+  await soft(() => call.click({ timeout: 3000 }));
+  // isVisible() does not wait, and the call is a chunk away: wait for it.
+  ok('one tap and her call is up',
+    await soft(() => p.locator('#wain-ai-panel').waitFor({ state: 'visible', timeout: 5000 }).then(() => true), false));
+  await ctx.close();
 }
 
 console.log('\n── 5. his replies, read aloud in his voice ──');

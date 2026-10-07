@@ -7,6 +7,7 @@ import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/main.dart';
+import 'package:wain/screens/salem_screen.dart';
 
 import 'support.dart';
 
@@ -154,6 +155,39 @@ void main() {
         await t.pumpWidget(const SizedBox());
       },
     );
+
+    testWidgets(
+      'the last screen hands her search to سالم, saying it came from the call',
+      (t) async {
+        // 7 October: switching from her call to his chat used to mean
+        // starting over — the last screen offered another call and nothing
+        // else, and سالم knew nothing of what she had found.
+        final sessions = await placeCall(t, FakeKeepAlive());
+        await sessions.single.tools['show_places']!({'query': 'بحر'});
+        await t.pump(const Duration(milliseconds: 300));
+        await t.tap(find.byKey(const ValueKey('call-hangup')));
+        await t.pump(const Duration(milliseconds: 100));
+        expect(find.byKey(const ValueKey('call-to-salem')), findsOneWidget);
+        await t.tap(find.byKey(const ValueKey('call-to-salem')));
+        for (var i = 0; i < 6; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        expect(find.byKey(const ValueKey('call-sheet')), findsNothing);
+        final salem = t.widget<SalemScreen>(find.byType(SalemScreen));
+        expect(salem.initialQuery, 'بحر');
+        expect(salem.handoffFrom, 'call');
+        await t.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('a call that searched nothing offers no hand-over', (t) async {
+      await placeCall(t, FakeKeepAlive());
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('call-again')), findsOneWidget);
+      expect(find.byKey(const ValueKey('call-to-salem')), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
 
     testWidgets(
       'the sheet has its own put-away button, and back closes a finished call',

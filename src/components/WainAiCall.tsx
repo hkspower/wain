@@ -16,6 +16,7 @@ import {
   WAIN_AI_AGENT_ID,
   WAIN_AI_COPY,
   SALEM_VOICE_ID,
+  salemHandoff,
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
@@ -193,6 +194,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // The place her last tool put on screen, for «رسّلها للربع» when she hangs
   // up — the one thing a call is for, one tap from the end of it.
   const [lastSlug, setLastSlug] = useState<string | null>(null);
+  /** What she last searched for, for «كمّل مع سالم» on the last screen: the
+   * same question, typed, with him — switching used to mean starting over. */
+  const [lastQuery, setLastQuery] = useState<string | null>(null);
   /**
    * Which voice the widget is set to render شوق's answers in — still شوق,
    * still her tools, only the speaker changes. See SALEM_VOICE_ID for why a
@@ -616,6 +620,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           // Before the await, not after: loading the index is the slow part,
           // and the sheet used to say nothing until it was over.
           setLastAction(`${WAIN_AI_COPY.searching} «${q}»…`);
+          setLastQuery(q);
           router.push(`/search?q=${encodeURIComponent(q)}`);
           let names: string[] = [];
           let total = -1;
@@ -830,6 +835,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // Or a fresh call opens announcing what the previous one did.
     setLastAction("");
     setLastSlug(null);
+    setLastQuery(null);
     // A previous call may have switched to سالم's voice and left the widget
     // mounted with that override (see the persona note above) — clearing the
     // slot here means the mount effect below sees an empty one and creates a
@@ -1154,6 +1160,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     >
                       <IconSend className="size-4" aria-hidden="true" />
                       رسّلها للربع
+                    </Link>
+                  )}
+                  {lastQuery && (
+                    <Link
+                      href={salemHandoff(lastQuery, "call")}
+                      onClick={closeSheet}
+                      className="inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
+                    >
+                      {WAIN_AI_COPY.toSalem}
                     </Link>
                   )}
                   <button

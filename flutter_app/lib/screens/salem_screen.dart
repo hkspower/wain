@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../ai/call_button.dart' show placeShouqCall;
 import '../ai/config.dart';
 import '../ai/salem_transcript.dart';
 import '../app/app_state.dart';
@@ -56,6 +57,10 @@ class SalemScreen extends StatefulWidget {
   /// asked once, as the visitor's own message (`/salem?q=…`).
   final String? initialQuery;
 
+  /// Where [initialQuery] came from: «call» (her call's last screen, or a
+  /// search her call opened) or «shouq» (her answer). Said in the chat.
+  final String? handoffFrom;
+
   /// Kuwait's month and hour; tests pin them, the app reads the clock.
   final AnswerClock Function()? clock;
 
@@ -64,6 +69,7 @@ class SalemScreen extends StatefulWidget {
     this.connect,
     this.agentId,
     this.initialQuery,
+    this.handoffFrom,
     this.clock,
   });
 
@@ -315,6 +321,21 @@ class _SalemScreenState extends State<SalemScreen> {
     if (q == null || !mounted) return;
     if (_status != ChatStatus.connected || _waiting) return;
     _handoff = null;
+    // A NEW question, whatever this chat remembers: read against an older
+    // chat, «شي رخيص» from her came out as a narrowing of that chat's
+    // subject. Asked fresh, the same ordering her answer uses puts the same
+    // place first.
+    _ctx = null;
+    _active = null;
+    final from = widget.handoffFrom;
+    if (from == 'call' || from == 'shouq') {
+      _add(
+        ChatText(
+          'system',
+          '${from == 'call' ? ChatCopy.fromCall : ChatCopy.fromShouq}: «$q»',
+        ),
+      );
+    }
     _submit(q);
   }
 
@@ -559,10 +580,9 @@ class _SalemScreenState extends State<SalemScreen> {
                       onTap: _toggleReadAloud,
                     ),
                     const SizedBox(width: 8),
-                    // The call is placed from /find — one call button in the
-                    // app (1 October) — so this is the way there, not a
-                    // second one.
-                    const _CallShouqLink(),
+                    // Her call, placed from here (7 October, on request): it
+                    // was a way to /find, a screen and a second tap.
+                    const _CallShouqButton(),
                   ],
                 ),
               ),
@@ -743,11 +763,12 @@ class _ReadAloudToggle extends StatelessWidget {
   }
 }
 
-/// «كلّم شوق» — to /find, where the call is. The words go before the name
-/// does: under 400 wide the header holds the back button, his face, his name
-/// and two controls, so the link is its icon (and its label is still read).
-class _CallShouqLink extends StatelessWidget {
-  const _CallShouqLink();
+/// «كلّم شوق» — her call, placed from his header with the same tap as every
+/// call button ([placeShouqCall]). The words go before the name does: under
+/// 400 wide the header holds the back button, his face, his name and two
+/// controls, so the button is its icon (and its label is still read).
+class _CallShouqButton extends StatelessWidget {
+  const _CallShouqButton();
 
   @override
   Widget build(BuildContext context) {
@@ -759,7 +780,7 @@ class _CallShouqLink extends StatelessWidget {
       excludeSemantics: true,
       child: FilledButton(
         key: const ValueKey('chat-call-shouq'),
-        onPressed: () => context.push('/find'),
+        onPressed: () => placeShouqCall(context),
         style: FilledButton.styleFrom(
           backgroundColor: WainColors.coral600,
           foregroundColor: Colors.white,

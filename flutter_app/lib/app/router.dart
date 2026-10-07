@@ -139,10 +139,14 @@ GoRouter buildRouter({String initialLocation = '/'}) {
       GoRoute(
         path: '/salem',
         // `?q=` is a question handed over («كمّل مع سالم», «اسأل سالم»),
-        // asked once as the visitor's own message.
+        // asked once as the visitor's own message; `&from=` says whether it
+        // was her call or her answer.
         pageBuilder: (_, s) => _pushed(
           s,
-          SalemScreen(initialQuery: s.uri.queryParameters['q']),
+          SalemScreen(
+            initialQuery: s.uri.queryParameters['q'],
+            handoffFrom: s.uri.queryParameters['from'],
+          ),
           back: false,
         ),
       ),

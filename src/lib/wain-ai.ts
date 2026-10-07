@@ -288,6 +288,9 @@ export const WAIN_AI_COPY = {
   // 3 October) sends them to a switch that is already on.
   speechOff: "التعرّف على الصوت مو شغّال بهالمتصفح — اكتب لسالم، أو افتح الموقع بسفاري أو كروم.",
   typeToSalem: "اكتب لسالم",
+  // The same question, typed, with him — on her answer card and on the call's
+  // last screen. Said here once so the two buttons cannot drift apart.
+  toSalem: "كمّل مع سالم",
   // Agent mode: the widget is on the sheet but has not started a call yet, so
   // the sheet must not say «متصل». «بدء مكالمة» is quoted exactly as it reads
   // on the widget's own button (the agent's start_call text) — a caller
@@ -372,12 +375,32 @@ export const WAIN_AI_CHAT_COPY = {
   directions: "الطريق",
   openPlace: "صفحته",
   followLabel: "تبي",
-  // The other ways in, from inside the chat: the call (one button, on /find —
-  // so a link to it), the same answer as a full page, and his voice.
+  // The other ways in, from inside the chat: the call (placed from his header
+  // since 7 October, on request — it used to be a link to /find), the same
+  // answer as a full page, and his voice.
   callShouq: "كلّم شوق",
+  // The line over a question handed to him from شوق, so the chat says where it
+  // picked up rather than looking like the visitor typed it.
+  fromCall: "من مكالمتك مع شوق",
+  fromShouq: "من جواب شوق",
   seeAll: "شوف الكل بالبحث",
   readAloud: "اقرا لي الردود",
 } as const;
+
+/**
+ * Where a question handed to سالم came from: her call, or her written answer
+ * on /search. Read by `SalemChat` to say so and to ask it as a NEW question —
+ * a handover used to be read against whatever was left of an older chat in
+ * this tab, so «شي رخيص» from her became «قهوة رخيص» if the last thing typed
+ * to him was about coffee.
+ */
+export type SalemHandoffFrom = "call" | "shouq";
+
+export function salemHandoff(q: string, from?: SalemHandoffFrom): string {
+  const params = new URLSearchParams({ q: q.trim().slice(0, 120) });
+  if (from) params.set("from", from);
+  return `/salem/?${params.toString()}`;
+}
 
 /**
  * What happens to a conversation once it has happened, said once because it

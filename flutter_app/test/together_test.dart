@@ -341,10 +341,9 @@ void main() {
       await pumpAt(t, '/search?q=${Uri.encodeQueryComponent('قهوة')}');
       await t.tap(find.byKey(const ValueKey('answer-salem')));
       await t.pumpAndSettle(const Duration(milliseconds: 100));
-      expect(
-        t.widget<SalemScreen>(find.byType(SalemScreen)).initialQuery,
-        'قهوة',
-      );
+      final salem = t.widget<SalemScreen>(find.byType(SalemScreen));
+      expect(salem.initialQuery, 'قهوة');
+      expect(salem.handoffFrom, 'shouq', reason: 'her answer, not a call');
       expect(find.byKey(const ValueKey('chat-places')), findsOneWidget);
     });
 

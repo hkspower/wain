@@ -247,6 +247,24 @@ class _Sheet extends StatelessWidget {
               const SizedBox(height: 8),
             ],
             if (over) ...[
+              // The same question, typed, with سالم — switching used to mean
+              // starting over (the web's last screen has the same button).
+              if (call.lastQuery != null) ...[
+                FilledButton(
+                  key: const ValueKey('call-to-salem'),
+                  onPressed: call.continueWithSalem,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: WainColors.ink900,
+                    minimumSize: const Size(220, 48),
+                  ),
+                  child: Text(
+                    CallCopy.toSalem,
+                    style: wainText(WainText.base, weight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               FilledButton(
                 key: const ValueKey('call-again'),
                 onPressed: () => call.start(),

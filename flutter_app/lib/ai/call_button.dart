@@ -37,16 +37,7 @@ class ShouqCallButton extends StatelessWidget {
     // (local_session.dart), not no call at all.
     final call = context.watch<CallController>();
     final ringing = call.active;
-    Future<void> place() async {
-      HapticFeedback.mediumImpact();
-      // Asked once, before the microphone prompt — see ai/consent.dart —
-      // and only when there is an agent recording the call. The free call
-      // keeps nothing anywhere, so there is nothing to agree to.
-      // A «مو الحين» leaves the call unplaced and the page where it was.
-      if (!call.local && !await ensureAiConsent(context)) return;
-      call.start();
-      onTapped?.call();
-    }
+    Future<void> place() => placeShouqCall(context, onTapped: onTapped);
 
     return Semantics(
       button: true,
@@ -78,4 +69,21 @@ class ShouqCallButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The tap that places her call — this button's, and سالم's header since
+/// 7 October, so the two cannot drift apart.
+Future<void> placeShouqCall(
+  BuildContext context, {
+  VoidCallback? onTapped,
+}) async {
+  final call = context.read<CallController>();
+  HapticFeedback.mediumImpact();
+  // Asked once, before the microphone prompt — see ai/consent.dart — and only
+  // when there is an agent recording the call. The free call keeps nothing
+  // anywhere, so there is nothing to agree to. A «مو الحين» leaves the call
+  // unplaced and the page where it was.
+  if (!call.local && !await ensureAiConsent(context)) return;
+  call.start();
+  onTapped?.call();
 }

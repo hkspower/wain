@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
-import { WAIN_AI_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_AGENT_ENABLED, WAIN_AI_CHAT_COPY, WAIN_AI_COPY } from "@/lib/wain-ai";
 import { armCall, onPhase, requestCall, startLocalRecognition, warmCall } from "@/lib/wain-ai-bus";
 import type { Phase } from "@/components/WainAiCall";
 
@@ -42,8 +42,13 @@ export default function ShouqCallButton({
    * button with a handset, the one thing to press on the phone drawn around
    * it (FindChoice) — her photo is on that phone's screen, so the button can
    * be what every phone's call button is.
+   *
+   * "pill" is سالم's header since 7 October: the switch from his chat to her
+   * call, a coral pill with a handset and «كلّم شوق» beside it from 400px (at
+   * 320 the header also holds the back button, his face, his name and the
+   * read-aloud toggle, so the words go before anything else does).
    */
-  size?: "sm" | "lg" | "call";
+  size?: "sm" | "lg" | "call" | "pill";
   /**
    * Run synchronously right after the call is requested — for a surface that
    * has to get out of the way.
@@ -161,7 +166,11 @@ export default function ShouqCallButton({
       aria-label={
         labelledBy
           ? undefined
-          : `${size === "call" ? "اتصال — " : ""}${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`
+          : size === "pill"
+            ? // Its visible words, first and whole, for the same voice-control
+              // reason as «اتصال» on the big button.
+              WAIN_AI_CHAT_COPY.callShouq
+            : `${size === "call" ? "اتصال — " : ""}${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`
       }
       aria-labelledby={labelledBy}
       aria-expanded={open}
@@ -174,9 +183,17 @@ export default function ShouqCallButton({
       // size-20 at "lg" is a photo filling the whole circle, not an icon
       // inset within it — see the size==="lg" branch below.
       className={`relative grid place-items-center overflow-hidden rounded-full transition ${
-        size === "call" ? "size-24" : size === "lg" ? "size-20" : "size-8"
-      } ${
         size === "call"
+          ? "size-24"
+          : size === "lg"
+            ? "size-20"
+            : size === "pill"
+              ? "min-h-11 min-w-11 grid-flow-col gap-1.5 px-3 text-sm font-semibold"
+              : "size-8"
+      } ${
+        size === "pill"
+          ? `bg-coral-600 text-white hover:bg-coral-700 active:scale-95 ${open ? "ring-4 ring-coral-400" : ""}`
+          : size === "call"
           ? `bg-palm-600 text-white shadow-lg shadow-palm-700/30 hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
           : size === "lg"
           ? open
@@ -212,6 +229,11 @@ export default function ShouqCallButton({
         />
       ) : (
         <IconCall className={`size-4 ${phase === "ringing" || talking ? "call--live" : ""}`} />
+      )}
+      {size === "pill" && (
+        <span aria-hidden="true" className="sr-only min-[400px]:not-sr-only">
+          {WAIN_AI_CHAT_COPY.callShouq}
+        </span>
       )}
       {phase === "ringing" && (
         <span

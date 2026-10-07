@@ -73,17 +73,24 @@ const AnswerClock _augustNoon = (month: 7, hour: 13);
 
 late AppState _state;
 late _RecVoice _voice;
+late CallController _call;
 
-Widget _host({String? q, AnswerClock clock = _january8pm}) {
+Widget _host({String? q, String? from, AnswerClock clock = _january8pm}) {
   _state = AppState.ephemeral();
   _voice = _RecVoice();
-  final call = testController(sessions: []);
+  // The free call — what the app ships — so a tap places it with no consent
+  // sheet in between.
+  final call = _call = testController(sessions: [], local: true);
   final router = GoRouter(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, _) =>
-            SalemScreen(agentId: '', initialQuery: q, clock: () => clock),
+        builder: (_, _) => SalemScreen(
+          agentId: '',
+          initialQuery: q,
+          handoffFrom: from,
+          clock: () => clock,
+        ),
       ),
       GoRoute(path: '/find', builder: (_, _) => const Text('the find screen')),
       GoRoute(
@@ -113,13 +120,14 @@ Widget _host({String? q, AnswerClock clock = _january8pm}) {
 Future<void> _pump(
   WidgetTester t, {
   String? q,
+  String? from,
   AnswerClock clock = _january8pm,
   Size size = const Size(390, 3200),
 }) async {
   t.view.physicalSize = size * 2;
   t.view.devicePixelRatio = 2;
   addTearDown(t.view.reset);
-  await t.pumpWidget(_host(q: q, clock: clock));
+  await t.pumpWidget(_host(q: q, from: from, clock: clock));
   await t.pump();
   await t.pump(const Duration(milliseconds: 400));
 }
@@ -172,7 +180,8 @@ List<String> _railSlugs(WidgetTester t, Finder block) {
   expect(
     [for (final p in choices ?? const <Place>[]) p.slug],
     slugs.take(kChoiceMax).toList(),
-    reason: 'the panel offers the first ${slugs.length > kChoiceMax ? kChoiceMax : slugs.length}',
+    reason:
+        'the panel offers the first ${slugs.length > kChoiceMax ? kChoiceMax : slugs.length}',
   );
   final pins = {
     for (final m in t.widgetList<MapPin>(
@@ -448,12 +457,18 @@ void main() {
     await t.pumpWidget(const SizedBox());
   });
 
-  testWidgets('«كلّم شوق» goes to /find; «شوف الكل بالبحث» opens the same '
-      'question as a search', (t) async {
+  testWidgets('«كلّم شوق» places her call from his header, with no detour '
+      'to /find; «شوف الكل بالبحث» opens the same question as a search', (
+    t,
+  ) async {
     await _pump(t);
+    expect(_call.active, isFalse);
     await t.tap(find.byKey(const ValueKey('chat-call-shouq')));
-    await t.pumpAndSettle();
-    expect(find.text('the find screen'), findsOneWidget);
+    await t.pump();
+    expect(_call.active, isTrue, reason: 'one tap places the call');
+    expect(find.text('the find screen'), findsNothing);
+    _call.hangUp();
+    await t.pump();
     await t.pumpWidget(const SizedBox());
     await _pump(t);
     await _ask(t, 'مطعم');
@@ -461,6 +476,58 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('search for مطعم'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
+  });
+
+  group('a question handed over from شوق (7 October)', () {
+    final want = chatRanked('رخيص', searchIndex, kPlaces, _january8pm)[0];
+
+    testWidgets('the test can tell the two readings apart', (t) async {
+      // «رخيص» narrows a remembered answer, so read against an older chat
+      // about coffee it became «قهوة رخيص» — which leads with another place.
+      expect(
+        chatRanked('قهوة رخيص', searchIndex, kPlaces, _january8pm)[0],
+        isNot(want),
+      );
+    });
+
+    testWidgets('is asked fresh after an older chat, and says where it came '
+        'from', (t) async {
+      SalemTranscript.instance.clear();
+      await _pump(t);
+      await _ask(t, 'قهوة');
+      await t.pumpWidget(const SizedBox());
+      await _pump(t, q: 'رخيص', from: 'shouq');
+      expect(find.text('من جواب شوق: «رخيص»'), findsOneWidget);
+      expect(_railSlugs(t, _newest('chat-places')).first, want);
+      // The list is lazy, so the older bubble is read from the transcript.
+      expect(
+        SalemTranscript.instance.lines.whereType<ChatText>().where(
+          (l) => l.role == 'user' && l.text == 'قهوة',
+        ),
+        hasLength(1),
+        reason: 'the older chat stays',
+      );
+      await t.pumpWidget(const SizedBox());
+      SalemTranscript.instance.clear();
+    });
+
+    testWidgets('from her call says so', (t) async {
+      SalemTranscript.instance.clear();
+      await _pump(t, q: 'رخيص', from: 'call');
+      expect(find.text('من مكالمتك مع شوق: «رخيص»'), findsOneWidget);
+      expect(_railSlugs(t, _newest('chat-places')).first, want);
+      await t.pumpWidget(const SizedBox());
+      SalemTranscript.instance.clear();
+    });
+
+    testWidgets('a question with no source draws no line', (t) async {
+      SalemTranscript.instance.clear();
+      await _pump(t, q: 'رخيص');
+      expect(find.textContaining('من جواب شوق'), findsNothing);
+      expect(find.textContaining('من مكالمتك'), findsNothing);
+      await t.pumpWidget(const SizedBox());
+      SalemTranscript.instance.clear();
+    });
   });
 
   for (final size in const [Size(390, 844), Size(320, 568), Size(800, 1280)]) {

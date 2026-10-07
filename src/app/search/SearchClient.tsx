@@ -416,6 +416,7 @@ export default function SearchClient() {
           <ShouqAnswer
             parts={answer}
             query={deferredQ.trim()}
+            fromCall={!!asked && asked.trim() === deferredQ.trim()}
             onShare={(slug) => {
               setActiveSlug(slug);
               const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
