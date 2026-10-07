@@ -6,7 +6,7 @@
    the whole price once, and the two parts are drawn by ::before and ::after. */
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
   font-size: 0 !important;
-  column-gap: 4px;
+  column-gap: 0;                        /* the hidden text is a zero-width item: a gap beside it would indent the price */
   align-items: baseline;
 }
 main article .price-card[data-gp]::before,
@@ -17,7 +17,7 @@ main article .price-card[data-gp]::after {
   color: #6b7280;                       /* the small currency: grey, 4.8:1 on the white caption */
   unicode-bidi: plaintext;
 }
-main article .price-card[data-gp]::before { content: attr(data-p1); content: attr(data-p1) / ""; order: 1; }
+main article .price-card[data-gp]::before { content: attr(data-p1); content: attr(data-p1) / ""; order: 1; margin-inline-end: 4px; }
 main article .price-card[data-gp]::after  { content: attr(data-p2); content: attr(data-p2) / ""; order: 2; }
 main article .price-card[data-gp][data-pn="1"]::before,
 main article .price-card[data-gp][data-pn="2"]::after {

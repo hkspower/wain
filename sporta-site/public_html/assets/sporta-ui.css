@@ -2092,7 +2092,7 @@ button[data-cpay-label] { font-size: 0 !important; }
 button[data-cpay-label]::after { content: attr(data-cpay-label); font-size: 16px; }
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
   font-size: 0 !important;
-  column-gap: 4px;
+  column-gap: 0;
   align-items: baseline;
 }
 main article .price-card[data-gp]::before,
@@ -2103,7 +2103,7 @@ main article .price-card[data-gp]::after {
   color: #6b7280;
   unicode-bidi: plaintext;
 }
-main article .price-card[data-gp]::before { content: attr(data-p1); content: attr(data-p1) / ""; order: 1; }
+main article .price-card[data-gp]::before { content: attr(data-p1); content: attr(data-p1) / ""; order: 1; margin-inline-end: 4px; }
 main article .price-card[data-gp]::after  { content: attr(data-p2); content: attr(data-p2) / ""; order: 2; }
 main article .price-card[data-gp][data-pn="1"]::before,
 main article .price-card[data-gp][data-pn="2"]::after {
@@ -2127,4 +2127,23 @@ main article .price-card[data-gp] > s[data-off]::after {
   background: rgba(224, 86, 28, .12);
   text-decoration: none;
   unicode-bidi: isolate;
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp][data-pn="1"]::before,
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp][data-pn="2"]::after {
+  color: #171a1e;
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]:has(> s, > del)[data-pn="1"]::before,
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]:has(> s, > del)[data-pn="2"]::after {
+  color: var(--sp-card-ink, #c2410c);
+}
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
+  direction: rtl;
+  justify-content: flex-end;
+}
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]::before { order: -3; }
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]::after { order: -2; }
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] > :is(s, del) { order: 1; }
+header :is(a, button):is([aria-label^="Bag"], [aria-label^="الحقيبة"]) > svg,
+header :is(a, button):is([aria-label^="Bag"], [aria-label^="الحقيبة"]) svg:first-of-type {
+  color: var(--brand, #e0561c) !important;
 }

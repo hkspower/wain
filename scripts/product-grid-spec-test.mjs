@@ -114,7 +114,7 @@ try {
         // the whole name is shown since 2026-10-02 (no ellipsis): each wrapped line adds one line-height
         capPlainExtra: capP && capP.querySelector('h3') ? Math.max(0, box(capP.querySelector('h3')).height - parseFloat(getComputedStyle(capP.querySelector('h3')).lineHeight)) : 0,
         capBg: getComputedStyle(cap).backgroundColor, capPad: [parseFloat(getComputedStyle(cap).paddingTop), parseFloat(getComputedStyle(cap).paddingLeft)],
-        nameColour: getComputedStyle(h3).color, priceColour: getComputedStyle(price).color,
+        nameColour: getComputedStyle(h3).color, priceColour: getComputedStyle(price, price.dataset.pn === '1' ? '::before' : '::after').color,   // the drawn number (grid-price.js); this card is on sale, so orange
         // every line of the caption against its white: rgb() and color(srgb …) both parsed, so a
         // colour-mix() result is read as what it is rather than skipped
         lines: [...cap.querySelectorAll('.sporta-brand-name, h3, .cardopt-size:not(:disabled), .price-card, .price-card s, .price-card del')]

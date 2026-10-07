@@ -1,0 +1,27 @@
+/* 2026-10-07: "fix price rtl at product grid and use better color for price text and change cart icon color to orange".
+   1. The grid price number is the dark ink, #171a1e (17:1 on the white caption; the owner chose it over two oranges).
+      A price on SALE stays orange, so a discount still catches the eye.
+   2. In Arabic the price row reads right to left: the number, then د.ك, then the struck old price and its saving.
+      The caption itself stays packed on the left edge (the 2026-09-30 picture), so the row is RTL but packed to the left.
+   3. The bag icon in the header is the brand orange (6.3:1 on the #2d3034 bar is not needed for an icon; it is 3.6:1, over the 3:1 floor). */
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp][data-pn="1"]::before,
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp][data-pn="2"]::after {
+  color: #171a1e;
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]:has(> s, > del)[data-pn="1"]::before,
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]:has(> s, > del)[data-pn="2"]::after {
+  color: var(--sp-card-ink, #c2410c);
+}
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
+  direction: rtl;
+  justify-content: flex-end;
+}
+/* The hidden text node is an anonymous flex item with order 0; in RTL that would put it at the right end.
+   The new price goes before it, so it sits at the left end of the first line, where the price starts (and measures from). */
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]::before { order: -3; }
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp]::after { order: -2; }
+html[lang="ar"] main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] > :is(s, del) { order: 1; }   /* after the hidden text, so it takes no part in the first line */
+header :is(a, button):is([aria-label^="Bag"], [aria-label^="الحقيبة"]) > svg,
+header :is(a, button):is([aria-label^="Bag"], [aria-label^="الحقيبة"]) svg:first-of-type {
+  color: var(--brand, #e0561c) !important;
+}
