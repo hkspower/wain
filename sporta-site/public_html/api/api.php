@@ -218,6 +218,18 @@ $STORE_LIMITS = [
     // rather than in the tight bucket next to the writes.
     'customer_me'       => [600, 60],
     'customer_orders'   => [120, 60],
+    // Fast sign-in. Sending a code sends an email, so it is the tight one (the per-address cap of
+    // three in fifteen minutes is in customer_code_send). A six-digit code has a million values and
+    // five tries each; thirty checks in ten minutes per address is nowhere near guessing one.
+    'customer_signin_methods'           => [600, 60],
+    'customer_code_send'                => [10, 600],
+    'customer_code_verify'              => [30, 600],
+    'customer_passkey_options_login'    => [60, 600],
+    'customer_passkey_login'            => [30, 600],
+    'customer_passkeys'                 => [120, 60],
+    'customer_passkey_options_register' => [30, 600],
+    'customer_passkey_register'         => [30, 600],
+    'customer_passkey_remove'           => [30, 600],
     // The shop's phone number and address. A read, and a tiny one, but it is
     // fetched by the website's contact script on pages that show those details
     // — so it is bounded like the other reads rather than left off the table,
@@ -551,16 +563,16 @@ if ($r === 'products') {
 require_once __DIR__ . '/customer.php';
 
 if ($r === 'customer_register' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $out = customer_register($db, store_body());
+    $out = customer_register($db, $b = store_body());
     if (isset($out['error'])) store_fail($out['error'], $out['error'] === 'email_taken' ? 409 : 400);
-    customer_grant($out['id']);
+    customer_grant($out['id'], ($b['remember'] ?? true) !== false);
     store_out(['customer' => customer_profile($db, $out['id'])]);
 }
 
 if ($r === 'customer_login' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $out = customer_login($db, store_body());
+    $out = customer_login($db, $b = store_body());
     if (isset($out['error'])) store_fail($out['error'], 401);
-    customer_grant($out['id']);
+    customer_grant($out['id'], ($b['remember'] ?? true) !== false);
     store_out(['customer' => customer_profile($db, $out['id'])]);
 }
 
@@ -578,6 +590,42 @@ if ($r === 'customer_logout' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 if ($r === 'customer_me') {
     $id = customer_id();
     store_out(['customer' => $id === null ? null : customer_profile($db, $id)]);
+}
+
+// ------------------------------------------------- fast sign-in (2026-10-07)
+// Face ID / fingerprint, a code by email, Google (api/customer-google.php). See customer.php.
+if ($r === 'customer_signin_methods') store_out(customer_signin_methods($db));
+
+if ($r === 'customer_code_send' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $out = customer_code_send($db, store_body());
+    if (isset($out['error'])) store_fail($out['error'], $out['error'] === 'code_not_available' ? 503 : 400);
+    store_out(['ok' => true]);
+}
+if ($r === 'customer_code_verify' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $out = customer_code_verify($db, $b = store_body());
+    if (isset($out['error'])) store_fail($out['error'], $out['error'] === 'code_not_available' ? 503 : 401);
+    customer_grant($out['id'], ($b['remember'] ?? true) !== false);
+    store_out(['customer' => customer_profile($db, $out['id'])]);
+}
+if (strpos($r, 'customer_passkey') === 0) require_once __DIR__ . '/security.php';
+if ($r === 'customer_passkey_options_login' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') store_out(customer_passkey_login_options());
+if ($r === 'customer_passkey_login' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $b = store_body();
+    $id = customer_passkey_login($db, $b);
+    customer_grant($id, ($b['remember'] ?? true) !== false);
+    store_out(['customer' => customer_profile($db, $id)]);
+}
+if (in_array($r, ['customer_passkeys', 'customer_passkey_options_register', 'customer_passkey_register', 'customer_passkey_remove'], true)) {
+    $id = customer_id();
+    if ($id === null) store_fail('not_signed_in', 401);
+    if ($r === 'customer_passkeys') store_out(['passkeys' => customer_passkeys_list($db, $id)]);
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') store_fail('method_not_allowed', 405);
+    if ($r === 'customer_passkey_options_register') store_out(customer_passkey_register_options($db, $id));
+    if ($r === 'customer_passkey_register') store_out(customer_passkey_register($db, $id, store_body()));
+    // Scoped to the signed-in customer IN THE QUERY: another customer's passkey id removes nothing.
+    $q = $db->prepare('delete from customer_passkeys where id = ? and customer_id = ?');
+    $q->execute([(int) (store_body()['id'] ?? 0), $id]);
+    store_out(['ok' => $q->rowCount() === 1, 'passkeys' => customer_passkeys_list($db, $id)]);
 }
 
 if ($r === 'customer_orders') {

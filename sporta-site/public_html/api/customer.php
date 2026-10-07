@@ -54,7 +54,7 @@ function customer_id(): ?int
     $since = (int) ($_SESSION['customer_since'] ?? 0);
     $now   = time();
     if ($seen === 0 || $since === 0
-        || $now - $seen  > STORE_CUSTOMER_IDLE_SECONDS
+        || $now - $seen  > (empty($_SESSION['customer_short']) ? STORE_CUSTOMER_IDLE_SECONDS : 86400)
         || $now - $since > STORE_CUSTOMER_ABSOLUTE_SECONDS) {
         store_session_end();
         return null;
@@ -63,17 +63,27 @@ function customer_id(): ?int
     return $id;
 }
 
-/** Sign $id in, rotating the session id. */
-function customer_grant(int $id): void
+/**
+ * Sign $id in, rotating the session id.
+ *
+ * $remember false = "Keep me signed in" unticked: the cookie ends when the browser closes and the
+ * idle clock is one day instead of thirty. A session may already be open (a passkey challenge
+ * lives in one), so it is closed and reopened with the new cookie lifetime first — the cookie
+ * parameters cannot change while a session is active.
+ */
+function customer_grant(int $id, bool $remember = true): void
 {
-    store_session_start('shopper');
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    store_session_start('shopper', $remember);
     // ROTATE. A fixed id across the sign-in boundary is session fixation: an
     // attacker who can set the cookie before you sign in holds your session
     // after. store_admin_grant() does the same for the same reason.
     session_regenerate_id(true);
+    unset($_SESSION['cpk_challenge']);
     $_SESSION['customer_id']    = $id;
     $_SESSION['customer_seen']  = time();
     $_SESSION['customer_since'] = time();
+    $_SESSION['customer_short'] = $remember ? 0 : 1;
 }
 
 /** An email, normalised, or null if it is not one. */
@@ -203,4 +213,279 @@ function customer_orders(PDO $db, int $id): array
     );
     $q->execute([$id]);
     return $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+// =============================================================== fast sign-in
+//
+// Three ways in without typing a password, asked for on 2026-10-07: a passkey (Face ID /
+// fingerprint), a six-digit code sent by email, and Google. All three end in customer_grant().
+//
+// THE PRE-HIJACK RULE. Registration with a password verifies no email, so somebody could open an
+// account in another person's name and wait. When the REAL owner of that address later proves it
+// (a code they received, or Google saying the address is theirs), an unverified account's password
+// and passkeys are wiped before they are let in — or the squatter would keep a way in to an
+// account the owner now uses. customer_verified_account() is the one place that decides this.
+
+/** Find the account for a PROVED email, or open one. Returns its id. */
+function customer_verified_account(PDO $db, string $email, ?string $name = null): int
+{
+    $q = $db->prepare('select id, verified_at from customers where email = ? limit 1');
+    $q->execute([$email]);
+    $u = $q->fetch(PDO::FETCH_ASSOC);
+    if ($u) {
+        if ($u['verified_at'] === null) {
+            // See the pre-hijack rule above.
+            $db->prepare('update customers set password_hash = ?, verified_at = now() where id = ?')
+               ->execute([password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT), (int) $u['id']]);
+            try { $db->prepare('delete from customer_passkeys where customer_id = ?')->execute([(int) $u['id']]); }
+            catch (Throwable $e) { /* no table yet: nothing to remove */ }
+        }
+        $db->prepare('update customers set last_seen_at = now() where id = ?')->execute([(int) $u['id']]);
+        return (int) $u['id'];
+    }
+    // A new account with no password at all: nobody knows a random one. The customer signs in by
+    // the same route again, or sets nothing — there is nothing to forget.
+    $name = $name !== null ? mb_substr(trim($name), 0, 120) : '';
+    try {
+        $db->prepare('insert into customers (email, name, password_hash, verified_at, last_seen_at) values (?, ?, ?, now(), now())')
+           ->execute([$email, $name === '' ? null : $name, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT)]);
+        return (int) $db->lastInsertId();
+    } catch (PDOException $e) {
+        if ($e->getCode() !== '23000') throw $e;
+        return customer_verified_account($db, $email, null);   // opened by a parallel request a moment ago
+    }
+}
+
+/** Which fast ways in this shop can offer right now. No value is printed, only on/off. */
+function customer_signin_methods(PDO $db): array
+{
+    $cfg = store_config();
+    $code = (string) ($cfg['mail_from'] ?? '') !== '' && (string) ($cfg['cron_key'] ?? '') !== '';
+    if ($code) { try { $db->query('select 1 from customer_login_codes limit 0'); } catch (Throwable $e) { $code = false; } }
+    $pk = true;
+    try { $db->query('select 1 from customer_passkeys limit 0'); } catch (Throwable $e) { $pk = false; }
+    return ['code' => $code, 'passkey' => $pk, 'google' => customer_google_client($db) !== ''];
+}
+
+// ---------------------------------------------------------------- email codes
+function customer_code_hash(string $email, string $code): string
+{
+    return hash_hmac('sha256', 'customer-code|' . $email . '|' . $code, (string) (store_config()['cron_key'] ?? ''));
+}
+
+/**
+ * Send a sign-in code. ALWAYS answers the same, whether or not the address has an account and
+ * whether or not a code went out (a per-address cap of three in fifteen minutes): the answer is not
+ * a way to ask which addresses shop here, and the cap is not a way to flood somebody's inbox.
+ */
+function customer_code_send(PDO $db, array $in): array
+{
+    $email = customer_email($in['email'] ?? null);
+    if ($email === null) return ['error' => 'invalid_email'];
+    $cfg = store_config();
+    if ((string) ($cfg['mail_from'] ?? '') === '' || (string) ($cfg['cron_key'] ?? '') === '') return ['error' => 'code_not_available'];
+    try {
+        $q = $db->prepare('select count(*) from customer_login_codes where email = ? and created_at > now() - interval 15 minute');
+        $q->execute([$email]);
+        if ((int) $q->fetchColumn() >= 3) return ['ok' => true];
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        // A newer code replaces the older ones: only the last one sent works.
+        $db->prepare('update customer_login_codes set used_at = now() where email = ? and used_at is null')->execute([$email]);
+        $db->prepare('insert into customer_login_codes (email, code_hash, expires_at) values (?, ?, now() + interval 10 minute)')
+           ->execute([$email, customer_code_hash($email, $code)]);
+    } catch (PDOException $e) {
+        return ['error' => 'code_not_available'];
+    }
+    $ar = ($in['lang'] ?? 'ar') !== 'en';
+    $subject = $ar ? 'رمز الدخول إلى سبورتا: ' . $code : 'Your Sporta sign-in code: ' . $code;
+    $text = $ar
+        ? "رمز الدخول: $code\n\nصالح لمدة ١٠ دقائق. إذا لم تطلبه فتجاهل هذه الرسالة."
+        : "Your sign-in code: $code\n\nIt works for 10 minutes. If you did not ask for it, ignore this email.";
+    $html = '<div dir="' . ($ar ? 'rtl' : 'ltr') . '" style="font-family:Arial,sans-serif;font-size:16px;color:#171a1e">'
+          . '<p>' . ($ar ? 'رمز الدخول إلى سبورتا:' : 'Your Sporta sign-in code:') . '</p>'
+          . '<p style="font-size:30px;font-weight:700;letter-spacing:6px;direction:ltr">' . $code . '</p>'
+          . '<p style="color:#4b5563">' . ($ar ? 'صالح لمدة ١٠ دقائق. إذا لم تطلبه فتجاهل هذه الرسالة.' : 'It works for 10 minutes. If you did not ask for it, ignore this email.') . '</p></div>';
+    store_send_mail($cfg, $email, $subject, $text, $html);
+    return ['ok' => true];
+}
+
+/** Check a code. Five wrong tries end that code. Returns ['error'] or ['id']. */
+function customer_code_verify(PDO $db, array $in): array
+{
+    $email = customer_email($in['email'] ?? null);
+    $code  = preg_replace('/\D/', '', strtr((string) ($in['code'] ?? ''), ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']));
+    if ($email === null || strlen($code) !== 6) return ['error' => 'bad_code'];
+    try {
+        $q = $db->prepare('select id, code_hash, attempts from customer_login_codes
+                            where email = ? and used_at is null and expires_at > now() order by id desc limit 1');
+        $q->execute([$email]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return ['error' => 'code_not_available']; }
+    if (!$row || (int) $row['attempts'] >= 5) return ['error' => 'code_expired'];
+    if (!hash_equals((string) $row['code_hash'], customer_code_hash($email, $code))) {
+        $db->prepare('update customer_login_codes set attempts = attempts + 1 where id = ?')->execute([(int) $row['id']]);
+        return ['error' => 'bad_code'];
+    }
+    // Spent BEFORE the account is opened, and only if still unspent: two requests racing with the
+    // same code cannot both use it.
+    $u = $db->prepare('update customer_login_codes set used_at = now() where id = ? and used_at is null');
+    $u->execute([(int) $row['id']]);
+    if ($u->rowCount() !== 1) return ['error' => 'code_expired'];
+    return ['id' => customer_verified_account($db, $email)];
+}
+
+// ------------------------------------------------------------------ passkeys
+// The verification is security.php's (the panel's passkeys), reused: the CBOR reader, the COSE
+// key conversion, the origin and challenge checks. What differs is the table, the session (the
+// shopper's, never the admin's) and that USER VERIFICATION IS ALWAYS REQUIRED — a customer has no
+// second factor behind the passkey, so the passkey must be the face or the finger, not a tap.
+function customer_pk_challenge_new(string $purpose): string
+{
+    store_session_start('shopper');
+    $c = random_bytes(32);
+    $_SESSION['cpk_challenge'] = ['purpose' => $purpose, 'value' => sec_b64u($c), 'at' => time()];
+    return sec_b64u($c);
+}
+function customer_pk_challenge_take(string $purpose): string
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        $name = store_is_https() ? '__Host-sporta_shopper' : 'sporta_shopper';
+        if (empty($_COOKIE[$name])) store_fail('passkey_challenge_expired', 401);
+        store_session_start('shopper');
+    }
+    $c = $_SESSION['cpk_challenge'] ?? null;
+    unset($_SESSION['cpk_challenge']);
+    if (!is_array($c) || ($c['purpose'] ?? '') !== $purpose || time() - (int) ($c['at'] ?? 0) > 300) store_fail('passkey_challenge_expired', 401);
+    return sec_unb64u((string) $c['value']);
+}
+
+function customer_passkeys_list(PDO $db, int $id): array
+{
+    try {
+        $q = $db->prepare('select id, label, created_at, last_used_at from customer_passkeys where customer_id = ? order by id');
+        $q->execute([$id]);
+        return $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (PDOException $e) { store_fail('passkeys_not_ready', 503); }
+}
+
+function customer_passkey_register_options(PDO $db, int $id): array
+{
+    $me = customer_profile($db, $id);
+    try {
+        $q = $db->prepare('select credential_id from customer_passkeys where customer_id = ?'); $q->execute([$id]);
+        $exclude = array_map(function ($k) { return ['type' => 'public-key', 'id' => sec_b64u((string) $k['credential_id'])]; }, $q->fetchAll());
+    } catch (PDOException $e) { store_fail('passkeys_not_ready', 503); }
+    return [
+        'rp' => ['id' => sec_rp_id(), 'name' => 'Sporta'],
+        'user' => ['id' => sec_b64u('sporta-customer-' . $id), 'name' => (string) $me['email'], 'displayName' => (string) ($me['name'] ?: $me['email'])],
+        'challenge' => customer_pk_challenge_new('register'),
+        'pubKeyCredParams' => [['type' => 'public-key', 'alg' => -7], ['type' => 'public-key', 'alg' => -257]],
+        'timeout' => 120000,
+        'attestation' => 'none',
+        'excludeCredentials' => $exclude,
+        // REQUIRED, not preferred: signing in offers no email box, so the phone has to find the
+        // passkey on its own, which only a discoverable credential can do.
+        'authenticatorSelection' => ['residentKey' => 'required', 'requireResidentKey' => true, 'userVerification' => 'required'],
+    ];
+}
+
+function customer_passkey_register(PDO $db, int $id, array $b): array
+{
+    $challenge = customer_pk_challenge_take('register');
+    $resp = is_array($b['response'] ?? null) ? $b['response'] : [];
+    $cdj = sec_unb64u((string) ($resp['clientDataJSON'] ?? ''));
+    sec_client_data($cdj, 'webauthn.create', $challenge);
+    try { $i = 0; $obj = sec_cbor(sec_unb64u((string) ($resp['attestationObject'] ?? '')), $i); } catch (Throwable $e) { store_fail('passkey_bad_attestation'); }
+    $ad = is_array($obj) ? ($obj['authData']['bytes'] ?? '') : '';
+    try { [$rpIdHash, $flags, $count, $credId, $cose] = sec_auth_data((string) $ad); } catch (Throwable $e) { store_fail('passkey_bad_attestation'); }
+    if (!hash_equals(hash('sha256', sec_rp_id(), true), $rpIdHash)) store_fail('passkey_bad_rp');
+    if (!($flags & 0x01)) store_fail('passkey_no_user_presence');
+    if (!($flags & 0x04)) store_fail('passkey_no_user_verification');
+    if (!$credId || !is_array($cose) || strlen($credId) > 400) store_fail('passkey_bad_attestation');
+    $pem = sec_cose_to_pem($cose);
+    if ($pem === null) store_fail('passkey_unsupported_key');
+    $label = mb_substr(trim((string) ($b['label'] ?? '')), 0, 60);
+    $transports = implode(',', array_slice(array_filter(array_map('strval', is_array($resp['transports'] ?? null) ? $resp['transports'] : [])), 0, 4));
+    try {
+        $db->prepare('insert into customer_passkeys (customer_id, credential_id, public_key, alg, sign_count, label, transports) values (?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$id, $credId, $pem[0], $pem[1], $count, $label !== '' ? $label : null, mb_substr($transports, 0, 80)]);
+    } catch (PDOException $e) { store_fail('passkey_duplicate', 409); }
+    return ['ok' => true];
+}
+
+function customer_passkey_login_options(): array
+{
+    return ['challenge' => customer_pk_challenge_new('login'), 'rpId' => sec_rp_id(), 'timeout' => 120000,
+            'userVerification' => 'required', 'allowCredentials' => []];
+}
+
+/** Verify an assertion. Returns the customer id, or fails with one answer for every miss. */
+function customer_passkey_login(PDO $db, array $b): int
+{
+    $challenge = customer_pk_challenge_take('login');
+    $resp = is_array($b['response'] ?? null) ? $b['response'] : [];
+    $credId = sec_unb64u((string) ($b['id'] ?? ($b['rawId'] ?? '')));
+    if ($credId === '') store_fail('passkey_refused', 401);
+    try {
+        $q = $db->prepare('select id, customer_id, public_key, sign_count from customer_passkeys where credential_id = ?');
+        $q->bindValue(1, $credId, PDO::PARAM_LOB); $q->execute();
+        $k = $q->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { store_fail('passkeys_not_ready', 503); }
+    if (!$k) store_fail('passkey_refused', 401);
+    $cdj = sec_unb64u((string) ($resp['clientDataJSON'] ?? ''));
+    sec_client_data($cdj, 'webauthn.get', $challenge);
+    $ad = sec_unb64u((string) ($resp['authenticatorData'] ?? ''));
+    try { [$rpIdHash, $flags, $count] = sec_auth_data($ad); } catch (Throwable $e) { store_fail('passkey_refused', 401); }
+    if (!hash_equals(hash('sha256', sec_rp_id(), true), $rpIdHash)) store_fail('passkey_refused', 401);
+    if (($flags & 0x05) !== 0x05) store_fail('passkey_refused', 401);   // present AND verified
+    $signed = $ad . hash('sha256', $cdj, true);
+    if (openssl_verify($signed, sec_unb64u((string) ($resp['signature'] ?? '')), (string) $k['public_key'], OPENSSL_ALGO_SHA256) !== 1) store_fail('passkey_refused', 401);
+    if ($count !== 0 && (int) $k['sign_count'] !== 0 && $count <= (int) $k['sign_count']) store_fail('passkey_refused', 401);
+    $db->prepare('update customer_passkeys set sign_count = ?, last_used_at = now() where id = ?')->execute([$count, (int) $k['id']]);
+    $db->prepare('update customers set last_seen_at = now() where id = ?')->execute([(int) $k['customer_id']]);
+    return (int) $k['customer_id'];
+}
+
+// -------------------------------------------------------------------- Google
+// The redirect flow, NOT Google's button script: the button would need accounts.google.com in
+// the storefront's script-src, frame-src and connect-src on every page, and the storefront is
+// deliberately kept free of third-party script. A plain navigation to Google needs no policy at
+// all. Google posts the signed ID token back to api/customer-google.php (response_mode=form_post).
+//
+// The same client id as the panel's Google sign-in (/backends -> Settings), and the same switch.
+// Its "Authorized redirect URIs" must list https://www.sporta.com.kw/api/customer-google.php.
+
+function customer_google_client(PDO $db): string
+{
+    $g = store_setting($db, 'google_auth');
+    $id = trim((string) ($g['client_id'] ?? ''));
+    return ($id !== '' && !empty($g['enabled'])) ? $id : '';
+}
+
+/**
+ * A signed, self-contained state: Google's form_post is a CROSS-SITE POST, on which the shopper's
+ * SameSite=Lax cookie is not sent, so nothing can be kept in a session across the trip. The state
+ * carries the nonce, the time, where to return to and the remember choice, signed with the shop's
+ * key; the token must carry the same nonce, so a token minted for another visit is refused.
+ */
+function customer_google_state(string $nonce, string $return, bool $remember, int $at): string
+{
+    $p = sec_b64u(json_encode(['n' => $nonce, 't' => $at, 'r' => $return, 'm' => $remember ? 1 : 0]));
+    return $p . '.' . sec_b64u(hash_hmac('sha256', 'customer-google|' . $p, (string) (store_config()['cron_key'] ?? ''), true));
+}
+function customer_google_read_state(string $state): ?array
+{
+    if ((string) (store_config()['cron_key'] ?? '') === '') return null;
+    $parts = explode('.', $state);
+    if (count($parts) !== 2) return null;
+    $want = sec_b64u(hash_hmac('sha256', 'customer-google|' . $parts[0], (string) store_config()['cron_key'], true));
+    if (!hash_equals($want, $parts[1])) return null;
+    $s = json_decode(sec_unb64u($parts[0]), true);
+    if (!is_array($s) || time() - (int) ($s['t'] ?? 0) > 600 || (int) ($s['t'] ?? 0) > time() + 60) return null;
+    return $s;
+}
+/** A path on this shop to come back to, or '/'. Never another host. */
+function customer_return_path(string $r): string
+{
+    return (strlen($r) <= 300 && preg_match('~^/(?![/\\\\])[^\s\\\\]*$~', $r)) ? $r : '/';
 }

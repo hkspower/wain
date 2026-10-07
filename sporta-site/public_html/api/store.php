@@ -1996,7 +1996,7 @@ const STORE_CUSTOMER_ABSOLUTE_SECONDS = 90 * 86400;
  * wins and the second returns immediately, which is the safe direction: an
  * admin route cannot be downgraded to a shopper session by a later call.
  */
-function store_session_start(string $kind = 'admin'): void {
+function store_session_start(string $kind = 'admin', bool $persist = true): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     // See store_is_https(): reading $_SERVER['HTTPS'] alone left this false on
     // the live server, behind Hostinger's TLS proxy.
@@ -2056,7 +2056,8 @@ function store_session_start(string $kind = 'admin'): void {
     if ($kind === 'shopper') {
         session_name($secure ? '__Host-sporta_shopper' : 'sporta_shopper');
         session_set_cookie_params([
-            'lifetime' => STORE_CUSTOMER_ABSOLUTE_SECONDS,
+            // 0 = ends when the browser closes: a shopper who unticks "Keep me signed in" (customer_grant).
+            'lifetime' => $persist ? STORE_CUSTOMER_ABSOLUTE_SECONDS : 0,
             'path'     => '/',
             'secure'   => $secure,
             'httponly' => true,     // no script access; nothing on the page needs it

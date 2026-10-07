@@ -259,7 +259,8 @@
     "test:customer-profile": "node scripts/customer-profile-test.mjs",
     "scan:panel-content": "node scripts/panel-content-scan.mjs",
     "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs",
-    "test:rate-bucket": "node scripts/rate-bucket-test.mjs"
+    "test:rate-bucket": "node scripts/rate-bucket-test.mjs",
+    "test:customer-fast-login": "node scripts/customer-fast-login-test.mjs"
   },
   "private": true
 }

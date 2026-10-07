@@ -123,6 +123,7 @@ const PARTS = [
   ['adminreset.mysql.sql', 'password reset codes — forgot-password by email at /backends', API],
   ['adminloginlog.mysql.sql', 'admin sign-in log — every attempt with address and country', API],
   ['ratebucket.mysql.sql', 'rate bucket — the API token-bucket rate limiter (falls back to rate_limit until it exists)', API],
+  ['customerfast.mysql.sql', 'fast customer sign-in — Face ID / fingerprint passkeys and email sign-in codes', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself
