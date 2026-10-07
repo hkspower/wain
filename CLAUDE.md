@@ -6576,6 +6576,54 @@ The second and third pieces of «improve hangout and orders».
 - Two per-minute jobs that are not ours were in the crontab and were left alone: `qiwunUHQ2x` (`tail url-sec.txt`) and `Hs63G7IE0n` (`publish-all.php`).
 - `admin.secret` is still EMPTY.
 
+## The maps' boxes — 7 October (live as `142a0d50`)
+
+Asked: «improve map layout / render all css and boxes». Every map surface was rendered with each box outlined
+before anything changed. The owner picked all four fixes, site and app, and approved the deploy.
+
+**What was wrong, and the fix for each.**
+- **Pins stood on the frame's edge.** On /search «قهوة» at 390, one pin sat 10px from the left border with half
+  of it over the line. On /pick, the lowest tip touched the bottom border.
+  - The fit now takes pixel margins: `side` and `foot` = half a pin + `PIN_EDGE_PX` (12) on every map.
+  - The foot counts half a pin as well, because an approximate pin is a round head centred on its point, not a
+    tip standing on it.
+- **A desktop map taller than the screen.** «بحر» made the sticky map 686px tall, which a 1280×720 screen cuts off.
+  - A `tall` frame's aspect is now capped by `innerHeight − 120` (`TALL_CHROME_PX`; the map starts about 105px
+    down at load).
+- **The place page's map card held the voice buttons as a third band.** That row now sits under the card
+  (`data-place-voice`).
+- **/pick's map was a 230px strip on a phone.** The default phone ratio is 1.25:1 (it was 1.7). The app sizes the
+  /pick map at `width / 1.25`, clamped to 240–420.
+
+**/search went over budget, at 176.2K of 176K.** Paid for by splitting `map-frame.ts`: `fitFrameAround` moved to
+`map-frame-around.ts` (place page only), and `unproject`/`zoomFrame`/`centreFrame` moved to `map-picker.ts`
+(registration only). /search never calls them. Result: 175.8K.
+
+**Tests.**
+- `tests/map-layout.test.mjs` (in `test:hangout`):
+  - pin room on /search, /pick and a place page at 390, 320 and 1280;
+  - the «بحر» map ends on screen at 1280×720, 1366×768 and 1440×900, and is still at least 400px tall;
+  - the voice row sits under the card;
+  - /pick is at least 280px tall at 390.
+- That file had 9 assertions red on the old build and is 21/21 now. Its first floor of 8px passed on the old
+  build at 390, so it is 11px.
+- `test:map` is 52 (+ «no pin stands on the frame's edge»). The app's `map_layout_test` covers /pick, red with
+  the fixed height.
+
+**Live.**
+- Agent build, archive `68cab9c` (sha256 `a551f221…50fe`). One more permanent ~4MB blob.
+- **The first job was deleted unfired.** Its output read and its delete went in one parallel batch, and the
+  output was still empty. The listing showed it gone and the disk still at `a0b99c9f`, so nothing was harmed.
+  **Read the output, then delete — never in the same batch.**
+- The second job, `TJ3LfbB6v5`, was read at its FIRST firing:
+  `{"ok":true,"deployed":278,"removed":9,"emptied":1,"at":"2026-10-07T14:11:02"}`. It was then deleted and
+  listed gone.
+- `deploy:verify`: «142a0d50 is live — verified at the root and 7 levels below it» (digest `2a499ae3fcfed9e3`).
+  `_next/static/` holds only `142a0d50…/`, and `convai-0.19.0` is present.
+- Other sessions' per-minute jobs were left alone: `c6vVvRPHnx`, `nlyGXAf2qx` and `fzcNTqNs3L`.
+
+**Not measured:** a painted tile (OSM is refused here), and the maps on a real phone.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
