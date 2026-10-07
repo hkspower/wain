@@ -250,7 +250,8 @@
     "test:catalog-feed": "node scripts/catalog-feed-test.mjs",
     "test:live-tracking": "node scripts/live-tracking-test.mjs",
     "test:checkout-pay": "node scripts/checkout-pay-test.mjs",
-    "scan:panel-content": "node scripts/panel-content-scan.mjs"
+    "scan:panel-content": "node scripts/panel-content-scan.mjs",
+    "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs"
   },
   "private": true
 }

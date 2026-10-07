@@ -368,3 +368,6 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   }
 }
 }
+@media (max-width: 767.98px) {
+  .m-tabbar__item { font-size: 12px !important; }
+}

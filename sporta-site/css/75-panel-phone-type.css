@@ -1,0 +1,5 @@
+/* /backends on a phone: the tab bar's labels 11.2px -> 12px (2026-10-07, "improve font size for mobile
+   backend"). The content's text floor is set by panel-ux.js, which raises any text under 14px. */
+@media (max-width: 767.98px) {
+  .m-tabbar__item { font-size: 12px !important; }
+}

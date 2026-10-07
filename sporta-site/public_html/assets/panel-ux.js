@@ -518,6 +518,37 @@
     }, true)
   }
 
+
+  /* PHONE TEXT FLOOR (2026-10-07, "improve font size for mobile backend"). Measured: three quarters of the
+     panel's phone text was 11-13.6px. Below 768px any text in the content under 14px is raised to 14px
+     (text under 11.5px to 13px). Larger text is never touched. Each element is
+     measured once (data-spfs), in one batch per frame. */
+  ;(function () {
+    var mq = window.matchMedia && window.matchMedia('(max-width: 767.98px)')
+    if (!mq || !/^\/backends/.test(location.pathname)) return
+    var queued = false
+    function floor() {
+      queued = false
+      if (!mq.matches) return
+      var root = document.querySelector('.admin-content'); if (!root) return
+      var els = root.querySelectorAll('*:not([data-spfs])'), todo = []
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i]
+        if (/^(INPUT|TEXTAREA|SELECT|SVG|PATH|IMG|CANVAS|svg|path)$/.test(el.tagName)) continue
+        var has = false
+        for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3 && c.textContent.trim()) { has = true; break }
+        if (!has) continue
+        el.setAttribute('data-spfs', '')
+        var px = parseFloat(getComputedStyle(el).fontSize)
+        if (px && px < 14) todo.push([el, px < 11.5 ? 13 : 14])
+      }
+      for (var j = 0; j < todo.length; j++) todo[j][0].style.setProperty('font-size', todo[j][1] + 'px', 'important')
+    }
+    function later() { if (!queued) { queued = true; requestAnimationFrame(floor) } }
+    new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true, characterData: true })
+    later()
+  })()
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start)
   else start()
 })()
