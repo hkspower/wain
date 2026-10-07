@@ -4,18 +4,21 @@
 The lockup is the one on the English banner (2026-10-07): ALMUHALLAB in
 Chakra Petch Bold with the striped amber fill, CODE in Chakra Petch SemiBold
 between two fading rules, and the terminal line `>_ SOFTWARE & SYSTEMS` in
-JetBrains Mono with its block cursor.
+JetBrains Mono with its block cursor. The monogram, for profile photos and
+icons, is its first letters: the striped amber A and the white C.
 
 Every letter is an outline, not text: each line is shaped with HarfBuzz
 (kerning on, as a browser sets it), and the glyphs are drawn out of the
 bundled OFL fonts with fontTools. So the SVGs need no font installed and
 look the same in every program, and the PNGs are rasterised from those
-same SVGs, so the bitmap cannot disagree with the vector.
+same SVGs, so the bitmap cannot disagree with the vector. `--check` proves
+both halves: it compares the SVGs and the README as text, and re-renders
+every PNG and compares it pixel by pixel.
 
     python3 design/logo-en/build.py           # write SVG, PNG, sheet, README
-    python3 design/logo-en/build.py --check   # exit 1 if an SVG or the README drifted
+    python3 design/logo-en/build.py --check   # exit 1 if any output drifted
 """
-import colorsys
+import io
 import pathlib
 import sys
 
@@ -36,6 +39,7 @@ CODE_INK = "#f4f4f4"
 TAG_INK = "#ececec"
 LIGHT_CODE = "#25292f"      # the site's --tint-strong
 LIGHT_TAG = "#33383f"       # the site's --tint
+STRIPE = 0.55               # the dark band is the amber at 55%, as on the banner
 
 
 def _rgb(h):
@@ -47,10 +51,16 @@ def _hex(rgb):
     return "#" + "".join(f"{round(max(0, min(1, c)) * 255):02x}" for c in rgb)
 
 
+def _lin(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _gam(c):
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+
+
 def _lum(h):
-    def lin(c):
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    r, g, b = (lin(c) for c in _rgb(h))
+    r, g, b = (_lin(c) for c in _rgb(h))
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
@@ -60,19 +70,43 @@ def contrast(a, b):
 
 
 def shade(h, k):
-    """The stripe tone: the same colour at k of its strength, as the banner's."""
     return _hex(tuple(c * k for c in _rgb(h)))
 
 
+def to_oklab(h):
+    r, g, b = (_lin(c) for c in _rgb(h))
+    l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+
+
+def from_oklab(L, a, b):
+    l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    rgb = (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+           -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+           -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+    if min(rgb) < -1e-4 or max(rgb) > 1 + 1e-4:
+        return None                     # out of sRGB: not a colour we can print
+    return _hex(tuple(_gam(max(0, min(1, c))) for c in rgb))
+
+
 def solve_on_white(h, target):
-    """The banner's amber reads 2.25:1 on white, too faint for a mark. Keep
-    its hue and saturation and lower the lightness until it clears target."""
-    hh, ll, ss = colorsys.rgb_to_hls(*_rgb(h))
-    while ll > 0:
-        cand = _hex(colorsys.hls_to_rgb(hh, ll, ss))
-        if contrast(cand, "#ffffff") >= target:
+    """The banner's amber reads only 2.06:1 on white, too faint for a mark.
+    Keep its perceived hue and chroma (OKLCH) and lower only its lightness
+    until it clears the target. Darkening in HLS at constant saturation would
+    raise the chroma and swing the hue toward orange (a reviewer measured
+    #d18320 that way: pumpkin, not gold)."""
+    L, a, b = to_oklab(h)
+    while L > 0:
+        cand = from_oklab(L, a, b)
+        if cand and contrast(cand, "#ffffff") >= target:
             return cand
-        ll -= 0.002
+        L -= 0.001
     raise SystemExit("no amber clears the target")
 
 
@@ -94,6 +128,12 @@ class Face:
         self.hb = hb.Font(hb.Face(hb.Blob.from_file_path(path)))
         if wght:
             self.hb.set_variations({"wght": wght})
+
+    def baseline_in_line(self, size):
+        """Where a browser puts the baseline in a line box set solid
+        (line-height: 1): the half-leading, negative here, plus the ascent."""
+        content = (self.asc - self.desc) / self.upm
+        return ((1 - content) / 2 + self.asc / self.upm) * size
 
 
 def _num(v):
@@ -121,18 +161,15 @@ class Run:
             if i < n - 1:
                 x += track_em * size          # tracking between letters, none after the last
         self.advance = x
-        b = self._draw(BoundsPen(face.gs), 0, 0)
-        self.bounds = b.bounds                 # (xmin, ymin, xmax, ymax), y down, pen origin (0, 0)
+        self.bounds = self._draw(BoundsPen(face.gs), 0, 0).bounds   # (xmin, ymin, xmax, ymax), y down
 
     def _draw(self, pen, ox, oy):
         for name, gx, gy in self.glyphs:
-            t = TransformPen(pen, (self.s, 0, 0, -self.s, ox + gx, oy - gy))
-            self.face.gs[name].draw(t)
+            self.face.gs[name].draw(TransformPen(pen, (self.s, 0, 0, -self.s, ox + gx, oy - gy)))
         return pen
 
     def path(self, ox, oy):
-        pen = SVGPathPen(self.face.gs, ntos=_num)
-        return self._draw(pen, ox, oy).getCommands()
+        return self._draw(SVGPathPen(self.face.gs, ntos=_num), ox, oy).getCommands()
 
     @property
     def ink_w(self):
@@ -144,43 +181,56 @@ CHAKRA_SB = Face("ChakraPetch-SemiBold.ttf")
 MONO_500 = Face("JetBrainsMono-Variable.ttf", 500)
 MONO_700 = Face("JetBrainsMono-Variable.ttf", 700)
 
-# ── the lockup, in the banner's own pixels ───────────────────────────────
-# Sizes, tracking and the ink gaps are the banner's (1920×1080): the
-# wordmark 212px tracked .02em, CODE 84px tracked .5em inside a 1180px row,
-# the terminal line 34px tracked .3em; 58px of air from the wordmark's
-# baseline to CODE's cap line and 70px from CODE to the terminal line.
-
+# ── the lockup, in the banner's own CSS pixels ───────────────────────────
 WORD = Run(CHAKRA_B, "ALMUHALLAB", 212, 0.02)
 CODE = Run(CHAKRA_SB, "CODE", 84, 0.5)
 PROMPT = Run(MONO_700, ">_", 34)
 TAG = Run(MONO_500, "SOFTWARE & SYSTEMS", 34, 0.3)
 
+# The gaps are the banner's CSS worked through, not measured off a render:
+# the wordmark's line box (212, set solid) plus its 10px padding and the
+# CODE row's 4px margin; then CODE's line box (84) and the terminal row's
+# 54px margin. Each line box is measured from its baseline to the next
+# line's cap line, so the outlines land where the banner's text sat.
+GAP_WORD_CODE = ((212 - CHAKRA_B.baseline_in_line(212)) + 10 + 4
+                 + (CHAKRA_SB.baseline_in_line(84) - CODE.cap))
+GAP_CODE_TAG = ((84 - CHAKRA_SB.baseline_in_line(84)) + 54
+                + (MONO_500.baseline_in_line(34) - TAG.cap))
+
 ROW_HALF = 590          # the CODE row is 1180 wide
-RULE_GAP = 30           # from CODE's ink to each rule
 RULE_T = 2
-GAP_WORD_CODE = 58
-GAP_CODE_TAG = 70
-PROMPT_GAP = 22         # flex gap after the prompt
-CURSOR_GAP = 26         # flex gap plus the cursor's own 4px margin
+# On the banner each rule stops 28px from CODE's box, which is its ink plus
+# the side bearings (C's left, E's right). The kit centres CODE on its ink,
+# so it splits the two bearings evenly: the rules stay equal in length and
+# each gap is within a pixel of the banner's.
+_LSB = CODE.bounds[0]
+_RSB = CODE.advance - CODE.bounds[2]
+RULE_GAP = 28 + (_LSB + _RSB) / 2
+PROMPT_GAP = 22         # the terminal row's flex gap
+CURSOR_GAP = 26         # the flex gap plus the cursor's own 4px margin
 CURSOR_W = 16
+GLOW_SIGMA_EM = 40 / 212    # the banner's drop-shadow(0 0 40px) on a 212px word: CSS blurs with sigma = 40
 
 
-def stripe_period(cap):
-    """Stripes that start and end on an amber band: the cap height holds n
-    whole periods plus one more band, so the top and the foot of every letter
-    are clean amber rather than cut through a dark line. 5 : 2 as on the
-    banner, n chosen to keep the period nearest the banner's 7px."""
-    n = round((cap - 5) / 7)
+def stripe_bands(cap, n=None):
+    """The dark bands across a letter of cap height `cap`, as (top, height)
+    from the cap line down. The letter starts and ends on an amber band, so
+    no letter's top or foot is cut through a dark line: the cap holds n
+    whole periods plus one more amber band, 5 : 2 as on the banner. With no
+    n, the period is kept nearest the banner's 7px."""
+    if n is None:
+        n = round((cap - 5) / 7)
     p = cap / (n + 5 / 7)
-    return p, p * 5 / 7
+    band = p * 5 / 7
+    return [(band + i * p, p - band) for i in range(n)]
 
 
 def lockup(with_tag=True):
     """Every shape of the lockup, centred on x = 0 with the wordmark's
-    baseline at y = 0, and the ink box of the whole."""
+    baseline at y = 0, the ink box of the whole, and the glow's sigma."""
     shapes = []
     wx = -WORD.ink_w / 2 - WORD.bounds[0]
-    shapes.append(("word", WORD.path(wx, 0)))
+    shapes.append(("striped", WORD.path(wx, 0), -WORD.cap, WORD.cap, None))
     word_top = -WORD.cap
 
     code_base = GAP_WORD_CODE + CODE.cap
@@ -188,7 +238,7 @@ def lockup(with_tag=True):
     shapes.append(("code", CODE.path(cx, code_base)))
     mid = code_base - CODE.cap / 2
     code_l, code_r = cx + CODE.bounds[0], cx + CODE.bounds[2]
-    shapes.append(("rule_l", (-ROW_HALF, mid - RULE_T / 2, code_l - RULE_GAP - -ROW_HALF, RULE_T)))
+    shapes.append(("rule_l", (-ROW_HALF, mid - RULE_T / 2, code_l - RULE_GAP + ROW_HALF, RULE_T)))
     shapes.append(("rule_r", (code_r + RULE_GAP, mid - RULE_T / 2, ROW_HALF - code_r - RULE_GAP, RULE_T)))
     bottom = code_base
     left = min(-ROW_HALF, wx + WORD.bounds[0])
@@ -197,14 +247,13 @@ def lockup(with_tag=True):
     if with_tag:
         tag_base = code_base + GAP_CODE_TAG + TAG.cap
         # the cursor fills the line box of a 34px line set solid, as on the banner
-        line_top = tag_base - (MONO_500.asc + ((MONO_500.upm - (MONO_500.asc - MONO_500.desc)) / 2)) * TAG.s
+        line_top = tag_base - MONO_500.baseline_in_line(TAG.size)
         cur_h = TAG.size
-        # boxes, as the banner's flex row lays them out: prompt | gap | text | gap | cursor
+        # boxes as the banner's flex row lays them out: prompt | gap | text | gap | cursor,
+        # then the whole row centred on its ink (the prompt's ink to the cursor's edge)
         group_w = PROMPT.advance + PROMPT_GAP + TAG.advance + CURSOR_GAP + CURSOR_W
         px = -group_w / 2
-        # centre by ink: the row's ink starts at the prompt's ink and ends at the cursor
-        ink_l = px + PROMPT.bounds[0]
-        ink_r = px + group_w
+        ink_l, ink_r = px + PROMPT.bounds[0], px + group_w
         px -= (ink_l + ink_r) / 2
         tx = px + PROMPT.advance + PROMPT_GAP
         cur_x = tx + TAG.advance + CURSOR_GAP
@@ -212,7 +261,30 @@ def lockup(with_tag=True):
         shapes.append(("tag", TAG.path(tx, tag_base)))
         shapes.append(("cursor", (cur_x, line_top, CURSOR_W, cur_h)))
         bottom = max(tag_base + PROMPT.bounds[3], line_top + cur_h)
-    return shapes, (left, word_top, right, bottom)
+    return shapes, (left, word_top, right, bottom), GLOW_SIGMA_EM * WORD.size
+
+
+# The monogram: the lockup's first letters, A from ALMUHALLAB (striped amber)
+# and C from CODE (white), both Bold so they hold up at 32px. Seven bands,
+# not twenty-one: at a profile photo's size the banner's fine stripes blur
+# into a muddy amber, seven stay crisp. Chosen by rendering four candidates
+# in a circle at 150/110/44/32px (AC, AC with the cursor, the prompt, AC
+# tight) and keeping the one that still read at 32.
+MONO_SIZE = 1000
+MONO_A = Run(CHAKRA_B, "A", MONO_SIZE)
+MONO_C = Run(CHAKRA_B, "C", MONO_SIZE)
+MONO_GAP = 0.06 * MONO_SIZE
+MONO_BANDS = 7
+
+
+def monogram():
+    total = MONO_A.ink_w + MONO_GAP + MONO_C.ink_w
+    xa = -total / 2 - MONO_A.bounds[0]
+    xc = -total / 2 + MONO_A.ink_w + MONO_GAP - MONO_C.bounds[0]
+    cap = MONO_A.cap
+    shapes = [("striped", MONO_A.path(xa, 0), -cap, cap, MONO_BANDS),
+              ("code", MONO_C.path(xc, 0))]
+    return shapes, (-total / 2, -cap, total / 2, max(0, MONO_A.bounds[3], MONO_C.bounds[3])), GLOW_SIGMA_EM * MONO_SIZE
 
 
 # ── SVG ──────────────────────────────────────────────────────────────────
@@ -224,44 +296,74 @@ GROUNDS = {
     "for-light": (None, AMBER_LIGHT, LIGHT_CODE, LIGHT_TAG, False),
 }
 PAD = 112          # clear space round the ink, in the banner's pixels (3/4 of the wordmark's cap height)
+PNG_W = 4096
+SQUARE = 2048
+CIRCLE = 0.80      # a square tile's ink stays inside 80% of the circle a profile photo is cut to
+
+# name: (shape, ground)
+FILES = {
+    "almuhallab-code-logo-dark": ("logo", "dark"),
+    "almuhallab-code-logo-for-dark": ("logo", "for-dark"),
+    "almuhallab-code-logo-for-light": ("logo", "for-light"),
+    "almuhallab-code-wordmark-dark": ("wordmark", "dark"),
+    "almuhallab-code-wordmark-for-dark": ("wordmark", "for-dark"),
+    "almuhallab-code-wordmark-for-light": ("wordmark", "for-light"),
+    "almuhallab-code-monogram-dark": ("monogram", "dark"),
+    "almuhallab-code-monogram-for-dark": ("monogram", "for-dark"),
+    "almuhallab-code-monogram-for-light": ("monogram", "for-light"),
+}
 
 
-def svg(with_tag, ground, square=None):
+def geometry(shape):
+    if shape == "monogram":
+        return monogram()
+    return lockup(with_tag=(shape == "logo"))
+
+
+def frame(shape):
+    """The viewBox and the PNG's pixel size. A wide tile's height is rounded
+    to whole pixels first and the viewBox grown to that exact aspect, the
+    extra split above and below: with the aspects a hair apart, the
+    renderer letterboxed the ground and left the first and last rows of the
+    dark PNGs partly transparent."""
+    _, (l, t, r, b), _ = geometry(shape)
+    if shape == "monogram":
+        k = 2 * (SQUARE / 2 * CIRCLE) / ((r - l) ** 2 + (b - t) ** 2) ** 0.5
+        vw = SQUARE / k
+        return ((l + r) / 2 - vw / 2, (t + b) / 2 - vw / 2, vw, vw), (SQUARE, SQUARE)
+    vw = r - l + 2 * PAD
+    px_h = round(PNG_W * (b - t + 2 * PAD) / vw)
+    vh = vw * px_h / PNG_W
+    return (l - PAD, (t + b) / 2 - vh / 2, vw, vh), (PNG_W, px_h)
+
+
+def svg(name):
+    shape, ground = FILES[name]
     bg, amber, code_ink, tag_ink, glow = GROUNDS[ground]
-    shapes, (l, t, r, b) = lockup(with_tag)
-    if square:
-        # a square tile: the ink sits inside the circle a profile photo is cut to
-        side = square
-        radius = side / 2 * 0.80
-        k = 2 * radius / ((r - l) ** 2 + (b - t) ** 2) ** 0.5
-        vw = side / k
-        vx, vy = (l + r) / 2 - vw / 2, (t + b) / 2 - vw / 2
-        vb = (vx, vy, vw, vw)
-        size = (side, side)
-    else:
-        vb = (l - PAD, t - PAD, r - l + 2 * PAD, b - t + 2 * PAD)
-        size = (vb[2], vb[3])
-    period, band = stripe_period(WORD.cap)
-    dark = shade(amber, 0.55)
-    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{" ".join(_num(v) for v in vb)}" '
-           f'width="{_num(size[0])}" height="{_num(size[1])}" role="img" aria-label="Almuhallab Code">',
+    shapes, _, sigma = geometry(shape)
+    vb, (pw, ph) = frame(shape)
+    dark = shade(amber, STRIPE)
+    vbs = " ".join(_num(v) for v in vb)
+    # the SVG's own size is the PNG's, so it opens at the size it was made for
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vbs}" width="{pw}" height="{ph}" '
+           f'role="img" aria-label="Almuhallab Code">',
            "  <!-- Almuhallab Code, the English logo. Letters are outlines from Chakra Petch and",
            "       JetBrains Mono (SIL OFL). Written by design/logo-en/build.py; do not edit by hand. -->",
-           "  <defs>",
-           f'    <pattern id="stripes" patternUnits="userSpaceOnUse" x="0" y="{_num(-WORD.cap)}" '
-           f'width="16" height="{_num(period)}">',
-           f'      <rect width="16" height="{_num(band)}" fill="{amber}"/>',
-           f'      <rect y="{_num(band)}" width="16" height="{_num(period - band)}" fill="{dark}"/>',
-           "    </pattern>",
-           f'    <linearGradient id="fade-l" x1="0" x2="1" y1="0" y2="0">'
-           f'<stop offset="0" stop-color="{amber}" stop-opacity="0"/>'
-           f'<stop offset="1" stop-color="{amber}" stop-opacity="0.55"/></linearGradient>',
-           f'    <linearGradient id="fade-r" x1="0" x2="1" y1="0" y2="0">'
-           f'<stop offset="0" stop-color="{amber}" stop-opacity="0.55"/>'
-           f'<stop offset="1" stop-color="{amber}" stop-opacity="0"/></linearGradient>']
+           "  <defs>"]
+    for i, (kind, d, *rest) in enumerate(shapes):
+        if kind == "striped":
+            out.append(f'    <clipPath id="letters-{i}"><path d="{d}"/></clipPath>')
+    out += [f'    <linearGradient id="fade-l" x1="0" x2="1" y1="0" y2="0">'
+            f'<stop offset="0" stop-color="{amber}" stop-opacity="0"/>'
+            f'<stop offset="1" stop-color="{amber}" stop-opacity="0.55"/></linearGradient>',
+            f'    <linearGradient id="fade-r" x1="0" x2="1" y1="0" y2="0">'
+            f'<stop offset="0" stop-color="{amber}" stop-opacity="0.55"/>'
+            f'<stop offset="1" stop-color="{amber}" stop-opacity="0"/></linearGradient>']
     if glow:
-        out += ['    <filter id="glow" x="-10%" y="-70%" width="120%" height="240%" color-interpolation-filters="sRGB">',
-                '      <feGaussianBlur in="SourceAlpha" stdDeviation="20" result="blur"/>',
+        # the region is the whole tile, so no halo is ever cut by a filter box
+        out += [f'    <filter id="glow" filterUnits="userSpaceOnUse" x="{_num(vb[0])}" y="{_num(vb[1])}" '
+                f'width="{_num(vb[2])}" height="{_num(vb[3])}" color-interpolation-filters="sRGB">',
+                f'      <feGaussianBlur in="SourceAlpha" stdDeviation="{_num(sigma)}" result="blur"/>',
                 f'      <feFlood flood-color="{amber}" flood-opacity="0.32"/>',
                 '      <feComposite in2="blur" operator="in" result="halo"/>',
                 '      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>',
@@ -269,9 +371,20 @@ def svg(with_tag, ground, square=None):
     out.append("  </defs>")
     if bg:
         out.append(f'  <rect x="{_num(vb[0])}" y="{_num(vb[1])}" width="{_num(vb[2])}" height="{_num(vb[3])}" fill="{bg}"/>')
-    for kind, d in shapes:
-        if kind == "word":
-            out.append(f'  <path d="{d}" fill="url(#stripes)"{" filter=" + chr(34) + "url(#glow)" + chr(34) if glow else ""}/>')
+    for i, (kind, d, *rest) in enumerate(shapes):
+        if kind == "striped":
+            # solid amber, then the dark bands drawn over it inside the
+            # letters' outline: the letters stay fully opaque (a <pattern>
+            # tile is resampled, and its band edges left see-through seams)
+            top, cap, n = rest
+            g = f' filter="url(#glow)"' if glow else ""
+            out.append(f'  <g{g}>')
+            out.append(f'    <path d="{d}" fill="{amber}"/>')
+            out.append(f'    <g clip-path="url(#letters-{i})" fill="{dark}">')
+            for y, h in stripe_bands(cap, n):
+                out.append(f'      <rect x="{_num(vb[0])}" y="{_num(top + y)}" width="{_num(vb[2])}" height="{_num(h)}"/>')
+            out.append("    </g>")
+            out.append("  </g>")
         elif kind == "code":
             out.append(f'  <path d="{d}" fill="{code_ink}"/>')
         elif kind in ("rule_l", "rule_r"):
@@ -290,134 +403,56 @@ def svg(with_tag, ground, square=None):
     return "\n".join(out) + "\n"
 
 
-PNG_W = 4096
-SQUARE = 2048
-# name: (with tagline, ground, square side or None)
-FILES = {
-    "almuhallab-code-logo-dark": (True, "dark", None),
-    "almuhallab-code-logo-for-dark": (True, "for-dark", None),
-    "almuhallab-code-logo-for-light": (True, "for-light", None),
-    "almuhallab-code-wordmark-dark": (False, "dark", None),
-    "almuhallab-code-wordmark-for-dark": (False, "for-dark", None),
-    "almuhallab-code-wordmark-for-light": (False, "for-light", None),
-    "almuhallab-code-square-dark": (False, "dark", SQUARE),
-}
+# ── PNG ──────────────────────────────────────────────────────────────────
 
-
-def png_size(name):
-    with_tag, ground, square = FILES[name]
-    if square:
-        return square, square
-    _, (l, t, r, b) = lockup(with_tag)
-    w, h = r - l + 2 * PAD, b - t + 2 * PAD
-    return PNG_W, round(PNG_W * h / w)
-
-
-def readme():
-    rows = []
-    for name, (with_tag, ground, square) in FILES.items():
-        w, h = png_size(name)
-        what = ("full lockup" if with_tag else "wordmark") if not square else "square tile (profile photo)"
-        where = {"dark": "on its own near-black ground",
-                 "for-dark": "transparent, for dark backgrounds",
-                 "for-light": "transparent, for white and light backgrounds"}[ground]
-        rows.append(f"| `{name}.svg` · `.png` | {what}, {where} | {w} × {h} |")
-    return f"""# Almuhallab Code, English logo
-
-The lockup from the English banner: **ALMUHALLAB** in Chakra Petch Bold with
-the striped amber fill, **CODE** in Chakra Petch SemiBold between two fading
-rules, and the terminal line `>_ SOFTWARE & SYSTEMS` in JetBrains Mono.
-
-Generated by `build.py`; do not edit the files by hand. Every letter is an
-outline, so the SVGs need no font installed, and every PNG is rasterised
-from its SVG.
-
-| File | What | PNG size (px) |
-|---|---|---|
-{chr(10).join(rows)}
-
-`preview-sheet.png` shows each one on the grounds it is made for.
-
-## Which one to use
-
-- **Full lockup** where there is room to read the terminal line: a header,
-  a slide, a banner, print.
-- **Wordmark** (no terminal line) where the logo is small: below about
-  600 px wide the terminal line is too small to read.
-- **Square tile** for profile photos. The ink sits inside the circle the
-  platforms cut it to, so nothing is shaved off.
-- On a dark background use `-dark` or `-for-dark`; on white or light grey use
-  `-for-light`. Never put `-for-dark` on white: its CODE is white.
-
-## Colour
-
-| Use | Colour | Contrast |
-|---|---|---|
-| Amber on dark | `{AMBER}` | {contrast(AMBER, GROUND):.1f}:1 on `{GROUND}` |
-| Amber on light | `{AMBER_LIGHT}` | {contrast(AMBER_LIGHT, '#ffffff'):.1f}:1 on white |
-| CODE on dark | `{CODE_INK}` | {contrast(CODE_INK, GROUND):.1f}:1 |
-| CODE on light | `{LIGHT_CODE}` | {contrast(LIGHT_CODE, '#ffffff'):.1f}:1 |
-| Terminal line on light | `{LIGHT_TAG}` | {contrast(LIGHT_TAG, '#ffffff'):.1f}:1 |
-| Stripes | the amber at 55% | |
-
-The banner's amber reads only {contrast(AMBER, '#ffffff'):.2f}:1 on white, too
-faint for a mark, so the light version keeps its hue and saturation and is
-darkened until it clears 3:1.
-
-## Clear space
-
-Keep at least the height of CODE's capitals clear on every side. The PNGs
-already carry 3/4 of the wordmark's cap height as margin.
-
-## Fonts
-
-Chakra Petch (Cadson Demak) and JetBrains Mono (JetBrains), both under the
-SIL Open Font License; the licences are in `fonts/`.
-
-## Rebuild
-
-    python3 design/logo-en/build.py           # writes everything here
-    python3 design/logo-en/build.py --check   # fails if an SVG or this README drifted
-"""
-
-
-def render_pngs(names):
-    from playwright.sync_api import sync_playwright
-    with sync_playwright() as p:
-        br = p.chromium.launch(executable_path=CHROME)
-        for name in names:
-            w, h = png_size(name)
-            pg = br.new_page(viewport={"width": w, "height": h}, device_scale_factor=1)
-            src = (HERE / f"{name}.svg").read_text()
-            pg.set_content('<!doctype html><html><head><style>html,body{margin:0;background:transparent}'
-                           f'svg{{display:block;width:{w}px;height:{h}px}}</style></head><body>{src}</body></html>')
-            pg.wait_for_timeout(150)
-            pg.screenshot(path=str(HERE / f"{name}.png"), omit_background=True,
-                          clip={"x": 0, "y": 0, "width": w, "height": h})
-            pg.close()
-            print("  wrote", f"{name}.png", f"{w}×{h}")
-        sheet(br)
-        br.close()
+def rasterise(br, name):
+    """The PNG for one SVG, exactly as written: rendered by Chromium at its
+    own size. A dark tile is then floored at the ground and saved without
+    an alpha channel. The floor is exact, since the glow only adds light:
+    in its far tail 8-bit compositing rounded a contour of pixels one level
+    below the ground, which shows as a faint ring once brightened or printed."""
+    from PIL import Image, ImageChops
+    _, ground = FILES[name]
+    vb, (w, h) = frame(FILES[name][0])
+    pg = br.new_page(viewport={"width": w, "height": h}, device_scale_factor=1)
+    pg.set_content('<!doctype html><html><head><style>html,body{margin:0;background:transparent}'
+                   f'svg{{display:block;width:{w}px;height:{h}px}}</style></head><body>{svg(name)}</body></html>')
+    pg.wait_for_timeout(150)
+    raw = pg.screenshot(omit_background=True, clip={"x": 0, "y": 0, "width": w, "height": h})
+    pg.close()
+    im = Image.open(io.BytesIO(raw))
+    if GROUNDS[ground][0]:
+        im = ImageChops.lighter(im.convert("RGB"), Image.new("RGB", im.size, GROUNDS[ground][0]))
+    return im
 
 
 def sheet(br):
     """One page that shows each file on the grounds it is made for, with a
-    checkerboard under the transparent ones so their edges can be judged."""
+    checkerboard under the transparent ones so their edges can be judged,
+    and the monogram cut to a circle at the sizes profile photos are shown."""
     check = ("background-color:#fff;background-image:linear-gradient(45deg,#d9dce1 25%,transparent 25%),"
              "linear-gradient(-45deg,#d9dce1 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d9dce1 75%),"
              "linear-gradient(-45deg,transparent 75%,#d9dce1 75%);background-size:24px 24px;"
              "background-position:0 0,0 12px,12px -12px,-12px 0")
     cells = []
-    for name, (with_tag, ground, square) in FILES.items():
+    for name, (shape, ground) in FILES.items():
         grounds = {"dark": [("own ground", "")],
                    "for-dark": [("on #1b1d22", "background:#1b1d22"), ("on checker", check)],
                    "for-light": [("on white", "background:#ffffff"), ("on checker", check)]}[ground]
         for label, style in grounds:
+            sq = shape == "monogram"
             cells.append(f'<figure style="margin:0"><div style="{style};border:1px solid #2b2f36;'
-                         f'display:flex;align-items:center;justify-content:center;height:{360 if square else 300}px">'
-                         f'<img src="{name}.png" style="max-width:{"340px" if square else "92%"};max-height:92%"></div>'
+                         f'display:flex;align-items:center;justify-content:center;height:300px">'
+                         f'<img src="{name}.png" style="max-width:{"280px" if sq else "92%"};max-height:92%"></div>'
                          f'<figcaption style="font:500 15px/1.4 monospace;color:#c9ced6;padding:8px 0 0">'
                          f'{name} · {label}</figcaption></figure>')
+    circles = "".join(f'<div style="text-align:center;font:500 13px monospace;color:#8a919a">'
+                      f'<img src="almuhallab-code-monogram-dark.png" style="width:{s}px;height:{s}px;'
+                      f'border-radius:50%;display:block;margin:0 auto 6px">{s}px</div>' for s in (150, 110, 44, 32))
+    cells.append('<figure style="margin:0"><div style="background:#ffffff;border:1px solid #2b2f36;display:flex;'
+                 'align-items:flex-end;justify-content:center;gap:36px;height:300px;padding-bottom:40px;'
+                 f'box-sizing:border-box">{circles}</div><figcaption style="font:500 15px/1.4 monospace;'
+                 'color:#c9ced6;padding:8px 0 0">almuhallab-code-monogram-dark · as a profile photo</figcaption></figure>')
     html = ('<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#111316;padding:32px;'
             'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}</style></head><body>'
             + "".join(cells) + "</body></html>")
@@ -429,22 +464,133 @@ def sheet(br):
     pg.screenshot(path=str(HERE / "preview-sheet.png"), full_page=True)
     pg.close()
     tmp.unlink()
-    print("  wrote preview-sheet.png")
+
+
+# ── README ───────────────────────────────────────────────────────────────
+
+def readme():
+    what = {"logo": "full lockup", "wordmark": "wordmark", "monogram": "monogram (square)"}
+    where = {"dark": "on its own near-black ground",
+             "for-dark": "transparent, for dark backgrounds",
+             "for-light": "transparent, for white and light backgrounds"}
+    rows = [f"| `{n}.svg` · `.png` | {what[s]}, {where[g]} | {frame(s)[1][0]} × {frame(s)[1][1]} |"
+            for n, (s, g) in FILES.items()]
+    return f"""# Almuhallab Code, English logo
+
+The lockup from the English banner: **ALMUHALLAB** in Chakra Petch Bold with
+the striped amber fill, **CODE** in Chakra Petch SemiBold between two fading
+rules, and the terminal line `>_ SOFTWARE & SYSTEMS` in JetBrains Mono. The
+monogram is its first letters: the striped amber **A** and the white **C**.
+
+Generated by `build.py`; do not edit the files by hand. Every letter is an
+outline, so the SVGs need no font installed, and every PNG is rasterised
+from its SVG.
+
+| File | What | PNG size (px) |
+|---|---|---|
+{chr(10).join(rows)}
+
+`preview-sheet.png` shows each one on the grounds it is made for, and the
+monogram cut to a circle at 150, 110, 44 and 32 px.
+
+## Which one to use
+
+- **Full lockup** where there is room to read the terminal line: a header,
+  a slide, a banner, print. Below about 600 px wide, use the wordmark.
+- **Wordmark** (no terminal line) where the logo is smaller.
+- **Monogram** for profile photos, app icons and favicons, where the name
+  cannot be read at all. Its ink sits inside 80% of the circle the
+  platforms cut a profile photo to, so nothing is shaved off.
+- On a dark background use `-dark` or `-for-dark`; on white or light grey use
+  `-for-light`. Never put `-for-dark` on white: its CODE is white.
+- The `-dark` PNGs are opaque (no alpha channel); the others are transparent.
+
+## Colour
+
+| Use | Colour | Contrast |
+|---|---|---|
+| Amber on dark | `{AMBER}` | {contrast(AMBER, GROUND):.1f}:1 on `{GROUND}` |
+| Amber on light | `{AMBER_LIGHT}` | {contrast(AMBER_LIGHT, '#ffffff'):.2f}:1 on white |
+| CODE on dark | `{CODE_INK}` | {contrast(CODE_INK, GROUND):.1f}:1 |
+| CODE on light | `{LIGHT_CODE}` | {contrast(LIGHT_CODE, '#ffffff'):.1f}:1 |
+| Terminal line on light | `{LIGHT_TAG}` | {contrast(LIGHT_TAG, '#ffffff'):.1f}:1 |
+| Stripes | the amber at 55%: `{shade(AMBER, STRIPE)}` on dark, `{shade(AMBER_LIGHT, STRIPE)}` on light | |
+
+The banner's amber reads only {contrast(AMBER, '#ffffff'):.2f}:1 on white, too
+faint for a mark. The light version keeps its perceived hue and chroma
+(OKLCH) and lowers only the lightness until it clears 3:1, so it reads as
+the same gold, darker, rather than turning orange.
+
+## Clear space
+
+Keep at least the height of CODE's capitals clear on every side. The wide
+PNGs already carry 3/4 of the wordmark's cap height as margin.
+
+## Fonts
+
+Chakra Petch (Cadson Demak) and JetBrains Mono (JetBrains), both under the
+SIL Open Font License; the licences are in `fonts/`.
+
+## Rebuild
+
+    python3 design/logo-en/build.py           # writes everything here
+    python3 design/logo-en/build.py --check   # fails if any SVG, PNG or this README drifted
+"""
+
+
+# ── main ─────────────────────────────────────────────────────────────────
+
+def _differs(a, b):
+    """The pixels where two images differ by more than 2 levels in any
+    channel, as a bounding box, or None. Two levels of slack let a different
+    Chromium build pass; a hand edit does not."""
+    from PIL import ImageChops
+    if a.size != b.size or a.mode != b.mode:
+        return f"{a.mode} {a.size} vs {b.mode} {b.size}"
+    diff = ImageChops.difference(a, b).point(lambda v: 255 if v > 2 else 0)
+    return diff.getbbox()
 
 
 def main():
-    want = {HERE / f"{n}.svg": svg(*FILES[n][:2], square=FILES[n][2]) for n in FILES}
+    from PIL import Image
+    from playwright.sync_api import sync_playwright
+    want = {HERE / f"{n}.svg": svg(n) for n in FILES}
     want[HERE / "README.md"] = readme()
     if "--check" in sys.argv:
         stale = [p.name for p, t in want.items() if not p.exists() or p.read_text() != t]
+        if not (HERE / "preview-sheet.png").exists():
+            stale.append("preview-sheet.png (missing)")
+        with sync_playwright() as p:
+            br = p.chromium.launch(executable_path=CHROME)
+            for n in FILES:
+                path = HERE / f"{n}.png"
+                if not path.exists():
+                    stale.append(f"{n}.png (missing)")
+                    continue
+                bad = _differs(rasterise(br, n), Image.open(path))
+                if bad:
+                    stale.append(f"{n}.png ({bad})")
+            br.close()
         if stale:
             sys.exit("English logo drifted: " + ", ".join(stale))
-        print("English logo is current")
+        print(f"English logo is current: {len(FILES)} SVGs, {len(FILES)} PNGs re-rendered, README")
         return
+    for old in HERE.glob("almuhallab-code-*"):
+        if old.stem not in FILES:
+            old.unlink()
+            print("  removed", old.name)
     for p, t in want.items():
         p.write_text(t)
         print("  wrote", p.name)
-    render_pngs(list(FILES))
+    with sync_playwright() as p:
+        br = p.chromium.launch(executable_path=CHROME)
+        for n in FILES:
+            im = rasterise(br, n)
+            im.save(HERE / f"{n}.png", optimize=True)
+            print("  wrote", f"{n}.png", f"{im.size[0]}×{im.size[1]}", im.mode)
+        sheet(br)
+        print("  wrote preview-sheet.png")
+        br.close()
 
 
 if __name__ == "__main__":

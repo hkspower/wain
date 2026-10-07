@@ -494,14 +494,25 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - `design/logo-en/build.py` builds the **English logo kit** (owner's request,
   2026-10-07): ALMUHALLAB in Chakra Petch Bold with the striped amber fill,
   CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, as on
-  the English banner. Full lockup and wordmark on three grounds (`-dark`,
-  `-for-dark`, `-for-light`) plus a square tile, SVG and 4096px PNG. Every
-  letter is an outline shaped with HarfBuzz from the bundled OFL fonts, and
-  each PNG is rasterised from its SVG, so neither needs a font installed nor
-  can drift from the other. The light version's amber is solved to 3:1 on
-  white. It is a design asset beside the site, not the site's mark: the
-  masthead keeps the boum and «المهلب» in Reem Kufi. `--check` fails on a
-  hand edit.
+  the English banner. Full lockup, wordmark and the AC monogram (striped
+  amber A, white C) on three grounds (`-dark`, `-for-dark`, `-for-light`), SVG
+  plus 4096px (2048 square) PNG. Every letter is an outline shaped with
+  HarfBuzz from the bundled OFL fonts, and each PNG is rasterised from its
+  SVG; `--check` compares the SVGs as text **and re-renders every PNG** to
+  compare pixels, and the suite runs it. It is a design asset beside the
+  site, not the site's mark: the masthead keeps the boum and «المهلب» in
+  Reem Kufi. Traps a two-round review caught, all fixed and measured: a
+  `<pattern>` stripe fill is resampled and leaves see-through seams inside
+  the letters (use solid fill plus clipped band rects); a rounded PNG height
+  letterboxes the ground and leaves the edge rows of an "opaque" PNG partly
+  transparent (fit the viewBox to the rounded size, save dark tiles as
+  RGB); CSS `drop-shadow(0 0 40px)` is a Gaussian of **sigma 40**, not 20
+  (that is `box-shadow`); 8-bit compositing puts a ring one level *below*
+  the ground in a glow's tail (floor the PNG at the ground); darkening a
+  colour in HLS at constant saturation raises its chroma and swings it
+  toward orange (solve in OKLCH); a wide wordmark letterboxed in a square is
+  unreadable at profile-photo sizes (hence the monogram, judged in a circle
+  at 150/110/44/32 px).
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,
