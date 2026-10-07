@@ -68,7 +68,7 @@ export default function PrivacyPage() {
       </p>
 
       {/* No cookies */}
-      <section className="mt-10 rounded-3xl border border-palm-500/25 bg-palm-500/5 p-6">
+      <section className="mt-10 rounded-3xl border border-palm-500/25 bg-palm-500/8 p-4 sm:p-5">
         <h2 className="font-display text-xl font-semibold text-ink-900">
           ما نستخدم كوكيز — أبداً
         </h2>
@@ -87,7 +87,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* Location */}
-      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink-900">
           <IconLocate className="size-5 text-sea-600" />
           موقعك
@@ -123,7 +123,7 @@ export default function PrivacyPage() {
           Leaving the map undisclosed was the page's one real
           omission: it made «ما يوصل شي لأي طرف ثاني» read as true site-wide
           when a place page had already sent an IP to openstreetmap.org. */}
-      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         <h2 className="font-display text-xl font-semibold text-ink-900">الخريطة</h2>
         {/* Rewritten 1 October to what ships. It described one map — the
             sandboxed embed on place pages, receiving «بس إحداثيات المكان» —
@@ -165,7 +165,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* وين AI */}
-      <section id="wain-ai" className="mt-6 scroll-mt-4 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section id="wain-ai" className="mt-6 scroll-mt-4 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         <h2 className="font-display text-xl font-semibold text-ink-900">
           وين AI — مكالمة شوق ومحادثة سالم
         </h2>
@@ -246,7 +246,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* صوت وين */}
-      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         <h2 className="font-display text-xl font-semibold text-ink-900">
           صوت وين — «اقرا لي الجواب»
         </h2>
@@ -284,7 +284,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* Hosting */}
-      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         <h2 className="font-display text-xl font-semibold text-ink-900">الاستضافة</h2>
         {/* Was «ما فيه قاعدة بيانات» — no database — which stopped being true
             the day ordering shipped. The pages are still static files, but a

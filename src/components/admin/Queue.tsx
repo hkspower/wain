@@ -198,7 +198,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
 
       {/* Call next — the one action a counter repeats all day. */}
       {next && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-sea-200 bg-sea-50 p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-sea-200 bg-sea-50 p-4 sm:p-5">
           <span className="text-sm font-semibold text-sea-800">
             التالي: رقم{" "}
             <strong className="font-display text-2xl">{toArabicDigits(next.number)}</strong>
@@ -215,7 +215,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
       )}
 
       {/* Walk-ins. Without this the queue is a lie. */}
-      <div className="mb-5 rounded-3xl border border-line bg-sand-100/60 p-4">
+      <div className="mb-5 rounded-3xl border border-line bg-sand-100 p-4 sm:p-5">
         <p className="text-sm font-semibold text-ink-800">أضف زبون جا للمحل</p>
         <p className="mt-0.5 text-xs text-ink-500">
           ياخذ رقم من نفس الطابور، عشان اللي طالبين من التطبيق يشوفون مكانهم صح.
@@ -274,7 +274,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
             return (
               <li
                 key={row.id}
-                className={`flex flex-wrap items-center gap-3 rounded-3xl border bg-white p-4 shadow-sm ${
+                className={`flex flex-wrap items-center gap-3 rounded-3xl border bg-white p-4 sm:p-5 shadow-xs ${
                   isFresh ? "border-sea-400 ring-2 ring-sea-200" : "border-line"
                 }`}
               >

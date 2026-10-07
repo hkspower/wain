@@ -34,7 +34,7 @@ export function BusinessBrand({ place }: { place: Place }) {
 export function BusinessBio({ place }: { place: Place }) {
   if (!place.bioAr?.trim()) return null;
   return (
-    <section className="mt-5 rounded-2xl border border-line bg-sand-100/70 p-4 sm:p-6">
+    <section className="mt-5 rounded-2xl border border-line bg-sand-100 p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
         <IconSparkle className="size-4 text-sun-600" />
         بكلامهم
@@ -123,7 +123,7 @@ export function BusinessProducts({ place }: { place: Place }) {
         {products.map((item) => (
           <li
             key={item}
-            className="flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-sand-100/70 px-3.5 text-sm font-semibold text-ink-700"
+            className="flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-sand-100 px-3.5 text-sm font-semibold text-ink-700"
           >
             <IconCheck className="size-3.5 shrink-0 text-palm-600" />
             {item}

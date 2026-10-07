@@ -138,7 +138,7 @@ export default function AddBusinessClient() {
 
   if (done) {
     return (
-      <div className="rounded-3xl border border-line bg-white p-8 text-center shadow-sm">
+      <div className="rounded-3xl border border-line bg-white p-4 sm:p-5 text-center shadow-xs">
         <span
           aria-hidden="true"
           className="mx-auto grid size-14 place-items-center rounded-2xl bg-palm-500/12 text-palm-600"
@@ -179,7 +179,7 @@ export default function AddBusinessClient() {
       )}
 
       {/* ---- the business -------------------------------------------- */}
-      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-xs">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           معلومات المكان
         </legend>
@@ -339,7 +339,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- brand and photos ------------------------------------------ */}
-      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-xs">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           الشعار والصور
         </legend>
@@ -353,7 +353,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- where ----------------------------------------------------- */}
-      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-xs">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           وين مكانه بالضبط؟
         </legend>
@@ -419,7 +419,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- contact ---------------------------------------------------- */}
-      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-xs">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           التواصل
         </legend>

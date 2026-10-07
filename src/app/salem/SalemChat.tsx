@@ -900,7 +900,7 @@ function SalemPlacesResult({
           </li>
         ))}
       </ul>
-      <div className="rounded-3xl border border-line bg-white p-4 text-ink-900">
+      <div className="rounded-3xl border border-line bg-white p-4 sm:p-5 text-ink-900">
         <SearchMap places={places} active={activeSlug} onActive={choose} compact />
         <Link
           href={`/search/?q=${encodeURIComponent(query)}`}
@@ -935,7 +935,7 @@ function SalemPlacesResult({
 /** «وين بالضبط؟» — one place, on the map, with the way there. */
 function SalemWhere({ place }: { place: Place }) {
   return (
-    <div className="space-y-2 rounded-3xl border border-line bg-white p-4 text-ink-900">
+    <div className="space-y-2 rounded-3xl border border-line bg-white p-4 sm:p-5 text-ink-900">
       <SearchMap places={[place]} active={place.slug} compact />
       <div className="flex flex-wrap gap-2">
         <a

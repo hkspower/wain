@@ -123,7 +123,7 @@ export default function ExploreClient() {
           </div>
         </>
       ) : (
-        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-10 text-center">
+        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-10 text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600" aria-hidden="true">
             <IconCompass className="size-9" />
           </span>

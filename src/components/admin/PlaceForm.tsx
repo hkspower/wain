@@ -273,7 +273,7 @@ export default function PlaceForm({
       </div>
 
       {/* --- طلب مسبق ------------------------------------------------- */}
-      <div className="rounded-2xl border border-line bg-sand-100/50 p-4">
+      <div className="rounded-2xl border border-line bg-sand-100 p-4">
         <label className="flex items-center gap-2 text-sm font-semibold text-ink-800">
           <input
             type="checkbox"
@@ -360,7 +360,7 @@ export default function PlaceForm({
       </div>
 
       {/* --- الطابور ---------------------------------------------------- */}
-      <div className="rounded-2xl border border-line bg-sand-100/50 p-4">
+      <div className="rounded-2xl border border-line bg-sand-100 p-4">
         <label className={label} htmlFor="f-salonkind">نوع الصالون</label>
         <select
           id="f-salonkind"

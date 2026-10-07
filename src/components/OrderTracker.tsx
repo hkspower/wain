@@ -122,7 +122,7 @@ function WhatsAppCard({ order, onForget, onChange }: { order: TrackedOrder; onFo
   const cancelUrl = whatsappOrderUrl(digits, cancelOrderMessage(order.reference));
 
   return (
-    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-card="whatsapp">
+    <li className="rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs" data-order-card="whatsapp">
       <CardHead
         order={order}
         chip={
@@ -251,7 +251,7 @@ function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void
   }
 
   return (
-    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-card="db">
+    <li className="rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs" data-order-card="db">
       <CardHead
         order={order}
         chip={
@@ -349,7 +349,7 @@ function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void
       </div>
 
       {cancelError && (
-        <p className="mt-2 rounded-2xl bg-sun-100 p-3 text-sm font-semibold text-sun-900" role="alert">
+        <p className="mt-2 rounded-2xl bg-sun-50 p-3 text-sm font-semibold text-sun-900" role="alert">
           {cancelError}
         </p>
       )}
@@ -380,7 +380,7 @@ export default function OrderTracker() {
 
   if (orders.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-14 text-center">
+      <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-14 text-center">
         <p className="font-display text-lg font-semibold text-ink-900">ما عندك طلبات</p>
         <p className="mt-1 text-sm text-ink-500">
           لمّا تطلب مقدّماً من مكان، تلقاه هني وتتابع حالته.

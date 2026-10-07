@@ -554,7 +554,7 @@ export default function SearchClient() {
                is the single most annoying thing a live search box can do. */
             null
           ) : (
-            <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-16 text-center">
+            <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-16 text-center">
               <span
                 aria-hidden="true"
                 className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600"

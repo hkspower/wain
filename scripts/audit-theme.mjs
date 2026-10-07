@@ -403,6 +403,66 @@ console.log("\n── edges ──");
   } else console.log(`  no 1px ring standing in for a border ✓`);
 }
 
+console.log("\n── boxes ──");
+{
+  /* The owner's four box picks, 7 October, read per class string like the
+     edges above. Measured first: outer boxes padded 16, 20, 24 and 32px; a
+     sand fill at 100%, 70%, 60% and 50% — four shades on the white page; green
+     status boxes at five strengths; and 27 boxes still on the sm shadow, with
+     the home steps lifting 4px and a banner on xl, against the xs shadow and
+     2px lift the box system set.
+
+     A string is a BOX when it has the 15 or 20px corner and is not a control,
+     a picture or an icon tile — a button keeps its shadow, a hero keeps its
+     frame. Status chips are round and are not boxes; their fills are not
+     touched here. */
+  const files = execFileSync("grep", ["-rl", "--include=*.tsx", "className", "src/"], { cwd: ROOT, encoding: "utf8" })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  const NOT_A_BOX =
+    /hover:border-sea-|\bmin-h-(tap|10|11)\b|\boutline-none\b|\bsize-|\bplace-items-center\b|\baspect-|\bactive:scale|\binline-flex\b|\bwain-ai-slot\b/;
+  const TINT_OK = new Set(["sea-50", "coral-50", "sun-50", "palm-500/8"]);
+  const padding = [];
+  const sand = [];
+  const tints = [];
+  const shadows = [];
+  for (const f of files) {
+    const text = readFileSync(join(ROOT, f), "utf8");
+    for (const m of text.matchAll(/"[^"\n]*"|`[^`]*`/g)) {
+      const s = m[0];
+      const at = `${f}:${text.slice(0, m.index).split("\n").length}`;
+      for (const t of s.match(/(?<![\w:-])bg-sand-100\/\d+/g) ?? []) sand.push(`${at} ${t}`);
+      if (!/(?<![\w:-])(sm:)?rounded-(2xl|3xl)\b/.test(s) || NOT_A_BOX.test(s)) continue;
+      // 1. One padding: an outer box is 16px on a phone and 20px from sm. A
+      //    p-2 is a list row around a card, and px/py pairs are bands and
+      //    empty states, which are not the box being asked about.
+      const p = s.match(/(?<![\w:-])p-([\d.]+)\b/);
+      if (/(?<![\w:-])rounded-3xl/.test(s) && /(?<![\w:-])(border|bg-[a-z]+)\b/.test(s) && p && +p[1] >= 3 && !(p[1] === "4" && /\bsm:p-5\b/.test(s)))
+        padding.push(`${at} ${p[0]}${s.match(/\bsm:p-[\d.]+/)?.[0] ? " " + s.match(/\bsm:p-[\d.]+/)[0] : ""}`);
+      // 3. One tint per colour, for a status box.
+      for (const t of s.match(/(?<![\w:-])bg-(sun|palm|coral|sea)-(\d+)(\/\d+)?/g) ?? []) {
+        const v = t.slice(3);
+        const pale = /-(50|100|200)(\/|$)/.test(v) || v.includes("/");
+        if (pale && !TINT_OK.has(v)) tints.push(`${at} ${t}`);
+      }
+      // 4. One shadow and lift.
+      for (const t of s.match(/(?<![\w:-])(sm:)?shadow-(sm|md|lg|xl|2xl)\b/g) ?? []) shadows.push(`${at} ${t}`);
+      for (const t of s.match(/hover:-translate-y-(?!0\.5\b)[\d.]+|hover:shadow-(lg|xl|2xl)\b/g) ?? []) shadows.push(`${at} ${t}`);
+    }
+  }
+  const report = (list, bad, good) => {
+    if (list.length) {
+      fail(`${list.length} ${bad}:`);
+      list.forEach((h) => console.log("      " + h));
+    } else console.log(`  ${good} ✓`);
+  };
+  report(padding, "outer box(es) off the one padding — p-4 sm:p-5", "every outer box is padded 16px, 20px from sm");
+  report(sand, "see-through sand fill(s) — four shades of one colour; use bg-sand-100", "one inner fill, solid sand-100");
+  report(tints, "status box tint(s) off the one per colour (sea-50, coral-50, sun-50, palm-500/8)", "one tint per colour");
+  report(shadows, "box shadow(s) or lift(s) past xs and 2px", "every box on the xs shadow and the 2px lift");
+}
+
 console.log(
   problems === 0
     ? "\nThe theme's scales hold: type, corners and elevation all read in one direction.\n"

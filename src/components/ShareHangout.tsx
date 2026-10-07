@@ -233,7 +233,7 @@ export default function ShareHangout({
   const ready = now !== null && when !== null;
 
   return (
-    <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 shadow-xs">
+    <section id={id} className="mt-5 scroll-mt-4 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
       <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
         <IconSend className="size-5 text-coral-700" />
         رسّلها للربع

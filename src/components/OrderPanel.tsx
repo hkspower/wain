@@ -187,8 +187,8 @@ export default function OrderPanel({ place }: { place: Place }) {
     const blocked = !!wa && !wa.opened;
     return (
       <section
-        className={`mt-5 rounded-3xl border p-4 ${
-          blocked ? "border-sun-500/40 bg-sun-100/60" : "border-palm-500/30 bg-palm-500/8"
+        className={`mt-5 rounded-3xl border p-4 sm:p-5 ${
+          blocked ? "border-sun-500/40 bg-sun-50" : "border-palm-500/30 bg-palm-500/8"
         }`}
         data-order-placed={placed.channel}
       >
@@ -280,7 +280,7 @@ export default function OrderPanel({ place }: { place: Place }) {
   }
 
   return (
-    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm" data-order-channel={channel}>
+    <section className="mt-5 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs" data-order-channel={channel}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-2xl font-bold text-ink-900">اطلب مقدّماً</h2>
         <span className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-600">

@@ -155,7 +155,7 @@ export default function Submissions({
       {loading ? (
         <p className="py-10 text-center text-sm text-ink-500">نحمّل الطلبات…</p>
       ) : rows.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-14 text-center">
+        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-14 text-center">
           <p className="font-display text-lg font-semibold text-ink-900">
             {filter === "pending" ? "ما فيه طلبات تنتظر" : "ما وصلنا أي طلب بعد"}
           </p>
@@ -169,7 +169,7 @@ export default function Submissions({
             const cat = getCategory(s.category);
             const isOpen = open === s.id;
             return (
-              <li key={s.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+              <li key={s.id} className="rounded-2xl border border-line bg-white p-4 shadow-xs">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

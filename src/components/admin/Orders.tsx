@@ -214,7 +214,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
             return (
               <li
                 key={row.id}
-                className={`rounded-3xl border bg-white p-4 shadow-sm ${
+                className={`rounded-3xl border bg-white p-4 sm:p-5 shadow-xs ${
                   isFresh ? "border-sea-400 ring-2 ring-sea-200" : "border-line"
                 }`}
               >

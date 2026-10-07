@@ -211,7 +211,7 @@ export default function PlaceView({
 
       {/* Details */}
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-2xl border border-line bg-white p-3 shadow-sm">
+        <div className="rounded-2xl border border-line bg-white p-3 shadow-xs">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconSparkle className="size-5 text-sun-600" />
             أبرز ما فيه
@@ -226,7 +226,7 @@ export default function PlaceView({
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-line bg-white p-3 shadow-sm">
+        <div className="rounded-2xl border border-line bg-white p-3 shadow-xs">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconClock className="size-5 text-sea-600" />
             أحسن وقت للزيارة

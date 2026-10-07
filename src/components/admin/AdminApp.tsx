@@ -354,7 +354,7 @@ export default function AdminApp() {
       )}
 
       {view.mode === "edit" ? (
-        <section className="rounded-3xl border border-line bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
           <button
             type="button"
             onClick={() => { setApproving(null); setView({ mode: "list" }); }}
@@ -371,7 +371,7 @@ export default function AdminApp() {
                 والرابط، وبعد الحفظ ينقفل الطلب تلقائياً.
               </p>
               {(approving.logo_path || approving.image_paths?.length > 0) && (
-                <div className="mb-5 rounded-2xl border border-line bg-sand-100/60 p-4">
+                <div className="mb-5 rounded-2xl border border-line bg-sand-100 p-4">
                   <MediaReview
                     logoPath={approving.logo_path}
                     imagePaths={approving.image_paths ?? []}
@@ -449,7 +449,7 @@ export default function AdminApp() {
             {filtered.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-white p-3 shadow-sm"
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-white p-3 shadow-xs"
               >
                 <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-sand-100 text-xl">
                   {p.emoji}
@@ -529,7 +529,7 @@ function Banner({
       className={`mb-5 flex items-start gap-3 rounded-2xl border p-4 text-sm ${
         tone === "error"
           ? "border-coral-200 bg-coral-50 text-coral-800"
-          : "border-palm-500/30 bg-palm-500/10 text-palm-800"
+          : "border-palm-500/30 bg-palm-500/8 text-palm-800"
       }`}
     >
       {tone === "ok" && <IconCheck className="mt-0.5 size-4 shrink-0" />}
@@ -629,7 +629,7 @@ function SignIn({ error, onSubmit }: { error: string; onSubmit: (secret: string)
         <WainLogo className="size-14" />
         <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>
       </div>
-      <form onSubmit={submit} className="space-y-4 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <form onSubmit={submit} className="space-y-4 rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
         {error && (
           <p role="alert" className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">{error}</p>
         )}

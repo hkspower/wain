@@ -84,7 +84,7 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
   }
 
   return (
-    <li className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+    <li className="rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
@@ -119,7 +119,7 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
       </div>
 
       {status === "called" ? (
-        <p className="mt-4 rounded-2xl bg-palm-500/12 p-3 text-sm font-semibold text-palm-700" role="status">
+        <p className="mt-4 rounded-2xl bg-palm-500/8 p-3 text-sm font-semibold text-palm-700" role="status">
           <IconCheck className="me-1.5 inline size-4" />
           نادوا على رقمك — روح لهم الحين.
         </p>
@@ -174,7 +174,7 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
       </div>
 
       {leaveError && (
-        <p className="mt-2 rounded-2xl bg-sun-100 p-3 text-sm font-semibold text-sun-900" role="alert">
+        <p className="mt-2 rounded-2xl bg-sun-50 p-3 text-sm font-semibold text-sun-900" role="alert">
           {leaveError}
         </p>
       )}
@@ -208,7 +208,7 @@ export default function QueueTracker() {
 
   if (tickets.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-14 text-center">
+      <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-14 text-center">
         <p className="font-display text-lg font-semibold text-ink-900">ما عندك دور اليوم</p>
         <p className="mt-1 text-sm text-ink-500">
           خذ دورك من صفحة الصالون، وانتظر مكان ما تحب بدل ما تقعد بالمحل.

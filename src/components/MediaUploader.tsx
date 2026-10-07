@@ -158,7 +158,7 @@ export default function MediaUploader({
             acceptPhotos(e.dataTransfer.files);
           }}
           className={`flex min-h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
-            dragging ? "border-sea-400 bg-sea-50" : "border-line-strong bg-sand-100/60 hover:border-sea-300"
+            dragging ? "border-sea-400 bg-sea-50" : "border-line-strong bg-sand-100 hover:border-sea-300"
           }`}
         >
           <span className="text-sm font-semibold text-ink-700">

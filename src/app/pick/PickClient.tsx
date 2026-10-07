@@ -164,7 +164,7 @@ export default function PickClient() {
             <li
               key={place.slug}
               onPointerEnter={() => setActive(place.slug)}
-              className={`flex items-stretch gap-3 rounded-3xl border bg-white p-2 shadow-sm transition ${
+              className={`flex items-stretch gap-3 rounded-3xl border bg-white p-2 shadow-xs transition ${
                 active === place.slug ? "border-sea-300" : "border-line"
               }`}
             >

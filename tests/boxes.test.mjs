@@ -92,6 +92,29 @@ console.log('\n── a place page ──');
   await p.close();
 }
 
+console.log('\n── the second pass: one padding, one shadow, one fill ──');
+{
+  // 7 October, «improve all boxes size and colors»: /privacy padded its
+  // boxes 24px where the rest of the site used 16, cast the sm shadow, and the
+  // empty states drew sand at 70%. Outer boxes are 16px on a phone, 20px from sm.
+  const pad = async (ctx2, path, sel) => {
+    const p = await open(ctx2, path);
+    const s = await style(p, sel, ['paddingTop', 'boxShadow', 'backgroundColor']);
+    await p.close();
+    return s;
+  };
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const box = 'main section.rounded-3xl.bg-white';
+  const narrow = await pad(phone, '/privacy/', box);
+  const wide = await pad(ctx, '/privacy/', box);
+  ok('a privacy box is padded 16px on a phone', narrow?.paddingTop === '16px', JSON.stringify(narrow));
+  ok('and 20px on a computer', wide?.paddingTop === '20px', JSON.stringify(wide));
+  ok('it casts the xs shadow, not sm', wide && /0px 1px 2px 0px/.test(wide.boxShadow) && !/2px 4px -1px/.test(wide.boxShadow), wide?.boxShadow);
+  const empty = await pad(ctx, '/explore/?q=' + encodeURIComponent('زززز'), 'main .border-dashed');
+  ok('an empty state is solid sand-100', empty?.backgroundColor === 'rgb(246, 245, 243)', JSON.stringify(empty));
+  await phone.close();
+}
+
 await browser.close();
 console.log(`\n${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

@@ -57,7 +57,7 @@ export default function AboutPage() {
             text: "نرتّب الأماكن حسب قربها من موقعك.",
           },
         ].map((item) => (
-          <div key={item.title} className="rounded-3xl border border-line bg-white p-5 shadow-sm">
+          <div key={item.title} className="rounded-3xl border border-line bg-white p-4 sm:p-5 shadow-xs">
             <span className={`grid size-10 place-items-center rounded-2xl ${item.tone}`} aria-hidden="true">
               {item.icon}
             </span>
@@ -67,7 +67,7 @@ export default function AboutPage() {
         ))}
       </div>
 
-      <div className="mt-10 rounded-3xl bg-sea-700 p-6 text-center text-white shadow-md">
+      <div className="mt-10 rounded-3xl bg-sea-700 p-4 sm:p-5 text-center text-white shadow-xs">
         <p className="font-display text-2xl font-bold">
           {countAr(places.length, PLACES_COUNT)} جاهز لك
         </p>

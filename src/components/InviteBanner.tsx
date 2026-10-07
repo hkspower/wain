@@ -86,7 +86,7 @@ export default function InviteBanner({ place }: { place: Place }) {
       // Announced, because for this visitor it is the point of the page and it
       // appears after hydration rather than in the markup they first saw.
       aria-label="دعوة"
-      className={`mt-6 rounded-3xl border p-5 shadow-sm ${
+      className={`mt-6 rounded-3xl border p-4 sm:p-5 shadow-xs ${
         passed ? "border-line bg-sand-100" : "border-coral-200 bg-coral-50"
       }`}
     >
