@@ -6544,6 +6544,37 @@ This section records the first piece.
 
 **Not measured:** a real group voting from their phones.
 
+## The share panel as a ready plan, and orders emailed to the shop — 7 October (live as `a0b99c9f`)
+
+The second and third pieces of «improve hangout and orders».
+
+**The panel (`dc192bb8`, the owner picked «one-line ready plan»).**
+- Closed, the panel is one line: the place and the time (`planPhrase`), with «غيّر» to open the chips, a large send button and «خلّهم يختارون».
+- Smarter defaults:
+  - On Thursday or Friday before 22:00, the default is «الويكند».
+  - `fitShortlist` builds the list from the first place and others within 15km whose default time is still on offer.
+  - The time this device sent last (`wain:usual-when`) is the default while it is still offered.
+- The app mirrors it (`0e0db43f`, `hangout_ready_plan_test` 6, `pick_votes_test` 3).
+- **A trap found only by the full suite.** The plan line was `aria-live`. On /search that made it a second announcer beside شوق's answer, and `shouq-search`'s «exactly one live region» failed (2 regions). The commit had not run `test:hangout` end to end. The line is not a live region now; a chip says it was chosen through `aria-pressed`.
+
+**Orders by email (`4dd1b201`, the owner picked «Email from wainkw.com»).**
+- The `shop_contacts` table maps a place to an address. It is set from the CLI only: `php …/api/wain.php order-email <slug> <email|none>`. The address is never in `places.ts` or `data/places.json`, which are public.
+- A new order sends one plain-text email from `orders@wainkw.com` through PHP's `mail()`.
+- A retry of the same order sends nothing. A failed send never fails the order. The log line says `mail=none|sent|failed` and never the address.
+- `sync-orders` copies the five ordering fields from the deployed `places.json` onto existing rows, because `seed` never overwrites.
+- **Lint caught a real bug in the twin.** `\.` inside a JS template literal is `.`, so the generated CHECK accepted any character between the name and the domain. It is `\\.` now, as `contact_email` always was.
+- `/privacy` says the shop may get the order by email, and `docs/orders.md` gained the `إيميل:` intake line and the two server commands.
+- Tests: `test:wain-api` 172. With the send switched off, 5 of the email assertions fail.
+- **Not measured:** whether `mail()` on this host actually delivers, and to which folder (SPF names Hostinger's mail; `orders@wainkw.com` has no mailbox). The first real order to a shop with an address is the proof.
+
+**Live.**
+- Back end at `1c185fbfe6a3d59d` on both stages by fetch-pin-run (`saved [95537/95537]`). `selftest` 9/9, and the counts now include `shop_contacts: 0`.
+- **The first `wget` used the short sha and was deleted before it ever fired.** The `install` job then answered «Could not open input file». Use the full sha, and read the job's output before deleting it.
+- Site archive `0139ff2` (agent build), job read at its first firing: `{"deployed":278,"removed":18,"emptied":1}`.
+- `deploy:verify`: «a0b99c9f is live — verified at the root and 7 levels below it» (digest `44ca6eb950981fb1`). The proof list now includes the og image, which the observed file must carry or the check fails.
+- Two per-minute jobs that are not ours were in the crontab and were left alone: `qiwunUHQ2x` (`tail url-sec.txt`) and `Hs63G7IE0n` (`publish-all.php`).
+- `admin.secret` is still EMPTY.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
