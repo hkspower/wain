@@ -73,7 +73,7 @@ export default function ExploreClient() {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="ابحث عن مكان أو منطقة"
           placeholder="دوّر على مكان أو منطقة…"
-          className="w-full rounded-2xl border border-line bg-white py-2.5 pe-3 ps-11 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          className="w-full rounded-2xl border border-line-control bg-white py-2.5 pe-3 ps-11 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
       </div>
 
@@ -86,7 +86,7 @@ export default function ExploreClient() {
           className={`flex min-h-tap items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
             category === "all"
               ? "bg-ink-900 text-white shadow-sm"
-              : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
+              : "border border-line-control bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
           }`}
         >
           <CategoryIcon name="all" className="icon-pop size-4" />
@@ -101,7 +101,7 @@ export default function ExploreClient() {
             className={`flex min-h-tap items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
               category === cat.id
                 ? "bg-ink-900 text-white shadow-sm"
-                : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
+                : "border border-line-control bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
             }`}
           >
             <CategoryIcon name={cat.icon} className="icon-pop size-4" />

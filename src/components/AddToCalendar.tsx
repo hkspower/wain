@@ -65,7 +65,7 @@ export default function AddToCalendar({
           haptic("tap");
           cal.downloadCalendar(entry());
         }}
-        className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
+        className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
       >
         <IconClock className="size-4" />
         أضفها للتقويم

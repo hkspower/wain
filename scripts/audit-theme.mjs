@@ -351,6 +351,58 @@ console.log("\n── written down, not improvised ──");
   } else console.log(`  no inner box painted in the cards' own white ✓`);
 }
 
+console.log("\n── edges ──");
+{
+  /* The owner's three border picks, 7 October. Read per class STRING, not per
+     line: a ternary carries two looks for one element, and the pale one was
+     usually the inactive branch («border-line bg-white … hover:border-sea-300»
+     on /explore's chips while /search's chips said line-control).
+
+     1. A control's edge is line-control. `line` is 1.42:1 on white — the
+        theme's own comment gives it to cards and dividers — and a button or a
+        field drawn with it has no edge anyone can find (WCAG 1.4.11 asks 3:1).
+        A string is a control when it hovers to sea, is a tap target or drops
+        the outline (a field).
+     2. One hover per kind: a box lifts to line-strong, a control to sea-300.
+        Coral stays only where it means something: شوق's own card and voice
+        buttons, and the admin's reject and no-show, where it says «careful».
+     3. A 1px ring is a border drawn where layout cannot see it. Over a photo
+        or a map an ink ring is right — it separates the control from the
+        picture — so only a ring in the page's own colours is flagged. */
+  const files = execFileSync("grep", ["-rl", "--include=*.tsx", "className", "src/"], { cwd: ROOT, encoding: "utf8" })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  const CORAL_OK = /(ShouqAnswer|VoiceControls|admin\/Queue|admin\/Submissions)\.tsx$/;
+  const pale = [];
+  const hovers = [];
+  const rings = [];
+  for (const f of files) {
+    const text = readFileSync(join(ROOT, f), "utf8");
+    for (const m of text.matchAll(/"[^"\n]*"|`[^`]*`/g)) {
+      const s = m[0];
+      const at = `${f}:${text.slice(0, m.index).split("\n").length}`;
+      const control = /hover:border-sea-|\bmin-h-(tap|10|11)\b|\boutline-none\b/.test(s);
+      if (control && /\bborder-line(?![-\w/])/.test(s)) pale.push(at);
+      const h = s.match(/hover:border-(ink|palm|coral)-\d+/g) ?? [];
+      for (const c of h) if (!c.includes("coral") || !CORAL_OK.test(f)) hovers.push(`${at} ${c}`);
+      if (/\bring-1\b/.test(s) && /\bring-(line|sea-\d+|sand-\d+|white)\b/.test(s)) rings.push(at);
+    }
+  }
+  if (pale.length) {
+    fail(`${pale.length} control(s) drawn with the cards' 1.42:1 line — use border-line-control:`);
+    pale.forEach((h) => console.log("      " + h));
+  } else console.log(`  every button and field has the 3:1 control edge ✓`);
+  if (hovers.length) {
+    fail(`${hovers.length} hover edge(s) off the two kinds (boxes line-strong, controls sea-300):`);
+    hovers.forEach((h) => console.log("      " + h));
+  } else console.log(`  one hover per kind ✓`);
+  if (rings.length) {
+    fail(`${rings.length} ring(s) drawn as a border — use border:`);
+    rings.forEach((h) => console.log("      " + h));
+  } else console.log(`  no 1px ring standing in for a border ✓`);
+}
+
 console.log(
   problems === 0
     ? "\nThe theme's scales hold: type, corners and elevation all read in one direction.\n"

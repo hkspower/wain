@@ -135,7 +135,7 @@ export default function InviteBanner({ place }: { place: Place }) {
             href={mapsUrl(place)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
+            className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
           >
             الطريق
             <IconGo className="size-4" />

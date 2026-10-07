@@ -137,7 +137,7 @@ export default function Submissions({
             className={`min-h-tap rounded-full px-4 text-sm font-semibold transition ${
               filter === f
                 ? "bg-ink-900 text-white"
-                : "border border-line bg-white text-ink-600 hover:border-sea-300"
+                : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
             }`}
           >
             {f === "pending" ? "بانتظار المراجعة" : "كل الطلبات"}

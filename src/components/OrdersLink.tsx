@@ -82,7 +82,7 @@ export function useTicketCount(): number {
  * is where they live now.
  */
 const PILL =
-  "flex min-h-tap items-center gap-1.5 whitespace-nowrap rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-sea-100 transition hover:bg-sea-100";
+  "flex min-h-tap items-center gap-1.5 whitespace-nowrap rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-800 shadow-sm border border-sea-100 transition hover:bg-sea-100";
 const BADGE = "rounded-full bg-sea-100 px-1.5 py-0.5 text-xs font-semibold text-sea-800";
 
 export function QueueLink() {
@@ -143,7 +143,7 @@ export function LiveTray() {
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 standalone:hidden"
     >
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg ring-1 ring-line backdrop-blur">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg border border-line backdrop-blur">
           <OrdersLink />
           <QueueLink />
         </div>

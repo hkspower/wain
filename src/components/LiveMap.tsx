@@ -398,7 +398,7 @@ export default function LiveMap({
           type="button"
           onClick={toggleTouch}
           aria-pressed={!touchLocked}
-          className="absolute right-3 top-3 z-30 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm"
+          className="absolute right-3 top-3 z-30 rounded-full border border-line-control bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm"
         >
           {touchLocked ? "حرّكها بإصبعك" : "رجّع التمرير للصفحة"}
         </button>

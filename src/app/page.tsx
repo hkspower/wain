@@ -52,7 +52,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-2.5 pt-3 text-center sm:px-4 sm:pt-4">
           <Link
             href="/search"
-            className="inline-flex min-h-tap items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-sand-100 active:scale-[0.98]"
+            className="inline-flex min-h-tap items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm border border-line-control transition hover:bg-sand-100 active:scale-[0.98]"
           >
             <IconSearch className="size-4" />
             دوّر باسم المكان

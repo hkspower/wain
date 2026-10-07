@@ -81,7 +81,7 @@ export default function MediaReview({
               className={`inline-flex min-h-tap items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition ${
                 logoApproved
                   ? "bg-palm-600 text-white"
-                  : "border border-line-control bg-white text-ink-600 hover:border-palm-400"
+                  : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
               }`}
             >
               {logoApproved ? <IconCheck className="size-4" /> : <IconClose className="size-4" />}

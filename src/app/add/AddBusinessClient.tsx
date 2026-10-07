@@ -227,7 +227,7 @@ export default function AddBusinessClient() {
                 className={`flex min-h-tap items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
                   v.category === c.id
                     ? "bg-ink-900 text-white"
-                    : "border border-line bg-white text-ink-600 hover:border-sea-300"
+                    : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
                 }`}
               >
                 <CategoryIcon name={c.icon} className="icon-pop size-4" />
@@ -264,7 +264,7 @@ export default function AddBusinessClient() {
                   className={`flex min-h-tap flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition ${
                     v.priceLevel === n
                       ? "bg-ink-900 text-white"
-                      : "border border-line bg-white text-ink-600 hover:border-sea-300"
+                      : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
                   }`}
                 >
                   {/* Filled dots, the same reading the place cards use.

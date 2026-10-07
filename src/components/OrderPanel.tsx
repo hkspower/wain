@@ -235,7 +235,7 @@ export default function OrderPanel({ place }: { place: Place }) {
               <button
                 type="button"
                 onClick={() => copyText(wa.text)}
-                className="inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-palm-300 hover:text-palm-700"
+                className="inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
               >
                 {copied ? "انتسخ ✓" : "انسخ"}
               </button>

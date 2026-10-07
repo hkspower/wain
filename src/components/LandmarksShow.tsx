@@ -120,7 +120,7 @@ export default function LandmarksShow({ slides }: { slides: LandmarkSlide[] }) {
           data-rotation
           onClick={() => setPaused((p) => !p)}
           aria-label={paused ? "كمّل العرض" : "وقّف العرض"}
-          className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink-700 shadow-sm transition hover:bg-sand-100 active:scale-[0.96]"
+          className="inline-flex min-h-tap items-center gap-1.5 rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 shadow-sm transition hover:bg-sand-100 active:scale-[0.96]"
         >
           {paused ? <IconPlay className="size-4" /> : <IconPause className="size-4" />}
           {paused ? "كمّل" : "وقّف"}

@@ -1208,7 +1208,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   <button
                     type="button"
                     onClick={closeSheet}
-                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-ink-400"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                   >
                     {WAIN_AI_COPY.back}
                   </button>
@@ -1244,7 +1244,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   <button
                     type="button"
                     onClick={closeSheet}
-                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-ink-400"
+                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                   >
                     {WAIN_AI_COPY.back}
                   </button>

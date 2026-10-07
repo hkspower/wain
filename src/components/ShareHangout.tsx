@@ -340,7 +340,7 @@ export default function ShareHangout({
                 className={`min-h-tap rounded-full px-4 text-sm font-semibold transition ${
                   active
                     ? "bg-coral-700 text-white shadow-sm"
-                    : "bg-sand-100 text-ink-700 ring-1 ring-line hover:bg-sand-200"
+                    : "border border-line-control bg-sand-100 text-ink-700 hover:bg-sand-200"
                 }`}
               >
                 {o.labelAr}
@@ -418,7 +418,7 @@ export default function ShareHangout({
                 /* the text is already on screen, selectable */
               }
             }}
-            className="mt-2 inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
+            className="mt-2 inline-flex min-h-tap items-center gap-1.5 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
           >
             انسخ
           </button>
