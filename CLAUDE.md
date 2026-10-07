@@ -6358,6 +6358,20 @@ at their first firing, deleted and listed gone; `otoqUWjXyf` (`live-image-storag
 is another session's and was left alone. **Not heard here**: how they sound, and whether the
 live site's first call returns audio on a phone — one tap of «اقرا لي الجواب» closes it.
 
+## The voice bridge was switched off again — 7 October, same evening
+
+The owner asked for شوق and سالم on the live site «without ElevenLabs credits». On the live
+site only the read-aloud ever spends any (the call is the phone's speech recognition and
+سالم answers from our own search; no widget ships). So the key file was **renamed, not
+deleted**: `storage/elevenlabs.key` → `storage/elevenlabs.key.off`, one `mv` cron job read
+at its first firing and deleted. `tts.php version` then says `key: ABSENT`, so every
+sentence answers 503 `not_configured`, voice.ts remembers it for the visit and the phone's
+voice speaks; nothing is spent. **To turn the voices back on: rename it back
+(`mv …/elevenlabs.key.off …/elevenlabs.key`) — the key is still valid and no deploy is
+needed.** Do not truncate the file: an ElevenLabs key is shown once and cannot be read back.
+A visit costs one refused request to `/api/tts.php`, which is the price of leaving the bridge
+as the site's default.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
