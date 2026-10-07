@@ -527,9 +527,97 @@ console.log(`front     ${wheels.plan?.front ?? "?"}  ` +
       `${centred} wheels sit on the centreline — the front one should, and only it`));
 }
 
+// ---- 7. The front wheel can be SEEN ----------------------------------
+//
+// Section 6 counted the wheels and passed for as long as the car's one
+// front tyre stood on the centreline INSIDE the nose: a centre wheel has no
+// flank to show through, the shell is solid, and every picture of the car
+// drew a machine with a rear axle and no front tyre — with two teal brake
+// calipers floating in the flanks where the front wheels would have been.
+// Counting wheels cannot see that. This asks what a camera would: fire rays
+// at the tyre from in front of the car and ask what they meet first, and
+// ask the shell and the parts built on the nose whether anything of theirs
+// is left standing in the tyre's footprint.
+const seen = await page.evaluate(async (id) => {
+  const THREE = window.__grnThree;
+  const car = window.__grnShowroom.car(id);
+  const g = window.__grnBuildCar({
+    body: car.color, style: car.style, kit: car.kit, raceKit: car.kit === "attack",
+    lengthM: car.lengthM, rims: car.rims, livery: car.livery, trike: car.trike,
+  });
+  // The authored shell arrives asynchronously; the opening has to be there
+  // on it as well as on the extruded body the car is first built with.
+  const t0 = performance.now();
+  while (!(g.userData.shellSwap && g.userData.shellSwap.body) && performance.now() - t0 < 90000) {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  g.updateMatrixWorld(true);
+  const wheels = g.userData.wheels ?? [];
+  const front = wheels[0];
+  const isWheel = (o) => { for (let p = o; p; p = p.parent) if (wheels.includes(p)) return true; return false; };
+  const fbox = new THREE.Box3().setFromObject(front);
+  const c = fbox.getCenter(new THREE.Vector3());
+  const ray = new THREE.Raycaster();
+  // The solid parts only: the beams and flares are not what hides a tyre,
+  // and a sprite cannot be raycast without a camera.
+  const solids = [];
+  g.traverse((o) => { if (o.isMesh && !o.material?.transparent && !o.userData.noShadow) solids.push(o); });
+  let rays = 0, onTyre = 0;
+  const blockers = {};
+  for (const dx of [-0.07, 0, 0.07]) {
+    for (const fy of [0.3, 0.5, 0.7]) {
+      const y = fbox.min.y + (fbox.max.y - fbox.min.y) * fy;
+      ray.set(new THREE.Vector3(c.x + dx, y, fbox.max.z + 3), new THREE.Vector3(0, 0, -1));
+      const hit = ray.intersectObjects(solids, false)[0];
+      rays++;
+      if (hit && isWheel(hit.object)) onTyre++;
+      else { const k = hit?.object?.material?.name || hit?.object?.name || "nothing"; blockers[k] = (blockers[k] ?? 0) + 1; }
+    }
+  }
+  // Shell triangles left in the tyre's own footprint (the group's units).
+  const lbox = fbox.clone().applyMatrix4(new THREE.Matrix4().copy(g.matrixWorld).invert());
+  let inFootprint = 0;
+  let body = null;
+  g.traverse((o) => { if (o.isMesh && o.userData.shell === "body") body = o; });
+  const geo = body.geometry, p = geo.attributes.position, ix = geo.index;
+  const n = ix ? ix.count : p.count;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3();
+  for (let t = 0; t < n; t += 3) {
+    const i = (j) => (ix ? ix.getX(t + j) : t + j);
+    a.fromBufferAttribute(p, i(0)); b.fromBufferAttribute(p, i(1)); d.fromBufferAttribute(p, i(2));
+    const cx = (a.x + b.x + d.x) / 3, cy = (a.y + b.y + d.y) / 3, cz = (a.z + b.z + d.z) / 3;
+    if (Math.abs(cx) < (lbox.max.x - lbox.min.x) / 2 && cy > lbox.min.y + 0.05 && cy < lbox.max.y - 0.05 && cz > lbox.min.z) inFootprint++;
+  }
+  // Calipers belong to wheels: one each, near it.
+  const calipers = [];
+  g.traverse((o) => { if (o.isMesh && /^caliper/.test(o.material?.name ?? "")) calipers.push(o); });
+  const near = calipers.filter((cp) => {
+    const q = cp.getWorldPosition(new THREE.Vector3());
+    return wheels.some((w) => { const wp = w.getWorldPosition(new THREE.Vector3()); return Math.hypot(wp.x - q.x, wp.z - q.z) < 0.35; });
+  }).length;
+  let frontPlates = 0;
+  g.traverse((o) => { if (o.isMesh && o.material?.name === "plate" && o.getWorldPosition(new THREE.Vector3()).z > 0) frontPlates++; });
+  return { rays, onTyre, blockers, inFootprint, calipers: calipers.length, near, frontPlates,
+    shell: g.userData.shellSwap?.body, tyreZ: +c.z.toFixed(2), wheelbase: g.userData.wheelPlan?.wheelbase };
+}, DEMON);
+
+console.log(`tyre seen  ${seen.onTyre} of ${seen.rays} rays from the front reach the tyre first` +
+  (seen.onTyre === seen.rays ? "" : `; blocked by ${JSON.stringify(seen.blockers)}`) + "  " +
+  check(seen.onTyre === seen.rays,
+    `only ${seen.onTyre} of ${seen.rays} rays from in front of the car reach the front tyre — ${JSON.stringify(seen.blockers)} is in the way, so the tyre is hidden`));
+console.log(`shell      ${seen.inFootprint} triangles in the tyre's footprint (shell: ${seen.shell})  ` +
+  check(seen.shell === "authored", `the authored shell was not accepted (${seen.shell}) — the opening was cut in a body that is not the one drawn`) + " " +
+  check(seen.inFootprint === 0, `${seen.inFootprint} shell triangles stand where the front tyre does`));
+console.log(`calipers   ${seen.calipers}, ${seen.near} beside a wheel  ` +
+  check(seen.calipers === 3 && seen.near === 3,
+    `${seen.calipers} brake calipers, ${seen.near} of them beside a wheel — a three-wheeler has three, each on its wheel (the old list put two in the flanks at the front axle)`));
+console.log(`plate      ${seen.frontPlates} on the nose  ` +
+  check(seen.frontPlates === 0, "a front plate hangs where the front wheel stands"));
+check(seen.wheelbase > 3.0, `the wheelbase is ${seen.wheelbase}: the front axle did not move to the nose`);
+
 await browser.close();
 if (fail.length) {
   console.log(`\nFAILURES:\n${fail.map((f) => ` - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log("\nthe Black Demon is black, marked on four sides, on three wheels, and behind two locks");
+console.log("\nthe Black Demon is black, marked on four sides, on three wheels (the front one in view), and behind two locks");

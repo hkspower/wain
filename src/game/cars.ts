@@ -1981,6 +1981,269 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
  */
 export const TIRE_RADIUS = 0.375;
 
+/**
+ * The three-wheeler's nose: where its one front wheel is, and the opening
+ * in the bodywork it stands in.
+ *
+ * THE FRONT WHEEL WAS NEVER SHOWN. A centre wheel has no flank to poke
+ * through — every other car's wheels show because they stand half outside
+ * the side panels — and the shells are solid, the arches painted-on dark
+ * wells. So the Black Demon's one front tyre, rim and disc stood inside the
+ * nose at x = 0, z = 1.45, behind the grille, and every picture of the car
+ * (the game's, and the Blender, 3ds Max and Unreal ones made from its GLB)
+ * showed a machine with a rear axle and no front tyre at all, with two
+ * brake calipers floating where the front wheels would have been.
+ *
+ * So it moves forward to the nose and the nose opens for it: a well cut
+ * through the shell (public/models/car-gtr-trike.glb, which
+ * tools/blender/build_assets.py makes from these numbers, exported in
+ * profiles.json) and through the face parts built in cars.ts
+ * (carveTrikeWell). Chosen by looking: three candidate axles were rendered
+ * from the front, the quarter and the side, and 2.27 was the one that reads
+ * as a wheel in a nose rather than a slot in one.
+ *
+ * Group units, before the length fit (a x0.903 on the Black Demon).
+ */
+export const TRIKE_NOSE = {
+  /** The front axle, along the car. The other layouts keep their own. */
+  z: 2.27,
+  /** Half the opening across: the tyre's half width, its steering sweep
+   *  (about 80 mm at 30 degrees) and a margin. */
+  halfW: 0.235,
+  /** The roof of the opening: just above the top of the tyre (0.645) and
+   *  under the bonnet's leading edge, which falls to 0.66 at the nose. A
+   *  higher roof (0.71 was tried) cuts a notch out of the bonnet's lip. */
+  top: 0.65,
+  /** How far back it runs: behind the tyre, so the wheel stands in a
+   *  tunnel and not a notch. */
+  back: 1.8,
+  /** The opening is cut from the ground up, so it also takes whatever
+   *  hangs below the nose. */
+  floor: -0.5,
+} as const;
+
+/** Whether a point (group units) is inside the front wheel's opening. */
+export function inTrikeWell(x: number, y: number, z: number): boolean {
+  const N = TRIKE_NOSE;
+  return Math.abs(x) <= N.halfW && y >= N.floor && y <= N.top && z >= N.back;
+}
+
+/**
+ * Cut a mesh's triangles against the front wheel's opening and keep what is
+ * outside it. The mesh may be placed in the group (`toGroup` maps its own
+ * space to the group's); the cut is made in its own space, so nothing is
+ * moved. Returns null when nothing is inside, which is almost every part.
+ *
+ * Every attribute is carried (normals, uvs) and a triangle the opening only
+ * partly covers is SPLIT on the opening's faces, not dropped: the nose of the
+ * shell is a few big triangles that run the whole width of the car, and a
+ * test on a triangle's centre would delete all of one or none of it.
+ */
+function clipOutsideWell(geo: THREE.BufferGeometry, toGroup: THREE.Matrix4): THREE.BufferGeometry | null {
+  const N = TRIKE_NOSE;
+  const names = ["position", ...Object.keys(geo.attributes).filter((k) => k !== "position")];
+  const attrs = names.map((k) => geo.getAttribute(k) as THREE.BufferAttribute);
+  if (!attrs[0] || attrs.some((a) => (a as unknown as { isInterleavedBufferAttribute?: boolean }).isInterleavedBufferAttribute)) return null;
+  const sizes = attrs.map((a) => a.itemSize);
+  const stride = sizes.reduce((x, y) => x + y, 0);
+  // The opening's six faces as planes, inside = non-negative, in the part's space.
+  const back = new THREE.Matrix4().copy(toGroup).invert();
+  const planes = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), N.halfW),
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), N.halfW),
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), -N.floor),
+    new THREE.Plane(new THREE.Vector3(0, -1, 0), N.top),
+    new THREE.Plane(new THREE.Vector3(0, 0, 1), -N.back),
+  ].map((pl) => pl.applyMatrix4(back));
+
+  const idx = geo.index;
+  const count = idx ? idx.count : attrs[0].count;
+  const vertex = (i: number): Float64Array => {
+    const v = new Float64Array(stride);
+    let o = 0;
+    for (let k = 0; k < attrs.length; k++) {
+      for (let c = 0; c < sizes[k]; c++) v[o++] = attrs[k].getComponent(i, c);
+    }
+    return v;
+  };
+  const dist = (pl: THREE.Plane, v: Float64Array) => pl.normal.x * v[0] + pl.normal.y * v[1] + pl.normal.z * v[2] + pl.constant;
+  const lerp = (a: Float64Array, b: Float64Array, t: number) => {
+    const r = new Float64Array(stride);
+    for (let i = 0; i < stride; i++) r[i] = a[i] + (b[i] - a[i]) * t;
+    return r;
+  };
+  const split = (poly: Float64Array[], pl: THREE.Plane) => {
+    const inside: Float64Array[] = [];
+    const outside: Float64Array[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const cur = poly[i];
+      const nxt = poly[(i + 1) % poly.length];
+      const dc = dist(pl, cur);
+      const dn = dist(pl, nxt);
+      (dc >= 0 ? inside : outside).push(cur);
+      if ((dc >= 0) !== (dn >= 0)) {
+        const x = lerp(cur, nxt, dc / (dc - dn));
+        inside.push(x);
+        outside.push(x);
+      }
+    }
+    return { inside, outside };
+  };
+
+  const out: number[][] = attrs.map(() => []);
+  let cut = 0;
+  const emit = (v: Float64Array) => {
+    let o = 0;
+    for (let k = 0; k < attrs.length; k++) for (let c = 0; c < sizes[k]; c++) out[k].push(v[o++]);
+  };
+  for (let t = 0; t < count; t += 3) {
+    const tri = [0, 1, 2].map((j) => vertex(idx ? idx.getX(t + j) : t + j));
+    // Wholly outside any one face of the opening: untouched.
+    if (planes.some((pl) => tri.every((v) => dist(pl, v) < 0))) {
+      tri.forEach(emit);
+      continue;
+    }
+    let rest: Float64Array[][] = [tri];
+    const keep: Float64Array[][] = [];
+    for (const pl of planes) {
+      const next: Float64Array[][] = [];
+      for (const poly of rest) {
+        const { inside, outside } = split(poly, pl);
+        if (outside.length >= 3) keep.push(outside);
+        if (inside.length >= 3) next.push(inside);
+      }
+      rest = next;
+      if (!rest.length) break;
+    }
+    if (rest.length) cut++;
+    else if (keep.length === 0) { tri.forEach(emit); continue; }
+    for (const poly of keep) for (let i = 1; i + 1 < poly.length; i++) { emit(poly[0]); emit(poly[i]); emit(poly[i + 1]); }
+  }
+  if (!cut) return null;
+  const flat = new THREE.BufferGeometry();
+  names.forEach((k, i) => flat.setAttribute(k, new THREE.BufferAttribute(new Float32Array(out[i]), sizes[i], attrs[i].normalized)));
+  // Share vertices again: the cut makes every triangle its own three, and a
+  // shell is 90,000 of them — three megabytes of file and as much GPU memory.
+  // Identical vertices (same position, normal, uv) merge; the cut's own
+  // new ones are shared where triangles meet at them.
+  const own = mergeVertices(flat, 1e-5);
+  own.userData = { ...geo.userData, carved: true };
+  return own;
+}
+
+/** The tunnel the front wheel stands in: a dark lining for the opening cut in
+ *  the shell, built from where the shell's skin actually is. */
+function trikeWellLining(body: THREE.BufferGeometry): THREE.Mesh | null {
+  const N = TRIKE_NOSE;
+  const probe = new THREE.Mesh(body, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  probe.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  const hit = (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number): THREE.Vector3 | null => {
+    ray.set(new THREE.Vector3(ox, oy, oz), new THREE.Vector3(dx, dy, dz));
+    const h = ray.intersectObject(probe, false)[0];
+    return h ? h.point : null;
+  };
+  const zFace = (x: number, y: number) => hit(x, y, 4, 0, 0, -1)?.z ?? null;
+  const yFloor = (x: number, z: number) => hit(x, -2, z, 0, 1, 0)?.y ?? null;
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  // Triangulate a polygon in (a, b) and place it with a function; wound so it faces `facing`.
+  const poly = (pts: Array<[number, number]>, place: (a: number, b: number) => THREE.Vector3, facing: THREE.Vector3) => {
+    const v2 = pts.map(([a, b]) => new THREE.Vector2(a, b));
+    for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(v2, [])) {
+      const A = place(...pts[i]);
+      const B = place(...pts[j]);
+      const C = place(...pts[k]);
+      const flip = new THREE.Vector3().crossVectors(B.clone().sub(A), C.clone().sub(A)).dot(facing) < 0;
+      for (const P of flip ? [A, C, B] : [A, B, C]) {
+        pos.push(P.x, P.y, P.z);
+        nrm.push(facing.x, facing.y, facing.z);
+      }
+    }
+  };
+  const inset = 0.0005;
+  const hw = N.halfW;
+  const yb = yFloor(0, N.back);
+  const zTop = zFace(0, N.top - inset);
+  if (yb === null || zTop === null) return null;
+  // Side walls: the skin's own outline at the opening's edge, from the floor
+  // of the nose up the face to the roof, closed along the roof and the back.
+  for (const sx of [-1, 1]) {
+    const x = sx * hw;
+    const outline: Array<[number, number]> = []; // (z, y)
+    const zb0 = zFace(x, yb + 0.004) ?? zTop;
+    for (let i = 0; i <= 6; i++) {
+      const z = N.back + ((zb0 - N.back) * i) / 6;
+      outline.push([z, yFloor(x, Math.min(z, zb0 - 0.001)) ?? yb]);
+    }
+    for (let i = 1; i <= 10; i++) {
+      const y = yb + 0.004 + ((N.top - inset - yb - 0.004) * i) / 10;
+      outline.push([zFace(x, y) ?? zTop, y]);
+    }
+    outline.push([N.back, N.top - inset]);
+    poly(outline, (z, y) => new THREE.Vector3(x, y, z), new THREE.Vector3(-sx, 0, 0));
+  }
+  // Roof of the opening and its back.
+  poly([[N.back, -hw], [zTop, -hw], [zTop, hw], [N.back, hw]], (z, x) => new THREE.Vector3(x, N.top - inset, z), new THREE.Vector3(0, -1, 0));
+  poly([[-hw, yb], [hw, yb], [hw, N.top - inset], [-hw, N.top - inset]], (x, y) => new THREE.Vector3(x, y, N.back), new THREE.Vector3(0, 0, 1));
+  probe.material.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(nrm), 3));
+  const lining = new THREE.Mesh(g, wellMat);
+  lining.userData.trikeLining = true;
+  lining.userData.trim = "trike-well";
+  return lining;
+}
+
+/**
+ * Open the nose for the front wheel (TRIKE_NOSE): cut the shell and every
+ * part built on the nose against the opening, and line the opening in the
+ * shell. The cut is made here, in the game, after the shell has been crowned
+ * and fitted, so the rest of the body is exactly what every other GTR's is
+ * (a cut shell file would reshape the whole car through the crown, and its
+ * bounding box would trip the fit gate) and it applies to the extruded
+ * fallback body as well as the authored one.
+ *
+ * A part's geometry may be shared with other cars (the grille's merged bars
+ * are cached by shape), so a part that needs cutting gets its own copy and
+ * one that does not keeps what it has. Safe to call twice: the second call
+ * finds nothing left to cut, and the lining is rebuilt only when the body's
+ * geometry has changed under it.
+ */
+export function carveTrikeWell(group: THREE.Group, wheels: readonly THREE.Object3D[]): number {
+  group.updateMatrixWorld(true);
+  const toGroupOf = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const m = new THREE.Matrix4();
+  let removed = 0;
+  let body: THREE.Mesh | null = null;
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    // The contact shadow (noShadow) is a decal on the road under the whole
+    // car, and the front wheel stands on it too.
+    if (!mesh.isMesh || mesh.userData.wheelPart || mesh.userData.trikeLining || mesh.userData.noShadow) return;
+    if (mesh.userData.shell === "body") body = mesh;
+    else if (mesh.userData.shell) return; // glass and roof are above the opening
+    for (let p: THREE.Object3D | null = mesh.parent; p && p !== group; p = p.parent) {
+      if (wheels.includes(p) || p.userData.spokes !== undefined) return;
+    }
+    m.multiplyMatrices(toGroupOf, mesh.matrixWorld);
+    const own = clipOutsideWell(mesh.geometry, m);
+    if (own) {
+      const hadLining = mesh === body;
+      if (hadLining) {
+        // The lining is measured on the skin as it was before the cut.
+        for (const old of group.children.filter((c) => c.userData.trikeLining)) group.remove(old);
+        const lining = trikeWellLining(mesh.geometry);
+        if (lining) group.add(lining);
+      }
+      mesh.geometry = own;
+      removed++;
+    }
+  });
+  return removed;
+}
+
 /*
  * Two things about the paragraph above, both measured since it was
  * written, for whoever comes at this next.
@@ -4432,6 +4695,36 @@ export const FACE_FALLBACK: Record<BodyStyle, FaceSpec> = {
 const SPLITTER_Y = 0.2;
 const SPLITTER_H = 0.05;
 const SPLITTER_R = 0.016;
+/**
+ * A strip across the nose — the splitter, a lip — added to the group. On a
+ * three-wheeler it is two strips with the front wheel's opening between
+ * them (TRIKE_NOSE): one box across the nose passes through the tyre, and
+ * deleting the part of it inside the opening would leave a hollow open end
+ * where a viewer looks straight at it.
+ */
+function acrossNose(
+  group: THREE.Group,
+  mat: THREE.Material,
+  width: number,
+  h: number,
+  depth: number,
+  r: number,
+  y: number,
+  z: number,
+  split: boolean
+): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  const gap = TRIKE_NOSE.halfW + 0.03;
+  const pieces: Array<[number, number]> = split ? [[-width / 2, -gap], [gap, width / 2]] : [[-width / 2, width / 2]];
+  for (const [xa, xb] of pieces) {
+    const strip = new THREE.Mesh(roundedBox(xb - xa, h, depth, r), mat);
+    strip.position.set((xa + xb) / 2, y, z);
+    group.add(strip);
+    out.push(strip);
+  }
+  return out;
+}
+
 /** Where the splitter actually ends. roundedBox grows a box by its corner
  *  radius on every side (the bevel extends OUT from the outline), so the
  *  50 mm lip stands 82 mm tall; measured, its top is at 241 mm, not 225. */
@@ -6951,9 +7244,9 @@ export function createCar(colors: CarColors): THREE.Group {
     // badge behind a plate is not a badge; the car wears its roundel on
     // the nose instead (see the detailing below), the way cars with a
     // low mouth do.
-    if (f.badge && !badgeBehindPlate) {
+    if (f.badge && !badgeBehindPlate && !colors.trike) {
       place(roundedBox(0.1, 0.1, 0.03, 0.03), "badge", chromeLocal, 0, y, PROUD.badge, "badge");
-    } else if (f.badge && !tag) {
+    } else if (f.badge && !tag && !colors.trike) {
       faceOmitted.push("badge: behind the number plate; worn on the nose instead");
     }
     if (style === "hatch") {
@@ -6985,6 +7278,9 @@ export function createCar(colors: CarColors): THREE.Group {
   // corner points, and the bumper bows out past them by up to 40 mm, so
   // "anchor plus 20" left the front plate inside the FD's nose.
   for (const front of [true, false]) {
+    // A three-wheeler's nose is open where the plate hangs: the front
+    // wheel stands in it (TRIKE_NOSE). The rear plate is unchanged.
+    if (front && colors.trike) continue;
     const face = noseFaceZ(bGeo, style, PLATE_Y, front);
     const z =
       face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
@@ -7340,7 +7636,7 @@ export function createCar(colors: CarColors): THREE.Group {
   const TRIKE_REAR_R = 1.2;
   const layout: Array<[number, number, number]> = colors.trike
     ? [
-        [0, wzF, TRIKE_FRONT_R],
+        [0, TRIKE_NOSE.z, TRIKE_FRONT_R],
         [-wheelX, wzR, TRIKE_REAR_R],
         [wheelX, wzR, TRIKE_REAR_R],
       ]
@@ -7749,9 +8045,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
 
     // Front splitter, rear diffuser fins, antenna, grille badge
-    const splitter = new THREE.Mesh(roundedBox(1.72, SPLITTER_H, 0.3, SPLITTER_R), seamMat);
-    splitter.position.set(0, SPLITTER_Y, d.nose + 0.01);
-    group.add(splitter);
+    acrossNose(group, seamMat, 1.72, SPLITTER_H, 0.3, SPLITTER_R, SPLITTER_Y, d.nose + 0.01, !!colors.trike);
     for (const fx of style === "gtr" ? [-0.6, -0.2, 0.2, 0.6] : [-0.45, 0, 0.45]) {
       const fin = new THREE.Mesh(roundedBox(0.04, 0.11, 0.28, 0.013), seamMat);
       fin.position.set(fx, 0.21, d.tail + 0.02);
@@ -7809,17 +8103,19 @@ export function createCar(colors: CarColors): THREE.Group {
     // zx the flank is 120 mm outboard of that constant to begin with. A
     // caliper that does not follow its own wheel is a caliper floating
     // in the middle of the car.
-    for (const [wx, wz] of [
-      [-wheelX, wzF],
-      [wheelX, wzF],
-      [-wheelX, wzR],
-      [wheelX, wzR],
-    ]) {
+    //
+    // From the wheels the car was built with, not from four hard-coded
+    // corners: on a three-wheeler the old list put two calipers, teal on
+    // the race kit, floating in the flanks at the front axle where no wheel
+    // is — which is what made the Black Demon read as missing a tyre. A
+    // wheel on the centreline carries its caliper just inside its right
+    // face, where a rim would hide it.
+    for (const [wx, wz] of layout.map(([x, z]) => [x, z] as [number, number])) {
       const caliper = new THREE.Mesh(
         roundedBox(0.06, 0.17, 0.11, 0.02),
         colors.raceKit ? tealCaliperMat : caliperMat
       );
-      caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
+      caliper.position.set(Math.abs(wx) < 0.2 ? 0.07 : wx * 0.93, 0.42, wz + 0.11);
       group.add(caliper);
     }
 
@@ -8130,9 +8426,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
 
     // Front splitter jutting past the bumper, low enough to scrape
-    const splitter = new THREE.Mesh(roundedBox(1.95, 0.035, 0.7, 0.012), carbonMat);
-    splitter.position.set(0, 0.14, d.nose - 0.18);
-    group.add(splitter);
+    acrossNose(group, carbonMat, 1.95, 0.035, 0.7, 0.012, 0.14, d.nose - 0.18, !!colors.trike);
 
     // Canards: two per corner, biting the air off the bumper sides
     for (const sxSign of [-1, 1]) {
@@ -8917,7 +9211,7 @@ export function createCar(colors: CarColors): THREE.Group {
     /** How many of the leading entries steer; the rest are driven. */
     front: frontCount,
     /** Axle to axle, in the group's own units. */
-    wheelbase: wzF - wzR,
+    wheelbase: (colors.trike ? TRIKE_NOSE.z : wzF) - wzR,
     /** Centre to centre across the DRIVEN axle, which is the one that
      *  always has two wheels on it — a delta's front has one, and a
      *  track measured across it would be zero. */
@@ -8973,6 +9267,17 @@ export function createCar(colors: CarColors): THREE.Group {
     solveDriverRig(driver, 0, 0, 0, restLook, 1);
   }
 
+  if (colors.trike) {
+    // Open the nose for the front wheel, now and every time the face is
+    // rebuilt on the authored shell (the face parts and the lamps are
+    // built again from the cache, uncut, by refitShell).
+    const refitBefore = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+    group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+      refitBefore?.(geo);
+      carveTrikeWell(group, wheels);
+    };
+    carveTrikeWell(group, wheels);
+  }
   if (!colors.simple) {
     upgradeCarShells(group, style);
     upgradeWheels(group);
