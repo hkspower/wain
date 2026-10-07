@@ -49,7 +49,7 @@ Locked, exactly as they are:
 | | Locked value |
 |---|---|
 | Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, `MAST_BANDS = 3` so every band clears every flat letter edge at 2×, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png` (the JSON-LD logo) and `og.png`; `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py`, `instagram_covers.py`, `ads.py` and the film were redrawn from the logo-en kit on the owner's «update all» (2026-10-07) |
-| Masthead & type | The masthead **is the logo** (280px desktop · 220px phone · 200px short landscape; 168 / 140 once scrolled) over a terminal line `>_ شركة برمجة وأنظمة ▌`, prompt and cursor in amber, the cursor static; the line folds away once scrolled. **Cairo** sets all Arabic and body text; **Chakra Petch** 600/700 (`--display`) the Latin display halves: the hero's English line, the counters, the footer's ALMUHALLAB CODE; **JetBrains Mono** (`--mono`) figures, codes and every `>_`. The two logo faces are Latin subsets written by `design/site_fonts.py` (`--check` pins the bytes and the glyphs the pages set) under Cairo's own Latin `unicode-range`, so Arabic in the same element falls through to Cairo. Reem Kufi and Share Tech Mono are retired to `design/logo-modern/fonts/`. `scroll-margin-top` clears the **top** bar, because a jump from the top compacts the bar on the way and the page rises by the difference: 184px desktop (160 + 24), 168px phone (142 + 26), 160px short landscape (132 + 28) |
+| Masthead & type | The masthead **is the logo** (280px desktop · 220px phone · 200px short landscape; 168 / 140 once scrolled) over a terminal line `>_ شركة برمجة وأنظمة ▌`, prompt and cursor in amber, the cursor static; the line folds away once scrolled. **Cairo** sets all Arabic and body text; **Chakra Petch** 600/700 (`--display`) the Latin display halves: the hero's English line, the counters, the footer's ALMUHALLAB CODE; **JetBrains Mono** (`--mono`) figures, codes and every `>_`. The two logo faces are Latin subsets written by `design/site_fonts.py` (`--check` pins the bytes and the glyphs the pages set) under Cairo's own Latin `unicode-range`, so Arabic in the same element falls through to Cairo. Reem Kufi and Share Tech Mono are retired to `design/logo-modern/fonts/`. `scroll-margin-top` clears the **top** bar, because a jump from the top compacts the bar on the way and the page rises by the difference: 184px desktop (158 + 24, rounded up), 162px phone (138 + 24), 158px short landscape (134 + 24). **Bar spacing** (owner's «improve top bar spacing», 2026-10-07, measured at six sizes): equal space above the logo and below the nav, all on the scale: `12px 20px` desktop, `8px` once scrolled and on phones and short landscape, with no extra padding under the nav (the amber pill once sat 5px off the rule under 14px of top space); the phone gutter is 16 like the content's |
 | Brand ink | **Amber on near-black since 2026-10-07**: `--tint` `#e6a95c` (9.66:1 on the page, 7.62:1 on `--panel-3`) · `--tint-hover` `#fabc6f` · `--on-tint` `#0a0908`, the ink ON amber (white on amber is 2.06:1: never white on `--tint`) · `--stripe` `#7f5d33` (amber × .55, the logo's band) · the bar `--tint-strong` `#0a0908` with `--on-bar` `#f4f4f4`, `--on-bar-bd` `#79736c`, `--on-bar-fill` `#272625` · chart ramp `#624621`→`#e6a95c` · warnings `--sand` `#f2d855`, a yellow kept apart from the accent. Before: dark grey `#33383f`/`#25292f` (2026-10-03), brown `#7a4418`/`#6f3f1c` |
 | Surfaces | **the logo's dark on every device**: `--bg` `#0a0908` (page and bar), `--panel` `#141211` (cards), `--panel-2` `#1a1918` (fields, recessed rows), `--panel-3` `#242321` (the lightest step: inks are graded on it); `--border` `#363534` hairlines, `--border-input` `#76706a` control edges (3.21:1 on panel-3). `color-scheme: dark` on `:root`, no `prefers-color-scheme` block, `theme-color` `#0a0908`. Printing `nizam.html` swaps the tokens to white paper and dark ink. Amber is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
@@ -173,7 +173,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   is not that pattern (a skeptic caught exactly that). The portal has no
   bottom bar, so its bar stays sticky and its links run in one swipeable row,
   ordered by what the app needs (call to action, then dashboard or login; the
-  company link, also in the footer, last) — 171px became 115px. The company
+  company link, also in the footer, last) — 171px became 115px.
+  **The app bars are one height** (2026-10-07): `8px` above and below a
+  44.9px control row, the brand's two lines at `--lh-ui`, so the portal,
+  system and console all measure 62px on desktop (the portal was 73, the
+  others 64); on phones every bar sits at `8px 16px`, the gutter of the
+  content beneath it. The system's wrapped links start under the brand
+  rather than hanging at the row's far end; the console's two actions share
+  the brand's row with its links beneath (two rows, 119px at 390, where the
+  logout once wrapped alone to a third, 165px), and below 360px take the
+  second row together. The company
   bar takes the phone's lockup sizes when the screen is short
   (`max-height: 500px`): a landscape phone gave it 67% of the screen.
 - **Boxes fit what they hold, measured from 320 to 1440, portrait and on its
@@ -196,9 +205,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   not put an icon-only channel row beside the written one — it repeats the
   same three links while hiding the values.
 - **A sticky bar hides whatever an in-page link jumps to.** Every anchor
-  target carries `scroll-margin-top` (184px desktop, 168px phone, 160px short
-  landscape). It clears the **top** bar (160 / 142 / 132px), not the compact
-  one (105 / 95px): a jump from the top compacts the bar on the way and the
+  target carries `scroll-margin-top` (184px desktop, 162px phone, 158px short
+  landscape). It clears the **top** bar (158 / 138 / 134px), not the compact
+  one (106 / 97px): a jump from the top compacts the bar on the way and the
   page rises by the difference, which the suite measures from the top. `html` uses `scroll-behavior: smooth`, off under
   reduced motion. Tests that measure scroll positions must pass
   `behavior:'instant'` or they race the animation and read mid-flight values.

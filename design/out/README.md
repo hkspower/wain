@@ -9,6 +9,7 @@
 | `almuhallab-website-sample.pdf` | `design/build_pdf.py`، من `shots/` |
 | `pdf-preview/pv-00…13.png` | `design/build_pdf.py` نفسه — صفحات الـPDF مصغّرة خمس مرّات، للنظر إليها من غير فتح الملفّ |
 | `sounding-lines-plate-iv.png` | `design/plate.py` |
+| `topbar/before/`, `topbar/after/` | قياس الشريط العلوي (2026-10-07): الصفحات الأربع بستّة مقاسات، أعلى الصفحة وبعد التمرير، و`measure.json` بالأرقام |
 
 وكان هذا كلّه مبعثراً في `design/` نفسه بين السكربتات، فلا يُعرف الداخل من
 الخارج. والمجلّدات الأخرى (`film/`, `ship/`, `logo-pack/`, `instagram/`,

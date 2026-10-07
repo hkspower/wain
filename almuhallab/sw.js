@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v46";   /* v46: النوخذة layout pass: one column, task-first dashboard, even forms */
+var CACHE = "nokhatha-v47";   /* v47: top bar spacing: balanced, on-scale, 16px phone gutter */
 var ASSETS = [
   "./",
   "index.html",

@@ -334,7 +334,7 @@
     header {
       position: sticky; top: 0; z-index: 50;
       display: flex; flex-direction: column; align-items: center; gap: 8px;
-      padding: 20px 20px 0; background: var(--tint-strong);
+      padding: 12px 20px; background: var(--tint-strong);
       border-bottom: 1px solid var(--on-bar-fill);
       transition: padding .22s ease;
     }
@@ -361,13 +361,12 @@
     .brand .term .cur { display: inline-block; width: .47em; height: 1em; background: var(--tint); opacity: .85; }
     /* scrolled: the bar becomes a slim strip with the logo still centred; the
        terminal line collapses, the company's name (the logo) stays */
-    html.scrolled header { padding-top: 10px; }
+    html.scrolled header { padding-block: 8px; }
     html.scrolled .brand { gap: 4px; }
     html.scrolled .brand .logo { width: 168px; }
     html.scrolled .brand .term { max-height: 0; opacity: 0; }
 
-    nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
-      padding: 0 0 4px; }
+    nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center; }
     nav.site a, .btn {
       font-size: 14px; line-height: var(--lh-ui); font-weight: 600; color: var(--text);
       padding: 12px 16px; border-radius: 8px; border: 1px solid transparent;
@@ -1100,7 +1099,7 @@
        target keeps its own headroom. Without this, "خدماتنا" landed the heading
        underneath the masthead. A jump from the top compacts the bar on the way
        and the page rises by the difference, so the headroom clears the TOP bar
-       (160px here), not the compact one (105): 160 + 24 */
+       (158px here), not the compact one (106): 158 + 24, rounded up to 184 */
     :target, section[id], h2.section[id] { scroll-margin-top: 184px; }
     html { scroll-behavior: smooth; }
 
@@ -1108,20 +1107,19 @@
        two thirds of an 844×390 screen. It takes the phone's own sizes and
        shrinks further once scrolled, as it does at 640px */
     @media (max-height: 500px) {
-      header { padding: 8px 20px 0; }
+      header { padding: 8px 20px; }
       .brand .logo { width: 200px; }
-      nav.site { padding-bottom: 4px; }
-      :target, section[id], h2.section[id] { scroll-margin-top: 160px; }   /* the 132px top bar + 28 */
+      :target, section[id], h2.section[id] { scroll-margin-top: 158px; }   /* the 134px top bar + 24 */
     }
     /* below 360px the four links measured 324px in 296: النوخذة wrapped to a
-       second row and the bar took 45% of the screen. 12px sides keep one row */
-    @media (max-width: 359px) { header nav.site a { padding: 12px 12px; } }   /* outranks the 640px block below */
+       second row and the bar took 45% of the screen. With the 16px phone gutter
+       the row holds 288px: 8px sides keep it to one row, each still 44px tall */
+    @media (max-width: 359px) { header nav.site a { padding: 12px 8px; } }   /* outranks the 640px block below */
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
-      header { padding: 14px 12px 0; }
+      header { padding: 8px 16px; }   /* the side gutter is 16 on every phone */
       .brand .logo { width: 220px; }
-      nav.site { padding-bottom: 4px; }
       nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 16px 40px; }
       .card { padding: 16px; }
@@ -1155,7 +1153,7 @@
       .fcols > div:not(.fbrand) { flex: 1 1 40%; }
       .fcontact a { min-height: 44px; }
       .base { flex-direction: column; gap: 12px; text-align: center; }
-      :target, section[id], h2.section[id] { scroll-margin-top: 168px; }   /* the 142px top bar + 26 */
+      :target, section[id], h2.section[id] { scroll-margin-top: 162px; }   /* the 138px top bar + 24 */
       .qform { grid-template-columns: 1fr; padding: 16px; }
       /* a phone's text runs to within a few pixels of the edge, so there is
          no margin for the rain to fall in: measured at 390 and 320, every

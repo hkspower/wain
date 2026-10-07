@@ -189,7 +189,7 @@
     /* the page's one focal glow: the logo's halo, amber at .32, sigma .19 of the mark */
     .brand .logo svg { filter: drop-shadow(0 0 4px rgba(230, 169, 92, .32)); }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
-    .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); }
+    .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); line-height: var(--lh-ui); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 14px; line-height: var(--lh-ui); font-weight: 600; padding: 12px 16px;
       border-radius: 8px; border: 1px solid transparent;
@@ -340,9 +340,16 @@
          a bar at the bottom, in thumb reach — the system page's own pattern
          ("only the bottom bar is fixed"), so a section is never a scroll away */
       .topbar { position: static; }
-      header { padding: 8px 12px; }
+      header { padding: 8px 16px; }   /* the side gutter is 16 on every phone */
       .brand small { display: none; }
       nav.site a { min-height: 44px; display: inline-flex; align-items: center; }
+      /* the logout wrapped alone to a third row: the two actions share the
+         brand's row at its far end, and the two links take a row of their own
+         from the inline start, under the brand */
+      header > .btn { order: 1; padding: 12px; }
+      #btn-refresh { margin-inline-start: auto; }
+      nav.site { order: 2; width: 100%; margin-inline-start: 0; }
+      nav.site a { padding: 12px; }
       nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30; gap: 0;
         border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
         padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -365,6 +372,12 @@
       .card { padding: 16px; }
       .tile .n { font-size: 17px; letter-spacing: -.02em; }
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
+    }
+    /* below 360px the two actions no longer fit beside the brand: they take
+       the second row together rather than leave the logout on its own */
+    @media (max-width: 359px) {
+      .brand { flex-basis: 100%; }
+      #btn-refresh { margin-inline-start: 0; }
     }
     /* iOS zooms on focus into any field under 16px — on a landscape phone and
        a tablet too, which the max-width rule above never reached */
