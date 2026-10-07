@@ -1,0 +1,33 @@
+/* Checkout payment methods — 2026-10-07, "improve payment methods at website".
+   The bundle's radios inherit color-scheme:dark and a near-black accent, so on the
+   white body an UNSELECTED method showed a solid dark dot and looked chosen. They
+   are drawn here: a grey ring when off, an orange ring with a dot when on, and the
+   chosen row gets an orange border and a faint orange ground. */
+input[type='radio'][name='paymethod'] {
+  appearance: none; -webkit-appearance: none;
+  width: 20px; height: 20px; margin-top: 2px; flex: 0 0 20px;
+  border: 2px solid #8a9199; border-radius: 50%;
+  background: #fff; cursor: pointer;
+}
+input[type='radio'][name='paymethod']:checked {
+  border-color: var(--brand, #e0561c);
+  background: radial-gradient(circle, var(--brand, #e0561c) 0 4.5px, #fff 5px);
+}
+input[type='radio'][name='paymethod']:focus-visible {
+  outline: 2px solid var(--brand, #e0561c); outline-offset: 2px;
+}
+label:has(> input[name='paymethod']) { align-items: center; }
+label:has(> input[name='paymethod']:checked) {
+  border: 2px solid var(--brand, #e0561c) !important;
+  background-color: rgba(224, 86, 28, 0.06) !important;
+}
+.cpay-icon { margin-inline-start: auto; flex: 0 0 auto; display: block; }
+.cpay-trust {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 13px; line-height: 1.4; color: #3d4652;
+}
+.cpay-trust svg { flex: 0 0 auto; color: #11703f; }
+/* The pay button names the chosen method; the bundle's own text stays in the DOM
+   (React owns it) and is only hidden while a label is set. */
+button[data-cpay-label] { font-size: 0 !important; }
+button[data-cpay-label]::after { content: attr(data-cpay-label); font-size: 16px; }
