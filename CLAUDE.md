@@ -512,7 +512,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   colour in HLS at constant saturation raises its chroma and swings it
   toward orange (solve in OKLCH); a wide wordmark letterboxed in a square is
   unreadable at profile-photo sizes (hence the monogram, judged in a circle
-  at 150/110/44/32 px).
+  at 150/110/44/32 px). Round two: Pillow's `getbbox()` looks **only at
+  alpha** on an RGBA image, so a recoloured transparent PNG passed the
+  pixel compare (compare premultiplied, `alpha_only=False`); generic SVG ids
+  (`glow`, `fade-l`) collide when two files are inlined in one page, since
+  `url(#id)` takes the document's first match (every id carries the file's
+  name, and `--check` fails on a shared one); stripe edges a hair off a
+  flat outline edge leave a sliver (bands snap to flat edges within a
+  pixel, and the monogram's five bands keep the A's crossbar in amber).
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,
