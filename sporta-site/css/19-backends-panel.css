@@ -68,6 +68,9 @@
  * dark); the bundle's own cards were written light and simply show, and these tokens are the overlay cards' light values.
  * Each pair is read against its own ground: ink 14:1 on white, muted 5.9:1, the field edge 3.2:1 (a box you can find). */
 html[data-theme='light'] { color-scheme: light; }
+/* The storefront's dark rules set color-scheme: dark lower down, so every checkbox, radio and select in the light
+   panel was drawn dark: an UNticked box read as a filled black square (2026-10-07, image uploader check). */
+html[data-theme='light'] .admin-shell, html[data-theme='light'] .admin-shell *, html[data-theme='light'] .spsb { color-scheme: light !important; }
 html[data-theme='light'] .admin-shell {
   --sp-pc-bg: #ffffff;
   --sp-pc-border: #d3d9e0;
