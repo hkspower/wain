@@ -687,3 +687,8 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   }
 }
 }
+@media (min-width: 768px) {
+  [data-theme] main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > button:not([aria-pressed]) {
+    bottom: 7.5px !important;
+  }
+}

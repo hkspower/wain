@@ -224,7 +224,7 @@ try {
           cards.push({
             slug: decodeURIComponent(mm[1]), grid: grids.indexOf(a.parentElement), gridMarked: a.parentElement.hasAttribute('data-cardopt-grid'),
             dataSlugs: [cg && cg.getAttribute('data-slug'), sg && sg.getAttribute('data-slug')].filter(Boolean),
-            card: R(a), h3: h3 && R(h3), name: h3 && textR(h3), price: price && R(price), priceText: price && textR(price), priceLH: price ? parseFloat(getComputedStyle(price).lineHeight) : 0, sale: !!(price && price.querySelector('s, del')),
+            card: R(a), h3: h3 && R(h3), name: h3 && textR(h3), price: price && R(price), priceText: price && textR(price), priceLH: price ? parseFloat(getComputedStyle(price).lineHeight) : 0, priceMid: (() => { if (!price) return null; const o = price.querySelector(':scope > s, :scope > del'); const r = (o || price).getBoundingClientRect(); return (r.top + r.bottom) / 2 })(), sale: !!(price && price.querySelector('s, del')),
             box: union(cgR, sgR), cg: cgR, sg: sgR,
             // the rows must be EXACTLY their circles and boxes: no wrapper, no inner element (every
             // element is restyled whenever this page inserts anything; see card-options.js)
@@ -325,7 +325,7 @@ try {
       check(clash.length === 0, `${L} the + touches no size box and no circle`, clash.map((c) => c.slug).slice(0, 4).join(' '))
       // the + stays beside the price's last line: the price row sits at the foot of its track, so a
       // neighbour whose struck old price wraps to a second line does not leave this one a line above
-      const plusOff = m.cards.filter((c) => c.pluses.length && c.priceText).map((c) => { const p = c.pluses.reduce((x, y) => (y.b > x.b ? y : x)); return { slug: c.slug, d: (p.t + p.b) / 2 - (c.priceText.b - c.priceLH / 2) } })
+      const plusOff = m.cards.filter((c) => c.pluses.length && c.priceText).map((c) => { const p = c.pluses.reduce((x, y) => (y.b > x.b ? y : x)); return { slug: c.slug, d: (p.t + p.b) / 2 - c.priceMid } })   // 2026-10-07: the price's text is font-size 0 (grid-price.js draws its parts), so its line is read from the struck price, or the whole price when there is none
       const plusBad = plusOff.filter((x) => Math.abs(x.d) > 6)
       check(plusOff.length > 0 && plusBad.length === 0, `${L} the + is centred on the price's last line on every card, ${m.cards.filter((c) => c.sale).length} of them on sale (within 6px)`, JSON.stringify(plusBad.slice(0, 3)))
       // a row of cards is one height, with one price line

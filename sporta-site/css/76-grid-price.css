@@ -1,0 +1,52 @@
+/* Grid prices: a big number with a small grey currency (2026-10-07, "improve price style at product grids";
+   the owner chose "Big number, small KWD" out of three). The bundle draws a price as ONE text node
+   ("KWD 10.000") beside an optional <s>, and React owns that node, so it cannot be split or wrapped.
+   assets/grid-price.js reads it into data-p1 / data-p2 (in text order) and data-pn (which of the two is
+   the number); the text node itself is left in place at font-size 0 so assistive technology still reads
+   the whole price once, and the two parts are drawn by ::before and ::after. */
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
+  font-size: 0 !important;
+  column-gap: 4px;
+  align-items: baseline;
+}
+main article .price-card[data-gp]::before,
+main article .price-card[data-gp]::after {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #6b7280;                       /* the small currency: grey, 4.8:1 on the white caption */
+  unicode-bidi: plaintext;
+}
+main article .price-card[data-gp]::before { content: attr(data-p1); content: attr(data-p1) / ""; order: 1; }
+main article .price-card[data-gp]::after  { content: attr(data-p2); content: attr(data-p2) / ""; order: 2; }
+main article .price-card[data-gp][data-pn="1"]::before,
+main article .price-card[data-gp][data-pn="2"]::after {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--sp-card-ink, #c2410c);   /* the number: the orange that reads on white */
+}
+main article .price-card[data-gp] > :is(s, del) { order: 3; margin-inline-start: 4px; white-space: nowrap; }
+/* The saving, drawn by the struck price. inline-block so the strike-through does not run through it. */
+main article .price-card[data-gp] > s[data-off]::after {
+  content: attr(data-off);
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  vertical-align: middle;
+  color: #9a3412;
+  background: rgba(224, 86, 28, .12);
+  text-decoration: none;
+  unicode-bidi: isolate;
+}
+/* The bigger number sits a little higher in its row than the old 16px text did, so on a desktop caption
+   (16px padding) the + hung 6.5px below the digits' centre. Raised to meet them (phones were already level). */
+@media (min-width: 768px) {
+  [data-theme] main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] > button:not([aria-pressed]) {
+    bottom: 7.5px !important;
+  }
+}

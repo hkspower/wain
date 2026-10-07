@@ -99,7 +99,9 @@ try {
         nameLines: Math.round(box(h3).height / (parseFloat(getComputedStyle(h3).lineHeight) || 1)), nameWrapFallback: h3.classList.contains('gnf-wrap'),
         nameClear: (() => { const r = document.createRange(); r.selectNodeContents(h3); const t = r.getBoundingClientRect(), pr = plus.getBoundingClientRect(); return +(pr.top - t.bottom).toFixed(1) })(),
         nameAlign: getComputedStyle(h3).textAlign, nameSize: parseFloat(getComputedStyle(h3).fontSize), nameWeight: +getComputedStyle(h3).fontWeight,
-        priceSize: parseFloat(getComputedStyle(price).fontSize), priceWeight: +getComputedStyle(price).fontWeight,
+        priceSize: (() => { const num = price.dataset.pn === '1' ? '::before' : '::after'; return parseFloat(getComputedStyle(price, num).fontSize) })(),
+        priceWeight: (() => { const num = price.dataset.pn === '1' ? '::before' : '::after'; return +getComputedStyle(price, num).fontWeight })(),
+        cur: (() => { const c = price.dataset.pn === '1' ? '::after' : '::before'; return parseFloat(getComputedStyle(price, c).fontSize) })(),
         oldDeco: old ? getComputedStyle(old).textDecorationLine : null, oldSize: old ? parseFloat(getComputedStyle(old).fontSize) : null,
         colourText: colour && colour.getAttribute('aria-label'), dot: colour && getComputedStyle(colour).backgroundColor,
         oldColourLines: document.querySelectorAll('.sporta-card-colour').length,
@@ -150,7 +152,7 @@ try {
     check(m.nameLines === 1 || m.nameWrapFallback, `${L} the name is ONE line (or the 10px floor wrapped it rather than cutting it)`, `${m.nameLines} lines, wrapFallback=${m.nameWrapFallback}`)
     check(m.nameWrapFallback || m.nameClear >= 0, `${L} the + button does not touch a one-line name`, `${m.nameClear}px between the name text and the +`)
     check(m.plusClearOfRows === true, `${L} the + button does not touch the colour circles or the size boxes`, String(m.plusClearOfRows))
-    check(m.priceSize >= 15 && m.priceSize <= 17 && m.priceWeight >= 700, `${L} price 15-17px bold`, `${m.priceSize}/${m.priceWeight}`)
+    check(m.priceSize >= 18 && m.priceSize <= 20 && m.priceWeight >= 700 && m.cur <= 13, `${L} the price is a big bold number (18-20px) beside a small currency (2026-10-07)`, `${m.priceSize}/${m.priceWeight} cur ${m.cur}`)
     check(m.oldDeco === 'line-through' && m.oldSize <= 13, `${L} the old price is small and struck through`, `${m.oldDeco} ${m.oldSize}`)
     check(m.colourText && /Cherry Red|أحمر كرزي/.test(m.colourText) && rgb(m.dot) === '143,29,44' && m.oldColourLines === 0, `${L} the card's own colour is a ringed circle with its swatch (no "● colour" line)`, `${m.colourText} ${m.dot} old=${m.oldColourLines}`)
     check(m.capPlainH === null || (m.capPlainH >= 50 && m.capPlainH - m.capPlainExtra <= 85.5), `${L} a plain card's caption is 85px or less, plus one line for each extra line of a wrapped name`, `${m.capPlainH} (name adds ${m.capPlainExtra})`)
