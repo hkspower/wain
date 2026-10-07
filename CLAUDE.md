@@ -4480,3 +4480,12 @@ order not critical — without the tables every session is alive, passkeys answe
   are the only new public ones), `live-login-check` normal. **The cron list was ELEVEN**: the ten
   known jobs plus a foreign `* * * * *` `rm -f /home/u130124229/w.php` — not ours, not deleted.
   `cron-push` is back on `* * * * *` (uid fP0uh7aTlC) — restored by the owner, not by this session.
+
+## Skeleton loading, the backend login layout, and the hosa tool gap — 2026-10-07
+
+- **Home Best sellers skeleton.** `home-products.js` `place()` inserts a `data-sporta-home-products="skeleton"` section (4 cards, built with `createElement`: `test:xss-guard` forbids `innerHTML`) while the products request is in flight; `loadProducts` removes it first. Styles in `css/73-skeleton.css` (shimmer, light-grey override on the white body, off under `prefers-reduced-motion`). Verified in a browser with a delayed products request.
+- **Backend login layout.** `login-polish.js` marks the form's parent `data-splp-col` (a flex column, so the injected passkey/Show/Caps Lock siblings stop sitting in a row), and positions the Show toggle on the password box by `offsetTop` (RTL aware), colour `#334155` (it inherited a light input colour and vanished). Checked at 390 and 1280 in English and 390 in Arabic: no sideways scroll, card centred.
+- **sw.js VERSION is `v227-login-layout`.** Both fixed-name assets changed, so each bump was committed (`test:sw-version`).
+- **Pushed but NOT LIVE** at `d501bb3` on `claude/sporta-site-2026-09-02`; `publish-all.php` is pinned. Still to do: publish, then the read-only live unknown-file check (`live-file-check.php` `untracked=`; known strays are `cats/desktop/outlet.jpg` and `default.php`). Nothing is deleted.
+- **`mcp__hosa__execute` was missing for a whole session** even though ListConnectors showed hosa connected. MCP tools load at session start, so a connector authorised mid-session never appears: authorise at claude.ai/customize/connectors, then START A NEW SESSION and say "publish now". ToolSearch repeats will not find it.
+- **Rate limit (code only, live not measured):** `store_throttle($db,$bucket,$max,$windowSec)` in `api/store.php` keeps per-IP hashed counters in `rate_limit` and answers 429 `too_many_attempts` with no detail; per-route limits are `$STORE_LIMITS` in `api/api.php`.
