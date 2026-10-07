@@ -1949,7 +1949,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 main article .cardopt-colours {
   display: flex;
   flex-wrap: wrap;
-  margin-left: -4px;
+  margin-left: -0.6px;
 }
 main article .cardopt-colour {
   display: block;
@@ -1984,11 +1984,11 @@ main article .cardopt-size {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 28px;
+  min-width: 32px;
   min-height: 28px;
   height: 28px;
   margin: 0;
-  padding: 0 5px;
+  padding: 0 3px;
   border: 1px solid #8a9199;
   border-radius: 6px;
   background: #fff;

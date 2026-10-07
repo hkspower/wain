@@ -140,7 +140,8 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 main article .cardopt-colours {
   display: flex;
   flex-wrap: wrap;
-  margin-left: -4px;              /* the disc's edge lines up with the name */
+  margin-left: -0.6px;            /* the card's own ring (radius 11.4 of a 12px slot) is the outermost mark of the row,
+                                     and it starts flush with the name and the size boxes (2026-10-07) */
 }
 main article .cardopt-colour {
   display: block;
@@ -183,11 +184,11 @@ main article .cardopt-size {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 28px;
+  min-width: 32px;                /* ONE width for every size, so S M L XL stand in columns from card to card; */
   min-height: 28px;
   height: 28px;
   margin: 0;
-  padding: 0 5px;
+  padding: 0 3px;                 /* ...and the widest label (2XL..5XL) still fits it */
   border: 1px solid #8a9199;
   border-radius: 6px;
   background: #fff;

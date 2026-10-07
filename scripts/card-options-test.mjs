@@ -283,8 +283,8 @@ try {
           // painted order and one left edge
           const order = onyx.h3.b <= onyx.cg.t + 0.5 && onyx.cg.b <= onyx.sg.t + 0.5 && onyx.sg.t > onyx.cg.t && onyx.box.b <= onyx.price.t + 0.5 && onyx.sg.t < onyx.price.t
           check(order, `${L} painted order: name, colours, sizes, price`, JSON.stringify({ name: onyx.h3.b, colours: [onyx.cg.t, onyx.cg.b], sizes: [onyx.sg.t, onyx.sg.b], price: onyx.price.t }))
-          const lefts = [onyx.colours[0].disc.l, onyx.sizes[0].r.l, onyx.name.l, onyx.priceText.l]
-          check(Math.max(...lefts) - Math.min(...lefts) <= 1.5, `${L} the first disc, the first size, the name and the price start on one left edge`, lefts.map((x) => x.toFixed(1)).join(' '))
+          const lefts = [(onyx.colours[0].disc.l - 3.4), onyx.sizes[0].r.l, onyx.name.l, onyx.priceText.l]
+          check(Math.max(...lefts) - Math.min(...lefts) <= 1.5, `${L} the first colour circle (its ring: disc edge less the 3.4px of ring outside it), the first size, the name and the price start on one left edge`, lefts.map((x) => x.toFixed(1)).join(' '))
         }
       }
       const capC = m.cards.find((c) => c.slug === CAP)
@@ -300,7 +300,7 @@ try {
       const withBox = m.cards.filter((c) => c.box)
       const orderBad = withBox.filter((c) => !(c.h3.b <= c.box.t + 0.5 && c.box.b <= c.price.t + 0.5 && (!c.cg || !c.sg || c.cg.b <= c.sg.t + 0.5)))
       check(orderBad.length === 0, `${L} on every card the rows sit between the name and the price (${withBox.length} cards)`, orderBad.map((c) => c.slug).slice(0, 4).join(' '))
-      const edgeBad = withBox.filter((c) => { const xs = [c.colours[0] && c.colours[0].disc.l, c.sizes[0] && c.sizes[0].r.l, c.name.l].filter((x) => x != null); return Math.max(...xs) - Math.min(...xs) > 1.5 })
+      const edgeBad = withBox.filter((c) => { const xs = [c.colours[0] && c.colours[0].disc.l - 3.4, c.sizes[0] && c.sizes[0].r.l, c.name.l].filter((x) => x != null); return Math.max(...xs) - Math.min(...xs) > 1.5 })
       check(edgeBad.length === 0, `${L} on every card the rows start on the name's left edge`, edgeBad.map((c) => c.slug).slice(0, 4).join(' '))
       const circles = withBox.flatMap((c) => c.colours), boxes = withBox.flatMap((c) => c.sizes)
       // the PAGE's language, on every circle of every grid — the bundle's own cards carry no ?lang=en

@@ -107,7 +107,7 @@ try {
         oldColourLines: document.querySelectorAll('.sporta-card-colour').length,
         plusClearOfRows: optRows.length ? (() => { const pr = plus.getBoundingClientRect(); return [...cap.querySelectorAll('.cardopt-size, .cardopt-colour')].every((e) => { const r = e.getBoundingClientRect(); return !(r.left < pr.right && pr.left < r.right && r.top < pr.bottom && pr.top < r.bottom) }) && +(pr.top - optRows[optRows.length - 1].getBoundingClientRect().bottom).toFixed(1) >= 0 })() : null,
         // the disc is the circle's padding box (its 4px transparent border is the rest of the target)
-        rowLefts: [circle0 && circle0.getBoundingClientRect().left + circle0.clientLeft - ch.left, size0 && size0.getBoundingClientRect().left - ch.left],
+        rowLefts: [circle0 && circle0.getBoundingClientRect().left + 0.6 - ch.left, size0 && size0.getBoundingClientRect().left - ch.left],
         noRows,
         order: [...cap.children].map((e) => e.className.split(' ')[0] || e.tagName),
         capPlainH: capP ? box(capP).height : null,
@@ -146,7 +146,7 @@ try {
     check(m.plusRight <= 8 && m.plusBottom <= 8 && !m.plusInPhoto && rgb(m.plusDisc) === '245,99,21', `${L} the orange + sits at the caption's bottom-right, off the photograph`, `${m.plusRight}/${m.plusBottom} inPhoto=${m.plusInPhoto} ${m.plusDisc}`)
     check(m.badgeLeft !== null && m.badgeLeft <= 14 && m.badgeTop <= 14 && m.badgeRadius >= 10 && rgb(m.badgeBg) === '207,74,11', `${L} the sale badge is an orange pill at the top-LEFT`, `${m.badgeLeft}/${m.badgeTop} r${m.badgeRadius} ${m.badgeBg}`)
     check(m.nameAlign === 'left' && Math.abs(m.nameLeft - m.priceLeft) <= 2, `${L} name and price are left-aligned on one edge`, `${m.nameAlign} ${m.nameLeft}/${m.priceLeft}`)
-    check(m.rowLefts.every((x) => x !== null && Math.abs(x - m.nameLeft) <= 2), `${L} the first colour disc and the first size box start on the name's edge too`, `${m.rowLefts} / ${m.nameLeft}`)
+    check(m.rowLefts.every((x) => x !== null && Math.abs(x - m.nameLeft) <= 2), `${L} the first colour circle's outer edge (its ring, 0.6px inside its slot) and the first size box start on the name's edge too`, `${m.rowLefts} / ${m.nameLeft}`)
     // 2026-10-02: one line, shrunk to fit (grid-name-fit.js), 14px at most and 10px at least
     check(m.nameSize >= 10 && m.nameSize <= 15 && m.nameWeight >= 500, `${L} name 10-15px (shrunk to fit), medium or bold`, `${m.nameSize}/${m.nameWeight}`)
     check(m.nameLines === 1 || m.nameWrapFallback, `${L} the name is ONE line (or the 10px floor wrapped it rather than cutting it)`, `${m.nameLines} lines, wrapFallback=${m.nameWrapFallback}`)
