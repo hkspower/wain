@@ -443,6 +443,15 @@ final class Db {
               created_at VARCHAR(32) NOT NULL)');
         $this->ensureIndex('submissions_status_idx', 'submissions', 'status, created_at');
 
+        /* Where a shop wants to hear about an order (7 October). Its own
+           table, never joined into `places`: a shop's email must not reach
+           the public `places` answer or the export's data/places.json. Set
+           by the CLI (`order-email`); read only when an order is placed. */
+        $x('CREATE TABLE IF NOT EXISTS shop_contacts (
+              place_slug VARCHAR(191) NOT NULL PRIMARY KEY,
+              order_email VARCHAR(191) NOT NULL,
+              updated_at VARCHAR(32) NOT NULL)');
+
         $x('CREATE TABLE IF NOT EXISTS votes (
               poll VARCHAR(16) NOT NULL,
               voter VARCHAR(64) NOT NULL,
@@ -691,6 +700,62 @@ function ticketOut(array $r): array {
     return $r;
 }
 
+/* ── the order email (7 October) ────────────────────────────────────────────
+   One plain-text message to the shop the moment an order is placed — the
+   same lines the web's buildOrderMessage gives the WhatsApp channel, in the
+   same formats (order-kit.ts: orderReference, formatKwd, timeAr). A shop
+   that has no address on file gets nothing, and a message that will not
+   send never fails the order: the order is in the table, on the board. */
+function arDigits(string $s): string {
+    return strtr($s, ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩']);
+}
+function kwdAr(int $fils): string {
+    return arDigits(intdiv($fils, 1000) . '٫' . str_pad((string) ($fils % 1000), 3, '0', STR_PAD_LEFT)) . ' د.ك';
+}
+function timeArPhp(string $hhmm): string {
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', $hhmm, $m)) return $hhmm;
+    $h = (int) $m[1];
+    $h12 = $h % 12 === 0 ? 12 : $h % 12;
+    return arDigits("$h12:$m[2]") . ($h < 12 ? ' ص' : ' م');
+}
+function orderRef(string $id): string {
+    return strtoupper(substr(str_replace('-', '', $id), 0, 6));
+}
+function orderEmail(string $id, array $row): array {
+    $lines = [];
+    foreach ($row['lines'] as $l) {
+        $lines[] = arDigits((string) $l['qty']) . '× ' . $l['nameAr'] . ' — ' . kwdAr((int) $l['priceFils'] * (int) $l['qty']);
+    }
+    $ref = orderRef($id);
+    $body = "طلب مسبق جديد من وين — {$row['place_name_ar']}\n"
+          . "رقم الطلب: $ref\n\n"
+          . implode("\n", $lines) . "\n"
+          . 'المجموع التقريبي: ' . kwdAr((int) $row['total_fils']) . "\n\n"
+          . 'الاستلام: الساعة ' . timeArPhp($row['pickup_at']) . "\n"
+          . "الاسم: {$row['customer_name']}\n"
+          . 'الجوال: ' . $row['customer_phone'] . "\n"
+          . ($row['note_ar'] !== '' ? "ملاحظة: {$row['note_ar']}\n" : '')
+          . "\nالدفع عند الاستلام.\n"
+          . "لوحة الطلبات: https://www.wainkw.com/admin/\n";
+    return ['subject' => "طلب جديد من وين — رقم $ref", 'body' => $body];
+}
+/** Sends, or — under the test seam WAIN_API_MAIL_DIR, which Apache never
+ *  sets — writes the message to a file there instead. Returns whether it
+ *  went. */
+function sendOrderMail(string $to, array $mail): bool {
+    $dir = getenv('WAIN_API_MAIL_DIR');
+    if ($dir) {
+        @mkdir($dir, 0700, true);
+        return file_put_contents("$dir/" . uniqid('mail-', true) . '.json',
+            json_encode(['to' => $to] + $mail, JSON_UNESCAPED_UNICODE)) !== false;
+    }
+    if (!function_exists('mail')) return false;
+    $subject = '=?UTF-8?B?' . base64_encode($mail['subject']) . '?=';
+    $headers = "From: =?UTF-8?B?" . base64_encode('وين') . "?= <orders@wainkw.com>\r\n"
+             . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64";
+    return @mail($to, $subject, chunk_split(base64_encode($mail['body'])), $headers);
+}
+
 /* ── CLI: install / version / selftest / seed / migrate / log ───────────────*/
 if (PHP_SAPI === 'cli') {
     $home   = getenv('HOME') ?: __DIR__;
@@ -794,7 +859,7 @@ if (PHP_SAPI === 'cli') {
         $db = $openDb($stage);
         $out(['ok' => true, 'stage' => $stage, 'engine' => $db->driver,
               'tables' => array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                    ['places', 'orders', 'queue_tickets', 'submissions', 'votes'])]);
+                                    ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts'])]);
     }
 
     if ($mode === 'seed') {
@@ -906,8 +971,63 @@ if (PHP_SAPI === 'cli') {
             $report['cleaned'] = true;
         }
         $report['counts'] = array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                      ['places', 'orders', 'queue_tickets', 'submissions', 'votes']);
+                                      ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts']);
         $out($report);
+    }
+
+    /* `order-email <slug> <email|none>` — where a shop hears about orders.
+       The CLI and not an action: the address is the shop's, given to the
+       owner, and this account's cron is the one write path to it. */
+    if ($mode === 'order-email') {
+        $slug = (string) ($argv[2] ?? '');
+        $email = (string) ($argv[3] ?? '');
+        if (!preg_match(RE_SLUG, $slug)) $out(['ok' => false, 'error' => 'usage: order-email <slug> <email|none>']);
+        $db = $openDb($stage);
+        if ($db->scalar('SELECT 1 FROM places WHERE slug = ?', [$slug]) === null) $out(['ok' => false, 'error' => 'no_such_place', 'slug' => $slug]);
+        if ($email === 'none') {
+            $db->run('DELETE FROM shop_contacts WHERE place_slug = ?', [$slug]);
+            $out(['ok' => true, 'slug' => $slug, 'order_email' => null]);
+        }
+        if (!preg_match(RE_EMAIL, $email) || strlen($email) > 191) $out(['ok' => false, 'error' => 'bad_email']);
+        $db->tx('places', function (Db $d) use ($slug, $email) {
+            $d->run('DELETE FROM shop_contacts WHERE place_slug = ?', [$slug]);
+            $d->run('INSERT INTO shop_contacts (place_slug, order_email, updated_at) VALUES (?,?,?)', [$slug, $email, nowIso()]);
+        });
+        $out(['ok' => true, 'slug' => $slug, 'order_email' => $email]);
+    }
+
+    /* `sync-orders [file]` — the ordering fields of the catalogue onto rows
+       that already exist. `seed` never overwrites, which is right for a
+       place an admin has edited and wrong for a menu the owner sent: without
+       this a menu added to places.ts would show on the site and the server
+       would refuse every order for it as «closed». Only these five fields
+       move; nothing an admin edits elsewhere is touched. */
+    if ($mode === 'sync-orders') {
+        $file = $argv[2] ?? (docroot() . '/data/places.json');
+        if ($file === 'production' || $file === 'staging') $file = docroot() . '/data/places.json';
+        $db = $openDb($stage);
+        $rows = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+        if (!is_array($rows)) $out(['ok' => false, 'error' => 'no_seed_file', 'file' => $file]);
+        $updated = []; $refused = [];
+        foreach ($rows as $i => $row) {
+            try { $p = vPlace(is_array($row) ? $row : []); }
+            catch (Invalid $e) { $refused[] = ['index' => $i, 'field' => $e->field]; continue; }
+            $c = placeColumns($p);
+            $have = $db->one('SELECT menu_ar, accepts_orders, order_note_ar, order_prep_minutes, order_whatsapp FROM places WHERE slug = ?', [$c['slug']]);
+            if ($have === null) continue;
+            $want = ['menu_ar' => $c['menu_ar'], 'accepts_orders' => $c['accepts_orders'], 'order_note_ar' => $c['order_note_ar'],
+                     'order_prep_minutes' => $c['order_prep_minutes'], 'order_whatsapp' => $c['order_whatsapp']];
+            $same = true;
+            // Booleans compared as numbers: (string) false is '' and the
+            // column reads '0', which made every unchanged row «updated».
+            $norm = static fn($v) => is_bool($v) ? (string) (int) $v : (string) $v;
+            foreach ($want as $k => $v) if ($norm($have[$k]) !== $norm($v)) $same = false;
+            if ($same) continue;
+            $db->run('UPDATE places SET menu_ar = ?, accepts_orders = ?, order_note_ar = ?, order_prep_minutes = ?, order_whatsapp = ?, updated_at = ? WHERE slug = ?',
+                [$want['menu_ar'], $want['accepts_orders'], $want['order_note_ar'], $want['order_prep_minutes'], $want['order_whatsapp'], nowIso(), $c['slug']]);
+            $updated[] = $c['slug'];
+        }
+        $out(['ok' => true, 'stage' => $stage, 'file' => $file, 'updated' => $updated, 'refused' => $refused]);
     }
 
     if ($mode === 'log') {
@@ -943,7 +1063,8 @@ if (PHP_SAPI === 'cli') {
         $out(['ok' => false, 'error' => 'usage',
               'usage' => ['php wain.php install', 'php wain.php version', 'php wain.php migrate',
                           'php wain.php seed [places.json]', 'php wain.php selftest [production|staging]',
-                          'php wain.php log [n]', 'php wain.php logformat', 'php wain.php actions']]);
+                          'php wain.php log [n]', 'php wain.php logformat', 'php wain.php actions',
+                          'php wain.php order-email <slug> <email|none>', 'php wain.php sync-orders [places.json]']]);
     }
 
     /* install: copy to both stages, create the empty secret, migrate each
@@ -1200,7 +1321,13 @@ try {
         });
         if ($result === 'closed') $fail(409, 'closed');
         if ($result === 'duplicate') $fail(409, 'duplicate');
-        $ok(['id' => $id, 'status' => 'placed', 'again' => $result === 'again'], ['id' => substr($id, 0, 8)]);
+        // The shop hears now, once — not on a retry that met its own row.
+        $mailed = 'none';
+        if ($result === 'placed') {
+            $to = $db->scalar('SELECT order_email FROM shop_contacts WHERE place_slug = ?', [$slug]);
+            if (is_string($to) && $to !== '') $mailed = sendOrderMail($to, orderEmail($id, $row)) ? 'sent' : 'failed';
+        }
+        $ok(['id' => $id, 'status' => 'placed', 'again' => $result === 'again'], ['id' => substr($id, 0, 8), 'mail' => $mailed]);
     }
 
     case 'order_status': {

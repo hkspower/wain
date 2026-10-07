@@ -66,7 +66,9 @@ writeFileSync(join(web, "data", "places.json"), JSON.stringify(SEED));
 const WRITES_PER_MIN = 100;
 const php = spawn("php", ["-S", `127.0.0.1:${PORT}`, "-t", web], {
   stdio: "ignore",
-  env: { ...process.env, WAIN_API_WRITES_PER_MIN: String(WRITES_PER_MIN), WAIN_API_RATE_PER_MIN: "5000" },
+  env: { ...process.env, WAIN_API_WRITES_PER_MIN: String(WRITES_PER_MIN), WAIN_API_RATE_PER_MIN: "5000",
+         // The order email is written here instead of sent (a test seam).
+         WAIN_API_MAIL_DIR: join(dir, "mail") },
 });
 await new Promise((r) => setTimeout(r, 700));
 
@@ -123,7 +125,7 @@ try {
   console.log("\n── install-time CLI: migrate, seed, version ──");
   {
     const m = cli("migrate");
-    ok("migrate creates the five tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 5, j(m));
+    ok("migrate creates the six tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 6, j(m));
     ok("the database file is 0600", (await import("node:fs")).statSync(join(storage, "wain.sqlite")).mode.toString(8).endsWith("600"));
     const s1 = cli("seed");
     ok("seed inserts the three rows of data/places.json", s1.ok && s1.inserted === 3 && s1.skipped === 0 && s1.total === 3, j(s1));
@@ -192,6 +194,62 @@ try {
     ok("every row carries an id", typeof tea.id === "string" && /^[0-9a-f-]{36}$/.test(tea.id));
     const all = await call("places_all", undefined, { admin: true });
     ok("places_all includes the unpublished row", all.json?.places?.length === 3 && all.json.places.some((p) => p.slug === "hidden-one"));
+  }
+
+  console.log("\n── the shop hears about an order by email (7 October) ──");
+  {
+    const mailDir = join(dir, "mail");
+    const mails = () => (existsSync(mailDir) ? readdirSync(mailDir).map((f) => JSON.parse(readFileSync(join(mailDir, f), "utf8"))) : []);
+    const none = await call("order_place", order());
+    ok("a shop with no address on file gets nothing, and the order still goes", none.status === 200 && mails().length === 0, j(none.json));
+    const bad = cli("order-email", "tea-house", "not-an-email");
+    ok("order-email refuses a malformed address", bad.ok === false && bad.error === "bad_email", j(bad));
+    const ghost = cli("order-email", "no-such-place", "shop@example.com");
+    ok("…and a slug that is not a place", ghost.ok === false && ghost.error === "no_such_place", j(ghost));
+    const set = cli("order-email", "tea-house", "shop@example.com");
+    ok("order-email sets the shop's address", set.ok === true && set.order_email === "shop@example.com", j(set));
+    const o = order({ note_ar: "بدون سكر", total_fils: 500 });
+    await call("order_place", o);
+    const [m] = mails();
+    ok("the order sends one email, to the shop", mails().length === 1 && m.to === "shop@example.com", j(mails()));
+    const ref = o.id.replace(/-/g, "").slice(0, 6).toUpperCase();
+    ok("the subject carries the order's reference", m?.subject.includes(ref), m?.subject);
+    ok("the body has the line, the total, the time, the name, the phone and the note, in the site's formats",
+      m?.body.includes("٢× چاي كرك — ٠٫٥٠٠ د.ك") && m.body.includes("المجموع التقريبي: ٠٫٥٠٠ د.ك") &&
+      m.body.includes("الساعة ٦:٣٠ م") && m.body.includes("الاسم: سالم") && m.body.includes("51234567") && m.body.includes("ملاحظة: بدون سكر"), m?.body);
+    await call("order_place", o);
+    ok("a retry that meets its own order sends nothing more", mails().length === 1, String(mails().length));
+    const places = (await call("places")).json.places;
+    ok("the address is in no public answer", !JSON.stringify(places).includes("shop@example.com"));
+    const cleared = cli("order-email", "tea-house", "none");
+    ok("«none» clears it", cleared.ok === true && cleared.order_email === null, j(cleared));
+    await call("order_place", order());
+    ok("…and the next order sends nothing", mails().length === 1, String(mails().length));
+  }
+
+  console.log("\n── sync-orders: a menu sent later reaches rows that already exist (7 October) ──");
+  {
+    const file = join(dir, "later.json");
+    const later = SEED.map((p) => (p.slug === "quiet-cafe"
+      ? { ...p, accepts_orders: true, menu_ar: [{ id: "m1", nameAr: "لاتيه", priceFils: 1250 }], order_whatsapp: "61234567" }
+      : p));
+    writeFileSync(file, JSON.stringify(later));
+    const before = await call("order_place", order({ place_slug: "quiet-cafe", place_name_ar: "كافيه هادي",
+      lines: [{ id: "m1", nameAr: "لاتيه", priceFils: 1250, qty: 1 }], total_fils: 1250 }));
+    ok("before the sync the server refuses it: seed never overwrites", before.status === 409 && before.json?.error === "closed", j(before.json));
+    const sync = cli("sync-orders", file);
+    ok("sync-orders updates exactly the row whose ordering changed", sync.ok === true && j(sync.updated) === j(["quiet-cafe"]), j(sync));
+    const after = await call("order_place", order({ place_slug: "quiet-cafe", place_name_ar: "كافيه هادي",
+      lines: [{ id: "m1", nameAr: "لاتيه", priceFils: 1250, qty: 1 }], total_fils: 1250 }));
+    ok("…and the order goes", after.status === 200 && after.json?.status === "placed", j(after.json));
+    const again = cli("sync-orders", file);
+    ok("a second sync changes nothing", again.ok === true && again.updated.length === 0, j(again));
+    const tagline = (await call("places")).json.places.find((p) => p.slug === "quiet-cafe").tagline_ar;
+    ok("and nothing outside ordering was touched", tagline === "شاي وقهوة", tagline);
+    // And back: a menu withdrawn from the catalogue stops orders the same way.
+    writeFileSync(file, JSON.stringify(SEED));
+    const back = cli("sync-orders", file);
+    ok("syncing the original catalogue takes it back", back.ok === true && j(back.updated) === j(["quiet-cafe"]), j(back));
   }
 
   console.log("\n── orders ──");
@@ -448,7 +506,7 @@ try {
     const text = log.tail.join("\n");
     ok("no customer name, phone, email or note is in it", !/سالم|51234567|owner@example|زبون/.test(text));
     ok("a refusal names the action and the reason", /wain 422 a=order_place why=invalid/.test(text));
-    ok("a write names the row by its first eight characters only", /wain ok a=order_place id=[0-9a-f]{8} ms=/.test(text));
+    ok("a write names the row by its first eight characters only", /wain ok a=order_place id=[0-9a-f]{8} mail=(none|sent|failed) ms=/.test(text));
     ok("the address is eight hex characters", /ip=[0-9a-f]{8}\b/.test(text) && !/127\.0\.0\.1/.test(text));
     ok("the log file is 0600", (await import("node:fs")).statSync(join(storage, "logs", "wain.log")).mode.toString(8).endsWith("600"));
   }

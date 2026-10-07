@@ -751,6 +751,29 @@ create trigger queue_tickets_stamp before update on public.queue_tickets
   for each row execute function public.stamp_queue_status();
 
 -- ---------------------------------------------------------------------------
+-- Where a shop hears about an order (7 October)
+--
+-- The live back end (wain-api.php) emails this address when an order is
+-- placed. Its own table so a shop's email is never in the public places
+-- answer; no anonymous access at all, admins read and write.
+-- ---------------------------------------------------------------------------
+create table if not exists public.shop_contacts (
+  place_slug   text primary key check (place_slug ~ '^[a-z0-9-]+$'),
+  order_email  text not null check (order_email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$' and length(order_email) <= 191),
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.shop_contacts enable row level security;
+revoke all on public.shop_contacts from anon, authenticated;
+grant select, insert, update, delete on public.shop_contacts to authenticated;
+
+drop policy if exists "admins manage shop contacts" on public.shop_contacts;
+create policy "admins manage shop contacts"
+  on public.shop_contacts for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- ---------------------------------------------------------------------------
 -- Shortlist votes (/pick, 7 October)
 --
 -- The live back end is wain's own PHP (scripts/publish/wain-api.php), where

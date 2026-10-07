@@ -316,6 +316,16 @@ export default function PrivacyPage() {
             من الطلب تبقى محفوظة داخل متصفحك. وسجلّ هالطرف يكتب نوع الطلب
             ونتيجته بس — لا اسم ولا رقم ولا ملاحظة.
           </p>
+          {/* 7 October: a placed order is also emailed to the shop, from
+              orders@wainkw.com, when the shop gave us an address. The shop
+              already saw the same fields on its board; the email is the same
+              information reaching it by a second road, and saying so is the
+              point of this page. */}
+          <p>
+            وإذا المحل عطانا إيميل للطلبات، يوصله طلبك بإيميل من وين —
+            اسمك ورقمك والأصناف ووقت الاستلام وملاحظتك إذا كتبت وحدة — نفس
+            اللي يشوفه على لوحة الطلبات، عشان ما يفوته.
+          </p>
           {/* 7 October: /pick counts a shortlist's votes on the same server. */}
           <p>
             وإذا صوّتت على قائمة «خلّهم يختارون»، ينحفظ صوتك على نفس الخادم عشان

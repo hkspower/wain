@@ -89,6 +89,7 @@ One message per shop, in this shape:
 واتساب: 5XXXXXXX                   (8 digits — the number that answers orders)
 التجهيز: 15                        (minutes, 5–240; default 30)
 ملاحظة: الاستلام من الكاشير.       (optional, up to 300 characters)
+إيميل: orders@example.com          (optional — where a new order is emailed)
 القائمة:
 چاي كرك | 0.250
 قهوة عربية | 0.500
@@ -104,6 +105,31 @@ ai:brief` (the brief flips from «nobody takes orders» to naming the place),
 `npm run content`, `npm run scan` — `audit:places` refuses a place that
 accepts orders without a menu or a number — screenshots, the owner's yes, and
 a deploy, which is a separate decision.
+
+**After that deploy, two commands on the server**, one cron job each, read at
+the first firing:
+
+```
+php /home/u130124229/domains/wainkw.com/public_html/api/wain.php sync-orders
+php /home/u130124229/domains/wainkw.com/public_html/api/wain.php order-email <slug> <email>
+```
+
+`seed` never overwrites a row, so a menu added to `places.ts` after the first
+seed would never reach the database without `sync-orders`. It reads the
+deployed `data/places.json` and updates only the five ordering fields on rows
+that already exist: `menu_ar`, `accepts_orders`, `order_note_ar`,
+`order_prep_minutes`, `order_whatsapp`. An edit made on the admin board to any
+other field survives it.
+
+The email address is **not in `places.ts`**, because that file is public (it is
+in the repository and in `data/places.json`). It lives only in the server's
+`shop_contacts` table, set by `order-email`; `none` removes it. When an order is
+placed and the place has an address, `wain.php` sends one plain-text email from
+`orders@wainkw.com`: the reference, the lines and the total, the pickup time,
+the customer's name and phone, the note if any, and a link to the board. A
+repeat of the same order (`again: true`) sends nothing. The log line records
+`mail=none|sent|failed` and never the address. A failed send does not fail the
+order: the order is already on the board.
 
 ## Turning it on for a business (with a database)
 

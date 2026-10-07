@@ -132,7 +132,24 @@ device moves rather than adds.
 - No name and no phone are stored. The voter is a random id the device keeps.
 - Rows older than 30 days are deleted on the next vote, and a poll stops at 200
   voters.
-- The Postgres alternative in `supabase/schema.sql` has no twin of this table.
+- `supabase/schema.sql` carries a twin of the table (`audit:schema` requires
+  one for every table the API has). No Postgres client uses it.
+
+**Order emails (7 October):** the `shop_contacts` table maps a place to the
+address a new order is emailed to. There is no action for it. It is set from the
+CLI only: `php wain.php order-email <slug> <email|none>`. That keeps the address
+out of `places.ts` and `data/places.json`, which are both public.
+`order_place` sends one plain-text email through PHP's `mail()`, from
+`orders@wainkw.com`, when the order is new and the place has an address. The
+log carries `mail=none|sent|failed` and never the address. A failed send never
+fails the order. The test suite points `WAIN_API_MAIL_DIR` at a directory, so
+the mail is written there as JSON instead of sent.
+
+`php wain.php sync-orders [file]` copies the five ordering fields from
+`data/places.json` onto rows that already exist: menu, the on/off switch, the
+note, the preparation time and the WhatsApp number. `seed` never overwrites, so
+without it a menu added to `places.ts` after the first seed would never reach
+the database.
 
 Errors are `{ ok: false, error, status, field? }`: `invalid` 422 (with the
 field), `duplicate` 409, `closed` 409, `rate_limited` 429, `admin_unset` 503.
