@@ -129,10 +129,18 @@ export default function SearchClient() {
    * Adopting it only when it differs from what the box holds is what keeps
    * this from fighting the effect below, which writes the URL *from* `q`: the
    * echo of our own write is a no-op, an outside push is not.
+   *
+   * «Our own write» is the TRIMMED box, and «differs» once compared it with
+   * the untrimmed one: a pause after «قهوة » took the space back and the next
+   * word was glued on, «قهوةهادية» (7 October). So the echo is recognised by
+   * what was written — which also covers a write that lands after more has
+   * been typed — and by the trimmed box.
    */
+  const wroteRef = useRef<string | null>(null);
   useEffect(() => {
     const incoming = params.get("q") ?? "";
-    setQ((current) => (incoming && incoming !== current ? incoming : current));
+    if (incoming === wroteRef.current) return;
+    setQ((current) => (incoming && incoming !== current.trim() ? incoming : current));
   }, [params]);
 
   // Keep ?q= in step with the box so a search can be shared or bookmarked,
@@ -141,6 +149,7 @@ export default function SearchClient() {
   useEffect(() => {
     const t = setTimeout(() => {
       const next = q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : "/search";
+      wroteRef.current = q.trim();
       router.replace(next, { scroll: false });
     }, 250);
     return () => clearTimeout(t);

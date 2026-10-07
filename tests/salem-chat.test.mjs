@@ -59,8 +59,13 @@ class FakeSocket {
   send(data) { this.sent.push(data); }
   close(code, reason) {
     if (this.readyState === FakeSocket.CLOSED) return;
+    // The spec: closing a socket that is still CONNECTING fails the
+    // connection, which fires `error` before `close`. A fake without it hid
+    // the connect timeout being re-reported as a refusal.
+    const failing = this.readyState === FakeSocket.CONNECTING;
     this.readyState = FakeSocket.CLOSED;
-    this.emit("close", { code: code ?? 1000, reason });
+    if (failing) this.emit("error", {});
+    this.emit("close", { code: failing ? 1006 : code ?? 1000, reason });
   }
   emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
 }
@@ -300,6 +305,9 @@ console.log("\n── a failure says WHICH kind ──");
   startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
   mock.timers.tick(12000);
   ok("a handshake that never answers is a timeout", seen.some(([s, f]) => s === "error" && f === "timeout"), JSON.stringify(seen));
+  // Closing the stalled socket fires its own `error`; that must not overwrite
+  // «timeout» with «refused», or the page shows the wrong sentence.
+  ok("and the timeout is the LAST word, not re-reported as a refusal", JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "timeout"]), JSON.stringify(seen));
 
   seen = [];
   startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });

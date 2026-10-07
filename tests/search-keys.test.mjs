@@ -141,6 +141,27 @@ console.log('\n── the cursor cannot point past the end of the list ──');
   await ctx.close();
 }
 
+console.log('\n── the box keeps what is typed while the address bar catches up ──');
+{
+  // The box writes ?q= from its TRIMMED text a quarter-second after a pause,
+  // and the page adopts a ?q= that differs from the box — so its own echo,
+  // «قهوة» against «قهوة », took the space back, and the next word was glued
+  // on («قهوةهادية»). A phone keyboard adds that space by itself.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.goto(`${B}/search/`, { waitUntil: 'networkidle' });
+  const box = p.getByRole('combobox').or(p.locator('input[type="search"]')).first();
+  await box.click({ timeout: 5000 }).catch(() => {});
+  await p.keyboard.type('قهوة ', { delay: 30 });
+  await p.waitForURL((u) => new URL(u).searchParams.get('q') === 'قهوة', { timeout: 4000 }).catch(() => {});
+  await p.waitForTimeout(400);
+  ok('a pause after a space keeps the space', (await box.inputValue().catch(() => '')) === 'قهوة ', JSON.stringify(await box.inputValue().catch(() => '')));
+  await p.keyboard.type('هادية', { delay: 30 });
+  await p.waitForTimeout(800);
+  ok('so the next word is a second word', (await box.inputValue().catch(() => '')) === 'قهوة هادية', JSON.stringify(await box.inputValue().catch(() => '')));
+  await ctx.close();
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

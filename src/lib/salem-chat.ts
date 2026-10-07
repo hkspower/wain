@@ -382,6 +382,9 @@ export function startSalemChat({
   });
 
   socket.addEventListener("error", () => {
+    // Closing a socket that is still connecting (the connect timeout, or the
+    // visitor leaving) fires `error` too; the reason was already given.
+    if (deliberatelyClosed) return;
     settled = true;
     clearTimeout(connectTimer);
     setPending(false);

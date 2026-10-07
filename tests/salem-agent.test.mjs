@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 
 /**
  * سالم's typed chat at /salem IN THE SANDBOX BUILD (agent mode — staging only
@@ -428,6 +429,52 @@ console.log('\n── out of credits: said as it is, and no instant retry ──
   await qp.clock.runFor(31000);
   ok('one comes back after a wait', await qp.getByRole('button', { name: 'جرّب مرة ثانية' }).isVisible().catch(() => false));
   await qctx.close();
+}
+
+console.log('\n── his tools answer from the live rows, not the snapshot they started with ──');
+{
+  // The socket opens once, at mount, and its tool handlers used to keep that
+  // first render's places — the build-time snapshot — after usePlaces swapped
+  // in the server's rows. So a place renamed in the admin was named the old
+  // way to the agent while the card under it said the new one. The live rows
+  // are a rename here, answered by the page's own back end.
+  const rows = JSON.parse(readFileSync(new URL('../out/data/places.json', import.meta.url), 'utf8'));
+  const renamed = rows.map((r) => (r.slug === 'kuwait-towers' ? { ...r, name_ar: 'أبراج الكويت الجديدة' } : r));
+  const lctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await lctx.route('**/api/wain.php*', (route) =>
+    new URL(route.request().url()).searchParams.get('a') === 'places'
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, places: renamed }) })
+      : route.fulfill({ status: 404, body: '' }));
+  await lctx.addInitScript(() => {
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  });
+  const lp = await lctx.newPage();
+  await lp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await lp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  await lp.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+    s.emit('message', { data: JSON.stringify({
+      type: 'client_tool_call',
+      client_tool_call: { tool_call_id: 'live1', tool_name: 'open_place', parameters: { slug: 'kuwait-towers' } },
+    }) });
+  }).catch(() => {});
+  const reply = await lp.waitForFunction(() => {
+    const m = (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d)).find((x) => x.tool_call_id === 'live1');
+    return m ? m.result : null;
+  }, null, { timeout: 6000 }).then((h) => h.jsonValue(), () => '');
+  ok('open_place tells the agent the name the server has now', String(reply).includes('الجديدة'), String(reply).slice(0, 120));
+  await lctx.close();
 }
 
 await browser.close();

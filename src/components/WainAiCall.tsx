@@ -579,11 +579,16 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       index: import("@/lib/search").SearchIndex;
     }> | null = null;
     return () =>
-      (pending ??= Promise.all([import("@/lib/search"), import("@/lib/answer-order")]).then(([mod, order]) => ({
-        mod,
-        order,
-        index: mod.buildIndex(places),
-      })));
+      (pending ??= Promise.all([import("@/lib/search"), import("@/lib/answer-order")]).then(
+        ([mod, order]) => ({ mod, order, index: mod.buildIndex(places) }),
+        (err) => {
+          // Forget a failure, as SalemChat does: a chunk that failed once on a
+          // weak line during ring-back left every show_places in the call
+          // answering with no count and no names.
+          pending = null;
+          throw err;
+        }
+      ));
   }, [places]);
 
   useEffect(() => {

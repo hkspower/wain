@@ -6461,6 +6461,49 @@ firing, deleted, listed gone. `deploy:verify`: «127350ba is live — verified a
 n8n), `Last-Modified 09:57:02`, `DYNAMIC`. **The hosa listing stops above `chunks/app/search/`** — read that chunk
 by path with `website-content` (`size_bytes`), as before.
 
+## «full check شوق and سالم, /find and /search» — 7 October (fixed in the repository, NOT deployed)
+
+**What the live state is.**
+- **The agent matches what the pages send.** `agents_get` on Main `agtvrsn_6801…`:
+  - overrides `tts.voice_id`, `conversation.text_only` and `prompt.llm` are open;
+  - the allowlist is the three wainkw hosts;
+  - the LLM is gemini-3.8-flash, the voice is Maryam on `eleven_v4`, and the three tools are attached.
+- **The pages answer.** `/find/`, `/search/` and `/salem/` through the edge: 200, `Last-Modified 09:57:02`, the CSP without supabase and n8n.
+- **Nobody has used her since the agent deploy.** `agents_list_conversations` after 08:36 UTC: **0**.
+  - **Not one typed conversation (`js_sdk`) has ever succeeded.** The only ones on record are 2 October's 0-second quota failures.
+  - So سالم's typed chat on the live site is still unproven by a real reply, and so is a call through the self-hosted widget from wainkw.com. The 6 October calls were the dashboard's own `react_sdk` widget.
+
+**Four defects, all found by reading and each proved red first:**
+
+1. **/search lost a typed space.**
+   - The box writes `?q=` from its trimmed text, then adopted any `?q=` that differed from the untrimmed box.
+   - So its own echo turned «قهوة » back into «قهوة», and the next word was glued on: «قهوةهادية». A phone keyboard adds that space by itself.
+   - Measured in a browser on the live build, then fixed. The echo is now recognised by what was written (`wroteRef`), and by the trimmed box.
+   - `search-keys` +2.
+2. **سالم's tools answered from the snapshot.**
+   - The socket opens once, so `show_places`/`open_place` kept the first render's `places`, from before `usePlaces` swapped in the server's rows.
+   - Fixed by having the tools read the places through refs.
+   - `salem-agent` +1, with a renamed row served by a routed `/api/wain.php`.
+3. **A connect timeout was reported as «refused».**
+   - Closing a socket that is still CONNECTING fires `error`, and the error handler did not check `deliberatelyClosed`.
+   - **The test's FakeSocket now follows the spec** (an `error` before the `close`). The old fake fired `close` only, which is why nothing saw it.
+   - `salem-chat` +1.
+4. **The call remembered a failed search-chunk load** for the rest of that `places` identity, so every `show_places` after one weak-line failure answered without a count or names.
+   - It now forgets the failure, the way SalemChat already did.
+   - No new test: staging a chunk failure during ring-back would also break /search's own copy of the chunk, and a test of that would measure something else.
+
+**And one the suites found: a stale `.next/cache` swapped two imports.**
+- After several builds that switched between the free and agent modes (test:shouq does this), a free build compiled /pick with `AddToCalendar` and `PlaceCard` resolved to each other's module ids.
+- The build was green and the source correct. The calendar button rendered a PlaceCard, which rendered nothing for those props.
+- `together`'s «the voter can put the plan on the calendar» failed 3 of 3. A clean rebuild of the same tree was right, 72 of 72.
+- **`make-release` now deletes `.next` before it builds**, so a release can never ship from that cache.
+- **Before reading a red that no source change explains, rebuild from a clean `.next`.**
+
+**Not bugs, but worth knowing:**
+- **`test:hangout`'s `salem` and `together` suites assert the FREE build** («no WebSocket is opened»), so they fail by design on an agent build like the live one. The agent build's /salem is covered by `test:shouq`'s agent pass.
+- **«اسمعها بصوت شوق» is not her voice on the live site.** The bridge is off (`NEXT_PUBLIC_WAIN_TTS_URL=none`), so the phone's voice reads it, and on an iPhone that may be a man's. The label needs the owner's word before it changes.
+- **/salem's header call button is a red handset**, which reads as «hang up» on a phone. Also a design question for the owner.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

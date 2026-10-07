@@ -183,6 +183,18 @@ export default function SalemChat() {
       ));
   }, [places]);
 
+  // The socket opens once, at mount, so its tool handlers outlive the first
+  // render — and that render's `places` is the build-time snapshot, replaced
+  // by the server's rows a moment later. They read these instead, or a place
+  // renamed or unpublished in the admin is answered the old way (the call's
+  // tools had the same fix, WainAiCall.tsx).
+  const placesRef = useRef(places);
+  const loadIndexRef = useRef(loadIndex);
+  useEffect(() => {
+    placesRef.current = places;
+    loadIndexRef.current = loadIndex;
+  }, [places, loadIndex]);
+
   // The box is live in the server HTML, before the page's script has run, and
   // a tap or an Enter then did nothing — or submitted the form the old way and
   // reloaded the page with the question gone. It waits for this instead.
@@ -413,14 +425,15 @@ export default function SalemChat() {
         show_places: async ({ query }) => {
           const q = String(query ?? "").trim();
           if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.";
-          const { mod, order, index } = await loadIndex();
-          const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, places);
-          const { spoken, slugs } = formatShowPlaces(q, hits, places);
+          const { mod, order, index } = await loadIndexRef.current();
+          const live = placesRef.current;
+          const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, live);
+          const { spoken, slugs } = formatShowPlaces(q, hits, live);
           setMessages((prev) => [...prev, { role: "places", query: q, slugs }]);
           return spoken;
         },
         open_place: async ({ slug }) => {
-          const { spoken, slug: opened } = formatOpenPlace(String(slug ?? ""), places);
+          const { spoken, slug: opened } = formatOpenPlace(String(slug ?? ""), placesRef.current);
           if (opened) setMessages((prev) => [...prev, { role: "place", slug: opened }]);
           return spoken;
         },
@@ -433,7 +446,7 @@ export default function SalemChat() {
     if (FREE) return;
     connect();
     return () => handleRef.current?.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` via a ref-free closure, and a build-time constant; re-running this effect on every render would open a new socket each time
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` through refs, and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
   useEffect(() => {

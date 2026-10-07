@@ -55,6 +55,13 @@ console.log(`  branch  ${branch}\n`);
 
 /* ── build ──────────────────────────────────────────────────────────────── */
 if (!SKIP_BUILD) {
+  // From a clean cache, always. On 7 October a build that reused `.next/cache`
+  // after several switches between the free and agent modes compiled /pick
+  // with two imports swapped — the calendar button rendered PlaceCard and the
+  // cards rendered the calendar — with the build green and the source
+  // correct. A clean rebuild of the same tree was right. A release is what
+  // goes live, so it pays the few minutes rather than trust the cache.
+  rmSync(join(ROOT, ".next"), { recursive: true, force: true });
   console.log("▸ building…");
   execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
 } else if (!existsSync(OUT)) {
