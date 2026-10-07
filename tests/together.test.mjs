@@ -79,6 +79,7 @@ console.log('\n── 1. a map under each reply, pointing with the cards and the
   // Choose the second place from the share panel: its card is ringed, and
   // the map's pin for it is the current one.
   const second = await soft(() => block.locator('fieldset button[aria-pressed]').nth(1).textContent(), '');
+  await soft(() => block.getByRole('button', { name: 'غيّر' }).click());
   await soft(() => block.locator('fieldset button[aria-pressed]').nth(1).click());
   await p.waitForTimeout(300);
   const ringed = await soft(() => block.locator('li[data-slug].ring-2').getAttribute('data-slug'));
@@ -255,6 +256,9 @@ console.log('\n── 6. «خلّهم يختارون»: a shortlist, and /pick �
   ok('and links to /pick with the three and the time', link && link[1].split(',').length === 3, sent);
 
   // Down to one: not a list.
+  // The chips are behind «غيّر» since 7 October; the closed panel's own
+  // «خلّهم يختارون» is what was tapped above.
+  await soft(() => panel.getByRole('button', { name: 'غيّر' }).click());
   const on = panel.locator('fieldset').first().locator('button[aria-pressed="true"]');
   await soft(() => on.nth(2).click());
   await soft(() => on.nth(1).click());

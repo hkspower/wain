@@ -3,7 +3,8 @@
 import type { Place } from "@/lib/places";
 import { GENERIC_LINES, isSummerMonth, summerKey } from "@/lib/voice-lines";
 import { kuwaitDay, kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
-import { DAY_PARAM, parseDay, resolvePlan, type Day, type WhenId } from "@/lib/plan-date";
+import { DAY_PARAM, parseDay, resolvePlan, weekday, type Day, type WhenId } from "@/lib/plan-date";
+import { distanceKm } from "@/lib/place-kit";
 
 export type { Day, WhenId } from "@/lib/plan-date";
 export { DAY_PARAM, resolvePlan } from "@/lib/plan-date";
@@ -145,6 +146,12 @@ export function defaultWhen(place: Place, now: Date = new Date()): WhenId {
   // would actually propose is the coming evening, which is what the outdoor
   // branch has always given and what these hours now fall through to.
   if (hour >= 9 && hour < 12 && daytimeIsFine && options.has("soon")) return "soon";
+  // Thursday and Friday the plan people make is the weekend's (7 October, on
+  // request). Below the two rules above: the heat outranks it, and «بعد ساعة»
+  // for a mall on a Friday morning is the weekend already. From ten at night
+  // the evening is spent and the chain below says «باچر».
+  const wd = weekday(kuwaitDay(now) as Day);
+  if ((wd === 4 || wd === 5) && hour < 22 && options.has("weekend")) return "weekend";
   if (options.has("tonight-8")) return "tonight-8";
   if (options.has("tonight-10")) return "tonight-10";
   return "tomorrow";
@@ -366,6 +373,33 @@ export function defaultWhenFor(list: Place[], now: Date = new Date()): WhenId {
   if (ok.has("tonight-8")) return "tonight-8";
   if (ok.has("tonight-10")) return "tonight-10";
   return "tomorrow";
+}
+
+/**
+ * The places «خلّهم يختارون» starts with: the first result, then the next
+ * ones that a single time suits too and that are near it — three places a
+ * group can actually choose between for one evening, rather than the top
+ * three results whatever they are (7 October, on request). Anything that
+ * does not fit is still in the row, one tap away; when too few fit, the
+ * list is filled in result order so it never starts short.
+ */
+export const SHORTLIST_NEAR_KM = 15;
+export function fitShortlist(choices: Place[], now: Date = new Date()): Place[] {
+  if (choices.length <= SHORTLIST_MAX) return choices.slice(0, SHORTLIST_MAX);
+  const [first, ...rest] = choices;
+  const picked: Place[] = [first];
+  for (const c of rest) {
+    if (picked.length === SHORTLIST_MAX) break;
+    const near = distanceKm(first, c) <= SHORTLIST_NEAR_KM;
+    const together = [...picked, c];
+    const oneTime = whenOptionsFor(together, now).some((o) => o.id === defaultWhenFor(together, now));
+    if (near && oneTime) picked.push(c);
+  }
+  for (const c of rest) {
+    if (picked.length === SHORTLIST_MAX) break;
+    if (!picked.includes(c)) picked.push(c);
+  }
+  return picked;
 }
 
 /** `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like `inviteUrl`. */

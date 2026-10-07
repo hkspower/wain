@@ -9,6 +9,7 @@ library;
 
 import '../data/models.dart';
 import '../data/voice_lines.dart';
+import '../data/text_kit.dart' show distanceKm;
 import 'plan_date.dart';
 
 export 'plan_date.dart';
@@ -86,6 +87,12 @@ WhenId defaultWhen(Place place, [DateTime? now]) {
       daytimeIsFine &&
       options.contains(WhenId.soon)) {
     return WhenId.soon;
+  }
+  // Thursday and Friday propose the weekend (the web's defaultWhen, 7
+  // October): below the heat and the morning «بعد ساعة», before ten at night.
+  final wd = weekday(kuwaitDay(t));
+  if ((wd == 4 || wd == 5) && hour < 22 && options.contains(WhenId.weekend)) {
+    return WhenId.weekend;
   }
   if (options.contains(WhenId.tonight8)) return WhenId.tonight8;
   if (options.contains(WhenId.tonight10)) return WhenId.tonight10;
@@ -230,6 +237,31 @@ WhenId defaultWhenFor(List<Place> list, [DateTime? now]) {
   if (ok.contains(WhenId.tonight8)) return WhenId.tonight8;
   if (ok.contains(WhenId.tonight10)) return WhenId.tonight10;
   return WhenId.tomorrow;
+}
+
+/// The places «خلّهم يختارون» starts with: the first, then the next ones near
+/// it that one time suits too, then the rest in order (the web's
+/// `fitShortlist`, 7 October).
+const double kShortlistNearKm = 15;
+List<Place> fitShortlist(List<Place> choices, [DateTime? now]) {
+  final t = now ?? DateTime.now();
+  if (choices.length <= kShortlistMax) return choices.take(kShortlistMax).toList();
+  final first = choices.first;
+  final rest = choices.skip(1).toList();
+  final picked = <Place>[first];
+  for (final c in rest) {
+    if (picked.length == kShortlistMax) break;
+    final near = distanceKm((lat: first.lat, lng: first.lng), (lat: c.lat, lng: c.lng)) <= kShortlistNearKm;
+    final together = [...picked, c];
+    final def = defaultWhenFor(together, t);
+    final oneTime = whenOptionsFor(together, t).any((o) => o.id == def);
+    if (near && oneTime) picked.add(c);
+  }
+  for (final c in rest) {
+    if (picked.length == kShortlistMax) break;
+    if (!picked.contains(c)) picked.add(c);
+  }
+  return picked;
 }
 
 /// `/pick/?p=a,b,c&when=…` — canonical, from the slugs, like [inviteUrl].

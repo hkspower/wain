@@ -194,6 +194,15 @@ void main() {
           (sl['urls'] as List)[i],
         );
       }
+      // The list «خلّهم يختارون» starts with (7 October).
+      for (final c in (sl['fit'] as List).cast<Map>()) {
+        final choices = [for (final s in (c['choices'] as List)) bySlug[s]!];
+        expect(
+          fitShortlist(choices, DateTime.parse(c['at'] as String)).map((p) => p.slug).toList(),
+          c['out'],
+          reason: '${c['at']} ${c['choices']}',
+        );
+      }
       // With a poll, and with a value that is not one (7 October).
       final n = lists.length;
       expect(

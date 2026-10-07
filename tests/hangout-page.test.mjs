@@ -23,7 +23,7 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
  * `share` decides what navigator.share does: "ok", "cancel", "throw", or
  * "absent" (the property is deleted, as on desktop Firefox).
  */
-async function fresh({ share = 'ok', canOpen = true, clipboard = true, at = null } = {}) {
+async function fresh({ share = 'ok', canOpen = true, clipboard = true, at = null, open = true } = {}) {
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW',
   });
@@ -69,11 +69,53 @@ async function fresh({ share = 'ok', canOpen = true, clipboard = true, at = null
     await p.clock.install({ time: new Date(Date.UTC(2026, 7, 21, at[0] - 3, at[1])) });
   }
   await p.goto(B + PLACE, { waitUntil: 'networkidle' });
+  // The chips sit behind «غيّر» since 7 October; the sections below are
+  // about the chips, so they open it. The closed panel has its own section.
+  if (open) await panel(p).getByRole('button', { name: 'غيّر' }).click({ timeout: 6000 }).catch(() => {});
   return { ctx, p, errors };
 }
 
 const panel = (p) => p.locator('section', { has: p.locator('h2', { hasText: 'رسّلها للربع' }) }).last();
 const sendButton = (p) => panel(p).locator('button', { hasText: /^رسّلها$|لحظة/ });
+
+console.log('\n── closed, it is the plan in one line and a send button (7 October) ──');
+{
+  const { ctx, p } = await fresh({ open: false });
+  await panel(p).waitFor({ timeout: 6000 });
+  const what = await panel(p).locator('[data-plan-what]').textContent({ timeout: 4000 }).catch(() => '');
+  ok('the line names the place', what.includes('أبراج الكويت'), what);
+  const when = await panel(p).locator('[data-plan-when]').textContent({ timeout: 4000 }).catch(() => '');
+  ok('and says when, in words', /الحين|بعد ساعة|الليلة|باچر|الويكند|عقب المغرب/.test(when), when);
+  const visibleChips = await panel(p).locator('fieldset button:visible').count();
+  ok('no chips until «غيّر»', visibleChips === 0, `${visibleChips} visible`);
+  ok('the send button is right there', await sendButton(p).isVisible());
+  const height = (await panel(p).boundingBox())?.height ?? 999;
+  ok('the closed panel is short (under 260px at 390)', height < 260, `${Math.round(height)}px`);
+  await panel(p).getByRole('button', { name: 'غيّر' }).click();
+  ok('«غيّر» opens the chips', (await panel(p).locator('fieldset button:visible').count()) >= 3);
+  ok('and says it is open', (await panel(p).getByRole('button', { name: /تمام/ }).getAttribute('aria-expanded')) === 'true');
+  const chips = panel(p).locator('fieldset button');
+  const last = (await chips.last().textContent()).trim();
+  await chips.last().click();
+  const after = await panel(p).locator('[data-plan-when]').textContent();
+  ok('a chip changes the line', after.includes(last.replace(/ مساءً$/, '')) || /باچر|الويكند/.test(after), `${last} → ${after}`);
+  await ctx.close();
+}
+
+console.log('\n── the time this device sends is the next one offered (7 October) ──');
+{
+  const { ctx, p } = await fresh({ share: 'ok' });
+  await panel(p).waitFor({ timeout: 6000 });
+  const chips = panel(p).locator('fieldset button');
+  const target = chips.filter({ hasText: 'الويكند' });
+  await target.click({ timeout: 4000 }).catch(() => {});
+  await sendButton(p).click();
+  await p.waitForFunction(() => window.__shared.length > 0, null, { timeout: 6000 }).catch(() => {});
+  await p.reload({ waitUntil: 'networkidle' });
+  const line = await panel(p).locator('[data-plan-when]').textContent({ timeout: 4000 }).catch(() => '');
+  ok('after sending «الويكند», the next plan starts at the weekend', line.includes('الويكند'), line);
+  await ctx.close();
+}
 
 console.log('\n── the panel is on the page, with a time already chosen ──');
 {

@@ -1776,7 +1776,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -1811,7 +1811,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -1846,7 +1846,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -1881,7 +1881,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -1916,7 +1916,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -1951,7 +1951,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -1986,7 +1986,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -2040,7 +2040,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -2075,7 +2075,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -2110,7 +2110,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -2145,7 +2145,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -2180,7 +2180,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -2215,7 +2215,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -2250,7 +2250,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -2304,7 +2304,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -2339,7 +2339,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -2374,7 +2374,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -2409,7 +2409,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -2568,7 +2568,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -2603,7 +2603,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -2638,7 +2638,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -2673,7 +2673,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -2708,7 +2708,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -2743,7 +2743,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -2778,7 +2778,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -2828,7 +2828,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -2861,7 +2861,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -2894,7 +2894,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -2927,7 +2927,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -2960,7 +2960,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -2993,7 +2993,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -3026,7 +3026,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -3444,7 +3444,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -3479,7 +3479,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -3514,7 +3514,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -7056,7 +7056,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -7091,7 +7091,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -7126,7 +7126,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -7161,7 +7161,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -7196,7 +7196,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -7231,7 +7231,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -7266,7 +7266,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -8352,7 +8352,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "حديقة الشهيد — مدينة الكويت 📍\nالحين\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=now",
        "soon": "حديقة الشهيد — مدينة الكويت 📍\nبعد ساعة\n\nالرئة الخضراء للعاصمة.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\nhttps://www.wainkw.com/places/al-shaheed-park/?when=soon",
@@ -8387,7 +8387,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "مقاهي المباركية — مدينة الكويت 📍\nالحين\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=now",
        "soon": "مقاهي المباركية — مدينة الكويت 📍\nبعد ساعة\n\nچاي وقهوة عربية في حوش السوق.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\nhttps://www.wainkw.com/places/mubarakiya-tea-houses/?when=soon",
@@ -8422,7 +8422,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أبراج الكويت — مدينة الكويت 📍\nالحين\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=now",
        "soon": "أبراج الكويت — مدينة الكويت 📍\nبعد ساعة\n\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\nhttps://www.wainkw.com/places/kuwait-towers/?when=soon",
@@ -8457,7 +8457,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "سوق المباركية — مدينة الكويت 📍\nالحين\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=now",
        "soon": "سوق المباركية — مدينة الكويت 📍\nبعد ساعة\n\nقرنين من التجارة والبهارات والحكايات.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=soon",
@@ -8492,7 +8492,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "ميس الغانم — شارع الخليج 📍\nالحين\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=now",
        "soon": "ميس الغانم — شارع الخليج 📍\nبعد ساعة\n\nمطعم كويتي عريق على شارع الخليج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\nhttps://www.wainkw.com/places/mais-alghanim/?when=soon",
@@ -8527,7 +8527,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "فريج صويلح — السالمية 📍\nالحين\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=now",
        "soon": "فريج صويلح — السالمية 📍\nبعد ساعة\n\nأكل كويتي في أجواء الفريج القديم.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\nhttps://www.wainkw.com/places/freej-swaileh/?when=soon",
@@ -8562,7 +8562,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "أكوا بارك — مدينة الكويت 📍\nالحين\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=now",
        "soon": "أكوا بارك — مدينة الكويت 📍\nبعد ساعة\n\nأول مدينة ألعاب مائية في الخليج، جنب الأبراج.\n\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3878,48.0004\nhttps://www.wainkw.com/places/aqua-park/?when=soon",
@@ -8923,7 +8923,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -8949,7 +8949,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -8975,7 +8975,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -9003,7 +9003,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -9035,7 +9035,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -9061,7 +9061,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -9087,7 +9087,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -9115,7 +9115,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -9147,7 +9147,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -9199,7 +9199,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -9227,7 +9227,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -9259,7 +9259,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -9285,7 +9285,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -9311,7 +9311,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -9339,7 +9339,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -9369,7 +9369,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -9393,7 +9393,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -9417,7 +9417,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -9443,7 +9443,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -9593,7 +9593,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -11129,7 +11129,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -11155,7 +11155,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -11181,7 +11181,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -11209,7 +11209,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -11671,7 +11671,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mais-alghanim,kuwait-towers&when=soon",
@@ -11697,7 +11697,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. ميس الغانم — شارع الخليج\nمطعم كويتي عريق على شارع الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3665,48.0003\n\n٢. فريج صويلح — السالمية\nأكل كويتي في أجواء الفريج القديم.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3339,48.0709\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=mais-alghanim,freej-swaileh&when=soon",
@@ -11723,7 +11723,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. سوق المباركية — مدينة الكويت\nقرنين من التجارة والبهارات والحكايات.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3741,47.9788\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=souq-al-mubarakiya,mubarakiya-tea-houses&when=soon",
@@ -11751,7 +11751,7 @@
        "tomorrow",
        "weekend"
       ],
-      "default": "tonight-8",
+      "default": "weekend",
       "messages": {
        "now": "وين نروح الحين؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=now",
        "soon": "وين نروح بعد ساعة؟ اختاروا:\n\n١. حديقة الشهيد — مدينة الكويت\nالرئة الخضراء للعاصمة.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3648,47.9906\n\n٢. مقاهي المباركية — مدينة الكويت\nچاي وقهوة عربية في حوش السوق.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.3746,47.9783\n\n٣. أبراج الكويت — مدينة الكويت\nأيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.\nالموقع: https://www.google.com/maps/dir/?api=1&destination=29.389,48.0034\n\nصوّتوا هني: https://www.wainkw.com/pick/?p=al-shaheed-park,mubarakiya-tea-houses,kuwait-towers&when=soon",
@@ -12065,6 +12065,143 @@
    "أنا مع ٢: سوق المباركية 👍 — الليلة الساعة ٨\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=tonight-8&d=2026-10-02",
    "أنا مع ٢: سوق المباركية 👍 — باچر السبت\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=tomorrow&d=2026-10-02",
    "أنا مع ٢: سوق المباركية 👍 — الويكند — السبت\nhttps://www.wainkw.com/places/souq-al-mubarakiya/?when=weekend&d=2026-10-02"
+  ],
+  "fit": [
+   {
+    "at": "2026-07-14T14:00:00.000Z",
+    "choices": [
+     "kuwait-towers",
+     "khiran",
+     "wafra-farms",
+     "souq-al-mubarakiya",
+     "marina-beach",
+     "al-shaheed-park"
+    ],
+    "out": [
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "marina-beach"
+    ]
+   },
+   {
+    "at": "2026-07-14T14:00:00.000Z",
+    "choices": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "the-avenues"
+    ],
+    "out": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers"
+    ]
+   },
+   {
+    "at": "2026-07-14T14:00:00.000Z",
+    "choices": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya",
+     "sadu-house"
+    ],
+    "out": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya"
+    ]
+   },
+   {
+    "at": "2026-12-15T12:30:00.000Z",
+    "choices": [
+     "kuwait-towers",
+     "khiran",
+     "wafra-farms",
+     "souq-al-mubarakiya",
+     "marina-beach",
+     "al-shaheed-park"
+    ],
+    "out": [
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "marina-beach"
+    ]
+   },
+   {
+    "at": "2026-12-15T12:30:00.000Z",
+    "choices": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "the-avenues"
+    ],
+    "out": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers"
+    ]
+   },
+   {
+    "at": "2026-12-15T12:30:00.000Z",
+    "choices": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya",
+     "sadu-house"
+    ],
+    "out": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya"
+    ]
+   },
+   {
+    "at": "2026-10-08T14:00:00.000Z",
+    "choices": [
+     "kuwait-towers",
+     "khiran",
+     "wafra-farms",
+     "souq-al-mubarakiya",
+     "marina-beach",
+     "al-shaheed-park"
+    ],
+    "out": [
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "marina-beach"
+    ]
+   },
+   {
+    "at": "2026-10-08T14:00:00.000Z",
+    "choices": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers",
+     "souq-al-mubarakiya",
+     "the-avenues"
+    ],
+    "out": [
+     "khiran",
+     "failaka-island",
+     "kuwait-towers"
+    ]
+   },
+   {
+    "at": "2026-10-08T14:00:00.000Z",
+    "choices": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya",
+     "sadu-house"
+    ],
+    "out": [
+     "marina-beach",
+     "kuwait-national-museum",
+     "souq-al-mubarakiya"
+    ]
+   }
   ],
   "title": "وين نروح؟ — وين",
   "max": 3,

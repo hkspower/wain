@@ -41,7 +41,40 @@ const fails = [];
 const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
 
 /** A Date whose Kuwait wall-clock hour is exactly `hour`. */
-const atKuwait = (hour) => new Date(Date.UTC(2026, 7, 21, hour - 3, 30));
+// A Tuesday in August: the ordinary-day rules. It was Friday the 21st until
+// 7 October, when Thursday and Friday started proposing the weekend — the
+// rules below are about an ordinary day, and a Friday is not one now.
+const atKuwait = (hour) => new Date(Date.UTC(2026, 7, 18, hour - 3, 30));
+
+console.log("\n── Thursday and Friday propose the weekend (7 October) ──");
+{
+  const indoor = { slug: "mall", setting: "indoor", lat: 29.3, lng: 48.0 };
+  const outdoor = { slug: "beach", setting: "outdoor", lat: 29.3, lng: 48.0 };
+  const at = (y, m, d, h) => new Date(Date.UTC(y, m, d, h - 3, 30));
+  ok("Thursday 17:00, an indoor place: the weekend", H.defaultWhen(indoor, at(2026, 9, 8, 17)) === "weekend", H.defaultWhen(indoor, at(2026, 9, 8, 17)));
+  ok("Friday 15:00: the weekend", H.defaultWhen(indoor, at(2026, 9, 9, 15)) === "weekend", H.defaultWhen(indoor, at(2026, 9, 9, 15)));
+  ok("Friday 10:00, indoor: «بعد ساعة» still wins — the morning is the weekend already", H.defaultWhen(indoor, at(2026, 9, 9, 10)) === "soon", H.defaultWhen(indoor, at(2026, 9, 9, 10)));
+  ok("Thursday 23:00: «باچر», the evening is spent", H.defaultWhen(indoor, at(2026, 9, 8, 23)) === "tomorrow", H.defaultWhen(indoor, at(2026, 9, 8, 23)));
+  ok("Thursday in August, open-air: the heat outranks the weekend", H.defaultWhen(outdoor, at(2026, 7, 20, 15)) === "sunset", H.defaultWhen(outdoor, at(2026, 7, 20, 15)));
+  ok("Wednesday 17:00: the evening, as before", H.defaultWhen(indoor, at(2026, 9, 7, 17)) === "tonight-8", H.defaultWhen(indoor, at(2026, 9, 7, 17)));
+}
+
+console.log("\n── «خلّهم يختارون» starts with places that go together (7 October) ──");
+{
+  const p = (slug, lat, lng, setting = "indoor") => ({ slug, lat, lng, setting, nameAr: slug });
+  const city = p("city-a", 29.37, 47.98);
+  const near1 = p("near-1", 29.34, 48.05);
+  const far = p("far-away", 28.6, 48.38);       // Khiran, ~90 km
+  const near2 = p("near-2", 29.33, 48.08);
+  const dec = new Date(Date.UTC(2026, 11, 15, 14, 30));
+  const got = H.fitShortlist([city, far, near1, near2], dec).map((x) => x.slug);
+  ok("a place 90 km away is passed over for nearer ones", got.join(",") === "city-a,near-1,near-2", got.join(","));
+  ok("the first result always leads", got[0] === "city-a");
+  const short = H.fitShortlist([city, far, near1], dec).map((x) => x.slug);
+  ok("three choices are all three, whatever they are", short.join(",") === "city-a,far-away,near-1", short.join(","));
+  const fill = H.fitShortlist([city, far, p("far-2", 28.5, 48.4), near1], dec).map((x) => x.slug);
+  ok("too few fit: filled in result order, never short", fill.length === 3 && fill[1] === "near-1" && fill[2] === "far-away", fill.join(","));
+}
 
 console.log("\n── the clock is Kuwait's, not the machine's ──");
 ok("14:30 Kuwait reads as hour 14", H.kuwaitHour(atKuwait(14)) === 14, String(H.kuwaitHour(atKuwait(14))));

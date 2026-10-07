@@ -163,6 +163,20 @@ F.shortlist = {
   datedVotes: [0, 1].flatMap((i) =>
     ["tonight-8", "tomorrow", "weekend"].map((w) => K.shortlistVoteMessage(ps[i], i, w, K.inviteUrl(ps[i], w, "https://www.wainkw.com", "2026-10-02"), "2026-10-02"))
   ),
+  // The list «خلّهم يختارون» starts with (7 October): eight real places in
+  // catalogue order, at a summer evening, a winter afternoon and a Thursday.
+  fit: [
+    new Date(Date.UTC(2026, 6, 14, 14, 0)),
+    new Date(Date.UTC(2026, 11, 15, 12, 30)),
+    new Date(Date.UTC(2026, 9, 8, 14, 0)),
+  ].flatMap((at) => [
+    ["kuwait-towers", "khiran", "wafra-farms", "souq-al-mubarakiya", "marina-beach", "al-shaheed-park"],
+    ["khiran", "failaka-island", "kuwait-towers", "souq-al-mubarakiya", "the-avenues"],
+    ["marina-beach", "kuwait-national-museum", "souq-al-mubarakiya", "sadu-house"],
+  ].map((slugs) => {
+    const choices = slugs.map((s) => ps.find((p) => p.slug === s));
+    return { at: at.toISOString(), choices: slugs, out: K.fitShortlist(choices, at).map((c) => c.slug) };
+  })),
   title: K.shortlistTitle(),
   max: K.SHORTLIST_MAX,
   choiceMax: K.CHOICE_MAX,

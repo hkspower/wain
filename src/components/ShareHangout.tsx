@@ -20,6 +20,7 @@ import {
   shareHangout,
   shortlistMessage,
   shortlistTitle,
+  fitShortlist,
   newPollId,
   shortlistUrl,
   whenOptions,
@@ -48,6 +49,24 @@ import {
  * avoids: the summer rule, the expiring hours and the message format are
  * subtle enough that a second implementation would drift within a week.
  */
+/** The time this device sent last, kept on the device only (7 October): the
+ *  next plan starts from it when it is still offered. */
+const USUAL_WHEN_KEY = "wain:usual-when";
+function readUsualWhen(): WhenId | null {
+  try {
+    return (localStorage.getItem(USUAL_WHEN_KEY) as WhenId | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+function rememberUsualWhen(when: WhenId): void {
+  try {
+    localStorage.setItem(USUAL_WHEN_KEY, when);
+  } catch {
+    /* storage refused: the next plan starts from the rules alone */
+  }
+}
+
 export default function ShareHangout({
   place,
   choices,
@@ -85,10 +104,20 @@ export default function ShareHangout({
   // The first few, until the visitor says otherwise; re-seeded when the
   // results under the panel change, so it never lists places no longer shown.
   const choiceKey = (choices ?? []).map((c) => c.slug).join(",");
+  const [now, setNow] = useState<Date | null>(null);
+  const clockKnown = now !== null;
   useEffect(() => {
-    setPicked((choices ?? []).slice(0, SHORTLIST_MAX).map((c) => c.slug));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the slugs, not the array identity
-  }, [choiceKey]);
+    // Places that go together for one evening (fitShortlist), once the hour
+    // that decides «together» is known; the first few until then.
+    const list = choices ?? [];
+    setPicked((now ? fitShortlist(list, now) : list.slice(0, SHORTLIST_MAX)).map((c) => c.slug));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the slugs and the clock arriving, not identities
+  }, [choiceKey, clockKnown]);
+
+  // The plan is shown ready, as one line, and the chips only on «غيّر»
+  // (7 October, on request): most people send the plan they are offered,
+  // and nine time chips and a mode switch stood between them and the button.
+  const [open, setOpen] = useState(false);
 
   /**
    * A result from the last place is not a result about this one.
@@ -103,7 +132,6 @@ export default function ShareHangout({
   // the hour is not knowable while this is prerendered — the exported HTML is
   // shared by everybody, so a default baked in at build time would be wrong
   // for every visitor after the one whose build it was. Chosen on mount.
-  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
 
   // A link to `#share` arrives before this panel exists (it renders after
@@ -156,7 +184,15 @@ export default function ShareHangout({
     // still got sent.
     const valid = listMode ? whenOptionsFor(listed, now) : whenOptions(now, place);
     if (when === null || !valid.some((o) => o.id === when)) {
-      setWhen(listMode ? defaultWhenFor(listed, now) : defaultWhen(place, now));
+      // The time this device usually sends, when it is still on offer —
+      // checked against the same list, so a habit never sends a time the
+      // rules above have removed (an evening hour gone, the midday heat).
+      const usual = readUsualWhen();
+      setWhen(
+        usual && valid.some((o) => o.id === usual)
+          ? usual
+          : listMode ? defaultWhenFor(listed, now) : defaultWhen(place, now)
+      );
     }
   }, [now, when, place, listMode, listed]);
 
@@ -181,7 +217,10 @@ export default function ShareHangout({
       : hangoutMessage({ place, when, url: inviteUrl(place, when, origin, day) });
     setSent({ text, when, day, list: listMode });
     const result = await shareHangout({ text, title: listMode ? shortlistTitle() : hangoutTitle(place) });
-    if (result === "shared" || result === "whatsapp" || result === "copied") haptic("success");
+    if (result === "shared" || result === "whatsapp" || result === "copied") {
+      haptic("success");
+      rememberUsualWhen(when);
+    }
     setOutcome(result);
     setBusy(false);
   };
@@ -199,10 +238,30 @@ export default function ShareHangout({
         <IconSend className="size-5 text-coral-700" />
         رسّلها للربع
       </h2>
-      <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
-        اختر الوقت وارسل المكان للجروب — بالموقع والرابط، وخلّص النقاش.
-      </p>
+      {/* The plan, ready: what and when, in one line, with «غيّر» for the
+          chips. aria-live so a change made in the chips is heard here too. */}
+      <div className="mt-3 flex items-start justify-between gap-3 rounded-2xl bg-sand-50 p-3 ring-1 ring-line" data-plan-line="">
+        <div className="min-w-0" aria-live="polite">
+          <p className="truncate font-semibold text-ink-900" data-plan-what="">
+            {listMode ? listed.map((c) => c.nameAr).join("، ") : place.nameAr}
+          </p>
+          <p className="mt-0.5 text-sm text-ink-600" data-plan-when="">
+            {ready && when ? planPhrase(when, now ? kuwaitDay(now) : null, now ?? undefined) : "…"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { haptic("select"); setOpen((o) => !o); }}
+          aria-expanded={open}
+          aria-controls={id ? `${id}-choices` : undefined}
+          className="inline-flex min-h-tap shrink-0 items-center gap-1 rounded-full px-3 text-sm font-semibold text-sea-700 transition hover:bg-sea-50"
+        >
+          {open ? "تمام" : "غيّر"}
+          <span aria-hidden="true" className={`transition ${open ? "-rotate-90" : ""}`}>‹</span>
+        </button>
+      </div>
 
+      <div id={id ? `${id}-choices` : undefined} hidden={!open}>
       {/* Which place — only where the place is still in question. The chips
           match the filter chips above the results rather than inventing a
           second selected-chip style for the same page. */}
@@ -288,20 +347,34 @@ export default function ShareHangout({
           })}
         </div>
       </fieldset>
+      </div>
 
       {listMode && listed.length < 2 && (
         <p className="mt-3 text-sm text-ink-600" role="status">اختر مكانين على الأقل.</p>
       )}
 
-      <button
-        type="button"
-        onClick={send}
-        disabled={!ready || busy || (listMode && listed.length < 2)}
-        className="mt-5 inline-flex min-h-tap items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800 disabled:opacity-60"
-      >
-        <IconSend className="size-4" />
-        {busy ? "لحظة…" : listMode ? "رسّل القائمة" : "رسّلها"}
-      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button
+          type="button"
+          onClick={send}
+          disabled={!ready || busy || (listMode && listed.length < 2)}
+          className="inline-flex min-h-tap items-center gap-2 rounded-xl bg-coral-700 px-6 text-base font-semibold text-white shadow-sm transition hover:bg-coral-800 disabled:opacity-60"
+        >
+          <IconSend className="size-4" />
+          {busy ? "لحظة…" : listMode ? "رسّل القائمة" : "رسّلها"}
+        </button>
+        {/* The other way to send, without opening the chips: a list for the
+            group to vote on, or back to one place. */}
+        {canList && !open && (
+          <button
+            type="button"
+            onClick={() => { haptic("select"); setMode(listMode ? "one" : "list"); }}
+            className="inline-flex min-h-tap items-center text-sm font-semibold text-ink-600 underline underline-offset-4 transition hover:text-ink-900"
+          >
+            {listMode ? "مكان واحد بس" : "خلّهم يختارون"}
+          </button>
+        )}
+      </div>
 
       {/* Only ever one line, and never one that scolds somebody for changing
           their mind — a cancelled share sheet says nothing at all. */}

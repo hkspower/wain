@@ -49,6 +49,9 @@ async function fresh(q) {
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.goto(`${B}/search/?q=${encodeURIComponent(q)}`, { waitUntil: 'networkidle' });
+  // The chips are behind «غيّر» since 7 October, and this suite is about
+  // them. Soft: a missing button is the assertions' failure, not a throw.
+  await p.locator('#share-plan').getByRole('button', { name: 'غيّر' }).click({ timeout: 6000 }).catch(() => {});
   return { ctx, p, errors };
 }
 
