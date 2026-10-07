@@ -375,3 +375,9 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   main form fieldset[class~="rounded-2xl"][class~="bg-white"] { padding: 20px; }
   main form fieldset[class~="rounded-2xl"][class~="bg-white"] > div[class~="grid"] { margin-top: 16px; row-gap: 16px; }
 }
+@media (max-width: 767.98px) {
+  main section > .guest-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 16px; }
+  main section > .guest-note .guest-note__body { margin: 0; font-size: 0; line-height: 0; flex: none; }
+  main section > .guest-note .guest-note__body a { font-size: 13px; line-height: 1.4; }
+  main section > .guest-note .guest-note__title { font-size: 14px; }
+}

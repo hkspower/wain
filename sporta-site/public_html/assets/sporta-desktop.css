@@ -693,3 +693,4 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   }
 }
 @media (min-width:768px){.ivp{padding:20px}}
+@media (min-width: 1024px) { .cos { display: none; } }

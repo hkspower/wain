@@ -1,0 +1,40 @@
+/* Checkout polish, 2026-10-07 (assets/checkout-polish.js).
+   1. The summary bar above the form: below 1024px only (from there the page has the summary beside the form).
+   2. The guest note is one row on phones: its title and the Track link, the paragraph's words hidden.
+   3. The discount box and Apply look live, not disabled. */
+
+/* --- 1. the summary bar --- */
+.cos { display: block; border: 1px solid #e3e6ea; border-radius: 14px; background: #fff; color: #171a1e; box-shadow: 0 1px 3px rgba(17, 24, 39, .06); }
+@media (min-width: 1024px) { .cos { display: none; } }
+.cos-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 8px 16px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: start; }
+.cos-bar:focus-visible { outline: 3px solid #171a1e; outline-offset: 2px; border-radius: 14px; }
+.cos-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.cos-title { font-size: 15px; font-weight: 700; }
+.cos-count { font-size: 12px; color: #4b5563; }
+.cos-right { display: flex; align-items: center; gap: 10px; flex: none; }
+.cos-amount { font-size: 16px; font-weight: 700; color: #c2410c; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.cos-chev { width: 9px; height: 9px; border-inline-end: 2px solid #171a1e; border-bottom: 2px solid #171a1e; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+.cos-bar[aria-expanded="true"] .cos-chev { transform: translateY(2px) rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { .cos-chev { transition: none; } }
+.cos-panel { padding: 0 16px 14px; border-top: 1px solid #e3e6ea; }
+.cos-panel[hidden] { display: none; }
+.cos-panel ul { margin-top: 0 !important; }
+
+/* --- 2. the guest note, one row on phones --- */
+@media (max-width: 767.98px) {
+  main section > .guest-note { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 16px; }
+  main section > .guest-note .guest-note__body { margin: 0; font-size: 0; line-height: 0; flex: none; }
+  main section > .guest-note .guest-note__body a { font-size: 13px; line-height: 1.4; }
+  main section > .guest-note .guest-note__title { font-size: 14px; }
+}
+
+/* --- 3. the discount box ---
+   The box keeps the shop's soft silver (48-soft-silver-fields.css, asked for 2026-10-01): every
+   field on the site is that colour, so a white discount box would be the one odd field. What made
+   it read as disabled was the Apply button, empty and faint beside it, so Apply turns solid once a
+   code is typed. !important because sporta-dark.css colours buttons with !important. */
+main form > aside input[aria-label][autocomplete="off"] { min-height: 44px; }
+main form > aside button.flex-none { min-height: 44px; }
+main form > aside button.flex-none:not(:disabled) { background-color: #c2410c !important; border-color: #c2410c !important; color: #fff !important; }
+main form > aside button.flex-none:not(:disabled):hover { background-color: #9a3412 !important; border-color: #9a3412 !important; }
+main form > aside button.flex-none:disabled { border-color: #8a9199; color: #4b5563; }

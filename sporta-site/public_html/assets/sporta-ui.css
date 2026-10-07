@@ -2188,3 +2188,22 @@ header :is(a, button):is([aria-label^="Bag"], [aria-label^="الحقيبة"]) sv
 .ivp-dl{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:14px;border-radius:999px;background:#c2410c;color:#fff;font-weight:700;text-decoration:none}
 .ivp-dl:hover{background:#9a3412}
 .ivp-dl:focus-visible{outline:3px solid #171a1e;outline-offset:2px}
+.cos { display: block; border: 1px solid #e3e6ea; border-radius: 14px; background: #fff; color: #171a1e; box-shadow: 0 1px 3px rgba(17, 24, 39, .06); }
+.cos-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 8px 16px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: start; }
+.cos-bar:focus-visible { outline: 3px solid #171a1e; outline-offset: 2px; border-radius: 14px; }
+.cos-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.cos-title { font-size: 15px; font-weight: 700; }
+.cos-count { font-size: 12px; color: #4b5563; }
+.cos-right { display: flex; align-items: center; gap: 10px; flex: none; }
+.cos-amount { font-size: 16px; font-weight: 700; color: #c2410c; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.cos-chev { width: 9px; height: 9px; border-inline-end: 2px solid #171a1e; border-bottom: 2px solid #171a1e; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+.cos-bar[aria-expanded="true"] .cos-chev { transform: translateY(2px) rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { .cos-chev { transition: none; } }
+.cos-panel { padding: 0 16px 14px; border-top: 1px solid #e3e6ea; }
+.cos-panel[hidden] { display: none; }
+.cos-panel ul { margin-top: 0 !important; }
+main form > aside input[aria-label][autocomplete="off"] { min-height: 44px; }
+main form > aside button.flex-none { min-height: 44px; }
+main form > aside button.flex-none:not(:disabled) { background-color: #c2410c !important; border-color: #c2410c !important; color: #fff !important; }
+main form > aside button.flex-none:not(:disabled):hover { background-color: #9a3412 !important; border-color: #9a3412 !important; }
+main form > aside button.flex-none:disabled { border-color: #8a9199; color: #4b5563; }
