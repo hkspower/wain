@@ -119,3 +119,8 @@ wainkw-search.pdf
 # public/ must not dirty the tree the deploy asserts is clean).
 public/.well-known/apple-app-site-association
 public/.well-known/assetlinks.json
+
+# Screenshots test:orders writes beside the repository (WAIN_SHOTS defaults to "." or ./shots).
+# Untracked files dirty the tree, and a dirty tree costs the build its commit-named id.
+/shots/
+/orders-whatsapp.png
