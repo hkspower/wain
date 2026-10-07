@@ -373,7 +373,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '206f34ca234e4976d7751ab56fa224705caf3bbb87498be6d3ed9f62bf58a577',
+    'sw.js' => 'd28d0473efa27d7439482905c3f400fb71ea781470bb03fdcf74dd78de6cac01',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
