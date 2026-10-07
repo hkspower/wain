@@ -313,10 +313,17 @@
 
   function accountView(sheet) {
     var me = state.me
-    sheet.appendChild(el('h2', 'cua-h', t('hello') + (me.name ? ', ' + me.name : '')))
+    sheet.appendChild(el('h2', 'cua-h', t('hello') + (me.name ? (ar() ? '، ' : ', ') + me.name : '')))   // the Arabic comma on the Arabic sheet
     var d = el('div', 'cua-details')
     d.appendChild(el('span', '', me.email))
-    if (me.phone) d.appendChild(el('span', '', '+' + me.phone))
+    /* The number is a left-to-right island in an Arabic sheet, or the '+' jumps to the far end
+       ("96555512345+"); and a Kuwaiti mobile is read in groups: +965 5551 2345. */
+    if (me.phone) {
+      var digits = String(me.phone).replace(/\D/g, '')
+      var shown = /^965\d{8}$/.test(digits) ? '+965 ' + digits.slice(3, 7) + ' ' + digits.slice(7) : '+' + digits
+      var ps = el('span', 'cua-phone'), bd = el('bdi', '', shown); bd.dir = 'ltr'   // isolated, so the line still sits on the sheet's own side
+      ps.appendChild(bd); d.appendChild(ps)
+    }
     sheet.appendChild(d)
     sheet.appendChild(el('h3', 'cua-h3', t('orders')))
     var box = el('div', 'cua-orders')
