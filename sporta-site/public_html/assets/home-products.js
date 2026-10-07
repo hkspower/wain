@@ -246,7 +246,32 @@
     var catSection = findCatSection()
     if (!catSection || !catSection.parentNode) return
 
+    /* SKELETON, 2026-10-07: while ?r=products is in flight, four grey cards hold
+       the section's place so the page does not jump when the real ones arrive. */
+    if (picked === null && !document.querySelector('[' + MARK + ']')) {
+      var sk = document.createElement('section')
+      sk.setAttribute(MARK, 'skeleton')
+      sk.className = 'sporta-home-products sporta-skel'
+      sk.setAttribute('aria-busy', 'true')
+      var sg = document.createElement('div')
+      sg.className = 'grid grid-cols-2 gap-x-2 gap-y-10 sm:gap-x-3 md:grid-cols-3 lg:grid-cols-4 sporta-home-products__grid'
+      for (var k = 0; k < 4; k++) {
+        var c = document.createElement('div')
+        c.className = 'sporta-skel__card'
+        ;['sporta-skel__photo', 'sporta-skel__line', 'sporta-skel__line sporta-skel__line--short'].forEach(function (cls) {
+          var d = document.createElement('div')
+          d.className = 'skeleton ' + cls
+          c.appendChild(d)
+        })
+        sg.appendChild(c)
+      }
+      sk.appendChild(sg)
+      catSection.parentNode.insertBefore(sk, catSection.nextSibling)
+    }
+
     loadProducts(function (list) {
+      var skel = document.querySelector('[' + MARK + '="skeleton"]')
+      if (skel && skel.parentNode) skel.parentNode.removeChild(skel)
       if (!isHome()) return               /* navigated away while fetching */
       var catSection2 = findCatSection()
       if (!catSection2 || !catSection2.parentNode) return
