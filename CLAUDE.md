@@ -6746,7 +6746,7 @@ forcing turned that into a filler. Both tools are back to `auto`, read back from
 **The latency is still there, and it is the model's.** Gemini-3.8-flash takes 2.2 s to decide on a tool call.
 What would shorten it is a smaller context or a faster model, neither tried here.
 
-## شوق's call screen polished — 7 October, night (built, NOT deployed)
+## شوق's call screen polished — 7 October, night (live as `b314ab1a`)
 
 Asked: «improve shoug layout full polish css». Before any change, the agent build was rendered with the widget's
 config mocked. The real 0.19.0 bundle **does not render inside our slot**: it draws with `position: fixed`, so its
@@ -6778,7 +6778,7 @@ and Flutter analyze plus 1,307 tests. Commit `03d52fb8`. The owner saw the scree
 first», so **nothing is deployed**: the live site still has the floating widget, and the colour and placement
 settings already apply to it.
 
-## /salem and /find polished — 7 October, night (built, NOT deployed)
+## /salem and /find polished — 7 October, night (live as `b314ab1a`)
 
 The owner chose three fixes after screenshots («full polish shoug and salem pages layout»):
 
@@ -6800,7 +6800,7 @@ were already 40px.
 
 **Not done.** The app's /find was not mirrored; it still says «اكتب» with the pill.
 
-## One box system — 7 October, night (built, NOT deployed; the widget's corners are live)
+## One box system — 7 October, night (live as `b314ab1a`)
 
 Asked: «polish all boxes /design». The canvas (https://claude.ai/artifact/66dDTrWSs86WTGK5W85XuM) drew the six
 boxes as they shipped beside one system for them. The owner picked all four changes, on the site and in the app:
@@ -6827,7 +6827,7 @@ Flutter 1,309 and analyze clean, `audit:flutter` current.
 
 **Not done:** /search's result rows and the call sheet were not in the six and keep their corners. Not deployed.
 
-## One edge system — 7 October, night (built, NOT deployed)
+## One edge system — 7 October, night (live as `b314ab1a`)
 
 Asked: «improve all layout borders». Every border, ring and divider in `src/` was counted first. The owner picked
 three of four fixes, site and app. Status boxes keep their five tinted edges; that option was not picked.
@@ -6855,7 +6855,7 @@ pick applies to it.
 **Gates:** `scan` 0, `test:hangout` all suites, `test:orders` and `test:journey` green, Flutter 1,311 and analyze clean, `audit:flutter` current. **Not
 deployed.**
 
-## One box size and colour — 7 October, night
+## One box size and colour — 7 October, night (live as `b314ab1a`, both stages)
 
 Asked: «improve all boxes size and colors». Measured first, then the owner picked all four, site and app, and
 «deploy after these».
@@ -6879,3 +6879,14 @@ build**: it looked for a value both shadows share. App: `boxes_test` scans `lib/
 the 14 hand-found spots, green after.
 
 **Gates:** build, `scan`, `test:hangout`, `test:orders`, `test:journey`; Flutter analyze clean, 1,312 tests.
+
+**Deployed the same night, with the four sections above it** (the call screen, /salem and /find, the box system,
+the edges): agent build with the read-aloud bridge off, archive `2c9cd61` (sha256 `45e88880…0b34`), one more ~4MB
+blob. Gates on that build: `scan` under the agent variables and `test:widget-csp` 8/8 (the widget stays in its
+slot, no CSP violation, audio leaves the page). Production job `DoiOFkRWUd` and staging job `Bt2Knd8kV1`, each read
+at its first firing: `{"ok":true,"deployed":278,"removed":22,"emptied":1}` at 21:51:02 and 21:52:02. Both deleted
+and listed gone. `deploy:verify`: «b314ab1a is live — verified at the root and 7 levels below it» (digest
+`c4455c32f2b4aeb5`; `b314ab1a…/` the only build-id directory, 52 og images); `staging/build.json` carries the same
+commit and digest. After the purge, `/privacy/` through the edge returned 200 with `Last-Modified 21:51:02` and
+`DYNAMIC`. Another session's per-minute `XJzV79HdF4` (`publish-all.php`) was left alone. **Not measured:** a phone.
+The app changes reach phones only through a new build.
