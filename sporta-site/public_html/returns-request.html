@@ -129,6 +129,15 @@
     font: inherit; font-weight: 700; cursor: pointer;
   }
   button[disabled] { opacity: .55; cursor: default; }
+  /* HOVER (2026-10-07), mouse only so a phone never keeps it after a tap: the fill brightens and an
+     outline button takes the shop's orange edge — the same two moves as css/81-hover.css. */
+  @media (hover: hover) and (pointer: fine) {
+    button:not([disabled]):hover { filter: brightness(1.08); }
+    button.ghost:not([disabled]):hover { border-color: var(--sp-ember); filter: none; }
+  }
+  /* PRESSED (2026-10-07, css/82-pressed.css): on a finger as well as a mouse, so outside the hover query. */
+  button:not([disabled]):active { filter: brightness(.92); transform: scale(.98); }
+  @media (prefers-reduced-motion: reduce) { button:not([disabled]):active { transform: none; } }
   button.ghost { background: transparent; color: var(--sp-silver); border: 1px solid var(--sp-silver); }   /* the shop's one outline button */
 
   /* Quick reasons: tap one to fill the box. 44px tall so a thumb lands on it. */

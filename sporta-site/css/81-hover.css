@@ -1,0 +1,77 @@
+/* HOVER ON THE CLICKABLE BOXES, 2026-10-07 — "improve hover for all boxes", and the owner chose
+ * LIFT + ORANGE EDGE for: the home tiles and the product banner, the size boxes and colour circles,
+ * the clickable info box (the returns request link) and the buttons. The product card already lifts
+ * 2px (69-product-card-clean.css); this brings the rest to the same family.
+ *
+ * Measured first (desktop mouse): product card lifts; size box darkened its edge with no animation;
+ * colour circles, the tiles, the banner and the returns box did nothing. The Contact page has plain
+ * underlined links, not boxes, so nothing there changed.
+ *
+ * MOUSE ONLY: (hover: hover) and (pointer: fine), so a phone never shows a stuck hover after a tap.
+ * Under reduced motion nothing moves or animates: the edge and shadow still change, which is the
+ * information. One edge colour: the brand orange on dark art, the darker orange (--sp-card-ink,
+ * 5.2:1 on white) on white boxes. */
+@media (hover: hover) and (pointer: fine) {
+  .cat-tile,
+  .sporta-home-banner__link,
+  a[data-sporta="returns-request"] {
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .cat-tile:hover,
+  .sporta-home-banner__link:hover,
+  a[data-sporta="returns-request"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 2px var(--brand, #e0561c), 0 10px 24px rgba(16, 24, 40, .18);
+  }
+
+  /* the size boxes: the edge turns orange (it went near-black, instantly) and the box rises 1px */
+  main article .cardopt-size:not(:disabled) {
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  main article .cardopt-size:not(:disabled):hover {
+    border-color: var(--sp-card-ink, #c2410c);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(16, 24, 40, .14);
+  }
+
+  /* the colour circles: a ring in the same orange but fainter than the card's own (which is solid),
+     so a hovered circle is never mistaken for the current one. A gradient cannot transition. */
+  main article .cardopt-colour:not([aria-current="true"]):hover {
+    background-image: radial-gradient(circle closest-side, transparent 9.6px, rgba(194, 65, 12, .6) 10px, rgba(194, 65, 12, .6) 11.4px, transparent 11.8px), none;
+    background-origin: border-box, padding-box;
+    background-clip: border-box, padding-box;
+  }
+
+  /* buttons: the solid ones rise 1px and brighten; the outline ones take the orange edge */
+  .btn.btn-primary:not(:disabled),
+  main a.rounded-full.bg-brand {            /* the cart's empty-bag "Shop" link is a button to the eye, without the .btn class */
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .btn.btn-primary:not(:disabled):hover,
+  main a.rounded-full.bg-brand:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(224, 86, 28, .30);
+  }
+  [data-theme] .btn.btn-ghost:not(:disabled) {
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  [data-theme] .btn.btn-ghost:not(:disabled):hover {
+    border-color: var(--brand, #e0561c) !important;
+    transform: translateY(-1px);
+  }
+  /* the old returns form's product pickers: the orange edge */
+  main button.flex.items-center.gap-3.rounded-xl.border:not(:disabled):hover {
+    border-color: var(--sp-card-ink, #c2410c);
+  }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) {
+  .cat-tile, .sporta-home-banner__link, a[data-sporta="returns-request"],
+  main article .cardopt-size:not(:disabled), .btn.btn-primary:not(:disabled), main a.rounded-full.bg-brand, [data-theme] .btn.btn-ghost:not(:disabled) {
+    transition: none;
+  }
+  .cat-tile:hover, .sporta-home-banner__link:hover, a[data-sporta="returns-request"]:hover,
+  main article .cardopt-size:not(:disabled):hover, .btn.btn-primary:not(:disabled):hover, main a.rounded-full.bg-brand:hover, [data-theme] .btn.btn-ghost:not(:disabled):hover {
+    transform: none;
+  }
+}

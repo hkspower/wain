@@ -2207,3 +2207,110 @@ main form > aside button.flex-none { min-height: 44px; }
 main form > aside button.flex-none:not(:disabled) { background-color: #c2410c !important; border-color: #c2410c !important; color: #fff !important; }
 main form > aside button.flex-none:not(:disabled):hover { background-color: #9a3412 !important; border-color: #9a3412 !important; }
 main form > aside button.flex-none:disabled { border-color: #8a9199; color: #4b5563; }
+@media (hover: hover) and (pointer: fine) {
+  .cat-tile,
+  .sporta-home-banner__link,
+  a[data-sporta="returns-request"] {
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .cat-tile:hover,
+  .sporta-home-banner__link:hover,
+  a[data-sporta="returns-request"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 2px var(--brand, #e0561c), 0 10px 24px rgba(16, 24, 40, .18);
+  }
+  main article .cardopt-size:not(:disabled) {
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  main article .cardopt-size:not(:disabled):hover {
+    border-color: var(--sp-card-ink, #c2410c);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(16, 24, 40, .14);
+  }
+  main article .cardopt-colour:not([aria-current="true"]):hover {
+    background-image: radial-gradient(circle closest-side, transparent 9.6px, rgba(194, 65, 12, .6) 10px, rgba(194, 65, 12, .6) 11.4px, transparent 11.8px), none;
+    background-origin: border-box, padding-box;
+    background-clip: border-box, padding-box;
+  }
+  .btn.btn-primary:not(:disabled),
+  main a.rounded-full.bg-brand {
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .btn.btn-primary:not(:disabled):hover,
+  main a.rounded-full.bg-brand:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(224, 86, 28, .30);
+  }
+  [data-theme] .btn.btn-ghost:not(:disabled) {
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  [data-theme] .btn.btn-ghost:not(:disabled):hover {
+    border-color: var(--brand, #e0561c) !important;
+    transform: translateY(-1px);
+  }
+  main button.flex.items-center.gap-3.rounded-xl.border:not(:disabled):hover {
+    border-color: var(--sp-card-ink, #c2410c);
+  }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) {
+  .cat-tile, .sporta-home-banner__link, a[data-sporta="returns-request"],
+  main article .cardopt-size:not(:disabled), .btn.btn-primary:not(:disabled), main a.rounded-full.bg-brand, [data-theme] .btn.btn-ghost:not(:disabled) {
+    transition: none;
+  }
+  .cat-tile:hover, .sporta-home-banner__link:hover, a[data-sporta="returns-request"]:hover,
+  main article .cardopt-size:not(:disabled):hover, .btn.btn-primary:not(:disabled):hover, main a.rounded-full.bg-brand:hover, [data-theme] .btn.btn-ghost:not(:disabled):hover {
+    transform: none;
+  }
+}
+.btn.btn-primary:not(:disabled):active,
+main a.rounded-full.bg-brand:active,
+main form > aside button.flex-none:not(:disabled):active,
+.action-bar .btn:not(:disabled):active {
+  transform: translateY(1px) scale(.98);
+  filter: brightness(.92);
+  box-shadow: none;
+  transition-duration: .06s;
+}
+[data-theme] .btn.btn-ghost:not(:disabled):active {
+  transform: translateY(1px) scale(.98);
+  background-color: rgba(255, 255, 255, .08);
+  transition-duration: .06s;
+}
+.cat-tile:active,
+.sporta-home-banner__link:active,
+a[data-sporta="returns-request"]:active {
+  transform: translateY(0) scale(.99);
+  box-shadow: 0 0 0 2px var(--brand, #e0561c), 0 2px 6px rgba(16, 24, 40, .16);
+  filter: brightness(.95);
+  transition-duration: .06s;
+}
+main article .cardopt-size:not(:disabled):active {
+  transform: scale(.94);
+  background: #f3f4f6;
+  border-color: var(--sp-card-ink, #c2410c);
+  box-shadow: none;
+  transition-duration: .06s;
+}
+main article .cardopt-colour:active {
+  transform: scale(.88);
+  transition: transform .06s ease;
+}
+main article > a[class*="aspect-"]:active {
+  filter: brightness(.94);
+}
+button:not(:disabled):active:not(.btn):not(.cardopt-size):not(.cos-bar) {
+  filter: brightness(.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-primary:not(:disabled):active,
+  main a.rounded-full.bg-brand:active,
+  main form > aside button.flex-none:not(:disabled):active,
+  .action-bar .btn:not(:disabled):active,
+  [data-theme] .btn.btn-ghost:not(:disabled):active,
+  .cat-tile:active, .sporta-home-banner__link:active, a[data-sporta="returns-request"]:active,
+  main article .cardopt-size:not(:disabled):active, main article .cardopt-colour:active {
+    transform: none;
+    transition: none;
+  }
+}

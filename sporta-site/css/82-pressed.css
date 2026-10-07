@@ -1,0 +1,62 @@
+/* PRESSED FEEDBACK, 2026-10-07 — "make active button", the owner chose the pressed state: the moment
+ * a button or box is pressed (mouse down or finger down) it sinks and darkens, so every tap is
+ * acknowledged. Unlike hover (81-hover.css, mouse only) this works on a touch phone: :active is set
+ * by a finger as well as a button.
+ *
+ * Sits after 81- and has the same specificity as its :hover rules, so while the pointer is still
+ * over a box that is lifting, the press wins and pushes it back down. A press is fast (.06s, set on
+ * the :active rule so it applies going IN); the release uses the box's own, slower transition.
+ * Disabled and sold-out boxes do not react. Under reduced motion nothing moves: the fill/edge change
+ * only. The product card is not pressed as a whole (its size boxes and + are pressed on their own);
+ * its photo is, since that is the link. */
+.btn.btn-primary:not(:disabled):active,
+main a.rounded-full.bg-brand:active,
+main form > aside button.flex-none:not(:disabled):active,
+.action-bar .btn:not(:disabled):active {
+  transform: translateY(1px) scale(.98);
+  filter: brightness(.92);
+  box-shadow: none;
+  transition-duration: .06s;
+}
+[data-theme] .btn.btn-ghost:not(:disabled):active {
+  transform: translateY(1px) scale(.98);
+  background-color: rgba(255, 255, 255, .08);
+  transition-duration: .06s;
+}
+.cat-tile:active,
+.sporta-home-banner__link:active,
+a[data-sporta="returns-request"]:active {
+  transform: translateY(0) scale(.99);
+  box-shadow: 0 0 0 2px var(--brand, #e0561c), 0 2px 6px rgba(16, 24, 40, .16);
+  filter: brightness(.95);
+  transition-duration: .06s;
+}
+main article .cardopt-size:not(:disabled):active {
+  transform: scale(.94);
+  background: #f3f4f6;
+  border-color: var(--sp-card-ink, #c2410c);
+  box-shadow: none;
+  transition-duration: .06s;
+}
+main article .cardopt-colour:active {
+  transform: scale(.88);
+  transition: transform .06s ease;
+}
+main article > a[class*="aspect-"]:active {
+  filter: brightness(.94);
+}
+button:not(:disabled):active:not(.btn):not(.cardopt-size):not(.cos-bar) {
+  filter: brightness(.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-primary:not(:disabled):active,
+  main a.rounded-full.bg-brand:active,
+  main form > aside button.flex-none:not(:disabled):active,
+  .action-bar .btn:not(:disabled):active,
+  [data-theme] .btn.btn-ghost:not(:disabled):active,
+  .cat-tile:active, .sporta-home-banner__link:active, a[data-sporta="returns-request"]:active,
+  main article .cardopt-size:not(:disabled):active, main article .cardopt-colour:active {
+    transform: none;
+    transition: none;
+  }
+}

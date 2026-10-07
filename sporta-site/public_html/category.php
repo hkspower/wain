@@ -479,7 +479,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <?php else: ?>
     <p class="cp-count"><?= $isEn
       ? ($count === 1 ? '1 product' : e((string) $count) . ' products')
-      : e((string) $count) . ' منتج' ?></p>
+      : e(strtr((string) $count, ['0' => '٠', '1' => '١', '2' => '٢', '3' => '٣', '4' => '٤', '5' => '٥', '6' => '٦', '7' => '٧', '8' => '٨', '9' => '٩'])) . ' منتج' ?></p>   <?php /* Arabic-Indic, as the Arabic prose elsewhere (/shop: المعروض ١٢ من ٤٦); prices stay Latin */ ?>
     <div class="grid grid-cols-2 gap-x-2 gap-y-10 sm:gap-x-3 md:grid-cols-3 lg:grid-cols-4">
       <?php foreach ($products as $p):
         $href = '/product/' . rawurlencode($p['slug']) . ($isEn ? '?lang=en' : '');

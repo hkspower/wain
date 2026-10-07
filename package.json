@@ -254,6 +254,8 @@
     "test:card-align": "node scripts/card-align-test.mjs",
     "test:checkout-polish": "node scripts/checkout-polish-test.mjs",
     "test:page-language": "node scripts/page-language-test.mjs",
+    "test:hover": "node scripts/hover-test.mjs",
+    "test:pressed": "node scripts/pressed-test.mjs",
     "scan:panel-content": "node scripts/panel-content-scan.mjs",
     "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs",
     "test:rate-bucket": "node scripts/rate-bucket-test.mjs"

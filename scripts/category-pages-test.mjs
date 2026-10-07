@@ -83,7 +83,7 @@ for (const slug of SLUGS) {
 {
   const { status, body } = await get('/outlet')
   check(status === 200, '/outlet (currently empty) still answers 200')
-  check(body.includes('class="cp-empty"') || /\d+ (product|منتج)/.test(body),
+  check(body.includes('class="cp-empty"') || /[\d٠-٩]+ (product|منتج)/.test(body),
     '/outlet shows either an empty-state message or a real count, never neither')
   check(!body.replace(/<nav class="sp-menubar"[\s\S]*?<\/nav>/, '').includes('href="/shop'),
     '/outlet\'s empty state does not fall back to /shop either (the menu bar aside)')
