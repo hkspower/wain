@@ -98,7 +98,7 @@ class AboutScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Panel(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -147,11 +147,11 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 20),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: WainColors.sea700,
                   borderRadius: BorderRadius.circular(WainRadius.s3xl),
-                  boxShadow: WainShadows.md,
+                  boxShadow: WainShadows.xs,
                 ),
                 child: Column(
                   children: [

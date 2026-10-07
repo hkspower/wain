@@ -150,9 +150,9 @@ class PrivacyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: WainColors.palm500.withValues(alpha: 0.05),
+                  color: WainColors.palm500.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(WainRadius.s3xl),
                   border: Border.all(
                     color: WainColors.palm500.withValues(alpha: 0.25),
@@ -196,7 +196,7 @@ class PrivacyScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: Panel(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

@@ -339,11 +339,10 @@ class _Featured extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               itemCount: featured.length,
               separatorBuilder: (_, _) => const SizedBox(width: 16),
-              itemBuilder: (_, i) =>
-                  SizedBox(
-                    width: 256,
-                    child: PlaceCard(place: featured[i], shareable: true),
-                  ),
+              itemBuilder: (_, i) => SizedBox(
+                width: 256,
+                child: PlaceCard(place: featured[i], shareable: true),
+              ),
             ),
           ),
         ],
@@ -494,7 +493,7 @@ class _Cta extends StatelessWidget {
             end: Alignment.centerRight,
             colors: [WainColors.sea800, WainColors.sea600],
           ),
-          boxShadow: WainShadows.xl,
+          boxShadow: WainShadows.xs,
         ),
         child: Column(
           children: [

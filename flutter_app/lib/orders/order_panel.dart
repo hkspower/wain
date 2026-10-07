@@ -181,7 +181,7 @@ class _OrderPanelState extends State<OrderPanel> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(WainRadius.s3xl),
         border: Border.all(color: WainColors.line),
-        boxShadow: WainShadows.sm,
+        boxShadow: WainShadows.xs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,7 +589,7 @@ class _OrderPanelState extends State<OrderPanel> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: blocked
-            ? WainColors.sun100.withValues(alpha: 0.6)
+            ? WainColors.sun50
             : WainColors.palm600.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(WainRadius.s3xl),
         border: Border.all(

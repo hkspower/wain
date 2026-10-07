@@ -42,7 +42,12 @@ class PickScreen extends StatefulWidget {
   /// whenever the build has a back end.
   final VoteClient? votes;
 
-  const PickScreen({super.key, required this.query, this.clock = _now, this.votes});
+  const PickScreen({
+    super.key,
+    required this.query,
+    this.clock = _now,
+    this.votes,
+  });
 
   static DateTime _now() => DateTime.now();
 
@@ -51,8 +56,8 @@ class PickScreen extends StatefulWidget {
 }
 
 class _PickScreenState extends State<PickScreen> {
-  late final ({List<String> slugs, WhenId? when, String? day, String? poll}) _read =
-      readShortlist(widget.query, (s) => getPlace(s) != null);
+  late final ({List<String> slugs, WhenId? when, String? day, String? poll})
+  _read = readShortlist(widget.query, (s) => getPlace(s) != null);
   late final List<Place> _list = [for (final s in _read.slugs) ?getPlace(s)];
   String? _active;
   ({String slug, ShareOutcome outcome})? _voted;
@@ -103,9 +108,11 @@ class _PickScreenState extends State<PickScreen> {
     final poll = _read.poll;
     if (poll != null && _votes != null) {
       setState(() => _mine = place.slug);
-      unawaited(_votes!.cast(poll, place.slug, _options).then((t) {
-        if (mounted && t != null) setState(() => _tally = t);
-      }));
+      unawaited(
+        _votes!.cast(poll, place.slug, _options).then((t) {
+          if (mounted && t != null) setState(() => _tally = t);
+        }),
+      );
     }
     // The vote carries the place's own link, so the chat ends up holding the
     // winner's plan the way a single proposal would have.
@@ -171,7 +178,11 @@ class _PickScreenState extends State<PickScreen> {
                     'صوّتوا: ${countAr(_tally!.total, kVotesCount)}'
                     '${_tally!.leader != null ? ' — الأكثر: ${_list.firstWhere((p) => p.slug == _tally!.leader, orElse: () => _list.first).nameAr}' : ' — متعادلين'}',
                     key: const ValueKey('pick-tally-summary'),
-                    style: wainText(WainText.sm, weight: FontWeight.w600, color: WainColors.ink700),
+                    style: wainText(
+                      WainText.sm,
+                      weight: FontWeight.w600,
+                      color: WainColors.ink700,
+                    ),
                   ),
                 ),
               ],
@@ -184,7 +195,8 @@ class _PickScreenState extends State<PickScreen> {
                     number: _numbers[i],
                     place: _list[i],
                     active: _active == _list[i].slug,
-                    mine: _voted?.slug == _list[i].slug || _mine == _list[i].slug,
+                    mine:
+                        _voted?.slug == _list[i].slug || _mine == _list[i].slug,
                     enabled: !_busy && !passed,
                     onVote: () => _vote(i),
                     onPoint: () => setState(() => _active = _list[i].slug),
@@ -351,7 +363,7 @@ class _Choice extends StatelessWidget {
           border: Border.all(
             color: active ? WainColors.sea300 : WainColors.line,
           ),
-          boxShadow: WainShadows.sm,
+          boxShadow: WainShadows.xs,
         ),
         child: LayoutBuilder(
           builder: (context, c) {
@@ -410,7 +422,12 @@ class _TallyRow extends StatelessWidget {
   final int count;
   final int total;
   final bool lead;
-  const _TallyRow({super.key, required this.count, required this.total, required this.lead});
+  const _TallyRow({
+    super.key,
+    required this.count,
+    required this.total,
+    required this.lead,
+  });
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -419,7 +436,11 @@ class _TallyRow extends StatelessWidget {
       children: [
         Text(
           countAr(count, kVotesCount),
-          style: wainText(WainText.xs, weight: FontWeight.w600, color: WainColors.ink600),
+          style: wainText(
+            WainText.xs,
+            weight: FontWeight.w600,
+            color: WainColors.ink600,
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(

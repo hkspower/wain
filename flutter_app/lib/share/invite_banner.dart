@@ -87,14 +87,14 @@ class _InviteBannerState extends State<InviteBanner> {
       child: Container(
         key: const ValueKey('invite-banner'),
         margin: const EdgeInsets.only(top: 24),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: passed ? WainColors.sand100 : WainColors.coral50,
           borderRadius: BorderRadius.circular(WainRadius.s3xl),
           border: Border.all(
             color: passed ? WainColors.line : WainColors.coral200,
           ),
-          boxShadow: WainShadows.sm,
+          boxShadow: WainShadows.xs,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -59,7 +59,7 @@ class Panel extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(WainRadius.s2xl),
         border: Border.all(color: WainColors.line),
-        boxShadow: WainShadows.sm,
+        boxShadow: WainShadows.xs,
       ),
       child: child,
     );
@@ -180,7 +180,7 @@ class EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
       decoration: BoxDecoration(
-        color: WainColors.sand100.withValues(alpha: 0.7),
+        color: WainColors.sand100,
         borderRadius: BorderRadius.circular(WainRadius.s3xl),
         border: Border.all(color: WainColors.lineStrong),
       ),
