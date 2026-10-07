@@ -373,6 +373,7 @@ console.log('\n── on a phone, one finger still scrolls the page ──');
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
   const p = await ctx.newPage();
   await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
+  await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
   const map = p.locator(MAP);
   await map.getByRole('button', { name: /حرّك الخريطة/ }).tap();
   await p.locator('.leaflet-container').waitFor({ timeout: 15000 });

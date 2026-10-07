@@ -38,6 +38,9 @@ async function open({ touch }) {
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
+  // A phone gets the map from a bar under the result count (3 7 October); a
+  // desktop has it in the sticky column already.
+  if (touch) await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
   const map = p.locator('section[aria-labelledby="search-map-heading"]');
   await map.waitFor({ timeout: 8000 });
   return { ctx, p, map, errors };
@@ -404,6 +407,13 @@ console.log('\n── the basemap is fetched once, not twice ──');
     });
     await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
     await p.waitForTimeout(900);
+    if (mobile) {
+      // 7 October: a phone's map is a bar until tapped, so a search costs the
+      // basemap nothing at all — the once below is what the TAP then costs.
+      ok(`a query on ${label} fetches no basemap until the bar is opened (${bboxes.length})`, bboxes.length === 0);
+      await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
+      await p.waitForTimeout(900);
+    }
     ok(`one query on ${label} fetches the basemap once (${bboxes.length})`,
       bboxes.length === 1, bboxes.join('\n      '));
     await ctx.close();

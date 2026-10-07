@@ -49,7 +49,20 @@ for (const [w, h] of [[390, 844], [320, 640]]) {
   const m = await measure(p);
   ok('the first result row starts on the first screen', m.row && m.row.top < m.vh, m.row ? `row at ${m.row.top}px, screen ${m.vh}px` : 'no row');
   ok('the share panel comes after the list, not before it', m.row && m.plan && m.plan.top > m.row.top, `row ${m.row?.top}, panel ${m.plan?.top}`);
-  ok('the map comes after the list on a phone', m.row && m.map && m.map.top > m.row.top, `row ${m.row?.top}, map ${m.map?.top}`);
+  // 7 October: the map used to be the last thing on a phone (1480px of a
+  // 1722px page, behind the list and the share panel). It is one bar under the
+  // result count now, above the first row, and opens in place.
+  const bar = p.getByRole('button', { name: /اعرض الخريطة/ });
+  ok('the map is a bar until it is asked for', (await bar.count()) === 1 && m.map === null, `bars ${await bar.count()}, frame ${JSON.stringify(m.map)}`);
+  const barBox = await bar.evaluate((el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height) }; });
+  ok('the bar sits above the first result, under the count', m.row && barBox.top < m.row.top, `bar ${barBox.top}, row ${m.row?.top}`);
+  ok('and the bar is a finger-sized target', barBox.h >= 40, `${barBox.h}px`);
+  await bar.click();
+  await p.locator('[data-map-frame]').waitFor({ timeout: 8000 });
+  const open = await p.evaluate(() => { const r = document.querySelector('[data-map-frame]').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+  ok('opened, the map is taller than it is wide-ish — not the old 218px strip', open.h >= 300, `${open.w}×${open.h}`);
+  await p.getByRole('button', { name: 'إخفاء' }).click();
+  ok('and it folds back into the bar', (await p.locator('[data-map-frame]').count()) === 0 && (await bar.count()) === 1);
   ok('nothing slides sideways', m.scrollW <= w, `${m.scrollW}px wide`);
   await ctx.close();
 }
@@ -65,6 +78,7 @@ console.log('\n── a desktop, 1280px: the map beside the list ──');
   const beside = m.row && m.map && (m.map.right <= m.row.left || m.map.left >= m.row.right);
   ok('the map stands beside the list, not above it', beside, JSON.stringify({ row: m.row, map: m.map }));
   ok('the first result row starts on the first screen', m.row && m.row.top < m.vh, `row at ${m.row?.top}px`);
+  ok('the map is tall enough to read, not a 245px letterbox', m.map && m.map.h >= 400, `map ${m.map?.h}px`);
   // Sticky: scroll the list and the map stays in view.
   await p.evaluate(() => scrollTo(0, 700));
   await p.waitForTimeout(150);

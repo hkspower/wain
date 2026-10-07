@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
 import SearchPlan from "@/components/SearchPlan";
@@ -11,12 +12,13 @@ import VoiceControls from "@/components/VoiceControls";
 import SearchHub from "@/components/SearchHub";
 import PlaceCard from "@/components/PlaceCard";
 import CategoryIcon from "@/components/CategoryIcon";
-import { IconCall, IconClose, IconCompass, IconSearch } from "@/components/icons";
+import { IconCall, IconClose, IconCompass, IconMap, IconSearch } from "@/components/icons";
 import { RESULTS_COUNT, categories, countAr, toArabicDigits } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
+import type { Place } from "@/lib/places";
 import { answerOrder, kuwaitClock } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
@@ -46,6 +48,21 @@ export default function SearchClient() {
   // other, so the two read as one view of the same results.
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The one map is drawn into whichever slot the screen has: a bar under the
+  // result count on a phone, the sticky column from lg. A portal rather than
+  // two copies — two maps would be two basemap fetches and two sets of pins
+  // answering one hover.
+  const [phoneSlot, setPhoneSlot] = useState<HTMLDivElement | null>(null);
+  const [wideSlot, setWideSlot] = useState<HTMLElement | null>(null);
+  const [wide, setWide] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   /**
    * The query the RESULTS are for, which is allowed to lag the query the BOX
@@ -302,7 +319,7 @@ export default function SearchClient() {
     // From lg the page is two columns: everything that reads on the start
     // side, the map beside it and sticky. Until 2 October it was one 736px
     // column, and the map stood between the box and the list.
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8">
+    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-start lg:gap-8">
       <div className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
@@ -498,6 +515,10 @@ export default function SearchClient() {
               <p className="mb-4 text-sm text-ink-500">
                 {countAr(hits.length, RESULTS_COUNT)}
               </p>
+              {/* Phone only: the map used to be the last thing on the page, at
+                  1480px of 1722 behind the list and the share panel. Here it is
+                  one line under the count, and opens in place. */}
+              <div ref={setPhoneSlot} className="mb-4 lg:hidden" />
               <SearchResults
                 hits={hits}
                 activeIndex={active}
@@ -546,16 +567,79 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {/* One map, rendered once: under the list on a phone (it draws the
-          answer, it is not the answer), beside it and sticky from lg. Same
-          dimming as the list while the results catch up with the box. */}
+      {/* One map, rendered once, into the slot the screen has (see `wide`).
+          From lg this is the sticky column; below it the map lives in the bar
+          under the count. Same dimming as the list while the results catch up
+          with the box. */}
       {showResults && (
         <aside
-          className={`mt-7 lg:sticky lg:top-4 lg:mt-0 transition-opacity duration-150 ${settling ? "opacity-60" : ""}`}
-        >
-          <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
-        </aside>
+          ref={setWideSlot}
+          className={`hidden lg:sticky lg:top-4 lg:block transition-opacity duration-150 ${settling ? "opacity-60" : ""}`}
+        />
       )}
+      {showResults && wide && wideSlot &&
+        createPortal(
+          <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} tall />,
+          wideSlot
+        )}
+      {showResults && !wide && phoneSlot &&
+        createPortal(
+          <PhoneMap
+            places={hitPlaces}
+            active={activeSlug}
+            onActive={setActiveSlug}
+            open={mapOpen}
+            onOpen={setMapOpen}
+          />,
+          phoneSlot
+        )}
     </div>
+  );
+}
+
+/**
+ * The phone's map: a bar until it is asked for.
+ *
+ * SearchMap is mounted only while open, which is not an optimisation — its
+ * frame width is measured once, when the frame first mounts, so a map that
+ * was mounted hidden would measure 0 and fit nothing.
+ */
+function PhoneMap({
+  places,
+  active,
+  onActive,
+  open,
+  onOpen,
+}: {
+  places: Place[];
+  active: string | null;
+  onActive: (slug: string | null) => void;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+}) {
+  if (open) {
+    return (
+      <SearchMap
+        places={places}
+        active={active}
+        onActive={onActive}
+        tall
+        onCollapse={() => onOpen(false)}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(true)}
+      aria-expanded="false"
+      className="flex min-h-tap w-full items-center justify-between gap-3 rounded-2xl border border-line-control bg-white px-4 py-2.5 text-sm font-semibold text-ink-800 shadow-sm transition hover:border-sea-300"
+    >
+      <span className="flex items-center gap-2">
+        <IconMap className="size-4 text-sea-600" />
+        {toArabicDigits(places.length)} على الخريطة
+      </span>
+      <span className="text-xs text-sea-700">اعرض الخريطة</span>
+    </button>
   );
 }

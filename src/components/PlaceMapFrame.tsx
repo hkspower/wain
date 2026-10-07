@@ -71,7 +71,9 @@ export default function PlaceMapFrame({
   );
   const all = useMemo(() => [place, ...near], [place, near]);
 
-  const maxAspect = frameW < PHONE_FRAME_PX ? 1.6 : 2.0;
+  // 1.6:1 was a 230px strip on a phone with the pins squeezed into its middle;
+  // 1.25:1 is ~295px at the same width and costs the desktop nothing.
+  const maxAspect = frameW < PHONE_FRAME_PX ? 1.25 : 2.0;
   // Centred on this place, not on the bounding box of it and its neighbours —
   // the page is asking where *it* is, so it belongs in the middle.
   const f = useMemo(

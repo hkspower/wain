@@ -6198,6 +6198,48 @@ Manager, never chat or git; `docs/admin-setup.md`), optionally
 **Not measured**: MySQL (no server here — `selftest` on the host is the
 check), anything on the live site, a real order from a phone on the board.
 
+## The maps' layout — 7 October (built and tested, NOT deployed; the app is untouched)
+
+Asked: «improve map layout». Measured first, then the owner picked: all three
+maps, a bar on a phone, a tall sticky map on a desktop. What was wrong, read
+off the live build: on a phone /search put the map **last** — 1480px of a
+1722px page, behind the list and the share panel — and 218px tall; on a
+desktop it was a 416×245 box in a column that is empty below it.
+
+- **/search, phone: a bar under the result count** («٤ على الخريطة · اعرض
+  الخريطة»), above the first result, that opens the map in place (370px tall at
+  390, 300 at 320) with «إخفاء» to fold it back. `PhoneMap` in `SearchClient`.
+  **A search on a phone now costs the basemap nothing**: `map-pin`'s «fetched
+  once» was 1 on a phone and is 0 until the bar is tapped, then 1.
+- **/search, desktop: the sticky column is 30rem, not 26, and the frame is
+  `tall`** (aspect 0.7–1.0 instead of 1.7–2.4): 480×480 at 1280 instead of
+  416×245. `fitFrame` only grew its bbox north and south; every pin is still
+  projected from the same frame, so the fitting did not change.
+- **One map, two slots, a portal.** The map is drawn into whichever slot the
+  screen has (`createPortal`, chosen by a `(min-width: 1024px)` query) — two
+  copies would be two basemap fetches and two sets of pins answering one hover.
+  **`SearchMap` is mounted only while the bar is open, and that is not an
+  optimisation**: `useFrameWidth` measures once, when the frame first mounts, so
+  a map mounted hidden measures 0 and fits nothing.
+- **The place page's phone frame is 1.25:1 (~295px), was 1.6:1 (230px)**, and
+  سالم's chat map is 1.6:1 on a phone, was 2.1:1 (a ~175px strip).
+- **The header wraps.** With «إخفاء» added, the count broke across two lines at
+  390; the heading is `nowrap` and the buttons wrap under it.
+
+**Tests.** `search-layout` gained the bar (present, above the first row, ≥40px,
+opens to ≥300px, folds back) and the desktop height (≥400px); `map-pin`,
+`live-map` and `search-plan` open the bar first on their phone contexts. Proved
+red with the build green: map open by default and the desktop `tall` removed —
+«the first result row starts on the first screen» and «the map is a bar until it
+is asked for» failed, and the desktop map measured 282px against the 400 floor.
+`scan` exit 0, `test:hangout` all suites, `test:journey` 46. **`/search` is
+175.8K against the 176K budget** (174.6K before; the portal and `PhoneMap`):
+there is 0.2K left, so the next thing added to /search must be paid for.
+
+**Not done:** the Flutter app's own search map (this is the web only), and
+anything on a real phone — the tiles are refused here, so every screenshot shows
+the broken-image ground where the basemap would be.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

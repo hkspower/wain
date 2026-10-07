@@ -56,8 +56,19 @@ export default function SearchMap({
   active = null,
   onActive,
   compact = false,
+  tall = false,
+  onCollapse,
 }: {
   places: Place[];
+  /** /search: a frame taller than it is wide (aspect 0.7–1.0 instead of 1.7–2.4).
+   *  Kuwait's places run wide and shallow, so the fitted frame is a letterbox
+   *  by default — 245px high in a desktop column that is empty below it, 218px
+   *  on a phone. The bbox simply takes more land north and south; every pin is
+   *  still projected from the same frame, so nothing about the fitting changes. */
+  tall?: boolean;
+  /** Draws «إخفاء» in the header. The phone's /search opens this map from a
+   *  bar under the result count and gives the visitor the same way back. */
+  onCollapse?: () => void;
   /** سالم's chat: a short map under each reply rather than a column of its
    *  own. Wider frames (so shorter), and no margin under the section — the
    *  card it sits in already has one. */
@@ -107,7 +118,14 @@ export default function SearchMap({
     [places, focus]
   );
 
-  const maxAspect = compact ? (frameW < PHONE_FRAME_PX ? 2.1 : 2.8) : frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
+  // سالم's chat map was 2.1:1 on a phone — about 175px, a strip with a handful
+  // of pins in it. 1.6:1 is the place page's own phone shape.
+  const maxAspect = tall
+    ? 1.0
+    : compact
+      ? frameW < PHONE_FRAME_PX ? 1.6 : 2.2
+      : frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
+  const minAspect = tall ? 0.7 : 1.2;
   const f = useMemo(
     () =>
       framed.length && frameW > 0
@@ -115,9 +133,9 @@ export default function SearchMap({
           // them somewhere to stand — otherwise the northernmost result, which
           // the search just decided was worth showing, is drawn with its head
           // cut off by the frame's own border.
-          fitFrame(framed, { maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
+          fitFrame(framed, { minAspect, maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
         : null,
-    [framed, maxAspect, frameW]
+    [framed, minAspect, maxAspect, frameW]
   );
   const pins = useMemo(() => {
     if (!f) return [];
@@ -168,19 +186,28 @@ export default function SearchMap({
 
   return (
     <section className={compact ? "" : "mb-4"} aria-labelledby={headingId}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h2
           id={headingId}
-          className="flex items-center gap-2 text-sm font-semibold text-ink-700"
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold text-ink-700"
         >
           <IconMap className="size-4 text-sea-600" />
           {toArabicDigits(places.length)} على الخريطة
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {/* Offered only while there is a frame to hand over, a network to
               fetch tiles on, and tiles configured at all. Not offered once
               the live map is up: it would be a button that does nothing, and
               the map itself is then the evidence that it worked. */}
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="flex min-h-tap items-center rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+            >
+              إخفاء
+            </button>
+          )}
           {focus && (
             <button
               type="button"

@@ -130,6 +130,8 @@ console.log('\n── the map and the panel share one target: tapping a pin reta
   // visitor is pointing at.
   const { ctx, p } = await fresh('قهوة');
   await panel(p).waitFor({ timeout: 8000 });
+  // The phone's map is a bar until tapped.
+  await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
   const map = p.locator('section[aria-labelledby="search-map-heading"]');
   await map.waitFor({ timeout: 8000 });
 
@@ -179,6 +181,7 @@ console.log('\n── the LIVE map, once opened, shares the same target ──')
   // «حرّك الخريطة» is actually looking at.
   const { ctx, p } = await fresh('قهوة');
   await panel(p).waitFor({ timeout: 8000 });
+  await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
   const map = p.locator('section[aria-labelledby="search-map-heading"]');
   await map.waitFor({ timeout: 8000 });
   await map.getByRole('button', { name: /حرّك الخريطة/ }).click();
