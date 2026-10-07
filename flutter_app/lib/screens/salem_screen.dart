@@ -1081,7 +1081,9 @@ class _PlacesResultState extends State<_PlacesResult> {
                   activeSlug: active,
                   onActive: _choose,
                   onOpen: (p) => context.push('/places/${p.slug}'),
-                  height: 200,
+                  // 230, not 200: the site's chat map went from a ~175px strip
+                  // to 1.6:1 on 7 October.
+                  height: 230,
                 ),
                 TextButton.icon(
                   key: const ValueKey('chat-see-all'),
@@ -1109,7 +1111,9 @@ class _PlacesResultState extends State<_PlacesResult> {
             place: target,
             // Five at most, as /search's panel and the web's SalemChat: a
             // longer row of times-by-place does not fit a phone.
-            choices: places.length > 1 ? places.take(kChoiceMax).toList() : null,
+            choices: places.length > 1
+                ? places.take(kChoiceMax).toList()
+                : null,
             onChoose: _choose,
           ),
           if (chips != null && chips.isNotEmpty) ...[

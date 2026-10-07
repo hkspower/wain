@@ -276,15 +276,19 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              WainMap(
-                key: _mapKey,
-                places: [place, ...related],
-                activeSlug: place.slug,
-                onActive: null,
-                onOpen: (p) => p.slug == place.slug
-                    ? null
-                    : context.push('/places/${p.slug}'),
-                height: 240,
+              // 1.25:1, the site's phone shape since 7 October: 240 was a strip
+              // with the neighbours squeezed into its middle.
+              LayoutBuilder(
+                builder: (context, box) => WainMap(
+                  key: _mapKey,
+                  places: [place, ...related],
+                  activeSlug: place.slug,
+                  onActive: null,
+                  onOpen: (p) => p.slug == place.slug
+                      ? null
+                      : context.push('/places/${p.slug}'),
+                  height: (box.maxWidth / 1.25).clamp(240.0, 420.0).toDouble(),
+                ),
               ),
               if (related.isNotEmpty) ...[
                 const SizedBox(height: 28),

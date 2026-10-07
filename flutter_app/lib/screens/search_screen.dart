@@ -58,6 +58,11 @@ class _SearchScreenState extends State<SearchScreen> {
   );
   String _kind = 'all';
   String? _activeSlug;
+
+  /// The map is a bar under the count until it is asked for — the site's
+  /// layout since 7 October. A search costs no tiles until then, and the first
+  /// result row is not pushed a screen down by a map nobody opened.
+  bool _mapOpen = false;
   Timer? _speakTimer;
 
   /// The share panel, for «رسّلها للربع» in her answer to bring into view.
@@ -287,14 +292,39 @@ class _SearchScreenState extends State<SearchScreen> {
                   style: wainText(WainText.sm, color: WainColors.ink500),
                 ),
                 const SizedBox(height: 12),
-                if (hitPlaces.isNotEmpty)
-                  WainMap(
-                    key: const ValueKey('search-map'),
-                    places: hitPlaces,
-                    activeSlug: active,
-                    onActive: (s) => setState(() => _activeSlug = s),
-                    onOpen: (p) => context.push('/places/${p.slug}'),
+                if (hitPlaces.isNotEmpty && !_mapOpen)
+                  _MapBar(
+                    count: hitPlaces.length,
+                    onOpen: () => setState(() => _mapOpen = true),
                   ),
+                if (hitPlaces.isNotEmpty && _mapOpen) ...[
+                  _MapHeader(
+                    count: hitPlaces.length,
+                    onHide: () => setState(() => _mapOpen = false),
+                  ),
+                  const SizedBox(height: 8),
+                  LayoutBuilder(
+                    // As tall as it is wide, up to half the screen: 260px was
+                    // a letterbox for a country whose places run wide and
+                    // shallow. The site's opened map is ~370 at 390 for the
+                    // same reason.
+                    builder: (context, box) {
+                      final screen = MediaQuery.sizeOf(context).height;
+                      final h = box.maxWidth
+                          .clamp(0.0, screen * 0.5)
+                          .clamp(300.0, 520.0)
+                          .toDouble();
+                      return WainMap(
+                        key: const ValueKey('search-map'),
+                        places: hitPlaces,
+                        activeSlug: active,
+                        onActive: (s) => setState(() => _activeSlug = s),
+                        onOpen: (p) => context.push('/places/${p.slug}'),
+                        height: h,
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 12),
                 for (var i = 0; i < hits.length; i++)
                   _ResultRow(
@@ -317,6 +347,99 @@ class _SearchScreenState extends State<SearchScreen> {
               const SizedBox(height: 24),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// «٤ على الخريطة · اعرض الخريطة»: the map, folded. One tap opens it in place.
+class _MapBar extends StatelessWidget {
+  final int count;
+  final VoidCallback onOpen;
+  const _MapBar({required this.count, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(WainRadius.s2xl),
+        side: const BorderSide(color: WainColors.lineControl),
+      ),
+      child: InkWell(
+        key: const ValueKey('search-map-bar'),
+        borderRadius: BorderRadius.circular(WainRadius.s2xl),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onOpen();
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                WainSvg.icon('map', size: 16, color: WainColors.sea600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${toArabicDigits(count)} على الخريطة',
+                    style: wainText(
+                      WainText.sm,
+                      weight: FontWeight.w600,
+                      color: WainColors.ink800,
+                    ),
+                  ),
+                ),
+                Text(
+                  'اعرض الخريطة',
+                  style: wainText(
+                    WainText.xs,
+                    weight: FontWeight.w600,
+                    color: WainColors.sea700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The opened map's own line: the count, and the way back to the bar.
+class _MapHeader extends StatelessWidget {
+  final int count;
+  final VoidCallback onHide;
+  const _MapHeader({required this.count, required this.onHide});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        WainSvg.icon('map', size: 16, color: WainColors.sea600),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '${toArabicDigits(count)} على الخريطة',
+            style: wainText(
+              WainText.sm,
+              weight: FontWeight.w600,
+              color: WainColors.ink700,
+            ),
+          ),
+        ),
+        OutlinedButton(
+          key: const ValueKey('search-map-hide'),
+          onPressed: onHide,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: WainColors.ink700,
+            shape: const StadiumBorder(),
+          ),
+          child: const Text('إخفاء'),
         ),
       ],
     );

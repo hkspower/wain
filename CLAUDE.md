@@ -6198,7 +6198,7 @@ Manager, never chat or git; `docs/admin-setup.md`), optionally
 **Not measured**: MySQL (no server here — `selftest` on the host is the
 check), anything on the live site, a real order from a phone on the board.
 
-## The maps' layout — 7 October (live as `e658295b`; the app is untouched)
+## The maps' layout — 7 October (live as `e658295b`; the app mirrors it)
 
 Asked: «improve map layout». Measured first, then the owner picked: all three
 maps, a bar on a phone, a tall sticky map on a desktop. What was wrong, read
@@ -6247,8 +6247,18 @@ and 7 levels below it» (`build.json` digest `95a995bb7ecffb8c`; stylesheets
 a cron `wget -S --spider` of `/search/` through the edge: 200,
 `Last-Modified: 05:19:02` (the deploy's minute), `x-hcdn-cache-status: DYNAMIC`.
 
-**Not done:** the Flutter app's own search map (this is the web only), and
-anything on a real phone — the tiles are refused here, so every screenshot shows
+**The app mirrors it, the same day.** `search_screen.dart`: `_MapBar`
+(«٤ على الخريطة · اعرض الخريطة», 48dp, key `search-map-bar`) under the count;
+tapped, `_MapHeader` with «إخفاء» and the map as tall as it is wide up to half
+the screen (300–520); the place page's map is `width / 1.25` (was 240), and
+سالم's chat map 230 (was 200). `map_layout_test.dart` (3) holds the bar, the
+opened height, the fold-back and the place page's ratio at 390 and 320 — red on
+the old layout (map open by default, a fixed 240: 3 of 3 failed). Four older
+tests reached the search map's pins directly and now tap the bar first
+(`app_smoke` ×2, `performance`, `tap_targets`; the integration flow too). Suite
+1291, analyze clean, `audit:flutter` current.
+
+**Not done:** anything on a real phone — the tiles are refused here, so every screenshot shows
 the broken-image ground where the basemap would be.
 
 ## Style

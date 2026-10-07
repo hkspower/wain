@@ -36,6 +36,8 @@ void main() {
       WainApp(state: AppState.ephemeral(), initialLocation: '/search?q=قهوة'),
     );
     await t.pump(const Duration(milliseconds: 500));
+    await t.tap(find.byKey(const ValueKey('search-map-bar')));
+    await t.pump(const Duration(milliseconds: 300));
     final pins = find.byWidgetPredicate(
       (w) =>
           w.key is ValueKey<String> &&

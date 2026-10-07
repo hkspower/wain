@@ -103,7 +103,8 @@ void main() {
       await pumpAt(t, '/search');
       await t.enterText(find.byKey(const ValueKey('search-input')), 'قهوة');
       await t.pump(const Duration(milliseconds: 400));
-      expect(find.byKey(const ValueKey('search-map')), findsOneWidget);
+      // The map is a bar until asked for (7 October, as on the site).
+      expect(find.byKey(const ValueKey('search-map-bar')), findsOneWidget);
       expect(find.byKey(const ValueKey('search-hangout')), findsOneWidget);
       expect(find.textContaining('رسّلها للربع'), findsWidgets);
       expect(t.takeException(), isNull);
@@ -125,7 +126,7 @@ void main() {
     t,
   ) async {
     await pumpAt(t, '/search?q=${Uri.encodeQueryComponent('بحر')}');
-    expect(find.byKey(const ValueKey('search-map')), findsOneWidget);
+    expect(find.byKey(const ValueKey('search-map-bar')), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

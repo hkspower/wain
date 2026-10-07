@@ -26,6 +26,9 @@ void main() {
     t,
   ) async {
     await at(t, '/search?q=قهوة');
+    // The map is a bar until opened (7 October); opening it is not a search.
+    await t.tap(find.byKey(const ValueKey('search-map-bar')));
+    await t.pump(const Duration(milliseconds: 100));
     final state = t.state(find.byType(SearchScreen)) as dynamic;
     final before = state.searchRuns as int;
     expect(before, greaterThan(0));

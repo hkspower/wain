@@ -150,6 +150,9 @@ void main() {
     await t.tap(find.text('بحث').last);
     await waitFor(t, find.byKey(const ValueKey('search-input')));
     await t.enterText(find.byKey(const ValueKey('search-input')), 'قهوة');
+    // The map is a bar under the count until it is opened.
+    await waitFor(t, find.byKey(const ValueKey('search-map-bar')));
+    await t.tap(find.byKey(const ValueKey('search-map-bar')));
     await waitFor(t, find.byKey(const ValueKey('search-map')));
     expect(find.byKey(const ValueKey('search-hangout')), findsOneWidget);
     // Real tiles over the network — the one thing no sandbox here has drawn.
