@@ -198,14 +198,17 @@ export function IconTower(props: IconProps) {
 export function IconCutlery(props: IconProps) {
   return (
     <svg {...base(props)}>
-      {/* Three tines. With only the outer two it read as a tuning fork. */}
-      <path d="M7 3v6.2a2 2 0 0 0 4 0V3" />
-      <path d="M9 3v5.2" />
-      <path d="M9 9.5V21" />
+      {/* Three tines. With only the outer two it read as a tuning fork. Fork
+          and knife sit 5 to 19 wide: at 7 to 17.5 the pair put 30% less on
+          the page than the rest of the set (audit:icons) and read as a
+          lighter icon beside its neighbours. */}
+      <path d="M5 3v6.2a2.5 2.5 0 0 0 5 0V3" />
+      <path d="M7.5 3v5.2" />
+      <path d="M7.5 11.7V21" />
       {/* Handle and spine first, then the blade's curve back to the spine.
           The blade's straight edge was left to its wash to draw; without the
           wash an open path read as a hook. */}
-      <path d="M17.5 21V3c-1.9 1.2-2.9 3.2-2.9 5.4 0 1.8 1 2.9 2.9 3.1" />
+      <path d="M19 21V3c-2.2 1.3-3.3 3.6-3.3 6 0 2 1.2 3.2 3.3 3.4" />
     </svg>
   );
 }
@@ -503,11 +506,14 @@ export function IconSpeakerOff(props: IconProps) {
 }
 
 /** The landmarks slideshow's stop button (LandmarksShow): two bars, drawn to
- *  the set's 17 units so it sits level with the heading beside it. */
+ *  the set's 17 units so it sits level with the heading beside it. They are
+ *  outlined bars, not two lines: two 1.5 strokes put 56% less on the page
+ *  than the set and read as a hairline beside «Play». */
 export function IconPause(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M8.5 3.5v17M15.5 3.5v17" />
+      <rect x="6" y="3.5" width="4" height="17" rx="1.2" />
+      <rect x="14" y="3.5" width="4" height="17" rx="1.2" />
     </svg>
   );
 }

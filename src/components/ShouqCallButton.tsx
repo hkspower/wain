@@ -44,9 +44,11 @@ export default function ShouqCallButton({
    * be what every phone's call button is.
    *
    * "pill" is سالم's header since 7 October: the switch from his chat to her
-   * call, a coral pill with a handset and «كلّم شوق» beside it from 400px (at
+   * call, a green pill with a handset and «كلّم شوق» beside it from 400px (at
    * 320 the header also holds the back button, his face, his name and the
-   * read-aloud toggle, so the words go before anything else does).
+   * read-aloud toggle, so the words go before anything else does). It was
+   * coral until 7 October, and a red handset reads as «hang up» on a phone;
+   * green is what /find's call button and every phone's call button are.
    */
   size?: "sm" | "lg" | "call" | "pill";
   /**
@@ -192,7 +194,7 @@ export default function ShouqCallButton({
               : "size-8"
       } ${
         size === "pill"
-          ? `bg-coral-600 text-white hover:bg-coral-700 active:scale-95 ${open ? "ring-4 ring-coral-400" : ""}`
+          ? `bg-palm-600 text-white hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
           : size === "call"
           ? `bg-palm-600 text-white shadow-lg shadow-palm-700/30 hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
           : size === "lg"
@@ -239,7 +241,7 @@ export default function ShouqCallButton({
         <span
           aria-hidden="true"
           className={`absolute inset-0 animate-ping rounded-full motion-reduce:animate-none ${
-            size === "call" ? "bg-palm-500/40" : "bg-coral-500/40"
+            size === "call" || size === "pill" ? "bg-palm-500/40" : "bg-coral-500/40"
           }`}
         />
       )}

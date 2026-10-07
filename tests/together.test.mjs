@@ -202,6 +202,10 @@ console.log('\n── 4b. switching between them (7 October) ──');
   const box = await soft(() => call.boundingBox(), null);
   ok('…a finger-sized target', !!box && box.width >= 44 && box.height >= 44, JSON.stringify(box));
   ok('…named by its words', (await soft(() => call.getAttribute('aria-label'))) === 'كلّم شوق');
+  // Green, as /find's call button is: a red handset reads as «hang up».
+  const bg = await soft(() => call.evaluate((el) => getComputedStyle(el).backgroundColor), '');
+  const rgb = (bg.match(/\d+(\.\d+)?/g) ?? []).map(Number);
+  ok('…green, not the red of a hang-up', rgb.length >= 3 && rgb[1] > rgb[0] && rgb[1] > rgb[2], bg);
   ok('there is no detour to /find left in the header', (await soft(() => p.locator('header a[href="/find/"]').count(), 0)) === 0);
   await soft(() => call.click({ timeout: 3000 }));
   // isVisible() does not wait, and the call is a chunk away: wait for it.

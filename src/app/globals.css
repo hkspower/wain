@@ -481,11 +481,12 @@ h1, h2, h3 {
 /* Text laid straight on /find's photographs. The scrims under it were
    lightened on request, so the letters carry their own separation: a tight
    dark edge for the outline and a wide soft one for the busy parts of the
-   picture. A shadow on the glyphs, not a layer over the photo. */
+   picture. A shadow on the glyphs, not a layer over the photo. The ink is
+   ink-900, the site's own darkest, not a cool near-black of its own. */
 .text-on-photo {
   text-shadow:
-    0 1px 2px rgb(13 18 28 / 0.55),
-    0 0 14px rgb(13 18 28 / 0.35);
+    0 1px 2px color-mix(in srgb, var(--color-ink-900) 55%, transparent),
+    0 0 14px color-mix(in srgb, var(--color-ink-900) 35%, transparent);
 }
 
 /* The seam pill between the two halves: pops in once reveal-up's stagger

@@ -3,6 +3,7 @@
 import { IconSpeaker, IconSpeakerOff } from "@/components/icons";
 import type { SpeechPart } from "@/lib/voice-lines";
 import {
+  NAMED_VOICE,
   PERSONAS,
   setEnabled,
   setPersona,
@@ -80,7 +81,7 @@ export function SpeakButton({ parts, label }: { parts: SpeechPart[]; label: stri
       }`}
     >
       {speaking ? <IconSpeakerOff className="size-4" /> : <IconSpeaker className="size-4" />}
-      {speaking ? "وقّف الصوت" : `${label} بصوت ${PERSONAS[persona].nameAr}`}
+      {speaking ? "وقّف الصوت" : NAMED_VOICE ? `${label} بصوت ${PERSONAS[persona].nameAr}` : label}
     </button>
   );
 }

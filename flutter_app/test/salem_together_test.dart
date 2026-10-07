@@ -26,6 +26,7 @@ import 'package:wain/map/wain_map.dart';
 import 'package:wain/screens/salem_screen.dart';
 import 'package:wain/share/hangout.dart' show kChoiceMax;
 import 'package:wain/share/hangout_panel.dart';
+import 'package:wain/theme/colors.dart';
 import 'package:wain/voice/voice_service.dart';
 import 'package:wain/widgets/place_card.dart';
 
@@ -467,6 +468,14 @@ void main() {
   ) async {
     await _pump(t);
     expect(_call.active, isFalse);
+    // Green, as /find's call button is: a red handset reads as «hang up».
+    final button = t.widget<FilledButton>(
+      find.byKey(const ValueKey('chat-call-shouq')),
+    );
+    expect(
+      button.style?.backgroundColor?.resolve(<WidgetState>{}),
+      WainColors.palm600,
+    );
     await t.tap(find.byKey(const ValueKey('chat-call-shouq')));
     await t.pump();
     expect(_call.active, isTrue, reason: 'one tap places the call');

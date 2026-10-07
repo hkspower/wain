@@ -766,7 +766,8 @@ class _ReadAloudToggle extends StatelessWidget {
 /// «كلّم شوق» — her call, placed from his header with the same tap as every
 /// call button ([placeShouqCall]). The words go before the name does: under
 /// 400 wide the header holds the back button, his face, his name and two
-/// controls, so the button is its icon (and its label is still read).
+/// controls, so the button is its icon (and its label is still read). Green,
+/// as /find's call button is: a red handset reads as «hang up» on a phone.
 class _CallShouqButton extends StatelessWidget {
   const _CallShouqButton();
 
@@ -782,7 +783,7 @@ class _CallShouqButton extends StatelessWidget {
         key: const ValueKey('chat-call-shouq'),
         onPressed: () => placeShouqCall(context),
         style: FilledButton.styleFrom(
-          backgroundColor: WainColors.coral600,
+          backgroundColor: WainColors.palm600,
           foregroundColor: Colors.white,
           minimumSize: const Size(48, 48),
           padding: EdgeInsets.symmetric(horizontal: wide ? 14 : 0),

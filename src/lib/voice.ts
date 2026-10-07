@@ -66,6 +66,14 @@ const TTS_CONFIGURED = process.env.NEXT_PUBLIC_WAIN_TTS_URL || "/api/tts.php";
 const TTS_URL = TTS_CONFIGURED.trim().toLowerCase() === "none" ? "" : TTS_CONFIGURED;
 
 /**
+ * Whether a «اسمعها» button may say whose voice it is. With the bridge off
+ * (`NEXT_PUBLIC_WAIN_TTS_URL=none`, the live build since 7 October) every
+ * answer is read by the phone's own voice — on an iPhone that may be a man's —
+ * so «بصوت شوق» would name a voice nobody hears.
+ */
+export const NAMED_VOICE = TTS_URL !== "";
+
+/**
  * Set when the bridge has said, in so many words, that it will not work.
  *
  * Defaulting the URL on means a site whose endpoint is not installed, or whose

@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readdirSync, readFileSync } from 'node:fs';
 
 /**
  * The maps' boxes — measured on the built export, 7 October.
@@ -93,6 +94,13 @@ for (const [w, h] of [[1280, 720], [1366, 768], [1440, 900]]) {
   await ctx.close();
 }
 
+// Whether this export's read-aloud asks /api/tts.php at all (it is gone from
+// the bundle when NEXT_PUBLIC_WAIN_TTS_URL is «none»).
+const chunkDir = new URL('../out/_next/static/chunks/', import.meta.url);
+const BRIDGED = readdirSync(chunkDir, { recursive: true })
+  .filter((f) => String(f).endsWith('.js'))
+  .some((f) => readFileSync(new URL(String(f), chunkDir), 'utf8').includes('api/tts.php'));
+
 console.log('\n── the place page\'s map card is the map ──');
 for (const w of [390, 1280]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 } });
@@ -106,9 +114,14 @@ for (const w of [390, 1280]) {
       voice: !!voice,
       speakInCard: !!(card && speak && card.contains(speak)),
       speakBelowCard: !!(card && speak && speak.getBoundingClientRect().top >= card.getBoundingClientRect().bottom),
+      label: speak?.textContent.trim() ?? '',
     };
   });
   ok(`@${w}: the voice buttons are under the card, not in it`, r.voice && !r.speakInCard && r.speakBelowCard, JSON.stringify(r));
+  // «بصوت شوق» only where her voice can be heard: a build with the read-aloud
+  // bridge off (the live one) reads with the phone's voice, which may be a man's.
+  ok(`@${w}: the button names a voice only when the build has the bridge`,
+    r.label.includes('بصوت') === BRIDGED, `${r.label} / bridge ${BRIDGED}`);
   await ctx.close();
 }
 
