@@ -31,3 +31,26 @@ label:has(> input[name='paymethod']:checked) {
    (React owns it) and is only hidden while a label is set. */
 button[data-cpay-label] { font-size: 0 !important; }
 button[data-cpay-label]::after { content: attr(data-cpay-label); font-size: 16px; }
+
+/* T-Pay and KNET are the two main choices; cash on delivery sits below them, quieter (2026-10-07, "make tpay as main
+   payment with knet"; the owner chose "T-Pay and KNET first, cash below"). The bundle draws the rows in DOM order
+   (knet, tpay, cod) and React owns them, so they are only RE-ORDERED, with flex `order`, never moved. The pre-selected
+   method is still the bundle's own (KNET), because T-Pay is refused at the bank until its credentials are saved. */
+fieldset > div:has(> label > input[name='paymethod']) { display: flex; flex-direction: column; gap: 8px; }
+fieldset > div:has(> label > input[name='paymethod']) > label { margin: 0 !important; }
+label:has(> input[name='paymethod'][value='tpay']) { order: 1; }
+label:has(> input[name='paymethod'][value='knet']) { order: 2; }
+label:has(> input[name='paymethod'][value='cod']) {
+  order: 3;
+  position: relative;
+  margin-top: 14px !important;           /* room for the divider line */
+  background: transparent;
+  border-style: dashed;
+  padding-top: 10px; padding-bottom: 10px;
+}
+label:has(> input[name='paymethod'][value='cod'])::before {
+  content: '';
+  position: absolute; top: -9px; inset-inline: 12px;
+  height: 1px; background: #d3d9e0;      /* the divider between the two main methods and cash */
+}
+label:has(> input[name='paymethod'][value='cod']) span.font-semibold { font-weight: 600; font-size: 13px; }

@@ -2090,6 +2090,24 @@ label:has(> input[name='paymethod']:checked) {
 .cpay-trust svg { flex: 0 0 auto; color: #11703f; }
 button[data-cpay-label] { font-size: 0 !important; }
 button[data-cpay-label]::after { content: attr(data-cpay-label); font-size: 16px; }
+fieldset > div:has(> label > input[name='paymethod']) { display: flex; flex-direction: column; gap: 8px; }
+fieldset > div:has(> label > input[name='paymethod']) > label { margin: 0 !important; }
+label:has(> input[name='paymethod'][value='tpay']) { order: 1; }
+label:has(> input[name='paymethod'][value='knet']) { order: 2; }
+label:has(> input[name='paymethod'][value='cod']) {
+  order: 3;
+  position: relative;
+  margin-top: 14px !important;
+  background: transparent;
+  border-style: dashed;
+  padding-top: 10px; padding-bottom: 10px;
+}
+label:has(> input[name='paymethod'][value='cod'])::before {
+  content: '';
+  position: absolute; top: -9px; inset-inline: 12px;
+  height: 1px; background: #d3d9e0;
+}
+label:has(> input[name='paymethod'][value='cod']) span.font-semibold { font-weight: 600; font-size: 13px; }
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card[data-gp] {
   font-size: 0 !important;
   column-gap: 0;

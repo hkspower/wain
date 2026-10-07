@@ -38,5 +38,8 @@ window.SPORTA_CONFIG = {
   // placeholders (the gateway is in TEST mode, pgtest.cbk.com). Until they are saved in /backends -> Payments a shopper
   // who chooses T-Pay is refused at the bank. To take it off again: set this back to false (or switch the method off in
   // /backends -> Payments, which hides it without a publish).
-  tpayEnabled: true,
+  // A STRING, not a boolean: the bundle reads config through a helper that only returns non-empty strings, and the
+  // checkout compares the result with 'true' (patched 2026-10-07 — it used to compare with the boolean true, which that
+  // helper can never return, so this switch could not turn T-Pay on). Anything else keeps T-Pay hidden.
+  tpayEnabled: 'true',
 }

@@ -4501,3 +4501,30 @@ The owner supplied the KNET manual (and CBK's v3.02) for analysis; **neither PDF
 ## The /backends panel is LIGHT — 2026-10-07
 
 "add brighter colors for backend layout to be comfort to view"; the owner chose a light panel out of three. `assets/panel-light.js` (loaded ONLY by `panel.php`, as a blocking `<head>` script, so the first frame is light) sets `data-theme="light"` on `<html>` on /backends and puts it back whenever the bundle's ThemeProvider writes "dark". It never writes `sporta_theme`, so the shop stays dark for the owner's browser too (`test:panel-light` asserts both). The bundle's panel cards were written light and simply show; the overlay cards follow the `--sp-pc-*` tokens, which now have light values under `html[data-theme='light'] .admin-shell` in `css/19-backends-panel.css`, plus darker shades for the overlay status colours that were made for a dark card (`.stc-*`, `.bkp-warn`, the sign-in log's red/amber cells — matched by `rgb(255, 107, 107)`, because the browser rewrites an inline `#ff6b6b` into rgb). Desktop has a **Dark panel** switch in the sidebar (`localStorage.sporta_panel_mode`); on phones it is hidden (it ran under the bell). `test:panel-light` scans every panel screen at 1280 and 390 for text under 3:1 (filled indigo/emerald buttons are skipped by class because their ground is a `lab()` colour the scan cannot read) and was mutation-tested (the status-colour overrides removed → Settings fails by name). `panel-cards` now asks that an overlay has the bundle card's OWN ground (or a see-through tint), not that it is "not white". Pre-existing and not from this: `test:css` (driver.css unreferenced) and `test:home-banner` (sandbox has no product photos).
+
+## T-Pay at checkout — the switch could not work, and was reported as on — 2026-10-07
+
+Asked to "switch tpay on now", `config.js` got `tpayEnabled: true`, the change was published and **reported as on**. It was
+not: the checkout showed KNET and cash only. The bundle reads config through a helper (`Wt`, exported as `b`) that returns
+**only non-empty strings** (`Ut(Vt?.[e]) ? Vt[e].trim() : …default…`), and the payment list compared its result with the
+BOOLEAN `true` (`_('tpayEnabled',!1)===!0`) — a comparison that helper can never satisfy. `config.js` said "set to true, save,
+reload", and no test noticed, because `test:tpay` and `test:payments` drive the API, not the checkout page. **A switch's own
+comment is not a measurement of what it does: look at the page.** A `checkout-pay` rig that asserts the painted rows
+(T-Pay, KNET, cash) caught it on its first run.
+
+Fixed by patching ONE condition in the compiled `assets/Checkout-Dk5_ETdy.js` to ``_('tpayEnabled','')==='true'`` and writing the
+config value as the STRING `'true'`. The file is content-hashed and `.htaccess` marks hashed files immutable for a year, so a
+returning visitor who already holds the old copy may not see T-Pay until their browser drops it (the `sw.js` VERSION bump frees
+the worker's own caches, not the HTTP cache). Accepted by the owner: the shop has taken no orders. A rebuilt bundle would
+lose the patch — re-apply it.
+
+`css/74-checkout-pay.css` orders the rows T-Pay, KNET, then cash (quieter, dashed, with a divider), using flex `order` so React's
+nodes are never moved. KNET stays pre-selected on purpose: T-Pay is refused at the bank until its CBK ClientSecret and ENCRP_KEY
+are saved in /backends -> Payments.
+
+**Also found the same day:** `pay/config.php` and `knet/config.php` carried their own `mysql_*` login, which the server refused
+(error 1045). The gateways could not read the saved /backends settings (the CBK gateway reported production while the row said
+test) and could not look up an order's amount, so a card or T-Pay payment would have stopped at "Unknown order" for everyone.
+`scripts/publish/fix-gateway-db.php` empties those four values (backup first, only when their own login fails) so both inherit
+`api/config.php`; the backups were deleted afterwards at the owner's request. `scripts/live/live-tpay-check.php` reports the
+gateway as checkout sees it, and `live-gateway-db-check.php` / `live-cbk-env-why.php` say why it cannot read the database.
