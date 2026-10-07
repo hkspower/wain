@@ -602,7 +602,12 @@ export default function SalemChat() {
       ref={frameRef}
       className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))]"
     >
-      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
+      {/* On a wide screen every row keeps to one centred 42rem column
+          (`md:px-[calc(50%-21rem)]`): the chat used to run the whole
+          window, her replies against one edge, the visitor's against the
+          other, and a 1200px input box (7 October). The bars stay full
+          width; only what is in them lines up. */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3 md:px-[calc(50%-21rem)]">
         {/* In the header, not floating: this page is one fixed frame, so the
             header never scrolls away and a floating circle would sit on his
             portrait. Opened from a shared link, there is no page of ours
@@ -660,7 +665,7 @@ export default function SalemChat() {
           const el = e.currentTarget;
           stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
         }}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 md:px-[calc(50%-21rem)]"
       >
         {messages.map((m, i) => {
           if (m.role === "system") {
@@ -717,7 +722,8 @@ export default function SalemChat() {
           // side, the visitor's on the end — so the dots below and the reply
           // that replaces them are visibly the same bubble.
           return (
-            <div key={i} data-line={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div key={i} data-line={i} className={`flex items-end gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role !== "user" && <ReplyFace />}
               <p
                 className={`animate-bubble-in max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user" ? "rounded-ee-md bg-sea-600 text-white" : "rounded-es-md bg-white text-ink-900"
@@ -732,6 +738,8 @@ export default function SalemChat() {
           <div className="flex flex-col items-start gap-1">
             {/* Her bubble, at the height of one line of her reply, so the
                 reply lands where the dots were instead of below a shorter box. */}
+            <div className="flex items-end gap-2">
+            <ReplyFace />
             <p data-typing="" className="animate-bubble-in flex h-10 items-center rounded-2xl rounded-es-md bg-white px-4 text-ink-900">
               <span className="sr-only">{WAIN_AI_CHAT_COPY.typing}</span>
               <span aria-hidden="true" className="flex items-center gap-1.5">
@@ -744,7 +752,8 @@ export default function SalemChat() {
                 ))}
               </span>
             </p>
-            {slow && <p className="animate-bubble-in px-1 text-xs text-sand-200">{WAIN_AI_CHAT_COPY.slow}</p>}
+            </div>
+            {slow && <p className="animate-bubble-in ps-9 text-xs text-sand-200">{WAIN_AI_CHAT_COPY.slow}</p>}
           </div>
         )}
         {showStarters && (
@@ -756,7 +765,7 @@ export default function SalemChat() {
                 type="button"
                 disabled={!ready}
                 onClick={() => submit(q)}
-                className="inline-flex min-h-tap items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
+                className="inline-flex min-h-10 items-center rounded-full border border-white/20 bg-white/10 px-4 text-sm text-white transition hover:bg-white/20 disabled:opacity-50"
               >
                 {q}
               </button>
@@ -790,7 +799,7 @@ export default function SalemChat() {
       {/* The free build sends nothing anywhere, so it says that instead —
           a recording notice over a chat that records nothing would be the
           same overstatement in the other direction. */}
-      <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
+      <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200 md:px-[calc(50%-21rem)]">
         {FREE ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
         <Link href="/privacy/#wain-ai" className="inline-flex min-h-tap items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
@@ -798,7 +807,7 @@ export default function SalemChat() {
       </p>
       <form
         onSubmit={send}
-        className="flex shrink-0 items-stretch gap-2 bg-sea-950 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3"
+        className="flex shrink-0 items-stretch gap-2 bg-sea-950 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 md:px-[calc(50%-21rem)]"
       >
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}
@@ -946,5 +955,24 @@ function SalemWhere({ place }: { place: Place }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+/**
+ * His face beside each reply, at the foot of the bubble where the tail is, so
+ * a reply reads as said by someone and not as a system line (7 October). The
+ * same 144px file the header uses, so it costs no second download.
+ */
+function ReplyFace() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser
+    <img
+      src="/find/salem-face.jpg"
+      alt=""
+      aria-hidden="true"
+      width={144}
+      height={144}
+      className="size-7 shrink-0 rounded-full object-cover"
+    />
   );
 }

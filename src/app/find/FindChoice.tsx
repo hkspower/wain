@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ShouqCallButton from "@/components/ShouqCallButton";
+import { IconSend } from "@/components/icons";
 import { FIND_DEFAULT, findGreeting, findMomentNow, type FindMoment } from "@/lib/find-moment";
 import { msToNextKuwaitHour } from "@/lib/kuwait-time";
-import { WAIN_AI_COPY, SALEM_NAME, SALEM_ROLE } from "@/lib/wain-ai";
+import { WAIN_AI_COPY, SALEM_NAME } from "@/lib/wain-ai";
 
 /**
  * The moment the page is read in, kept current: set after mount (the HTML is
@@ -184,27 +185,12 @@ export default function FindChoice() {
         />
         <div className="relative isolate mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
           <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--color-sea-950)_62%,transparent),color-mix(in_srgb,var(--color-sea-950)_35%,transparent)_60%,transparent)]" />
-          {/* A pill again, matching the call half's exactly — kicker text,
-              equalizer, same markup, only `SALEM_ROLE` in place of
-              `WAIN_AI_COPY.role`. It went missing when this half stopped
-              being a distinct character (a pill naming a voice-swap badge
-              with nothing else to say), but now that the two halves lead to
-              two different names, this is what actually establishes his —
-              the heading below never states a name, on either half; it
-              always relied on the pill and the greeting to do that. Without
-              this, «اكتب» + a photo said nothing a reader could call سالم. */}
-          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sea-900 [animation-delay:480ms]">
-            {SALEM_ROLE}
-            <span aria-hidden="true" className="inline-flex h-3.5 items-end gap-[3px] text-sea-600">
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.9s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.25s", animationDelay: "-0.4s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.7s", animationDelay: "-0.1s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.1s", animationDelay: "-0.7s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.8s", animationDelay: "-0.3s" }} />
-            </span>
-          </span>
+          {/* No role pill on this half any more (7 October, on request): the
+              heading names him now, which is what the pill was there to do,
+              and two «دليلك/دليلتك في الكويت» pills a screen apart read as a
+              repeat rather than as two people. */}
           <h2 className="text-on-photo animate-reveal-up font-display text-4xl font-bold text-sea-300 [animation-delay:580ms] sm:text-5xl">
-            اكتب
+            اكتب ل{SALEM_NAME}
           </h2>
           {/* The call half's own sentence with only his name changed — see
               SALEM_GREETING's comment in wain-ai.ts for why that is the only
@@ -212,10 +198,13 @@ export default function FindChoice() {
           <p className="text-on-photo animate-reveal-up text-pretty text-base leading-relaxed text-white [animation-delay:780ms]">
             {findGreeting(SALEM_NAME, moment)}
           </p>
+          {/* A real button, the weight of the green call above: it was a
+              26px pill that read as a label (7 October). */}
           <Link
             href="/salem"
-            className="animate-reveal-up mt-1 inline-flex min-h-tap items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700 [animation-delay:880ms]"
+            className="animate-reveal-up mt-1 inline-flex min-h-12 items-center gap-2 rounded-full bg-sea-600 px-8 font-display text-lg font-semibold text-white shadow-md transition hover:bg-sea-700 active:scale-95 [animation-delay:880ms]"
           >
+            <IconSend className="size-5" aria-hidden="true" />
             ابدأ الكتابة
           </Link>
           {/* Matching the call half's own hint under its button — that one

@@ -67,6 +67,8 @@ console.log('\n── /salem works with nothing behind it but the page ──');
   ok('he greets first, in words this page owns', await p.locator('[role="log"] >> text=أدوّر لك بين أماكن وين').isVisible());
   ok('the box is usable from the first frame', await p.locator('#salem-q').isEnabled());
   ok('the starters are offered', await p.getByRole('button', { name: 'قهوة هادية' }).isVisible());
+  const starter = await p.getByRole('button', { name: 'قهوة هادية' }).boundingBox();
+  ok('a starter is a 40px chip', (starter?.height ?? 0) >= 39.5, String(starter?.height));
   ok('no WebSocket is opened', (await p.evaluate(() => window.__sockets)) === 0);
   ok('no page errors', errors.length === 0, errors.join(' | '));
 
@@ -80,6 +82,7 @@ console.log('\n── /salem works with nothing behind it but the page ──');
   ok('the visitor\'s line is drawn', await p.locator('[role="log"] p', { hasText: /^قهوة$/ }).count() === 1);
   const reply = (await p.locator('[role="log"] p.bg-white').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
   ok('he answers with a sentence that names a place', reply.length > 20 && !reply.includes('ما لقيت'), reply);
+  ok('his face sits beside his reply', await p.locator('[role="log"] p.bg-white').last().evaluate((b) => b.previousElementSibling?.tagName === 'IMG'));
   ok('the real place cards follow it', await p.locator('[role="log"] a[href^="/places/"]').count() >= 1);
   ok('with the send-to-the-group panel', await p.locator('[role="log"] h2', { hasText: 'رسّلها للربع' }).count() >= 1);
   ok('the starters leave once the conversation has begun', await p.getByRole('button', { name: 'قهوة هادية' }).count() === 0);
@@ -92,6 +95,22 @@ console.log('\n── /salem works with nothing behind it but the page ──');
 
   ok('still no socket, and no request to any voice host, after all of it',
     (await p.evaluate(() => window.__sockets)) === 0 && voiceHosts.length === 0, voiceHosts.join(', '));
+  await ctx.close();
+}
+
+console.log('\n── on a computer the chat keeps to one centred column ──');
+{
+  // 7 October: at 1280 the replies ran against one edge, the visitor's lines
+  // against the other, and the input box was 1200px wide.
+  const { ctx, p } = await fresh('/salem/', { width: 1280, height: 800 });
+  const box = await p.locator('#salem-q').boundingBox();
+  const log = await p.locator('[role="log"]').evaluate((el) => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return { inner: r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+  });
+  ok('the input box is no wider than the column', (box?.width ?? 9999) <= 680, String(box?.width));
+  ok('and centred under it', Math.abs(((box?.x ?? 0) + (box?.width ?? 0) / 2) - 640) < 40, String(box?.x));
+  ok('the transcript is one 42rem column', log.inner <= 672.5, String(log.inner));
   await ctx.close();
 }
 

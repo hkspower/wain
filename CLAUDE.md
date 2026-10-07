@@ -6777,3 +6777,25 @@ Gates: `scan` (agent variables), `test:shouq` all suites, `test:hangout` on a de
 and Flutter analyze plus 1,307 tests. Commit `03d52fb8`. The owner saw the screenshots and chose «Change something
 first», so **nothing is deployed**: the live site still has the floating widget, and the colour and placement
 settings already apply to it.
+
+## /salem and /find polished — 7 October, night (built, NOT deployed)
+
+The owner chose three fixes after screenshots («full polish shoug and salem pages layout»):
+
+- **/salem keeps to one centred 42rem column on a computer.** The header, transcript, notice and form all take
+  `md:px-[calc(50%-21rem)]`. The bars stay full width; only their contents line up. At 1280 the replies used to
+  run against one edge, the visitor's lines against the other, and the input box was 1200px wide.
+- **His face beside each reply.** `ReplyFace` uses the header's 144px file, so there is no second download, and it
+  sits beside the typing dots too. The starters are 40px chips with a border on any pointer.
+- **/find's سالم half.** The heading reads «اكتب لسالم». The role pill is gone, because the heading now names him and
+  two «في الكويت» pills a screen apart read as a repeat. «ابدأ الكتابة» is a 48px button with a send icon; it was
+  a 26px pill.
+
+**Tests.** `salem.test` gained the reply face and the desktop column (input ≤680px and centred, transcript ≤42rem).
+`find.test` gained the button height, the heading naming him, and one «في الكويت» pill. Six of these went red
+against the old pages with the build green. The starter-chip size check passed there too: on a touch phone they
+were already 40px.
+
+**Gates.** `scan`, `test:hangout`, and `salem`/`find` 54 + 51.
+
+**Not done.** The app's /find was not mirrored; it still says «اكتب» with the pill.

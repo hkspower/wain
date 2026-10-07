@@ -72,6 +72,12 @@ console.log('\n── /find offers exactly the two, equally ──');
   ok('typing to him is offered too', await typeLink.isVisible());
   ok('the call half is شوق\'s — the typing half\'s سالم text sits below it', await p.locator('section[aria-label="اتصال"]', { hasText: 'سالم' }).count() === 0);
   ok('and the typing half names سالم', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
+  // 7 October: the typing half's link was a 26px pill that read as a label,
+  // the heading was a bare «اكتب», and both halves wore a «في الكويت» pill.
+  const typeBox = await typeLink.boundingBox();
+  ok('«ابدأ الكتابة» is a real button, at least 48px tall', (typeBox?.height ?? 0) >= 47.5, String(typeBox?.height));
+  ok('the typing half\'s heading names him', /سالم/.test((await p.locator('section[aria-label="اكتب"] h2').textContent()) ?? ''));
+  ok('one «في الكويت» pill on the page, not one per half', (await p.getByText(/في الكويت$/).count()) === 1, String(await p.getByText(/في الكويت$/).count()));
   const box = await shouqButton.boundingBox();
   // The big call variant (size-24, 96px) against the sm default (size-8,
   // 32px) — the one thing a screenshot proves and an accessible-name check

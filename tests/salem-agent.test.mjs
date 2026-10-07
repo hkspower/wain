@@ -104,11 +104,10 @@ console.log('\n── /find\'s typing half is سالم\'s again ──');
   const { ctx, p } = await fresh('/find/');
   const link = p.getByRole('link', { name: /ابدأ الكتابة/ });
   ok('the CTA leads to /salem', await link.isVisible());
-  // The pill states his ROLE (SALEM_ROLE has no literal "سالم" in it, same
-  // as the call half's pill never spells out "شوق" either); his NAME comes
-  // from the greeting sentence beneath it — checking the section as a whole
-  // is what actually proves a reader can call this half his.
-  ok('the section names سالم — the greeting under the pill', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
+  // His name is in the heading («اكتب لسالم», 7 October) and in the greeting
+  // under it; checking the section as a whole is what proves a reader can
+  // call this half his.
+  ok('the section names سالم — the heading and the greeting', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
   await ctx.close();
 }
 
