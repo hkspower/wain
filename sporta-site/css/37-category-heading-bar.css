@@ -11,7 +11,7 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
   padding-top: 0 !important;
   /* LESS SPACE UNDER THE TILES, 2026-10-01 ("make تسوق حسب الفئه and الأكثر مبيعا less upper and
      under space"): this is the gap above the Best sellers bar, 48px on a phone and 76px from 768px. */
-  padding-bottom: 20px !important;
+  padding-bottom: 32px !important;   /* 20px -> 32px on 2026-10-07 ("improve padding"): the owner chose 12px more between the sections */
 }
 @media (min-width: 768px) {
   section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {

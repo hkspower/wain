@@ -258,12 +258,12 @@
   }
 
   var CSS =
-    '.sts-wrap{margin:0 auto;max-width:1280px;padding:16px 16px 8px;}' +
+    '.sts-wrap{margin:0 auto;max-width:1280px;padding:16px 16px 20px;}' +
     // Colours are the page's TOKENS, not literals: this section sits in <main>, whose white body
     // redefines them (65-white-body.css); a literal #fff title was white on white.
     '.sts-title{position:relative;margin:0 0 14px;padding:0;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
     'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
-    '.sts-panel{display:flex;align-items:center;justify-content:center;min-height:200px;padding:28px 20px;border-radius:16px;' +
+    '.sts-panel{display:flex;align-items:center;justify-content:center;min-height:200px;padding:36px 28px;border-radius:16px;' +
     'background:var(--brand,#e0561c) url(/assets/features.webp) center/cover no-repeat;}' +
     '.sts-nopic .sts-panel{background-image:none;}' +
     '.sts{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;width:100%;max-width:300px;}' +

@@ -135,7 +135,7 @@ main article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"
 @media (min-width: 768px) {
 section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
   padding-top: 0 !important;
-  padding-bottom: 20px !important;
+  padding-bottom: 32px !important;
 }
 }
 @media (min-width: 768px) {

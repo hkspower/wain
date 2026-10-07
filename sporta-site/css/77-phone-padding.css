@@ -1,0 +1,10 @@
+/* Padding on phones (2026-10-07, "improve padding"; the owner picked three spots out of four):
+   1. Checkout cards: 16px -> 20px inside, and 12px -> 16px between fields.
+   2. Home: 12px more between sections (features -> categories, categories -> Best sellers).
+      That partly reverses the 2026-10-02 request to cut the space around the headings, and was chosen again.
+   3. The orange features panel: more room inside (padding is in assets/trust-strip.js, 28px 20px -> 36px 28px). */
+@media (max-width: 767.98px) {
+  main form fieldset[class~="rounded-2xl"][class~="bg-white"] { padding: 20px; }
+  main form fieldset[class~="rounded-2xl"][class~="bg-white"] > div[class~="grid"] { margin-top: 16px; row-gap: 16px; }
+  /* the space under the category tiles is in 37-category-heading-bar.css (20px -> 32px) */
+}

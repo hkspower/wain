@@ -371,3 +371,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 @media (max-width: 767.98px) {
   .m-tabbar__item { font-size: 12px !important; }
 }
+@media (max-width: 767.98px) {
+  main form fieldset[class~="rounded-2xl"][class~="bg-white"] { padding: 20px; }
+  main form fieldset[class~="rounded-2xl"][class~="bg-white"] > div[class~="grid"] { margin-top: 16px; row-gap: 16px; }
+}
