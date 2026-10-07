@@ -261,7 +261,8 @@
     "test:panel-phone-type": "node scripts/panel-phone-type-test.mjs",
     "test:rate-bucket": "node scripts/rate-bucket-test.mjs",
     "test:customer-fast-login": "node scripts/customer-fast-login-test.mjs",
-    "test:cart-motion": "node scripts/cart-motion-test.mjs"
+    "test:cart-motion": "node scripts/cart-motion-test.mjs",
+    "test:touch-feedback": "node scripts/touch-feedback-test.mjs"
   },
   "private": true
 }

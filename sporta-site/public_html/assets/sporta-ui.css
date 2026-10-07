@@ -2332,3 +2332,22 @@ span.cm-ghost { border-radius: 50%; background: var(--brand, #e0561c); }
   [data-cm-added] { animation: none; }
   .cm-toast .added-toast { animation: none; }
 }
+a, button, [role="button"], summary, select, label, input[type="checkbox"], input[type="radio"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  :is(button, [role="button"], summary):not(:disabled):is(:active, [data-pressing]) {
+    filter: brightness(.86);
+    transition: filter 0s;
+  }
+  a:not(.cat-tile):not(.sporta-home-banner__link):is(:active, [data-pressing]) {
+    opacity: .62;
+    transition: opacity 0s;
+  }
+  a:not(.cat-tile):not(.sporta-home-banner__link):has(img):is(:active, [data-pressing]) { opacity: 1; filter: brightness(.9); }
+  .cat-tile[data-pressing], .sporta-home-banner__link[data-pressing] { filter: brightness(.92); }
+}
+@media (pointer: coarse) and (prefers-reduced-motion: reduce) {
+  :is(button, [role="button"], summary):active, a:active { transition: none; }
+}

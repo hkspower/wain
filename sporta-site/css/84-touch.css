@@ -1,0 +1,41 @@
+/* Touch response, 2026-10-07 ("improve touch button response").
+ *
+ * Measured with the CPU slowed 4x on a phone: a tap takes 80-300 ms before the page has finished
+ * changing (most of it the browser restyling, not script). What a finger needs is to SEE the press
+ * at once, in the frame the finger lands — so every control answers on touch-down, before any of
+ * that work. Three things stood in the way:
+ *
+ *  1. A browser's own :active is late and unreliable on a touch: Chrome holds it back until it knows
+ *     the touch is not a scroll, and iPhone Safari applies it only when the page listens for touches
+ *     (the storefront did not, so 82-pressed.css never showed on an iPhone). assets/touch-feedback.js
+ *     marks the control `data-pressing` on pointerdown — the instant the finger lands — and adds the
+ *     touch listener Safari wants. :active stays below as the fallback.
+ *  2. Only about ten kinds of control had a pressed look. The rule below gives every other button and
+ *     link one, on touch screens only (a mouse has hover, 81-hover.css).
+ *  3. The browser's own grey tap flash, drawn over the tapped box. It is replaced by the pressed look,
+ *     and touch-action: manipulation tells the browser a tap is never the start of a double-tap zoom,
+ *     so it never waits to find out (pinch-zoom still works).
+ *
+ * The pressed look is `filter` and `opacity`, never `transform`: many controls here are positioned
+ * WITH a transform (centred buttons, the card's +), and a scale would move them under the finger. */
+a, button, [role="button"], summary, select, label, input[type="checkbox"], input[type="radio"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  :is(button, [role="button"], summary):not(:disabled):is(:active, [data-pressing]) {
+    filter: brightness(.86);
+    transition: filter 0s;
+  }
+  a:not(.cat-tile):not(.sporta-home-banner__link):is(:active, [data-pressing]) {
+    opacity: .62;
+    transition: opacity 0s;
+  }
+  /* a picture inside a link (a product card, a tile) darkens rather than fades */
+  a:not(.cat-tile):not(.sporta-home-banner__link):has(img):is(:active, [data-pressing]) { opacity: 1; filter: brightness(.9); }
+  /* the controls 82-pressed.css already presses get its look from the mark too */
+  .cat-tile[data-pressing], .sporta-home-banner__link[data-pressing] { filter: brightness(.92); }
+}
+@media (pointer: coarse) and (prefers-reduced-motion: reduce) {
+  :is(button, [role="button"], summary):active, a:active { transition: none; }
+}
