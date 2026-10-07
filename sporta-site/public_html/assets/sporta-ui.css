@@ -2352,3 +2352,5 @@ a, button, [role="button"], summary, select, label, input[type="checkbox"], inpu
 @media (pointer: coarse) and (prefers-reduced-motion: reduce) {
   :is(button, [role="button"], summary):active, a:active { transition: none; }
 }
+main .space-y-3 .rounded-2xl div:has(> button[aria-pressed]),
+main .rounded-2xl ul:has(> li > a[href^="/product/"]) { justify-content: center; }

@@ -6,8 +6,9 @@
  *     centred on the box that includes the orange bar's room. Read from the rendered ink.
  *   - the header's logo and icons share one centre line, and so do the five menu links
  *   - the four category tiles put their text block at the same place
+ *   - the product page centres its price and its size, fit and colour buttons (owner, 2026-10-07)
  *
- * Run `bash scripts/sandbox.sh` first. MUTATE=1 removes the icon fix and must fail.
+ * Run `bash scripts/sandbox.sh` first. MUTATE=1 removes the icon fix and MUTATE=2 the product-page centring; each must fail.
  */
 import { chromium, devices } from 'playwright'
 import { PNG } from 'pngjs'
@@ -69,6 +70,31 @@ try {
     }))
     const dx = Math.max(...t.map((v) => v[0])) - Math.min(...t.map((v) => v[0])), dy = Math.max(...t.map((v) => v[1])) - Math.min(...t.map((v) => v[1]))
     check(t.length === 4 && dx < 0.01 && dy < 0.02, `${tag} category tiles: the text sits in the same place on all four`, `spread ${(dx * 100).toFixed(1)}% across, ${(dy * 100).toFixed(1)}% down`)
+    // --- product page: price, sizes, fit and colours on their box's centre line
+    await p.goto(BASE + '/product/cloudsoft-jacket-army-green', { waitUntil: 'networkidle' })
+    if (process.env.MUTATE === '2') await p.addStyleTag({ content: 'main .rounded-2xl ul,main .rounded-2xl div{justify-content:flex-start!important}' })
+    await p.waitForTimeout(900)
+    const pc = await p.evaluate(() => {
+      const mid = (r) => r.left + r.width / 2
+      const out = {}
+      const h1 = document.querySelector('main h1.product-title')
+      const col = h1.parentElement.parentElement.getBoundingClientRect()
+      const price = h1.parentElement.parentElement.querySelector(':scope > p .text-accent')
+      out.price = price ? Math.abs(mid(price.getBoundingClientRect()) - mid(col)) : -1
+      const rowOff = (row) => {
+        if (!row) return -1
+        const box = row.closest('.rounded-2xl').getBoundingClientRect()
+        // every LINE of a wrapping row is centred on its own: measure each line's span
+        const lines = {}
+        for (const k of row.children) { const r = k.getBoundingClientRect(); if (!r.width) continue; const y = Math.round(r.top); (lines[y] = lines[y] || []).push(r) }
+        return Math.max(...Object.values(lines).map((rs) => Math.abs((Math.min(...rs.map((r) => r.left)) + Math.max(...rs.map((r) => r.right))) / 2 - mid(box))))
+      }
+      const rows = [...document.querySelectorAll('main .space-y-3 .rounded-2xl div')].filter((d) => d.querySelector(':scope > button[aria-pressed]'))
+      out.sizes = rowOff(rows[0]); out.fit = rows[1] && rows[1].getBoundingClientRect().width ? rowOff(rows[1]) : 0
+      out.colour = rowOff(document.querySelector('main .rounded-2xl ul:has(> li > a[href^="/product/"])'))
+      return out
+    })
+    for (const k of ['price', 'sizes', 'fit', 'colour']) check(pc[k] >= 0 && pc[k] <= 2, `${tag} product page: the ${k === 'fit' ? 'fit buttons are' : k === 'price' ? 'price is' : k === 'colour' ? 'colours are' : k + ' are'} centred`, `${pc[k].toFixed(1)}px off`)
     await ctx.close()
   }
 } finally {

@@ -1,0 +1,9 @@
+/* Product page: sizes, fit and colours centred, 2026-10-07 ("make product page with center sizes
+ * and color and prices"). The title and the price were centred already; the size, fit and colour
+ * buttons started at their box's edge. Only the BUTTON rows move — each box's heading row (the label
+ * and the "What is my size? / Size guide" links) keeps its two ends.
+ *
+ * The colour box is the page's own: it lists every colour of the same style as pill links and
+ * appears only when there are two or more. */
+main .space-y-3 .rounded-2xl div:has(> button[aria-pressed]),
+main .rounded-2xl ul:has(> li > a[href^="/product/"]) { justify-content: center; }
