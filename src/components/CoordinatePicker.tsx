@@ -4,14 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { IconLocate, IconPinSolid } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import {
-  centreFrame,
   embedUrl,
   fitFrame,
   project,
-  unproject,
-  zoomFrame,
   type MapFrame,
 } from "@/lib/map-frame";
+import { centreFrame, unproject, zoomFrame } from "@/lib/map-picker";
 
 /**
  * Set a location by pointing at it.

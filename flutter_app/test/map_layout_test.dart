@@ -76,4 +76,14 @@ void main() {
     expect((s.width / s.height - 1.25).abs(), lessThan(0.02), reason: '$s');
     expect(t.takeException(), isNull);
   });
+
+  testWidgets('the /pick map is 1.25:1 at 390, not a fixed 260', (t) async {
+    await at(t, '/pick?p=kuwait-towers,souq-al-mubarakiya,marina-beach&when=tomorrow');
+    final map = find.byKey(const ValueKey('pick-map'));
+    await t.scrollUntilVisible(map, 300, scrollable: find.byType(Scrollable).first);
+    final s = t.getSize(map);
+    expect(s.height, greaterThan(270), reason: '$s');
+    expect((s.width / s.height - 1.25).abs(), lessThan(0.02), reason: '$s');
+    expect(t.takeException(), isNull);
+  });
 }

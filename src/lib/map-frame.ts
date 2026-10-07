@@ -1,6 +1,11 @@
 /**
  * Fitting points to an OpenStreetMap embed.
  *
+ * The place page's centred fit is `map-frame-around.ts` and the picker's zoom
+ * and click arithmetic `map-picker.ts`: /search never calls them, and in one
+ * module they shipped to it anyway (7 October, when /search had no budget left
+ * for the pin margins below).
+ *
  * Shared by the search map and the place map so there is one implementation of
  * the thing that is easy to get subtly wrong: the embed fits the bbox it is
  * given to the frame it is drawn in, growing whichever axis is short. If the
@@ -50,7 +55,7 @@ export interface MapFrame {
  * can ask for a view many times wider than the places in it. Past this the
  * honest failure is a clipped pin, not a map of the wrong country.
  */
-const MAX_HEADROOM = 0.35;
+export const MAX_HEADROOM = 0.35;
 
 /**
  * The gap kept below the southernmost point, as a fraction of frame height.
@@ -59,6 +64,31 @@ const MAX_HEADROOM = 0.35;
  * pin itself — only enough that the tip is not drawn on the frame's own border.
  */
 const FOOT_MARGIN = 0.02;
+
+/**
+ * The most of the frame either pixel margin below may claim: past it the honest
+ * failure is a pin near the edge, not a map zoomed out to the region.
+ */
+const MAX_SIDE = 0.3;
+const MAX_FOOT = 0.15;
+
+/**
+ * Pixel margins → fractions of the frame, for a frame `frameW` wide at `aspect`.
+ *
+ * `side` is the clear room from each side border to the nearest coordinate, and
+ * `foot` from the bottom border to the lowest pin's tip. Both were fractions of
+ * the span once — 15% padding and a 2% foot — which is a different number of
+ * pixels on every frame: on /search's phone map a place at the edge of the
+ * spread stood 10px from the border with its 32px pin half over it, and on
+ * /pick's 230px strip the lowest pin's tip sat on the frame's own line.
+ */
+export function pixelMargins(frameW: number, aspect: number, side: number, foot: number) {
+  if (frameW <= 0) return { s: 0, ft: FOOT_MARGIN };
+  return {
+    s: Math.min(side / frameW, MAX_SIDE),
+    ft: Math.max(FOOT_MARGIN, Math.min(foot / (frameW / aspect), MAX_FOOT)),
+  };
+}
 
 /**
  * Fit points, taking the frame's shape from how they are actually spread
@@ -84,7 +114,10 @@ const FOOT_MARGIN = 0.02;
  */
 export function fitFrame(
   points: LatLng[],
-  { padding = 1.15, minAspect = 1.2, maxAspect = 2.4, headroom = 0, frameW = 0 } = {}
+  {
+    padding = 1.15, minAspect = 1.2, maxAspect = 2.4, headroom = 0, frameW = 0,
+    side = 0, foot = 0,
+  } = {}
 ): MapFrame {
   /**
    * No points is a caller's mistake, and it used to be a silent one.
@@ -126,17 +159,28 @@ export function fitFrame(
    * aspect exactly — then slide north by whatever the top is still short,
    * never past what the bottom can spare.
    */
+  const { s, ft } = pixelMargins(frameW, aspect, side, foot);
+  if (s > 0) {
+    const needX = spanX / (1 - 2 * s);
+    if (needX > hx) {
+      hx = needX;
+      hy = hx / aspect;
+    }
+  }
+
   let cyFrame = cy;
-  if (headroom > 0 && frameW > 0) {
-    const t = Math.min(headroom / (frameW / aspect), MAX_HEADROOM);
-    const needed = spanY / (1 - t - FOOT_MARGIN);
+  if (frameW > 0) {
+    const t = headroom > 0 ? Math.min(headroom / (frameW / aspect), MAX_HEADROOM) : 0;
+    const needed = spanY / (1 - t - ft);
     if (needed > hy) {
       hy = needed;
       hx = hy * aspect;
     }
+    // Room above is slack + shift, below is slack − shift. Take the shift
+    // nearest zero that leaves both enough: north for the pins' heads, and
+    // south too now that the foot is pixels and may want more than the top.
     const slack = hy - spanY;
-    cyFrame =
-      cy + Math.max(0, Math.min(2 * t * hy - slack, slack - 2 * FOOT_MARGIN * hy));
+    cyFrame = cy + Math.min(Math.max(0, 2 * t * hy - slack), slack - 2 * ft * hy);
   }
 
   const west = deg(cx - hx);
@@ -151,121 +195,11 @@ export function fitFrame(
   };
 }
 
-/**
- * Fit around a subject, keeping it dead centre.
- *
- * `fitFrame` centres on the *bounding box* of everything, which puts the
- * subject wherever its neighbours leave it — on a page asking "where exactly
- * is this place", it ended up in a corner. Here the centre is the subject and
- * the half-spans grow symmetrically until the others fit, so the answer to the
- * question is always in the middle of the picture.
- */
-/**
- * `headroom` works as it does in `fitFrame`, with one difference that matters:
- * the view is NOT slid north to find the room. Sliding is what keeps the zoom
- * when a frame is fitted to a bounding box, and it is exactly the thing this
- * function exists to refuse — the subject is centred because the page is
- * asking where the subject is. So the frame widens instead, symmetrically.
- */
-export function fitFrameAround(
-  subject: LatLng,
-  others: LatLng[],
-  { padding = 1.25, minAspect = 1.2, maxAspect = 2.0, headroom = 0, frameW = 0 } = {}
-): MapFrame {
-  const cx = rad(subject.lng);
-  const cy = mercY(subject.lat);
-
-  // Symmetric reach: the farthest neighbour on each axis, mirrored.
-  const spanX = Math.max(0, ...others.map((p) => Math.abs(rad(p.lng) - cx)));
-  const spanY = Math.max(0, ...others.map((p) => Math.abs(mercY(p.lat) - cy)));
-  const aspect =
-    spanX > 0 && spanY > 0
-      ? Math.min(Math.max(spanX / spanY, minAspect), maxAspect)
-      : Math.min(Math.max(1.5, minAspect), maxAspect);
-
-  let hx = Math.max(spanX * padding, MIN_HALF_SPAN);
-  let hy = Math.max(spanY * padding, MIN_HALF_SPAN / aspect);
-  if (hx / hy < aspect) hx = hy * aspect;
-  else hy = hx / aspect;
-
-  if (headroom > 0 && frameW > 0) {
-    const t = Math.min(headroom / (frameW / aspect), MAX_HEADROOM);
-    // Symmetric, so the margin has to be found on both sides at once.
-    const needed = spanY / (1 - 2 * t);
-    if (needed > hy) {
-      hy = needed;
-      hx = hy * aspect;
-    }
-  }
-
-  return {
-    cx, cy, hx, hy, aspect,
-    bbox: [deg(cx - hx), invMercY(cy - hy), deg(cx + hx), invMercY(cy + hy)].join(","),
-    centre: { lat: subject.lat, lng: subject.lng },
-  };
-}
-
 /** Where a point sits in the frame, as fractions of width and height. */
 export function project(f: MapFrame, p: LatLng): { x: number; y: number } {
   return {
     x: (rad(p.lng) - (f.cx - f.hx)) / (2 * f.hx),
     y: (f.cy + f.hy - mercY(p.lat)) / (2 * f.hy),
-  };
-}
-
-/**
- * The inverse of `project`: which coordinate is under this point in the frame.
- *
- * This is what makes picking a location by clicking the map trustworthy. The
- * bbox and the frame are the same shape by construction, so a click maps back
- * to a real coordinate rather than an approximation.
- */
-export function unproject(f: MapFrame, x: number, y: number): LatLng {
-  return {
-    lng: deg(f.cx - f.hx + x * 2 * f.hx),
-    lat: invMercY(f.cy + f.hy - y * 2 * f.hy),
-  };
-}
-
-/**
- * The projected y of 85°, where Web Mercator is conventionally cut off. Beyond
- * it the projection runs away to infinity and tile servers have no tiles.
- */
-const MERC_LIMIT = mercY(85);
-
-/**
- * Same centre, zoomed by a factor — >1 zooms out, <1 zooms in.
- *
- * Bounded at BOTH ends. There was a floor and no ceiling, and the ceiling is
- * the one a person can actually reach: the picker's − button multiplies the
- * half-span by two per press, so fifteen presses took the bbox to an east edge
- * of 273° — not a wide map, an invalid one, handed to the embed as fact.
- *
- * The bound is per-axis and taken from where the frame already is: longitude
- * may reach ±180 from the centre it has, latitude ±85. Only `hx` is clamped and
- * `hy` is derived from it, because the frame's aspect must keep matching the
- * bbox exactly — clamping the two independently is precisely how every overlaid
- * pin drifts off its place.
- */
-export function zoomFrame(f: MapFrame, factor: number): MapFrame {
-  const capX = Math.PI - Math.abs(f.cx);
-  const capY = MERC_LIMIT - Math.abs(f.cy);
-  const ceiling = Math.max(MIN_HALF_SPAN, Math.min(capX, capY * f.aspect));
-  const hx = Math.min(Math.max(f.hx * factor, MIN_HALF_SPAN / 4), ceiling);
-  const hy = hx / f.aspect;
-  return {
-    ...f, hx, hy,
-    bbox: [deg(f.cx - hx), invMercY(f.cy - hy), deg(f.cx + hx), invMercY(f.cy + hy)].join(","),
-  };
-}
-
-/** Re-centre on a coordinate, keeping the current zoom and shape. */
-export function centreFrame(f: MapFrame, at: LatLng): MapFrame {
-  const cx = rad(at.lng);
-  const cy = mercY(at.lat);
-  return {
-    ...f, cx, cy, centre: at,
-    bbox: [deg(cx - f.hx), invMercY(cy - f.hy), deg(cx + f.hx), invMercY(cy + f.hy)].join(","),
   };
 }
 

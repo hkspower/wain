@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import ClusterPin from "@/components/ClusterPin";
-import MapPin, { pinHeadroom } from "@/components/MapPin";
+import MapPin, { pinHeadroom, PIN_EDGE_PX } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
 import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
@@ -50,6 +50,15 @@ import { useLiveMap } from "@/lib/useLiveMap";
 const PIN_PX = 32;
 /** Frame width below which a wide frame has too little height left to read. */
 const PHONE_FRAME_PX = 520;
+
+/**
+ * What a tall frame shares the screen with before anything scrolls: the page's
+ * top padding, the map's own header row above it and a margin below — the
+ * frame starts at 105px on /search at 1280. 80 fitted the sticky position and
+ * still ran 25px off a 720px screen at load.
+ */
+const TALL_CHROME_PX = 120;
+
 
 export default function SearchMap({
   places,
@@ -119,13 +128,27 @@ export default function SearchMap({
   );
 
   // سالم's chat map was 2.1:1 on a phone — about 175px, a strip with a handful
-  // of pins in it. 1.6:1 is the place page's own phone shape.
+  // of pins in it. 1.6:1 is the place page's own phone shape. The default —
+  // /pick's — was 1.7:1, a 230px strip under three cards; 1.25:1 (~295px) is
+  // what the place page moved to on 7 October.
   const maxAspect = tall
     ? 1.0
     : compact
       ? frameW < PHONE_FRAME_PX ? 1.6 : 2.2
-      : frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
-  const minAspect = tall ? 0.7 : 1.2;
+      : frameW < PHONE_FRAME_PX ? 1.25 : 2.4;
+  // A tall frame never outgrows the screen. With many results the desktop's
+  // sticky map grew to 686px, taller than a 1280×720 laptop's window, so its
+  // bottom — and whatever pins were there — sat under the fold of a column
+  // that cannot scroll. The frame's shape is the bbox's, so the cap is an
+  // aspect, not a CSS height: no wider ratio than the room allows.
+  // Read in render, with no listener: a frame is only fitted once it has been
+  // measured, which is after mount, and a resize re-measures the width anyway.
+  // A hook with its own listener cost /search 0.1K over its budget.
+  const roomH = tall && typeof window !== "undefined" ? window.innerHeight - TALL_CHROME_PX : 0;
+  const minAspect = tall
+    ? Math.max(0.7, roomH > 0 && frameW > 0 ? frameW / roomH : 0)
+    : 1.2;
+  const maxAspectFit = Math.max(maxAspect, minAspect);
   const f = useMemo(
     () =>
       framed.length && frameW > 0
@@ -133,9 +156,16 @@ export default function SearchMap({
           // them somewhere to stand — otherwise the northernmost result, which
           // the search just decided was worth showing, is drawn with its head
           // cut off by the frame's own border.
-          fitFrame(framed, { minAspect, maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
+          fitFrame(framed, {
+            minAspect, maxAspect: maxAspectFit, headroom: pinHeadroom(PIN_PX), frameW,
+            // Room at the sides and under the lowest tip too, in pixels.
+            side: PIN_PX / 2 + PIN_EDGE_PX,
+            // An approximate place is a round head CENTRED on its point, so
+            // half of it hangs below the coordinate; the foot covers that too.
+            foot: PIN_PX / 2 + PIN_EDGE_PX,
+          })
         : null,
-    [framed, minAspect, maxAspect, frameW]
+    [framed, minAspect, maxAspectFit, frameW]
   );
   const pins = useMemo(() => {
     if (!f) return [];

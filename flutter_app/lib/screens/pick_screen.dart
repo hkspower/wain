@@ -226,12 +226,17 @@ class _PickScreenState extends State<PickScreen> {
                   ),
                 ),
               const SizedBox(height: 12),
-              WainMap(
-                key: const ValueKey('pick-map'),
-                places: _list,
-                activeSlug: _active,
-                onActive: (s) => setState(() => _active = s),
-                onOpen: (p) => context.push('/places/${p.slug}'),
+              // 1.25:1 like the place page: the site's /pick map was a 230px
+              // strip on a phone until 7 October, and this one a fixed 260.
+              LayoutBuilder(
+                builder: (context, box) => WainMap(
+                  key: const ValueKey('pick-map'),
+                  places: _list,
+                  activeSlug: _active,
+                  onActive: (s) => setState(() => _active = s),
+                  onOpen: (p) => context.push('/places/${p.slug}'),
+                  height: (box.maxWidth / 1.25).clamp(240.0, 420.0).toDouble(),
+                ),
               ),
               const SizedBox(height: 8),
               // None of the three? سالم is a tap away, already asked about

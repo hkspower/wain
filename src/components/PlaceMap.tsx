@@ -93,12 +93,15 @@ export default function PlaceMap({
             للمكان نفسه بالاسم.
           </p>
         )}
+      </div>
 
-        {/* صوت وين — spoken suggestion for this spot and what's around it */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-line bg-sand-100 p-4">
-          <SpeakButton parts={suggestParts} label="اسمع الاقتراح" />
-          <VoiceControls />
-        </div>
+      {/* صوت وين — spoken suggestion for this spot and what's around it.
+          Under the card, not in it: it was a third band inside «وينه بالضبط؟»,
+          so the card that answers «where» also held the controls for the
+          voice, and on a desktop read as one map with three footers. */}
+      <div className="mt-3 flex flex-wrap items-center gap-3" data-place-voice="">
+        <SpeakButton parts={suggestParts} label="اسمع الاقتراح" />
+        <VoiceControls />
       </div>
     </section>
   );

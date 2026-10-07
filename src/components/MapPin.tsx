@@ -82,6 +82,16 @@ const HOVER_SCALE = 1.1;
  * head is `size` tall, the nose adds half its diagonal below that (see
  * `marginBottom`), and hovering grows the pair about the tip.
  */
+/**
+ * The clear room kept between a pin and the frame's side and bottom borders.
+ *
+ * The frames used to keep 15% of the spread at the sides and 2% at the foot,
+ * which in pixels came to almost nothing on a phone: measured on the live
+ * build, /search «قهوة» drew a pin 10px from the border with half of it over
+ * the edge, and /pick's lowest pin had its tip on the frame's own line.
+ */
+export const PIN_EDGE_PX = 12;
+
 export function pinHeadroom(size: number): number {
   return (size + Math.round(size * 0.34) * Math.SQRT1_2) * HOVER_SCALE;
 }

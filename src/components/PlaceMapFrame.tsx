@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import MapPin, { pinHeadroom } from "@/components/MapPin";
+import MapPin, { pinHeadroom, PIN_EDGE_PX } from "@/components/MapPin";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { calloutSide, embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import { calloutSide, embedUrl, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import { fitFrameAround } from "@/lib/map-frame-around";
 import { useFrameWidth } from "@/lib/useFrameWidth";
 import { useLiveMap } from "@/lib/useLiveMap";
 import { IconMap } from "@/components/icons";
@@ -86,6 +87,11 @@ export default function PlaceMapFrame({
             // centred and has half a frame above it; it is the neighbours near
             // the top edge that lose their heads without this.
             headroom: pinHeadroom(NEAR_PIN_PX),
+            // And room at the sides and the foot, in pixels: see PIN_EDGE_PX.
+            side: NEAR_PIN_PX / 2 + PIN_EDGE_PX,
+            // An approximate place is a round head CENTRED on its point, so
+            // half of it hangs below the coordinate; the foot covers that too.
+            foot: NEAR_PIN_PX / 2 + PIN_EDGE_PX,
             frameW,
           })
         : null,

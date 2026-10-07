@@ -117,6 +117,7 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ صفحة البحث: the list first, the map beside it ════");
   failed += (await run("node", ["tests/search-layout.test.mjs"], { env })) === 0 ? 0 : 1;
+  failed += (await run("node", ["tests/map-layout.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ الطلعة من البحث: acting on a result without leaving it ════");
   failed += (await run("node", ["tests/search-plan.test.mjs"], { env })) === 0 ? 0 : 1;

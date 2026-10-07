@@ -36,7 +36,11 @@ const bundle = (rel, name) => {
   );
   return pathToFileURL(out).href;
 };
-const M = await import(bundle("src/lib/map-frame.ts", "map-frame.mjs"));
+const M = {
+  ...(await import(bundle("src/lib/map-frame.ts", "map-frame.mjs"))),
+  ...(await import(bundle("src/lib/map-frame-around.ts", "map-frame-around.mjs"))),
+  ...(await import(bundle("src/lib/map-picker.ts", "map-picker.mjs"))),
+};
 const { places } = await import(bundle("src/lib/places.ts", "places.mjs"));
 rmSync(tmp, { recursive: true, force: true });
 
@@ -390,6 +394,78 @@ console.log("\n── there is room above the top pin for the pin ──");
   ok("and both maps ask the frame for it",
     /headroom: pinHeadroom\(PIN_PX\)/.test(readFileSync(join(ROOT, "src/components/SearchMap.tsx"), "utf8")) &&
     /headroom: pinHeadroom\(NEAR_PIN_PX\)/.test(readFileSync(join(ROOT, "src/components/PlaceMapFrame.tsx"), "utf8")));
+}
+
+console.log("\n── no pin stands on the frame's edge ──");
+{
+  /**
+   * The sides and the foot were fractions of the spread — 15% and 2% — which
+   * on a phone came to ~10px beside a 32px pin and ~4px under the lowest tip.
+   * Measured on the live build, 7 October: /search «قهوة» at 390 drew a pin
+   * half over the left border, and /pick's lowest tip sat on the frame line.
+   * Stated in pixels, at every real width, over every category and the whole
+   * catalogue, for both maps as they call the fit.
+   */
+  const EDGE = 12;
+  const sideWant = SEARCH_PIN_PX / 2 + EDGE;
+  const footWant = SEARCH_PIN_PX / 2 + EDGE;
+  const SETS = [places, ...CATS.map((c) => places.filter((p) => p.category === c))].filter((s) => s.length > 1);
+  const measure = (f, set, w) => {
+    const h = w / f.aspect;
+    const xs = set.map((p) => project(f, p).x * w);
+    const ys = set.map((p) => project(f, p).y * h);
+    return { side: Math.min(Math.min(...xs), w - Math.max(...xs)), foot: h - Math.max(...ys) };
+  };
+  let worstSide = Infinity, worstFoot = Infinity, where = "", bareSide = Infinity, bareFoot = Infinity, growth = 1;
+  for (const set of SETS) {
+    for (const w of WIDTHS) {
+      for (const tall of [false, true]) {
+        const maxAspect = tall ? 1.0 : w < 420 ? 1.7 : 2.4;
+        const minAspect = tall ? 0.7 : 1.2;
+        const base = { minAspect, maxAspect, headroom: pinHeadroom(SEARCH_PIN_PX), frameW: w };
+        const bare = fitFrame(set, base);
+        const f = fitFrame(set, { ...base, side: sideWant, foot: footWant });
+        const m = measure(f, set, w), b = measure(bare, set, w);
+        if (m.side < worstSide) { worstSide = m.side; where = `${set.length} places @${w}px${tall ? " tall" : ""}`; }
+        worstFoot = Math.min(worstFoot, m.foot);
+        bareSide = Math.min(bareSide, b.side);
+        bareFoot = Math.min(bareFoot, b.foot);
+        growth = Math.max(growth, f.hx / bare.hx);
+      }
+    }
+  }
+  ok(`every search frame keeps ${sideWant}px beside its outermost places (worst ${worstSide.toFixed(1)}px)`,
+    worstSide >= sideWant - 0.5, `${worstSide.toFixed(1)}px at ${where}`);
+  ok(`and ${footWant}px under the lowest coordinate (worst ${worstFoot.toFixed(1)}px)`, worstFoot >= footWant - 0.5, `${worstFoot.toFixed(1)}px`);
+  ok(`without it a pin stands on the edge (side ${bareSide.toFixed(1)}px, foot ${bareFoot.toFixed(1)}px)`,
+    bareSide < sideWant - 5 && bareFoot < EDGE - 3);
+  ok(`the view is widened only modestly for it (worst ×${growth.toFixed(3)})`, growth < 1.6, `×${growth.toFixed(3)}`);
+
+  // The place page: the subject stays dead centre while its neighbours get the room.
+  let pSide = Infinity, off = 0;
+  const nearSide = NEAR_PIN_PX / 2 + EDGE;
+  for (const p of places) {
+    const near = places.filter((q) => q !== p)
+      .map((q) => ({ q, d: metres(p, q) })).sort((a, b) => a.d - b.d).slice(0, 4).map((x) => x.q);
+    for (const w of WIDTHS) {
+      const f = fitFrameAround(p, near, {
+        maxAspect: w < 420 ? 1.25 : 2.0, padding: 1.25, headroom: pinHeadroom(NEAR_PIN_PX),
+        side: nearSide, foot: nearSide, frameW: w,
+      });
+      pSide = Math.min(pSide, measure(f, [p, ...near], w).side);
+      const q = project(f, p);
+      off = Math.max(off, Math.abs(q.x - 0.5), Math.abs(q.y - 0.5));
+    }
+  }
+  ok(`the place page keeps ${nearSide}px beside its neighbours (worst ${pSide.toFixed(1)}px)`, pSide >= nearSide - 0.5, `${pSide.toFixed(1)}px`);
+  ok("and its subject is still dead centre", off < 1e-9, `${off}`);
+
+  const src = (f) => readFileSync(join(ROOT, f), "utf8");
+  ok("both maps ask the fit for the side and foot room",
+    /side: PIN_PX \/ 2 \+ PIN_EDGE_PX/.test(src("src/components/SearchMap.tsx")) &&
+    /foot: PIN_PX \/ 2 \+ PIN_EDGE_PX/.test(src("src/components/SearchMap.tsx")) &&
+    /side: NEAR_PIN_PX \/ 2 \+ PIN_EDGE_PX/.test(src("src/components/PlaceMapFrame.tsx")) &&
+    /export const PIN_EDGE_PX = 12;/.test(src("src/components/MapPin.tsx")));
 }
 
 console.log("\n── clicking the picker means what it says ──");
