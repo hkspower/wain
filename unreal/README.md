@@ -824,17 +824,19 @@ grey.
   compare stills against the web build's at the same paint colour.
 - Gamepad and keyboard input in Play-In-Editor.
 
-## The Black Demon showcase
+## The car showcase
 
-`Showcase/` renders one car — the catalogue's Black Demon, the same
-export behind `press/renders/black-demon.png` — in this engine on a Mac:
-three 4K studio stills lit and framed exactly as the Blender set, a
-ten-second turntable, and the car parked on the night Gulf Road the
-game builds for itself. `Showcase/README.md` has the steps
-(`Showcase/run.sh probe`, `build`, `preview hero`, `render all`, `night
-city`). Like the rest of this port it has not been run here, and says
-so; `npm run test:showcase` holds its arithmetic and its control flow
-against a stand-in engine.
+`Showcase/` renders the catalogue's cars in this engine on a Mac: for
+all 17, a studio hero, side and rear lit and framed exactly as the
+Blender renders in `press/renders/` (one stage, `tools/blender/studio.py`,
+moved into Unreal's frame), for the Black Demon also 4K stills and a
+turntable, and any car parked on the night Gulf Road the game builds for
+itself. `Showcase/README.md` has the steps (`Showcase/run.sh probe`,
+`build`, `render`, `sheet`, `compare`, `night`), including a Blender-
+against-Unreal sheet that shows which car came out wrong. Like the rest
+of this port it has not been run here, and says so; `npm run
+test:showcase` holds its arithmetic, every exported GLB, and a whole
+`build all` against a stand-in engine.
 
 ## Where to take it next
 

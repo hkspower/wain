@@ -55,21 +55,89 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(REPO, "tools", "blender"))
 import studio  # noqa: E402  (tools/blender/studio.py: the one studio)
 
-CAR_ID = "black-demon"
-GLB = os.path.join(HERE, "black-demon.glb")
+DEFAULT_CAR = "black-demon"
+CAR_ID = DEFAULT_CAR            # the night shot's default car
+KIT_GLB = os.path.join(HERE, "black-demon.glb")   # the one car tracked in git
+GLB_DIR = os.path.join(REPO, "press", "renders", "glb")   # all 17, git-ignored (tools/shots/export-cars.mjs)
+CARS_JSON = os.path.join(REPO, "press", "renders", "cars.json")
+GLB = KIT_GLB
 
 # Where everything the kit makes lives in the project, and nowhere else,
 # so a `build` can be thrown away by deleting one folder.
 CONTENT_ROOT = "/Game/GRN/Showcase"
-IMPORT_PATH = CONTENT_ROOT + "/BlackDemon"          # the Interchange import
-MERGED_MESH = CONTENT_ROOT + "/SM_BlackDemon"        # one static mesh, X forward
-PAINT_MI = CONTENT_ROOT + "/MI_BlackDemonPaint"      # the port's Substrate paint, this car's numbers
+PROBE_PATH = CONTENT_ROOT + "/_Probe"                # the axis probe's import, deleted after
+OUT_ROOT = os.path.join(REPO, "press", "unreal")     # frames land here, by car then by shot
+FLEET_JSON = os.path.join(OUT_ROOT, "fleet.json")
 PAINT_PARENT = "/Game/GRN/Generated/M_GRNCarPaint_v1"  # GRNPaint::MaterialPath, built by GulfRoadNightsEditor
 PROBE_GLB_NAME = "AxisProbe"
-STUDIO_MAP = CONTENT_ROOT + "/BlackDemonStudio"
-SEQ_PATH = CONTENT_ROOT + "/Sequences"
-MRQ_PATH = CONTENT_ROOT + "/MRQ"
-OUT_DIR = os.path.join(REPO, "press", "unreal", CAR_ID)  # frames land here, by shot
+
+
+class CarPaths:
+    """Every project and disk path for one car. Unreal asset names cannot
+    carry the hyphen a catalogue id does (Blueprint-visible names are
+    identifiers), so the project side uses the id with hyphens made
+    underscores, the disk side the id as it is."""
+
+    def __init__(self, car_id):
+        self.car_id = car_id
+        self.slug = car_id.replace("-", "_")
+        self.folder = f"{CONTENT_ROOT}/{self.slug}"
+        self.import_path = f"{self.folder}/Import"
+        self.mesh = f"{self.folder}/SM_{self.slug}"
+        self.paint_mi = f"{self.folder}/MI_{self.slug}_Paint"
+        self.studio_map = f"{self.folder}/Studio"
+        self.seq_path = f"{self.folder}/Sequences"
+        self.mrq_path = f"{self.folder}/MRQ"
+        self.out_dir = os.path.join(OUT_ROOT, car_id)
+        self.glb = glb_path(car_id)
+        rec = next((c for c in catalogue() if c["id"] == car_id), {})
+        self.name = rec.get("name", car_id)
+        self.length_m = rec.get("lengthM")   # the card's length, to check the import against
+
+
+def glb_path(car_id):
+    """The car's exported GLB: press/renders/glb/<id>.glb, else, for the
+    Black Demon only, the copy the kit carries. None when neither exists."""
+    p = os.path.join(GLB_DIR, f"{car_id}.glb")
+    if os.path.exists(p):
+        return p
+    if car_id == DEFAULT_CAR and os.path.exists(KIT_GLB):
+        return KIT_GLB
+    return None
+
+
+def paths(car_id=DEFAULT_CAR):
+    return CarPaths(car_id)
+
+
+def catalogue():
+    """The cars.json records, in catalogue order; just the Black Demon if
+    the file is not there."""
+    try:
+        with open(CARS_JSON) as f:
+            d = json.load(f)
+        cars = d if isinstance(d, list) else d.get("cars", [])
+        return [c for c in cars if c.get("id")]
+    except (OSError, ValueError):
+        return [{"id": DEFAULT_CAR, "name": "Black Demon"}]
+
+
+def car_ids():
+    return [c["id"] for c in catalogue()]
+
+
+def resolve_cars(arg):
+    """'all', one id, or a comma list -> ids, each checked against the
+    catalogue; raises on one it does not know."""
+    ids = car_ids()
+    if arg in (None, "", "all"):
+        return ids
+    want = [a for a in arg.split(",") if a]
+    bad = [w for w in want if w not in ids]
+    if bad:
+        raise ValueError(f"no such car: {', '.join(bad)} (the catalogue has {', '.join(ids)})")
+    return want
+
 
 LUMENS_PER_WATT = 683.0
 LIGHT_SCALE = 1.0
@@ -77,7 +145,10 @@ EV100 = 9.3
 CAMERA_ISO = 100.0
 CAMERA_FSTOP = 4.0
 
-STILL = {"width": 3840, "height": 2160, "tiles": 2}
+STILL = {"width": 3840, "height": 2160, "tiles": 2, "temporal": 32}
+# The fleet's default: the size the Blender renders are made at, so a UE5
+# frame and its Cycles twin compare pixel for pixel.
+FLEET = {"width": 2560, "height": 1440, "tiles": 1, "temporal": 16}
 TURNTABLE = {"width": 1920, "height": 1080, "frames": 240, "fps": 24}
 PREVIEW = {"width": 960, "height": 540}
 

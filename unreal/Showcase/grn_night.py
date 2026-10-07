@@ -3,8 +3,8 @@ GAME, not a map — the port builds its world at runtime in AGRNGameMode —
 parks the Black Demon on the corniche, clears the road and renders one
 frame from the car's own chase camera.
 
-    unreal/Showcase/run.sh night city      # station 587 m, the web build's "sweep" place
-    unreal/Showcase/run.sh night coast     # station 3304 m
+    unreal/Showcase/run.sh night city [car]    # station 587 m, the web build's "sweep" place
+    unreal/Showcase/run.sh night coast [car]   # station 3304 m; the car defaults to black-demon
 
 run.sh launches UnrealEditor-Cmd with -game, the Python host executor and
 -GRNNight=<shot>; init_unreal.py imports this module so the class below
@@ -34,12 +34,16 @@ import showcase_math as sm  # noqa: E402
 ENTRY_MAP = "/Engine/Maps/Entry"
 
 
-def shot_from_command_line():
+def arg_from_command_line(name, default):
     cl = str(unreal.SystemLibrary.get_command_line())
     for tok in cl.split():
-        if tok.startswith("-GRNNight="):
+        if tok.startswith(f"-{name}="):
             return tok.split("=", 1)[1].strip('"')
-    return "city"
+    return default
+
+
+def shot_from_command_line():
+    return arg_from_command_line("GRNNight", "city")
 
 
 @unreal.uclass()
@@ -50,6 +54,7 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
     staged_at = unreal.uproperty(int)
     staged = unreal.uproperty(bool)
     shot = unreal.uproperty(str)
+    car = unreal.uproperty(str)
 
     def _post_init(self):
         self.pipeline = None
@@ -58,16 +63,18 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
         self.staged_at = 0
         self.staged = False
         self.shot = "city"
+        self.car = sm.DEFAULT_CAR
 
     @unreal.ufunction(override=True)
     def execute_delayed(self, in_queue):
         self.shot = shot_from_command_line()
+        self.car = arg_from_command_line("GRNNightCar", sm.DEFAULT_CAR)
         key = "night-" + self.shot
         if key not in sm.NIGHT_SHOTS:
             unreal.log_error(f"[night] no shot called {self.shot}; one of {[k[6:] for k in sm.NIGHT_SHOTS]}")
             self.finish(None)
             return
-        unreal.log(f"[night] shot {key}: waiting for the game to build its world")
+        unreal.log(f"[night] shot {key} for {self.car}: waiting for the game to build its world")
 
     @unreal.ufunction(override=True)
     def on_begin_frame(self):
@@ -83,7 +90,7 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
                 unreal.log_error("[night] unreal.GRNShowcase is missing: rebuild the project with GRNShowcase.cpp")
                 self.finish(world)
                 return
-            if not unreal.GRNShowcase.select_car(world, sm.CAR_ID):
+            if not unreal.GRNShowcase.select_car(world, self.car):
                 if self.frames > 60 * 30:
                     unreal.log_error("[night] the world never built (no player after 30 s)")
                     self.finish(world)
@@ -98,18 +105,19 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
 
     def stage(self, world):
         spec = sm.NIGHT_SHOTS["night-" + self.shot]
+        P = sm.paths(self.car)
         slot, param = 0, "None"
         try:
-            with open(os.path.join(sm.OUT_DIR, "build.json")) as f:
+            with open(os.path.join(P.out_dir, "build.json")) as f:
                 r = json.load(f)
             slot, param = int(r.get("paint_slot", 0)), str(r.get("paint_param", "None"))
         except Exception as e:  # noqa: BLE001
             unreal.log_warning(f"[night] no build.json ({e}); paint slot 0, no respray parameter")
-        mesh = unreal.load_asset(sm.MERGED_MESH)
+        mesh = unreal.load_asset(P.mesh)
         if mesh:
             unreal.GRNShowcase.wear_art(world, mesh, slot, unreal.Name(param))
         else:
-            unreal.log_warning(f"[night] {sm.MERGED_MESH} is not in the project (run build); the game's own primitive car is used")
+            unreal.log_warning(f"[night] {P.mesh} is not in the project (run build {self.car}); the game's own primitive car is used")
         unreal.GRNShowcase.park_player(world, float(spec["station_m"]), float(spec["lateral_m"]), 0.0, True)
         n = unreal.GRNShowcase.clear_others(world)
         pawn = unreal.GameplayStatics.get_player_pawn(world, 0)
@@ -128,19 +136,20 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
             cam.set_relative_location_and_rotation(unreal.Vector(*loc), unreal.Rotator(
                 roll=0.0, pitch=sm.look_rotator(loc, aim)[0], yaw=sm.look_rotator(loc, aim)[1]))
             cam.set_field_of_view(2.0 * math.degrees(math.atan(18.0 / sm.studio.LENS_MM)))
-        unreal.log(f"[night] staged: {sm.CAR_ID} at {spec['station_m']} m, {n} other cars cleared, camera set")
+        unreal.log(f"[night] staged: {self.car} at {spec['station_m']} m, {n} other cars cleared, camera set")
 
     def start_pipeline(self, world):
-        cfg = unreal.load_asset(f"{sm.MRQ_PATH}/MRQ_night")
+        P = sm.paths(self.car)
+        cfg = unreal.load_asset(f"{P.mrq_path}/MRQ_night")
         if cfg is None:
-            unreal.log_error(f"[night] {sm.MRQ_PATH}/MRQ_night is missing — run build")
+            unreal.log_error(f"[night] {P.mrq_path}/MRQ_night is missing — run build {self.car}")
             self.finish(world)
             return
         self.queue = unreal.new_object(unreal.MoviePipelineQueue, outer=self)
         job = self.queue.allocate_new_job(unreal.MoviePipelineExecutorJob)
-        job.set_editor_property("sequence", unreal.SoftObjectPath(f"{sm.SEQ_PATH}/LS_night"))
+        job.set_editor_property("sequence", unreal.SoftObjectPath(f"{P.seq_path}/LS_night"))
         job.set_editor_property("map", unreal.SoftObjectPath(ENTRY_MAP))
-        job.set_editor_property("job_name", f"black-demon night {self.shot}")
+        job.set_editor_property("job_name", f"{self.car} night {self.shot}")
         job.set_configuration(cfg)
         # The output folder carries the shot's name, so city and coast do not overwrite each other
         out = job.get_configuration().find_or_add_setting_by_class(unreal.MoviePipelineOutputSetting)

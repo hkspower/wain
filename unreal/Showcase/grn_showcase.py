@@ -1,8 +1,8 @@
 """Build the Black Demon showcase inside the Unreal editor.
 
-    unreal/Showcase/run.sh probe     # what this editor's Python exposes, before anything is made
-    unreal/Showcase/run.sh build     # import the car, build the studio map, sequences and MRQ presets
-    unreal/Showcase/run.sh report    # what build made, as press/unreal/black-demon/build.json
+    unreal/Showcase/run.sh probe             # what this editor's Python exposes, before anything is made
+    unreal/Showcase/run.sh build [id|all]    # import the car(s), build each studio map, sequences, MRQ presets
+    unreal/Showcase/run.sh report [id|all]   # what build made: press/unreal/<id>/build.json, press/unreal/fleet.json
 
 Run by UnrealEditor-Cmd with -ExecutePythonScript; never by plain python
 (it imports `unreal`). The numbers all come from showcase_math.py, which
@@ -26,8 +26,9 @@ from a run. Three habits follow from that:
     imported with the yaw that puts its nose on +X, checked by its own
     bounds afterwards.
 
-Everything it makes lives under /Game/GRN/Showcase. Delete that folder
-and the project is as it was.
+Everything it makes lives under /Game/GRN/Showcase, one folder per car
+(the id with hyphens made underscores). Delete that folder and the
+project is as it was.
 """
 import json
 import math
@@ -152,7 +153,12 @@ def probe():
             missing.append(n)
     paint = unreal.EditorAssetLibrary.does_asset_exist(sm.PAINT_PARENT)
     unreal.log(f"  {'ok     ' if paint else 'MISSING'} {sm.PAINT_PARENT}  (GulfRoadNightsEditor builds it on first open)")
-    unreal.log(f"  {'ok     ' if sm.valid_glb(sm.GLB) else 'BAD    '} {sm.GLB}")
+    have = [c for c in sm.car_ids() if sm.glb_path(c)]
+    unreal.log(f"  GLBs on disk: {len(have)} of {len(sm.car_ids())}"
+               + ("" if len(have) == len(sm.car_ids()) else "  (run.sh export fetches the rest)"))
+    for c in have:
+        g = sm.glb_path(c)
+        unreal.log(f"  {'ok     ' if sm.valid_glb(g) else 'BAD    '} {g}")
     for cv in ("r.Substrate", "r.MegaLights.EnableForProject", "r.DynamicGlobalIlluminationMethod"):
         try:
             v = unreal.SystemLibrary.get_console_variable_int_value(cv)
@@ -249,24 +255,32 @@ def bounds_of(mesh):
     return (o.x - e.x, o.y - e.y, o.z - e.z), (o.x + e.x, o.y + e.y, o.z + e.z)
 
 
+_AXIS = None
+
+
 def find_axis_mapping():
-    """Import the probe, read its bounds, delete it: the importer's rule."""
+    """Import the probe, read its bounds, delete it: the importer's rule.
+    Once per run; every car goes through the same importer."""
+    global _AXIS
+    if _AXIS is not None:
+        return _AXIS
     tmp = os.path.join(tempfile.gettempdir(), "grn_axis_probe.glb")
     sm.write_probe_glb(tmp)
-    mesh = import_static_mesh(tmp, sm.IMPORT_PATH + "/Probe", sm.PROBE_GLB_NAME, combine=True, nanite=False)
+    mesh = import_static_mesh(tmp, sm.PROBE_PATH, sm.PROBE_GLB_NAME, combine=True, nanite=False)
     mn, mx = bounds_of(mesh)
     mapping, scale = sm.probe_mapping(mn, mx)
     log(f"axis probe: bounds {tuple(round(v, 1) for v in mn)} .. {tuple(round(v, 1) for v in mx)} -> "
         f"glTF X,Y,Z = Unreal {[('xyz'[a], '+' if s > 0 else '-') for a, s in (mapping[0], mapping[1], mapping[2])]}, {scale:.1f} cm/m")
     try:
-        unreal.EditorAssetLibrary.delete_directory(sm.IMPORT_PATH + "/Probe")
+        unreal.EditorAssetLibrary.delete_directory(sm.PROBE_PATH)
     except Exception as e:  # noqa: BLE001
         warn(f"could not delete the probe: {e}")
-    return mapping, scale
+    _AXIS = (mapping, scale)
+    return _AXIS
 
 
-def import_car(glb):
-    """The Black Demon as one Nanite static mesh, nose on +X, floor at z 0."""
+def import_car(glb, P):
+    """One car as a single Nanite static mesh, nose on +X, floor at z 0."""
     mapping, scale = find_axis_mapping()
     nose_ue = sm.map_dir(mapping, glb["nose_gltf"])
     up_ue = sm.map_dir(mapping, (0, 1, 0))
@@ -274,18 +288,19 @@ def import_car(glb):
         warn(f"the importer does not put glTF +Y on Unreal +Z ({up_ue}); the car may lie on its side — tell me")
     yaw = sm.yaw_to_plus_x((nose_ue[0], nose_ue[1]))
     log(f"nose in Unreal before rotation: {tuple(round(v, 3) for v in nose_ue)}; importing with yaw {yaw:+.1f}")
-    mesh = import_static_mesh(sm.GLB, sm.IMPORT_PATH, "SM_BlackDemon_import", yaw_deg=yaw)
+    mesh = import_static_mesh(P.glb, P.import_path, f"SM_{P.slug}_import", yaw_deg=yaw)
     mn, mx = bounds_of(mesh)
     L = (mx[0] - mn[0]) / 100.0
     W = (mx[1] - mn[1]) / 100.0
-    baked = abs(L - 4.66) < 0.25 and W < 2.6
+    card = float(P.length_m or 0.0)
+    baked = (abs(L - card) < 0.25 if card else 3.5 < L < 5.6) and W < 2.6
     if not baked:
         warn(f"after import the mesh is {L:.2f} m along X and {W:.2f} m along Y; the yaw offset was not applied by "
              f"the pipeline — the studio actor will be yawed {yaw:+.1f} instead, and the night-scene body is not X-forward")
     else:
-        log(f"the mesh is {L:.2f} m along X, {W:.2f} m across: nose on +X")
+        log(f"the mesh is {L:.2f} m along X, {W:.2f} m across (the card says {card or '?'}): nose on +X")
     # one stable name for everything downstream
-    final = sm.MERGED_MESH
+    final = P.mesh
     if unreal.EditorAssetLibrary.does_asset_exist(final):
         unreal.EditorAssetLibrary.delete_asset(final)
     if not unreal.EditorAssetLibrary.rename_asset(mesh.get_path_name(), final):
@@ -314,7 +329,7 @@ def paint_slot_of(mesh):
     return -1
 
 
-def dress_paint(mesh, glb):
+def dress_paint(mesh, glb, P):
     """The port's Substrate paint on the body, with this car's numbers."""
     slot = paint_slot_of(mesh)
     if slot < 0:
@@ -325,10 +340,10 @@ def dress_paint(mesh, glb):
         warn(f"{sm.PAINT_PARENT} is not in this project (open the editor once so GulfRoadNightsEditor builds it); "
              f"the body keeps the importer's paint for now")
         return slot, False
-    if unreal.EditorAssetLibrary.does_asset_exist(sm.PAINT_MI):
-        mi = unreal.load_asset(sm.PAINT_MI)
+    if unreal.EditorAssetLibrary.does_asset_exist(P.paint_mi):
+        mi = unreal.load_asset(P.paint_mi)
     else:
-        mi = asset_tools().create_asset("MI_BlackDemonPaint", sm.CONTENT_ROOT, unreal.MaterialInstanceConstant,
+        mi = asset_tools().create_asset(f"MI_{P.slug}_Paint", P.folder, unreal.MaterialInstanceConstant,
                                         unreal.MaterialInstanceConstantFactoryNew())
     mel = unreal.MaterialEditingLibrary
     mel.set_material_instance_parent(mi, parent)
@@ -339,10 +354,10 @@ def dress_paint(mesh, glb):
     mel.set_material_instance_scalar_parameter_value(mi, "ClearCoat", float(pf["clearcoat"]))
     mel.set_material_instance_scalar_parameter_value(mi, "ClearCoatRoughness", float(pf["clearcoat_roughness"]))
     mel.update_material_instance(mi)
-    save_asset(sm.PAINT_MI)
+    save_asset(P.paint_mi)
     mesh.set_material(slot, mi)
     save_asset(mesh.get_path_name())
-    log(f"paint slot {slot} wears {sm.PAINT_MI}: colour {tuple(round(c, 4) for c in pf['color'])}, "
+    log(f"paint slot {slot} wears {P.paint_mi}: colour {tuple(round(c, 4) for c in pf['color'])}, "
         f"metalness {pf['metallic']:.3f}, roughness {pf['roughness']}, clear coat {pf['clearcoat']} at {pf['clearcoat_roughness']}")
     return slot, True
 
@@ -350,9 +365,11 @@ def dress_paint(mesh, glb):
 # -------------------------------------------------------------- materials
 
 def make_material(name, base=None, roughness=None, specular=None, emissive=None, unlit=False):
+    """A simple opaque material under the showcase root. The floor and
+    the dome are the same for every car, so one that exists is reused."""
     path = f"{sm.CONTENT_ROOT}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
-        unreal.EditorAssetLibrary.delete_asset(path)
+        return unreal.load_asset(path)
     mat = asset_tools().create_asset(name, sm.CONTENT_ROOT, unreal.Material, unreal.MaterialFactoryNew())
     mel = unreal.MaterialEditingLibrary
     if unlit:
@@ -431,9 +448,9 @@ def channels(c0, c1):
     return unreal.LightingChannels(channel0=bool(c0), channel1=bool(c1), channel2=False)
 
 
-def build_studio(mesh, actor_yaw, st):
+def build_studio(mesh, actor_yaw, st, P):
     """The stage from showcase_math.studio_ue, as actors in a new map."""
-    new_level(sm.STUDIO_MAP)
+    new_level(P.studio_map)
     plane = unreal.load_asset("/Engine/BasicShapes/Plane")
     sphere = unreal.load_asset("/Engine/BasicShapes/Sphere")
     floor_mat = make_material("M_ShowcaseFloor", base=st["floor"]["base"], roughness=st["floor"]["roughness"],
@@ -465,7 +482,7 @@ def build_studio(mesh, actor_yaw, st):
     set_prop(dc, "lighting_channels", channels(False, False))
 
     # The car: one Nanite mesh at the pivot, movable so the turntable can turn it
-    car = spawn(unreal.StaticMeshActor, st["pivot"], (0.0, actor_yaw, 0.0), label="BlackDemon")
+    car = spawn(unreal.StaticMeshActor, st["pivot"], (0.0, actor_yaw, 0.0), label=P.slug)
     cc = car.static_mesh_component
     cc.set_mobility(unreal.ComponentMobility.MOVABLE)
     cc.set_static_mesh(mesh)
@@ -551,11 +568,11 @@ def add_root_track(seq, cls):
     return seq.add_master_track(cls)
 
 
-def make_sequence(name, frames, camera=None, car=None, car_yaw0=0.0):
-    path = f"{sm.SEQ_PATH}/{name}"
+def make_sequence(name, frames, P, camera=None, car=None, car_yaw0=0.0):
+    path = f"{P.seq_path}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
-    seq = asset_tools().create_asset(name, sm.SEQ_PATH, unreal.LevelSequence, unreal.LevelSequenceFactoryNew())
+    seq = asset_tools().create_asset(name, P.seq_path, unreal.LevelSequence, unreal.LevelSequenceFactoryNew())
     fps = sm.TURNTABLE["fps"]
     seq.set_display_rate(unreal.FrameRate(fps, 1))
     seq.set_playback_start(0)
@@ -588,14 +605,14 @@ def make_sequence(name, frames, camera=None, car=None, car_yaw0=0.0):
 
 # ------------------------------------------------------- MRQ presets
 
-def make_preset(name, width, height, out_sub, temporal, tiles=1, warmup=32, cvars=None):
-    path = f"{sm.MRQ_PATH}/{name}"
+def make_preset(name, width, height, out_sub, temporal, P, tiles=1, warmup=32, cvars=None):
+    path = f"{P.mrq_path}/{name}"
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
-    cfg = asset_tools().create_asset(name, sm.MRQ_PATH, mrq_config_class(), None)
+    cfg = asset_tools().create_asset(name, P.mrq_path, mrq_config_class(), None)
     out = cfg.find_or_add_setting_by_class(unreal.MoviePipelineOutputSetting)
     set_prop(out, "output_resolution", unreal.IntPoint(int(width), int(height)), essential=True)
-    set_prop(out, "output_directory", unreal.DirectoryPath(os.path.join(sm.OUT_DIR, out_sub)), essential=True)
+    set_prop(out, "output_directory", unreal.DirectoryPath(os.path.join(P.out_dir, out_sub)), essential=True)
     set_prop(out, "file_name_format", "{sequence_name}.{frame_number}")
     set_prop(out, "use_custom_frame_rate", True)
     set_prop(out, "output_frame_rate", unreal.FrameRate(sm.TURNTABLE["fps"], 1))
@@ -648,82 +665,164 @@ QUALITY_CVARS = {
 
 # ------------------------------------------------------------------ build
 
-def build():
+def build_car(P, opts):
+    """One car, start to finish. Returns its report dict (also written to
+    press/unreal/<id>/build.json). Raises only for what makes the car
+    unbuildable: no GLB, a broken GLB, no nose to find, no mesh out of the
+    import. Everything optional logs and carries on."""
     t0 = time.time()
-    if not sm.valid_glb(sm.GLB):
-        raise RuntimeError(f"{sm.GLB} is not a whole glTF binary; re-copy it from press/renders/glb/")
-    glb = sm.read_glb(sm.GLB)
+    del LOG[:]
+    del WARN[:]
+    if not P.glb:
+        raise FileNotFoundError(f"no GLB for {P.car_id}: run.sh export {P.car_id}")
+    if not sm.valid_glb(P.glb):
+        raise RuntimeError(f"{P.glb} is not a whole glTF binary; run.sh export {P.car_id} again")
+    glb = sm.read_glb(P.glb)
     if not glb["nose_gltf"]:
-        raise RuntimeError("the GLB's lamp nodes were not found; cannot tell its nose from its tail")
-    log(f"GLB: {glb['triangles']} triangles, {len(glb['materials'])} materials, nose {tuple(round(v, 3) for v in glb['nose_gltf'])} in the file")
-    for d in (sm.CONTENT_ROOT, sm.IMPORT_PATH, sm.SEQ_PATH, sm.MRQ_PATH):
+        raise RuntimeError(f"{P.car_id}: the GLB's lamp nodes were not found; cannot tell its nose from its tail")
+    log(f"{P.car_id}: {glb['triangles']} triangles, {len(glb['materials'])} materials, "
+        f"nose {tuple(round(v, 3) for v in glb['nose_gltf'])} in the file")
+    for d in (sm.CONTENT_ROOT, P.folder, P.import_path, P.seq_path, P.mrq_path):
         ensure_dir(d)
-    os.makedirs(sm.OUT_DIR, exist_ok=True)
+    os.makedirs(P.out_dir, exist_ok=True)
 
-    mesh, actor_yaw, (mn, mx) = import_car(glb)
-    paint_slot, paint_is_ports = dress_paint(mesh, glb)
+    mesh, actor_yaw, (mn, mx) = import_car(glb, P)
+    paint_slot, paint_is_ports = dress_paint(mesh, glb, P)
 
-    # The studio for the car's Blender-frame bounds (the pack's bounds,
-    # read off the file, not off the import, so the stage never depends
-    # on the importer's scale)
+    # The studio for the car's Blender-frame bounds (read off the file, not
+    # off the import, so the stage never depends on the importer's scale)
     st = sm.studio_ue(glb["bounds_blender"])
-    car, cams = build_studio(mesh, actor_yaw, st)
+    car, cams = build_studio(mesh, actor_yaw, st, P)
 
     for name in ("hero", "side", "rear"):
-        make_sequence(f"LS_{name}", 1, camera=cams[name])
-    make_sequence("LS_turntable", sm.TURNTABLE["frames"], camera=cams["turntable"], car=car, car_yaw0=actor_yaw)
+        make_sequence(f"LS_{name}", 1, P, camera=cams[name])
+    turntable = opts.get("turntable", P.car_id == sm.DEFAULT_CAR)
+    if turntable:
+        make_sequence("LS_turntable", sm.TURNTABLE["frames"], P, camera=cams["turntable"], car=car, car_yaw0=actor_yaw)
     # The night shot renders from the player's own camera, so no cut
-    make_sequence("LS_night", 1)
+    make_sequence("LS_night", 1, P)
 
-    make_preset("MRQ_preview", sm.PREVIEW["width"], sm.PREVIEW["height"], "preview", temporal=4, warmup=16)
-    make_preset("MRQ_still4k", sm.STILL["width"], sm.STILL["height"], "stills", temporal=32, tiles=sm.STILL["tiles"],
-                warmup=48, cvars=QUALITY_CVARS)
-    make_preset("MRQ_turntable1080", sm.TURNTABLE["width"], sm.TURNTABLE["height"], "turntable", temporal=8,
+    F = sm.FLEET
+    make_preset("MRQ_preview", sm.PREVIEW["width"], sm.PREVIEW["height"], "preview", 4, P, warmup=16)
+    make_preset("MRQ_still", F["width"], F["height"], "stills", F["temporal"], P, tiles=F["tiles"],
                 warmup=32, cvars=QUALITY_CVARS)
-    make_preset("MRQ_night", 1920, 1080, "night", temporal=32, warmup=64, cvars=QUALITY_CVARS)
+    make_preset("MRQ_still4k", sm.STILL["width"], sm.STILL["height"], "stills4k", sm.STILL["temporal"], P,
+                tiles=sm.STILL["tiles"], warmup=48, cvars=QUALITY_CVARS)
+    make_preset("MRQ_night", 1920, 1080, "night", 32, P, warmup=64, cvars=QUALITY_CVARS)
+    if turntable:
+        make_preset("MRQ_turntable1080", sm.TURNTABLE["width"], sm.TURNTABLE["height"], "turntable", 8, P,
+                    warmup=32, cvars=QUALITY_CVARS)
 
     report = {
-        "engine": engine_version(),
-        "glb": {"triangles": glb["triangles"], "materials": glb["materials"], "paint": glb["paint"],
+        "car": P.car_id, "name": P.name, "engine": engine_version(),
+        "glb": {"file": P.glb, "triangles": glb["triangles"], "materials": glb["materials"], "paint": glb["paint"],
                 "nose_gltf": glb["nose_gltf"], "bounds_blender": glb["bounds_blender"]},
-        "mesh": sm.MERGED_MESH, "mesh_bounds_cm": [mn, mx], "actor_yaw": actor_yaw,
+        "card_length_m": P.length_m,
+        "mesh": P.mesh, "mesh_bounds_cm": [mn, mx], "actor_yaw": actor_yaw,
         "paint_slot": paint_slot, "paint_is_ports": paint_is_ports, "paint_param": "Color" if paint_is_ports else "None",
-        "map": sm.STUDIO_MAP, "sequences": [f"{sm.SEQ_PATH}/LS_{n}" for n in ("hero", "side", "rear", "turntable", "night")],
-        "presets": [f"{sm.MRQ_PATH}/MRQ_{n}" for n in ("preview", "still4k", "turntable1080", "night")],
+        "map": P.studio_map,
+        "sequences": [f"{P.seq_path}/LS_{n}" for n in ("hero", "side", "rear", "night") + (("turntable",) if turntable else ())],
+        "presets": [f"{P.mrq_path}/MRQ_{n}" for n in ("preview", "still", "still4k", "night") + (("turntable1080",) if turntable else ())],
         "studio": {"ev100": st["ev100"], "shutter": st["shutter"], "light_scale": sm.LIGHT_SCALE,
                    "lights": [{k: v for k, v in L.items()} for L in st["lights"]],
                    "cameras": st["cameras"]},
-        "warnings": WARN, "log": LOG, "seconds": round(time.time() - t0, 1),
+        "warnings": list(WARN), "log": list(LOG), "seconds": round(time.time() - t0, 1),
     }
-    with open(os.path.join(sm.OUT_DIR, "build.json"), "w") as f:
+    with open(os.path.join(P.out_dir, "build.json"), "w") as f:
         json.dump(report, f, indent=1, default=str)
-    unreal.EditorAssetLibrary.save_directory(sm.CONTENT_ROOT, only_if_is_dirty=False, recursive=True)
-    log(f"build done in {report['seconds']} s with {len(WARN)} warning(s); report at {sm.OUT_DIR}/build.json")
+    unreal.EditorAssetLibrary.save_directory(P.folder, only_if_is_dirty=False, recursive=True)
+    log(f"{P.car_id}: built in {report['seconds']} s with {len(report['warnings'])} warning(s)")
+    return report
 
 
-def report():
-    p = os.path.join(sm.OUT_DIR, "build.json")
-    if not os.path.exists(p):
-        log("no build.json yet — run build first")
+def build(arg, opts):
+    """Build one car, a comma list, or all. A car that fails is recorded
+    and the rest carry on: seventeen imports are an hour of someone's
+    afternoon, and one bad file should not cost the other sixteen."""
+    t0 = time.time()
+    ids = sm.resolve_cars(arg)
+    os.makedirs(sm.OUT_ROOT, exist_ok=True)
+    fleet = {"engine": engine_version(), "cars": {}}
+    for i, cid in enumerate(ids, 1):
+        P = sm.paths(cid)
+        log(f"[{i}/{len(ids)}] {cid}")
+        try:
+            r = build_car(P, opts)
+            fleet["cars"][cid] = {
+                "status": "built", "seconds": r["seconds"], "yaw": r["actor_yaw"],
+                "length_cm": round(r["mesh_bounds_cm"][1][0] - r["mesh_bounds_cm"][0][0], 1),
+                "card_length_m": r["card_length_m"], "paint_slot": r["paint_slot"],
+                "paint_is_ports": r["paint_is_ports"], "warnings": r["warnings"],
+            }
+        except FileNotFoundError as e:
+            warn(str(e))
+            fleet["cars"][cid] = {"status": "no-glb", "error": str(e)}
+        except Exception as e:  # noqa: BLE001
+            unreal.log_error(f"[showcase] {cid} failed: {e}")
+            import traceback
+            unreal.log_error(traceback.format_exc())
+            fleet["cars"][cid] = {"status": "failed", "error": str(e)}
+    fleet["seconds"] = round(time.time() - t0, 1)
+    # merge with what earlier runs recorded, so building one car later does not erase the other sixteen
+    try:
+        with open(sm.FLEET_JSON) as f:
+            old = json.load(f)
+        old.get("cars", {}).update(fleet["cars"])
+        fleet["cars"] = old["cars"]
+    except (OSError, ValueError):
+        pass
+    with open(sm.FLEET_JSON, "w") as f:
+        json.dump(fleet, f, indent=1, default=str)
+    done = [c for c in ids if fleet["cars"][c]["status"] == "built"]
+    skipped = [c for c in ids if fleet["cars"][c]["status"] == "no-glb"]
+    failed = [c for c in ids if fleet["cars"][c]["status"] == "failed"]
+    log(f"build: {len(done)} built, {len(skipped)} without a GLB, {len(failed)} failed, in {fleet['seconds']} s; "
+        f"report at {sm.FLEET_JSON}")
+    if skipped:
+        warn(f"no GLB for {', '.join(skipped)}: run unreal/Showcase/run.sh export")
+    if failed:
+        warn(f"failed: {', '.join(failed)}; see the log above, and press/unreal/<id>/build.json for the rest")
+
+
+def report(arg):
+    try:
+        with open(sm.FLEET_JSON) as f:
+            fleet = json.load(f)
+    except (OSError, ValueError):
+        log("no fleet.json yet — run build first")
         return
-    with open(p) as f:
-        r = json.load(f)
-    paint = "the port's Substrate paint" if r["paint_is_ports"] else "the importer's material"
-    log(f"built on Unreal {r['engine']}: mesh {r['mesh']}, paint slot {r['paint_slot']} ({paint}), "
-        f"{len(r['warnings'])} warning(s)")
-    for w in r["warnings"]:
-        unreal.log_warning(f"  {w}")
+    cars = fleet.get("cars", {})
+    want = sm.resolve_cars(arg)
+    log(f"built on Unreal {fleet.get('engine')}: {sum(1 for c in cars.values() if c['status'] == 'built')} of {len(cars)} recorded")
+    for cid in want:
+        c = cars.get(cid)
+        if not c:
+            unreal.log(f"  {cid:16s} not built")
+            continue
+        if c["status"] != "built":
+            unreal.log(f"  {cid:16s} {c['status']}: {c.get('error', '')}")
+            continue
+        paint = "Substrate paint" if c["paint_is_ports"] else "importer paint"
+        unreal.log(f"  {cid:16s} {c['length_cm'] / 100:.2f} m (card {c['card_length_m']}), yaw {c['yaw']:+.0f}, "
+                   f"slot {c['paint_slot']} {paint}, {len(c['warnings'])} warning(s), {c['seconds']} s")
+        for w in c["warnings"]:
+            unreal.log_warning(f"      {w}")
 
 
 def main(argv):
     cmd = argv[0] if argv else "probe"
+    rest = argv[1:]
+    opts = {"turntable": "--turntable" in rest or None}
+    if opts["turntable"] is None:
+        del opts["turntable"]
+    target = next((a for a in rest if not a.startswith("--")), "all" if cmd in ("build", "report") else None)
     try:
         if cmd == "probe":
             probe()
         elif cmd == "build":
-            build()
+            build(target, opts)
         elif cmd == "report":
-            report()
+            report(target)
         else:
             warn(f"unknown command {cmd}; one of probe, build, report")
     except Exception as e:  # noqa: BLE001

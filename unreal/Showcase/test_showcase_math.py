@@ -51,37 +51,61 @@ check(abs(sm.yaw_to_plus_x((0, 1)) + 90) < 1e-9, "a nose along +Y needs yaw -90 
 check(abs(sm.yaw_to_plus_x((-1, 0))) == 180.0, "a nose along -X needs 180")
 print("frames      ok" if not fail else "frames      FAIL")
 
-# --- the GLB --------------------------------------------------------------
+# --- the GLBs: every exported car -------------------------------------------
 n0 = len(fail)
-check(os.path.exists(sm.GLB), f"{sm.GLB} is missing — copy press/renders/glb/black-demon.glb there")
-if os.path.exists(sm.GLB):
-    check(sm.valid_glb(sm.GLB), "black-demon.glb is not a whole glTF binary")
-    g = sm.read_glb()
-    check("paint" in g["materials"], "the GLB has no material named paint")
+cat = {c["id"]: c for c in sm.catalogue()}
+check(len(cat) == 17, f"the catalogue has {len(cat)} cars, expected 17")
+seen = 0
+for cid in sm.car_ids():
+    path = sm.glb_path(cid)
+    if not path:
+        if cid == sm.DEFAULT_CAR:
+            fail.append(f"{sm.KIT_GLB} is missing — copy press/renders/glb/black-demon.glb there")
+        continue          # the other cars' GLBs are git-ignored; present only where export-cars.mjs has run
+    seen += 1
+    check(sm.valid_glb(path), f"{cid}: not a whole glTF binary")
+    g = sm.read_glb(path)
     pf = g["paint"]
-    check(pf and abs(pf["roughness"] - 0.24) < 1e-6, f"paint roughness {pf.get('roughness')} is not the web's 0.24")
-    check(pf and abs(pf["clearcoat_roughness"] - 0.045) < 1e-6, f"paint clearcoat roughness {pf.get('clearcoat_roughness')} is not 0.045")
-    check(pf and 0.3 < pf["metallic"] < 0.36, f"paint metalness {pf.get('metallic')} is not the web's law for #0b0a0d (0.3257)")
-    check(pf and max(pf["color"]) < 0.01, f"paint colour {pf.get('color')} is not a black")
-    check(g["head_lamp_nodes"] >= 2, f"found {g['head_lamp_nodes']} head-lamp cores, need 2 or more")
-    check(g["tail_lamp_nodes"] >= 1, "found no tail-lamp nodes")
+    check("paint" in g["materials"], f"{cid}: no material named paint")
+    check(bool(pf) and 0.0 <= pf["metallic"] <= 1.0 and 0.0 < pf["roughness"] <= 1.0, f"{cid}: paint factors {pf}")
+    # gloss 0.045, satin 0.10, matte up to 0.42 (efreet-rx, efreet-rx-kai, hawally-2t, wain-special are matte)
+    check(bool(pf) and 0.0 <= pf["clearcoat_roughness"] <= 0.6, f"{cid}: clear coat roughness {pf.get('clearcoat_roughness')}")
+    check(g["head_lamp_nodes"] >= 2, f"{cid}: {g['head_lamp_nodes']} head-lamp cores, need 2 or more")
+    check(g["tail_lamp_nodes"] >= 1, f"{cid}: no tail-lamp nodes")
     nz = g["nose_gltf"]
-    check(nz is not None and abs(nz[2]) > 0.95, f"the nose is not along the file's Z axis: {nz}")
-    check(nz is not None and nz[2] > 0, f"the nose points -Z in the file, three.js cars face +Z: {nz}")
+    check(nz is not None and nz[2] > 0.95, f"{cid}: the nose is not along +Z in the file: {nz}")
     mn, mx = g["bounds_blender"]
     L = mx[1] - mn[1]
-    check(4.4 < L < 4.9, f"the car is {L:.2f} m long in Blender's frame, the card says 4.66")
-    check(mx[2] - mn[2] < 1.6 and mn[2] > -0.05, f"the car's floor is at z {mn[2]:.3f} and roof at {mx[2]:.3f}")
-    check(g["triangles"] > 200000, f"only {g['triangles']} triangles — not the full-detail export")
+    card = cat[cid].get("lengthM")
+    check(card is None or abs(L - card) < 0.35, f"{cid}: {L:.2f} m long, the card says {card}")
+    check(mx[2] - mn[2] < 1.9 and mn[2] > -0.1, f"{cid}: floor at z {mn[2]:.3f}, roof at {mx[2]:.3f}")
+    check(g["triangles"] > 150000, f"{cid}: only {g['triangles']} triangles - not the full-detail export")
+    # the studio and every camera must be buildable and sane for THIS car
+    st = sm.studio_ue(g["bounds_blender"])
+    check(len(st["lights"]) == 5 and len(st["cameras"]) == 4, f"{cid}: studio has {len(st['lights'])} lights, {len(st['cameras'])} cameras")
+    hc = st["cameras"]["hero"]
+    check(hc["loc"][0] > 0 and hc["loc"][1] < 0, f"{cid}: hero camera {hc['loc']} is not on the front-left quarter")
+    check(all(abs(v) < 5e4 for v in hc["loc"]), f"{cid}: hero camera {hc['loc']} is absurdly far")
+    p_ = sm.paths(cid)
+    check("-" not in p_.folder and p_.mesh.startswith(sm.CONTENT_ROOT), f"{cid}: asset paths {p_.folder}")
+check(seen >= 1, "no GLB read at all")
+if seen:
+    bd = sm.read_glb(sm.glb_path(sm.DEFAULT_CAR))
+    mn, mx = bd["bounds_blender"]
     pack = os.path.join(sm.REPO, "press", "max", "render", "black-demon", "studio.json")
     if os.path.exists(pack):
         pj = json.load(open(pack))
         check(close(mn, pj["bounds"]["min"], 1e-3) and close(mx, pj["bounds"]["max"], 1e-3),
               f"GLB bounds {mn} {mx} differ from the Max pack's {pj['bounds']}")
-    print(f"glb         {g['triangles']} tris, {len(g['materials'])} materials, nose {tuple(round(v, 3) for v in nz) if nz else None}, "
-          f"{L:.2f} m  " + ("ok" if len(fail) == n0 else "FAIL"))
-else:
-    print("glb         FAIL")
+slugs = [sm.paths(c).slug for c in sm.car_ids()]
+check(len(set(slugs)) == len(slugs), "two cars share a slug, so would share an Unreal folder")
+try:
+    sm.resolve_cars("black-demon,not-a-car")
+    fail.append("resolve_cars accepted an unknown id")
+except ValueError:
+    pass
+check(sm.resolve_cars("all") == sm.car_ids() and sm.resolve_cars("falcon-720") == ["falcon-720"], "resolve_cars")
+print(f"glbs        {seen} of {len(cat)} cars read here  " + ("ok" if len(fail) == n0 else "FAIL"))
 
 # --- the studio -----------------------------------------------------------
 n0 = len(fail)

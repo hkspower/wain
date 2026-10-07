@@ -1007,6 +1007,10 @@ if (failed) {
     "showcase_math.py", "test_showcase_math.py", "test_dry_run.py", "black-demon.glb"]) {
     if (!existsSync(join(kit, f))) fail(`${kit}/${f} is missing`);
   }
+  // The fleet tools the run.sh `sheet` and `compare` commands call.
+  for (const f of ["tools/shots/render-sheet.mjs", "tools/shots/ue-compare.mjs", "tools/shots/export-cars.mjs"]) {
+    if (!existsSync(f)) fail(`${f} is missing — unreal/Showcase/run.sh calls it`);
+  }
   const glbPath = join(kit, "black-demon.glb");
   if (existsSync(glbPath)) {
     const buf = readFileSync(glbPath);
@@ -1029,7 +1033,7 @@ if (failed) {
     const sh = read(join(kit, "run.sh"));
     const md = read(join(kit, "README.md"));
     const cmds = [...sh.matchAll(/^\s{2}([a-z|]+)\)$/gm)].flatMap((m) => m[1].split("|")).filter((c) => c !== "*");
-    for (const c of ["probe", "build", "preview", "render", "night", "encode"]) {
+    for (const c of ["probe", "export", "build", "preview", "render", "night", "sheet", "compare", "encode", "report"]) {
       if (!cmds.includes(c)) fail(`${kit}/run.sh has no ${c} command`);
       if (!md.includes(`run.sh ${c}`)) fail(`${kit}/README.md does not show run.sh ${c}`);
     }

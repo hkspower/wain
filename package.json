@@ -225,7 +225,9 @@
     "export:film": "node tools/shots/exportfilm.mjs",
     "film:map": "node tools/shots/maptour.mjs",
     "cars:export": "node tools/shots/export-cars.mjs",
-    "cars:render": "python3 tools/blender/render_cars.py"
+    "cars:render": "python3 tools/blender/render_cars.py",
+    "cars:ue-compare": "node tools/shots/ue-compare.mjs",
+    "cars:ue-compare:rules": "node tools/shots/ue-compare.mjs --self-test"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
