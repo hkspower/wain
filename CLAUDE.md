@@ -6431,6 +6431,15 @@ version `agtvrsn_6801m4ass4apec1v9apsx2svzscw`; `tuned-restore` kept at 0%. So t
 tests what callers get. Not re-run as a suite on Main. Its «show_places is not defined on client» errors are the
 test widget's (it has no client tools), not a fault: wainkw.com registers both. `docs/agent-live/README.md`.
 
+**Full import, and a copy on Hostinger.** `docs/agent-live/` now holds everything ElevenLabs keeps for the agent
+except conversations (personal data, deliberately left): the whole agent document, the three tools, the 25 tests,
+all eight KB documents (URL ones taken from their pinned commits, text ones from ElevenLabs with sizes equal to
+`size_bytes`), the procedure and the branch list. Two tricks worth reusing: an inline MCP reply too long to
+retype can be read back out of the session's own transcript JSONL with python, byte for byte; and an `agents_get`
+too big for the context lands in a file. `scripts/publish/agent-archive.php` pulls the folder into
+`<domain>/storage/agent-live/` (0700/0600, never pruned by deploys), refusing any file whose sha256 differs from
+`MANIFEST.json` (`node scripts/gen-agent-manifest.mjs`). Re-run both after changing anything there.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
