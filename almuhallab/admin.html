@@ -499,7 +499,6 @@
             <th class="sortable" data-sort="email">البريد</th>
             <th class="sortable" data-sort="status">الحالة</th>
             <th class="sortable" data-sort="createdAt">التسجيل</th>
-            <th>التجديد</th>
             <th>إجراءات</th>
           </tr></thead>
           <tbody id="cust-rows"></tbody>
@@ -681,12 +680,21 @@
   function d2(iso) { if (!iso) return "-"; var d = new Date(iso); return isNaN(d) ? "-" : d.toISOString().slice(0, 10); }
   function el(id) { return document.getElementById(id); }
 
+  /* A signed figure in a right-to-left line loses its sign to the wrong
+     end: «-2.4%» painted as «2.4%-», because a leading minus is a neutral and
+     takes the paragraph's direction. Each figure goes in its own LTR isolate;
+     the text around it stays escaped text. */
+  function figs(s) {
+    return String(s == null ? "" : s).split(/([+\-\u2212]?\d[\d,.]*%?)/).map(function (part, i) {
+      return i % 2 ? '<bdi dir="ltr">' + esc(part) + '</bdi>' : esc(part);
+    }).join("");
+  }
   function tiles(rows) {                       // [label, value, unit, sub]
     return rows.map(function (t) {
-      return '<div class="tile"><div class="n">' + esc(t[1]) +
+      return '<div class="tile"><div class="n">' + figs(t[1]) +
              (t[2] ? '<small>' + esc(t[2]) + '</small>' : "") +
              '</div><div class="l">' + esc(t[0]) + '</div>' +
-             (t[3] ? '<div class="sub">' + esc(t[3]) + '</div>' : "") + '</div>';
+             (t[3] ? '<div class="sub">' + figs(t[3]) + '</div>' : "") + '</div>';
     }).join("");
   }
 

@@ -1117,10 +1117,20 @@ def home_checks(pg):
         u = [int(under[i:i + 2], 16) for i in (1, 3, 5)]
         return "#%02x%02x%02x" % tuple(round(a * v + (1 - a) * u[i]) for i, v in enumerate((r, g, b)))
     for page in PAGES:
+        gated = None
         pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(400)
-        hb = pg.eval_on_selector("header", "e=>getComputedStyle(e).backgroundColor")
+        hp = pg
+        if pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height") < 1:
+            # the console's bar sits behind its login gate: sign in on a fresh
+            # profile rather than measure an empty header, or lean on whatever
+            # session an earlier check happened to leave behind
+            gated = pg.context.browser.new_context(viewport={"width": 1280, "height": 860}, locale="ar-KW")
+            hp = gated.new_page(); hp.goto(f"{BASE}/{page}", wait_until="networkidle")
+            hp.fill('input[name="pass"]', "bar-check-pass-1"); hp.fill('input[name="confirm"]', "bar-check-pass-1")
+            hp.click("#gate-btn"); hp.wait_for_timeout(500)
+        hb = hp.eval_on_selector("header", "e=>getComputedStyle(e).backgroundColor")
         BARHEX = flatten(hb, "#000000")
-        rows = pg.evaluate("""(() => {
+        rows = hp.evaluate("""(() => {
           const h = document.querySelector('header'), out = [];
           h.querySelectorAll('*').forEach(e => {
             if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return;
@@ -1142,13 +1152,14 @@ def home_checks(pg):
         check(S, f"{page}: the brand reads on the bar", bworst >= 4.5 and bworst < 99, f"{bworst:.2f}:1")
         # no header control may keep the danger red: read the live token, so the
         # check keeps testing something whatever the red is re-solved to
-        reds = pg.evaluate("""(() => {
+        reds = hp.evaluate("""(() => {
           const d = getComputedStyle(document.documentElement).getPropertyValue('--danger').trim();
           const probe = document.createElement('i'); probe.style.color = d; document.body.appendChild(probe);
           const red = getComputedStyle(probe).color; probe.remove();
           return [...document.querySelectorAll('header *')].filter(e => getComputedStyle(e).color === red).length;
         })()""")
         check(S, f"{page}: no masthead control keeps the danger red", reds == 0, str(reds))
+        if gated: gated.close()
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(400)
     check(S, "every icon reference resolves to a symbol",
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
@@ -1683,10 +1694,13 @@ def scan_checks(pg, br):
     # the corner, its amber in the drawing (a file name alone let the old
     # boum PNG pass untouched)
     def _amber_on_ground(name):
-        im = _Img.open(ROOT / name).convert("RGB")
-        corner = im.getpixel((1, 1))
-        amber = sum(1 for p in im.getdata() if p[0] > 190 and 130 < p[1] < 190 and p[2] < 120)
-        return max(abs(a - b) for a, b in zip(corner, (10, 9, 8))) <= 3 and amber > 20, f"corner {corner}, {amber} amber px"
+        im = _Img.open(ROOT / name).convert("RGBA")
+        # the ground is sampled on the top edge's middle, inside any rounded
+        # tile: the "any" icons keep transparent corners on purpose
+        ground = im.getpixel((im.width // 2, max(1, im.height // 32)))
+        amber = sum(1 for p in im.getdata() if p[3] > 200 and p[0] > 190 and 130 < p[1] < 190 and p[2] < 120)
+        return (ground[3] == 255 and max(abs(a - b) for a, b in zip(ground, (10, 9, 8))) <= 3 and amber > 20,
+                f"ground {ground}, {amber} amber px")
     for name in ("apple-touch-icon.png", "logo-512.png", "nokhatha-touch-icon.png", "icon-512.png", "icon-maskable-512.png"):
         ok, why = _amber_on_ground(name)
         check(S, f"{name} is the amber mark on the logo's ground", ok, why)
@@ -3643,7 +3657,7 @@ def font_checks(pg):
     # its Latin subset alike)
     for sel, face, what in ((".stat .num", "Chakra Petch", "a counter's digits"),
                             ("header .term .pr", "JetBrains Mono", "the masthead's >_ prompt"),
-                            ("h1", "Cairo", "the Arabic headline"),
+                            ("h2.section", "Cairo", "an Arabic section heading"),
                             ('footer a[href^="https://wa.me"] .v', None, "the phone number")):
         asked = pg.evaluate("s => getComputedStyle(document.querySelector(s)).fontFamily.split(',')[0].trim().replace(/^[\"']|[\"']$/g, '')", sel)
         fams = painted(sel)

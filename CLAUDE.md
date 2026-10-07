@@ -303,7 +303,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the icons it uses, **copied byte for byte from index.html's** — the eleven the
   company page never needs (download, print, check …) are drawn in that script
   on the same 24 grid and 1.8 pen — and `--check` in the suite fails on any
-  hand edit. App icons take `stroke: currentColor`, so one drawing serves a
+  hand edit. App icons take `stroke: currentColor`, so one drawing serves
   the bar's light ink, an amber tab and a red status. In RTL "back" points right: back
   links flip the chevron (`.ic.back`), forward actions use it as drawn. A toast
   takes its icon as an argument (`toast(msg, "i-check")`) and keeps its text as
