@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v52";   /* v52: smaller mono and Latin fonts, optimised icons, the manifest names four units */
+var CACHE = "nokhatha-v53";   /* v53: the masthead drawn for the screen, bigger at the top; the footer mark striped by density */
 /* The site root is not listed: "./" and "index.html" are the same 155 KB
    page, and every install fetched it twice. A request for the root is
    looked up as index.html below. logo.svg is not listed either: no page,

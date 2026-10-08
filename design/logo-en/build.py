@@ -18,7 +18,9 @@ every PNG and compares it pixel by pixel.
     python3 design/logo-en/build.py           # write SVG, PNG, sheet, README
     python3 design/logo-en/build.py --check   # exit 1 if any output drifted
 """
+import functools
 import io
+import math
 import pathlib
 import re
 import sys
@@ -144,13 +146,14 @@ class _FlatEdges(BasePen):
     tops and feet of strokes, the A's crossbar. A stripe's edge that lands a
     hair away from one leaves a sliver of the other colour along it."""
 
-    def __init__(self, gs):
+    def __init__(self, gs, min_len=1e-6):
         super().__init__(gs)
         self.ys = set()
+        self.min_len = min_len
         self._p = self._start = None
 
     def _flat(self, a, b):
-        if abs(a[1] - b[1]) < 1e-6 and abs(a[0] - b[0]) > 1e-6:
+        if abs(a[1] - b[1]) < 1e-6 and abs(a[0] - b[0]) > self.min_len:
             self.ys.add(round(a[1], 4))
 
     def _moveTo(self, p):
@@ -206,8 +209,14 @@ class Run:
     def path(self, ox, oy):
         return self._draw(SVGPathPen(self.face.gs, ntos=_num), ox, oy).getCommands()
 
-    def flat_edges(self, ox, oy):
-        return sorted(self._draw(_FlatEdges(self.face.gs), ox, oy).ys)
+    def flat_edges(self, ox, oy, min_len=1e-6):
+        return sorted(self._draw(_FlatEdges(self.face.gs, min_len), ox, oy).ys)
+
+    def flat_fracs(self, ox=0):
+        """The flat edges that are strokes, not the point of a vertex (the
+        A's apex and the M's inner corners are flats under one unit wide),
+        as fractions of the cap down from the cap line."""
+        return tuple((e + self.cap) / self.cap for e in self.flat_edges(ox, 0, 0.02 * self.size))
 
     @property
     def ink_w(self):
@@ -285,6 +294,99 @@ def snap_bands(bands, top, edges, tol):
     return out
 
 
+# ── stripes in whole device pixels ───────────────────────────────────────
+# A band is crisp only when it is a whole number of device rows. crispEdges
+# puts each edge on a row, but a band 2.3 rows tall is then drawn 2 rows
+# here and 3 there: the masthead's three bands at 1x were exactly that, and
+# the 180px touch icon's five (3.5 rows) too. So a stripe meant for a known
+# size is designed IN device pixels, for a cap that is itself a whole number
+# of them, and only then mapped back to the outline's units. Any offset of
+# the whole drawing keeps it exact: a band of k rows always covers k pixel
+# centres, wherever it starts.
+
+BAND_MIN = 2           # the thinnest dark band that reads as a line: two device rows
+BAND_RATIO = 5 / 2     # amber : dark, as on the banner
+
+
+def pixel_bands(cap_px, n=None, flats=()):
+    """The dark bands across a letter whose cap is `cap_px` device pixels,
+    as (row, rows) from the cap line, every edge on a whole row; None where
+    no band of BAND_MIN rows fits (the letter is drawn solid there).
+
+    With no n (the wordmark) it is the banner's own stripe at device
+    resolution: two dark rows in a period of seven, as many periods as the
+    cap holds, never more than the kit's twenty, and never fewer than the
+    three the masthead always carried unless three bands of two rows leave
+    the amber thinner than one and a half times the dark (then two).
+    With n (the monogram's five, the share card's twenty) the count is
+    kept and the dark band is the whole number of rows, at least two, whose
+    amber gaps come nearest 5 : 2.
+
+    The amber gaps share the rest as whole rows, each inner gap the floor or
+    the ceiling of the even share, so the stripe stays regular; the two
+    outer gaps may give or take one more, which moves the whole set by a
+    row. Within that, the arrangement keeps band edges off the letters'
+    flat edges (`flats`, as fractions of the cap down from the cap line):
+    an edge less than a row from a stroke's top or foot leaves a sliver of
+    the other colour along it."""
+    if n is None:
+        d = BAND_MIN
+        n = max(3, min(20, round((cap_px - BAND_RATIO * d) / (d * (1 + BAND_RATIO)))))
+        while n > 2 and (cap_px - n * d) / (n + 1) / d < 1.5:
+            n -= 1                      # the masthead's old three where they fit, else two
+    else:
+        ideal = cap_px * 2 / (7 * n + 5)
+        cands = sorted({max(BAND_MIN, math.floor(ideal)), max(BAND_MIN, math.ceil(ideal))})
+        d = min(cands, key=lambda k: abs(math.log(max(1e-9, (cap_px - n * k) / (n + 1)) / k / BAND_RATIO)))
+    amber = (cap_px - n * d) / (n + 1)
+    if amber / d < 1.5:
+        return None                     # the dark would outweigh the amber: solid
+    edges = [f * cap_px for f in flats if 0 < f < 1]
+
+    def slivers(e):
+        return sum(1 for f in edges if 0.15 < abs(e - f) < 1)
+
+    inner = range(math.floor(amber), math.ceil(amber) + 1)
+    outer = range(max(1, math.floor(amber) - 1), math.ceil(amber) + 2)
+
+    @functools.lru_cache(None)
+    def best(i, row, first):
+        if i == n:
+            g = cap_px - row
+            if g not in outer:
+                return (math.inf, ())
+            return ((g - amber) ** 2 + 0.5 * abs(g - first), (g,))
+        out = (math.inf, ())
+        for g in (outer if i == 0 else inner):
+            top = row + g
+            if top + d > cap_px:
+                break
+            cost, rest = best(i + 1, top + d, g if i == 0 else first)
+            cost += (g - amber) ** 2 + slivers(top) + slivers(top + d)
+            if cost < out[0]:
+                out = (cost, (g,) + rest)
+        return out
+
+    cost, gaps = best(0, 0, 0)
+    if cost == math.inf:
+        return None
+    rows, r = [], 0
+    for g in gaps[:-1]:
+        r += g
+        rows.append((r, d))
+        r += d
+    return rows
+
+
+def band_group(cap_units, top, cap_px, n=None, flats=()):
+    """pixel_bands mapped onto an outline: (y, height) in its units."""
+    rows = pixel_bands(cap_px, n, flats)
+    if rows is None:
+        return None
+    k = cap_units / cap_px
+    return [(top + r * k, h * k) for r, h in rows]
+
+
 def lockup(with_tag=True, bands=None):
     """Every shape of the lockup, centred on x = 0 with the wordmark's
     baseline at y = 0, the ink box of the whole, and the glow's sigma."""
@@ -341,12 +443,13 @@ MONO_GAP = 0.06 * MONO_SIZE
 MONO_BANDS = 5
 
 
-def monogram():
+def monogram(bands=None):
     total = MONO_A.ink_w + MONO_GAP + MONO_C.ink_w
     xa = -total / 2 - MONO_A.bounds[0]
     xc = -total / 2 + MONO_A.ink_w + MONO_GAP - MONO_C.bounds[0]
     cap = MONO_A.cap
-    shapes = [("striped", MONO_A.path(xa, 0), -cap, cap, MONO_BANDS, MONO_A.flat_edges(xa, 0)),
+    shapes = [("striped", MONO_A.path(xa, 0), -cap, cap, MONO_BANDS if bands is None else bands,
+               MONO_A.flat_edges(xa, 0)),
               ("code", MONO_C.path(xc, 0))]
     return shapes, (-total / 2, -cap, total / 2, max(0, MONO_A.bounds[3], MONO_C.bounds[3])), GLOW_SIGMA_EM * MONO_SIZE
 
@@ -380,7 +483,7 @@ FILES = {
 
 def geometry(shape, bands=None):
     if shape == "monogram":
-        return monogram()
+        return monogram(bands)
     return lockup(with_tag=(shape == "logo"), bands=bands)
 
 
@@ -465,8 +568,30 @@ def svg(name, shape=None, ground=None, bands=None, framing=None, hairline=False)
             # (the compact masthead at 1x, the share card), left one band at
             # 72% of its depth beside another at 100%
             out.append(f'    <g class="bands" clip-path="url(#{pre}-letters-{i})" fill="{dark}" shape-rendering="crispEdges">')
-            for y, h in snap_bands(stripe_bands(cap, n), top, edges, tol):
-                out.append(f'      <rect x="{_num(vb[0])}" y="{_num(y)}" width="{_num(vb[2])}" height="{_num(h)}"/>')
+            if isinstance(n, list):
+                # bands drawn for whole device pixels (pixel_bands): one
+                # group per cap in device px, a class naming it ("k72": a
+                # 72-row cap), the page's CSS showing the one that fits;
+                # every group but the first is hidden until it does
+                # (a cap 1.5 times another, five bands of 3 rows against 2,
+                # can be the same drawing: one path then carries both names)
+                drawn = {}
+                for cls, group, shown in n:
+                    if not group:
+                        continue
+                    x0, w0 = _num(vb[0]), _num(vb[2])
+                    path = "".join(f"M{x0} {_num(y)}h{w0}v{_num(h)}h-{w0}z" for y, h in group)
+                    if path in drawn:
+                        drawn[path][0].append(cls)
+                        drawn[path][1] |= shown
+                    else:
+                        drawn[path] = [[cls], shown]
+                for path, (names, shown) in drawn.items():
+                    hide = "" if shown else ' display="none"'
+                    out.append(f'      <path class="{" ".join(names)}"{hide} d="{path}"/>')
+            else:
+                for y, h in snap_bands(stripe_bands(cap, n), top, edges, tol):
+                    out.append(f'      <rect x="{_num(vb[0])}" y="{_num(y)}" width="{_num(vb[2])}" height="{_num(h)}"/>')
             out.append("    </g>")
             out.append("  </g>")
         elif kind == "code":
@@ -530,36 +655,67 @@ def render(br, text, w, h, ground=None):
 # the structured data names, and the share card.
 
 SITE = HERE.parent.parent / "almuhallab"
-# At masthead size the kit's twenty bands are sub-pixel (a 280px word has a
-# 31.7px cap: twenty bands leave each dark one 0.4px). Three: the only count
-# from three to seven whose EVEN bands clear every flat edge of ALMUHALLAB
-# (the M, the H's bar, the A's crossbar, the B's bowls) by more than a
-# device pixel at 2x (1.56), so nothing needs snapping and the bands stay
-# even; four left an edge 0.09px off the M and, snapped, ran 7.3 to 10.6
-# units tall. Each dark band is 2.3px at the top of the bar, 1.4px compact.
-MAST_BANDS = 3
+# The masthead's stripes (owner's «use higher logo quality», 2026-10-08).
+# The kit draws twenty bands; three thick ones were all the masthead could
+# carry at 1x, and on a 3x phone it carried the same three. Now each state
+# of the bar and each screen density draws the finest stripe it can render:
+# two dark device rows in a period of seven, the banner's own proportion at
+# device resolution (pixel_bands), so a 3x phone shows fifteen bands at the
+# top of the bar and a 1x screen four. Each (cap x density) is one band
+# group in the inline SVG and the CSS below shows one.
+#
+# The box is framed for whole pixels, not for the ink (topbar pass,
+# 2026-10-07): the cap line sits ON the box's top edge and the width is the
+# cap times MAST_PX / MAST_CAP, so a whole-pixel cap gives the width (and
+# every cap below is whole: its top and the baseline fall on whole rows).
 MAST_PX = 280
-MAST_CAP = 30      # the cap in px at 280: a multiple of 10, whole at x .6 and x .5 too
+MAST_CAP = 30      # the scale: a 30px cap is a 280px word, 28 / 3 px of width per px of cap
 MAST_OPEN = "<!-- logo-en:masthead · written by design/logo-en/build.py, do not edit by hand -->"
 MAST_CLOSE = "<!-- /logo-en:masthead -->"
+CSS_OPEN = "/* logo-en:css · written by design/logo-en/build.py, do not edit by hand */"
+CSS_CLOSE = "/* /logo-en:css */"
+# The bar's states, in cascade order (a later state outranks an earlier
+# one where both match, as the page's own blocks do: a phone wins over a
+# short screen): (what, media query, selector prefix, cap in CSS px).
+# Bigger at the top of the bar (owner's request, 2026-10-08): 336 on a
+# desktop (a 36px cap, was 280), 280 on a phone (30, was 220 and a 23.57px
+# cap). The compact strip, on screen the whole visit, keeps its size, and so
+# does a phone on its side, whose bar is a third of the screen: 196 there
+# (21, was 200 and a 21.43px cap), within the share it had.
+MAST_STATES = (
+    ("the top of the bar", None, "", 36),
+    ("scrolled", None, "html.scrolled ", 18),
+    ("a phone on its side, a short screen", "(max-height: 500px)", "", 21),
+    ("a phone", "(max-width: 640px)", "", 30),
+    ("a phone or a short screen, scrolled", "(max-width: 640px), (max-height: 500px)", "html.scrolled ", 15),
+)
+# A group drawn for r x is shown from r x up: a band of two device rows at
+# 2x is 2.6 rows at 2.625x and never fewer than two. Below 2x the 1x group
+# (1.25x and 1.5x screens draw it 2.5 and 3 rows deep).
+DENSITIES = ((1, None),
+             (2, "(min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2)"),
+             (3, "(min-resolution: 3dppx), (-webkit-min-device-pixel-ratio: 3)"))
+
+
+def mast_caps():
+    """Every cap the masthead is drawn at, in device px, the first one shown
+    by default (the desktop bar at 1x)."""
+    caps = []
+    for *_, cap in MAST_STATES:
+        for r, _ in DENSITIES:
+            if cap * r not in caps:
+                caps.append(cap * r)
+    return caps
 
 
 def masthead():
-    _, (l, t, r, b), _ = geometry("wordmark", MAST_BANDS)
-    # The box is framed for whole pixels, not for the ink (topbar pass,
-    # 2026-10-07): the cap line sits ON the box's top edge, and the scale
-    # puts the cap at exactly MAST_CAP px at 280, so at 280, 168 (x .6) and
-    # 140 (x .5) the cap is 30, 18 and 15 px and both its top and the
-    # baseline fall on whole device rows at every dpr. The old frame (ink
-    # plus 4 units) gave a 29.39px cap starting 0.79px into the box, so every
-    # letter's top and foot was a half-tone row. The ink runs 1.4% wider
-    # than the box, inside the drop-shadow's own overflow.
+    _, (l, t, r, b), _ = geometry("wordmark")
     vw = WORD.cap * MAST_PX / MAST_CAP
     vb = ((l + r) / 2 - vw / 2, t, vw, b - t + 4)
-    # the snap tolerance is one DEVICE pixel at 2x (the SVG's own size is
-    # stripped for the inline copy, so this size serves the tolerance only)
-    px = (MAST_PX * 2, round(MAST_PX * 2 * vb[3] / vb[2]))
-    text = svg("site-mast", shape="wordmark", ground="for-dark", bands=MAST_BANDS, framing=(vb, px), hairline=True)
+    flats = WORD.flat_fracs()
+    groups = [(f"k{c}", band_group(WORD.cap, t, c, None, flats), i == 0) for i, c in enumerate(mast_caps())]
+    text = svg("site-mast", shape="wordmark", ground="for-dark", bands=groups,
+               framing=(vb, (MAST_PX, round(MAST_PX * vb[3] / vb[2]))), hairline=True)
     lines = text.splitlines()
     lines[0] = re.sub(r' width="\d+" height="\d+" role="img" aria-label="Almuhallab Code">',
                       ' class="logo" role="img" aria-label="المهلب كود · Almuhallab Code" focusable="false">', lines[0])
@@ -568,11 +724,124 @@ def masthead():
     return "\n".join("      " + x for x in lines)
 
 
+def glow_px(cap):
+    """The halo at the kit's sigma per letter height (40 on a 148.4 cap)."""
+    return round(cap * GLOW_SIGMA_EM * WORD.size / WORD.cap)
+
+
+def site_css():
+    """The masthead's size and its band group per state and density, and
+    the footer mark's; the page's stylesheet carries this block between the
+    logo-en:css markers, so a size and the stripe drawn for it cannot part."""
+    pad = "    "
+    out = [pad + CSS_OPEN,
+           pad + "/* the masthead logo: its width per state (a whole-pixel cap times 28/3),",
+           pad + "   the halo at the kit's sigma per letter height, and the one band group",
+           pad + "   drawn for that cap at this density (k72: a 72-row cap) */"]
+
+    def show(prefix, scope, cls):
+        return f"{prefix}{scope} .bands > * {{ display: none; }} {prefix}{scope} .{cls} {{ display: inline; }}"
+
+    for what, media, prefix, cap in MAST_STATES:
+        w = cap * MAST_PX / MAST_CAP
+        assert w == int(w), (what, w)
+        body = [f"/* {what}: a cap of {cap}px */",
+                f"{prefix}.brand .logo {{ width: {int(w)}px; --glow: {glow_px(cap)}px; }}"]
+        for r, q in DENSITIES:
+            rule = show(prefix, ".brand .logo", f"k{cap * r}")
+            body.append(rule if q is None else f"@media {q} {{ {rule} }}")
+        if media:
+            out.append(pad + f"@media {media} {{")
+            out += [pad + "  " + x for x in body]
+            out.append(pad + "}")
+        else:
+            out += [pad + x for x in body]
+    fm = footer_groups()
+    out.append(pad + f"/* the footer's AC monogram, {FOOT_PX}px: solid where five bands of two rows")
+    out.append(pad + "   cannot fit the A, striped where they can */")
+    for r, q in DENSITIES:
+        cls = f"k{FOOT_CAP * r}"
+        if any(c == cls and g for c, g, _ in fm):
+            rule = show("", ".fbrand .logo", cls)
+        else:
+            rule = ".fbrand .logo .bands > * { display: none; }"
+        out.append(pad + (rule if q is None else f"@media {q} {{ {rule} }}"))
+    out.append(pad + CSS_CLOSE)
+    return "\n".join(out)
+
+
 def with_masthead(html):
     pat = re.compile(re.escape(MAST_OPEN) + r".*?" + re.escape(MAST_CLOSE), re.S)
     if not pat.search(html):
         sys.exit("index.html has no logo-en:masthead markers")
-    return pat.sub(lambda _: MAST_OPEN + "\n" + masthead() + "\n      " + MAST_CLOSE, html, count=1)
+    html = pat.sub(lambda _: MAST_OPEN + "\n" + masthead() + "\n      " + MAST_CLOSE, html, count=1)
+    pat = re.compile(r"    " + re.escape(CSS_OPEN) + r".*?" + re.escape(CSS_CLOSE), re.S)
+    if not pat.search(html):
+        sys.exit("index.html has no logo-en:css markers")
+    html = pat.sub(lambda _: site_css(), html, count=1)
+    pat = re.compile(re.escape(FOOT_OPEN) + r".*?" + re.escape(FOOT_CLOSE), re.S)
+    if not pat.search(html):
+        sys.exit("index.html has no logo-en:footer markers")
+    return pat.sub(lambda _: FOOT_OPEN + "\n" + footer_mark() + "\n          " + FOOT_CLOSE, html, count=1)
+
+
+# ── the monogram at a known size ─────────────────────────────────────────
+# The footer's mark and every PNG icon are drawn for one size in device
+# pixels, so the monogram is framed for it: the A's cap a whole number of
+# pixels (0.387 of the tile, rounded) starting on a whole row, the ink
+# centred within half a pixel, and its five bands drawn in whole rows
+# (pixel_bands). Where five bands of two rows cannot fit the A, it is solid.
+
+FOOT_PX = 44
+FOOT_CAP = round(FOOT_PX * MONO_A.cap / frame("monogram")[0][2])
+FOOT_OPEN = "<!-- logo-en:footer · written by design/logo-en/build.py, do not edit by hand -->"
+FOOT_CLOSE = "<!-- /logo-en:footer -->"
+TILE_RX = 96 / 512          # the rounded tile of a favicon, as the site's tab icons always had
+
+
+def mono_framing(size):
+    """The viewBox that puts the monogram's A cap on whole pixels at `size`."""
+    _, (l, t, r, b), _ = monogram()
+    cap_px = round(size * MONO_A.cap / frame("monogram")[0][2])
+    k = cap_px / MONO_A.cap                  # px per unit
+    vw = size / k
+    row = round(size / 2 - (b - t) / 2 * k)  # the cap line, on a whole row
+    return ((l + r) / 2 - vw / 2, t - row / k, vw, vw), cap_px
+
+
+def mono_tile(name, size, densities=(1,), rounded=False, shown=True):
+    """The AC monogram on its dark tile, framed for `size` px, with one band
+    group per density (a group for r x drawn for a cap of r times the cap)."""
+    vb, cap_px = mono_framing(size)
+    flats = MONO_A.flat_fracs()
+    groups = [(f"k{cap_px * r}", band_group(MONO_A.cap, -MONO_A.cap, cap_px * r, MONO_BANDS, flats),
+               shown and i == 0) for i, r in enumerate(densities)]
+    text = svg(name, shape="monogram", ground="dark", bands=groups, framing=(vb, (size, size)))
+    if rounded:
+        ground = (f'<rect x="{_num(vb[0])}" y="{_num(vb[1])}" width="{_num(vb[2])}" height="{_num(vb[3])}" '
+                  f'fill="{GROUND}"/>')
+        assert ground in text
+        text = text.replace(ground, ground.replace(' fill=', f' rx="{_num(vb[2] * TILE_RX)}" fill='))
+    return text, cap_px, groups
+
+
+def footer_groups():
+    return mono_tile("site-foot", FOOT_PX, (1, 2, 3), rounded=True, shown=False)[2]
+
+
+def footer_mark():
+    """The footer's AC monogram, inline so the page's CSS can pick its band
+    group by density: favicon.svg as an image cannot (an SVG image is not
+    told the screen's resolution), so the footer showed it solid on every
+    screen. At 44px its A has a 17px cap: no stripe fits at 1x, five bands of
+    two rows fit at 2x, of three at 3x."""
+    text = mono_tile("site-foot", FOOT_PX, (1, 2, 3), rounded=True, shown=False)[0]
+    lines = text.splitlines()
+    lines[0] = lines[0].replace(' role="img" aria-label="Almuhallab Code">',
+                                ' class="logo" aria-hidden="true" focusable="false">')
+    assert 'class="logo"' in lines[0], lines[0]
+    lines = [x for x in lines if "<!-- Almuhallab Code, the English logo" not in x and "JetBrains Mono (SIL OFL)" not in x]
+    return "\n".join("          " + x for x in lines)
 
 
 def favicon():

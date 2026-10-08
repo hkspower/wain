@@ -5,7 +5,7 @@ Static checks, then a real browser exercising every page: arithmetic, generated
 artefacts, auth, hostile input, storage tampering, offline, and layout.
 Run:  python3 design/test_suite.py
 """
-import http.server, socketserver, threading, functools, time, json, re, pathlib, sys
+import http.server, socketserver, threading, functools, time, json, math, re, pathlib, sys
 import ast
 import subprocess
 import yaml
@@ -675,10 +675,28 @@ def identity_checks():
     check(S, "the masthead flies the outlined wordmark, named for a screen reader",
           bool(mast) and 'class="logo" role="img"' in mast.group(1)
           and 'aria-label="المهلب كود · Almuhallab Code"' in mast.group(1) and "<text" not in mast.group(1))
-    check(S, "the masthead's stripes are a whole pixel: three even bands, not the kit's twenty",
-          bool(mast) and len(re.findall(r'<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+"/>', mast.group(1))) == 3)
-    check(S, "the footer and its made-in line carry the AC monogram",
-          'src="favicon.svg"' in home.split("<footer>")[1])
+    # The stripe is drawn for the screen (owner's «use higher logo quality»,
+    # 2026-10-08): one band group per cap in device rows ("k72"), every band
+    # two whole rows or more and every edge on a row, so each density gets
+    # the finest stripe it can paint crisply. Three bands of 2.31px were 2
+    # rows here and 3 there at 1x, and the same three on a 3x phone.
+    vby = re.search(r'viewBox="[-\d.]+ ([-\d.]+) ', mast.group(1)) if mast else None
+    rows_ok, caps = [], []
+    for cls, d in (re.findall(r'<path class="(k[\d k]+)"[^>]*d="([^"]+)"', mast.group(1)) if mast and vby else []):
+        for name in cls.split():
+            caps.append(int(name[1:]))
+            k = int(name[1:]) / -float(vby.group(1))
+            for y, hh in re.findall(r"M[-\d.]+ ([-\d.]+)h[-\d.]+v([-\d.]+)", d):
+                rows, off = float(hh) * k, (float(y) - float(vby.group(1))) * k
+                rows_ok.append(abs(rows - round(rows)) < 0.05 and round(rows) >= 2 and abs(off - round(off)) < 0.05)
+    check(S, "the masthead's stripes are drawn in device rows: a group per cap, every band two whole rows or more",
+          len(caps) >= 9 and rows_ok and all(rows_ok), f"{len(caps)} groups {sorted(caps)}")
+    css = re.search(r"/\* logo-en:css .*?/\* /logo-en:css \*/", home, re.S)
+    check(S, "and the page shows each state's group from the generated block, the size beside it",
+          bool(css) and all(f".k{c} " in css.group(0) for c in caps) and "min-resolution: 3dppx" in css.group(0))
+    foot = home.split("<footer>")[1]
+    check(S, "the footer carries the AC monogram inline (its stripe picked by density) and the made-in line the favicon",
+          "<!-- logo-en:footer" in foot and 'id="site-foot-letters-0"' in foot and 'src="favicon.svg"' in foot)
     check(S, "the retired boum is gone from every page's markup",
           all("#i-ship" not in (ROOT / q).read_text() for q in PAGES))
     # The pixel boum (2026-09-28) stays in the sprite as the source the film
@@ -814,6 +832,7 @@ def browser_checks():
         totals_alignment_checks(br)
         mobile_checks(br)
         fit_checks(br)
+        logo_hq_checks(br)
         alignment_checks(br)
         mobile_layout_checks(br)
         code_quality_checks(br)
@@ -1024,7 +1043,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "884", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "913", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1057,7 +1076,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "884", "0", "100%"], str(finals))
+          finals == ["4", "913", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3917,6 +3936,148 @@ ALIGN_JS = r"""() => {
  const dedup = a => [...new Map(a.map(x => [x.join('|'), x])).values()];
  return { icon: dedup(out.icon), row: dedup(out.row), edge: dedup(out.edge) };
 }"""
+
+# Every dark band drawn inside a logo element, as the page shows it: the
+# displayed children of its .bands group (a path of band subpaths, one per
+# group, or the older loose rects, taken together), with the device pixels
+# one outline unit covers. `capTop` is the cap line in the SVG's units.
+LOGO_BANDS = r"""([sel, capTop]) => {
+  const svg = document.querySelector(sel); if (!svg || !svg.viewBox) return null;
+  const vb = svg.viewBox.baseVal, r = svg.getBoundingClientRect();
+  const k = r.width / vb.width * devicePixelRatio;
+  const shown = el => { for (let e = el; e && e !== svg; e = e.parentElement)
+    if (getComputedStyle(e).display === 'none') return false; return true; };
+  const groups = [], loose = [];
+  svg.querySelectorAll('.bands > *').forEach(el => {
+    if (!shown(el)) return;
+    if (el.tagName === 'rect') { loose.push([+el.getAttribute('y'), +el.getAttribute('height')]); return; }
+    const b = [...el.getAttribute('d').matchAll(/M[-\d.]+ ([-\d.]+)h[-\d.]+v([-\d.]+)/g)].map(m => [+m[1], +m[2]]);
+    groups.push({cls: el.getAttribute('class'), bands: b});
+  });
+  if (loose.length) groups.push({cls: 'rect', bands: loose});
+  return {k, cap: -capTop * k, top: (capTop - vb.y) * k, groups: groups.map(g => ({cls: g.cls,
+    rows: g.bands.map(([y, h]) => [(y - capTop) * k, h * k])}))};
+}"""
+
+
+def stripe_runs(png_bytes, y0=0, y1=None, amber=(230, 169, 92), dark=(127, 93, 51)):
+    """The stripe as the screen drew it: each pixel row of a crop, from the
+    cap line y0 to the baseline y1 (below it the CODE rules fade through
+    the band's own colour), called amber or band by which of the two inks
+    most of its letter pixels are (antialiased edges, the glow and the
+    ground are neither, within 28 levels), and the runs of band rows
+    between the first and last amber row. Returns (band run lengths, amber
+    run lengths between them)."""
+    import io as _io
+    from PIL import Image as _I
+    im = _I.open(_io.BytesIO(png_bytes)).convert("RGB")
+    w, h = im.size
+    px = im.load()
+    y0, y1 = max(0, round(y0)), min(h, round(y1) if y1 is not None else h)
+    def near(p, c):
+        return sum((a - b) ** 2 for a, b in zip(p, c)) < 28 ** 2
+    kinds = []
+    for y in range(y0, y1):
+        na = nd = 0
+        for x in range(w):
+            p = px[x, y]
+            if near(p, amber): na += 1
+            elif near(p, dark): nd += 1
+        kinds.append("d" if nd >= 3 and nd > na else ("a" if na >= 3 else "-"))
+    s = "".join(kinds).strip("-")
+    bands = [len(m) for m in re.findall(r"d+", s)]
+    gaps = [len(m) for m in re.findall(r"(?<=d)a+(?=d)", s)]
+    return bands, gaps
+
+
+def logo_hq_checks(br):
+    """The logo at the quality the screen can show (owner's «use higher logo
+    quality», 2026-10-08). A stripe is crisp only when every band is a whole
+    number of device rows: the masthead drew three bands of 2.31 CSS px, so
+    at 1x each was 2 rows here and 3 there, at 2x 4 or 5, and a 3x phone got
+    the same three thick bands as a 1x monitor where the kit draws twenty.
+    Measured twice: from the geometry the page displays (which group, how
+    many rows each band spans) and from the pixels it paints."""
+    S = "logo"
+    states = (("top", 0), ("scrolled", 900))
+    for (w, h) in ((1440, 900), (390, 844), (844, 390)):
+        for dpr in (1, 2, 3):
+            mob = w < 900 or h < 500
+            c = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=dpr,
+                               is_mobile=mob, has_touch=mob)
+            pg = c.new_page()
+            pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(900)
+            geo_bad, pix_bad, counts = [], [], {}
+            for state, y in states:
+                pg.evaluate("(y) => window.scrollTo({top: y, behavior: 'instant'})", y)
+                pg.wait_for_function("(s) => document.documentElement.classList.contains('scrolled') === s",
+                                     arg=state == "scrolled")
+                pg.wait_for_timeout(450)
+                g = pg.evaluate(LOGO_BANDS, ["header .logo", -148.4])
+                if not g or len(g["groups"]) != 1:
+                    geo_bad.append(f"{state}: {len(g['groups']) if g else 0} band groups shown")
+                    continue
+                rows = g["groups"][0]["rows"]
+                counts[state] = len(rows)
+                off = [o for o, hh in rows if abs(o - round(o)) > 0.05]
+                thick = [hh for o, hh in rows if abs(hh - round(hh)) > 0.05 or round(hh) < 2]
+                uneven = len({round(hh) for o, hh in rows}) > 1
+                if abs(g["cap"] - round(g["cap"])) > 0.05:
+                    geo_bad.append(f"{state}: a {g['cap']:.2f}-row cap")
+                if off or thick or uneven:
+                    geo_bad.append(f"{state} {g['groups'][0]['cls']}: bands of "
+                                   f"{sorted({round(hh, 2) for _, hh in rows})} rows"
+                                   + (f", edges off the grid at {[round(o, 2) for o in off[:3]]}" if off else ""))
+                bands, gaps = stripe_runs(pg.locator("header .logo").screenshot(), g["top"], g["top"] + g["cap"])
+                if len(bands) != len(rows) or len(set(bands)) != 1 or min(bands, default=0) < 2 \
+                        or (gaps and max(gaps) - min(gaps) > 2):
+                    pix_bad.append(f"{state}: painted bands {bands}, gaps {gaps}, drawn {len(rows)}")
+            check(S, f"{w}x{h} at {dpr}x: every masthead band is two or more whole device rows, even, top and scrolled",
+                  not geo_bad, "; ".join(geo_bad))
+            check(S, f"{w}x{h} at {dpr}x: and the screen paints them so (equal runs of rows, as many as drawn)",
+                  not pix_bad, "; ".join(pix_bad))
+            if (w, dpr) == (1440, 3):
+                # more, finer bands where the screen can draw them: the
+                # banner's twenty are 2 rows at 3x only from a 145-row cap
+                check(S, "a 3x screen shows the masthead's fine stripe, not the 1x screen's three",
+                      counts.get("top", 0) >= 12 and counts.get("scrolled", 0) >= 6, str(counts))
+            if (w, h) in ((1440, 900), (390, 844)):
+                # the footer's AC monogram: striped where five bands of two
+                # rows fit its A, solid where they cannot (at 1x, a 17px cap)
+                pg.evaluate("document.querySelector('header').style.position = 'static';"
+                            "document.querySelector('footer .fbrand').scrollIntoView({block: 'center', behavior: 'instant'})")
+                pg.wait_for_timeout(300)
+                cap_top = -700
+                g = pg.evaluate(LOGO_BANDS, ["footer .fbrand .logo", cap_top])
+                shot = pg.locator("footer .fbrand .logo").screenshot()
+                bands, gaps = stripe_runs(shot, *((g["top"], g["top"] + g["cap"]) if g else (0, None)))
+                if dpr == 1:
+                    ok = bool(g) and not g["groups"] and not bands
+                    why = f"groups {[x['cls'] for x in g['groups']] if g else 'no inline mark'}, painted {bands}"
+                    check(S, f"{w}x{h} at 1x: the footer's monogram is solid where a band would be under two rows", ok, why)
+                else:
+                    rows = g["groups"][0]["rows"] if g and len(g["groups"]) == 1 else []
+                    ok = (len(rows) == 5 and all(abs(hh - round(hh)) < 0.05 and round(hh) >= 2 for _, hh in rows)
+                          and len(bands) == 5 and len(set(bands)) == 1 and bands[0] >= 2)
+                    check(S, f"{w}x{h} at {dpr}x: the footer's monogram keeps its five bands, whole rows",
+                          ok, f"drawn {[round(hh, 2) for _, hh in rows]}, painted {bands}"
+                              + ("" if g else " (the mark is an image: the page cannot pick its stripe)"))
+            c.close()
+
+    # The headroom an in-page link leaves under the bar is the TOP bar plus
+    # 24 (a jump from the top compacts the bar on the way). The logo's size
+    # sets the bar's height, so a bigger logo with the old margin landed the
+    # heading under the bar: re-derived from the bar it measures.
+    for (w, h) in ((1440, 900), (390, 844), (844, 390)):
+        c = br.new_context(viewport={"width": w, "height": h}, is_mobile=w < 900 or h < 500)
+        pg = c.new_page()
+        pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(900)
+        bar, margin = pg.evaluate("""() => [document.querySelector('header').getBoundingClientRect().height,
+          parseFloat(getComputedStyle(document.querySelector('section[id]')).scrollMarginTop)]""")
+        check(S, f"{w}x{h}: scroll-margin-top is the top bar plus 24, rounded up ({margin:.0f} for a {bar:.2f}px bar)",
+              margin == math.ceil(bar + 24), f"{margin} vs {math.ceil(bar + 24)}")
+        c.close()
+
 
 ALIGN_FIXTURE = """<!doctype html><html dir="rtl"><body><main>
 <div style="display:flex;align-items:center;flex-wrap:nowrap"><span style="height:20px;width:20px;display:block">a</span><span style="height:20px;width:20px;display:block;margin-top:8px">b</span></div>
