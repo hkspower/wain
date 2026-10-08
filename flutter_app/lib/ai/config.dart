@@ -116,8 +116,10 @@ abstract final class ChatCopy {
   static const connected = 'متصل';
   static const disconnected = 'انتهت المحادثة.';
   static const reconnect = 'ابدأ من جديد';
+  /// The calls are شوق's: it said «كلّمه بمكالمة», a call to him there is no
+  /// button for.
   static const toolUnavailable =
-      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.';
+      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّم شوق بمكالمة.';
   static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
 
   /// The server refused for something a retry this minute cannot change (out
@@ -151,6 +153,48 @@ abstract final class ChatCopy {
       'هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.';
   static const refineNone = 'ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.';
   static const where = 'مكانه على الخريطة تحت.';
+
+  /// What he says to a message that is not about places (8 October — the
+  /// web's `opener`, `askTail`, `social`, `askSubject`, `askArea`,
+  /// `elsewhere` and `areaNone`, the same words). Each of these was searched:
+  /// «السلام عليكم» → «جرّب قصر السلام», «مين أنت؟» → a bridge, «شكراً» and
+  /// «هلا» → «ما لقيت شي». None of them changes what the chat remembers.
+  static const openerSalam = 'وعليكم السلام!';
+  static const openerGreet = 'هلا والله!';
+  static const openerMorning = 'صباح النور!';
+  static const openerEvening = 'مساء النور!';
+  static const askTail =
+      'قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال — وأدوّر لك.';
+  static const socialHow = 'الحمد لله بخير!';
+  static const socialThanks = 'العفو! إذا تبي شي ثاني قول لي.';
+  static const socialAfia = 'الله يعافيك! إذا تبي شي ثاني قول لي.';
+  static const socialWho =
+      'أنا سالم من وين — أدوّر لك بين أماكن الكويت اللي عندنا: قهوة، بحر، مطاعم، وطلعات. قول لي وش تبي.';
+  static const socialNotShouq =
+      'لا، أنا سالم. شوق تكلّمك بمكالمة — زر الاتصال فوق.';
+  static const socialHelp =
+      'اكتب لي وش تبي — «قهوة هادية»، «عشا على البحر»، أو اسم منطقة — وأعطيك أماكن على الخريطة، وتقدر ترسلها للربع.';
+  static const socialBye = 'الله يسلمك! حيّاك أي وقت.';
+  static const socialOk =
+      'تمام! إذا تبي غيرها قول «غيره»، أو اسألني عن شي ثاني.';
+  static const socialOkFresh = 'تمام! قول لي وش تبي وأدوّر لك.';
+  static const socialNo = 'أوكي! إذا احتجت شي قول لي.';
+
+  /// A follow-up with nothing to follow («غيره» as the first thing said), and
+  /// «قريب مني» on a screen that never asks where you are.
+  static const askSubject =
+      'عن شنو؟ قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال.';
+  static const askArea =
+      'ما أعرف وين أنت — قول لي منطقتك، مثل «السالمية» أو «حولي»، وأدوّر لك فيها.';
+
+  /// A part of Kuwait the catalogue has nothing in: it used to be «ما لقيت
+  /// شي… جرّب… اسم منطقة», said to the name of a governorate.
+  static String elsewhere(String area) =>
+      'ما عندي أماكن ب$area للحين — جرّب «قهوة» أو «بحر» وأوريك اللي عندي.';
+
+  /// An area named after an answer, with none of that answer's places in it.
+  static String areaNone(String area) =>
+      'ما عندي منها شي ب$area — هذي اللي عندي قبل.';
   static const directions = 'الطريق';
   static const openPlace = 'صفحته';
   static const followLabel = 'تبي';

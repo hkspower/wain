@@ -39,7 +39,14 @@ class ChatPlaces extends ChatLine {
   final String query;
   final List<String> slugs;
   final List<String>? chips;
-  ChatPlaces(this.query, this.slugs, [this.chips]);
+
+  /// The answer these chips were offered under: a chip acts on IT, whatever
+  /// the chat remembers by the time it is tapped. They read the memory, and a
+  /// «شكراً» that found nothing had wiped it, so «وين بالضبط؟» under four
+  /// cafés was searched as words and answered with the Grand Mosque (the
+  /// web's finding, 8 October).
+  final ChatContext? context;
+  ChatPlaces(this.query, this.slugs, [this.chips, this.context]);
 }
 
 /// One place, picked («الثاني») or opened by the agent: its card and the

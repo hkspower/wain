@@ -42,7 +42,7 @@ writeFileSync(
     `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n` +
     // سالم's memory reads a short reply against the last answer, folding words
     // with this same search's `normalise` — so it is replayed with it too.
-    `export { readFollowUp, nextPlaces, followUpChips } from ${JSON.stringify(join(ROOT, "src/lib/salem-followup.ts"))};\n`
+    `export { readFollowUp, nextPlaces, followUpChips, withinAnswer, areaIndex } from ${JSON.stringify(join(ROOT, "src/lib/salem-followup.ts"))};\n`
 );
 const bundle = join(tmp, "entry.mjs");
 execSync(
@@ -174,6 +174,11 @@ const answerQueries = [
   "سائح أول مرة بالكويت", "جمعة الصبح", "سوق السمك", "وين أروح الحين", "وين نطلع", "زهقان", "ملل", "وين",
   // «داخلي» is a constraint in any month (3 October, سالم's chip).
   "قهوة داخلي", "مطعم داخلي", "مكان مكيف", "بحر داخلي", "قهوة مكيّفة رخيصة",
+  // The hour asked for (8 October): «فطور» was answered «روح بالليل».
+  "فطور", "وين أفطر", "ريوق", "وين أتغدى", "غدا", "عشا", "وين نتعشى", "الصبح", "سهرة الليلة", "فطور وعشا",
+  // What is said around a question, and friends with «my» on them.
+  "والله زهقان", "يلا وين نروح", "أبي قهوة لو سمحت", "قريب مني", "مع ربعي", "وين أروح مع خوياي",
+  "kahwa", "ba7ar", "mat3am",
 ];
 const clocks = [{ month: 0, hour: 14 }, { month: 7, hour: 14 }, { month: 7, hour: 21 }, { month: 0, hour: 8 }];
 const bySlug = new Map(S.places.map((p) => [p.slug, p]));
@@ -210,11 +215,26 @@ const followMessages = [
   "الثاني", "رقم ٣", "رقم 2", "الأول", "الأخير", "خلنا ناخذ الثالث", "رقم ٩",
   "وين بالضبط؟", "وينه", "الموقع", "وين", "طيب",
   "وين أتعشى", "أبي مطعم بحري بالسالمية الليلة", "سوق المباركية", "قهوة", "شكراً", "",
+  // What is said to a person (8 October): answered, never searched.
+  "السلام عليكم", "هلا", "هلا والله", "مرحبا", "صباح الخير", "مساء الخير", "شلونك", "شلونك اليوم؟",
+  "شكرا", "مشكور", "يعطيك العافية", "مين أنت؟", "شنو اسمك", "انت شوق؟", "شنو تقدر تسوي؟", "مع السلامة",
+  "باي", "تمام", "اوكي", "لا", "لا شكرا", "👍", "؟", "يا سالم", "والله",
+  // …and in front of a question, or behind one.
+  "السلام عليكم أبي قهوة", "هلا، وين أتعشى؟", "صباح الخير وين أفطر", "شكراً، وين الثاني؟",
+  "قهوة لو سمحت", "أرخص يا سالم", "مين أنت؟ أبي بحر", "لا أبي شي مو غالي", "يلا وين نروح", "وين نروح",
+  "والله زهقان",
+  // Where you are is not known; a position, a price, the best; two at once.
+  "قريب مني", "وين أقرب واحد", "الأقرب", "وين الثاني؟", "وين الأخير", "أحسن واحد", "كم سعره؟",
+  "كم سعر الأول؟", "غيره أرخص", "عطني غيرها للعيال",
+  // An area, after an answer.
+  "السالمية", "بالسالمية", "في حولي", "سالمية", "مدينة الكويت", "بالجهراء",
 ];
 const followBases = ["مطعم", "قهوة", "بحر", "عيال", "وين أتعشى", "مطعم رخيص", "سوق"];
 const followClocks = [{ month: 0, hour: 20 }, { month: 7, hour: 13 }];
+// The catalogue's areas, as the chat reads «السالمية» after an answer.
+const areas = S.areaIndex(S.places.map((p) => p.areaAr));
 const followups = {
-  noContext: followMessages.map((m) => ({ m, out: S.readFollowUp(m, null) })),
+  noContext: followMessages.map((m) => ({ m, out: S.readFollowUp(m, null, null, areas) })),
   contexts: [],
 };
 for (const q of followBases) {
@@ -223,9 +243,17 @@ for (const q of followBases) {
     const shown = ranked.slice(0, 8);
     const ctx = { query: q, ranked, seen: shown, shown };
     const shownPlaces = shown.map((s) => bySlug.get(s));
+    // What the chat shows for a narrowing: the last answer in that area, or
+    // the narrowed question's places that the last answer had found.
     const read = (m, active) => {
-      const out = S.readFollowUp(m, ctx, active);
-      return { m, active: active ?? null, out, refined: out.kind === "refine" ? chatRanked(out.query, clock) : null };
+      const out = S.readFollowUp(m, ctx, active, areas);
+      const refined =
+        out.kind !== "refine"
+          ? null
+          : out.area
+            ? ranked.filter((s) => bySlug.get(s).areaAr === out.area)
+            : S.withinAnswer(chatRanked(out.query, clock), ctx);
+      return { m, active: active ?? null, out, refined };
     };
     followups.contexts.push({
       q,
@@ -251,6 +279,11 @@ const fixture = {
   })),
   answers,
   followups,
+  // A part of Kuwait the catalogue has nothing in, named back as it was typed.
+  elsewhere: [
+    ...queries, "الجهراء", "بالجهراء", "للجهراء", "بسلوى", "كافيه في الفروانية", "صباح السالم", "بصباح السالم",
+    "مطعم بمبارك الكبير", "الأحمدي", "قهوة بالسالمية",
+  ].map((q) => ({ q, area: S.elsewhereNamed(q, index) })),
 };
 const fixtureOut = JSON.stringify(fixture, null, 1) + "\n";
 

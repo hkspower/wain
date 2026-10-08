@@ -17,6 +17,7 @@ import '../data/models.dart';
 import '../data/places.g.dart';
 import '../data/answer_order.dart' show AnswerClock, kuwaitClock;
 import '../data/salem_followup.dart';
+import '../data/search.dart' show elsewhereNamed;
 import '../data/voice_lines.dart';
 import '../map/wain_map.dart';
 import '../share/directions.dart';
@@ -367,8 +368,9 @@ class _SalemScreenState extends State<SalemScreen> {
     if (_submit(_input.text)) _input.clear();
   }
 
-  /// A message, typed or tapped (a chip, the handed-over question).
-  bool _submit(String raw) {
+  /// A message, typed or tapped (a chip, the handed-over question). [asked]:
+  /// the answer a chip was offered under — see [ChatPlaces.context].
+  bool _submit(String raw, [ChatContext? asked]) {
     final text = raw.trim();
     if (text.isEmpty || _status != ChatStatus.connected || _waiting) {
       return false;
@@ -376,7 +378,7 @@ class _SalemScreenState extends State<SalemScreen> {
     HapticFeedback.lightImpact();
     if (_free) {
       _add(ChatText('user', text));
-      _answerLocally(text);
+      _answerLocally(text, asked);
       return true;
     }
     _handle?.send(text);
@@ -385,24 +387,40 @@ class _SalemScreenState extends State<SalemScreen> {
     return true;
   }
 
+  /// The catalogue's areas, for «السالمية» after an answer.
+  static final Map<String, String> _areas = areaIndex(
+    kPlaces.map((p) => p.areaAr),
+  );
+
   /// The free chat's reply: our own search, our own words, no wire — read
   /// against the last answer first (data/salem_followup.dart), so «أرخص»,
   /// «غيره» and «وين بالضبط؟» answer what he just said instead of starting
-  /// again. The order is /search's (`answerOrder`) and the sentence is the
-  /// free call's (`answerParts`), so the free paths agree about the same
-  /// place. Mirrors SalemChat.tsx's `answerLocally`.
-  void _answerLocally(String q) {
+  /// again, and «هلا», «شكراً» or «مين أنت؟» are answered as what they are
+  /// rather than searched for. The order is /search's (`answerOrder`) and the
+  /// sentence is the free call's (`answerParts`), so the free paths agree
+  /// about the same place. Mirrors SalemChat.tsx's `answerLocally`.
+  void _answerLocally(String q, [ChatContext? asked]) {
     final clock = (widget.clock ?? kuwaitClock)();
-    final ctx = _ctx;
-    final intent = readFollowUp(q, ctx, _active);
+    final ctx = asked ?? _ctx;
+    final intent = readFollowUp(q, ctx, _active, _areas);
     final lines = <ChatLine>[];
     var parts = <SpeechPart>[];
+    final opener = intent.opener == null ? '' : '${_openerText(intent.opener!)} ';
 
     List<SpeechPart> placeParts(Place p) => [
       SpeechPart(key: 'try-${p.slug}', text: placeTryLine(p)),
       ...whenParts(p, clock.month, clock.hour),
     ];
     String said(List<SpeechPart> ps) => ps.map((p) => p.text).join(' ');
+    // A line of his own that is not an answer: said, and nothing remembered.
+    void say(String text) {
+      lines.add(ChatText('agent', text));
+      parts = [SpeechPart(text: text)];
+    }
+
+    // His sentence for an answer, with the greeting it was asked with.
+    void answerLine(List<SpeechPart> spoken, [String intro = '']) =>
+        lines.add(ChatText('agent', '$opener$intro${said(spoken)}'));
 
     // Cards for a list of slugs, and the memory and the chips that go with
     // them.
@@ -425,6 +443,7 @@ class _SalemScreenState extends State<SalemScreen> {
           query,
           slugs,
           followUpChips(next, shown, month: clock.month, hour: clock.hour),
+          next,
         ),
       );
       _ctx = next;
@@ -432,13 +451,30 @@ class _SalemScreenState extends State<SalemScreen> {
       parts = spoken;
     }
 
-    if (ctx != null && intent.kind == FollowUpKind.more) {
+    // An answer's own sentence, for its first eight places.
+    List<SpeechPart> spokenFor(List<String> slugs) {
+      final found = [for (final s in slugs) ?getPlace(s)];
+      return answerParts(
+        found.map((p) => p.nameAr).toList(),
+        found,
+        month: clock.month,
+        hour: clock.hour,
+      );
+    }
+
+    if (intent.kind == FollowUpKind.social) {
+      say(_socialLine(intent.act!, intent.opener, (ctx?.shown ?? []).isNotEmpty));
+    } else if (intent.kind == FollowUpKind.ask) {
+      say(
+        '$opener${intent.what == AskWhat.area ? ChatCopy.askArea : ChatCopy.askSubject}',
+      );
+    } else if (ctx != null && intent.kind == FollowUpKind.more) {
       final slugs = nextPlaces(ctx);
       if (slugs.isEmpty) {
-        lines.add(ChatText('agent', ChatCopy.moreNone));
+        say('$opener${ChatCopy.moreNone}');
       } else {
         final spoken = placeParts(getPlace(slugs.first)!);
-        lines.add(ChatText('agent', '${ChatCopy.moreIntro} ${said(spoken)}'));
+        answerLine(spoken, '${ChatCopy.moreIntro} ');
         showList(ctx.query, slugs, ctx.ranked, [...ctx.seen, ...slugs], spoken);
       }
     } else if (intent.kind == FollowUpKind.pick ||
@@ -447,33 +483,64 @@ class _SalemScreenState extends State<SalemScreen> {
       _active = place.slug;
       if (intent.kind == FollowUpKind.pick) {
         parts = placeParts(place);
-        lines.add(ChatText('agent', said(parts)));
+        answerLine(parts);
         lines.add(ChatPlace(place.slug));
       } else {
         parts = [SpeechPart(text: '${place.nameAr} — ${place.areaAr}.')];
-        lines.add(ChatText('agent', '${parts.first.text} ${ChatCopy.where}'));
+        lines.add(
+          ChatText('agent', '$opener${parts.first.text} ${ChatCopy.where}'),
+        );
         lines.add(ChatWhere(place.slug));
+      }
+    } else if (ctx != null &&
+        intent.kind == FollowUpKind.refine &&
+        intent.area != null) {
+      // The last answer, in that area — its own places, in its own order.
+      final area = intent.area!;
+      final there = [
+        for (final s in ctx.ranked)
+          if (getPlace(s)?.areaAr == area) s,
+      ];
+      if (there.isEmpty) {
+        say('$opener${ChatCopy.areaNone(area)}');
+      } else {
+        final slugs = there.take(8).toList();
+        final spoken = spokenFor(slugs);
+        answerLine(spoken);
+        showList(intent.query!, slugs, there, slugs, spoken);
+      }
+    } else if (ctx != null && intent.kind == FollowUpKind.refine) {
+      // Narrowed, and kept to what the last answer found: «قهوة» then «أرخص»
+      // is cheaper coffee, not everything cheap.
+      final within = withinAnswer(
+        chatRanked(intent.query!, searchIndex, kPlaces, clock),
+        ctx,
+      );
+      if (within.isEmpty) {
+        // Nothing fits both — say so, and leave the last answer where it is
+        // rather than replacing it with the dead end.
+        say('$opener${ChatCopy.refineNone}');
+      } else {
+        final slugs = within.take(8).toList();
+        final spoken = spokenFor(slugs);
+        answerLine(spoken);
+        showList(intent.query!, slugs, within, slugs, spoken);
       }
     } else {
       final query = intent.query ?? q;
       final ranked = chatRanked(query, searchIndex, kPlaces, clock);
-      if (ranked.isEmpty && intent.kind == FollowUpKind.refine && ctx != null) {
-        // Nothing fits both — say so, and leave the last answer where it is
-        // rather than replacing it with the dead end.
-        lines.add(ChatText('agent', ChatCopy.refineNone));
-      } else if (ranked.isEmpty) {
-        lines.add(ChatText('agent', ChatCopy.freeEmpty));
+      if (ranked.isEmpty) {
+        // A part of Kuwait with nothing in it says so by name; anything else
+        // is a word that matched nothing.
+        final where = elsewhereNamed(query, searchIndex);
+        say(
+          '$opener${where != null ? ChatCopy.elsewhere(where) : ChatCopy.freeEmpty}',
+        );
         _ctx = null;
       } else {
         final slugs = ranked.take(8).toList();
-        final found = [for (final s in slugs) ?getPlace(s)];
-        final spoken = answerParts(
-          found.map((p) => p.nameAr).toList(),
-          found,
-          month: clock.month,
-          hour: clock.hour,
-        );
-        lines.add(ChatText('agent', said(spoken)));
+        final spoken = spokenFor(slugs);
+        answerLine(spoken);
         showList(query, slugs, ranked, slugs, spoken);
       }
     }
@@ -700,6 +767,36 @@ class _SalemScreenState extends State<SalemScreen> {
   }
 }
 
+/// The greeting answered in front of an answer: «وعليكم السلام!».
+String _openerText(SocialAct greeting) => switch (greeting) {
+  SocialAct.salam => ChatCopy.openerSalam,
+  SocialAct.morning => ChatCopy.openerMorning,
+  SocialAct.evening => ChatCopy.openerEvening,
+  _ => ChatCopy.openerGreet,
+};
+
+/// What he says to a message that is not about places (the web's
+/// `socialLine`). [remembers]: there is an answer on screen for «تمام» to
+/// point back at.
+String _socialLine(SocialAct act, SocialAct? opener, bool remembers) {
+  final open = opener == null ? '' : '${_openerText(opener)} ';
+  return switch (act) {
+    SocialAct.salam ||
+    SocialAct.greet ||
+    SocialAct.morning ||
+    SocialAct.evening => '${_openerText(act)} ${ChatCopy.askTail}',
+    SocialAct.how => '$open${ChatCopy.socialHow} ${ChatCopy.askTail}',
+    SocialAct.ok => remembers ? ChatCopy.socialOk : ChatCopy.socialOkFresh,
+    SocialAct.thanks => '$open${ChatCopy.socialThanks}',
+    SocialAct.afia => '$open${ChatCopy.socialAfia}',
+    SocialAct.who => '$open${ChatCopy.socialWho}',
+    SocialAct.notShouq => '$open${ChatCopy.socialNotShouq}',
+    SocialAct.help => '$open${ChatCopy.socialHelp}',
+    SocialAct.bye => '$open${ChatCopy.socialBye}',
+    SocialAct.no => '$open${ChatCopy.socialNo}',
+  };
+}
+
 extension on _SalemScreenState {
   /// One transcript line, drawn.
   Widget _line(ChatLine line, int i, bool connected) {
@@ -716,7 +813,7 @@ extension on _SalemScreenState {
           places: places,
           query: p.query,
           chips: latest && !_waiting && connected ? p.chips : null,
-          onChip: _submit,
+          onChip: (c) => _submit(c, p.context),
           onActive: latest ? (slug) => _active = slug : null,
         );
       case ChatPlace p:

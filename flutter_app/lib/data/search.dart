@@ -418,6 +418,44 @@ bool isTopicless(String query) {
       raw.any(_goingOut.contains);
 }
 
+final RegExp _gluedAl = RegExp('^[بوفك]ال');
+
+/// The part of Kuwait a question names that this catalogue has nothing in —
+/// «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
+/// particle glued to its front; or null (`elsewhereNamed` on the web). The
+/// search answers such a question with nothing; this is what lets سالم say
+/// why, instead of «ما لقيت شي… جرّب اسم منطقة» to a governorate's name.
+String? elsewhereNamed(String query, SearchIndex index) {
+  bool elsewhere(String t) =>
+      kElsewhereInKuwait.contains(t) && !index._postings.containsKey(t);
+  final units = [
+    for (final u in query.split(RegExp(r'\s+')))
+      if (u.replaceAll(_nonWord, '').isNotEmpty) u.replaceAll(_nonWord, ''),
+  ];
+  for (final unit in units) {
+    final tokens = tokenize(unit);
+    if (tokens.isEmpty) continue;
+    final t = tokens.first;
+    if (elsewhere(t)) return unit;
+    if (_declitic(t).any(elsewhere)) {
+      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
+      if (_gluedAl.hasMatch(unit)) return unit.substring(1);
+      if (unit.startsWith('لل')) return 'ال${unit.substring(2)}';
+      return unit.substring(1);
+    }
+  }
+  for (var i = 0; i + 1 < units.length; i++) {
+    final a = tokenize(units[i]);
+    final b = tokenize(units[i + 1]);
+    if (a.isEmpty || b.isEmpty) continue;
+    // Adjacent, and only as the query is read: «صباح السالم».
+    if (_phrasePairs.any((p) => p[0] == a.last && p[1] == b.first)) {
+      return '${units[i]} ${units[i + 1]}';
+    }
+  }
+  return null;
+}
+
 /// Filler out, «حار» rewritten, negations turned into an opposite and a set
 /// of documents to push down, glued words split. Null when the question names
 /// a place the catalogue has nothing in.

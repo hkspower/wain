@@ -287,22 +287,110 @@ void main() {
     await t.pumpWidget(const SizedBox());
   });
 
-  testWidgets('«أرخص» narrows the last question rather than starting again', (
-    t,
-  ) async {
+  testWidgets('«أرخص» narrows the last question rather than starting again, '
+      'and keeps to the places that answer found', (t) async {
     await _pump(t);
     await _ask(t, 'مطعم');
     await _ask(t, 'أرخص');
-    expect(
-      _railSlugs(t, _newest('chat-places')),
-      chatRanked(
+    final had = chatRanked('مطعم', searchIndex, kPlaces, _january8pm).toSet();
+    final narrowed = [
+      for (final s in chatRanked(
         'مطعم أرخص',
         searchIndex,
         kPlaces,
         _january8pm,
-      ).take(8).toList(),
-    );
+      ))
+        if (had.contains(s)) s,
+    ];
+    expect(_railSlugs(t, _newest('chat-places')), narrowed.take(8).toList());
     await t.pumpWidget(const SizedBox());
+  });
+
+  group('what is said to a person is answered, not searched (8 October)', () {
+    String said(WidgetTester t) => t
+        .widgetList<Text>(find.byType(Text))
+        .map((w) => w.data ?? '')
+        .where((s) => s.isNotEmpty)
+        .join('\n');
+
+    testWidgets('a greeting, a question about him, and two asks', (t) async {
+      await _pump(t);
+      await _ask(t, 'السلام عليكم');
+      expect(
+        find.text('${ChatCopy.openerSalam} ${ChatCopy.askTail}'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('chat-places')), findsNothing);
+      await _ask(t, 'مين أنت؟');
+      expect(find.text(ChatCopy.socialWho), findsOneWidget);
+      await _ask(t, 'غيره');
+      expect(find.text(ChatCopy.askSubject), findsOneWidget);
+      await _ask(t, 'قريب مني');
+      expect(find.text(ChatCopy.askArea), findsOneWidget);
+      await _ask(t, 'الجهراء');
+      expect(find.text(ChatCopy.elsewhere('الجهراء')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chat-places')), findsNothing);
+      expect(said(t), isNot(contains('ما لقيت')));
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a greeting in front of a question is answered, then the '
+        'question', (t) async {
+      await _pump(t);
+      await _ask(t, 'السلام عليكم أبي قهوة');
+      expect(
+        find.textContaining(RegExp('^${ChatCopy.openerSalam} جرّب')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('chat-places')), findsOneWidget);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('«شكراً» keeps the answer; its chip acts on it even after a '
+        'question that found nothing', (t) async {
+      await _pump(t);
+      await _ask(t, 'قهوة');
+      final coffee = chatRanked('قهوة', searchIndex, kPlaces, _january8pm);
+      await _ask(t, 'شكراً');
+      expect(find.text(ChatCopy.socialThanks), findsOneWidget);
+      String whereSlug() => t
+          .widget<WainMap>(
+            find.descendant(
+              of: _newest('chat-where'),
+              matching: find.byType(WainMap),
+            ),
+          )
+          .places
+          .single
+          .slug;
+      await t.tap(find.byKey(const ValueKey('chat-chip-وين بالضبط؟')));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(whereSlug(), coffee.first, reason: 'the first café');
+      await _ask(t, 'وين الثاني؟');
+      expect(whereSlug(), coffee[1], reason: 'the second café');
+      await _ask(t, 'زززققق');
+      expect(find.text(ChatCopy.freeEmpty), findsOneWidget);
+      // Counted, not only read: the newest map block is the one «وين
+      // الثاني؟» drew until a new one comes, so reading it alone passed with
+      // the chip asking the (now empty) memory instead of its own answer.
+      final before = find.byKey(const ValueKey('chat-where')).evaluate().length;
+      await t.tap(find.byKey(const ValueKey('chat-chip-وين بالضبط؟')));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(
+        find.byKey(const ValueKey('chat-where')).evaluate().length,
+        before + 1,
+        reason: 'the chip after the miss draws a map of its own',
+      );
+      expect(find.text(ChatCopy.askSubject), findsNothing);
+      expect(
+        coffee.take(8),
+        contains(whereSlug()),
+        reason: 'the coffee answer\'s chip, after the miss',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
   });
 
   testWidgets('«الثاني» picks the second card: its card and the share panel', (

@@ -3,8 +3,10 @@
 /// reasons; the order is: the search's score, then the Kuwaiti summer by day
 /// (open-air 0.6, half-covered 0.9, unless the question chose the outdoors or
 /// the evening) — or, when the question asks to be inside («داخلي», «مكيّف»),
-/// open-air 0.3 and half-covered 0.7 in any month instead — then «رخيص» (0.5
-/// above the cheapest band), then the Google
+/// open-air 0.3 and half-covered 0.7 in any month instead — then the hour
+/// asked for («فطور», «وين أتغدى», «عشا»: 0.6 for a place whose best time is
+/// another part of the day), then «رخيص» (0.5 above the cheapest band), then
+/// the Google
 /// figures within a band of near-equal matches (`reorderByReviews`). A
 /// question with no topic gets the hour's default pick.
 ///
@@ -67,6 +69,46 @@ final Set<String> _asksCheap = _fold(const [
   'ببلاش',
 ]);
 final Set<String> _dear = _fold(const ['غالي', 'غاليه', 'مكلف']);
+
+/// The part of the day a question names, by a meal or by the hour.
+enum DayPart { morning, midday, evening }
+
+/// «فطور», «وين أتغدى», «عشا» — and «الصبح», «الظهر», «الليلة». The web's
+/// `ASKS_PART`, in the same order.
+final List<(DayPart, Set<String>)> _asksPart = [
+  (
+    DayPart.morning,
+    _fold(const [
+      'فطور', 'فطار', 'افطر', 'نفطر', 'ريوق', 'صبح', 'صباحا', 'بدري', //
+      'breakfast', 'morning',
+    ]),
+  ),
+  (
+    DayPart.midday,
+    _fold(const [
+      'غدا', 'غداء', 'اتغدى', 'نتغدى', 'تغدى', 'ظهر', 'lunch', 'noon', //
+    ]),
+  ),
+  (
+    DayPart.evening,
+    _fold(const [
+      'عشا', 'عشاء', 'اتعشى', 'نتعشى', 'تعشى', 'ليل', 'ليله', 'سهره', 'سهر', //
+      'اسهر', 'نسهر', 'مغرب', 'غروب', 'dinner', 'night', 'evening', 'tonight',
+    ]),
+  ),
+];
+
+/// How a place's best time names each part — what the asked part is held to.
+final Map<DayPart, RegExp> _partOfBest = {
+  DayPart.morning: RegExp('(الصبح|بدري|الفطور|الريوق)'),
+  DayPart.midday: RegExp('(الظهر|الغدا)'),
+  DayPart.evening: RegExp('(المغرب|الغروب|الليل|ليالي|العشا|السهر)'),
+};
+
+/// How much a place whose best time names ANOTHER part keeps of its score.
+const double kOtherPart = 0.6;
+
+typedef Asks = ({bool outside, bool cheap, bool inside, DayPart? part});
 final Set<String> _negators = _fold(kNegators);
 final RegExp _clitic = RegExp('^(عال|بال|وال|لل|[وبلفع])');
 
@@ -82,7 +124,7 @@ List<String> _readings(String t) {
 }
 
 /// What the question asks of the answer, beyond what it matches.
-({bool outside, bool cheap, bool inside}) readAsks(String query) {
+Asks readAsks(String query) {
   final raw = tokenize(query);
   bool has(Set<String> set) => raw.any((t) => _readings(t).any(set.contains));
   var notDear = false;
@@ -91,20 +133,34 @@ List<String> _readings(String t) {
       notDear = true;
     }
   }
+  // One part, or none: «فطور وعشا» names no single hour to hold places to.
+  final parts = [
+    for (final (part, set) in _asksPart)
+      if (has(set)) part,
+  ];
   return (
     outside: has(_asksOutside),
     cheap: has(_asksCheap) || notDear,
     inside: has(_asksInside),
+    part: parts.length == 1 ? parts.first : null,
   );
 }
 
-/// The multiplier the season and the price put on one place's score.
-double answerFactor(
-  Place p,
-  ({bool outside, bool cheap, bool inside}) asks,
-  AnswerClock clock,
-) {
+/// The multiplier the season, the price and the hour asked for put on one
+/// place's score.
+double answerFactor(Place p, Asks asks, AnswerClock clock) {
   var f = 1.0;
+  // A place whose best time is another part of the day than the one asked
+  // for; one that names no part, or names this one too, is left alone.
+  final part = asks.part;
+  if (part != null && p.bestTimeAr.isNotEmpty) {
+    final best = p.bestTimeAr;
+    final fits = _partOfBest[part]!.hasMatch(best);
+    final other = DayPart.values.any(
+      (k) => k != part && _partOfBest[k]!.hasMatch(best),
+    );
+    if (!fits && other) f *= kOtherPart;
+  }
   if (asks.inside) {
     // Said, not inferred: no season and no `summerOk` changes it.
     if (p.setting == 'outdoor') {
