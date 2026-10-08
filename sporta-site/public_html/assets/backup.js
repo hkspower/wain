@@ -2,16 +2,17 @@
  * A full backup of the shop's own data, downloadable and restorable from the
  * WEBSITE's /backends Settings screen.
  *
- * WHAT THIS IS. Everything a restore needs — the catalogue, orders, customers,
- * blocked numbers, reviews, discounts, hero slides, the nine "rules" settings,
- * admin accounts and the taught assistant answers — as ONE downloadable JSON
- * file the owner can store anywhere and hand back later. See admin.php's own
- * comment above `const BACKUP_TABLES` for exactly what is in it, what is
- * deliberately never in it (config.php, KNET/CBK credentials, Wallet certs —
- * none of them database rows, so this route cannot leak them even by
- * accident — and the second-factor secret, which is dropped on export so a
- * copy of this file can never be used to sign in as the owner), and why a
- * restore REPLACES rather than merges.
+ * WHAT THIS IS. Everything a restore needs — the catalogue with its colours,
+ * search text, size charts and stock history; slides, banner and pictures;
+ * settings and taught answers; customers, orders, returns and notes; the books;
+ * suppliers and purchase orders; admin accounts — as ONE downloadable JSON file
+ * the owner can store anywhere and hand back later. See BACKUP_TABLES and
+ * BACKUP_EXCLUDED in api/backup-build.php for exactly what is in it and what is
+ * deliberately never in it (sessions, passkeys and one-time codes, logs,
+ * outboxes; the second-factor secret, dropped so a copy of this file can never
+ * be used to sign in as the owner; and the payment secrets in Payments, nulled
+ * and kept as they are on restore), and admin.php for why a restore REPLACES
+ * the tables a file names rather than merging — and keeps the ones it does not.
  *
  * WHY AN OVERLAY. Same reasoning as rules.js and crm.js beside it: the
  * website's /backends is a prebuilt bundle with no source in this repository,
@@ -76,13 +77,23 @@
     })
   }
 
+  // The server's list (BACKUP_TABLES in api/backup-build.php) decides what is in a backup; these are
+  // only the words shown for each. A table missing here is shown by its own name, never dropped.
   var TABLE_NAMES = {
     brands: 'Brands', products: 'Products', product_variants: 'Sizes in stock',
-    product_images: 'Product photos', customers: 'Customer accounts',
-    orders: 'Orders', order_items: 'Order items', reviews: 'Reviews',
-    discounts: 'Discount codes', blocked_customers: 'Blocked numbers',
-    hero_slides: 'Hero slides', settings: 'Site settings & rules',
-    admin_users: 'Admin accounts', assistant_qa: 'Taught assistant answers',
+    product_images: 'Product photos', product_attrs: 'Colours and fits',
+    product_seo: 'Product search text', size_charts: 'Size charts', stock_log: 'Stock history',
+    hero_slides: 'Hero slides', home_banner: 'Home banner', category_art: 'Category pictures',
+    site_images: 'Logo and site pictures', seo_image: 'Share picture',
+    settings: 'Site settings & rules', assistant_qa: 'Taught assistant answers',
+    customers: 'Customer accounts', customer_notes: 'Customer notes',
+    blocked_customers: 'Blocked numbers', orders: 'Orders', order_items: 'Order items',
+    reviews: 'Reviews', discounts: 'Discount codes',
+    return_requests: 'Returns', return_request_items: 'Returned items',
+    accounts: 'Chart of accounts', journal_entries: 'Journal entries', journal_lines: 'Journal lines',
+    suppliers: 'Suppliers', variant_supplier: 'Supplier per size',
+    purchase_orders: 'Purchase orders', purchase_order_items: 'Purchase order lines',
+    admin_users: 'Admin accounts',
   }
 
   function explain(err) {
@@ -93,6 +104,12 @@
       return 'That preview is out of date. Choose the file again to preview it fresh, then restore.'
     }
     if (s === 'restore_failed') return 'The restore failed partway through and was rolled back. Nothing was changed.'
+    if (s === 'backup_newer_format') return 'That backup was made by a newer version of the shop. Update the shop first, then restore it.'
+    if (s.indexOf('table_not_on_this_shop:') === 0) {
+      return 'That backup holds ' + (TABLE_NAMES[s.slice(23)] || s.slice(23))
+        + ', which this shop’s database does not have yet. Run that migration first, then restore. Nothing was changed.'
+    }
+    if (s === 'backup_failed') return 'The backup could not be made. Nothing was downloaded.'
     if (s === 'not_signed_in') return 'Your session has ended. Sign in again.'
     return s
   }
@@ -216,6 +233,12 @@
     var row = el('div', 'bkp-row')
     row.appendChild(el('span', 'bkp-row-name', TABLE_NAMES[table] || table))
     var counts = el('span', 'bkp-row-counts')
+    // Not in this file (an older backup, or a table it did not have): a restore keeps it as it is.
+    if (d.in_file === false || d.kept) {
+      counts.appendChild(el('span', 'bkp-same', d.on_this_shop === false ? 'not on this shop' : 'not in this file — kept'))
+      row.appendChild(counts)
+      return row
+    }
     if (d.added) counts.appendChild(el('span', 'bkp-add', '+' + d.added))
     if (d.changed) counts.appendChild(el('span', 'bkp-chg', '~' + d.changed))
     if (d.removed) counts.appendChild(el('span', 'bkp-rem', '−' + d.removed))
@@ -269,6 +292,12 @@
     if (state.preview) {
       var box = el('div', 'bkp-preview')
       box.appendChild(el('p', 'bkp-preview-h', 'What restoring this file would do:'))
+      if (state.preview.missing_here && state.preview.missing_here.length) {
+        box.appendChild(el('p', 'bkp-warn',
+          'This file holds data this shop’s database has no table for yet — '
+          + state.preview.missing_here.map(function (t) { return TABLE_NAMES[t] || t }).join(', ')
+          + '. Restoring will be refused until that migration has run.'))
+      }
       if (state.preview.unknown_tables && state.preview.unknown_tables.length) {
         box.appendChild(el('p', 'bkp-warn',
           'This file also names tables this shop’s schema does not have — '
@@ -309,7 +338,7 @@
       doneBox.appendChild(el('p', 'bkp-preview-h', 'Restored:'))
       var rt = state.result.tables || {}
       Object.keys(rt).forEach(function (t) {
-        doneBox.appendChild(diffRow(t, { added: rt[t].written, changed: 0, removed: 0 }))
+        doneBox.appendChild(diffRow(t, rt[t].kept ? { kept: true } : { added: rt[t].written, changed: 0, removed: 0 }))
       })
       card.appendChild(doneBox)
     }

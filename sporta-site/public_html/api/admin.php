@@ -1382,6 +1382,55 @@ if ($r === 'photo_guess' && $method === 'POST') {
     store_out($out);
 }
 
+// ------------------------------------------------- what a product rename carries
+//
+// EVERY PLACE A PRODUCT'S SLUG IS STORED AS A REFERENCE TO IT. product_save's
+// rename moves each of these in the same transaction as the product row. The
+// list used to be three tables long and its comment said that was "the list
+// information_schema gives for a `slug` column"; by 2026-10-08 it was seven,
+// and renaming a product left its colour and fits, its search title and
+// description, its stock history, and the home banner pointing at a product
+// that no longer existed — all still in the database, none reachable.
+//
+// It is a LIST AND NOT A QUERY on purpose. "Every column called slug" also
+// matches brands.slug, and a future pages.slug or categories.slug: renaming a
+// product called `outlet` would then rewrite a category. So the list says which
+// columns hold a PRODUCT's slug, and scripts/product-rename-test.mjs reads every
+// slug-shaped column a fully-migrated install has (the generated manifest in
+// scripts/live/live-schema-full.php) and fails on any that is in neither this
+// list nor its own short list of slugs that are not a product's (brands.slug,
+// products.slug, products.brand_slug). A table added tomorrow is a decision,
+// not a silent gap.
+//
+// The third value: true where the table holds ONE row per product (its primary
+// key is the slug), so a row already sitting under the new slug — which no
+// product owns, or the products update would already have failed on its unique
+// key — is a leftover the product's own row replaces. Without it, the move would
+// fail on the duplicate key and the owner would be told the slug is taken.
+//
+// What does NOT move, and why:
+//   - The SKU. variant_save keeps a size's existing SKU, and it is printed on
+//     the shelf labels; variant_supplier, purchase_order_items and stock_log.sku
+//     find a size by it, so they stay attached because it does not change.
+//   - order_items, reviews, returns: they reference the product by id, or the
+//     order line by id, and record what was sold as it was sold.
+//   - Links the owner typed (menu, footer, hero buttons, the banner's own link):
+//     a URL is a URL; the product's page moves to its new address and an old
+//     link to it breaks, the same as a link from Google or a social post.
+//   - A shopper's wishlist and bag, which live in their browser.
+function admin_product_slug_refs(): array {
+    return [
+        // table              column     one row per product
+        ['product_images',   'slug',    false],   // the photo shoot
+        ['product_variants', 'slug',    false],   // sizes and stock
+        ['size_advice_log',  'slug',    false],   // what the assistant recommended, kept for review
+        ['stock_log',        'slug',    false],   // the stock history the Inventory screen shows
+        ['product_attrs',    'slug',    true],    // colour and fits
+        ['product_seo',      'slug',    true],    // its own search title and description
+        ['home_banner',      'product', false],   // the home page banner's product
+    ];
+}
+
 if ($r === 'product_save' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);
@@ -1450,8 +1499,9 @@ if ($r === 'product_save' && $method === 'POST') {
 
     // WHAT THE SLUG USED TO BE, read before the update overwrites it.
     //
-    // product_images, product_variants and size_advice_log are all keyed on
-    // products.slug rather than products.id — a deliberate choice, so the
+    // product_images, product_variants and every other table in
+    // admin_product_slug_refs() are keyed on products.slug rather than
+    // products.id — a deliberate choice, so the
     // catalogue survives being re-imported from the supplier's export. The
     // cost of it is that there is no foreign key and no ON UPDATE CASCADE to
     // carry those rows when the slug changes, and this route lets the owner
@@ -1483,6 +1533,37 @@ if ($r === 'product_save' && $method === 'POST') {
     // a garment whose stock is somewhere else entirely, and the shop would
     // keep selling it. Either the whole rename lands or none of it does.
     $renaming = $oldSlug !== null;
+
+    // WHICH OF THE REFERENCES THIS SHOP HAS. Several are optional tables, each
+    // created by its own migration (product_attrs, product_seo, stock_log,
+    // home_banner), and an `update` of a table that does not exist throws and
+    // rolls the whole rename back — so a shop that has not run one migration
+    // could not rename any product at all. Asked of information_schema rather
+    // than caught per statement: a failed statement inside a transaction would
+    // otherwise be skipped while the others committed, which is the half-moved
+    // rename this transaction exists to prevent.
+    //
+    // And the column's width. product_seo.slug and home_banner.product are
+    // varchar(64) where products.slug is varchar(80); a longer slug would be
+    // refused mid-move (or, without strict mode, silently cut short and so
+    // detached). Refused here, by name, before anything is written.
+    $slugRefs = [];
+    if ($renaming) {
+        $widths = [];
+        foreach ($db->query("select table_name as t, column_name as c, character_maximum_length as n
+                               from information_schema.columns where table_schema = database()")->fetchAll() as $x) {
+            $widths[$x['t'] . '.' . $x['c']] = (int)$x['n'];
+        }
+        foreach (admin_product_slug_refs() as [$t, $c, $one]) {
+            if (!isset($widths["$t.$c"])) continue;   // not created on this shop: nothing to carry
+            if ($widths["$t.$c"] > 0 && strlen($slug) > $widths["$t.$c"]) {
+                $has = $db->prepare("select 1 from `$t` where `$c` = ? limit 1");
+                $has->execute([$oldSlug]);
+                if ($has->fetchColumn()) store_fail('slug_too_long');
+            }
+            $slugRefs[] = [$t, $c, $one];
+        }
+    }
     if ($renaming) $db->beginTransaction();
     try {
         if ($id > 0) {
@@ -1508,21 +1589,31 @@ if ($r === 'product_save' && $method === 'POST') {
             $id = (int)$db->lastInsertId();
         }
 
-        // Carry the children. Every table keyed on products.slug is listed
-        // here, and the list is the one information_schema gives for a `slug`
-        // column: product_images (the shoot), product_variants (sizes and
-        // stock), size_advice_log (what the assistant recommended for this
-        // garment, kept so the advice can be reviewed).
-        //
-        // brands.slug and products.brand_slug are NOT here — they point the
-        // other way, at a brand, and a product's own rename does not touch
-        // them. order_items are not here either: they reference a product by
-        // id and record the name as it was sold, which is what an invoice from
-        // last year has to keep saying.
+        // Carry the children: every reference admin_product_slug_refs() names
+        // that this shop has (see that function for what is NOT moved, and why).
         if ($renaming) {
-            foreach (['product_images', 'product_variants', 'size_advice_log'] as $child) {
-                $db->prepare("update $child set slug = ? where slug = ?")
-                   ->execute([$slug, $oldSlug]);
+            foreach ($slugRefs as [$t, $c, $one]) {
+                if ($one) {
+                    $has = $db->prepare("select 1 from `$t` where `$c` = ? limit 1");
+                    $has->execute([$oldSlug]);
+                    if (!$has->fetchColumn()) continue;
+                    // `and c <> old`: the columns are utf8mb4_unicode_ci, so on a case-only
+                    // rename (a hand-edited `ABC` saved back through store_slug as `abc`) the
+                    // new slug MATCHES the product's own row, and a bare delete removed it.
+                    $db->prepare("delete from `$t` where `$c` = ? and `$c` <> ?")->execute([$slug, $oldSlug]);
+                }
+                $db->prepare("update `$t` set `$c` = ? where `$c` = ?")->execute([$slug, $oldSlug]);
+            }
+            // The sitemap's excluded products are a list of slugs inside the
+            // `crawl` settings row (/backends -> SEO). Left alone, a renamed
+            // product the owner had kept out of Google would quietly go back in.
+            $cr = $db->prepare("select value from settings where name = 'crawl' for update");
+            $cr->execute();
+            $crawl = json_decode((string)($cr->fetchColumn() ?: ''), true);
+            if (is_array($crawl) && is_array($crawl['exclude'] ?? null) && in_array($oldSlug, $crawl['exclude'], true)) {
+                $crawl['exclude'] = array_values(array_unique(array_map(
+                    fn ($x) => $x === $oldSlug ? $slug : $x, $crawl['exclude'])));
+                store_setting_save($db, 'crawl', $crawl);
             }
             $db->commit();
         }
@@ -5263,88 +5354,46 @@ if ($r === 'audit_log') {
 // ------------------------------------------------------------------ backup
 //
 // A full, owner-downloadable backup of the shop's OWN data: everything a
-// restore needs to bring the catalogue, the orders and the settings back to
-// a known point, and nothing a restore must never touch.
+// restore needs to bring the catalogue, the orders, the books and the settings
+// back to a known point, and nothing a restore must never touch.
 //
-// WHAT IS IN IT, and why each table: brands, products, product_variants and
-// product_images are the catalogue; orders and order_items are the sales
-// history; customers, blocked_customers, reviews and discounts are who buys
-// and how; hero_slides and settings are the shop's own front-page copy and
-// its nine "rules" numbers; admin_users is who may run the shop; assistant_qa
-// is the taught answers the سبورتا AI gives.
+// WHAT IS IN IT: BACKUP_TABLES in api/backup-build.php — every table the owner
+// or a customer writes. WHAT IS NEVER IN IT: BACKUP_EXCLUDED beside it, each
+// with its reason (logs, sessions and credentials, outboxes, counters, caches),
+// plus two redactions inside rows that do travel — the admins' second factor,
+// and the payment secrets the Payments screen keeps in settings.knet. That list
+// was fourteen tables until 2026-10-08 and the accounting ledger was named
+// here as "operational and transient"; it is the shop's books, and a restore
+// that put the orders back and left the books alone would leave the two
+// disagreeing about every sale since. config.php and the Wallet certificate
+// are files, and this route reads only the database.
 //
-// WHAT IS NEVER IN IT, and why:
-//   - config.php, the KNET/CBK credentials and the Wallet certs are not
-//     database rows. This route never reads a file, only the database, so
-//     they cannot leak through it even by accident.
 //   - admin_users.totp_secret is dropped, and totp_enabled is forced to 0 in
 //     the EXPORTED copy only (never written back to the live row here). A
-//     second-factor secret sitting in a file the owner can hand to anyone,
-//     or that could reach a public repository the way this project's own
-//     KNET manuals nearly did, is a secret that no longer proves anything.
-//     The cost, said plainly in the preview: RESTORING admin_users switches
-//     every account's 2FA off, because the secret that would be needed to
-//     keep it on cannot travel in the file. The owner re-enrols afterwards.
-//   - rate_limit, the accounting ledger (accounts/journal_entries/
-//     journal_lines), size_advice_log and the *_outbox tables are
-//     operational and transient, not data the owner edits in a panel, and
-//     restoring stale rate-limit counters or a half-sent outbox is not what
-//     "restore my shop" means.
+//     second-factor secret sitting in a file the owner can hand to anyone is a
+//     secret that no longer proves anything. The cost, said plainly in the
+//     preview: RESTORING admin_users switches every account's 2FA off. The
+//     owner re-enrols afterwards.
 //
 // REPLACE, NOT MERGE — read this before changing either half of it. Import
-// WHOLESALE REPLACES every table this feature covers: an older backup will
-// remove a product added since it was taken, revert a price edited since,
-// and put back a phone number that was later unblocked. That is the decision,
-// made on purpose and stated here so the code and the words agree: a
-// "restore" that quietly keeps newer live edits is not a restore, it is an
-// upsert wearing a restore's name — and CLAUDE.md already carries the cost of
-// that exact confusion, at length, in the section on IMPORT-THIS-ONE.sql
-// silently overwriting live prices while its own header said it did not. So:
-// the panel's own copy says REPLACE, the preview lists what would be
-// REMOVED as prominently as what would be ADDED or CHANGED, and the import
-// code does a delete-then-insert inside one transaction rather than an
-// `on duplicate key update` that could leave a live-only row untouched and
-// call that a restore.
-require_once __DIR__ . '/backup-build.php';   // BACKUP_TABLES, backup_pk, backup_columns, backup_table_rows, backup_build
-
-// Diffs a backup's rows against the live table by primary key, WITHOUT
-// writing anything — this function only ever runs selects. `added` and
-// `changed` are what most previews show; `removed` is the one a diff most
-// often leaves out, and it is the dangerous half of a REPLACE: every row the
-// live shop has that this backup does not is a row that import will delete.
-function backup_diff_table(PDO $db, string $table, array $backupRows): array {
-    $pk = backup_pk($table);
-    $live = [];
-    $stmt = $db->query('select * from `' . $table . '`');
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $live[(string) $row[$pk]] = $row;
-    }
-    $backup = [];
-    foreach ($backupRows as $row) {
-        if (!is_array($row) || !array_key_exists($pk, $row)) continue;
-        $backup[(string) $row[$pk]] = $row;
-    }
-
-    $added = 0; $changed = 0; $unchanged = 0;
-    foreach ($backup as $key => $row) {
-        if (!array_key_exists($key, $live)) { $added++; continue; }
-        // Compare the JSON forms rather than the arrays directly: values that
-        // came back from PDO as strings (ids, decimals) must compare equal to
-        // the same values decoded from the backup's JSON, and json_encode is
-        // the one place both sides already agree on a canonical string form.
-        if (json_encode($live[$key]) !== json_encode($row)) { $changed++; } else { $unchanged++; }
-    }
-    $removed = count(array_diff_key($live, $backup));
-
-    return [
-        'live_count'    => count($live),
-        'backup_count'  => count($backup),
-        'added'         => $added,
-        'changed'       => $changed,
-        'unchanged'     => $unchanged,
-        'removed'       => $removed,
-    ];
-}
+// WHOLESALE REPLACES every table the FILE NAMES: an older backup will remove a
+// product added since it was taken, revert a price edited since, and put back
+// a phone number that was later unblocked. That is the decision, made on
+// purpose and stated here so the code and the words agree: a "restore" that
+// quietly keeps newer live edits is not a restore, it is an upsert wearing a
+// restore's name — and CLAUDE.md already carries the cost of that exact
+// confusion in the section on IMPORT-THIS-ONE.sql silently overwriting live
+// prices while its own header said it did not. So: the panel's copy says
+// REPLACE, the preview lists what would be REMOVED as prominently as what
+// would be ADDED or CHANGED, and the restore is delete-then-insert inside one
+// transaction rather than an `on duplicate key update`.
+//
+// A TABLE THE FILE DOES NOT NAME IS KEPT, and that is not merge: it is a table
+// that backup does not contain. It matters the day the list grows — the
+// eighteen tables added on 2026-10-08 are in no backup written before then,
+// and treating "absent" as "empty" would have deleted the books, the suppliers
+// and the purchase orders on the first restore of an older file.
+require_once __DIR__ . '/backup-build.php';   // BACKUP_TABLES, backup_write, backup_diff, backup_restore
 
 // The token that ties backup_import to a backup_preview of the SAME payload.
 // It is not a secret and needs none: session_write_close() has already run
@@ -5360,7 +5409,35 @@ function backup_token(array $data): string {
 }
 
 if ($r === 'backup_export' && $method === 'GET') {
-    store_out(backup_build($db));
+    // Written to a temporary stream first (memory up to 1 MB, then a temp file
+    // PHP removes at exit), so a failure halfway is a clean 500 rather than a
+    // 200 carrying half a backup — and nothing ever holds the shop's photographs
+    // as one PHP array, which is what store_out(backup_build()) did.
+    $tmp = fopen('php://temp/maxmemory:1048576', 'w+b');
+    try {
+        backup_write($db, function (string $s) use ($tmp) {
+            if (fwrite($tmp, $s) !== strlen($s)) throw new RuntimeException('backup temp write failed');
+        });
+    } catch (Throwable $e) {
+        error_log('backup_export: ' . $e->getMessage());
+        store_fail('backup_failed', 500);
+    }
+    rewind($tmp);
+    // The audit hook at the top of this file buffers every response to see
+    // whether a route answered. A GET is never logged, and buffering a whole
+    // backup there would put it in memory twice more — so the plain buffers
+    // are flushed (nothing is in them yet) and one empty buffer is reopened
+    // for the hook to find at shutdown. A compression handler, if the host
+    // runs one, is left where it is — which is also why no Content-Length is
+    // sent: under compression it would be the wrong number.
+    while (ob_get_level() > 0 && (ob_get_status()['name'] ?? '') === 'default output handler') ob_end_flush();
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    fpassthru($tmp);
+    fclose($tmp);
+    ob_start();
+    exit;
 }
 
 if ($r === 'backup_preview' && $method === 'POST') {
@@ -5369,22 +5446,24 @@ if ($r === 'backup_preview' && $method === 'POST') {
     $tables = is_array($data['tables'] ?? null) ? $data['tables'] : null;
     if ($data === null || $tables === null) store_fail('bad_backup_file');
 
-    $diff = [];
-    $knownTables = [];
-    foreach (BACKUP_TABLES as $t) {
-        $rows = is_array($tables[$t] ?? null) ? $tables[$t] : [];
-        $diff[$t] = backup_diff_table($db, $t, $rows);
-        $knownTables[] = $t;
-    }
-    // A table the FILE names that this shop's schema does not — an older or
-    // newer format, or a hand-edited file — is reported rather than silently
-    // ignored, because a silently-ignored table is a table the owner thinks
-    // was restored and was not.
-    $unknownTables = array_values(array_diff(array_keys($tables), $knownTables));
+    $d = backup_diff($db, $data);
+    // A table the FILE names that this shop's backup does not — an older or
+    // newer format, a hand-edited file, or a table deliberately left out — is
+    // reported rather than silently ignored, because a silently-ignored table
+    // is a table the owner thinks was restored and was not.
+    $unknownTables = array_values(array_diff(array_keys($tables), BACKUP_TABLES));
+    // Tables this backup does not contain at all: a restore KEEPS them as they
+    // are. Named, so "kept" is something the owner reads rather than infers.
+    $notInFile = [];
+    foreach ($d['tables'] as $t => $x) if (!$x['in_file'] && $x['on_this_shop']) $notInFile[] = $t;
 
     store_out([
-        'tables'          => $diff,
+        'tables'          => $d['tables'],
         'unknown_tables'  => $unknownTables,
+        'not_in_file'     => $notInFile,
+        // In the file with rows, but not on this shop: a migration to run
+        // first. backup_import refuses while this is non-empty.
+        'missing_here'    => $d['missing_here'],
         'format'          => $data['format'] ?? null,
         'exported_at'     => $data['exported_at'] ?? null,
         // Echoed back so the panel can show it, and required back verbatim by
@@ -5407,53 +5486,10 @@ if ($r === 'backup_import' && $method === 'POST') {
     if (($b['confirm'] ?? false) !== true) store_fail('confirm_required');
     if ((string) ($b['token'] ?? '') !== backup_token($data)) store_fail('stale_or_missing_preview');
 
-    // EVERY ROW'S KEYS, CHECKED AGAINST THE REAL SCHEMA, BEFORE A SINGLE
-    // TABLE IS TOUCHED. array_keys($row) becomes the identifier list of the
-    // insert built below — an unescaped position, unlike the values, which
-    // are always bound through a placeholder. A backup produced by this same
-    // file's own backup_export can only ever carry real column names; a file
-    // that carries anything else is not that export, whatever it claims to
-    // be, and refusing it here means the destructive half below never runs
-    // against a row this check has not already cleared.
-    foreach (BACKUP_TABLES as $t) {
-        $allowed = array_flip(backup_columns($db, $t));
-        foreach ((is_array($tables[$t] ?? null) ? $tables[$t] : []) as $row) {
-            if (!is_array($row)) continue;
-            foreach (array_keys($row) as $col) {
-                if (!isset($allowed[$col])) store_fail('bad_backup_file');
-            }
-        }
-    }
-
-    $result = [];
-    $db->beginTransaction();
-    try {
-        $db->exec('set foreign_key_checks = 0');
-        foreach (BACKUP_TABLES as $t) {
-            $rows = is_array($tables[$t] ?? null) ? $tables[$t] : [];
-            $pk = backup_pk($t);
-
-            $before = (int) $db->query('select count(*) from `' . $t . '`')->fetchColumn();
-            $db->exec('delete from `' . $t . '`');
-
-            $written = 0;
-            foreach ($rows as $row) {
-                if (!is_array($row) || !array_key_exists($pk, $row) || $row[$pk] === null || $row[$pk] === '') continue;
-                $cols = array_keys($row);
-                $sql = 'insert into `' . $t . '` (`' . implode('`, `', $cols) . '`) values ('
-                     . implode(', ', array_fill(0, count($cols), '?')) . ')';
-                $db->prepare($sql)->execute(array_values($row));
-                $written++;
-            }
-            $result[$t] = ['before' => $before, 'written' => $written];
-        }
-        $db->exec('set foreign_key_checks = 1');
-        $db->commit();
-    } catch (Throwable $e) {
-        $db->rollBack();
-        try { $db->exec('set foreign_key_checks = 1'); } catch (Throwable $ignored) {}
-        store_fail('restore_failed', 500);
-    }
+    // Every row of the file is checked against the real schema before any
+    // table is touched (backup_restore_check), then the tables it names are
+    // replaced in one transaction.
+    $result = backup_restore($db, $data);
 
     store_out(['ok' => true, 'restored_at' => gmdate('c'), 'tables' => $result]);
 }

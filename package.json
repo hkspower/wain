@@ -264,7 +264,14 @@
     "test:cart-motion": "node scripts/cart-motion-test.mjs",
     "test:touch-feedback": "node scripts/touch-feedback-test.mjs",
     "test:alignment": "node scripts/alignment-test.mjs",
-    "test:knet-modes": "node scripts/knet-modes-test.mjs"
+    "test:knet-modes": "node scripts/knet-modes-test.mjs",
+    "make:schema-manifest": "node scripts/make-schema-manifest.mjs",
+    "test:schema-manifest": "node scripts/make-schema-manifest.mjs --check",
+    "test:schema-usage": "node scripts/schema-usage-audit.mjs",
+    "test:schema-usage-scripts": "SCAN_ROOT=$PWD/scripts node scripts/schema-usage-audit.mjs",
+    "test:live-db-audit": "node scripts/live-db-audit-test.mjs",
+    "test:backup-tables": "node scripts/backup-tables-test.mjs",
+    "test:product-rename": "node scripts/product-rename-test.mjs"
   },
   "private": true
 }

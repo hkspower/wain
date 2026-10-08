@@ -1,17 +1,194 @@
 <?php
-// READ-ONLY. Every table.column a FRESH install of the current IMPORT-THIS-ONE.sql has (424, taken
-// 2026-10-03 from a sandbox rebuilt from scratch), compared with the live database's information_schema.
-// Answers "is any migration still to run?" for the whole schema, where live-schema-completeness.php
-// checks seven tables. Prints no data and no credential.
+/**
+ * READ-ONLY. Is any migration still to run on the LIVE database? Compares information_schema with
+ * every table, column (and type) and index a fully-migrated install has.
+ *
+ *   wget -nv -O r.php https://raw.githubusercontent.com/hkspower/wain/<40-char-sha>/scripts/live/live-schema-full.php && php r.php
+ *
+ * THE MANIFEST BELOW IS GENERATED — `node scripts/make-schema-manifest.mjs` imports
+ * database-sql/IMPORT-THIS-ONE.sql and then every api/*.mysql.sql into a scratch database and
+ * writes what it finds; `--check` fails when this file has fallen behind. It used to be a list
+ * typed in on 2026-10-03 (424 columns), and within four days nine tables had been added that it
+ * could not see — so a live database missing all nine would have reported `missing=0`.
+ *
+ * One line per section, each printed as soon as it is measured:
+ *   SCHEMA   the server, the totals
+ *   TABLES   tables the live database lacks, each with the migrate-*.php that creates it
+ *            (`no-migrator` when nothing in scripts/publish/ does — then the install is the only way)
+ *   COLUMNS  columns missing from tables that DO exist, with the migrator that adds each, if any
+ *   TYPES    columns whose type differs (MySQL-vs-MariaDB spelling normalised away; enum lists are not)
+ *   INDEXES  index names missing from tables that exist
+ *   EXTRA    tables on live that no install creates — names only
+ *   VERDICT  complete, or the migrators to run
+ * Prints no data value and no credential: names and column types only. Writes nothing.
+ */
 declare(strict_types=1);
-$live = '/home/u130124229/domains/sporta.com.kw/public_html/api/store.php';
-require is_file($live) ? $live : __DIR__ . '/../../sporta-site/public_html/api/store.php';
-$want = explode(' ', trim('accounts.id accounts.code accounts.name_en accounts.name_ar accounts.type accounts.normal_side accounts.is_system accounts.active accounts.created_at admin_audit_log.id admin_audit_log.admin_id admin_audit_log.admin_email admin_audit_log.route admin_audit_log.status_code admin_audit_log.summary admin_audit_log.created_at admin_devices.id admin_devices.admin_id admin_devices.token_hash admin_devices.pass_hash admin_devices.label admin_devices.failed admin_devices.created_at admin_devices.last_used_at admin_devices.expires_at admin_ip_geo.ip admin_ip_geo.country admin_ip_geo.country_name admin_ip_geo.looked_up_at admin_known_ips.admin_id admin_known_ips.ip admin_known_ips.first_seen admin_known_ips.last_seen admin_login_log.id admin_login_log.at admin_login_log.admin_id admin_login_log.email admin_login_log.method admin_login_log.result admin_login_log.ip admin_login_log.country admin_login_log.country_name admin_login_log.new_ip admin_login_log.agent admin_password_resets.admin_id admin_password_resets.code_hash admin_password_resets.attempts admin_password_resets.created_at admin_password_resets.expires_at admin_users.id admin_users.email admin_users.password_hash admin_users.failed_attempts admin_users.locked_until admin_users.last_login_at admin_users.totp_secret admin_users.totp_enabled admin_users.totp_last_step admin_users.phone admin_users.must_change_password admin_users.created_at admin_users.email_otp_enabled admin_users.email_otp_hash admin_users.email_otp_expires admin_users.email_otp_sent_at admin_users.email_otp_attempts assistant_outbox.id assistant_outbox.intent assistant_outbox.lang assistant_outbox.message assistant_outbox.reply assistant_outbox.created_at assistant_outbox.sent_at assistant_outbox.attempts assistant_outbox.last_error assistant_outbox.handled_at assistant_qa.id assistant_qa.q_ar assistant_qa.q_en assistant_qa.a_ar assistant_qa.a_en assistant_qa.active assistant_qa.hits assistant_qa.last_hit_at assistant_qa.created_at assistant_qa.updated_at blocked_customers.id blocked_customers.phone blocked_customers.scope blocked_customers.reason blocked_customers.blocked_by blocked_customers.created_at brands.id brands.slug brands.name_en brands.name_ar brands.logo brands.active brands.sort brands.created_at brands.updated_at category_art.tile category_art.variant category_art.fmt category_art.bytes category_art.etag category_art.updated_at customers.id customers.email customers.phone customers.name customers.password_hash customers.verified_at customers.created_at customers.last_seen_at customer_mail_outbox.id customer_mail_outbox.order_id customer_mail_outbox.kind customer_mail_outbox.to_email customer_mail_outbox.lang customer_mail_outbox.created_at customer_mail_outbox.sent_at customer_mail_outbox.attempts customer_mail_outbox.last_error customer_notes.phone customer_notes.note customer_notes.tags customer_notes.updated_by customer_notes.updated_at discounts.id discounts.kind discounts.code discounts.label discounts.type discounts.value discounts.min_order discounts.category discounts.starts_at discounts.ends_at discounts.usage_limit discounts.used_count discounts.active discounts.created_at discounts.updated_at fulfilment_outbox.id fulfilment_outbox.order_id fulfilment_outbox.kind fulfilment_outbox.payload fulfilment_outbox.created_at fulfilment_outbox.sent_at fulfilment_outbox.attempts fulfilment_outbox.last_error fulfilment_outbox.new_once hero_slides.id hero_slides.sort hero_slides.active hero_slides.title_en hero_slides.title_ar hero_slides.subtitle_en hero_slides.subtitle_ar hero_slides.cta_label_en hero_slides.cta_label_ar hero_slides.cta_href hero_slides.image hero_slides.image_mobile hero_slides.image_mobile_hash hero_slides.image_mobile_w hero_slides.image_mobile_h hero_slides.image_hash hero_slides.image_w hero_slides.image_h hero_slides.focal_x hero_slides.focal_y hero_slides.created_at hero_slides.updated_at home_banner.id home_banner.enabled home_banner.product home_banner.kicker_en home_banner.kicker_ar home_banner.title_en home_banner.title_ar home_banner.button_en home_banner.button_ar home_banner.href home_banner.image home_banner.image_type home_banner.image_w home_banner.image_h home_banner.etag home_banner.updated_at journal_entries.id journal_entries.entry_date journal_entries.memo journal_entries.source journal_entries.source_ref journal_entries.kind journal_entries.reverses_id journal_entries.reversed_by_id journal_entries.created_by journal_entries.created_at journal_lines.id journal_lines.entry_id journal_lines.account_id journal_lines.debit journal_lines.credit journal_lines.memo orders.id orders.track_id orders.amount orders.subtotal orders.discount_amount orders.delivery_fee orders.discount_code orders.discount_label orders.payment_status orders.payment_method orders.fulfilment_status orders.cbk_status orders.pay_attempt orders.cbk_message orders.cbk_paymentid orders.cbk_transaction orders.cbk_authcode orders.cbk_reference orders.cbk_receipt orders.cbk_paytype orders.customer_name orders.customer_phone orders.customer_email orders.customer_governorate orders.customer_area orders.customer_block orders.customer_street orders.customer_building orders.customer_floor orders.customer_flat orders.customer_note orders.customer_lang orders.utm_source orders.utm_medium orders.utm_campaign orders.referrer_host orders.paid_at orders.fulfilled_at orders.created_at orders.stock_claimed orders.stock_released orders.customer_id order_items.id order_items.order_id order_items.product_id order_items.name_en order_items.name_ar order_items.qty order_items.unit_price order_items.size order_items.fit products.id products.slug products.name_en products.name_ar products.desc_en products.desc_ar products.price products.sale_price products.sale_starts_at products.sale_ends_at products.category products.brand_slug products.image products.images products.active products.no_exchange products.created_at products.featured products.featured_sort product_attrs.slug product_attrs.colour product_attrs.fits product_attrs.updated_at product_images.id product_images.slug product_images.sort product_images.image product_images.image_hash product_images.image_w product_images.image_h product_images.created_at product_image_thumbs.image_id product_image_thumbs.w product_image_thumbs.type product_image_thumbs.bytes product_seo.slug product_seo.title_en product_seo.title_ar product_seo.desc_en product_seo.desc_ar product_seo.updated_at product_variants.sku product_variants.slug product_variants.size product_variants.stock product_variants.cost_aed push_outbox.id push_outbox.order_id push_outbox.kind push_outbox.title push_outbox.body push_outbox.url push_outbox.created_at push_outbox.sent_at push_outbox.attempts push_outbox.last_error push_subscriptions.id push_subscriptions.endpoint push_subscriptions.endpoint_hash push_subscriptions.p256dh push_subscriptions.auth push_subscriptions.label push_subscriptions.created_at push_subscriptions.last_ok_at push_subscriptions.last_error rate_limit.bucket_key rate_limit.window_start rate_limit.hits return_requests.id return_requests.ref return_requests.order_id return_requests.kind return_requests.status return_requests.reason return_requests.lang return_requests.phone return_requests.staff_note return_requests.created_at return_requests.decided_at return_request_items.id return_request_items.request_id return_request_items.order_item_id return_request_items.qty return_request_items.want_size reviews.id reviews.order_id reviews.rating reviews.comment reviews.lang reviews.reward_code reviews.published reviews.created_at seo_image.id seo_image.image seo_image.image_type seo_image.image_w seo_image.image_h seo_image.etag seo_image.updated_at settings.name settings.value settings.updated_at size_advice_log.id size_advice_log.created_at size_advice_log.slug size_advice_log.lang size_advice_log.height_cm size_advice_log.weight_kg size_advice_log.chest_cm size_advice_log.waist_cm size_advice_log.hip_cm size_advice_log.usual_size size_advice_log.prefers size_advice_log.size size_advice_log.fit size_advice_log.confidence size_advice_log.outcome size_charts.id size_charts.chart size_charts.size size_charts.chest_min size_charts.chest_max size_charts.waist_min size_charts.waist_max size_charts.hip_min size_charts.hip_max size_charts.length_cm size_charts.is_default size_charts.sort stock_log.id stock_log.at stock_log.sku stock_log.slug stock_log.size stock_log.delta stock_log.stock_after stock_log.reason stock_log.actor stock_log.ref wallet_passes.id wallet_passes.kind wallet_passes.serial wallet_passes.phone wallet_passes.name wallet_passes.points_at_issue wallet_passes.issued_at wallet_passes.updated_at wallet_passes.device_id wallet_passes.push_token wallet_passes.auth_token wallet_registrations.device_id wallet_registrations.serial wallet_registrations.push_token wallet_registrations.created_at whatsapp_outbox.id whatsapp_outbox.order_id whatsapp_outbox.kind whatsapp_outbox.to_e164 whatsapp_outbox.template whatsapp_outbox.lang whatsapp_outbox.payload whatsapp_outbox.created_at whatsapp_outbox.sent_at whatsapp_outbox.attempts whatsapp_outbox.last_error whatsapp_outbox.wa_message_id '));
+
+function line(string $s): void { echo $s, "\n"; @ob_flush(); @flush(); }
+
+// The SAME normalisation as norm() in scripts/make-schema-manifest.mjs — change both or neither.
+function norm(string $t): string {
+    $t = strtolower(trim($t));
+    $t = (string) preg_replace('/\b(tinyint|smallint|mediumint|int|bigint)\(\d+\)/', '$1', $t);
+    $t = (string) preg_replace('/\s+zerofill\b/', '', $t);
+    return $t === 'json' ? 'longtext' : trim($t);
+}
+function lst(array $items, int $max = 25): string {
+    $n = count($items);
+    return implode(' ', array_slice($items, 0, $max)) . ($n > $max ? ' +' . ($n - $max) . 'more' : '');
+}
+function clip(string $s, int $n = 60): string { return strlen($s) > $n ? substr($s, 0, $n - 1) . '~' : $s; }
+// A connection error can name the database user; nothing else this script prints can.
+function safe(Throwable $e): string {
+    $msg = (string) preg_replace("/'[^']*'@'[^']*'/", "'?'@'?'", $e->getMessage());
+    return get_class($e) . ':' . clip(str_replace(["\n", "\r"], ' ', $msg), 160);
+}
+
+// >>> SCHEMA MANIFEST — generated by scripts/make-schema-manifest.mjs; do not edit by hand.
+// 55 tables, 499 columns, 129 indexes: sporta-site/database-sql/IMPORT-THIS-ONE.sql + 40 api/*.mysql.sql.
+$MANIFEST_JSON = <<<'JSON'
+{"tables":{
+"accounts":{"cols":{"active":"tinyint","code":"varchar(10)","created_at":"timestamp","id":"int unsigned","is_system":"tinyint","name_ar":"varchar(80)","name_en":"varchar(80)","normal_side":"varchar(6)","type":"varchar(10)"},"idx":["PRIMARY","code"]},
+"admin_audit_log":{"cols":{"admin_email":"varchar(120)","admin_id":"int unsigned","created_at":"timestamp","id":"int unsigned","route":"varchar(64)","status_code":"smallint unsigned","summary":"text"},"idx":["PRIMARY","idx_audit_created"]},
+"admin_devices":{"cols":{"admin_id":"int unsigned","created_at":"timestamp","expires_at":"datetime","failed":"tinyint unsigned","id":"int unsigned","label":"varchar(80)","last_used_at":"timestamp","pass_hash":"varchar(255)","token_hash":"char(64)"},"idx":["PRIMARY","idx_admin_devices_admin","uq_admin_devices_token"]},
+"admin_ip_geo":{"cols":{"country":"varchar(2)","country_name":"varchar(80)","ip":"varchar(45)","looked_up_at":"timestamp"},"idx":["PRIMARY"]},
+"admin_known_ips":{"cols":{"admin_id":"int unsigned","first_seen":"timestamp","ip":"varchar(45)","last_seen":"timestamp"},"idx":["PRIMARY"]},
+"admin_login_log":{"cols":{"admin_id":"int unsigned","agent":"varchar(160)","at":"timestamp","country":"varchar(2)","country_name":"varchar(80)","email":"varchar(190)","id":"bigint unsigned","ip":"varchar(45)","method":"varchar(16)","new_ip":"tinyint","result":"varchar(40)"},"idx":["PRIMARY","idx_login_log_at","idx_login_log_ip"]},
+"admin_passkeys":{"cols":{"admin_id":"int unsigned","alg":"int","created_at":"timestamp","credential_id":"varbinary(400)","id":"int unsigned","label":"varchar(60)","last_used_at":"timestamp","public_key":"blob","sign_count":"bigint unsigned","transports":"varchar(80)"},"idx":["PRIMARY","idx_passkeys_admin","uq_passkey_cred"]},
+"admin_password_resets":{"cols":{"admin_id":"int unsigned","attempts":"tinyint unsigned","code_hash":"varchar(255)","created_at":"timestamp","expires_at":"datetime"},"idx":["PRIMARY"]},
+"admin_sessions":{"cols":{"admin_id":"int unsigned","agent":"varchar(200)","created_at":"timestamp","id":"int unsigned","ip":"varchar(45)","last_seen":"timestamp","method":"varchar(16)","revoked_at":"timestamp","sid_hash":"char(64)"},"idx":["PRIMARY","idx_sessions_admin","sid_hash"]},
+"admin_users":{"cols":{"created_at":"timestamp","email":"varchar(120)","email_otp_attempts":"int","email_otp_enabled":"tinyint","email_otp_expires":"timestamp","email_otp_hash":"char(64)","email_otp_sent_at":"timestamp","failed_attempts":"int","id":"int unsigned","last_login_at":"timestamp","locked_until":"timestamp","must_change_password":"tinyint","password_hash":"varchar(255)","phone":"varchar(20)","totp_enabled":"tinyint","totp_last_step":"bigint","totp_secret":"varchar(64)"},"idx":["PRIMARY","email"]},
+"assistant_outbox":{"cols":{"attempts":"int","created_at":"timestamp","handled_at":"timestamp","id":"int unsigned","intent":"varchar(24)","lang":"varchar(2)","last_error":"varchar(500)","message":"varchar(500)","reply":"varchar(1000)","sent_at":"timestamp"},"idx":["PRIMARY","idx_assistant_recent","idx_assistant_unsent"]},
+"assistant_qa":{"cols":{"a_ar":"varchar(1000)","a_en":"varchar(1000)","active":"tinyint","created_at":"timestamp","hits":"int unsigned","id":"int unsigned","last_hit_at":"timestamp","q_ar":"varchar(200)","q_en":"varchar(200)","updated_at":"timestamp"},"idx":["PRIMARY","idx_assistant_qa_active"]},
+"blocked_customers":{"cols":{"blocked_by":"varchar(120)","created_at":"timestamp","id":"int unsigned","phone":"varchar(15)","reason":"varchar(200)","scope":"varchar(3)"},"idx":["PRIMARY","phone"]},
+"brands":{"cols":{"active":"tinyint","created_at":"timestamp","id":"int unsigned","logo":"mediumtext","name_ar":"varchar(80)","name_en":"varchar(80)","slug":"varchar(80)","sort":"int","updated_at":"timestamp"},"idx":["PRIMARY","slug"]},
+"category_art":{"cols":{"bytes":"mediumblob","etag":"char(32)","fmt":"varchar(4)","tile":"varchar(16)","updated_at":"timestamp","variant":"varchar(16)"},"idx":["PRIMARY"]},
+"customer_login_codes":{"cols":{"attempts":"tinyint unsigned","code_hash":"char(64)","created_at":"timestamp","email":"varchar(190)","expires_at":"timestamp","id":"int unsigned","used_at":"timestamp"},"idx":["PRIMARY","customer_login_codes_email"]},
+"customer_mail_outbox":{"cols":{"attempts":"int","created_at":"timestamp","id":"int unsigned","kind":"varchar(24)","lang":"varchar(2)","last_error":"varchar(500)","order_id":"int unsigned","sent_at":"timestamp","to_email":"varchar(120)"},"idx":["PRIMARY","idx_customer_mail_unsent","uniq_customer_mail"]},
+"customer_notes":{"cols":{"note":"text","phone":"varchar(15)","tags":"varchar(400)","updated_at":"timestamp","updated_by":"varchar(190)"},"idx":["PRIMARY"]},
+"customer_passkeys":{"cols":{"alg":"int","created_at":"timestamp","credential_id":"varbinary(400)","customer_id":"int unsigned","id":"int unsigned","label":"varchar(60)","last_used_at":"timestamp","public_key":"text","sign_count":"int unsigned","transports":"varchar(80)"},"idx":["PRIMARY","customer_passkeys_cred","customer_passkeys_owner"]},
+"customers":{"cols":{"created_at":"timestamp","email":"varchar(190)","id":"int unsigned","last_seen_at":"timestamp","name":"varchar(120)","password_hash":"varchar(255)","phone":"varchar(20)","verified_at":"timestamp"},"idx":["PRIMARY","email"]},
+"discounts":{"cols":{"active":"tinyint","category":"varchar(40)","code":"varchar(24)","created_at":"timestamp","ends_at":"datetime","id":"int unsigned","kind":"varchar(6)","label":"varchar(80)","min_order":"decimal(10,3)","starts_at":"datetime","type":"varchar(8)","updated_at":"timestamp","usage_limit":"int unsigned","used_count":"int unsigned","value":"decimal(10,3)"},"idx":["PRIMARY","code","idx_discounts_live"]},
+"fulfilment_outbox":{"cols":{"attempts":"int","created_at":"timestamp","id":"int unsigned","kind":"varchar(10)","last_error":"varchar(500)","new_once":"int unsigned","order_id":"int unsigned","payload":"longtext","sent_at":"timestamp"},"idx":["PRIMARY","fk_outbox_order","idx_outbox_pending","uq_outbox_new"]},
+"hero_slides":{"cols":{"active":"tinyint","created_at":"timestamp","cta_href":"varchar(200)","cta_label_ar":"varchar(40)","cta_label_en":"varchar(40)","focal_x":"tinyint unsigned","focal_y":"tinyint unsigned","id":"int unsigned","image":"longtext","image_h":"int","image_hash":"char(64)","image_mobile":"longtext","image_mobile_h":"int","image_mobile_hash":"char(64)","image_mobile_w":"int","image_w":"int","sort":"int","subtitle_ar":"varchar(200)","subtitle_en":"varchar(200)","title_ar":"varchar(120)","title_en":"varchar(120)","updated_at":"timestamp"},"idx":["PRIMARY","idx_hero_sort"]},
+"home_banner":{"cols":{"button_ar":"varchar(30)","button_en":"varchar(30)","enabled":"tinyint","etag":"char(32)","href":"varchar(200)","id":"tinyint","image":"mediumblob","image_h":"int","image_type":"varchar(10)","image_w":"int","kicker_ar":"varchar(60)","kicker_en":"varchar(60)","product":"varchar(64)","title_ar":"varchar(90)","title_en":"varchar(90)","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"journal_entries":{"cols":{"created_at":"timestamp","created_by":"varchar(120)","entry_date":"date","id":"int unsigned","kind":"varchar(20)","memo":"varchar(200)","reversed_by_id":"int unsigned","reverses_id":"int unsigned","source":"varchar(10)","source_ref":"varchar(40)"},"idx":["PRIMARY","fk_journal_reverses","idx_journal_date","uq_journal_source"]},
+"journal_lines":{"cols":{"account_id":"int unsigned","credit":"decimal(12,3)","debit":"decimal(12,3)","entry_id":"int unsigned","id":"int unsigned","memo":"varchar(200)"},"idx":["PRIMARY","idx_lines_account","idx_lines_entry"]},
+"order_items":{"cols":{"fit":"varchar(10)","id":"int unsigned","name_ar":"varchar(120)","name_en":"varchar(120)","order_id":"int unsigned","product_id":"int unsigned","qty":"int","size":"varchar(4)","unit_price":"decimal(10,3)"},"idx":["PRIMARY","fk_items_product","idx_items_order"]},
+"order_location":{"cols":{"accuracy_m":"int unsigned","lat":"decimal(9,6)","lng":"decimal(9,6)","order_id":"int unsigned","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"orders":{"cols":{"amount":"decimal(10,3)","cbk_authcode":"varchar(30)","cbk_message":"varchar(200)","cbk_paymentid":"varchar(60)","cbk_paytype":"varchar(20)","cbk_receipt":"varchar(60)","cbk_reference":"varchar(60)","cbk_status":"varchar(30)","cbk_transaction":"varchar(60)","courier":"varchar(24)","courier_ref":"varchar(80)","created_at":"timestamp","customer_area":"varchar(60)","customer_block":"varchar(12)","customer_building":"varchar(24)","customer_email":"varchar(120)","customer_flat":"varchar(16)","customer_floor":"varchar(16)","customer_governorate":"varchar(20)","customer_id":"int unsigned","customer_lang":"varchar(2)","customer_name":"varchar(80)","customer_note":"varchar(280)","customer_phone":"varchar(15)","customer_street":"varchar(40)","delivery_fee":"decimal(10,3)","discount_amount":"decimal(10,3)","discount_code":"varchar(24)","discount_label":"varchar(200)","fulfilled_at":"timestamp","fulfilment_status":"varchar(12)","id":"int unsigned","packed_at":"timestamp","paid_at":"timestamp","pay_attempt":"int unsigned","payment_method":"varchar(10)","payment_status":"varchar(10)","referrer_host":"varchar(120)","shipped_at":"timestamp","stock_claimed":"tinyint","stock_released":"tinyint","subtotal":"decimal(10,3)","track_id":"varchar(30)","utm_campaign":"varchar(80)","utm_medium":"varchar(60)","utm_source":"varchar(60)"},"idx":["PRIMARY","idx_orders_created","idx_orders_discount","idx_orders_fulfilment","idx_orders_payment","idx_orders_phone_open","idx_orders_source","idx_orders_stock_sweep","orders_customer_idx","track_id"]},
+"product_attrs":{"cols":{"colour":"varchar(32)","fits":"varchar(120)","slug":"varchar(80)","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"product_image_thumbs":{"cols":{"bytes":"mediumblob","image_id":"int unsigned","type":"varchar(8)","w":"smallint"},"idx":["PRIMARY"]},
+"product_images":{"cols":{"created_at":"timestamp","id":"int unsigned","image":"longtext","image_h":"int","image_hash":"char(64)","image_w":"int","slug":"varchar(120)","sort":"int"},"idx":["PRIMARY","idx_product_images"]},
+"product_seo":{"cols":{"desc_ar":"varchar(200)","desc_en":"varchar(200)","slug":"varchar(64)","title_ar":"varchar(70)","title_en":"varchar(70)","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"product_variants":{"cols":{"cost_aed":"decimal(10,2)","size":"varchar(4)","sku":"varchar(30)","slug":"varchar(80)","stock":"int"},"idx":["PRIMARY","idx_variants_slug"]},
+"products":{"cols":{"active":"tinyint","brand_slug":"varchar(64)","category":"varchar(40)","created_at":"timestamp","desc_ar":"text","desc_en":"text","featured":"tinyint","featured_sort":"int","id":"int unsigned","image":"varchar(500)","images":"text","name_ar":"varchar(160)","name_en":"varchar(160)","no_exchange":"tinyint","price":"decimal(10,3)","sale_ends_at":"datetime","sale_price":"decimal(10,3)","sale_starts_at":"datetime","slug":"varchar(80)"},"idx":["PRIMARY","idx_products_brand","idx_products_featured","slug"]},
+"purchase_order_items":{"cols":{"cost_aed":"decimal(10,2)","id":"int unsigned","po_id":"int unsigned","qty":"int unsigned","sku":"varchar(30)"},"idx":["PRIMARY","idx_poi_po"]},
+"purchase_orders":{"cols":{"created_at":"timestamp","created_by":"varchar(80)","expected_on":"date","id":"int unsigned","note":"varchar(300)","received_at":"timestamp","status":"varchar(10)","supplier_id":"int unsigned"},"idx":["PRIMARY","fk_po_supplier"]},
+"push_outbox":{"cols":{"attempts":"int","body":"varchar(300)","created_at":"timestamp","id":"int unsigned","kind":"varchar(24)","last_error":"varchar(500)","order_id":"int unsigned","sent_at":"timestamp","title":"varchar(120)","url":"varchar(200)"},"idx":["PRIMARY","idx_push_unsent","uniq_push_order_kind"]},
+"push_subscriptions":{"cols":{"auth":"varchar(40)","created_at":"timestamp","endpoint":"varchar(500)","endpoint_hash":"char(64)","id":"int unsigned","label":"varchar(60)","last_error":"varchar(300)","last_ok_at":"timestamp","p256dh":"varchar(120)"},"idx":["PRIMARY","uniq_push_endpoint"]},
+"rate_bucket":{"cols":{"allowed":"tinyint","bucket_key":"char(32)","refilled_at":"double","tokens":"double"},"idx":["PRIMARY","idx_rate_bucket_sweep"]},
+"rate_limit":{"cols":{"bucket_key":"char(32)","hits":"int unsigned","window_start":"int unsigned"},"idx":["PRIMARY","idx_rate_limit_sweep"]},
+"return_request_items":{"cols":{"id":"int unsigned","order_item_id":"int unsigned","qty":"int","request_id":"int unsigned","want_size":"varchar(4)"},"idx":["PRIMARY","fk_ritem_line","uq_ritem"]},
+"return_requests":{"cols":{"created_at":"timestamp","decided_at":"timestamp","id":"int unsigned","kind":"varchar(10)","lang":"varchar(2)","order_id":"int unsigned","phone":"varchar(15)","reason":"varchar(280)","ref":"varchar(20)","staff_note":"varchar(280)","status":"varchar(12)"},"idx":["PRIMARY","idx_returns_order","idx_returns_status","ref"]},
+"reviews":{"cols":{"comment":"varchar(1000)","created_at":"timestamp","id":"int unsigned","lang":"varchar(2)","order_id":"int unsigned","published":"tinyint","rating":"tinyint unsigned","reward_code":"varchar(24)"},"idx":["PRIMARY","idx_reviews_created","uq_reviews_order"]},
+"seo_image":{"cols":{"etag":"char(32)","id":"tinyint","image":"mediumblob","image_h":"int","image_type":"varchar(10)","image_w":"int","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"settings":{"cols":{"name":"varchar(40)","updated_at":"timestamp","value":"text"},"idx":["PRIMARY"]},
+"site_images":{"cols":{"bytes":"mediumblob","etag":"char(32)","fmt":"varchar(4)","name":"varchar(24)","updated_at":"timestamp"},"idx":["PRIMARY"]},
+"size_advice_log":{"cols":{"chest_cm":"smallint unsigned","confidence":"varchar(8)","created_at":"timestamp","fit":"varchar(10)","height_cm":"smallint unsigned","hip_cm":"smallint unsigned","id":"int unsigned","lang":"varchar(2)","outcome":"varchar(10)","prefers":"varchar(10)","size":"varchar(4)","slug":"varchar(80)","usual_size":"varchar(4)","waist_cm":"smallint unsigned","weight_kg":"smallint unsigned"},"idx":["PRIMARY","idx_advice_recent","idx_advice_slug"]},
+"size_charts":{"cols":{"chart":"varchar(24)","chest_max":"smallint unsigned","chest_min":"smallint unsigned","hip_max":"smallint unsigned","hip_min":"smallint unsigned","id":"int unsigned","is_default":"tinyint","length_cm":"smallint unsigned","size":"varchar(4)","sort":"smallint","waist_max":"smallint unsigned","waist_min":"smallint unsigned"},"idx":["PRIMARY","uniq_chart_size"]},
+"stock_log":{"cols":{"actor":"varchar(80)","at":"timestamp","delta":"int","id":"bigint unsigned","reason":"varchar(24)","ref":"varchar(40)","size":"varchar(4)","sku":"varchar(30)","slug":"varchar(80)","stock_after":"int"},"idx":["PRIMARY","idx_stock_log_at","idx_stock_log_slug"]},
+"suppliers":{"cols":{"contact":"varchar(160)","created_at":"timestamp","id":"int unsigned","lead_days":"int unsigned","name":"varchar(80)","note":"varchar(300)"},"idx":["PRIMARY"]},
+"variant_supplier":{"cols":{"sku":"varchar(30)","supplier_id":"int unsigned"},"idx":["PRIMARY","fk_vs_supplier"]},
+"wallet_passes":{"cols":{"auth_token":"varchar(64)","device_id":"varchar(64)","id":"int unsigned","issued_at":"timestamp","kind":"varchar(10)","name":"varchar(80)","phone":"varchar(16)","points_at_issue":"int unsigned","push_token":"varchar(128)","serial":"varchar(40)","updated_at":"timestamp"},"idx":["PRIMARY","idx_wallet_phone","serial"]},
+"wallet_registrations":{"cols":{"created_at":"timestamp","device_id":"varchar(64)","push_token":"varchar(200)","serial":"varchar(40)"},"idx":["PRIMARY","idx_wallet_reg_serial"]},
+"whatsapp_outbox":{"cols":{"attempts":"int","created_at":"timestamp","id":"int unsigned","kind":"varchar(12)","lang":"varchar(5)","last_error":"varchar(500)","order_id":"int unsigned","payload":"longtext","sent_at":"timestamp","template":"varchar(80)","to_e164":"varchar(20)","wa_message_id":"varchar(120)"},"idx":["PRIMARY","idx_wa_pending","uq_wa_once"]}
+},
+"creates":{"admin_audit_log":["migrate-admin-audit-log.php"],"admin_devices":["migrate-admin-devices.php"],"admin_ip_geo":["migrate-admin-login-log.php"],"admin_known_ips":["migrate-known-ips.php"],"admin_login_log":["migrate-admin-login-log.php"],"admin_passkeys":["migrate-security.php"],"admin_password_resets":["migrate-admin-reset.php"],"admin_sessions":["migrate-security.php"],"category_art":["migrate-category-art.php"],"customer_login_codes":["migrate-customerfast.php"],"customer_passkeys":["migrate-customerfast.php"],"customers":["migrate-customers.php"],"home_banner":["migrate-home-banner.php"],"order_location":["migrate-livetrack.php"],"product_attrs":["migrate-product-attrs.php"],"product_image_thumbs":["migrate-product-image-thumbs.php"],"product_seo":["migrate-seo.php"],"purchase_order_items":["migrate-purchasing.php"],"purchase_orders":["migrate-purchasing.php"],"rate_bucket":["migrate-ratebucket.php"],"seo_image":["migrate-seo.php"],"site_images":["migrate-site-images.php"],"stock_log":["migrate-stock-log.php"],"suppliers":["migrate-purchasing.php"],"variant_supplier":["migrate-purchasing.php"],"wallet_registrations":["migrate-wallet-web.php"]},
+"adds":{"admin_users.must_change_password":["migrate-must-change-password.php"],"hero_slides.image_mobile":["migrate-hero-mobile.php"],"hero_slides.image_mobile_h":["migrate-hero-mobile.php"],"hero_slides.image_mobile_hash":["migrate-hero-mobile.php"],"hero_slides.image_mobile_w":["migrate-hero-mobile.php"],"orders.courier":["migrate-livetrack.php"],"orders.courier_ref":["migrate-livetrack.php"],"orders.customer_id":["migrate-customers.php"],"orders.packed_at":["migrate-livetrack.php"],"orders.shipped_at":["migrate-livetrack.php"],"wallet_passes.auth_token":["migrate-wallet-web.php"]}}
+JSON;
+// <<< SCHEMA MANIFEST
+
+// store_db() does not THROW when it cannot connect: store_out() prints its own JSON and exits, so
+// the catch below never runs for the commonest failure, and a fatal error (memory, a missing
+// function) prints nothing at all where display_errors is off. Either way the run must still end
+// on a line that says no measurement was taken, or an absent VERDICT reads like a cut-off echo.
+$done = false;
+register_shutdown_function(function () use (&$done) {
+    if ($done) return;
+    $e = error_get_last();
+    $fatal = $e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true);
+    if (!$fatal) echo "\n"; // store_out()'s JSON ends without one
+    line('VERDICT unknown - stopped before measuring' . ($fatal
+        ? ' fatal=' . clip(basename((string) $e['file']) . ':' . $e['line'] . ' ' . str_replace(["\n", "\r"], ' ', (string) preg_replace("/'[^']*'@'[^']*'/", "'?'@'?'", (string) $e['message'])), 120)
+        : ' (store.php answered on the line above)'));
+});
+
 try {
+    $m = json_decode($MANIFEST_JSON, true);
+    if (!is_array($m) || empty($m['tables'])) { $done = true; line('SCHEMA error=manifest-unreadable'); exit; }
+    $want = $m['tables']; $creates = $m['creates'] ?? []; $adds = $m['adds'] ?? [];
+
+    $live = '/home/u130124229/domains/sporta.com.kw/public_html/api/store.php';
+    require is_file($live) ? $live : __DIR__ . '/../../sporta-site/public_html/api/store.php';
     $db = store_db();
-    $have = array_flip($db->query("select concat(table_name, '.', column_name) from information_schema.columns where table_schema = database()")->fetchAll(PDO::FETCH_COLUMN));
-    $missing = array_values(array_filter($want, fn($c) => !isset($have[$c])));
-    $tables = []; foreach ($missing as $c) { $t = explode('.', $c)[0]; $tables[$t][] = explode('.', $c)[1]; }
-    $parts = []; foreach ($tables as $t => $cs) $parts[] = $t . '(' . implode(',', $cs) . ')';
-    echo 'SCHEMA want=' . count($want) . ' missing=' . count($missing) . ($parts ? ' ' . implode(' ', $parts) : '') . "\n";
-} catch (Throwable $e) { echo 'SCHEMA error=' . $e->getMessage() . "\n"; }
+
+    $have = [];
+    foreach ($db->query('select table_name, table_type from information_schema.tables where table_schema = database()')->fetchAll(PDO::FETCH_NUM) as $r) {
+        if ($r[1] === 'BASE TABLE') $have[$r[0]] = ['cols' => [], 'idx' => []];
+    }
+    foreach ($db->query('select table_name, column_name, column_type from information_schema.columns where table_schema = database()')->fetchAll(PDO::FETCH_NUM) as $r) {
+        if (isset($have[$r[0]])) $have[$r[0]]['cols'][$r[1]] = norm((string) $r[2]);
+    }
+    foreach ($db->query('select distinct table_name, index_name from information_schema.statistics where table_schema = database()')->fetchAll(PDO::FETCH_NUM) as $r) {
+        if (isset($have[$r[0]])) $have[$r[0]]['idx'][$r[1]] = true;
+    }
+
+    $wc = 0; $wi = 0;
+    foreach ($want as $t) { $wc += count($t['cols']); $wi += count($t['idx']); }
+    $missT = []; $missC = []; $types = []; $missI = []; $run = []; $orphan = 0; $nc = 0; $ni = 0;
+    foreach ($want as $t => $spec) {
+        if (!isset($have[$t])) {
+            $by = $creates[$t] ?? [];
+            foreach ($by as $s) $run[$s] = true;
+            if (!$by) $orphan++;
+            $missT[] = $t . '[' . ($by ? implode(',', $by) : 'no-migrator') . ']';
+            continue;
+        }
+        $cs = [];
+        foreach ($spec['cols'] as $c => $ty) {
+            if (!isset($have[$t]['cols'][$c])) {
+                $by = $adds["$t.$c"] ?? [];
+                foreach ($by as $s) $run[$s] = true;
+                if (!$by) $orphan++;
+                $cs[] = $c . '[' . ($by ? implode(',', $by) : 'no-migrator') . ']';
+                $nc++;
+            } elseif ($have[$t]['cols'][$c] !== $ty) {
+                $types[] = "$t.$c(" . clip($have[$t]['cols'][$c]) . '>' . clip($ty) . ')';
+            }
+        }
+        if ($cs) $missC[] = $t . '(' . implode(',', $cs) . ')';
+        $is = array_values(array_filter($spec['idx'], fn($i) => !isset($have[$t]['idx'][$i])));
+        if ($is) { $missI[] = $t . '(' . implode(',', $is) . ')'; $ni += count($is); }
+    }
+    $extra = array_values(array_filter(array_keys($have), fn($t) => !isset($want[$t])));
+    sort($extra);
+
+    line('SCHEMA server=' . clip((string) $db->query('select version()')->fetchColumn(), 40)
+        . ' want=' . count($want) . 't/' . $wc . 'c/' . $wi . 'i live=' . count($have) . 't'
+        . ' missingTables=' . count($missT) . ' missingColumns=' . $nc . ' typeDiffer=' . count($types)
+        . ' missingIndexes=' . $ni . ' extraTables=' . count($extra));
+    line('TABLES missing=' . count($missT) . ($missT ? ' ' . lst($missT) : ''));
+    line('COLUMNS missing=' . $nc . ($missC ? ' ' . lst($missC) : ''));
+    line('TYPES differ=' . count($types) . ($types ? ' ' . lst($types, 15) : ''));
+    line('INDEXES missing=' . $ni . ($missI ? ' ' . lst($missI) : ''));
+    line('EXTRA tables=' . count($extra) . ($extra ? ' ' . lst($extra, 40) : ''));
+    $r = array_keys($run); sort($r);
+    line(!$missT && !$nc
+        ? 'VERDICT complete' . ($types || $ni ? ' (types/indexes differ — read the lines above)' : '')
+        : 'VERDICT behind' . ($r ? ' run=' . implode(',', $r) : '') . ($orphan ? " noMigrator=$orphan(no migrate-*.php creates these: write one, or run only their statements from IMPORT-THIS-ONE.sql - never the whole file on live, it re-inserts seed products and stock the owner deleted)" : ''));
+    $done = true;
+} catch (Throwable $e) {
+    $done = true;
+    line('SCHEMA error=' . safe($e));
+}

@@ -124,6 +124,16 @@ const PARTS = [
   ['adminloginlog.mysql.sql', 'admin sign-in log — every attempt with address and country', API],
   ['ratebucket.mysql.sql', 'rate bucket — the API token-bucket rate limiter (falls back to rate_limit until it exists)', API],
   ['customerfast.mysql.sql', 'fast customer sign-in — Face ID / fingerprint passkeys and email sign-in codes', API],
+  // AND AGAIN, 2026-10-08. These three were written on 2026-10-04
+  // with a migrate-*.php each for the live server, and never added here — so a
+  // fresh install lacked seven tables the working shop has: the four
+  // purchasing tables, admin_sessions, admin_passkeys and site_images. Found by
+  // schema-usage-audit.mjs (BUNDLE-GAP) and by diffing a fresh import against
+  // the sandbox. security must come after 1-schema: both its tables carry a
+  // foreign key to admin_users.
+  ['purchasing.mysql.sql', 'purchasing — suppliers, purchase orders and which supplier a size comes from', API],
+  ['security.mysql.sql', 'panel sign-in hardening — active admin sessions and passkeys', API],
+  ['siteimages.mysql.sql', 'site pictures — the logo and features band, when the owner replaces them', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself

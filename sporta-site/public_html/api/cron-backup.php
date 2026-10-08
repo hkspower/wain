@@ -4,12 +4,19 @@
 // Wire it in hPanel -> Advanced -> Cron Jobs, once a day (the loopback form every other job uses):
 //   wget -nv -O- --no-check-certificate --header=Host:www.sporta.com.kw "https://127.0.0.1/api/cron-backup.php?key=<cron_key>"
 //
-// WHAT IT WRITES: the same JSON that /backends -> Settings -> Backup downloads (backup_build() in
-// admin.php: catalogue, orders, customers, reviews, discounts, slides, settings, admin accounts with the
-// second-factor secret DROPPED, taught answers — and NEVER config.php, the KNET/CBK credentials or the
-// Wallet certificate, which are not database rows), gzipped, to
+// WHAT IT WRITES: the same JSON that /backends -> Settings -> Backup downloads (backup_write() in
+// backup-build.php: every table in BACKUP_TABLES — the catalogue and its colours, search text, size
+// charts and stock history; slides, banner, category pictures, logo, share picture, settings and taught
+// answers; customers, notes, orders, reviews, discounts and returns; the books; suppliers and purchase
+// orders; admin accounts with the second factor DROPPED — and NEVER config.php or the Wallet
+// certificate, which are files, nor the payment secrets the Payments screen keeps in settings, which
+// are nulled), gzipped, to
 //   /home/<account>/backups/sporta-YYYY-MM-DD.json.gz        (0600, in a 0700 directory)
 // and keeps the newest 14. Restoring one is the Backup card's "Restore" with the file un-gzipped.
+//
+// STREAMED, ROW BY ROW, STRAIGHT INTO THE GZIP FILE. It used to build the whole shop as one PHP array
+// and json_encode() it — every product photograph and category picture held two or three times over
+// in memory on shared hosting. Now the peak is one row.
 //
 // WHY A FILE AND NOT AN EMAIL: the backup holds every customer's name and address; mail is copied to
 // servers the shop does not control. A file under the home directory is readable by this account only.
@@ -30,18 +37,30 @@ if (!is_dir($dir) && !@mkdir($dir, 0700, true)) store_fail('backup_dir_not_writa
 @chmod($dir, 0700);
 if (!is_writable($dir)) store_fail('backup_dir_not_writable', 500);
 
-require_once __DIR__ . '/backup-build.php';   // the same builder the Backup card uses
+require_once __DIR__ . '/backup-build.php';   // the same writer the Backup card uses
 $db = store_db();
-$data = backup_build($db);
-$json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-if ($json === false) store_fail('backup_encode_failed', 500);
 
 $name = 'sporta-' . gmdate('Y-m-d') . '.json.gz';
 $path = "$dir/$name";
-$old = umask(0077);
-$ok = @file_put_contents("$path.tmp", (string) gzencode($json, 6)) !== false && @rename("$path.tmp", $path);
+$old = umask(0077);   // the temp file is 0600 from its first byte, not after a chmod
+$gz = @gzopen("$path.tmp", 'wb6');
+$counts = null;
+try {
+    if ($gz === false) throw new RuntimeException('gzopen failed');
+    $counts = backup_write($db, function (string $s) use ($gz) {
+        if (gzwrite($gz, $s) === false) throw new RuntimeException('gzwrite failed');
+    });
+    $closed = gzclose($gz);
+    $gz = false;
+    $ok = $closed && @rename("$path.tmp", $path);
+} catch (Throwable $e) {
+    error_log('cron-backup: ' . $e->getMessage());
+    $ok = false;
+}
+if ($gz !== false) @gzclose($gz);
 umask($old);
-if (!$ok) { @unlink("$path.tmp"); store_fail('backup_write_failed', 500); }
+// A half-written file is removed, never left where it would read as today's backup.
+if (!$ok) { @unlink("$path.tmp"); store_fail($counts === null ? 'backup_encode_failed' : 'backup_write_failed', 500); }
 @chmod($path, 0600);
 
 // Retention: newest $keep by name (the date is in the name), the rest removed.
@@ -51,9 +70,10 @@ $removed = 0;
 foreach (array_slice($files, $keep) as $f) { if (@unlink($f)) $removed++; }
 $files = array_slice($files, 0, $keep);
 
-$tables = 0; $rows = 0;
-foreach ($data['tables'] ?? [] as $t => $r) { $tables++; $rows += is_array($r) ? count($r) : 0; }
+// `absent` names the tables in BACKUP_TABLES this database does not have yet — a migration not run. Table
+// names only; never a row.
 store_out([
-    'ok' => true, 'file' => $name, 'bytes' => filesize($path), 'tables' => $tables, 'rows' => $rows,
+    'ok' => true, 'file' => $name, 'bytes' => filesize($path), 'tables' => count($counts), 'rows' => array_sum($counts),
+    'absent' => array_values(array_diff(BACKUP_TABLES, array_keys($counts))),
     'kept' => count($files), 'removed' => $removed, 'newest' => basename($files[0] ?? ''), 'dir' => '~/' . basename($dir),
 ]);

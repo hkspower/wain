@@ -5,6 +5,15 @@
  *   bash scripts/sandbox.sh
  *   node scripts/backup-test.mjs
  *
+ * ON A SCRATCH COPY, NOT THE SHARED SANDBOX (2026-10-08). The round trip below is a real restore —
+ * delete-then-insert of every table the backup carries, thirty-two of them since that date — and the
+ * mutations are written into admin.php / backup-build.php. On the shared sandbox both reach every other
+ * rig running at the same moment: rows they wrote between the export and the restore vanish, and the
+ * shared php -S serves the mutated file. So by default this rig makes its own copy of the shop
+ * (scripts/scratch-shop.mjs) and works there. BASE + BACKUP_TEST_DB + BACKUP_TEST_API_DIR point it at
+ * one somebody else made (backup-tables-test.mjs does exactly that); the database is then reached as
+ * root over the unix socket.
+ *
  * What this actually has to hold, past "the routes answer 200":
  *
  *   1. The export carries every table CLAUDE.md's owner approved, with REAL
@@ -37,16 +46,19 @@
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { scratchShop } from './scratch-shop.mjs'
 
-const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
+const own = process.env.BACKUP_TEST_DB ? null : await scratchShop('bkold')
+const BASE = own ? own.base : (process.env.BASE ?? 'http://127.0.0.1:4300')
+const SQL_TARGET = own ? ['-u', 'root', own.db] : ['-u', 'root', process.env.BACKUP_TEST_DB]
+const API_DIR = own ? own.apiDir + '/' : (process.env.BACKUP_TEST_API_DIR ?? new URL('../sporta-site/public_html/api/', import.meta.url).pathname)
 const API = BASE + '/api/admin.php?r='
 const EMAIL = 'manager@sporta.com.kw'
 const PASSWORD = 'correct horse'
-const ADMIN_PHP = new URL('../sporta-site/public_html/api/admin.php', import.meta.url).pathname
+const ADMIN_PHP = API_DIR + 'admin.php'
 // The export builder moved to api/backup-build.php on 2026-10-04 (cron-backup.php shares it); the
 // redaction mutation edits THAT file, the route guards still live in admin.php.
-const BUILD_PHP = new URL('../sporta-site/public_html/api/backup-build.php', import.meta.url).pathname
-const CONFIG_PHP = new URL('../sporta-site/public_html/api/config.php', import.meta.url).pathname
+const BUILD_PHP = API_DIR + 'backup-build.php'
 
 let fails = 0
 const check = (ok, what, extra = '') => {
@@ -55,7 +67,7 @@ const check = (ok, what, extra = '') => {
 }
 
 const sql = (q) => execFileSync('mariadb',
-  ['-u', 'sporta', '-plocaldev', 'sporta', '--default-character-set=utf8mb4',
+  [...SQL_TARGET, '--default-character-set=utf8mb4',
    '--batch', '--raw', '-e', q],
   { encoding: 'utf8' })
 const one = (q) => sql(q).trim().split('\n').slice(1)[0]
@@ -97,6 +109,7 @@ function mutate(from, to, label) {
 function restore() { writeFileSync(ADMIN_PHP, originalAdminPhp); writeFileSync(BUILD_PHP, originalBuildPhp) }
 
 try {
+  sql('delete from rate_limit; delete from rate_bucket')
   /* -------------------------------------------------------------- sign in */
   const login = await call('login', { email: EMAIL, password: PASSWORD })
   check(login.status === 200, 'signed in for the rest of the checks', JSON.stringify(login.body))
@@ -278,6 +291,7 @@ try {
   restore()
   sql(`delete from blocked_customers where phone = '96555590001'`)
   sql(`update admin_users set totp_secret = null, totp_enabled = 0 where email = '${EMAIL}'`)
+  if (own) await own.stop()
 }
 
 console.log(fails === 0 ? '\nall ok — backup exports everything, leaks nothing, previews without writing, and restore replaces rather than merges'

@@ -62,14 +62,18 @@ const root = (q) => sh('mariadb', ['-uroot', '-e', q])
  *  the safe direction for a check about not clobbering the owner's work; a
  *  false negative is what lets a bug through. */
 const ADMIN = readFileSync('sporta-site/public_html/api/admin.php', 'utf8')
+// The WHOLE route: from its `if ($r === '<name>'` to the next top-level route. A fixed window (2,200
+// characters, until 2026-10-08) stopped short of product_save's brand_slug, so a re-import that
+// overwrote the owner's brand passed every check here.
 const routeBody = (name) => {
-  const at = ADMIN.indexOf(`'${name}'`)
+  const at = ADMIN.indexOf(`$r === '${name}'`)
   if (at < 0) return ''
-  return ADMIN.slice(at, at + 2200)
+  const next = ADMIN.slice(at + 10).search(/\n(?:if|\} ?elseif) \(\$r === '/)
+  return next < 0 ? ADMIN.slice(at) : ADMIN.slice(at, at + 10 + next)
 }
 const CANDIDATES = [
   'name_en', 'name_ar', 'desc_en', 'desc_ar', 'price', 'category', 'active',
-  'cost_aed', 'stock', 'sort', 'slug', 'size', 'logo',
+  'cost_aed', 'stock', 'sort', 'slug', 'size', 'logo', 'brand_slug',
 ]
 const editable = new Set()
 for (const route of ['product_save', 'brand_save', 'variant_save', 'set_stock']) {
@@ -77,7 +81,7 @@ for (const route of ['product_save', 'brand_save', 'variant_save', 'set_stock'])
   for (const c of CANDIDATES) if (new RegExp(`\\b${c}\\b`).test(body)) editable.add(c)
 }
 // A regex that matches nothing would make every check below vacuous.
-check(editable.size >= 6, 'the editable-column set was actually extracted from admin.php',
+check(editable.size >= 6 && editable.has('brand_slug'), 'the editable-column set was actually extracted from admin.php (brand_slug included)',
   `${editable.size}: ${[...editable].sort().join(', ')}`)
 
 // ---------------------------------------------------------------- static
@@ -105,6 +109,32 @@ check(offenders.length === 0,
   'no .sql overwrites a column the owner can edit in /backends',
   offenders.slice(0, 8).join('; '))
 
+// A PLAIN update is the same bug as an on-duplicate one (2026-10-08): 9-product-brands.sql set
+// brand_slug unconditionally, so a re-import took back a brand the owner had chosen. An update in an
+// importable file may set an owner-editable column only when it fills an EMPTY value
+// (`where ... <col> is null`). The update statements themselves are found first and counted, so a
+// regex that finds nothing cannot pass for a clean result.
+let plainUpdates = 0
+const unguarded = []
+for (const f of FILES) {
+  const text = readFileSync(f, 'utf8').replace(/--[^\n]*/g, '')
+  const re = /(?:^|;)\s*update\s+(\w+)\s+set\s+([\s\S]*?)\bwhere\b([\s\S]*?);/gi
+  let m
+  while ((m = re.exec(text)) !== null) {
+    plainUpdates++
+    const [, table, sets, where] = m
+    for (const col of editable) {
+      if (!new RegExp(`(^|[\\s,])${col}\\s*=`, 'i').test(sets)) continue
+      if (new RegExp(`\\b${col}\\s+is\\s+null\\b`, 'i').test(where)) continue
+      unguarded.push(`${f.replace('sporta-site/', '')} update ${table} set ${col}`)
+    }
+  }
+}
+check(plainUpdates > 0, 'the plain update statements in the .sql files were actually found', `${plainUpdates}`)
+check(unguarded.length === 0,
+  'no plain update in a .sql file sets an owner-editable column without an "is null" guard',
+  [...new Set(unguarded)].slice(0, 8).join('; '))
+
 // ---------------------------------------------------------------- measured
 /** Import a file, edit it as the owner would, import again, compare. */
 const survives = (file, db) => {
@@ -117,6 +147,11 @@ const survives = (file, db) => {
   const brand = sql(db, "select slug from brands order by slug limit 1")
   if (!slug || !sku || !brand) return { skipped: true }
 
+  // A product the bundle itself assigns a brand to, named rather than picked: the owner moves it to
+  // another brand, and a re-import must not take that back (9-product-brands.sql, 2026-10-08).
+  const branded = sql(db, "select slug from products where slug = 'gymshark-phone-strap'")
+  const otherBrand = sql(db, "select slug from brands where slug <> 'gymshark' order by slug limit 1")
+  if (branded && otherBrand) root(`use ${db}; update products set brand_slug = '${otherBrand}' where slug = '${branded}';`)
   root(`use ${db};
     update products set price = 99.500, name_en = 'OWNER RENAMED', active = 0 where slug = '${slug}';
     update product_variants set cost_aed = 1234.00 where sku = '${sku}';
@@ -125,7 +160,8 @@ const survives = (file, db) => {
   const read = () => sql(db, `select concat_ws('|',
       (select concat(price,'/',name_en,'/',active) from products where slug='${slug}'),
       (select cost_aed from product_variants where sku='${sku}'),
-      (select name_en from brands where slug='${brand}'))`)
+      (select name_en from brands where slug='${brand}'),
+      (select coalesce(brand_slug,'-') from products where slug='gymshark-phone-strap'))`)
 
   const before = read()
   execFileSync('bash', ['-c', `mariadb -uroot ${db} < ${JSON.stringify(file)}`], { stdio: 'ignore' })
