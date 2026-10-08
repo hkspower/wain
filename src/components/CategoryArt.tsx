@@ -38,13 +38,30 @@ export default function CategoryArt({
       {/* A soft shadow cast down-right, matching the elevation shadows'
           overhead light. Without it the white strokes read as cut into the
           gradient; with it the scene sits on top of it. */}
-      <g
-        transform={VARIANT_TRANSFORM[variant]}
-        style={{ filter: "drop-shadow(0 1.5px 2px rgb(20 18 15 / 0.28))" }}
-      >
+      <ArtShade id="wain-category-shade" />
+      <g transform={VARIANT_TRANSFORM[variant]} filter="url(#wain-category-shade)">
         <Scene category={category} />
       </g>
     </svg>
+  );
+}
+
+/**
+ * That shadow as an SVG filter, not a CSS one. It was `filter: drop-shadow()`
+ * in a style on the <g>, and Safari applies CSS filter functions to an <svg>
+ * box but never to an element inside one — WebKit's SVG renderer takes only
+ * url(#…) filters there (BCD css.properties.filter.svg_elements: no Safari) —
+ * so every place page drew its scene flat in Safari (8 October). Same numbers
+ * in the drawing's own units: 0 1.5 offset, a 2-unit blur (σ 1), mixed in
+ * sRGB as the CSS function was — an SVG filter mixes in linearRGB unless told.
+ */
+export function ArtShade({ id }: { id: string }) {
+  return (
+    <defs>
+      <filter id={id} colorInterpolationFilters="sRGB">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="1" floodColor="#14120f" floodOpacity="0.28" />
+      </filter>
+    </defs>
   );
 }
 

@@ -114,7 +114,7 @@ export default function MediaReview({
               </button>
             </div>
           </div>
-          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <ul role="list" className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {imagePaths.map((p) => {
               const on = selected.includes(p);
               return (

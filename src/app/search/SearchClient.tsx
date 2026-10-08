@@ -328,7 +328,7 @@ export default function SearchClient() {
     // From lg the page is two columns: everything that reads on the start
     // side, the map beside it and sticky. Until 2 October it was one 736px
     // column, and the map stood between the box and the list.
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-start lg:gap-8">
+    <div className="mx-auto max-w-3xl gutter py-2 sm:py-3 lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:items-start lg:gap-8">
       <div className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
@@ -354,6 +354,10 @@ export default function SearchClient() {
           <input
             ref={inputRef}
             type="search"
+            // The key that sends it says «بحث» on an iPhone. iOS picks Search
+            // or Go only for a box inside a <form action>, and this one is in
+            // none, so the keyboard showed a bare return (8 October).
+            enterKeyHint="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKeyDown}
@@ -449,7 +453,7 @@ export default function SearchClient() {
                   caption weight a question reads as a footnote to the chips
                   rather than the thing they answer. */}
               <h2 className="mb-3 text-base font-semibold text-ink-800">شنو تدوّر؟</h2>
-              <ul className="flex flex-wrap gap-2">
+              <ul role="list" className="flex flex-wrap gap-2">
                 {SUGGESTIONS.map((s) => (
                   <li key={s}>
                     <button
@@ -484,7 +488,7 @@ export default function SearchClient() {
                   the site already has — its categories, and the places the
                   home page leads with. */}
               <h2 className="mb-3 mt-6 text-base font-semibold text-ink-800">دوّر بالتصنيف</h2>
-              <ul className="flex flex-wrap gap-2">
+              <ul role="list" className="flex flex-wrap gap-2">
                 {categories.map((cat) => (
                   <li key={cat.id}>
                     <Link

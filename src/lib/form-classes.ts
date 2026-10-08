@@ -17,8 +17,14 @@ const FIELD_BASE =
 /** Public forms: roomy enough to fill in on a phone. */
 export const fieldClass = `${FIELD_BASE} px-3 py-2.5`;
 
-/** Admin: the same control, a size down, for dense data entry. */
-export const fieldDenseClass = `${FIELD_BASE} px-3 py-2 text-sm`;
+/**
+ * Admin: the same control, a size down, for dense data entry — with a mouse.
+ * Under a finger it is 16px like every other field: iPhone Safari zooms the
+ * page into any field set smaller when it takes focus, and leaves it zoomed
+ * (8 October; the 16px floor is the rule audit:mobile holds the public pages
+ * to — the admin board renders only after sign-in, where no audit reaches).
+ */
+export const fieldDenseClass = `${FIELD_BASE} px-3 py-2 text-sm pointer-coarse:text-base`;
 
 export const labelClass = "mb-1.5 block text-sm font-semibold text-ink-700";
 export const hintClass = "mt-1 text-xs text-ink-500";

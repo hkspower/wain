@@ -224,7 +224,7 @@ export default function QueueTracker() {
   }
 
   return (
-    <ul className="space-y-4">
+    <ul role="list" className="space-y-4">
       {tickets.map((t) => (
         <TicketCard key={t.id} ticket={t} onForget={reload} />
       ))}

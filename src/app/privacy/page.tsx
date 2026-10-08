@@ -20,7 +20,7 @@ const noCookies = [
 
 export default function PrivacyPage() {
   return (
-    <div className="measure mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="measure mx-auto max-w-3xl gutter py-2 sm:py-3">
       <BackButton />
       <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         الخصوصية والكوكيز
@@ -72,7 +72,7 @@ export default function PrivacyPage() {
         <h2 className="font-display text-xl font-semibold text-ink-900">
           ما نستخدم كوكيز — أبداً
         </h2>
-        <ul className="mt-4 space-y-2.5">
+        <ul role="list" className="mt-4 space-y-2.5">
           {noCookies.map((item) => (
             <li key={item} className="flex items-start gap-2.5 text-sm leading-relaxed text-ink-600">
               <IconCheck className="mt-0.5 size-4 shrink-0 text-palm-600" />
@@ -232,6 +232,9 @@ export default function PrivacyPage() {
           <p>
             ووقت المحادثة تتحمّل صورة زخرفية صغيرة للكرة من مخزن مزوّد الصوت
             العام على قوقل (storage.googleapis.com)، فعنوانك يوصل لقوقل وقتها.
+            وعلى بعض الأجهزة — آيفون على سماعات بلوتوث، أو سفاري أقدم من ١٨٫٦،
+            أو فايرفوكس — يتحمّل وقتها بعد ملف واحد يحوّل الصوت من
+            cdn.jsdelivr.net، فعنوانك يوصلهم بعد.
           </p>
           <p>إذا ما فتحت وين AI، ما يتصل متصفحك بمزوّد خدمة الصوت أبداً.</p>
             </>
@@ -269,7 +272,7 @@ export default function PrivacyPage() {
           <p>
             إذا شغّلت «اقرا لي الجواب» واخترت صوت شوق أو سالم، اختيارك ينحفظ{" "}
             <strong className="text-ink-900">داخل متصفحك بس</strong> (Local
-            Storage) عشان يبقى محفوظ لك بالزيارة الجاية — ما ينرسل لأي خادم ولا
+            Storage) عشان يبقى محفوظ لك على نفس المتصفح — ما ينرسل لأي خادم ولا
             يُستخدم للتتبّع.
           </p>
           {/* Rewritten 3 October, when read-aloud went to the bridge a sentence

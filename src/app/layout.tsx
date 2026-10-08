@@ -21,6 +21,26 @@ import "./globals.css";
 const PREVIEW = SHOW_STANDINS && LANDMARKS.some((l) => l.source !== "ai") ? "stand-ins" : undefined;
 
 /**
+ * Is this the installed app — decided before the first paint, not after it.
+ *
+ * The app chrome (the tab bar, the room under the page for it) keys off
+ * `display-mode: standalone` and off <html data-standalone>, which AppShell
+ * sets in an effect, i.e. after hydration. On an iPhone the media query never
+ * matches: an installed web app whose manifest says `standalone` reports
+ * `display-mode: fullscreen` instead (WebKit bug 264218; BCD says so). So every
+ * launch from the home screen painted the WEBSITE — no tab bar, no room for
+ * it — and the bar arrived under the thumb once the JavaScript had run
+ * (8 October). `navigator.standalone` is iOS's own answer and is there from
+ * the first byte, so this reads it, with AppShell's other two signals, while
+ * the <head> is still being parsed. A constant string, nothing of the
+ * visitor's in it; AppShell keeps the attribute in step afterwards.
+ */
+const STANDALONE_BEFORE_PAINT =
+  'try{var a=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches||' +
+  'window.Capacitor?.isNativePlatform?.()===true;' +
+  'document.documentElement.setAttribute("data-standalone",a?"true":"false")}catch(e){}';
+
+/**
  * One family for the whole site: IBM Plex Sans Arabic.
  *
  * Purpose-built for interfaces (Bold Monday for IBM's design system), so its
@@ -67,7 +87,20 @@ export const metadata: Metadata = {
     description: "أقرب الأماكن حواليك في الكويت.",
     images: ["/og.jpg"],
   },
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  // The home-screen icon is the PNG, never the SVG: iOS has no SVG support for
+  // apple-touch-icon, so «Add to Home Screen» on an iPhone was given a file it
+  // cannot draw and fell back to a screenshot of the page (8 October). 180×180
+  // and opaque — iOS fills transparency with black. audit:assets holds both.
+  // The tab icon has a PNG before the SVG for the same browser: Safari reads
+  // SVG favicons only from 26, so 16.4–18 showed a blank letter tile. Listed
+  // PNG first and typed, so a browser that can use the SVG still takes it.
+  icons: {
+    icon: [
+      { url: "/brand/app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+  },
   appleWebApp: { capable: true, title: "وين؟", statusBarStyle: "default" },
 };
 
@@ -96,7 +129,18 @@ export default function RootLayout({
   // font-sans/font-display element silently fell back to the default
   // ui-sans-serif stack with the webfont never requested at all.
   return (
-    <html lang="ar" dir="rtl" className={plex.variable} {...(PREVIEW ? { "data-preview": PREVIEW } : {})}>
+    // suppressHydrationWarning: the script below writes data-standalone onto
+    // this element before React sees it, on purpose.
+    <html
+      lang="ar"
+      dir="rtl"
+      className={plex.variable}
+      suppressHydrationWarning
+      {...(PREVIEW ? { "data-preview": PREVIEW } : {})}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: STANDALONE_BEFORE_PAINT }} />
+      </head>
       <body className="flex min-h-screen flex-col font-sans">
         {/* This link is NOT why the home page used to scroll sideways, however
             much it looked like it. `audit:mobile` names every element sitting
@@ -108,7 +152,10 @@ export default function RootLayout({
             Left as it was, so the next reader does not re-fix it. */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-ink-900 focus:px-4 focus:py-2 focus:font-semibold focus:text-white focus:shadow-lg"
+          // Its own surface: the body is dark under /find's end (globals.css,
+          // data-dark-end), and a clipped link inheriting ink over sea-950
+          // read 1.10:1 to audit:color. Focused, it is ink-900 on white as before.
+          className="sr-only bg-white text-ink-900 focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-ink-900 focus:px-4 focus:py-2 focus:font-semibold focus:text-white focus:shadow-lg"
         >
           تخطَّ إلى المحتوى
         </a>

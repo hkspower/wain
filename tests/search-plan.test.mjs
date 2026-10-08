@@ -175,6 +175,44 @@ console.log('\n── the map and the panel share one target: tapping a pin reta
   await ctx.close();
 }
 
+console.log('\n── a finger on a row does not move the map under it (iPhone) ──');
+{
+  // iOS fires mouseenter for every TAP, and a row lighting its pin re-rendered
+  // the open map under the finger; WebKit's ContentChangeObserver reads new
+  // content under a tap as a hover menu and drops the click, so a row took two
+  // taps to open (8 October). Chromium has no such observer, so what is held
+  // here is the cause: a finger's pointerenter changes nothing on the map, and
+  // a mouse's still does (so the check can see a change).
+  const { ctx, p } = await fresh('قهوة');
+  await p.getByRole('button', { name: /اعرض الخريطة/ }).tap().catch(() => {});
+  const map = p.locator('section[aria-labelledby="search-map-heading"]');
+  await map.waitFor({ timeout: 8000 }).catch(() => {});
+  const current = () => map.locator('a[aria-current="true"]').first().getAttribute('aria-label', { timeout: 1000 }).catch(() => null);
+  const before = await current();
+  // A row whose place is not the map's current one.
+  const row = await p.evaluate((cur) => {
+    const rows = [...document.querySelectorAll('a[data-result-index][href^="/places/"]')];
+    const name = (cur ?? '').split(' — ')[0];
+    const i = rows.findIndex((r) => !r.textContent.includes(name));
+    return i < 0 ? -1 : Number(rows[i].dataset.resultIndex);
+  }, before);
+  ok('there is a row for another place to touch', row >= 0, String(row));
+  // What a tap sends on iOS, and what a mouse sends: a pointerover of its
+  // own type, then the mouseover every tap also produces for compatibility.
+  const enter = (type) => p.evaluate(([i, t]) => {
+    const a = document.querySelector(`a[data-result-index="${i}"]`);
+    a?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: t, isPrimary: true, relatedTarget: null }));
+    a?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
+  }, [row, type]);
+  await enter('touch');
+  await p.waitForTimeout(300);
+  ok('a finger on the row leaves the map as it was', (await current()) === before, `${before} → ${await current()}`);
+  await enter('mouse');
+  await p.waitForTimeout(300);
+  ok('a mouse on it still lights its pin', (await current()) !== before, `${before} → ${await current()}`);
+  await ctx.close();
+}
+
 console.log('\n── the LIVE map, once opened, shares the same target ──');
 {
   // Opt-in and Leaflet-backed rather than the static embed — see

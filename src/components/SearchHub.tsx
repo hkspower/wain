@@ -36,7 +36,7 @@ export default function SearchHub({
   return (
     <div className={`text-center ${className}`}>
       <h3 className="text-sm font-semibold text-ink-700">دوّر بالتصنيف</h3>
-      <ul className="mx-auto mt-3 flex max-w-lg flex-wrap justify-center gap-2">
+      <ul role="list" className="mx-auto mt-3 flex max-w-lg flex-wrap justify-center gap-2">
         {categories.map((cat) => (
           <li key={cat.id}>
             {/* Straight to /explore with the filter already applied, rather
@@ -79,7 +79,7 @@ export default function SearchHub({
         </Link>
       </div>
 
-      <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+      <ul role="list" className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
         {ROUTE_ACTIONS.map((action) => (
           <li key={action.id}>
             <Link

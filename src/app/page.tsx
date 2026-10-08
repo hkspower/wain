@@ -1,6 +1,6 @@
 import Link from "next/link";
 import HomeHero from "@/components/HomeHero";
-import StartBar from "@/components/StartBar";
+import { StartBar } from "@/components/HomeLazy";
 import LandmarksShow from "@/components/LandmarksShowLazy";
 import PlaceCard from "@/components/PlaceCard";
 import { IconCar, IconCompass, IconGo, IconSearch, IconSparkle } from "@/components/icons";
@@ -49,7 +49,7 @@ export default function HomePage() {
       <HomeHero />
       <StartBar />
       <div className="bg-sand-50 standalone:hidden">
-        <div className="mx-auto max-w-6xl px-2.5 pt-3 text-center sm:px-4 sm:pt-4">
+        <div className="mx-auto max-w-6xl gutter pt-3 text-center sm:pt-4">
           <Link
             href="/search"
             className="inline-flex min-h-tap items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm border border-line-control transition hover:bg-sand-100 active:scale-[0.98]"
@@ -67,7 +67,7 @@ export default function HomePage() {
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
+        <div className="mx-auto max-w-6xl gutter py-2 sm:py-3">
           {/* The heading was visually hidden for a while, and «شوف الكل» then
               sat alone on its row — a link to «all» of nothing named. Shown
               again on 3 October, on request; it is one line, beside the link. */}
@@ -95,7 +95,7 @@ export default function HomePage() {
               corrected into a whole-card jump, overscroll-x-contain so a flick
               past the end cannot trigger the browser's back gesture, and
               scroll-px-2.5 matching px-2.5 so the rail rests at its own start. */}
-          <ul className="-mx-2.5 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
+          <ul role="list" className="-mx-2.5 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
             {featured.map((place) => (
               <li key={place.slug} className="w-64 shrink-0 snap-start sm:w-auto">
                 <PlaceCard place={place} shareable />
@@ -107,7 +107,7 @@ export default function HomePage() {
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
-        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
+        <div className="mx-auto max-w-6xl gutter py-2 sm:py-3">
           <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
             كيف يشتغل وين؟
           </h2>
@@ -180,7 +180,7 @@ export default function HomePage() {
 
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-2.5 pb-2 sm:px-4 sm:pb-3">
+        <div className="mx-auto max-w-6xl gutter pb-2 sm:pb-3">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-7 text-center shadow-xs sm:py-6">
             <div
               aria-hidden="true"

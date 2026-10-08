@@ -189,14 +189,35 @@ export function onPhase(fn: (phase: Phase) => void): () => void {
 let warmed = false;
 
 /**
+ * This page loaded her widget and could not run it (WainAiCall finds out).
+ * Kept for the page only: it is about this browser, not about the account, so
+ * it is not agent-health's flag — that one also turns سالم's typed chat to the
+ * guide, and his chat needs no widget.
+ */
+let widgetBroken = false;
+
+export function markWidgetBroken(): void {
+  widgetBroken = true;
+}
+
+/**
+ * Whether a CALL should go to the agent: the account (agent-health) and this
+ * browser's ability to run her widget. The launcher, the call and the warm-up
+ * all ask this one question, so they cannot disagree about it.
+ */
+export function callAgentAvailable(): boolean {
+  return !widgetBroken && agentAvailable();
+}
+
+/**
  * DNS and TLS to the voice service, on the first sign of interest — a hover,
  * a focus, a finger landing. A socket opened only for somebody who has
  * already reached for the button, and free to anyone who never does.
  */
 export function warmCall(): void {
-  // Nothing to warm for a device the agent refused lately (lib/agent-health.ts):
-  // its next call is the free one.
-  if (warmed || typeof document === "undefined" || !agentAvailable()) return;
+  // Nothing to warm for a device the agent refused lately (lib/agent-health.ts),
+  // or a browser that could not run her widget: its next call is the free one.
+  if (warmed || typeof document === "undefined" || !callAgentAvailable()) return;
   warmed = true;
   // The widget itself is on this origin now (vendor-widget.mjs), so only the
   // API is left to warm. Its fetches are CORS, hence `crossorigin`.
@@ -253,6 +274,8 @@ export function loadWidget(): Promise<void> {
       // `crossorigin` is needed for the check to apply.
       script.integrity = WAIN_AI_WIDGET_INTEGRITY;
       script.async = true;
+      // `load` means the file arrived and ran, not that it worked — WainAiCall
+      // asks whether the element got defined before it mounts one.
       script.addEventListener("load", () => {
         script.dataset.wainWidget = "loaded";
         resolve();
@@ -278,7 +301,7 @@ export function loadWidget(): Promise<void> {
  * pull 451KB for somebody who was on their way past.
  */
 export function armCall(): void {
-  if (!agentAvailable()) return;
+  if (!callAgentAvailable()) return;
   warmCall();
   void loadWidget().catch(() => {
     /* The dial will retry and report it honestly. Nothing to say here. */

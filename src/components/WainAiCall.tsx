@@ -20,8 +20,14 @@ import {
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
-import { loadWidget, takeLocalRecognition, takeRequestedMode } from "@/lib/wain-ai-bus";
-import { agentAvailable, isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
+import {
+  callAgentAvailable,
+  loadWidget,
+  markWidgetBroken,
+  takeLocalRecognition,
+  takeRequestedMode,
+} from "@/lib/wain-ai-bus";
+import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -87,6 +93,32 @@ const LISTEN_MAX_MS = 15_000;
 const START_NUDGE_MS = 15_000;
 
 /**
+ * Whether her widget's bundle, once loaded, actually ran.
+ *
+ * `load` says the file arrived and ran, not that it worked: a bundle that
+ * throws part-way fires it all the same. This one defines its element on its
+ * very last line (read out of 0.19.0), so an element still undefined after
+ * `load` is a bundle this browser could not run — an older Safari meeting
+ * syntax it does not know throws before that line. Mounting it then draws
+ * nothing at all, and the sheet asked the visitor to press «بدء مكالمة» on a
+ * button that was never going to appear (8 October). `whenDefined` with a short
+ * wait rather than a bare `get`, so a bundle that defines a tick later is not
+ * mistaken for a broken one.
+ */
+function widgetRuns(): Promise<boolean> {
+  const tag = "elevenlabs-convai";
+  if (typeof customElements === "undefined") return Promise.resolve(false);
+  if (customElements.get(tag)) return Promise.resolve(true);
+  return new Promise((done) => {
+    const wait = window.setTimeout(() => done(false), 2000);
+    void customElements.whenDefined(tag).then(() => {
+      window.clearTimeout(wait);
+      done(true);
+    });
+  });
+}
+
+/**
  * What the caller is told about an engine error.
  *
  * Every code other than `not-allowed` used to produce «ما سمعناك» — "we didn't
@@ -95,12 +127,31 @@ const START_NUDGE_MS = 15_000;
  * a retry into exactly the same failure. `aborted` is not in here at all: that
  * one is us hanging up, and it is handled before this is reached.
  */
+/**
+ * The same refusal on an iPhone in Safari itself (Chrome on iOS too: same
+ * engine, same switch). There WebKit says `service-not-allowed` when Dictation
+ * is off or Safari's speech permission is refused (SFSpeechRecognizer), and
+ * «open the site in Safari» — what speechOff says — told a visitor already in
+ * Safari to go where they were (8 October). The switch is in Settings. Kept
+ * here, in the call's own chunk, rather than in WAIN_AI_COPY, which every page
+ * loads.
+ */
+const SPEECH_OFF_APPLE =
+  "التعرّف على الصوت مطفّي بجوالك — شغّل «الإملاء» من الإعدادات › عام › لوحة المفاتيح، أو اكتب لسالم.";
+
+function inAppleSafari(): boolean {
+  if (typeof navigator === "undefined" || !/Apple/.test(navigator.vendor ?? "")) return false;
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return !isInAppBrowser() && nav.standalone !== true && /Safari\//.test(nav.userAgent);
+}
+
 function errorCopy(code: string): string {
   // `service-not-allowed` is not the microphone. WebKit answers it when Siri
   // and Dictation are off or the locale is one Apple does not have, and an
   // app's built-in browser answers `not-allowed` because the host app never
   // asked the phone for speech. All of them read «allow the microphone» until
   // 3 October, to callers whose microphone was allowed.
+  if (code === "service-not-allowed" && inAppleSafari()) return SPEECH_OFF_APPLE;
   if (code === "service-not-allowed" || code === "language-not-supported") return WAIN_AI_COPY.speechOff;
   if (code === "not-allowed") return isInAppBrowser() ? WAIN_AI_COPY.speechOff : WAIN_AI_COPY.micDenied;
   if (code === "no-speech") return WAIN_AI_COPY.noSpeech;
@@ -182,6 +233,16 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * moment, so the suite pinned the bug in place.
    */
   const [started, setStarted] = useState(false);
+  /**
+   * The caller has pressed something in the widget before the call started —
+   * its Start, which opens its consent sheet. The box waits for Start at a
+   * compact 11rem, and the consent sheet, drawn inside it, is taller: its
+   * heading «قبل ما تبدأ» and the first lines of what the caller was agreeing
+   * to were cut off above the box, at every width (8 October, measured on the
+   * real widget with the live terms). From that tap the box takes the size it
+   * has once the call is up.
+   */
+  const [reached, setReached] = useState(false);
   // The widget's Start is the only way forward and nothing on the sheet can press
   // it (it sits behind the widget's own consent gate). A caller who never sees it
   // used to wait on «اضغط بدء مكالمة» for ever — nothing times out after `live`.
@@ -737,10 +798,22 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   useEffect(() => {
     if (!agentMode || !dialling || agentReady || agentFailed) return;
     let alive = true;
-    loadWidget().then(
-      () => alive && setAgentReady(true),
-      () => alive && setAgentFailed(true)
-    );
+    loadWidget()
+      .then(widgetRuns)
+      .then(
+        (runs) => {
+          if (!alive) return;
+          if (runs) return setAgentReady(true);
+          // A bundle this browser could not run will not run on the next dial
+          // either, so that one is ours: the sheet says she is not available
+          // here and the redial is the free call, as after a refusal for
+          // credits.
+          markWidgetBroken();
+          refusedRef.current = true;
+          setAgentFailed(true);
+        },
+        () => alive && setAgentFailed(true)
+      );
     return () => {
       alive = false;
     };
@@ -764,11 +837,35 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // See SALEM_VOICE_ID: set only at mount, because that is the one moment
       // the widget reads it. شوق's own agent voice needs no override at all.
       if (persona === "salem") el.setAttribute("override-voice-id", SALEM_VOICE_ID);
+      // Safari with «Block All Cookies» throws on any read of localStorage,
+      // and the widget makes one, unguarded, to name the caller — after the
+      // terms and before the call starts — so «قبول» did nothing and no call
+      // ever began (8 October, read out of 0.19.0). Where storage cannot be
+      // read, the caller gets a name for this call only, and the widget never
+      // goes looking for one.
+      try {
+        window.localStorage.getItem("elevenlabs_convai_user_id");
+      } catch {
+        el.setAttribute("user-id", crypto.randomUUID?.() ?? `wain-${Date.now()}`);
+      }
       slot.appendChild(el);
+      // Her text box is the widget's own, 14px inside its shadow root —
+      // measured on the real 0.19.0 bundle — and iPhone Safari zooms the page
+      // into any field under 16px when it takes focus, and leaves the whole
+      // call sheet zoomed (8 October). The root is open, so the floor the
+      // site's own fields have goes in here: after the append, because the
+      // widget renders into it on connect and a first render clears whatever
+      // was there before it.
+      const floor = document.createElement("style");
+      floor.textContent = "@media (pointer: coarse) { textarea, input { font-size: 16px !important; } }";
+      el.shadowRoot?.appendChild(floor);
       // switchPersona() clears the slot to force this branch mid-call: the
       // widget is fresh again and has to be started again, so the sheet goes
       // back to asking for that until the widget's own call event says it has.
-      if (phaseRef.current === "live") setStarted(false);
+      if (phaseRef.current === "live") {
+        setStarted(false);
+        setReached(false);
+      }
     }
     // The widget is mounted — but mounting is NOT the call connecting. It
     // still has to be started (and asks for the microphone then), so all this
@@ -823,7 +920,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   useEffect(() => {
     if (!agentFailed || phase !== "ringing") return;
     silenceRing();
-    setErrorText(WAIN_AI_COPY.callFailed);
+    setErrorText(refusedRef.current ? WAIN_AI_COPY.agentUnavailable : WAIN_AI_COPY.callFailed);
     setPhase("error");
   }, [agentFailed, phase, silenceRing]);
 
@@ -895,6 +992,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setSeconds(0);
     setAgentFailed(false);
     setStarted(false);
+    setReached(false);
     // Or a fresh call opens announcing what the previous one did.
     setLastAction("");
     setLastSlug(null);
@@ -918,7 +1016,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // A call from the launcher goes the way its tap went — the tap may already
     // have started the recogniser. A redial from this sheet decides here, and
     // a refusal it just showed wins over storage that may not have kept it.
-    const agent = asked ? asked === "agent" : !refusedRef.current && agentAvailable();
+    const agent = asked ? asked === "agent" : !refusedRef.current && callAgentAvailable();
     refusedRef.current = false;
     // An agent call leaves no recogniser behind: one started by an earlier tap
     // would hold the microphone, and a later redial would adopt it, dead.
@@ -982,6 +1080,27 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [startSignal]);
 
   const open = phase !== "idle";
+
+  /**
+   * The page behind the call stays where it was.
+   *
+   * The sheet is `fixed inset-0` and scrolls only when its own content
+   * overflows, which on a phone it mostly does not — and then a finger dragging
+   * on it scrolled the DOCUMENT behind: `overscroll-contain` only holds a box
+   * that has somewhere to scroll. On an iPhone that also slides Safari's
+   * toolbar in and out, which resizes the viewport the sheet is pinned to, so
+   * the call screen jumped under the finger; and a hang-up landed on a page
+   * scrolled somewhere the visitor never went (8 October). Safari honours
+   * `overflow: hidden` on the root element since 16, which is the one lock that
+   * needs no position hack and leaves programmatic scrolling — her tools'
+   * route changes — alone. The rule is in globals.css.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.setAttribute("data-call-open", "");
+    return () => root.removeAttribute("data-call-open");
+  }, [open]);
 
   // Where a caller carries on: the place she opened, and her last search with
   // سالم. On the error screen as well as the ended one — a refusal for credits
@@ -1063,7 +1182,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               cannot carry white body text at AA. pt- carries the safe-area
               inset itself now — full screen means this header IS the top
               edge, where the floating card used to sit clear of it. */}
-          <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white">
+          <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-white">
             <span className="min-w-0 flex-1">
               <span className="block font-display text-lg font-semibold leading-tight">
                 {WAIN_AI_COPY.name}
@@ -1117,7 +1236,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               height now and the buttons are pinned to the foot, where a
               thumb already is; `max-w-md` stops all of it stretching across
               a desktop window. */}
-          <div className="flex flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))]">
            <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="flex flex-1 flex-col text-center">
@@ -1181,8 +1300,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     rather than the page around it. */}
                 {agentMode && (
                   <div
+                    onClickCapture={() => setReached(true)}
                     className={`wain-ai-slot flex flex-col justify-center rounded-3xl bg-sand-100 p-3 ${
-                      phase === "live" && !started
+                      phase === "live" && !started && !reached
                         ? "my-auto h-44 ring-2 ring-coral-400"
                         : "mt-4 min-h-[19rem] flex-1"
                     }`}
@@ -1294,7 +1414,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 </p>
                 {/* When the browser cannot listen at all, another call fails the
                     same way. Typing to سالم answers the same question. */}
-                {errorText === WAIN_AI_COPY.speechOff && (
+                {(errorText === WAIN_AI_COPY.speechOff || errorText === SPEECH_OFF_APPLE) && (
                   <Link
                     href="/salem"
                     onClick={closeSheet}

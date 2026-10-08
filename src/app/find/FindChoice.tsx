@@ -89,7 +89,9 @@ export default function FindChoice() {
   const moment = useFindMoment();
 
   return (
-    <div className="relative" data-moment={moment.part}>
+    // data-dark-end: the page ends on سالم's dark half, and globals.css paints
+    // what lies below it — the home-indicator strip, the rubber band — dark too.
+    <div className="relative" data-moment={moment.part} data-dark-end="">
       {/* ---------- شوق: the call ---------- */}
       {/* A phone, and one button on it — on request, 2 October («one call
           icon, big, at the centre, a big mobile with "call"»; the design is
@@ -190,7 +192,11 @@ export default function FindChoice() {
               and two «دليلك/دليلتك في الكويت» pills a screen apart read as a
               repeat rather than as two people. */}
           <h2 className="text-on-photo animate-reveal-up font-display text-4xl font-bold text-sea-300 [animation-delay:580ms] sm:text-5xl">
-            اكتب ل{SALEM_NAME}
+            {/* One string, not «ل» then {SALEM_NAME}: that made two text
+                nodes, and Safari shapes each text node on its own, so the ل
+                stood unjoined in front of سالم — «اكتب ل سالم» at 48px
+                (8 October; 26px wider in WebKit than the joined word). */}
+            {`اكتب ل${SALEM_NAME}`}
           </h2>
           {/* The call half's own sentence with only his name changed — see
               SALEM_GREETING's comment in wain-ai.ts for why that is the only

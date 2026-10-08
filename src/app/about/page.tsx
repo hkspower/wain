@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="measure mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="measure mx-auto max-w-3xl gutter py-2 sm:py-3">
       <BackButton />
       <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         وين؟ شنو هذا

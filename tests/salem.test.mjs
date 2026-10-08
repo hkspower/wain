@@ -107,6 +107,36 @@ console.log('\n── /salem works with nothing behind it but the page ──');
   await ctx.close();
 }
 
+console.log('\n── a finger on a card does not move the map under it (iPhone) ──');
+{
+  // On an iPhone a finger «enters» a card at touchstart; choosing it popped
+  // its pin out of a map bubble, and WebKit's ContentChangeObserver reads new
+  // content under a tap as a hover menu and drops the click — the first tap on
+  // any card but the first opened nothing (8 October). Chromium has no such
+  // observer, so what is held here is the cause: a finger's pointerenter
+  // chooses nothing, and a mouse's still does (so the check can see a choice).
+  const { ctx, p } = await fresh('/salem/');
+  await ask(p, 'قهوة');
+  const second = p.locator('[data-salem-places]').last().locator('li[data-slug]').nth(1);
+  const ringed = () => second.evaluate((li) => li.className.includes('ring-sun-400'), null, { timeout: 2000 }).catch(() => null);
+  // What a tap sends on iOS, and what a mouse sends: a pointerover of its
+  // own type, then the mouseover every tap also produces for compatibility.
+  const enter = (type) => second.evaluate((li, t) => {
+    const card = li.querySelector('a') ?? li;
+    card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: t, isPrimary: true, relatedTarget: null }));
+    card.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
+  }, type, { timeout: 2000 }).catch(() => {});
+  ok('the answer has a second card to touch', (await second.count()) === 1);
+  ok('…not chosen to begin with', (await ringed()) === false);
+  await enter('touch');
+  await p.waitForTimeout(300);
+  ok('a finger touching it chooses nothing, so the map stays still under the tap', (await ringed()) === false);
+  await enter('mouse');
+  await p.waitForTimeout(300);
+  ok('a mouse pointing at it still chooses it', (await ringed()) === true);
+  await ctx.close();
+}
+
 console.log('\n── he answers what is said, not only what is searched ──');
 {
   /* Read off the live site, 8 October: every message was a search. «السلام
@@ -395,6 +425,56 @@ console.log('\n── the chat fits the screen that is visible, keyboard and all
   });
   ok('with a keyboard over half the screen, the box sits above it', m.inputBottom <= 400, JSON.stringify(m));
   ok('…and the header is still at the top', m.headerTop === 0, JSON.stringify(m));
+  await ctx.close();
+}
+
+console.log('\n── reading aloud, remembered from an earlier visit, speaks on an iPhone ──');
+{
+  // iOS lets speechSynthesis talk only once a speak() has run inside a tap,
+  // and drops every other one without an error or an end (WebKit,
+  // SpeechSynthesis.cpp). His reply is never inside the tap that asked — it
+  // waits on the voice list, the search chunk, or the socket — so with «اقرا
+  // لي» remembered from an earlier visit an iPhone read nothing until the
+  // switch was flipped off and on again (8 October). The engine here is a
+  // stand-in that keeps WebKit's rule: a tap is a trusted input event and the
+  // task it runs in, and nothing speaks until one speak() has run inside one.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('wain-salem-read', '1'); } catch { /* the check below fails instead */ }
+    let gesture = false;
+    let unlocked = false;
+    for (const t of ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup', 'touchend', 'submit'])
+      window.addEventListener(t, (e) => {
+        if (!e.isTrusted) return;
+        gesture = true;
+        setTimeout(() => { gesture = false; }, 0);
+      }, true);
+    window.__spoken = [];
+    window.__dropped = [];
+    const synth = {
+      speaking: false, pending: false, paused: false,
+      getVoices: () => [], addEventListener() {}, removeEventListener() {},
+      cancel() {}, pause() {}, resume() {},
+      speak(u) {
+        if (gesture) unlocked = true;
+        if (!unlocked) { window.__dropped.push(u.text); return; }
+        window.__spoken.push(u.text);
+        setTimeout(() => u.onend?.(new Event('end')), 20);
+      },
+    };
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: () => synth });
+  });
+  const p = await ctx.newPage();
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await ask(p, 'قهوة');
+  await p.waitForFunction(() => window.__spoken.some((t) => t.trim()) || window.__dropped.some((t) => t.trim()),
+    null, { timeout: 6000 }).catch(() => {});
+  const heard = await p.evaluate(() => ({
+    spoken: window.__spoken.filter((t) => t.trim()),
+    dropped: window.__dropped.filter((t) => t.trim()),
+  }));
+  ok(`his reply is read out (${heard.spoken.length} sentence(s))`, heard.spoken.length > 0, JSON.stringify(heard).slice(0, 200));
+  ok(`and none of it is dropped for want of a tap (${heard.dropped.length})`, heard.dropped.length === 0, JSON.stringify(heard.dropped).slice(0, 200));
   await ctx.close();
 }
 

@@ -13,8 +13,11 @@
  *
  * What a browser resolves and `flutter_svg` does not is resolved HERE, not at
  * runtime: `var(--w2)` stroke widths become numbers, `class` and ARIA go, and
- * the CSS `drop-shadow` filter is dropped (Flutter paints its own elevation;
- * the filter is a soft halo the white strokes can live without).
+ * the drawings' drop shadow is dropped (Flutter paints its own elevation; the
+ * shadow is a soft halo the white strokes can live without). It was a CSS
+ * `filter` in a style until 8 October and is an SVG <filter> now — Safari
+ * ignores the CSS one inside an <svg> — so both forms are taken out: the
+ * <filter> and the <defs> it leaves empty, and the `filter="url(…)"` on the <g>.
  * CategoryArt is exported once per variant (`<category>-<0..3>.svg`): the
  * mirrored and panned recompositions are transforms INSIDE the drawing, so
  * baking them in is exact, where transforming the widget would have to
@@ -87,7 +90,8 @@ const grabbed = await page.evaluate(() => {
     const el = svg.cloneNode(true);
     const vars = {};
     for (const name of ["--w2"]) vars[name] = svg.style.getPropertyValue(name) || root.getPropertyValue(name);
-    el.querySelectorAll("style").forEach((n) => n.remove());
+    el.querySelectorAll("style, filter").forEach((n) => n.remove());
+    el.querySelectorAll("defs").forEach((n) => { if (!n.children.length) n.remove(); });
     el.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     for (const a of ["class", "aria-hidden", "focusable", "role", "width", "height"]) el.removeAttribute(a);
     el.querySelectorAll("*").forEach((n) => { n.removeAttribute("class"); });
@@ -96,6 +100,7 @@ const grabbed = await page.evaluate(() => {
       for (const a of [...n.attributes]) {
         if (a.value.includes("var(--w2)")) n.setAttribute(a.name, a.value.replace(/var\(--w2\)/g, vars["--w2"]));
       }
+      if (/^url\(/.test(n.getAttribute("filter") ?? "")) n.removeAttribute("filter");
       const st = n.getAttribute("style");
       if (st) {
         let s = st.replace(/var\(--w2\)/g, vars["--w2"]);

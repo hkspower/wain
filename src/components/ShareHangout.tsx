@@ -405,7 +405,7 @@ export default function ShareHangout({
             rows={6}
             aria-label="نص الرسالة"
             onFocus={(e) => e.currentTarget.select()}
-            className="mt-2 w-full rounded-xl border border-line bg-sand-100 p-2 text-sm leading-relaxed text-ink-800"
+            className="mt-2 w-full rounded-xl border border-line bg-sand-100 p-2 text-sm leading-relaxed text-ink-800 pointer-coarse:text-base"
           />
           <button
             type="button"

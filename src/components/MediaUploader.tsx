@@ -174,7 +174,7 @@ export default function MediaUploader({
         </label>
 
         {photos.length > 0 && (
-          <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <ul role="list" className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {photos.map((p) => (
               <li key={p.id} className="group relative aspect-square overflow-hidden rounded-xl border border-line">
                 {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}

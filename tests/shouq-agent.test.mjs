@@ -622,6 +622,51 @@ console.log('\n── out of credits: the call says so, and the next one is ours
   await qctx.close();
 }
 
+console.log('\n── a bundle that arrives and does not run: she is not available HERE ──');
+{
+  // `load` fires for a script that threw part-way, and the widget defines its
+  // element on its very last line — so a browser that cannot run the bundle
+  // (an older Safari meeting syntax it does not know) mounted an element that
+  // draws nothing, and the sheet asked the visitor to press «بدء مكالمة» on a
+  // button that never appeared (8 October).
+  const bseen = [];
+  const bctx = await makeCtx(null, bseen);
+  await bctx.addInitScript(REC_STUB);
+  await bctx.route(WIDGET, async (route) => {
+    bseen.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      // The real bundle's shape: an IIFE that would define the element at its
+      // end, stopped before it by something this browser does not support.
+      body: `(function(){ window.__widgetRan = true; throw new SyntaxError("Unexpected token '#'"); customElements.define('elevenlabs-convai', class extends HTMLElement {}); })();`,
+    });
+  });
+  const b = await bctx.newPage();
+  await dial(b);
+  const said = await b.waitForFunction(
+    () => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes('دليل وين'),
+    null, { timeout: 6000 }
+  ).then(() => true, () => false);
+  ok('the bundle did run, and threw', await b.evaluate(() => window.__widgetRan === true));
+  ok('the sheet says she is not available and what the next call does', said,
+    (await b.locator('#wain-ai-panel').textContent().catch(() => '')).slice(0, 160));
+  ok('it never points at a Start button that is not there',
+    !(await b.locator('#wain-ai-panel').textContent().catch(() => '')).includes('اضغط «بدء مكالمة»'));
+  // About this browser, not the account: سالم's typed chat needs no widget, so
+  // the quarter-hour flag that turns him to the guide stays off.
+  ok('and the device does not switch her off for سالم as well', await b.evaluate(() => localStorage.getItem('wain:agent-off') === null));
+  await b.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});
+  await b.waitForFunction(() => window.__recStarts > 0, null, { timeout: 4000 }).catch(() => {});
+  const starts = await b.evaluate(() => window.__recStarts);
+  const outside = await b.evaluate(() => window.__recOutside);
+  const widget = await b.locator('#wain-ai-panel elevenlabs-convai').count();
+  ok('the redial is the free call, started inside the tap, with no widget',
+    starts > 0 && outside === 0 && widget === 0, `recStarts=${starts} outside=${outside} widget=${widget}`);
+  ok('and does not fetch the bundle again', bseen.length === 1, bseen.join(', '));
+  await bctx.close();
+}
+
 console.log('\n── a caller\'s own words about credits are not a refusal ──');
 {
   // The check read the whole shadow root, the conversation included, so a

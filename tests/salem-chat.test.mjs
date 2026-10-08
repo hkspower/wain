@@ -498,6 +498,71 @@ console.log("\n── a tool turn is still her turn ──");
   mock.timers.reset();
 }
 
+/* iOS suspends a page within seconds of an app switch or a locked screen, so
+   a line that was opening when the visitor looked away comes back timed out,
+   or closed with nothing from the server behind it. That is not the agent's
+   answer, and the page took it for one: «refused» and «timeout» switch her off
+   on the device for a quarter of an hour (8 October). A stand-in document
+   plays the page going out of sight. */
+console.log("\n── a line opened while the page was away is «interrupted», not refused ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const doc = Object.assign(new EventTarget(), { visibilityState: "visible" });
+  const look = (state) => { doc.visibilityState = state; doc.dispatchEvent(new Event("visibilitychange")); };
+  globalThis.document = doc;
+  const start = (seen) => startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+
+  let seen = [];
+  start(seen);
+  look("hidden");
+  mock.timers.tick(12000);
+  look("visible");
+  ok("the timer coming due across a stretch in the background is «interrupted»",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "interrupted"]), JSON.stringify(seen));
+
+  seen = [];
+  start(seen);
+  look("hidden");
+  FakeSocket.last.emit("close", { code: 1006 });
+  look("visible");
+  ok("a socket the suspension closed is «interrupted» too",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "interrupted"]), JSON.stringify(seen));
+
+  seen = [];
+  start(seen);
+  mock.timers.tick(12000);
+  ok("control: on screen throughout, it is still a timeout",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "timeout"]), JSON.stringify(seen));
+
+  seen = [];
+  start(seen);
+  FakeSocket.last.emit("close", { code: 1006 });
+  ok("control: and a refusal still a refusal",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "refused"]), JSON.stringify(seen));
+
+  seen = [];
+  start(seen);
+  look("hidden");
+  FakeSocket.last.emit("close", { code: 3000, reason: "[quota_exceeded] You've run out of credits." });
+  look("visible");
+  ok("a refusal for credits is still that, wherever the page was",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "unavailable"]), JSON.stringify(seen));
+
+  seen = [];
+  start(seen);
+  const up = FakeSocket.last;
+  up.readyState = FakeSocket.OPEN;
+  up.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  look("hidden");
+  up.emit("close", { code: 1006 });
+  look("visible");
+  ok("and a line that was up and then dropped is a dropped line",
+    JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "dropped"]), JSON.stringify(seen));
+  delete globalThis.document;
+  mock.timers.reset();
+}
+
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");
 console.log(`${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

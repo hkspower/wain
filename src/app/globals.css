@@ -36,6 +36,24 @@
   }
 }
 
+/* The page gutter: 10px on a phone, 16px from `sm` — and never less than the
+   notch. `viewport-fit=cover` gives the page the whole screen, so turned
+   sideways an iPhone's notch and rounded corners take 47px off each side and
+   nothing but the page keeps text out of them; every shell was a flat
+   `px-2.5 sm:px-4`, and /explore's heading sat 16px from an edge the notch
+   covers (8 October, measured with the insets emulated — audit:padding).
+   Upright, and on every screen with no notch, env() is 0 and this is exactly
+   the old gutter. Full-bleed pictures and bands stay full-bleed: only the
+   content is held in. */
+@utility gutter {
+  padding-left: max(0.625rem, env(safe-area-inset-left));
+  padding-right: max(0.625rem, env(safe-area-inset-right));
+  @variant sm {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
 /* `scroll-behavior: smooth` sat on `html` unconditionally, and the browser
    applies it to scroll RESTORATION too. Coming back from a place to the list
    did not put you where you were — it animated you there, a second of the page
@@ -114,6 +132,38 @@ body {
    The standalone-mode override that used to sit here — `10.25rem` instead
    of `6rem`, so the sheet cleared the tab bar specifically — is gone for
    the same reason: `inset-0` already covers the tab bar, in every mode. */
+
+/* /find ends on سالم's dark half, and an iPhone drew white under it: the
+   body's own bottom padding (the home-indicator inset, ~34px once Safari's
+   toolbar has slid away) and the rubber band past the page are both painted
+   in the body's colour, which is white (8 October). So the body is dark on a
+   page that ends dark, and the root does not bounce there — a bounce at the
+   top would otherwise show that dark above the page's light first half. */
+body:has([data-dark-end]) {
+  background-color: var(--color-sea-950);
+}
+html:has([data-dark-end]) {
+  overscroll-behavior-y: none;
+}
+
+/* The live map's tiles, smooth in Safari as they are everywhere else. Leaflet
+   gives its tiles `image-rendering: -webkit-optimize-contrast` in Safari alone
+   (`.leaflet-safari`, set from the user agent — for an old Safari that blurred
+   non-retina tiles), and today's WebKit reads that value as crisp-edges: no
+   smoothing at all, so a 256px tile drawn 3× on an iPhone is blocky and a
+   pinch stair-steps (8 October). One class more specific than Leaflet's own,
+   because its stylesheet arrives with the map and lands after this one. */
+.leaflet-container.leaflet-safari .leaflet-tile {
+  image-rendering: auto;
+}
+
+/* While a call is on screen the page behind it does not scroll. WainAiCall
+   sets the attribute; why it is needed — a drag on a sheet with nothing to
+   scroll moved the document, and on an iPhone Safari's toolbar with it — is
+   written there. Safari honours this on the root element since 16. */
+html[data-call-open] {
+  overflow: hidden;
+}
 
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the call sheet moves up out of the tab bar's way, and the page stops
@@ -634,6 +684,21 @@ h1, h2, h3 {
 @media (min-width: 640px) {
   .card-defer {
     contain-intrinsic-size: auto 140px;
+  }
+}
+/* …and not at all where the browser cannot hold the page still while a card
+   it skipped comes in at its real height. Chrome and Firefox anchor the scroll
+   (`overflow-anchor`), so a card above the reader growing from its 154px
+   estimate moves the scroll position with it and nothing visible moves.
+   Safari renders `content-visibility` since 18 and has no scroll anchoring,
+   so the same card moved the page: measured in WebKit on /explore at 390px,
+   a jump deep into the list and 800px back up left the card the reader was
+   looking at 74px off where it should have been (8 October; 0px in Chromium).
+   52 small cards are cheap to lay out; a list that slides under the thumb
+   is not. */
+@supports not (overflow-anchor: auto) {
+  .card-defer {
+    content-visibility: visible;
   }
 }
 

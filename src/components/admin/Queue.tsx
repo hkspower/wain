@@ -226,7 +226,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
               aria-label="الصالون"
               value={slug || slugs[0]}
               onChange={(e) => setSlug(e.target.value)}
-              className="min-h-tap rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+              className="min-h-tap rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800 pointer-coarse:text-base"
             >
               {slugs.map((s) => (
                 <option key={s} value={s}>
@@ -241,7 +241,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
             maxLength={80}
             onChange={(e) => setWalkName(e.target.value)}
             placeholder="الاسم"
-            className="min-h-tap flex-1 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+            className="min-h-tap flex-1 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800 pointer-coarse:text-base"
           />
           <input
             aria-label="رقم الزبون (اختياري)"
@@ -250,7 +250,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
             dir="ltr"
             onChange={(e) => setWalkPhone(e.target.value)}
             placeholder="الرقم (اختياري)"
-            className="min-h-tap w-40 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+            className="min-h-tap w-40 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800 pointer-coarse:text-base"
           />
           <button
             type="button"
@@ -268,7 +268,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
           {rows.length === 0 ? "ما فيه أدوار اليوم." : "الطابور فاضي."}
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul role="list" className="space-y-3">
           {visible.map((row) => {
             const isFresh = freshIds.has(row.id);
             return (

@@ -5,8 +5,14 @@ import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
-import { agentAvailable } from "@/lib/agent-health";
-import { armCall, onPhase, requestCall, startLocalRecognition, warmCall } from "@/lib/wain-ai-bus";
+import {
+  armCall,
+  callAgentAvailable,
+  onPhase,
+  requestCall,
+  startLocalRecognition,
+  warmCall,
+} from "@/lib/wain-ai-bus";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -150,7 +156,7 @@ export default function ShouqCallButton({
      * away from this tap. The call is told which way this tap went rather
      * than asking again (takeRequestedMode).
      */
-    const local = !agentAvailable();
+    const local = !callAgentAvailable();
     if (free && local) startLocalRecognition();
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
     requestCall(local ? "local" : "agent");

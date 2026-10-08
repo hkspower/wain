@@ -47,6 +47,7 @@
  */
 
 import type { Place } from "@/lib/places";
+import { ArtShade } from "@/components/CategoryArt";
 
 const S = {
   stroke: "#fff",
@@ -295,8 +296,10 @@ export default function PlaceArt({
       focusable="false"
     >
       {/* The same soft cast CategoryArt uses, so the white strokes sit on the
-          ground rather than looking cut into it. */}
-      <g style={{ filter: "drop-shadow(0 1.5px 2px rgb(20 18 15 / 0.28))" }}>{scene}</g>
+          ground rather than looking cut into it — an SVG filter, because
+          Safari ignores a CSS one on a <g> (see ArtShade). */}
+      <ArtShade id="wain-place-shade" />
+      <g filter="url(#wain-place-shade)">{scene}</g>
     </svg>
   );
 }

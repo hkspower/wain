@@ -44,7 +44,16 @@ export type SalemStatus = "connecting" | "connected" | "disconnected" | "error";
  * refusal at the handshake is not something a retry fixes on the spot, and a
  * socket that dies in the middle of a conversation is neither.
  */
-export type SalemFailure = "timeout" | "refused" | "dropped" | "unavailable";
+export type SalemFailure = "timeout" | "refused" | "dropped" | "unavailable" | "interrupted";
+
+/*
+ * «interrupted»: the page was in the background while the line was opening,
+ * and the line then failed or ran out of time. iOS suspends a page within
+ * seconds of the visitor switching app or locking the phone, so the timer
+ * comes due, or the socket closes, with nothing from the server behind it.
+ * That is not the agent's answer, and treating it as one switched her off on
+ * the device for a quarter of an hour (8 October) — the page tries again.
+ */
 
 /**
  * The server said no for a reason no retry on this page can change: the
@@ -235,16 +244,28 @@ export function startSalemChat({
   // Set once the server has said why, so the `error`/`close` pair that
   // follows cannot overwrite it with a guess.
   let unavailable = false;
-  const failure = (): SalemFailure => (unavailable ? "unavailable" : wasConnected ? "dropped" : "refused");
+  // Whether the page has been out of sight since this line started opening.
+  const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
+  let wasHidden = hidden();
+  const onVisibility = () => {
+    if (hidden()) wasHidden = true;
+  };
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+  const failure = (): SalemFailure =>
+    unavailable ? "unavailable" : wasConnected ? "dropped" : wasHidden ? "interrupted" : "refused";
   onStatus("connecting");
 
   const connectTimer = setTimeout(() => {
     if (settled) return;
     settled = true;
-    onStatus("error", "timeout");
+    onStatus("error", wasHidden ? "interrupted" : "timeout");
     deliberatelyClosed = true;
     socket.close();
   }, CONNECT_TIMEOUT_MS);
+  // Only the opening needs to know; a line that is up has its own failures.
+  const stopWatching = () => {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
+  };
 
   socket.addEventListener("open", () => {
     // The one message the server requires before anything else: the
@@ -293,6 +314,7 @@ export function startSalemChat({
         settled = true;
         wasConnected = true;
         clearTimeout(connectTimer);
+        stopWatching();
         onStatus("connected");
         return;
       case "agent_response": {
@@ -385,6 +407,7 @@ export function startSalemChat({
 
   socket.addEventListener("close", (event) => {
     clearTimeout(connectTimer);
+    stopWatching();
     setPending(false);
     if (isUnavailable(event.reason ?? "")) unavailable = true;
     if (deliberatelyClosed) return;
@@ -414,6 +437,7 @@ export function startSalemChat({
     close() {
       deliberatelyClosed = true;
       clearTimeout(connectTimer);
+      stopWatching();
       setPending(false);
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close(1000, "user closed chat");

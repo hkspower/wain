@@ -90,7 +90,7 @@ export default function PlaceView({
   const category = getCategory(place.category);
 
   return (
-    <div className="mx-auto max-w-4xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="mx-auto max-w-4xl gutter py-2 sm:py-3">
       {/* The breadcrumb «استكشف / <name>» stood here until 3 October, one
           line under the round back button — two ways back, stacked, the second
           repeating the heading under it. The back button falls back to
@@ -216,7 +216,7 @@ export default function PlaceView({
             <IconSparkle className="size-5 text-sun-600" />
             أبرز ما فيه
           </h2>
-          <ul className="mt-2 space-y-1.5">
+          <ul role="list" className="mt-2 space-y-1.5">
             {place.highlightsAr.map((h) => (
               <li key={h} className="flex items-start gap-2 text-sm text-ink-600">
                 <IconCheck className="mt-0.5 size-4 shrink-0 text-palm-500" />

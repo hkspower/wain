@@ -142,7 +142,7 @@ export function LiveTray() {
       aria-label="طلباتك الحالية"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 standalone:hidden"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 gutter pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2">
         <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg border border-line backdrop-blur">
           <OrdersLink />
           <QueueLink />

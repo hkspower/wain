@@ -23,8 +23,15 @@ export function audioContext(): AudioContext | null {
     if (!Ctor) return null;
     ctx ??= new Ctor();
     // Suspended is the normal state before the first gesture, and after the
-    // browser has parked a background tab.
-    if (ctx.state === "suspended") void ctx.resume();
+    // browser has parked a background tab. Safari has a third: «interrupted»,
+    // where it parks a running context when a phone call, FaceTime, Siri or
+    // another app takes the audio — and it stays there until the page resumes
+    // it. Resuming only «suspended» left every tone after an interruption
+    // silent: the call rang without a ring (8 October). Anything not running
+    // and not closed is resumed; a resume Safari refuses mid-interruption is
+    // not worth an error.
+    const state = ctx.state as AudioContextState | "interrupted";
+    if (state !== "running" && state !== "closed") void ctx.resume().catch(() => {});
     return ctx;
   } catch {
     return null;

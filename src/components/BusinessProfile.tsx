@@ -77,7 +77,7 @@ export function BusinessContact({ place }: { place: Place }) {
   return (
     <section className="mt-5" aria-label="تواصل مع المكان">
       <h2 className="mb-3 text-sm font-semibold text-ink-700">تواصل معهم</h2>
-      <ul className="flex flex-wrap gap-2">
+      <ul role="list" className="flex flex-wrap gap-2">
         {phone && (
           <li>
             <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className={item}>
@@ -119,7 +119,7 @@ export function BusinessProducts({ place }: { place: Place }) {
   return (
     <section className="mt-5" aria-label="المنتجات والخدمات">
       <h2 className="mb-3 font-display text-2xl font-bold text-ink-900">المنتجات والخدمات</h2>
-      <ul className="flex flex-wrap gap-2">
+      <ul role="list" className="flex flex-wrap gap-2">
         {products.map((item) => (
           <li
             key={item}
@@ -143,7 +143,7 @@ export function BusinessGallery({ place }: { place: Place }) {
       <h2 className="mb-4 font-display text-2xl font-bold text-ink-900">صور المكان</h2>
       {/* First image leads at double width where there is room, so a gallery of
           three does not read as a row of thumbnails. */}
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <ul role="list" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {images.map((url, i) => (
           <li
             key={url}

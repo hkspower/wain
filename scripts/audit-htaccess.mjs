@@ -268,6 +268,8 @@ if (!csp) {
   const WIDGET_ONLY = [
     // The call widget's orb texture; the widget ships only in an agent build.
     "https://storage.googleapis.com/eleven-public-cdn/images/",
+    // The resampler the widget loads where the audio rates differ (.htaccess).
+    "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js",
     // The widget's US endpoints; the site's own typed chat uses api.elevenlabs.io.
     "https://api.us.elevenlabs.io",
     "wss://api.us.elevenlabs.io",

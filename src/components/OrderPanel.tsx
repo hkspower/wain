@@ -221,7 +221,7 @@ export default function OrderPanel({ place }: { place: Place }) {
               rows={8}
               dir="rtl"
               aria-label="نص الطلب"
-              className="mt-2 w-full resize-none rounded-2xl border border-line bg-white p-3 text-sm leading-relaxed text-ink-800"
+              className="mt-2 w-full resize-none rounded-2xl border border-line bg-white p-3 text-sm leading-relaxed text-ink-800 pointer-coarse:text-base"
             />
             <div className="mt-2 flex flex-wrap gap-2">
               <a
@@ -272,8 +272,8 @@ export default function OrderPanel({ place }: { place: Place }) {
         </div>
         <p className="mt-2 text-xs text-ink-500">
           {wa
-            ? "تلقاه في «طلباتي» على هذا الجهاز. المكان يرد عليك بالواتساب."
-            : "تلقاه في «طلباتي» على هذا الجهاز، وتشوف فيه إذا صار جاهز."}
+            ? "تلقاه في «طلباتي» على هالمتصفح. المكان يرد عليك بالواتساب."
+            : "تلقاه في «طلباتي» على هالمتصفح، وتشوف فيه إذا صار جاهز."}
         </p>
       </section>
     );
@@ -294,7 +294,7 @@ export default function OrderPanel({ place }: { place: Place }) {
       </p>
 
       {/* ---- the menu ---- */}
-      <ul className="mt-5 divide-y divide-line">
+      <ul role="list" className="mt-5 divide-y divide-line">
         {menu.map((item) => {
           const n = qty[item.id] ?? 0;
           return (

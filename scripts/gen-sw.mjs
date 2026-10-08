@@ -172,6 +172,14 @@ self.addEventListener("fetch", (event) => {
   // Leave other origins alone: map tiles and the ElevenLabs widget must not be
   // cached or rewritten by us.
   if (url.origin !== self.location.origin) return;
+  // And our own back end. Its reads are GETs (ping, whoami, the admin's lists,
+  // the live places), and the last branch below is «cache first, refresh
+  // behind»: a kept answer would be a board showing the previous orders, a
+  // status that snaps back after it changed, «the secret is unset» after it was
+  // set, a sign-in passed on an old whoami — and customers' names and numbers
+  // left on the device. It kept none so far only by accident (the clone note
+  // below; 8 October). Every answer from /api/ is live or it is nothing.
+  if (url.pathname.startsWith("/api/")) return;
 
   // Navigations: network first so a deploy is picked up, cache as the safety
   // net, and the home shell as the last resort so the app always opens.
@@ -231,9 +239,14 @@ self.addEventListener("fetch", (event) => {
       const hit =
         (await caches.match(req)) ||
         (url.pathname.endsWith("/") ? await caches.match(htmlKey(url.pathname)) : null);
+      // The clone below is taken AFTER the response has gone to the page, which
+      // throws, so a miss is never stored here — only a precached hit is
+      // refreshed. Measured 8 October in Chromium. Left so on purpose: storing
+      // misses would start keeping every «?_rsc=» payload the router asks for.
       const network = fetch(req)
         .then((res) => {
-          if (res && res.ok) {
+          // A response that says it must not be stored is not stored.
+          if (res && res.ok && !/no-store/i.test(res.headers.get("cache-control") || "")) {
             caches.open(CACHE).then((c) => c.put(req, res.clone()).catch(() => {}));
           }
           return res;

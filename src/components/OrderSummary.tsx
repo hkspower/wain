@@ -23,7 +23,7 @@ export function OrderLines({ lines, totalFils }: { lines: OrderLine[]; totalFils
   if (lines.length === 0) return null;
   return (
     <div className="mt-4 rounded-2xl bg-sand-100 p-3">
-      <ul className="divide-y divide-line">
+      <ul role="list" className="divide-y divide-line">
         {lines.map((l) => (
           <li key={l.id} className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
             <span className="min-w-0 text-ink-800">

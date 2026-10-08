@@ -108,7 +108,10 @@ export default function RouteTransitions() {
               window.clearTimeout(bail);
               resolve();
             };
-            startTransition(() => router.push(url.pathname + url.search));
+            // With its #hash: a card's «رسّلها» is /places/<slug>/#share, and
+            // the panel scrolls itself there only if the address still says
+            // so. Without it the place opened at its top (8 October).
+            startTransition(() => router.push(url.pathname + url.search + url.hash));
           })
       );
     };

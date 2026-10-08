@@ -47,7 +47,7 @@ export default function AppTabBar() {
   return (
     <nav
       aria-label="تنقّل التطبيق"
-      className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur standalone:block"
+      className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur standalone:block"
     >
       <div className={`mx-auto grid max-w-md ${COLUMNS[tabs.length] ?? "grid-cols-3"}`}>
         {tabs.map(({ href, label, icon: Icon, exact }) => {

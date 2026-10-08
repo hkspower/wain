@@ -269,7 +269,7 @@ function DbCard({ order, onForget }: { order: TrackedOrder; onForget: () => void
           {byMe ? "" : " اتصل فيهم لو تبي تتأكد."}
         </p>
       ) : (
-        <ol className="mt-4 flex items-center gap-1" aria-label="حالة الطلب">
+        <ol role="list" className="mt-4 flex items-center gap-1" aria-label="حالة الطلب">
           {STEPS.map((step, i) => {
             const done = i <= stepIndex;
             const at =
@@ -397,7 +397,7 @@ export default function OrderTracker() {
 
   const reload = () => setOrders(listOrders());
   return (
-    <ul className="space-y-4">
+    <ul role="list" className="space-y-4">
       {orders.map((o) =>
         // Entries written before WhatsApp mode existed carry no channel and
         // were all database orders.

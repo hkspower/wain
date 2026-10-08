@@ -19,6 +19,7 @@ import MediaReview from "@/components/admin/MediaReview";
 import Orders from "@/components/admin/Orders";
 import Queue from "@/components/admin/Queue";
 import Submissions, { submissionToPlace } from "@/components/admin/Submissions";
+import { audioContext } from "@/lib/audio-context";
 import { discardPending, publishMedia } from "@/lib/media";
 import type { SubmissionRow } from "@/lib/submissions";
 
@@ -63,6 +64,24 @@ export default function AdminApp() {
   // it, not because nobody looked.
   const [approvedLogo, setApprovedLogo] = useState(false);
   const [approvedImages, setApprovedImages] = useState<string[]>([]);
+
+  // The new-order chime. Safari lets an AudioContext start only inside a tap
+  // (WebKit: RequireUserGestureForAudioStart) and the board's first chime
+  // comes from a poll, long after the admin's last one: every chime was silent
+  // while the switch said the sound was on, until it was switched off and on
+  // again (8 October). The first tap or key on the board makes the context,
+  // inside the gesture, and the chimes after it can play.
+  useEffect(() => {
+    const events = ["pointerdown", "keydown", "touchend"] as const;
+    const unlock = () => {
+      audioContext();
+      for (const t of events) window.removeEventListener(t, unlock, true);
+    };
+    for (const t of events) window.addEventListener(t, unlock, true);
+    return () => {
+      for (const t of events) window.removeEventListener(t, unlock, true);
+    };
+  }, []);
 
   // ---- the gate ------------------------------------------------------------
   useEffect(() => {
@@ -280,7 +299,7 @@ export default function AdminApp() {
     : rows;
 
   return (
-    <div className="mx-auto max-w-5xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="mx-auto max-w-5xl gutter py-2 sm:py-3">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <WainLogo className="size-10" />
@@ -421,7 +440,7 @@ export default function AdminApp() {
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="ابحث في الأماكن"
                 placeholder="ابحث…"
-                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none pointer-coarse:text-base focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
               />
             </div>
             <button
@@ -445,7 +464,7 @@ export default function AdminApp() {
             </p>
           )}
 
-          <ul className="space-y-2">
+          <ul role="list" className="space-y-2">
             {filtered.map((p) => (
               <li
                 key={p.id}
@@ -544,13 +563,13 @@ function Banner({
 /** The build was made with the back end switched off (`NEXT_PUBLIC_WAIN_BACKEND=none`). */
 function NotConfigured() {
   return (
-    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم مو مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         هذا البناء مطفي فيه الخادم: الموقع يشتغل من بياناته المدمجة، بس التحرير
         والطلبات والطابور محتاجة بناء يوصل لـ <code dir="ltr">/api/wain.php</code>.
       </p>
-      <ol className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
+      <ol role="list" className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
         <li>١. ركّب الخادم: <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">php wain.php install</code> على السيرفر.</li>
         <li>
           ٢. أعد البناء بدون{" "}
@@ -567,13 +586,13 @@ function NotConfigured() {
 /** The server answered, and said it has no admin secret yet. */
 function SecretUnset() {
   return (
-    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">الخادم شغّال، بس بدون كلمة سر</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
         مرة واحدة، من مدير الملفات في hPanel:
       </p>
-      <ol className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
+      <ol role="list" className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
         <li>
           ١. افتح{" "}
           <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">domains/wainkw.com/storage/admin.secret</code>
@@ -592,7 +611,7 @@ function SecretUnset() {
 
 function Unreachable({ message }: { message: string }) {
   return (
-    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">ما وصلنا للخادم</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">{message}</p>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
@@ -642,7 +661,7 @@ function SignIn({ error, onSubmit }: { error: string; onSubmit: (secret: string)
             autoComplete="current-password"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm pointer-coarse:text-base outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
           />
           <p className="mt-1.5 text-xs text-ink-500">
             هي نفس اللي في <code dir="ltr">storage/admin.secret</code> على السيرفر. تنحفظ في هذا التاب بس.

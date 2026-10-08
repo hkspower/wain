@@ -164,7 +164,7 @@ export default function Submissions({
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul role="list" className="space-y-3">
           {rows.map((s) => {
             const cat = getCategory(s.category);
             const isOpen = open === s.id;

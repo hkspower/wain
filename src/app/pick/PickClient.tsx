@@ -114,7 +114,7 @@ export default function PickClient() {
   // place renamed since, or a link cut short in a forward.
   if (list.length < 2) {
     return (
-      <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <div className="mx-auto max-w-3xl gutter py-2 sm:py-3">
         <h1 className="font-display text-2xl font-bold text-ink-900">ما لقينا الأماكن اللي بالرابط</h1>
         <p className="mt-2 text-ink-600">يمكن الرابط انقص وهو ينرسل. تقدر تدوّر بنفسك أو تسأل سالم.</p>
         <div className="mt-5 flex flex-wrap gap-2">
@@ -140,7 +140,7 @@ export default function PickClient() {
   const ask = category ? `${category.ar} ${list[0].areaAr}` : list[0].areaAr;
 
   return (
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="mx-auto max-w-3xl gutter py-2 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
         {passed ? "الوقت اللي اختاروه عدّى" : "ربعك يختارون"}
       </h1>
@@ -154,7 +154,7 @@ export default function PickClient() {
         </p>
       )}
 
-      <ol className="mt-5 space-y-3">
+      <ol role="list" className="mt-5 space-y-3">
         {list.map((place, i) => {
           const replied = voted?.slug === place.slug;
           const chosen = mine === place.slug;
@@ -163,7 +163,10 @@ export default function PickClient() {
           return (
             <li
               key={place.slug}
-              onPointerEnter={() => setActive(place.slug)}
+              // A mouse only — a finger's pointerenter at touchstart moved the
+              // map under the tap, and iOS then swallows the click (see
+              // SalemChat's rail, 8 October).
+              onPointerEnter={(e) => e.pointerType === "mouse" && setActive(place.slug)}
               className={`flex items-stretch gap-3 rounded-3xl border bg-white p-2 shadow-xs transition ${
                 active === place.slug ? "border-sea-300" : "border-line"
               }`}

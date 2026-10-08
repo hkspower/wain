@@ -58,18 +58,22 @@ export default function AddToCalendar({
 
   return (
     <span className={`inline-flex flex-wrap items-center gap-x-3 gap-y-1 ${className}`}>
-      <button
-        type="button"
-        data-calendar=""
-        onClick={() => {
-          haptic("tap");
-          cal.downloadCalendar(entry());
-        }}
-        className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
-      >
-        <IconClock className="size-4" />
-        أضفها للتقويم
-      </button>
+      {/* Not where a download cannot reach a calendar — an iPhone's installed
+          app, an app's own browser (hangout-calendar, fileReachesCalendar). */}
+      {cal.fileReachesCalendar() && (
+        <button
+          type="button"
+          data-calendar=""
+          onClick={() => {
+            haptic("tap");
+            cal.downloadCalendar(entry());
+          }}
+          className="inline-flex min-h-tap items-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+        >
+          <IconClock className="size-4" />
+          أضفها للتقويم
+        </button>
+      )}
       <a
         href={entry().google}
         target="_blank"

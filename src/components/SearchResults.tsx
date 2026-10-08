@@ -161,7 +161,10 @@ export default function SearchResults({
     <ul
       className="space-y-2"
       id={listboxId}
-      role={listboxId ? "listbox" : undefined}
+      // A list either way: Safari's VoiceOver reads a list the stylesheet took
+      // the bullets off (every list here — Tailwind's preflight) as plain
+      // text, with no «list, 6 items», unless the role is written down.
+      role={listboxId ? "listbox" : "list"}
       aria-label={listboxId ? "نتائج البحث" : undefined}
     >
       {hits.map((hit, i) => {
@@ -176,8 +179,13 @@ export default function SearchResults({
             id={listboxId ? optionId(listboxId, i) : undefined}
             role={listboxId ? "option" : undefined}
             aria-selected={listboxId ? i === activeIndex : undefined}
-            onMouseEnter={() => slug && onActiveSlug?.(slug)}
-            onMouseLeave={() => slug && onActiveSlug?.(null)}
+            // Pointer events from a mouse, not mouseenter: iOS fires mouseenter
+            // for every TAP, and lighting the row's pin re-renders the map
+            // under the finger, which iOS reads as a hover menu and answers by
+            // dropping the click — a row with the map open took two taps to
+            // open (8 October, WebKit's ContentChangeObserver).
+            onPointerEnter={(e) => e.pointerType === "mouse" && slug && onActiveSlug?.(slug)}
+            onPointerLeave={(e) => e.pointerType === "mouse" && slug && onActiveSlug?.(null)}
             onFocus={() => slug && onActiveSlug?.(slug)}
             onBlur={() => slug && onActiveSlug?.(null)}
             className={`group flex items-center gap-2 rounded-xl border p-2 transition ${

@@ -78,6 +78,9 @@ export default function BackButton({
     else router.push(fallback);
   };
 
+  // Floating, it sits at the start edge — the right, the site being RTL — and
+  // never inside a sideways iPhone's notch, whose width on that side is
+  // env(safe-area-inset-right); the page's own gutter does the same (8 October).
   const button = (
     <button
       type="button"
@@ -86,7 +89,7 @@ export default function BackButton({
       data-back-button
       className={`${
         floating
-          ? "fixed top-[calc(0.5rem+env(safe-area-inset-top))] start-[max(0.625rem,calc((100vw-72rem)/2+1rem))] z-50"
+          ? "fixed top-[calc(0.5rem+env(safe-area-inset-top))] start-[max(0.625rem,env(safe-area-inset-right),calc((100vw-72rem)/2+1rem))] z-50"
           : "shrink-0"
       } app-chrome grid size-11 place-items-center rounded-full bg-white text-ink-800 shadow-md ring-1 ring-ink-900/10 transition hover:bg-sand-100 active:scale-[0.96]`}
     >

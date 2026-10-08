@@ -195,6 +195,7 @@ export default function SalemChat() {
   const [readAloud, setReadAloud] = useState(false);
   const readAloudRef = useRef(false);
   readAloudRef.current = readAloud;
+  const primedRef = useRef(false);
 
   // Same shape as WainAiCall.tsx's own `loadIndex`, for the same reason: the
   // search engine belongs to a conversation that may never happen, so it is
@@ -549,6 +550,20 @@ export default function SalemChat() {
     );
     const handle = startSalemChat({
       onStatus: (s, f) => {
+        // The phone put the page away while the line was opening (iOS does it
+        // within seconds of an app switch): not the agent's answer, so not a
+        // reason to switch her off — try again once the page is back.
+        if (s === "error" && f === "interrupted") {
+          const again = () => {
+            if (document.visibilityState === "hidden") return;
+            document.removeEventListener("visibilitychange", again);
+            // Not after the page has gone, or a newer line has replaced this one.
+            if (handleRef.current === handle) connect();
+          };
+          document.addEventListener("visibilitychange", again);
+          again();
+          return;
+        }
         // A refusal for credits: he answers from our own search instead, and
         // this device skips the agent for a while (lib/agent-health.ts). And
         // a line that never opened — refused at the door, or no answer from
@@ -620,7 +635,10 @@ export default function SalemChat() {
   useEffect(() => {
     if (FREE || !agentAvailable()) return;
     connect();
-    return () => handleRef.current?.close();
+    return () => {
+      handleRef.current?.close();
+      handleRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` through refs, and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
@@ -661,6 +679,16 @@ export default function SalemChat() {
   function submit(raw: string, asked?: ChatContext): boolean {
     const text = raw.trim();
     if (!text || status !== "connected" || pending) return false;
+    // iOS lets speechSynthesis talk only once a speak() has run inside a tap,
+    // and drops the rest without an error or an end (WebKit, SpeechSynthesis).
+    // Reading aloud remembered from an earlier visit therefore said nothing on
+    // an iPhone: his reply arrives off the socket, or after the search chunk
+    // has loaded, never inside the tap that asked. Every send is a tap or a
+    // key, so the first one unlocks it (8 October).
+    if (readAloudRef.current && !primedRef.current) {
+      primedRef.current = true;
+      primeAudio();
+    }
     if (freeRef.current) {
       stickRef.current = true;
       setMessages((prev) => [...prev, { role: "user", text }]);
@@ -701,7 +729,10 @@ export default function SalemChat() {
   function toggleReadAloud() {
     const on = !readAloud;
     // Inside the tap, so iOS lets the first reply play.
-    if (on) primeAudio();
+    if (on) {
+      primedRef.current = true;
+      primeAudio();
+    }
     else stopVoice();
     setReadAloud(on);
     try {
@@ -770,7 +801,7 @@ export default function SalemChat() {
     // for the tab bar, so the frame is that much shorter.
     <div
       ref={frameRef}
-      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))]"
+      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))]"
     >
       {/* On a wide screen every row keeps to one centred 42rem column
           (`md:px-[calc(50%-21rem)]`): the chat used to run the whole
@@ -984,6 +1015,9 @@ export default function SalemChat() {
         </label>
         <input
           id="salem-q"
+          // «إرسال» on the iPhone keyboard's key, not a bare return: iOS names
+          // the key from a form's action, and this form has none (8 October).
+          enterKeyHint="send"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
@@ -1055,12 +1089,18 @@ function SalemPlacesResult({
 
   return (
     <div className="space-y-2" data-salem-places="">
-      <ul ref={railRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+      <ul role="list" ref={railRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
         {places.map((place) => (
           <li
             key={place.slug}
             data-slug={place.slug}
-            onPointerEnter={() => choose(place.slug)}
+            // A mouse only. On an iPhone a finger «enters» the card at
+            // touchstart; choosing it then pops its pin out of a map bubble,
+            // and iOS reads new content under a tap as a hover menu and drops
+            // the click — the first tap on any card but the first opened
+            // nothing (8 October, WebKit's ContentChangeObserver). A tap still
+            // chooses it, through the focus and the page it opens.
+            onPointerEnter={(e) => e.pointerType === "mouse" && choose(place.slug)}
             onFocus={() => choose(place.slug)}
             className={`w-40 shrink-0 snap-start rounded-3xl transition ${
               place.slug === activeSlug ? "ring-2 ring-sun-400 ring-offset-2 ring-offset-sea-950" : ""

@@ -19,8 +19,8 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
  * `neverStarts` is the microphone prompt nobody answers: start() accepted, and
  * then silence for ever. No handler fires, so nothing but a timeout can end it.
  */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
+async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false, vendor = null, userAgent = null, at = null, viewport = { width: 390, height: 844 } } = {}) {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
   await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts, vendor }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
     if (vendor) Object.defineProperty(navigator, 'vendor', { configurable: true, get: () => vendor });
@@ -299,6 +299,68 @@ console.log('\n── the sheet sits where it can be read and dismissed ──')
   await ctx.close();
 }
 
+console.log('\n── the page behind the call stays where it was ──');
+{
+  // The sheet scrolls only when its own content overflows, and on a phone it
+  // mostly does not — so a drag on it scrolled the document behind, and on an
+  // iPhone slid Safari's toolbar in and out under the finger (8 October). A
+  // wheel stands in for the drag: the scroll chain is the same one.
+  const { ctx, p } = await fresh({ stayOpen: true });
+  await call(p);
+  await onCall(p);
+  const tall = await p.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+  ok('the page behind is long enough to scroll, so the check means something', tall > 200, `overflow ${tall}px`);
+  const before = await p.evaluate(() => scrollY);
+  await p.mouse.move(195, 420);
+  await p.mouse.wheel(0, 900);
+  await p.waitForTimeout(500);
+  const during = await p.evaluate(() => scrollY);
+  ok('scrolling on the call does not scroll the page behind it', during === before, `${before} → ${during}`);
+  await p.locator('#wain-ai-panel button[aria-label="إغلاق"]').click({ timeout: 4000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  await p.mouse.wheel(0, 900);
+  await p.waitForTimeout(500);
+  ok('and once the call is closed the page scrolls again', (await p.evaluate(() => scrollY)) > before,
+    String(await p.evaluate(() => scrollY)));
+  await ctx.close();
+}
+
+console.log('\n── turned sideways, the call stays out of the notch ──');
+{
+  // viewport-fit=cover gives the page the whole screen, and a sideways iPhone
+  // takes 47px off each side for the notch and the corners. The sheet's p-4
+  // put her name and the hang-up 16px from an edge the notch covers
+  // (8 October). DevTools makes env(safe-area-inset-*) read as an iPhone's.
+  const { ctx, p } = await fresh({ stayOpen: true, viewport: { width: 844, height: 390 } });
+  const cdp = await ctx.newCDPSession(p);
+  const emulated = await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 47, right: 47, bottom: 21 } }).then(() => true, () => false);
+  ok('this Chromium can stand in for a notched phone', emulated);
+  await call(p);
+  await onCall(p);
+  const under = await p.evaluate(() => {
+    const out = [];
+    const sheet = document.querySelector('#wain-ai-panel');
+    if (!sheet) return ['no sheet'];
+    const range = document.createRange();
+    const walk = document.createTreeWalker(sheet, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent.trim() || n.parentElement.closest('.sr-only')) continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) {
+        if (r.width < 1) continue;
+        if (r.left < 46 || innerWidth - r.right < 46) { out.push(`«${n.textContent.trim().slice(0, 20)}» ${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`); break; }
+      }
+    }
+    for (const b of sheet.querySelectorAll('button, a')) {
+      const r = b.getBoundingClientRect();
+      if (r.width && (r.left < 46 || innerWidth - r.right < 46)) out.push(`${b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)} (control) ${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`);
+    }
+    return out;
+  });
+  ok('nothing on the call sheet sits under the notch or a corner', under.length === 0, under.slice(0, 4).join(' · '));
+  await ctx.close();
+}
+
 console.log('\n── the hang-up does not come back as a failure ──');
 {
   // The red button abort()s the engine, and the engine answers that abort a
@@ -402,6 +464,23 @@ console.log('\n── a browser that cannot listen is not told about its microph
     await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
     const t = await sheet(p).textContent();
     ok('inside an app\'s browser, a refusal is not blamed on the microphone', t.includes('التعرّف على الصوت مو شغّال') && !t.includes('المايك مسموح للموقع'), t.slice(0, 120));
+    await ctx.close();
+  }
+  {
+    // An iPhone in Safari itself: Dictation off (or Safari's speech permission
+    // refused) is `service-not-allowed`, and «open the site in Safari» told a
+    // visitor already there to go where they were (8 October). The switch is
+    // in Settings; typing to سالم is still offered.
+    const { ctx, p } = await fresh({
+      error: 'service-not-allowed',
+      vendor: 'Apple Computer, Inc.',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 }).catch(() => {});
+    const t = await sheet(p).textContent({ timeout: 2000 }).catch(() => '');
+    ok('in Safari on an iPhone, a refusal says where the switch is', t.includes('الإملاء') && !t.includes('افتح الموقع بسفاري'), t.slice(0, 140));
+    ok('…and still offers typing to سالم', (await p.locator('#wain-ai-panel a[href="/salem/"]', { hasText: 'اكتب لسالم' }).count()) === 1);
     await ctx.close();
   }
   {

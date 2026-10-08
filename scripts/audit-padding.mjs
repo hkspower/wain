@@ -284,6 +284,86 @@ for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 
   }
 }
 
+/* ── landscape on a notched iPhone ──────────────────────────────────────────
+   `viewport-fit=cover` hands the page the whole screen, the notch and the
+   rounded corners included, so turned sideways nothing keeps text out of them
+   but the page itself — and every gutter here was a flat 10 or 16px against an
+   iPhone's 47 (8 October: /explore's heading 16px from an edge the notch
+   covers). The header of this file says env() is 0 in a desktop Chromium and
+   cannot be measured; it can now — DevTools' Emulation.setSafeAreaInsetsOverride
+   makes env(safe-area-inset-*) resolve to the numbers below, and where the text
+   lands is a measurement. Text inside a sideways scroller is skipped: it
+   scrolls past the edge by design, as it scrolls past the screen. */
+const NOTCH = { top: 0, left: 47, right: 47, bottom: 21 };
+const LANDSCAPE = [...PAGES.filter((u) => u !== "/admin/"), "/find/", "/salem/", "/pick/?p=kuwait-towers,marina-beach&when=tonight-8"];
+{
+  const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, locale: "ar-KW" });
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  let emulated = true;
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: NOTCH }).catch(() => { emulated = false; });
+  console.log(`\n── landscape on a notched phone (844×390, insets ${NOTCH.left}/${NOTCH.right}) ──`);
+  if (!emulated) {
+    console.log("  ✗ this Chromium cannot emulate the safe area, so nothing here was measured");
+    problems++;
+  } else {
+    const bad = [];
+    for (const url of LANDSCAPE) {
+      await page.goto(`http://localhost:${PORT}${url}`, { waitUntil: "networkidle" });
+      const found = await page.evaluate((inset) => {
+        // The emulation reaching the page is the check's own control.
+        const probe = document.createElement("div");
+        probe.style.cssText = "position:fixed;left:env(safe-area-inset-left,0px)";
+        document.body.append(probe);
+        const live = parseFloat(getComputedStyle(probe).left);
+        probe.remove();
+        if (live !== inset.left) return { live, hits: [] };
+        const hits = [];
+        const range = document.createRange();
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          if (!n.textContent.trim()) continue;
+          const el = n.parentElement;
+          if (!el || el.closest(".sr-only, script, style, noscript, template")) continue;
+          const cs = getComputedStyle(el);
+          if (cs.visibility === "hidden" || Number(cs.opacity) === 0) continue;
+          let a = el, sideways = false, gone = false;
+          for (; a && a !== document.body; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            if (/(auto|scroll)/.test(s.overflowX) && a.scrollWidth > a.clientWidth + 1) sideways = true;
+            if (s.display === "none" || Number(s.opacity) === 0 || a.inert) gone = true;
+          }
+          if (sideways || gone) continue;
+          range.selectNodeContents(n);
+          for (const r of range.getClientRects()) {
+            if (r.width < 1 || r.height < 1) continue;
+            const l = Math.round(r.left), rr = Math.round(innerWidth - r.right);
+            if (l < inset.left - 1 || rr < inset.right - 1) {
+              hits.push(`«${n.textContent.trim().slice(0, 24)}» ${l}px | ${rr}px`);
+              break;
+            }
+          }
+        }
+        return { live, hits };
+      }, NOTCH);
+      if (found.live !== NOTCH.left) {
+        bad.push(`${url}: the inset did not reach the page (env read ${found.live})`);
+        continue;
+      }
+      if (found.hits.length) bad.push(`${url}: ${found.hits.length} — ${found.hits.slice(0, 3).join(" · ")}`);
+    }
+    if (bad.length) {
+      for (const b of bad) console.log(`  ✗ ${b}`);
+      console.log("      Text under the notch or a rounded corner. Pad with max(<gutter>,");
+      console.log("      env(safe-area-inset-left/right)) — the `gutter` utility does it for a page.");
+      problems += bad.length;
+    } else {
+      console.log(`  ${LANDSCAPE.length} routes: every line of text clears the notch on both sides.`);
+    }
+  }
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 

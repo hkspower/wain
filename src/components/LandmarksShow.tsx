@@ -111,7 +111,7 @@ export default function LandmarksShow({ slides }: { slides: LandmarkSlide[] }) {
       onFocus={onFocus}
       className={`landmark-show bg-sand-50 pb-2 sm:pb-3 ${held ? "is-held" : ""}`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-2.5 pt-4 pb-2 sm:px-4 sm:pt-6 sm:pb-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 gutter pt-4 pb-2 sm:pt-6 sm:pb-3">
         <h2 id="landmarks-h" className="font-display text-lg font-bold text-ink-900 sm:text-2xl">
           معالم الكويت
         </h2>
@@ -176,13 +176,13 @@ export default function LandmarksShow({ slides }: { slides: LandmarkSlide[] }) {
                 </span>
                 {/* Outside the drift, which would carry it half out of the box. */}
                 {s.source === "stand-in" && <StandInFlag className="end-0 top-1/3 rounded-s-lg" />}
-                <IllustrativeTag className="start-2.5 top-12 sm:start-4 lg:start-6" />
+                <IllustrativeTag className="start-[max(0.625rem,env(safe-area-inset-right))] top-12 sm:start-[max(1rem,env(safe-area-inset-right))] lg:start-6" />
                 {/* The fade under the words, built for the worst picture: white
                     text needs the dark at 82% or more under 14px and 70% under
                     the 20px name, so 90% at the foot easing to 80% halfway up
                     covers both lines on a white sky. Above them it lets the
                     picture through. */}
-                <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-ink-900/90 via-ink-900/80 via-45% to-ink-900/0 px-2.5 pt-16 pb-3.5 sm:px-4 lg:px-7 lg:pt-28 lg:pb-6">
+                <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-ink-900/90 via-ink-900/80 via-45% to-ink-900/0 gutter pt-16 pb-3.5 lg:px-7 lg:pt-28 lg:pb-6">
                   <span className="flex min-w-0 flex-col gap-0.5 lg:gap-1">
                     <span className="font-display text-xl font-bold leading-snug lg:text-3xl">{s.name}</span>
                     <span className="flex items-center gap-1 text-sm lg:text-base">
@@ -200,7 +200,7 @@ export default function LandmarksShow({ slides }: { slides: LandmarkSlide[] }) {
           })}
 
           <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-ink-900/55 to-ink-900/0" />
-          <div role="group" aria-label="اختر معلم" className="absolute inset-x-0 top-0 flex gap-1 px-2.5 sm:px-4 lg:gap-1.5 lg:px-6">
+          <div role="group" aria-label="اختر معلم" className="absolute inset-x-0 top-0 flex gap-1 gutter lg:gap-1.5 lg:px-6">
             {slides.map((s, i) => (
               <button
                 key={s.slug}

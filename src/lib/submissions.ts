@@ -77,6 +77,26 @@ export function inKuwait(lat: number, lng: number): boolean {
   );
 }
 
+/**
+ * A coordinate as somebody types it.
+ *
+ * An iPhone's decimal pad types the device's own digits, so on an Arabic
+ * phone «29.37» arrives as «٢٩٫٣٧» — and Number('٢') is NaN, which the form
+ * used to put straight back into the box (8 October). Arabic-Indic and
+ * Persian digits are read as their ASCII twins and ٫ or , as the point. null
+ * for an empty box; NaN for text that is not a number at all, which the
+ * validator then reports as not inside Kuwait rather than taking it for one.
+ */
+export function parseCoordinate(text: string): number | null {
+  const t = text
+    .trim()
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٫,]/g, ".");
+  if (t === "") return null;
+  return /^-?(?:\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) : NaN;
+}
+
 /** Instagram is stored as a bare handle, however the owner typed it. */
 export function normaliseInstagram(value: string): string {
   return value

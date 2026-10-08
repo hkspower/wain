@@ -1,3 +1,4 @@
+import { HeroPicture } from "@/components/HomeLazy";
 import HeroSun from "@/components/HeroSun";
 import { HOME_HERO as H } from "@/lib/home-hero.g";
 
@@ -46,23 +47,9 @@ export default function HomeHero() {
       <p className="sr-only">وين الطلعة اليوم؟</p>
 
       <div className="home-hero relative aspect-[9/16] w-full">
-        <picture>
-          <source type="image/avif" srcSet={H.avif} sizes={sizes} />
-          <source type="image/webp" srcSet={H.webp} sizes={sizes} />
-          {/* A plain <img>, for PlacePhoto's reason: a static export has no
-              optimiser, and the sizes were made at build time by
-              `npm run home-hero`. Not lazy — it is the first thing painted.
-              (no-img-element does not fire inside <picture>.) */}
-          <img
-            src={H.src}
-            width={H.width}
-            height={H.height}
-            alt=""
-            fetchPriority="high"
-            className="absolute inset-0 size-full select-none"
-            draggable={false}
-          />
-        </picture>
+        {/* AVIF first, and the WebP when the AVIF cannot be drawn — Safari's
+            Lockdown Mode picks the AVIF and then refuses to decode it. */}
+        <HeroPicture avif={H.avif} webp={H.webp} src={H.src} width={H.width} height={H.height} sizes={sizes} />
 
         {/* The sun. Same name as the dial it replaces, so what it leads to is
             said once, in the link, for the visitor who hears it. A button you

@@ -194,6 +194,59 @@ else {
   await browser.close();
 }
 
+// ---- 3b. the icon an iPhone puts on its home screen -------------------------
+// iOS takes the home-screen icon from <link rel="apple-touch-icon">, not from
+// the manifest, and it cannot draw an SVG there: every page named /icon.svg
+// until 8 October, so «Add to Home Screen» on an iPhone got a screenshot of the
+// page instead of the logo. Read from the pages and the bytes, not from
+// layout.tsx: the bytes are what the phone gets.
+console.log("\n── the home-screen icon an iPhone uses ──");
+{
+  const pages = files.filter((f) => f.endsWith(".html"));
+  const hrefs = new Map();
+  for (const f of pages) {
+    const html = readFileSync(f, "utf8");
+    const links = [...html.matchAll(/<link\b[^>]*\brel="apple-touch-icon"[^>]*>/g)].map((m) => m[0]);
+    if (!links.length) { say(`${rel(f)} names no apple-touch-icon — an iPhone draws a screenshot instead`); continue; }
+    for (const l of links) {
+      const href = l.match(/\bhref="([^"]+)"/)?.[1] ?? "";
+      hrefs.set(href, (hrefs.get(href) ?? 0) + 1);
+    }
+  }
+  for (const [href, n] of hrefs) {
+    const path = join(OUT, decodeURIComponent(href.replace(/^\//, "").split(/[?#]/)[0]));
+    if (!existsSync(path)) { say(`apple-touch-icon ${href} (${n} pages) does not exist`); continue; }
+    const b = readFileSync(path);
+    const png = b.length > 26 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    if (!png) { say(`apple-touch-icon ${href} (${n} pages) is not a PNG — iOS cannot draw it`); continue; }
+    const w = b.readUInt32BE(16), h = b.readUInt32BE(20), colorType = b[25];
+    // Colour types 4 and 6 carry alpha, and iOS fills it with black.
+    const alpha = colorType === 4 || colorType === 6;
+    if (w !== 180 || h !== 180) say(`apple-touch-icon ${href} is ${w}×${h}, not the 180×180 an iPhone asks for`);
+    else if (alpha) say(`apple-touch-icon ${href} has an alpha channel — iOS paints the clear parts black`);
+    else console.log(`  ✓ ${href}  ${w}×${h} PNG, opaque, on ${n} page(s)`);
+  }
+  // …and a tab icon Safari before 26 can draw: it reads SVG favicons only from
+  // 26, and every page named /icon.svg alone, so 16.4–18 showed a blank letter
+  // tile. A PNG <link rel="icon"> on every page, and the file is a PNG.
+  let pngIcon = 0;
+  const without = [];
+  for (const f of pages) {
+    const html = readFileSync(f, "utf8");
+    const icons = [...html.matchAll(/<link\b[^>]*\brel="icon"[^>]*>/g)].map((m) => m[0]);
+    const png = icons.map((l) => l.match(/\bhref="([^"]+)"/)?.[1] ?? "").find((h) => /\.png(?:[?#]|$)/.test(h));
+    if (!png) { without.push(rel(f)); continue; }
+    const file = join(OUT, decodeURIComponent(png.replace(/^\//, "").split(/[?#]/)[0]));
+    if (!existsSync(file)) { say(`tab icon ${png} does not exist`); continue; }
+    const b = readFileSync(file);
+    if (!b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) say(`tab icon ${png} is not a PNG`);
+    else pngIcon++;
+  }
+  if (without.length)
+    say(`${without.length} page(s) have no PNG tab icon (${without.slice(0, 3).join(", ")}…) — Safari 16.4–18 cannot draw the SVG one`);
+  if (pngIcon === pages.length) console.log(`  ✓ a PNG tab icon on all ${pngIcon} pages, for Safari before 26`);
+}
+
 // ---- 4. the same bytes twice -----------------------------------------------
 console.log("\n── the same file under two names ──");
 const byHash = new Map();

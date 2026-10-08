@@ -28,7 +28,7 @@ const PROMISES = [
 
 export default function AddBusinessPage() {
   return (
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
+    <div className="mx-auto max-w-3xl gutter py-2 sm:py-3">
       <BackButton />
       <header className="mb-7">
         <p className="mb-2 inline-flex items-center rounded-full bg-palm-500/12 px-3 py-1 text-xs font-semibold text-palm-700">
@@ -41,7 +41,7 @@ export default function AddBusinessPage() {
           عندك مطعم أو كافيه أو محل في الكويت؟ ضيفه على خريطة وين ووصّله للناس
           اللي يسألون «وين نروح اليوم؟».
         </p>
-        <ul className="mt-4 space-y-1.5">
+        <ul role="list" className="mt-4 space-y-1.5">
           {PROMISES.map((p) => (
             <li key={p} className="flex items-start gap-2 text-sm text-ink-600">
               <IconCheck className="mt-0.5 size-4 shrink-0 text-palm-600" />

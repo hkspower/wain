@@ -203,7 +203,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
           {rows.length === 0 ? "ما وصل أي طلب بعد." : "ما فيه طلبات مفتوحة."}
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul role="list" className="space-y-3">
           {visible.map((row) => {
             // Recomputed rather than trusted: the stored total is what the
             // customer was shown, and if it disagrees with its own lines the
@@ -244,7 +244,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
                   </span>
                 </div>
 
-                <ul className="mt-3 divide-y divide-line text-sm">
+                <ul role="list" className="mt-3 divide-y divide-line text-sm">
                   {(row.lines ?? []).map((l, i) => (
                     <li key={`${l.id}-${i}`} className="flex items-center justify-between gap-3 py-1.5">
                       <span className="text-ink-700">

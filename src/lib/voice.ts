@@ -587,6 +587,15 @@ function pickArabicVoice(): SpeechSynthesisVoice | undefined {
  * some engines do not fire reliably — a stalled chain is silence in the middle
  * of a sentence, which is worse than the ceiling this exists to avoid.
  */
+/**
+ * The answer's utterances, held until it has finished. Safari keeps a queued
+ * utterance's object but not its JavaScript wrapper, and an `onend` set as a
+ * property is held weakly: a garbage collection while the first sentence is
+ * read loses the last one's end, and the button stays on «وقّف الصوت» (WebKit,
+ * SpeechSynthesisUtterance; 8 October, read in the source).
+ */
+let held: SpeechSynthesisUtterance[] = [];
+
 async function speakFallback(parts: SpeechPart[], mine: number) {
   const synth = window.speechSynthesis;
   if (!synth) return;
@@ -617,8 +626,11 @@ async function speakFallback(parts: SpeechPart[], mine: number) {
   // pinned to this generation because cancel() fires `error` on every pending
   // utterance, and a newer answer is already speaking by then.
   const done = () => {
-    if (mine === generation) update({ speaking: false });
+    if (mine !== generation) return;
+    held = [];
+    update({ speaking: false });
   };
+  held = [];
   lines.forEach((line, i) => {
     const utterance = new SpeechSynthesisUtterance(line);
     utterance.lang = "ar-KW";
@@ -633,8 +645,16 @@ async function speakFallback(parts: SpeechPart[], mine: number) {
     utterance.rate = 1.02;
     if (i === lines.length - 1) utterance.onend = done;
     utterance.onerror = done;
+    held.push(utterance);
     synth.speak(utterance);
   });
+  // An iPhone drops a speak() it will not allow without an error or an end
+  // (see unlockSpeech below), so `speaking` stayed true and «اسمعها» read
+  // «وقّف الصوت» over silence until it was pressed twice. An engine that took
+  // the answer is speaking it, or still holding it, a moment later.
+  window.setTimeout(() => {
+    if (!synth.speaking && !synth.pending) done();
+  }, 250);
 }
 
 /** The object URL of the last live render, so it can be revoked. One at a
@@ -770,7 +790,32 @@ export function stop() {
   // people press repeatedly.
   releaseLive();
   window.speechSynthesis?.cancel();
+  held = [];
   if (snapshot.speaking) update({ speaking: false });
+}
+
+/**
+ * iOS lets speechSynthesis talk only once a speak() has run inside a tap, and
+ * drops every other one without an error or an end — the restriction is per
+ * page, lifted only by a speak in a gesture (WebKit, SpeechSynthesis.cpp). With
+ * the voice remembered as on, the answer read out after a search comes from a
+ * timer, outside any tap, so an iPhone said nothing on a fresh page (8
+ * October). The first tap or key while the voice is on speaks an empty,
+ * inaudible utterance. Apple's engine only: elsewhere there is no such rule,
+ * and an empty utterance can take the audio focus from the visitor's music.
+ */
+if (typeof window !== "undefined" && /Apple/.test(navigator.vendor ?? "")) {
+  const events = ["touchend", "click", "keydown"] as const;
+  const unlockSpeech = () => {
+    if (!snapshot.enabled) return;
+    try {
+      window.speechSynthesis?.speak(new SpeechSynthesisUtterance(""));
+    } catch {
+      /* no speech synthesis */
+    }
+    for (const t of events) window.removeEventListener(t, unlockSpeech, true);
+  };
+  for (const t of events) window.addEventListener(t, unlockSpeech, true);
 }
 
 // --- Preferences -----------------------------------------------------------

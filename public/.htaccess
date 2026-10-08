@@ -421,5 +421,19 @@ Options -Indexes
   # visitor's address reaches Google's storage host. Found by running the real
   # widget under this policy and listing every securitypolicyviolation
   # (tests/shouq-widget-csp.test.mjs asserts there are none).
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob:; connect-src 'self' https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
+  #
+  # script-src names ONE FILE on jsDelivr, not the host: the resampler the
+  # widget loads with addModule() when the audio it plays does not match the
+  # rate of the device's output, from a URL fixed inside its bundle
+  # (@alexanderolsen/libsamplerate-js@2.1.2). That is every call in Safari
+  # before 18.6 (it does not report the sampleRate constraint, BCD) and in
+  # Firefox (never does), and an iPhone on Bluetooth audio — AirPods run at
+  # 44.1 or 16 kHz against her 48 kHz. Refused, the widget's audio output
+  # throws as the call starts: the microphone stays open, nothing is sent,
+  # and our sheet went on saying «متصل» (8 October, read out of 0.19.0 and
+  # reproduced in Chromium by hiding the constraint). A full path with no
+  # trailing slash matches that file only. Hosting it here instead would add
+  # 1.4MB to every release archive, which git keeps for ever. The cost is on
+  # the privacy page: on those devices the visitor's address reaches jsDelivr.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://tile.openstreetmap.org https://storage.googleapis.com/eleven-public-cdn/images/; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob: https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js; connect-src 'self' https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

@@ -172,4 +172,25 @@ export function downloadCalendar(entry: CalendarEntry): void {
   window.setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
+/**
+ * Whether a downloaded file reaches a calendar from here.
+ *
+ * Not in an iPhone's installed web app (`navigator.standalone`; iOS 26 makes
+ * every site added to the home screen one), and not in an app's own browser on
+ * iOS — a WKWebView, whose user agent carries no «Safari/» (Instagram, the
+ * Capacitor wrapper). A download there does nothing, or leaves the app on an
+ * «Open in…» screen until it is force-quit: a long-standing WebKit defect
+ * (bugs 236943, 275288, 290847; Apple's forum thread 95911 says the same file
+ * works in Safari itself). The Google link beside the button works in both, so
+ * the button is left out there rather than offered and broken (8 October).
+ */
+export function fileReachesCalendar(): boolean {
+  if (typeof navigator === "undefined") return true;
+  const nav = navigator as Navigator & { standalone?: boolean };
+  if (nav.standalone === true) return false;
+  const ua = nav.userAgent;
+  const ios = /iP(?:hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && nav.maxTouchPoints > 1);
+  return !ios || /Safari\//.test(ua);
+}
+
 export { addDays };

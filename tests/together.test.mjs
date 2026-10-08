@@ -413,8 +413,16 @@ console.log('\n── 8. a plan with its day on it, the calendar, and «رسّل
   await soft(() => shares.first().click());
   await soft(() => ex.p.waitForURL(/\/places\/[a-z0-9-]+\/#share$/, { timeout: 5000 }));
   await ex.p.waitForTimeout(900);
-  const landed = await soft(() => ex.p.locator('#share').evaluate((e) => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }), false);
-  ok('tapping it lands on the panel', landed, ex.p.url());
+  // The address keeps its #share, and the page is scrolled TO the panel —
+  // «on screen» alone passed while the route transition dropped the hash and
+  // the place opened at its top, because a short place page shows the panel
+  // anyway (8 October).
+  ok('tapping it keeps #share in the address', /\/places\/[a-z0-9-]+\/#share$/.test(ex.p.url()), ex.p.url());
+  const landed = await soft(() => ex.p.locator('#share').evaluate((e) => {
+    const r = e.getBoundingClientRect();
+    return { top: Math.round(r.top), scrolled: Math.round(scrollY) };
+  }), null);
+  ok('tapping it lands on the panel', !!landed && landed.scrolled > 0 && landed.top >= 0 && landed.top < 140, JSON.stringify(landed));
   await ex.ctx.close();
 
   const home = await fresh('/');

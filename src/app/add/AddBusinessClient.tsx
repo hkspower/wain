@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import { IconCheck, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
@@ -8,7 +9,7 @@ import CoordinatePicker from "@/components/CoordinatePicker";
 import MediaUploader from "@/components/MediaUploader";
 import { categories, toArabicDigits, type CategoryId } from "@/lib/place-kit";
 import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
-import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
+import { inKuwait, parseCoordinate, submitBusiness, type SubmissionInput } from "@/lib/submissions";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { backendEnabled } from "@/lib/backend";
 import { haptic } from "@/lib/haptics";
@@ -26,6 +27,44 @@ const EMPTY: SubmissionInput = {
 };
 
 type Errors = Partial<Record<keyof SubmissionInput, string>>;
+
+/**
+ * A coordinate box that keeps what was typed.
+ *
+ * It stored Number(text) on every key and React put the number back in the
+ * box, so «29.» became «29» and a decimal point could never be typed, in any
+ * browser — and an iPhone's Arabic decimal pad («٢») came back as «NaN»
+ * (8 October). The text stays as typed and the number goes to the form; a
+ * value set from elsewhere — the map pin, «خذها من موقعي» — replaces the text.
+ */
+function CoordinateInput({
+  id, value, onValue, invalid, placeholder,
+}: {
+  id: string;
+  value: number | null;
+  onValue: (n: number | null) => void;
+  invalid?: boolean;
+  placeholder: string;
+}) {
+  const [text, setText] = useState(value === null ? "" : String(value));
+  const [seen, setSeen] = useState(value);
+  if (!Object.is(seen, value)) {
+    setSeen(value);
+    if (!Object.is(parseCoordinate(text), value)) setText(value === null ? "" : String(value));
+  }
+  return (
+    <input
+      id={id} dir="ltr" inputMode="decimal" className={field}
+      value={text}
+      {...(invalid === undefined ? {} : { "data-invalid": invalid, "aria-invalid": invalid })}
+      onChange={(e) => {
+        setText(e.target.value);
+        onValue(parseCoordinate(e.target.value));
+      }}
+      placeholder={placeholder}
+    />
+  );
+}
 
 /**
  * Four things, not six.
@@ -96,7 +135,10 @@ export default function AddBusinessClient() {
     e.preventDefault();
     setFailure("");
     const found = validate(v);
-    setErrors(found);
+    // Committed now, not at the end of the handler: the focus below looks for
+    // the field marked invalid, and before the commit no field was — the first
+    // failed submit focused nothing (8 October), in every browser.
+    flushSync(() => setErrors(found));
     if (Object.keys(found).length) {
       haptic("error");
       document.querySelector<HTMLElement>("[data-invalid='true']")?.focus();
@@ -370,21 +412,17 @@ export default function AddBusinessClient() {
         <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <div>
             <label htmlFor="f-lat" className={label}>خط العرض (lat)</label>
-            <input
-              id="f-lat" dir="ltr" inputMode="decimal" className={field}
-              value={v.lat ?? ""}
-              data-invalid={!!errors.lat}
-              aria-invalid={!!errors.lat}
-              onChange={(e) => set("lat", e.target.value === "" ? null : Number(e.target.value))}
+            <CoordinateInput
+              id="f-lat" value={v.lat} invalid={!!errors.lat}
+              onValue={(n) => set("lat", n)}
               placeholder="29.3759"
             />
           </div>
           <div>
             <label htmlFor="f-lng" className={label}>خط الطول (lng)</label>
-            <input
-              id="f-lng" dir="ltr" inputMode="decimal" className={field}
-              value={v.lng ?? ""}
-              onChange={(e) => set("lng", e.target.value === "" ? null : Number(e.target.value))}
+            <CoordinateInput
+              id="f-lng" value={v.lng}
+              onValue={(n) => set("lng", n)}
               placeholder="47.9774"
             />
           </div>

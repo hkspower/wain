@@ -181,7 +181,7 @@ export default function PlaceForm({
   return (
     <form onSubmit={submit} className="space-y-5">
       {errs.length > 0 && (
-        <ul className="rounded-2xl border border-coral-200 bg-coral-50 p-4 text-sm text-coral-800">
+        <ul role="list" className="rounded-2xl border border-coral-200 bg-coral-50 p-4 text-sm text-coral-800">
           {errs.map((e) => (
             <li key={e}>• {e}</li>
           ))}
