@@ -1043,7 +1043,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "913", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "919", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1076,7 +1076,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "913", "0", "100%"], str(finals))
+          finals == ["4", "919", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3960,14 +3960,16 @@ LOGO_BANDS = r"""([sel, capTop]) => {
 }"""
 
 
-def stripe_runs(png_bytes, y0=0, y1=None, amber=(230, 169, 92), dark=(127, 93, 51)):
+def stripe_runs(png_bytes, y0=0, y1=None, amber=(230, 169, 92), dark=(127, 93, 51), block=False):
     """The stripe as the screen drew it: each pixel row of a crop, from the
     cap line y0 to the baseline y1 (below it the CODE rules fade through
     the band's own colour), called amber or band by which of the two inks
     most of its letter pixels are (antialiased edges, the glow and the
     ground are neither, within 28 levels), and the runs of band rows
     between the first and last amber row. Returns (band run lengths, amber
-    run lengths between them)."""
+    run lengths between them). With `block`, only the first unbroken run
+    of letter rows counts: on the share card the wordmark, not the CODE
+    rules and the terminal line below it."""
     import io as _io
     from PIL import Image as _I
     im = _I.open(_io.BytesIO(png_bytes)).convert("RGB")
@@ -3985,6 +3987,8 @@ def stripe_runs(png_bytes, y0=0, y1=None, amber=(230, 169, 92), dark=(127, 93, 5
             elif near(p, dark): nd += 1
         kinds.append("d" if nd >= 3 and nd > na else ("a" if na >= 3 else "-"))
     s = "".join(kinds).strip("-")
+    if block:
+        s = re.match(r"[ad]*", s).group(0)
     bands = [len(m) for m in re.findall(r"d+", s)]
     gaps = [len(m) for m in re.findall(r"(?<=d)a+(?=d)", s)]
     return bands, gaps
@@ -4636,11 +4640,56 @@ def asset_checks():
 
 # ═══════════════════════════════════════════ run
 static_checks()
+
+def logo_file_checks():
+    """The company's icon files (owner's «use higher logo quality»,
+    2026-10-08): one drawn for each size a platform asks for, named with
+    its real size, and its A striped in whole rows wherever five bands of
+    two rows or more fit, solid where they cannot. The 180px touch icon's
+    five bands were 3.5 rows each, so crispEdges drew them 3 and 4 rows."""
+    S = "logo"
+    from PIL import Image as _I
+    home = (ROOT / "index.html").read_text()
+    links = {}
+    for tag in re.findall(r'<link [^>]*rel="(?:icon|apple-touch-icon)"[^>]*>', home):
+        href = re.search(r'href="([^"]+)"', tag).group(1)
+        size = re.search(r'sizes="([^"]+)"', tag)
+        links[href] = size.group(1) if size else None
+    want = {"favicon.svg": None, "favicon-32.png": "32x32", "favicon-48.png": "48x48",
+            "favicon-192.png": "192x192", "logo-512.png": "512x512", "apple-touch-icon.png": "180x180"}
+    wrong = []
+    for href, size in want.items():
+        if href not in links:
+            wrong.append(f"{href} not linked")
+        elif size and links[href] != size:
+            wrong.append(f"{href} says {links[href]}")
+        elif size and (not (ROOT / href).is_file() or "%dx%d" % _I.open(ROOT / href).size != size):
+            wrong.append(f"{href} is not {size}")
+    check(S, "the company page links an icon for every size it ships, each sizes attribute the file's own",
+          not wrong, "; ".join(wrong))
+    bad = []
+    for name, striped in (("favicon-32.png", False), ("favicon-48.png", False), ("apple-touch-icon.png", True),
+                          ("favicon-192.png", True), ("logo-512.png", True)):
+        if not (ROOT / name).is_file():
+            bad.append(f"{name} missing"); continue
+        bands, gaps = stripe_runs((ROOT / name).read_bytes())
+        if striped and not (len(bands) == 5 and len(set(bands)) == 1 and bands[0] >= 2):
+            bad.append(f"{name}: bands {bands}")
+        if not striped and bands:
+            bad.append(f"{name}: {bands} sub-pixel bands")
+    check(S, "the icons carry the A's five bands in whole, equal rows where they fit, solid where they cannot",
+          not bad, "; ".join(bad))
+    sw = (ROOT / "sw.js").read_text()
+    check(S, "the tab icons the page links are precached for offline",
+          all(f'"{n}"' in sw for n in ("favicon.svg", "favicon-32.png", "favicon-48.png", "favicon-192.png")))
+
+
 https_checks()
 supply_chain_checks()
 seo_checks()
 asset_checks()
 identity_checks()
+logo_file_checks()
 shorthand_checks()
 browser_checks()
 

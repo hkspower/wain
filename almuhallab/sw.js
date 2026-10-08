@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v53";   /* v53: the masthead drawn for the screen, bigger at the top; the footer mark striped by density */
+var CACHE = "nokhatha-v54";   /* v54: the company icon set, 32 / 48 / 192 / 180 / 512, each drawn for its size */
 /* The site root is not listed: "./" and "index.html" are the same 155 KB
    page, and every install fetched it twice. A request for the root is
    looked up as index.html below. logo.svg is not listed either: no page,
@@ -27,6 +27,9 @@ var ASSETS = [
   "manifest.webmanifest",
   "icon.svg",
   "favicon.svg",
+  "favicon-32.png",
+  "favicon-48.png",
+  "favicon-192.png",
   "fonts/cairo-400.woff2",
   "fonts/cairo-500.woff2",
   "fonts/cairo-700.woff2",

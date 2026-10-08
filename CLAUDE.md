@@ -132,7 +132,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
 - **The company's identity is the English logo** (`design/logo-en/`):
   ALMUHALLAB CODE in striped amber on near-black, with the AC monogram as its
-  square form (`favicon.svg`: footer, tab, touch icon). النوخذة keeps the ⚓
+  square form (`favicon.svg` in a tab and the made-in line; drawn inline in the
+  footer; `favicon-32/48/192.png`, the 180 touch icon and `logo-512.png`, each
+  drawn for its own size). النوخذة keeps the ⚓
   anchor (`icon.svg`), now amber on the same ground: the company and the
   product are marked differently on purpose.
 - Contact channels are the real ones and must not be replaced with placeholders:
@@ -450,7 +452,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 913 checks covering
+- `python3 design/test_suite.py` is the full system test — 919 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -563,7 +565,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   SVG; `--check` compares the SVGs as text **and re-renders every PNG** to
   compare pixels, and the suite runs it. Since the dark theme it is also the
   site's mark (see the identity table): it writes `logo.svg`, `favicon.svg`,
-  the inline masthead logo, the touch icon, `logo-512.png` and `og.png`, and
+  the inline masthead logo and its `logo-en:css` block, the footer mark, the
+  icon set (`favicon-32/48/192.png`, the touch icon, `logo-512.png`) and `og.png`, and
   `og.png` refuses to draw if its fonts fail to load. Snapping the stripes
   for the masthead once chained, dragging both edges of a band onto one flat
   letter edge until it vanished: each edge now snaps to its nearest single
@@ -638,7 +641,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   reason: an SVG *image* is never told the screen's resolution, so the page
   must pick its stripe. The suite measures both ways, the displayed
   geometry (whole rows, ≥ 2, even) and the painted pixels (equal runs, as
-  many as drawn) at 1440/390/844x390 x 1/2/3.
+  many as drawn) at 1440/390/844x390 x 1/2/3. The icon PNGs are drawn the same way, one
+  SVG per size (`mono_tile`): the 180px touch icon's five bands were 3.5
+  rows and painted [3, 4, 4, 4, 3]; it now has four rows a band, the new
+  `favicon-192.png` four, `logo-512.png` ten, and the tab's `favicon-32/48`
+  are solid (a band there would be under a row), each linked with its true
+  `sizes` and the SVG last.
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,

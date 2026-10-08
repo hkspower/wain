@@ -910,11 +910,41 @@ def site_text():
     return {SITE / "favicon.svg": favicon(), SITE / "logo.svg": svg("almuhallab-code-logo-dark")}
 
 
+# The company's icons (owner's «use higher logo quality», 2026-10-08). Each
+# PNG is drawn for its own size by mono_tile: the A's cap whole, its five
+# bands whole rows where two rows or more fit (four rows a band at 180 and
+# 192, ten at 512), solid below (a tab's 32 and 48, where a band would be
+# under a row and five would wash the A brown). The tab sizes and the 192
+# sit on the favicon's rounded tile; the touch icon and the square logo
+# fill the square, which the platform rounds or crops itself.
+ICONS = (
+    ("favicon-32.png", 32, True),
+    ("favicon-48.png", 48, True),
+    ("favicon-192.png", 192, True),
+    ("apple-touch-icon.png", 180, False),
+    ("logo-512.png", 512, False),
+)
+
+
+def icon_png(br, size, rounded):
+    """One icon, rasterised from its own SVG at its own size. A full square is
+    floored at the ground and saved without alpha, as the kit's dark tiles
+    are; a rounded tile keeps its transparent corners, and is floored at the
+    ground only where it is opaque."""
+    from PIL import Image, ImageChops
+    text = mono_tile(f"site-icon-{size}", size, (1,), rounded=rounded)[0]
+    if not rounded:
+        return render(br, text, size, size, GROUND)
+    im = render(br, text, size, size)
+    rgb = ImageChops.lighter(im.convert("RGB"), Image.new("RGB", im.size, GROUND))
+    rgb.putalpha(im.getchannel("A"))
+    return rgb
+
+
 def site_pngs(br):
-    mono = svg("almuhallab-code-monogram-dark")
-    return {SITE / "apple-touch-icon.png": render(br, mono, 180, 180, GROUND),
-            SITE / "logo-512.png": render(br, mono, 512, 512, GROUND),
-            SITE / "og.png": og(br)}
+    out = {SITE / name: icon_png(br, size, rounded) for name, size, rounded in ICONS}
+    out[SITE / "og.png"] = og(br)
+    return out
 
 
 def sheet(br, out_path=None):
@@ -1098,7 +1128,8 @@ def main():
         if stale:
             sys.exit("English logo drifted: " + ", ".join(stale))
         print(f"English logo is current: {len(FILES)} SVGs, {len(FILES)} PNGs and the sheet re-rendered, README; "
-              "the site's favicon, logo, masthead, touch icon, square logo and share card")
+              "the site's favicon, logo, masthead with its CSS, footer mark, "
+              f"{len(ICONS)} icons ({', '.join(str(n) for _, n, _ in ICONS)}) and the share card")
         return
     for old in HERE.glob("almuhallab-code-*"):
         if old.stem not in FILES:
