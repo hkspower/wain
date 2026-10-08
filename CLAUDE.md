@@ -4552,3 +4552,65 @@ spending an allowance at the end of one and the start of the next gets double �
 - The OTHER counters in store.php (`login_fail`, `totp`, the geo budget, the cbk_/knet_ over-limit helpers) are keyed counters of a
   different kind and were not touched.
 - Live: run `scripts/publish/migrate-ratebucket.php` after `publish-all.php`; until then the old limiter answers.
+
+## Shoppers, the product page and the database — 2026-10-07/08
+
+**Fast customer sign-in** (`api/customer.php`, `customer-google.php`, `api/customerfast.mysql.sql`,
+`assets/customer-account.js`): an emailed code, passkeys (user verification required, 10 per account) and
+Google, beside the password. Every door ends in `customer_grant()`. An account whose email is proved by code
+or Google gets a fresh random password hash first (the pre-hijack wipe), because registration never proved
+the email. `customer_*` POSTs must be same-origin JSON (`cross_site_refused`). `test:customer-fast-login`.
+
+**Two KNET credential sets** (`pay/cbk-sets.php`): Production uses only the `cbk_*` set and never borrows a
+Test value. Test uses `cbk_test_*` and falls back to the shared set. The Payments card refuses to switch to
+Production while that set is incomplete. `test:knet-modes`, MUTATE=borrow.
+
+**Add-to-bag motion, touch feedback, alignment.** `cart-motion.js` watches `localStorage.sporta_cart` and
+fires only when the item count rises. `touch-feedback.js` sets `data-pressing` on pointerdown, because
+`:active` cannot be tested headless and iOS needs a touch listener anyway. `test:alignment` measures
+icons against the title's INK, not its box.
+
+**The database** (`52e60f6`):
+- `IMPORT-THIS-ONE.sql` now carries every table: 55 tables, 499 columns.
+- `scripts/make-schema-manifest.mjs` generates `scripts/live/live-schema-full.php`.
+- `scripts/live/live-db-audit.php` grades the live data. On 2026-10-08 it read `checks=93 fails=0 warns=34`;
+  the warnings are catalogue facts for the owner, not code.
+- Renaming a product slug now moves every table that keys on it (`admin_product_slug_refs()`).
+- A brand re-import no longer overwrites a brand the owner set (`… and brand_slug is null`).
+
+**Backups** (`api/backup-build.php`):
+- 32 tables, streamed, with binaries as base64. Every other table is named in `BACKUP_EXCLUDED`,
+  `test:backup-tables` requires every table to be on one list or the other, and a restore keeps any table
+  the file does not name.
+- **Customer password hashes are NOT in a backup** (owner, 2026-10-08). On restore a customer keeps the
+  hash this shop holds for the SAME EMAIL, never the same id: ids drift after a deletion, and carrying
+  customer 5's hash to whoever is customer 5 in the file would hand over an account. Anyone else gets a
+  random hash and signs in by code or Google. The admin hash still travels, or nobody could sign in after
+  restoring onto an empty shop. Three mutations are caught: no redaction, matching by id, live hash not kept.
+
+**The product page, owner's picks P1-P10, and fifteen size fixes** (`cec43fa`; css `86-`–`90-`):
+- Only the sizes a piece is made in are drawn.
+- A sold-out size says so under its letter.
+- On a phone the colour box comes before the size and the name follows the photo.
+- From 768px the description comes after the delivery list.
+- A chosen size or fit is dark with white text; the owner's `--sp-secondary-bg` is honoured where the
+  browser can compute a readable ink for it.
+- The size chart lists only the sizes the piece is made in.
+- The closed bag drawer is `visibility:hidden`.
+- Panel overlays, the trust strip and the checkout field were sized down.
+
+**Two of the CSS rules were rewritten for speed.** The first `:has()` forms of the colour-first rule and the
+spacer rule raised phone `/shop` style recalc from 92 to 121 ms and 113 ms, measured A/B. **A `:has()` with
+a deep subject is paid on every page, not just the one it styles.** `test:product-page-layout` (183
+checks, MUTATE per fix).
+
+**P3 is a DATABASE write, not code:** `scripts/publish/set-delivery-wording.php` turns the Arabic delivery
+line's `·` into ` — `, because next to ١ the dot reads as ٠ (١٠ د.ك). It writes the owner's `site_text` row
+and keeps a backup in the home directory. **It holds only at the 1.000 KWD fee:** at any other fee
+`rules-live.js` rewrites the original first, and the dot comes back. `feeHolds=` says which.
+
+**Sandbox failures that are NOT code** (each proved identical on the base):
+- no product photographs: product-cards, home-banner, no-photo, scroll, product-page-polish;
+- `test:numeric-keyboard`'s Settings section is stale;
+- `test:quick-add-grids` (click intercepted), `test:hero-size` (2), `test:image-sizes` (hero and infobar
+  upscale), `test:dark`, `test:css` (driver.css), `test:overlay-strings` drift.
