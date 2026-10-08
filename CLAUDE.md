@@ -6993,3 +6993,73 @@ UX pass. `pgrep -f "^node …"` and `kill`.
 
 **Not measured:** a refusal on a real phone. The account is still dry, so until it is topped up every call
 and typed chat on the live site takes the guide path.
+
+## «fix salem» — 8 October: he answers what is said (live as `be04047c`, both stages)
+
+The agent is out of credits, so every visitor gets سالم's local answers. They were read off the live page
+before anything changed, and every message was a search:
+- «السلام عليكم» → «جرّب قصر السلام», «مين أنت؟» → a bridge, «شكراً» and «هلا» → «ما لقيت شي». **That miss
+  wiped the memory**, so «وين بالضبط؟» under four cafés was searched as words and answered with the Grand Mosque.
+- «فطور» → «روح بالليل»; «قريب مني» → a Friday market; «الجهراء» → «ما لقيت شي… جرّب اسم منطقة»; «kahwa» and
+  «ba7ar» → nothing; «أبي قهوة لو سمحت» → بيت لوذان among the cafés («لو» prefix-matched «لوذان»); «قهوة» then
+  «أرخص» → the zoo in a list of cafés.
+- **With storage blocked** (Safari's «block all cookies»), reading localStorage throws. `haptics.enabled()` was
+  the one unguarded read on the site, so «رسّلها» stayed on «لحظة…» and the call button in his header did nothing.
+- On an agent build (staging), a line refused at the door or timed out ended on «ما قدرنا نوصله» over a locked
+  box, and its retry met the same wall.
+
+**What changed, web and app:**
+- `salem-followup.ts`:
+  - greetings, thanks, «مين أنت», «شنو تقدر تسوي», goodbyes and «تمام» are `social`: answered in words, never
+    touching the memory;
+  - a greeting in front of a question is answered first (`opener`);
+  - `ask` for a follow-up with nothing to follow, and for «قريب مني»;
+  - positions with «وين» («وين الثاني؟»), «أحسن واحد», «كم سعره؟», «غيره أرخص»;
+  - an area after an answer narrows it to that area (`areaIndex`), and `withinAnswer` keeps a narrowed answer
+    to the last one's places;
+  - `elsewhereNamed` names a part of Kuwait with nothing in it («ما عندي أماكن بالجهراء»).
+- `SalemChat`:
+  - a chip acts on the answer it was offered under (the places line carries its `ctx`);
+  - the starters stay until the first answer with places;
+  - a socket refused, timed out or failed with no reason goes to `answerHere`, like the credits case. A line
+    that dropped mid-chat still offers to start again.
+- `search.ts`: fillers said around a question, friends with «my» on them («ربعي», «خوياي»), Arabizi.
+- `answer-order.ts`: «فطور», «وين أتغدى», «عشا» hold a place whose best time is another part of the day to 0.6.
+- Copy: his reply, not hers («ويرد», «وصلنا»), and the tool line names شوق.
+- App: the same reader, ordering and screen; `ChatPlaces` carries its context; the fillers and synonyms are
+  generated. `gen-flutter-search` replays the new readings, the area and within-answer lists, `elsewhereNamed`
+  and the meal-hour orderings.
+
+**`elsewhereNamed` moved off /search.** In `search.ts` it shipped on /search, which never calls it, and /search
+read 175.9K of 176K. In `salem-followup.ts`, which loads only with the chat's search chunk, /search reads 175.7K.
+The lesson `WAIN_AI_CHAT_COPY` taught on 7 October: an export ships wherever its module does.
+
+**Proofs, with the build green:**
+- Against `a8d2220b`, both builds: `salem.test` 17 of 74 red, each for the reason it names; `salem-agent` 16 of
+  111. A hard wait on the old «وترد» first ended that run and cancelled every section after it; it is soft now.
+- App: four sabotages, each red (the hour rule off, social lines searched, a chip reading the memory, no area
+  named back).
+- **A test that reads «the newest block» passes when no new block is drawn.** The chip check passed with the
+  chip ignoring its answer, on the app: after the miss it read the map that «وين الثاني؟» had drawn. Both checks
+  now count the blocks first; a web build with the same sabotage failed that check alone.
+
+**Gates on `be04047c`:**
+- `test:hangout` 16 suites; `test:shouq` all (salem-agent 111, agent mode 100, local mode 102); `test:journey` 46.
+- `scan` under the agent variables, exit 0; `test:widget-csp` 15 of 15.
+- Flutter 1,388 tests, analyze clean, `audit:flutter` current.
+- Sizes: /search 175.7K, /salem 170.2K, shared unchanged (/privacy 118.0K).
+
+**Live, 8 October, 02:36 UTC:**
+- Archive `38f8352/wain-1.1.0.zip` (sha256 `ae17adf3…a5e0`): one more ~4.4MB blob.
+- Production job `oou1rgpyir`, first firing: `{"ok":true,"deployed":278,"removed":20,"emptied":1,"at":"02:36:02"}`.
+  Staging job `9ch8lMMEgH`, the same reply at 02:37:02. Both deleted, then listed gone.
+- `deploy:verify`: «be04047c is live — verified at the root and 7 levels below it» (digest `83b87ee37154499b`).
+  Staging's `build.json` carries the same commit and digest; `_next/static/` holds only `be04047c…/` on both.
+- After the purge, `/salem/` through the edge: 200, `Last-Modified 02:36:02`, `DYNAMIC`. The probe job was
+  deleted, and the crontab held sporta's ten and nothing else.
+
+**One environment note:** two audit workflow runs were lost to container restarts here, and one agent exited
+137. The box has 4 CPUs and 16 GB with no swap: run one browser at a time, and builds one after another.
+
+**Not measured:** a real phone; Safari with storage blocked (Chromium with the storage getters throwing stood
+in); what people type beyond the cases read; the app on a device — it reaches phones only through a new build.
