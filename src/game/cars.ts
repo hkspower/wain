@@ -9267,28 +9267,34 @@ export function createCar(colors: CarColors): THREE.Group {
       }
       group.add(push);
 
-      // The spotlight, on the driver's A-pillar: a short stalk through
-      // the pillar at the base of the glass, a drum, and a lens facing
-      // forward. Driver's side is where the hand that works it is.
+      // The spotlight, on the driver's A-pillar: a stalk through the
+      // pillar, a drum, and a lens facing forward. Driver's side is where
+      // the hand that works it is.
+      //
+      // Up the pillar and forward of the door mirror. At the belt and
+      // 0.34 m down the glass it stood exactly where the mirror is — the
+      // side plate showed a mirror and no spotlight, the drum being
+      // inside it. A pillar lamp sits above the mirror, where the glass
+      // is, and that is where the eye looks for it.
       const spotSign = Math.sign(DRIVER_X) || 1;
-      const spotZ = roofBox.max.z + 0.34;
-      const spotY = d.beltY + 0.14;
-      const spotX = (flankXAt(cGeo, style, spotY, spotZ, ":spot") ?? flankX - 0.06) + 0.06;
+      const spotZ = roofBox.max.z + 0.42;
+      const spotY = d.beltY + 0.26;
+      const spotX = (flankXAt(cGeo, style, spotY, spotZ, ":spot") ?? flankX - 0.06) + 0.07;
       const spot = tag(new THREE.Group(), "spotlight");
       spot.position.set(spotSign * spotX, spotY, spotZ);
-      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 6), policeTrimMat);
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6), policeTrimMat);
       stalk.rotation.z = Math.PI / 2;
-      stalk.position.x = -spotSign * 0.03;
+      stalk.position.x = -spotSign * 0.05;
       spot.add(stalk);
-      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.058, 0.1, 12), policeTrimMat);
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.066, 0.11, 12), policeTrimMat);
       drum.rotation.x = Math.PI / 2;
-      drum.position.set(spotSign * 0.04, 0.02, 0.02);
+      drum.position.set(spotSign * 0.05, 0.02, 0.02);
       spot.add(drum);
-      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.056, 12), new THREE.MeshStandardMaterial({
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.064, 12), new THREE.MeshStandardMaterial({
         name: "police-spot-lens", color: 0xe8ecf2, roughness: 0.1, metalness: 0,
         emissive: 0xfff2d0, emissiveIntensity: 0.12, envMapIntensity: 1.6,
       }));
-      lens.position.set(spotSign * 0.04, 0.02, 0.071);
+      lens.position.set(spotSign * 0.05, 0.02, 0.076);
       spot.add(lens);
       group.add(spot);
 
@@ -9318,11 +9324,12 @@ export function createCar(colors: CarColors): THREE.Group {
 
       // The word on the bonnet, read in the mirror of the car ahead.
       const wordZ = d.nose - 0.95;
-      const word = tag(new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), policeDecalMatFor("bonnet")), "bonnet-word");
-      word.rotation.x = -Math.PI / 2;
+      // A metre across: at 0.8 it read as a badge from the side plate,
+      // and the point of it is to be read from a car length ahead.
+      const word = tag(new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.5), policeDecalMatFor("bonnet")), "bonnet-word");
       // Pitched with the bonnet: the panel falls toward the nose.
-      const wordY0 = skinY(wordZ + 0.2, d.hoodY), wordY1 = skinY(wordZ - 0.2, d.hoodY);
-      word.rotation.x = -Math.PI / 2 + Math.atan2(wordY1 - wordY0, 0.4) * -1;
+      const wordY0 = skinY(wordZ + 0.25, d.hoodY), wordY1 = skinY(wordZ - 0.25, d.hoodY);
+      word.rotation.x = -Math.PI / 2 + Math.atan2(wordY1 - wordY0, 0.5) * -1;
       word.position.set(0, (wordY0 + wordY1) / 2 + 0.005, wordZ);
       group.add(word);
 

@@ -133,7 +133,9 @@ for (const car of CARS) {
     S.box = { size: [size.x, size.y, size.z], centre: [centre.x, centre.y, centre.z] };
     // Count the furniture, so the plate says what it shows.
     const furniture = {};
-    g.traverse((o) => { if (o.userData?.police) furniture[o.userData.police] = (furniture[o.userData.police] ?? 0) + 1; });
+    // Tagged with a string; the car's own userData.police is the engine's
+    // handle on the bar, not a piece.
+    g.traverse((o) => { if (typeof o.userData?.police === "string") furniture[o.userData.police] = (furniture[o.userData.police] ?? 0) + 1; });
     const onCall = g.userData.police;
     if (onCall) { onCall.left.emissiveIntensity = window.__grnPolice.POLICE.lampOn; onCall.right.emissiveIntensity = window.__grnPolice.POLICE.lampOff; }
     return { size: S.box.size.map((v) => +v.toFixed(2)), furniture };

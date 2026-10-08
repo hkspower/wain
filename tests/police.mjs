@@ -91,46 +91,64 @@ console.log(`the mix       ${Object.entries(mix.by).map(([k, v]) => `${v} ${k}`)
     `${mix.suvPolice} of ${road.count} patrol cars are on the SUV shell — some should be, and not all`));
 
 // --- 2. What one is wearing -------------------------------------------
-const built = await page.evaluate(() => {
+//
+// Both shells: the saloon the livery was drawn for, and the SUV every
+// third patrol car is on now. One inspection, run on each.
+const inspect = (colors) => page.evaluate((colors) => {
   const THREE = window.__grnThree;
-  const g = window.__grnBuildCar({ body: 0xeef1f4, livery: "police", simple: true, lengthM: 4.7 });
+  const g = window.__grnBuildCar(colors);
   g.updateMatrixWorld(true);
   let band = 0, lamps = 0, housing = 0;
   const barParts = [];
   const furniture = {};
-  let roof = null;
+  let roof = null, bodyShell = null;
   g.traverse((o) => {
     if (o.userData?.decal === "police-band") band++;
     if (o.material?.name === "police-lamp") lamps++;
     if (o.material?.name === "police-bar") housing++;
     if (o.userData?.barPart) barParts.push(o.userData.barPart);
-    if (o.userData?.police) furniture[o.userData.police] = (furniture[o.userData.police] ?? 0) + 1;
+    // The pieces are tagged with a string. The car's own userData.police
+    // is the engine's handle on the bar — an object, not a piece.
+    if (typeof o.userData?.police === "string") furniture[o.userData.police] = (furniture[o.userData.police] ?? 0) + 1;
     if (o.userData?.shell === "roof") roof = o;
+    if (o.userData?.shell === "body") bodyShell = o;
   });
   roof.geometry.computeBoundingBox();
   const rb = roof.geometry.boundingBox;
   const bar = g.userData.police.bar;
-  // The furniture, and where it sits against the shell it is on.
-  const box = (o) => { o.updateWorldMatrix(true, false); return new THREE.Box3().setFromObject(o); };
-  const body = g.getObjectByProperty("name", "body") ?? null;
-  const nose = (() => { let z = -Infinity; g.traverse((o) => { if (o.userData?.shell === "body") { o.geometry.computeBoundingBox(); z = Math.max(z, o.geometry.boundingBox.max.z); } }); return z; })();
-  const tail = (() => { let z = Infinity; g.traverse((o) => { if (o.userData?.shell === "body") { z = Math.min(z, o.geometry.boundingBox.min.z); } }); return z; })();
-  const push = g.getObjectByProperty("userData", undefined) && [...g.children].find((o) => o.userData?.police === "push-bar");
-  const spot = [...g.children].find((o) => o.userData?.police === "spotlight");
-  const aerial = [...g.children].find((o) => o.userData?.police === "aerial");
-  const chevrons = [...g.children].find((o) => o.userData?.police === "chevrons");
+  // The furniture against the shell it is on, all of it in WORLD space:
+  // the car group is scaled, so a local extent held against a world one
+  // is a tenth of the car out.
+  const box = (o) => new THREE.Box3().setFromObject(o);
+  const bodyBox = box(bodyShell);
+  const piece = (what) => g.children.find((o) => o.userData?.police === what) ?? null;
+  const push = piece("push-bar"), spot = piece("spotlight"), aerial = piece("aerial"), chev = piece("chevrons");
+  // The tail skin at the chevrons' own height, the way cars.ts places
+  // them (noseFaceZ). The bumper bulges past the panel they are on, so
+  // the body's rearmost point is the wrong thing to measure from — it
+  // read a decal sitting on the skin as 0.1 m inside it.
+  let chevronsOff = null;
+  if (chev) {
+    const cb = box(chev);
+    const y = (cb.min.y + cb.max.y) / 2;
+    const ray = new THREE.Raycaster(new THREE.Vector3(0, y, -30), new THREE.Vector3(0, 0, 1));
+    const hit = ray.intersectObject(bodyShell, false)[0];
+    if (hit) chevronsOff = +(hit.point.z - cb.max.z).toFixed(3);
+  }
   return {
-    furniture, body: !!body,
-    pushAhead: push ? +(box(push).min.z - nose).toFixed(3) : null,
+    band, lamps, housing, barParts: barParts.sort(), furniture,
+    barY: +bar.position.y.toFixed(3), barZ: +bar.position.z.toFixed(3),
+    roofTop: +rb.max.y.toFixed(3), roofFront: +rb.max.z.toFixed(3), roofBack: +rb.min.z.toFixed(3),
+    // The tubes stand ahead of the nose; the brackets reach back to it.
+    pushAhead: push ? +(box(push).max.z - bodyBox.max.z).toFixed(3) : null,
+    pushBack: push ? +(box(push).min.z - bodyBox.max.z).toFixed(3) : null,
     spotX: spot ? +spot.position.x.toFixed(3) : null,
     spotY: spot ? +spot.position.y.toFixed(3) : null,
     aerialBase: aerial ? +box(aerial).min.y.toFixed(3) : null,
-    chevronsBehind: chevrons ? +(tail - box(chevrons).max.z).toFixed(3) : null,
-    band, lamps, housing, barParts: barParts.sort(),
-    barY: +bar.position.y.toFixed(3), barZ: +bar.position.z.toFixed(3),
-    roofTop: +rb.max.y.toFixed(3), roofFront: +rb.max.z.toFixed(3), roofBack: +rb.min.z.toFixed(3),
+    chevronsOff,
   };
-});
+}, colors);
+const built = await inspect({ body: 0xeef1f4, livery: "police", simple: true, lengthM: 4.7 });
 console.log(`livery        ${built.band} wrap ribbons, ${built.lamps} lens banks, ${built.housing} housing+feet  ` +
   check(built.band === 2 && built.lamps === 2 && built.housing === 3,
     `a patrol car came out with ${built.band} wraps, ${built.lamps} lens banks and ${built.housing} housing pieces`));
@@ -143,16 +161,20 @@ console.log(`livery        ${built.band} wrap ribbons, ${built.lamps} lens banks
 const want = ["push-bar", "spotlight", "aerial", "roof-number", "bonnet-word", "chevrons"];
 console.log(`furniture     ${want.map((k) => `${built.furniture[k] ?? 0} ${k}`).join(", ")}  ` +
   check(want.every((k) => (built.furniture[k] ?? 0) >= 1), `a patrol car is missing ${want.filter((k) => !built.furniture[k]).join(", ")}`));
-console.log(`placed        push bar ${built.pushAhead} m ahead of the nose, spotlight at x ${built.spotX} y ${built.spotY}, ` +
-  `aerial base y ${built.aerialBase}, chevrons ${built.chevronsBehind} m inside the tail  ` +
-  check(built.pushAhead !== null && built.pushAhead > 0.02 && built.pushAhead < 0.3,
-    `the push bar's nearest point is ${built.pushAhead} m from the nose — it should stand just ahead of the bumper`) + " " +
-  check(built.spotX !== null && built.spotX < -0.6 && built.spotY > 0.9,
-    `the spotlight is at x ${built.spotX} y ${built.spotY} — it belongs on the driver's A-pillar`) + " " +
+console.log(`placed        push bar ${built.pushAhead} m ahead of the nose (brackets back to ${built.pushBack}), spotlight at x ${built.spotX} y ${built.spotY}, ` +
+  `aerial base y ${built.aerialBase}, chevrons ${built.chevronsOff} m off the tail skin  ` +
+  check(built.pushAhead !== null && built.pushAhead > 0.03 && built.pushAhead < 0.3,
+    `the push bar's tubes stand ${built.pushAhead} m from the nose — they should be just ahead of the bumper`) + " " +
+  check(built.pushBack !== null && built.pushBack < 0.03,
+    `the push bar's brackets stop ${built.pushBack} m short of the nose — they should reach the skin`) + " " +
+  // +x is the car's LEFT, and the driver sits there (cars.ts DRIVER_X,
+  // Kuwait drives on the right). Above the mirror, which is at the belt.
+  check(built.spotX !== null && built.spotX > 0.6 && built.spotY > 1.05,
+    `the spotlight is at x ${built.spotX} y ${built.spotY} — it belongs on the driver's A-pillar, above the mirror`) + " " +
   check(built.aerialBase !== null && built.aerialBase > 0.8,
     `the aerial's base is at y ${built.aerialBase} — it should stand on the rear deck`) + " " +
-  check(built.chevronsBehind !== null && built.chevronsBehind > -0.05 && built.chevronsBehind < 0.12,
-    `the chevrons sit ${built.chevronsBehind} m from the tail skin — they should be on it`));
+  check(built.chevronsOff !== null && Math.abs(built.chevronsOff) < 0.03,
+    `the chevrons sit ${built.chevronsOff} m off the tail skin — they should be on it`));
 // Every piece the Blender bar can replace has to be tagged, or the swap
 // silently leaves a stand-in in a car wearing an authored bar.
 console.log(`bar parts     ${built.barParts.join(", ")}  ` +
@@ -167,6 +189,22 @@ console.log(`the bar       y ${built.barY} against a roof top of ${built.roofTop
     `the bar sits at y ${built.barY} and the roof is at ${built.roofTop} — it is not on the roof`) + " " +
   check(built.barZ > built.roofBack && built.barZ < built.roofFront + 0.02,
     `the bar sits at z ${built.barZ}, outside the roof's own ${built.roofBack}..${built.roofFront}`));
+
+// The SUV, dressed off its own shell: the same six pieces, the push bar
+// ahead of its nose, the chevrons on its tail, and the aerial up on the
+// deck an SUV has — the roof.
+const suv = await inspect({ body: 0xeef1f4, livery: "police", style: "suv", simple: true, lengthM: 4.85 });
+console.log(`the SUV       ${suv.band} wraps, ${suv.lamps} lens banks; push bar ${suv.pushAhead} m ahead, bar z ${suv.barZ} in ${suv.roofBack}..${suv.roofFront}, ` +
+  `aerial base y ${suv.aerialBase}, chevrons ${suv.chevronsOff} m off  ` +
+  check(want.every((k) => (suv.furniture[k] ?? 0) >= 1), `the SUV patrol car is missing ${want.filter((k) => !suv.furniture[k]).join(", ")}`) + " " +
+  check(suv.band === 2 && suv.lamps === 2, `the SUV came out with ${suv.band} wraps and ${suv.lamps} lens banks`) + " " +
+  check(suv.pushAhead !== null && suv.pushAhead > 0.03 && suv.pushAhead < 0.3 && suv.pushBack < 0.03,
+    `the SUV's push bar stands ${suv.pushAhead} m from its nose, brackets to ${suv.pushBack}`) + " " +
+  check(suv.barZ > suv.roofBack && suv.barZ < suv.roofFront + 0.02, `the SUV's bar sits at z ${suv.barZ}, off its roof`) + " " +
+  check(suv.aerialBase !== null && suv.aerialBase > built.aerialBase + 0.25,
+    `the SUV's aerial stands at y ${suv.aerialBase} against the saloon's ${built.aerialBase} — on an SUV the deck is the roof`) + " " +
+  check(suv.chevronsOff !== null && Math.abs(suv.chevronsOff) < 0.03,
+    `the SUV's chevrons sit ${suv.chevronsOff} m off its tail skin`));
 
 // --- 3. The beat itself ------------------------------------------------
 const beat = await page.evaluate(() => {
