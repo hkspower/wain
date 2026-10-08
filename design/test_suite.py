@@ -775,6 +775,7 @@ def browser_checks():
         auth_checks(pg, ctx)
         tamper_checks(pg)
         nokhatha_audit_checks(pg, br)
+        js_audit_checks(br)
         offline_checks(ctx, br)
         live_host_checks(br)
         layout_checks(br)
@@ -991,7 +992,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "841", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "863", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1024,7 +1025,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "841", "0", "100%"], str(finals))
+          finals == ["4", "863", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -3049,6 +3050,290 @@ def nokhatha_audit_checks(pg, br):
     check(S, "offline, a first visit to a clean product URL lands on the product with its tab",
           land[0].endswith("/nizam.html#/safi") and land[1].endswith("/nizam.html#/safi")
           and land[2].endswith("/nokhatha.html"), str(land))
+
+def js_audit_checks(br):
+    """The 2026-10-08 audit of النوخذة's scripts. Each check here was proved
+    failing against the code before its fix, then passing after it."""
+    S = "nokhatha-js"
+    errs = []
+    import tempfile, os
+    O, H, U, X, C, A = ("nokhatha-delivery-orders-v1", "nokhatha-safi-v1", "nokhatha-users-v1",
+                        "nokhatha-xbrl-reports-v1", "nokhatha-delivery-couriers-v1",
+                        "almuhallab-admin-audit-v1")
+
+    def console(ctx, store):
+        """The console, signed in, over the given storage. The admin record and
+        a live session are planted, so no 310,000-round derivation runs."""
+        p = ctx.new_page()
+        p.on("pageerror", lambda e: errs.append(str(e)))
+        p.goto(f"{BASE}/admin.html", wait_until="networkidle")
+        seed = dict(store)
+        seed["almuhallab-admin-v1"] = {"salt": "00", "hash": "x", "iter": 1}
+        seed["almuhallab-admin-session-v1"] = "__live__"
+        p.evaluate("""s => { localStorage.clear(); for (const [k, v] of Object.entries(s))
+            localStorage.setItem(k, v === '__live__' ? JSON.stringify({exp: Date.now() + 9e5}) : JSON.stringify(v)); }""", seed)
+        p.reload(wait_until="networkidle"); p.wait_for_timeout(300)
+        return p
+
+    def tab(p, name):
+        p.click(f'nav.tabs button[data-tab="{name}"]'); p.wait_for_timeout(150)
+
+    def do_import(p, payload):
+        fd, path = tempfile.mkstemp(suffix=".json"); os.write(fd, json.dumps(payload).encode()); os.close(fd)
+        p.once("dialog", lambda d: d.accept())
+        with p.expect_file_chooser() as fc:
+            p.evaluate("document.getElementById('btn-import').click()")
+        fc.value.set_files(path); p.wait_for_timeout(800); os.unlink(path)
+
+    now = time.time()
+    iso = lambda sec: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(sec))
+
+    # 1 · a backup with one null row: the writes, not the render, decide the
+    #     toast, and the console still draws afterwards
+    c = br.new_context()
+    p = console(c, {O: [{"id": "ORD-0001", "customer": "keep"}]})
+    n0 = len(errs)
+    do_import(p, {"data": {O: [None, {"id": "ORD-0002", "customer": "new"}]}})
+    t = p.eval_on_selector("#toast", "e => e.textContent")
+    st = p.evaluate(f"[localStorage.getItem('{O}'), localStorage.getItem('{A}') || '']")
+    p.reload(wait_until="networkidle"); p.wait_for_timeout(300)
+    drawn = p.evaluate("document.querySelectorAll('#kpis .tile').length")
+    c.close()
+    check(S, "a backup with a null row imports what is whole, says so, logs it and still draws",
+          t == "تم الاستيراد" and json.loads(st[0]) == [{"id": "ORD-0002", "customer": "new"}]
+          and "استيراد" in st[1] and drawn == 5 and len(errs) == n0,
+          f"toast={t!r} orders={st[0]} tiles={drawn} errors={errs[n0:][:1]}")
+
+    # 2 · the console reads storage as the system page does: null rows, a
+    #     non-array key, an empty id, an empty ticker, a log that is not a list
+    store = {O: [None, {"id": "ORD-0001", "amount": 5, "status": 3}, {"id": "", "amount": 2, "status": 3}],
+             H: [{"ticker": "", "qty": 1, "cost": 1, "price": 1}, None, {"ticker": "nbk", "qty": 1, "cost": 1, "price": 2}],
+             X: {"not": "a list"}, A: {"not": "a list"}}
+    c = br.new_context(accept_downloads=True)
+    n0 = len(errs)
+    p = console(c, store)
+    kp = p.evaluate("[...document.querySelectorAll('#kpis .tile .n')].map(e => e.textContent.trim())")
+    tab(p, "finance")
+    fk = p.evaluate("[...document.querySelectorAll('#safi-kpis .tile .n')].map(e => e.textContent.trim())")
+    tab(p, "settings")
+    p.click("#btn-export"); p.wait_for_timeout(300)
+    logged = p.evaluate(f"(JSON.parse(localStorage.getItem('{A}')) || []).length")
+    n = c.new_page(); n.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
+    sys_n = n.evaluate("[Nokhatha.orders().length, Nokhatha.holdings().length]")
+    c.close()
+    check(S, "the console survives null rows and non-array keys, and counts as the system page does",
+          len(errs) == n0 and len(kp) == 5 and kp[2] == str(sys_n[0]) and kp[3] == "5.000"
+          and fk[:1] == [str(sys_n[1])] and fk[-1:] == ["0"] and logged == 1,
+          f"kpis={kp} finance={fk} system={sys_n} log={logged} errors={errs[n0:][:1]}")
+
+    # 3 · the signups chart's newest point is this week, and it holds 8 real weeks
+    c = br.new_context()
+    p = console(c, {U: {"a@x.co": {"name": "A", "createdAt": iso(now - 3600)},
+                        "b@x.co": {"name": "B", "createdAt": iso(now - 2 * 86400)},
+                        "c@x.co": {"name": "C", "createdAt": iso(now - 52 * 86400)}}})
+    tips = p.evaluate("[...document.querySelectorAll('#charts svg circle[data-tip]')].map(e => e.getAttribute('data-tip'))")
+    c.close()
+    counts = [int(m.group(1)) if (m := re.search(r":\s*(\d+)", t)) else (2 if "حسابان" in t else 1) for t in tips]
+    check(S, "the signups chart ends on this week and counts all eight",
+          len(tips) == 8 and counts[-1] == 2 and sum(counts) == 3, str(tips))
+
+    # 4 · the console's signed figures in three cases, and a seven-digit loss
+    #     label that clears its ticker (the system page's chart, copied)
+    c = br.new_context()
+    p = console(c, {H: [{"ticker": "EVEN", "qty": 10, "cost": 100, "price": 100}],
+                    X: [{"entity": "Z", "equity": -4, "profit": 0}, {"entity": "Y", "profit": "abc"}]})
+    sub = p.evaluate("[...document.querySelectorAll('#kpis .tile')].pop().querySelector('.sub').textContent")
+    tab(p, "finance")
+    tile = p.evaluate("[...document.querySelectorAll('#safi-kpis .tile .n')][3].textContent.trim()")
+    xr = p.evaluate("[...document.querySelectorAll('#xbrl-rows tr')].map(r => [...r.cells].slice(4).map(c => [c.textContent, c.className]))")
+    p.evaluate(f"""localStorage.setItem('{H}', JSON.stringify([{{ticker:'EVEN',qty:10,cost:100,price:100}},
+      {{ticker:'T1',qty:1000000,cost:5000,price:1}},{{ticker:'UP',qty:1,cost:1,price:2}}]))""")
+    p.click("#btn-refresh"); p.wait_for_timeout(300)
+    lab = p.evaluate("""(() => { const svg = [...document.querySelectorAll('#safi-charts svg')].pop();
+      const ts = [...svg.querySelectorAll('text')], out = {gaps: [], labels: []};
+      for (let i = 0; i + 1 < ts.length; i += 2) { const k = ts[i].getBBox(), v = ts[i + 1].getBBox();
+        out.gaps.push(Math.max(v.x - (k.x + k.width), k.x - (v.x + v.width))); out.labels.push(ts[i + 1].textContent); }
+      return out; })()""")
+    c.close()
+    flat = [cell for row in xr for cell in row]
+    check(S, "the console's break-even reads 0.000, never +0.000 (overview, tile, chart, filings)",
+          "+0.000" not in sub and tile == "0.000" and "0.000" in lab["labels"] and "+0.000" not in lab["labels"]
+          and all(cell[0] != "+0.000" and "pos" not in cell[1] and "neg" not in cell[1] for cell in [r[-1] for r in xr]),
+          f"sub={sub!r} tile={tile!r} labels={lab['labels']} filings={xr}")
+    check(S, "the console prints a negative equity with its sign, not as 0.000",
+          any(cell[0] == "−4.000" for cell in flat), str(xr))
+    check(S, "the console chart's seven-digit loss label clears its ticker",
+          lab["gaps"] and min(lab["gaps"]) >= 4, str([round(g, 1) for g in lab["gaps"]]))
+
+    # 5 · an expired session refuses the next action instead of reporting it
+    c = br.new_context()
+    p = console(c, {U: {"a@x.co": {"name": "A", "status": "active", "createdAt": iso(now)}}})
+    tab(p, "customers")
+    p.evaluate("localStorage.setItem('almuhallab-admin-session-v1', JSON.stringify({exp: Date.now() - 1000}))")
+    p.click('#cust-rows button[data-act="toggle"]'); p.wait_for_timeout(800)
+    st = p.evaluate(f"""[JSON.parse(localStorage.getItem('{U}'))['a@x.co'].status,
+                        getComputedStyle(document.getElementById('gate')).display !== 'none',
+                        document.getElementById('shell').classList.contains('on')]""")
+    c.close()
+    check(S, "an expired console session refuses the action and returns to the gate",
+          st == ["active", True, False], str(st))
+
+    # 6 · after a bulk action the select-all box says nothing is selected
+    c = br.new_context()
+    p = console(c, {U: {"a@x.co": {"name": "A", "createdAt": iso(now)}, "b@x.co": {"name": "B", "createdAt": iso(now)}}})
+    tab(p, "customers"); p.check("#cust-all")
+    p.once("dialog", lambda d: d.accept()); p.click("#bulk-suspend"); p.wait_for_timeout(300)
+    box = p.evaluate("[document.getElementById('cust-all').checked, document.querySelectorAll('#cust-rows input.sel:checked').length]")
+    p.click("#cust-all"); p.wait_for_timeout(200)
+    again = p.evaluate("document.querySelectorAll('#cust-rows input.sel:checked').length")
+    c.close()
+    check(S, "after a bulk action select-all is clear, and one click selects everyone again",
+          box == [False, 0] and again == 2, f"after bulk {box}, after one click {again}")
+
+    # 7 · one clock on the console: the device's, in one format
+    c = br.new_context(timezone_id="Asia/Kuwait")
+    p = console(c, {U: {"a@x.co": {"name": "A", "createdAt": "2026-10-07T22:30:00Z"}},
+                    A: [{"ts": "2026-10-07T22:30:00Z", "action": "x"}]})
+    tab(p, "customers")
+    day = p.eval_on_selector("#cust-rows td.num", "e => e.textContent.trim()")
+    tab(p, "settings")
+    log = p.eval_on_selector("#audit div:last-child time", "e => e.textContent.trim()")
+    c.close()
+    check(S, "the console dates a Kuwait 01:30 signup and its log line on one local day, one format",
+          day == "2026-10-08" and log == "2026-10-08 01:30:00", f"customer {day!r}, log {log!r}")
+
+    # 8 · no Web Crypto, or a stored salt that is not hex: the failure lands
+    #     in the .catch written for it, which says so and frees the button
+    def gate_state(p):
+        return p.evaluate("[document.getElementById('gate-err').textContent, document.getElementById('gate-btn').disabled]")
+    c = br.new_context()
+    c.add_init_script("Object.defineProperty(Crypto.prototype, 'subtle', {get: () => undefined});")
+    p = c.new_page(); p.on("pageerror", lambda e: errs.append(str(e)))
+    n0 = len(errs)
+    p.goto(f"{BASE}/admin.html", wait_until="networkidle"); p.evaluate("localStorage.clear()"); p.reload(wait_until="networkidle")
+    p.fill('#gate-form input[name="pass"]', "AdminPass123"); p.fill('#gate-form input[name="confirm"]', "AdminPass123")
+    p.evaluate("document.getElementById('gate-form').requestSubmit()"); p.wait_for_timeout(500)
+    setup = gate_state(p)
+    p.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle")
+    p.fill('#form-register input[name="name"]', "Ali"); p.fill('#form-register input[name="email"]', "a@b.co")
+    p.fill('#form-register input[name="password"]', "correct-horse-2026")
+    p.click('#form-register button[type="submit"]'); p.wait_for_timeout(500)
+    reg = p.evaluate("[document.getElementById('register-error').textContent, document.querySelector('#form-register button[type=submit]').disabled]")
+    c.close()
+    c = br.new_context(); p = c.new_page(); p.on("pageerror", lambda e: errs.append(str(e)))
+    p.goto(f"{BASE}/nokhatha.html#/login", wait_until="networkidle")
+    p.evaluate(f"""localStorage.setItem('{U}', JSON.stringify({{'a@b.co': {{name:'A', email:'a@b.co', salt: 12345, hash:'x'}}}}))""")
+    p.fill('#form-login input[name="email"]', "a@b.co"); p.fill('#form-login input[name="password"]', "whatever-1")
+    p.click('#form-login button[type="submit"]'); p.wait_for_timeout(500)
+    log_in = p.evaluate("[document.getElementById('login-error').textContent, document.querySelector('#form-login button[type=submit]').disabled]")
+    p.goto(f"{BASE}/admin.html", wait_until="networkidle")
+    p.evaluate("localStorage.setItem('almuhallab-admin-v1', JSON.stringify({salt: 'z', hash: 'x'}))")
+    p.reload(wait_until="networkidle")
+    p.fill('#gate-form input[name="pass"]', "AdminPass123")
+    p.evaluate("document.getElementById('gate-form').requestSubmit()"); p.wait_for_timeout(500)
+    gate = gate_state(p)
+    c.close()
+    check(S, "no Web Crypto, or a tampered salt: every form says why and its button works again",
+          setup[0] and not setup[1] and reg[0] and not reg[1] and log_in[0] and not log_in[1]
+          and gate[0] and not gate[1] and len(errs) == n0,
+          f"setup {setup} · register {reg} · login {log_in} · gate {gate} · errors {errs[n0:][:1]}")
+    check(S, "a tampered salt is reported, and not blamed on the browser",
+          log_in[0] and "المتصفح" not in log_in[0], repr(log_in[0]))
+
+    # 9 · one toast formula on every page
+    lens = {f: bool(re.search(r"Math\.max\(1800, 60 \* \w+\.length\)", (ROOT / f).read_text()))
+            for f in ("nokhatha.html", "nizam.html", "admin.html")}
+    check(S, "every app page holds a toast for max(1.8s, 60ms a character)", all(lens.values()), str(lens))
+
+    # 10 · no tier machinery survives in a free system
+    tiers = {f: [w for w in ("minPlan", "data-plan", "plan: Math") if w in (ROOT / f).read_text()]
+             for f in ("nokhatha.html", "admin.html")}
+    check(S, "no plan gate, plan button or plan clamp survives (one free plan)",
+          not any(tiers.values()), str(tiers))
+
+    # 11 · the system page: export → import is a backup of all four units,
+    #      a merge never stores a courier or a filing twice, and reports()
+    #      hands out coerced rows like every other read
+    c = br.new_context(); p = c.new_page(); p.on("pageerror", lambda e: errs.append(str(e)))
+    p.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
+    p.evaluate(f"""localStorage.clear(); Nokhatha.addHolding({{ticker:'NBK',qty:1,cost:1,price:1}});
+      localStorage.setItem('{C}', JSON.stringify([{{name:'سالم', phone:'965'}}]));
+      localStorage.setItem('{X}', JSON.stringify([{{entity:'ش', crn:'1234', period:'FY',
+        periodEnd:'2025-12-31', assets:10, equity:-4, revenue:5, profit:-120.5, filedAt:'2026-01-01T00:00:00Z'}}]))""")
+    rt = p.evaluate("""(() => { const b = Nokhatha.export(); localStorage.clear(); const r = Nokhatha.import(b);
+      const m = Nokhatha.import(b, {merge: true});
+      return [r.ok, r.value, m.value, Nokhatha.holdings().length, Nokhatha.couriers().length, Nokhatha.reports().length,
+              (Nokhatha.reports()[0] || {}).equity, (Nokhatha.reports()[0] || {}).profit]; })()""")
+    check(S, "export then import restores every unit, couriers and filings included",
+          rt[:2] == [True, {"added": 3, "skipped": 0}] and rt[3:] == [1, 1, 1, -4, -120.5], str(rt))
+    check(S, "a merge import skips a courier or filing already stored, and counts it",
+          rt[2] == {"added": 0, "skipped": 3}, str(rt))
+    p.evaluate(f"localStorage.setItem('{X}', JSON.stringify([null, 'x', {{profit:'abc'}}]))")
+    reps = p.evaluate("Nokhatha.reports()")
+    check(S, "Nokhatha.reports() coerces as the screens do",
+          len(reps) == 1 and reps[0]["profit"] == 0 and reps[0]["entity"] == "", str(reps))
+
+    # 12 · the delivery list: one read per render, and a shared id cannot
+    #      move the wrong order
+    p.evaluate(f"""localStorage.setItem('{O}', JSON.stringify(
+      [{{id:'ORD-0001', customer:'Older', status:0}}, {{id:'ORD-0001', customer:'Newer', status:0}}]))""")
+    p.reload(wait_until="networkidle"); p.wait_for_timeout(200)
+    p.click('#del-orders .order:first-child button[data-next]'); p.wait_for_timeout(200)
+    moved = p.evaluate(f"JSON.parse(localStorage.getItem('{O}')).map(o => o.customer + ':' + o.status)")
+    check(S, "advancing one of two orders that share an id moves the one clicked",
+          moved == ["Older:0", "Newer:1"], str(moved))
+    p.evaluate(f"""localStorage.setItem('{O}', JSON.stringify(Array.from({{length: 200}},
+      (_, i) => ({{id: 'ORD-' + String(i + 1).padStart(4, '0'), customer: 'c' + i, status: 0}}))))""")
+    p.reload(wait_until="networkidle"); p.wait_for_timeout(200)
+    reads = p.evaluate(f"""(() => {{ let n = 0; const real = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (k) {{ if (k === '{O}') n++; return real.call(this, k); }};
+      document.querySelector('#del-orders button[data-next]').click();
+      Storage.prototype.getItem = real; return n; }})()""")
+    check(S, "a status change at 200 orders reads the store a handful of times, not once per order",
+          reads <= 20, f"{reads} reads")
+
+    # 13 · another tab signing in is not «records updated»
+    p.close(); p = c.new_page(); p.on("pageerror", lambda e: errs.append(str(e)))
+    p.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle"); p.wait_for_timeout(300)
+    other = c.new_page(); other.goto(f"{BASE}/nokhatha.html", wait_until="networkidle")
+    other.evaluate("localStorage.setItem('nokhatha-session-v1', JSON.stringify({email:'a@b.co', exp: Date.now() + 1e6}))")
+    p.wait_for_timeout(400)
+    said = p.evaluate("[document.getElementById('toast').classList.contains('on'), document.getElementById('toast').textContent]")
+    other.evaluate(f"localStorage.setItem('{H}', JSON.stringify([{{ticker:'ZZ',qty:1,cost:1,price:1}}]))")
+    p.wait_for_timeout(400)
+    said2 = p.evaluate("document.getElementById('toast').textContent")
+    check(S, "a sign-in in another tab is not announced as changed records; a record change is",
+          not said[0] and "نافذة أخرى" in said2, f"{said} then {said2!r}")
+
+    # 14 · a loss under half a fils is a break-even in the holdings rows too,
+    #      as on the tile: no sign, no colour, and no «-0.0%»
+    p.evaluate(f"""localStorage.setItem('{H}', JSON.stringify([{{ticker:'EV', qty:1, cost:100.4, price:100}},
+      {{ticker:'EW', qty:1, cost:100.0004, price:100}}]))""")
+    p.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); p.reload(wait_until="networkidle")
+    p.wait_for_timeout(300)
+    rows = p.evaluate("""[...document.querySelectorAll('#safi-rows tr')].map(r =>
+      [...r.cells].slice(6, 8).map(td => [td.textContent, td.className]))""")
+    p.evaluate(f"localStorage.setItem('{H}', JSON.stringify([{{ticker:'EW', qty:1, cost:100.0004, price:100}}]))")
+    p.reload(wait_until="networkidle"); p.wait_for_timeout(300)
+    tile = p.evaluate("[document.getElementById('s-pl').textContent, document.getElementById('s-pl').parentNode.querySelector('.sub').textContent]")
+    c.close()
+    check(S, "a sub-fils loss reads 0.000, uncoloured, in the holdings rows; a zero percent has no sign",
+          rows == [[["0.000", ""], ["-0.4%", ""]], [["0.000", ""], ["0.0%", ""]]]
+          and tile == ["0.000", "0.0%"], f"{rows} tile={tile}")
+
+    # 15 · the WhatsApp link left after a send carries the brief as corrected
+    c = br.new_context(); p = c.new_page(); p.on("pageerror", lambda e: errs.append(str(e)))
+    p.goto(f"{BASE}/index.html#contact", wait_until="networkidle")
+    p.evaluate("window.open = () => null")
+    p.fill("#q-name", "سالم"); p.fill("#q-email", "s@x.co"); p.fill("#q-msg", "أريد متجراً إلكترونياً بسيطاً")
+    p.click("#quote .send"); p.wait_for_timeout(200)
+    p.fill("#q-msg", "عدّلت: أريد تطبيق جوال بدلاً من المتجر")
+    href = p.eval_on_selector("#quote .golink", "e => decodeURIComponent(e.href)")
+    c.close()
+    check(S, "the WhatsApp link left after a send carries the corrected brief",
+          "تطبيق جوال" in href and "متجراً إلكترونياً" not in href, href[-60:])
+
+    check(S, "and none of it threw", not errs, " | ".join(errs[:2]))
 
 # ───────────────────────────── PWA / offline
 def offline_checks(ctx, br):

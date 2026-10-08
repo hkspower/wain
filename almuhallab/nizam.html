@@ -916,6 +916,8 @@
      netted-out portfolio as «+0.000» in green, a profit that was not there. */
   function sgn(v) { var r = Math.round(Number(v) * 1000); return r > 0 ? 1 : r < 0 ? -1 : 0; }
   function signed(v) { var s = sgn(v); return (s > 0 ? "+" : s < 0 ? "−" : "") + kwd(s ? Math.abs(v) : 0); }
+  /* and a percentage that rounds to zero has no sign: «-0.0%» beside 0.000 */
+  function pct1(v) { var s = Number(v).toFixed(1); return s === "-0.0" ? "0.0" : s; }
   /* ICON names a sprite symbol; built from fixed ids only, never from data */
   function icon(id, cls) { return '<svg class="' + (cls || "ic") + '" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
   /* one fact on an order row: its icon, then its (already escaped) value */
@@ -962,6 +964,23 @@
     return l.map(function (c) { return { name: String((c && c.name) || "").slice(0, 80),
                                          phone: String((c && c.phone) || "").slice(0, 15) }; })
             .filter(function (c) { return c.name; });
+  }
+  /* The saved filings, through the same door as every other record:
+     Nokhatha.reports() handed out raw storage (null, a string, a profit of
+     "abc") while the table coerced the same rows only to draw them.
+     Equity and profit keep their sign; the other figures are amounts. */
+  function isRec(r) { return !!r && typeof r === "object" && !Array.isArray(r); }
+  function signedAmt(v) { var n = Number(v); return isFinite(n) ? Math.max(-1e12, Math.min(1e12, n)) : 0; }
+  function report(r) {
+    return { entity: String(r.entity || "").slice(0, 120), crn: String(r.crn || "").slice(0, 10),
+             legal: String(r.legal || "").slice(0, 10), period: String(r.period || "").slice(0, 10),
+             periodEnd: String(r.periodEnd || "").slice(0, 10),
+             assets: clamp(r.assets, 1e12), equity: signedAmt(r.equity), revenue: clamp(r.revenue, 1e12),
+             profit: signedAmt(r.profit), filedAt: String(r.filedAt || "").slice(0, 40) };
+  }
+  function reports() {
+    var l = rd(K.reports, []); if (!Array.isArray(l)) return [];
+    return l.filter(isRec).map(report);
   }
 
   /* ---- derived figures: the single place these numbers are defined ---- */
@@ -1066,7 +1085,7 @@
     el("pos-tiles").innerHTML = tiles([
       ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), ar(p.portfolio.count, "سهم", "سهمان", "أسهم"), "", "p-value"],
       ["ربح/خسارة المحفظة (د.ك)", signed(p.portfolio.pl),
-       p.portfolio.pct.toFixed(1) + "%", ["neg", "", "pos"][sgn(p.portfolio.pl) + 1], "p-pl"],
+       pct1(p.portfolio.pct) + "%", ["neg", "", "pos"][sgn(p.portfolio.pl) + 1], "p-pl"],
       ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), ar(p.delivery.delivered, "طلب مسلّم", "طلبان مسلّمان", "طلبات مسلّمة"), "", "p-revenue"],
       ["الطلبات قيد التنفيذ", p.delivery.active, "من " + ar(p.delivery.total, "طلب", "طلبين", "طلبات", "طلب واحد"), "", "p-active"],
       ["إجمالي الموارد (د.ك)", kwd(p.netWorth), "المحفظة + الإيراد", "", "p-net"]
@@ -1088,7 +1107,7 @@
       ["التكلفة (د.ك)", kwd(t.cost), "", "", "s-cost"],
       ["القيمة السوقية (د.ك)", kwd(t.value), "", "", "s-value"],
       ["الربح/الخسارة (د.ك)", signed(t.pl),
-       t.pct.toFixed(1) + "%", ["neg", "", "pos"][sgn(t.pl) + 1], "s-pl"],
+       pct1(t.pct) + "%", ["neg", "", "pos"][sgn(t.pl) + 1], "s-pl"],
       ["عدد الأسهم", t.count, "", "", "s-count"]
     ]);
     el("safi-chart").innerHTML = fig("الربح والخسارة بالسهم", "التغيّر عن التكلفة، بالدينار الكويتي",
@@ -1097,12 +1116,14 @@
       }), kwd));
     el("safi-rows").innerHTML = h.map(function (x, i) {
       var cost = x.qty * x.cost / 1000, value = x.qty * x.price / 1000, pl = value - cost;
-      var cls = pl > 0 ? "up" : (pl < 0 ? "down" : "");
+      /* three cases, as the tile and the chart: a loss under half a fils (the
+         form takes 0.1 fils) printed a red «-0.000» beside a tile that read 0.000 */
+      var sg = sgn(pl), cls = ["down", "", "up"][sg + 1];
       return "<tr>" +
         '<td style="font-family:var(--mono)">' + esc(x.ticker) + "</td><td>" + esc(x.name) + "</td>" +
         "<td>" + x.qty.toLocaleString("en-US") + "</td><td>" + x.cost + "</td><td>" + x.price + "</td>" +
-        "<td>" + kwd(value) + '</td><td class="' + cls + '">' + kwd(pl) + "</td>" +
-        '<td class="' + cls + '">' + (cost > 0 ? (pl / cost * 100).toFixed(1) : "0.0") + "%</td>" +
+        "<td>" + kwd(value) + '</td><td class="' + cls + '">' + kwd(sg ? pl : 0) + "</td>" +
+        '<td class="' + cls + '">' + (cost > 0 ? pct1(pl / cost * 100) : "0.0") + "%</td>" +
         '<td class="col-act"><button class="btn sm danger" data-del-safi="' + i + '" aria-label="حذف ' + esc(x.ticker) + '">حذف</button></td></tr>';
     }).join("");
     el("safi-empty").style.display = h.length ? "none" : "block";
@@ -1351,7 +1372,7 @@
     if (v.errs) { toast("صحّح الأخطاء قبل التوليد: " + ar(v.errs, "خطأ", "خطآن", "أخطاء", "خطأ واحد")); return; }
     var t = recalc();
     var xml = buildXbrl();
-    var hist = rd(K.reports, []); if (!Array.isArray(hist)) hist = [];
+    var hist = reports();
     hist.push({ entity: xf.entity.value.trim().slice(0, 120), crn: xf.crn.value.trim().slice(0, 10),
                 legal: xf.legal.value, period: xf.period.value, periodEnd: xf.periodEnd.value,
                 assets: t.assets, equity: t.eq,
@@ -1371,13 +1392,12 @@
     renderXbrlHistory(); toast("تم توليد الملف وحفظ التقرير", "i-check");
   });
   function renderXbrlHistory() {
-    var reps = rd(K.reports, []); if (!Array.isArray(reps)) reps = [];
+    var reps = reports();
     el("xbrl-rows").innerHTML = reps.slice().reverse().map(function (r) {
-      var profit = Number(r && r.profit) || 0;
-      return "<tr><td>" + esc((r && r.entity) || "-") + "</td><td>" + esc((r && r.crn) || (r && r.period) || "-") +
-        "</td><td>" + esc((r && r.periodEnd) || "-") + "</td><td>" + kwd(clamp(r && r.assets, 1e12)) +
-        "</td><td>" + kwd(clamp(r && r.revenue, 1e12)) + '</td><td class="' + ["down", "", "up"][sgn(profit) + 1] +
-        '">' + signed(profit) + "</td></tr>";
+      return "<tr><td>" + esc(r.entity || "-") + "</td><td>" + esc(r.crn || r.period || "-") +
+        "</td><td>" + esc(r.periodEnd || "-") + "</td><td>" + kwd(r.assets) +
+        "</td><td>" + kwd(r.revenue) + '</td><td class="' + ["down", "", "up"][sgn(r.profit) + 1] +
+        '">' + signed(r.profit) + "</td></tr>";
     }).join("");
     el("xbrl-empty").style.display = reps.length ? "none" : "block";
   }
@@ -1418,9 +1438,15 @@
           (i < 0 ? "الكل" : STATUSES[i]) + "</button>";
       }).join("");
 
-    var list = orders().filter(function (o) { return delFilter < 0 || o.status === delFilter; });
-    el("del-orders").innerHTML = list.slice().reverse().map(function (o) {
-      var idx = orders().findIndex(function (x) { return x.id === o.id; });
+    /* One read of the store, and each row carries its own record's index: a
+       findIndex by id for every row re-read and re-parsed every order (875ms
+       a click at 1000 orders), and two orders sharing an id both pointed at
+       the first, so «advance» moved the wrong one. The click handler's
+       orders() drops the same empty-id rows, so the indexes agree. */
+    var list = orders().map(function (o, i) { return { o: o, i: i }; })
+      .filter(function (x) { return delFilter < 0 || x.o.status === delFilter; });
+    el("del-orders").innerHTML = list.slice().reverse().map(function (x) {
+      var o = x.o, idx = x.i;
       var adv = o.status < DELIVERED
         ? '<button class="btn sm primary" data-next="' + idx + '">' + STATUSES[o.status + 1] + icon("i-chev", "ic sm") + "</button>" : "";
       var can = o.status < DELIVERED
@@ -1469,14 +1495,16 @@
   el("del-orders").addEventListener("click", function (e) {
     var n = e.target.closest("button[data-next]"), c = e.target.closest("button[data-cancel]");
     if (!n && !c) return;
-    var list = orders();
+    var list = orders(), said;
+    /* the list may have changed in another tab since the row was drawn */
     if (n) { var o = list[Number(n.getAttribute("data-next"))];
-             if (o.status < DELIVERED) { o.status += 1; toast("الطلب " + o.id + ": " + STATUSES[o.status]); } }
+             if (!o || o.status >= DELIVERED) return;
+             o.status += 1; said = "الطلب " + o.id + ": " + STATUSES[o.status]; }
     else { var co = list[Number(c.getAttribute("data-cancel"))];
-           if (!confirm("إلغاء الطلب " + co.id + "؟ لا يمكن التراجع.")) return;
-           co.status = CANCELLED; toast("تم إلغاء الطلب " + co.id); }
+           if (!co || co.status >= DELIVERED || !confirm("إلغاء الطلب " + co.id + "؟ لا يمكن التراجع.")) return;
+           co.status = CANCELLED; said = "تم إلغاء الطلب " + co.id; }
     if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
-    renderAll(); focusAfter("del-orders");
+    renderAll(); focusAfter("del-orders"); toast(said);   /* after the write: it says what happened */
   });
 
   /* ════════════════════ social centre ════════════════════
@@ -1638,7 +1666,10 @@
   // wrote the new ones. A statement that disagrees with the screen it was
   // printed from is worse than no statement.
   window.addEventListener("storage", function (e) {
-    if (e.key !== null && e.key.slice(0, 9) !== "nokhatha-") return;
+    /* this page's four record keys only: the portal's session, lock and
+       accounts are nokhatha-* too, and a sign-in in another tab announced
+       records that had not changed */
+    if (e.key !== null && [K.safi, K.orders, K.couriers, K.reports].indexOf(e.key) < 0) return;
     renderAll();
     toast("حُدّثت السجلات من نافذة أخرى");
   });
@@ -1755,10 +1786,7 @@
     holdings: function () { return holdings(); },
     orders: function () { return orders(); },
     couriers: function () { return couriers(); },
-    reports: function () {
-      var l = rd(K.reports, []);
-      return Array.isArray(l) ? l : [];
-    },
+    reports: function () { return reports(); },
 
     /* the derived figures, from the one place they are defined */
     totals: function () { return position(); },
@@ -1799,7 +1827,7 @@
     export: function () {
       return { version: API_VERSION, exportedAt: new Date().toISOString(),
                safi: holdings(), orders: orders(),
-               couriers: couriers(), reports: this.reports() };
+               couriers: couriers(), reports: reports() };
     },
     import: function (data, opts) {
       // Replaces by default. Merging two sets of records without being told
@@ -1825,14 +1853,37 @@
           if (r.ok) { os.push(r.value); added++; } else { skipped++; }
         });
       }
-      // Atomic: both units are built before either is written, and a refused
-      // second write puts the first back. Before, a full quota on orders
+      // export() writes the couriers and the filings too, and import read
+      // only the two units above: a backup restored on a new device dropped
+      // every courier and every filing and still answered ok. A courier is
+      // known by its name (an order names its courier), a filing by every
+      // field; one already accepted is skipped and counted, never stored twice.
+      if (Array.isArray(data.couriers)) {
+        var cs = merge ? couriers() : [];
+        data.couriers.forEach(function (c) {
+          var v = { name: String((c && c.name) || "").slice(0, 80), phone: String((c && c.phone) || "").slice(0, 15) };
+          if (!isRec(c) || !v.name || cs.some(function (x) { return x.name === v.name; })) { skipped++; return; }
+          cs.push(v); added++;
+        });
+      }
+      if (Array.isArray(data.reports)) {
+        var rs = merge ? reports() : [];
+        data.reports.forEach(function (r) {
+          if (!isRec(r)) { skipped++; return; }
+          var v = report(r), key = JSON.stringify(v);
+          if (rs.some(function (x) { return JSON.stringify(x) === key; })) { skipped++; return; }
+          rs.push(v); added++;
+        });
+      }
+      // Atomic: every unit is built before any is written, and a refused
+      // later write puts the earlier ones back. Before, a full quota on orders
       // answered {ok:false} after the holdings had already been replaced.
       var before = {}, done = [];
-      [[K.safi, hs], [K.orders, os]].forEach(function (u) {
+      var units = [[K.safi, hs], [K.orders, os], [K.couriers, cs], [K.reports, rs]];
+      units.forEach(function (u) {
         if (u[1]) before[u[0]] = localStorage.getItem(u[0]);
       });
-      var writes = [[K.safi, hs], [K.orders, os]].filter(function (u) { return u[1]; });
+      var writes = units.filter(function (u) { return u[1]; });
       for (var wi = 0; wi < writes.length; wi++) {
         if (!wr(writes[wi][0], writes[wi][1])) {
           done.forEach(function (k) {

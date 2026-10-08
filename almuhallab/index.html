@@ -1341,7 +1341,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="841">841</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="863">863</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -2141,6 +2141,19 @@
       function okEmail() { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim()); }
       function okMsg() { return msg.value.trim().length >= 10; }
       function mark(el, ok) { el.setAttribute("aria-invalid", ok ? "false" : "true"); }
+      /* the message as the fields hold it NOW: the link left behind after a
+         send kept the first brief, so a corrected one could only send the old */
+      function waHref() {
+        var text = "مرحباً، أنا " + name.value.trim()
+          + "\nنوع المشروع: " + type.value
+          + "\nالبريد: " + email.value.trim()
+          + "\n\n" + msg.value.trim();
+        return "https://wa.me/96565894110?text=" + encodeURIComponent(text);
+      }
+      form.addEventListener("input", function () {
+        var go = form.querySelector(".golink");
+        if (go && okName() && okEmail() && okMsg()) go.href = waHref();
+      });
       name.addEventListener("blur", function () { mark(name, okName()); });
       email.addEventListener("blur", function () { mark(email, okEmail()); });
       msg.addEventListener("blur", function () { mark(msg, okMsg()); });
@@ -2161,14 +2174,10 @@
         var btn = form.querySelector(".send");
         btn.classList.add("sent");
         btn.querySelector(".okmsg").hidden = false;
-        var text = "مرحباً، أنا " + name.value.trim()
-          + "\nنوع المشروع: " + type.value
-          + "\nالبريد: " + email.value.trim()
-          + "\n\n" + msg.value.trim();
         /* opened in the click itself (a window opened from a timer is what
            popup blockers stop), and a real link stays on the page for when it
            is stopped anyway — the green «تم» must never be the end of the road */
-        var href = "https://wa.me/96565894110?text=" + encodeURIComponent(text);
+        var href = waHref();
         var go = form.querySelector(".golink");
         if (!go) { go = document.createElement("a"); go.className = "btn golink"; go.target = "_blank"; go.rel = "noopener";
                    btn.insertAdjacentElement("afterend", go); }

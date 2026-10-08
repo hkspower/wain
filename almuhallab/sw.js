@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v50";   /* v50: an install a 401 cannot void, only this app's caches cleared, one entry per file */
+var CACHE = "nokhatha-v51";   /* v51: the console and the system page read every record as the screens do */
 /* The site root is not listed: "./" and "index.html" are the same 155 KB
    page, and every install fetched it twice. A request for the root is
    looked up as index.html below. logo.svg is not listed either: no page,

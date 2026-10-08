@@ -444,7 +444,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 841 checks covering
+- `python3 design/test_suite.py` is the full system test — 863 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -737,6 +737,46 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Spacing off the scale hid where no scan looked: the toasts' resting 18px,
   the phone pill's 14px and two inline margins in the console (the stylesheet
   scan cannot see a `style` attribute); all on the scale, all pinned.
+- **A copied reader does not follow the original's fixes** (script audit,
+  2026-10-08, `js_audit_checks`, every check proved failing first). The
+  console kept its own copies of the system page's readers and chart, and
+  none of the system page's fixes had reached them: no `Array.isArray`, no
+  null guard (one `null` order blanked every tab, a log that was not a list
+  threw on every write), rows the system page drops (no id, no ticker)
+  counted, so the two screens disagreed about one store, a fixed 52-unit
+  label room and a two-case sign (`+0.000`). They read and draw as the system
+  page does now, and a negative equity prints as a deficit, not as 0.000.
+  The same bugs, found one class at a time:
+  - **A render inside the try whose catch picks the message relabels a
+    finished write.** The backup import wrote a `null` row, the render threw,
+    and the catch said «ملف غير صالح» over records already replaced, with no
+    audit line. The writes decide the toast; the render runs after the try;
+    a row the screens would drop is dropped before writing.
+  - **A function that throws before its promise exists escapes the `.catch`
+    written for it.** `hashPassword`/`derive` read the salt and called
+    `crypto.subtle` synchronously: no Web Crypto, or a stored salt of 12345,
+    left the button disabled and the form silent. Both run inside
+    `Promise.resolve().then`, and a bad salt says the account, never «the
+    browser does not support».
+  - **A session checked once, at load, bounds nothing.** The console's 30
+    minutes are now asked by every action (`live()`, which also extends them,
+    so an active admin is not cut off) and by a minute timer and
+    `visibilitychange`; ended, the page reloads into the gate.
+  - **A week that starts at its label holds the future.** The newest of
+    eight buckets began now: the signups chart always ended on a false zero
+    and counted seven weeks. Each bucket ends at its label, `(start, end]`.
+  - **A backup is a round trip, or it is not a backup.** `export()` wrote
+    four units and `import()` read two, answering ok with every courier and
+    filing gone; `reports()` handed out raw storage. Pinned by export, clear,
+    import, compare; a courier is known by its name, a filing by every field.
+  - Smaller, same habit: a storage listener on the `nokhatha-` prefix heard
+    the portal's sign-in as «records updated»; a `findIndex` by id per row was
+    O(n²) (875 ms a click at 1000 orders) and moved the wrong order when two
+    shared an id; the console showed UTC days beside a local log (one clock
+    now, the device's, in one format); a percentage that rounds to zero has no
+    sign; the select-all box follows the selection; the WhatsApp link left
+    after a send follows the fields; the portal's toast is the one formula;
+    the retired tiers' `minPlan`, `data-plan` handler and plan clamp are gone.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse

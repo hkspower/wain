@@ -616,17 +616,17 @@
       var USERS_KEY = "nokhatha-users-v1";
       var SESSION_KEY = "nokhatha-session-v1";
 
-      // The service fleet — one unified system. minPlan gates access per subscription tier.
-      // All units unlocked while the system is being built — pricing gates come later.
+      // The service fleet: one unified system, and every unit is open to every
+      // account, because النوخذة is free. Nothing here gates by tier.
       var UNITS = [
-        { id: "position", icon: "i-anchor", name: "المركز المالي",           desc: "الصورة الموحدة: قيمة المحفظة وربحها، إيراد التوصيل والطلبات الجارية، وإجمالي الموارد.", minPlan: 0, url: "nizam.html#/position" },
-        { id: "safi",     icon: "i-chart", name: "صافي · SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين، ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
-        { id: "delivery", icon: "i-delivery", name: "التوصيل · Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
-        { id: "xbrl",     icon: "i-report", name: "XBRL: الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" }
+        { id: "position", icon: "i-anchor", name: "المركز المالي",           desc: "الصورة الموحدة: قيمة المحفظة وربحها، إيراد التوصيل والطلبات الجارية، وإجمالي الموارد.", url: "nizam.html#/position" },
+        { id: "safi",     icon: "i-chart", name: "صافي · SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين، ربح/خسارة وتصدير الكشوفات.", url: "nizam.html#/safi" },
+        { id: "delivery", icon: "i-delivery", name: "التوصيل · Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", url: "nizam.html#/delivery" },
+        { id: "xbrl",     icon: "i-report", name: "XBRL: الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", url: "nizam.html#/xbrl" }
       ];
 
       /* النوخذة is free. One plan, everything open — no tiers, no payment,
-         nothing to upgrade to. minPlan on a unit stays 0 for the same reason. */
+         nothing to upgrade to. */
       var PLANS = [
         { id: 0, name: "النوخذة: مجاني", price: "0", featured: true,
           features: ["صافي: متابعة المحافظ بلا حدود",
@@ -708,14 +708,21 @@
           return ("0" + b.toString(16)).slice(-2);
         }).join("");
       }
+      /* Every failure lands in the chain: a missing crypto.subtle, or a stored
+         salt that is not hex (12345, one character), threw before any promise
+         existed, so the .catch written for exactly that never ran, the button
+         stayed disabled and the form said nothing. A bad salt rejects with its
+         own name, so the message can say the record and not the browser. */
       function hashPassword(password, saltHex) {
-        var salt = new Uint8Array(saltHex.match(/.{2}/g).map(function (h) { return parseInt(h, 16); }));
-        return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"])
-          .then(function (key) {
-            return crypto.subtle.deriveBits(
-              { name: "PBKDF2", salt: salt, iterations: PBKDF2_ITER, hash: "SHA-256" }, key, 256);
-          })
-          .then(bufToHex);
+        return Promise.resolve().then(function () {
+          if (typeof saltHex !== "string" || !/^(?:[0-9a-f]{2})+$/i.test(saltHex)) throw new Error("salt");
+          var salt = new Uint8Array(saltHex.match(/.{2}/g).map(function (h) { return parseInt(h, 16); }));
+          return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"])
+            .then(function (key) {
+              return crypto.subtle.deriveBits(
+                { name: "PBKDF2", salt: salt, iterations: PBKDF2_ITER, hash: "SHA-256" }, key, 256);
+            });
+        }).then(bufToHex);
       }
       function newSalt() {
         var s = new Uint8Array(16);
@@ -768,7 +775,8 @@
         if (ic) toastEl.insertAdjacentHTML("afterbegin", icon(ic));
         toastEl.classList.add("show");
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+        /* the one formula of all three pages: a long message is not gone before it is read */
+        toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, Math.max(1800, 60 * msg.length));
       }
 
       /* a refused field is marked, announced (the error is role=alert and each
@@ -800,33 +808,31 @@
         });
       });
 
-      function unitCard(mcp, userPlan, showLock) {
-        var open = userPlan >= mcp.minPlan;
+      function unitCard(mcp, showLock) {
         var chip = showLock
           ? '<span class="chip on">' + icon("i-check") + 'مفعّلة</span>'
           : '<span class="chip on">' + icon("i-check") + 'متاحة</span>';
-        var openBtn = (showLock && open && mcp.url)
+        var openBtn = (showLock && mcp.url)
           ? '<a class="btn primary" style="margin-top:4px" href="' + mcp.url + '" aria-label="فتح ' + mcp.name + '">فتح الخدمة' + icon("i-chev") + '</a>' : '';
         return '<div class="card"><h3><span class="tile">' + icon(mcp.icon) + '</span>' + mcp.name + '</h3><p>' + mcp.desc + '</p>' + chip + openBtn + '</div>';
       }
 
       function renderGrids() {
-        var user = currentUser();
-        var plan = user ? user.plan : -1;
         document.getElementById("mcp-grid-home").innerHTML =
-          UNITS.map(function (m) { return unitCard(m, plan, false); }).join("");
+          UNITS.map(function (m) { return unitCard(m, false); }).join("");
         document.getElementById("mcp-grid-dash").innerHTML =
-          UNITS.map(function (m) { return unitCard(m, plan, true); }).join("");
+          UNITS.map(function (m) { return unitCard(m, true); }).join("");
       }
 
       function renderPlans() {
         var user = currentUser();
         document.getElementById("plans").innerHTML = PLANS.map(function (p) {
-          var isCurrent = user && user.plan === p.id;
-          var btn = isCurrent
+          /* one plan, so a signed-in account is always on it: the «choose this
+             plan» button and its handler, left from the retired tiers, could
+             never render */
+          var btn = user
             ? '<button class="btn outline" disabled>مفعّل لحسابك</button>'
-            : user ? '<button class="btn primary" data-plan="' + p.id + '">ابدأ مجاناً</button>'
-                   : '<a class="btn primary" href="#/register">ابدأ مجاناً</a>';
+            : '<a class="btn primary" href="#/register">ابدأ مجاناً</a>';
           return '<div class="plan' + (p.featured ? " featured" : "") + '">' +
             '<div class="name">' + p.name + '</div>' +
             '<div class="price">مجاناً <small>بلا أي رسوم</small></div>' +
@@ -848,9 +854,8 @@
         var badge = document.getElementById("dash-plan");
         badge.textContent = PLANS[user.plan].name;
         badge.classList.toggle("free", user.plan === 0);
-        var openCount = UNITS.filter(function (m) { return user.plan >= m.minPlan; }).length;
         document.getElementById("stat-total").textContent = UNITS.length;
-        document.getElementById("stat-open").textContent = openCount;
+        document.getElementById("stat-open").textContent = UNITS.length;   /* free: every unit is open */
         /* no renewal tile: النوخذة is free, so there is nothing to renew. The
            line that stood here was doubly dead — it read user.plan > 0, which
            cannot be true with one plan, and formatted the date as ar-KW, which
@@ -995,26 +1000,16 @@
           check = Promise.resolve(false);
         }
         check.then(function (ok) { if (ok) succeed(); else fail(); })
-          .catch(function () { err.textContent = "تعذّر التحقق: المتصفح لا يدعم التشفير المطلوب."; })
+          .catch(function (x) {
+            /* a stored salt that is not hex is the record's fault, not the browser's */
+            err.textContent = x && x.message === "salt" ? "تعذّر التحقق من هذا الحساب على هذا الجهاز."
+                                                        : "تعذّر التحقق: المتصفح لا يدعم التشفير المطلوب.";
+          })
           .then(function () { btn.disabled = false; });
       });
 
       document.getElementById("nav-logout").addEventListener("click", function () {
         setSession(null); toast("تم تسجيل الخروج"); location.hash = "#/";
-      });
-
-      /* ---------- subscribe ---------- */
-      document.getElementById("plans").addEventListener("click", function (e) {
-        var btn = e.target.closest("button[data-plan]");
-        if (!btn) return;
-        var user = currentUser();
-        if (!user) { toast("سجّل حسابك أولاً"); location.hash = "#/register"; return; }
-        var planId = Number(btn.getAttribute("data-plan"));
-        var users = readUsers();
-        users[user.email].plan = planId;
-        if (!writeUsers(users)) { toast(STORAGE_FULL); return; }
-        toast("حسابك مفعّل: كل الوحدات مفتوحة", "i-check");
-        location.hash = "#/dashboard"; route();
       });
 
       route();
