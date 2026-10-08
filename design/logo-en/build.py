@@ -865,44 +865,60 @@ def favicon():
     return text.replace("  <defs>", style + "\n  <defs>", 1)
 
 
-# The kit's twenty bands are 1.13px at the share card's 900px: ten keep the
-# fine stripe and give each band 2.2px, snapped to the outline within one
-# of the card's pixels.
-OG_BANDS = 10
+# The share card at twice the size (owner's «use higher logo quality»,
+# 2026-10-08): 2400x1260, the same composition laid out at 1200x630 and
+# rendered at 2x. 1200x630 carried ten bands where the kit draws twenty;
+# at 2x the word's cap is 164 device rows (82 CSS px, framed whole, its cap
+# line on a whole row where the old frame had it), which holds the kit's
+# twenty at two rows a band. Every platform takes the size (Facebook's and
+# LinkedIn's minimum is 1200x630; X allows 4096), and the file stays far
+# under the 300 KB WhatsApp will preview.
+OG_W, OG_H, OG_SCALE = 1200, 630, 2
+OG_CAP = 82           # the wordmark's cap in the card's CSS px
+OG_BANDS = 20         # the kit's own count
+OG_LOCK = (900, 327)  # the lockup's box in the card, as before
 
 
 def og(br):
-    """The share card, 1200×630: the dark lockup with its glow, the company
-    named in Arabic beneath it in Cairo, and the address in JetBrains Mono,
-    as on the banner. Fonts load from the site's own files."""
+    """The share card: the dark lockup with its glow, the company named in
+    Arabic beneath it in Cairo, and the address in JetBrains Mono, as on the
+    banner, laid out at 1200x630 and rendered at OG_SCALE. Fonts load from
+    the site's own files."""
     from PIL import Image
     fonts = SITE / "fonts"
-    vb, _ = frame("logo")
-    lock = svg("almuhallab-code-logo-dark", bands=OG_BANDS, framing=(vb, (900, round(900 * vb[3] / vb[2]))))
-    lock = re.sub(r' width="\d+" height="\d+"', ' width="900" height="327"', lock, count=1)
+    _, (l, t, r, b), _ = lockup()
+    k = OG_CAP / WORD.cap                       # CSS px per unit
+    vb0, _ = frame("logo")
+    row = round((t - vb0[1]) * OG_LOCK[0] / vb0[2])
+    vb = ((l + r) / 2 - OG_LOCK[0] / k / 2, t - row / k, OG_LOCK[0] / k, OG_LOCK[1] / k)
+    groups = [(f"k{OG_CAP * OG_SCALE}", band_group(WORD.cap, t, OG_CAP * OG_SCALE, OG_BANDS, WORD.flat_fracs()), True)]
+    lock = svg("almuhallab-code-logo-dark", bands=groups, framing=(vb, OG_LOCK))
     ar = "U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E"
     html = f"""<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face {{ font-family: Cairo; font-weight: 700; src: url("{(fonts / 'cairo-700.woff2').as_uri()}") format("woff2"); unicode-range: {ar}; }}
 @font-face {{ font-family: "JetBrains Mono"; font-weight: 100 800; src: url("{(fonts / 'jetbrainsmono-latin.woff2').as_uri()}") format("woff2"); }}
 html, body {{ margin: 0; background: {GROUND}; }}
-.c {{ width: 1200px; height: 630px; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
-svg {{ display: block; width: 900px; height: 327px; }}
+.c {{ width: {OG_W}px; height: {OG_H}px; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+svg {{ display: block; width: {OG_LOCK[0]}px; height: {OG_LOCK[1]}px; }}
 .ar {{ font: 700 34px/1.5 Cairo; color: {TAG_INK}; margin-top: 10px; }}
 .url {{ font: 500 20px/1 "JetBrains Mono"; letter-spacing: .32em; color: {AMBER}; margin-top: 26px; direction: ltr; }}
 </style></head><body><div class="c">{lock}<div class="ar" dir="rtl">المهلب كود · شركة برمجة وأنظمة</div>
 <div class="url">www.almuhallab-code.com</div></div></body></html>"""
     tmp = HERE / ".og.html"
     tmp.write_text(html)
-    pg = br.new_page(viewport={"width": 1200, "height": 630}, device_scale_factor=1)
+    pg = br.new_page(viewport={"width": OG_W, "height": OG_H}, device_scale_factor=OG_SCALE)
     pg.goto(tmp.as_uri())
     pg.evaluate("Promise.all([document.fonts.load('700 34px Cairo', 'المهلب'), document.fonts.load('500 20px \"JetBrains Mono\"', 'www')])")
     pg.wait_for_timeout(200)
     ok = pg.evaluate("document.fonts.check('700 34px Cairo', 'المهلب') && document.fonts.check('500 20px \"JetBrains Mono\"', 'www')")
-    raw = pg.screenshot(clip={"x": 0, "y": 0, "width": 1200, "height": 630})
+    top = pg.evaluate("document.querySelector('svg').getBoundingClientRect().top")
+    raw = pg.screenshot(clip={"x": 0, "y": 0, "width": OG_W, "height": OG_H})
     pg.close()
     tmp.unlink()
     if not ok:
         sys.exit("the share card's faces failed to load: refusing to draw a fallback")
+    if top != int(top):
+        sys.exit(f"the share card's lockup starts at {top}px: its cap line would fall between rows")
     return Image.open(io.BytesIO(raw)).convert("RGB")
 
 
@@ -923,6 +939,7 @@ ICONS = (
     ("favicon-192.png", 192, True),
     ("apple-touch-icon.png", 180, False),
     ("logo-512.png", 512, False),
+    ("logo-1024.png", 1024, False),     # the structured data's logo, at twice the 512
 )
 
 

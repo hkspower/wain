@@ -53,7 +53,7 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, one stripe group per cap in device rows, `k15` … `k108`, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png` (the JSON-LD logo) and `og.png`; `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py`, `instagram_covers.py`, `ads.py` and the film were redrawn from the logo-en kit on the owner's «update all» (2026-10-07) |
+| Mark | **Since 2026-10-07 the company flies the English logo** (owner's «make full new theme use this logo with same logo theme style», choosing «Dark, like the logo» on «All pages»): ALMUHALLAB in Chakra Petch Bold outlines with the striped amber fill (`#e6a95c` banded with `--stripe` `#7f5d33`), CODE between fading rules, `>_ SOFTWARE & SYSTEMS` in JetBrains Mono, on the near-black ground with a soft amber glow; its square form is the **AC monogram** (striped amber A, white C). One generator, `design/logo-en/build.py`, writes the kit and every site mark: `logo.svg`, `favicon.svg` (the monogram on its rounded tile), the inline masthead logo between the `<!-- logo-en:masthead -->` markers (tight viewBox, one stripe group per cap in device rows, `k15` … `k108`, ids prefixed `site-mast-`, `role="img"` named «المهلب كود · Almuhallab Code»), `apple-touch-icon.png`, `logo-512.png`, `logo-1024.png` (the JSON-LD logo) and `og.png` (2400×1260 since 2026-10-08); `--check` compares the SVGs as text, re-renders every PNG, and fails on a hand edit. The footer sets the monogram beside ALMUHALLAB CODE / المهلب كود. — History: the boum (stroked, then a pixel grid 2026-09-28, then illustrated 2026-10-03) is retired from the site. `#i-boum`/`#i-sail` stay in the sprite for the film only, and `pixel_boum.py --check` with the boum polygon asserts still runs as legacy; `ship_mark.py` and `og_image.py` are deleted; `logo_pack.py`, `instagram_covers.py`, `ads.py` and the film were redrawn from the logo-en kit on the owner's «update all» (2026-10-07) |
 | Masthead & type | The masthead **is the logo** (336px desktop · 280px phone · 196px short landscape; 168 / 140 once scrolled: every cap a whole pixel, 36 · 30 · 21 · 18 · 15; owner's «use higher logo quality», 2026-10-08, was 280 · 220 · 200) over a terminal line `>_ شركة برمجة وأنظمة ▌`, prompt and cursor in amber, the cursor static; the line folds away once scrolled. **Cairo** sets all Arabic and body text; **Chakra Petch** 600/700 (`--display`) the Latin display halves: the hero's English line, the counters, the footer's ALMUHALLAB CODE; **JetBrains Mono** (`--mono`) figures, codes and every `>_`. The two logo faces are Latin subsets written by `design/site_fonts.py` (`--check` pins the bytes and the glyphs the pages set) under Cairo's own Latin `unicode-range`, so Arabic in the same element falls through to Cairo. Reem Kufi and Share Tech Mono are retired to `design/logo-modern/fonts/`. `scroll-margin-top` clears the **top** bar, because a jump from the top compacts the bar on the way and the page rises by the difference: 194px desktop (169.08 + 24, rounded up), 175px phone (150.14 + 24), 158px short landscape (133.72 + 24); the suite measures the bar and fails unless it is `ceil(bar + 24)`. **Bar spacing** (owner's «improve top bar spacing», 2026-10-07, measured at six sizes): equal space above the logo and below the nav, all on the scale: `12px 20px` desktop, `8px` once scrolled and on phones and short landscape, with no extra padding under the nav (the amber pill once sat 5px off the rule under 14px of top space); the phone gutter is 16 like the content's |
 | Brand ink | **Amber on near-black since 2026-10-07**: `--tint` `#e6a95c` (9.66:1 on the page, 7.62:1 on `--panel-3`) · `--tint-hover` `#fabc6f` · `--on-tint` `#0a0908`, the ink ON amber (white on amber is 2.06:1: never white on `--tint`) · `--stripe` `#7f5d33` (amber × .55, the logo's band) · the bar `--tint-strong` `#0a0908` with `--on-bar` `#f4f4f4`, `--on-bar-bd` `#79736c`, `--on-bar-fill` `#272625` · chart ramp `#624621`→`#e6a95c` · warnings `--sand` `#f2d855`, a yellow kept apart from the accent. Before: dark grey `#33383f`/`#25292f` (2026-10-03), brown `#7a4418`/`#6f3f1c` |
 | Surfaces | **the logo's dark on every device**: `--bg` `#0a0908` (page and bar), `--panel` `#161514` (cards), `--panel-2` `#1e1c1b` (fields, recessed rows), `--panel-3` `#272524` (the lightest step: inks are graded on it); `--border` `#42413f` hairlines (1.79:1 on a card), `--border-input` `#7c7670` control edges (3.40:1 on panel-3). Clarity pass (owner's «improve theme clarity», 2026-10-07): surfaces re-solved at OKLCH L .197/.229/.266, hue 70, chroma .0035, so a card stands 1.09:1 off the page (was 1.07, with a 1.53 hairline); `--muted` `#b4bac1` 7.80:1 on panel-3, 9.32 on a card (was `#a8aeb5` at the 7.02 floor); `--good` `#3ab873` · `--danger` `#f68179` · `--info` `#68a6f3` each 6.0:1 on panel-3; `--viz-grid` `#31302f`; audit in `design/out/clarity/`. Before: `#141211`/`#1a1918`/`#242321`, border `#363534`, field edge `#76706a`. `color-scheme: dark` on `:root`, no `prefers-color-scheme` block, `theme-color` `#0a0908`. Printing `nizam.html` swaps the tokens to white paper and dark ink. Amber is ink, never paper |
@@ -452,7 +452,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 919 checks covering
+- `python3 design/test_suite.py` is the full system test — 922 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -566,7 +566,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   compare pixels, and the suite runs it. Since the dark theme it is also the
   site's mark (see the identity table): it writes `logo.svg`, `favicon.svg`,
   the inline masthead logo and its `logo-en:css` block, the footer mark, the
-  icon set (`favicon-32/48/192.png`, the touch icon, `logo-512.png`) and `og.png`, and
+  icon set (`favicon-32/48/192.png`, the touch icon, `logo-512.png`, `logo-1024.png`) and `og.png`, and
   `og.png` refuses to draw if its fonts fail to load. Snapping the stripes
   for the masthead once chained, dragging both edges of a band onto one flat
   letter edge until it vanished: each edge now snaps to its nearest single
@@ -598,7 +598,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   in a tab, so `favicon.svg` hides them up to 48 CSS px with a media query
   inside the SVG (an SVG image measures itself; resolution queries are not
   honoured there; the footer's 44px mark is now inline, see below); `og.png`
-  draws 10 bands (`OG_BANDS`), not the kit's 20 at 1.13 px. Top-bar pass (owner's «improve logo quality at topbar», 2026-10-07, crops
+  drew 10 bands, not the kit's 20 at 1.13 px (since 2026-10-08 it is
+  2400×1260 and draws the twenty, below). Top-bar pass (owner's «improve logo quality at topbar», 2026-10-07, crops
   4-8x at 1440/1024/768/390/320/844x390, top and scrolled, dpr 1/2/2.625/3,
   in `design/out/topbar-logo/`): the masthead's frame was ink plus 4 units,
   so the cap was 29.39px and started 0.79px into the box, and every letter's
@@ -646,7 +647,13 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   rows and painted [3, 4, 4, 4, 3]; it now has four rows a band, the new
   `favicon-192.png` four, `logo-512.png` ten, and the tab's `favicon-32/48`
   are solid (a band there would be under a row), each linked with its true
-  `sizes` and the SVG last.
+  `sizes` and the SVG last. The share card is the 1200×630 layout
+  rendered at 2x (2400×1260, 122 KB: every platform takes it, WhatsApp
+  previews under 300 KB), its wordmark's cap framed to 164 rows so it
+  carries the kit's own twenty bands at two rows each; the old card's ten
+  painted [3, 2, 2, 3, 2 …]. The structured data's logo is the new
+  `logo-1024.png`; `logo-512.png` stays as the 512 icon. Neither is
+  precached: no page loads them (the lesson of `logo.svg`).
 - **The live HTTPS check is `design/ssl_check.py`, run from the owner's
   machine** — redirect ordering (plaintext must reach https on the *same* host
   before any www redirect, or preload is disqualified), certificate validity,

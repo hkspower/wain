@@ -461,8 +461,8 @@ def seo_checks():
             check(S, f"{f}: {prop} is set", f'property="{prop}"' in h)
         check(S, f"{f}: the share image is absolute and sized",
               f'content="{BASE}/og.png"' in h
-              and 'property="og:image:width" content="1200"' in h
-              and 'property="og:image:height" content="630"' in h)
+              and 'property="og:image:width" content="2400"' in h
+              and 'property="og:image:height" content="1260"' in h)
         check(S, f"{f}: twitter card is the large one",
               'name="twitter:card" content="summary_large_image"' in h)
         check(S, f"{f}: og:image carries alt text", 'property="og:image:alt"' in h)
@@ -489,7 +489,9 @@ def seo_checks():
         # tag that the file does not honour is what makes a preview crop badly
         raw = og.read_bytes()
         w = int.from_bytes(raw[16:20], "big"); ht = int.from_bytes(raw[20:24], "big")
-        check(S, "the share image really is 1200x630", (w, ht) == (1200, 630), f"{w}x{ht}")
+        # twice 1200x630 since 2026-10-08 (owner's «use higher logo quality»):
+        # the same card, its wordmark carrying the kit's twenty bands
+        check(S, "the share image really is 2400x1260", (w, ht) == (2400, 1260), f"{w}x{ht}")
         check(S, "and is small enough to preview quickly",
               og.stat().st_size < 300_000, f"{og.stat().st_size // 1024} KB")
 
@@ -1043,7 +1045,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "919", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "922", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1076,7 +1078,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "919", "0", "100%"], str(finals))
+          finals == ["4", "922", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1832,15 +1834,16 @@ def scan_checks(pg, br):
         amber = sum(1 for p in im.getdata() if p[3] > 200 and p[0] > 190 and 130 < p[1] < 190 and p[2] < 120)
         return (ground[3] == 255 and max(abs(a - b) for a, b in zip(ground, (10, 9, 8))) <= 3 and amber > 20,
                 f"ground {ground}, {amber} amber px")
-    for name in ("apple-touch-icon.png", "logo-512.png", "nokhatha-touch-icon.png", "icon-512.png", "icon-maskable-512.png"):
+    for name in ("apple-touch-icon.png", "logo-512.png", "logo-1024.png", "nokhatha-touch-icon.png", "icon-512.png", "icon-maskable-512.png"):
         ok, why = _amber_on_ground(name)
         check(S, f"{name} is the amber mark on the logo's ground", ok, why)
     ld = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S).group(1))
     org = next((e for e in ld.get("@graph", []) if e.get("@type") == "Organization"), {})
     lg = org.get("logo", {})
-    check(S, "the structured data names a square logo that exists (512×512)",
-          lg.get("url", "").endswith("/logo-512.png") and (ROOT / "logo-512.png").is_file()
-          and _Img.open(ROOT / "logo-512.png").size == (512, 512) and lg.get("width") == 512, str(lg))
+    check(S, "the structured data names a square logo that exists (1024×1024)",
+          lg.get("url", "").endswith("/logo-1024.png") and (ROOT / "logo-1024.png").is_file()
+          and _Img.open(ROOT / "logo-1024.png").size == (1024, 1024)
+          and lg.get("width") == lg.get("height") == 1024, str(lg))
 
     # document structure: exactly one h1 per page
     for f in list(PAGES) + list(STUBS) + ["404.html"]:
@@ -2771,14 +2774,14 @@ def social_checks(pg):
       return {
         phone: copy.map(c => seq(c, ['+965', '6589', '4110']).join(' '))
                    .filter(s => s.length),
-        size: seq(document.querySelector('#soc-assets'), ['1200', '630']).join('×')
+        size: seq(document.querySelector('#soc-assets'), ['2400', '1260']).join('×')
       };
     }""")
     check(S, "the phone number reads left-to-right wherever it is displayed",
           all(p == "+965 6589 4110" for p in order["phone"]) and order["phone"],
           str(order["phone"]))
     check(S, "the share card's size is not reversed by the RTL paragraph",
-          order["size"] == "1200×630", order["size"])
+          order["size"] == "2400×1260", order["size"])
 
     # Arabic hashtags must not be set LTR in the mono face — the neutral #
     # resolves by what follows it and lands on the wrong side of the word.
@@ -4669,7 +4672,7 @@ def logo_file_checks():
           not wrong, "; ".join(wrong))
     bad = []
     for name, striped in (("favicon-32.png", False), ("favicon-48.png", False), ("apple-touch-icon.png", True),
-                          ("favicon-192.png", True), ("logo-512.png", True)):
+                          ("favicon-192.png", True), ("logo-512.png", True), ("logo-1024.png", True)):
         if not (ROOT / name).is_file():
             bad.append(f"{name} missing"); continue
         bands, gaps = stripe_runs((ROOT / name).read_bytes())
@@ -4679,6 +4682,13 @@ def logo_file_checks():
             bad.append(f"{name}: {bands} sub-pixel bands")
     check(S, "the icons carry the A's five bands in whole, equal rows where they fit, solid where they cannot",
           not bad, "; ".join(bad))
+    # the share card's wordmark: the kit's twenty bands, each two whole rows
+    # or more (1200x630 had ten, and twenty there would be 1.1 rows)
+    og = ROOT / "og.png"
+    bands, gaps = stripe_runs(og.read_bytes(), block=True) if og.is_file() else ([], [])
+    check(S, "the share card's wordmark carries the kit's twenty bands, equal whole rows",
+          len(bands) == 20 and len(set(bands)) == 1 and bands[0] >= 2
+          and (not gaps or max(gaps) - min(gaps) <= 2), f"bands {bands}, gaps {sorted(set(gaps))}")
     sw = (ROOT / "sw.js").read_text()
     check(S, "the tab icons the page links are precached for offline",
           all(f'"{n}"' in sw for n in ("favicon.svg", "favicon-32.png", "favicon-48.png", "favicon-192.png")))

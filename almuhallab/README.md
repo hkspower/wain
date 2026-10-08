@@ -151,18 +151,19 @@ visitor's OS happens to have installed.
 - Canonical URLs, Open Graph and Twitter cards on all three public pages, so a
   link pasted into واتساب — the company's main channel — renders a real card
   instead of a bare URL.
-- `og.png` (1200×630) is drawn by `design/logo-en/build.py` **from the logo
+- `og.png` (2400×1260: the 1200×630 card at 2x, so its wordmark carries the
+  kit's twenty bands, 122 KB, under WhatsApp's 300) is drawn by `design/logo-en/build.py` **from the logo
   kit** (the lockup, «المهلب كود · شركة برمجة وأنظمة» in Cairo, the address in
   JetBrains Mono), so the share card cannot drift from the mark; its `--check`
   re-renders it.
-- JSON-LD: Organization, WebSite and the النوخذة SoftwareApplication at 0 KWD.
+- JSON-LD: Organization (its logo `logo-1024.png`, the AC monogram), WebSite and the النوخذة SoftwareApplication at 0 KWD.
   Only facts already stated on the page — no founding date, no head count, no
   invented ratings.
 
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 919 checks, exits non-zero on failure
+python3 design/test_suite.py     # 922 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the English logo and AC monogram,
