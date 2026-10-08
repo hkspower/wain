@@ -101,7 +101,9 @@ signing key) was pasted into a chat and never written to a file.
   `1e308`, wrong types, broken JSON, `null` entries — none of which execute,
   crash the page, or render.
 - **Service worker** (`sw.js`): same-origin GET only; cross-origin responses
-  are never cached.
+  are never cached, and neither is any same-origin file outside its own
+  precache list (the origin also serves other apps). On activation it deletes
+  only its own earlier caches.
 - **Redirect stubs** (`safi.html`, `xbrl.html`, `delivery.html`, `nokha1.html`,
   `404.html`) navigate to **hardcoded** destinations — no parameter reaches
   `location`, so none of them is an open redirect.

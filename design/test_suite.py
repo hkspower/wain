@@ -749,6 +749,7 @@ def browser_checks():
         tamper_checks(pg)
         nokhatha_audit_checks(pg, br)
         offline_checks(ctx, br)
+        live_host_checks(br)
         layout_checks(br)
         totals_alignment_checks(br)
         mobile_checks(br)
@@ -963,7 +964,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "816", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "824", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -996,7 +997,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "816", "0", "100%"], str(finals))
+          finals == ["4", "824", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2971,6 +2972,119 @@ def offline_checks(ctx, br):
     check(S, "pages still load with the network offline", ok, detail)
     ctx.set_offline(False)
     pg.close()
+
+
+class _LiveHost(http.server.SimpleHTTPRequestHandler):
+    """The live host as .htaccess makes it, not the all-200 test server:
+    admin.html behind Basic Auth answers 401 to anyone not signed in, and a
+    missing address is answered 404 with 404.html's own bytes, at the address
+    that was missing (ErrorDocument 404 /404.html)."""
+    def log_message(self, *a):
+        pass
+
+    def end_headers(self):
+        # nothing from the HTTP cache: offline, only the worker can answer
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def do_GET(self):
+        path = self.path.split("?")[0].split("#")[0]
+        if path == "/admin.html":
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Almuhallab - Restricted"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        f = ROOT / (path.lstrip("/") or "index.html")
+        if f.is_dir():
+            f = f / "index.html"
+        if not f.exists():
+            body = (ROOT / "404.html").read_bytes()
+            self.send_response(404)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        return super().do_GET()
+
+
+def live_host_checks(br):
+    """What the offline checks above cannot see, because every file on the
+    test server answers 200 and nothing else lives on its origin.
+    (2026-10-08 audit: on the live host the worker never installed — the
+    precache named admin.html and the host answers it 401 — and the 404 page
+    reloaded itself forever on any nested missing address.)"""
+    S = "pwa-offline"
+    port = PORT + 1
+    base = f"http://127.0.0.1:{port}"
+    socketserver.TCPServer.allow_reuse_address = True
+    httpd = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", port), functools.partial(_LiveHost, directory=str(ROOT)))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        # 1 · a nested missing address: one hop to the home page, not a loop
+        ctx = br.new_context(service_workers="block")
+        pg = ctx.new_page()
+        seen = []
+        pg.on("request", lambda r: seen.append(r.url.split(str(port), 1)[-1]))
+        try:
+            pg.goto(f"{base}/old/page", wait_until="load", timeout=8000)
+        except Exception:
+            pass
+        pg.wait_for_timeout(2500)
+        missing = [u for u in seen if u.startswith("/old/")]
+        check(S, "a nested missing address goes home once, never in a loop",
+              len(missing) == 1 and pg.url.rstrip("/") == base,
+              f"{len(missing)} requests under /old/, ended at {pg.url}")
+        ctx.close()
+
+        # 2 · the worker installs although the host refuses admin.html, and
+        #     clears only this app's own old caches on the shared origin
+        ctx = br.new_context()
+        pg = ctx.new_page()
+        pg.goto(f"{base}/robots.txt")
+        pg.evaluate("Promise.all([caches.open('salon-queue-v3'), caches.open('nokhatha-v1')])")
+        pg.goto(f"{base}/nokhatha.html", wait_until="networkidle")
+        try:
+            pg.wait_for_function("navigator.serviceWorker.controller !== null", timeout=8000)
+        except Exception:
+            pass
+        active = pg.evaluate("!!navigator.serviceWorker.controller")
+        check(S, "the worker installs on a host that answers admin.html 401", active)
+        keys = pg.evaluate("caches.keys()")
+        check(S, "activation keeps another app's cache on the shared origin",
+              "salon-queue-v3" in keys, str(keys))
+        check(S, "and still clears this app's own old version",
+              "nokhatha-v1" not in keys and any(re.match(r"nokhatha-v\d+$", k) for k in keys), str(keys))
+
+        # 3 · one entry per file: no query-string copies, no second root copy,
+        #     nothing stored that the app does not own
+        for q in ("?fbclid=a", "?fbclid=b", "?igsh=c"):
+            pg.goto(f"{base}/index.html{q}", wait_until="networkidle")
+        pg.evaluate("fetch('SECURITY.md').then(r => r.text())")
+        pg.wait_for_timeout(800)
+        stored = pg.evaluate("""caches.keys().then(ks => Promise.all(ks.filter(k => /^nokhatha-v/.test(k))
+            .map(k => caches.open(k).then(c => c.keys()))).then(a => a.flat().map(r => {
+              const u = new URL(r.url); return u.pathname + u.search; })))""")
+        check(S, "a tracked link adds no copy of the page to the cache",
+              not [u for u in stored if "?" in u], str([u for u in stored if "?" in u][:3]))
+        check(S, "the home page is cached once, not as both / and index.html",
+              "/" not in stored and stored.count("/index.html") == 1, str(sorted(stored)[:4]))
+        check(S, "a file the app does not own is never cached",
+              "/SECURITY.md" not in stored)
+
+        ctx.set_offline(True)
+        try:
+            pg.goto(f"{base}/nokhatha.html", wait_until="domcontentloaded", timeout=8000)
+            body = pg.evaluate("document.body.innerText.length")
+        except Exception as e:
+            body = 0
+        check(S, "and the portal then loads offline", body > 40, f"{body} characters")
+        ctx.set_offline(False)
+        ctx.close()
+    finally:
+        httpd.shutdown()
 
 # ───────────────────────────── layout / responsive / themes
 def layout_checks(br):

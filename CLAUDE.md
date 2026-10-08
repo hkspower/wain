@@ -435,7 +435,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 816 checks covering
+- `python3 design/test_suite.py` is the full system test — 824 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -671,6 +671,24 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   they are fetched by (`nizam/`), and a product URL falls back to its own stub,
   never to the company page. All pinned in `nokhatha_audit_checks`, each check
   proved failing against the code before the fix.
+- **The test server is not the host** (audit, 2026-10-08). Every file on the
+  suite's server answers 200 and nothing else lives on its origin; the live
+  host answers `admin.html` 401 (Basic Auth) and serves `404.html` AT the
+  missing address. Two failures no all-200 test could see: `cache.addAll`
+  rejects the whole batch on one 401, so the worker never installed and
+  nothing worked offline on the host; and the 404's relative `index.html`
+  sent `/old/page` to `/old/index.html`, also missing, which served the 404
+  again: an endless reload (600 requests in 3s). The 404's targets are
+  root-absolute, and `admin.html` is precached on its own (`OPTIONAL` in
+  `sw.js`), a refusal ignored. The worker shares its origin with salon-queue/,
+  mcp-admin/ and the landing folders, and Cache Storage belongs to the origin,
+  not the scope: it deletes only its own `nokha*-vN` caches, stores only the
+  files it precaches, one entry per file at its address without the query
+  (lookups ignore the query, so each `?fbclid=` visit stored a full 155 KB copy
+  that was never served), and looks the root up as `index.html` (precaching
+  both `./` and `index.html` fetched the page twice). `live_host_checks`
+  serves the host's behaviour, `no-store` so only the worker can answer
+  offline, and pins all of it.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse

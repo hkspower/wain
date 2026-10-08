@@ -6,8 +6,8 @@
   <meta name="referrer" content="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0a0908" />
-  <meta http-equiv="refresh" content="0; url=index.html" />
-  <link rel="canonical" href="index.html" />
+  <meta http-equiv="refresh" content="0; url=/" />
+  <link rel="canonical" href="https://www.almuhallab-code.com/" />
   <meta name="robots" content="noindex" />
   <title>404 · النوخذة</title>
   <style>
@@ -42,8 +42,12 @@
 </script>
 </head>
 <body>
-  <!-- النوخذة now lives at the site root. This stub keeps old links and bookmarks working. -->
-  <h1>الصفحة غير موجودة، جارٍ التحويل إلى المهلب كود…<br /><a href="index.html">العودة إلى الرئيسية</a></h1>
-  <script>location.replace("index.html");</script>
+  <!-- The host serves this page AT the address that was missing (ErrorDocument
+       404 /404.html; GitHub Pages does the same), so every target here is
+       root-absolute. A relative "index.html" resolved against the missing
+       address's folder: /old/page went to /old/index.html, also missing, which
+       served this page again, and the browser reloaded forever. -->
+  <h1>الصفحة غير موجودة، جارٍ التحويل إلى المهلب كود…<br /><a href="/">العودة إلى الرئيسية</a></h1>
+  <script>location.replace("/");</script>
 </body>
 </html>
