@@ -1,0 +1,124 @@
+/* ===================== /backends: control sizes, the bell's gutter, the revenue chart ============
+ * 2026-10-08, "fix large boxes and icons" — the owner approved every confirmed size finding. Each
+ * block below was MEASURED in the panel before it was written; the numbers are in the comments.
+ * Last in the cascade on purpose: every rule here overrides something earlier (an overlay's own
+ * injected <style>, or the bundle), and a later file wins a tie.
+ *
+ * 1. OVERLAY CONTROLS ON A COMPUTER WITH A MOUSE: 40px TALL, 14.7px TEXT.
+ *    The overlay cards' buttons and fields were one size up from the bundle's everywhere at 1280:
+ *    45-51px tall with 16.83px text, beside the bundle's own 38-40px controls at 14.73px
+ *    (`text-sm`). Two causes, the same in every overlay: `font:inherit` picks up the panel root's
+ *    clamp() size (16.83px at 1280) with the body's 1.6 line-height (26.9px), and a
+ *    `min-height:44px` written for a thumb applies to a mouse too. panel-ux.js's own header says
+ *    44px targets are for `pointer: coarse` only — "a mouse is precise and the desktop layout is
+ *    left as designed" — and admin-mobile-test asserts the same of its controls.
+ *
+ *    `(hover: hover) and (pointer: fine)`, so EVERY TOUCH SCREEN KEEPS ITS 44px TARGETS AND 16px
+ *    FIELD TEXT (16px is what stops iOS zooming into a focused field). Measured: Pixel 7 is
+ *    identical before and after.
+ *
+ *    rem, not px: the panel root is viewport-derived, so .875rem is exactly the bundle's text-sm
+ *    at every width, and 2.375rem the bundle's ~40px control. Specificity (0,2,0) and more beats
+ *    the overlays' single-class rules even though their <style> is appended after this file.
+ *
+ *    THE LIST is the two findings' classes (Inventory tools and Purchasing; Settings, Payments,
+ *    Setup, SEO, Slides, Security, Orders and the save bar), plus what a scan of every screen at
+ *    1280 found with the same fault and no class in either list: the home-layout editor's
+ *    secondary buttons, fields and selects (.hle-btn2 43.4px, .hle-in 43.4px), the banner
+ *    editor's buttons and fields (.hbe-btn "Save banner" 49.4px; its 44px fields), the device
+ *    theme's fields (.sdt-input 46px at 16px), the wording search (.stx-search 46px at 16px) and
+ *    the passkey list's "Show all" (.spsec-btn2 43.4px).
+ *
+ *    LEFT AS THEY ARE, on purpose: the colour rows in "Buttons and bars" (.stc-hex, .stc-swatch,
+ *    .stc-clear) are one coherent 44px palette row of square swatches, and shrinking the hex box
+ *    alone would put a 40px field between 44px squares; and the controls already at 36-42px
+ *    (.sbl-*, .spp-*, .scc-*, .spa-input), which are not oversize. Textareas keep their own
+ *    heights and text: two of the listed classes, .crm-input and .sdt-input, are also used on a
+ *    textarea, hence :not(textarea). */
+@media (hover: hover) and (pointer: fine) {
+  .admin-content :is(
+    .spinv-btn, .spinv-go, .spinv-input, .spur-btn, .spur-go, .spur-tab, .spur-in,
+    .spsetup-go, .spc-save, .spc-undo, .spc-input, .ssu-save, .ssu-undo, .ssu-input,
+    .sle-save, .sle-undo, .sle-input, .sce-save, .sce-input, .fed-btn, .fed-mini, .fed-save,
+    .fed-input, .stx-save, .stc-save, .sdt-save, .sdt-tab, .spk-save, .spk-envswitch, .spk-input,
+    .srl-save, .srl-reset, .srl-input, .spps-btn, .spps-in, .spseo-btn, .spseo-btn2, .spseo-in,
+    .simg-btn, .simg-btn2, .cta-btn, .hle-btn, .spsec-btn, .bkp-btn, .spw-btn, .sal-all,
+    .crm-input,
+    .hle-btn2, .hle-in, .hle-sel, .hbe-btn, .sdt-input, .stx-search, .spsec-btn2
+  ):not(textarea),
+  .admin-content .hbe :is(input[type=text], select),
+  .spsb .spsb-go {
+    font-size: .875rem;
+    line-height: 1.25rem;
+    min-height: 2.375rem;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+  }
+  /* The per-size editor's - and + sit either side of a stock box; at 44px they would stand 4px
+     above and below the 40px box between them. */
+  .admin-content .spinv-step {
+    min-width: 2.375rem;
+    min-height: 2.375rem;
+  }
+  /* panel-tidy.js's fold toggles ("Hide") and its Collapse all / Expand all bar: 44px on a mouse
+     too, beside 40px controls. Height only — their 13px text is set on purpose and stays. The
+     toggle's own rule is (0,3,1) and injected after this file, hence .admin-shell in front. */
+  .admin-shell .admin-content > section.pt-card > .pt-toggle { min-width: 2.375rem; min-height: 2.375rem; }
+  .admin-content .pt-bar button { min-height: 2.375rem; }
+  /* Three Security cards (Google sign-in, Apple sign-in, the passcode) draw their buttons with an
+     INLINE padding, which a stylesheet cannot beat without !important — and does not need to:
+     the 47px came from the inherited 16.83px text and 1.6 line-height, which the inline style
+     does not set. 9px + 21px + 9px = 39px. Their client-id fields set an inline 13px, which
+     stays; the line-height brings them from 43-45px to 41px. */
+  .admin-content :is([data-sporta-gsi-setup], [data-sporta-asi-setup], [data-sporta-pass-card]) :is(button, input[type=text]) {
+    font-size: .875rem;
+    line-height: 1.25rem;
+  }
+}
+
+/* 2. THE NOTIFICATION BELL SAT ON TOP OF EVERY SCREEN'S FIRST THING (computers and tablets).
+ *    notification-center.js fixes a 44x44 bell at top 10px, right 16px. The bundle's content
+ *    gutter there is md:px-8 md:py-10 — 34px wide on the right, 42px at the top — so the tile
+ *    covered 26x12px of whatever came first: the corner of "New discount", the corner of the first
+ *    card on Size charts, Reviews and Notifications, and, once the sticky "Jump to" bar was stuck
+ *    at the top, the last pill under it ("Sign-in security", 39x39 hidden). Measured at 1024,
+ *    1280, 1440 and 1920, the same in Arabic (the panel stays left-to-right).
+ *
+ *    The content starts at 4rem (67px at 1280, below the bell's bottom at 54px), and the jump bar
+ *    stops 3.5rem short of the content's right edge (x1187 at 1280; the bell starts at x1220), so
+ *    its pills scroll inside the bar instead of running under the bell. The bar keeps its
+ *    `width:0` (2026-10-07: without it the pills made the whole content area 347px too wide);
+ *    only its min-width changes, and `.admin-content nav.spux-jump` beats panel-ux.js's
+ *    `.spux-jump` by specificity. Phones are untouched: there the bell sits in the header. */
+@media (min-width: 768px) {
+  .admin-shell main.admin-content { padding-top: 4rem; }
+  .admin-content nav.spux-jump {
+    min-width: calc(100% - 3.5rem);
+    /* The bar's ground and bottom edge carried on under the bell by two shadows, which take no
+       layout room: without them, content scrolling past showed through the 3.5rem strip beside
+       the bell. The first (ground, raised 1px) leaves the bottom row to the second (the edge). */
+    box-shadow: 3.5rem -1px 0 0 var(--sp-pc-bg, #1b1d20), 3.5rem 0 0 0 var(--sp-pc-border, #494e54);
+  }
+}
+
+/* 3. THE OVERVIEW REVENUE CHART DREW NO BARS, AT ANY WIDTH, FOR ANY DATA.
+ *    The bundle's row is `flex h-28 items-end`; each day is a `flex-col justify-end` column whose
+ *    bar gets an inline `height:N%`. `items-end` stops the columns stretching, so a column is only
+ *    as tall as its date label (~25px), that height is not definite, the bar's percentage falls
+ *    back to auto, and an empty div at auto is 0px: a 112px chart area with nothing in it.
+ *    Measured with a faked 14-day series from 2% to 100%: every bar 19x0.
+ *
+ *    Stretching the column makes its height definite (112px; 118px on a computer), the bar's
+ *    percentage then resolves against the column's content box (90px / 96px once the label's
+ *    22px is set aside), and the date label is taken out of flow at the column's foot — still
+ *    centred by the column's own items-center. `.group` already has the bundle's `relative`. The
+ *    `h-28 items-end` pair occurs once in the whole bundle, and `.admin-content` keeps it off the
+ *    storefront. The card stays exactly the size it was; only the bars appear. */
+.admin-content .h-28.items-end > .group {
+  align-self: stretch;
+  padding-bottom: 22px;
+}
+.admin-content .h-28.items-end > .group > span {
+  position: absolute;
+  bottom: 0;
+}

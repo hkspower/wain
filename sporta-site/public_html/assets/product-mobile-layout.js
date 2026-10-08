@@ -80,6 +80,13 @@
  *                            built from ?r=size_chart, the shop's own real
  *                            size-chart data (same route the size adviser
  *                            reads), not invented numbers.
+ *                            NARROWED 2026-10-08, with the owner's yes: the
+ *                            chart lists only the sizes THIS piece is made in
+ *                            (the jacket made in M and L shows M and L, not S
+ *                            to 5XL), and a product with no size to choose —
+ *                            a cap, a backpack, a strap, i.e. sizes [] or only
+ *                            ONE — shows no chart at all. See "THE SIZE GUIDE"
+ *                            below for where the sizes come from.
  * 11. Reviews                DOES NOT EXIST as anything a shopper on this
  *                            page could see. The only review surface in the
  *                            API is the signed post-purchase link
@@ -122,6 +129,39 @@
  * invents, so it will not silently stop matching if a nearby class list
  * happens to change.
  *
+ * ---------------------------------------------------------- THE SIZE GUIDE
+ *
+ * ?r=size_chart answers the S-5XL body chart for ANY slug (it is the chart
+ * for the product's audience, not for the product), so drawing every row it
+ * returns put a 400px table of chest and waist sizes on the phone strap and
+ * gave the two-size jacket eight rows. The sizes a piece is made in come from
+ * the SERVER — `size_options` on ?r=products, the field card-options.js reads
+ * (the variant rows; a sold-out size is in the list, so it stays in the chart;
+ * `ONE` is dropped, it has no measurements) — and never from the size
+ * buttons' tooltips, which are owner-editable wording in Site wording. Only
+ * the rows in that list are built. No rows left, no section: never an empty
+ * table with column headings and nothing under them, which is what hiding the
+ * rows produced on the live accessories that carry a single ONE row.
+ * When the list cannot be known (the request failed, the product is not in
+ * it, the field is absent) the full chart is drawn, as before.
+ *
+ * KEYED TO THE PRODUCT AND THE LANGUAGE. The guide carries the slug and the
+ * language it was built for. The shop changes product without a reload (the
+ * colour buttons, "Complete the look") and changes language without a reload,
+ * and the first version kept whatever guide it had first drawn: a women's
+ * chart with its hip column left on the unisex jacket, an English table on the
+ * Arabic page. A guide built for anything else is removed and rebuilt from
+ * the cached answers, and <html lang> is watched so the toggle alone redraws
+ * it. Nothing is written while the guide is already right.
+ *
+ * THE EMPTY SIZE BLOCK. A product with no size rows at all (the sandbox's
+ * accessories; a new product before stock is typed in) still renders the
+ * size block as an empty `div.mt-6.space-y-3`, 0px tall with its 24px top
+ * margin, so the price-to-buy gap was 48px against 24px everywhere else. It is
+ * hidden while it is empty and given back the moment the bundle fills it. The
+ * live accessories carry a ONE row, so their block is not empty and this does
+ * nothing there.
+ *
  * ----------------------------------------------------------------- SCOPE
  *
  * Product page only (`/product/`), mobile only (`max-width: 767px`, the
@@ -132,8 +172,10 @@
   'use strict'
 
   var MOBILE_MQ = '(max-width: 767px)'
-  var GUIDE_MARK = 'data-sporta-size-guide'
+  var GUIDE_MARK = 'data-sporta-size-guide'   /* its value is the slug the guide was built for */
+  var GUIDE_LANG = 'data-lang'                /* and this, the language */
   var ORDERED_MARK = 'data-sporta-mobile-ordered'
+  var EMPTY_MARK = 'data-sporta-empty-size'   /* the empty size block this file hid */
   var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
 
   var LABELS = {
@@ -209,7 +251,17 @@
       column.style.display = ''
       column.style.flexDirection = ''
       column.removeAttribute(ORDERED_MARK)
+      showSizeBlock(sizeFit)
       return
+    }
+
+    /* The empty size block (no size rows at all): hidden while empty, given
+       back the moment the bundle puts anything in it. See the header. */
+    if (sizeFit.children.length === 0 && !sizeFit.textContent.trim()) {
+      if (!sizeFit.hasAttribute(EMPTY_MARK)) sizeFit.setAttribute(EMPTY_MARK, '1')
+      if (sizeFit.style.display !== 'none') sizeFit.style.display = 'none'
+    } else {
+      showSizeBlock(sizeFit)
     }
 
     column.style.display = 'flex'
@@ -236,31 +288,71 @@
     column.setAttribute(ORDERED_MARK, '1')
   }
 
-  /* ---------------------------------------------------------------- size guide */
-
-  var sizeChartCache = {} /* slug -> rows, or null while pending */
-
-  function loadSizeChart(slug, cb) {
-    if (Object.prototype.hasOwnProperty.call(sizeChartCache, slug)) {
-      cb(sizeChartCache[slug])
-      return
-    }
-    sizeChartCache[slug] = null
-    fetch(api + '/api.php?r=size_chart&slug=' + encodeURIComponent(slug), { headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : null })
-      .then(function (data) {
-        var rows = data && data.rows ? data.rows : null
-        sizeChartCache[slug] = rows
-        cb(rows)
-      })
-      .catch(function () { sizeChartCache[slug] = null; cb(null) })
+  /* Only ever undoes this file's own hiding: a block it did not hide is not touched. */
+  function showSizeBlock(el) {
+    if (!el || !el.hasAttribute(EMPTY_MARK)) return
+    el.removeAttribute(EMPTY_MARK)
+    el.style.display = ''
   }
 
-  function buildSizeGuideSection(rows) {
+  /* ---------------------------------------------------------------- size guide */
+
+  /* Two answers decide the guide, and both are cached for the page's life.
+     PENDING while a request is out; afterwards a value, or null for "none" /
+     "not known". placeSizeGuide() builds only from the caches, so it is the
+     same pure decision on every pass, and each answer arriving just asks for
+     another pass. */
+  var PENDING = {}
+  var sizeChartCache = {} /* slug -> rows | null (no chart) | PENDING */
+  var sizesBySlug = PENDING /* slug -> [sizes this piece is made in, ONE dropped] | null (not known) | PENDING */
+  var sizesAsked = false
+
+  function chartRows(slug) {
+    if (Object.prototype.hasOwnProperty.call(sizeChartCache, slug)) return sizeChartCache[slug]
+    sizeChartCache[slug] = PENDING
+    fetch(api + '/api.php?r=size_chart&slug=' + encodeURIComponent(slug), { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (data) { sizeChartCache[slug] = data && data.rows && data.rows.length ? data.rows : null })
+      .catch(function () { sizeChartCache[slug] = null })
+      .then(schedule)
+    return PENDING
+  }
+
+  /* The sizes each piece is made in, from the same ?r=products answer the
+     bundle and card-options.js read (api-dedupe.js shares one request among
+     them). Returns PENDING, null when this product's list cannot be known —
+     the full chart is drawn then, as before — or the list. */
+  function productSizes(slug) {
+    if (!sizesAsked) {
+      sizesAsked = true
+      fetch(api + '/api.php?r=products', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (j) {
+          var a = j && (Array.isArray(j) ? j : j.products)
+          if (!Array.isArray(a)) { sizesBySlug = null; return }
+          var map = {}
+          a.forEach(function (p) {
+            if (!p || !p.slug || !Array.isArray(p.size_options)) return
+            map[p.slug] = p.size_options
+              .map(function (o) { return o && typeof o.size === 'string' ? o.size : null })
+              .filter(function (s) { return s && s !== 'ONE' })
+          })
+          sizesBySlug = map
+        })
+        .catch(function () { sizesBySlug = null })
+        .then(schedule)
+    }
+    if (sizesBySlug === PENDING) return PENDING
+    if (!sizesBySlug || !Object.prototype.hasOwnProperty.call(sizesBySlug, slug)) return null
+    return sizesBySlug[slug]
+  }
+
+  function buildSizeGuideSection(rows, slug) {
     var ar = lang() === 'ar'
     var t = LABELS
     var section = document.createElement('div')
-    section.setAttribute(GUIDE_MARK, '1')
+    section.setAttribute(GUIDE_MARK, slug)
+    section.setAttribute(GUIDE_LANG, ar ? 'ar' : 'en')
     section.className = 'mt-8 rounded-2xl bg-white p-5'
     section.style.order = '70' /* after description (60), before nothing else in this column */
 
@@ -314,25 +406,29 @@
     var column = findColumn(h1)
     if (!column) return
 
-    var existing = column.querySelector('[' + GUIDE_MARK + ']')
+    var guides = column.querySelectorAll('[' + GUIDE_MARK + ']')
+    var slug = isMobile() ? slugFromPath() : null
+    var rows = slug ? chartRows(slug) : null
+    var sizes = slug ? productSizes(slug) : null
+    var L = lang()
+    var pending = rows === PENDING || sizes === PENDING
 
-    if (!isMobile()) {
-      if (existing && existing.parentNode) existing.parentNode.removeChild(existing)
-      return
+    /* Keep a guide only if it was built for THIS product in THIS language.
+       Anything else describes a page that is no longer on screen, and goes —
+       even while the new product's answers are still on their way. */
+    var keep = null
+    for (var i = 0; i < guides.length; i++) {
+      var g = guides[i]
+      if (!keep && slug && g.getAttribute(GUIDE_MARK) === slug && g.getAttribute(GUIDE_LANG) === L) keep = g
+      else if (g.parentNode) g.parentNode.removeChild(g)
     }
-    if (existing) return /* already placed, and nothing in it is language-dependent enough to force a rebuild */
+    if (keep || !slug || pending || !rows) return
 
-    var slug = slugFromPath()
-    if (!slug) return
-    loadSizeChart(slug, function (rows) {
-      if (!isMobile() || !isProductPage()) return
-      if (!rows || !rows.length) return /* no chart for this product — show nothing rather than an empty table */
-      var h1b = findTitle()
-      if (!h1b) return
-      var columnB = findColumn(h1b)
-      if (!columnB || columnB.querySelector('[' + GUIDE_MARK + ']')) return
-      columnB.appendChild(buildSizeGuideSection(rows))
-    })
+    /* Only the sizes this piece is made in; the full chart when that is not
+       known. No rows left means no size to choose: nothing is drawn. */
+    var shown = sizes ? rows.filter(function (r) { return sizes.indexOf(String(r.size)) !== -1 }) : rows
+    if (!shown.length) return
+    column.appendChild(buildSizeGuideSection(shown, slug))
   }
 
   /* ------------------------------------------------------------------- run */
@@ -355,6 +451,10 @@
 
   var observer = new MutationObserver(schedule)
   observer.observe(document.body, { childList: true, subtree: true })
+  /* The language toggle re-renders the bundle's words in place — text, not
+     child nodes — so the body observer above may never hear it. <html lang>
+     is what changes; the guide is rebuilt in the new language from the cache. */
+  new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
 
   window.addEventListener('resize', schedule)
   if (window.matchMedia) {

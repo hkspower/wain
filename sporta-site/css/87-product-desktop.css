@@ -1,0 +1,100 @@
+/* THE PRODUCT PAGE ON A COMPUTER — 2026-10-08. Two of the product-page review's proposals, both
+ * approved by the owner in their stress-tested (refined) form. Every rule here starts at 768px or
+ * wider, so the build moves the file into sporta-desktop.css and a phone is never touched (its
+ * order is product-mobile-layout.js's and 40-product-mobile-spacing.css's). */
+
+/* ===================================================== P5: the description below the delivery list
+ * At 1280x900 in English the description sat between the centred name and the centred price. It is
+ * start-aligned (the owner's choice of 2026-09-04, kept), so its text centre was 94px off the line
+ * the name and price share and the column read as a zigzag; it pushed the price, the choices and
+ * Add down a line (43px), and its start edge (x707) missed the delivery list's icons (x728).
+ *
+ * The owner set the phone's block order on 2026-09-20 — name, price, choices, Add / Buy now,
+ * delivery, description. This applies that order to the computer for the first time.
+ *
+ * WHY A FLEX COLUMN. The text column is React's; moving the description's node would be undone by
+ * the next render and could break React's reconciliation. CSS `order` repaints it without moving
+ * anything, and only the description is given an order: every other block keeps order 0 and so
+ * keeps its DOM order (title, price, sizes, Add row, delivery list). A catch-all `> * {order: N}`
+ * was refused: it would pull any block a future overlay inserts into the column to a fixed slot.
+ * product-mobile-layout.js clears its inline order/display on a computer, which leaves these
+ * stylesheet rules in charge. Screen-reader order stays DOM order (the description is read right
+ * after the name, as on phones); it holds nothing focusable, so the tab order is unchanged.
+ *
+ * Arabic usually does not change: there product-polish.js hides a description that only repeats
+ * the name ([data-pp-echo]). A real Arabic description moves exactly like the English one.
+ *
+ * Selectors are anchored the way product-mobile-layout.js and product-column-split-test anchor
+ * this column: the grid's child that holds the product title. */
+@media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) {
+    display: flex;
+    flex-direction: column;
+  }
+  /* after the delivery list, 24px under it, inset 1.25rem so its start edge sits level with the
+     list's icons (the list is p-5) */
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) > p.mt-3.text-lg {
+    order: 1;
+    margin-top: 1.5rem;
+    padding-inline: 1.25rem;
+  }
+  /* THE MARGIN-COLLAPSE TRAP. A flex container does not collapse its children's margins. A product
+     with no variant rows still gets an empty `div.mt-6.space-y-3` from the bundle; in block layout
+     its 24px margin merged with the Add row's 24px, in flex the two add up to 48px and Add dropped
+     a line (measured on cagliari-calcio-backpack: Add 430 -> 456 at 1280). An empty block has
+     nothing to show, so it is not laid out at all. */
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) > .space-y-3:empty {
+    display: none;
+  }
+}
+
+/* ================================== P6: the trail band, and sizes / fits on one row each
+ * THE TRAIL. The photo and the name started 97px under the header: 48px of section padding, the
+ * 20px "Home / Shop / ..." trail and a 24px margin. Phones were cut to 20 / 16 on 2026-09-29
+ * (40-product-mobile-spacing.css); this is the same at every computer width (24 / 16). The name
+ * then sits 63px under the header, the same as /about, /returns, /contact and /wishlist (64px). */
+@media (min-width: 768px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) {
+    padding-top: 1.5rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) > nav.mb-6 {
+    margin-bottom: 1rem;
+  }
+}
+
+/* THE BUTTON ROWS. In the 419px Size card, eight sizes needed 475px and wrapped 7 + 1 (5XL alone);
+ * in the Fit card five fits needed 441px and wrapped 4 + 1 (Boxy alone) — 108-111px of page for two
+ * lone buttons. A little less padding inside and between the buttons puts each on one row. Every
+ * size button is at its 46px minimum already, so they stay at least 46x46 (WCAG 2.5.5 and the shop's
+ * 44px floor); only the wide fit labels lose padding (about 15.7 -> 9.4px a side).
+ *
+ * FROM 1100px, NOT 768px. Eight sizes fit on one line only from 1056px up (3.8-4.6px to spare; all
+ * of it in rem, so predictable). Below that the tightening only turned 6 + 2 into 7 + 1 (a lone 5XL
+ * at 1024) and 3 + 2 fits into 4 + 1 (a lone Boxy at 820) without saving any height, so the
+ * narrower computers keep today's spacing.
+ *
+ * SIX FITS (T-shirts list Tank too) need about 430px in a 419px row, so they cannot be one line;
+ * tightening alone would turn 4 + 2 into 5 + "Tank" alone. They get two even rows of three instead —
+ * the same height as today, no lone button, centred (0.00px). Only T-shirt fit rows have exactly six
+ * buttons; a size row always has eight in the DOM (hidden not-carried sizes included).
+ *
+ * WHAT IT COSTS: a keyboard focus outline (2px + 2px offset) now clears its neighbour by 2.3px
+ * (was 4.4). The selected button's ring and a neighbour's focus outline are 0.3px apart.
+ * A sold-out size carries its "Sold out" label (86-product-sizes.css) and is wider than the 46px
+ * minimum, which uses up the one-row slack: a garment made in all eight sizes with one sold out
+ * wraps to two rows here, as it did before this rule. A disabled button keeps its own padding
+ * (86-'s 6px for the label), which is the narrowest the label allows. Scoped to the product page
+ * by its section. */
+@media (min-width: 1100px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]) {
+    gap: .375rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]) > button:not([disabled]) {
+    padding-inline: .5rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]:nth-child(6):last-child) {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: center;
+  }
+}

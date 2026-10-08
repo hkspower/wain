@@ -1,0 +1,41 @@
+/* THE SIZE ADVISER'S ANSWER CHIPS WERE CUT OFF AT THE DIALOG'S EDGE — 2026-10-08.
+ * A confirmed finding of the oversized-boxes scan (surface: shop desktop), fixed as its verdict's
+ * best fix. Not a redesign: a control that cannot be read is measurably broken.
+ *
+ * The "What is my size?" dialog (card max-w-lg, 488px of content at 1280) lays each row of answers
+ * out with the bundle's `.filter-scroller` — display:flex; overflow-x:auto; scrollbar-width:none;
+ * children flex:none — the swipe row the /shop filters used. On a computer there is no swipe and no
+ * scrollbar, so a row wider than the card is simply cut:
+ *   - English, "How do you want to work it out?": 541px in 488. The chip the dialog OPENS WITH
+ *     selected, "Height and weight", showed 67% of itself and read "Height and w";
+ *   - "I know my usual size" (both languages): S ... 5XL need 497px, and 5XL lost its edge (86%).
+ * Same at 1920 (493px) and on tablets (480 / 474px). The third row ("How do you like it to sit?")
+ * fits exactly.
+ *
+ * From 768px the rows WRAP instead: an overflowing row becomes two lines (42px -> 90px), every chip
+ * is whole, and the dialog grows from about 471px to 520-566px tall at 1280 — under a 720px window,
+ * and the card has its own overflow-y:auto for anything shorter. Phones keep the swipe row, which
+ * works there. Widening the dialog instead (36rem) would fit today's 541px and break again the day
+ * the wording grows, so wrapping is the robust choice.
+ *
+ * `[role="dialog"] .filter-scroller` reaches only this dialog: the bundle uses the class in two
+ * places, here and in Shop's filter rows, which are not in a dialog and are hidden anyway
+ * (15-no-filters.css — whose note that the class "is used nowhere else" predates the adviser). */
+@media (min-width: 768px) {
+  [role="dialog"] .filter-scroller {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: .5rem;
+  }
+}
+
+/* THE PHONE FAULT FOUND ON THE WAY. On a phone the usual-size row's <label> (block text-sm
+   sm:col-span-2) sits in a one-column grid whose implicit column is `auto`, so it grew to the row's
+   473px inside a 332px card: the CARD scrolled sideways and 4XL / 5XL sat past its edge. min-width:0
+   lets the grid item shrink to its column, and the row inside it scrolls by swipe as intended.
+   (`sm:grid-cols-2`, which gives minmax(0,1fr) columns, applies only from 640px.) The subject is
+   `label`, not a universal :has() — a universal subject makes every element on every page run the
+   test (CLAUDE.md, 2026-09-30, the scroll-smoothness cost). */
+[role="dialog"] label:has(> .filter-scroller) {
+  min-width: 0;
+}

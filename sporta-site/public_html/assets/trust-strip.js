@@ -272,8 +272,15 @@
     '.sts-icon{flex:none;width:30px;height:30px;color:#fff;}' +
     '.sts-icon svg{width:100%;height:100%;}' +
     '.sts-text{margin:0;font-size:19px;font-weight:700;line-height:1.35;color:#fff;}' +
+    // 180px, not 260 (2026-10-08, "fix large boxes"): two one-line rows are 78px, so 260 left 70%
+    // of the band empty orange (91px above and below) and made the section 344px, twice the promo
+    // panel lower down that holds the same two icon rows in 132px. 180 keeps ~51px of orange above
+    // and below, the room the owner chose for the PHONE panel on 2026-10-07 (min-height 200,
+    // padding 36px 28px, the base rule above; 77-phone-padding.css records the choice), so a
+    // computer is not squeezed tighter than a phone. A min-height, so six rows (the /backends
+    // maximum) still grow the band to fit.
     '@media(min-width:768px){.sts-wrap{padding:24px 24px 12px;}.sts-title{font-size:26px;}' +
-    '.sts-panel{min-height:260px;padding:40px 32px;}.sts{max-width:460px;gap:18px;}.sts-text{font-size:20px;}}'
+    '.sts-panel{min-height:180px;padding:40px 32px;}.sts{max-width:460px;gap:18px;}.sts-text{font-size:20px;}}'
 
   function style() {
     if (document.getElementById('sts-css')) return

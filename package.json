@@ -271,7 +271,11 @@
     "test:schema-usage-scripts": "SCAN_ROOT=$PWD/scripts node scripts/schema-usage-audit.mjs",
     "test:live-db-audit": "node scripts/live-db-audit-test.mjs",
     "test:backup-tables": "node scripts/backup-tables-test.mjs",
-    "test:product-rename": "node scripts/product-rename-test.mjs"
+    "test:product-rename": "node scripts/product-rename-test.mjs",
+    "test:product-page-layout": "node scripts/product-page-layout-test.mjs",
+    "test:no-exchange-line": "node scripts/no-exchange-line-test.mjs",
+    "test:size-chart": "node scripts/size-chart-test.mjs",
+    "test:oversize-fixes": "node scripts/oversize-fixes-test.mjs"
   },
   "private": true
 }

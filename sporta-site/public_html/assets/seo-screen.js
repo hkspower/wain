@@ -66,7 +66,10 @@
     + '.spseo-bots{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:0 12px}'
     + '.spseo-lock{font:12px/1.6 ui-monospace,monospace;opacity:.8;background:rgba(128,128,128,.12);border-radius:8px;padding:8px 10px;white-space:pre-wrap;margin:0 0 10px}'
     + '.spseo-img{display:block;max-width:100%;width:360px;aspect-ratio:1.91;object-fit:cover;border-radius:8px;border:1px solid var(--sp-pc-border,#494e54);background:#111}'
-    + '.spseo-prod{border-top:1px solid rgba(128,128,128,.25);padding:8px 0}'
+    // No padding on a closed row (2026-10-08, "fix large boxes"): the summary is the tap target and
+    // already 44px, so the 8px above and below it was dead space on every device — a one-line row
+    // 61px tall, 46 of them 2,806px. 45px now, and an opened row keeps 12px under its Save button.
+    + '.spseo-prod{border-top:1px solid rgba(128,128,128,.25);padding:0}.spseo-prod[open]{padding-bottom:12px}'
     + '.spseo-prod summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}'
     + '.spseo-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(79,70,229,.2)}'
     + '.spseo-a{color:inherit;text-decoration:underline}'

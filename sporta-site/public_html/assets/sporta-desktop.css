@@ -9,6 +9,11 @@
   }
 }
 @media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky {
+    top: 7.25rem;
+  }
+}
+@media (min-width: 768px) {
   .grid.gap-8.md\:grid-cols-2:has(.product-title) {
     grid-template-columns: 11fr 9fr;
   }
@@ -697,4 +702,53 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 @media (min-width: 768px) {
 [data-cm-added]::after { top: -7px; inset-inline-end: -7px;
 }
+}
+@media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) {
+    display: flex;
+    flex-direction: column;
+  }
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) > p.mt-3.text-lg {
+    order: 1;
+    margin-top: 1.5rem;
+    padding-inline: 1.25rem;
+  }
+  .grid.gap-8.md\:grid-cols-2 > div:has(> div > h1.product-title) > .space-y-3:empty {
+    display: none;
+  }
+}
+@media (min-width: 768px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) {
+    padding-top: 1.5rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) > nav.mb-6 {
+    margin-bottom: 1rem;
+  }
+}
+@media (min-width: 1100px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]) {
+    gap: .375rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]) > button:not([disabled]) {
+    padding-inline: .5rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) .space-y-3 .rounded-2xl div.flex.flex-wrap.gap-2:has(> button[aria-pressed]:nth-child(6):last-child) {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: center;
+  }
+}
+@media (min-width: 768px) {
+  [role="dialog"] .filter-scroller {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: .5rem;
+  }
+}
+@media (min-width: 768px) {
+  .admin-shell main.admin-content { padding-top: 4rem; }
+  .admin-content nav.spux-jump {
+    min-width: calc(100% - 3.5rem);
+    box-shadow: 3.5rem -1px 0 0 var(--sp-pc-bg, #1b1d20), 3.5rem 0 0 0 var(--sp-pc-border, #494e54);
+  }
 }

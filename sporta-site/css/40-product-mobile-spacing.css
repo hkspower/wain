@@ -54,3 +54,12 @@
 .space-y-3 .rounded-2xl > .mt-2.min-h-10 {
   min-height: 1.5rem;
 }
+
+/* THE SIZE GUIDE'S COLUMN HEADINGS, 2026-10-08 (P10 e). The phone size chart that
+   product-mobile-layout.js builds is a plain <table>: its cells start at the edge, but a <th>
+   keeps the browser's own `text-align: center`, so each heading sat up to 37px off its column
+   (14 / 37 / 36px in English, 18 / 25 / 25px in Arabic). Start-aligned like the cells, they sit
+   over them; `start` follows the table's direction in Arabic. */
+main [data-sporta-size-guide] th {
+  text-align: start;
+}

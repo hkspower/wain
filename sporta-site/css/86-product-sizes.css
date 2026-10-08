@@ -1,0 +1,78 @@
+/* PRODUCT PAGE: ONLY THE SIZES A PIECE IS MADE IN, AND "SOLD OUT" IN WORDS — 2026-10-08.
+ * Approved by the owner as P1 of the product-page review, in its stress-tested (refined) form.
+ *
+ * WHAT WAS WRONG, measured on /product/cloudsoft-jacket-army-green (made in M and L only):
+ *   - the Size card drew all eight sizes S-5XL and crossed out six as "not carried", wrapping 6+2
+ *     on a phone; the card was 220px tall on a phone and 232px on a computer;
+ *   - a size that IS made but is SOLD OUT was crossed out exactly like a size that was never made,
+ *     and the only sentence under the card said "not carried", which is wrong for it. The words
+ *     "Sold out" lived only in the hover title, so a phone never showed them;
+ *   - the hint lines started at the card's edge, up to 134px off the centre of the buttons that
+ *     85-product-centre.css centred on 2026-10-07.
+ * The grid card for the same product (card-options.js, 2026-10-03) already shows only "M L".
+ *
+ * HOW, without a script. The bundle's own OptionBox (OptionBox-*.js) gives every size it draws a
+ * title taken from its own decision: `title = notCarried ? size.notCarried : soldOut ? spec.soldOut
+ * : none`, from the same ?r=stock answer it uses to disable the button. So the title IS the state,
+ * and it is the bundle's built-in string — site-text.js only swaps text NODES, never attributes, so
+ * the owner's Site wording editor cannot change it. A rebuilt bundle with different wording makes
+ * the sizes simply reappear, struck through, as they were (fails safe). Keying on ?r=products'
+ * size_options instead was considered and refused: it needs JavaScript, a second data source and
+ * load-order handling to reach the same answer the title already carries.
+ *
+ * SCOPE. `.mt-6.space-y-3` is the buying column's choices block; that class pair exists only in
+ * ProductDetail (AdminApp, Returns and Contact use other space-y-3 forms). No :has(), exact titles.
+ * No @media: the rule is the same on a phone and a computer, so the build keeps it in sporta-ui.css.
+ *
+ * WHAT A HIDDEN SIZE STILL DOES. It stays in the DOM, disabled, ahead of "Complete the look" — so a
+ * rig that presses the first /^L$/ button on a product page still finds the product's own L (and
+ * every such rig uses a fixture carrying all eight sizes anyway). display:none takes it out of the
+ * accessibility tree and the tab order, which is right: it was never a choice.
+ *
+ * COSTS, measured by the stress test and accepted:
+ *   - each labelled sold-out box is wider (the label is longer than the letter). With 6px side
+ *     padding, seven of eight sizes sold out stays on 2 rows everywhere except 360px Arabic (3);
+ *   - the label reads attr(title), the bundle's built-in "Sold out" / "نفذت الكمية"; an owner
+ *     rewording of spec.soldOut in Site wording does not reach it (it never reached the tooltip);
+ *   - ONE (a one-size accessory) shows as the Latin code beside the Arabic label, as it did. */
+
+/* 1. a size the piece is not made in (the bundle titles it size.notCarried) is not drawn */
+main .mt-6.space-y-3 [role=group] > button[disabled][title="Struck-through sizes are not carried in this piece."],
+main .mt-6.space-y-3 [role=group] > button[disabled][title="المقاسات المشطوبة غير متوفرة في هذه القطعة."] {
+  display: none !important;
+}
+
+/* 2. the Size card's own hint (the p.mt-2.5 after its group) is only ever size.notCarried — the
+      bundle passes `hint: someNotCarried ? size.notCarried : null` — so it goes with them. The Fit
+      card's group sits inside #fit-options and the Colour card uses a <ul>, so neither of their
+      hints is matched. The "Stocked in these sizes only" line inside .min-h-10 stays. */
+main .mt-6.space-y-3 .rounded-2xl > [role=group] ~ p.mt-2\.5 {
+  display: none !important;
+}
+
+/* 3. a size that is made but sold out says so in words, under the letter. The letter keeps the
+      bundle's strike-through (it is on the inner <span>, so it does not reach the ::after).
+      6px side padding keeps seven-of-eight-sold-out on two rows on a Pixel 7 in both languages.
+      #4b4f55 on the disabled chip's slate-100 fill is 7.6:1. The ::after joins the accessible
+      name: "M Sold out" / "M نفذت الكمية". */
+main .mt-6.space-y-3 [role=group] > button[disabled][title]:not([title="Struck-through sizes are not carried in this piece."]):not([title="المقاسات المشطوبة غير متوفرة في هذه القطعة."]) {
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+  padding-inline: 6px;
+}
+main .mt-6.space-y-3 [role=group] > button[disabled][title]:not([title="Struck-through sizes are not carried in this piece."]):not([title="المقاسات المشطوبة غير متوفرة في هذه القطعة."])::after {
+  content: attr(title);
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b4f55;
+}
+
+/* 4. every hint line centred under its centred buttons: the Size card ("Please choose a size",
+      "Stocked in these sizes only", "Only n left"), the Fit card's note when it is opened on a
+      phone, and the Colour card's note. These are one-line captions under a centred row, not the
+      prose the owner chose to keep start-aligned on 2026-09-04 (the description, the lists). */
+main .mt-6.space-y-3 .rounded-2xl > p,
+main .mt-6.space-y-3 .rounded-2xl > .min-h-10 > p {
+  text-align: center;
+}

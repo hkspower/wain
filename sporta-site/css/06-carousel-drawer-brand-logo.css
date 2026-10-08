@@ -127,3 +127,32 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   border-color: transparent;
 }
 
+/* ---------------------------------------------------------------------------
+ * THE CLOSED BAG DRAWER PAINTED A GREY BAND DOWN EVERY PAGE — 2026-10-08 (P10 b)
+ *
+ * The drawer is never removed: closed, it is `pointer-events-none
+ * translate-x-full` (rtl: -translate-x-full), parked just off the end edge of
+ * the screen — and it keeps its `shadow-2xl`, which bleeds 35-45px back onto
+ * the page. Measured: the page's edge pixel is 235/255 on a computer and 215
+ * on the Arabic phone, on every page (/, /shop, a product), right in English
+ * and left in Arabic.
+ *
+ * visibility: hidden while closed removes the band (edge pixel 255 again) and
+ * the drawer with it; it is already `inert` and aria-hidden when closed, so
+ * nothing changes for assistive technology.
+ *
+ * THE TRAP, measured by the stress test: the drawer SLIDES with Tailwind v4's
+ * `translate` property, not `transform`. Writing `transition: transform .3s,
+ * visibility ...` would drop `translate` from the list and the drawer would
+ * SNAP shut instead of sliding out — and test:cart-motion passed 28/28 with
+ * that regression. So this keeps the bundle's own list
+ * (transition-transform = transform, translate, scale, rotate) and its own
+ * .3s ease-out, and only adds visibility to it. Visibility interpolates as
+ * "visible until the end", so on close the drawer stays visible, with its
+ * shadow, for the whole slide and hides when it is off screen. On OPEN the
+ * class (and this rule) goes, so visibility changes at once with no
+ * transition and the drawer is visible from its first frame. */
+aside.cart-drawer.pointer-events-none {
+  visibility: hidden;
+  transition-property: transform, translate, scale, rotate, visibility;
+}

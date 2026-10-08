@@ -245,6 +245,10 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   background: transparent;
   border-color: transparent;
 }
+aside.cart-drawer.pointer-events-none {
+  visibility: hidden;
+  transition-property: transform, translate, scale, rotate, visibility;
+}
 .app-header > .px-4:not(:has(*)),
 .app-footer > .px-4:not(:has(*)) {
   padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
@@ -1111,6 +1115,9 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 .space-y-3 .rounded-2xl > .mt-2.min-h-10 {
   min-height: 1.5rem;
 }
+main [data-sporta-size-guide] th {
+  text-align: start;
+}
 img[src^="data:image/svg+xml"] {
   content: url("/assets/no-photo.svg");
   object-fit: cover;
@@ -1372,6 +1379,11 @@ header.app-header nav > a img { height: 2.125rem !important; }
   padding-block: 12px !important;
 }
 #f-phone { min-height: 50px; font-size: 16px !important; }
+div:has(> #f-phone) { padding: 0 !important; border-color: var(--sp-field-edge, #aab1b9) !important; }
+div:has(> #f-phone):focus-within {
+  border-color: var(--brand, #e0561c) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #e0561c) 28%, transparent) !important;
+}
 #f-note { font-size: 16px !important; min-height: 76px; }
 label[for^="f-"] { font-size: 13.5px !important; font-weight: 700; margin-bottom: 8px !important; }
 form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building, #f-floor, #f-flat, #f-note):focus {
@@ -2354,3 +2366,108 @@ a, button, [role="button"], summary, select, label, input[type="checkbox"], inpu
 }
 main .space-y-3 .rounded-2xl div:has(> button[aria-pressed]),
 main .rounded-2xl ul:has(> li > a[href^="/product/"]) { justify-content: center; }
+main .mt-6.space-y-3 [role=group] > button[disabled][title="Struck-through sizes are not carried in this piece."],
+main .mt-6.space-y-3 [role=group] > button[disabled][title="المقاسات المشطوبة غير متوفرة في هذه القطعة."] {
+  display: none !important;
+}
+main .mt-6.space-y-3 .rounded-2xl > [role=group] ~ p.mt-2\.5 {
+  display: none !important;
+}
+main .mt-6.space-y-3 [role=group] > button[disabled][title]:not([title="Struck-through sizes are not carried in this piece."]):not([title="المقاسات المشطوبة غير متوفرة في هذه القطعة."]) {
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+  padding-inline: 6px;
+}
+main .mt-6.space-y-3 [role=group] > button[disabled][title]:not([title="Struck-through sizes are not carried in this piece."]):not([title="المقاسات المشطوبة غير متوفرة في هذه القطعة."])::after {
+  content: attr(title);
+  font-size: 11px;
+  font-weight: 600;
+  color: #4b4f55;
+}
+main .mt-6.space-y-3 .rounded-2xl > p,
+main .mt-6.space-y-3 .rounded-2xl > .min-h-10 > p {
+  text-align: center;
+}
+[role="dialog"] label:has(> .filter-scroller) {
+  min-width: 0;
+}
+main .group.aspect-square img[src^="data:image/svg"] {
+  filter: invert(1) hue-rotate(180deg) brightness(1.02) contrast(.9);
+}
+div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded-full.border {
+  align-self: stretch;
+}
+div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded-full.border > button {
+  min-width: 44px;
+  min-height: 44px;
+  height: 100%;
+}
+main:not(.admin-content) .space-y-3 .rounded-2xl button[aria-pressed="true"]:not(:disabled),
+main:not(.admin-content) [role="dialog"] .filter-scroller > button[aria-pressed="true"] {
+  background-color: #171a1e !important;
+  border-color: #171a1e !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+main:not(.admin-content) .space-y-3 .rounded-2xl ul > li > a[aria-current="page"] {
+  border-color: #171a1e !important;
+  box-shadow: inset 0 0 0 1px #171a1e !important;
+}
+@supports (color: oklch(from red calc(l * 1) c h)) {
+  main:not(.admin-content) .space-y-3 .rounded-2xl button[aria-pressed="true"]:not(:disabled),
+  main:not(.admin-content) [role="dialog"] .filter-scroller > button[aria-pressed="true"] {
+    background-color: var(--sp-secondary-bg, #171a1e) !important;
+    border-color: var(--sp-secondary-bg, #171a1e) !important;
+    color: oklch(from var(--sp-secondary-bg, #171a1e)
+      calc(0.216346 + clamp(0, (0.6 - l) * 1000, 1) * 0.783654)
+      calc(0.009105 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      255.663) !important;
+  }
+  main:not(.admin-content) .space-y-3 .rounded-2xl ul > li > a[aria-current="page"] {
+    --sp-sel-ring: oklch(from var(--sp-secondary-bg, #171a1e)
+      calc(l * clamp(0, (0.6 - l) * 1000, 1) + 0.216346 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      calc(c * clamp(0, (0.6 - l) * 1000, 1) + 0.009105 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      calc(h * clamp(0, (0.6 - l) * 1000, 1) + 255.663 * (1 - clamp(0, (0.6 - l) * 1000, 1))));
+    border-color: var(--sp-sel-ring) !important;
+    box-shadow: inset 0 0 0 1px var(--sp-sel-ring) !important;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .admin-content :is(
+    .spinv-btn, .spinv-go, .spinv-input, .spur-btn, .spur-go, .spur-tab, .spur-in,
+    .spsetup-go, .spc-save, .spc-undo, .spc-input, .ssu-save, .ssu-undo, .ssu-input,
+    .sle-save, .sle-undo, .sle-input, .sce-save, .sce-input, .fed-btn, .fed-mini, .fed-save,
+    .fed-input, .stx-save, .stc-save, .sdt-save, .sdt-tab, .spk-save, .spk-envswitch, .spk-input,
+    .srl-save, .srl-reset, .srl-input, .spps-btn, .spps-in, .spseo-btn, .spseo-btn2, .spseo-in,
+    .simg-btn, .simg-btn2, .cta-btn, .hle-btn, .spsec-btn, .bkp-btn, .spw-btn, .sal-all,
+    .crm-input,
+    .hle-btn2, .hle-in, .hle-sel, .hbe-btn, .sdt-input, .stx-search, .spsec-btn2
+  ):not(textarea),
+  .admin-content .hbe :is(input[type=text], select),
+  .spsb .spsb-go {
+    font-size: .875rem;
+    line-height: 1.25rem;
+    min-height: 2.375rem;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+  }
+  .admin-content .spinv-step {
+    min-width: 2.375rem;
+    min-height: 2.375rem;
+  }
+  .admin-shell .admin-content > section.pt-card > .pt-toggle { min-width: 2.375rem; min-height: 2.375rem; }
+  .admin-content .pt-bar button { min-height: 2.375rem; }
+  .admin-content :is([data-sporta-gsi-setup], [data-sporta-asi-setup], [data-sporta-pass-card]) :is(button, input[type=text]) {
+    font-size: .875rem;
+    line-height: 1.25rem;
+  }
+}
+.admin-content .h-28.items-end > .group {
+  align-self: stretch;
+  padding-bottom: 22px;
+}
+.admin-content .h-28.items-end > .group > span {
+  position: absolute;
+  bottom: 0;
+}

@@ -1,0 +1,68 @@
+/* THE PRODUCT PAGE ON A PHONE: TWO BLOCKS PUT WHERE THE OWNER'S LIST PUTS THEM — 2026-10-08.
+ * P8 and P9 of the product-page review, approved by the owner in their stress-tested (refined)
+ * form. The owner's phone order of 2026-09-20, quoted in product-mobile-layout.js's header, reads
+ * "image carousel, name, price, rating, color, size, ...". Two things landed later and out of it:
+ * the colour box (put last of the choices by the bundle) and the dark logo strip (between the photo
+ * and the name). Both are moved here by CSS order only — no DOM node moves, so React keeps every
+ * node where it put it — and only on phones: the list is a phone order, and on a computer a CSS
+ * reorder of CONTROLS would split the screen order from the Tab order (a 452px jump measured at
+ * 1280), which is a new design decision rather than a restoration. */
+@media (max-width: 767px) {
+
+  /* ---- P8: colour before size, when a piece comes in two or more colours ------------------------
+   * The colour box came third, after Size and Fit — on a Pixel 7 298px below the price. Choosing a
+   * colour loads that colour's page (the chosen size and quantity carry over, the fit resets), so it
+   * is the first choice to make. The colour box (the bundle draws it only for two or more colours) is
+   * painted first; the choices block keeps order 30 from product-mobile-layout.js, so nothing outside
+   * it moves. Screen-reader and keyboard order stay size, fit, colour (DOM order).
+   *
+   * THE CHOICES BLOCK IS A FLEX COLUMN ON EVERY PRODUCT, with the 12px gap space-y-3 gave and the
+   * space-y-3 margins zeroed (inside a flex column they would ADD to the gap). For a one-colour piece
+   * that is the same layout to the pixel — the same boxes, 12px apart, in the same order — and
+   * `.mt-6.space-y-3` exists only in ProductDetail. The stress-tested draft made the block flex only
+   * `:has(> .rounded-2xl > ul > li > a[href^="/product/"])`, and with a `> *` rule hanging off that
+   * :has() it made the PHONE /shop scroll measurably heavier on a page it never matches (style
+   * recalc 92 -> 121ms median over six runs): a :has() in a non-subject position re-styles everything
+   * its subject can match whenever the argument might have changed, and every card /shop adds while
+   * scrolling carries an a[href^="/product/"]. So the only :has() left is on the colour box itself,
+   * with the narrowest argument that names it: of the block's boxes it is the only one with a <ul>
+   * as a direct child (the size box is wrapped in a plain div, the fit box holds div#fit-options). */
+  main .mt-6.space-y-3 {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  main .mt-6.space-y-3 > * {
+    margin-block: 0 !important;
+  }
+  main .mt-6.space-y-3 > .rounded-2xl:has(> ul) {
+    order: -1;
+  }
+
+  /* ---- P9: the name straight after the photo ----------------------------------------------------
+   * The dark strip (the Sporta logo and "AHED · Cloudsoft", or "[Brand] Authentic · sold by Sporta")
+   * sat between the photo and the name: 54px plus its 16px margin plus the 32px grid gap. On a
+   * Pixel 7 with no photo the name started at y734 and only 38% of it was on the first screen; with
+   * the strip below the buying column it starts at y664, wholly visible (the price is still just
+   * under the pinned buy bar, y772 against 766). With two or more photos the thumbnail row is the
+   * rest of that cost: the name goes from 0% to 7% visible.
+   *
+   * HOW: the gallery column (`.md:sticky`, which holds the gallery and the strip) is display:contents
+   * on a phone, so its two children become items of the product grid in DOM order — gallery, strip,
+   * text column. order:1 on the strip alone sends it last; the grid's own 32px gap then separates
+   * every pair, so the strip lands 32px under the last text block (the size guide, or the
+   * description). Both classes occur once, in ProductDetail only.
+   *
+   * WHAT THE OWNER ACCEPTED: on products with no details card (19 of 46 in the sandbox — Vanquish,
+   * Gymshark, Naples, Cagliari, Denver ...) the strip carries the page's only "Authentic · sold by
+   * Sporta" line, and it now leaves the first screen. A screen reader still reads the strip before the
+   * name (DOM order); it holds nothing focusable. The page grows 16px (the 32px gap replaces the
+   * strip's 16px margin). Desktop, tablets and phones in landscape (768px+) are unchanged. */
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky {
+    display: contents;
+  }
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky > .rounded-2xl {
+    order: 1;
+    margin-top: 0;
+  }
+}

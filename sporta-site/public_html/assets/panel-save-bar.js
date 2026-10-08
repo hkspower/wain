@@ -204,6 +204,19 @@
     // control it duplicates would have made the original fault worse at the
     // bottom of the page while fixing it everywhere else.
     + '.admin-content.spsb-room{padding-bottom:96px}'
+    // ON A PHONE THE BAR SAT ON TOP OF THE TAB BAR (2026-10-08). Both are fixed at bottom:0, the bar
+    // at z-index 60 and 73px tall, the bundle's tab bar at z-index 40 and 60px — so while anything
+    // was unsaved every tab was under the bar and the owner had no way to change screens (the phone
+    // panel has no sidebar). The bar now stands on top of the tab bar: it keeps bottom:0 but grows
+    // by the tab bar's 60px of bottom padding, and that strip is CLIPPED away, so the tab bar shows
+    // and takes the taps. Growing rather than moving is what keeps the toast clear of it:
+    // panel-ux.js lifts a toast by 20px plus the bar's offsetHeight, and a bar merely moved up 60px
+    // would have left that sum 60px short and the toast over the Save button. The negative top
+    // inset keeps the bar's shadow. The tab bar is height:60px border-box, safe-area included.
+    // Not while a pop-up is open: panel-ux.js hides the tab bar then, and the bar goes back to the
+    // bottom edge rather than floating over 60px of nothing.
+    + '@media (max-width:767px){body:has(.m-tabbar):not(:has(.fixed.inset-0)) .spsb{padding:8px 16px 68px;clip-path:inset(-40px 0 60px 0)}'
+    + 'body:has(.m-tabbar):not(:has(.fixed.inset-0)) .admin-content.spsb-room{padding-bottom:150px}}'
 
   function style() {
     if (document.getElementById('spsb-css')) return

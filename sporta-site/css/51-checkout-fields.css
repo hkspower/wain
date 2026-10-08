@@ -7,6 +7,24 @@
   padding-block: 12px !important;
 }
 #f-phone { min-height: 50px; font-size: 16px !important; }
+/* THE MOBILE-NUMBER FIELD WAS 72px, A BOX INSIDE A BOX — 2026-10-08, "fix large boxes". The
+ * bundle draws it as a wrapper (`flex items-stretch overflow-hidden p-0 ${M(...)}`) holding the
+ * +965 prefix and the input — and M() appends `px-3 py-2.5`, which come AFTER `.p-0` in the
+ * compiled CSS and win. So the wrapper got 10px 12px of padding the markup never meant it to
+ * have: 338x72 on a phone (726x73 on a computer) against 52px for every other field, drawn as a
+ * pale outer box around a second, silver one (48-soft-silver-fields.css paints the input).
+ * The 50px above is the allowance for a wrapper with two 1px borders and NO padding, which is
+ * what this restores: 52px, one silver field with +965 flush inside it, the same edge as its
+ * peers. The error rule below (1,1,1) still beats this (1,0,1), so a wrong number still goes red.
+ * Measured in en and ar; the wrapper is dir=ltr, so the direction changes nothing.
+ * With no padding the input's own focus outline would be clipped by the wrapper's
+ * overflow-hidden, so the WRAPPER shows the focus the way every other field does (brand border
+ * and a soft ring — the :focus rule a few lines down). */
+div:has(> #f-phone) { padding: 0 !important; border-color: var(--sp-field-edge, #aab1b9) !important; }
+div:has(> #f-phone):focus-within {
+  border-color: var(--brand, #e0561c) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #e0561c) 28%, transparent) !important;
+}
 #f-note { font-size: 16px !important; min-height: 76px; }
 label[for^="f-"] { font-size: 13.5px !important; font-weight: 700; margin-bottom: 8px !important; }
 form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building, #f-floor, #f-flat, #f-note):focus {

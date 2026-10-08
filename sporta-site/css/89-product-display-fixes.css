@@ -1,0 +1,39 @@
+/* TWO SMALL PRODUCT-PAGE DISPLAY FAULTS — 2026-10-08, items (f) and (g) of P10 of the product-page
+ * review, approved by the owner. The review's other P10 items live beside the rules they extend:
+ * (a) the sticky photo's top and (d) the buy bar's double room in 05-product-page.css, (b) the
+ * closed bag drawer's shadow in 06-carousel-drawer-brand-logo.css, (e) the size guide's headings in
+ * 40-product-mobile-spacing.css; (c), the size guide following the language toggle, is script
+ * (product-mobile-layout.js). No @media here: both hold at every width, in sporta-ui.css. */
+
+/* (f) "PHOTO COMING SOON" ON THE PRODUCT PAGE IS THE LIGHT ONE THE CARDS USE.
+ * A product with no photograph shows the bundle's own data: placeholder, a near-black panel with the
+ * logo: mean brightness 41/255 in a 380x475 (phone) / 555x694 (computer) box on the white page,
+ * while the "Complete the look" cards under it show the light version the owner chose for the grid
+ * on 2026-10-03 (69-product-card-clean.css). The same filter as the cards — invert and turn the hue
+ * back round, so the logo stays orange — gives the same light panel (brightness 208-217, the cards'
+ * 216). THE FILTER VALUE HAS TWO HOMES now, this and 69-'s grid rule; change them together.
+ * `.group.aspect-square` is the product gallery only (0 matches on /, /shop, the category pages and
+ * /wishlist), and the selector reaches only the data:image/svg placeholder, so a real photograph is
+ * never filtered (05- hides the placeholder slide once a photograph exists anyway). The zoom viewer
+ * already skips the placeholder, and the ⤢ hint carries its own dark pill. The dark brand strip
+ * under the photo stays dark (a deliberate dark island). */
+main .group.aspect-square img[src^="data:image/svg"] {
+  filter: invert(1) hue-rotate(180deg) brightness(1.02) contrast(.9);
+}
+
+/* (g) THE QUANTITY - AND + ARE AS TALL AS ADD AND BUY NOW.
+ * The stepper was 38px tall beside a 48px (phone) / 50px (computer) Add, and its - and + were
+ * 48x36 / 50x36: under the 44px every other control on the page meets (55-product-polish.css set the
+ * 36px floor when they were 16px tall). The stepper's box stretches to the buy row's height and its
+ * buttons fill it: 48x46 on a phone, 50x48 on a computer. Its outline colour is unchanged and the row
+ * is no taller (Add already set its height). At 360px the row already wraps Buy now onto a second
+ * line, before and after. Anchored on the buy row (the text column's flex-wrap row holding
+ * .btn-primary) so no other rounded-full border is reached. */
+div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded-full.border {
+  align-self: stretch;
+}
+div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded-full.border > button {
+  min-width: 44px;
+  min-height: 44px;
+  height: 100%;
+}

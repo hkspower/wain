@@ -112,6 +112,13 @@
   var CSS = '[' + MARK + ']{position:fixed;top:10px;right:16px;z-index:45;font:14px/1.4 system-ui,sans-serif}'
     + '@media (max-width:767px){[' + MARK + ']{top:8px;right:104px}}'
     + '.spnc-btn{position:relative;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(20,22,25,.92);color:#dbdfe4;font-size:20px;cursor:pointer}'
+    // ON A PHONE'S LIGHT HEADER, NO DARK TILE (2026-10-08). The plate was drawn for the dark panel
+    // and kept its fill when the panel went light on 2026-10-07, so on a phone the bell was a 44px
+    // near-black block — the largest, heaviest thing in the 56px white header, beside a 32px logo
+    // and a transparent "Sign out". The 44x44 tap box stays; only its paint goes, so what shows is
+    // the bell and its badge. Phones only: on a computer the bell is FIXED over scrolling content
+    // (the header there is static), and without its plate it sat on a card's border mid-text.
+    + "@media (max-width:767px){html[data-theme='light'] .spnc-btn{background:transparent;border-color:transparent}}"
     + '.spnc-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#cf4a0b;color:#fff;font:700 12px/20px system-ui;text-align:center}'
     + '.spnc-panel{position:absolute;top:52px;right:0;width:min(360px,calc(100vw - 24px));max-height:70vh;overflow:auto;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:#14161a;color:#dbdfe4;box-shadow:0 12px 40px rgba(0,0,0,.5);direction:ltr;text-align:left}'
     + '@media (max-width:767px){.spnc-panel{right:-96px}}'

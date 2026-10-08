@@ -199,6 +199,51 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
   }
 }
 
+/* --- 5b. the bar's room was reserved TWICE on a phone, 2026-10-08 (P10 d) --- */
+/* The bundle ends the product page with its own spacer for the pinned buy
+ * bar, `h-[calc(4.75rem+var(--sa-bottom))] md:hidden`, and section 5 above
+ * ALSO pads the footer by 5rem for the same bar. Measured on the product page
+ * at 412px: 176px of empty white between the last "Complete the look" card
+ * and the footer (188px in the sandbox today). One copy goes — the bundle's,
+ * because the footer padding is the one that keeps the copyright and
+ * trading-name lines clear of the bar at the very bottom (scrolled fully
+ * down, the last footer line still ends at y711 above the bar at y766).
+ * Last card to footer drops by 76px. Phone only (the spacer is md:hidden).
+ *
+ * NO body:has(.action-bar) GUARD, ON PURPOSE, and the spacer is named by its
+ * CLASS. ProductDetail renders the spacer immediately after the bar, always
+ * together, so it can only exist where the bar does. The first version was
+ * `body:has(.action-bar) main div[class*="h-[calc(4.75rem"]` and it made the
+ * PHONE /shop scroll measurably heavier (style recalc 92 -> 113ms median over
+ * six runs) on a page where it matches nothing: body:has() is invalidated by
+ * every inserted element with a class (CLAUDE.md, 2026-10-03), and a :has()
+ * in a non-subject position re-styles everything its subject can match —
+ * here every <div> in <main> — each time. A class subject has nothing to
+ * invalidate. */
+@media (max-width: 767.98px) {
+  main .h-\[calc\(4\.75rem\+var\(--sa-bottom\)\)\].md\:hidden {
+    display: none;
+  }
+}
+
+/* --- the photo column stops BELOW the header on a computer, 2026-10-08 (P10 a) --- */
+/* The gallery column is the bundle's `md:sticky md:top-24`: it sticks 6rem
+ * (96px) from the top. The header has been 109-110px tall since the menu bar
+ * moved under it on 2026-10-02, so while you scroll the photo slid about 8px
+ * UNDER the menu bar and lost its rounded top corners (measured at scroll 200,
+ * 1280x900: gallery top 101, header bottom 109). 7.25rem stops it clear of the
+ * header. THIS IS A SECOND HOME FOR THE HEADER'S HEIGHT — there is no header-
+ * height variable — so if the menu bar's height changes, move this with it.
+ * Cost, measured: on a product with photos (the thumbnail strip makes the
+ * column ~870px) or on a 768px-tall laptop, the stuck column was already
+ * taller than the window; this moves its bottom 21px further down for the
+ * ~150px of scroll it stays stuck. */
+@media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky {
+    top: 7.25rem;
+  }
+}
+
 /* ------------------------------------------ the product name, and its leading */
 /* THE BUILT STYLESHEET DECLARES .product-title TWICE, and the second undoes
  * the first:

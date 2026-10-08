@@ -72,7 +72,15 @@
     + '.spsetup-go{flex:0 0 auto;min-height:44px;padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit;font-weight:600;border:1px solid var(--sp-pc-field-border,#565c63);background:var(--sp-pc-field-bg,#24272a);color:var(--sp-pc-ink,#eaecee)}'
     + '.spsetup-where{flex:0 0 auto;font-size:12px;opacity:.7;align-self:center;max-width:160px;text-align:end}'
     + '.spsetup-note{margin:8px 0 0;font-size:13px}'
-    + '@media(max-width:640px){.spsetup-row{flex-wrap:wrap}.spsetup-go,.spsetup-where{margin-inline-start:100px}}'
+    // On a phone the pill sits beside the text and the button goes under the text, indented by the
+    // pill's 88px plus the 12px gap — which is what the 100px below was always for. It did not
+    // happen: `flex:1 1 auto` made the text's flex basis its whole one-line width, so any hint wider
+    // than ~238px dropped the text onto a line of its own and left the pill alone on the first
+    // (19 of 23 rows, 166-208px each). A 170px basis lets the text sit beside the pill and wrap
+    // there (2026-10-08): average row 172 -> 139px, the checklist ~750px shorter on a Pixel 7.
+    // The "api/config.php on the server" note is no longer squeezed to 160px under the text.
+    + '@media(max-width:640px){.spsetup-row{flex-wrap:wrap}.spsetup-body{flex:1 1 170px}'
+    + '.spsetup-go,.spsetup-where{margin-inline-start:100px}.spsetup-where{max-width:none;text-align:start}}'
   function style() { if (document.getElementById('spsetup-css')) return; var s = el('style'); s.id = 'spsetup-css'; s.textContent = CSS; document.head.appendChild(s) }
 
   function openSidebar(name) {
@@ -108,7 +116,14 @@
       var rows = (data.items || []).filter(function (i) { return i.where === g[0] })
       if (!rows.length) return
       var sec = el('section', 'spsetup-sec'); sec.setAttribute('data-spsetup-group', g[0]); root.appendChild(sec)
-      sec.appendChild(el('h2', 'spsetup-h', g[1]))
+      // h3, NOT h2 (2026-10-08). About twenty overlays find the screen they belong to by an h1/h2
+      // whose text is exactly "Payments", "Settings", "Catalogue" or "Brands" — and these group
+      // headings use the same words, so every one of them mounted a SECOND live copy of its editor
+      // inside this checklist: 20 foreign cards, a 19,600px Setup screen on a phone, 68 requests on
+      // opening it, and — worse — the real Settings screen left without its cards for the rest of
+      // the visit, because they stayed attached to the removed Setup copy. No overlay mounts under
+      // an h3. Styled by its class only, so it looks the same; the Jump-to bar reads h2 AND h3.
+      sec.appendChild(el('h3', 'spsetup-h', g[1]))
       rows.forEach(function (it) {
         var meta = ITEMS[it.key] || [it.key, '', null]
         var row = el('div', 'spsetup-row'); row.setAttribute('data-spsetup-item', it.key); row.setAttribute('data-state', it.state)

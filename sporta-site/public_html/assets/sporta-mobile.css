@@ -25,6 +25,11 @@
     object-position: 0% center !important;
   }
 }
+@media (max-width: 767.98px) {
+  main .h-\[calc\(4\.75rem\+var\(--sa-bottom\)\)\].md\:hidden {
+    display: none;
+  }
+}
 @media (max-width: 767px) {
   form:has(input[type='password']) input {
     font-size: 16px;
@@ -380,4 +385,35 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
   main section > .guest-note .guest-note__body { margin: 0; font-size: 0; line-height: 0; flex: none; }
   main section > .guest-note .guest-note__body a { font-size: 13px; line-height: 1.4; }
   main section > .guest-note .guest-note__title { font-size: 14px; }
+}
+@media (max-width: 767px) {
+  main .mt-6.space-y-3 {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  main .mt-6.space-y-3 > * {
+    margin-block: 0 !important;
+  }
+  main .mt-6.space-y-3 > .rounded-2xl:has(> ul) {
+    order: -1;
+  }
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky {
+    display: contents;
+  }
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) > .md\:sticky > .rounded-2xl {
+    order: 1;
+    margin-top: 0;
+  }
+}
+@media (max-width: 767px) {
+div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded-full.border > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+}
+@media (max-width: 767px) {
+@media (hover: hover) and (pointer: fine) {
+  .admin-content .pt-bar button { min-height: 2.375rem; }
+}
 }

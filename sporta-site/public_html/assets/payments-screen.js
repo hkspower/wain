@@ -79,7 +79,11 @@
     + '.spps-in{padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.5);background:transparent;color:inherit;font:inherit;width:9em}'
     + '.spps-note{font-size:13px;line-height:1.5;margin:8px 0 0}'
     + '.spps-detail{font-size:12px;opacity:.8;margin:2px 0 0}'
-    + '.spps-sw{width:44px;height:26px;accent-color:#4f46e5}'
+    // 20x20, the panel's overlay checkbox size (2026-10-08). 44x26 was a switch's track with no
+    // switch drawn, so Chrome drew a 26px tick box — the largest checkbox in the panel — indented
+    // 9px from the edge the heading and Save line up on. The whole 69px row is a <label>, so the
+    // click target is the row, not the box; on a touch screen panel-ux.js still makes it 22px.
+    + '.spps-sw{width:20px;height:20px;accent-color:#4f46e5}'
 
   function style() {
     if (document.getElementById('spps-css')) return

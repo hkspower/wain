@@ -1,0 +1,73 @@
+/* THE CHOSEN SIZE AND FIT READ AS CHOSEN — 2026-10-08. P7 of the product-page review, approved by
+ * the owner: the size or fit the shopper picks turns dark with white letters, the colour being
+ * viewed gets a firm dark ring, and an owner-set Secondary button colour (/backends -> Settings ->
+ * Buttons and bars -> Secondary button) is used for the chosen chip instead of the dark.
+ *
+ * WHAT WAS WRONG. A chosen size or fit was filled #d5d9de with a #4b4f55 border: 1.42:1 against the
+ * white available chips and 1.28:1 against the #f2f3f5 fill of the struck-through ones, so "chosen"
+ * read almost like "unavailable". Nobody chose that look. The bundle paints a chosen chip bg-brand,
+ * sporta-dark.css repaints bg-brand as var(--sp-secondary-bg, var(--sp-chip, ...)), and the white
+ * body (65-white-body.css, 2026-10-01) remapped --sp-chip to that pale grey; the theme's
+ * --sp-secondary-bg is unset in the sandbox (?r=theme answers secondary_bg: "").
+ *
+ * THE OWNER'S SECONDARY COLOUR, AND THE INK ON IT. The stress test measured the first draft — white
+ * letters on var(--sp-secondary-bg) — against every preset the theme editor offers, and every one
+ * fell below today's contrast: #a6acb2 2.29:1, #e0561c 3.81:1, #ff7b17 2.59:1, #eaecee 1.18:1. The
+ * editor pairs that colour with DARK ink (theme-colors.js `on: '#171a1e'`) and so does sporta-dark.css
+ * (--sp-on-ember). So the ink here is not fixed: it is worked out from the fill itself, with CSS
+ * relative colour (oklch(from ...)) — white on a fill darker than oklch L 0.6, the shop's dark ink
+ * #171a1e on a lighter one. L 0.6 is about where the two inks give equal contrast; every editor preset
+ * lands on the dark ink at 4.59:1 or better (#e0561c 4.59, #ff7b17 6.73, #a6acb2 7.62, #eaecee
+ * 14.74), the unset theme lands on white (#171a1e fill, 17.46:1). theme.js stays untouched: it emits
+ * only --sp-secondary-bg, which is all this needs.
+ *   The colour ring follows the same rule the other way round: the owner's colour when it is dark
+ * enough to be seen against the white card (L < 0.6, about 4:1 or more), the shop's dark ink when it
+ * is not — a pale ring (#eaecee is 1.18:1 on white) would be no ring at all.
+ *   A browser without relative colour (Safari before 18, Firefox before 128) drops the @supports
+ * block and keeps the fixed dark-with-white below — the version the stress test proved. It never
+ * gets white letters on a light owner colour.
+ *
+ * :not(:disabled) because the bundle's OptionBox sets aria-pressed and disabled independently and
+ * gives disabled the priority: a pressed-but-disabled size must not read as chosen and available.
+ * The size adviser's chosen answers ("Height and weight", "As it is cut") get the same look, so the
+ * product page has one "selected" look rather than two. box-shadow: none removes only the bundle's
+ * near-invisible ring-brand/30; the keyboard focus ring is an outline and is untouched.
+ *
+ * Specificity (0,5,2) and (0,6,2), both !important: above sporta-dark.css's
+ * [data-theme='dark'] .bg-brand:not(.btn-primary) (0,3,0) and .border-brand (0,2,0). No @media, so
+ * the build keeps it in sporta-ui.css. /backends is excluded (main.admin-content). */
+main:not(.admin-content) .space-y-3 .rounded-2xl button[aria-pressed="true"]:not(:disabled),
+main:not(.admin-content) [role="dialog"] .filter-scroller > button[aria-pressed="true"] {
+  background-color: #171a1e !important;
+  border-color: #171a1e !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+/* the colour being viewed: a 2px dark ring (border + 1px inset), so hovering another pill (1px
+   #4b4f55) no longer looks the same as the current one */
+main:not(.admin-content) .space-y-3 .rounded-2xl ul > li > a[aria-current="page"] {
+  border-color: #171a1e !important;
+  box-shadow: inset 0 0 0 1px #171a1e !important;
+}
+
+/* The owner's Secondary colour, where the browser can work out the ink. The clamp() is a step:
+   1 when the fill's L is under 0.6, 0 when it is over. 0.216346 0.009105 255.663 is #171a1e. */
+@supports (color: oklch(from red calc(l * 1) c h)) {
+  main:not(.admin-content) .space-y-3 .rounded-2xl button[aria-pressed="true"]:not(:disabled),
+  main:not(.admin-content) [role="dialog"] .filter-scroller > button[aria-pressed="true"] {
+    background-color: var(--sp-secondary-bg, #171a1e) !important;
+    border-color: var(--sp-secondary-bg, #171a1e) !important;
+    color: oklch(from var(--sp-secondary-bg, #171a1e)
+      calc(0.216346 + clamp(0, (0.6 - l) * 1000, 1) * 0.783654)
+      calc(0.009105 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      255.663) !important;
+  }
+  main:not(.admin-content) .space-y-3 .rounded-2xl ul > li > a[aria-current="page"] {
+    --sp-sel-ring: oklch(from var(--sp-secondary-bg, #171a1e)
+      calc(l * clamp(0, (0.6 - l) * 1000, 1) + 0.216346 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      calc(c * clamp(0, (0.6 - l) * 1000, 1) + 0.009105 * (1 - clamp(0, (0.6 - l) * 1000, 1)))
+      calc(h * clamp(0, (0.6 - l) * 1000, 1) + 255.663 * (1 - clamp(0, (0.6 - l) * 1000, 1))));
+    border-color: var(--sp-sel-ring) !important;
+    box-shadow: inset 0 0 0 1px var(--sp-sel-ring) !important;
+  }
+}

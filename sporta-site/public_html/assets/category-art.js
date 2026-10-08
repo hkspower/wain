@@ -85,10 +85,20 @@
   function errText(code) { var e = ERR[code]; return e ? e.en : String(code) }
 
   var CSS = ''
-    + '.cta{padding:16px;border-radius:12px;border:1px solid var(--border,#2a2d31)}'
+    // A size container (2026-10-08), so the tile grid can choose its columns from the CARD's width.
+    + '.cta{padding:16px;border-radius:12px;border:1px solid var(--border,#2a2d31);container-type:inline-size}'
     + '.cta h3{margin:0 0 6px;font-size:18px}'
     + '.cta-intro{margin:0 0 14px;font-size:13px;line-height:1.5;opacity:.8}'
-    + '.cta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:14px}'
+    // ONE, TWO OR FOUR COLUMNS, NEVER THREE (2026-10-08, "fix large boxes"). There are exactly four
+    // tiles, and auto-fill at 240px gave three columns between about 1030px and 1360px: Outlet alone
+    // on a second row beside two empty cells, the card 858px tall at 1280 where 415px holds it.
+    // Lowering the minimum only moves the hole (200px puts the same 3+1 at 1024). So the count is
+    // chosen by the card's own width: 1 below 440px, 2 from 440px, 4 from 860px (at most 300px a
+    // tile, so a very wide screen does not stretch them). Browsers without container queries
+    // (before Chrome 105 / Safari 16) ignore the two @container rules and show one column.
+    + '.cta-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}'
+    + '@container (min-width:440px){.cta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}'
+    + '@container (min-width:860px){.cta-grid{grid-template-columns:repeat(4,minmax(0,300px))}}'
     + '.cta-tile{min-width:0;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;border:1px solid var(--border,#2a2d31)}'
     + '.cta-tile.editing{grid-column:1/-1}.cta-name{font-weight:700}'
     + '.cta-status{font-size:12px;opacity:.75}'
@@ -104,6 +114,13 @@
     + '.cta-field{display:flex;flex-direction:column;gap:2px;font-size:12px}'
     + '.cta-field input{width:100%}'
     + '.cta-note{margin:8px 0 0;font-size:13px;line-height:1.4}'
+    // TWO PER ROW ON A PHONE (2026-10-08). One column made each preview 320x260 — larger than the
+    // same preview on a 1280 desktop (273x222) — and the card 1,815px, 2.2 phone screens, for four
+    // pictures whose only job is "which picture is this". Two per row shows each whole picture at
+    // 150x122 (same 1216/988 shape) and the card is 680px. The tile being EDITED still spans the
+    // row (.cta-tile.editing above), and its Save and Cancel keep their size (:not(.editing)).
+    + '@media (max-width:767.98px){.cta-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}'
+    + '.cta-tile{padding:8px}.cta-tile:not(.editing) .cta-btn{width:100%;padding:8px 6px;font-size:14px}}'
 
   function style() {
     if (document.getElementById('cta-css')) return
