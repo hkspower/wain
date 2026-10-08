@@ -465,7 +465,7 @@ export default function SalemChat() {
         if (ranked.length === 0) {
           // A part of Kuwait with nothing in it says so by name; anything else
           // is a word that matched nothing.
-          const where = mod.elsewhereNamed(query, index);
+          const where = follow.elsewhereNamed(query, index);
           say(`${opener}${where ? WAIN_AI_CHAT_COPY.elsewhere(where) : WAIN_AI_CHAT_COPY.freeEmpty}`);
           ctxRef.current = null;
         } else {

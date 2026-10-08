@@ -45,7 +45,14 @@
  * SalemChat loads it with the index, never up front.
  */
 import type { Place } from "@/lib/places";
-import { normalise } from "@/lib/search";
+import {
+  ELSEWHERE_IN_KUWAIT,
+  PHRASE_PAIRS,
+  declitic,
+  normalise,
+  tokenize,
+  type SearchIndex,
+} from "@/lib/search";
 import { isKuwaitNight, isSummerMonth } from "@/lib/kuwait-time";
 
 /** What the chat remembers about its last answer. */
@@ -420,6 +427,44 @@ export function readFollowUp(
 export function withinAnswer(ranked: string[], ctx: ChatContext): string[] {
   const had = new Set(ctx.ranked);
   return ranked.filter((s) => had.has(s));
+}
+
+/**
+ * The part of Kuwait a question names that this catalogue has nothing in —
+ * «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
+ * particle glued to its front; or null. search() answers such a question with
+ * nothing, which is honest; this is what lets the answer say WHY. سالم used to
+ * reply «ما لقيت شي… جرّب اسم منطقة» to the name of a governorate (8 October).
+ *
+ * Here and not in search.ts, though it is the search's own rule read back:
+ * only سالم says it, and an export of search.ts ships on /search whether
+ * /search calls it or not — it put /search at 175.9K of its 176K.
+ */
+export function elsewhereNamed(query: string, index: SearchIndex): string | null {
+  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
+  const units = query
+    .split(/\s+/)
+    .map((u) => u.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+  for (const unit of units) {
+    const t = tokenize(unit)[0];
+    if (!t) continue;
+    if (elsewhere(t)) return unit;
+    if (declitic(t).some(elsewhere)) {
+      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
+      if (/^[بوفك]ال/.test(unit)) return unit.slice(1);
+      if (unit.startsWith("لل")) return "ال" + unit.slice(2);
+      return unit.slice(1);
+    }
+  }
+  for (let i = 0; i + 1 < units.length; i++) {
+    const a = tokenize(units[i]).at(-1);
+    const b = tokenize(units[i + 1])[0];
+    // Adjacent, and only as the search reads them: «صباح السالم», not
+    // «بصباح السالم» — which the search does not stop either.
+    if (PHRASE_PAIRS.some(([x, y]) => x === a && y === b)) return `${units[i]} ${units[i + 1]}`;
+  }
+  return null;
 }
 
 /** The next places of the same answer, for «غيره». Empty when it has none. */

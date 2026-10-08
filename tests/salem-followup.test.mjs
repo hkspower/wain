@@ -26,7 +26,7 @@ writeFileSync(
   entry,
   `export * from ${at("salem-followup.ts")};\n` +
     `export { places } from ${at("places.ts")};\n` +
-    `export { buildIndex, search, elsewhereNamed, isTopicless } from ${at("search.ts")};\n` +
+    `export { buildIndex, search, isTopicless } from ${at("search.ts")};\n` +
     `export { answerOrder } from ${at("answer-order.ts")};\n`
 );
 const bundle = join(tmp, "entry.mjs");

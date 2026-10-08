@@ -42,7 +42,7 @@ writeFileSync(
     `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n` +
     // سالم's memory reads a short reply against the last answer, folding words
     // with this same search's `normalise` — so it is replayed with it too.
-    `export { readFollowUp, nextPlaces, followUpChips, withinAnswer, areaIndex } from ${JSON.stringify(join(ROOT, "src/lib/salem-followup.ts"))};\n`
+    `export { readFollowUp, nextPlaces, followUpChips, withinAnswer, areaIndex, elsewhereNamed } from ${JSON.stringify(join(ROOT, "src/lib/salem-followup.ts"))};\n`
 );
 const bundle = join(tmp, "entry.mjs");
 execSync(

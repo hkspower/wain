@@ -599,7 +599,7 @@ function synonymsOf(token: string): string[] {
  * when the token itself is not in the index, so a real word that merely starts
  * with one of these letters — بحر, ليلة, كرك — is never mangled.
  */
-function declitic(token: string): string[] {
+export function declitic(token: string): string[] {
   const out: string[] = [];
   const add = (t: string) => {
     if (t.length > 1 && !out.includes(t) && t !== token) out.push(t);
@@ -1133,46 +1133,13 @@ export function isTopicless(query: string): boolean {
   return raw.length > 0 && raw.every((t) => FILLER_SET.has(t)) && raw.some((t) => GOING_OUT_SET.has(t));
 }
 
-/**
- * The part of Kuwait a question names that this catalogue has nothing in —
- * «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
- * particle glued to its front; or null. search() answers such a question with
- * nothing, which is honest; this is what lets the answer say WHY. سالم used to
- * reply «ما لقيت شي… جرّب اسم منطقة» to the name of a governorate (8 October).
- */
-export function elsewhereNamed(query: string, index: SearchIndex): string | null {
-  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
-  const units = query
-    .split(/\s+/)
-    .map((u) => u.replace(/[^\p{L}\p{N}]/gu, ""))
-    .filter(Boolean);
-  for (const unit of units) {
-    const t = tokenize(unit)[0];
-    if (!t) continue;
-    if (elsewhere(t)) return unit;
-    if (declitic(t).some(elsewhere)) {
-      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
-      if (/^[بوفك]ال/.test(unit)) return unit.slice(1);
-      if (unit.startsWith("لل")) return "ال" + unit.slice(2);
-      return unit.slice(1);
-    }
-  }
-  for (let i = 0; i + 1 < units.length; i++) {
-    const a = tokenize(units[i]).at(-1);
-    const b = tokenize(units[i + 1])[0];
-    // Adjacent, and only as readQuery reads them: «صباح السالم», not
-    // «بصباح السالم» — which readQuery does not stop either.
-    if (PHRASE_PAIRS.some(([x, y]) => x === a && y === b)) return `${units[i]} ${units[i + 1]}`;
-  }
-  return null;
-}
 const NEGATOR_SET = new Set(NEGATORS.map(normalise));
 const WANT_SET = new Set(WANT_WORDS.map(normalise));
 const foldTable = (t: Record<string, string[]>) =>
   new Map(Object.entries(t).map(([k, v]) => [normalise(k), v.flatMap((x) => tokenize(x))]));
 const ANTONYM_LOOKUP = foldTable(ANTONYMS);
 const REWRITE_LOOKUP = foldTable(REWRITE);
-const PHRASE_PAIRS = ELSEWHERE_PHRASES.map((pair) => pair.map((w) => tokenize(w)[0]));
+export const PHRASE_PAIRS = ELSEWHERE_PHRASES.map((pair) => pair.map((w) => tokenize(w)[0]));
 
 /**
  * «مطعمسمك», «سوقالمباركية» — two words with the space lost, which a phone
