@@ -14,7 +14,10 @@
 #
 # Fleet renders are 2560x1440, the size the Blender renders are made at,
 # so a car and its Cycles twin compare pixel for pixel; --4k is the
-# Black Demon's 3840x2160 with 32 temporal samples.
+# Black Demon's 3840x2160 with 32 temporal samples. On an Apple-silicon
+# Mac, build reads the machine (chip, memory, GPU cores) and sizes the
+# presets for it — tiles by memory, temporal samples by GPU cores — and
+# prints the profile it chose; build.json records it.
 #
 # Every run writes a log to press/unreal/logs/. When a step fails, that
 # log is what to send back with the report.
@@ -75,6 +78,30 @@ find_engine() {
 export UE_PYTHONPATH="$HERE${UE_PYTHONPATH:+:$UE_PYTHONPATH}"
 
 COMMON=(-stdout -FullStdOutLogOutput -unattended -nosplash -NoLoadingScreen)
+
+# ---- this machine ----------------------------------------------------
+# On an Apple-silicon Mac: the chip, the one pool of memory, the
+# performance cores and the GPU cores, read off the system and handed to
+# build as --mac-* so the presets are sized for THIS machine (tiles by
+# memory, temporal samples by GPU cores — showcase_math.mac_profile).
+# Elsewhere, or where a reading fails, nothing is passed and the kit's
+# defaults stand. system_profiler is the only way to count GPU cores and
+# it takes a few seconds, so it is read once per run.
+MAC_ARGS=()
+read_machine() {
+  [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ] || return 0
+  local chip mem perf gpu
+  chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)"
+  mem="$(sysctl -n hw.memsize 2>/dev/null || true)"
+  perf="$(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null || true)"
+  gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | sed -n 's/.*Total Number of Cores: *\([0-9]*\).*/\1/p' | head -1)"
+  [ -n "$mem" ] || return 0
+  MAC_ARGS=("--mac-memory-gb=$((mem / 1073741824))")
+  [ -n "$gpu" ] && MAC_ARGS+=("--mac-gpu-cores=$gpu")
+  [ -n "$perf" ] && MAC_ARGS+=("--mac-perf-cores=$perf")
+  [ -n "$chip" ] && MAC_ARGS+=("--mac-chip=$chip")
+  say machine "$(python3 "$HERE/showcase_math.py" "${MAC_ARGS[@]}")"
+}
 stamp() { date +%Y%m%d-%H%M%S; }
 
 editor_py() {  # run grn_showcase.py <args> inside the editor, then quit
@@ -120,16 +147,19 @@ case "$cmd" in
     only="$(IFS=,; echo "${missing[*]}")"
     say export "${#missing[@]} car(s): $only"
     (cd "$REPO" && node tools/shots/export-cars.mjs --only "$only") ;;
-  probe|build|report)
+  probe|report)
     find_engine
     editor_py "$cmd" "$@" ;;
+  build)
+    find_engine; read_machine
+    editor_py "$cmd" "$@" "${MAC_ARGS[@]}" ;;
   preview)
     id="${1:?preview which car? e.g. run.sh preview black-demon hero}"; shot="${2:-hero}"
     ids_for "$id" >/dev/null; find_engine
     s="$(slug_of "$id")"
     mrq "$SHOWCASE/$s/Studio" "$SHOWCASE/$s/Sequences/LS_$shot" "$SHOWCASE/$s/MRQ/MRQ_preview" 960 540 "$id-preview-$shot" ;;
   render)
-    find_engine
+    find_engine; read_machine
     q=still; shot=all; target=all
     for a in "$@"; do
       case "$a" in

@@ -169,6 +169,33 @@ except ValueError:
     pass
 print("probe       " + ("ok" if len(fail) == n0 else "FAIL"))
 
+# --- the Mac --------------------------------------------------------------
+n0 = len(fail)
+d = sm.mac_profile()
+check(d["fleet"] == sm.FLEET and d["still4k"] == sm.STILL and d["cvars"] == {} and d["label"] == "kit defaults",
+      "with no machine read, mac_profile must hand back the kit's defaults untouched")
+air = sm.mac_profile(8, 8, 4, "Apple M2")
+check(air["fleet"]["tiles"] == 2 and air["still4k"]["tiles"] == 3, f"8 GB should tile the frame: {air['fleet']['tiles']}, {air['still4k']['tiles']}")
+check(air["fleet"]["temporal"] == sm.FLEET["temporal"] and air["still4k"]["temporal"] == sm.STILL["temporal"],
+      "an 8-core M2 keeps the kit's temporal counts")
+check(air["pool_mb"] == 2048 and air["cvars"]["r.Streaming.PoolSize"] == 2048, f"8 GB lands on the pool floor, not {air['pool_mb']}")
+pro = sm.mac_profile(16, 19, 8, "Apple M2 Pro")
+check(pro["fleet"]["tiles"] == 1 and pro["still4k"]["tiles"] == 2, f"16 GB: one tile at 2.5K, four at 4K; got {pro['fleet']['tiles']}, {pro['still4k']['tiles']}")
+check(pro["fleet"]["temporal"] == 24 and pro["still4k"]["temporal"] == 48, f"a 19-core Pro takes half as many samples again: {pro['fleet']['temporal']}, {pro['still4k']['temporal']}")
+check(pro["pool_mb"] == 4096, f"16 GB is a 4 GB pool, not {pro['pool_mb']}")
+mx = sm.mac_profile(96, 38, 12, "Apple M2 Max")
+check(mx["fleet"]["temporal"] == 32 and mx["pool_mb"] == 12288, f"a Max doubles the samples and hits the pool ceiling: {mx['fleet']['temporal']}, {mx['pool_mb']}")
+for prof in (air, pro, mx):
+    check(prof["cvars"]["r.Lumen.HardwareRayTracing"] == 0, "every Apple profile says software Lumen")
+    check(prof["cvars"]["r.TSR.History.ScreenPercentage"] == 100, "every Apple profile keeps TSR's history native")
+    check(prof["fleet"]["width"] == sm.FLEET["width"] and prof["still4k"]["width"] == sm.STILL["width"],
+          "the profile must not change the frame sizes the Blender comparison depends on")
+check("M2 Pro" in pro["label"] and "Pro Pro" not in pro["label"], f"label repeats the chip's tier: {pro['label']}")
+from_args = sm.mac_profile_from_args(["build", "all", "--mac-memory-gb=16", "--mac-gpu-cores=19", "--mac-perf-cores=8", "--mac-chip=Apple M2 Pro"])
+check(from_args == pro, "mac_profile_from_args does not read run.sh's arguments back to the same profile")
+check(sm.mac_profile_from_args(["--mac-memory-gb=lots"])["label"] == "kit defaults", "an unreadable memory figure must fall back to the defaults, not raise")
+print("mac         " + ("ok" if len(fail) == n0 else "FAIL"))
+
 if fail:
     print("\nFAIL\n  " + "\n  ".join(fail))
     sys.exit(1)

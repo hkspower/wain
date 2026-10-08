@@ -81,6 +81,52 @@ GRN.Api.Status
 in the Unreal console (the tilde key, in Play-In-Editor). One line: the
 URL, whether the data is live or baked, and — if baked — why.
 
+### A MacBook M2, at full power
+
+A Mac with an Apple GPU takes its own graphics profile at boot
+(`GRNGraphics::ApplyAppleSilicon`, after `ApplyMax`) and none of the
+NVIDIA one: there is no DXR, NGX or Reflex to ask for, and the
+ray-tracing lines would ask Lumen for hardware the chip has not got. An
+M2 is not a smaller RTX card, and the profile is written from what it
+is instead:
+
+- **One pool of memory.** The streaming pool is a quarter of physical
+  memory between 2 and 12 GB — the floor on an 8 GB Air, 6 GB on a 24 GB
+  Pro — where the RTX path's 16 GB would have been a swap file on all
+  but a 96 GB Max. `r.Streaming.LimitPoolSizeToVRAM` is off, because
+  Metal reports a working set, not a VRAM size.
+- **No ray-tracing hardware.** Lumen traces in software by decision
+  (`r.Lumen.HardwareRayTracing 0`), not by fallback, and the global
+  distance field it reads stays on.
+- **The panel's rate is the target, and the whole GPU goes on holding
+  it.** Dynamic resolution between 50% and native with the panel's frame
+  time as the budget (`r.DynamicRes.OperationMode 2`), TSR filling in to
+  native: a 120 Hz ProMotion panel gets 120 frames of whatever the chip
+  draws in 8.3 ms, a 60 Hz Air 60 of twice as much, and the GPU is never
+  idle. V-sync off and the cap three under the panel, as `-grngsync`
+  does. TSR's 2x history comes down to native — four times the bandwidth,
+  on a bus the CPU is also on.
+- **MegaLights stays off** — `MegaLightsActive` needs ray-tracing
+  hardware — so the ~170 lamps are built unshadowed, as they always were.
+  `-grnmegalightssoft` lets it say yes on SM6 without the hardware, which
+  is MegaLights' own software path (the global distance field in place of
+  the rays, at a quality Epic calls significantly reduced). Whether 5.8
+  takes that path for every lamp on Metal is not something this
+  repository could confirm, so it is opt-in; the boot log says which the
+  session got.
+
+`-grnnoapple` leaves a Mac on the generic path; `-grnapple` forces the
+profile elsewhere (to read its effect); `-grnapplefps=N` targets a rate
+other than the panel's. `unreal/mac/connect.sh` prints the machine it
+found and the render profile the showcase kit will size itself to
+(`unreal/Showcase/README.md`, "On a MacBook M2, at full power").
+
+> Not compiled on a Mac. `IsRHIDeviceApple()` is the RHI's own vendor
+> test and `FPlatformMisc::GetMaxRefreshRate()` the panel's; both are
+> read from the 5.8 headers, not watched working. The first build is
+> where a renamed symbol shows, and the boot log line that starts
+> `GRNGraphics: Apple silicon profile` is the check that it ran.
+
 ### App Transport Security
 
 This is the macOS-specific trap. A **packaged** `.app` refuses cleartext

@@ -188,6 +188,19 @@ if chans[5].add_key.call_args_list:
     check(abs(yaw_end - 360.0) < 1e-9, f"the turntable ends at yaw {yaw_end}, expected 360")
 print("build one   ok" if len(fail) == n0 else "build one   FAIL")
 
+# the same car on a read machine: the presets take the profile and the report says so
+n0 = len(fail)
+mod, u, logs, chans = run("build", "black-demon", "--mac-memory-gb=8", "--mac-gpu-cores=8", "--mac-perf-cores=4", "--mac-chip=Apple M2")
+check(not logs["error"], "build on an M2 logged errors:\n  " + "\n  ".join(logs["error"]))
+check(any("machine: Apple M2, 8 GB" in m for m in logs["log"]), "build did not log the machine profile it was given")
+check(any("MRQ_still:" in m and "2x2 tiles" in m for m in logs["log"]), f"on 8 GB the fleet still should be 2x2 tiles: {[m for m in logs['log'] if 'MRQ_still' in m]}")
+check(any("MRQ_still4k:" in m and "3x3 tiles" in m for m in logs["log"]), "on 8 GB the 4K still should be 3x3 tiles")
+bj = next((v for k, v in CAPTURED.items() if k.endswith("black-demon/build.json") or k.endswith("black_demon/build.json")), None)
+machine = (json.loads(bj) if bj else {}).get("machine", {})
+check(machine.get("memory_gb") == 8 and machine.get("pool_mb") == 2048 and machine.get("fleet", {}).get("tiles") == 2,
+      f"build.json does not record the machine the presets were sized for: {machine}")
+print("build m2    ok" if len(fail) == n0 else "build m2    FAIL")
+
 n0 = len(fail)
 mod, u, logs, chans = run("build", "all")
 have = [c for c in sm.car_ids() if sm.glb_path(c)]

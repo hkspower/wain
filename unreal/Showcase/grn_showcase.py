@@ -702,22 +702,29 @@ def build_car(P, opts):
     # The night shot renders from the player's own camera, so no cut
     make_sequence("LS_night", 1, P)
 
-    F = sm.FLEET
+    # The machine this is being built on, when run.sh read it: tiles by
+    # memory, temporal samples by GPU cores, the pool by memory
+    # (showcase_math.mac_profile). Without it, the kit's defaults.
+    M = opts.get("machine") or sm.mac_profile()
+    F, S4 = M["fleet"], M["still4k"]
+    cvars = {**QUALITY_CVARS, **M["cvars"]}
+    log(f"machine: {M['label']}")
     make_preset("MRQ_preview", sm.PREVIEW["width"], sm.PREVIEW["height"], "preview", 4, P, warmup=16)
     make_preset("MRQ_still", F["width"], F["height"], "stills", F["temporal"], P, tiles=F["tiles"],
-                warmup=32, cvars=QUALITY_CVARS)
-    make_preset("MRQ_still4k", sm.STILL["width"], sm.STILL["height"], "stills4k", sm.STILL["temporal"], P,
-                tiles=sm.STILL["tiles"], warmup=48, cvars=QUALITY_CVARS)
-    make_preset("MRQ_night", 1920, 1080, "night", 32, P, warmup=64, cvars=QUALITY_CVARS)
+                warmup=32, cvars=cvars)
+    make_preset("MRQ_still4k", S4["width"], S4["height"], "stills4k", S4["temporal"], P,
+                tiles=S4["tiles"], warmup=48, cvars=cvars)
+    make_preset("MRQ_night", 1920, 1080, "night", 32, P, warmup=64, cvars=cvars)
     if turntable:
         make_preset("MRQ_turntable1080", sm.TURNTABLE["width"], sm.TURNTABLE["height"], "turntable", 8, P,
-                    warmup=32, cvars=QUALITY_CVARS)
+                    warmup=32, cvars=cvars)
 
     report = {
         "car": P.car_id, "name": P.name, "engine": engine_version(),
         "glb": {"file": P.glb, "triangles": glb["triangles"], "materials": glb["materials"], "paint": glb["paint"],
                 "nose_gltf": glb["nose_gltf"], "bounds_blender": glb["bounds_blender"]},
         "card_length_m": P.length_m,
+        "machine": {k: M[k] for k in ("label", "chip", "memory_gb", "gpu_cores", "perf_cores", "pool_mb", "fleet", "still4k")},
         "mesh": P.mesh, "mesh_bounds_cm": [mn, mx], "actor_yaw": actor_yaw,
         "paint_slot": paint_slot, "paint_is_ports": paint_is_ports, "paint_param": "Color" if paint_is_ports else "None",
         "map": P.studio_map,
@@ -815,6 +822,8 @@ def main(argv):
     opts = {"turntable": "--turntable" in rest or None}
     if opts["turntable"] is None:
         del opts["turntable"]
+    if any(a.startswith("--mac-") for a in rest):
+        opts["machine"] = sm.mac_profile_from_args(rest)
     target = next((a for a in rest if not a.startswith("--")), "all" if cmd in ("build", "report") else None)
     try:
         if cmd == "probe":

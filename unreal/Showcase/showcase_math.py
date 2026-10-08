@@ -152,6 +152,97 @@ FLEET = {"width": 2560, "height": 1440, "tiles": 1, "temporal": 16}
 TURNTABLE = {"width": 1920, "height": 1080, "frames": 240, "fps": 24}
 PREVIEW = {"width": 960, "height": 540}
 
+# ---------------------------------------------------------------- the Mac
+#
+# What a given Apple-silicon Mac can be asked for. The kit's defaults
+# above are sized for nothing in particular; a MacBook M2 has one pool
+# of memory the GPU and the editor share, no ray-tracing hardware, and
+# between eight and thirty-eight GPU cores depending on the chip. Movie
+# Render Queue is an offline renderer, so "full power" here means two
+# different things and they are kept apart:
+#
+#   memory decides the TILES. A 3840 x 2160 frame rendered as one tile
+#   holds the whole G-buffer, Lumen's scene and the accumulation buffers
+#   at once; on 8 GB shared with the editor that is the swap file, which
+#   on a Mac is silent and ten times slower. Tiles cut the frame into
+#   pieces that are rendered one after another and stitched, at the
+#   same quality — only time is spent.
+#
+#   GPU cores decide the TEMPORAL SAMPLES. Each is a whole extra render
+#   of the frame, so they are the knob that converts cores into quality
+#   at a fixed wall-clock cost: the fleet's 16 on an 8-core M2 takes the
+#   same minutes as 32 on a 16-core M2 Pro, and the 32 are better.
+#
+# Nothing here is a measurement. The numbers are where to START on each
+# machine; `run.sh preview` is the clock, and build.json records which
+# profile a render was made under so a frame can be read against it.
+MAC_POOL_MB = (2048, 12288)       # the streaming pool, a quarter of memory within these
+
+
+def mac_profile(memory_gb=None, gpu_cores=None, perf_cores=None, chip=""):
+    """MRQ settings for this Mac. With no numbers (not a Mac, or run.sh
+    could not read them) it returns the kit's own defaults, so a build
+    never depends on the machine having been read."""
+    p = {
+        "chip": chip or "", "memory_gb": memory_gb, "gpu_cores": gpu_cores, "perf_cores": perf_cores,
+        "fleet": dict(FLEET), "still4k": dict(STILL), "cvars": {}, "pool_mb": None,
+        "label": "kit defaults",
+    }
+    if not memory_gb:
+        return p
+    mem = float(memory_gb)
+    cores = int(gpu_cores or 8)
+    # Tiles by memory. Below 12 GB the editor alone is a third of it.
+    if mem < 12:
+        p["fleet"]["tiles"], p["still4k"]["tiles"] = 2, 3
+    elif mem < 20:
+        p["fleet"]["tiles"], p["still4k"]["tiles"] = 1, 2
+    else:
+        p["fleet"]["tiles"], p["still4k"]["tiles"] = 1, 2
+    # Temporal samples by GPU cores: the 8-core M2 keeps the kit's
+    # counts; a Pro (16 or 19) takes half as many again, a Max (30, 38)
+    # or Ultra twice, for the same minutes per frame.
+    scale = 1.0 if cores < 14 else 1.5 if cores < 28 else 2.0
+    p["fleet"]["temporal"] = int(round(FLEET["temporal"] * scale))
+    p["still4k"]["temporal"] = int(round(STILL["temporal"] * scale))
+    # A quarter of the one memory for the streaming pool, inside the clamp.
+    p["pool_mb"] = int(min(MAC_POOL_MB[1], max(MAC_POOL_MB[0], mem * 1024 / 4)))
+    p["cvars"] = {
+        # No ray-tracing hardware on an M2 (and Metal's path for it on
+        # later chips is experimental): say so, so Lumen takes its
+        # software tracer by decision rather than by fallback.
+        "r.Lumen.HardwareRayTracing": 0,
+        "r.Streaming.PoolSize": p["pool_mb"],
+        # TSR's supersampled history is 4x the bandwidth of a native one,
+        # and unified memory is bandwidth the CPU is also using. MRQ's
+        # temporal samples do the supersampling here anyway.
+        "r.TSR.History.ScreenPercentage": 100,
+    }
+    kind = "Ultra" if cores >= 60 else "Max" if cores >= 28 else "Pro" if cores >= 14 else ""
+    p["label"] = (f"{chip or 'Apple silicon'}{' ' + kind if kind and kind not in (chip or '') else ''}, "
+                  f"{mem:g} GB, {cores} GPU cores: fleet {p['fleet']['tiles']}x{p['fleet']['tiles']} tiles "
+                  f"x {p['fleet']['temporal']} samples, 4K {p['still4k']['tiles']}x{p['still4k']['tiles']} "
+                  f"x {p['still4k']['temporal']}, pool {p['pool_mb']} MB")
+    return p
+
+
+def mac_profile_from_args(args):
+    """The --mac-*=value arguments run.sh passes to build (and nothing
+    else): memory in GB, GPU cores, performance cores, the chip's name."""
+    got = {}
+    for a in args:
+        if not a.startswith("--mac-") or "=" not in a:
+            continue
+        k, v = a[len("--mac-"):].split("=", 1)
+        got[k.replace("-", "_")] = v
+    def num(k):
+        try:
+            return float(got[k]) if "." in got.get(k, "") else int(got[k])
+        except (KeyError, ValueError):
+            return None
+    return mac_profile(num("memory_gb"), num("gpu_cores"), num("perf_cores"), got.get("chip", ""))
+
+
 # The night Gulf Road stations: the same two places the web build's 4K
 # stills stand (tools/shots/ik4k.mjs), in metres along the lap and off
 # the centreline, with the camera the web's sweep shot uses.
@@ -495,3 +586,9 @@ def map_dir(mapping, d):
 def turntable_yaw(frame, frames=TURNTABLE["frames"]):
     """Degrees of car yaw at a turntable frame: one full turn, linear."""
     return 360.0 * frame / frames
+
+
+if __name__ == "__main__":
+    # run.sh and mac/connect.sh print the profile this machine gets:
+    #   python3 showcase_math.py --mac-memory-gb=16 --mac-gpu-cores=10 --mac-perf-cores=8 --mac-chip="Apple M2"
+    print(mac_profile_from_args(sys.argv[1:])["label"])

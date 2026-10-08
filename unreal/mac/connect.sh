@@ -53,6 +53,22 @@ if [ "$(uname -s)" != "Darwin" ]; then
   say "platform" "$(uname -s), not macOS — the checks below still work, the Xcode step does not"
 else
   say "platform" "macOS $(sw_vers -productVersion 2>/dev/null) on $(uname -m)"
+  if [ "$(uname -m)" = "arm64" ]; then
+    # The machine the renders will be sized for (unreal/Showcase/run.sh
+    # reads the same four numbers): the chip, its one pool of memory,
+    # the performance cores and the GPU cores. system_profiler is the
+    # only place the GPU core count is written down.
+    chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null)"
+    mem="$(sysctl -n hw.memsize 2>/dev/null)"
+    perf="$(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null)"
+    gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | sed -n 's/.*Total Number of Cores: *\([0-9]*\).*/\1/p' | head -1)"
+    say "machine" "${chip:-Apple silicon}, $((${mem:-0} / 1073741824)) GB, ${perf:-?} performance cores, ${gpu:-?} GPU cores"
+    if command -v python3 >/dev/null && [ -n "$mem" ]; then
+      say "renders" "$(python3 "$HERE/Showcase/showcase_math.py" "--mac-memory-gb=$((mem / 1073741824))" \
+        ${gpu:+--mac-gpu-cores=$gpu} ${perf:+--mac-perf-cores=$perf} ${chip:+"--mac-chip=$chip"})"
+    fi
+    say "game" "GRNGraphics applies its Apple-silicon profile at boot: software Lumen, TSR at native history, dynamic resolution to the panel's rate (-grnnoapple skips it)"
+  fi
 fi
 
 [ -f "$PROJECT" ] || { bad "project" "no GulfRoadNights.uproject at $PROJECT"; exit 1; }

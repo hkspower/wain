@@ -9,6 +9,8 @@
 #include "UObject/UObjectIterator.h"
 #include "RenderUtils.h"
 #include "RHI.h"
+#include "HAL/PlatformMemory.h"
+#include "HAL/PlatformMisc.h"
 
 namespace
 {
@@ -84,6 +86,10 @@ namespace
 	{
 		UKismetSystemLibrary::ExecuteConsoleCommand(Ctx, Cmd);
 	}
+
+	// -grnmegalightssoft. A process-wide switch like the console variables
+	// MegaLightsActive reads, and read at the same moment they are.
+	bool GSoftwareMegaLights = false;
 }
 
 void GRNGraphics::ApplyMax(UObject* WorldContext)
@@ -229,9 +235,26 @@ void GRNGraphics::ApplyCommandLineOverrides(UObject* WorldContext)
 	else if (FParse::Param(Cmd, TEXT("grn2k")))   ApplyPreset(WorldContext, EPreset::QHD2K);
 	else if (FParse::Param(Cmd, TEXT("grn1080"))) ApplyPreset(WorldContext, EPreset::FHD1080);
 
+	// MegaLights' software path, before anything asks MegaLightsActive.
+	if (FParse::Param(Cmd, TEXT("grnmegalightssoft"))) AllowSoftwareMegaLights(true);
+
+	// A Mac with an Apple GPU takes its own profile and none of the
+	// NVIDIA one: there is no DXR, no NGX and no Reflex to ask for, and
+	// the ray-tracing lines would ask Lumen for hardware the chip has
+	// not got. -grnapple forces it (for reading the profile's effect on
+	// another machine); -grnnoapple leaves the Mac on the generic path.
+	const bool bApple = FParse::Param(Cmd, TEXT("grnapple")) ||
+		(IsAppleSilicon() && !FParse::Param(Cmd, TEXT("grnnoapple")));
+	if (bApple)
+	{
+		float Fps = 0.f;
+		FParse::Value(Cmd, TEXT("-grnapplefps="), Fps);
+		ApplyAppleSilicon(WorldContext, Fps);
+	}
+
 	FString Dlss;
 	const bool bQuality = !(FParse::Value(Cmd, TEXT("-grndlss="), Dlss) && Dlss.Equals(TEXT("perf"), ESearchCase::IgnoreCase));
-	if (!FParse::Param(Cmd, TEXT("grnnonvidia")))
+	if (!bApple && !FParse::Param(Cmd, TEXT("grnnonvidia")))
 	{
 		ApplyNvidia(WorldContext, bQuality);
 		if (FParse::Param(Cmd, TEXT("grnrtxultra")))
@@ -318,6 +341,89 @@ void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
 		bFrameGeneration ? TEXT("on") : TEXT("off"));
 }
 
+bool GRNGraphics::IsAppleSilicon()
+{
+#if PLATFORM_MAC
+	// The RHI's own answer: the device the renderer is on is Apple's. A
+	// Mac with a discrete AMD card says no here, and rightly — it has
+	// separate video memory and no unified pool to size against.
+	return IsRHIDeviceApple();
+#else
+	return false;
+#endif
+}
+
+void GRNGraphics::AllowSoftwareMegaLights(bool bAllow)
+{
+	GSoftwareMegaLights = bAllow;
+}
+
+void GRNGraphics::ApplyAppleSilicon(UObject* WorldContext, float TargetFps)
+{
+	// ---- The one memory. A quarter of it for the streaming pool, between
+	// 2 and 12 GB: the GPU, the game and (in the editor) the editor all
+	// draw on the same pool, and r.Streaming.PoolSize is the only one of
+	// those this code gets to size. An 8 GB Air lands on the floor, a
+	// 24 GB Pro on 6 GB, a 96 GB Max on the ceiling — which is where the
+	// RTX path's 16 GB would have been a swap file on all but the last.
+	const FPlatformMemoryStats Mem = FPlatformMemory::GetStats();
+	const int32 PoolMb = (int32)FMath::Clamp<int64>((int64)(Mem.TotalPhysical / (1024 * 1024)) / 4, 2048, 12288);
+	Run(WorldContext, *FString::Printf(TEXT("r.Streaming.PoolSize %d"), PoolMb));
+	// Metal reports a working-set size, not a VRAM size; let the pool be
+	// what it was asked to be.
+	Run(WorldContext, TEXT("r.Streaming.LimitPoolSizeToVRAM 0"));
+
+	// ---- No ray-tracing hardware. Said out loud, so Lumen's software
+	// tracer is the path by decision and the hardware lines the project
+	// carries (DefaultEngine.ini, for the cards that have it) are not an
+	// unanswered request every frame. The global distance field those
+	// traces read stays on (r.GenerateMeshDistanceFields).
+	Run(WorldContext, TEXT("r.Lumen.HardwareRayTracing 0"));
+	Run(WorldContext, TEXT("r.Lumen.Reflections.HardwareRayTracing 0"));
+	Run(WorldContext, TEXT("r.RayTracing.Shadows 0"));
+
+	// ---- Bandwidth. ApplyMax asked TSR for a 2x history; on unified
+	// memory that is 4x the history traffic on a bus the CPU is also on.
+	// Native history, and the sharpening the comfort grade already has.
+	Run(WorldContext, TEXT("r.TSR.History.ScreenPercentage 100"));
+
+	// ---- The panel's rate is the target, and the whole GPU goes on
+	// holding it. Dynamic resolution between half and full native, with
+	// the panel's frame time as the budget: the renderer finds the
+	// highest internal resolution that makes the rate and sits there,
+	// so a 120 Hz ProMotion panel gets 120 frames of whatever the chip
+	// can draw in 8.3 ms and a 60 Hz Air gets 60 of twice as much. TSR
+	// fills in to native. Mode 2 forces it on whatever the user settings
+	// say, which is the point of a profile called full power.
+	float Fps = TargetFps;
+	if (Fps <= 0.f)
+	{
+		Fps = 60.f;
+		if (GEngine && GEngine->GameViewport)
+		{
+			Fps = FMath::Max(Fps, (float)FPlatformMisc::GetMaxRefreshRate());
+		}
+	}
+	Run(WorldContext, TEXT("r.DynamicRes.OperationMode 2"));
+	Run(WorldContext, TEXT("r.DynamicRes.MinScreenPercentage 50"));
+	Run(WorldContext, TEXT("r.DynamicRes.MaxScreenPercentage 100"));
+	Run(WorldContext, *FString::Printf(TEXT("r.DynamicRes.FrameTimeBudget %.3f"), 1000.f / Fps));
+	// v-sync off and a cap just under the panel: the VRR pacing the
+	// RTX path offers, which a ProMotion panel is. (Reflex is asked for
+	// in there too; on Metal the variable does not exist and the call
+	// is a no-op, as every NGX line is.)
+	ApplyVrrPacing(WorldContext, Fps);
+
+	// ---- MegaLights. Without ray-tracing hardware MegaLightsActive says
+	// no and the ~170 lamps are built unshadowed, as they always were.
+	// -grnmegalightssoft has already said otherwise if it was given; the
+	// log says which this boot is.
+	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: Apple silicon profile — %lld MB physical, pool %d MB, "
+		"software Lumen, TSR history native, dynamic resolution 50-100%% to %.0f fps, MegaLights %s"),
+		(long long)(Mem.TotalPhysical / (1024 * 1024)), PoolMb, Fps,
+		MegaLightsActive() ? TEXT("on (software path)") : TEXT("off: lamps unshadowed; -grnmegalightssoft to try its software path"));
+}
+
 void GRNGraphics::SetPathTracing(UObject* WorldContext, bool bEnabled)
 {
 	Run(WorldContext, bEnabled ? TEXT("r.PathTracing 1") : TEXT("r.PathTracing 0"));
@@ -395,7 +501,11 @@ bool GRNGraphics::MegaLightsActive()
 	// variables say what the project asked for; these say whether this
 	// machine can deliver it, and neither can be raised by ApplyMax.
 	const bool bSM6 = GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM6;
-	const bool bHardwareRT = IsRayTracingEnabled();
+	// ...or MegaLights' own software path, when -grnmegalightssoft has
+	// asked for it: the global distance field in place of the rays. An
+	// M2 has SM6 on Metal and no ray-tracing hardware, and this is the
+	// one way its lamps get a shadow.
+	const bool bHardwareRT = IsRayTracingEnabled() || GSoftwareMegaLights;
 	return Project && Project->GetInt() != 0 && (!Allow || Allow->GetInt() != 0)
 		&& bSM6 && bHardwareRT;
 }

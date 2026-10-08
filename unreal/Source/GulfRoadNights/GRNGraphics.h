@@ -54,6 +54,38 @@ namespace GRNGraphics
 	 */
 	void ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration = false);
 
+	/**
+	 * Apple silicon, at full power. A MacBook M2 is not a smaller RTX
+	 * card: it has no ray-tracing hardware, so Lumen traces in software by
+	 * decision rather than by fallback; one pool of memory that the CPU,
+	 * the GPU and the editor share, so the streaming pool is a quarter of
+	 * what the machine has rather than a number sized for a 5090; and a
+	 * panel (60 Hz on an Air, 120 Hz ProMotion on a Pro) that is the only
+	 * frame rate worth holding. Full power is then the GPU never idle and
+	 * the frame never late: dynamic resolution between MinScreenPercentage
+	 * and native, with the panel's frame time as its budget, TSR making up
+	 * the rest. TSR's supersampled history comes down to native — four
+	 * times the bandwidth, and unified memory is bandwidth the CPU is also
+	 * using. Applied at boot on a Mac with an Apple GPU unless -grnnoapple;
+	 * -grnapple forces it; -grnapplefps=N sets the target instead of the
+	 * panel's rate. DLSS and Reflex do not exist here and are not asked for.
+	 *
+	 * MegaLights without ray-tracing hardware traces the global distance
+	 * field, at a quality Epic calls significantly reduced, and whether 5.8
+	 * takes that path for every lamp on Metal is not something this
+	 * repository could confirm: so the lamps stay unshadowed on an M2
+	 * unless -grnmegalightssoft says to try it (AllowSoftwareMegaLights).
+	 */
+	void ApplyAppleSilicon(UObject* WorldContext, float TargetFps = 0.f);
+
+	/** Is this a Mac with an Apple GPU? False everywhere else, including a
+	 *  Mac with a discrete AMD card, which has none of the properties above. */
+	bool IsAppleSilicon();
+
+	/** Let MegaLightsActive say yes on SM6 without hardware ray tracing
+	 *  (its software path). Off by default; -grnmegalightssoft. */
+	void AllowSoftwareMegaLights(bool bAllow);
+
 	/** Path tracer for stills. Not a gameplay mode — it converges over
 	 *  many frames and is here for marketing captures. */
 	void SetPathTracing(UObject* WorldContext, bool bEnabled);
@@ -78,7 +110,9 @@ namespace GRNGraphics
 	/** Parse -grn4k / -grn2k / -grn1080 / -grndlss=off from the command
 	 *  line so a build can be pointed at a resolution without recompiling.
 	 *  Also -grnnomegalights: MegaLights off for the session, and with it
-	 *  every lamp and headlight shadow (see MegaLightsActive). */
+	 *  every lamp and headlight shadow (see MegaLightsActive). On a Mac
+	 *  with an Apple GPU the NVIDIA path is skipped and ApplyAppleSilicon
+	 *  runs instead (-grnnoapple / -grnapple / -grnapplefps=N). */
 	void ApplyCommandLineOverrides(UObject* WorldContext);
 
 	/**

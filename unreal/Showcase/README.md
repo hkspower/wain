@@ -90,14 +90,41 @@ Two numbers in `showcase_math.py`, both printed by `build`:
 
 Change one, run `build all` again, `preview` again.
 
-### What the Mac cannot do
+### On a MacBook M2, at full power
 
-The path tracer is not supported on macOS, so these are deferred
-renders: Lumen GI and reflections, MegaLights, Substrate, Nanite, with
-Movie Render Queue's temporal samples (16 on a fleet still) doing the
-accumulation. Hardware ray tracing on an M2 is experimental and left to
-the project's own setting. How long 17 cars take at 2560 x 1440 is not
-known: time the first one.
+`build` and `render` read the machine first — the chip, its one pool of
+memory, the performance cores and the GPU cores (`sysctl`, and
+`system_profiler` for the GPU count, which is the only place it is
+written down) — and size every preset for it. `showcase_math.mac_profile`
+is the rule, and it keeps two things apart:
+
+- **Memory decides the tiles.** A 3840 x 2160 frame rendered as one tile
+  holds the whole G-buffer, Lumen's scene and the accumulation buffers at
+  once; on 8 GB shared with the editor that is the swap file, which on a
+  Mac is silent and ten times slower. Tiles cut the frame into pieces
+  rendered one after another and stitched, at the same quality. Under
+  12 GB: 2 x 2 at 2560 x 1440 and 3 x 3 at 4K. 12 GB and up: one tile
+  and 2 x 2.
+- **GPU cores decide the temporal samples.** Each is a whole extra render
+  of the frame, so they turn cores into quality at a fixed wall-clock
+  cost: the 8-core M2 keeps the kit's 16 / 32, a Pro (16 or 19 cores)
+  takes 24 / 48, a Max or Ultra 32 / 64, for about the same minutes a
+  frame.
+- The streaming pool is a quarter of memory between 2 and 12 GB; Lumen
+  is told to trace in software (an M2 has no ray-tracing hardware, and
+  Metal's path for it on later chips is experimental); TSR's history
+  stays native rather than 2x, because unified memory is bandwidth the
+  CPU is also using.
+
+The profile is printed when `build` starts, written into each car's
+`build.json` under `machine`, and `../mac/connect.sh` prints it before
+anything is built. Elsewhere, or if a reading fails, the kit's defaults
+stand. None of these numbers is a measurement: they are where to start
+on each machine, and `run.sh preview` is the clock. The path tracer is
+still not supported on macOS, so every frame is a deferred render with
+Movie Render Queue's samples doing the accumulation. How long 17 cars
+take is not known: time the first one, and the profile tells you what
+it was timed under.
 
 ## What to compare against
 
@@ -114,7 +141,7 @@ lives on the render board.
 
 | File | What |
 | --- | --- |
-| `showcase_math.py` | Every number, no engine: per-car paths, the catalogue, frames, the GLB reader, the studio in UE units, the axis probe. |
+| `showcase_math.py` | Every number, no engine: per-car paths, the catalogue, frames, the GLB reader, the studio in UE units, the axis probe, the Mac's render profile. |
 | `grn_showcase.py` | Runs inside the editor: `probe`, `build [id\|all]`, `report`. |
 | `grn_night.py`, `init_unreal.py` | The night shot's Movie Render Queue executor; it runs the game, not a map. |
 | `run.sh` | The Mac wrapper: finds the engine, runs each step, keeps the logs. |
