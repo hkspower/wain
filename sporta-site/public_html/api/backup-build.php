@@ -36,9 +36,11 @@
  *      just grown by every picture the owner uploads. backup_write() writes one row at a time from an
  *      unbuffered query; cron-backup.php gzips it straight to disk.
  *
- * WHAT IS NEVER IN IT — BACKUP_EXCLUDED below, each with its reason, and two redactions inside rows
- * that do travel: the admins' second factor (as before) and the payment credentials the Payments
- * screen keeps in the `knet` settings row. The old comment said the KNET/CBK credentials "are not
+ * WHAT IS NEVER IN IT — BACKUP_EXCLUDED below, each with its reason, and three redactions inside rows
+ * that do travel: the admins' second factor (as before), the payment credentials the Payments
+ * screen keeps in the `knet` settings row, and every CUSTOMER's password hash (owner, 2026-10-07:
+ * "drop customer passwords" — a file that leaves the server is a file of crackable hashes for every
+ * shopper; the ADMIN's hash travels, or nobody could sign in after restoring onto an empty shop). The old comment said the KNET/CBK credentials "are not
  * database rows" — true when it was written, false since 2026-09-30, when /backends -> Payments began
  * saving them into settings. A file the owner can download and hand to anyone carried the bank
  * secrets in plain text. They are nulled now, and a restore keeps whatever this shop has saved.
@@ -115,6 +117,15 @@ const BACKUP_REDACT_SETTINGS = [
                'cbk_client_secret', 'cbk_encrp_key', 'cbk_test_client_secret', 'cbk_test_encrp_key'],
 ];
 
+// CUSTOMER PASSWORD HASHES. Exported as null. On restore a customer keeps the hash this shop holds for
+// the SAME EMAIL — never the same id: ids drift after a deletion, and handing customer 5's password to
+// whoever is customer 5 in the file would be an account takeover. A customer this shop does not have
+// gets a fresh random hash nobody knows (the column is NOT NULL), and signs in with an emailed code or
+// Google, or sets a new password — the routes that already exist for a forgotten one.
+const BACKUP_REDACT_COLUMNS = [
+    'customers' => ['password_hash'],
+];
+
 const BACKUP_JSON = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR;
 
 /**
@@ -173,6 +184,10 @@ function backup_encode_row(string $table, array $row, array $binary, bool $forEx
         if (array_key_exists('email_otp_hash', $row)) $row['email_otp_hash'] = null;
         if (array_key_exists('email_otp_expires', $row)) $row['email_otp_expires'] = null;
     }
+    // Both sides, like the payment secrets: a restore keeps this shop's hash, so it is not a difference.
+    foreach (BACKUP_REDACT_COLUMNS[$table] ?? [] as $c) {
+        if (array_key_exists($c, $row)) $row[$c] = null;
+    }
     if ($table === 'settings' && isset(BACKUP_REDACT_SETTINGS[(string) ($row['name'] ?? '')])) {
         $v = json_decode((string) ($row['value'] ?? ''), true);
         if (is_array($v)) {
@@ -210,6 +225,7 @@ function backup_write(PDO $db, callable $out): array {
     }
     $redacted = [];
     foreach (BACKUP_REDACT_SETTINGS as $name => $keys) $redacted['settings.' . $name] = $keys;
+    foreach (BACKUP_REDACT_COLUMNS as $t => $cols) $redacted[$t] = $cols;
 
     $out('{"format":' . BACKUP_FORMAT
         . ',"exported_at":' . json_encode(gmdate('c'), BACKUP_JSON)
@@ -391,6 +407,22 @@ function backup_restore_settings_row(array $row, array $liveValues): array {
     return $row;
 }
 
+// Who a customer IS, for carrying a password across a restore: the email they sign in with, never the id.
+function backup_customer_key(array $row): string {
+    return strtolower(trim((string) ($row['email'] ?? '')));
+}
+
+// A customer row as it will be written. This shop's hash for the same email wins (the customer may have
+// changed the password since the backup); a format-2 file taken before 2026-10-07 still carries its own
+// hash, used only where this shop has none; otherwise a random hash that matches no password.
+function backup_restore_customer_row(array $row, array $liveHashes): array {
+    $live = $liveHashes[backup_customer_key($row)] ?? '';
+    $file = $row['password_hash'] ?? null;
+    if ($live !== '') $row['password_hash'] = $live;
+    elseif (!is_string($file) || $file === '') $row['password_hash'] = password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT);
+    return $row;
+}
+
 /**
  * REPLACES every table the file names with the file's rows, in one transaction; keeps every table it
  * does not name. Returns per table {before, written} or {before, kept}. Refuses (store_fail) before
@@ -414,6 +446,14 @@ function backup_restore(PDO $db, array $data): array {
         }
     }
 
+    // Every customer's hash, by email, read before the table is emptied (see BACKUP_REDACT_COLUMNS).
+    $liveHashes = [];
+    if (isset($meta['customers']) && array_key_exists('customers', $tables)) {
+        foreach ($db->query('select id, email, password_hash from customers')->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $liveHashes[backup_customer_key($c)] = (string) $c['password_hash'];
+        }
+    }
+
     $result = [];
     $db->beginTransaction();
     try {
@@ -429,6 +469,7 @@ function backup_restore(PDO $db, array $data): array {
             $stmts = [];
             $settingsInFile = [];
             foreach ($tables[$t] as $row) {
+                if ($t === 'customers') $row = backup_restore_customer_row($row, $liveHashes);
                 if ($t === 'settings') {
                     $row = backup_restore_settings_row($row, $liveSecrets);
                     $settingsInFile[(string) ($row['name'] ?? '')] = true;

@@ -104,7 +104,11 @@ const SECRETS = {
   cbk_test_client_secret: 'RIG_SECRET_CBK_TEST_CLIENT', cbk_test_encrp_key: 'RIG_SECRET_CBK_TEST_ENCRP',
   session: sha('RIG_SECRET_SESSION'), passkey: 'RIG_SECRET_ADMIN_PASSKEY_PUB', device: 'RIG_SECRET_DEVICE_PASS',
   reset: 'RIG_SECRET_RESET_CODE', customerPasskey: 'RIG_SECRET_CUSTOMER_PASSKEY', loginCode: sha('RIG_SECRET_LOGIN_CODE'),
-  push: 'RIG_SECRET_PUSH_AUTH', wallet: 'RIG_SECRET_WALLET_AUTH', dbPass: cfg.db_pass_real ?? 'localdev', cron: cfg.cron_key,
+  push: 'RIG_SECRET_PUSH_AUTH', wallet: 'RIG_SECRET_WALLET_AUTH',
+  // customers' password hashes (owner, 2026-10-07: never in a backup) — bcrypt-shaped, 60 characters
+  customerHash: '$2y$10$RIGSECRETCUSTOMERHASHONEaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  customerHash2: '$2y$10$RIGSECRETCUSTOMERHASHTWObbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  customerHash3: '$2y$10$RIGSECRETCUSTOMERHASHTHREEcccccccccccccccccccccccccc', dbPass: cfg.db_pass_real ?? 'localdev', cron: cfg.cron_key,
 }
 
 /* ------------------------------------------------------------------ fixtures (scratch database only) */
@@ -152,7 +156,9 @@ $db->exec("insert into product_attrs (slug, colour, fits) values ('$slugs[0]', '
 $db->exec("insert into product_seo (slug, title_en, title_ar, desc_en, desc_ar) values ('$slugs[0]', 'Rig search title', 'عنوان', 'Rig desc', 'وصف')");
 $db->exec("insert into hero_slides (sort, active, title_en, title_ar) values (0, 0, 'Rig slide', 'شريحة')");
 $db->exec("insert into assistant_qa (q_ar, q_en, a_ar, a_en) values ('سؤال', 'Rig question', 'جواب', 'Rig answer')");
-$db->exec("insert into customers (email, phone, name, password_hash) values ('rig-backup@example.invalid', '96555590777', 'Rig Customer', '\\$2y\\$10\\$abcdefghijklmnopqrstuuJ8dJ7Z8l0WjZ1a1QnYk2h3m4n5o6p7q')");
+foreach ([['rig-backup@example.invalid', '96555590777', 'customerHash'], ['rig-backup2@example.invalid', '96555590771', 'customerHash2'], ['rig-backup3@example.invalid', '96555590772', 'customerHash3']] as [$e, $ph, $k]) {
+    $db->prepare("insert into customers (email, phone, name, password_hash) values (?, ?, 'Rig Customer', ?)")->execute([$e, $ph, $S[$k]]);
+}
 $db->exec("insert into customer_notes (phone, note, tags) values ('96555590777', 'Rig note', 'vip')");
 $db->exec("insert into blocked_customers (phone, scope, reason, blocked_by) values ('96555590778', 'cod', 'rig', 'rig')");
 $db->exec("insert into reviews (order_id, rating, comment) values ($order, 5, 'Rig review')");
@@ -245,6 +251,39 @@ async function exportChecks(call) {
 // bytes every time.
 const largestTable = () => Math.max(0, ...Object.values(exp0?.tables ?? {}).map((rows) => Buffer.byteLength(JSON.stringify(rows))))
 
+const bcryptLike = (h) => typeof h === 'string' && /^\$2y\$\d\d\$/.test(h) && h.length === 60
+
+// The three rig customers back as seeded (customerRestore() and the restores above change their hashes),
+// so the leak checks a mutation run re-uses still have the planted hashes to look for.
+const resetCustomers = () => {
+  for (const [e, k] of [['rig-backup@example.invalid', 'customerHash'], ['rig-backup2@example.invalid', 'customerHash2'], ['rig-backup3@example.invalid', 'customerHash3']]) {
+    shop.sql(`update customers set password_hash = '${SECRETS[k]}' where email = '${e}'`)
+  }
+}
+
+// Restores exp0 after three changes the backup never saw: customer 1 changed the password, customer 2's
+// id now belongs to another email, customer 3 is gone (and the file carries an old hash for them, as a
+// format-2 file from before 2026-10-07 does). Then once more with customer 3 gone and no hash at all.
+async function customerRestore(call) {
+  const id2 = one("select id from customers where email = 'rig-backup2@example.invalid'")
+  shop.sql("update customers set password_hash = 'A_CHANGED_AFTER_BACKUP' where email = 'rig-backup@example.invalid'")
+  shop.sql("update customers set email = 'rig-swapped@example.invalid' where email = 'rig-backup2@example.invalid'")
+  shop.sql("delete from customers where email = 'rig-backup3@example.invalid'")
+  const file = JSON.parse(JSON.stringify(exp0))
+  file.tables.customers.find((c) => c.email === 'rig-backup3@example.invalid').password_hash = SECRETS.customerHash3
+  const p = await call('backup_preview', { data: file })
+  const im = await call('backup_import', { data: file, confirm: true, token: p.body?.token })
+  const h = (e) => one(`select coalesce((select password_hash from customers where email = '${e}'), 'NONE')`)
+  const r = { ok: im.status === 200, text: im.text.slice(0, 160), id2, a: h('rig-backup@example.invalid'), b: h('rig-backup2@example.invalid'),
+    bId: one("select id from customers where email = 'rig-backup2@example.invalid'"), c: h('rig-backup3@example.invalid') }
+  shop.sql("delete from customers where email = 'rig-backup3@example.invalid'")
+  const p2 = await call('backup_preview', { data: exp0 })
+  await call('backup_import', { data: exp0, confirm: true, token: p2.body?.token })
+  r.d = h('rig-backup3@example.invalid')
+  resetCustomers()
+  return r
+}
+
 const keyedRight = (preview) => ['product_variants', 'category_art', 'site_images'].every((t) => preview?.tables?.[t]?.backup_count === n(t) && n(t) > 1)
 
 let exp0 = null
@@ -288,6 +327,10 @@ try {
   const me = (exp0?.tables?.admin_users || []).find((a) => a.email === 'manager@sporta.com.kw')
   check(me && me.totp_secret === null && Number(me.totp_enabled) === 0 && me.email_otp_hash === null && me.password_hash,
     'C admin_users: the second factor and the pending emailed code are null; the password hash travels (a restore must still let the owner in)')
+
+  const custs = exp0?.tables?.customers || []
+  check(custs.length >= 3 && custs.every((c) => c.password_hash === null && c.email) && exp0?.redacted?.customers?.includes('password_hash'),
+    'C customers: every password hash is null (the email and the rest travel), and the file says so', JSON.stringify(custs.map((c) => [c.email, c.password_hash])))
 
   const cron = await fetch(`${shop.base}/api/cron-backup.php?key=${encodeURIComponent(cfg.cron_key)}`)
   const cj = await cron.json().catch(() => null)
@@ -347,6 +390,8 @@ try {
   const fileSettings = (exp0.tables.settings || []).filter((r) => r.name !== 'knet').sort((a, b) => a.name.localeCompare(b.name))
   check(JSON.stringify(otherSettings.map((r) => [r.name, r.value])) === JSON.stringify(fileSettings.map((r) => [r.name, r.value])), 'D every other settings row is the file\'s, byte for byte')
   check(one("select totp_secret from admin_users where email = 'manager@sporta.com.kw'") === 'NULL', 'D restoring admin_users switches 2FA off, as the preview warns')
+  check(one("select password_hash from customers where email = 'rig-backup@example.invalid'") === SECRETS.customerHash,
+    'D a customer keeps the password this shop holds: the null in the file is not written')
   check(Object.entries(exclBefore).every(([t, c]) => n(t) === c), 'D the excluded tables were not touched by the restore', JSON.stringify(exclBefore))
   const again = await call('backup_preview', { data: exp0 })
   const notSame = L.tables.filter((t) => { const d = again.body?.tables?.[t]; return !d || d.unchanged !== n(t) || d.added || d.changed || d.removed })
@@ -355,6 +400,17 @@ try {
     JSON.stringify({ pv: again.body?.tables?.product_variants, art: again.body?.tables?.category_art }))
   const meAgain = await call('me')
   check(meAgain.status === 200 && meAgain.body, 'D the owner is still signed in after the restore', meAgain.text.slice(0, 120))
+
+  /* ---------------------------------------------------------------- D2. customer passwords across a restore */
+  {
+    const r = await customerRestore(call)
+    check(r.ok, 'D2 the restore succeeds', r.text)
+    check(r.a === 'A_CHANGED_AFTER_BACKUP', 'D2 a customer who changed the password after the backup keeps the NEW one (matched by email)', r.a)
+    check(r.bId === r.id2 && bcryptLike(r.b) && r.b !== SECRETS.customerHash2,
+      'D2 the same id holding a DIFFERENT email does not hand its password to the restored customer: a fresh hash nobody knows', `${r.b?.slice(0, 20)}… id ${r.bId}/${r.id2}`)
+    check(r.c === SECRETS.customerHash3, 'D2 an older backup that still carries a hash: it is used where this shop has none for that email', r.c?.slice(0, 30))
+    check(bcryptLike(r.d) && r.d !== SECRETS.customerHash3, 'D2 a customer this shop does not have, with no hash in the file, gets a fresh one (the column is NOT NULL)', r.d?.slice(0, 20))
+  }
 
   /* ---------------------------------------------------------------- E. other files */
   const ORIGINAL14 = MUST_BACK_UP.slice(0, 14)
@@ -469,6 +525,12 @@ echo json_encode(['start' => $start, 'peak' => memory_get_peak_usage(), 'json' =
       async () => { const r = await exportChecks(call); return r.out.some((x) => !x.ok && /answers 200|picture/.test(x.name)) }],
     ['payment secrets no longer redacted', 'if (array_key_exists($k, $v)) $v[$k] = null;', '/* MUTATED */',
       async () => { const r = await exportChecks(call); return r.out.some((x) => !x.ok && /secret/.test(x.name)) }],
+    ['customer password hashes no longer redacted', 'if (array_key_exists($c, $row)) $row[$c] = null;', '/* MUTATED */',
+      async () => { const r = await exportChecks(call); return r.out.some((x) => !x.ok && /secret/.test(x.name)) }],
+    ['a customer password carried by id, not by email', "return strtolower(trim((string) ($row['email'] ?? '')));", "return (string) ($row['id'] ?? '');",
+      async () => { const r = await customerRestore(call); return r.b === SECRETS.customerHash2 }],
+    ['the live customer password not kept on restore', "if ($live !== '') $row['password_hash'] = $live;", "if (false) $row['password_hash'] = $live;",
+      async () => { const r = await customerRestore(call); return r.a !== 'A_CHANGED_AFTER_BACKUP' }],
     ['primary key back to "id, or name for settings"', "if ((string) $c['k'] === 'PRI') $out[$t]['pk'][] = (string) $c['c'];",
       "if ((string) $c['c'] === ($t === 'settings' ? 'name' : 'id')) $out[$t]['pk'][] = (string) $c['c'];",
       async () => {

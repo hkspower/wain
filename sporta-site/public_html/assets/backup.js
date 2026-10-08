@@ -10,8 +10,9 @@
  * BACKUP_EXCLUDED in api/backup-build.php for exactly what is in it and what is
  * deliberately never in it (sessions, passkeys and one-time codes, logs,
  * outboxes; the second-factor secret, dropped so a copy of this file can never
- * be used to sign in as the owner; and the payment secrets in Payments, nulled
- * and kept as they are on restore), and admin.php for why a restore REPLACES
+ * be used to sign in as the owner; the payment secrets in Payments, nulled
+ * and kept as they are on restore; and customers' password hashes, nulled and
+ * kept on restore for the same email), and admin.php for why a restore REPLACES
  * the tables a file names rather than merging — and keeps the ones it does not.
  *
  * WHY AN OVERLAY. Same reasoning as rules.js and crm.js beside it: the
