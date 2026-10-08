@@ -5762,6 +5762,119 @@ function policeBandTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * The small printed surfaces a patrol car carries besides its wrap: the
+ * unit number on the roof (read from a helicopter, so large and plain),
+ * the word on the bonnet (read in a mirror, so it is the Arabic the wrap
+ * carries, and POLICE under it), and the chevrons across the tail (read
+ * at a closing speed, so the wrap's two greens on white, raked). One
+ * canvas each, made once and shared by every patrol car on the road, the
+ * way the band is — lazily, because this module is imported by tests
+ * with no document.
+ */
+const policeDecalTex: Partial<Record<"roof" | "bonnet" | "chevrons", THREE.CanvasTexture>> = {};
+function policeDecalTexture(kind: "roof" | "bonnet" | "chevrons"): THREE.CanvasTexture {
+  const hit = policeDecalTex[kind];
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  const hex = (n: number) => "#" + n.toString(16).padStart(6, "0");
+  let W: number, H: number;
+  if (kind === "chevrons") {
+    W = 1024; H = 128;
+    c.width = W; c.height = H;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#f4f6f8";
+    g.fillRect(0, 0, W, H);
+    // Chevrons pointing in from both ends, the way a rear marking does:
+    // the stripes lean toward the centre line so the car reads as one
+    // shape closing in and not as a barber's pole.
+    const pitch = 96;
+    for (let x = -H; x < W + H; x += pitch) {
+      const lean = x < W / 2 ? H : -H;
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x + pitch * 0.5, 0);
+      g.lineTo(x + pitch * 0.5 + lean, H);
+      g.lineTo(x + lean, H);
+      g.closePath();
+      g.fillStyle = hex(POLICE.green);
+      g.fill();
+      // The brighter leading edge the wrap has.
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x + pitch * 0.12, 0);
+      g.lineTo(x + pitch * 0.12 + lean, H);
+      g.lineTo(x + lean, H);
+      g.closePath();
+      g.fillStyle = hex(POLICE.greenLit);
+      g.fill();
+    }
+  } else {
+    W = 512; H = 256;
+    c.width = W; c.height = H;
+    const g = c.getContext("2d")!;
+    g.clearRect(0, 0, W, H);
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    if (kind === "roof") {
+      // A unit number. Generic by design, like the word: it is a number
+      // a dispatcher would use, not a registration anyone could look up.
+      g.fillStyle = "#f4f6f8";
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = "#15171c";
+      g.font = `800 ${Math.round(H * 0.82)}px ${latinDisplay()}`;
+      g.fillText("42", W / 2, H * 0.54);
+    } else {
+      g.fillStyle = hex(POLICE.green);
+      g.font = `700 ${Math.round(H * 0.5)}px ${arabicSign()}`;
+      g.fillText("شرطة", W / 2, H * 0.33);
+      g.font = `700 ${Math.round(H * 0.3)}px ${latinDisplay()}`;
+      g.fillText("POLICE", W / 2, H * 0.75);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  policeDecalTex[kind] = tex;
+  return tex;
+}
+
+/** Powder-coated steel: the push bar, the aerial's base, the spotlight's
+ *  housing. Dark, a little metallic, and not glossy — a bull bar is the
+ *  one part of a patrol car that is never polished. */
+const policeTrimMat = new THREE.MeshStandardMaterial({
+  name: "police-trim",
+  color: 0x111317,
+  roughness: 0.62,
+  metalness: 0.35,
+  envMapIntensity: 0.9,
+});
+const policeDecalMatFor = (() => {
+  const made: Partial<Record<"roof" | "bonnet" | "chevrons", THREE.MeshStandardMaterial>> = {};
+  return (kind: "roof" | "bonnet" | "chevrons") => {
+    const hit = made[kind];
+    if (hit) return hit;
+    const tex = policeDecalTexture(kind);
+    const m = nightFloor(new THREE.MeshStandardMaterial({
+      name: "police-mark",
+      map: tex,
+      transparent: kind === "bonnet",
+      alphaTest: kind === "bonnet" ? 0.3 : 0,
+      roughness: 0.34,
+      metalness: 0,
+      // The same floor as the band: printed vinyl that reads between lamps.
+      emissive: 0xffffff,
+      emissiveMap: tex,
+      emissiveIntensity: 0.28,
+      envMapIntensity: 1.15,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    }));
+    made[kind] = m;
+    return m;
+  };
+})();
+
 /** Hero wheel parts, merged to one geometry per material so a Blender
  *  build can replace each in a single swap (models.ts) — and so four
  *  wheels cost five draw calls instead of fifteen. Keyed by spoke count
@@ -9115,6 +9228,112 @@ export function createCar(colors: CarColors): THREE.Group {
     // game keeps owning the materials, so the beat carries on running
     // through it without noticing.
     void upgradePoliceBar(bar);
+
+    // The rest of what a patrol car carries that a civilian does not —
+    // the furniture, all of it placed off the shell it is on, so the
+    // saloon and the SUV each wear it where their own bodywork is.
+    //
+    // Cheap on purpose: a patrol car is traffic, five or six to a road,
+    // and every piece here is a box or a cylinder on a shared material.
+    // The only textures are the three decals, made once for the fleet.
+    {
+      const tag = (o: THREE.Object3D, what: string) => { o.userData.police = what; return o; };
+
+      // The push bar. Two uprights and two cross tubes standing just
+      // ahead of the bumper at the height a bumper meets another car,
+      // with a bracket each side back to the valance. Asked where the
+      // skin is at that height, the way the valance is, so it stands in
+      // front of the nose and not in it.
+      const PUSH_Y0 = 0.3, PUSH_Y1 = 0.78;
+      const pushSkinZ = noseFaceZ(bGeo, style, (PUSH_Y0 + PUSH_Y1) / 2, true) ?? d.nose;
+      const pushZ = pushSkinZ + 0.11;
+      const pushHalf = Math.min(0.46, flankX * 0.48);
+      const push = tag(new THREE.Group(), "push-bar");
+      const tubeR = 0.022;
+      for (const sx of [-1, 1]) {
+        const up = new THREE.Mesh(new THREE.CylinderGeometry(tubeR, tubeR, PUSH_Y1 - PUSH_Y0, 8), policeTrimMat);
+        up.position.set(sx * pushHalf, (PUSH_Y0 + PUSH_Y1) / 2, pushZ);
+        push.add(up);
+        // The bracket: a flat bar from the upright back to the skin.
+        const br = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, pushZ - pushSkinZ + 0.03), policeTrimMat);
+        br.position.set(sx * pushHalf, PUSH_Y0 + 0.08, (pushZ + pushSkinZ) / 2 - 0.015);
+        push.add(br);
+      }
+      for (const y of [PUSH_Y0 + 0.11, PUSH_Y1 - 0.09]) {
+        const cross = new THREE.Mesh(new THREE.CylinderGeometry(tubeR, tubeR, pushHalf * 2 + tubeR * 2, 8), policeTrimMat);
+        cross.rotation.z = Math.PI / 2;
+        cross.position.set(0, y, pushZ);
+        push.add(cross);
+      }
+      group.add(push);
+
+      // The spotlight, on the driver's A-pillar: a short stalk through
+      // the pillar at the base of the glass, a drum, and a lens facing
+      // forward. Driver's side is where the hand that works it is.
+      const spotSign = Math.sign(DRIVER_X) || 1;
+      const spotZ = roofBox.max.z + 0.34;
+      const spotY = d.beltY + 0.14;
+      const spotX = (flankXAt(cGeo, style, spotY, spotZ, ":spot") ?? flankX - 0.06) + 0.06;
+      const spot = tag(new THREE.Group(), "spotlight");
+      spot.position.set(spotSign * spotX, spotY, spotZ);
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 6), policeTrimMat);
+      stalk.rotation.z = Math.PI / 2;
+      stalk.position.x = -spotSign * 0.03;
+      spot.add(stalk);
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.058, 0.1, 12), policeTrimMat);
+      drum.rotation.x = Math.PI / 2;
+      drum.position.set(spotSign * 0.04, 0.02, 0.02);
+      spot.add(drum);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.056, 12), new THREE.MeshStandardMaterial({
+        name: "police-spot-lens", color: 0xe8ecf2, roughness: 0.1, metalness: 0,
+        emissive: 0xfff2d0, emissiveIntensity: 0.12, envMapIntensity: 1.6,
+      }));
+      lens.position.set(spotSign * 0.04, 0.02, 0.071);
+      spot.add(lens);
+      group.add(spot);
+
+      // The whip aerial, on the rear deck off to one side, raked back a
+      // little; its base is a short drum. On the SUV the deck is the roof
+      // and topSkinY says so.
+      const aerialZ = d.tail + 0.5;
+      const aerialBaseY = topSkinY(aerialZ);
+      const aerial = tag(new THREE.Group(), "aerial");
+      aerial.position.set(-spotSign * 0.42, aerialBaseY, aerialZ);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.03, 8), policeTrimMat);
+      base.position.y = 0.015;
+      aerial.add(base);
+      const whip = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.007, 0.62, 5), policeTrimMat);
+      whip.position.set(0, 0.03 + 0.31, -0.04);
+      whip.rotation.x = 0.13;
+      aerial.add(whip);
+      group.add(aerial);
+
+      // The unit number, flat on the roof behind the bar, read from above.
+      const numZ = barZ - 0.5;
+      const num = tag(new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.25), policeDecalMatFor("roof")), "roof-number");
+      num.rotation.x = -Math.PI / 2;
+      num.rotation.z = Math.PI; // the top of the number toward the nose
+      num.position.set(0, topSkinY(numZ) + 0.004, numZ);
+      group.add(num);
+
+      // The word on the bonnet, read in the mirror of the car ahead.
+      const wordZ = d.nose - 0.95;
+      const word = tag(new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), policeDecalMatFor("bonnet")), "bonnet-word");
+      word.rotation.x = -Math.PI / 2;
+      // Pitched with the bonnet: the panel falls toward the nose.
+      const wordY0 = skinY(wordZ + 0.2, d.hoodY), wordY1 = skinY(wordZ - 0.2, d.hoodY);
+      word.rotation.x = -Math.PI / 2 + Math.atan2(wordY1 - wordY0, 0.4) * -1;
+      word.position.set(0, (wordY0 + wordY1) / 2 + 0.005, wordZ);
+      group.add(word);
+
+      // Chevrons across the tail, on the skin below the lamps.
+      const chevY = d.tailY - 0.3;
+      const chevZ = noseFaceZ(bGeo, style, chevY, false) ?? d.tail;
+      const chev = tag(new THREE.Mesh(new THREE.PlaneGeometry(flankX * 1.5, 0.15), policeDecalMatFor("chevrons")), "chevrons");
+      chev.rotation.y = Math.PI;
+      chev.position.set(0, chevY, chevZ - 0.004);
+      group.add(chev);
+    }
     // What the engine needs to run it, and what a test needs to find it.
     // The BEAT is not set here: every patrol car is the same silver, so
     // anything derived from the build put all five bars in lockstep.

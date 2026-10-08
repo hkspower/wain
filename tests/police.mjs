@@ -67,8 +67,9 @@ console.log(`beats         ${road.phases.join(", ")}  ` +
 // Civilians used to be the street saloon, every one of them. The road
 // this game is set on is mostly SUVs, so a share of the traffic wears
 // that silhouette now — enough to be met every few cars, not so many
-// that the saloon stops being the default — and none of them are patrol
-// cars, which stay on the saloon shell their livery was drawn for.
+// that the saloon stops being the default. Patrol cars come on both:
+// the saloon is the patrol car, and every third one is the highway
+// patrol's SUV, dressed off its own shell.
 const mix = await page.evaluate(() => {
   const e = window.__grnEngine;
   const by = {};
@@ -86,7 +87,8 @@ console.log(`the mix       ${Object.entries(mix.by).map(([k, v]) => `${v} ${k}`)
   check(suvs >= road.total / 6 && suvs <= road.total / 3,
     `${suvs} SUVs of ${road.total} — the road should carry a real share of them, and the saloon should still be the default`) + " " +
   check(sedans > suvs, `${sedans} saloons to ${suvs} SUVs — the saloon is no longer the road's default`) + " " +
-  check(mix.suvPolice === 0, `${mix.suvPolice} patrol cars are on the SUV shell, whose flank the livery was never fitted to`));
+  check(mix.suvPolice >= 1 && mix.suvPolice < road.count,
+    `${mix.suvPolice} of ${road.count} patrol cars are on the SUV shell — some should be, and not all`));
 
 // --- 2. What one is wearing -------------------------------------------
 const built = await page.evaluate(() => {
@@ -95,18 +97,35 @@ const built = await page.evaluate(() => {
   g.updateMatrixWorld(true);
   let band = 0, lamps = 0, housing = 0;
   const barParts = [];
+  const furniture = {};
   let roof = null;
   g.traverse((o) => {
     if (o.userData?.decal === "police-band") band++;
     if (o.material?.name === "police-lamp") lamps++;
     if (o.material?.name === "police-bar") housing++;
     if (o.userData?.barPart) barParts.push(o.userData.barPart);
+    if (o.userData?.police) furniture[o.userData.police] = (furniture[o.userData.police] ?? 0) + 1;
     if (o.userData?.shell === "roof") roof = o;
   });
   roof.geometry.computeBoundingBox();
   const rb = roof.geometry.boundingBox;
   const bar = g.userData.police.bar;
+  // The furniture, and where it sits against the shell it is on.
+  const box = (o) => { o.updateWorldMatrix(true, false); return new THREE.Box3().setFromObject(o); };
+  const body = g.getObjectByProperty("name", "body") ?? null;
+  const nose = (() => { let z = -Infinity; g.traverse((o) => { if (o.userData?.shell === "body") { o.geometry.computeBoundingBox(); z = Math.max(z, o.geometry.boundingBox.max.z); } }); return z; })();
+  const tail = (() => { let z = Infinity; g.traverse((o) => { if (o.userData?.shell === "body") { z = Math.min(z, o.geometry.boundingBox.min.z); } }); return z; })();
+  const push = g.getObjectByProperty("userData", undefined) && [...g.children].find((o) => o.userData?.police === "push-bar");
+  const spot = [...g.children].find((o) => o.userData?.police === "spotlight");
+  const aerial = [...g.children].find((o) => o.userData?.police === "aerial");
+  const chevrons = [...g.children].find((o) => o.userData?.police === "chevrons");
   return {
+    furniture, body: !!body,
+    pushAhead: push ? +(box(push).min.z - nose).toFixed(3) : null,
+    spotX: spot ? +spot.position.x.toFixed(3) : null,
+    spotY: spot ? +spot.position.y.toFixed(3) : null,
+    aerialBase: aerial ? +box(aerial).min.y.toFixed(3) : null,
+    chevronsBehind: chevrons ? +(tail - box(chevrons).max.z).toFixed(3) : null,
     band, lamps, housing, barParts: barParts.sort(),
     barY: +bar.position.y.toFixed(3), barZ: +bar.position.z.toFixed(3),
     roofTop: +rb.max.y.toFixed(3), roofFront: +rb.max.z.toFixed(3), roofBack: +rb.min.z.toFixed(3),
@@ -115,6 +134,25 @@ const built = await page.evaluate(() => {
 console.log(`livery        ${built.band} wrap ribbons, ${built.lamps} lens banks, ${built.housing} housing+feet  ` +
   check(built.band === 2 && built.lamps === 2 && built.housing === 3,
     `a patrol car came out with ${built.band} wraps, ${built.lamps} lens banks and ${built.housing} housing pieces`));
+// The furniture a patrol car carries that a civilian does not: a push
+// bar ahead of the nose, a spotlight on the driver's pillar, a whip
+// aerial on the deck, a unit number on the roof, the word on the bonnet
+// and chevrons across the tail. Each placed off the shell — the push
+// bar in front of the skin and not inside it, the chevrons on the tail
+// and not floating behind it.
+const want = ["push-bar", "spotlight", "aerial", "roof-number", "bonnet-word", "chevrons"];
+console.log(`furniture     ${want.map((k) => `${built.furniture[k] ?? 0} ${k}`).join(", ")}  ` +
+  check(want.every((k) => (built.furniture[k] ?? 0) >= 1), `a patrol car is missing ${want.filter((k) => !built.furniture[k]).join(", ")}`));
+console.log(`placed        push bar ${built.pushAhead} m ahead of the nose, spotlight at x ${built.spotX} y ${built.spotY}, ` +
+  `aerial base y ${built.aerialBase}, chevrons ${built.chevronsBehind} m inside the tail  ` +
+  check(built.pushAhead !== null && built.pushAhead > 0.02 && built.pushAhead < 0.3,
+    `the push bar's nearest point is ${built.pushAhead} m from the nose — it should stand just ahead of the bumper`) + " " +
+  check(built.spotX !== null && built.spotX < -0.6 && built.spotY > 0.9,
+    `the spotlight is at x ${built.spotX} y ${built.spotY} — it belongs on the driver's A-pillar`) + " " +
+  check(built.aerialBase !== null && built.aerialBase > 0.8,
+    `the aerial's base is at y ${built.aerialBase} — it should stand on the rear deck`) + " " +
+  check(built.chevronsBehind !== null && built.chevronsBehind > -0.05 && built.chevronsBehind < 0.12,
+    `the chevrons sit ${built.chevronsBehind} m from the tail skin — they should be on it`));
 // Every piece the Blender bar can replace has to be tagged, or the swap
 // silently leaves a stand-in in a car wearing an authored bar.
 console.log(`bar parts     ${built.barParts.join(", ")}  ` +

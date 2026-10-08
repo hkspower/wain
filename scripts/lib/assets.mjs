@@ -84,8 +84,8 @@ export const ASSETS = [
   { path: "press/map", kind: "kept", by: "—", what: "The circuit, drawn." },
   { path: "press/flags", kind: "kept", by: "tools/shots/flags.mjs",
     what: "The flag decal, at the size it is worn." },
-  { path: "press/police", kind: "kept", by: "—",
-    what: "The patrol car against its reference: quarter, side and far side." },
+  { path: "press/police", kind: "kept", by: "tools/shots/police.mjs",
+    what: "The patrol cars as the game builds them: saloon and SUV, quarter, side, far side and tail." },
   { path: "press/data", kind: "kept", by: "tools/game-data.mjs",
     what: "The game's numbers in one JSON: cars, rivals and engines, for charts." },
 

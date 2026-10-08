@@ -4244,7 +4244,14 @@ export class GameEngine {
       // from one, not so many that the saloon stops being the road's
       // default.
       const suv = !police && i % 4 === 1;
-      const style = suv ? "suv" : "sedan";
+      // Patrol cars come on both shells. The saloon is the patrol car;
+      // every third one is the SUV, which is what the highway patrol
+      // runs for the barrier work and the sand — the livery, the bar
+      // and the furniture are all placed off the shell they are on
+      // (cars.ts, wearsPolice), so there is no second patrol car to
+      // keep in step.
+      const policeSuv = police && Math.floor(i / 9) % 3 === 2;
+      const style = suv || policeSuv ? "suv" : "sedan";
       const mesh = this.trackCar(
         createCar({
           body: police ? POLICE.silver : TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
