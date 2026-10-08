@@ -10,7 +10,7 @@ sting — captured from the running game by `tools/shots/render-sounds.mjs`.
     ONLY="bump hard,horn" node tools/shots/render-sounds.mjs
 
 Each file is 16-bit stereo WAV at the browser's rate (`index.json` says
-which, 48 kHz on the machine that made these), tapped from the engine's
+which: 44.1 kHz on the machine that made these), tapped from the engine's
 own output — after the limiter and the ceiling, which is what leaves the
 speakers — through an AudioWorklet, so nothing is dropped while the page
 is busy drawing. The window of each file is cut by the audio clock's frame
