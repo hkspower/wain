@@ -14,12 +14,20 @@ app (manifest.webmanifest), from its anchor, icon.svg.
 All of it is FULL-BLEED: iOS and Android launchers cut their own shape, and a
 tile with transparent rounded corners gets black corners on iOS.
 
+Each PNG is stored through Pillow's optimiser: Chromium's own screenshot
+encoding left all four 3 to 7% larger than their pixels need (7,110 B on
+every install, since the worker precaches them), and the suite fails a
+shipped PNG that a lossless re-save would shrink.
+
     python3 design/app_icons.py
 """
 
+import io
 import re
 import sys
 from pathlib import Path
+
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "almuhallab"
@@ -54,8 +62,10 @@ def main():
             page.set_viewport_size({"width": size, "height": size})
             sized = svg.replace("<svg ", f'<svg width="{size}" height="{size}" style="display:block" ', 1)
             page.set_content(f'<body style="margin:0">{sized}</body>')
-            page.screenshot(path=str(SITE / name), omit_background=True)
-            print(f"  {name}  {size}×{size}")
+            im = Image.open(io.BytesIO(page.screenshot(omit_background=True)))
+            im.load()
+            im.save(SITE / name, "PNG", optimize=True)   # same pixels, fewer bytes
+            print(f"  {name}  {size}×{size}  {(SITE / name).stat().st_size} B")
         b.close()
 
 

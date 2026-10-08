@@ -426,15 +426,23 @@ def main() -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
 
+    # The bundle's fonts are copies of the site's, compared byte for byte:
+    # --check once asked only that cairo-400.woff2 existed, so a re-cut
+    # subset left the bundle on the old file and still called it current.
     fonts = OUT / "fonts"
+    site_fonts = sorted([*(SITE / "fonts").glob("*.woff2"), *(SITE / "fonts").glob("LICENSE-*.txt")])
     if not check:
         fonts.mkdir(parents=True, exist_ok=True)
-        for f in sorted((SITE / "fonts").glob("*.woff2")):
+        for f in site_fonts:
             shutil.copy2(f, fonts / f.name)
-        for lic in sorted((SITE / "fonts").glob("LICENSE-*.txt")):
-            shutil.copy2(lic, fonts / lic.name)
-    elif not (fonts / "cairo-400.woff2").exists():
-        stale.append("fonts/")
+    else:
+        for f in site_fonts:
+            copy = fonts / f.name
+            if not copy.exists() or copy.read_bytes() != f.read_bytes():
+                stale.append(f"fonts/{f.name}")
+        names = {f.name for f in site_fonts}
+        stale += [f"fonts/{f.name} (not on the site)" for f in sorted(fonts.glob("*"))
+                  if f.name not in names]
 
     if check:
         if stale:

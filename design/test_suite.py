@@ -584,6 +584,38 @@ def seo_checks():
                   crumb["@type"] == "BreadcrumbList" and names == ["المهلب كود", expected],
                   str(names))
 
+    # A noindex sent as a HEADER binds as hard as one in the page, and the
+    # meta-only check above cannot see it: .htaccess told crawlers to drop
+    # nizam.html, while the sitemap, its canonical and llms.txt all offered
+    # it. Parsed from the FilesMatch blocks that set X-Robots-Tag; the first
+    # check proves the parse still finds the console's own header.
+    hta = (ROOT / ".htaccess").read_text()
+    noindex = [m.group(1) for m in re.finditer(
+        r'<FilesMatch "([^"]+)">(?:(?!</FilesMatch>).)*?X-Robots-Tag "[^"]*noindex', hta, re.S)]
+    check(S, "the server's noindex header is found, and still covers the console",
+          any(re.search(p, "admin.html") for p in noindex), str(noindex))
+    sent = [f for f in PUBLIC if any(re.search(p, f) for p in noindex)]
+    check(S, "no page the sitemap lists is sent a noindex header", not sent, str(sent))
+
+    # The system has four units. Three descriptions, the installed app's own
+    # manifest among them, were written before المركز المالي and named three:
+    # what a search result and the install dialog say must match the tab strip.
+    UNITS = ("المركز المالي", "صافي", "XBRL", "التوصيل")
+    descs = {"manifest.webmanifest": json.loads(
+        (ROOT / "manifest.webmanifest").read_text()).get("description", "")}
+    for f in ("nokhatha.html", "nizam.html"):
+        for attr in ('name="description"', 'property="og:description"',
+                     'name="twitter:description"'):
+            m = re.search(r'<meta %s content="([^"]*)"' % attr, pages[f])
+            descs[f"{f} {attr.split('=')[1]}"] = m.group(1) if m else ""
+    descs["index.html SoftwareApplication"] = next(
+        (e.get("description", "") for e in graph_all if e["@type"] == "SoftwareApplication"), "")
+    # and the system page's own bar, the line a visitor reads above the four tabs
+    bar = re.search(r"<h1>النظام الموحد</h1><small>([^<]*)</small>", pages["nizam.html"])
+    descs["nizam.html bar subtitle"] = bar.group(1) if bar else ""
+    for where, d in descs.items():
+        check(S, f"{where} names all four units", all(u in d for u in UNITS), d[:90])
+
 
 # ═══════════════════════════════════════════ 1b. IDENTITY — pinned, do not relax
 def shorthand_checks():
@@ -992,7 +1024,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "863", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "884", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1025,7 +1057,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "863", "0", "100%"], str(finals))
+          finals == ["4", "884", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -4404,11 +4436,49 @@ def font_checks(pg):
     check(S, "fonts are precached for offline use",
           got == bundled and len(bundled) == 8, f"{got} vs {bundled}")
 
+# ═══════════════════════════════════════════ 1d. ASSETS: what every visitor downloads
+def asset_checks():
+    """Bytes nobody sees in a browser: a PNG stored larger than its own
+    pixels need, and a shipped file crediting a script that is gone."""
+    S = "assets"
+    import io
+    from PIL import Image, ImageChops
+    # Every PNG the site ships is at the size a lossless re-save gives it.
+    # app_icons.py kept Chromium's screenshot encoding, 3 to 7% over, and all
+    # four of its icons are precached on every install. 1% of slack, so a
+    # different zlib on another machine cannot fail a file that is already
+    # optimal; the pixel compare proves the re-save is the same image.
+    pngs = sorted(ROOT.glob("*.png"))
+    check(S, "the scan finds the shipped PNGs", len(pngs) >= 7, str(len(pngs)))
+    for f in pngs:
+        raw = f.read_bytes()
+        im = Image.open(io.BytesIO(raw)); im.load()
+        buf = io.BytesIO(); im.save(buf, "PNG", optimize=True)
+        again = Image.open(io.BytesIO(buf.getvalue())); again.load()
+        same = (again.mode == im.mode and again.size == im.size
+                and ImageChops.difference(again.convert("RGBA"), im.convert("RGBA")).getbbox() is None)
+        check(S, f"{f.name} is stored losslessly optimised",
+              same and len(buf.getvalue()) >= len(raw) * 0.99,
+              f"{len(raw)} B, a lossless re-save is {len(buf.getvalue())} B")
+    # A shipped file that credits a design script names one that exists: the
+    # README and the company page's own comment both said og.png was drawn by
+    # design/og_image.py, a script deleted when the logo kit took it over.
+    named = {}
+    shipped = [*ROOT.glob("*.html"), *ROOT.glob("*/index.html"), *ROOT.glob("*.md"),
+               *ROOT.glob("docs/*.md"), *ROOT.glob("*.txt"), ROOT / ".htaccess", ROOT / "sw.js"]
+    for f in shipped:
+        for p in re.findall(r"design/[\w./-]+\.(?:py|sh)\b", f.read_text(errors="replace")):
+            named.setdefault(p, set()).add(f.name)
+    check(S, "the scan finds the scripts the shipped files credit", len(named) >= 8, str(len(named)))
+    gone = {p: sorted(w) for p, w in named.items() if not (REPO / p).is_file()}
+    check(S, "every design script a shipped file credits exists", not gone, str(gone))
+
 # ═══════════════════════════════════════════ run
 static_checks()
 https_checks()
 supply_chain_checks()
 seo_checks()
+asset_checks()
 identity_checks()
 shorthand_checks()
 browser_checks()

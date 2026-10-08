@@ -35,9 +35,18 @@ ErrorDocument 404 /404.html
   RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
   RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
 
-  # /nokhatha -> nokhatha.html, and the other units, rewritten (not redirected)
-  # so the address bar keeps the clean form. A real file or folder of that name
-  # wins. /nokha1 stays only so links published before the rename keep resolving. The internal
+  # /nokhatha -> nokhatha.html, and the other units. A real file or folder of
+  # that name wins, and the deploy ships a stub FOLDER for six of the seven
+  # (nokhatha/ nizam/ admin/ safi/ xbrl/ delivery/, each an index.html, for
+  # hosts that ignore this file). So on this host the rule serves only the
+  # pre-rename name, which has no folder: /nizam is the server's own 301 to
+  # /nizam/, whose stub then sends the visitor, fragment and all, to
+  # nizam.html. It lands on the canonical address, one hop longer. Dropping "!-d" is not a known cure: on Apache
+  # 2.4 mod_dir can still add the slash after a per-directory rewrite
+  # (DirectoryCheckHandler Off, the default), LiteSpeed is untested, and with
+  # "/?" a page served AT /nizam/ would resolve fonts/ and sw.js under
+  # /nizam/. Change it only after trying it on the host itself.
+  # /nokha1 stays only so links published before the rename keep resolving. The internal
   # pages are still behind Basic Auth: <FilesMatch> below matches the file the
   # rewrite lands on, not the URL that was asked for.
   RewriteCond %{REQUEST_FILENAME} !-f
@@ -113,7 +122,11 @@ ErrorDocument 404 /404.html
 </FilesMatch>
 
 # ─────────── Keep internal tools out of Google ───────────
-<FilesMatch "^(admin|mcp-admin|editor|nizam|delivery|xbrl|salon-queue)\.html$">
+# nizam.html is not here: it is public since 2026-10-02 and the sitemap,
+# its canonical and llms.txt all offer it, so a noindex header on it was a
+# contradiction a search console reports straight back (the suite parses
+# these blocks against the sitemap's pages). delivery/xbrl are redirect stubs.
+<FilesMatch "^(admin|mcp-admin|editor|delivery|xbrl|salon-queue)\.html$">
   <IfModule mod_headers.c>
     Header always set X-Robots-Tag "noindex, nofollow, noarchive"
   </IfModule>

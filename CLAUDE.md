@@ -21,8 +21,13 @@ use only**. It must never appear on the live site, in any published page, name,
 title, filename, or artefact. Write **النوخذة** in Arabic; where a Latin
 filename or key is unavoidable, use `nokhatha` (matching the `nokhatha-*`
 storage keys). The portal lives at `nokhatha.html`, reachable as `/nokhatha` on **any** host:
-the extensionless form is a rewrite in `.htaccess` for Apache, and a
-`<name>/index.html` stub for GitHub Pages, which ignores that file. The stub is
+the extensionless form is a `<name>/index.html` stub on every host. The
+`.htaccess` rewrite serves only the pre-rename address, which has no folder: a real folder wins over it, and the
+deploy ships all six stub folders, so on Hostinger `/nizam` is the server's
+own 301 to `/nizam/`, then the stub's redirect to `nizam.html` (read from the
+rules, 2026-10-08: no Apache or LiteSpeed here, and dropping `!-d` is no known
+cure, since mod_dir can still add the slash after a per-directory rewrite;
+try any change on the host first). The stub is
 a script, not only a `<meta refresh>`, because a **fragment never reaches the
 server** and a refresh would drop it — `/safi#/x` must keep its tab. Each stub
 is `noindex` with a canonical to the `.html`, so a clean URL is an entry point
@@ -148,7 +153,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the line above. **The Arabic files are Arabic-only** — no digits, no Latin, not
   even a full stop — so each weight is a pair: the Arabic face under an Arabic
   `unicode-range`, and `cairo-latin.woff2` (Cairo's own Latin subset, one
-  variable file for every weight) under the Latin range. Without the pair every
+  variable file for every weight, cut by `design/site_fonts.py` from
+  `design/fonts-src/`) under the Latin range. Without the pair every
   figure on the site — counters, `+965`, each KWD amount — painted in the
   device's own face, and `getComputedStyle` still said "Cairo", so nothing
   noticed. The Arabic faces **must** carry their range: a face with none claims
@@ -444,7 +450,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 863 checks covering
+- `python3 design/test_suite.py` is the full system test — 884 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -777,6 +783,43 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
     sign; the select-all box follows the selection; the WhatsApp link left
     after a send follows the fields; the portal's toast is the one formula;
     the retired tiers' `minPlan`, `data-plan` handler and plan clamp are gone.
+- **Bytes no browser shows are still sent, and a check that cannot see them
+  calls them current** (asset audit, 2026-10-08, `asset_checks` and two
+  `seo` checks, every one proved failing first):
+  - **A smaller font is judged by rendering every page with both files,
+    never by its cmap.** `site_fonts.py` cuts JetBrains Mono without its 155
+    code-ligature glyphs (`calt`: nothing the pages set forms one, and
+    Chromium drops ligatures under letter-spacing anyway), 38,284 B to
+    20,192 B, and now owns `cairo-latin.woff2` too, cut from
+    `design/fonts-src/` without the fraction glyphs, 33,820 B to 31,604 B.
+    Both were swapped in by route on every page and tab at 1440 and 390:
+    pixel-identical. Cutting the weight axis to the 400 to 800 the pages ask
+    for was refused although the cmap and outlines matched: the instancer
+    re-rounds advance deltas, 44 Cairo glyphs moved a unit at 700, a select
+    on the console narrowed and its buttons moved (14,612 pixels at 390).
+  - **A generator's `--check` must compare what it copies.**
+    `design_system.py --check` asked only that `cairo-400.woff2` existed, so
+    the bundle kept the old fonts and said «current»; it compares every
+    copied font and licence byte for byte now, and flags a stray one.
+  - **A screenshot is not a stored PNG.** `app_icons.py` kept Chromium's
+    encoding, 3 to 7% over (7,110 B on every install, all four precached);
+    it re-saves through Pillow's optimiser, same pixels. The suite fails a
+    shipped PNG that a lossless re-save shrinks by 1% or more.
+  - **A noindex header binds like a noindex tag.** `.htaccess` sent
+    `X-Robots-Tag: noindex` for `nizam.html`, which the sitemap, its
+    canonical and `llms.txt` all offered; the meta-only check could not see
+    it. The suite parses the FilesMatch blocks against the sitemap's pages.
+  - **Copy written before a unit existed keeps describing the old system.**
+    The manifest (the install dialog's text) and two meta descriptions named
+    three units, without المركز المالي; every description of the system now
+    names all four, pinned. The README and the company page's own comment
+    credited `og.png` to `design/og_image.py`, deleted when the logo kit took
+    it over; the suite fails on a design script a shipped file names that
+    does not exist.
+  - Not done, on purpose: `logo.svg` stays (only the precache dropped it;
+    `logo-en/build.py` writes it and the design-system bundle copies it),
+    as do `CNAME` and the licence files; the clean-URL rewrite is documented
+    as it really behaves (above) rather than changed blind.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse
