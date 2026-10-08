@@ -6,7 +6,9 @@ and `VoiceBox` falls back to the browser's Arabic speech synthesis. This folder
 is that same catalogue rendered once through ElevenLabs, so it can be listened
 to, judged, and — if it is good enough — installed.
 
-35 files: 6 effects, 2 music beds, 27 voice lines. 6.6 MB.
+35 files: 6 effects, 2 music beds, 27 voice lines. 6.6 MB. `synth/` is the
+other half — the 32 sounds the game synthesises live, captured from its own
+output as WAV (`tools/shots/render-sounds.mjs`; its README says how).
 
 ## Installing it into the game
 

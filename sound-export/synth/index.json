@@ -1,0 +1,261 @@
+{
+  "sampleRate": 44100,
+  "files": [
+    {
+      "file": "rev-start.wav",
+      "name": "revStart",
+      "kind": "one-shot",
+      "seconds": 3,
+      "peak": 0.8034,
+      "rms": 0.1511
+    },
+    {
+      "file": "shift.wav",
+      "name": "shift",
+      "kind": "one-shot",
+      "seconds": 1.5,
+      "peak": 0.4517,
+      "rms": 0.0157
+    },
+    {
+      "file": "backfire.wav",
+      "name": "backfire",
+      "kind": "one-shot",
+      "seconds": 1.5,
+      "peak": 0.3052,
+      "rms": 0.016
+    },
+    {
+      "file": "turbo-blowoff.wav",
+      "name": "blowOff",
+      "kind": "one-shot",
+      "seconds": 2,
+      "peak": 0.7484,
+      "rms": 0.0633
+    },
+    {
+      "file": "nos-kick.wav",
+      "name": "nosKick",
+      "kind": "one-shot",
+      "seconds": 1.5,
+      "peak": 0.3878,
+      "rms": 0.0125
+    },
+    {
+      "file": "nos-release.wav",
+      "name": "nosRelease",
+      "kind": "one-shot",
+      "seconds": 2,
+      "peak": 0.0578,
+      "rms": 0.0025
+    },
+    {
+      "file": "bump-light.wav",
+      "name": "bump light",
+      "kind": "one-shot",
+      "seconds": 1.8,
+      "peak": 0.245,
+      "rms": 0.0196
+    },
+    {
+      "file": "bump-hard.wav",
+      "name": "bump hard",
+      "kind": "one-shot",
+      "seconds": 2.2,
+      "peak": 0.8013,
+      "rms": 0.061
+    },
+    {
+      "file": "scrape-light.wav",
+      "name": "scrape light",
+      "kind": "one-shot",
+      "seconds": 1.8,
+      "peak": 0.6649,
+      "rms": 0.0729
+    },
+    {
+      "file": "scrape-hard.wav",
+      "name": "scrape hard",
+      "kind": "one-shot",
+      "seconds": 2.2,
+      "peak": 0.8273,
+      "rms": 0.0852
+    },
+    {
+      "file": "flash-click.wav",
+      "name": "flashClick",
+      "kind": "one-shot",
+      "seconds": 1.2,
+      "peak": 0.2498,
+      "rms": 0.0065
+    },
+    {
+      "file": "drift-link-1.wav",
+      "name": "driftLink 1",
+      "kind": "one-shot",
+      "seconds": 1.5,
+      "peak": 0.0611,
+      "rms": 0.0052
+    },
+    {
+      "file": "drift-link-5.wav",
+      "name": "driftLink 5",
+      "kind": "one-shot",
+      "seconds": 1.5,
+      "peak": 0.0611,
+      "rms": 0.0051
+    },
+    {
+      "file": "battle-sting.wav",
+      "name": "battleSting",
+      "kind": "one-shot",
+      "seconds": 3,
+      "peak": 0.165,
+      "rms": 0.0105
+    },
+    {
+      "file": "win-sting.wav",
+      "name": "winSting",
+      "kind": "one-shot",
+      "seconds": 3,
+      "peak": 0.1433,
+      "rms": 0.0149
+    },
+    {
+      "file": "lose-sting.wav",
+      "name": "loseSting",
+      "kind": "one-shot",
+      "seconds": 3,
+      "peak": 0.1479,
+      "rms": 0.0187
+    },
+    {
+      "file": "champion-fanfare.wav",
+      "name": "championFanfare",
+      "kind": "one-shot",
+      "seconds": 4.5,
+      "peak": 0.1636,
+      "rms": 0.0186
+    },
+    {
+      "file": "horn.wav",
+      "name": "horn",
+      "kind": "one-shot",
+      "seconds": 1.6,
+      "peak": 0.3829,
+      "rms": 0.0643
+    },
+    {
+      "file": "engine-on-song.wav",
+      "name": "engine on song",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.7988,
+      "rms": 0.2117
+    },
+    {
+      "file": "engine-limiter.wav",
+      "name": "on the limiter",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.7924,
+      "rms": 0.1189
+    },
+    {
+      "file": "tyre-roll.wav",
+      "name": "tyre roll at 120",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.6019,
+      "rms": 0.1406
+    },
+    {
+      "file": "skid.wav",
+      "name": "skid",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.8402,
+      "rms": 0.2185
+    },
+    {
+      "file": "brakes.wav",
+      "name": "brakes",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.4355,
+      "rms": 0.089
+    },
+    {
+      "file": "coasting.wav",
+      "name": "coasting",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.389,
+      "rms": 0.0813
+    },
+    {
+      "file": "wheelspin.wav",
+      "name": "wheelspin",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.8015,
+      "rms": 0.2185
+    },
+    {
+      "file": "turbo-boost.wav",
+      "name": "boost",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.7806,
+      "rms": 0.2117
+    },
+    {
+      "file": "nitrous.wav",
+      "name": "nitrous",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.7928,
+      "rms": 0.2128
+    },
+    {
+      "file": "rain.wav",
+      "name": "rain",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.748,
+      "rms": 0.1677
+    },
+    {
+      "file": "tunnel.wav",
+      "name": "tunnel",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.9685,
+      "rms": 0.3649
+    },
+    {
+      "file": "rumble-strip.wav",
+      "name": "rumble strip",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.7608,
+      "rms": 0.1697
+    },
+    {
+      "file": "rival-alongside.wav",
+      "name": "rival alongside",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.8387,
+      "rms": 0.2043
+    },
+    {
+      "file": "sea.wav",
+      "name": "the sea",
+      "kind": "held",
+      "seconds": 4,
+      "peak": 0.5251,
+      "rms": 0.1232
+    }
+  ]
+}

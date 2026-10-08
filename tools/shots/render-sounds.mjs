@@ -22,7 +22,7 @@
 // is what each of them is, for four seconds. 16-bit stereo at the
 // context's own rate.
 import { chromium } from "playwright-core";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const C = [
@@ -79,10 +79,13 @@ const FRAME = {
   seaX: 0, seaZ: 400, rival: null, others: [],
   listener: { x: 0, y: 1, z: 0, fx: 0, fy: 0, fz: -1, ux: 0, uy: 1, uz: 0 },
 };
-// [name, file, seconds to record]. Tails are long on purpose: the room's
-// reverb is part of what a sting is.
+// [name, file, seconds to record, bed]. Tails are long on purpose: the
+// room's reverb is part of what a sting is. `bed` marks the one-shots that
+// ARE the engine — the rev on start is the bed bus swelling, not a sample
+// on the sfx bus — and so render with the bed up, or they render as
+// silence. (They did: the first full run's rev-start was a flat line.)
 const ONESHOTS = [
-  ["revStart", "rev-start", 3.0],
+  ["revStart", "rev-start", 3.0, true],
   ["shift", "shift", 1.5],
   ["backfire", "backfire", 1.5],
   ["blowOff", "turbo-blowoff", 2.0],
@@ -120,10 +123,11 @@ const HELD = [
 ];
 const HELD_SECONDS = 4;
 
-const jobs = [
-  ...ONESHOTS.map(([name, file, secs]) => ({ kind: "one-shot", name, file, secs })),
+const jobsAll = [
+  ...ONESHOTS.map(([name, file, secs, bed]) => ({ kind: "one-shot", name, file, secs, bed: !!bed })),
   ...HELD.map(([name, file, over]) => ({ kind: "held", name, file, secs: HELD_SECONDS, over })),
-].filter((j) => !ONLY || ONLY.has(j.name) || ONLY.has(j.file));
+];
+const jobs = jobsAll.filter((j) => !ONLY || ONLY.has(j.name) || ONLY.has(j.file));
 
 // The capture, and the loop, live in the page: one round trip per sound
 // is a game's worth of frame work each (see allsounds.mjs).
@@ -166,7 +170,7 @@ for (const j of jobs) {
     const pump = setInterval(() => s.update(frame), 16);
     s.setNos(false);
     // Reset to a standing car and let the last sound's tail clear.
-    s.setMixLevels(job.kind === "held" ? 1 : 0, 1);
+    s.setMixLevels(job.kind === "held" || job.bed ? 1 : 0, 1);
     frame = FRAME_IN;
     await wait(1400);
     // Every block is stamped with the audio clock's own frame count. The
@@ -245,6 +249,17 @@ for (const j of jobs) {
   index.push(row);
   console.log(`${row.kind.padEnd(9)} ${j.name.padEnd(18)} ${String(row.seconds).padStart(5)} s  peak ${row.peak.toFixed(3)}  rms ${row.rms.toFixed(4)}${peak < 0.004 ? "   <- SILENT" : ""}`);
 }
-writeFileSync(join(OUT, "index.json"), JSON.stringify({ sampleRate: rate, files: index }, null, 2) + "\n");
+// A partial run (ONLY=...) replaces its own entries in the index and keeps
+// the rest, so re-rendering one sound does not leave an index of one.
+let files = index;
+const indexPath = join(OUT, "index.json");
+if (ONLY && existsSync(indexPath)) {
+  const prev = JSON.parse(readFileSync(indexPath, "utf8")).files ?? [];
+  const done = new Set(index.map((r) => r.file));
+  files = [...prev.filter((r) => !done.has(r.file)), ...index];
+  const order = new Map(jobsAll.map((j, i) => [`${j.file}.wav`, i]));
+  files.sort((a, b) => (order.get(a.file) ?? 1e9) - (order.get(b.file) ?? 1e9));
+}
+writeFileSync(indexPath, JSON.stringify({ sampleRate: rate, files }, null, 2) + "\n");
 await browser.close();
 process.exit(index.some((r) => r.peak < 0.004) ? 1 : 0);
