@@ -249,6 +249,20 @@ def static_checks():
         check(S, f"{p}: no undefined CSS variables", not undefined, str(undefined[:5]))
         check(S, f"{p}: has a Content-Security-Policy", "Content-Security-Policy" in t)
 
+    # One @keyframes per name: a later one of the same name replaces the
+    # earlier, silently. The services drawing's bob was named "rise" like the
+    # hero's entrance, so the hero's six lines bobbed 7px instead of fading in,
+    # from the first commit until 2026-10-08, with every check green.
+    def keyframes(src):
+        css = re.sub(r"/\*.*?\*/", "", "".join(re.findall(r"<style[^>]*>(.*?)</style>", src, re.S)), flags=re.S)
+        return re.findall(r"@(?:-webkit-)?keyframes\s+([\w-]+)", css)
+    planted_kf = keyframes("<style>@keyframes a { } /* @keyframes a { } */ @keyframes a { }</style>")
+    for p, t in texts.items():
+        names = keyframes(t)
+        dup = sorted({n for n in names if names.count(n) > 1})
+        check(S, f"{p}: no two @keyframes share a name (the scan sees a planted pair)",
+              planted_kf == ["a", "a"] and not dup, str(dup))
+
     # NO BROWN PAPER. The old rule was "no beige": a light surface with red
     # above blue reads as cream. Its dark twin is a near-black that creeps
     # brown, and lifting the logo's slightly warm ground at its own hue is
@@ -964,7 +978,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "824", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "836", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -997,7 +1011,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "824", "0", "100%"], str(finals))
+          finals == ["4", "836", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1388,6 +1402,12 @@ def home_checks(pg):
             return new Promise(r => setTimeout(() =>
               r(document.getElementById('callfab').classList.contains('away')), 400));
           })()"""))
+    # the pill is fixed, so it never leaves the viewport and the off-screen
+    # pause never reached its ring: it pulsed on, at opacity 0, the whole way
+    # down the contact bar and the footer (2026-10-08)
+    halo = pg.evaluate("""(() => { const h = document.querySelector('#callfab .halo');
+      const a = h && h.getAnimations()[0]; return a ? a.playState : 'none'; })()""")
+    check(S, "its ring rests while it is stepped aside", halo == "paused", halo)
     # the CSP must still forbid every external origin — the agent is a link,
     # never an embedded widget
     csp = re.search(r'Content-Security-Policy" content="([^"]+)"',
@@ -2231,8 +2251,9 @@ def preload_checks(pg):
 def motion_pause_checks(pg):
     """Nothing animates for a screen nobody is looking at.
 
-    The company page carries 80 endless animations — gears, dashes, bars,
-    pulses — and all 80 used to run whatever was on screen. An
+    The company page carried 80 endless animations — gears, dashes, bars,
+    pulses — and all 80 used to run whatever was on screen (58 since the
+    sections that held the rest were removed, measured 2026-10-08). An
     IntersectionObserver now marks off-screen hosts `.offscreen` and the
     stylesheet pauses them.
 
@@ -2258,7 +2279,12 @@ def motion_pause_checks(pg):
           const rr = rail.getBoundingClientRect();
           if (r.right < rr.left + 2 || r.left > rr.right - 2) continue;
         }
-        const vis = r.bottom > 0 && r.top < innerHeight;
+        // painted, not only placed: the voice pill stepped aside is on
+        // screen by its rect at opacity 0, and its ring rests there
+        let shown = true;
+        for (let e = t.parentElement; e; e = e.parentElement)
+          if (getComputedStyle(e).opacity === '0') { shown = false; break; }
+        const vis = shown && r.bottom > 0 && r.top < innerHeight;
         if (a.playState === 'running') { if (!vis) offRun++; running++; }
         else if (vis) onPaused++;
       }
@@ -2280,6 +2306,27 @@ def motion_pause_checks(pg):
             # and it never freezes something the visitor can see
             check(S, f"{name} {label}: nothing visible is left frozen",
                   m["onPaused"] == 0, str(m))
+    # The one deliberate stagger, measured rather than read: its delays were
+    # written below a rule of higher specificity whose «transition» shorthand
+    # reset them to 0s, so all seven stations lit at once; the flow map's
+    # second wire lost its .3s the same way (2026-10-08). The stations stagger
+    # down the vertical timeline only: across the wide row they share a
+    # baseline, and siblings on one row never stagger.
+    delays = {}
+    for w in (390, 1440):
+        pg.set_viewport_size({"width": w, "height": 900})
+        pg.goto(f"{BASE}/index.html", wait_until="networkidle")
+        delays[w] = pg.evaluate("""() => ({
+          li: [...document.querySelectorAll('ol.flow li')].map(e =>
+                parseFloat(getComputedStyle(e).transitionDelay)),
+          wire: [...document.querySelectorAll('.flowmap .frow .wire')].map(e =>
+                parseFloat(getComputedStyle(e, '::before').animationDelay)) })""")
+    check(S, "down the vertical timeline the stations light in order",
+          delays[390]["li"] == [0, .16, .32, .48, .64, .8, .96], str(delays[390]["li"]))
+    check(S, "across the wide row they light together",
+          delays[1440]["li"] and not any(delays[1440]["li"]), str(delays[1440]["li"]))
+    check(S, "the flow map's second wire runs behind the first",
+          delays[390]["wire"] == [0, .3] and delays[1440]["wire"] == [0, .3], str(delays))
     # leave the page as the rest of the suite expects to find it
     pg.set_viewport_size({"width": 1440, "height": 900})
 
@@ -3223,6 +3270,28 @@ def mobile_checks(br):
 
     c.close()
 
+# columns of the hero's rain left visible by its mask, against the ink of the
+# hero's text: [visible columns, crossings]
+RAIN_HITS = """() => {
+  const art = document.querySelector('.heroart').getBoundingClientRect();
+  const alpha = x => { const f = (x - art.left) / art.width;
+    return f < .2 ? 1 - f / .2 : f > .8 ? (f - .8) / .2 : 0; };
+  const cols = new Map();
+  document.querySelectorAll('.rain i').forEach(g => { const r = g.getBoundingClientRect();
+    if (alpha((r.left + r.right) / 2) > .1) cols.set(Math.round(r.left), [r.left, r.right]); });
+  const ink = [];
+  const walk = document.createTreeWalker(document.querySelector('.hero'), NodeFilter.SHOW_TEXT);
+  let n; while ((n = walk.nextNode())) {
+    if (!n.nodeValue.trim() || n.parentElement.closest('.heroart')) continue;
+    const rg = document.createRange(); rg.selectNodeContents(n);
+    for (const r of rg.getClientRects()) if (r.width) ink.push([r.left, r.right, n.nodeValue.trim().slice(0, 12)]); }
+  const out = [];
+  for (const [l, r] of cols.values()) for (const [a, b, t] of ink)
+    if (l < b && r > a) out.push(Math.round(l) + 'px over «' + t + '»');
+  return [cols.size, out];
+}"""
+
+
 def fit_checks(br):
     """Boxes sized to what they hold, on every width a phone can be.
 
@@ -3301,27 +3370,20 @@ def fit_checks(br):
     # the rain falls through the hero's whole height, so a column that is not
     # masked out will cross every line it shares an x-range with, sooner or later:
     # compare columns against the ink of the text, not the boxes of its elements
-    hit = pg.evaluate("""() => {
-      const art = document.querySelector('.heroart').getBoundingClientRect();
-      const alpha = x => { const f = (x - art.left) / art.width;
-        return f < .2 ? 1 - f / .2 : f > .8 ? (f - .8) / .2 : 0; };
-      const cols = new Map();
-      document.querySelectorAll('.rain i').forEach(g => { const r = g.getBoundingClientRect();
-        if (alpha((r.left + r.right) / 2) > .1) cols.set(Math.round(r.left), [r.left, r.right]); });
-      const ink = [];
-      const walk = document.createTreeWalker(document.querySelector('.hero'), NodeFilter.SHOW_TEXT);
-      let n; while ((n = walk.nextNode())) {
-        if (!n.nodeValue.trim() || n.parentElement.closest('.heroart')) continue;
-        const rg = document.createRange(); rg.selectNodeContents(n);
-        for (const r of rg.getClientRects()) if (r.width) ink.push([r.left, r.right, n.nodeValue.trim().slice(0, 12)]); }
-      const out = [];
-      for (const [l, r] of cols.values()) for (const [a, b, t] of ink)
-        if (l < b && r > a) out.push(Math.round(l) + 'px over «' + t + '»');
-      return [cols.size, out];
-    }""")
+    hit = pg.evaluate(RAIN_HITS)
     check(S, "no visible column of the rain falls across the hero's text",
           hit[0] >= 4 and not hit[1], f"{hit[0]} visible columns; " + "; ".join(hit[1][:4]))
     c.close()
+    # and at a tablet's width, where the counters' row runs wider than the
+    # mask's clear band: checked at 1440 only, three columns crossed it at
+    # 768 and six at 700 (2026-10-08). Drawn and clear, or not drawn at all.
+    for w, h in ((1024, 768), (820, 900), (768, 1024), (700, 900)):
+        c = ctx(w, h, mob=False); pg = c.new_page()
+        pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+        hit = pg.evaluate(RAIN_HITS)
+        check(S, f"at {w}x{h} no visible column of the rain crosses the hero's text",
+              not hit[1] and (hit[0] >= 4 or w < 1024), f"{hit[0]} visible columns; " + "; ".join(hit[1][:4]))
+        c.close()
 
     c = ctx(390, 844); pg = c.new_page()
     pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)

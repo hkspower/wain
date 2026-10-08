@@ -53,7 +53,7 @@ Locked, exactly as they are:
 | Brand ink | **Amber on near-black since 2026-10-07**: `--tint` `#e6a95c` (9.66:1 on the page, 7.62:1 on `--panel-3`) · `--tint-hover` `#fabc6f` · `--on-tint` `#0a0908`, the ink ON amber (white on amber is 2.06:1: never white on `--tint`) · `--stripe` `#7f5d33` (amber × .55, the logo's band) · the bar `--tint-strong` `#0a0908` with `--on-bar` `#f4f4f4`, `--on-bar-bd` `#79736c`, `--on-bar-fill` `#272625` · chart ramp `#624621`→`#e6a95c` · warnings `--sand` `#f2d855`, a yellow kept apart from the accent. Before: dark grey `#33383f`/`#25292f` (2026-10-03), brown `#7a4418`/`#6f3f1c` |
 | Surfaces | **the logo's dark on every device**: `--bg` `#0a0908` (page and bar), `--panel` `#161514` (cards), `--panel-2` `#1e1c1b` (fields, recessed rows), `--panel-3` `#272524` (the lightest step: inks are graded on it); `--border` `#42413f` hairlines (1.79:1 on a card), `--border-input` `#7c7670` control edges (3.40:1 on panel-3). Clarity pass (owner's «improve theme clarity», 2026-10-07): surfaces re-solved at OKLCH L .197/.229/.266, hue 70, chroma .0035, so a card stands 1.09:1 off the page (was 1.07, with a 1.53 hairline); `--muted` `#b4bac1` 7.80:1 on panel-3, 9.32 on a card (was `#a8aeb5` at the 7.02 floor); `--good` `#3ab873` · `--danger` `#f68179` · `--info` `#68a6f3` each 6.0:1 on panel-3; `--viz-grid` `#31302f`; audit in `design/out/clarity/`. Before: `#141211`/`#1a1918`/`#242321`, border `#363534`, field edge `#76706a`. `color-scheme: dark` on `:root`, no `prefers-color-scheme` block, `theme-color` `#0a0908`. Printing `nizam.html` swaps the tokens to white paper and dark ink. Amber is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | full-height hero with real counters and a **code rain** in its margins (Arabic letters, digits and code marks in two seeded copies, one translate animation; masked to the outer 20% on each side so no visible column crosses the text; not drawn on phones, where the text runs edge to edge) · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · `ol.steps` as a slider timeline · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them; «لماذا المهلب كود» (the commitments `.band`) and «التقنيات» (the technology cloud) went the same way at the owner's word, 2026-10-02 — «too much crowd contents»: the band repeated the hero's counters, the cloud listed tools rather than work) · the four-column footer on the `--panel` base |
+| Layout | full-height hero with real counters and a **code rain** in its margins (Arabic letters, digits and code marks in two seeded copies, one translate animation; masked to the outer 20% on each side so no visible column crosses the text; not drawn below 820px, where the counters' row runs wider than the clear band and on a phone the text runs edge to edge) · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · `ol.steps` as a slider timeline · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them; «لماذا المهلب كود» (the commitments `.band`) and «التقنيات» (the technology cloud) went the same way at the owner's word, 2026-10-02 — «too much crowd contents»: the band repeated the hero's counters, the cloud listed tools rather than work) · the four-column footer on the `--panel` base |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -230,7 +230,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
-- **Nothing animates off screen.** The page carries 80 endless animations and
+- **Nothing animates off screen.** The page carried 80 endless animations (58
+  since the sections that held the rest were removed: measured 2026-10-08) and
   all 80 used to run whatever was on screen; an IntersectionObserver marks
   off-screen hosts `.offscreen` and the stylesheet pauses them (applied *by*
   the script, same reason as the reveal). The pause needs `!important`: every
@@ -435,7 +436,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 824 checks covering
+- `python3 design/test_suite.py` is the full system test — 836 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -689,6 +690,29 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   both `./` and `index.html` fetched the page twice). `live_host_checks`
   serves the host's behaviour, `no-store` so only the worker can answer
   offline, and pins all of it.
+- **A CSS rule can be perfectly written and never apply** (audit, 2026-10-08:
+  four of them on the company page, every check green). A second
+  `@keyframes rise` (the services drawing's bob) replaced the hero's
+  entrance, so the hero's six lines bobbed 7px instead of fading in, from the
+  first commit on; the scene's keyframes are `bob` now and a static check
+  fails on any repeated keyframes name, per page, proved on a planted pair.
+  A delay written under a rule of higher specificity is a no-op whenever that
+  rule uses the shorthand: `ol.flow li:nth-child(n) { transition-delay }`
+  (0,2,2) lost to `html.motion [data-reveal] ol.flow li { transition: … }`
+  (0,3,3), so the page's one deliberate stagger never ran, and the flow map's
+  second wire lost its `.3s` the same way; the halo's pause lost to its own
+  `animation` shorthand. Write such a rule at the shorthand's own weight or
+  above, and measure it (`getComputedStyle(...).transitionDelay`), never read
+  it. The stagger runs only down the vertical timeline (below 900px): across
+  the wide row siblings share a baseline. The voice pill is fixed, so the
+  off-screen pause never reached its ring, which pulsed at opacity 0 under
+  the contact bar; `html.motion .callfab.away .halo` rests it, and the
+  frozen-animation check now counts an element under an opacity-0 ancestor
+  as not visible. The rain's 20% to 80% clear band holds the counters' row
+  only from about 1024px: it ran 13% to 87% at 768, so the rain is not drawn
+  below 820px and the crossing check runs at 1024, 820, 768 and 700 as well
+  as 1440. Measured 2026-10-08: 58 infinite animations at 1440, not the 80
+  the comments still quoted.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse

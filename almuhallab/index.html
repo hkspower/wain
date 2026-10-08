@@ -380,25 +380,22 @@
       cursor: pointer; background: transparent; font-family: var(--sans);
     }
     /* on the bar: light links, and the one call to action is the logo's amber
-       with the ground's ink (9.66:1; white on amber would be 2.06) */
+       with the ground's ink (9.66:1; white on amber would be 2.06): the primary
+       button's own rule below, which outranks «nav.site a» (0,2,0 over 0,1,2) */
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
-    nav.site .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
-    nav.site .btn.primary .ic { stroke: var(--on-tint); color: var(--on-tint); }
-    nav.site .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
     header a:focus-visible, header .btn:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
 
     .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
     .btn.outline { border-color: var(--border-input); background: var(--panel-2); }
-    /* states, the same on every page: a hover that can be seen (a border that
-       turns amber, not a fill one step lighter), a disabled that still reads */
-    .btn { font-weight: 700; }
+    .btn { font-weight: 700; }   /* the links above stay 600: bold, four wrap at 320px */
     /* a keyboard journey starts at the content, not seven stops of chrome */
     .skip { position: absolute; top: -56px; inset-inline-start: 8px; z-index: 100; background: var(--tint);
       color: var(--on-tint); padding: 8px 12px; border-radius: 8px; font-weight: 700; }
     .skip:focus { top: 8px; outline: 2px solid var(--on-bar); outline-offset: 2px; }
     main:focus, [tabindex="-1"]:focus { outline: none; }
-   /* the links above stay 600: bold, four wrap at 320px */
+    /* states, the same on every page: a hover that can be seen (a border that
+       turns amber, not a fill one step lighter), a disabled that still reads */
     .btn:hover { background: var(--panel-3); border-color: var(--tint); }
     .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -496,8 +493,10 @@
     .frow .fnode { flex: none; }
     .frow .wire { flex: 1; min-width: 36px; }
     .fnode b, .fnode span { white-space: nowrap; }
-    .frow .wire::before { animation-delay: .3s; }
-    .frow:first-child .wire::before { animation-delay: 0s; }
+    /* the second source's current trails the first. Written at the
+       animation's own weight or above: «.frow .wire::before» (0,2,1) lost to
+       «html.motion .wire::before» (0,2,2), whose shorthand reset the delay */
+    html.motion .frow + .frow .wire::before { animation-delay: .3s; }
     /* the row needs ~840px to hold its labels unwrapped; below that it
        becomes a vertical pipeline rather than a squeezed one */
     @media (max-width: 900px) {
@@ -517,7 +516,6 @@
       html.motion .wire::before { animation: flowv .9s linear infinite; }
       @keyframes flowv { to { transform: translateY(9px); } }
     }
-
 
     /* ═══════ motion ═══════
        Movement here has one job: to say "this arrived" and "this responds".
@@ -542,8 +540,9 @@
     html.motion [data-reveal].in { opacity: 1; transform: none; }
 
     /* Every drawing on this page animates forever: gears turn, current runs
-       down the wires, bars fill, a dot pulses. Measured, that is 80 infinite
-       animations on a desktop — and 66 of them were running while scrolled
+       down the wires, bars fill, a dot pulses. Measured, that was 80 infinite
+       animations on a desktop (58 since the sections that carried the rest
+       were removed, 2026-10-08) — and 66 of the 80 were running while scrolled
        out of sight, which is battery and CPU spent on pixels nobody can see,
        and 66 more things competing with the scroll itself.
 
@@ -632,11 +631,15 @@
     .hero { position: relative; text-align: center; overflow: hidden;
       padding: 32px 0 24px; min-height: clamp(420px, calc(100vh - 320px), 680px);
       display: flex; flex-direction: column; justify-content: center; }
-    /* the rain keeps to the margins: the text column (the counters' row is
-       the widest line, 23% to 77% of the hero) is never under a glyph */
+    /* the rain keeps to the margins: the text column is never under a glyph.
+       The counters' row is the widest line, and the mask leaves it a clear
+       band from 20% to 80%: it spans 23% to 77% of the hero at 1024, but 13% to
+       87% at 768 and 9% to 91% at 700, so below 820px there is no margin left
+       to rain in and the layer is not drawn at all (measured, 2026-10-08) */
     .heroart { position: absolute; inset: 0; pointer-events: none; overflow: hidden;
       -webkit-mask-image: linear-gradient(90deg, #000 0, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0) 80%, #000 100%);
       mask-image: linear-gradient(90deg, #000 0, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0) 80%, #000 100%); }
+    @media (max-width: 819.98px) { .heroart { display: none; } }
     .rain { position: absolute; inset-inline: 0; top: 0; }
     html.motion .rain { animation: rain 60s linear infinite; }
     @keyframes rain { from { transform: translateY(-50%); } to { transform: translateY(0); } }
@@ -673,7 +676,7 @@
        frame, the modules and the wires were nearly not there. --border-input
        is the solved 3:1 value; the boxes take the card's own fill. */
     .claimart .site rect, .claimart .mods rect { fill: var(--panel); stroke: var(--border-input); stroke-width: 1.4; }
-    .claimart .site path, .claimart .site circle { fill: var(--border-input); stroke: none; }
+    .claimart .site circle { fill: var(--border-input); stroke: none; }
     .claimart .site path { stroke: var(--border-input); stroke-width: 1.4; fill: none; stroke-linecap: round; }
     .claimart .glyph { fill: none; stroke: var(--tint); stroke-width: 1.4;
       stroke-linecap: round; stroke-linejoin: round; }
@@ -715,7 +718,6 @@
        site under the WCAG 2.2 floor */
     .scrollcue { padding: 4px; }
     .scrollcue .ic { transform: rotate(-90deg); width: 24px; height: 24px; display: block; }
-
 
     /* Arabic in Cairo needs line-height >= 1.35 at display sizes, or a damma
        collides with the line above. Measured: 18 headings sat at 1.2 — the
@@ -763,13 +765,9 @@
       border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px;  line-height: var(--lh-ui); }
     .card:hover ul.feats li { border-color: var(--tint); }
 
-    /* mini feature cards on the edge rail: icon + claim, nothing else */
-
-
-
     /* The flagship product gets a wide card of its own — النوخذة is a system we
-       built and run, not one service tile among six. This, the numbered steps
-       and the contact bar are the first version's components, kept. */
+       built and run, not one service tile among six. This, the numbered
+       timeline and the contact bar are the first version's components, kept. */
     .product {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
       padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 16px;
@@ -781,7 +779,6 @@
     .product.lead::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px;
       background: repeating-linear-gradient(180deg, var(--tint) 0 5px, var(--stripe) 5px 7px); }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
-    .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
     .product .go { align-self: center; white-space: nowrap; }
     /* the arrow is the drawn chevron, not a typed ← that each device set in its own
        font; it takes the button's ink, the ground's dark on the amber fill */
@@ -794,7 +791,9 @@
 
     /* ═══════ the automation flow: request to running system, one line ═══════
        A vertical timeline whose spine draws itself as the section arrives and
-       whose stations light in order — the one deliberate stagger on the page. */
+       whose stations light in order — the one deliberate stagger on the page,
+       and only while it runs down the page (below 900px): laid across a wide
+       screen its stations share a row, and light together. */
     ol.flow { list-style: none; counter-reset: f; margin: 16px 0 0; padding: 0; position: relative;
       max-width: 560px; }
     ol.flow::before { content: ""; position: absolute; top: 8px; bottom: 8px;
@@ -808,9 +807,7 @@
       width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center;
       background: var(--panel); border: 2px solid var(--tint); color: var(--tint);
       font-family: var(--mono); font-weight: 700; font-size: 13px; }
-    ol.flow li.now::before { background: var(--tint); color: var(--on-tint); }
     ol.flow li b { display: block; font-size: 16px; margin: 4px 0 4px; }
-    ol.flow li span { color: var(--muted); font-size: 13px; line-height: 1.65; }
     html.motion [data-reveal] ol.flow li { opacity: 0; transform: translateY(10px);
       transition: opacity .45s ease, transform .45s ease; }
     html.motion [data-reveal].in ol.flow li { opacity: 1; transform: none; }
@@ -843,26 +840,19 @@
         transform-origin: right; transition: transform .5s ease; }
       html.motion [data-reveal].in ol.flow li::after { transform: scaleX(1); }
     }
-    ol.flow li:nth-child(2) { transition-delay: .16s; }
-    ol.flow li:nth-child(3) { transition-delay: .32s; }
-    ol.flow li:nth-child(4) { transition-delay: .48s; }
-    ol.flow li:nth-child(5) { transition-delay: .64s; }
-    ol.flow li:nth-child(6) { transition-delay: .8s; }
-    ol.flow li:nth-child(7) { transition-delay: .96s; }
-
-    /* how-we-work: eight numbered discs joined by a rule — a timeline that
-       slides horizontally on wide screens (eight will not fit on any desktop,
-       so it is driven by the same rail arrows and dots as the card sections)
-       and stacks vertically on a phone */
-
-
-
-
-
-
-
-
-
+    /* the stations light in order down the vertical timeline. At the weight
+       of the rule that fades them in: «ol.flow li:nth-child(n)» (0,2,2) lost to
+       it (0,3,3), whose «transition» shorthand reset every delay to 0s, so all
+       seven lit at once. Not across the wide row: siblings on one row must not
+       stagger, or they sit on different baselines while it runs */
+    @media (max-width: 899.98px) {
+      html.motion [data-reveal] ol.flow li:nth-child(2) { transition-delay: .16s; }
+      html.motion [data-reveal] ol.flow li:nth-child(3) { transition-delay: .32s; }
+      html.motion [data-reveal] ol.flow li:nth-child(4) { transition-delay: .48s; }
+      html.motion [data-reveal] ol.flow li:nth-child(5) { transition-delay: .64s; }
+      html.motion [data-reveal] ol.flow li:nth-child(6) { transition-delay: .8s; }
+      html.motion [data-reveal] ol.flow li:nth-child(7) { transition-delay: .96s; }
+    }
 
     /* Contact channels, as on the live site — the same three, laid as one bar
        of pills: icon tile, label, value, reading start-aligned like a row.
@@ -873,7 +863,6 @@
     .channel { flex: 1 1 240px; min-width: 0; background: var(--panel); border: 1px solid var(--border);
       border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
       color: var(--text); }
-    .channel:hover { border-color: var(--tint); }
     .channel .tile { width: 40px; height: 40px; border-radius: 12px; }
     .channel .tile .ic { width: 22px; height: 22px; }
     .channel .t { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -916,12 +905,14 @@
     .qform .send.sent .lbl { display: none; }
     @keyframes okdraw { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
 
-    /* ═══════ what we build, drawn instead of written ═══════
-       Four scenes carry these cards: gears that turn, a pen that draws, two
-       devices whose screens fill, and code that types itself. The label under
-       each is two words — the picture is the description, which is the whole
-       point of drawing them. Every part is a stroked path in brand ink, so
-       they weigh nothing and need no image request. */
+    /* ═══════ drawn instead of written ═══════
+       Every card on the two rails is headed by a scene: النوخذة's four units
+       (a portfolio rising over its bars, an order on its route, a balance
+       sheet stamped ready, three units pouring into one core) and the seven
+       services below. The line under each only names it — the picture is the
+       description, which is the whole point of drawing them. Every part is a
+       stroked path in brand ink, so they weigh nothing and need no image
+       request. */
     .scene { display: block; width: 100%; height: 136px; border-radius: 12px;
       background: var(--panel-2); stroke: var(--tint); color: var(--tint); fill: none;
       stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
@@ -931,20 +922,13 @@
        below even the 2:1 set for chart marks. The amber subject stays well
        above it, so the hierarchy holds: subject, then setting. */
     .scene .soft { stroke: var(--border-input); }
-    /* the band's facts are drawn small: a third of a row each, above one line
-       of text, so the drawing explains and the sentence only names */
-    .scene.sm { height: 60px; background: none; }
     /* the flagship row is wide, so its drawing is too — and it carries the
        unit names inside itself, which is why the row needs no chip list */
     .scene.wide { height: 150px; margin-top: 12px; max-width: 620px; }
     .scene .tab { font-size: 11px; }
     .scene .tab.on { fill: var(--tint); }
-    .scene .ok { stroke: var(--good); }
     .scene text { fill: var(--muted); stroke: none; font-family: var(--sans);
       font-size: 11px; font-weight: 700; }
-
-
-
 
     @keyframes dash  { to { stroke-dashoffset: -28; } }
     @keyframes drawIn { 0% { stroke-dashoffset: 120; } 60%, 100% { stroke-dashoffset: 0; } }
@@ -957,23 +941,27 @@
     html.motion .scene .bar:nth-of-type(3) { animation-delay: .5s; }
 
     /* ═══════ each service explained by a drawing ═══════
-       Six scenes, one per service card, in the same idiom as the four above:
+       Seven scenes, one per service card, in the same idiom as the units':
        a page whose content fills, a device that installs, blocks that fit
-       together, a model wired to its sources, a pen over an artboard, and a
-       cloud feeding its machines. Every scene is complete at rest — motion
-       only sets already-drawn parts moving — so a reduced-motion visitor,
-       a print, and a screenshot all read the same explanation. */
-    /* the offer cards keep their taller 136px scene — this is the service rail */
+       together, a model wired to its sources, a pen over an artboard, a
+       cloud feeding its machines, and a game whose figure jumps. Every scene
+       is complete at rest — motion only sets already-drawn parts moving — so
+       a reduced-motion visitor, a print, and a screenshot all read the same
+       explanation. */
+    /* a card's scene is shorter than the 136px base: a rail card is narrow */
     .card > .scene { height: 108px; }
     @keyframes fitIn   { 0%, 10% { transform: translate(15px, -11px); opacity: .3; }
                          45%, 100% { transform: none; opacity: 1; } }
     @keyframes pulseIn { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
-    @keyframes rise    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    /* not "rise": that is the hero's entrance, and a second @keyframes of one
+       name replaces the first, so the hero's six lines bobbed 7px instead of
+       fading in (the suite now fails on a repeated keyframes name) */
+    @keyframes bob     { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
     html.motion .scene .fit { transform-box: fill-box; animation: fitIn 4s ease-in-out infinite; }
     html.motion .scene .pulse { animation: pulseIn 2.4s ease-in-out infinite; }
     html.motion .scene .pulse.d1 { animation-delay: .5s; }
     html.motion .scene .pulse.d2 { animation-delay: 1s; }
-    html.motion .scene .rise { transform-box: fill-box; animation: rise 3.4s ease-in-out infinite; }
+    html.motion .scene .rise { transform-box: fill-box; animation: bob 3.4s ease-in-out infinite; }
 
     /* ═══════ البحار: the voice assistant, one tap from anywhere ═══════
        النوخذة is the captain; البحار is the sailor who answers. The control is
@@ -1012,6 +1000,10 @@
     .callfab .halo { position: absolute; inset: 0; border-radius: 999px;
       border: 2px solid var(--tint); opacity: 0; pointer-events: none; }
     html.motion .callfab .halo { animation: halo 2.6s ease-out infinite; }
+    /* stepped aside (opacity 0), the ring rests: the pill is fixed, so it never
+       leaves the viewport and the off-screen pause never reaches it. At the
+       animation's own weight plus one, or its shorthand resets the state */
+    html.motion .callfab.away .halo { animation-play-state: paused; }
     @keyframes halo {
       0%   { opacity: .7; transform: scale(1); }
       70%  { opacity: 0;  transform: scale(1.18); }
@@ -1034,8 +1026,8 @@
          free. In RTL that puts the disc where a line ENDS rather than where
          it starts: measured, at inline-start it was covering the first
          characters of every heading it passed. */
-      .callfab { inset-block-end: 14px; inset-inline-start: auto; inset-inline-end: 14px;
-        padding: 0; width: 48px; height: 48px; min-height: 48px;
+      .callfab { inset-block-end: 16px; inset-inline-start: auto; inset-inline-end: 16px;
+        padding: 0; width: 48px; height: 48px;
         justify-content: center; gap: 0; }
       .callfab .fabtext { display: none; }
       .callfab .ic { width: 24px; height: 24px; }
@@ -1091,7 +1083,6 @@
     .fcontact a:hover .ic { stroke: var(--tint); color: var(--tint); }
     .fcontact .v { direction: ltr; unicode-bidi: isolate; }
 
-
     .base { border-top: 1px solid var(--border); padding: 16px 20px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
     .base .made { display: inline-flex; align-items: center; gap: 6px; }
@@ -1132,7 +1123,6 @@
       .card { padding: 16px; }
       .hero { padding: 16px 0 24px; min-height: 0; }
       h2.section { margin-top: 24px; }
-      .hero .lead { font-size: 16px; }
       /* The hero has no min-height on a phone, so everything in it pushes the
          scroll cue down. Measured: at 236px the drawing put the cue 28px below
          a 390×844 fold, which is the one thing the cue must never be. It is
@@ -1144,11 +1134,6 @@
       /* a phone slides by thumb — the arrows would only crowd the heading */
       .railnav { display: none !important; }
       .rowhead { align-items: stretch; }
-
-
-
-
-
       .channels { flex-direction: column; }
       /* in a column the 240px flex-basis meant as a width becomes each pill's
          height: three 240px pills holding 58px of content each */
@@ -1162,11 +1147,9 @@
       .base { flex-direction: column; gap: 12px; text-align: center; }
       :target, section[id], h2.section[id] { scroll-margin-top: 162px; }   /* the 138px top bar + 24 */
       .qform { grid-template-columns: 1fr; padding: 16px; }
-      /* a phone's text runs to within a few pixels of the edge, so there is
-         no margin for the rain to fall in: measured at 390 and 320, every
-         visible column crossed a line of the heading. Phones go without it;
-         the masthead's logo and terminal line carry the look there */
-      .heroart { display: none; }
+      /* (the rain is not drawn here: see .heroart, hidden below 820px. On a
+         phone the text runs to within a few pixels of the edge; measured at
+         390 and 320, every visible column crossed a line of the heading) */
     }
     /* one fold for every short or narrow bar — a phone, or a phone on its
        side — so the two can never drift apart */
@@ -1349,7 +1332,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="824">824</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="836">836</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>

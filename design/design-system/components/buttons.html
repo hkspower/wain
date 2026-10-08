@@ -11,16 +11,12 @@
       padding: 12px 16px; border-radius: 8px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
     }
-nav.site .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
-nav.site .btn.primary .ic { stroke: var(--on-tint); color: var(--on-tint); }
-nav.site .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
 header a:focus-visible, header .btn:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
 .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
 .btn.outline { border-color: var(--border-input); background: var(--panel-2); }
+.btn { font-weight: 700; }
 /* states, the same on every page: a hover that can be seen (a border that
        turns amber, not a fill one step lighter), a disabled that still reads */
-    .btn { font-weight: 700; }
-/* the links above stay 600: bold, four wrap at 320px */
     .btn:hover { background: var(--panel-3); border-color: var(--tint); }
 .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
