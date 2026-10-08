@@ -25,6 +25,9 @@
  *     want to be. Added 3 October for سالم's «داخلي» chip: «قهوة» then
  *     «داخلي» led with the tea houses in an open courtyard, because the word
  *     only nudged the search and the order did not know it was a constraint.
+ *  3c. The hour asked for: «فطور», «وين أتغدى», «عشا», «الصبح» push a place
+ *     whose best time names another part of the day to 0.6 (8 October —
+ *     «فطور» was answered «روح بالليل»).
  *  4. Reviews, last and only within a band of near-equal matches
  *     (`reorderByReviews` — see place-reviews.ts for what those figures are
  *     and why they may order but never be quoted).
@@ -82,6 +85,33 @@ const ASKS_OUTSIDE = fold([
 ]);
 /** Words that ask to be inside. «مكيّف» folds to «مكيف». */
 const ASKS_INSIDE = fold(["داخلي", "داخل", "مكيف", "مكيفه", "مسكر", "مغلق", "indoor"]);
+
+/** The part of the day a question names, by a meal or by the hour. */
+export type DayPart = "morning" | "midday" | "evening";
+/**
+ * «فطور», «وين أتغدى», «عشا» — and «الصبح», «الظهر», «الليلة». The meal was
+ * matched as a word and nothing more: «فطور» answered «جرّب شارع تونس… روح
+ * بالليل» and «وين أتغدى» «جرّب ميس الغانم… روح العشا», at every hour of the
+ * day, with فريج صويلح — «روح الغدا» — second on the list (8 October).
+ * Folded the way a token arrives: «الصبح» is «صبح», «الليلة» is «ليله».
+ */
+const ASKS_PART: [DayPart, Set<string>][] = [
+  ["morning", fold(["فطور", "فطار", "افطر", "نفطر", "ريوق", "صبح", "صباحا", "بدري", "breakfast", "morning"])],
+  ["midday", fold(["غدا", "غداء", "اتغدى", "نتغدى", "تغدى", "ظهر", "lunch", "noon"])],
+  [
+    "evening",
+    fold(["عشا", "عشاء", "اتعشى", "نتعشى", "تعشى", "ليل", "ليله", "سهره", "سهر", "اسهر", "نسهر", "مغرب", "غروب",
+      "dinner", "night", "evening", "tonight"]),
+  ],
+];
+/** How a place's best time names each part — what the asked part is held to. */
+const PART_OF_BEST: Record<DayPart, RegExp> = {
+  morning: /(الصبح|بدري|الفطور|الريوق)/,
+  midday: /(الظهر|الغدا)/,
+  evening: /(المغرب|الغروب|الليل|ليالي|العشا|السهر)/,
+};
+/** How much a place whose best time names ANOTHER part keeps of its score. */
+export const OTHER_PART = 0.6;
 /** And words that ask for the cheap end. «مو غالي» is read below. */
 const ASKS_CHEAP = fold(["رخيص", "رخيصه", "ارخص", "ميزانيه", "اقتصادي", "بلاش", "ببلاش"]);
 const DEAR = fold(["غالي", "غاليه", "مكلف"]);
@@ -96,23 +126,44 @@ function readings(t: string): string[] {
 }
 
 /** What the question asks of the answer, beyond what it matches. */
-export function readAsks(query: string): { outside: boolean; cheap: boolean; inside: boolean } {
+export function readAsks(query: string): {
+  outside: boolean;
+  cheap: boolean;
+  inside: boolean;
+  part: DayPart | null;
+} {
   const raw = tokenize(query);
   const has = (set: Set<string>) => raw.some((t) => readings(t).some((r) => set.has(r)));
   // «مو غالي», «ما أبي شي غالي»: a negator anywhere before a word for dear.
   const notDear = raw.some((t, i) => DEAR.has(t) && raw.slice(0, i).some((w) => NEGATOR_SET.has(w)));
-  return { outside: has(ASKS_OUTSIDE), cheap: has(ASKS_CHEAP) || notDear, inside: has(ASKS_INSIDE) };
+  // One part, or none: «فطور وعشا» names no single hour to hold places to.
+  const parts = ASKS_PART.filter(([, set]) => has(set)).map(([part]) => part);
+  return {
+    outside: has(ASKS_OUTSIDE),
+    cheap: has(ASKS_CHEAP) || notDear,
+    inside: has(ASKS_INSIDE),
+    part: parts.length === 1 ? parts[0] : null,
+  };
 }
 
-type Rankable = Pick<Place, "slug" | "setting" | "summerOk" | "priceLevel">;
+type Rankable = Pick<Place, "slug" | "setting" | "summerOk" | "priceLevel"> & Partial<Pick<Place, "bestTimeAr">>;
 
-/** The multiplier the season and the price put on one place's score. */
+/** The multiplier the season, the price and the hour asked for put on one
+ *  place's score. */
 export function answerFactor(
   p: Rankable,
-  asks: { outside: boolean; cheap: boolean; inside?: boolean },
+  asks: { outside: boolean; cheap: boolean; inside?: boolean; part?: DayPart | null },
   clock: AnswerClock
 ): number {
   let f = 1;
+  // A place whose best time is another part of the day than the one asked
+  // for; one that names no part, or names this one too, is left alone.
+  if (asks.part && p.bestTimeAr) {
+    const best = p.bestTimeAr;
+    const fits = PART_OF_BEST[asks.part].test(best);
+    const other = (Object.keys(PART_OF_BEST) as DayPart[]).some((k) => k !== asks.part && PART_OF_BEST[k].test(best));
+    if (!fits && other) f *= OTHER_PART;
+  }
   if (asks.inside) {
     // Said, not inferred: no season and no `summerOk` changes it — the
     // causeway is fine in August from a car, and still not inside.

@@ -44,19 +44,28 @@ async function fresh(path, viewport = { width: 390, height: 844 }) {
   return { ctx, p, errors, voiceHosts };
 }
 
-/** Type a question and wait for سالم's answer to it (soft: never throws). */
+/** Type a question and wait for سالم's answer to it (soft: never throws).
+ *  The typing dots are a `p` in the log too, so they are not counted, and the
+ *  wait lasts until they are gone: counted, the visitor's line and the dots
+ *  were already «two more» before any answer had come. */
 async function ask(p, q) {
-  const before = await p.locator('[role="log"] p').count();
+  const LINES = '[role="log"] p:not([data-typing])';
+  const before = await p.locator(LINES).count();
   try {
     await p.locator('#salem-q').fill(q, { timeout: 3000 });
     await p.locator('#salem-q').press('Enter', { timeout: 3000 });
   } catch {
     return; // a box that cannot be typed into fails the assertions after it, not the run
   }
-  await p.waitForFunction((n) => document.querySelectorAll('[role="log"] p').length >= n + 2, before, { timeout: 8000 })
-    .catch(() => {});
+  await p.waitForFunction(([sel, n]) =>
+    document.querySelectorAll(sel).length >= n + 2 && !document.querySelector('[role="log"] [data-typing]'),
+  [LINES, before], { timeout: 8000 }).catch(() => {});
   await p.waitForTimeout(300);
 }
+
+/** What he said last: his bubbles are the start-side lines of the log. */
+const lastSaid = async (p) =>
+  (await p.locator('[role="log"] div[data-line].justify-start > p').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
 
 console.log('\n── /salem works with nothing behind it but the page ──');
 {
@@ -95,6 +104,121 @@ console.log('\n── /salem works with nothing behind it but the page ──');
 
   ok('still no socket, and no request to any voice host, after all of it',
     (await p.evaluate(() => window.__sockets)) === 0 && voiceHosts.length === 0, voiceHosts.join(', '));
+  await ctx.close();
+}
+
+console.log('\n── he answers what is said, not only what is searched ──');
+{
+  /* Read off the live site, 8 October: every message was a search. «السلام
+     عليكم» answered «جرّب قصر السلام», «مين أنت؟» a bridge, «شكراً» and «هلا»
+     «ما لقيت شي» — and that miss wiped the chat's memory, so «وين بالضبط؟»
+     under four cafés was searched as words and answered with the Grand Mosque.
+     The reader is unit-tested (salem-followup.test); this is the page wired to
+     it: a social line is answered and not searched, the memory survives it,
+     and a chip acts on the answer it was offered under. */
+  const { ctx, p, errors } = await fresh('/salem/');
+  const cards = () => p.locator('[role="log"] a[href^="/places/"]').count();
+
+  await ask(p, 'السلام عليكم');
+  let said = await lastSaid(p);
+  ok('«السلام عليكم» is greeted back, not searched', said.includes('وعليكم السلام') && !said.includes('جرّب'), said);
+  ok('…with no cards drawn for it', (await cards()) === 0);
+  ok('…and the starters stay, since nothing has been asked yet',
+    await p.getByRole('button', { name: 'قهوة هادية' }).isVisible().catch(() => false));
+
+  await ask(p, 'مين أنت؟');
+  said = await lastSaid(p);
+  ok('«مين أنت؟» is answered by name', said.includes('أنا سالم'), said);
+
+  await ask(p, 'غيره');
+  said = await lastSaid(p);
+  ok('«غيره» with nothing before it asks what about, rather than guessing', said.includes('عن شنو'), said);
+
+  await ask(p, 'قريب مني');
+  said = await lastSaid(p);
+  ok('«قريب مني» asks for the area: the page does not know where you are', said.includes('ما أعرف وين أنت'), said);
+
+  await ask(p, 'الجهراء');
+  said = await lastSaid(p);
+  ok('a part of Kuwait with nothing in it is named, not «ما لقيت شي»', said.includes('بالجهراء') && !said.includes('ما لقيت'), said);
+  ok('…and still no cards', (await cards()) === 0);
+
+  await ask(p, 'قهوة');
+  const coffee = await p.locator('[data-salem-places]').last().locator('li[data-slug]')
+    .evaluateAll((els) => els.map((e) => e.dataset.slug)).catch(() => []);
+  ok('«قهوة» is an answer with places', coffee.length >= 2, coffee.join(','));
+
+  await ask(p, 'شكراً');
+  said = await lastSaid(p);
+  ok('«شكراً» is thanked back, not searched', said.includes('العفو'), said);
+  ok('…and the coffee answer keeps its chips', await p.locator('[data-followups] button', { hasText: 'وين بالضبط؟' }).count() === 1);
+
+  // The chip under the coffee: where, for one of THOSE cafés. Each «where»
+  // draws a map block with a «صفحته» link; the newest one is read only once
+  // the count has grown, or an earlier block is read in its place.
+  const pages = () => p.locator('[role="log"] a', { hasText: 'صفحته' }).count();
+  const where = async (before) => {
+    await p.waitForFunction(() => !document.querySelector('[role="log"] [data-typing]'), null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(300);
+    if ((await pages()) !== before + 1) return null;
+    const href = await p.locator('[role="log"] a', { hasText: 'صفحته' }).last().getAttribute('href', { timeout: 2000 }).catch(() => null);
+    return href?.match(/^\/places\/([^/]+)\/$/)?.[1] ?? null;
+  };
+  let before = await pages();
+  await p.locator('[data-followups] button', { hasText: 'وين بالضبط؟' }).click({ timeout: 3000 }).catch(() => {});
+  const there = await where(before);
+  ok('«وين بالضبط؟» after the thanks answers for the first café, not the words', there === coffee[0], `${there} vs ${coffee.join(',')}`);
+
+  before = await pages();
+  await ask(p, 'وين الثاني؟');
+  const second = await where(before);
+  ok('«وين الثاني؟» shows the second café on the map', second === coffee[1], `${second} vs ${coffee.join(',')}`);
+
+  await ask(p, 'زززققق');
+  ok('a word that matches nothing still says so', (await lastSaid(p)).includes('ما لقيت شي'));
+  // A miss forgets the answer — but a chip still on screen belongs to the
+  // answer it came with, and acts on it.
+  before = await pages();
+  await p.locator('[data-followups] button', { hasText: 'وين بالضبط؟' }).click({ timeout: 3000 }).catch(() => {});
+  const after = await where(before);
+  ok('…and the coffee answer\'s chip still acts on the coffee, with a map of its own', coffee.includes(after ?? ''), `${after} vs ${coffee.join(',')}`);
+  ok('no page errors in any of it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── with the browser\'s storage blocked, his buttons still work ──');
+{
+  /* «Block all cookies» in Safari, and some private modes: reading
+     localStorage THROWS. The haptics read it unguarded, so every tap that
+     buzzes threw: «رسّلها» stayed on «لحظة…» for good and the call button in
+     his header did nothing (8 October). */
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await ctx.addInitScript(() => {
+    for (const name of ['localStorage', 'sessionStorage']) {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+      });
+    }
+    // The share sheet answers at once, so what is read is the button's own label.
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => {} });
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: () => true });
+  });
+  const p = await ctx.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await ask(p, 'قهوة');
+  ok('he answers with storage refused', await p.locator('[role="log"] a[href^="/places/"]').count() >= 1);
+  const send = p.locator('[role="log"]').getByRole('button', { name: /^(رسّلها|لحظة…)$/ }).first();
+  await send.click({ timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(800);
+  const label = ((await send.textContent({ timeout: 2000 }).catch(() => '')) ?? '').trim();
+  ok('«رسّلها» sends and comes back, instead of staying on «لحظة…»', label === 'رسّلها', label);
+  await p.locator('header').getByRole('button', { name: 'كلّم شوق' }).click({ timeout: 3000 }).catch(() => {});
+  const rang = await p.locator('#wain-ai-panel').waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false);
+  ok('the call button in his header opens the call', rang);
+  ok('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
 
@@ -223,7 +347,7 @@ console.log('\n── a reply that cannot load is said, and the next one tries a
     await p.locator('#salem-q').fill('قهوة', { timeout: 5000 }).catch(() => {});
     await p.locator('#salem-q').press('Enter', { timeout: 5000 }).catch(() => {});
     const said = await p.waitForFunction(
-      () => document.querySelector('[role="log"]')?.textContent.includes('ما وصلني رد'),
+      () => document.querySelector('[role="log"]')?.textContent.includes('ما وصلنا رد'),
       null, { timeout: 12_000 }
     ).then(() => true, () => false);
     ok(`the search ${mode}: سالم says he got nothing, within ten seconds or so`, said);

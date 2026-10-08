@@ -361,6 +361,20 @@ export const SYNONYMS: Record<string, string[]> = {
   children: ["عيال", "عوائل"],
   seafood: ["سمك", "بحري"],
   cheap: ["رخيص"],
+  food: ["مطاعم", "اكل"],
+  // Arabizi — Arabic typed on a Latin keyboard, digits for the letters it
+  // lacks (٣ ع, ٧ ح, ٩ ص/ق). «kahwa», «ba7ar», «mat3am» each found nothing
+  // (8 October); the words they spell are all in the catalogue.
+  kahwa: ["قهوه"],
+  gahwa: ["قهوه"],
+  qahwa: ["قهوه"],
+  "9ahwa": ["قهوه"],
+  ba7ar: ["بحر", "شاطئ", "شواطئ", "ساحل"],
+  ba7r: ["بحر", "شاطئ", "شواطئ", "ساحل"],
+  bahar: ["بحر", "شاطئ", "شواطئ", "ساحل"],
+  bahr: ["بحر", "شاطئ", "شواطئ", "ساحل"],
+  mat3am: ["مطعم", "مطاعم"],
+  mata3em: ["مطاعم"],
 
   /* ── More words checked against the catalogue, not against a guess ───────
    *
@@ -457,6 +471,13 @@ export const SYNONYMS: Record<string, string[]> = {
   خطيبتي: ["موعد", "هدوء"],
   خطيبي: ["موعد", "هدوء"],
   بنات: ["ربع"],
+  // «مع ربعي», «وين أروح مع خوياي» — the friend group with «my» on it, which
+  // the bare words above never reached (8 October: «ما لقيت شي»).
+  ربعي: ["ربع", "سهرة"],
+  ربعنا: ["ربع", "سهرة"],
+  اصحابي: ["ربع", "سهرة"],
+  خوياي: ["ربع"],
+  اخوياي: ["ربع"],
   بروحي: ["هدوء"],
   لحالي: ["هدوء"],
   // «يونّس» — it's fun.
@@ -1017,6 +1038,15 @@ export const FILLER = [
   "أروح", "نروح", "حين", "زهقان", "زهقانة", "طفشان", "طفشانة", "ملل", "مليت",
   "to", "do", "for", "and", "with", "at", "on", "is", "some", "where", "want",
   "things", "near", "me",
+  /* What is said around a question rather than in it (8 October, read off
+   * سالم's answers while the agent was out of credits). «والله زهقان» was
+   * not topicless — «والله» was a word to search — and answered with the
+   * Friday market; «يلا وين نروح» found nothing at all; «لو» prefix-matched
+   * «لوذان», so «أبي قهوة لو سمحت» brought بيت لوذان in with the cafés. And
+   * «قريب مني»: the page does not know where anybody is, so «قريب» can only
+   * match the one description that says it — dropped beside a real word, and
+   * سالم answers a question made of nothing else by asking for the area. */
+  "والله", "بالله", "يلا", "يالله", "لو", "سمحت", "بليز", "please", "قريب", "قريبة", "أقرب", "مني", "جنبي",
 ];
 
 /**
@@ -1101,6 +1131,40 @@ const GOING_OUT_SET = new Set(GOING_OUT.map(normalise));
 export function isTopicless(query: string): boolean {
   const raw = tokenize(query);
   return raw.length > 0 && raw.every((t) => FILLER_SET.has(t)) && raw.some((t) => GOING_OUT_SET.has(t));
+}
+
+/**
+ * The part of Kuwait a question names that this catalogue has nothing in —
+ * «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
+ * particle glued to its front; or null. search() answers such a question with
+ * nothing, which is honest; this is what lets the answer say WHY. سالم used to
+ * reply «ما لقيت شي… جرّب اسم منطقة» to the name of a governorate (8 October).
+ */
+export function elsewhereNamed(query: string, index: SearchIndex): string | null {
+  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
+  const units = query
+    .split(/\s+/)
+    .map((u) => u.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+  for (const unit of units) {
+    const t = tokenize(unit)[0];
+    if (!t) continue;
+    if (elsewhere(t)) return unit;
+    if (declitic(t).some(elsewhere)) {
+      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
+      if (/^[بوفك]ال/.test(unit)) return unit.slice(1);
+      if (unit.startsWith("لل")) return "ال" + unit.slice(2);
+      return unit.slice(1);
+    }
+  }
+  for (let i = 0; i + 1 < units.length; i++) {
+    const a = tokenize(units[i]).at(-1);
+    const b = tokenize(units[i + 1])[0];
+    // Adjacent, and only as readQuery reads them: «صباح السالم», not
+    // «بصباح السالم» — which readQuery does not stop either.
+    if (PHRASE_PAIRS.some(([x, y]) => x === a && y === b)) return `${units[i]} ${units[i + 1]}`;
+  }
+  return null;
 }
 const NEGATOR_SET = new Set(NEGATORS.map(normalise));
 const WANT_SET = new Set(WANT_WORDS.map(normalise));

@@ -10,14 +10,30 @@
  * So a message is read against the last answer first:
  *
  *  - «أرخص», «داخلي», «للعيال», «بس على البحر» narrow it: the words are added
- *    to the last question and it is asked again. `answerOrder` already knows
- *    what «أرخص» and «بالليل» mean for the order, so nothing here re-ranks.
+ *    to the last question and it is asked again — and the answer stays inside
+ *    the places the last one found (`withinAnswer`). `answerOrder` already
+ *    knows what «أرخص» and «بالليل» mean for the order, so nothing here
+ *    re-ranks.
+ *  - An area name — «السالمية», «بحولي» — narrows it to that area.
  *  - «غيره», «شي ثاني» shows the next places of the same answer, never the
  *    same eight twice.
- *  - «الثاني», «رقم ٣» picks one of the places on screen.
+ *  - «الثاني», «رقم ٣», «أحسن واحد» picks one of the places on screen; «وين
+ *    الثاني؟» says where it is.
  *  - «وين بالضبط؟», «الموقع» answers where — for the place the visitor is
  *    pointing at, or the first one.
  *  - Anything else is a new question, and the memory starts again.
+ *
+ * And a message that is not about places at all is not searched (8 October,
+ * read off what the live chat answered while the agent was out of credits):
+ * «السلام عليكم» answered «جرّب قصر السلام», «مين أنت؟» a bridge, «شكراً» and
+ * «هلا» «ما لقيت شي» — and the «ما لقيت» wiped the memory, so the chips under
+ * the answer the visitor had just thanked him for then led somewhere else
+ * («وين بالضبط؟» under four cafés → the Grand Mosque). Greetings, thanks,
+ * «مين أنت», «شنو تقدر تسوي», goodbyes and «تمام» are `social`, answered in
+ * words and never touching the memory; a greeting in front of a question is
+ * taken off it and answered first (`opener`); a follow-up with nothing to
+ * follow, or «قريب مني» from a page that does not know where you are, is
+ * `ask`.
  *
  * Deliberately narrow. A long sentence is a new question even when it starts
  * like a follow-up, because guessing that «أبي مطعم بحري» narrows «قهوة» would
@@ -44,12 +60,19 @@ export interface ChatContext {
   shown: string[];
 }
 
+/** A greeting said in front of a question, answered before the answer. */
+export type Opener = "salam" | "greet" | "morning" | "evening";
+/** A message that is not about places. */
+export type SocialAct = Opener | "how" | "thanks" | "afia" | "who" | "notShouq" | "help" | "bye" | "ok" | "no";
+
 export type FollowUp =
-  | { kind: "new"; query: string }
-  | { kind: "refine"; query: string; added: string }
-  | { kind: "more" }
-  | { kind: "pick"; slug: string }
-  | { kind: "where"; slug: string };
+  | { kind: "new"; query: string; opener?: Opener }
+  | { kind: "refine"; query: string; added: string; area?: string; opener?: Opener }
+  | { kind: "more"; opener?: Opener }
+  | { kind: "pick"; slug: string; opener?: Opener }
+  | { kind: "where"; slug: string; opener?: Opener }
+  | { kind: "social"; act: SocialAct; opener?: Opener }
+  | { kind: "ask"; what: "subject" | "area"; opener?: Opener };
 
 const fold = (words: string[]) => new Set(words.map(normalise));
 
@@ -83,11 +106,32 @@ const ORDINALS = new Map<string, number>([
   ...["1", "2", "3", "4", "5", "6", "7", "8"].map((d) => [d, Number(d) - 1] as const),
 ]);
 const ORDINAL_FILLER = fold(["رقم", "المكان", "اللي", "الي", "خلنا", "ناخذ", "نروح", "ابي", "ودي", "هذا", "واحد"]);
+/** «وين» on its own — see readFollowUp. */
+const WHERE_ALONE = normalise("وين");
 const LAST = fold(["الاخير", "الاخيره", "اخر", "اخرها"]);
+/**
+ * «أحسن واحد» is the first place: the answer's order IS its best guess. It was
+ * searched for the words «أحسن واحد» and answered with a souq.
+ */
+const BEST = fold(["احسن", "الاحسن", "افضل", "الافضل", "احلى", "الاحلى"]);
+/**
+ * «كم سعر الأول؟» is the first place, and its card says the price band — the
+ * catalogue has no prices, so a card is all an honest answer can show. It was
+ * searched for «سعر» and answered with a bridge.
+ */
+const PRICE = fold(["كم", "بكم", "سعر", "سعره", "سعرها", "اسعار", "الاسعار", "اسعاره", "اسعارها", "السعر"]);
+/**
+ * «قريب مني», «وين أقرب واحد». The page does not know where the visitor is —
+ * on purpose, it never asks for a position — so the only honest answer is a
+ * question back. Searched, «قريب مني» answered with a Friday market.
+ */
+const NEAR = fold(["قريب", "قريبه", "اقرب", "الاقرب", "جنبي", "حذالي", "near", "nearby", "closest", "nearest"]);
+const NEAR_FILLER = fold(["مني", "منا", "عندي", "عندنا", "me", "us"]);
 
 /**
  * Words that narrow an answer. «مو غالي» is two of them: the negator travels
- * with the word for dear, and `answerOrder` reads the pair.
+ * with the word for dear, and `answerOrder` reads the pair. «قريب» is not one:
+ * the order cannot know what is near (see NEAR).
  */
 const REFINERS = fold([
   // the price
@@ -101,55 +145,281 @@ const REFINERS = fold([
   "هادي", "هادئ", "هاديه", "زحمه", "رايق", "فخم", "بحر", "البحر", "عالبحر", "بالبحر", "شاطئ", "منظر",
   // the hour
   "ليل", "بالليل", "الليله", "سهره", "عشا", "غدا", "فطور", "ريوق", "الصبح", "العصر", "الحين", "باجر", "الويكند",
-  "قريب", "قريبه",
 ]);
+
+/**
+ * The things people say to a person and not to a search box. Each phrase is
+ * folded the way the message is, so «شكراً» and «شكرا» are one entry, and
+ * matched as whole words at a word boundary: «السلام» opens «السلام عليكم» and
+ * is never looked for inside «قصر السلام».
+ */
+const SOCIAL: [SocialAct, string[]][] = [
+  ["salam", ["السلام عليكم", "سلام عليكم", "السلام عليكم ورحمه الله", "السلام عليكم ورحمه الله وبركاته", "السلام", "سلام"]],
+  ["greet", ["هلا", "هلا والله", "هلا وغلا", "هلا فيك", "هلا بك", "يا هلا", "اهلا", "اهلين", "اهلا وسهلا", "مرحبا", "مرحبتين", "هاي", "هلو", "hi", "hello", "hey", "salam"]],
+  ["morning", ["صباح الخير", "صباح النور", "صباح الورد", "صباحو", "good morning"]],
+  ["evening", ["مساء الخير", "مساء النور", "مساء الورد", "مسا الخير", "good evening"]],
+  ["how", ["شلونك", "شلونكم", "شلونك اليوم", "شلون حالك", "شخبارك", "شخبارك اليوم", "شلون الحال", "كيفك", "كيف حالك", "عساك بخير", "عساك طيب", "how are you"]],
+  ["thanks", ["شكرا", "شكرا لك", "شكرا جزيلا", "مشكور", "مشكوره", "تسلم", "تسلم يدك", "تسلم ايدك", "ما قصرت", "كفو", "مرسي", "ميرسي", "ثانكس", "ثانكيو", "جزاك الله خير", "يزاك الله خير", "الله يجزاك خير", "thanks", "thank you", "thx", "ty"]],
+  ["afia", ["يعطيك العافيه", "الله يعطيك العافيه", "عطاك الله العافيه"]],
+  ["who", ["مين انت", "منو انت", "من انت", "انت مين", "انت منو", "شنو اسمك", "وش اسمك", "شسمك", "شو اسمك", "اسمك", "شنو انت", "انت شنو", "انت بوت", "انت روبوت", "انت انسان", "who are you", "what is your name", "whats your name"]],
+  ["notShouq", ["انت شوق", "انتي شوق", "هذي شوق", "انت شوق ولا سالم"]],
+  ["help", ["شنو تقدر تسوي", "شنو تسوي", "وش تقدر تسوي", "وش تسوي", "شتسوي", "شنو عندك", "وش عندك", "شعندك", "ساعدني", "كيف استخدمك", "شلون استخدمك", "شلون استخدمه", "help"]],
+  ["bye", ["مع السلامه", "باي", "باي باي", "يلا باي", "يلا سلام", "فمان الله", "في امان الله", "تصبح علي خير", "تصبحون علي خير", "الله وياك", "bye", "bye bye", "goodbye"]],
+  ["ok", ["اوكي", "اوك", "اوكيه", "ok", "okay", "تمام", "طيب", "زين", "ماشي", "حلو", "ايه", "اي", "اكيد", "نعم", "يب", "يس", "yes", "هه", "ه", "هاها", "lol"]],
+  ["no", ["لا", "لا شكرا", "لا مشكور", "no", "no thanks"]],
+];
+/** Phrase (folded words, space-joined) → what it is. */
+const SOCIAL_PHRASES = new Map<string, SocialAct>();
+for (const [act, phrases] of SOCIAL) {
+  for (const p of phrases) SOCIAL_PHRASES.set(splitWords(normalise(p)).join(" "), act);
+}
+const LONGEST_PHRASE = Math.max(...[...SOCIAL_PHRASES.keys()].map((k) => k.split(" ").length));
+/** Said to a person, around anything: «يا سالم», «والله», «لو سمحت». */
+const VOCATIVE = fold([
+  "يا", "سالم", "اخوي", "حبيبي", "والله", "بالله", "الله", "يلا", "يالله", "طال", "عمرك", "لو", "سمحت", "بليز",
+  "please", "تكفى", "ياخي", "يالغالي", "الغالي",
+]);
+const OPENERS = new Set<SocialAct>(["salam", "greet", "morning", "evening"]);
+/** Taken off the front or the back of a question without a word said back. */
+const SILENT = new Set<SocialAct>(["thanks", "afia", "ok"]);
+/** When a message is several of these, the one that is answered. */
+const PRIORITY: SocialAct[] = [
+  "notShouq", "who", "help", "how", "bye", "afia", "thanks", "no", "ok", "salam", "morning", "evening", "greet",
+];
+
+function splitWords(folded: string): string[] {
+  return folded.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+/** The social phrase starting at `i`, longest first. */
+function phraseAt(words: string[], i: number): { act: SocialAct; len: number } | null {
+  for (let len = Math.min(LONGEST_PHRASE, words.length - i); len >= 1; len--) {
+    const act = SOCIAL_PHRASES.get(words.slice(i, i + len).join(" "));
+    if (act) return { act, len };
+  }
+  return null;
+}
+/** The social phrase ending at `j` (exclusive), longest first. */
+function phraseBefore(words: string[], j: number, from: number): { act: SocialAct; len: number } | null {
+  for (let len = Math.min(LONGEST_PHRASE, j - from); len >= 1; len--) {
+    const act = SOCIAL_PHRASES.get(words.slice(j - len, j).join(" "));
+    if (act) return { act, len };
+  }
+  return null;
+}
+
+/** A message as words, each folded, and the stretch of the TYPED text it came
+ *  from — so the part of a question left after its greeting is handed on in
+ *  the visitor's own spelling. */
+interface Word {
+  w: string;
+  unit: number;
+}
+function wordsOf(message: string): { words: Word[]; units: string[] } {
+  const units = message.split(/\s+/).filter(Boolean);
+  const words: Word[] = [];
+  units.forEach((u, unit) => {
+    for (const w of splitWords(normalise(u))) words.push({ w, unit });
+  });
+  return { words, units };
+}
 
 /** The words of a message, folded, with a leading «و» peeled off a word
  * the lists know: «وللعيال» is «للعيال», «وأرخص» is «أرخص». */
+function peelWaw(w: string): string {
+  return w.length > 2 && w.startsWith("و") && !known(w) && known(w.slice(1)) ? w.slice(1) : w;
+}
+function known(w: string): boolean {
+  return (
+    FILLER.has(w) || MORE.has(w) || WHERE.has(w) || REFINERS.has(w) || ORDINALS.has(w) || LAST.has(w) ||
+    BEST.has(w) || PRICE.has(w) || NEAR.has(w)
+  );
+}
 function words(message: string): string[] {
-  const known = (w: string) =>
-    FILLER.has(w) || MORE.has(w) || WHERE.has(w) || REFINERS.has(w) || ORDINALS.has(w) || LAST.has(w);
-  return normalise(message)
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean)
-    .map((w) => (w.length > 2 && w.startsWith("و") && !known(w) && known(w.slice(1)) ? w.slice(1) : w));
+  return splitWords(normalise(message)).map(peelWaw);
 }
 
 /** The longest reply that is read as a follow-up rather than a question. */
 const SHORT = 4;
 
-export function readFollowUp(message: string, ctx: ChatContext | null, active?: string | null): FollowUp {
-  const text = message.trim();
-  if (!ctx || ctx.shown.length === 0) return { kind: "new", query: text };
-  const all = words(text);
-  const core = all.filter((w) => !FILLER.has(w));
-  if (all.length === 0 || all.length > SHORT + 2) return { kind: "new", query: text };
-
-  // A position on screen: «الثاني», «رقم ٢», «الأخير».
-  const ordinal = core.find((w) => ORDINALS.has(w));
-  if (ordinal !== undefined && core.every((w) => ORDINALS.has(w) || ORDINAL_FILLER.has(w))) {
-    const slug = ctx.shown[ORDINALS.get(ordinal)!];
-    if (slug) return { kind: "pick", slug };
+/** A catalogue area named by the whole of `core` — «السالمية», «بحولي», «في
+ *  مدينة الكويت» — as the catalogue spells it, or null. */
+function areaNamed(core: string[], areas: Map<string, string> | undefined): string | null {
+  if (!areas || core.length === 0 || core.length > 3) return null;
+  const joined = core.join(" ");
+  const tries = [joined];
+  // «بالسالمية», «لحولي» — a particle glued to the first word.
+  const m = joined.match(/^(?:بال|لل|ب|ل)(.+)$/);
+  if (m) tries.push(m[1], "ال" + m[1]);
+  // «سالمية» for «السالمية».
+  tries.push("ال" + joined);
+  for (const t of tries) {
+    const hit = areas.get(t);
+    if (hit) return hit;
   }
-  if (core.length > 0 && core.some((w) => LAST.has(w)) && core.every((w) => LAST.has(w) || ORDINAL_FILLER.has(w))) {
-    return { kind: "pick", slug: ctx.shown[ctx.shown.length - 1] };
+  return null;
+}
+
+/** The catalogue's areas, folded → as written, for `readFollowUp`. */
+export function areaIndex(areaNames: Iterable<string>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const name of areaNames) map.set(splitWords(normalise(name)).join(" "), name);
+  return map;
+}
+
+export function readFollowUp(
+  message: string,
+  ctx: ChatContext | null,
+  active?: string | null,
+  areas?: Map<string, string>
+): FollowUp {
+  const text = message.trim();
+  const { words: all, units } = wordsOf(text);
+  if (all.length === 0) {
+    // «؟», «👍» — punctuation or an emoji, nothing to read.
+    return text ? { kind: "social", act: ctx && ctx.shown.length ? "ok" : "greet" } : { kind: "new", query: text };
+  }
+
+  // What is said to a person, at the front and the back. Every act is noted;
+  // only greetings, thanks and «تمام» are taken off a message that goes on to
+  // say something else — «لا أبي شي مو غالي» is not a «no».
+  const w = all.map((x) => x.w);
+  const lead: SocialAct[] = [];
+  let i = 0;
+  while (i < w.length) {
+    const p = phraseAt(w, i);
+    if (p) {
+      lead.push(p.act);
+      i += p.len;
+    } else if (VOCATIVE.has(w[i])) {
+      i += 1;
+    } else break;
+  }
+  const trail: SocialAct[] = [];
+  let j = w.length;
+  while (j > i) {
+    const p = phraseBefore(w, j, i);
+    if (p) {
+      trail.unshift(p.act);
+      j -= p.len;
+    } else if (VOCATIVE.has(w[j - 1])) {
+      j -= 1;
+    } else break;
+  }
+
+  // All of it is said to a person: answer that, and read nothing else.
+  if (i >= j) {
+    const acts = [...lead, ...trail];
+    if (acts.length === 0) return { kind: "social", act: "greet" }; // «يا سالم»
+    const act = PRIORITY.find((a) => acts.includes(a))!;
+    const greeting = acts.find((a) => OPENERS.has(a)) as Opener | undefined;
+    return greeting && !OPENERS.has(act) && ["how", "who", "help", "notShouq"].includes(act)
+      ? { kind: "social", act, opener: greeting }
+      : { kind: "social", act };
+  }
+  // A greeting in front of a question is answered first; a «no», a «who» or a
+  // goodbye in front of one is not a greeting, and the message is read whole.
+  const peelable = (acts: SocialAct[]) => acts.every((a) => OPENERS.has(a) || SILENT.has(a));
+  if (!peelable(lead)) i = 0;
+  if (!peelable(trail)) j = w.length;
+  const opener = lead.find((a) => OPENERS.has(a)) as Opener | undefined;
+  const withOpener = <T extends FollowUp>(f: T): T => (opener && i > 0 ? ({ ...f, opener } as T) : f);
+
+  const kept = all.slice(i, j);
+  // The question as typed, without the greeting: every typed unit with a word
+  // left in it.
+  const keptUnits = new Set(kept.map((x) => x.unit));
+  const rest = i === 0 && j === w.length ? text : units.filter((_, u) => keptUnits.has(u)).join(" ");
+  const restWords = kept.map((x) => peelWaw(x.w));
+  const core = restWords.filter((x) => !FILLER.has(x));
+  const asNew = withOpener({ kind: "new" as const, query: rest });
+
+  // «قريب مني» — there is nothing on this page to be near to.
+  if (
+    core.some((x) => NEAR.has(x)) &&
+    core.every((x) => NEAR.has(x) || NEAR_FILLER.has(x) || WHERE.has(x) || MORE.has(x) || ORDINAL_FILLER.has(x))
+  ) {
+    return withOpener({ kind: "ask", what: "area" });
+  }
+
+  // A follow-up with nothing to follow: «غيره», «وين بالضبط؟», «الثاني» as the
+  // first thing said, or after a question that found nothing. Searched, these
+  // answered with whatever the words happened to match. «وين» alone is not
+  // one — «وين نروح» is the commonest question there is (a pick for the hour,
+  // answer-order.ts), and «وين» alone still finds the page about وين.
+  const followOnly = (x: string) =>
+    MORE.has(x) || WHERE.has(x) || ORDINALS.has(x) || ORDINAL_FILLER.has(x) || LAST.has(x) || BEST.has(x) || PRICE.has(x);
+  const followWord = (x: string) =>
+    MORE.has(x) || (WHERE.has(x) && x !== WHERE_ALONE) || ORDINALS.has(x) || LAST.has(x) || BEST.has(x) || PRICE.has(x);
+  if (!ctx || ctx.shown.length === 0) {
+    if (core.length > 0 && core.every(followOnly) && core.some(followWord)) return withOpener({ kind: "ask", what: "subject" });
+    // «غيره أرخص» with nothing before it is «أرخص»: there is no «غيره» to give.
+    if (core.some((x) => MORE.has(x)) && !core.every((x) => MORE.has(x))) {
+      const units2 = new Set(kept.filter((x) => !MORE.has(peelWaw(x.w))).map((x) => x.unit));
+      return withOpener({ kind: "new", query: units.filter((_, u) => units2.has(u)).join(" ") });
+    }
+    return asNew;
+  }
+  if (restWords.length > SHORT + 2) return asNew;
+
+  // A position on screen: «الثاني», «رقم ٢», «الأخير», «أحسن واحد» — and
+  // where it is, when that is what was asked: «وين الثاني؟».
+  const positional = (x: string) =>
+    ORDINALS.has(x) || ORDINAL_FILLER.has(x) || LAST.has(x) || BEST.has(x) || WHERE.has(x) || PRICE.has(x);
+  if (core.length > 0 && core.every(positional)) {
+    const ordinal = core.find((x) => ORDINALS.has(x));
+    const slug =
+      ordinal !== undefined
+        ? ctx.shown[ORDINALS.get(ordinal)!]
+        : core.some((x) => LAST.has(x))
+          ? ctx.shown[ctx.shown.length - 1]
+          : core.some((x) => BEST.has(x))
+            ? ctx.shown[0]
+            : undefined;
+    if (slug) {
+      return core.some((x) => WHERE.has(x)) ? withOpener({ kind: "where", slug }) : withOpener({ kind: "pick", slug });
+    }
+  }
+
+  // «كم سعره؟» — the place being pointed at, or the first.
+  if (core.length > 0 && core.some((x) => PRICE.has(x)) && core.every((x) => PRICE.has(x) || WHERE.has(x))) {
+    return withOpener({ kind: "pick", slug: active && ctx.shown.includes(active) ? active : ctx.shown[0] });
   }
 
   // Where — and only where: «وين بالضبط؟» is a follow-up, «وين أتعشى» is not.
-  if (core.length > 0 && core.every((w) => WHERE.has(w))) {
+  if (core.length > 0 && core.every((x) => WHERE.has(x))) {
     const slug = active && ctx.shown.includes(active) ? active : ctx.shown[0];
-    return { kind: "where", slug };
+    return withOpener({ kind: "where", slug });
   }
 
   // «غيره», «شي ثاني» — and a bare «ثاني» is «another», not «the second».
-  if (core.length > 0 && core.every((w) => MORE.has(w))) return { kind: "more" };
+  if (core.length > 0 && core.every((x) => MORE.has(x))) return withOpener({ kind: "more" });
 
-  // Narrowing: short, and every word one that narrows.
-  if (core.length > 0 && core.length <= SHORT && core.every((w) => REFINERS.has(w))) {
-    return { kind: "refine", query: `${ctx.query} ${text}`, added: text };
+  // Narrowing: short, and every word one that narrows. «غيره أرخص» is the
+  // same narrowing — the «غيره» says nothing the narrowed answer does not.
+  const refining = core.filter((x) => !MORE.has(x));
+  if (refining.length > 0 && refining.length <= SHORT && refining.every((x) => REFINERS.has(x))) {
+    const added = core.length === refining.length ? rest : kept.filter((x) => !MORE.has(peelWaw(x.w))).map((x) => x.w).join(" ");
+    return withOpener({ kind: "refine", query: `${ctx.query} ${added}`, added });
   }
 
-  return { kind: "new", query: text };
+  // An area: the last answer, there. «قهوة» then «السالمية» is coffee in
+  // Salmiya, not everything in Salmiya.
+  const area = areaNamed(core, areas);
+  if (area) return withOpener({ kind: "refine", query: `${ctx.query} ${area}`, added: rest, area });
+
+  return asNew;
+}
+
+/**
+ * A narrowed question's places, kept to the ones the answer it narrows had
+ * found, in the narrowed order. «قهوة» then «أرخص» searched «قهوة أرخص», and
+ * «أرخص» matched on its own: the zoo came into a list of cafés, and «عشا»
+ * then «للعيال» led with the zoo «روح الصبح».
+ */
+export function withinAnswer(ranked: string[], ctx: ChatContext): string[] {
+  const had = new Set(ctx.ranked);
+  return ranked.filter((s) => had.has(s));
 }
 
 /** The next places of the same answer, for «غيره». Empty when it has none. */

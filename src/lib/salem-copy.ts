@@ -38,16 +38,18 @@ export const WAIN_AI_CHAT_COPY = {
   // bare input box under an empty transcript reads as a page that did not load.
   starterLabel: "جرّب تسأل:",
   starters: ["قهوة هادية", "طلعة مع العيال", "عشا على البحر", "شي رخيص"],
-  // The typing dots vanished after 45s with no word; this is the word.
-  noReply: "ما وصلني رد منها — جرّب ثاني.",
+  // The typing dots vanished after 45s with no word; this is the word. It
+  // said «منها» — her reply, on سالم's page — and the app always said «وصلنا».
+  noReply: "ما وصلنا رد — جرّب مرة ثانية.",
   // Said under the dots when a reply is taking long, so a slow answer is not
-  // indistinguishable from a dead one.
-  slow: "ثواني وترد عليك…",
+  // indistinguishable from a dead one. His reply: it said «وترد».
+  slow: "ثواني ويرد عليك…",
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
   // hang — see lib/salem-chat.ts — so this is what a visitor reads when they
-  // tried to open a place or the map from here and could not.
-  toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.",
+  // tried to open a place or the map from here and could not. The calls are
+  // شوق's: it said «كلّمه بمكالمة», a call to him there is no button for.
+  toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّم شوق بمكالمة.",
   failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
   // The server refused for credits (2 and 7 October). No retry this minute
   // changes that, so he does not offer one: the page answers from وين's own
@@ -69,6 +71,41 @@ export const WAIN_AI_CHAT_COPY = {
   moreNone: "هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.",
   refineNone: "ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.",
   where: "مكانه على الخريطة تحت.",
+  /*
+   * What he says to a message that is not about places (lib/salem-followup.ts,
+   * 8 October). Each of these was searched: «السلام عليكم» → «جرّب قصر
+   * السلام», «مين أنت؟» → a bridge, «شكراً» and «هلا» → «ما لقيت شي». A
+   * greeting in front of a question is answered with `opener`, then the
+   * answer. None of them changes what the chat remembers.
+   */
+  opener: {
+    salam: "وعليكم السلام!",
+    greet: "هلا والله!",
+    morning: "صباح النور!",
+    evening: "مساء النور!",
+  },
+  askTail: "قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال — وأدوّر لك.",
+  social: {
+    how: "الحمد لله بخير!",
+    thanks: "العفو! إذا تبي شي ثاني قول لي.",
+    afia: "الله يعافيك! إذا تبي شي ثاني قول لي.",
+    who: "أنا سالم من وين — أدوّر لك بين أماكن الكويت اللي عندنا: قهوة، بحر، مطاعم، وطلعات. قول لي وش تبي.",
+    notShouq: "لا، أنا سالم. شوق تكلّمك بمكالمة — زر الاتصال فوق.",
+    help: "اكتب لي وش تبي — «قهوة هادية»، «عشا على البحر»، أو اسم منطقة — وأعطيك أماكن على الخريطة، وتقدر ترسلها للربع.",
+    bye: "الله يسلمك! حيّاك أي وقت.",
+    ok: "تمام! إذا تبي غيرها قول «غيره»، أو اسألني عن شي ثاني.",
+    okFresh: "تمام! قول لي وش تبي وأدوّر لك.",
+    no: "أوكي! إذا احتجت شي قول لي.",
+  },
+  // A follow-up with nothing to follow («غيره» as the first thing said), and
+  // «قريب مني» on a page that never asks where you are.
+  askSubject: "عن شنو؟ قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال.",
+  askArea: "ما أعرف وين أنت — قول لي منطقتك، مثل «السالمية» أو «حولي»، وأدوّر لك فيها.",
+  // A part of Kuwait the catalogue has nothing in: it used to be «ما لقيت شي…
+  // جرّب… اسم منطقة», said to the name of a governorate.
+  elsewhere: (area: string) => `ما عندي أماكن ب${area} للحين — جرّب «قهوة» أو «بحر» وأوريك اللي عندي.`,
+  // An area named after an answer, with none of that answer's places in it.
+  areaNone: (area: string) => `ما عندي منها شي ب${area} — هذي اللي عندي قبل.`,
   directions: "الطريق",
   openPlace: "صفحته",
   followLabel: "تبي",

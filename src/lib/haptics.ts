@@ -45,7 +45,15 @@ export function enabled(): boolean {
   // Someone who has asked the OS for less motion has not asked for a buzzing
   // phone either.
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return false;
-  return window.localStorage?.getItem(PREF_KEY) !== "0";
+  // Guarded like setEnabled below: with storage blocked («block all cookies»,
+  // some private modes) the getter itself THROWS, and every tap that buzzes
+  // threw with it — «رسّلها» stuck on «لحظة…» for good, and the call button
+  // did nothing at all (8 October).
+  try {
+    return window.localStorage?.getItem(PREF_KEY) !== "0";
+  } catch {
+    return true;
+  }
 }
 
 export function setEnabled(on: boolean): void {

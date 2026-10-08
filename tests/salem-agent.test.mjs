@@ -42,6 +42,20 @@ async function fresh(path) {
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW',
   });
+  // A socket that stays CONNECTING, so these sections read the page as it is
+  // before the line settles. The real one is refused here, and since 8 October
+  // a refused line hands the chat to our own search — which these sections
+  // would then be reading instead, at a moment that depends on the network.
+  await ctx.addInitScript(() => {
+    class Hanging {
+      constructor() { this.readyState = 0; window.__salemSocket = this; }
+      addEventListener() {}
+      send() {}
+      close() { this.readyState = 3; }
+    }
+    Hanging.CONNECTING = 0; Hanging.OPEN = 1; Hanging.CLOSING = 2; Hanging.CLOSED = 3;
+    window.WebSocket = Hanging;
+  });
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
@@ -287,8 +301,10 @@ console.log('\n── show_places/open_place render inline, without a live agent
   ok('the visitor\'s own bubble is drawn once the message left', await sp.locator('p', { hasText: 'وين أروح؟' }).count() === 1);
   ok('and a typing indicator shows while she answers', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
   // A slow answer must not look like a dead one: after 10s the dots say so.
-  await sp.waitForSelector('text=ثواني وترد عليك', { timeout: 14000 });
-  ok('a reply taking long says so under the dots', true);
+  // Soft: thrown, it ended the run here and every section after it went
+  // unmeasured (it did, against a build that still said «وترد»).
+  const slowSaid = await sp.waitForSelector('text=ثواني ويرد عليك', { timeout: 14000 }).then(() => true, () => false);
+  ok('a reply taking long says so under the dots', slowSaid);
   await input.fill('ثاني');
   ok('the send button is held back until her reply, so two questions do not cross',
     await sp.getByRole('button', { name: 'إرسال' }).isDisabled());
@@ -582,6 +598,73 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
     ok('kept chat: no page errors', errs.length === 0, errs.join(' | '));
     await c.close();
   }
+}
+
+console.log('\n── a line that never opens: he answers from وين\'s own search ──');
+{
+  /* Refused at the door, or no answer from the server in time: the chat used
+     to end on «ما قدرنا نوصله — جرّب مرة ثانية» over a locked box, and the
+     retry met the same wall (8 October). For a visitor that is the credits
+     case again — no agent to talk to, and a search engine already on the page.
+     A line that drops mid-chat still offers to start again; the dropped-line
+     check above holds that half. */
+  const FAKE = () => {
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) {
+        for (const fn of this.listeners[type] ?? []) {
+          try { fn(evt); } catch (e) { setTimeout(() => { throw e; }); }
+        }
+      }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  };
+  async function lineDies(label, init, drive, waitMs) {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+    if (init) await c.addInitScript(init);
+    const p = await c.newPage();
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+    if (drive) {
+      await p.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+      await p.evaluate(drive).catch(() => {});
+    }
+    const log = p.locator('[role="log"]');
+    await log.getByText('دليل وين').first().waitFor({ timeout: waitMs }).catch(() => {});
+    ok(`${label}: the transcript says he answers from the guide, once`, await log.getByText('دليل وين').count() === 1);
+    ok(`${label}: no dead-end banner`, await p.locator('p[role="alert"]').count() === 0);
+    ok(`${label}: no «start again» that would meet the same wall`,
+      await p.getByRole('button', { name: 'ابدأ من جديد' }).count() === 0);
+    await p.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+    await p.locator('#salem-q').fill('قهوة').catch(() => {});
+    await p.locator('#salem-q').press('Enter').catch(() => {});
+    await log.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
+    ok(`${label}: a question gets places`, await log.locator('a[href^="/places/"]').count() > 0);
+    ok(`${label}: the device remembers, so the next page does not wait on the line again`,
+      await p.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0).catch(() => false));
+    ok(`${label}: no page errors`, errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  await lineDies('refused at the door', FAKE, () => {
+    const s = window.__salemSocket;
+    s.emit('error', {});
+    s.readyState = 3;
+    s.emit('close', { code: 1006, reason: '' });
+  }, 4000);
+  // Opened, and then nothing: the connect timer is 12 seconds.
+  await lineDies('no answer from the server in time', FAKE, () => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+  }, 16000);
+  // And the real thing: this sandbox's gateway refuses api.elevenlabs.io, so
+  // the browser's own failure events are what reach the chat here.
+  await lineDies('the real line, refused by this sandbox', null, null, 16000);
 }
 
 console.log('\n── his tools answer from the live rows, not the snapshot they started with ──');

@@ -18,7 +18,7 @@ import {
 } from "@/lib/wain-ai";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
-import type { ChatContext } from "@/lib/salem-followup";
+import type { ChatContext, Opener, SocialAct } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { agentAvailable, markAgentUnavailable } from "@/lib/agent-health";
 import { usePlaces } from "@/lib/usePlaces";
@@ -40,7 +40,7 @@ import { CHOICE_MAX } from "@/lib/hangout";
  * rather than a second, ad-hoc card shape that would drift from it. */
 type ChatLine =
   | { role: "user" | "agent" | "system"; text: string }
-  | { role: "places"; query: string; slugs: string[]; chips?: string[] }
+  | { role: "places"; query: string; slugs: string[]; chips?: string[]; ctx?: ChatContext }
   | { role: "place"; slug: string }
   | { role: "where"; slug: string };
 
@@ -64,6 +64,27 @@ function owedQuestion(lines: ChatLine[]): string | null {
     return line.role === "user" ? line.text : null;
   }
   return null;
+}
+
+/** What he says to a message that is not about places — see salem-followup's
+ *  `social`. `remembers`: there is an answer on screen for «تمام» to point
+ *  back at. */
+function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boolean): string {
+  const C = WAIN_AI_CHAT_COPY;
+  const open = opener ? `${C.opener[opener]} ` : "";
+  switch (act) {
+    case "salam":
+    case "greet":
+    case "morning":
+    case "evening":
+      return `${C.opener[act]} ${C.askTail}`;
+    case "how":
+      return `${open}${C.social.how} ${C.askTail}`;
+    case "ok":
+      return remembers ? C.social.ok : C.social.okFresh;
+    default:
+      return `${open}${C.social[act]}`;
+  }
 }
 
 /**
@@ -189,6 +210,7 @@ export default function SalemChat() {
       order: typeof import("@/lib/answer-order");
       follow: typeof import("@/lib/salem-followup");
       index: import("@/lib/search").SearchIndex;
+      areas: Map<string, string>;
     }> | null = null;
     // salem-followup rides with the search because it folds words with the
     // search's own `normalise` — up front it would carry the engine with it.
@@ -198,7 +220,13 @@ export default function SalemChat() {
         import("@/lib/answer-order"),
         import("@/lib/salem-followup"),
       ]).then(
-        ([mod, order, follow]) => ({ mod, order, follow, index: mod.buildIndex(places) }),
+        ([mod, order, follow]) => ({
+          mod,
+          order,
+          follow,
+          index: mod.buildIndex(places),
+          areas: follow.areaIndex(places.map((p) => p.areaAr)),
+        }),
         (err) => {
           // Forget a failure: a remembered rejection failed every message
           // after the first, for the rest of the visit.
@@ -321,49 +349,71 @@ export default function SalemChat() {
   /**
    * The free build's reply: our own search, our own words, no wire — read
    * against the last answer first (lib/salem-followup.ts), so «أرخص», «غيره»
-   * and «وين بالضبط؟» answer what he just said instead of starting again.
+   * and «وين بالضبط؟» answer what he just said instead of starting again, and
+   * «هلا», «شكراً» or «مين أنت؟» are answered as what they are rather than
+   * searched for.
+   *
+   * `asked` is the answer a chip was offered under: a chip acts on THAT
+   * answer, whatever the memory says now. They used to read the memory, and a
+   * «شكراً» that found nothing had wiped it, so «وين بالضبط؟» under four cafés
+   * searched the words and answered with the Grand Mosque (8 October).
    */
-  async function answerLocally(q: string) {
+  async function answerLocally(q: string, asked?: ChatContext) {
     setPending(true);
     try {
       // Bounded: a search chunk stuck on a weak connection kept the dots up and
       // the box locked for ever. Ten seconds, then say so; the next message
       // tries again.
-      const { mod, order, follow, index } = await Promise.race([
+      const { mod, order, follow, index, areas } = await Promise.race([
         loadIndex(),
         new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("timeout")), FREE_REPLY_MS)),
       ]);
       const clock = order.kuwaitClock();
-      const ctx = ctxRef.current;
-      const intent = follow.readFollowUp(q, ctx, activeRef.current);
+      const ctx = asked ?? ctxRef.current;
+      const intent = follow.readFollowUp(q, ctx, activeRef.current, areas);
       const bySlug = (slug: string) => places.find((p) => p.slug === slug);
       const lines: ChatLine[] = [];
       let parts: SpeechPart[] = [];
+      const opener = "opener" in intent && intent.opener ? `${WAIN_AI_CHAT_COPY.opener[intent.opener]} ` : "";
+      // A line of his own that is not an answer: said, and nothing remembered.
+      const say = (text: string) => {
+        lines.push({ role: "agent", text });
+        parts = [{ text }];
+      };
 
       // Cards for a list of slugs, the answer's own sentence, and the memory
       // and the chips that go with them.
       const showList = (query: string, slugs: string[], ranked: string[], seen: string[], spoken: SpeechPart[]) => {
         const next: ChatContext = { query, ranked, seen, shown: slugs };
         const shown = slugs.flatMap((s) => bySlug(s) ?? []);
-        lines.push({ role: "places", query, slugs, chips: follow.followUpChips(next, shown, clock) });
+        lines.push({ role: "places", query, slugs, chips: follow.followUpChips(next, shown, clock), ctx: next });
         ctxRef.current = next;
         activeRef.current = null;
         parts = spoken;
+      };
+      // His sentence for an answer, with the greeting it was asked with.
+      const answerLine = (spoken: SpeechPart[], intro = "") => {
+        lines.push({ role: "agent", text: `${opener}${intro}${spoken.map((p) => p.text).join(" ")}` });
       };
       const search = (query: string) => {
         const { hits } = order.answerOrder(query, mod.search(query, index, { limit: 40 }), index, places, clock);
         const ranked = hits.filter((h) => h.doc.kind === "place").map((h) => h.doc.id.replace(/^place:/, ""));
         return { hits, ranked: ranked.filter((s) => bySlug(s)) };
       };
+      const slugOf = (h: { doc: { id: string } }) => h.doc.id.replace(/^place:/, "");
 
-      if (ctx && intent.kind === "more") {
+      if (intent.kind === "social") {
+        say(socialLine(intent.act, intent.opener, !!ctx && ctx.shown.length > 0));
+      } else if (intent.kind === "ask") {
+        say(`${opener}${intent.what === "area" ? WAIN_AI_CHAT_COPY.askArea : WAIN_AI_CHAT_COPY.askSubject}`);
+      } else if (ctx && intent.kind === "more") {
         const slugs = follow.nextPlaces(ctx);
         if (slugs.length === 0) {
-          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.moreNone });
+          say(`${opener}${WAIN_AI_CHAT_COPY.moreNone}`);
         } else {
           const top = bySlug(slugs[0])!;
           const spoken = [{ key: `try-${top.slug}`, text: placeTryLine(top) }, ...whenParts(top, clock.month, clock.hour)];
-          lines.push({ role: "agent", text: `${WAIN_AI_CHAT_COPY.moreIntro} ${spoken.map((p) => p.text).join(" ")}` });
+          answerLine(spoken, `${WAIN_AI_CHAT_COPY.moreIntro} `);
           showList(ctx.query, slugs, ctx.ranked, [...ctx.seen, ...slugs], spoken);
         }
       } else if (intent.kind === "pick" || intent.kind === "where") {
@@ -371,28 +421,58 @@ export default function SalemChat() {
         activeRef.current = place.slug;
         if (intent.kind === "pick") {
           parts = [{ key: `try-${place.slug}`, text: placeTryLine(place) }, ...whenParts(place, clock.month, clock.hour)];
-          lines.push({ role: "agent", text: parts.map((p) => p.text).join(" ") }, { role: "place", slug: place.slug });
+          answerLine(parts);
+          lines.push({ role: "place", slug: place.slug });
         } else {
           parts = [{ text: `${place.nameAr} — ${place.areaAr}.` }];
-          lines.push({ role: "agent", text: `${parts[0].text} ${WAIN_AI_CHAT_COPY.where}` }, { role: "where", slug: place.slug });
+          lines.push(
+            { role: "agent", text: `${opener}${parts[0].text} ${WAIN_AI_CHAT_COPY.where}` },
+            { role: "where", slug: place.slug }
+          );
         }
-      } else {
-        // («غيره» with nothing remembered cannot happen — readFollowUp needs a
-        // last answer to call anything a follow-up — but it reads as asked.)
-        const query = intent.kind === "more" ? q : intent.query;
-        const { hits, ranked } = search(query);
-        if (ranked.length === 0 && intent.kind === "refine" && ctx) {
+      } else if (ctx && intent.kind === "refine" && intent.area) {
+        // The last answer, in that area — its own places, in its own order.
+        const area = intent.area;
+        const there = ctx.ranked.filter((s) => bySlug(s)?.areaAr === area);
+        if (there.length === 0) {
+          say(`${opener}${WAIN_AI_CHAT_COPY.areaNone(area)}`);
+        } else {
+          const slugs = there.slice(0, 8);
+          const spoken = answerParts([], slugs.flatMap((s) => bySlug(s) ?? []), clock);
+          answerLine(spoken);
+          showList(intent.query, slugs, there, slugs, spoken);
+        }
+      } else if (ctx && intent.kind === "refine") {
+        // Narrowed, and kept to what the last answer found: «قهوة» then «أرخص»
+        // is cheaper coffee, not everything cheap.
+        const { hits, ranked } = search(intent.query);
+        const within = follow.withinAnswer(ranked, ctx);
+        if (within.length === 0) {
           // Nothing fits both — say so, and leave the last answer where it is
           // rather than replacing it with the dead end.
-          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.refineNone });
-        } else if (ranked.length === 0) {
-          lines.push({ role: "agent", text: WAIN_AI_CHAT_COPY.freeEmpty });
+          say(`${opener}${WAIN_AI_CHAT_COPY.refineNone}`);
+        } else {
+          const keep = new Set(within);
+          const inside = hits.filter((h) => h.doc.kind !== "place" || keep.has(slugOf(h)));
+          const { slugs } = formatShowPlaces(intent.query, inside, places);
+          const spoken = answerParts(inside, slugs.flatMap((slug) => bySlug(slug) ?? []), clock);
+          answerLine(spoken);
+          showList(intent.query, slugs, within, slugs, spoken);
+        }
+      } else {
+        const query = intent.kind === "new" || intent.kind === "refine" ? intent.query : q;
+        const { hits, ranked } = search(query);
+        if (ranked.length === 0) {
+          // A part of Kuwait with nothing in it says so by name; anything else
+          // is a word that matched nothing.
+          const where = mod.elsewhereNamed(query, index);
+          say(`${opener}${where ? WAIN_AI_CHAT_COPY.elsewhere(where) : WAIN_AI_CHAT_COPY.freeEmpty}`);
           ctxRef.current = null;
         } else {
           const { slugs } = formatShowPlaces(query, hits, places);
           const found = slugs.flatMap((slug) => bySlug(slug) ?? []);
           const spoken = answerParts(hits, found, clock);
-          lines.push({ role: "agent", text: spoken.map((p) => p.text).join(" ") });
+          answerLine(spoken);
           showList(query, slugs, ranked, slugs, spoken);
         }
       }
@@ -470,8 +550,14 @@ export default function SalemChat() {
     const handle = startSalemChat({
       onStatus: (s, f) => {
         // A refusal for credits: he answers from our own search instead, and
-        // this device skips the agent for a while (lib/agent-health.ts).
-        if (s === "error" && f === "unavailable") {
+        // this device skips the agent for a while (lib/agent-health.ts). And
+        // a line that never opened — refused at the door, or no answer from
+        // the server in time — is the same for a visitor: there is no agent to
+        // talk to, and there is a search engine on this page. It used to be
+        // «ما قدرنا نوصله — جرّب مرة ثانية» over a locked box, and the retry
+        // met the same wall (8 October). A line that dropped mid-chat still
+        // offers to start again: the agent was there a moment ago.
+        if (s === "error" && (f === "unavailable" || f === "refused" || f === "timeout" || f === undefined)) {
           markAgentUnavailable();
           answerHere(true);
           return;
@@ -572,13 +658,13 @@ export default function SalemChat() {
     return () => clearTimeout(t);
   }, [typing]);
 
-  function submit(raw: string): boolean {
+  function submit(raw: string, asked?: ChatContext): boolean {
     const text = raw.trim();
     if (!text || status !== "connected" || pending) return false;
     if (freeRef.current) {
       stickRef.current = true;
       setMessages((prev) => [...prev, { role: "user", text }]);
-      void answerLocally(text);
+      void answerLocally(text, asked);
       return true;
     }
     // Send first, draw the bubble only if the message left: it used to be the
@@ -634,12 +720,22 @@ export default function SalemChat() {
   }
 
   // Starters are for a conversation that has not begun: gone once anyone has
-  // typed, and gone while a reply is on its way.
+  // typed, and gone while a reply is on its way. Answered here, «begun» is
+  // the first answer with places in it — a «هلا» answered «هلا والله! قول لي
+  // وش تبي» is still a conversation with nothing in it, and the four starters
+  // are the quickest way on from there.
   const showStarters =
-    status === "connected" && !pending && !awaitingGreeting && !messages.some((m) => m.role === "user");
+    status === "connected" &&
+    !pending &&
+    !awaitingGreeting &&
+    (free
+      ? !messages.some((m) => m.role === "places" || m.role === "place" || m.role === "where")
+      : !messages.some((m) => m.role === "user"));
 
-  // No «unavailable» case: a refusal for credits switches the page to our own
-  // search (answerHere) instead of failing it, so it never reaches the banner.
+  // A refusal for credits, and a line that never opened, switch the page to
+  // our own search (answerHere) instead of failing it, so in practice only a
+  // line that dropped mid-chat reaches the banner; the other two stay worded
+  // for whatever new failure is not yet read that way.
   const failureText =
     failure === "timeout"
       ? WAIN_AI_CHAT_COPY.failedTimeout
@@ -770,7 +866,7 @@ export default function SalemChat() {
                 places={cards}
                 query={m.query}
                 chips={latest && !pending && status === "connected" ? m.chips : undefined}
-                onChip={(c) => submit(c)}
+                onChip={(c) => submit(c, m.ctx)}
                 onActive={latest ? (slug) => (activeRef.current = slug) : undefined}
               />
             );

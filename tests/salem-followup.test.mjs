@@ -26,7 +26,7 @@ writeFileSync(
   entry,
   `export * from ${at("salem-followup.ts")};\n` +
     `export { places } from ${at("places.ts")};\n` +
-    `export { buildIndex, search } from ${at("search.ts")};\n` +
+    `export { buildIndex, search, elsewhereNamed, isTopicless } from ${at("search.ts")};\n` +
     `export { answerOrder } from ${at("answer-order.ts")};\n`
 );
 const bundle = join(tmp, "entry.mjs");
@@ -35,7 +35,10 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { readFollowUp, nextPlaces, followUpChips, places, buildIndex, search, answerOrder } = await import(
+const {
+  readFollowUp, nextPlaces, followUpChips, withinAnswer, areaIndex, places, buildIndex, search, answerOrder,
+  elsewhereNamed, isTopicless,
+} = await import(
   pathToFileURL(bundle).href
 );
 rmSync(tmp, { recursive: true, force: true });
@@ -58,7 +61,9 @@ function context(q, clock) {
 
 console.log("\n── nothing remembered: everything is a new question ──");
 ok("«أرخص» with no last answer is asked as it is", readFollowUp("أرخص", null).kind === "new");
-ok("«غيره» with no last answer is asked as it is", readFollowUp("غيره", null).kind === "new");
+// 8 October: searched, a bare «غيره» answered with whatever the word matched —
+// the closed amusement park. With nothing to follow it asks what about.
+ok("«غيره» with no last answer asks what about", readFollowUp("غيره", null).kind === "ask");
 
 const coffee = context("مطعم", JANUARY_EVENING);
 ok("«مطعم» finds more than eight places, so «غيره» has something to show", coffee.ranked.length > 8, `${coffee.ranked.length}`);
@@ -155,6 +160,138 @@ ok(
   chips.every((c) => readFollowUp(c, coffee).kind !== "new"),
   chips.map((c) => `${c}:${readFollowUp(c, coffee).kind}`).join(" ")
 );
+
+
+console.log("\n── a message that is not about places is not searched (8 October) ──");
+{
+  // Read off the live chat while the agent was out of credits: every one of
+  // these went to the search and came back as a place or as «ما لقيت شي».
+  const SOCIAL = [
+    ["هلا", "greet"], ["هلا والله", "greet"], ["مرحبا", "greet"], ["hi", "greet"], ["يا سالم", "greet"],
+    ["السلام عليكم", "salam"], ["صباح الخير", "morning"], ["مساء الخير", "evening"],
+    ["شلونك", "how"], ["شكراً", "thanks"], ["مشكور", "thanks"], ["thanks", "thanks"], ["يعطيك العافية", "afia"],
+    ["مين أنت؟", "who"], ["منو انت", "who"], ["شنو اسمك", "who"], ["انت شوق؟", "notShouq"],
+    ["شنو تقدر تسوي؟", "help"], ["ساعدني", "help"], ["مع السلامة", "bye"], ["باي", "bye"],
+    ["اوكي", "ok"], ["تمام", "ok"], ["طيب", "ok"], ["لا", "no"],
+  ];
+  for (const [msg, act] of SOCIAL) {
+    const a = readFollowUp(msg, null);
+    const b = readFollowUp(msg, coffee);
+    ok(`«${msg}» is «${act}», with or without a last answer`, a.kind === "social" && a.act === act && b.kind === "social" && b.act === act,
+      `${JSON.stringify(a)} / ${JSON.stringify(b)}`);
+  }
+  const how = readFollowUp("هلا شلونك", null);
+  ok("«هلا شلونك» is «how», answered after the greeting", how.kind === "social" && how.act === "how" && how.opener === "greet", JSON.stringify(how));
+}
+
+console.log("\n── a greeting in front of a question is answered, then the question ──");
+{
+  const salam = readFollowUp("السلام عليكم، أبي قهوة", null);
+  ok("«السلام عليكم، أبي قهوة» asks «أبي قهوة», opened with the salam",
+    salam.kind === "new" && salam.query === "أبي قهوة" && salam.opener === "salam", JSON.stringify(salam));
+  const hala = readFollowUp("هلا والله أبي قهوة", coffee);
+  ok("«هلا والله أبي قهوة» asks «أبي قهوة»", hala.kind === "new" && hala.query === "أبي قهوة" && hala.opener === "greet", JSON.stringify(hala));
+  const wallah = readFollowUp("والله زهقان", null);
+  ok("«والله زهقان» asks «زهقان», with nothing to answer first", wallah.kind === "new" && wallah.query === "زهقان" && !wallah.opener, JSON.stringify(wallah));
+  const thanksMore = readFollowUp("شكراً، غيره؟", coffee);
+  ok("«شكراً، غيره؟» is «غيره»", thanksMore.kind === "more", JSON.stringify(thanksMore));
+  const no = readFollowUp("لا أبي شي مو غالي", coffee);
+  ok("«لا أبي شي مو غالي» is not a «no» — it is read whole", no.kind !== "social", JSON.stringify(no));
+}
+
+console.log("\n── follow-ups said the way people say them ──");
+{
+  const at = (msg, active) => readFollowUp(msg, coffee, active);
+  const where2 = at("وين الثاني؟");
+  ok("«وين الثاني؟» is where the second one is", where2.kind === "where" && where2.slug === coffee.shown[1], JSON.stringify(where2));
+  const where2b = at("الثاني وينه؟");
+  ok("and so is «الثاني وينه؟»", where2b.kind === "where" && where2b.slug === coffee.shown[1], JSON.stringify(where2b));
+  const whereLast = at("وين الأخير");
+  ok("«وين الأخير» is where the last one is", whereLast.kind === "where" && whereLast.slug === coffee.shown.at(-1), JSON.stringify(whereLast));
+  const best = at("أحسن واحد");
+  ok("«أحسن واحد» is the first place — the answer's own best guess", best.kind === "pick" && best.slug === coffee.shown[0], JSON.stringify(best));
+  const price = at("كم سعر الأول؟");
+  ok("«كم سعر الأول؟» is the first place", price.kind === "pick" && price.slug === coffee.shown[0], JSON.stringify(price));
+  const priceActive = at("كم سعره؟", coffee.shown[2]);
+  ok("«كم سعره؟» is the place being pointed at", priceActive.kind === "pick" && priceActive.slug === coffee.shown[2], JSON.stringify(priceActive));
+  const moreCheaper = at("غيره أرخص");
+  ok("«غيره أرخص» narrows, and does not search the word «غيره»",
+    moreCheaper.kind === "refine" && !moreCheaper.query.includes("غيره"), JSON.stringify(moreCheaper));
+  for (const msg of ["قريب مني", "وين أقرب واحد", "شي قريب"]) {
+    const a = readFollowUp(msg, coffee);
+    const b = readFollowUp(msg, null);
+    ok(`«${msg}» asks for the area — the page does not know where anyone is`,
+      a.kind === "ask" && a.what === "area" && b.kind === "ask" && b.what === "area", `${JSON.stringify(a)} / ${JSON.stringify(b)}`);
+  }
+}
+
+console.log("\n── a follow-up with nothing to follow asks, rather than searching its words ──");
+for (const msg of ["غيره", "وين بالضبط؟", "الثاني", "أحسن واحد", "رقم ٣"]) {
+  const r = readFollowUp(msg, null);
+  ok(`«${msg}» with nothing remembered asks what about`, r.kind === "ask" && r.what === "subject", JSON.stringify(r));
+}
+ok("«وين» alone is still a question — it finds the page about وين", readFollowUp("وين", null).kind === "new");
+ok("and «وين نروح» is the commonest question there is", readFollowUp("يلا وين نروح", null).kind === "new");
+
+console.log("\n── an area narrows the last answer to that area ──");
+{
+  const areas = areaIndex(places.map((p) => p.areaAr));
+  for (const [msg, area] of [["السالمية", "السالمية"], ["بالسالمية", "السالمية"], ["في حولي", "حولي"], ["مدينة الكويت", "مدينة الكويت"]]) {
+    const r = readFollowUp(msg, coffee, null, areas);
+    ok(`«${msg}» after an answer is that answer in ${area}`, r.kind === "refine" && r.area === area, JSON.stringify(r));
+  }
+  const fresh = readFollowUp("السالمية", null, null, areas);
+  ok("with nothing remembered it is a question about the area", fresh.kind === "new", JSON.stringify(fresh));
+  ok("a part of Kuwait the catalogue does not have is no area of it", readFollowUp("الجهراء", coffee, null, areas).kind === "new");
+}
+
+console.log("\n── narrowing stays inside the answer it narrows ──");
+{
+  const cafes = context("قهوة", JANUARY_EVENING);
+  const cheaper = withinAnswer(ask("قهوة أرخص"), cafes);
+  ok("«قهوة» then «أرخص» is cafés only", cheaper.length > 0 && cheaper.every((s) => cafes.ranked.includes(s)), cheaper.join(" "));
+  ok("and the zoo is not one of them", !cheaper.includes("kuwait-zoo") && ask("قهوة أرخص").includes("kuwait-zoo"),
+    "the unnarrowed search should have reached the zoo, or this proves nothing");
+  const dinner = context("عشا", JANUARY_EVENING);
+  const kids = withinAnswer(ask("عشا للعيال"), dinner);
+  ok("«عشا» then «للعيال» does not lead with the zoo «روح الصبح»", kids.length > 0 && kids[0] !== "kuwait-zoo" && kids.every((s) => dinner.ranked.includes(s)), kids.slice(0, 3).join(" "));
+}
+
+console.log("\n── the hour a question names (8 October) ──");
+{
+  const best = (s) => bySlug.get(s).bestTimeAr;
+  for (const clock of [{ month: 0, hour: 9 }, { month: 0, hour: 21 }]) {
+    const breakfast = ask("فطور", clock);
+    ok(`«فطور» at ${clock.hour}:00 is not answered with a place for the night`, !/الليل|العشا|المغرب/.test(best(breakfast[0])) || /الصبح|بدري/.test(best(breakfast[0])),
+      `${breakfast[0]}: ${best(breakfast[0])}`);
+    const lunch = ask("وين أتغدى", clock);
+    ok(`«وين أتغدى» at ${clock.hour}:00 leads with a place for lunch`, /الغدا|الظهر/.test(best(lunch[0])), `${lunch[0]}: ${best(lunch[0])}`);
+    const dinner = ask("وين أتعشى", clock);
+    ok(`«وين أتعشى» at ${clock.hour}:00 still leads with a place for dinner`, /العشا|الليل|المغرب/.test(best(dinner[0])), `${dinner[0]}: ${best(dinner[0])}`);
+  }
+}
+
+console.log("\n── the words said around a question ──");
+{
+  ok("«والله زهقان» is a wish to go out", isTopicless("والله زهقان"));
+  ok("so is «يلا وين نروح»", isTopicless("يلا وين نروح"));
+  ok("«أبي قهوة لو سمحت» brings no بيت لوذان in with the cafés", !ask("أبي قهوة لو سمحت").includes("bait-lothan"),
+    ask("أبي قهوة لو سمحت").slice(0, 6).join(" "));
+  ok("«مع ربعي» finds the places for a group of friends", ask("مع ربعي").length > 0);
+  ok("«kahwa» finds the cafés", ask("kahwa")[0] === ask("قهوة")[0], `${ask("kahwa")[0]} vs ${ask("قهوة")[0]}`);
+  ok("«ba7ar» finds the sea", ask("ba7ar")[0] === ask("بحر")[0], `${ask("ba7ar")[0]} vs ${ask("بحر")[0]}`);
+}
+
+console.log("\n── a part of Kuwait with nothing in it is named back ──");
+{
+  const idx = index;
+  for (const [q, named] of [["الجهراء", "الجهراء"], ["مطعم بالجهراء", "الجهراء"], ["كافيه بسلوى", "سلوى"], ["صباح السالم", "صباح السالم"]]) {
+    ok(`«${q}» names «${named}»`, elsewhereNamed(q, idx) === named, String(elsewhereNamed(q, idx)));
+  }
+  for (const q of ["قهوة", "السالمية", "مطعم بالسالمية", "صباح الأحمد"]) {
+    ok(`«${q}» names nowhere`, elsewhereNamed(q, idx) === null, String(elsewhereNamed(q, idx)));
+  }
+}
 
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);
