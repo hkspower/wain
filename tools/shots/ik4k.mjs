@@ -73,6 +73,19 @@ await page.evaluate(() => {
 await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnEngine, null, { timeout: 600000 });
+// Which build served the page: the dev server, or `next build` behind
+// `next start`. The frames are meant to be the same either way, and
+// were measured to be (mean difference under 3/255 on every frame, the
+// rest being traffic that happened to pass); the caption says which it
+// was so a frame can be read against the build it came from. The dev
+// server hands its chunks out under /_next/static/development/ and
+// stamps them ?v=; a production build does neither.
+const SERVED = await page.evaluate(() => {
+  const urls = performance.getEntriesByType("resource").map((r) => r.name);
+  const dev = urls.some((u) => u.includes("/_next/static/development/") || /\/_next\/static\/chunks\/[^?]*\?v=\d+/.test(u));
+  return dev ? "dev server" : "production build";
+});
+console.log(`served by the ${SERVED}`);
 console.log(`booted in ${secs()} s`);
 
 await page.evaluate(async ({ car, tier, ev, paint }) => {
@@ -217,7 +230,7 @@ const shoot = async (name, stageSrc) => {
   await sharp(png).jpeg({ quality: 94, chromaSubsampling: "4:4:4" }).toFile(`${OUT}/${name}.jpg`);
   // The measurement beside the picture, so a partial re-render still
   // leaves README.md telling the truth about every frame.
-  writeFileSync(`${OUT}/${name}.json`, JSON.stringify({ car: CAR, tier: TIER, ...r.state }, null, 1) + "\n");
+  writeFileSync(`${OUT}/${name}.json`, JSON.stringify({ car: CAR, tier: TIER, served: SERVED, ...r.state }, null, 1) + "\n");
   console.log(`${name.padEnd(8)} ${((Date.now() - t) / 1000).toFixed(0)} s  ${JSON.stringify(r.state)}`);
   return r.state;
 };
@@ -394,7 +407,7 @@ await browser.close();
 const lines = [
   "# The rig at 4K",
   "",
-  `Six 3840x2160 frames of the ${CAR}, rendered by tools/shots/ik4k.mjs through the game's own 4K pin at the ${TIER} tier. `,
+  `Six 3840x2160 frames of the ${CAR}, rendered by tools/shots/ik4k.mjs through the game's own 4K pin at the ${TIER} tier, served by the ${SERVED}. `,
   "Every number is read off the engine at the frame of the exposure — the picture is evidence, the caption is the measurement.",
   "",
   "| frame | what the rig is doing | measured |",
