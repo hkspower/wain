@@ -249,6 +249,19 @@ def static_checks():
         check(S, f"{p}: no undefined CSS variables", not undefined, str(undefined[:5]))
         check(S, f"{p}: has a Content-Security-Policy", "Content-Security-Policy" in t)
 
+    # The amber and the ground at an alpha are tokens (--tint-aNN, --bg-aNN),
+    # named once in :root: 42 literals across the four sheets had to be found
+    # by hand at every change of ink (2026-10-08). Mask alpha (#000) is not ink.
+    lit = re.compile(r"rgba\(\s*(?:230\s*,\s*169\s*,\s*92|10\s*,\s*9\s*,\s*8)\s*,")
+    def outside_root(src):
+        css = re.sub(r"/\*.*?\*/", "", "".join(re.findall(r"<style[^>]*>(.*?)</style>", src, re.S)), flags=re.S)
+        css = re.sub(r":root\s*\{[^}]*\}", "", css, count=1)
+        return lit.findall(css)
+    planted_lit = outside_root("<style>:root { --a: rgba(230, 169, 92, .5); } a { color: rgba(230,169,92,.5) }</style>")
+    stray = {p: len(outside_root(t)) for p, t in texts.items()}
+    check(S, "the amber and the ground at an alpha are tokens, never literals (the scan sees a planted one)",
+          len(planted_lit) == 1 and not any(stray.values()), str(stray))
+
     # One @keyframes per name: a later one of the same name replaces the
     # earlier, silently. The services drawing's bob was named "rise" like the
     # hero's entrance, so the hero's six lines bobbed 7px instead of fading in,
@@ -978,7 +991,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "836", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "841", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1011,7 +1024,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "836", "0", "100%"], str(finals))
+          finals == ["4", "841", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1537,6 +1550,28 @@ def scan_checks(pg, br):
     check(S, "index.html: every spacing value sits on the one scale", not off, str(off[:6]))
     sp.context.close()
 
+    # …and on the app pages, where the scan above never looked: the toast's
+    # resting offset (18px on all three), the phone pill's insets (14px) and
+    # two inline margins in the console (14px, 22px), which no stylesheet scan
+    # can see (2026-10-08)
+    SCALE = {0, 4, 6, 8, 12, 16, 20, 24, 32, 40, 56, 44}
+    inline = []
+    for f in PAGES:
+        for st in re.findall(r'style="([^"]*)"', (ROOT / f).read_text()):
+            for prop, vals in re.findall(r"(margin[\w-]*|padding[\w-]*|gap|inset[\w-]*|top|bottom)\s*:\s*([^;]+)", st):
+                inline += [f"{f} {prop}:{v}" for v in re.findall(r"(-?\d+(?:\.\d+)?)px", vals) if abs(float(v)) not in SCALE]
+    check(S, "no inline spacing value is off the scale", not inline, str(inline[:4]))
+    rest = []
+    for f, sel, w in (("nokhatha.html", ".toast", 1440), ("nizam.html", "#toast", 1440), ("admin.html", "#toast", 1440),
+                      ("index.html", "#callfab", 390)):
+        cp = br.new_context(viewport={"width": w, "height": 844}).new_page()
+        cp.goto(f"{BASE}/{f}", wait_until="networkidle")
+        got = cp.eval_on_selector(sel, "e => { const s = getComputedStyle(e); return [s.bottom, s.left, s.right]; }")
+        cp.context.close()
+        ins = [float(got[0][:-2])] + ([float(got[1][:-2])] if f == "index.html" else [])
+        rest += [f"{f} {sel} {v}px" for v in ins if v not in SCALE]
+    check(S, "the toasts and the phone's voice pill rest on the scale", not rest, str(rest))
+
     # A spreadsheet formula guard that only knows = + - @ is not a guard:
     # Excel strips a leading TAB before deciding what a cell is, and a CR in a
     # name split the row in half and put its tail on a fresh line as a new
@@ -1671,6 +1706,28 @@ def scan_checks(pg, br):
     check(S, "print sets the statement in dark ink on white paper",
           inks["body"] and rgb(inks["body"][1]) == "#ffffff" and not low, f"{inks} {low}")
     pg.emulate_media(media="screen")
+
+    # Print drops the actions column BY NAME. «td:last-child» assumed every
+    # table ends in one: the saved filings printed without their net profit
+    # and the social assets without their generator (2026-10-08)
+    c = br.new_context()
+    c.add_init_script("localStorage.setItem('nokhatha-safi-v1', %s); localStorage.setItem('nokhatha-xbrl-reports-v1', %s);" % (
+        json.dumps(json.dumps([{"ticker": "NBK", "name": "بنك", "qty": 10, "cost": 850, "price": 921}], ensure_ascii=False)),
+        json.dumps(json.dumps([{"entity": "شركة", "crn": "123456", "period": "2025", "periodEnd": "2025-12-31",
+                                "assets": 100, "equity": 60, "revenue": 50, "profit": -120.5}], ensure_ascii=False))))
+    ap = c.new_page(); ap.emulate_media(media="print")
+    cols = {}
+    for tab in ("safi", "xbrl", "social"):
+        ap.goto(f"{BASE}/nizam.html#/{tab}", wait_until="networkidle"); ap.wait_for_timeout(300)
+        # columns dropped from each row: [cells hidden, cells in the row]
+        cols[tab] = ap.evaluate("""t => [...document.querySelectorAll('#tab-' + t + ' table tr')].map(r =>
+            [[...r.children].filter(c => getComputedStyle(c).display === 'none').length, r.children.length])""", tab)
+    c.close()
+    check(S, "printed, the holdings lose only their actions column",
+          cols["safi"] and all(h == 1 and n == 9 for h, n in cols["safi"]), str(cols["safi"]))
+    check(S, "printed, the saved filings and the social assets keep every column",
+          cols["xbrl"] and cols["social"] and all(h == 0 for h, _ in cols["xbrl"] + cols["social"]),
+          str({k: cols[k] for k in ("xbrl", "social")}))
 
     # every shipped page carries a CSP, stubs included
     for f in list(PAGES) + list(STUBS) + ["404.html"]:

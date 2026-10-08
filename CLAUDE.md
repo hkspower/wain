@@ -111,7 +111,15 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the two roll-ups), stacking on mobile. Pinned by the suite.
 - Every colour is a CSS custom property in one `:root` block. **All pages must
   carry the identical token set** — divergence between pages has been a real bug
-  before.
+  before. That includes a colour at an alpha: the amber and the ground are
+  `--tint-a0 … --tint-a90` and `--bg-a0`, `--bg-a28` (2026-10-08: 42 `rgba()`
+  literals had to be found by hand at every change of ink), and the suite
+  fails on an amber or ground literal outside `:root`. Never `color-mix()`:
+  Chromium serialises it as `color(srgb …)`, and the theme scan reads only
+  `rgba?()` out of gradients, so every rule and fade would drop out of it
+  unseen. Line heights that equal a token are the token (`--lh-ui` 1.35,
+  `--lh-head` 1.4, `--lh-text` 1.5); `--lh-read` (1.6) named a value nothing
+  set, and is gone.
 - Colour values are **solved numerically against WCAG targets**, never picked by
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the surface it can land on that is
   closest to it in lightness: on this dark theme that is the lightest one,
@@ -436,7 +444,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 836 checks covering
+- `python3 design/test_suite.py` is the full system test — 841 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -713,6 +721,22 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   below 820px and the crossing check runs at 1024, 820, 768 and 700 as well
   as 1440. Measured 2026-10-08: 58 infinite animations at 1440, not the 80
   the comments still quoted.
+- **Rules copied between pages outlive what they styled** (audit,
+  2026-10-08). The system page and the console carried a bar call-to-action
+  (`nav.site .btn.primary`) for bars that hold two links; the console's focus
+  ring was unscoped and only rendered white on the bar because a third rule
+  repainted it (it is scoped to `main`, the footer and the gate now, as the
+  rule above says); `#tip b` styled a tip filled by `textContent`; the portal
+  styled a `select`, a `textarea` and `nav.tabs` it does not have, and hid an
+  icon that existed only to be hidden. Each app bar's base padding (12px)
+  never applied at any width, overridden by a patch appended after the
+  footer; the base is the 8px the bar measures. Print hid `td:last-child`
+  as «the actions column», and two of the system page's three tables have
+  none: the saved filings printed without their net profit. The actions
+  cell is `.col-act` now, pinned by counting hidden cells per printed row.
+  Spacing off the scale hid where no scan looked: the toasts' resting 18px,
+  the phone pill's 14px and two inline margins in the console (the stylesheet
+  scan cannot see a `style` attribute); all on the scale, all pinned.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse

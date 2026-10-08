@@ -72,7 +72,7 @@
     @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800;
       font-display:swap; src:url("fonts/jetbrainsmono-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5;
       color-scheme: dark;   /* one dark theme on every device: the logo's own ground */
       /* THE LOGO'S THEME (owner's approval, 2026-10-07): the near-black ground
          of the English logo, its amber, its white. Every value is solved in
@@ -99,6 +99,15 @@
       --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
       --good: #3ab873; --danger: #f68179; --info: #68a6f3;   /* each 6.0:1 on panel-3 */
       --warn-bg: #161514;
+      /* the amber and the ground at an alpha, each named once: the logo's
+         rule (.55 fading to 0), its halo (.32), the raised glow (.18, .26
+         hovered), the flagship's sheen (.16), the rain's lit glyph (.9), and
+         the ground's own fade (0) and pressed ripple (.28) */
+      --tint-a0: rgba(230, 169, 92, 0); --tint-a16: rgba(230, 169, 92, .16);
+      --tint-a18: rgba(230, 169, 92, .18); --tint-a26: rgba(230, 169, 92, .26);
+      --tint-a32: rgba(230, 169, 92, .32); --tint-a55: rgba(230, 169, 92, .55);
+      --tint-a90: rgba(230, 169, 92, .9);
+      --bg-a0: rgba(10, 9, 8, 0); --bg-a28: rgba(10, 9, 8, .28);
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */
       --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
@@ -153,10 +162,14 @@
     .btn:disabled { opacity: .6; cursor: not-allowed; }
     .btn:disabled:hover { background: var(--panel-2); border-color: var(--border-input); }
     .btn.danger:disabled:hover { background: transparent; border-color: var(--danger); box-shadow: none; }
-    .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    /* the amber ring belongs to the page and the gate, as on the other pages;
+       the bar keeps its own light ring (header button:focus-visible below).
+       Unscoped, it reached the bar and needed a third rule to repaint it */
+    main .btn:focus-visible, main a:focus-visible, main input:focus-visible, main select:focus-visible,
+    footer a:focus-visible, .gate .btn:focus-visible, .gate a:focus-visible,
+    .gate input:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
     nav.tabs button:hover { color: var(--tint); background: var(--panel-2); }
     nav.tabs button:focus-visible { outline: 2px solid var(--tint); outline-offset: -2px; }
-    header .btn:focus-visible, nav.site .btn:focus-visible { outline-color: var(--on-bar); }
     /* the drawn icon set, written in by design/app_sprite.py: the ink follows
        the text it sits beside */
     .ic { width:18px; height:18px; flex:none; fill:none; stroke:currentColor;
@@ -181,17 +194,17 @@
        --on-bar measures 18.09:1 on it. These app screens keep their row
        layout so the nav and tabs stay within reach; the company page centres
        its mark. The anchor tile carries النوخذة's amber. */
-    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 20px;
       background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50; }
     header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
-      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); pointer-events: none; }
+      background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)); pointer-events: none; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
     .brand .logo { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center;
       font-size: 17px; background: var(--on-bar-fill); color: var(--tint); }
     /* the page's one focal glow: the logo's halo, amber at .32, sigma .19 of the mark */
-    .brand .logo svg { filter: drop-shadow(0 0 4px rgba(230, 169, 92, .32)); }
-    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
+    .brand .logo svg { filter: drop-shadow(0 0 4px var(--tint-a32)); }
+    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: var(--lh-ui); color: var(--on-bar); }
     /* the brand's text block is a whole 40px, so the tile centred beside it
        and the anchor inside it start on whole pixels: at 40.48 the tile sat
        at y 13.44 and every stroke of the anchor was resampled */
@@ -206,28 +219,23 @@
       display: inline-flex; align-items: center; gap: 6px; }
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
-    nav.site .btn { color: var(--on-bar); border-color: var(--on-bar-bd); background: transparent; }
     /* the refresh and logout controls sit directly in the header, outside
        nav.site: on the bar they are outlined in the bar's own light ink. Red
        never sits on the bar; the word خروج carries the meaning, and the
        danger red stays for in-page use. */
-    header > .btn, header > .btn.danger, nav.site .btn, nav.site .btn.danger {
+    header > .btn, header > .btn.danger {
       background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
     /* a hover on the bar lifts the fill and lights the edge, in the bar's ink:
        never the page's amber edge, never the danger ring */
-    header > .btn:hover, header > .btn.danger:hover, nav.site .btn:hover, nav.site .btn.danger:hover {
+    header > .btn:hover, header > .btn.danger:hover {
       background: var(--on-bar-fill); color: var(--on-bar); border-color: var(--on-bar); box-shadow: none; }
-    /* the one call to action on the bar is amber with near-black ink: white
-       on amber is 2.06:1 */
-    nav.site .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
-    nav.site .btn.primary:hover { background: var(--tint-hover); color: var(--on-tint); border-color: var(--tint-hover); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
     .topbar { position: sticky; top: 0; z-index: 20; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
-      border-top: 0; line-height: 1.9; background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)) top / 100% 1px no-repeat; }
+      border-top: 0; line-height: 1.9; background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
 
     nav.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel);
       border-bottom: 1px solid var(--border); overflow-x: auto; }
@@ -237,7 +245,7 @@
     }
     nav.tabs button.on { color: var(--tint); border-bottom-color: var(--tint); }
 
-    main { max-width: 1240px; margin: 0 auto; padding: 20px 20px 56px;  line-height: var(--lh-text); }
+    main { margin: 0 auto; padding: 20px 20px 56px;  line-height: var(--lh-text); }   /* its width: the one-column pass below */
     .tab { display: none; } .tab.on { display: block; }
     h2 { font-size: 18px; margin: 24px 0 12px; }
     h2:first-child { margin-top: 4px; }
@@ -253,8 +261,8 @@
        narrowest tile's 154px (186 less its 32px of padding). 20px overran
        it by 15px at 1024 wide */
     .tile .n { font-family: var(--mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
-      line-height: 1.35; white-space: nowrap; }
-    .tile .n small { font-size: 13px; font-weight: 700; color: var(--muted); margin-inline-start: 3px; }
+      line-height: var(--lh-ui); white-space: nowrap; }
+    .tile .n small { font-size: 13px; font-weight: 700; color: var(--muted); margin-inline-start: 4px; }
 
     /* A SIGNED FIGURE IS AN LTR RUN. Measured in the browser: «+0.000» in a
        .tile .n paints as «0.000+» — the leading + is a bidi-neutral character,
@@ -275,7 +283,7 @@
     .fig { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
     .fig .cap { margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
-    .fig .plot { direction: ltr; }
+    .fig .plot { direction: ltr; max-width: 640px; margin-inline: auto; }
     .fig svg { width: 100%; height: auto; display: block; overflow: visible; }
     .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
     .legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; margin-inline-end: 6px; vertical-align: -1px; }
@@ -291,7 +299,6 @@
       white-space: nowrap;   /* lifted by its surface and edge: a dark shadow shows nothing here */
     }
     #tip.on { opacity: 1; }
-    #tip b { font-variant-numeric: tabular-nums; }
 
     /* ---------- tables ---------- */
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
@@ -326,7 +333,8 @@
     .rowacts { display: flex; gap: 6px; flex-wrap: wrap; }
 
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 12px;
-      align-items: start; }     /* a short card no longer stretches to its tall neighbour */
+      align-items: start; margin-top: 24px; }     /* a short card no longer stretches to its tall neighbour */
+    #safi-charts { margin-top: 12px; }   /* the tiles' own gap, as on the system page (an inline 14px before) */
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
     .card h3 { margin: 0 0 8px; font-size: 14.5px; }
     /* a settled fact, as on the system page: a card edged in its status ink */
@@ -338,7 +346,7 @@
     .audit div { padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
     .audit time { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
 
-    #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(16px);
+    #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%) translateY(16px);
       background: var(--panel-3); color: var(--text); border: 1px solid var(--tint); padding: 8px 16px; border-radius: 999px;
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 80; }
     #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -393,8 +401,6 @@
     /* iOS zooms on focus into any field under 16px — on a landscape phone and
        a tablet too, which the max-width rule above never reached */
     @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
-      @media (min-width: 641px) { header { padding-block: 8px; } }
-      .fig .plot { max-width: 640px; margin-inline: auto; }
     @media (max-width: 640px) { th, td { padding: 12px; } }
   
     /* ═══════ one column (layout pass, 2026-10-07) ═══════
@@ -587,7 +593,7 @@
     <section class="tab" id="tab-finance">
       <h2>المحفظة: صافي</h2>
       <div class="tiles" id="safi-kpis"></div>
-      <div class="charts" style="margin-top:14px" id="safi-charts"></div>
+      <div class="charts" id="safi-charts"></div>
       <h2>تقارير XBRL</h2>
       <div class="table-wrap">
         <table>
@@ -603,7 +609,7 @@
       <h2>الاشتراك</h2>
       <div class="check ok">النوخذة مجاني بالكامل: كل الوحدات مفتوحة لكل حساب مسجّل، بلا باقات ولا رسوم.</div>
 
-      <div class="grid2" style="margin-top:22px">
+      <div class="grid2">
         <div class="card">
           <h3>البيانات</h3>
           <p class="note" style="margin-bottom:12px">نسخة احتياطية كاملة لكل بيانات النوخذة على هذا الجهاز.</p>

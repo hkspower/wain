@@ -115,7 +115,7 @@
     @font-face { font-family:"JetBrains Mono"; font-style:normal; font-weight:100 800;
       font-display:swap; src:url("fonts/jetbrainsmono-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5;
       color-scheme: dark;   /* one dark theme on every device: the logo's own ground */
       /* THE LOGO'S THEME (owner's approval, 2026-10-07): the near-black ground
          of the English logo, its amber, its white. Every value is solved in
@@ -142,6 +142,15 @@
       --sand: #f2d855;          /* warnings only: a yellow, lighter than the amber accent */
       --good: #3ab873; --danger: #f68179; --info: #68a6f3;   /* each 6.0:1 on panel-3 */
       --warn-bg: #161514;
+      /* the amber and the ground at an alpha, each named once: the logo's
+         rule (.55 fading to 0), its halo (.32), the raised glow (.18, .26
+         hovered), the flagship's sheen (.16), the rain's lit glyph (.9), and
+         the ground's own fade (0) and pressed ripple (.28) */
+      --tint-a0: rgba(230, 169, 92, 0); --tint-a16: rgba(230, 169, 92, .16);
+      --tint-a18: rgba(230, 169, 92, .18); --tint-a26: rgba(230, 169, 92, .26);
+      --tint-a32: rgba(230, 169, 92, .32); --tint-a55: rgba(230, 169, 92, .55);
+      --tint-a90: rgba(230, 169, 92, .9);
+      --bg-a0: rgba(10, 9, 8, 0); --bg-a28: rgba(10, 9, 8, .28);
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */
       --ord-1: #624621; --ord-2: #815d2f; --ord-3: #a2753d; --ord-4: #c38f4c; --ord-5: #e6a95c;
@@ -168,12 +177,12 @@
        reach; the company page centres its mark. */
     header {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-      padding: 12px 20px; background: var(--tint-strong);
+      padding: 8px 20px; background: var(--tint-strong);
       border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50;
     }
     header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
-      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); pointer-events: none; }
+      background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)); pointer-events: none; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; line-height: var(--lh-ui); color: var(--on-bar); }
     /* النوخذة keeps its anchor: amber on a raised tile, as icon.svg draws it */
     .brand .logo {
@@ -220,7 +229,7 @@
        the footer: unscoped, .btn:focus-visible would outrank the bar's light
        ring and paint amber on the amber pill */
     main .btn:focus-visible, main a:focus-visible, main input:focus-visible,
-    main select:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
     .btn { font-weight: 700; }                  /* nav links stay 600, as on the system page */
     .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
     .btn.outline { border-color: var(--border-input); background: var(--panel-2); color: var(--text); }
@@ -247,7 +256,6 @@
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--text); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
-    .hero .kicker .ic { display: none; }
     /* the logo's cursor closes the line: .47em by one em, amber at .85, still */
     .hero .kicker::after { content: ""; display: inline-block; width: .47em; height: 1em; vertical-align: -.12em;
       background: var(--tint); opacity: .85; margin-inline-start: 8px; }
@@ -255,18 +263,18 @@
       content: ">_"; display: inline-block; direction: ltr; unicode-bidi: isolate;
       font-family: var(--mono); font-weight: 700; color: var(--tint); margin-inline-end: 8px;
     }
-    .hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 16px 0 8px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 16px 0 8px; line-height: var(--lh-head); text-wrap: balance; }
     .hero h1 .en { color: var(--tint); direction: ltr; display: block; unicode-bidi: isolate;
       font-family: var(--display); font-weight: 700;
       /* the English reads longer than the Arabic at the same size, so it wrapped
          to two lines and outweighed the line it translates */
       font-size: .68em; margin-top: 2px; text-wrap: balance;
       /* the page's one focal glow: the logo's halo, amber at .32, sigma .19em (40 on its 212px word) */
-      text-shadow: 0 0 .38em rgba(230, 169, 92, .32); }
+      text-shadow: 0 0 .38em var(--tint-a32); }
     .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+    .grid { display: grid; gap: 12px; margin-top: 24px; }   /* its columns: the one-column pass below */
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
       display: flex; flex-direction: column; gap: 8px;
@@ -274,17 +282,17 @@
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 12px; }
     /* each unit is headed by its icon in a tile, as the company page's cards are */
     .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2);
-      border: 1px solid var(--border);   /* panel-2 on the card is 1.06:1: the hairline draws the tile */
+      border: 1px solid var(--border);   /* panel-2 on the card is 1.07:1: the hairline draws the tile */
       display: grid; place-items: center; flex: none; color: var(--tint); }
     .tile .ic { width: 21px; height: 21px; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; }
-    .chip .ic { width: 14px; height: 14px; stroke-width: 2.2; }
     .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
     .chip {
+      display: inline-flex; align-items: center; gap: 4px;
       font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
       background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
       align-self: flex-start;
     }
+    .chip .ic { width: 14px; height: 14px; stroke-width: 2.2; }
     /* The status chip is the card's footer, so it sits on the card's floor and
        not directly under a title that happened to wrap. Measured before this:
        XBRL's title takes two lines, and the four «متاحة» chips landed on three
@@ -298,11 +306,11 @@
        collides with the line above. Measured: 18 headings sat at 1.2 — the
        browser default — including a 52px h1 that wraps to two lines. */
     h1, h2, h3 {
-      line-height: 1.4;
+      line-height: var(--lh-head);
     }
     h2.section { font-size: 20px; margin: 8px 0 4px; }
     h2.section::after { content: ""; display: block; width: 96px; height: 2px; border-radius: 2px;
-      margin-top: 6px; background: linear-gradient(270deg, rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)); }
+      margin-top: 6px; background: linear-gradient(270deg, var(--tint-a55), var(--tint-a0)); }
     .sub { color: var(--muted); margin: 0 0 16px; line-height: 1.8; }
 
     /* Pricing */
@@ -311,22 +319,21 @@
     .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
     /* the page's one focal card: an amber ring and the faint amber glow */
     .plan.featured { border-color: var(--tint);
-      box-shadow: 0 0 0 1px var(--tint), 0 0 24px rgba(230,169,92,.18); }
+      box-shadow: 0 0 0 1px var(--tint), 0 0 24px var(--tint-a18); }
     .plan .name { font-weight: 800; font-size: 17px; }
     .plan .price { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .plan .price small { font-size: 13px; color: var(--muted); font-weight: 600; }
     .plan ul { margin: 0; padding: 0 16px 0 0; color: var(--muted); font-size: 13.5px; line-height: 2; }
-    html[dir="rtl"] .plan ul { padding: 0 16px 0 0; }
     .plan .btn { margin-top: auto; text-align: center; }
 
     /* Forms */
     form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
     label { font-size: 12px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
-    input, select {
+    input {
       background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 8px;
       color: var(--text); padding: 8px 12px; font-size: 14px; font-family: var(--sans); outline: none;
     }
-    input:focus, select:focus { border-color: var(--tint); }
+    input:focus { border-color: var(--tint); }
     input::placeholder { color: var(--muted); opacity: 1; }
     input[aria-invalid="true"] { border-color: var(--danger); }   /* the refused field, not only the message */
     /* the browser's autofill paints its own light-blue field: keep it on the theme */
@@ -356,7 +363,7 @@
     .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     /* figures in the logo's mono. Cairo comes next, not the system mono, so
        the Arabic «مجاناً» in the third tile still paints in Cairo */
-    .stat .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.35;
+    .stat .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: var(--lh-ui);
       font-family: "JetBrains Mono", var(--sans); }
     .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; }
     .demo-banner {
@@ -365,7 +372,7 @@
     }
     /* a raised panel edged in amber: a shadow would show nothing on this ground */
     .toast {
-      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(16px);
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%) translateY(16px);
       background: var(--panel-3); color: var(--text); border: 1px solid var(--tint);
       padding: 8px 16px; border-radius: 999px;
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 99;
@@ -397,7 +404,6 @@
       nav a[href="index.html"] { order: 1; }     /* the company is also in the footer */
       .brand small { display: none; }            /* the wordmark carries the header */
       .brand > div { height: auto; }
-      nav { gap: 4px; }
       nav a, .btn { padding: 12px 16px; min-height: 44px; }
       nav a, nav .btn { padding: 12px; }
       main { padding: 20px 16px 56px; }
@@ -406,27 +412,26 @@
       .hero { padding: 24px 0 32px; }
       .hero p { font-size: 15px; }
       form.auth { padding: 20px 16px; }
-      input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
+      input { font-size: 16px; }                 /* < 16px makes iOS zoom on focus */
       .plans { grid-template-columns: 1fr; }
       .stat-row { grid-template-columns: repeat(3, 1fr); }
       .stat .n { font-size: 21px; }
     }
     /* iOS zooms on focus into any field under 16px — on a landscape phone and
        a tablet too, which the max-width rule above never reached */
-    @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
+    @media (pointer: coarse) { input { font-size: 16px; } }
 
     footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px; border-top: 0; line-height: 1.9;
-      background: linear-gradient(90deg, rgba(230, 169, 92, 0), rgba(230, 169, 92, .55), rgba(230, 169, 92, 0)) top / 100% 1px no-repeat; }
+      background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer a { display: inline-block; padding: 6px 4px; }
-      @media (min-width: 641px) { header { padding-block: 8px; } }
   
     /* ═══════ one column (layout pass, 2026-10-07) ═══════
        The bar, the tab strip and the content share one 1020px column on all
        three النوخذة pages: the brand sat 210px outside the cards it headed at
        1440, and the console ran 1200px wide beside the system's 1020. */
     @media (min-width: 641px) {
-      header, nav.tabs { padding-inline: max(20px, calc((100% - 1020px) / 2)); }
+      header { padding-inline: max(20px, calc((100% - 1020px) / 2)); }   /* the portal has no tab strip */
     }
 
     /* the dashboard leads with its task: who is signed in, then the units to
@@ -513,7 +518,7 @@
     <!-- Home -->
     <section class="page" id="page-home">
       <div class="hero">
-        <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-anchor"/></svg> نظام واحد… كل الأدوات</span>
+        <span class="kicker"> نظام واحد… كل الأدوات</span>
         <h1>النوخذة يقود كل خدماتك<br /><span class="en">One captain. Every service. One system.</span></h1>
         <p>
           نظام النوخذة من المهلب يجمع خدماتك في مكان واحد: المركز المالي، صافي (SAFI)

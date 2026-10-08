@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="../tokens.css" />
 <style>.card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
 .card:hover { transform: translateY(-3px); border-color: var(--tint);
-      box-shadow: 0 8px 24px rgba(230, 169, 92, .18); }
+      box-shadow: 0 8px 24px var(--tint-a18); }
 .card:hover .tile, .channel:hover .tile { background: var(--tint); }
 .card:hover .tile .ic, .channel:hover .tile .ic { stroke: var(--on-tint); color: var(--on-tint); }
 .card:hover .tile .ic, .channel:hover .tile .ic { transform: scale(1.14) rotate(-4deg); }
@@ -16,7 +16,7 @@
        collides with the line above. Measured: 18 headings sat at 1.2 — the
        browser default — including a 52px h1 that wraps to two lines. */
     h1, h2, h3, .num, h2.section, .product h3, .card h3 {
-      line-height: 1.4;
+      line-height: var(--lh-head);
     }
 .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
