@@ -6891,7 +6891,7 @@ commit and digest. After the purge, `/privacy/` through the edge returned 200 wi
 `DYNAMIC`. Another session's per-minute `XJzV79HdF4` (`publish-all.php`) was left alone. **Not measured:** a phone.
 The app changes reach phones only through a new build.
 
-## When the agent is out of credits, سالم and شوق answer from our own search — 7 October, night (built, NOT deployed)
+## When the agent is out of credits, سالم and شوق answer from our own search — 7 October, night (live as `5f788905`, both stages)
 
 Asked: «full improve css and js / fix javascripts for salem and shoug». The live agent build was failing for
 a reason no code had caused: `conv_2101m4c3zg74f82vy4znffhwhz8c`, 21:23 UTC, `js_sdk`, 0 s, error 3000
@@ -6938,8 +6938,9 @@ guide instead of refusing.
 
 «deploy» was answered with a review workflow first: five readers over `9f81f49c` (سالم's state, the call's
 state, the widget contract against the real 0.19.0 bundle, the bundles, the tests), each finding then handed
-to a verifier told to refute it. Every finding was reproduced; the verifiers confirmed six and called one
-plausible. All are fixed.
+to a verifier told to refute it. Every finding was reproduced; of the eight about the code the verifiers
+confirmed seven (the privacy one at medium) and called one plausible. All are fixed. The verifiers of the
+tests reviewer's points ran after the fix had landed, and found them fixed at `5f788905`.
 
 - **The question in flight was lost.** A refusal after her greeting left the question just sent unanswered,
   under a line promising an answer — a «كمّل مع سالم» handover too, since it goes the moment she greets.
@@ -6974,3 +6975,21 @@ route's error boundary and never becomes a page error**; the box that never open
 
 **`pkill -f` killed its own command again** (exit 144) while stopping a test server — the trap recorded in the
 UX pass. `pgrep -f "^node …"` and `kill`.
+
+**Live, 8 October, 00:16 UTC.**
+- **Gates:** on a free build, `test:hangout` all suites (842 checks). On the release (agent build, bridge off),
+  `scan` under the agent variables and `test:widget-csp` 15/15.
+- **Sizes:** `/search` 175.2K of 176K, `/salem` 169.2K, shared 117.1K.
+- **Archive:** `7ce3579/wain-1.1.0.zip` (sha256 `b43f7304…2bb6`), one more ~4.4MB blob with `DEPLOY_SECRET`
+  still unset.
+- **Production:** job `Ug1ocgWxnc`, read at its first firing:
+  `{"ok":true,"deployed":278,"removed":15,"emptied":1,"at":"2026-10-08T00:16:02+00:00"}`. Deleted, then listed.
+- **Staging:** job `9ibxMNXTdq`, first firing, the same reply at 00:17:02. Deleted, then listed.
+- **`deploy:verify`:** «5f788905 is live — verified at the root and 7 levels below it» (digest
+  `acd05d6fa9ae7380`, stylesheets 5,426 and 99,253, the /search chunk 23,038, 52 og images). `_next/static/`
+  holds only `5f788905…/` on both stages, and `staging/build.json` carries the same commit and digest.
+- **Edge:** after the purge, `/salem/` returned 200 with `Last-Modified 00:16:02` (the deploy's minute) and
+  `DYNAMIC`. The probe job was deleted, and the crontab held sporta's ten and nothing else.
+
+**Not measured:** a refusal on a real phone. The account is still dry, so until it is topped up every call
+and typed chat on the live site takes the guide path.
