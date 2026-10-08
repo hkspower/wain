@@ -121,6 +121,55 @@ npm run max:preview -- press/max/render --scale 0.5 --samples 64 --skip-existing
 npm run max:finish -- press/max/render --from preview   # final-preview/
 ```
 
+### Every car, at full quality, in one go
+
+**On a machine with 3ds Max**, without opening the panel — `3dsmaxbatch`
+runs the same `render_all` the panel's button runs, with everything at
+full size, the turntables on and nothing skipped unless it is already
+rendered:
+
+```bat
+set NR_PACKS=C:\path\to\wain\press\max\render
+"C:\Program Files\Autodesk\3ds Max 2026\3dsmaxbatch.exe" tools\max\render_all.py
+```
+
+It needs the packs (`npm run max:render-pack -- all`) and Arnold as the
+current renderer (it checks, and stops with a message rather than render
+with the scanline). Options are environment variables, so the same
+command works from a scheduler: `NR_SHOTS=hero,side,rear`,
+`NR_TURNTABLE=1` (default on), `NR_FRAMES=120`, `NR_AA=6`, `NR_HALF=1`
+for a test pass, `NR_LIGHT=1.0`, `NR_RERENDER=1` to ignore what is
+already there. Each car's EXRs land in `<car>/out/`, the report in
+`press/max/render/render-all.json`, and it is resumable: stop it and run
+it again. Then, in the repo:
+
+```sh
+npm run max:finish -- press/max/render --publish press/renders/max
+```
+
+**On this machine** (no Max), the whole thing from the game to the
+published set is one command, resumable, with Cycles standing in for
+Arnold:
+
+```sh
+npm run dev           # in another shell
+npm run max:full      # export GLBs, pack, stills at 2560x1440 @ 128 spp, turntables, finish, publish
+npm run max:full -- --stills          # no turntables
+TT_SCALE=1 npm run max:full           # turntables at 1920x1080 (four times the time)
+```
+
+Budget on a four-core box: three stills a car at full size are ten to
+fifteen minutes; a half-size turntable is about half an hour a car; the
+fleet is the better part of a day. A still or frame already rendered
+since its pack was made is not rendered again, so a stopped run picks up
+where it was — and a re-packed car (its GLB changed) is rendered again,
+which is the point of re-packing.
+
+**Where it lands:** `press/max/` is ignored by git — packs are rebuilt on
+demand — so the finished set is published to `press/renders/max/`:
+`<shot>/<car>.jpg`, `<shot>-sheet.jpg`, `turntables/<car>.mp4`, and a
+`manifest.json` saying which pack each came from and when.
+
 **Comparing with Blender:** `npm run max:preview -- press/max/render/black-demon --turntable` renders the same pack in Cycles, into `preview/`. Run `max:finish` on that folder too. The Max render should come close to it.
 
 **If something looks off:** **Show render log** lists any Arnold or Physical Material parameter this version of Max doesn't have, and which colour space was assumed for the material swatches. Send me that log with the render.
@@ -153,7 +202,8 @@ npm run max:finish -- press/max/render --from preview   # final-preview/
 | `nightracer/maxio.py` | Moves meshes between the scene and core.py, and holds the open, export and fix operations |
 | `nightracer/panel.py` | The dock panel |
 | `nightracer/render.py` | Builds a render pack's studio in Max and renders it with Arnold |
-| `render_pack.py`, `preview_render.py`, `finish_render.py` | Make a render pack, render it in Cycles, grade EXRs to ACES PNG and MP4 |
+| `render_pack.py`, `preview_render.py`, `finish_render.py` | Make a render pack, render it in Cycles, grade EXRs to ACES PNG and MP4 (`--publish` for the tracked set) |
+| `render_all.py`, `full-render.sh` | Every pack at full quality: in Max through `3dsmaxbatch`, or here through Cycles from the game to the published set |
 | `nightracer_classic.ms` | The panel for Max 2020–2022 |
 | `procedural.mjs` | Writes the game's crowned shells (`*-target.glb`) and `*.nr.json` (crown specs, tolerance, how the game judges the shipped file) |
 | `export_for_max.py` | Builds the FBX: Edit, the fresh-loft Envelope, Target and Context |

@@ -30,7 +30,8 @@ ap.add_argument("--tt-samples", type=int, default=32)
 ap.add_argument("--tt-scale", type=float, default=0.5, help="turntable resolution as a share of the pack's")
 ap.add_argument("--frames", type=int, default=0, help="render only this many turntable frames (0 = all)")
 ap.add_argument("--scale", type=float, default=1.0, help="stills resolution as a share of the pack's")
-ap.add_argument("--skip-existing", action="store_true", help="leave a shot whose EXR is already there")
+ap.add_argument("--skip-existing", action="store_true",
+                help="leave a shot whose EXR is already there AND newer than the pack's studio.json; a re-packed car is rendered again")
 args = ap.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:])
 
 
@@ -134,11 +135,18 @@ def render(sc, path, w, h, samples):
 
 
 def preview(pack):
-    spec = json.load(open(os.path.join(pack, "studio.json")))
+    spec_path = os.path.join(pack, "studio.json")
+    spec = json.load(open(spec_path))
     out = os.path.join(pack, "preview")
     os.makedirs(os.path.join(out, "turntable"), exist_ok=True)
     st = spec["stills"]
-    todo = [s for s in args.shots.split(",") if s and not (args.skip_existing and os.path.exists(os.path.join(out, f"{s}.exr")))]
+    # A frame counts as done only if it is newer than the pack. The pack
+    # is remade whenever the car changes (render_pack.py), and a resume
+    # that trusted "the file is there" kept every stale frame of a car
+    # whose tyres and fenders had since been redrawn.
+    packed = os.path.getmtime(spec_path)
+    fresh = lambda path: os.path.exists(path) and os.path.getmtime(path) >= packed
+    todo = [s for s in args.shots.split(",") if s and not (args.skip_existing and fresh(os.path.join(out, f"{s}.exr")))]
     if not todo and not args.turntable:
         print(f"[preview] {spec['car']}: all shots already rendered", flush=True)
         return
@@ -158,7 +166,7 @@ def preview(pack):
         t0 = time.time()
         for i in range(n):
             frame = os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1)))
-            if args.skip_existing and os.path.exists(frame):
+            if args.skip_existing and fresh(frame):
                 continue  # resume an interrupted turntable
             pivot.rotation_euler = (0, 0, 2 * math.pi * i / tt["frames"])
             render(sc, frame, w, h, args.tt_samples)

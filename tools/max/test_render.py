@@ -289,6 +289,45 @@ if len(fresh) != 6 or fresh[0][1:3] != (spec["stills"]["width"] // 2, spec["stil
 if not os.path.exists(os.path.join(root, "render-all.json")):
     fails.append("render_all wrote no render-all.json")
 
+# render_all.py, the 3dsmaxbatch entry: its settings come from the
+# environment, and it runs the same render_all on the same three packs —
+# the rendered car skipped, the broken one logged, the fresh one rendered
+# at the size and shots the environment asked for.
+import render_all as RA  # noqa: E402
+st = RA.settings({"NR_PACKS": root, "NR_SHOTS": "hero,rear", "NR_TURNTABLE": "0", "NR_HALF": "1", "NR_AA": "4", "NR_FRAMES": "3"})
+if st != {"root": root, "shots": ("hero", "rear"), "turntable": False, "frames": 3, "half": True, "aa": 4, "light": 1.0, "rerender": False}:
+    fails.append(f"render_all.py read its settings wrong: {st}")
+d = RA.settings({})
+if d["shots"] != ("hero", "side", "rear") or not d["turntable"] or d["half"] or d["aa"] != 6 or d["frames"] is not None \
+        or not d["root"].endswith(os.path.join("press", "max", "render")):
+    fails.append(f"render_all.py's defaults are not the finished set's: {d}")
+try:
+    RA.settings({"NR_SHOTS": " , "})
+    fails.append("render_all.py accepted an empty shot list")
+except ValueError:
+    pass
+n_before = len(scene["renders"])
+rep2 = RA.run(**st)
+status2 = {r["id"]: r["status"] for r in rep2}
+fresh2 = scene["renders"][n_before:]
+if not status2["done-car"].startswith("skipped") or not status2["broken-car"].startswith("FAILED") or status2["fresh-car"] != "ok":
+    fails.append(f"render_all.py statuses {status2}")
+if len(fresh2) != 2 or sorted(r[0].replace("NR_Cam_", "") for r in fresh2) != ["hero", "rear"] \
+        or fresh2[0][1:3] != (spec["stills"]["width"] // 2, spec["stills"]["height"] // 2):
+    fails.append(f"render_all.py rendered {[(r[0], r[1], r[2]) for r in fresh2]}, not hero and rear at half size")
+rep3 = RA.run(**{**st, "rerender": True})
+if any(r["status"].startswith("skipped") for r in rep3):
+    fails.append("NR_RERENDER=1 still skipped a car")
+had_arnold = rt.Arnold
+rt.Arnold = None
+try:
+    RA.run(**st)
+    fails.append("render_all.py rendered without Arnold")
+except RuntimeError as e:
+    print("no Arnold ->", e)
+rt.Arnold = had_arnold
+print("render_all.py:", status2)
+
 print(f"materials {len(built)}, quad lights {len(quads)}, skydome {len(sky)}, cameras {len(sc['cams'])}, "
       f"renders {len(scene['renders'])}")
 print("render log:\n  " + "\n  ".join(R.LOG))

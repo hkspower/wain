@@ -84,6 +84,8 @@ export const ASSETS = [
   { path: "press/map", kind: "kept", by: "—", what: "The circuit, drawn." },
   { path: "press/flags", kind: "kept", by: "tools/shots/flags.mjs",
     what: "The flag decal, at the size it is worn." },
+  { path: "press/renders/max", kind: "kept", by: "tools/max/finish_render.py --publish",
+    what: "Every car's 3ds Max render pack, rendered at full size and graded: hero, side and rear per car, a contact sheet per shot, the turntables." },
   { path: "press/police", kind: "kept", by: "tools/shots/police.mjs",
     what: "The patrol cars as the game builds them: saloon and SUV, quarter, side, far side and tail." },
   { path: "press/data", kind: "kept", by: "tools/game-data.mjs",

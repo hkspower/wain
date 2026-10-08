@@ -37,6 +37,9 @@ ap.add_argument("folder")
 ap.add_argument("--exposure", type=float, default=0.737)
 ap.add_argument("--fps", type=int, default=30)
 ap.add_argument("--from", dest="src", default="out", help="in a folder of packs: which subfolder to grade (out | preview)")
+ap.add_argument("--publish", default="", help="in a folder of packs: also write the set as JPGs, sheets and MP4s here "
+                                               "(press/renders/max is the tracked one; press/max is ignored by git)")
+ap.add_argument("--jpeg-quality", type=int, default=92)
 args = ap.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:])
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
@@ -129,6 +132,58 @@ def finish(folder):
     return made
 
 
+def publish(sc, collect, by_shot, cars_json):
+    """The graded set, where git keeps it: press/max/ is ignored wholesale
+    (the packs are scratch, rebuilt on demand), so the renders that are
+    meant to be looked at go out as JPGs under press/renders/, with the
+    contact sheets and the turntables beside them and a manifest saying
+    which car was rendered from which pack when."""
+    import datetime
+    dst = args.publish
+    os.makedirs(dst, exist_ok=True)
+    # A second scene for the re-encode: the PNGs are graded already, so
+    # the view is Standard at exposure 0 — the same reason encode() does it.
+    sc.view_settings.view_transform = "Standard"
+    sc.view_settings.exposure = 0.0
+    s = sc.render.image_settings
+    s.file_format, s.color_mode, s.quality = "JPEG", "RGB", max(1, min(100, args.jpeg_quality))
+    manifest = {"source": args.src, "made": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%MZ"),
+                "jpeg_quality": s.quality, "shots": {}, "turntables": [], "packs": {}}
+    for shot, ids in by_shot.items():
+        d = os.path.join(dst, shot)
+        os.makedirs(d, exist_ok=True)
+        for car in ids:
+            img = bpy.data.images.load(os.path.abspath(os.path.join(collect, shot, f"{car}.png")))
+            img.save_render(os.path.abspath(os.path.join(d, f"{car}.jpg")), scene=sc)
+            bpy.data.images.remove(img)
+        sheet = os.path.join(collect, f"{shot}-sheet.jpg")
+        if os.path.exists(sheet):
+            shutil.copyfile(sheet, os.path.join(dst, f"{shot}-sheet.jpg"))
+        manifest["shots"][shot] = list(ids)
+    tts = sorted(glob.glob(os.path.join(collect, "turntables", "*.mp4")))
+    if tts:
+        os.makedirs(os.path.join(dst, "turntables"), exist_ok=True)
+        for mp4 in tts:
+            shutil.copyfile(mp4, os.path.join(dst, "turntables", os.path.basename(mp4)))
+            manifest["turntables"].append(os.path.splitext(os.path.basename(mp4))[0])
+    root = os.path.dirname(collect)
+    for car in sorted({c for ids in by_shot.values() for c in ids}):
+        sp = os.path.join(root, car, "studio.json")
+        if os.path.exists(sp):
+            spec = json.load(open(sp))
+            manifest["packs"][car] = {
+                "packed": datetime.datetime.fromtimestamp(os.path.getmtime(sp), datetime.timezone.utc).strftime("%Y-%m-%d %H:%MZ"),
+                "stills": [spec["stills"]["width"], spec["stills"]["height"]],
+                "turntable": [spec["turntable"]["width"], spec["turntable"]["height"], spec["turntable"]["frames"]],
+            }
+    if os.path.exists(cars_json):
+        shutil.copyfile(cars_json, os.path.join(dst, "cars.json"))
+    with open(os.path.join(dst, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+    n = sum(len(v) for v in by_shot.values())
+    print(f"[finish] published {n} stills, {len(manifest['turntables'])} turntables -> {dst}")
+
+
 def packs_in(root):
     index = os.path.join(root, "packs.json")
     if os.path.exists(index):
@@ -176,6 +231,8 @@ def main():
     print(f"[finish] {len(cars) - len(missing)} cars graded, {mp4s} turntables -> {collect}")
     if missing:
         print(f"[finish] nothing to grade yet for: {', '.join(missing)}")
+    if args.publish and by_shot:
+        publish(graded_scene(), collect, by_shot, cars_json)
 
 
 main()
