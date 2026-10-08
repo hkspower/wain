@@ -147,11 +147,13 @@ export default function ShouqCallButton({
      * And, with no agent, start listening HERE too — see
      * `startLocalRecognition`. WebKit starts recognition only inside the
      * gesture, and the call that used to start it is a chunk and an effect
-     * away from this tap.
+     * away from this tap. The call is told which way this tap went rather
+     * than asking again (takeRequestedMode).
      */
-    if (free && !agentAvailable()) startLocalRecognition();
+    const local = !agentAvailable();
+    if (free && local) startLocalRecognition();
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
-    requestCall();
+    requestCall(local ? "local" : "agent");
     onTapped?.();
   }, [onTapped]);
 

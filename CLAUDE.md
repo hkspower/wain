@@ -6933,3 +6933,44 @@ request per dial). `test:shouq` all suites green in both builds afterwards.
 (`quota_exceeded`, «run out of credits»), the ones the 2 October screenshot showed inside the widget.
 **The owner's step:** top up the ElevenLabs account. Until then, a deploy of this makes both answer from the
 guide instead of refusing.
+
+### Reviewed before it shipped, and it was not ready
+
+«deploy» was answered with a review workflow first: five readers over `9f81f49c` (سالم's state, the call's
+state, the widget contract against the real 0.19.0 bundle, the bundles, the tests), each finding then handed
+to a verifier told to refute it. Every finding was reproduced; the verifiers confirmed six and called one
+plausible. All are fixed.
+
+- **The question in flight was lost.** A refusal after her greeting left the question just sent unanswered,
+  under a line promising an answer — a «كمّل مع سالم» handover too, since it goes the moment she greets.
+  `answerHere` keeps it (`owedRef`) and an effect answers it once the page has switched: the socket's
+  callback holds the mount render's `places`.
+- **A refusal wrote over the kept chat.** Only the mount path restored KEPT, so a visitor back after the
+  quarter hour met the agent, was refused again, and the next save replaced the conversation. `answerHere`
+  restores it when nothing has been asked on the page yet.
+- **The check read the conversation.** It ran over the whole shadow root, so a caller who typed «I've run
+  out of credits on my phone» ended a healthy call and switched her off on the device. It reads
+  `.text-base-error` now, plus the bracketed `[quota_exceeded]` anywhere (the widget's dialog, used with the
+  transcript off). `test:widget-csp` proves both ways on the real bundle — 3 red against `9f81f49c`'s build.
+- **The tap and the call decided apart**, a window event, a render and a chunk away, and the flag could
+  change in between: a recogniser left holding the microphone, or one started outside the gesture (WebKit's
+  `not-allowed`). `requestCall(mode)` carries the tap's decision and `takeRequestedMode()` reads it once.
+- **The live /privacy did not cover it.** The fallback keeps the chat in Session Storage and one timestamp in
+  Local Storage, and its own notice linked to an agent branch that mentioned neither. One paragraph there.
+- Smaller: the refusal is kept in memory beside localStorage (storage that refused the write made every
+  redial ring the agent); the sheet's own redial after a refusal is the free call however long the screen
+  sat there; a refusal mid-call keeps «كمّل مع سالم» and «رسّلها للربع» on the error screen; a refusal sent as
+  an `error` message ends the session at once (the plausible one — every refusal on record was a close). The
+  30-second «مو متاح» retry is gone: nothing could reach it any more.
+
+Proved red against `9f81f49c` with the build green: `salem-agent` 6, `shouq-agent` 8, `salem-chat` 6,
+`test:widget-csp` 3. The tests reviewer's points went in too — an assertion that could not fail (a frame count)
+now reads what the visitor sees, emits are soft, the widget stub nests its transcript as the real one does,
+and its recogniser refuses a start outside a gesture. **A sabotage build confirmed the guards:** the observer
+without `subtree` failed 9 checks, a recogniser started on every tap failed 2, and a throw in `answerHere`'s
+mount path failed 2 — though not the page-error check, because **an error thrown in an effect is caught by the
+route's error boundary and never becomes a page error**; the box that never opens is what shows it.
+`test:shouq` 794 checks green on the fixed tree.
+
+**`pkill -f` killed its own command again** (exit 144) while stopping a test server — the trap recorded in the
+UX pass. `pgrep -f "^node …"` and `kill`.

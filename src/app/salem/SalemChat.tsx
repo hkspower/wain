@@ -55,6 +55,17 @@ const KEPT_LINES = 60;
 /** His replies read aloud — this device's choice, like صوت وين's. */
 const READ_PREF = "wain-salem-read";
 
+/** The visitor's last question if nothing has answered it yet: the last line
+ * that is not a note from the page, when it is theirs. */
+function owedQuestion(lines: ChatLine[]): string | null {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line.role === "system") continue;
+    return line.role === "user" ? line.text : null;
+  }
+  return null;
+}
+
 /**
  * سالم's typed chat — his name, his portrait, his voice on the wire.
  *
@@ -100,8 +111,6 @@ const READ_PREF = "wain-salem-read";
  * rules, the summer rule and the message format stay the one file that
  * already owns them rather than a second copy drifting from it here.
  */
-/** How long the retry waits after the server said she is unavailable. */
-const UNAVAILABLE_RETRY_MS = 30000;
 
 /**
  * The free build — the live site since 2 October (see wain-ai.ts): no agent,
@@ -144,8 +153,13 @@ export default function SalemChat() {
   const [awaitingGreeting, setAwaitingGreeting] = useState(false);
   // A reply is taking long (see WAIN_AI_CHAT_COPY.slow).
   const [slow, setSlow] = useState(false);
-  // After an «unavailable» refusal the retry button waits; see below.
-  const [retryReady, setRetryReady] = useState(true);
+  // The transcript as it stands, for answerHere: it runs inside the socket's
+  // callback, which holds the mount render's `messages`.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  // A question that went down a socket the server then refused for credits —
+  // answered from our own search once the page has switched (see answerHere).
+  const owedRef = useRef<string | null>(null);
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Whether the visitor is reading the bottom of the transcript. Forcing the
@@ -213,32 +227,38 @@ export default function SalemChat() {
   useEffect(() => setReady(true), []);
 
   // The conversation, back where it was after a visit to a place page (see
-  // KEPT). Free build only: an agent conversation lives on its socket, and a
-  // transcript restored without the session behind it would be a chat that
-  // cannot answer. Restored after mount — the HTML is one file for everybody.
+  // KEPT). Only while he answers from our own search: an agent conversation
+  // lives on its socket, and a transcript restored without the session behind
+  // it would be a chat that cannot answer. Restored after mount — the HTML is
+  // one file for everybody.
   const restoredRef = useRef(false);
+  function restoreKept(): boolean {
+    try {
+      const raw = sessionStorage.getItem(KEPT);
+      const kept = raw ? (JSON.parse(raw) as { messages?: ChatLine[]; ctx?: ChatContext | null }) : null;
+      if (!kept?.messages?.length) return false;
+      setMessages(kept.messages);
+      ctxRef.current = kept.ctx ?? null;
+      return true;
+    } catch {
+      return false; /* private mode, or a shape from an older build — start fresh */
+    }
+  }
   useEffect(() => {
     try {
       setReadAloud(localStorage.getItem(READ_PREF) === "1");
     } catch {
       /* private mode — off */
     }
-    // The HTML of an agent build says «connecting»; a device that met a
-    // refusal in the last quarter hour is answered here instead, at once.
-    const fallback = !FREE && !agentAvailable();
-    if (!FREE && !fallback) return;
-    if (fallback) answerHere(false);
-    try {
-      const raw = sessionStorage.getItem(KEPT);
-      const kept = raw ? (JSON.parse(raw) as { messages?: ChatLine[]; ctx?: ChatContext | null }) : null;
-      if (kept?.messages?.length) {
-        setMessages(kept.messages);
-        ctxRef.current = kept.ctx ?? null;
-      }
-    } catch {
-      /* private mode, or a shape from an older build — start fresh */
+    if (FREE) {
+      restoreKept();
+      restoredRef.current = true;
+    } else if (!agentAvailable()) {
+      // The HTML of an agent build says «connecting»; a device that met a
+      // refusal in the last quarter hour is answered here instead, at once.
+      answerHere(false);
     }
-    restoredRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, at mount; restoreKept and answerHere touch only setters and refs
   }, []);
   useEffect(() => {
     if (!freeRef.current || !restoredRef.current) return;
@@ -390,10 +410,15 @@ export default function SalemChat() {
    * once in the transcript — the notice under the box changes with it, since
    * nothing typed leaves the device any more. `refused` is the refusal itself;
    * otherwise this device met one earlier and the agent is not tried at all.
+   *
+   * Two things a refusal used to lose (review of 7 October, both reproduced):
+   * the question the visitor had just sent, left unanswered under a line
+   * promising an answer; and the conversation kept from earlier in this tab,
+   * which the next save wrote over — a visitor back after the 15 minutes met
+   * the agent again, was refused again, and lost the chat.
    */
   function answerHere(refused: boolean) {
     freeRef.current = true;
-    restoredRef.current = true;
     handleRef.current?.close();
     handleRef.current = null;
     setFree(true);
@@ -401,12 +426,30 @@ export default function SalemChat() {
     setPending(false);
     setAwaitingGreeting(false);
     setStatus("connected");
+    const before = messagesRef.current;
+    // Nothing asked yet on this page: the kept conversation comes back, as it
+    // does at mount, instead of a fresh greeting saved over it.
+    const restored = !before.some((m) => m.role === "user") && restoreKept();
+    restoredRef.current = true;
+    if (restored) return;
+    owedRef.current = refused ? owedQuestion(before) : null;
     setMessages((prev) => [
       ...prev,
       { role: "system", text: WAIN_AI_CHAT_COPY.agentFallback },
-      ...(refused && prev.some((m) => m.role === "agent") ? [] : [{ role: "agent" as const, text: WAIN_AI_CHAT_COPY.freeGreeting }]),
+      ...(prev.some((m) => m.role === "agent") ? [] : [{ role: "agent" as const, text: WAIN_AI_CHAT_COPY.freeGreeting }]),
     ]);
   }
+
+  // The owed question, answered once the page has switched — from an effect,
+  // because answerHere runs in the socket's callback, which holds the mount
+  // render's `places` and `loadIndex`. Its bubble is already on screen.
+  useEffect(() => {
+    const q = owedRef.current;
+    if (!q || !free || status !== "connected" || pending) return;
+    owedRef.current = null;
+    void answerLocally(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- answerLocally is this render's; the ref is the trigger
+  }, [free, status, pending]);
 
   /**
    * Opens a session and points `handleRef` at it. Called once on mount, and
@@ -595,23 +638,10 @@ export default function SalemChat() {
   const showStarters =
     status === "connected" && !pending && !awaitingGreeting && !messages.some((m) => m.role === "user");
 
-  // An «unavailable» refusal will refuse again if retried at once, so the
-  // button only comes back after a while — a page that offers a retry it
-  // knows will fail is the «جرّب مرة ثانية» this state exists to replace.
-  useEffect(() => {
-    if (failure !== "unavailable") {
-      setRetryReady(true);
-      return;
-    }
-    setRetryReady(false);
-    const t = setTimeout(() => setRetryReady(true), UNAVAILABLE_RETRY_MS);
-    return () => clearTimeout(t);
-  }, [failure]);
-
+  // No «unavailable» case: a refusal for credits switches the page to our own
+  // search (answerHere) instead of failing it, so it never reaches the banner.
   const failureText =
-    failure === "unavailable"
-      ? WAIN_AI_CHAT_COPY.unavailable
-      : failure === "timeout"
+    failure === "timeout"
       ? WAIN_AI_CHAT_COPY.failedTimeout
       : failure === "dropped"
         ? WAIN_AI_CHAT_COPY.failedDropped
@@ -625,9 +655,7 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.connected
         : status === "disconnected"
           ? WAIN_AI_CHAT_COPY.disconnected
-          : failure === "unavailable"
-            ? WAIN_AI_CHAT_COPY.unavailableStatus
-            : WAIN_AI_CHAT_COPY.offline;
+          : WAIN_AI_CHAT_COPY.offline;
 
   return (
     // text-white here: not decorative — the sr-only <label> below inherits
@@ -825,14 +853,14 @@ export default function SalemChat() {
         )}
         {/* "error" and "disconnected" are the two states a fresh socket can
             actually answer differently. The free build never reaches either. */}
-        {!free && (status === "error" || status === "disconnected") && retryReady && (
+        {!free && (status === "error" || status === "disconnected") && (
           <div className="text-center">
             <button
               type="button"
               onClick={connect}
               className="mt-1 inline-flex min-h-tap items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
             >
-              {failure === "unavailable" ? WAIN_AI_CHAT_COPY.retryLater : WAIN_AI_CHAT_COPY.reconnect}
+              {WAIN_AI_CHAT_COPY.reconnect}
             </button>
           </div>
         )}

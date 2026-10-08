@@ -273,7 +273,19 @@ export function startSalemChat({
       return;
     }
     if (data.type === "error" || data.type === "client_error") {
-      if (isUnavailable(JSON.stringify(data))) unavailable = true;
+      // A refusal for credits sent as a message ends the session here. The
+      // SDK treats an `error` event as non-fatal, so the server may keep the
+      // socket open, and waiting for its close left the page on «طوّلنا نوصله
+      // — تأكد من النت» (the connect timer) or «ما وصلني رد» (45 s later).
+      if (!isUnavailable(JSON.stringify(data))) return;
+      unavailable = true;
+      if (deliberatelyClosed) return;
+      settled = true;
+      deliberatelyClosed = true;
+      clearTimeout(connectTimer);
+      setPending(false);
+      socket.close(1000, "unavailable");
+      onStatus("error", "unavailable");
       return;
     }
     switch (data.type) {

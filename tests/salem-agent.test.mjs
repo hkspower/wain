@@ -96,6 +96,11 @@ console.log('\n── the box says the conversation is kept, before anything is 
   ok('and it no longer says the only thing kept is our own log', !(await priv.p.locator('text=الشي الوحيد اللي نسجّله').count()));
   const named = ((await priv.p.locator('main').innerText()).match(/ElevenLabs/g) ?? []).length;
   ok('/privacy names the provider exactly once', named === 1, `named ${named} times`);
+  // The fallback when the account is out of credits keeps two things on the
+  // device, and the box's own notice points here while it runs (7 October).
+  const said = await section.innerText().catch(() => '');
+  ok('and it says what the fallback keeps: this tab\'s chat, and one time for a quarter hour',
+    said.includes('Session') && said.includes('Local Storage') && said.includes('ربع ساعة'), said.slice(0, 120));
   await priv.ctx.close();
 }
 
@@ -409,12 +414,20 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
       send(data) { this.sent.push(data); }
       close() { this.readyState = 3; }
-      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+      // A listener that throws surfaces as a page error, as it would from a
+      // real socket, instead of rejecting the test's evaluate.
+      emit(type, evt) {
+        for (const fn of this.listeners[type] ?? []) {
+          try { fn(evt); } catch (e) { setTimeout(() => { throw e; }); }
+        }
+      }
     }
     FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
     window.WebSocket = FakeSocket;
   });
   const qp = await qctx.newPage();
+  const qerr = [];
+  qp.on('pageerror', (e) => qerr.push(e.message));
   await qp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
   await qp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
   await qp.evaluate(() => {
@@ -424,7 +437,7 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
     s.emit('open', {});
     s.readyState = 3;
     s.emit('close', { code: 1008, reason: "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation." });
-  });
+  }).catch(() => {});
   const log = qp.locator('[role="log"]');
   await log.getByText('دليل وين').first().waitFor({ timeout: 4000 }).catch(() => {});
   ok('the transcript says the voice service is out and he answers from the guide',
@@ -439,12 +452,16 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
   await qp.locator('#salem-q').press('Enter').catch(() => {});
   await log.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
   ok('a question gets places from our own search', await log.locator('a[href^="/places/"]').count() > 0);
-  ok('and nothing went down the dead socket',
+  // What the visitor would see if the question went to the socket instead —
+  // the count of sent frames alone could not fail (review of 7 October).
+  ok('answered here, not sent down the dead socket',
+    await log.getByText('ما انرسلت رسالتك').count() === 0 &&
     await qp.evaluate((n) => (window.__salemSocket?.sent.length ?? 0) === n, sentBefore));
   ok('the device remembers the refusal', await qp.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0));
 
   // The next page in this quarter hour does not knock on the same door.
   const again = await qctx.newPage();
+  again.on('pageerror', (e) => qerr.push(e.message));
   await again.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
   await again.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
   ok('a fresh visit opens no socket', await again.evaluate(() => window.__sockets === 0));
@@ -454,11 +471,117 @@ console.log('\n── out of credits: he answers from وين\'s own search inste
 
   // And after it, the agent is tried again.
   const later = await qctx.newPage();
+  later.on('pageerror', (e) => qerr.push(e.message));
   await later.addInitScript(() => localStorage.setItem('wain:agent-off', String(Date.now() - 16 * 60_000)));
   await later.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
   await later.waitForFunction(() => window.__sockets > 0, null, { timeout: 4000 }).catch(() => {});
   ok('a quarter of an hour later the agent is tried again', await later.evaluate(() => window.__sockets > 0));
+  ok('no page errors through the refusal', qerr.length === 0, qerr.join(' | '));
   await qctx.close();
+
+  /* Review of 7 October, both reproduced on this component: a refusal that
+     comes AFTER her greeting left the question just sent unanswered under a
+     line promising an answer, and a refusal on a return visit wrote over the
+     conversation kept in this tab. */
+  const QUOTA = "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.";
+  async function socketPage(path, init) {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+    if (init) await c.addInitScript(init);
+    await c.addInitScript(() => {
+      class FakeSocket {
+        constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+        addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+        send(data) { this.sent.push(data); }
+        close() { this.readyState = 3; }
+        emit(type, evt) {
+          for (const fn of this.listeners[type] ?? []) {
+            try { fn(evt); } catch (e) { setTimeout(() => { throw e; }); }
+          }
+        }
+      }
+      FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+      window.WebSocket = FakeSocket;
+    });
+    const p = await c.newPage();
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`${B}${path}`, { waitUntil: 'networkidle' });
+    await p.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+    return { c, p, errs };
+  }
+  const greet = (p) => p.evaluate(() => {
+    const s = window.__salemSocket;
+    if (!s) return;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+    s.emit('message', { data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'هلا! شنو تبي اليوم؟' } }) });
+  }).catch(() => {});
+  const refuse = (p) => p.evaluate((reason) => {
+    const s = window.__salemSocket;
+    if (!s) return;
+    s.readyState = 3;
+    s.emit('close', { code: 3000, reason });
+  }, QUOTA).catch(() => {});
+  const sentText = (p) => p.evaluate(() => (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d)).filter((m) => m.type === 'user_message').map((m) => m.text)).catch(() => []);
+
+  {
+    const { c, p, errs } = await socketPage('/salem/');
+    await greet(p);
+    await p.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 4000 }).catch(() => {});
+    await p.locator('#salem-q').fill('قهوة').catch(() => {});
+    await p.locator('#salem-q').press('Enter').catch(() => {});
+    await p.waitForFunction(() => (window.__salemSocket?.sent ?? []).some((d) => d.includes('user_message')), null, { timeout: 4000 }).catch(() => {});
+    ok('mid-chat: the question went down the socket first', (await sentText(p)).includes('قهوة'));
+    await refuse(p);
+    const plog = p.locator('[role="log"]');
+    await plog.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
+    ok('mid-chat: the question asked just before the refusal is answered from the guide', await plog.locator('a[href^="/places/"]').count() > 0);
+    const asked = plog.locator('p.bg-sea-600', { hasText: 'قهوة' });
+    ok('mid-chat: without drawing the question a second time', await asked.count() === 1, `${await asked.count()} bubbles`);
+    ok('mid-chat: and says once that it switched', await plog.getByText('دليل وين').count() === 1);
+    ok('mid-chat: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
+    const { c, p, errs } = await socketPage('/salem/?q=قهوة&from=shouq');
+    await greet(p);
+    await p.waitForFunction(() => (window.__salemSocket?.sent ?? []).some((d) => d.includes('user_message')), null, { timeout: 4000 }).catch(() => {});
+    ok('a handover: the question went down the socket after her greeting', (await sentText(p)).includes('قهوة'));
+    await refuse(p);
+    const plog = p.locator('[role="log"]');
+    await plog.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
+    ok('a handover refused on its first turn is still answered', await plog.locator('a[href^="/places/"]').count() > 0);
+    ok('a handover: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
+  {
+    // A chat kept in this tab from the fallback, and a flag that has run out:
+    // the agent is tried, refuses again, and the chat must come back.
+    const { c, p, errs } = await socketPage('/salem/', () => {
+      sessionStorage.setItem('wain:salem:v1', JSON.stringify({
+        messages: [
+          { role: 'system', text: 'الخدمة الصوتية مو متاحة الحين — أجاوبك من دليل وين.' },
+          { role: 'user', text: 'أبي أبراج' },
+          { role: 'agent', text: 'جرّب أبراج الكويت.' },
+          { role: 'place', slug: 'kuwait-towers' },
+        ],
+        ctx: null,
+      }));
+      localStorage.setItem('wain:agent-off', String(Date.now() - 16 * 60_000));
+    });
+    ok('kept chat: the agent is tried once the quarter hour is over', await p.evaluate(() => !!window.__salemSocket));
+    await p.evaluate(() => { const s = window.__salemSocket; if (s) { s.readyState = 1; s.emit('open', {}); } }).catch(() => {});
+    await refuse(p);
+    const plog = p.locator('[role="log"]');
+    await plog.getByText('أبي أبراج').first().waitFor({ timeout: 4000 }).catch(() => {});
+    ok('kept chat: refused again, the conversation comes back', await plog.getByText('أبي أبراج').count() === 1);
+    ok('kept chat: with its card', await plog.locator('a[href^="/places/kuwait-towers"]').count() > 0);
+    const kept = await p.evaluate(() => sessionStorage.getItem('wain:salem:v1') ?? '');
+    ok('kept chat: and the tab still keeps it', kept.includes('أبي أبراج'), kept.slice(0, 160));
+    ok('kept chat: no page errors', errs.length === 0, errs.join(' | '));
+    await c.close();
+  }
 }
 
 console.log('\n── his tools answer from the live rows, not the snapshot they started with ──');

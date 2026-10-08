@@ -209,6 +209,21 @@ export default function PrivacyPage() {
             (قوقل في كروم، آبل في سفاري) حسب سياساتهم — وما نرسل إحنا شي عنك
             لأي مكان.
           </p>
+          {/* The fallback when the account is out of credits (lib/agent-health.ts).
+              It runs on this build, the live one, and keeps two things on the
+              device that this branch never mentioned — while the box's own
+              notice pointed here (review of 7 October). */}
+          <p>
+            وإذا كانت خدمة الصوت مو متاحة — مثلاً خلص رصيدنا عندهم — سالم
+            يجاوبك من بحث وين داخل الصفحة نفسها، ومكالمة شوق تشتغل بالتعرف على
+            الصوت في متصفحك مثل اللي فوق، وما ينرسل شي من كلامك لخدمة الصوت.
+            وقتها المحادثة المكتوبة تنحفظ في{" "}
+            <strong className="text-ink-900">هالتبويب بس</strong> (Session
+            Storage) عشان لو فتحت مكان ورجعت تلقاها، وتنمسح لما تسكّر التبويب.
+            ومتصفحك يحفظ الوقت اللي رفضت فيه الخدمة (Local Storage){" "}
+            <strong className="text-ink-900">ربع ساعة بس</strong>، عشان ما
+            يجرّبها كل مرة على الفاضي — وقت وبس، ما فيه شي عنك.
+          </p>
           <p>
             لمّا تفتحها في وضع المحادثة، يتصل متصفحك بمزوّد خدمة الصوت عشان
             يشتغل الصوت، ووقتها تنطبق سياسة الخصوصية الخاصة فيهم — وممكن يحفظ

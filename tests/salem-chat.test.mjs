@@ -345,6 +345,40 @@ console.log("\n── a failure says WHICH kind ──");
   FakeSocket.last.emit("error", {});
   ok("an error message saying so first wins over the error event that follows", seen.at(-1)?.[1] === "unavailable", JSON.stringify(seen));
 
+  /* 7 October review: the SDK treats an `error` event as non-fatal, so the
+     server may send the refusal as a message and keep the socket open. The
+     client used to wait for a close that never came: the connect timer then
+     said «timeout», and mid-conversation the visitor got «no reply» 45 s on. */
+  const QUOTA_EVENT = JSON.stringify({ type: "error", error_event: { error_type: "quota_exceeded", message: "You've run out of credits" } });
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  const early = FakeSocket.last;
+  early.readyState = FakeSocket.OPEN;
+  early.emit("open", {});
+  early.emit("message", { data: QUOTA_EVENT });
+  ok("a refusal sent as a message, socket left open, is «unavailable» at once", JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "unavailable"]), JSON.stringify(seen));
+  ok("and the client closes that socket itself", early.readyState === FakeSocket.CLOSED);
+  mock.timers.tick(13000);
+  ok("the connect timer does not re-report it as a timeout", !seen.some(([, f]) => f === "timeout"), JSON.stringify(seen));
+
+  seen = [];
+  const pend = [];
+  let noReply = 0;
+  const midChat = startSalemChat({
+    onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {},
+    onPending: (p) => pend.push(p), onNoReply: () => { noReply++; },
+  });
+  const mid = FakeSocket.last;
+  mid.readyState = FakeSocket.OPEN;
+  mid.emit("open", {});
+  mid.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  midChat.send("قهوة");
+  mid.emit("message", { data: QUOTA_EVENT });
+  ok("mid-conversation the same message is «unavailable» at once", JSON.stringify(seen.at(-1)) === JSON.stringify(["error", "unavailable"]), JSON.stringify(seen));
+  ok("and ends the typing state with it", pend.at(-1) === false, JSON.stringify(pend));
+  mock.timers.tick(60000);
+  ok("no «no reply» follows it", noReply === 0, `noReply=${noReply}`);
+
   seen = [];
   startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
   FakeSocket.last.emit("close", { code: 1008, reason: "policy violation" });

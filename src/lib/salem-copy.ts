@@ -49,15 +49,10 @@ export const WAIN_AI_CHAT_COPY = {
   // tried to open a place or the map from here and could not.
   toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.",
   failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
-  // The server refused for something on our side that no retry this minute
-  // changes — the account was out of credits on 2 October, and «جرّب مرة
-  // ثانية» invited a tap that could only fail again. Said as it is; the retry
-  // button waits (UNAVAILABLE_RETRY_MS in SalemChat.tsx) instead of offering
-  // the same refusal on the spot. «سالم» and not «شوق»: this page is his.
-  unavailable: "سالم مو متاح الحين — جرّب بعد شوي.",
-  // The same refusal, met by a build that can answer without the agent
-  // (lib/agent-health.ts): said once, in the transcript, and then he answers
-  // from وين's own search like the free build does.
+  // The server refused for credits (2 and 7 October). No retry this minute
+  // changes that, so he does not offer one: the page answers from وين's own
+  // search (lib/agent-health.ts) and says so once, in the transcript. It used
+  // to be «سالم مو متاح الحين» with a retry button that waited 30 seconds.
   agentFallback: "الخدمة الصوتية مو متاحة الحين — أجاوبك من دليل وين.",
   // The free build (the live site since 2 October): no agent behind the box,
   // so سالم answers from وين's own search inside the page. Every line here is
@@ -67,8 +62,6 @@ export const WAIN_AI_CHAT_COPY = {
   freeStatus: "جاهز",
   freeNotice: "اللي تكتبه يبقى بجهازك — البحث يصير داخل الصفحة وما ينرسل لأحد.",
   freeEmpty: "ما لقيت شي يطابق هذا — جرّب كلمة ثانية، مثل «قهوة» أو «بحر» أو اسم منطقة.",
-  unavailableStatus: "مو متاح الحين",
-  retryLater: "جرّب مرة ثانية",
   notConfigured: "المحادثة مو متاحة الحين.",
   // The chat's memory (lib/salem-followup.ts): what he says when a short
   // reply is read against his last answer rather than as a new question.

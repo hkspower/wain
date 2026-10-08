@@ -20,7 +20,7 @@ import {
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
-import { loadWidget, takeLocalRecognition } from "@/lib/wain-ai-bus";
+import { loadWidget, takeLocalRecognition, takeRequestedMode } from "@/lib/wain-ai-bus";
 import { agentAvailable, isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
 
 /**
@@ -153,6 +153,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * recogniser and our search — instead of a widget that will only say no.
    */
   const [agentMode, setAgentMode] = useState(WAIN_AI_AGENT_ENABLED);
+  // This sheet showed a refusal for credits: its «اتصل مرة ثانية» promises the
+  // guide, so that redial is the free call however long the screen stayed up.
+  const refusedRef = useRef(false);
   const [transcript, setTranscript] = useState("");
   const [errorText, setErrorText] = useState("");
   const [seconds, setSeconds] = useState(0);
@@ -793,9 +796,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
     if (!agentMode || !dialling || !agentReady || !root) return;
     const check = () => {
-      if (!isQuotaRefusal(root.textContent ?? "")) return;
+      // The widget's error text only, never the whole root: the root holds the
+      // conversation too, and a caller who typed «I've run out of credits on
+      // my phone» ended a healthy call (review of 7 October, on the real
+      // 0.19.0 bundle). It writes a server error into `.text-base-error`; its
+      // dialog, used when the transcript is off, is caught by the bracketed
+      // code, which only the server's own reason carries.
+      const said = Array.from(root.querySelectorAll(".text-base-error"), (n) => n.textContent ?? "").join(" ");
+      if (!isQuotaRefusal(said) && !/\[quota_exceeded\]/i.test(root.textContent ?? "")) return;
       observer.disconnect();
       markAgentUnavailable();
+      refusedRef.current = true;
       slotRef.current?.replaceChildren();
       teardown();
       setErrorText(WAIN_AI_COPY.agentUnavailable);
@@ -870,6 +881,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
 
   /* ---- placing the call --------------------------------------------------- */
   const startCall = useCallback(() => {
+    // The launcher's decision, taken even when no call starts here, so it
+    // cannot carry over to a later redial from this sheet.
+    const asked = takeRequestedMode();
     if (phase !== "idle" && phase !== "ended" && phase !== "error") return;
     haptic("tap");
     // Spend the gesture's audio permission now — see primeAudio(). By the time
@@ -901,7 +915,14 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setErrorText(WAIN_AI_COPY.noAnswer);
       setPhase("error");
     }, DIAL_TIMEOUT_MS);
-    const agent = agentAvailable();
+    // A call from the launcher goes the way its tap went — the tap may already
+    // have started the recogniser. A redial from this sheet decides here, and
+    // a refusal it just showed wins over storage that may not have kept it.
+    const agent = asked ? asked === "agent" : !refusedRef.current && agentAvailable();
+    refusedRef.current = false;
+    // An agent call leaves no recogniser behind: one started by an earlier tap
+    // would hold the microphone, and a later redial would adopt it, dead.
+    if (agent) takeLocalRecognition()?.rec.abort();
     setAgentMode(agent);
     setPhase("ringing");
     if (!agent) startListening();
@@ -961,6 +982,34 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [startSignal]);
 
   const open = phase !== "idle";
+
+  // Where a caller carries on: the place she opened, and her last search with
+  // سالم. On the error screen as well as the ended one — a refusal for credits
+  // in the middle of a call used to drop both (review of 7 October), and
+  // سالم, answering from the guide, is the way on that still works.
+  const carryOn = (
+    <>
+      {lastSlug && (
+        <Link
+          href={`/places/${lastSlug}/#share`}
+          onClick={closeSheet}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
+        >
+          <IconSend className="size-4" aria-hidden="true" />
+          رسّلها للربع
+        </Link>
+      )}
+      {lastQuery && (
+        <Link
+          href={salemHandoff(lastQuery, "call")}
+          onClick={closeSheet}
+          className="inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
+        >
+          {WAIN_AI_COPY.toSalem}
+        </Link>
+      )}
+    </>
+  );
 
   /**
    * The line under her name: what the call is doing right now.
@@ -1218,25 +1267,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   </p>
                 )}
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {lastSlug && (
-                    <Link
-                      href={`/places/${lastSlug}/#share`}
-                      onClick={closeSheet}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
-                    >
-                      <IconSend className="size-4" aria-hidden="true" />
-                      رسّلها للربع
-                    </Link>
-                  )}
-                  {lastQuery && (
-                    <Link
-                      href={salemHandoff(lastQuery, "call")}
-                      onClick={closeSheet}
-                      className="inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
-                    >
-                      {WAIN_AI_COPY.toSalem}
-                    </Link>
-                  )}
+                  {carryOn}
                   <button
                     type="button"
                     onClick={startCall}
@@ -1272,7 +1303,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {WAIN_AI_COPY.typeToSalem}
                   </Link>
                 )}
-                <div className="mt-2 flex justify-center gap-2">
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  {carryOn}
                   <button
                     type="button"
                     onClick={startCall}

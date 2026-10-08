@@ -34,12 +34,34 @@ const CALL = "wain-ai:call";
 const PHASE = "wain-ai:phase";
 
 let requestedAt = 0;
+let requestedMode: CallMode | null = null;
 let lastPhase: Phase = "idle";
 
-/** Ask for a call. Do the gesture work (haptic, primeAudio) before this. */
-export function requestCall(): void {
+/** The agent, or the phone's own recogniser and our search (agent-health.ts). */
+export type CallMode = "agent" | "local";
+
+/**
+ * Ask for a call. Do the gesture work (haptic, primeAudio) before this, and
+ * say which call the tap prepared for — see takeRequestedMode.
+ */
+export function requestCall(mode: CallMode): void {
   requestedAt = Date.now();
+  requestedMode = mode;
   window.dispatchEvent(new Event(CALL));
+}
+
+/**
+ * The tap's decision, once. The call used to decide again on its own, after a
+ * window event, a render and a chunk fetch, and the two could disagree (the
+ * 15-minute flag running out in between, or a refusal landing there): a
+ * recogniser started in the tap and left holding the microphone, or one
+ * started outside the gesture — WebKit's `not-allowed`, read as a blocked
+ * microphone. Review of 7 October, reproduced on a bundle of this file.
+ */
+export function takeRequestedMode(): CallMode | null {
+  const mode = requestedMode;
+  requestedMode = null;
+  return mode;
 }
 
 /**

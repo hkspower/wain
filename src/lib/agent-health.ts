@@ -10,30 +10,37 @@ import { WAIN_AI_AGENT_ENABLED } from "@/lib/wain-ai";
  * in the same bundle unused. A refusal for credits does not change for a
  * while, so it is remembered here and both fall back to that path.
  *
- * Per device, in localStorage, for FOR_MS: a visitor who met the refusal is
- * answered locally for the rest of that quarter hour instead of being refused
- * on every page, and after it the agent is tried again. Nothing about the
- * visitor is stored — one timestamp.
+ * Per device, in localStorage, for AGENT_OFF_FOR_MS: a visitor who met the
+ * refusal is answered locally for the rest of that quarter hour instead of
+ * being refused on every page, and after it the agent is tried again. Nothing
+ * about the visitor is stored — one timestamp.
+ *
+ * Also kept in memory for this page, because storage can refuse the write
+ * (private mode, a full origin). Without that copy the call's «اتصل مرة ثانية»
+ * after a refusal rang the agent again, every time.
  */
 const KEY = "wain:agent-off";
 export const AGENT_OFF_FOR_MS = 15 * 60_000;
+let refusedAt = 0;
 
 export function markAgentUnavailable(now = Date.now()): void {
+  refusedAt = now;
   try {
     localStorage.setItem(KEY, String(now));
   } catch {
-    /* private mode — this page's own state still falls back */
+    /* private mode — the copy above covers this page */
   }
 }
 
 export function agentAvailable(now = Date.now()): boolean {
   if (!WAIN_AI_AGENT_ENABLED) return false;
+  let at = refusedAt;
   try {
-    const at = Number(localStorage.getItem(KEY));
-    return !(at > 0 && now - at >= 0 && now - at < AGENT_OFF_FOR_MS);
+    at = Math.max(at, Number(localStorage.getItem(KEY)) || 0);
   } catch {
-    return true;
+    /* storage unreadable — the copy in memory still counts */
   }
+  return !(at > 0 && now - at >= 0 && now - at < AGENT_OFF_FOR_MS);
 }
 
 /**

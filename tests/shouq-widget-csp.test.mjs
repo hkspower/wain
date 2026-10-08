@@ -160,6 +160,84 @@ async function hangupFree(page) {
   });
 }
 
+/**
+ * The account out of credits, through the real widget (7 October). The refusal
+ * arrives as the socket's close reason; the widget writes it into its own panel
+ * and tells the page nothing, and the sheet reads it from there. The other side
+ * of that check is the one only the real bundle can show: a caller's own words
+ * about credits, typed into the widget's chat, sit in the same shadow root and
+ * must not end the call (review of 7 October — the first check read all of it).
+ */
+const REASON = "[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.";
+const PHRASE = "I've run out of credits on my phone, where can I top up near Salmiya?";
+async function runCredits({ mode }) {
+  const server = createServer((req, res) => {
+    let file = join(OUT, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
+    if (!existsSync(file)) { res.writeHead(404); return res.end("nf"); }
+    res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream", "Content-Security-Policy": CSP, "Permissions-Policy": PERMISSIONS });
+    res.end(readFileSync(file));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = server.address().port;
+  const browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+  });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "ar-KW", permissions: ["microphone"] });
+  await ctx.route(/api(\.us)?\.elevenlabs\.io/, (r) => {
+    if (/\/widget/.test(r.request().url()))
+      return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
+    return r.abort("failed");
+  });
+  const sent = [];
+  await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
+    ws.onMessage((m) => {
+      let j = {};
+      try { j = JSON.parse(typeof m === "string" ? m : m.toString()); } catch { /* binary */ }
+      const type = j.type ?? Object.keys(j)[0] ?? "?";
+      sent.push(type);
+      if (type === "conversation_initiation_client_data") {
+        if (mode === "refuse") setTimeout(() => ws.close({ code: 3000, reason: REASON }), 200);
+        else ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
+      }
+      if (type === "user_message")
+        setTimeout(() => ws.send(JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "تقدر تشحن من أي جمعية.", event_id: 2 } })), 200);
+    });
+  });
+  const page = await ctx.newPage();
+  await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
+  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  const widget = page.locator("#wain-ai-panel elevenlabs-convai");
+  try {
+    await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
+    await page.waitForTimeout(2500);
+    await widget.getByRole("button", { name: mode === "refuse" ? /بدء مكالمة/ : /رسالة/ }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(1200);
+    const accept = widget.getByRole("button", { name: /قبول/ }).first();
+    if (await accept.count()) await accept.click({ timeout: 5000 });
+    if (mode === "typed") {
+      await page.waitForTimeout(800);
+      const box = widget.locator("textarea").first();
+      await box.fill(PHRASE, { timeout: 5000 });
+      await box.press("Enter");
+    }
+    await page.waitForTimeout(4000);
+  } catch (e) {
+    console.log(`  · the ${mode} run did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
+  }
+  const alert = await page.locator('#wain-ai-panel [role="alert"]').textContent({ timeout: 1000 }).catch(() => "");
+  const result = {
+    said: (alert ?? "").includes("دليل وين"),
+    widgets: await page.locator("#wain-ai-panel elevenlabs-convai").count(),
+    flag: await page.evaluate(() => localStorage.getItem("wain:agent-off")),
+    sent,
+  };
+  await browser.close();
+  server.close();
+  return result;
+}
+
 console.log(`\n── the real widget (${WIDGET_PATH}), a fake microphone, a mock socket ──`);
 const bare = await run({ withPolicy: false });
 ok("control: with no policy the widget opens the call and the header says connected", /متصل/.test(bare.header), bare.header);
@@ -173,6 +251,17 @@ ok("the widget triggers no Content-Security-Policy violation at all", shipped.vi
 ok("the widget stays in its box: hang-up is uncovered before Start", shipped.hangup.ready === "free", shipped.hangup.ready);
 ok("and once the call is live", shipped.hangup.live === "free", shipped.hangup.live);
 ok("audio leaves the page — a granted microphone is HEARD", shipped.chunks > 20, `${shipped.chunks} chunks; script-src needs blob: for the widget's AudioWorklet`);
+
+console.log("\n── out of credits, through the real widget ──");
+const refused = await runCredits({ mode: "refuse" });
+ok("a refusal for credits is read out of the widget and said on the sheet", refused.said, JSON.stringify({ ...refused, sent: refused.sent.slice(0, 6) }));
+ok("the widget is taken off the sheet", refused.widgets === 0, `${refused.widgets} widgets`);
+ok("and the device remembers it", refused.flag !== null);
+const typed = await runCredits({ mode: "typed" });
+ok("control: the caller's words reached the conversation", typed.sent.includes("user_message"), typed.sent.join(","));
+ok("a caller who types about their own credits is not a refusal", !typed.said);
+ok("the call goes on", typed.widgets === 1, `${typed.widgets} widgets`);
+ok("and the device does not switch her off", typed.flag === null, String(typed.flag));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

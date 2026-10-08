@@ -65,20 +65,29 @@ async function makeCtx(micError, seen) {
             // Open shadow root and a Start button, like the real widget.
             // NOTHING is dispatched until it is pressed.
             const root = this.attachShadow({ mode: 'open' });
-            root.innerHTML = '<button id="stub-start" type="button">بدء مكالمة</button>';
+            // A panel holding the conversation, as the real widget's does: its
+            // lines — the caller's, hers, and a server error — land deep in
+            // the tree, so an observer that stopped watching the subtree
+            // would miss them here as it would on the live site.
+            root.innerHTML = '<button id="stub-start" type="button">بدء مكالمة</button><div class="panel"><ul class="transcript"></ul></div>';
+            const list = root.querySelector('.transcript');
+            // The account out of credits: the real widget writes the server's
+            // refusal into its error block (.text-base-error) and says nothing
+            // to the page (read out of the 0.19.0 bundle). Exposed so a test
+            // can refuse mid-call.
+            const refuse = () => {
+              const li = document.createElement('li');
+              li.innerHTML = "<div class=\\"text-base-error\\"><p>حدث خطأ</p><p>[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.</p></div>";
+              list.appendChild(li);
+            };
+            window.__convaiList = list;
+            window.__convaiRefuse = refuse;
             root.getElementById('stub-start').addEventListener('click', () => {
               // Dispatched on the element and composed, as the real one does.
               const ev = new CustomEvent('elevenlabs-convai:call', { bubbles: true, composed: true, detail: { config: {} } });
               this.dispatchEvent(ev);
               window.__convaiConfig = ev.detail.config;
-              // The account out of credits: the real widget writes the
-              // server's refusal into its own shadow DOM and says nothing to
-              // the page (read out of the 0.19.0 bundle).
-              if (window.__quota) setTimeout(() => {
-                const box = document.createElement('div');
-                box.innerHTML = "<p>حدث خطأ</p><p>[quota_exceeded] You've run out of credits. Add credits or upgrade your plan to start a new conversation.</p>";
-                root.appendChild(box);
-              }, 300);
+              if (window.__quota) setTimeout(refuse, 300);
             });
           }
         }
@@ -531,6 +540,40 @@ for (const [name, want, label] of [
   await mctx.close();
 }
 
+/* The phone's recogniser, for the calls that fall back to it. */
+const REC_STUB = () => {
+  window.__recStarts = 0;
+  window.__recOutside = 0;
+  class Rec {
+    constructor() { this.lang = ''; }
+    start() {
+      window.__recStarts++;
+      // WebKit's rule, as shouq-flow's stub has it: recognition starts only
+      // inside a user gesture and is refused otherwise.
+      const ev = window.event;
+      if (!(ev && ev.isTrusted && /^(click|pointerup|mouseup|touchend|keydown|keyup)$/.test(ev.type))) {
+        window.__recOutside++;
+        setTimeout(() => { this.onerror?.({ error: 'not-allowed' }); this.onend?.(); }, 60);
+        return;
+      }
+      setTimeout(() => this.onstart?.(), 10);
+    }
+    stop() { this.onend?.(); }
+    abort() {}
+  }
+  window.SpeechRecognition = Rec;
+  window.webkitSpeechRecognition = Rec;
+};
+const startWidget = async (page) => {
+  const start = page.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
+  await start.waitFor({ timeout: 8000 }).catch(() => {});
+  await start.click().catch(() => {});
+};
+const refusalSaid = (page) => page.waitForFunction(
+  () => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes('دليل وين'),
+  null, { timeout: 6000 }
+).then(() => true, () => false);
+
 console.log('\n── out of credits: the call says so, and the next one is ours ──');
 {
   // 7 October: the account ran dry on the live site and every call met
@@ -540,18 +583,8 @@ console.log('\n── out of credits: the call says so, and the next one is ours
   // free call (the phone's recogniser → /search), which needs no account.
   const qseen = [];
   const qctx = await makeCtx(null, qseen);
-  await qctx.addInitScript(() => {
-    window.__quota = true;
-    window.__recStarts = 0;
-    class Rec {
-      constructor() { this.lang = ''; }
-      start() { window.__recStarts++; setTimeout(() => this.onstart?.(), 10); }
-      stop() { this.onend?.(); }
-      abort() {}
-    }
-    window.SpeechRecognition = Rec;
-    window.webkitSpeechRecognition = Rec;
-  });
+  await qctx.addInitScript(REC_STUB);
+  await qctx.addInitScript(() => { window.__quota = true; });
   const q = await qctx.newPage();
   const qerr = [];
   q.on('pageerror', (e) => qerr.push(e.message));
@@ -569,10 +602,17 @@ console.log('\n── out of credits: the call says so, and the next one is ours
     (await q.locator('#wain-ai-panel').textContent().catch(() => '')).slice(0, 160));
   ok('the widget is gone from the sheet', await q.locator('#wain-ai-panel elevenlabs-convai').count() === 0);
   ok('the device remembers the refusal', await q.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0));
+  // Nothing listens before the redial: a recogniser started by the agent dial
+  // would hold the microphone beside the widget, and would also make the
+  // check below pass whatever the redial did (review of 7 October).
+  ok('the agent call started no recogniser of its own', await q.evaluate(() => window.__recStarts === 0));
   const again = q.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' });
   await again.click({ timeout: 4000 }).catch(() => {});
   await q.waitForFunction(() => window.__recStarts > 0, null, { timeout: 4000 }).catch(() => {});
   ok('the redial listens with the phone\'s own recogniser', await q.evaluate(() => window.__recStarts > 0));
+  // Inside the tap, which is all WebKit allows — routed through an event and
+  // an effect, every iPhone would answer `not-allowed` («ما وصلنا صوتك»).
+  ok('and starts it inside the tap', await q.evaluate(() => window.__recStarts > 0 && window.__recOutside === 0));
   ok('and mounts no widget', await q.locator('#wain-ai-panel elevenlabs-convai').count() === 0);
   ok('no page errors through it', qerr.length === 0, qerr.join(' | '));
   // Every tap primes the voice, and that used to fetch the clip manifest — a
@@ -580,6 +620,114 @@ console.log('\n── out of credits: the call says so, and the next one is ours
   ok('two dials asked for no clip manifest the export does not carry',
     manifestAsks.length === 0 || existsSync(new URL('../out/voice/manifest.json', import.meta.url)), manifestAsks.join(', '));
   await qctx.close();
+}
+
+console.log('\n── a caller\'s own words about credits are not a refusal ──');
+{
+  // The check read the whole shadow root, the conversation included, so a
+  // caller who typed this ended a healthy call and switched her off on the
+  // device for a quarter hour.
+  const tctx = await makeCtx(null, []);
+  const t = await tctx.newPage();
+  await dial(t);
+  await startWidget(t);
+  await t.evaluate(() => {
+    const line = document.createElement('li');
+    line.textContent = "I've run out of credits on my phone, where can I top up near Salmiya?";
+    window.__convaiList?.appendChild(line);
+  }).catch(() => {});
+  await t.waitForTimeout(800);
+  ok('the call goes on', await t.locator('#wain-ai-panel elevenlabs-convai').count() === 1);
+  ok('no refusal is said', !(await t.locator('#wain-ai-panel').textContent().catch(() => '')).includes('دليل وين'));
+  ok('and the device does not switch her off', await t.evaluate(() => localStorage.getItem('wain:agent-off') === null));
+  await tctx.close();
+}
+
+console.log('\n── refused in the middle of a call, the ways on stay ──');
+{
+  // The error screen had only «اتصل مرة ثانية» and «رجوع»: the place she had
+  // opened and «كمّل مع سالم» — the way on that still works — were gone.
+  const mctx2 = await makeCtx(null, []);
+  const m = await mctx2.newPage();
+  await dial(m);
+  await startWidget(m);
+  await m.waitForFunction(() => !!window.__convaiConfig?.clientTools?.show_places, null, { timeout: 6000 }).catch(() => {});
+  await m.evaluate(async () => {
+    await window.__convaiConfig.clientTools.show_places({ query: 'بحر' });
+    await window.__convaiConfig.clientTools.open_place({ slug: 'kuwait-towers' });
+    window.__convaiRefuse();
+  }).catch(() => {});
+  ok('the refusal is said', await refusalSaid(m));
+  const salemHref = await m.locator('#wain-ai-panel a', { hasText: 'كمّل مع سالم' }).getAttribute('href', { timeout: 2000 }).catch(() => null);
+  ok('the error screen keeps «كمّل مع سالم», with her last search', !!salemHref && decodeURIComponent(salemHref).includes('بحر'), String(salemHref));
+  const shareHref = await m.locator('#wain-ai-panel a', { hasText: 'رسّلها للربع' }).getAttribute('href', { timeout: 2000 }).catch(() => null);
+  ok('and «رسّلها للربع» for the place she opened', !!shareHref && shareHref.includes('/places/kuwait-towers') && shareHref.includes('#share'), String(shareHref));
+  await mctx2.close();
+}
+
+console.log('\n── the call goes the way the tap went ──');
+{
+  // The tap and the call each decided agent-or-local, an event, a render and a
+  // chunk apart, and the quarter-hour flag could change in between: a
+  // recogniser left holding the microphone, or one started outside the tap.
+  for (const [label, flip, wantAgent] of [
+    ['a refusal landed between the tap and the call', 'set', true],
+    ['the quarter hour ran out between the tap and the call', 'clear', false],
+  ]) {
+    const rctx = await makeCtx(null, []);
+    await rctx.addInitScript(REC_STUB);
+    await rctx.addInitScript((f) => {
+      if (f === 'clear') localStorage.setItem('wain:agent-off', String(Date.now()));
+      window.addEventListener('wain-ai:call', () => {
+        if (f === 'set') localStorage.setItem('wain:agent-off', String(Date.now()));
+        else localStorage.removeItem('wain:agent-off');
+      }, { once: true });
+    }, flip);
+    const r = await rctx.newPage();
+    await dial(r);
+    await r.waitForFunction(() => !!document.querySelector('#wain-ai-panel elevenlabs-convai') || window.__recStarts > 0, null, { timeout: 6000 }).catch(() => {});
+    await r.waitForTimeout(500);
+    const widget = await r.locator('#wain-ai-panel elevenlabs-convai').count();
+    const starts = await r.evaluate(() => window.__recStarts);
+    const outside = await r.evaluate(() => window.__recOutside);
+    ok(`${label}: ${wantAgent ? 'her call, as the tap found' : 'the free call the tap started'}`,
+      wantAgent ? widget === 1 && starts === 0 : widget === 0 && starts === 1 && outside === 0, `widget=${widget} recStarts=${starts} outside=${outside}`);
+    await rctx.close();
+  }
+}
+
+console.log('\n── storage that refuses the write still gets the free redial ──');
+{
+  // A refusal the device could not write down (a full origin, private mode):
+  // «اتصل مرة ثانية» rang the agent again, every time.
+  const sctx = await makeCtx(null, []);
+  await sctx.addInitScript(REC_STUB);
+  await sctx.addInitScript(() => {
+    window.__quota = true;
+    // Blocked for this key both ways, as «Block All Cookies» blocks storage.
+    const set = Storage.prototype.setItem;
+    const get = Storage.prototype.getItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === 'wain:agent-off') throw new DOMException('blocked', 'SecurityError');
+      return set.call(this, k, v);
+    };
+    Storage.prototype.getItem = function (k) {
+      if (k === 'wain:agent-off') throw new DOMException('blocked', 'SecurityError');
+      return get.call(this, k);
+    };
+  });
+  const s = await sctx.newPage();
+  await dial(s);
+  await startWidget(s);
+  ok('the refusal is said', await refusalSaid(s));
+  await s.locator('#wain-ai-panel').getByRole('button', { name: 'اتصل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});
+  await s.waitForFunction(() => window.__recStarts > 0 || !!document.querySelector('#wain-ai-panel elevenlabs-convai'), null, { timeout: 4000 }).catch(() => {});
+  const widget = await s.locator('#wain-ai-panel elevenlabs-convai').count();
+  const starts = await s.evaluate(() => window.__recStarts);
+  const outside = await s.evaluate(() => window.__recOutside);
+  ok('the redial is the free call even so, started inside the tap', starts > 0 && outside === 0 && widget === 0,
+    `widget=${widget} recStarts=${starts} outside=${outside}`);
+  await sctx.close();
 }
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));
