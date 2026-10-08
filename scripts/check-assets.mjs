@@ -31,6 +31,10 @@ const git = (args) => {
   }
 };
 
+/** The families declared inside this one, as paths. */
+const innerFamilies = (fam) => ASSETS.filter((o) => o !== fam && o.path.startsWith(fam.path + "/")).map((o) => o.path);
+const inInner = (p, inner) => inner.some((d) => p === d || p.startsWith(d + "/"));
+
 /** Does one of a family's `keep` globs match this path? */
 const kept = (fam, rel) =>
   (fam.keep ?? []).some((g) => {
@@ -77,11 +81,17 @@ const kept = (fam, rel) =>
   let keptFiles = 0, scratchFiles = 0;
   for (const fam of ASSETS) {
     if (!existsSync(fam.path)) continue;
-    const tracked = new Set(git(["ls-files", fam.path]));
+    // A family declared inside another (press/renders/max, kept, under
+    // the split press/renders) is judged by its own entry: the parent's
+    // walk and the parent's tracked set both stop at its door, or every
+    // file it keeps is "outside the parent's globs".
+    const inner = innerFamilies(fam);
+    const tracked = new Set(git(["ls-files", fam.path]).filter((p) => !inInner(p, inner)));
     const all = [];
     const walk = (d) => {
       for (const e of readdirSync(d)) {
         const p = join(d, e);
+        if (inner.includes(p)) continue;
         if (statSync(p).isDirectory()) walk(p);
         else all.push(p);
       }
@@ -130,9 +140,11 @@ const kept = (fam, rel) =>
   for (const fam of ASSETS) {
     if (fam.kind === "kept" || !existsSync(fam.path)) continue;
     const all = [];
+    const inner = innerFamilies(fam);
     const walk = (d) => {
       for (const e of readdirSync(d)) {
         const p = join(d, e);
+        if (inner.includes(p)) continue;
         if (statSync(p).isDirectory()) walk(p);
         else all.push(p);
       }

@@ -133,15 +133,20 @@ set NR_PACKS=C:\path\to\wain\press\max\render
 "C:\Program Files\Autodesk\3ds Max 2026\3dsmaxbatch.exe" tools\max\render_all.py
 ```
 
-It needs the packs (`npm run max:render-pack -- all`) and Arnold as the
-current renderer (it checks, and stops with a message rather than render
-with the scanline). Options are environment variables, so the same
-command works from a scheduler: `NR_SHOTS=hero,side,rear`,
-`NR_TURNTABLE=1` (default on), `NR_FRAMES=120`, `NR_AA=6`, `NR_HALF=1`
-for a test pass, `NR_LIGHT=1.0`, `NR_RERENDER=1` to ignore what is
-already there. Each car's EXRs land in `<car>/out/`, the report in
-`press/max/render/render-all.json`, and it is resumable: stop it and run
-it again. Then, in the repo:
+It needs the packs (`npm run max:render-pack -- all`) and Arnold
+installed (MAXtoA ships with Max; the pack makes it the current renderer,
+and the batch stops with a message rather than render with anything
+else). Options are environment variables, so the same command works from
+a scheduler: `NR_SHOTS=hero,side,rear`, `NR_TURNTABLE=1` (default on),
+`NR_AA=6`, `NR_HALF=1` for a half-size test pass, `NR_LIGHT=1.0`,
+`NR_FRAMES=N` to render only the first N of the pack's 120 frames (a
+partial turn, for a look), `NR_RERENDER=1` to render every car again.
+Each car's EXRs land in `<car>/out/` with a note beside each saying the
+size it was made at, the report in `press/max/render/render-all.json`.
+It is resumable — stop it and run it again — and "already rendered"
+means newer than the pack and at this run's size: a car re-packed after
+its GLB changed, or rendered at half size for a look, is rendered again
+for the set. Then, in the repo:
 
 ```sh
 npm run max:finish -- press/max/render --publish press/renders/max
@@ -154,21 +159,30 @@ Arnold:
 ```sh
 npm run dev           # in another shell
 npm run max:full      # export GLBs, pack, stills at 2560x1440 @ 128 spp, turntables, finish, publish
+npm run max:full -- --resume          # after a stop: skip the export and the packing, carry on
 npm run max:full -- --stills          # no turntables
 TT_SCALE=1 npm run max:full           # turntables at 1920x1080 (four times the time)
 ```
 
-Budget on a four-core box: three stills a car at full size are ten to
-fifteen minutes; a half-size turntable is about half an hour a car; the
-fleet is the better part of a day. A still or frame already rendered
-since its pack was made is not rendered again, so a stopped run picks up
-where it was — and a re-packed car (its GLB changed) is rendered again,
-which is the point of re-packing.
+Budget on a four-core box, measured here: three stills a car at full
+size take fifteen to fifty minutes depending on the car (the Black Demon
+16, the Gulf Coupe RS the slowest; about half an hour typical), a
+half-size turntable about half an hour a car; the fleet is a day and a
+night. A still or frame counts as rendered only if it is newer than its
+pack — so a stopped run picks up where it was, a car re-packed after its
+GLB changed is rendered again, and a pack whose numbers did not change
+keeps its date rather than invalidating its renders. A car that fails to
+export or pack is reported and the others go on; a render step that
+dies ends the run before finish, so nothing half-made is published.
 
 **Where it lands:** `press/max/` is ignored by git — packs are rebuilt on
 demand — so the finished set is published to `press/renders/max/`:
-`<shot>/<car>.jpg`, `<shot>-sheet.jpg`, `turntables/<car>.mp4`, and a
-`manifest.json` saying which pack each came from and when.
+`<shot>/<car>.jpg`, `<shot>-sheet.jpg`, `turntables/<car>.mp4`,
+`cars.json` (the catalogue the sheets are captioned from) and a
+`manifest.json` saying which pack each came from and when, and the size
+each still and turntable was actually made at. A render older than its
+pack, or a turntable missing frames, is left out and named in the
+manifest rather than published as the set.
 
 **Comparing with Blender:** `npm run max:preview -- press/max/render/black-demon --turntable` renders the same pack in Cycles, into `preview/`. Run `max:finish` on that folder too. The Max render should come close to it.
 

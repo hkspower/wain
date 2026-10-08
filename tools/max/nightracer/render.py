@@ -455,6 +455,16 @@ def _render(cam, path, w, h):
     return bm
 
 
+def _note(path, **what):
+    """What a render was made at, beside it: a half-size test pass must
+    not be counted as the finished set by a run that only looks for the file."""
+    try:
+        with open(path, "w") as f:
+            json.dump(what, f)
+    except OSError as e:
+        log("could not write %s: %s" % (path, e))
+
+
 def render_stills(scene, shots=("hero", "side", "rear"), width=None, height=None, aa=6, progress=None):
     spec, out = scene["spec"], os.path.join(scene["pack"], "out")
     w, h = width or spec["stills"]["width"], height or spec["stills"]["height"]
@@ -466,6 +476,7 @@ def render_stills(scene, shots=("hero", "side", "rear"), width=None, height=None
             progress(name, i, len(shots))
         exr = os.path.join(out, "%s.exr" % name)
         bm = _render(scene["cams"][name], exr, w, h)
+        _note(os.path.join(out, "%s.json" % name), width=w, height=h, aa=aa)
         try:  # a quick look, display-gamma; the graded PNG comes from finish_render
             bm.filename = os.path.join(out, "%s_quick.png" % name)
             rt.save(bm)
@@ -492,6 +503,7 @@ def render_turntable(scene, frames=None, width=None, height=None, aa=4, progress
             rt.close(bm)
         except Exception:
             pass
+    _note(os.path.join(out, "render.json"), width=w, height=h, aa=aa, frames=n)
     scene["pivot"].rotation = rt.EulerAngles(0, 0, 0)
     return out
 
@@ -508,13 +520,33 @@ def list_packs(root):
     return [i for i in ids if os.path.exists(os.path.join(root, i, "studio.json"))]
 
 
-def _done(pack, shots, turntable, frames):
+def _done(pack, shots, turntable, frames, size=None, tt_size=None):
+    """Is this car rendered? Three things have to be true of each file,
+    not one: it is there; it is newer than the pack (a car re-packed after
+    its GLB changed is rendered again, however many EXRs it had); and the
+    note beside it, if there is one, says it was made at the size this run
+    wants (a half-size test pass is not the set). A file with no note is
+    taken as done, so renders made before the notes existed still count."""
     out = os.path.join(pack, "out")
-    if any(not os.path.exists(os.path.join(out, "%s.exr" % s)) for s in shots):
+    spec_path = os.path.join(pack, "studio.json")
+    packed = os.path.getmtime(spec_path) if os.path.exists(spec_path) else 0
+
+    def fresh(path, note, size_wanted):
+        if not os.path.exists(path) or os.path.getmtime(path) < packed:
+            return False
+        if size_wanted and os.path.exists(note):
+            try:
+                n = json.load(open(note))
+                return (n.get("width"), n.get("height")) == tuple(size_wanted)
+            except (OSError, ValueError):
+                return True
+        return True
+
+    if any(not fresh(os.path.join(out, "%s.exr" % s), os.path.join(out, "%s.json" % s), size) for s in shots):
         return False
     if turntable:
-        n = frames or json.load(open(os.path.join(pack, "studio.json")))["turntable"]["frames"]
-        return os.path.exists(os.path.join(out, "turntable", "%04d.exr" % n))
+        n = frames or json.load(open(spec_path))["turntable"]["frames"]
+        return fresh(os.path.join(out, "turntable", "%04d.exr" % n), os.path.join(out, "turntable", "render.json"), tt_size)
     return True
 
 
@@ -530,17 +562,26 @@ def render_all(root, shots=("hero", "side", "rear"), turntable=False, frames=Non
         pack = os.path.join(root, car)
         if progress:
             progress(car, i, len(packs))
-        if skip_done and _done(pack, shots, turntable, frames):
+        # The sizes this run wants, read off the pack before it is opened,
+        # so "already rendered" can mean rendered AT THIS SIZE.
+        try:
+            spec = json.load(open(os.path.join(pack, "studio.json")))
+            st, tt = spec["stills"], spec["turntable"]
+            w, h = (st["width"] // 2, st["height"] // 2) if half else (st["width"], st["height"])
+            tw, th = (tt["width"] // 2, tt["height"] // 2) if half else (tt["width"], tt["height"])
+        except (OSError, ValueError, KeyError) as e:
+            report.append({"id": car, "status": "FAILED: studio.json: %s" % e, "log": []})
+            with open(os.path.join(root, "render-all.json"), "w") as f:
+                json.dump(report, f, indent=2)
+            continue
+        if skip_done and _done(pack, shots, turntable, frames, (w, h), (tw, th)):
             report.append({"id": car, "status": "skipped (already rendered)"})
             continue
         t0 = time.time()
         try:
             sc = open_pack(pack, light_scale)
-            st, tt = sc["spec"]["stills"], sc["spec"]["turntable"]
-            w, h = (st["width"] // 2, st["height"] // 2) if half else (st["width"], st["height"])
             render_stills(sc, shots, w, h, aa)
             if turntable:
-                tw, th = (tt["width"] // 2, tt["height"] // 2) if half else (tt["width"], tt["height"])
                 render_turntable(sc, frames, tw, th, max(1, aa - 2))
             report.append({"id": car, "status": "ok", "seconds": round(time.time() - t0, 1), "log": list(LOG)})
         except Exception as e:  # keep going: one car must not cost the night

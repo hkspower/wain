@@ -63,8 +63,10 @@ def graded_scene():
 
 def grade(sc, src, dst):
     img = bpy.data.images.load(os.path.abspath(src))
+    size = tuple(img.size)
     img.save_render(os.path.abspath(dst), scene=sc)  # applies the scene's view transform
     bpy.data.images.remove(img)
+    return size
 
 
 def encode(sc, pngs, mp4):
@@ -103,23 +105,45 @@ def encode(sc, pngs, mp4):
 
 
 def finish(folder):
-    """One car's EXRs -> graded PNGs and the turntable MP4. Returns what it made."""
+    """One car's EXRs -> graded PNGs and the turntable MP4. Returns what it
+    made, with the size of each.
+
+    Only renders that are the pack's. The folder sits inside a pack
+    (<car>/out or <car>/preview), and a render older than the pack's
+    studio.json is of a car that has since changed — the stale frames a
+    stopped turntable leaves behind, or stills from before a re-pack. They
+    are left out, and a turntable is encoded only when every one of the
+    pack's frames is there and fresh: a 37-frame clip published as a turn,
+    or a turn that changes car half way round, is worse than none."""
     final = os.path.join(folder, "final")
     os.makedirs(final, exist_ok=True)
     sc = graded_scene()
-    made = {"stills": {}, "mp4": None}
+    made = {"stills": {}, "mp4": None, "skipped": []}
+    spec_path = os.path.join(os.path.dirname(os.path.abspath(folder)), "studio.json")
+    spec = json.load(open(spec_path)) if os.path.exists(spec_path) else None
+    packed = os.path.getmtime(spec_path) if spec else 0
+    fresh = lambda p: os.path.getmtime(p) >= packed
     for p in sorted(glob.glob(os.path.join(folder, "*.exr"))):
         name = os.path.splitext(os.path.basename(p))[0]
+        if not fresh(p):
+            made["skipped"].append(f"{name}: older than the pack")
+            print(f"[finish] {os.path.relpath(p)} is older than the pack — not graded")
+            continue
         dst = os.path.join(final, name + ".png")
-        grade(sc, p, dst)
-        made["stills"][name] = dst
-        print(f"[finish] {os.path.relpath(p)} -> {os.path.relpath(dst)} ({sc.view_settings.view_transform})")
+        w, h = grade(sc, p, dst)
+        made["stills"][name] = {"png": dst, "size": [w, h]}
+        print(f"[finish] {os.path.relpath(p)} -> {os.path.relpath(dst)} ({sc.view_settings.view_transform}, {w}x{h})")
     frames = sorted(glob.glob(os.path.join(folder, "turntable", "*.exr")))
-    if frames:
+    want = spec["turntable"]["frames"] if spec else len(frames)
+    good = [p for p in frames if fresh(p)]
+    if frames and len(good) < want:
+        made["skipped"].append(f"turntable: {len(good)} of {want} frames fresh")
+        print(f"[finish] turntable in {os.path.relpath(folder)}: {len(good)} of {want} frames are the pack's — not encoded")
+    elif frames:
         fdir = os.path.join(final, "turntable")
         os.makedirs(fdir, exist_ok=True)
         pngs = []
-        for i, p in enumerate(frames):
+        for i, p in enumerate(good[:want]):
             dst = os.path.join(fdir, "%04d.png" % (i + 1))
             grade(sc, p, dst)
             pngs.append(dst)
@@ -127,12 +151,12 @@ def finish(folder):
         if os.path.exists(mp4):
             os.remove(mp4)
         w, h = encode(sc, pngs, mp4)
-        made["mp4"] = mp4
+        made["mp4"] = {"mp4": mp4, "size": [w, h], "frames": len(pngs)}
         print(f"[finish] {len(pngs)} frames -> {os.path.relpath(mp4)} ({w}x{h}, {args.fps} fps)")
     return made
 
 
-def publish(sc, collect, by_shot, cars_json):
+def publish(sc, collect, by_shot, cars_json, made_by_car):
     """The graded set, where git keeps it: press/max/ is ignored wholesale
     (the packs are scratch, rebuilt on demand), so the renders that are
     meant to be looked at go out as JPGs under press/renders/, with the
@@ -148,7 +172,7 @@ def publish(sc, collect, by_shot, cars_json):
     s = sc.render.image_settings
     s.file_format, s.color_mode, s.quality = "JPEG", "RGB", max(1, min(100, args.jpeg_quality))
     manifest = {"source": args.src, "made": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%MZ"),
-                "jpeg_quality": s.quality, "shots": {}, "turntables": [], "packs": {}}
+                "jpeg_quality": s.quality, "shots": {}, "turntables": [], "cars": {}, "packs": {}}
     for shot, ids in by_shot.items():
         d = os.path.join(dst, shot)
         os.makedirs(d, exist_ok=True)
@@ -168,13 +192,22 @@ def publish(sc, collect, by_shot, cars_json):
             manifest["turntables"].append(os.path.splitext(os.path.basename(mp4))[0])
     root = os.path.dirname(collect)
     for car in sorted({c for ids in by_shot.values() for c in ids}):
+        # What was actually published, per car: the stills' sizes as
+        # rendered and the turntable as encoded — not the pack's nominal
+        # sizes, which a half-size pass or a scaled turntable do not match.
+        m = made_by_car.get(car, {})
+        manifest["cars"][car] = {
+            "stills": {shot: v["size"] for shot, v in m.get("stills", {}).items()},
+            "turntable": ({"size": m["mp4"]["size"], "frames": m["mp4"]["frames"]} if m.get("mp4") else None),
+            "left_out": m.get("skipped", []),
+        }
         sp = os.path.join(root, car, "studio.json")
         if os.path.exists(sp):
             spec = json.load(open(sp))
             manifest["packs"][car] = {
                 "packed": datetime.datetime.fromtimestamp(os.path.getmtime(sp), datetime.timezone.utc).strftime("%Y-%m-%d %H:%MZ"),
-                "stills": [spec["stills"]["width"], spec["stills"]["height"]],
-                "turntable": [spec["turntable"]["width"], spec["turntable"]["height"], spec["turntable"]["frames"]],
+                "stills_nominal": [spec["stills"]["width"], spec["stills"]["height"]],
+                "turntable_nominal": [spec["turntable"]["width"], spec["turntable"]["height"], spec["turntable"]["frames"]],
             }
     if os.path.exists(cars_json):
         shutil.copyfile(cars_json, os.path.join(dst, "cars.json"))
@@ -197,25 +230,26 @@ def main():
     if not cars:
         made = finish(root)
         if not made["stills"] and not made["mp4"]:
-            sys.exit(f"no EXRs in {root}")
+            sys.exit(f"nothing of the pack's to grade in {root}" + (f" ({'; '.join(made['skipped'])})" if made["skipped"] else ""))
         return
     collect = os.path.join(root, "final-" + args.src)
-    by_shot, mp4s, missing = {}, 0, []
+    by_shot, mp4s, missing, made_by_car = {}, 0, [], {}
     for car in cars:
         folder = os.path.join(root, car, args.src)
         if not glob.glob(os.path.join(folder, "*.exr")) and not glob.glob(os.path.join(folder, "turntable", "*.exr")):
             missing.append(car)
             continue
         made = finish(folder)
-        for shot, png in made["stills"].items():
+        made_by_car[car] = made
+        for shot, v in made["stills"].items():
             d = os.path.join(collect, shot)
             os.makedirs(d, exist_ok=True)
-            shutil.copyfile(png, os.path.join(d, f"{car}.png"))
+            shutil.copyfile(v["png"], os.path.join(d, f"{car}.png"))
             by_shot.setdefault(shot, []).append(car)
         if made["mp4"]:
             d = os.path.join(collect, "turntables")
             os.makedirs(d, exist_ok=True)
-            shutil.copyfile(made["mp4"], os.path.join(d, f"{car}.mp4"))
+            shutil.copyfile(made["mp4"]["mp4"], os.path.join(d, f"{car}.mp4"))
             mp4s += 1
     # Contact sheets, one per shot, with the same tool as the studio set's.
     cars_json = os.path.join(REPO, "press", "renders", "cars.json")
@@ -231,8 +265,11 @@ def main():
     print(f"[finish] {len(cars) - len(missing)} cars graded, {mp4s} turntables -> {collect}")
     if missing:
         print(f"[finish] nothing to grade yet for: {', '.join(missing)}")
+    left_out = {c: m["skipped"] for c, m in made_by_car.items() if m["skipped"]}
+    if left_out:
+        print("[finish] left out as stale or incomplete: " + "; ".join(f"{c}: {', '.join(v)}" for c, v in left_out.items()))
     if args.publish and by_shot:
-        publish(graded_scene(), collect, by_shot, cars_json)
+        publish(graded_scene(), collect, by_shot, cars_json, made_by_car)
 
 
 main()

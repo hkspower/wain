@@ -21,7 +21,8 @@ whether it belongs in the history at all.
 | `stories/` | The story cards and the page that lays them out. | `scripts/story-cards.mjs` | kept |
 | `map/` | The circuit, drawn. | by hand | kept |
 | `flags/` | The flag decal, at the size it is worn. | `tools/shots/flags.mjs` | kept |
-| `police/` | The patrol car against its reference: quarter, side and far side. | by hand | kept |
+| `renders/max/` | Every car's 3ds Max render pack, rendered at full size and graded (finish_render.py --publish): hero, side and rear per car, a contact sheet per shot, the turntables. | `tools/max/finish_render.py` | kept |
+| `police/` | The patrol cars as the game builds them: saloon and SUV, quarter, side, far side and tail. | `tools/shots/police.mjs` | kept |
 | `data/` | The game's numbers in one JSON: cars, rivals and engines, for charts. | `tools/game-data.mjs` | kept |
 | `blur/` | Building blur, before and after. | `tools/shots/nightlook.mjs` | kept |
 | `sharp/` | Edge sharpness at each resolution step. | `tools/shots/sharpness.mjs` | kept |

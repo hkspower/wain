@@ -14,15 +14,20 @@ argv of its own and a scheduler can set them:
     NR_PACKS      the folder of packs (default: this repo's press/max/render)
     NR_SHOTS      hero,side,rear
     NR_TURNTABLE  1 (0 for stills only)
-    NR_FRAMES     the turntable's frames (default: the pack's, 120)
+    NR_FRAMES     render only the first N of the pack's 120 turntable frames —
+                  a partial turn, for a look; the set wants all of them (default)
     NR_HALF       1 for a half-size test pass
     NR_AA         Arnold camera samples, 6 (the turntable takes two fewer)
     NR_LIGHT      a scale on every light, 1.0
     NR_RERENDER   1 to render a car again even if its EXRs are all there
 
-Arnold has to be the current renderer; it ships with 3ds Max (MAXtoA), and
-this stops with a message rather than render the studio with the scanline.
-Each car's EXRs land in <pack>/out/, the report in <root>/render-all.json.
+Arnold has to be installed (MAXtoA ships with 3ds Max); open_pack makes it
+the current renderer, and this stops with a message rather than render the
+studio with whatever else is current. Each car's EXRs land in <pack>/out/
+with a note beside each saying the size it was made at, the report in
+<root>/render-all.json. A car counts as already rendered only if its EXRs
+are newer than its pack and at the size this run wants, so a re-packed car
+and a half-size test pass are both rendered again for the set.
 Then, in the repo:  npm run max:finish -- <root> --publish press/renders/max
 
 Without Max, tools/max/full-render.sh renders the same packs in Cycles.
@@ -67,7 +72,7 @@ def settings(env=None):
 def run(root, shots, turntable, frames, half, aa, light, rerender, progress=None):
     from nightracer import render
     if not render.arnold_available():
-        raise RuntimeError("Arnold is not available in this 3ds Max: install MAXtoA (it ships with Max). "
+        raise RuntimeError("Arnold is not installed in this 3ds Max: install MAXtoA (it ships with Max). "
                            "Not rendering the studio with another renderer.")
     packs = render.list_packs(root)
     if not packs:

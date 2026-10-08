@@ -315,6 +315,29 @@ if not status2["done-car"].startswith("skipped") or not status2["broken-car"].st
 if len(fresh2) != 2 or sorted(r[0].replace("NR_Cam_", "") for r in fresh2) != ["hero", "rear"] \
         or fresh2[0][1:3] != (spec["stills"]["width"] // 2, spec["stills"]["height"] // 2):
     fails.append(f"render_all.py rendered {[(r[0], r[1], r[2]) for r in fresh2]}, not hero and rear at half size")
+# "already rendered" is three things, not one: there, newer than the pack,
+# and at the size this run wants. fresh-car's stills, written by the
+# half-size run above with their notes, do not count for a full-size run;
+# touched older than the pack they count for nothing; without a note they
+# count as they always did.
+import time as _time  # noqa: E402
+fout = os.path.join(root, "fresh-car", "out")
+os.makedirs(os.path.join(fout, "turntable"), exist_ok=True)
+for shot in ("hero", "rear"):
+    open(os.path.join(fout, shot + ".exr"), "w").close()
+half_size = (spec["stills"]["width"] // 2, spec["stills"]["height"] // 2)
+full_size = (spec["stills"]["width"], spec["stills"]["height"])
+if not R._done(os.path.join(root, "fresh-car"), ("hero", "rear"), False, None, half_size):
+    fails.append("_done: a half-size render with its note should count as done for a half-size run")
+if R._done(os.path.join(root, "fresh-car"), ("hero", "rear"), False, None, full_size):
+    fails.append("_done: a half-size render counted as done for a full-size run")
+os.remove(os.path.join(fout, "hero.json"))
+if not R._done(os.path.join(root, "fresh-car"), ("hero",), False, None, full_size):
+    fails.append("_done: a render with no note should count as done, as before the notes")
+old_t = os.path.getmtime(os.path.join(root, "fresh-car", "studio.json")) - 100
+os.utime(os.path.join(fout, "hero.exr"), (old_t, old_t))
+if R._done(os.path.join(root, "fresh-car"), ("hero",), False, None, None):
+    fails.append("_done: a render older than its pack counted as done")
 rep3 = RA.run(**{**st, "rerender": True})
 if any(r["status"].startswith("skipped") for r in rep3):
     fails.append("NR_RERENDER=1 still skipped a car")

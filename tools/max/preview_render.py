@@ -147,8 +147,12 @@ def preview(pack):
     packed = os.path.getmtime(spec_path)
     fresh = lambda path: os.path.exists(path) and os.path.getmtime(path) >= packed
     todo = [s for s in args.shots.split(",") if s and not (args.skip_existing and fresh(os.path.join(out, f"{s}.exr")))]
-    if not todo and not args.turntable:
-        print(f"[preview] {spec['car']}: all shots already rendered", flush=True)
+    tt = spec["turntable"]
+    n_tt = args.frames or tt["frames"]
+    tt_todo = args.turntable and not (args.skip_existing and all(
+        fresh(os.path.join(out, "turntable", "%04d.exr" % (i + 1))) for i in range(n_tt)))
+    if not todo and not tt_todo:
+        print(f"[preview] {spec['car']}: nothing left to render", flush=True)
         return
     sc, cam, pivot = build(pack, spec)
     w, h = int(st["width"] * args.scale), int(st["height"] * args.scale)
@@ -158,11 +162,10 @@ def preview(pack):
         took = render(sc, os.path.abspath(os.path.join(out, f"{name}.exr")), w, h, args.samples)
         print(f"[preview] {spec['car']} {name}: {w}x{h} @ {args.samples} spp in {took:.0f} s", flush=True)
 
-    if args.turntable:
-        tt = spec["turntable"]
+    if tt_todo:
         look(cam, tt["loc"], tt["aim"])
         w, h = int(tt["width"] * args.tt_scale), int(tt["height"] * args.tt_scale)
-        n = args.frames or tt["frames"]
+        n = n_tt
         t0 = time.time()
         for i in range(n):
             frame = os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1)))

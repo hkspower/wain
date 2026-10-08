@@ -52,7 +52,7 @@ const kindOf = (f) => Object.keys(KIND).find((k) => KIND[k].includes(extname(f).
 const PRESS_KIT = new Set([
   "press/cars", "press/renders", "press/logo", "press/shots", "press/social", "press/stories",
   "press/map", "press/flags", "press/intro", "press/menu", "press/film", "press/ik", "press/trailer",
-  "press/police",
+  "press/police", "press/renders/max",
 ]);
 // The map's keep list for the trailer is what git keeps; the export
 // wants the playback MP4s too. And sound-export sits outside press/ and
@@ -110,7 +110,12 @@ const picked = [];
 const skipped = { scratch: 0, split: 0 };
 for (const fam of families) {
   if (!existsSync(fam.path)) continue;
-  const files = walk(fam.path).filter((f) => kindOf(f));
+  // A family declared inside another (press/renders/max under the split
+  // press/renders) is its own: the parent's walk leaves it alone, or its
+  // files are counted as the parent's working files and then filed again
+  // under their own family.
+  const inner = families.filter((o) => o !== fam && o.path.startsWith(fam.path + "/")).map((o) => o.path + "/");
+  const files = walk(fam.path).filter((f) => kindOf(f) && !inner.some((d) => f.startsWith(d)));
   if (fam.kind === "scratch") { skipped.scratch += files.length; continue; }
   for (const f of files) {
     if (fam.kind === "split") {

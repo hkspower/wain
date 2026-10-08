@@ -142,6 +142,14 @@ def mapping_of(tex_node):
             "scale": [round(float(x), 6) for x in m.inputs["Scale"].default_value[:2]]}
 
 
+def write_if_changed(path, text):
+    if os.path.exists(path) and open(path).read() == text:
+        return False
+    with open(path, "w") as f:
+        f.write(text)
+    return True
+
+
 def pack(car):
     glb = os.path.join(args.glb_dir, f"{car}.glb")
     if not os.path.exists(glb):
@@ -287,8 +295,12 @@ def pack(car):
                       "pivot": (c[0], c[1], gz), "loc": tloc, "aim": taim, "fill": round(tworst, 4)},
         "tonemap": "ACES (tools/max/finish_render.py), as the Blender studio set",
     }
-    json.dump(spec, open(os.path.join(out, "studio.json"), "w"), indent=2)
-    json.dump(mats, open(os.path.join(out, "materials.json"), "w"), indent=2)
+    # Written only when the content changed. preview_render.py and the Max
+    # batch count a render as done only if it is newer than studio.json, so
+    # a pack rewritten with the same numbers must keep its date — or every
+    # run of the fleet would start again from the first car.
+    write_if_changed(os.path.join(out, "studio.json"), json.dumps(spec, indent=2))
+    write_if_changed(os.path.join(out, "materials.json"), json.dumps(mats, indent=2))
     print(f"{car}: {len(meshes)} meshes, {len(mats)} materials, {len(images_saved)} textures, "
           f"{mx[0] - mn[0]:.2f} x {mx[1] - mn[1]:.2f} x {mx[2] - mn[2]:.2f} m -> {out}")
     for k, s in shots.items():
