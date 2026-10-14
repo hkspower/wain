@@ -28,6 +28,9 @@ library;
 
 import 'models.dart';
 import 'search.dart' show normalise;
+import 'social_act.dart';
+
+export 'social_act.dart' show SocialAct;
 import 'voice_lines.dart' show isKuwaitNight, isSummerMonth;
 
 /// What the chat remembers about its last answer.
@@ -57,21 +60,6 @@ enum FollowUpKind { newQuestion, refine, more, pick, where, social, ask }
 /// A message that is not about places. The first four are also the greetings
 /// said in front of a question ([FollowUp.opener]). Named as the web names
 /// them, so `name` is the wire value.
-enum SocialAct {
-  salam,
-  greet,
-  morning,
-  evening,
-  how,
-  thanks,
-  afia,
-  who,
-  notShouq,
-  help,
-  bye,
-  ok,
-  no,
-}
 
 /// What an [FollowUpKind.ask] asks for.
 enum AskWhat { subject, area }
@@ -326,9 +314,9 @@ final int _longestPhrase = _socialPhrases.keys
 
 /// Said to a person, around anything: «يا سالم», «والله», «لو سمحت».
 final Set<String> _vocative = _fold(const [
-  'يا', 'سالم', 'اخوي', 'حبيبي', 'والله', 'بالله', 'الله', 'يلا', 'يالله', //
-  'طال', 'عمرك', 'لو', 'سمحت', 'بليز', 'please', 'تكفى', 'ياخي', 'يالغالي', //
-  'الغالي',
+  'يا', 'سالم', 'شوق', 'اخوي', 'اختي', 'حبيبي', 'حبيبتي', 'والله', 'بالله', //
+  'الله', 'يلا', 'يالله', 'طال', 'عمرك', 'لو', 'سمحت', 'سمحتي', 'بليز', //
+  'please', 'تكفى', 'تكفين', 'ياخي', 'يالغالي', 'الغالي', 'الغاليه',
 ]);
 const Set<SocialAct> _openers = {
   SocialAct.salam,
@@ -375,6 +363,103 @@ const List<SocialAct> _priority = [
     if (act != null) return (act, len);
   }
   return null;
+}
+
+/// Only greetings, thanks and «تمام» are taken off a message that goes on
+/// to say something else — «لا أبي شي مو غالي» is not a «no».
+bool _peelable(List<SocialAct> acts) =>
+    acts.every((a) => _openers.contains(a) || _silent.contains(a));
+
+/// What is said to a person at the front and the back of a message, and
+/// where the message itself starts and ends ([i], [j] — exclusive). Every act
+/// is noted; the caller decides what to take off (`socialFrame` on the web).
+({List<SocialAct> lead, List<SocialAct> trail, int i, int j}) socialFrame(
+  List<String> w,
+) {
+  final lead = <SocialAct>[];
+  var i = 0;
+  while (i < w.length) {
+    final p = _phraseAt(w, i);
+    if (p != null) {
+      lead.add(p.$1);
+      i += p.$2;
+    } else if (_vocative.contains(w[i])) {
+      i += 1;
+    } else {
+      break;
+    }
+  }
+  final trail = <SocialAct>[];
+  var j = w.length;
+  while (j > i) {
+    final p = _phraseBefore(w, j, i);
+    if (p != null) {
+      trail.insert(0, p.$1);
+      j -= p.$2;
+    } else if (_vocative.contains(w[j - 1])) {
+      j -= 1;
+    } else {
+      break;
+    }
+  }
+  return (lead: lead, trail: trail, i: i, j: j);
+}
+
+/// Of several acts in one message, the one that is answered, and the
+/// greeting that opens it when the act is one a greeting goes with
+/// (`socialAct` on the web).
+({SocialAct act, SocialAct? opener}) socialAct(List<SocialAct> acts) {
+  // «يا سالم» alone — a vocative with nothing said: a hello.
+  if (acts.isEmpty) return (act: SocialAct.greet, opener: null);
+  final act = _priority.firstWhere(acts.contains);
+  final greeting = acts.where(_openers.contains).firstOrNull;
+  const withGreeting = {
+    SocialAct.how,
+    SocialAct.who,
+    SocialAct.help,
+    SocialAct.notShouq,
+  };
+  return greeting != null &&
+          !_openers.contains(act) &&
+          withGreeting.contains(act)
+      ? (act: act, opener: greeting)
+      : (act: act, opener: null);
+}
+
+/// A message read for what is said to a person: all of it ([social]), or a
+/// greeting in front of a question ([opener], with the question left in the
+/// visitor's own spelling as [rest]), or nothing of the kind (`readSocial` on
+/// the web). The chat and the search screen both read a message this way
+/// first.
+({({SocialAct act, SocialAct? opener})? social, SocialAct? opener, String rest})
+readSocial(String message) {
+  final text = message.trim();
+  final parsed = _wordsOf(text);
+  final words = parsed.words;
+  final units = parsed.units;
+  if (words.isEmpty) return (social: null, opener: null, rest: text);
+  final w = [for (final x in words) x.w];
+  final frame = socialFrame(w);
+  var lead = frame.lead;
+  final trail = frame.trail;
+  var i = frame.i;
+  var j = frame.j;
+  if (i >= j) {
+    return (social: socialAct([...lead, ...trail]), opener: null, rest: '');
+  }
+  if (!_peelable(lead)) {
+    i = 0;
+    lead = const [];
+  }
+  if (!_peelable(trail)) j = w.length;
+  if (i == 0 && j == w.length) return (social: null, opener: null, rest: text);
+  final keptUnits = {for (final x in words.sublist(i, j)) x.unit};
+  final rest = [
+    for (var u = 0; u < units.length; u++)
+      if (keptUnits.contains(u)) units[u],
+  ].join(' ');
+  final opener = lead.where(_openers.contains).firstOrNull;
+  return (social: null, opener: opener != null && i > 0 ? opener : null, rest: rest);
 }
 
 /// A folded word and the typed unit it came from, so the part of a question
@@ -464,59 +549,21 @@ FollowUp readFollowUp(
   // only greetings, thanks and «تمام» are taken off a message that goes on to
   // say something else — «لا أبي شي مو غالي» is not a «no».
   final w = [for (final x in all) x.w];
-  final lead = <SocialAct>[];
-  var i = 0;
-  while (i < w.length) {
-    final p = _phraseAt(w, i);
-    if (p != null) {
-      lead.add(p.$1);
-      i += p.$2;
-    } else if (_vocative.contains(w[i])) {
-      i += 1;
-    } else {
-      break;
-    }
-  }
-  final trail = <SocialAct>[];
-  var j = w.length;
-  while (j > i) {
-    final p = _phraseBefore(w, j, i);
-    if (p != null) {
-      trail.insert(0, p.$1);
-      j -= p.$2;
-    } else if (_vocative.contains(w[j - 1])) {
-      j -= 1;
-    } else {
-      break;
-    }
-  }
+  final frame = socialFrame(w);
+  final lead = frame.lead;
+  final trail = frame.trail;
+  var i = frame.i;
+  var j = frame.j;
 
   // All of it is said to a person: answer that, and read nothing else.
   if (i >= j) {
-    final acts = [...lead, ...trail];
-    if (acts.isEmpty) {
-      return const FollowUp._(FollowUpKind.social, act: SocialAct.greet);
-    }
-    final act = _priority.firstWhere(acts.contains);
-    final greeting = acts.where(_openers.contains).firstOrNull;
-    const withGreeting = {
-      SocialAct.how,
-      SocialAct.who,
-      SocialAct.help,
-      SocialAct.notShouq,
-    };
-    return greeting != null &&
-            !_openers.contains(act) &&
-            withGreeting.contains(act)
-        ? FollowUp._(FollowUpKind.social, act: act, opener: greeting)
-        : FollowUp._(FollowUpKind.social, act: act);
+    final a = socialAct([...lead, ...trail]);
+    return FollowUp._(FollowUpKind.social, act: a.act, opener: a.opener);
   }
   // A greeting in front of a question is answered first; a «no», a «who» or a
   // goodbye in front of one is not a greeting, and the message is read whole.
-  bool peelable(List<SocialAct> acts) =>
-      acts.every((a) => _openers.contains(a) || _silent.contains(a));
-  if (!peelable(lead)) i = 0;
-  if (!peelable(trail)) j = w.length;
+  if (!_peelable(lead)) i = 0;
+  if (!_peelable(trail)) j = w.length;
   final opener = lead.where(_openers.contains).firstOrNull;
   final from = i;
   FollowUp withOpener(FollowUp f) =>

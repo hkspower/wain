@@ -125,11 +125,25 @@ console.log("\n── right to left ──");
 const RTL_EXEMPT = /(MapPin|SearchMap|PlaceMapFrame|LiveMap|CoordinatePicker)\.tsx$/;
 const PHYSICAL =
   /(?<![\w-])(?:ml|mr|pl|pr)-[a-z0-9.[\]/-]+|(?<![\w-])(?:left|right)-[a-z0-9.[\]/-]+|(?<![\w-])text-(?:left|right)(?![\w-])|(?<![\w-])border-[lr](?![\w-])|(?<![\w-])rounded-[lr](?![\w-])/g;
+/* The device's notch is physical too, and it is not a choice of language.
+   env(safe-area-inset-left) is the left edge of the screen in landscape
+   whatever the page's direction, and CSS names the left and right insets only
+   physically (top and bottom are the direction-neutral pair). So a value that
+   takes its inset from one of those two sides is right as written, and a
+   logical form would put the notch's gutter on the far edge in Arabic. The
+   exemption is that value, not a file or a class family: a plain pl-4 beside
+   it is still a finding. SalemChat, WainAiCall and AppTabBar use it, and each
+   pads both sides with the same rule, so there is nothing to mirror. */
+const SAFE_SIDE_INSET = [
+  /\S*(?:pl|ml|left)-\S*env\(safe-area-inset-left\)\S*/g,
+  /\S*(?:pr|mr|right)-\S*env\(safe-area-inset-right\)\S*/g,
+];
 const physical = [];
 for (const f of files) {
   if (RTL_EXEMPT.test(f.path)) continue;
   f.text.split("\n").forEach((line, i) => {
-    for (const m of line.matchAll(PHYSICAL)) physical.push(`${f.path}:${i + 1}  ${m[0]}`);
+    const scanned = SAFE_SIDE_INSET.reduce((s, re) => s.replace(re, " "), line);
+    for (const m of scanned.matchAll(PHYSICAL)) physical.push(`${f.path}:${i + 1}  ${m[0]}`);
   });
 }
 say(

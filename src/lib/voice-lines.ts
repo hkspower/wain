@@ -14,8 +14,16 @@
  */
 import { toStandardArabic } from "@/lib/arabic";
 import { isKuwaitNight, isSummerMonth } from "@/lib/kuwait-time";
+import type { Opener, SocialAct } from "@/lib/social";
 
-export type SpeechPart = { key?: string; text: string; optional?: boolean };
+/**
+ * `optional`: the echo of a spoken question — on screen, never out loud.
+ * `note`: a sentence around the answer rather than the answer — a greeting
+ * said back, «ما عندي «ياباني» بالضبط», «قول لي وش تبي» — shown beside the
+ * lead and said in its place in the sequence, never folded away with the
+ * best time (8 October).
+ */
+export type SpeechPart = { key?: string; text: string; optional?: boolean; note?: boolean };
 
 /**
  * The same sentence, prepared for a voice rather than an eye.
@@ -109,7 +117,84 @@ export const GENERIC_LINES = {
    * says «الصبح» for every one of them.
    */
   "summer-early": "بالصيف روح بدري الصبح، قبل لا يحمى الجو.",
+  /*
+   * Said back to what is said to a person — 8 October, when /search (and the
+   * free call, which lands on it) answered «السلام عليكم» with «ما لقيت شي
+   * بهالكلمة». One fixed sentence each, keyed, so the read-aloud bridge pays
+   * for a greeting once; the two that name the speaker are per persona and
+   * live in `personaLines`. `ask-what` is the search-empty line's own tail,
+   * said after a hello so the visitor knows what to say next, and `ask-area`
+   * answers «قريب مني» from a page that does not know where anyone is.
+   */
+  "social-salam": "وعليكم السلام ورحمة الله!",
+  "social-greet": "هلا والله!",
+  "social-morning": "صباح النور!",
+  "social-evening": "مساء النور!",
+  "social-how": "بخير الحمدلله!",
+  "social-thanks": "العفو! إذا تبي شي ثاني، قول لي.",
+  "social-afia": "الله يعافيك! إذا تبي شي ثاني، قول لي.",
+  "social-help": "أدوّر لك وين تطلع بالكويت — قهوة، بحر، مطاعم، طلعة عيال، أسواق. قول لي وش تبي.",
+  "social-bye": "مع السلامة! تلاقيني هني إذا احتجت شي.",
+  "social-ok": "تمام!",
+  "social-no": "ماشي! إذا غيّرت رايك، قول لي.",
+  "ask-what": "قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال.",
+  "ask-area": "ما أدري وين أنت بالضبط. قول لي المنطقة — السالمية، حولي، مدينة الكويت — وأدوّر لك.",
 } as const;
+
+/** The lines that name the speaker: «مين أنت؟» and «أنت شوق؟». */
+export function personaLines(persona: PersonaId): Record<"social-who" | "social-not-shouq", string> {
+  const name = PERSONAS[persona].nameAr;
+  return {
+    "social-who": `أنا ${name} من وين، أدوّر لك وين تطلع بالكويت.`,
+    "social-not-shouq": persona === "shouq" ? "إيه، أنا شوق!" : `لا، أنا ${name}!`,
+  };
+}
+
+/** What each social act is answered with: its line, then — for a hello, a
+ *  «how are you», a «who are you» — the question back. */
+const SOCIAL_TAIL = new Set<SocialAct>(["salam", "greet", "morning", "evening", "how", "who", "notShouq", "ok"]);
+const SOCIAL_KEY: Record<SocialAct, keyof typeof GENERIC_LINES | "social-who" | "social-not-shouq"> = {
+  salam: "social-salam",
+  greet: "social-greet",
+  morning: "social-morning",
+  evening: "social-evening",
+  how: "social-how",
+  thanks: "social-thanks",
+  afia: "social-afia",
+  who: "social-who",
+  notShouq: "social-not-shouq",
+  help: "social-help",
+  bye: "social-bye",
+  ok: "social-ok",
+  no: "social-no",
+};
+
+function keyed(key: string, persona: PersonaId, note?: boolean): SpeechPart {
+  const text = (GENERIC_LINES as Record<string, string>)[key] ?? personaLines(persona)[key as "social-who"];
+  return note ? { key, text, note: true } : { key, text };
+}
+
+/** The answer to a message that is not about places, in the given voice. */
+export function socialParts(act: SocialAct, opener?: Opener, persona: PersonaId = "shouq"): SpeechPart[] {
+  const parts: SpeechPart[] = [];
+  if (opener) parts.push(keyed(`social-${opener}`, persona, true));
+  parts.push(keyed(SOCIAL_KEY[act], persona));
+  if (SOCIAL_TAIL.has(act)) parts.push(keyed("ask-what", persona, true));
+  return parts;
+}
+
+/** «ما عندي أماكن بالجهراء الحين.» — a part of Kuwait the catalogue has
+ *  nothing in, named back. Not fixed per place, so not a clip. */
+export function elsewhereLine(name: string): string {
+  return `ما عندي أماكن ب${name} الحين. قول لي منطقة ثانية، أو وش تبي وأدوّر لك.`;
+}
+
+/** «ما عندي «ياباني» بالضبط، بس هذا أقرب شي.» — the word the place named
+ *  did not answer, said before the place. */
+export function missedLine(words: string[]): string {
+  const named = words.slice(0, 2).map((w) => `«${w}»`).join(" و");
+  return `ما عندي ${named} بالضبط، بس هذا أقرب شي.`;
+}
 
 export function helloLine(nameAr: string): string {
   return `هلا! أنا ${nameAr}. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي.`;
@@ -174,7 +259,7 @@ const DAYTIME = /(الصبح|بدري|العصر|الظهر|النهار)/;
  * so the Flutter generator (which refuses a field it does not know) is not
  * handed one.
  */
-export function isMorningPlace(p: PlaceLite): boolean {
+export function isMorningPlace(p: Pick<PlaceLite, "bestTimeAr">): boolean {
   return /(الصبح|بدري)/.test(p.bestTimeAr) && !EVENING.test(p.bestTimeAr);
 }
 
@@ -228,6 +313,7 @@ export function buildClipLines(
   const lines: Record<string, string> = {
     hello: helloLine(PERSONAS[persona].nameAr),
     ...GENERIC_LINES,
+    ...personaLines(persona),
   };
   for (const p of list) {
     lines[`try-${p.slug}`] = placeTryLine(p);
@@ -265,27 +351,47 @@ type SuggestHit = { doc: { id: string; kind: string; title: string; subtitle: st
  *
  * `month` and `hour` are Kuwait's, from the caller; without them nothing is
  * said about the season.
+ *
+ * `special`, `opener` and `missed` are `answerOrder`'s reading of the
+ * question (answer-order.ts): a message that is not about places is answered
+ * in words and nothing else; a greeting in front of a question is said back
+ * first; a word the place named did not answer is owned up to before it.
  */
 export function answerParts(
   hits: SuggestHit[],
   places: PlaceLite[],
-  opts: { asked?: string; month?: number; hour?: number } = {}
+  opts: {
+    asked?: string;
+    month?: number;
+    hour?: number;
+    special?: { kind: "social"; act: SocialAct; opener?: Opener } | { kind: "near" } | { kind: "elsewhere"; name: string };
+    opener?: Opener;
+    missed?: string[];
+  } = {}
 ): SpeechPart[] {
   const asked = opts.asked?.trim();
   const echo: SpeechPart[] = asked ? [{ text: `${asked}؟`, optional: true }] : [];
+  const open: SpeechPart[] = opts.opener ? [keyed(`social-${opts.opener}`, "shouq", true)] : [];
+
+  if (opts.special?.kind === "social") return [...echo, ...socialParts(opts.special.act, opts.special.opener)];
+  if (opts.special?.kind === "near") return [...echo, ...open, keyed("ask-area", "shouq")];
+  if (opts.special?.kind === "elsewhere") return [...echo, ...open, { text: elsewhereLine(opts.special.name) }];
 
   const top = places[0];
   if (!top) {
     if (hits.length === 0) {
-      return [...echo, { key: "search-empty", text: GENERIC_LINES["search-empty"] }];
+      return [...echo, ...open, { key: "search-empty", text: GENERIC_LINES["search-empty"] }];
     }
     // Categories, areas or pages only — there is nothing to recommend, so say
     // what was matched rather than inventing a recommendation.
-    return [...echo, { text: `أقرب شي لطلبك: ${hits[0].doc.title}.` }];
+    return [...echo, ...open, { text: `أقرب شي لطلبك: ${hits[0].doc.title}.` }];
   }
 
+  const missed: SpeechPart[] = opts.missed?.length ? [{ text: missedLine(opts.missed), note: true }] : [];
   return [
     ...echo,
+    ...open,
+    ...missed,
     { key: `try-${top.slug}`, text: placeTryLine(top) },
     ...whenParts(top, opts.month, opts.hour),
   ];

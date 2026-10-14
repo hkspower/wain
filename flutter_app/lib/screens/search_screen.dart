@@ -14,6 +14,7 @@ import '../data/categories.g.dart';
 import '../data/models.dart';
 import '../data/places.g.dart';
 import '../data/search.dart';
+import '../data/social_act.dart';
 import '../data/text_kit.dart';
 import '../data/voice_lines.dart';
 import '../map/wain_map.dart';
@@ -126,6 +127,12 @@ class _SearchScreenState extends State<SearchScreen> {
   List<SearchHit> _memoHits = const [];
   List<SearchHit> _memoAll = const [];
   AnswerClock _memoClock = kuwaitClock();
+  // What `answerOrder` read beside the order (8 October): a greeting or a
+  // «who are you», «قريب مني», a part of Kuwait with nothing in it, a word
+  // the place named did not answer.
+  Special? _memoSpecial;
+  SocialAct? _memoOpener;
+  List<String>? _memoMissed;
   @visibleForTesting
   int searchRuns = 0;
 
@@ -143,19 +150,26 @@ class _SearchScreenState extends State<SearchScreen> {
         _memoHits = const [];
         _memoAll = const [];
       } else {
+        // The engine is given the question as `readQuestion` reads it: a
+        // greeting in front taken off, a message that is all greeting not
+        // searched at all (the web's SearchClient, 8 October).
+        final read = readQuestion(q);
         final ordered = answerOrder(
           q,
-          _hits(q, kind: _kind),
+          read.social != null ? const [] : _hits(read.query, kind: _kind),
           searchIndex,
           kPlaces,
           _memoClock,
         );
+        _memoSpecial = ordered.special;
+        _memoOpener = ordered.opener;
+        _memoMissed = ordered.missed;
         _memoHits = ordered.fallback && _kind != 'all' && _kind != 'place'
             ? const []
             : ordered.hits;
         _memoAll = ordered.fallback
             ? answerOrder(q, const [], searchIndex, kPlaces, _memoClock).hits
-            : _hits(q, limit: 200);
+            : _hits(read.query, limit: 200);
       }
     }
     return (_memoHits, _memoAll);
@@ -203,7 +217,33 @@ class _SearchScreenState extends State<SearchScreen> {
     // Kuwait's, read with the hits — it was the device's month, and no hour.
     month: _memoClock.month,
     hour: _memoClock.hour,
+    special: _memoSpecial,
+    opener: _memoOpener,
+    missed: _memoMissed,
   );
+
+  /// What the card shows: the lead line with the notes around it — a
+  /// greeting said back, «ما عندي «ياباني» بالضبط», the question back. The
+  /// best time and the heat line are for the voice, as before; «أقترح
+  /// عليك:» only in front of a place (the web's ShouqAnswer).
+  static String? cardText(List<SpeechPart> parts) {
+    bool isTry(SpeechPart p) => p.key?.startsWith('try-') ?? false;
+    bool isWarning(SpeechPart p) => p.key?.startsWith('summer-') ?? false;
+    var lead = parts.indexWhere(isTry);
+    if (lead < 0) {
+      lead = parts.indexWhere((p) => !p.optional && !p.note && !isWarning(p));
+    }
+    final shown = <String>[];
+    for (var i = 0; i < parts.length; i++) {
+      final p = parts[i];
+      if (i == lead) {
+        shown.add(isTry(p) ? 'أقترح عليك: ${p.text}' : p.text);
+      } else if (p.note) {
+        shown.add(p.text);
+      }
+    }
+    return shown.isEmpty ? null : shown.join(' ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +255,9 @@ class _SearchScreenState extends State<SearchScreen> {
         k: all.where((h) => h.doc.kind == k).length,
     };
     final hitPlaces = _placesOf(hits);
+    // Her answer, once, for the card and for the voice.
+    final parts = q.isEmpty ? const <SpeechPart>[] : _answer(q, hits, hitPlaces);
+    final recommends = parts.any((p) => p.key?.startsWith('try-') ?? false);
     // The active place must still be in the results, or the panel would point
     // at something the list no longer shows.
     final active = hitPlaces.any((p) => p.slug == _activeSlug)
@@ -282,13 +325,21 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 const SizedBox(height: 20),
                 const _EmptyWaysOn(),
-              ] else if (hits.isNotEmpty) ...[
-                if (hitPlaces.isNotEmpty)
+              ] else ...[
+                // Above the branch, as on the web: she answers a greeting, a
+                // «قريب مني» and a part of Kuwait with nothing in it too, and
+                // those have no list under them.
+                if (cardText(parts) case final text?)
                   _AnswerLine(
-                    text: placeTryLine(hitPlaces.first),
+                    text: text,
                     query: q,
-                    onShare: () => _shareFromAnswer(hitPlaces.first.slug),
+                    // «رسّلها للربع» only for a place she named: a greeting
+                    // answered over the hour's picks recommends none of them.
+                    onShare: recommends
+                        ? () => _shareFromAnswer(hitPlaces.first.slug)
+                        : null,
                   ),
+                if (hits.isNotEmpty) ...[
                 Text(
                   countAr(hits.length, kResultsCount),
                   style: wainText(WainText.sm, color: WainColors.ink500),
@@ -344,8 +395,11 @@ class _SearchScreenState extends State<SearchScreen> {
                       onChoose: (s) => setState(() => _activeSlug = s),
                     ),
                   ),
-              ] else
-                _DeadEnd(query: q),
+                ] else if (_memoSpecial is! SocialSpecial)
+                  // «شكراً», «مع السلامة»: nothing was asked, so there is no
+                  // dead end to announce — her word back is the whole of it.
+                  _DeadEnd(query: q, named: _memoSpecial is ElsewhereSpecial),
+              ],
               const SizedBox(height: 24),
             ],
           ),
@@ -679,8 +733,8 @@ class _AnswerLine extends StatelessWidget {
   /// The question, for «كمّل مع سالم» — the same question, in his chat.
   final String query;
 
-  /// «رسّلها للربع» for the place she named.
-  final VoidCallback onShare;
+  /// «رسّلها للربع» for the place she named — none when she named none.
+  final VoidCallback? onShare;
   const _AnswerLine({
     required this.text,
     required this.query,
@@ -710,7 +764,7 @@ class _AnswerLine extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'أقترح عليك: $text',
+                text,
                 style: wainText(
                   WainText.sm,
                   color: WainColors.ink700,
@@ -729,6 +783,7 @@ class _AnswerLine extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (onShare != null)
             FilledButton.icon(
               key: const ValueKey('answer-share'),
               onPressed: onShare,
@@ -881,12 +936,17 @@ class _ResultRow extends StatelessWidget {
 /// The dead end, and a way on from it: browse by category, or call شوق.
 class _DeadEnd extends StatelessWidget {
   final String query;
-  const _DeadEnd({required this.query});
+
+  /// A part of Kuwait with nothing in it is said in her answer above, by
+  /// name; «ما لقينا شي عن «الجهراء»» under it would be the same news told
+  /// colder.
+  final bool named;
+  const _DeadEnd({required this.query, this.named = false});
 
   @override
   Widget build(BuildContext context) {
     return EmptyState(
-      title: 'ما لقينا شي عن «$query»',
+      title: named ? 'جرّب منطقة ثانية' : 'ما لقينا شي عن «$query»',
       action: Column(
         children: [
           Text(

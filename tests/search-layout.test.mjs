@@ -46,6 +46,10 @@ for (const [w, h] of [[390, 844], [320, 640]]) {
   await p.route(/openstreetmap/, (r) => r.abort());
   await p.goto(`${B}/search/?q=${encodeURIComponent(QUERY)}`);
   await p.locator('#wain-search-results [role="option"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+  // The share panel is a chunk of its own since 8 October (SearchPlanLazy),
+  // fetched once there are results: wait for its heading before measuring
+  // where it sits, or the read lands on the placeholder.
+  await p.locator('h2, h3', { hasText: 'رسّلها للربع' }).first().waitFor({ timeout: 8000 }).catch(() => {});
   const m = await measure(p);
   ok('the first result row starts on the first screen', m.row && m.row.top < m.vh, m.row ? `row at ${m.row.top}px, screen ${m.vh}px` : 'no row');
   ok('the share panel comes after the list, not before it', m.row && m.plan && m.plan.top > m.row.top, `row ${m.row?.top}, panel ${m.plan?.top}`);
@@ -74,6 +78,10 @@ console.log('\n── a desktop, 1280px: the map beside the list ──');
   await p.route(/openstreetmap/, (r) => r.abort());
   await p.goto(`${B}/search/?q=${encodeURIComponent(QUERY)}`);
   await p.locator('#wain-search-results [role="option"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+  // The share panel is a chunk of its own since 8 October (SearchPlanLazy),
+  // fetched once there are results: wait for its heading before measuring
+  // where it sits, or the read lands on the placeholder.
+  await p.locator('h2, h3', { hasText: 'رسّلها للربع' }).first().waitFor({ timeout: 8000 }).catch(() => {});
   const m = await measure(p);
   const beside = m.row && m.map && (m.map.right <= m.row.left || m.map.left >= m.row.right);
   ok('the map stands beside the list, not above it', beside, JSON.stringify({ row: m.row, map: m.map }));

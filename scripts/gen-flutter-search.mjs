@@ -37,7 +37,7 @@ writeFileSync(
     // The answer's order and words ride on the search, so they are replayed
     // with it: same documents, same hits, then the same first place and the
     // same sentences.
-    `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n` +
+    `export { answerOrder, readQuestion } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n` +
     `export { GOOGLE_FIGURES } from ${JSON.stringify(join(ROOT, "src/lib/place-reviews.ts"))};\n` +
     `export { answerParts } from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};\n` +
     // سالم's memory reads a short reply against the last answer, folding words
@@ -64,7 +64,7 @@ const docRows = docs
     kind: ${dq(d.kind)},
     title: ${dq(d.title)},
     subtitle: ${dq(d.subtitle)},
-    url: ${dq(d.url)},${d.category ? `\n    category: ${dq(d.category)},` : ""}
+    url: ${dq(d.url)},${d.category ? `\n    category: ${dq(d.category)},` : ""}${d.area ? `\n    area: ${dq(d.area)},` : ""}
     keywords: const ${list(d.keywords)},
     body: ${dq(d.body)},
   )`
@@ -117,6 +117,7 @@ const List<List<String>> kElsewherePhrases = [${S.ELSEWHERE_PHRASES.map(list).jo
 /// \`GOING_OUT\` — a question made of these and filler has no topic, and is
 /// answered with the hour's default pick (answer_order.dart).
 const List<String> kGoingOut = ${list(S.GOING_OUT)};
+const List<String> kNearWords = ${list(S.NEAR_WORDS)};
 
 /// \`GOOGLE_FIGURES\` from place-reviews.ts: secondhand ratings that may ORDER
 /// near-equal matches and may never be shown. (rating, count or null,
@@ -179,22 +180,42 @@ const answerQueries = [
   // What is said around a question, and friends with «my» on them.
   "والله زهقان", "يلا وين نروح", "أبي قهوة لو سمحت", "قريب مني", "مع ربعي", "وين أروح مع خوياي",
   "kahwa", "ba7ar", "mat3am",
+  // Read off a battery against the live build (8 October): what is said to a
+  // person, «قريب مني», a part of Kuwait with nothing in it, a word the place
+  // did not answer, camping, the outing, an area alone, the morning places.
+  "السلام عليكم", "هلا", "شكراً", "مشكور", "مين أنت", "يا شوق شلونك", "مع السلامة", "لا", "تمام",
+  "هلا، أبي قهوة", "صباح الخير وين أفطر", "السلام عليكم أبي بحر", "شكراً وين أتعشى",
+  "قريب مني", "وين أقرب مكان", "شي قريب", "مطعم بالجهراء", "الجهراء", "كافيه بسلوى", "صباح السالم",
+  "مطعم ياباني", "شاطئ في الفحيحيل", "تخييم", "كشتة", "طلعة مع العيال", "طلعة", "أبي طلعة",
+  "السالمية", "حولي", "بالسالمية", "شي رخيص", "سوق الجمعة", "مكان هادي", "العيال",
 ];
 const clocks = [{ month: 0, hour: 14 }, { month: 7, hour: 14 }, { month: 7, hour: 21 }, { month: 0, hour: 8 }];
 const bySlug = new Map(S.places.map((p) => [p.slug, p]));
 const answers = [];
 for (const q of [...new Set(answerQueries)]) {
   for (const clock of clocks) {
-    const hits = S.search(q, index, { limit: 40, kinds: ["place"] });
+    // As /search asks (8 October): the engine is given the question as
+    // `readQuestion` reads it, and what `answerOrder` reads beside the order
+    // — a social act, «قريب مني», a part of Kuwait with nothing in it, a
+    // word the place named did not answer — rides through to the answer.
+    const read = S.readQuestion(q);
+    const hits = read.social ? [] : S.search(read.query, index, { limit: 40, kinds: ["place"] });
     const ordered = S.answerOrder(q, hits, index, S.places, clock);
     const found = ordered.hits.map((h) => bySlug.get(h.doc.id.slice(6))).filter(Boolean);
+    const parts = S.answerParts(ordered.hits, found, {
+      ...clock, special: ordered.special, opener: ordered.opener, missed: ordered.missed,
+    });
     answers.push({
       q,
       month: clock.month,
       hour: clock.hour,
+      query: read.query,
       fallback: ordered.fallback,
+      special: ordered.special ?? null,
+      opener: ordered.opener ?? null,
+      missed: ordered.missed ?? null,
       slugs: found.map((p) => p.slug),
-      parts: S.answerParts(ordered.hits, found, clock).map((p) => [p.key ?? null, p.text]),
+      parts: parts.map((p) => [p.key ?? null, p.text, !!p.note]),
     });
   }
 }
@@ -275,7 +296,7 @@ const fixture = {
   docs: docs.length,
   cases: queries.map((q) => ({
     q,
-    hits: S.search(q, index, { limit: 20 }).map((h) => ({ id: h.doc.id, score: h.score, matched: h.matched })),
+    hits: S.search(q, index, { limit: 20 }).map((h) => ({ id: h.doc.id, score: h.score, matched: h.matched, tokens: h.tokens })),
   })),
   answers,
   followups,

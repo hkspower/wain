@@ -8,7 +8,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/data/answer_order.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/data/search.dart';
+import 'package:wain/data/social_act.dart';
 import 'package:wain/data/voice_lines.dart';
+
+/// The web's shape of `Special`, as the fixture carries it.
+Object? wireSpecial(Special? s) => switch (s) {
+  null => null,
+  SocialSpecial(:final act, :final opener) => {
+    'kind': 'social',
+    'act': socialName(act),
+    if (opener != null) 'opener': socialName(opener),
+  },
+  NearSpecial() => {'kind': 'near'},
+  ElsewhereSpecial(:final name) => {'kind': 'elsewhere', 'name': name},
+};
 
 void main() {
   final fixture = jsonDecode(
@@ -51,6 +64,11 @@ void main() {
           (want[i]['matched'] as List).cast<String>(),
           reason: 'matched terms of #$i',
         );
+        expect(
+          got[i].tokens,
+          (want[i]['tokens'] as List).cast<String>(),
+          reason: 'the words #$i answers with confidence',
+        );
       }
     });
   }
@@ -67,15 +85,29 @@ void main() {
     final q = a['q'] as String;
     final clock = (month: a['month'] as int, hour: a['hour'] as int);
     test('«$q» at ${clock.month}/${clock.hour} answers like the web', () {
+      // As the search screen asks (8 October): the engine is given the
+      // question as `readQuestion` reads it, and what `answerOrder` reads
+      // beside the order rides through to the answer.
+      final read = readQuestion(q);
+      expect(read.query, a['query'], reason: 'the question as searched');
       final ordered = answerOrder(
         q,
-        search(q, index, limit: 40, kinds: const ['place']),
+        read.social != null
+            ? const <SearchHit>[]
+            : search(read.query, index, limit: 40, kinds: const ['place']),
         index,
         kPlaces,
         clock,
       );
       final found = placesOf(ordered.hits, kPlaces);
       expect(ordered.fallback, a['fallback'], reason: 'topicless');
+      expect(wireSpecial(ordered.special), a['special'], reason: 'special');
+      expect(
+        ordered.opener == null ? null : socialName(ordered.opener!),
+        a['opener'],
+        reason: 'opener',
+      );
+      expect(ordered.missed, a['missed'], reason: 'the words not answered');
       expect(
         found.map((p) => p.slug).toList(),
         (a['slugs'] as List).cast<String>(),
@@ -86,10 +118,13 @@ void main() {
         found,
         month: clock.month,
         hour: clock.hour,
+        special: ordered.special,
+        opener: ordered.opener,
+        missed: ordered.missed,
       );
       expect(
         [
-          for (final p in parts) [p.key, p.text],
+          for (final p in parts) [p.key, p.text, p.note],
         ],
         (a['parts'] as List),
         reason: 'what she says',

@@ -36,8 +36,24 @@
  * gives: when nothing cheap or shaded fits, the best of the rest is still the
  * answer — it just must not come first.
  *
+ *  3d. The hour it is: at night a place that only happens in the morning —
+ *     the Friday market, the fish market, the zoo — goes to 0.6 (8 October:
+ *     «العيال» at eight in the evening led with the zoo, «روح الصبح بدري»).
+ *
  * And a question with no topic at all — «وين أروح الحين», «زهقان» — gets a
  * pick for the hour instead of «ما لقيت شي» (`defaultPicks`).
+ *
+ * Three more kinds of question are READ here rather than searched (8
+ * October, off a battery of 52 questions against the live build, where each
+ * was searched and answered «ما لقيت شي بهالكلمة» or with whatever its words
+ * happened to touch): what is said to a person («السلام عليكم», «شكراً»,
+ * «مين أنت» — `readQuestion`, the chat's own reading, from social.ts), «قريب
+ * مني» (the page does not know where anyone is), and a part of Kuwait the
+ * catalogue has nothing in («مطعم بالجهراء» — `elsewhereNamed`). Each comes
+ * back as `special`, and voice-lines.ts has the sentence for it. And when the
+ * place the answer names did not match a word the visitor typed («مطعم
+ * ياباني» → a Kuwaiti grill), `missed` names the word, so the answer can say
+ * it is the nearest thing and not the thing.
  *
  * Deterministic in (query, month, hour), so a test can name the month and the
  * hour; the callers pass Kuwait's (`kuwaitClock`), never the device's.
@@ -48,7 +64,21 @@
 import type { Place } from "@/lib/places";
 import { reorderByReviews } from "@/lib/place-reviews";
 import { isKuwaitNight, isSummerMonth, kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
-import { NEGATORS, isTopicless, normalise, tokenize, type SearchHit, type SearchIndex } from "@/lib/search";
+import {
+  ELSEWHERE_IN_KUWAIT,
+  NEGATORS,
+  PHRASE_PAIRS,
+  declitic,
+  isNearOnly,
+  isTopicless,
+  normalise,
+  readWords,
+  tokenize,
+  type SearchHit,
+  type SearchIndex,
+} from "@/lib/search";
+import { readSocial, type Opener, type SocialAct } from "@/lib/social";
+import { isMorningPlace } from "@/lib/voice-lines";
 
 export interface AnswerClock {
   /** Kuwait's month, 0-based. */
@@ -163,6 +193,12 @@ export function answerFactor(
     const fits = PART_OF_BEST[asks.part].test(best);
     const other = (Object.keys(PART_OF_BEST) as DayPart[]).some((k) => k !== asks.part && PART_OF_BEST[k].test(best));
     if (!fits && other) f *= OTHER_PART;
+  } else if (!asks.part && p.bestTimeAr && isKuwaitNight(clock.hour) && isMorningPlace({ bestTimeAr: p.bestTimeAr })) {
+    // No hour asked for, so the hour it IS: a market that packs up by noon
+    // is not an answer at eight in the evening. Only the morning-only
+    // places, read off their own best time the way the voice lines read it;
+    // a place that names the evening too, or no part, is left alone.
+    f *= OTHER_PART;
   }
   if (asks.inside) {
     // Said, not inferred: no season and no `summerOk` changes it — the
@@ -237,13 +273,98 @@ export function defaultPicks<P extends Rankable & Pick<Place, "tagsAr" | "rating
 const slugOf = (h: SearchHit) => h.doc.id.replace(/^place:/, "");
 
 /**
+ * The part of Kuwait a question names that this catalogue has nothing in —
+ * «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
+ * particle glued to its front; or null. search() answers such a question with
+ * nothing, which is honest; this is what lets the answer say WHY. سالم used to
+ * reply «ما لقيت شي… جرّب اسم منطقة» to the name of a governorate, and /search
+ * «ما لقيت شي بهالكلمة» (8 October).
+ *
+ * Here and not in search.ts, though it is the search's own rule read back,
+ * for the chunk it rides in: this module is loaded where an answer is made —
+ * /search, the chat, the call — and nowhere else.
+ */
+export function elsewhereNamed(query: string, index: SearchIndex): string | null {
+  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
+  const units = query
+    .split(/\s+/)
+    .map((u) => u.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+  for (const unit of units) {
+    const t = tokenize(unit)[0];
+    if (!t) continue;
+    if (elsewhere(t)) return unit;
+    if (declitic(t).some(elsewhere)) {
+      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
+      if (/^[بوفك]ال/.test(unit)) return unit.slice(1);
+      if (unit.startsWith("لل")) return "ال" + unit.slice(2);
+      return unit.slice(1);
+    }
+  }
+  for (let i = 0; i + 1 < units.length; i++) {
+    const a = tokenize(units[i]).at(-1);
+    const b = tokenize(units[i + 1])[0];
+    // Adjacent, and only as the search reads them: «صباح السالم», not
+    // «بصباح السالم» — which the search does not stop either.
+    if (PHRASE_PAIRS.some(([x, y]) => x === a && y === b)) return `${units[i]} ${units[i + 1]}`;
+  }
+  return null;
+}
+
+/** A question read for what is not a search: see the header. */
+export type Special =
+  | { kind: "social"; act: SocialAct; opener?: Opener }
+  | { kind: "near" }
+  | { kind: "elsewhere"; name: string };
+
+/**
+ * The question as the search should be given it: a greeting in front of it
+ * taken off («هلا، أبي قهوة» is «أبي قهوة», with `opener` to answer first),
+ * and a message that is all greeting, thanks or «مين أنت» marked `social`,
+ * with nothing left to search. The caller searches `query`, not what was
+ * typed, or «هلا» would be a word to match — and the word the answer then
+ * says it could not find.
+ */
+export function readQuestion(typed: string): {
+  query: string;
+  social: Extract<Special, { kind: "social" }> | null;
+  opener?: Opener;
+} {
+  const read = readSocial(typed);
+  if (read.social) return { query: "", social: { kind: "social", ...read.social } };
+  return { query: read.rest, social: null, ...(read.opener ? { opener: read.opener } : {}) };
+}
+
+/**
+ * The words of the question the place named did not answer, as the visitor
+ * typed them where that can be told (the engine's reading of «الفحيحيل» is
+ * «فحيحيل»; the typed unit is what she says back).
+ */
+function missedWords(query: string, index: SearchIndex, top: SearchHit | undefined): string[] {
+  if (!top) return [];
+  const words = readWords(query, index);
+  const sure = new Set(top.tokens);
+  const units = query.split(/\s+/).map((u) => u.replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean);
+  return words
+    .filter((w) => !sure.has(w))
+    .map((w) => units.find((u) => [tokenize(u)[0], ...declitic(tokenize(u)[0] ?? "")].includes(w)) ?? w);
+}
+
+/**
  * The search's hits in the order the answer gives them.
  *
  * Only the PLACE hits move, and only among the slots places already hold, so a
  * category or a page stays where the search put it and the list, the map and
  * her answer all read the same first place. A topicless question is answered
  * with `defaultPicks`, drawn from the index's own documents so the list can
- * show them exactly as it shows any other result; `fallback` says so.
+ * show them exactly as it shows any other result; `fallback` says so. So is a
+ * greeting, or «قريب مني» — the picks are what the page shows under the word
+ * back; after thanks or a goodbye it shows nothing, because nothing was asked.
+ *
+ * `query` may be the typed message: a greeting in front of a question is read
+ * off here too, so a caller that did not go through `readQuestion` still gets
+ * the right `special`. The hits must have been searched for the question
+ * WITHOUT the greeting, which is what `readQuestion` is for.
  */
 export function answerOrder(
   query: string,
@@ -251,17 +372,30 @@ export function answerOrder(
   index: SearchIndex,
   places: (Rankable & Pick<Place, "tagsAr" | "rating" | "bestTimeAr">)[],
   clock: AnswerClock = kuwaitClock()
-): { hits: SearchHit[]; fallback: boolean } {
-  if (isTopicless(query)) {
+): { hits: SearchHit[]; fallback: boolean; special?: Special; opener?: Opener; missed?: string[] } {
+  const picks = () => {
     const docs = new Map(index.docs.map((d) => [d.id, d]));
-    const picked = defaultPicks(places, clock).flatMap((p, i) => {
+    return defaultPicks(places, clock).flatMap((p, i) => {
       const doc = docs.get(`place:${p.slug}`);
-      return doc ? [{ doc, score: 1 - i / 100, matched: [] }] : [];
+      return doc ? [{ doc, score: 1 - i / 100, matched: [], tokens: [] }] : [];
     });
-    return { hits: picked, fallback: true };
+  };
+  const read = readQuestion(query);
+  if (read.social) {
+    const { act } = read.social;
+    // Thanks, a goodbye, a «no»: nothing asked, nothing shown. A hello, «how
+    // are you», «who are you»: the picks, under the word back.
+    const quiet = act === "thanks" || act === "afia" || act === "bye" || act === "no";
+    return { hits: quiet ? [] : picks(), fallback: true, special: read.social };
   }
+  const q = read.query;
+  const opener = read.opener ? { opener: read.opener } : {};
+  if (isTopicless(q)) return { hits: picks(), fallback: true, ...opener };
+  if (isNearOnly(q)) return { hits: picks(), fallback: true, special: { kind: "near" }, ...opener };
+  const name = elsewhereNamed(q, index);
+  if (name) return { hits: [], fallback: false, special: { kind: "elsewhere", name }, ...opener };
 
-  const asks = readAsks(query);
+  const asks = readAsks(q);
   const bySlug = new Map(places.map((p) => [p.slug, p]));
   const scored = hits
     .filter((h) => h.doc.kind === "place")
@@ -273,5 +407,11 @@ export function answerOrder(
     .sort((a, b) => b.s - a.s);
   const ordered = reorderByReviews(scored, (x) => x.s, (x) => slugOf(x.h)).map((x) => x.h);
   let k = 0;
-  return { hits: hits.map((h) => (h.doc.kind === "place" ? ordered[k++] : h)), fallback: false };
+  const missed = missedWords(q, index, ordered[0]);
+  return {
+    hits: hits.map((h) => (h.doc.kind === "place" ? ordered[k++] : h)),
+    fallback: false,
+    ...opener,
+    ...(missed.length ? { missed } : {}),
+  };
 }

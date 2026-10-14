@@ -408,6 +408,29 @@ String _misspeltKey(String token, SearchIndex index) {
 }
 
 final Set<String> _goingOut = {for (final w in kGoingOut) normalise(w)};
+final Set<String> _nearSet = {for (final w in kNearWords) normalise(w)};
+
+/// A reading confident enough to say the document answers that word.
+const double _confident = 0.62;
+
+/// «قريب مني» — a question about where the visitor is, which nothing here
+/// knows: filler and a word for «near», and nothing else (`isNearOnly` on
+/// the web).
+bool isNearOnly(String query) {
+  final raw = tokenize(query);
+  return raw.isNotEmpty &&
+      raw.every(_filler.contains) &&
+      raw.any(_nearSet.contains);
+}
+
+/// The readings of a token with a glued particle taken off, longest prefix
+/// first — the engine's own, for the answer's reading of a typed word.
+List<String> declitic(String token) => _declitic(token);
+
+/// The words the engine searched for, as it read them — what a hit's
+/// [SearchHit.tokens] are a subset of (`readWords` on the web).
+List<String> readWords(String query, SearchIndex index) =>
+    _readQuery(query, index)?.raw ?? const [];
 
 /// «وين أروح الحين?» — a wish to go out with nothing to search for: every
 /// token filler, and one of them a going-out word (`isTopicless` on the web).
@@ -524,6 +547,8 @@ List<SearchHit> search(
   final scores = <int, double>{};
   final hitTerms = <int, Set<String>>{};
   final hitTokens = <int, Set<String>>{};
+  // The query words a doc answered with a confident reading — SearchHit.tokens.
+  final hitSure = <int, Set<String>>{};
 
   for (final rawToken in raw) {
     for (final token in _variantsOf(rawToken)) {
@@ -543,6 +568,9 @@ List<SearchHit> search(
           scores[p.docIndex] = (scores[p.docIndex] ?? 0) + add;
           (hitTerms[p.docIndex] ??= <String>{}).add(c.term);
           (hitTokens[p.docIndex] ??= <String>{}).add(rawToken);
+          if (c.boost >= _confident) {
+            (hitSure[p.docIndex] ??= <String>{}).add(rawToken);
+          }
         }
       }
     }
@@ -550,6 +578,15 @@ List<SearchHit> search(
 
   final areaTokens = raw.where((t) => index._areaTerms.contains(t)).toSet();
   final asksForMore = areaTokens.isNotEmpty && areaTokens.length < raw.length;
+  // A question that is ONLY an area — «السالمية» — is answered first by the
+  // places that are IN it; a mention in another place's prose is not its
+  // area (the web's own-area rule, 8 October).
+  final onlyAreaQuery =
+      areaTokens.isNotEmpty && areaTokens.length == raw.length;
+  bool inArea(SearchDoc doc) {
+    final a = doc.area;
+    return a != null && tokenize(a).every(areaTokens.contains);
+  }
 
   final wantedCategories = <String>{};
   for (final rawToken in raw) {
@@ -576,11 +613,13 @@ List<SearchHit> search(
             (0.65 + 0.35 * math.min(1.0, coverage)) *
             kindBoost *
             (onlyArea ? 0.2 : 1.0) *
+            (onlyAreaQuery && inArea(doc) ? 1.5 : 1.0) *
             (doc.category != null && wantedCategories.contains(doc.category)
                 ? 1.5
                 : 1.0) *
             (pushedDown.contains(docIndex) ? 0.1 : 1.0),
         (hitTerms[docIndex] ?? const <String>{}).toList(),
+        (hitSure[docIndex] ?? const <String>{}).toList(),
       ),
     );
   });

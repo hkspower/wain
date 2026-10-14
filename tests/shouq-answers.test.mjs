@@ -11,7 +11,7 @@ import {
   forSpeech,
   GENERIC_LINES,
 } from "@/lib/voice-lines";
-import { answerOrder, defaultPicks } from "@/lib/answer-order";
+import { answerOrder, defaultPicks, readQuestion } from "@/lib/answer-order";
 import { formatShowPlaces } from "@/lib/salem-tools";
 
 let pass = 0;
@@ -33,14 +33,19 @@ const AUG_NIGHT = { month: 7, hour: 21 };
  */
 const ask = (q, opts = {}) => {
   const clock = { month: opts.month ?? JAN.month, hour: opts.hour ?? JAN.hour };
-  const { hits, fallback } = answerOrder(q, search(q, index, { limit: 40 }), index, places, clock);
+  // As /search does it (8 October): the engine searches the question as
+  // `readQuestion` reads it — a greeting in front taken off, a message that is
+  // all greeting not searched — and `answerOrder` reads the rest.
+  const read = readQuestion(q);
+  const raw = read.social ? [] : search(read.query, index, { limit: 40 });
+  const { hits, fallback, special, opener, missed } = answerOrder(q, raw, index, places, clock);
   const hitPlaces = hits
     .filter((h) => h.doc.kind === "place")
     .map((h) => bySlug.get(h.doc.id.replace(/^place:/, "")))
     .filter(Boolean);
   return {
-    hits, hitPlaces, fallback,
-    parts: answerParts(hits, hitPlaces, { ...opts, ...clock }),
+    hits, hitPlaces, fallback, special, opener, missed,
+    parts: answerParts(hits, hitPlaces, { ...opts, ...clock, special, opener, missed }),
     say: (p) => p.map((x) => x.text).join(" "),
   };
 };
@@ -375,6 +380,109 @@ console.log("\n── nothing reaches a voice in a letter it cannot read ──"
   ok("«چاي» becomes something an Arabic engine can say", forSpeech("چاي كرك") === "تشاي كرك", forSpeech("چاي كرك"));
   ok("and the page itself is left alone",
     places.some((p) => /چ/.test(p.taglineAr + p.descriptionAr)));
+}
+
+
+/* 8 October — read off a battery of 52 questions against the live build,
+   where every one of these was searched: greetings answered «ما لقيت شي
+   بهالكلمة», «قريب مني» answered with a Friday market, «الجهراء» with a
+   generic miss, a Japanese restaurant with a Kuwaiti grill and no word about
+   it, camping with a mall, and an outing with the fairground. */
+console.log("\n── what is said to a person is answered as such, on /search too ──");
+{
+  const r = ask("السلام عليكم");
+  ok("«السلام عليكم» is read as a greeting, not searched", r.special?.kind === "social" && r.special.act === "salam");
+  ok("and answered «وعليكم السلام»", r.parts[0]?.key === "social-salam", r.say(r.parts));
+  ok("then asked what they want", r.parts.some((p) => p.key === "ask-what" && p.note), r.say(r.parts));
+  ok("never «ما لقيت شي»", !r.say(r.parts).includes("ما لقيت"), r.say(r.parts));
+  ok("with the hour's picks under it, as a topicless question gets", r.fallback && r.hitPlaces.length > 0);
+  const t = ask("شكراً");
+  ok("«شكراً» is thanked back", t.parts[0]?.key === "social-thanks", t.say(t.parts));
+  ok("and shows nothing — nothing was asked", t.hits.length === 0);
+  const g = ask("هلا، أبي قهوة");
+  ok("a greeting in front of a question is said back first", g.parts[0]?.key === "social-greet" && g.parts[0].note, g.say(g.parts));
+  ok("and the question is answered after it", g.parts.some((p) => p.key?.startsWith("try-")), g.say(g.parts));
+  ok("with a coffee place — the greeting was not searched", g.hitPlaces[0]?.category === "coffee", g.hitPlaces[0]?.slug);
+  ok("and nothing is said to be missing", !g.missed, JSON.stringify(g.missed));
+  const w = ask("مين أنت");
+  ok("«مين أنت» names her", w.parts[0]?.key === "social-who" && w.parts[0].text.includes("شوق"), w.say(w.parts));
+  const h = ask("يا شوق شلونك");
+  ok("«يا شوق شلونك» is «how are you» to her", h.special?.act === "how", JSON.stringify(h.special));
+  // Every keyed social line is a fixed sentence in the clip library, both voices.
+  const clips = { shouq: buildClipLines("shouq", places), salem: buildClipLines("salem", places) };
+  const keys = [...r.parts, ...t.parts, ...g.parts, ...w.parts].filter((p) => p.key).map((p) => p.key);
+  ok("every keyed line is in شوق's clip library, as said", keys.every((k) => clips.shouq[k] === [...r.parts, ...t.parts, ...g.parts, ...w.parts].find((p) => p.key === k).text));
+  ok("and سالم's library has the same keys, in his own name", keys.every((k) => k in clips.salem) && clips.salem["social-who"]?.includes("سالم"));
+}
+
+console.log("\n── «قريب مني» asks where you are, instead of guessing ──");
+{
+  for (const q of ["قريب مني", "وين أقرب مكان", "شي قريب"]) {
+    const r = ask(q);
+    ok(`«${q}» asks for the area`, r.special?.kind === "near" && r.parts.some((p) => p.key === "ask-area"), r.say(r.parts));
+    ok(`  and still shows the hour's picks`, r.fallback && r.hitPlaces.length > 0);
+  }
+}
+
+console.log("\n── a part of Kuwait with nothing in it is named back ──");
+{
+  const cases = [["مطعم بالجهراء", "بالجهراء"], ["الجهراء", "بالجهراء"], ["كافيه بسلوى", "بسلوى"], ["صباح السالم", "بصباح السالم"]];
+  for (const [q, said] of cases) {
+    const r = ask(q);
+    ok(`«${q}» → «ما عندي أماكن ${said}»`, r.special?.kind === "elsewhere" && r.say(r.parts).includes(`ما عندي أماكن ${said}`), r.say(r.parts));
+    ok("  with no places and no «ما لقيت شي»", r.hits.length === 0 && !r.say(r.parts).includes("ما لقيت"));
+  }
+}
+
+console.log("\n── a word the place did not answer is owned up to ──");
+{
+  const r = ask("مطعم ياباني");
+  ok("«مطعم ياباني» still names a restaurant", r.hitPlaces[0]?.category === "restaurants", r.hitPlaces[0]?.slug);
+  ok("and says «ياباني» is not what it has", r.parts.some((p) => p.note && p.text.includes("«ياباني»")), r.say(r.parts));
+  ok("said before the place, not after", r.parts.findIndex((p) => p.note) < r.parts.findIndex((p) => p.key?.startsWith("try-")));
+  const c = ask("قهوة هادية");
+  ok("«قهوة هادية» has nothing to own up to", !c.missed && !c.parts.some((p) => p.note), JSON.stringify(c.missed));
+  const f = ask("شاطئ في الفحيحيل");
+  ok("«شاطئ في الفحيحيل» owns up to the area, as typed", f.missed?.includes("الفحيحيل"), JSON.stringify(f.missed));
+}
+
+console.log("\n── camping is the desert, not a mall ──");
+{
+  const r = ask("تخييم");
+  const k = ask("كشتة");
+  ok("«تخييم» finds something", r.hitPlaces.length > 0);
+  ok("and it is what «كشتة» finds, not a mall", r.hitPlaces[0]?.slug === k.hitPlaces[0]?.slug && r.hitPlaces[0]?.category !== "shopping", r.hitPlaces[0]?.slug);
+}
+
+console.log("\n── the outing is the outing ──");
+{
+  const r = ask("طلعة مع العيال");
+  const k = ask("العيال");
+  ok("«طلعة مع العيال» leads with what «العيال» leads with", r.hitPlaces[0]?.slug === k.hitPlaces[0]?.slug, `${r.hitPlaces[0]?.slug} vs ${k.hitPlaces[0]?.slug}`);
+  ok("and the first place is a kids' place", r.hitPlaces[0]?.tagsAr.includes("عيال"), r.hitPlaces[0]?.slug);
+  ok("«طلعة» alone is a wish to go out", ask("طلعة").fallback && ask("أبي طلعة").fallback);
+}
+
+console.log("\n── an area alone leads with its own places ──");
+{
+  for (const [q, area] of [["السالمية", "السالمية"], ["حولي", "حولي"], ["بالسالمية", "السالمية"]]) {
+    for (const clock of [JAN, AUG_NIGHT, { month: 0, hour: 21 }]) {
+      const r = ask(q, clock);
+      ok(`«${q}» at ${clock.hour}:00 (month ${clock.month}) leads with a place in ${area}`, r.hitPlaces[0]?.areaAr === area, r.hitPlaces[0]?.slug);
+    }
+  }
+}
+
+console.log("\n── a morning market is not an evening answer ──");
+{
+  for (const q of ["العيال", "شي رخيص", "سوق"]) {
+    const r = ask(q, { month: 0, hour: 20 });
+    ok(`«${q}» at eight in the evening does not lead with a morning-only place`, r.hitPlaces[0] && !isMorningPlace(r.hitPlaces[0]), r.hitPlaces[0]?.slug);
+  }
+  const m = ask("سوق الجمعة", { month: 0, hour: 20 });
+  ok("but a morning place asked for by name is still the answer", m.hitPlaces[0]?.slug === "friday-market", m.hitPlaces[0]?.slug);
+  const d = ask("سوق", { month: 0, hour: 9 });
+  ok("and in the morning the morning places are not pushed", d.hitPlaces.slice(0, 3).some((p) => isMorningPlace(p)), d.hitPlaces.slice(0, 3).map((p) => p.slug).join(","));
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);

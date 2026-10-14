@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
-import SearchPlan from "@/components/SearchPlan";
+import SearchPlan from "@/components/SearchPlanLazy";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
 import SearchHub from "@/components/SearchHub";
@@ -19,7 +19,7 @@ import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
 import type { Place } from "@/lib/places";
-import { answerOrder, kuwaitClock } from "@/lib/answer-order";
+import { answerOrder, kuwaitClock, readQuestion } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
 import { callActive } from "@/lib/wain-ai-bus";
@@ -94,13 +94,28 @@ export default function SearchClient() {
    * price the question asked for and the reviews have already had their say.
    * A question with no topic («وين أروح الحين») comes back as the hour's
    * default picks, which is what the list then shows.
+   *
+   * The engine is given the question as `readQuestion` reads it (8 October):
+   * a greeting in front of it taken off, and a message that is all greeting
+   * not searched at all — «هلا» was a word to match, and «السلام عليكم» was
+   * answered «ما لقيت شي بهالكلمة». What `answerOrder` reads beside the
+   * order — a social act, «قريب مني», a part of Kuwait with nothing in it, a
+   * word the place named did not answer — rides through to the answer.
    */
-  const { hits, fallback, clock } = useMemo(() => {
+  const { hits, fallback, clock, special, opener, missed } = useMemo(() => {
     const clock = kuwaitClock();
-    const raw = search(deferredQ, index, { limit: 40, kinds: kind === "all" ? undefined : [kind] });
+    const read = readQuestion(deferredQ);
+    const raw = read.social ? [] : search(read.query, index, { limit: 40, kinds: kind === "all" ? undefined : [kind] });
     const ordered = answerOrder(deferredQ, raw, index, places, clock);
     const shown = ordered.fallback && kind !== "all" && kind !== "place" ? [] : ordered.hits;
-    return { hits: shown, fallback: ordered.fallback, clock };
+    return {
+      hits: shown,
+      fallback: ordered.fallback,
+      clock,
+      special: ordered.special,
+      opener: ordered.opener,
+      missed: ordered.missed,
+    };
   }, [deferredQ, index, kind, places]);
 
   // The place hits, in result order, resolved back to full records so the map
@@ -167,7 +182,7 @@ export default function SearchClient() {
     // nothing she said.
     const all = fallback
       ? answerOrder(deferredQ, [], index, places).hits
-      : search(deferredQ, index, { limit: 200 });
+      : search(readQuestion(deferredQ).query, index, { limit: 200 });
     return {
       all: all.length,
       place: all.filter((h) => h.doc.kind === "place").length,
@@ -250,9 +265,12 @@ export default function SearchClient() {
             // is said at all, was not read.
             month: clock.month,
             hour: clock.hour,
+            special,
+            opener,
+            missed,
           })
         : [],
-    [deferredQ, hits, hitPlaces, asked, clock]
+    [deferredQ, hits, hitPlaces, asked, clock, special, opener, missed]
   );
 
   // صوت وين: once a search settles, say the best suggestion out loud —
@@ -557,6 +575,10 @@ export default function SearchClient() {
                empty state below announces a dead end, and announcing one mid-word
                is the single most annoying thing a live search box can do. */
             null
+          ) : special?.kind === "social" ? (
+            /* «شكراً», «مع السلامة»: nothing was asked, so there is no dead end
+               to announce — her word back, above, is the whole of it. */
+            null
           ) : (
             <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100 py-16 text-center">
               <span
@@ -565,9 +587,14 @@ export default function SearchClient() {
               >
                 <IconCompass className="size-9" />
               </span>
-              <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
-                ما لقينا شي عن «{q.trim()}»
-              </h2>
+              {/* A part of Kuwait with nothing in it is said in her answer
+                  above, by name; «ما لقينا شي عن «الجهراء»» under it would be
+                  the same news told colder. */}
+              {special?.kind !== "elsewhere" && (
+                <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
+                  ما لقينا شي عن «{q.trim()}»
+                </h2>
+              )}
 
               {/* A dead end used to offer one way out — «تصفّح الأماكن», the whole
                   catalogue — which answers "I give up" and not "I still want

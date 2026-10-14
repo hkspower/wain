@@ -45,15 +45,24 @@
  * SalemChat loads it with the index, never up front.
  */
 import type { Place } from "@/lib/places";
-import {
-  ELSEWHERE_IN_KUWAIT,
-  PHRASE_PAIRS,
-  declitic,
-  normalise,
-  tokenize,
-  type SearchIndex,
-} from "@/lib/search";
+import { normalise } from "@/lib/search";
 import { isKuwaitNight, isSummerMonth } from "@/lib/kuwait-time";
+import {
+  OPENERS,
+  SILENT,
+  socialAct,
+  socialFrame,
+  splitWords,
+  type Opener,
+  type SocialAct,
+} from "@/lib/social";
+
+/* The social table and the part of Kuwait a question names moved out on
+ * 8 October, so /search reads both the same way: social.ts, and
+ * `elsewhereNamed` in answer-order.ts. Re-exported here so the chat and the
+ * fixture generator keep their imports. */
+export type { Opener, SocialAct };
+export { elsewhereNamed } from "@/lib/answer-order";
 
 /** What the chat remembers about its last answer. */
 export interface ChatContext {
@@ -66,11 +75,6 @@ export interface ChatContext {
   /** The ones on screen in the latest turn. */
   shown: string[];
 }
-
-/** A greeting said in front of a question, answered before the answer. */
-export type Opener = "salam" | "greet" | "morning" | "evening";
-/** A message that is not about places. */
-export type SocialAct = Opener | "how" | "thanks" | "afia" | "who" | "notShouq" | "help" | "bye" | "ok" | "no";
 
 export type FollowUp =
   | { kind: "new"; query: string; opener?: Opener }
@@ -154,67 +158,6 @@ const REFINERS = fold([
   "ليل", "بالليل", "الليله", "سهره", "عشا", "غدا", "فطور", "ريوق", "الصبح", "العصر", "الحين", "باجر", "الويكند",
 ]);
 
-/**
- * The things people say to a person and not to a search box. Each phrase is
- * folded the way the message is, so «شكراً» and «شكرا» are one entry, and
- * matched as whole words at a word boundary: «السلام» opens «السلام عليكم» and
- * is never looked for inside «قصر السلام».
- */
-const SOCIAL: [SocialAct, string[]][] = [
-  ["salam", ["السلام عليكم", "سلام عليكم", "السلام عليكم ورحمه الله", "السلام عليكم ورحمه الله وبركاته", "السلام", "سلام"]],
-  ["greet", ["هلا", "هلا والله", "هلا وغلا", "هلا فيك", "هلا بك", "يا هلا", "اهلا", "اهلين", "اهلا وسهلا", "مرحبا", "مرحبتين", "هاي", "هلو", "hi", "hello", "hey", "salam"]],
-  ["morning", ["صباح الخير", "صباح النور", "صباح الورد", "صباحو", "good morning"]],
-  ["evening", ["مساء الخير", "مساء النور", "مساء الورد", "مسا الخير", "good evening"]],
-  ["how", ["شلونك", "شلونكم", "شلونك اليوم", "شلون حالك", "شخبارك", "شخبارك اليوم", "شلون الحال", "كيفك", "كيف حالك", "عساك بخير", "عساك طيب", "how are you"]],
-  ["thanks", ["شكرا", "شكرا لك", "شكرا جزيلا", "مشكور", "مشكوره", "تسلم", "تسلم يدك", "تسلم ايدك", "ما قصرت", "كفو", "مرسي", "ميرسي", "ثانكس", "ثانكيو", "جزاك الله خير", "يزاك الله خير", "الله يجزاك خير", "thanks", "thank you", "thx", "ty"]],
-  ["afia", ["يعطيك العافيه", "الله يعطيك العافيه", "عطاك الله العافيه"]],
-  ["who", ["مين انت", "منو انت", "من انت", "انت مين", "انت منو", "شنو اسمك", "وش اسمك", "شسمك", "شو اسمك", "اسمك", "شنو انت", "انت شنو", "انت بوت", "انت روبوت", "انت انسان", "who are you", "what is your name", "whats your name"]],
-  ["notShouq", ["انت شوق", "انتي شوق", "هذي شوق", "انت شوق ولا سالم"]],
-  ["help", ["شنو تقدر تسوي", "شنو تسوي", "وش تقدر تسوي", "وش تسوي", "شتسوي", "شنو عندك", "وش عندك", "شعندك", "ساعدني", "كيف استخدمك", "شلون استخدمك", "شلون استخدمه", "help"]],
-  ["bye", ["مع السلامه", "باي", "باي باي", "يلا باي", "يلا سلام", "فمان الله", "في امان الله", "تصبح علي خير", "تصبحون علي خير", "الله وياك", "bye", "bye bye", "goodbye"]],
-  ["ok", ["اوكي", "اوك", "اوكيه", "ok", "okay", "تمام", "طيب", "زين", "ماشي", "حلو", "ايه", "اي", "اكيد", "نعم", "يب", "يس", "yes", "هه", "ه", "هاها", "lol"]],
-  ["no", ["لا", "لا شكرا", "لا مشكور", "no", "no thanks"]],
-];
-/** Phrase (folded words, space-joined) → what it is. */
-const SOCIAL_PHRASES = new Map<string, SocialAct>();
-for (const [act, phrases] of SOCIAL) {
-  for (const p of phrases) SOCIAL_PHRASES.set(splitWords(normalise(p)).join(" "), act);
-}
-const LONGEST_PHRASE = Math.max(...[...SOCIAL_PHRASES.keys()].map((k) => k.split(" ").length));
-/** Said to a person, around anything: «يا سالم», «والله», «لو سمحت». */
-const VOCATIVE = fold([
-  "يا", "سالم", "اخوي", "حبيبي", "والله", "بالله", "الله", "يلا", "يالله", "طال", "عمرك", "لو", "سمحت", "بليز",
-  "please", "تكفى", "ياخي", "يالغالي", "الغالي",
-]);
-const OPENERS = new Set<SocialAct>(["salam", "greet", "morning", "evening"]);
-/** Taken off the front or the back of a question without a word said back. */
-const SILENT = new Set<SocialAct>(["thanks", "afia", "ok"]);
-/** When a message is several of these, the one that is answered. */
-const PRIORITY: SocialAct[] = [
-  "notShouq", "who", "help", "how", "bye", "afia", "thanks", "no", "ok", "salam", "morning", "evening", "greet",
-];
-
-function splitWords(folded: string): string[] {
-  return folded.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-}
-
-/** The social phrase starting at `i`, longest first. */
-function phraseAt(words: string[], i: number): { act: SocialAct; len: number } | null {
-  for (let len = Math.min(LONGEST_PHRASE, words.length - i); len >= 1; len--) {
-    const act = SOCIAL_PHRASES.get(words.slice(i, i + len).join(" "));
-    if (act) return { act, len };
-  }
-  return null;
-}
-/** The social phrase ending at `j` (exclusive), longest first. */
-function phraseBefore(words: string[], j: number, from: number): { act: SocialAct; len: number } | null {
-  for (let len = Math.min(LONGEST_PHRASE, j - from); len >= 1; len--) {
-    const act = SOCIAL_PHRASES.get(words.slice(j - len, j).join(" "));
-    if (act) return { act, len };
-  }
-  return null;
-}
-
 /** A message as words, each folded, and the stretch of the TYPED text it came
  *  from — so the part of a question left after its greeting is handed on in
  *  the visitor's own spelling. */
@@ -291,39 +234,12 @@ export function readFollowUp(
   // only greetings, thanks and «تمام» are taken off a message that goes on to
   // say something else — «لا أبي شي مو غالي» is not a «no».
   const w = all.map((x) => x.w);
-  const lead: SocialAct[] = [];
-  let i = 0;
-  while (i < w.length) {
-    const p = phraseAt(w, i);
-    if (p) {
-      lead.push(p.act);
-      i += p.len;
-    } else if (VOCATIVE.has(w[i])) {
-      i += 1;
-    } else break;
-  }
-  const trail: SocialAct[] = [];
-  let j = w.length;
-  while (j > i) {
-    const p = phraseBefore(w, j, i);
-    if (p) {
-      trail.unshift(p.act);
-      j -= p.len;
-    } else if (VOCATIVE.has(w[j - 1])) {
-      j -= 1;
-    } else break;
-  }
+  const frame = socialFrame(w);
+  const { lead, trail } = frame;
+  let { i, j } = frame;
 
   // All of it is said to a person: answer that, and read nothing else.
-  if (i >= j) {
-    const acts = [...lead, ...trail];
-    if (acts.length === 0) return { kind: "social", act: "greet" }; // «يا سالم»
-    const act = PRIORITY.find((a) => acts.includes(a))!;
-    const greeting = acts.find((a) => OPENERS.has(a)) as Opener | undefined;
-    return greeting && !OPENERS.has(act) && ["how", "who", "help", "notShouq"].includes(act)
-      ? { kind: "social", act, opener: greeting }
-      : { kind: "social", act };
-  }
+  if (i >= j) return { kind: "social", ...socialAct([...lead, ...trail]) };
   // A greeting in front of a question is answered first; a «no», a «who» or a
   // goodbye in front of one is not a greeting, and the message is read whole.
   const peelable = (acts: SocialAct[]) => acts.every((a) => OPENERS.has(a) || SILENT.has(a));
@@ -427,44 +343,6 @@ export function readFollowUp(
 export function withinAnswer(ranked: string[], ctx: ChatContext): string[] {
   const had = new Set(ctx.ranked);
   return ranked.filter((s) => had.has(s));
-}
-
-/**
- * The part of Kuwait a question names that this catalogue has nothing in —
- * «الجهراء», «بسلوى», «صباح السالم» — as the visitor wrote it, without the
- * particle glued to its front; or null. search() answers such a question with
- * nothing, which is honest; this is what lets the answer say WHY. سالم used to
- * reply «ما لقيت شي… جرّب اسم منطقة» to the name of a governorate (8 October).
- *
- * Here and not in search.ts, though it is the search's own rule read back:
- * only سالم says it, and an export of search.ts ships on /search whether
- * /search calls it or not — it put /search at 175.9K of its 176K.
- */
-export function elsewhereNamed(query: string, index: SearchIndex): string | null {
-  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
-  const units = query
-    .split(/\s+/)
-    .map((u) => u.replace(/[^\p{L}\p{N}]/gu, ""))
-    .filter(Boolean);
-  for (const unit of units) {
-    const t = tokenize(unit)[0];
-    if (!t) continue;
-    if (elsewhere(t)) return unit;
-    if (declitic(t).some(elsewhere)) {
-      // «بالجهراء» → «الجهراء», «للجهراء» → «الجهراء», «بسلوى» → «سلوى».
-      if (/^[بوفك]ال/.test(unit)) return unit.slice(1);
-      if (unit.startsWith("لل")) return "ال" + unit.slice(2);
-      return unit.slice(1);
-    }
-  }
-  for (let i = 0; i + 1 < units.length; i++) {
-    const a = tokenize(units[i]).at(-1);
-    const b = tokenize(units[i + 1])[0];
-    // Adjacent, and only as the search reads them: «صباح السالم», not
-    // «بصباح السالم» — which the search does not stop either.
-    if (PHRASE_PAIRS.some(([x, y]) => x === a && y === b)) return `${units[i]} ${units[i + 1]}`;
-  }
-  return null;
 }
 
 /** The next places of the same answer, for «غيره». Empty when it has none. */

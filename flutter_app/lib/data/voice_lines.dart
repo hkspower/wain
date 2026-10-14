@@ -7,6 +7,7 @@ library;
 
 import 'arabic.dart';
 import 'models.dart';
+import 'social_act.dart';
 
 final RegExp _arDigit = RegExp('[٠-٩]');
 
@@ -39,7 +40,96 @@ const Map<String, String> kGenericLines = {
   'summer-outdoor': 'بالصيف لا تروح إلا عقب المغرب، النهار حر.',
   'summer-mixed': 'بالنهار خلك بالمكيّف، والمكشوف عقب المغرب.',
   'summer-early': 'بالصيف روح بدري الصبح، قبل لا يحمى الجو.',
+  // Said back to what is said to a person (8 October) — the web's lines,
+  // keyed the same, so the clip library is one library.
+  'social-salam': 'وعليكم السلام ورحمة الله!',
+  'social-greet': 'هلا والله!',
+  'social-morning': 'صباح النور!',
+  'social-evening': 'مساء النور!',
+  'social-how': 'بخير الحمدلله!',
+  'social-thanks': 'العفو! إذا تبي شي ثاني، قول لي.',
+  'social-afia': 'الله يعافيك! إذا تبي شي ثاني، قول لي.',
+  'social-help':
+      'أدوّر لك وين تطلع بالكويت — قهوة، بحر، مطاعم، طلعة عيال، أسواق. قول لي وش تبي.',
+  'social-bye': 'مع السلامة! تلاقيني هني إذا احتجت شي.',
+  'social-ok': 'تمام!',
+  'social-no': 'ماشي! إذا غيّرت رايك، قول لي.',
+  'ask-what': 'قول لي وش تبي — قهوة، بحر، مطعم، ولا طلعة عيال.',
+  'ask-area':
+      'ما أدري وين أنت بالضبط. قول لي المنطقة — السالمية، حولي، مدينة الكويت — وأدوّر لك.',
 };
+
+/// The lines that name the speaker: «مين أنت؟» and «أنت شوق؟».
+Map<String, String> personaLines(PersonaId persona) {
+  final name = kPersonas[persona]!.nameAr;
+  return {
+    'social-who': 'أنا $name من وين، أدوّر لك وين تطلع بالكويت.',
+    'social-not-shouq': persona == PersonaId.shouq
+        ? 'إيه، أنا شوق!'
+        : 'لا، أنا $name!',
+  };
+}
+
+/// What is read beside the answer rather than searched for — the web's
+/// `Special` (answer-order.ts): a message that is not about places, «قريب
+/// مني», or a part of Kuwait the catalogue has nothing in.
+sealed class Special {
+  const Special();
+}
+
+class SocialSpecial extends Special {
+  final SocialAct act;
+  final SocialAct? opener;
+  const SocialSpecial(this.act, [this.opener]);
+}
+
+class NearSpecial extends Special {
+  const NearSpecial();
+}
+
+class ElsewhereSpecial extends Special {
+  final String name;
+  const ElsewhereSpecial(this.name);
+}
+
+/// The acts answered with the question back after their line.
+const Set<SocialAct> _socialTail = {
+  SocialAct.salam,
+  SocialAct.greet,
+  SocialAct.morning,
+  SocialAct.evening,
+  SocialAct.how,
+  SocialAct.who,
+  SocialAct.notShouq,
+  SocialAct.ok,
+};
+
+SpeechPart _keyed(String key, PersonaId persona, {bool note = false}) {
+  final text = kGenericLines[key] ?? personaLines(persona)[key]!;
+  return SpeechPart(key: key, text: text, note: note);
+}
+
+/// The answer to a message that is not about places, in the given voice
+/// (`socialParts` on the web).
+List<SpeechPart> socialParts(
+  SocialAct act, [
+  SocialAct? opener,
+  PersonaId persona = PersonaId.shouq,
+]) => [
+  if (opener != null) _keyed(socialKey(opener), persona, note: true),
+  _keyed(socialKey(act), persona),
+  if (_socialTail.contains(act)) _keyed('ask-what', persona, note: true),
+];
+
+/// «ما عندي أماكن بالجهراء الحين.» — not fixed per place, so not a clip.
+String elsewhereLine(String name) =>
+    'ما عندي أماكن ب$name الحين. قول لي منطقة ثانية، أو وش تبي وأدوّر لك.';
+
+/// «ما عندي «ياباني» بالضبط، بس هذا أقرب شي.» — said before the place.
+String missedLine(List<String> words) {
+  final named = words.take(2).map((w) => '«$w»').join(' و');
+  return 'ما عندي $named بالضبط، بس هذا أقرب شي.';
+}
 
 String helloLine(String nameAr) =>
     'هلا! أنا $nameAr. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي.';
@@ -80,6 +170,7 @@ Map<String, String> buildClipLines(PersonaId persona, List<Place> list) {
   final lines = <String, String>{
     'hello': helloLine(kPersonas[persona]!.nameAr),
     ...kGenericLines,
+    ...personaLines(persona),
   };
   for (final p in list) {
     lines['try-${p.slug}'] = placeTryLine(p);
@@ -94,7 +185,17 @@ class SpeechPart {
   final String? key;
   final String text;
   final bool optional;
-  const SpeechPart({this.key, required this.text, this.optional = false});
+
+  /// A sentence around the answer rather than the answer — a greeting said
+  /// back, «ما عندي «ياباني» بالضبط», «قول لي وش تبي» — shown beside the lead
+  /// and said in its place, never folded away (`note` on the web).
+  final bool note;
+  const SpeechPart({
+    this.key,
+    required this.text,
+    this.optional = false,
+    this.note = false,
+  });
 }
 
 List<SpeechPart> helloParts(PersonaId persona) => [
@@ -136,24 +237,49 @@ List<SpeechPart> answerParts(
   String? asked,
   int? month,
   int? hour,
+  Special? special,
+  SocialAct? opener,
+  List<String>? missed,
 }) {
   final a = asked?.trim();
   final echo = (a != null && a.isNotEmpty)
       ? [SpeechPart(text: '$a؟', optional: true)]
       : <SpeechPart>[];
+  final open = opener != null
+      ? [_keyed(socialKey(opener), PersonaId.shouq, note: true)]
+      : <SpeechPart>[];
+
+  switch (special) {
+    case SocialSpecial(:final act, :final opener):
+      return [...echo, ...socialParts(act, opener)];
+    case NearSpecial():
+      return [...echo, ...open, _keyed('ask-area', PersonaId.shouq)];
+    case ElsewhereSpecial(:final name):
+      return [...echo, ...open, SpeechPart(text: elsewhereLine(name))];
+    case null:
+      break;
+  }
 
   if (places.isEmpty) {
     if (hitTitles.isEmpty) {
       return [
         ...echo,
+        ...open,
         SpeechPart(key: 'search-empty', text: kGenericLines['search-empty']!),
       ];
     }
-    return [...echo, SpeechPart(text: 'أقرب شي لطلبك: ${hitTitles.first}.')];
+    return [
+      ...echo,
+      ...open,
+      SpeechPart(text: 'أقرب شي لطلبك: ${hitTitles.first}.'),
+    ];
   }
   final top = places.first;
   return [
     ...echo,
+    ...open,
+    if (missed != null && missed.isNotEmpty)
+      SpeechPart(text: missedLine(missed), note: true),
     SpeechPart(key: 'try-${top.slug}', text: placeTryLine(top)),
     ...whenParts(top, month, hour),
   ];

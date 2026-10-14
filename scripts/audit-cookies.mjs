@@ -189,8 +189,20 @@ const unmeasured = new Set();
   else if (!gated) problems.push("wain-ai-bus.ts: loadWidget no longer refuses when agent mode is off");
   else notes.push("the call widget is injected only by loadWidget(), which refuses when agent mode is off");
 
+  /* The rule is about what loads from somewhere else on every page. One inline
+     script is the exception, and it is named: STANDALONE_BEFORE_PAINT, the
+     constant that marks the installed app before first paint (layout.tsx, the
+     8 October Safari batch). It has no src, its body is a string literal, and it
+     carries nothing of the visitor's. Any other script tag, or any script with a
+     src, is still a problem. Matched by name and shape, not by "inline". */
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
-  if (/<script\s/.test(layout)) problems.push("layout.tsx has a <script> tag — nothing third-party belongs on every page");
+  const scriptTags = [...layout.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+  const beforePaint = /^<script\s+dangerouslySetInnerHTML=\{\{\s*__html:\s*STANDALONE_BEFORE_PAINT\s*\}\}\s*\/?>$/;
+  const strays = scriptTags.filter((t) => !beforePaint.test(t));
+  const literalBody = /const STANDALONE_BEFORE_PAINT =\s*'[^'\n]*'(?:\s*\+\s*'[^'\n]*')*;/;
+  if (strays.length) problems.push(`layout.tsx has a script tag that is not the before-paint constant — ${strays[0]}`);
+  else if (!literalBody.test(layout)) problems.push("layout.tsx: STANDALONE_BEFORE_PAINT is no longer a string-literal constant");
+  else notes.push("layout.tsx has one inline script, the named before-paint constant: no src, a literal body");
 }
 
 // ── 4. and now the browser: load every page and ask it ─────────────────────

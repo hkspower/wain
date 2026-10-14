@@ -7063,3 +7063,203 @@ The lesson `WAIN_AI_CHAT_COPY` taught on 7 October: an export ships wherever its
 
 **Not measured:** a real phone; Safari with storage blocked (Chromium with the storage getters throwing stood
 in); what people type beyond the cases read; the app on a device — it reaches phones only through a new build.
+
+## «fix safari issue» — 8 October (built and gated; not deployed)
+
+Asked with no detail, the morning after a report that ended «real Safari with
+cookies blocked was simulated in Chromium». Every browser suite here is
+Chromium, so a rule that exists because of Safari passes with it and without
+it. Two ways in, then every finding measured or traced before it was fixed:
+
+- **A real WebKit**: WebKitGTK 2.52 (MiniBrowser + WebKitWebDriver, from apt,
+  under xvfb), driven by a small W3C WebDriver client against the live build
+  with the production headers. Every route, navigation, search, سالم, share,
+  the vote, the service worker, storage blocked, the call widget's refuse and
+  connect paths: working. What it cannot show is everything iOS adds — touch,
+  the keyboard, the audio session, Siri, standalone, CoreText.
+- **Five read-only reviewers**, one area each, reading WebKit's source and BCD
+  for the rest. Each finding below was reproduced or traced through the code
+  before it was fixed; the ones that were not are listed at the end.
+
+**Measured in WebKit, then fixed:**
+
+- **/explore moved under the reader.** Safari renders `content-visibility`
+  since 18 and has no scroll anchoring before 27 (BCD), so a skipped card
+  coming in above the reader at its real height moved the page: a jump deep
+  into the list and 800px back up left the card being read **74px** off
+  (Chromium 0). `@supports not (overflow-anchor: auto)` turns `.card-defer`
+  off; re-measured on the new build, **0**.
+- **«اكتب ل{SALEM_NAME}» drew «اكتب ل سالم».** Two text nodes, and WebKit
+  shapes each alone: the joined word measured 344px, the split one 370px.
+  One template string; `test:safari` now fails on any Arabic letter that joins
+  forward followed by React's `<!-- -->` and a letter, in every page.
+- **The call widget's text box is 14px** (the real 0.19.0 bundle, measured in
+  `test:widget-csp`), and an iPhone zooms into any field under 16px. A
+  `<style>` in its open shadow root gives it 16px on a touch screen.
+
+**The call widget, read out of its 0.19.0 bundle and run for real:**
+
+- **Its resampler was refused by our policy, and calls died silently.** When
+  the rate it plays at differs from the device's, the widget `addModule()`s a
+  resampler from a jsDelivr URL fixed in its bundle. That is every call in
+  Safari before 18.6 (no `sampleRate` constraint, BCD) and in Firefox, and an
+  iPhone on AirPods (its warmed context runs at the route's 44.1 kHz against
+  her 48). `script-src` refused it, the widget's audio setup threw as the call
+  started, **0 chunks** left the page while the sheet said «متصل» — and
+  Chromium raises no violation event for a refused worklet, so nothing ever
+  noticed. `script-src` now names that ONE FILE (full path, no trailing slash
+  — the orb texture's precedent); hosting it would have added 1.4MB to every
+  release archive in git. `/privacy` says jsDelivr sees the address then.
+- **«Block All Cookies» made Start do nothing**: the widget reads
+  localStorage unguarded to name the caller, after the terms and before the
+  call, and Safari throws. Where storage cannot be read, the element gets a
+  `user-id` for that call, and the widget never looks.
+- **Its consent sheet was cut off at every width** (not Safari's): drawn
+  inside our 11rem box, «قبل ما تبدأ» and the first lines of the terms sat
+  above it. The box takes its full size at the tap on Start now.
+
+**Read out of WebKit or BCD, held by a Chromium test:**
+
+- `apple-touch-icon` was the SVG — iOS cannot draw one there, so «Add to Home
+  Screen» saved a screenshot. The 180×180 opaque PNG now, plus a PNG tab icon
+  for Safari 16.4–18 (SVG favicons from 26). `audit:assets` reads both.
+- **A CSS `filter` on an SVG child is ignored by Safari** (b/246106): every
+  place page drew its scene flat. An SVG `<filter>` with `feDropShadow`, in
+  sRGB as the CSS one was; `export-flutter-art` strips it (art byte-identical).
+- **`display-mode: standalone` is false in an installed iPhone app** (b/264218,
+  BCD: it reports `fullscreen`), so the tab bar waited for AppShell's effect
+  and arrived under the thumb after every launch. A constant script in the
+  `<head>` sets `data-standalone` from `navigator.standalone` before the first
+  paint — the site's one `dangerouslySetInnerHTML`, nothing of the visitor's in
+  it.
+- **iOS dropped the first tap on a سالم answer card, and on /search rows with
+  the map open.** WebKit's ContentChangeObserver: a finger «enters» at
+  touchstart, choosing the card popped its pin out of a map bubble, and new
+  content under a tap is read as a hover menu — the click never comes.
+  Hover selection is mouse-only now (`pointerType === "mouse"`), as MapPin
+  and LandmarksShow already were; a tap still chooses through focus.
+- **Speech on an iPhone talks only after a speak() inside a tap**, and drops
+  the rest with no error and no end. So with the voice remembered as on, the
+  answer read out after a search (from a timer) said nothing on a fresh page,
+  «اسمعها» stuck on «وقّف الصوت», and سالم's remembered read-aloud was silent.
+  The first tap or key while the voice is on speaks an empty utterance (Apple
+  only — elsewhere it can take the audio focus); سالم's first send primes; a
+  dropped answer resets the button 250ms later; and the queued utterances are
+  held, because Safari's collector could eat the last one's `onend`.
+- **Lockdown Mode picks the hero's AVIF and refuses to decode it** — a white
+  box with the sun floating on it. `HeroPicture` drops the AVIF `<source>` on
+  an error so the picture re-chooses the WebP (checked on mount too: an error
+  before hydration has already fired).
+- **AudioContext `interrupted`** — Safari's state after a phone call, FaceTime
+  or Siri; only `suspended` was resumed, so the ring-back played to nobody.
+- **VoiceOver reads a list without bullets as loose lines**: `role="list"` on
+  all 28 (`test:safari` reads every `<ul>`/`<ol>` in the source).
+- **Sideways, text sat under the notch** (`viewport-fit=cover`; /explore's
+  heading 16px from an edge the notch covers). A `gutter` utility —
+  `max(10px|16px, env(safe-area-inset-*))`, identical upright — on the 22 page
+  shells, and insets on the call sheet, the tab bar, the back button and سالم's
+  frame. **Chromium 141 can emulate the insets** (DevTools'
+  `Emulation.setSafeAreaInsetsOverride`), so `audit:padding` now measures where
+  the text lands on 13 routes at 844×390 — the audit's own header had said
+  env() could not be measured here.
+- **Leaflet styles its tiles `-webkit-optimize-contrast` in Safari only**,
+  which WebKit draws as crisp-edges: blocky tiles on every retina iPhone.
+  Overridden one class more specific.
+- **«أضفها للتقويم» in the installed app and in an app's own browser**: a
+  download there does nothing or strands the app on «Open in…» (WebKit bugs
+  236943, 275288, 290847). The .ics button stays out there; the Google link
+  beside it stays in.
+- **سالم's line, opened while iOS had the page put away**, came back timed out
+  and switched her off on the device for 15 minutes. That is «interrupted» now,
+  and the chat tries again when the page is back.
+- Smaller: `enterkeyhint` on /search and سالم's box (iOS names the key only
+  for a `<form action>`); /find painted dark below its dark half (the
+  home-indicator strip and the rubber band were the body's white); admin
+  fields and the two copy-boxes 16px under a finger; the call sheet locks the
+  page behind it (a drag on a sheet with nothing to scroll moved the document,
+  and Safari's toolbar with it); a widget that loads and does not define its
+  element is said, and the redial is the free call (this browser's, not the
+  account's: سالم keeps the agent); RouteTransitions kept the `#hash`, so a
+  card's «رسّلها» lands on the panel; a speech refusal in Safari on an iPhone
+  says where Dictation is (it said «open the site in Safari», to a visitor in
+  Safari); the admin's first tap makes the chime's audio context (Safari
+  starts one only inside a tap, and the first chime comes from a poll);
+  «على هالمتصفح» where the copy said «على هذا الجهاز» (Safari and the
+  installed app keep separate stores).
+
+**Not Safari's, found on the way, fixed:** /add's coordinate boxes stored
+`Number(text)` on every key, so «29.» snapped back to «29» and **no browser
+could type a decimal point** (an iPhone's Arabic pad gave «NaN»); the first
+failed submit focused nothing, because the focus ran before React had marked
+any field invalid (`flushSync`); and **the offline worker would have answered
+the back end from Cache Storage** — its last branch is «cache first, refresh
+behind» for every same-origin GET, and the back end's reads are GETs. It never
+managed to keep one only by accident: it clones each response after handing
+it to the page, which throws, so a miss is never stored (measured; left so on
+purpose — storing misses would keep every `?_rsc=` payload). `/api/` bypasses
+the worker now, and a `no-store` answer is never kept.
+
+**JavaScript.** The fixes put /search 0.3K over its 176K budget, and the
+reason was the old trap: whatever `app/page.tsx` imports loads on every route
+with a server-rendered Link. `HomeLazy.tsx` puts the hero picture's fallback
+and — since 3 October — the desktop start bar behind `dynamic`; /search went
+to 175.6K. New code lives in the lazy chunks (the call, the calendar builder)
+wherever it could.
+
+**Tests.** `npm run test:safari` (new, in `scan`): 41 checks — the audio
+context against a stand-in, the export's SVG filters, the deferred cards,
+split words, every list, every small field, then a browser: the installed
+first paint, the AVIF fallback, /find's end, the live map's tiles, /add's
+coordinates, the key hints, speech under a stand-in that keeps WebKit's rule,
+the calendar in the installed app and Instagram, and the worker leaving /api/
+alone. `test:widget-csp` gained the resampler (Safari < 18.6, AirPods),
+blocked storage and the consent sheet at 390 and 320 — against the real
+bundle. Plus sections in `shouq-flow`, `shouq-agent`, `salem`, `salem-chat`,
+`search-plan`, `together`, `audit:padding`, `audit:assets`. Every one red on
+the old code first, with the build green — in a scratch worktree, so the
+stale-build guard never had to be fooled.
+
+**Traps met:**
+- An init script runs before the parser has made `<html>`:
+  `observe(document.documentElement)` threw and recorded nothing, so the first
+  «red» proved nothing. Observe `document`.
+- A regex for a JSX tag stops at the `>` of `=>` and misses every prop after
+  it; count braces.
+- /search's box is drawn on the client — its static HTML has no `<input>`.
+- **A worklet's module fetch never reaches Playwright's routing**: the
+  resampler went to the real network. The test plays jsDelivr itself — HTTPS
+  on this machine, a throwaway certificate, `--host-resolver-rules`.
+- A check that passed against the old code twice (the worker; «the policy lets
+  it load») — read why before keeping it. The first was right for an
+  accidental reason and now says so; the second could not fail, and is gone.
+- `pkill -f` matched its own shell again (exit 144). `pgrep`, then `kill`.
+
+**Not fixed, named:**
+- With the keyboard up on /salem, a drag that starts on the header pans the
+  page (iOS enables main-frame panning while the keyboard is docked).
+  Cosmetic; a fix intercepts touch on the chat's scroller and wants a device.
+- A WhatsApp order from the installed iPhone app: `window.open` returns null
+  there, so every send shows the «ما انفتح» box and its working link — one
+  more tap. Latent: no place takes orders.
+- On a silenced iPhone the call's ring and hang-up tones are muted while the
+  microphone is not capturing (Web Audio alone is the Ambient category).
+  `navigator.audioSession` could change that, and could also route the call to
+  the earpiece; that wants a device.
+- A new answer that interrupts one being read may be silent in Safari (WebKit
+  bug 238189, cancel() then speak()); low confidence, not reproduced.
+- Agent mode: the sheet does not notice the widget's own end after iOS
+  suspends a call (it says «متصل» until hung up). Every browser, low
+  confidence.
+- Safari itself (not the installed app) may save the .ics to Files rather than
+  open Calendar's sheet. Unverified either way.
+
+**Not measured:** any of it on a real iPhone or Mac — iOS Safari, Lockdown
+Mode, VoiceOver, the installed app, the keyboard, AirPods, the admin chime.
+
+**Gates on `2171f343`** (the whole batch, in a scratch worktree so `out/` was the
+commit's own): build, `test:hangout`, `test:journey`, `test:orders` and
+`test:shouq` all green; `scan` red on exactly one pair — `audit:color` read
+/find's `sr-only` «كيف تبي تدوّر؟» at 1.10:1 over the page's dark end, the
+same shape as the layout's skip link, fixed the same way (`text-white` on the
+heading) in the commit after.
+

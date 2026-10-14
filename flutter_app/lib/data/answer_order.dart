@@ -18,7 +18,17 @@ import '../share/hangout.dart' show kuwaitHour, kuwaitMonth;
 import 'models.dart';
 import 'search.dart';
 import 'search_data.g.dart' show kGoogleFigures, kNegators;
-import 'voice_lines.dart' show isKuwaitNight, isSummerMonth;
+import 'salem_followup.dart' show readSocial;
+import 'social_act.dart';
+import 'voice_lines.dart'
+    show
+        ElsewhereSpecial,
+        NearSpecial,
+        SocialSpecial,
+        Special,
+        isKuwaitNight,
+        isMorningPlace,
+        isSummerMonth;
 
 /// Kuwait's month (0-based) and hour.
 typedef AnswerClock = ({int month, int hour});
@@ -160,6 +170,13 @@ double answerFactor(Place p, Asks asks, AnswerClock clock) {
       (k) => k != part && _partOfBest[k]!.hasMatch(best),
     );
     if (!fits && other) f *= kOtherPart;
+  } else if (part == null &&
+      p.bestTimeAr.isNotEmpty &&
+      isKuwaitNight(clock.hour) &&
+      isMorningPlace(p)) {
+    // No hour asked for, so the hour it IS: a market that packs up by noon is
+    // not an answer at eight in the evening (8 October).
+    f *= kOtherPart;
   }
   if (asks.inside) {
     // Said, not inferred: no season and no `summerOk` changes it.
@@ -299,10 +316,63 @@ List<Place> defaultPicks(
 
 String _slugOf(SearchHit h) => h.doc.id.replaceFirst('place:', '');
 
+/// The question as the search should be given it (`readQuestion` on the
+/// web): a greeting in front of it taken off ([opener], answered first), and
+/// a message that is all greeting, thanks or «مين أنت» marked [social], with
+/// nothing left to search. The caller searches [query], not what was typed.
+({String query, SocialSpecial? social, SocialAct? opener}) readQuestion(
+  String typed,
+) {
+  final read = readSocial(typed);
+  final social = read.social;
+  if (social != null) {
+    return (
+      query: '',
+      social: SocialSpecial(social.act, social.opener),
+      opener: null,
+    );
+  }
+  return (query: read.rest, social: null, opener: read.opener);
+}
+
+final RegExp _nonWordChars = RegExp(r'[^\p{L}\p{N}]', unicode: true);
+
+/// The words of the question the place named did not answer, as the visitor
+/// typed them where that can be told (`missedWords` on the web).
+List<String> _missedWords(String query, SearchIndex index, SearchHit? top) {
+  if (top == null) return const [];
+  final words = readWords(query, index);
+  final sure = top.tokens.toSet();
+  final units = [
+    for (final u in query.split(RegExp(r'\s+')))
+      if (u.replaceAll(_nonWordChars, '').isNotEmpty)
+        u.replaceAll(_nonWordChars, ''),
+  ];
+  return [
+    for (final w in words.where((w) => !sure.contains(w)))
+      units.firstWhere((u) {
+        final t = tokenize(u);
+        if (t.isEmpty) return false;
+        return [t.first, ...declitic(t.first)].contains(w);
+      }, orElse: () => w),
+  ];
+}
+
 /// The search's hits in the order the answer gives them; only place hits
 /// move, among the slots places already hold. [fallback] when the question
-/// had no topic and these are the hour's default picks.
-({List<SearchHit> hits, bool fallback}) answerOrder(
+/// had no topic — or was a greeting, or «قريب مني» — and these are the hour's
+/// default picks. [special], [opener] and [missed] are what was read beside
+/// the order (the web's `answerOrder`, 8 October). [query] may be the typed
+/// message; the hits must have been searched for the question WITHOUT the
+/// greeting — see [readQuestion].
+({
+  List<SearchHit> hits,
+  bool fallback,
+  Special? special,
+  SocialAct? opener,
+  List<String>? missed,
+})
+answerOrder(
   String query,
   List<SearchHit> hits,
   SearchIndex index,
@@ -310,7 +380,7 @@ String _slugOf(SearchHit h) => h.doc.id.replaceFirst('place:', '');
   AnswerClock? clock,
 ]) {
   final c = clock ?? kuwaitClock();
-  if (isTopicless(query)) {
+  List<SearchHit> picksAsHits() {
     final docs = {for (final d in index.docs) d.id: d};
     final picked = <SearchHit>[];
     final picks = defaultPicks(places, c);
@@ -318,10 +388,55 @@ String _slugOf(SearchHit h) => h.doc.id.replaceFirst('place:', '');
       final doc = docs['place:${picks[i].slug}'];
       if (doc != null) picked.add(SearchHit(doc, 1 - i / 100, const []));
     }
-    return (hits: picked, fallback: true);
+    return picked;
   }
 
-  final asks = readAsks(query);
+  final read = readQuestion(query);
+  final social = read.social;
+  if (social != null) {
+    // Thanks, a goodbye, a «no»: nothing asked, nothing shown. A hello, «how
+    // are you», «who are you»: the picks, under the word back.
+    const quiet = {SocialAct.thanks, SocialAct.afia, SocialAct.bye, SocialAct.no};
+    return (
+      hits: quiet.contains(social.act) ? const [] : picksAsHits(),
+      fallback: true,
+      special: social,
+      opener: null,
+      missed: null,
+    );
+  }
+  final q = read.query;
+  final opener = read.opener;
+  if (isTopicless(q)) {
+    return (
+      hits: picksAsHits(),
+      fallback: true,
+      special: null,
+      opener: opener,
+      missed: null,
+    );
+  }
+  if (isNearOnly(q)) {
+    return (
+      hits: picksAsHits(),
+      fallback: true,
+      special: const NearSpecial(),
+      opener: opener,
+      missed: null,
+    );
+  }
+  final name = elsewhereNamed(q, index);
+  if (name != null) {
+    return (
+      hits: const [],
+      fallback: false,
+      special: ElsewhereSpecial(name),
+      opener: opener,
+      missed: null,
+    );
+  }
+
+  final asks = readAsks(q);
   final bySlug = {for (final p in places) p.slug: p};
   final scored = <(SearchHit, double)>[];
   for (final h in hits) {
@@ -342,9 +457,13 @@ String _slugOf(SearchHit h) => h.doc.id.replaceFirst('place:', '');
     (x) => _slugOf(x.$1),
   ).map((x) => x.$1).toList();
   var k = 0;
+  final missed = _missedWords(q, index, ordered.firstOrNull);
   return (
     hits: [for (final h in hits) h.doc.kind == 'place' ? ordered[k++] : h],
     fallback: false,
+    special: null,
+    opener: opener,
+    missed: missed.isEmpty ? null : missed,
   );
 }
 

@@ -33,6 +33,9 @@ export interface SearchDoc {
   subtitle: string;
   url: string;
   category?: CategoryId;
+  /** A place's own area, as the catalogue spells it — see `search()`'s
+   * own-area rule. Only place documents carry it. */
+  area?: string;
   /** Extra terms that should match but are not shown. */
   keywords: string[];
   body: string;
@@ -43,6 +46,15 @@ export interface SearchHit {
   score: number;
   /** Which query tokens actually matched, for highlighting. */
   matched: string[];
+  /**
+   * Which of the question's WORDS this document answers with some confidence
+   * — an exact, glued, synonym, prefix or one-letter-off reading, not a
+   * two-letter guess. The answer reads it to say when the place it names did
+   * not match a word the visitor typed («مطعم ياباني» → ميس الغانم, which has
+   * nothing Japanese about it; 8 October). Not the coverage the score uses,
+   * which counts every reading.
+   */
+  tokens: string[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -246,8 +258,21 @@ export const SYNONYMS: Record<string, string[]> = {
    * way that answering «صيدلية» with a mall would be; it is the same place,
    * under the word the catalogue happens to use. If a campsite is ever added,
    * this should point at it instead.
+   *
+   * «تخييم» and the words around it are the same ask in another register,
+   * and without an entry they were TYPOS to the engine: «تخييم» fuzzed onto
+   * a mall's prose and answered with the mall (8 October, read off the live
+   * build). A word the table knows gets its meaning and no guess. The same
+   * two values as «كشتة», not «كشتة» itself: a value has to reach a term in
+   * the index (audit:search), and no document says «كشتة».
    */
   كشتة: ["صحراء", "طبيعه"],
+  تخييم: ["صحراء", "طبيعه"],
+  مخيم: ["صحراء", "طبيعه"],
+  خيمه: ["صحراء", "طبيعه"],
+  كمب: ["صحراء", "طبيعه"],
+  camping: ["صحراء", "طبيعه"],
+  camp: ["صحراء", "طبيعه"],
 
   /* ── Broken plurals ──────────────────────────────────────────────────────
    *
@@ -764,6 +789,7 @@ export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
       subtitle: `${cat?.ar ?? ""}، ${p.areaAr}`,
       url: `/places/${p.slug}/`,
       category: p.category,
+      area: p.areaAr,
       keywords: [
         p.name,
         p.area,
@@ -1047,6 +1073,14 @@ export const FILLER = [
    * match the one description that says it — dropped beside a real word, and
    * سالم answers a question made of nothing else by asking for the area. */
   "والله", "بالله", "يلا", "يالله", "لو", "سمحت", "بليز", "please", "قريب", "قريبة", "أقرب", "مني", "جنبي",
+  /* «طلعة» is the outing itself, not where to go on it. With a synonym
+   * entry («مكان», «زيارة») it was a word to search, and «طلعة مع العيال»
+   * led with the fairground — the one place whose prose says «زيارة» beside
+   * «عيال» — and not with a single kids' place (8 October). Beside a real
+   * word it is dropped; alone it is a wish to go out, like «أروح». And
+   * «مكان»: «وين أقرب مكان» is «قريب مني» with the place said, and «مكان
+   * هادي» is «هادي» — the word is in nearly every description. */
+  "طلعة", "طلعات", "مكان", "أماكن",
 ];
 
 /**
@@ -1122,15 +1156,31 @@ export const ELSEWHERE_PHRASES = [
  * (answer-order.ts) instead of «ما لقيت شي». «وين» alone is not one of them:
  * it is also the site's name, and still finds the page about it.
  */
-export const GOING_OUT = ["أروح", "نروح", "أطلع", "نطلع", "زهقان", "زهقانة", "طفشان", "طفشانة", "ملل", "مليت"];
+export const GOING_OUT = [
+  "أروح", "نروح", "أطلع", "نطلع", "زهقان", "زهقانة", "طفشان", "طفشانة", "ملل", "مليت", "طلعة", "طلعات",
+];
+/**
+ * «قريب مني», «وين أقرب مكان» — near WHERE? The page never asks for a
+ * position, so the only honest answer is a question back (answer-order.ts
+ * says it); searched, «قريب» matched the one description that says it.
+ */
+export const NEAR_WORDS = ["قريب", "قريبة", "أقرب", "جنبي"];
 
 const FILLER_SET = new Set(FILLER.map(normalise));
 const GOING_OUT_SET = new Set(GOING_OUT.map(normalise));
+const NEAR_SET = new Set(NEAR_WORDS.map(normalise));
 
 /** «وين أروح الحين?» — a wish to go out, with nothing to search for. */
 export function isTopicless(query: string): boolean {
   const raw = tokenize(query);
   return raw.length > 0 && raw.every((t) => FILLER_SET.has(t)) && raw.some((t) => GOING_OUT_SET.has(t));
+}
+
+/** «قريب مني» — a question about where the visitor is, which nothing here
+ *  knows. Filler and a word for «near», and nothing else. */
+export function isNearOnly(query: string): boolean {
+  const raw = tokenize(query);
+  return raw.length > 0 && raw.every((t) => FILLER_SET.has(t)) && raw.some((t) => NEAR_SET.has(t));
 }
 
 const NEGATOR_SET = new Set(NEGATORS.map(normalise));
@@ -1227,6 +1277,15 @@ function readQuery(query: string, index: SearchIndex): { raw: string[]; pushedDo
   return { raw, pushedDown };
 }
 
+/** The words the engine searched for, as it read them — what a hit's
+ *  `tokens` are a subset of. Empty for a question it answers with nothing. */
+export function readWords(query: string, index: SearchIndex): string[] {
+  return readQuery(query, index)?.raw ?? [];
+}
+
+/** A reading confident enough to say the document answers that word. */
+const CONFIDENT = 0.62;
+
 export function search(
   query: string,
   index: SearchIndex,
@@ -1244,6 +1303,8 @@ export function search(
    * terms; counting those as coverage let a doc matching half the query
    * claim full credit. */
   const hitTokens = new Map<number, Set<string>>();
+  /** The query words a doc answered with a confident reading — SearchHit.tokens. */
+  const hitSure = new Map<number, Set<string>>();
 
   for (const rawToken of raw) {
     for (const token of variantsOf(rawToken)) {
@@ -1262,6 +1323,10 @@ export function search(
           hitTerms.get(docIndex)!.add(term);
           if (!hitTokens.has(docIndex)) hitTokens.set(docIndex, new Set());
           hitTokens.get(docIndex)!.add(rawToken);
+          if (boost >= CONFIDENT) {
+            if (!hitSure.has(docIndex)) hitSure.set(docIndex, new Set());
+            hitSure.get(docIndex)!.add(rawToken);
+          }
         }
       }
     }
@@ -1285,6 +1350,14 @@ export function search(
    * and nothing here applies to it. */
   const areaTokens = new Set(raw.filter((t) => index.areaTerms.has(t)));
   const asksForMore = areaTokens.size > 0 && areaTokens.size < raw.length;
+  /* And the other way round: a question that is ONLY an area — «السالمية» —
+   * is answered first by the places that are IN it. A place elsewhere whose
+   * prose says the name («قريب من السالمية») scored on that mention at the
+   * weight of a short body, and at night «السالمية» led with a beach in
+   * المسيلة (8 October). The area is read off the document, not guessed from
+   * its words: a place's own area counts, a mention does not. */
+  const onlyAreaQuery = areaTokens.size > 0 && areaTokens.size === raw.length;
+  const inArea = (doc: SearchDoc) => !!doc.area && tokenize(doc.area).every((t) => areaTokens.has(t));
 
   /* Which categories the query is actually asking for.
    *
@@ -1325,9 +1398,11 @@ export function search(
         (0.65 + 0.35 * Math.min(1, coverage)) *
         kindBoost *
         (onlyArea ? 0.2 : 1) *
+        (onlyAreaQuery && inArea(doc) ? 1.5 : 1) *
         (doc.category && wantedCategories.has(doc.category) ? 1.5 : 1) *
         (pushedDown.has(docIndex) ? 0.1 : 1),
       matched: [...(hitTerms.get(docIndex) ?? [])],
+      tokens: [...(hitSure.get(docIndex) ?? [])],
     });
   }
 

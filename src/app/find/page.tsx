@@ -21,8 +21,11 @@ export default function FindPage() {
           FindChoice's two halves, aria-hidden so it was never what a screen
           reader announced. Removed on request — the two halves already say
           what they are — but the page still needs a real <h1>, so this one
-          stays, sr-only, exactly as it always was for a screen reader. */}
-      <h1 className="sr-only">كيف تبي تدوّر؟</h1>
+          stays, sr-only, exactly as it always was for a screen reader.
+          Its own colour, like the layout's skip link: the body is dark under
+          this page's end (data-dark-end), and a clipped heading inheriting
+          ink over sea-950 read 1.10:1 to audit:color (8 October). */}
+      <h1 className="sr-only text-white">كيف تبي تدوّر؟</h1>
       {/* Floating with no spacer: the call half is full-bleed and its
           content is centred, so the corner is open sky. */}
       <BackButton spacer={false} />

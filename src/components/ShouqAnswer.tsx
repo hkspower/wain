@@ -79,11 +79,16 @@ export default function ShouqAnswer({
   if (parts.length === 0) return null;
 
   // The recommendation if there is one, else the first thing she actually
-  // says (the echo of a spoken question is not an answer, so it is skipped).
+  // says (the echo of a spoken question is not an answer, so it is skipped,
+  // and so is a note — a greeting said back, «ما عندي «ياباني» بالضبط»).
   const placeAt = parts.findIndex((p) => p.key?.startsWith("try-"));
-  const lead = placeAt >= 0 ? placeAt : parts.findIndex((p) => !p.optional && !isWarning(p.key));
+  const lead = placeAt >= 0 ? placeAt : parts.findIndex((p) => !p.optional && !isWarning(p.key) && !p.note);
   const warnings = parts.filter((p) => isWarning(p.key));
-  const rest = parts.filter((p, i) => i !== lead && !isWarning(p.key));
+  // Notes keep their place around the lead and are never folded: the one
+  // before it is what she says first, the one after it is the question back.
+  const before = parts.filter((p, i) => p.note && i < lead);
+  const after = parts.filter((p, i) => p.note && i > lead);
+  const rest = parts.filter((p, i) => i !== lead && !isWarning(p.key) && !p.note);
   const recommended = placeAt >= 0 ? slugOf(parts[placeAt].key) : null;
 
   return (
@@ -111,7 +116,13 @@ export default function ShouqAnswer({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-xs font-semibold text-coral-800">{WAIN_AI_COPY.name}</h2>
+          {before.map((part, i) => (
+            <Part key={`b${i}`} part={part} />
+          ))}
           {lead >= 0 && <Part part={parts[lead]} lead />}
+          {after.map((part, i) => (
+            <Part key={`a${i}`} part={part} />
+          ))}
         </div>
       </div>
 
@@ -205,7 +216,9 @@ function Part({ part, lead = false }: { part: SpeechPart; lead?: boolean }) {
           ? "px-2 text-xs text-coral-700/80"
           : lead
             ? "mt-0.5 text-sm font-semibold leading-relaxed text-ink-900"
-            : "px-2 text-sm leading-relaxed text-ink-600"
+            : part.note
+              ? "mt-0.5 text-sm leading-relaxed text-ink-700"
+              : "px-2 text-sm leading-relaxed text-ink-600"
       }
     >
       {part.text}
