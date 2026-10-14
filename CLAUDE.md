@@ -5516,7 +5516,7 @@ prompt would spend a test cycle on a rule that already fires.
 - **Staging is still on `8deb030e`**, code-identical to production (above). The foreign files on production's docroot (`/shoug/`, `/hangout/`, `/call-center/`, `api/hangouts.php`, `api/call-center-data.php`, the top-level archives and scripts) are untouched: the prune removes only what the previous manifest recorded, and the owner's answer for them is «keep».
 - **Cron at the end:** sporta's `1mNk00yPZP` and nothing else. The foreign `0fkXcI5UFt` (`curl … hostinger_deploy.sh`) and sporta's `FK5S1O355Y` had gone on their own.
 
-## The call centre, scanned and fixed — 14 October, evening (built and gated, NOT deployed)
+## The call centre, scanned and fixed — 14 October, evening (built and gated; the deploy is the next entry)
 
 «scall call center make full improve for all»: the call sheet, the launcher, the free call and the agent
 call, on the site and in the app, both live agents, and the hub other sessions put on the server. The scan
@@ -5595,8 +5595,13 @@ build exited 1, and the cause was the red-first worktree, not the code**: `scrat
 checkout used to prove every new assertion red) and its `out/` were inside the repository, so lint walked
 into a second copy of the site and its built chunks — 15,540 errors, all under `scratchpad/wt-old/`, none in
 `src/`. The worktree is removed (`git worktree remove --force`); `scan` is re-run on the clean tree below.
-**Put a red-first worktree outside the repository, or lint reads the old build as the code.** The free build,
-`test:hangout`, `test:journey` and `test:shouq` follow in the same chain; their readings are in the next entry.
+**Put a red-first worktree outside the repository, or lint reads the old build as the code.** The re-run on the
+clean tree found one real thing: `WainAi.tsx`'s «the call could not start» alert carried `shadow-md`, and the box
+system (7 October) allows a `rounded-2xl` box the xs shadow only — `shadow-xs` now, `scan` exit 0, 406 checks.
+The rest of the chain on the free build: `test:hangout` exit 0 (every suite 0 failed, `shouq-flow` 144 and
+`shouq-agent` 121 among them), `test:journey` 46 passed, `test:shouq` exit 0 («all suites passed», twelve
+totals, none failed). Screenshots at 390 on the free build (شوق's sheet ringing, the bar under the results,
+سالم's sheet, his bar on his chat) were sent to the owner.
 
 **Not measured:** any of it on a real phone — the gesture rule, the bar under a thumb, the in-app
 browser, the Android notification, TalkBack; and a real call on either agent (the socket is refused here).

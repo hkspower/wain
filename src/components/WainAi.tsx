@@ -101,7 +101,7 @@ export default function WainAi() {
         <p
           role="alert"
           data-call-failed=""
-          className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[60] rounded-2xl border border-coral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-ink-800 shadow-md standalone:bottom-[calc(5.25rem+env(safe-area-inset-bottom))]"
+          className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-[60] rounded-2xl border border-coral-200 bg-white px-4 py-3 text-center text-sm font-semibold text-ink-800 shadow-xs standalone:bottom-[calc(5.25rem+env(safe-area-inset-bottom))]"
         >
           {WAIN_AI_COPY.failed}
         </p>
