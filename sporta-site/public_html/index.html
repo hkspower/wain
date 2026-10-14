@@ -441,12 +441,22 @@
          draws. Measured with the strip gone, phone through 1440px:
          57 / 58 / 62 / 62.4 / 63.5 after the slimmer bar of 2026-10-01 (it was 77 / 85.7 / 94.4 / 95.7 / 97.7) — rounded up rather than down, since a
          shell a shade taller than reality costs nothing and a shell shorter
-         than reality is the hero jumping. */
-      .boot-head { height: 58px; background: #2b3138;
+         than reality is the hero jumping.
+
+         PLUS THE MENU BAR, 2026-10-14. assets/menu-bar.js has put the menu
+         row inside header.app-header since 2026-10-02 (44px on a phone, 46px
+         from 768px, css/68-menu-bar.css), and this box never grew with it:
+         the hero's top moved 58 -> 101 on a phone and 63 -> 109 on a desktop
+         when React mounted. Measured, logo row + menu bar, in the sandbox:
+         101.0-101.8 under 768px, 107.7-108.4 to 1023, 108.4-109.5 to 1439,
+         109.5 from 1440 (the root size is fluid, so the real header is too).
+         Each value below is within 1px of every width in its range, and
+         test:hero-first-frame holds the hero's top to that. */
+      .boot-head { height: 101px; background: #2b3138;
                    display: flex; align-items: flex-start; justify-content: center }
-      @media (min-width: 768px)  { .boot-head { height: 62px } }
-      @media (min-width: 1024px) { .boot-head { height: 63px } }
-      @media (min-width: 1440px) { .boot-head { height: 64px } }
+      @media (min-width: 768px)  { .boot-head { height: 108px } }
+      @media (min-width: 1024px) { .boot-head { height: 109px } }
+      @media (min-width: 1440px) { .boot-head { height: 109.5px } }
       /* 8px top = the real logo bar's padding, +8px logo padding (2026-09-28), so the mark does not move. */
       .boot-head img { height: 34px; width: auto; margin-top: 10px }
       @media (min-width: 768px)  { .boot-head img { height: 41px; margin-top: 10px } }
@@ -481,9 +491,9 @@
 
       /* Only ever seen when the shell has become permanent — see the note by
          the <noscript> below. Plain, centred, no dependency on the stylesheet
-         that also did not load. 63px, not the old 133px: that number
-         included the promo bar's own box, which no longer exists. */
-      .boot-msg { position: absolute; inset: 63px 0 auto; padding: 48px 24px;
+         that also did not load. 110px: below the header and its menu bar
+         (.boot-head above; it was 63px before the menu bar). */
+      .boot-msg { position: absolute; inset: 110px 0 auto; padding: 48px 24px;
                   text-align: center; color: #e2dbce; font: 16px/1.6 system-ui, sans-serif }
       .boot-msg code { display: block; margin-top: 16px; font-size: 12px;
                        color: #8a8a8a; word-break: break-all }

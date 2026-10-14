@@ -42,3 +42,16 @@
    height); the owner asked for the top bar and the menu to stay on screen together, so the slide
    is cancelled and the class is left alone. */
 .app-header.is-hidden { transform: none !important; }
+/* ROOM FOR THE BAR BEFORE menu-bar.js HAS RUN — 2026-10-14. menu-bar.js is a deferred script at the
+   end of the page, so on a slow connection React mounts and paints the header WITHOUT the bar first:
+   measured at 1280x800, 400ms of a 63px header, then 109px, and everything under it — the home hero
+   first — dropped 46px. The header keeps the bar's height as padding, and the bar, once inserted,
+   takes it back with an equal negative margin, so the header is one height with or without it. The
+   boot shell's header (index.html, .boot-head) is drawn at the same total. category.php draws the
+   bar in its own markup, also a direct child, so it nets out there too. */
+.app-header { padding-bottom: 44px; }
+.app-header > .sp-menubar { margin-bottom: -44px; }
+@media (min-width: 768px) {
+  .app-header { padding-bottom: 46px; }
+  .app-header > .sp-menubar { margin-bottom: -46px; }
+}

@@ -1842,6 +1842,8 @@ html[data-theme='dark'] .admin-shell .sbl-logo-none { font-size: 12px !important
 .app-header .sp-menubar__link:focus-visible { outline: 2px solid var(--brand-bright, #ff7b17); outline-offset: -2px; border-radius: 6px; }
 .app-header > div.border-t + .sp-menubar { border-top: 0; }
 .app-header.is-hidden { transform: none !important; }
+.app-header { padding-bottom: 44px; }
+.app-header > .sp-menubar { margin-bottom: -44px; }
 
 main div.grid[class~="grid"][class~="grid-cols-2"] {
   column-gap: 12px;
