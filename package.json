@@ -41,6 +41,7 @@
     "max:preview": "python3 tools/max/preview_render.py",
     "max:finish": "python3 tools/max/finish_render.py",
     "max:full": "tools/max/full-render.sh",
+    "fleet:scan": "python3 tools/fleet_scan.py",
     "max:import": "node tools/max/import.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:unity": "node scripts/check-unity-sync.mjs",

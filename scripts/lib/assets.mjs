@@ -84,6 +84,8 @@ export const ASSETS = [
   { path: "press/map", kind: "kept", by: "—", what: "The circuit, drawn." },
   { path: "press/flags", kind: "kept", by: "tools/shots/flags.mjs",
     what: "The flag decal, at the size it is worn." },
+  { path: "press/infographic", kind: "kept", by: "tools/fleet_scan.py",
+    what: "Every car scanned into one file for the fleet infographic: the showroom numbers, the engine, the GLB measured, the renders; and the verified card copy." },
   { path: "press/renders/max", kind: "kept", by: "tools/max/finish_render.py",
     what: "Every car's 3ds Max render pack, rendered at full size and graded (finish_render.py --publish): hero, side and rear per car, a contact sheet per shot, the turntables." },
   { path: "press/police", kind: "kept", by: "tools/shots/police.mjs",
