@@ -122,6 +122,7 @@ cbk-payments.log
 # top-level rig" — and this pattern only ever meant the first one.
 scripts/_*.mjs
 !scripts/_theme-seed.mjs
+!scripts/_hero-seed.mjs
 scripts/_*.py
 
 # Archived invoice PDFs. Customer names and addresses, one file per order —
