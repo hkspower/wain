@@ -5946,3 +5946,13 @@ The owner's words: «Keep the production endpoint as it is» (staging only, with
 - **A job that sends something must not be per-minute.** Its output can take minutes to read, so `* * * * *` could send several emails. Schedule `<minute> * * * *` a few minutes ahead, read it, delete it.
 - **The repository copy differs from staging's by a comment.** HEAD's `wain-api.php` corrects the comment over `mail()` (it used to say `-f` makes SPF align), so HEAD's fingerprint is not `ee6d8575`; the code is the same.
 - **Still open:** production's `wain.php` runs `4dd1b20`, so `gap_report` and `mailtest` do not exist there. Moving it is the same recipe with the production path, and waits for a yes; the `report_gap` repoint waits on that. The production `places` decision above is the owner's.
+
+## The 14 October deploy, fifth — `2d4ee7a5` is live on production (free-to-agent build, the apex redirect)
+
+- **What shipped:** the apex → www 301 (restored from `2e299e56`, approved 14 October), the typed chat with no voice override, the `gap_report` server action in `wain-api.php` (install still separate), and the `globals.css` equalizer removal. Built with both agent ids and `NEXT_PUBLIC_WAIN_TTS_URL=none`; `npm run ship` green (widget check 37/37).
+- **Gate note:** the first `ship` run failed in `audit:shouq-call` because `out/` still held the free build from an earlier local check. Rebuilding `out/` with the agent variables first fixed it. Run the agent `npm run build` before `ship`, not after.
+- **Archive:** `7e19be06` (`wain-1.1.0.zip`, sha256 `0e199437…`, digest `7f49d3db51401ff8`, 282 files). One more permanent blob; `DEPLOY_SECRET` is still unset.
+- **Deploy:** one `ppok` cron job (`hosting_cron-jobs_create`, uid `rW1UjgEvgy`) through the installed caller at its first firing: `{"ok":true,"version":"1.1.0","deployed":282,"removed":0,"emptied":0,"at":"2026-10-14T20:33:01+00:00"}`. Deleted; listing shows sporta's job only. The disk settled the prune: `_next/static/` holds `2d4ee7a5…` alone.
+- **Verified:** `deploy:verify --observed` (7 readings: stamp, two stylesheets, build-id manifest, /search chunk, /explore, a place page, an og image): «2d4ee7a5 is live — verified at the root and 7 levels below it», all byte-exact. The other 275 files are covered by the endpoint's sha256 check, not by a reading.
+- **Cache and edge:** `hosting_cache_clear-website` accepted. `wget -S --spider` through the edge: `https://www.wainkw.com/salem/` 200, `Last-Modified 20:33:01` (the deploy's minute), `DYNAMIC`. `https://wainkw.com/explore/` 301 → `https://www.wainkw.com/explore/` (`MISS`), then 200. Both probe jobs deleted and gone.
+- **Not measured:** a real phone; the focus-ring and phone-transition defects in `globals.css` (still open, owner's choice).
