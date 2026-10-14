@@ -22,13 +22,29 @@
  * its updated_at (the column auto-updates, so a plain value write would move it). The sandbox
  * database is shared with other work; touching only hero_slides and that one settings row is
  * the contract.
+ *
+ * THE POLISHED SHAPE (2026-10-14), for a rig that measures the shop AFTER
+ * scripts/publish/publish-hero-polish.php: seedPolishedHero() seeds polishedSlides() — the five
+ * carrying the polish desktop and SQUARE phone files, ids 2 and 3 present but switched off, and
+ * autoplay on every 6.5 s. Its subtitles are the live slides' own, READ out of the publishers that
+ * wrote them (hero-captions.php, and update-crossfit-hero-text.php for the owner's CrossFit line),
+ * never typed here; Sporta features has none on record and gets none. LIVE_SLIDES is unchanged.
+ *
+ * A slide tuple may carry three optional trailing fields — active (default 1), subtitle_en,
+ * subtitle_ar (default null) — so an eight-field tuple seeds exactly what it always did.
+ *
+ * HERO_SEED_DB names another database for a rig that must not share the sandbox's (default
+ * `sporta`); it needs the same hero_slides and settings tables.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
 const ART = new URL('../sporta-site/assets/hero/', import.meta.url)
-const DB = ['-uroot', 'sporta', '--default-character-set=utf8mb4']
+const PUB = new URL('./publish/', import.meta.url)
+const DBNAME = process.env.HERO_SEED_DB || 'sporta'
+if (!/^\w+$/.test(DBNAME)) throw new Error('HERO_SEED_DB is not a plain database name')
+const DB = ['-uroot', DBNAME, '--default-character-set=utf8mb4']
 export const sql = (q, input) => execFileSync('mariadb', [...DB, '-N', '--raw', '-e', q], { encoding: 'utf8', input, maxBuffer: 1 << 28 }).trim()
 const run = (input) => execFileSync('mariadb', DB, { encoding: 'utf8', input, maxBuffer: 1 << 28 })
 const q = (s) => s == null ? 'null' : `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
@@ -57,8 +73,8 @@ export const LIVE_SLIDES = [
 
 /** Everything restoreHero() needs to put the sandbox back byte for byte. */
 export function snapshotHero() {
-  const dump = execFileSync('mariadb-dump', ['-uroot', 'sporta', 'hero_slides', '--no-create-info', '--skip-triggers', '--default-character-set=utf8mb4'], { encoding: 'utf8', maxBuffer: 1 << 28 })
-  const ai = Number(sql(`select auto_increment from information_schema.tables where table_schema = 'sporta' and table_name = 'hero_slides'`)) || 1
+  const dump = execFileSync('mariadb-dump', ['-uroot', DBNAME, 'hero_slides', '--no-create-info', '--skip-triggers', '--default-character-set=utf8mb4'], { encoding: 'utf8', maxBuffer: 1 << 28 })
+  const ai = Number(sql(`select auto_increment from information_schema.tables where table_schema = '${DBNAME}' and table_name = 'hero_slides'`)) || 1
   const row = sql(`select concat(value, char(1), updated_at) from settings where name = 'hero'`)
   const [value, updated] = row ? row.split('\x01') : [null, null]
   return { dump, ai, value, updated }
@@ -80,13 +96,13 @@ export function setHero({ size = 'full', autoplay = false, shuffle = false, spee
 /** The live shape: seven active slides, and the settings row the live shop has (or as overridden). */
 export function seedLiveHero(hero = {}, slides = LIVE_SLIDES) {
   let s = 'delete from hero_slides;\n'
-  for (const [id, sort, d, m, fx, fy, ten, tar] of slides) {
+  for (const [id, sort, d, m, fx, fy, ten, tar, active = 1, sen = null, sar = null] of slides) {
     const db = readFileSync(new URL(d, ART)); const [w, h] = webpSize(db)
     const mb = m ? readFileSync(new URL(m, ART)) : null; const [mw, mh] = mb ? webpSize(mb) : [null, null]
-    s += `insert into hero_slides (id, sort, active, title_en, title_ar, cta_label_en, cta_label_ar, cta_href,
+    s += `insert into hero_slides (id, sort, active, title_en, title_ar, subtitle_en, subtitle_ar, cta_label_en, cta_label_ar, cta_href,
             image, image_hash, image_w, image_h,
             image_mobile, image_mobile_hash, image_mobile_w, image_mobile_h, focal_x, focal_y) values (
-            ${id}, ${sort}, 1, ${q(ten)}, ${q(tar)}, ${ten ? "'Shop now', 'تسوق الآن', '/shop'" : 'null, null, null'},
+            ${id}, ${sort}, ${active ? 1 : 0}, ${q(ten)}, ${q(tar)}, ${q(sen)}, ${q(sar)}, ${ten ? "'Shop now', 'تسوق الآن', '/shop'" : 'null, null, null'},
             'data:image/webp;base64,${db.toString('base64')}',
             '${createHash('sha256').update(db).digest('hex')}', ${w}, ${h},
             ${mb ? `'data:image/webp;base64,${mb.toString('base64')}'` : 'null'},
@@ -95,6 +111,43 @@ export function seedLiveHero(hero = {}, slides = LIVE_SLIDES) {
   run(s)
   setHero(hero)
   return slides.map((r) => r[0])
+}
+
+/** The subtitles the live slides were given, keyed by title_en, READ out of the two publishers that
+ *  wrote them — hero-captions.php (Built to move, Strength your way, Ready to train) and
+ *  update-crossfit-hero-text.php (the owner's CrossFit line) — so a seed carries the exact words. */
+export function liveSubtitles() {
+  const STR = `('(?:[^'\\\\]|\\\\.)*'|"[^"\\\\]*")`
+  const unq = (t) => t[0] === '"' ? t.slice(1, -1) : t.slice(1, -1).replace(/\\(['\\])/g, '$1')
+  const out = {}
+  const cap = readFileSync(new URL('hero-captions.php', PUB), 'utf8')
+  for (const m of cap.matchAll(new RegExp(`'[0-9a-f]{16}'\\s*=>\\s*\\[\\s*${STR},\\s*${STR},\\s*${STR},\\s*${STR}\\s*\\]`, 'g'))) {
+    out[unq(m[2])] = { en: unq(m[4]), ar: unq(m[3]) }    // [title_ar, title_en, subtitle_ar, subtitle_en]
+  }
+  const cf = readFileSync(new URL('update-crossfit-hero-text.php', PUB), 'utf8')
+  const v = (k) => { const m = cf.match(new RegExp(`^\\$${k}\\s*=\\s*${STR};`, 'm')); if (!m) throw new Error(`update-crossfit-hero-text.php has no $${k}`); return unq(m[1]) }
+  out[v('TITLE_EN')] = { en: v('SUBTITLE_EN'), ar: v('SUBTITLE_AR') }
+  if (Object.keys(out).length !== 4) throw new Error(`expected 4 live subtitles, read ${Object.keys(out).length}`)
+  return out
+}
+
+/** The live shape after publish-hero-polish.php: the five on the polish files (desktop 2560, SQUARE
+ *  phone), ids 2 and 3 kept but switched off, subtitles as the live rows carry them. Same ids, sort
+ *  order, focal points and titles as LIVE_SLIDES. */
+export function polishedSlides() {
+  const sub = liveSubtitles()
+  const polish = { 'crossfit-neutral-desktop.webp': 'crossfit', 'features-neutral-desktop.webp': 'features',
+    'runner-neutral-desktop.webp': 'runner', 'activewear-neutral-desktop.webp': 'activewear', 'training-neutral-desktop.webp': 'training' }
+  return LIVE_SLIDES.map(([id, sort, d, m, fx, fy, ten, tar]) => {
+    const n = polish[d]
+    if (!n) return [id, sort, d, m, fx, fy, ten, tar, 0, null, null]          // ids 2 and 3: switched off, not deleted
+    return [id, sort, `${n}-polish-desktop-2560.webp`, `${n}-polish-phone.webp`, fx, fy, ten, tar, 1, sub[ten]?.en ?? null, sub[ten]?.ar ?? null]
+  })
+}
+
+/** seedLiveHero() with the polished shape: autoplay on every 6.5 s unless overridden. */
+export function seedPolishedHero(hero = {}) {
+  return seedLiveHero({ autoplay: true, speed_ms: 6500, ...hero }, polishedSlides())
 }
 
 /** The URL ?r=slides hands the bundle for a slide's desktop or phone picture (api.php, ?r=slides). */
