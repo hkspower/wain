@@ -131,16 +131,31 @@ repeat of the same order (`again: true`) sends nothing. The log line records
 `mail=none|sent|failed` and never the address. A failed send does not fail the
 order: the order is already on the board.
 
-**Delivery is measured, not assumed.** The message goes out through PHP's
-`mail()` with `-forders@wainkw.com` (the envelope sender, which is what SPF
-checks and DMARC aligns to) and a Message-ID on `wainkw.com`. wainkw.com's DMARC
-is `p=quarantine`, so a message that fails both SPF and DKIM goes to spam. Nothing
-DKIM-signs `mail()` output, so SPF alignment is the only thing carrying it, and
-whether Hostinger's relay satisfies `include:_spf.mail.hostinger.com` for the web
-host's address is the open question. `php …/api/wain.php mailtest <address>` sends
-one real test message through the same path; read its headers in the mailbox for
-`Authentication-Results` (spf, dkim, dmarc). If spf or dmarc fails, the fix is
-authenticated SMTP from a real `orders@wainkw.com` mailbox, not more headers.
+**Delivery is measured, not assumed — and today an order email lands in
+Junk.** The message goes out through PHP's `mail()` with
+`-forders@wainkw.com` (the envelope sender, which SPF checks and DMARC aligns
+to) and a Message-ID on `wainkw.com`. Measured on 14 October with `mailtest`
+from staging to `cs@sporta.com.kw`: it arrived in **Junk**, with
+
+```
+Return-Path: <noreply@srv2231.main-hosting.eu>
+Authentication-Results: dkim=none;
+  dmarc=fail reason="SPF not aligned (relaxed), No valid DKIM" header.from=wainkw.com (policy=quarantine);
+  spf=pass … smtp.mailfrom=noreply@srv2231.main-hosting.eu
+X-Spam: Yes
+```
+
+Hostinger's sendmail **replaces** the `-f` envelope sender with its own
+`noreply@srv…main-hosting.eu`, so SPF passes for the host and never aligns
+with `wainkw.com`, nothing DKIM-signs `mail()` output, and wainkw.com's
+`p=quarantine` sends it to spam. No header set in `wain-api.php` can change
+that. The fix is authenticated SMTP from a real `orders@wainkw.com` mailbox,
+which Hostinger's mail servers DKIM-sign (the three DKIM CNAMEs are already in
+wainkw.com's DNS). That needs a mailbox on wainkw.com (the mail account today
+has only `cs@sporta.com.kw`) and its password in `storage/`, never in the
+repository. Until then a shop must check its spam folder for orders, and the
+board at `/admin` is the reliable copy. `php …/api/wain.php mailtest <address>`
+repeats the measurement.
 
 ## Turning it on for a business (with a database)
 
