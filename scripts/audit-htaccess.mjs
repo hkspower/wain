@@ -60,6 +60,36 @@ if (!existsSync(OUT)) {
 
 const rules = denyPatterns(readFileSync(HTACCESS, "utf8"));
 
+/* ── the apex redirect ─────────────────────────────────────────────────────
+   The one rewrite this file may hold (restored 14 October). Its two conditions
+   are the whole risk, so both are asserted: the bare apex host, anchored, so
+   staging and hub never match; and /api/ exempt, because a 301 answers a POST
+   by dropping its body. A second RewriteRule anywhere is refused — the header
+   forbids a catch-all, and this file is where one would go. */
+{
+  const src = readFileSync(HTACCESS, "utf8");
+  const allRules = [...src.matchAll(/^[ \t]*RewriteRule\b.*$/gm)].length;
+  const blocks = [...src.matchAll(/<IfModule mod_rewrite\.c>([\s\S]*?)<\/IfModule>/g)].map((m) => m[1]);
+  if (allRules === 0) {
+    errors.push("no apex redirect in public/.htaccess — the bare wainkw.com serves a second full copy of the site");
+  } else if (allRules !== 1 || blocks.length !== 1) {
+    errors.push(
+      `public/.htaccess holds ${allRules} RewriteRule line(s) in ${blocks.length} mod_rewrite block(s) — the apex redirect is the only rewrite allowed`
+    );
+  } else {
+    const b = blocks[0];
+    const missing = [];
+    if (!/^[ \t]*RewriteEngine\s+On\b/m.test(b)) missing.push("RewriteEngine On");
+    if (!/^[ \t]*RewriteCond\s+%\{HTTP_HOST\}\s+\^wainkw\\\.com\$\s+\[NC\]\s*$/m.test(b))
+      missing.push("the bare-apex host condition ^wainkw\\.com$ [NC]");
+    if (!/^[ \t]*RewriteCond\s+%\{REQUEST_URI\}\s+!\^\/api\/\s*$/m.test(b)) missing.push("the /api/ exemption");
+    if (!/^[ \t]*RewriteRule\s+\^\(\.\*\)\$\s+https:\/\/www\.wainkw\.com\/\$1\s+\[L,R=301\]\s*$/m.test(b))
+      missing.push("the 301 to https://www.wainkw.com/$1");
+    if (missing.length) errors.push(`the apex redirect has lost ${missing.join("; ")}`);
+    else notes.push("allowed: the one rewrite is the apex redirect — Host-keyed to wainkw.com, exempts /api/");
+  }
+}
+
 /** Every file the export ships, as repo-relative paths. */
 async function walk(dir, acc = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
