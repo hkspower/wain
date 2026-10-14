@@ -139,6 +139,8 @@
     "scan:mass-assignment": "node scripts/mass-assignment-scan.mjs",
     "make:file-manifest": "node scripts/make-file-manifest.mjs",
     "test:file-manifest": "node scripts/make-file-manifest.mjs --check",
+    "make:hero-polish-table": "node scripts/make-hero-polish-table.mjs",
+    "test:hero-polish-table": "node scripts/make-hero-polish-table.mjs --check",
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",

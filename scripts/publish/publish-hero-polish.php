@@ -1,0 +1,321 @@
+<?php
+/**
+ * WRITES to the live database: the hero polish the owner chose on 2026-10-14, out of options rendered
+ * with their measurements.
+ *
+ *   wget -nv -O r.php https://raw.githubusercontent.com/hkspower/wain/<40-char-sha>/scripts/publish/publish-hero-polish.php && php r.php
+ *
+ * FOUR CHOICES, ONE RUN:
+ *  1. The five photo slides graded to ONE white balance (scripts/make-hero-polish.py: per-channel gains
+ *     in linear light taking each studio to the same grey). Desktop pictures are 2560px.
+ *  2. SQUARE phone pictures with the whole athlete in frame, cut from each slide's own art.
+ *     image_mobile_w/h become the square's size.
+ *  3. Slides 2 and 3 switched OFF: `active = 0`, nothing deleted, so undoing it is one tick in /backends.
+ *  4. Autoplay ON, every 6.5 s: the `hero` settings row gets autoplay=true and speed_ms=6500, and every
+ *     other key in it stays exactly as it was.
+ * A slide is a ROW (hero_slides.image, a data: URI served by ?r=slide_image), so this is a database
+ * write. It supersedes publish-hero-desktop-2560.php (never run live, removed with its artefacts).
+ *
+ * WHAT IT TOUCHES, AND WHAT IT NEVER TOUCHES.
+ *  - The five: only image, image_hash, image_w, image_h, image_mobile, image_mobile_hash,
+ *    image_mobile_w, image_mobile_h, and only of a row whose desktop bytes ARE the 3200 master AND
+ *    whose phone bytes ARE the 1080x1350 neutral phone picture publish-hero-neutral.php wrote. Both
+ *    are decoded out of the row and hashed; the hash columns alone are not trusted. A row carrying
+ *    anything else (the owner replaced a picture) is `untouched`. Titles, button, focal point, order
+ *    and active are left as they are.
+ *  - Slides 2 and 3: only `active`, only when the row with that id exists and is NOT one of the five
+ *    (neither its desktop nor its phone picture, by column or by bytes, is one of the five's), and
+ *    never when it would leave the hero with no active slide.
+ *  - The settings row: only `autoplay` and `speed_ms`. No row means the shop runs on its built-in
+ *    default; nothing is written then.
+ *  - If any artefact fails its checks, the run stops after the swaps: slides 2/3 and the settings row
+ *    are not written by a run that could not publish what it was pinned to.
+ *
+ * SAFETY, in the order it happens:
+ *  - Each artefact is fetched from $COMMIT by its FULL sha (an abbreviated one 404s, silently empty),
+ *    ONE AT A TIME, and must answer 200, match its recorded sha256, be a WEBP and be exactly the
+ *    recorded size before anything is written.
+ *  - Everything replaced is saved FIRST to a timestamped directory in the account's home, OUTSIDE the
+ *    docroot (0700, files 0600), and read back by sha256: the desktop and phone bytes, each row's old
+ *    hashes and sizes, slides 2/3's previous `active`, the settings row's exact old value. No backup,
+ *    no write.
+ *  - Every UPDATE is guarded on the values just checked (old hashes, old active, old settings value),
+ *    so a panel save in the same moment is not overwritten; it reads `changed-meanwhile`.
+ *
+ * UNDO, from the backup directory: put each slide's two .webp files back as data:image/webp;base64
+ * with the hashes and sizes in its slide-<id>-<name>-before.json; set slide 2/3 back to the `active`
+ * in slide-<id>-before.json; write settings-hero-before.json's text back into settings.value.
+ *
+ * REPORTS STATE, not its verb. The LAST line reads the same on every run of a `* * * * *` job,
+ * whether this run or an earlier one did the work:
+ *   HEROPOLISH polished=5/5 phoneSquare=5/5 activePolished=5/5 slides23=off/off autoplay=on/6500 …
+ * The line before it, THISRUN, is what this run did (swapped=5 on the first, swapped=0 already=5
+ * after). Delete the job after the first output. A slide's URL changes with its hash (`?v=` is its
+ * first 16 characters), so browsers fetch the new pictures at once, and seo.php's first-frame
+ * preload follows the rows on the next page load.
+ *
+ * $COMMIT PINS THE ARTEFACTS (the commit that holds the polish files). Fetch this script from HEAD.
+ * THE TABLE BELOW IS GENERATED from the files AT $COMMIT: to re-pin, change $COMMIT and run
+ * `npm run make:hero-polish-table`; `npm run test:hero-polish-table` fails when the table, $COMMIT
+ * and the repository's HEAD copies of the artefacts disagree (a re-generated artefact committed
+ * without a re-pin would otherwise publish the OLD picture and report success).
+ *
+ * LOCAL TEST MODE, never on the live server: only when the live docroot does not exist do
+ * SPORTA_CONFIG_FILE, SPORTA_BACKUP_DIR and SPORTA_ARTEFACT_DIR (artefacts read from a directory
+ * instead of fetched) decide where it reads and writes.
+ */
+declare(strict_types=1);
+
+$COMMIT = 'fa368640b803ca1388d3168932534d1d77e6c619';
+const LIVE_DOCROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
+const LIVE_HOME    = '/home/u130124229';
+
+// >>> POLISH TABLE — generated by scripts/make-hero-polish-table.mjs from the artefacts AT $COMMIT. Do not edit by hand.
+// name => [3200 master sha256, 1080x1350 phone sha256 (both as publish-hero-neutral.php wrote them, live today),
+//          polish desktop sha256, width, height, polish phone sha256, width, height]
+$POLISH = [
+    'runner'     => ['fae0112c1ea5ebe2565eebabbe06f9c0318757a8fa736e37eaaf28c63ba23a9f', 'a2646785e4200a5257a20f6fd77296caf2d9a20c686316c1aa2128525d5cf91e',
+                     'c5e667ec55fa525fae5927ab657446b86ae814c9589df7097487ab6e2b0772aa', 2560, 1016, '0a0f5f3f27c7beeb2f9f9074355e32fe8d4bb4393a6ece0d548fcc560879da74', 1470, 1470],
+    'activewear' => ['aad2f59f893eb2d3fab2ee04f160b97fdbbb925e742fb430b2b7545cd9094e3b', '12ef8609248788a82f4c2c78dee042150916a3e16d734320f808b41563ebc5b5',
+                     '74592e74baf4bcc40407c5d86d86dc456384bc0c7d5b8ab04b149c5614b52f7f', 2560, 1016, '33c041db36e1cd30ec4befd9c87c6d9ff0a16a302105bcd733ba6bbd2d54a811', 1470, 1470],
+    'training'   => ['1c113245a75cd13f5cb0100e3d675b22840b491e6c932d8fc97a39cd2a6f0581', '3b9360d29164a5b08a471b2563fa48dde0931311779ae700a1a2267a112d6e5d',
+                     '5747624f4dff734f5109775fdb80b115ba68fb39ebbf44d9d442e82b92a366dd', 2560, 1016, '628d28e76dbd9c6b41a70ebb60efd0d613eb4459120fa3a03510bfcda8cd7aca', 1470, 1470],
+    'features'   => ['79adcfd9075dea0c19ebd3d44ce94dec427555502192e8b8ed3065b1e7609018', '660594879f0cb28aa6b34d67cfe2e507246ae84152296dae4dd92f5679c36b5e',
+                     '9f92f5a1020ff1100f3bcd755a351953fb4de5de8d78a41a655e4858aa6ed843', 2560, 1016, '032ac54fc46097e64c55cdec48d5c7370c780a481e38394a0a7b95272946ce5c', 1470, 1470],
+    'crossfit'   => ['3cfbd88622884ba9cc1db7b15048ce391868be0481ecb4992c8c900ac1ed8f46', '2a90a19f419c73c4cd1fbbe95676c76daf31c11695a7a450c3b17786204f416a',
+                     '43a865e1a4a6c817a331fceca8a2d9cbb12228297865d28ab6e450b5b0843046', 2560, 1016, '08af11aa5056b6aed43043a14cf73f065e2f4afb055b4a3f4ca308ab57b78147', 1350, 1350],
+];
+// <<< POLISH TABLE
+
+const OFF_IDS      = [2, 3];
+const SPEED_MS     = 6500;
+const DATA_URI_MAX = 1200000;   // STORE_HERO_MAX in api/store.php: the most the panel itself would store
+
+function line(string $s): void { echo $s, "\n"; @ob_flush(); @flush(); }
+$RUN   = '';
+$STATE = 'HEROPOLISH UNKNOWN (the run stopped before it measured)';
+register_shutdown_function(static function () use (&$RUN, &$STATE): void {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) line('FAILED fatal at line ' . $e['line']);
+    if ($RUN !== '') line($RUN);
+    line($STATE);
+});
+
+$local   = !is_dir(LIVE_DOCROOT);
+$cfgFile = $local ? (string) getenv('SPORTA_CONFIG_FILE') : LIVE_DOCROOT . '/api/config.php';
+$bakRoot = $local ? (string) getenv('SPORTA_BACKUP_DIR') : LIVE_HOME;
+$artDir  = $local ? (string) getenv('SPORTA_ARTEFACT_DIR') : '';
+line('HEROPOLISH publish-hero-polish ' . gmdate('Y-m-d\TH:i:s\Z') . ($local ? ' LOCAL-TEST' : '') . ' commit=' . substr($COMMIT, 0, 12));
+if ($cfgFile === '' || $bakRoot === '' || ($local && $artDir === '')) { $STATE = 'HEROPOLISH REFUSED-no-paths'; exit; }
+if (!preg_match('/^[0-9a-f]{40}$/', $COMMIT)) { $STATE = 'HEROPOLISH REFUSED-commit-not-a-full-sha'; exit; }
+if (count($POLISH) !== 5) { $STATE = 'HEROPOLISH REFUSED-table-has-' . count($POLISH) . '-slides-not-5'; exit; }
+
+/** Width and height out of a webp's own header (VP8, VP8L or VP8X), or null. */
+function webp_size(string $b): ?array {
+    if (strlen($b) < 30 || substr($b, 0, 4) !== 'RIFF' || substr($b, 8, 4) !== 'WEBP') return null;
+    $c = substr($b, 12, 4);
+    if ($c === 'VP8X') { $w = unpack('V', substr($b, 24, 3) . "\0")[1] + 1; $h = unpack('V', substr($b, 27, 3) . "\0")[1] + 1; return [$w, $h]; }
+    if ($c === 'VP8 ') return [unpack('v', substr($b, 26, 2))[1] & 0x3fff, unpack('v', substr($b, 28, 2))[1] & 0x3fff];
+    if ($c === 'VP8L') { $n = unpack('V', substr($b, 21, 4))[1]; return [($n & 0x3fff) + 1, (($n >> 14) & 0x3fff) + 1]; }
+    return null;
+}
+/** One artefact, fetched (or read, in local test mode) and checked: 200, sha256, webp, exact size. */
+function artefact(string $file, string $sha, int $w, int $h, string $commit, string $artDir): ?string {
+    if ($artDir !== '') {
+        $b = @file_get_contents(rtrim($artDir, '/') . '/' . $file);
+        $code = is_string($b) ? 200 : 0;
+    } else {
+        $ch = curl_init('https://raw.githubusercontent.com/hkspower/wain/' . $commit . '/sporta-site/assets/hero/' . $file);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60, CURLOPT_FOLLOWLOCATION => true]);
+        $b = curl_exec($ch); $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+    }
+    if (!is_string($b) || $code !== 200 || $b === '') { line("  $file fetch=FAILED http=$code"); return null; }
+    if (!hash_equals($sha, hash('sha256', $b))) { line("  $file HASH-MISMATCH"); return null; }
+    if (webp_size($b) !== [$w, $h]) { line("  $file NOT-A-{$w}x{$h}-WEBP"); return null; }
+    return $b;
+}
+/** The bytes inside a stored data: URI, or null. */
+function bytes_of(?string $uri): ?string {
+    if (!is_string($uri) || !preg_match('#^data:image/(?:png|jpeg|webp);base64,(.+)$#s', $uri, $m)) return null;
+    $b = base64_decode($m[1], true);
+    return $b === false ? null : $b;
+}
+function sha_of(?string $uri): ?string { $b = bytes_of($uri); return $b === null ? null : hash('sha256', $b); }
+/** The run's backup directory, made on first use (0700, in the home directory, outside the docroot). */
+function bak_dir(string $root, string &$dir): ?string {
+    if ($dir === '') {
+        $d = rtrim($root, '/') . '/hero-polish-backup-' . gmdate('Ymd-His') . 'Z';
+        if (!is_dir($d) && !@mkdir($d, 0700, true)) return null;
+        @chmod($d, 0700);
+        $dir = $d;
+    }
+    return $dir;
+}
+/** Write one backup file (0600) and read it back: true only when the bytes on disk are the bytes given. */
+function bak_put(string $dir, string $file, string $bytes): bool {
+    $p = $dir . '/' . $file;
+    $ok = @file_put_contents($p, $bytes, LOCK_EX) === strlen($bytes);
+    @chmod($p, 0600);
+    $back = $ok ? @file_get_contents($p) : false;
+    return is_string($back) && hash_equals(hash('sha256', $bytes), hash('sha256', $back));
+}
+
+$cfg = @include $cfgFile;
+if (!is_array($cfg)) { $STATE = 'HEROPOLISH REFUSED-config-unreadable'; exit; }
+try {
+    $pdo = new PDO('mysql:host=' . ($cfg['db_host'] ?? 'localhost') . ';dbname=' . ($cfg['db_name'] ?? '') . ';charset=utf8mb4',
+        (string) ($cfg['db_user'] ?? ''), (string) ($cfg['db_pass'] ?? ''),
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 20]);
+} catch (Throwable $e) { $STATE = 'HEROPOLISH REFUSED-connect ' . get_class($e) . '/' . $e->getCode(); exit; }
+
+// every picture that makes a row "one of the five", by desktop and by phone
+$FIVE_DESK = []; $FIVE_PHONE = [];
+foreach ($POLISH as [$m, $p, $pd, , , $pp]) { $FIVE_DESK[$m] = $FIVE_DESK[$pd] = true; $FIVE_PHONE[$p] = $FIVE_PHONE[$pp] = true; }
+function is_one_of_five(array $r, array $desk, array $phone): bool {
+    foreach ([$r['image_hash'], sha_of($r['image'])] as $h) if (is_string($h) && isset($desk[$h])) return true;
+    foreach ([$r['image_mobile_hash'], sha_of($r['image_mobile'])] as $h) if (is_string($h) && isset($phone[$h])) return true;
+    return false;
+}
+
+$swapped = 0; $already = 0; $untouched = 0; $failed = 0; $off = 0; $heroWritten = 'no'; $bakDir = ''; $before = 0; $after = 0;
+try {
+    // ---------------------------------------------------------------------- 1 + 2: the five pictures
+    $cache = [];
+    foreach ($POLISH as $name => [$master, $oldPhone, $pd, $dw, $dh, $pp, $pw, $ph]) {
+        $q = $pdo->prepare('select id from hero_slides where image_hash = ? and image_mobile_hash = ?');
+        $q->execute([$pd, $pp]);
+        $done = $q->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($done as $id) { line("SLIDE $name id=$id already-polished"); $already++; }
+        $q = $pdo->prepare('select id, active, image, image_hash, image_w, image_h, image_mobile, image_mobile_hash, image_mobile_w, image_mobile_h
+                              from hero_slides where image_hash = ?');
+        $q->execute([$master]);
+        $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows && !$done) { line("SLIDE $name untouched (no row carries the 3200 master: replaced, or never the neutral one)"); $untouched++; continue; }
+        foreach ($rows as $r) {
+            $id = (int) $r['id'];
+            $old = bytes_of($r['image']);
+            if ($old === null || !hash_equals($master, hash('sha256', $old))) { line("SLIDE $name id=$id untouched REFUSED-desktop-bytes-are-not-the-master"); $untouched++; continue; }
+            $oldP = bytes_of($r['image_mobile']);
+            if ($oldP === null || !hash_equals($oldPhone, hash('sha256', $oldP))) { line("SLIDE $name id=$id untouched REFUSED-phone-is-not-the-neutral-1080x1350 (replaced?)"); $untouched++; continue; }
+            if ($r['image_mobile_hash'] !== $oldPhone) { line("SLIDE $name id=$id untouched REFUSED-phone-hash-column-disagrees-with-its-bytes"); $untouched++; continue; }
+            if (!isset($cache[$name])) {
+                $d = artefact("$name-polish-desktop-2560.webp", $pd, $dw, $dh, $COMMIT, $artDir);
+                $p = $d === null ? null : artefact("$name-polish-phone.webp", $pp, $pw, $ph, $COMMIT, $artDir);
+                $cache[$name] = ($d === null || $p === null) ? false : [$d, $p];
+            }
+            if ($cache[$name] === false) { line("SLIDE $name id=$id REFUSED-artefact"); $failed++; continue; }
+            [$d, $p] = $cache[$name];
+            $uri = 'data:image/webp;base64,' . base64_encode($d);
+            $muri = 'data:image/webp;base64,' . base64_encode($p);
+            if (strlen($uri) > DATA_URI_MAX || strlen($muri) > DATA_URI_MAX) { line("SLIDE $name id=$id REFUSED-too-large"); $failed++; continue; }
+            // the backup, verified before anything is written
+            if (bak_dir($bakRoot, $bakDir) === null) { $failed++; line("SLIDE $name id=$id REFUSED-backup-dir"); break 2; }
+            $meta = json_encode(['id' => $id, 'active' => (int) $r['active'],
+                'image_hash' => $r['image_hash'], 'image_w' => $r['image_w'], 'image_h' => $r['image_h'],
+                'image_mobile_hash' => $r['image_mobile_hash'], 'image_mobile_w' => $r['image_mobile_w'], 'image_mobile_h' => $r['image_mobile_h']], JSON_PRETTY_PRINT) . "\n";
+            if (!bak_put($bakDir, "slide-$id-$name-desktop-before.webp", $old) || !bak_put($bakDir, "slide-$id-$name-phone-before.webp", $oldP)
+                || !bak_put($bakDir, "slide-$id-$name-before.json", $meta)) {
+                line("SLIDE $name id=$id REFUSED-backup-not-written $bakDir"); $failed++; continue;
+            }
+            $u = $pdo->prepare('update hero_slides set image = ?, image_hash = ?, image_w = ?, image_h = ?,
+                                       image_mobile = ?, image_mobile_hash = ?, image_mobile_w = ?, image_mobile_h = ?
+                                 where id = ? and image_hash = ? and image_mobile_hash = ?');
+            $u->execute([$uri, $pd, $dw, $dh, $muri, $pp, $pw, $ph, $id, $master, $oldPhone]);
+            if ($u->rowCount() !== 1) { line("SLIDE $name id=$id changed-meanwhile (untouched)"); $untouched++; continue; }
+            line("SLIDE $name id=$id active={$r['active']} swapped desktop " . strlen($old) . ' -> ' . strlen($d)
+               . ", phone {$r['image_mobile_w']}x{$r['image_mobile_h']} " . strlen($oldP) . " -> {$pw}x{$ph} " . strlen($p));
+            $swapped++; $before += strlen($old) + strlen($oldP); $after += strlen($d) + strlen($p);
+        }
+    }
+
+    if ($failed > 0) {
+        line("STOPPED failed=$failed: slides 2/3 and the settings row are not written by a run that could not publish its artefacts");
+    } else {
+        // ------------------------------------------------------------------ 3: slides 2 and 3 off
+        foreach (OFF_IDS as $id) {
+            $q = $pdo->prepare('select id, active, image, image_hash, image_mobile, image_mobile_hash from hero_slides where id = ?');
+            $q->execute([$id]);
+            $r = $q->fetch(PDO::FETCH_ASSOC);
+            if (!$r) { line("SLIDE id=$id absent (nothing to switch off)"); continue; }
+            if (is_one_of_five($r, $FIVE_DESK, $FIVE_PHONE)) { line("SLIDE id=$id KEPT — it carries one of the five pictures, so it is not one of the two older slides"); continue; }
+            if ((int) $r['active'] === 0) { line("SLIDE id=$id already-off"); continue; }
+            $others = (int) $pdo->query('select count(*) from hero_slides where active = 1 and image is not null and id not in (' . implode(',', OFF_IDS) . ')')->fetchColumn();
+            if ($others < 1) { line("SLIDE id=$id REFUSED-would-leave-the-hero-with-no-active-slide"); continue; }
+            if (bak_dir($bakRoot, $bakDir) === null) { line("SLIDE id=$id REFUSED-backup-dir"); continue; }
+            $meta = json_encode(['id' => $id, 'active' => (int) $r['active'], 'image_hash' => $r['image_hash'], 'image_mobile_hash' => $r['image_mobile_hash']], JSON_PRETTY_PRINT) . "\n";
+            if (!bak_put($bakDir, "slide-$id-before.json", $meta)) { line("SLIDE id=$id REFUSED-backup-not-written $bakDir"); continue; }
+            $u = $pdo->prepare('update hero_slides set active = 0 where id = ? and active = ? and image_hash <=> ? and image_mobile_hash <=> ?');
+            $u->execute([$id, (int) $r['active'], $r['image_hash'], $r['image_mobile_hash']]);
+            if ($u->rowCount() !== 1) { line("SLIDE id=$id changed-meanwhile (untouched)"); continue; }
+            line("SLIDE id=$id switched-off (was active={$r['active']})");
+            $off++;
+        }
+
+        // ------------------------------------------------------------------ 4: autoplay on, 6.5 s
+        $v = $pdo->query("select value from settings where name = 'hero'")->fetchColumn();
+        if ($v === false) {
+            line('HERO no settings row (the shop runs on its built-in default) — nothing written');
+        } else {
+            $old = json_decode((string) $v, true);
+            if (!is_array($old)) {
+                line('HERO REFUSED-row-is-not-a-json-object');
+            } else {
+                $new = $old;
+                $new['autoplay'] = true;
+                $new['speed_ms'] = SPEED_MS;
+                if ($new === $old) {
+                    line('HERO already autoplay=true speed_ms=' . SPEED_MS);
+                } elseif (bak_dir($bakRoot, $bakDir) === null || !bak_put($bakDir, 'settings-hero-before.json', (string) $v)) {
+                    line("HERO REFUSED-backup-not-written $bakDir");
+                } else {
+                    $enc = json_encode($new, JSON_UNESCAPED_UNICODE);
+                    $u = $pdo->prepare("update settings set value = ? where name = 'hero' and value = ?");
+                    $u->execute([$enc, (string) $v]);
+                    if ($u->rowCount() !== 1) line('HERO changed-meanwhile (untouched)');
+                    else { line("HERO written $v -> $enc"); $heroWritten = 'yes'; }
+                }
+            }
+        }
+    }
+    $RUN = "THISRUN swapped=$swapped already=$already untouched=$untouched failed=$failed switchedOff=$off heroWritten=$heroWritten"
+         . ($swapped ? " bytes=$before->$after" : '') . ($bakDir !== '' ? " backup=$bakDir" : '');
+} catch (Throwable $e) {
+    $RUN = "THISRUN FAILED " . get_class($e) . '/' . $e->getCode() . " swapped=$swapped switchedOff=$off heroWritten=$heroWritten" . ($bakDir !== '' ? " backup=$bakDir" : '');
+}
+
+// -------------------------------------------------------------------------- STATE, read back from the rows
+try {
+    $pol = 0; $sq = 0; $act = 0;
+    $qd = $pdo->prepare('select active, image, image_w, image_h from hero_slides where image_hash = ?');
+    $qp = $pdo->prepare('select image_mobile, image_mobile_w, image_mobile_h from hero_slides where image_mobile_hash = ?');
+    foreach ($POLISH as [, , $pd, $dw, $dh, $pp, $pw, $ph]) {
+        $qd->execute([$pd]);
+        $hit = false; $live = false;
+        foreach ($qd->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if (sha_of($r['image']) === $pd && (int) $r['image_w'] === $dw && (int) $r['image_h'] === $dh) { $hit = true; $live = $live || (int) $r['active'] === 1; }
+        }
+        $qp->execute([$pp]);
+        $phit = false;
+        foreach ($qp->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            if (sha_of($r['image_mobile']) === $pp && (int) $r['image_mobile_w'] === $pw && (int) $r['image_mobile_h'] === $ph && $pw === $ph) $phit = true;
+        }
+        $pol += (int) $hit; $act += (int) $live; $sq += (int) $phit;
+    }
+    $s23 = [];
+    $q = $pdo->prepare('select active, image, image_hash, image_mobile, image_mobile_hash from hero_slides where id = ?');
+    foreach (OFF_IDS as $id) {
+        $q->execute([$id]);
+        $r = $q->fetch(PDO::FETCH_ASSOC);
+        $s23[] = !$r ? 'absent' : (is_one_of_five($r, $FIVE_DESK, $FIVE_PHONE) ? 'five' : ((int) $r['active'] === 1 ? 'on' : 'off'));
+    }
+    $v = $pdo->query("select value from settings where name = 'hero'")->fetchColumn();
+    $h = $v === false ? null : json_decode((string) $v, true);
+    $hero = $v === false ? 'autoplay=no-row' : (!is_array($h) ? 'autoplay=UNREADABLE'
+        : 'autoplay=' . (!empty($h['autoplay']) ? 'on' : 'off') . '/' . json_encode($h['speed_ms'] ?? null)
+          . ' size=' . (is_string($h['size'] ?? null) ? $h['size'] : '-') . ' shuffle=' . (!empty($h['shuffle']) ? 'on' : 'off'));
+    $n = (int) $pdo->query('select count(*) from hero_slides where active = 1 and image is not null')->fetchColumn();
+    $five = count($POLISH);
+    $STATE = "HEROPOLISH polished=$pol/$five phoneSquare=$sq/$five activePolished=$act/$five slides23=" . implode('/', $s23) . " $hero activeSlides=$n";
+} catch (Throwable $e) {
+    $STATE = 'HEROPOLISH FAILED-measuring ' . get_class($e) . '/' . $e->getCode();
+}
