@@ -131,11 +131,16 @@ repeat of the same order (`again: true`) sends nothing. The log line records
 `mail=none|sent|failed` and never the address. A failed send does not fail the
 order: the order is already on the board.
 
-**Delivery is measured, not assumed — and today an order email lands in
-Junk.** The message goes out through PHP's `mail()` with
+**Delivery is measured, not assumed, and the one measurement went to Junk.**
+Since `e005f90` the message goes out through PHP's `mail()` with
 `-forders@wainkw.com` (the envelope sender, which SPF checks and DMARC aligns
-to) and a Message-ID on `wainkw.com`. Measured on 14 October with `mailtest`
-from staging to `cs@sporta.com.kw`: it arrived in **Junk**, with
+to) and a Message-ID on `wainkw.com`. That code runs on **staging only**;
+production's `wain.php` is still `4dd1b20`, which sends with neither and has
+no `mailtest`, and its mail was never measured. No real order email is sent
+today on either stage: 0 of 52 places take orders and no shop has an order
+address. Measured on 14 October with `mailtest` from staging to
+`cs@sporta.com.kw` (one message, one Hostinger-hosted receiver): it arrived
+in **Junk**, with
 
 ```
 Return-Path: <noreply@srv2231.main-hosting.eu>
@@ -145,17 +150,20 @@ Authentication-Results: dkim=none;
 X-Spam: Yes
 ```
 
-Hostinger's sendmail **replaces** the `-f` envelope sender with its own
-`noreply@srv…main-hosting.eu`, so SPF passes for the host and never aligns
-with `wainkw.com`, nothing DKIM-signs `mail()` output, and wainkw.com's
-`p=quarantine` sends it to spam. No header set in `wain-api.php` can change
-that. The fix is authenticated SMTP from a real `orders@wainkw.com` mailbox,
-which Hostinger's mail servers DKIM-sign (the three DKIM CNAMEs are already in
+The `-f` sender did not survive to the receiver: the message arrived with the
+host's own `noreply@srv…main-hosting.eu` (where it was changed, in
+`sendmail_path` or the relay, was not seen). So SPF passed for the host and did
+not align with `wainkw.com`, nothing DKIM-signs `mail()` output, and
+wainkw.com's `p=quarantine` sent it to spam. The expected fix, not yet tested,
+is authenticated SMTP from a real `orders@wainkw.com` mailbox, which
+Hostinger's mail servers should DKIM-sign (the three DKIM CNAMEs are already in
 wainkw.com's DNS). That needs a mailbox on wainkw.com (the mail account today
 has only `cs@sporta.com.kw`) and its password in `storage/`, never in the
-repository. Until then a shop must check its spam folder for orders, and the
-board at `/admin` is the reliable copy. `php …/api/wain.php mailtest <address>`
-repeats the measurement.
+repository. Until then a shop would have to check its spam folder, and the
+board at `/admin` cannot stand in for it either while `storage/admin.secret`
+is empty. `php …/staging/api/wain.php mailtest <address>` repeats the
+measurement on staging; schedule it for one minute of the hour, not every
+minute, because each run sends a real message.
 
 ## Turning it on for a business (with a database)
 
