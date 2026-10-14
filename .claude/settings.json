@@ -84,6 +84,7 @@
       "mcp__wain__*",
 
       "mcp__hosa__search",
+      "mcp__ppok__search",
       "mcp__github__actions_run_trigger",
       "mcp__github__actions_list",
       "mcp__github__actions_get",
@@ -121,7 +122,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__hosa__execute|mcp__hosa__multi-execute",
+        "matcher": "mcp__hosa__execute|mcp__hosa__multi-execute|mcp__ppok__execute|mcp__ppok__multi-execute",
         "hooks": [
           {
             "type": "command",
