@@ -89,6 +89,19 @@ RedirectMatch 404 ^/staging(/|$)
   RewriteRule ^(.*)$ https://www.wainkw.com/$1 [L,R=301]
 </IfModule>
 
+# ---- /shoug/ is closed -----------------------------------------------------
+#
+# /shoug/ was a second شوق page another session put in production's docroot —
+# not built from this repository — with two scripts of its own
+# (wain-call-center-bridge-v1.js, wain-native-agent-bridge-v1.js) handing the
+# question between it, /salem/ and /call-center/ through localStorage. Closed on
+# the owner's word on 14 October: the page and both scripts were moved into
+# <domain>/storage/, and this sends anything still pointing at /shoug/ — the
+# hub's own «كلّم شوق» links, a search engine's copy of the indexed page — to
+# her real page, /find/, rather than to a 404. 301 because it is permanent.
+# Staging never had /shoug/, and the rule is harmless there.
+RedirectMatch 301 ^/shoug(/.*)?$ /find/
+
 # Never serve this file itself.
 <Files ".htaccess">
   Require all denied
