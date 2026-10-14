@@ -1192,6 +1192,12 @@ comment already states — «if شوق or the voice stop working after a change
 here, the browser console names the directive» — is what actually found this
 one: a live screenshot of the failed call, not a scan.
 
+**SUPERSEDED 14 October — the widget is self-hosted and the worklet paths are
+set; see «شوق's widget is self-hosted now» below. That section also corrects
+the diagnosis above: `addModule()` is checked against `script-src`, not
+`worker-src`, so naming unpkg there could not have fixed the error.** Kept for
+the record:
+
 **And the SDK offers a way around needing `blob:`/a third-party `worker-src`
 entry at all, not taken here.** `@elevenlabs/client`'s `AudioWorkletConfig`
 (`workletPaths.rawAudioProcessor`/`audioConcatProcessor`) exists precisely
@@ -2724,6 +2730,69 @@ callers is itself the tell that `/salem` should never have imported it in
 the first place; the header comment records all three rather than only the
 last, because the next person reaching for `SALEM_VOICE_ID` from a THIRD
 surface should see that this has been tried and walked back twice already.
+
+## شوق's widget is self-hosted now — 14 October
+
+`unpkg.com` is gone from the site, and the widget went from 0.18.1 to
+**0.20.0** in the same change. Checked before switching, by reading the
+0.20.0 bundle rather than trusting its version number (a 0.x minor may
+break): the three `worklet-path-*` attributes, `agent-id`,
+`override-voice-id`, `user-id`, the one `elevenlabs-convai:call` event and
+both in-bundle worklets are all still there, it still asks for
+libsamplerate-js 2.1.2, and it is still a classic IIFE. The changelog's
+only feature since 0.18.1 is an opt-in `persistent-session` attribute for
+text chats, which nothing here sets. 0.20.0 was a day old when it was
+taken — chosen on request over 0.18.3, the patch release past the
+two-week mark.
+
+`@elevenlabs/convai-widget-embed` and
+`@alexanderolsen/libsamplerate-js` are **exact** devDependencies, and
+`scripts/vendor-widget.mjs` — the first step of `npm run build` — copies the
+bundle and three AudioWorklets into `public/vendor/<package>-<x.y.z>/`,
+gitignored, ~3.5MB derived wholly from the lockfile. `WAIN_AI_WIDGET_SRC` is a
+root-relative path, and `script-src`, `connect-src` and `worker-src` no longer
+name any third-party host for it.
+
+**The worklets are the part that mattered, and the old fix was aimed at the
+wrong directive.** Left alone, the bundle mints `rawAudioProcessor` and
+`audioConcatProcessor` as `blob:` URLs out of strings it carries, then tries
+`data:`, and fetches `libsamplerate` from `cdn.jsdelivr.net`. An AudioWorklet's
+`addModule()` is a script fetch checked against **`script-src`**, which allows
+none of the three — so «Failed to load the rawAudioProcessor worklet module»
+was never a `worker-src` problem, and adding unpkg there (above) could not
+have fixed it. Whether a real call has ever had audio on wainkw.com is
+therefore unproven; nobody has called her (see the شوق section). The element
+now carries `worklet-path-raw-audio-processor`, `worklet-path-audio-concat-
+processor` and `worklet-path-libsamplerate` — attribute names read out of the
+bundle, not guessed — each pointing at a same-origin file. **Do not add
+`blob:` to `script-src` to fix a worklet error; hand the widget a file.**
+
+The two in-bundle worklets are extracted from their template literals, and
+the script refuses anything ambiguous: exactly one match per name, no `${`
+interpolation, and the result must call `registerProcessor(`. A worklet
+extracted wrong is a call with no audio and nothing else would notice.
+
+**Caching**: `.htaccess` marks every `.js` immutable for a year, and
+`check-cache-safety` used to allow that only under `_next/static/`. It now also
+accepts `vendor/<name>-<x.y.z>/`, because the vendoring script refuses to write
+a directory whose version differs from the installed package — a new version
+is a new URL. A range or a tag in that name fails the check.
+
+**`audit:shouq-call` was rewritten for it**: the src and all three worklet
+paths must equal what `scripts/vendor-widget-paths.mjs` writes, the package
+must be pinned exactly in package.json and installed at that version, and the
+files must exist once vendored. Confirmed red on a `^0.18.1` and on a drifted
+worklet path. `shouq-agent` stubs `/vendor/…/index.js` instead of unpkg,
+asserts the bundle is same-origin, and fetches each worklet path the element
+was given and requires a 200 carrying `registerProcessor(`.
+
+**What is still not measured: a real call.** `api.elevenlabs.io` is blocked
+here, so the widget now LOADS in this sandbox and then cannot open a session.
+The widget's other hosts — `storage.googleapis.com` images,
+`fonts.googleapis.com`, a fingerprinting CDN — were outside the CSP before and
+still are; `audit:htaccess` scans `_next/static/chunks/` only and does not read
+`/vendor/`. Tap «كلّم شوق» on the live site after this deploys and read the
+console: that is the check nothing here can make.
 
 ## The Arabic prose has been read, once, on purpose
 
