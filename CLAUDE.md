@@ -77,10 +77,10 @@ return `null` everywhere today — check before describing them as visible.
 
 - **This environment cannot upload.** `srv2231-files.hstgr.io` is refused at
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
-  route around it, and never disable TLS or unset `HTTPS_PROXY`. The `hosa`
+  route around it, and never disable TLS or unset `HTTPS_PROXY`. The `ppok`
   connector's **read** tools work and are the way to verify a deploy.
 - **But the server can pull.** `npm run deploy:plan` prints the cron commands
-  and the proofs; `npm run deploy:verify -- --observed <hosa readings>.json`
+  and the proofs; `npm run deploy:verify -- --observed <ppok readings>.json`
   checks them. The route is `wget` from a **commit-pinned**
   `raw.githubusercontent.com` URL, then `unzip -o -q -d <docroot>` — Extract's
   merge, so the PHP app survives. Delete the jobs and the zip afterwards. Two
@@ -98,7 +98,7 @@ return `null` everywhere today — check before describing them as visible.
   minute later, so list after deleting too, not just after creating. Check the
   downloaded size before
   extracting; a partial archive over a live docroot is the failure worth
-  waiting a firing window to avoid. **The hosa file listing lags two to three
+  waiting a firing window to avoid. **The ppok file listing lags two to three
   minutes** behind the disk: after wget had saved the whole zip the listing
   still showed no `w.zip`, which reads as a failed fetch. `getCronJobOutputV1`
   is the faster truth — wget's own `saved [N/N]` line.
@@ -411,7 +411,7 @@ return `null` everywhere today — check before describing them as visible.
   shell plumbing the WAF answers 403 for, so that one-liner cannot be a cron
   job at all.
 
-  The `hosa` connector still has **no file-write tool** — read-only, with its
+  The `ppok` connector still has **no file-write tool** — read-only, with its
   one upload path on the blocked host. The write path is the cron job: the
   server fetching from a commit-pinned raw URL and running what it fetched.
   Delete the fetched `.php` and the job afterwards.
@@ -436,7 +436,7 @@ return `null` everywhere today — check before describing them as visible.
 
   Reading storage at all is a cron job — `ls -la <abs path>`, one program and
   its arguments, delete after one firing, the same shape as every other write
-  path here. The `hosa` file tools are jailed to the docroot and answer 422
+  path here. The `ppok` file tools are jailed to the docroot and answer 422
   for a `..` path.
 
 - **Two more things that listing showed.** `storage/deploy/` held three
@@ -2646,7 +2646,7 @@ and not a filename. Rotation happens BEFORE the write, so the cap is a cap
 rather than something the last line may exceed by its own length.
 
 **Reading it is a cron job, the same as everything else on this account.**
-`storage/` is outside the docroot, so no URL and no `hosa` file tool reaches
+`storage/` is outside the docroot, so no URL and no `ppok` file tool reaches
 it: `php …/api/tts.php log 40` and `php …/api/media.php log 40` are the route,
 and `version` now reports the log's size and whether it has rotated. «0 lines»
 on a bridge that is supposed to be serving is itself the finding — it is
@@ -4676,7 +4676,7 @@ posture.
 `deny` on purpose.** A hard deny on the deploy path would mean a session could
 not publish even when somebody asked it to; what is wanted is a pause, not a
 wall. So `git push`, `git reset --hard`, `rebase`, any history rewrite (which
-شوق's pinned knowledge base makes expensive — see above), every `hosa` call and
+شوق's pinned knowledge base makes expensive — see above), every `ppok` call and
 the GitHub write tools all prompt. Five things are denied outright: `rm -rf /`,
 `rm -rf ~`, a force push, and `hosting_deployStaticSiteArchiveV1` — the last
 because this file has said «never use it, it empties the folder first» for
@@ -7668,4 +7668,4 @@ Measured in a fresh session, not carried over from the sections above.
 - **A fresh container has no `node_modules`.** `npm ci` first. Never `npx next …` without it: npx fetches Next 16, which this file says not to retry, and a killed install leaves a half-written tree that `rm -rf` then fails on. Start the dev server as `./node_modules/.bin/next dev -p 3111` and stop it by PID. `pkill -f "next dev"` matches the shell that runs it. `next dev` also spawns `npm install @types/react` when types are missing, which writes into `node_modules` behind you.
 - **Egress, as measured:** `registry.npmjs.org` and `raw.githubusercontent.com` answer; `www.wainkw.com`, `developers.hostinger.com`, `api.elevenlabs.io`, `unpkg.com` and `srv2231-files.hstgr.io` are refused at CONNECT (000). `curl "$HTTPS_PROXY/__agentproxy/status"` lists every refused host. The environment's Allowed domains is where that changes, and a new session picks it up.
 - **The branch may not exist on arrival.** The container can start detached on another branch. If `git push` is rejected, the remote already has commits: check out `origin/claude/wainkw-design-issues-2bggdi` and cherry-pick, never force.
-- **`.claude/settings.json` `git branch*` was too wide**: it allowed `-D` and `-m`. Now only the read-only forms are allowed. A tool-name rule cannot deny one Hostinger operation, because everything goes through `mcp__ppok__execute`.
+- **`.claude/settings.json` `git branch*` was too wide**: it allowed `-D` and `-m`. Now only the read-only forms are allowed. A tool-name rule cannot deny one Hostinger operation, because everything goes through `mcp__ppok__execute`; `.claude/hooks/hosa-guard.mjs` does that per operation and its matcher covers `mcp__ppok__*` as well as the old `hosa` names.
