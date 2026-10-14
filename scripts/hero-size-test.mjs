@@ -57,7 +57,8 @@
  *
  * It writes nothing.
  */
-import { chromium } from 'playwright'
+import { chromium, devices } from 'playwright'
+import { snapshotHero, restoreHero, seedLiveHero, setHero } from './_hero-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 
@@ -78,9 +79,22 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 })
 
+// THE PHONE ROW IS A PHONE (2026-10-14). It used to be a 390x844 window with a desktop User-Agent,
+// and the server picks the phone picture by User-Agent (api.php ?r=slides), so in the live Size it
+// measured a picture no phone is ever given. Under 768px the context is an iPhone 13 descriptor at
+// the row's own viewport.
+const phone = (() => { const d = { ...devices['iPhone 13'] }; delete d.defaultBrowserType; return d })()
+
+// IT SEEDS THE LIVE SHOP'S SLIDES (2026-10-14). The sandbox has none, so this rig failed both "it
+// rendered" checks and measured nothing; scripts/_hero-seed.mjs puts the live shop's seven in and
+// takes them out again. It measures twice: in TALL, the default Size the percentages below are
+// written for, and in FULL, the Size the live shop uses — there the percentage assertion does not
+// apply (Full is a formula, not a share), but the shell must still match the mounted hero, and the
+// sharpness report is what visitors to the live shop actually get.
+async function measure() {
 const rows = []
 for (const [w, h] of VIEWPORTS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h } })
+  const ctx = await browser.newContext(w < 768 ? { ...phone, viewport: { width: w, height: h } } : { viewport: { width: w, height: h } })
   const page = await ctx.newPage()
 
   // THE PRE-PAINT SHELL, caught before React replaces it. A 25ms poll loop
@@ -165,13 +179,26 @@ for (const [w, h] of VIEWPORTS) {
       drawnW: ib && ib.height
         ? Math.max(ib.width, ib.height * (img.naturalWidth / img.naturalHeight))
         : 0,
-      file: img ? (img.currentSrc || img.src).split('/').slice(-2).join('/') : '',
+      file: img ? (img.currentSrc || img.src).split('/').slice(-2).join('/').replace('api.php?r=slide_image&', '') : '',
     }
   })
   rows.push({ w, h, shell, ...(m ?? {}) })
   await ctx.close()
 }
-await browser.close()
+return rows
+}
+
+const saved = snapshotHero()
+let rows, rowsFull
+try {
+  seedLiveHero({ size: 'tall', autoplay: false })
+  rows = await measure()
+  setHero({ size: 'full', autoplay: false })
+  rowsFull = await measure()
+} finally {
+  restoreHero(saved)
+  await browser.close()
+}
 
 console.log(`--- the hero at ${VIEWPORTS.length} viewports\n`)
 console.log('     viewport      shell  mounted  boxAR  artAR  heightKept  ofScreen')
@@ -253,6 +280,21 @@ if (soft.length) {
   console.log('     The phone ceiling needs a mobile composition built for a full-screen')
   console.log('     box rather than the artwork\'s own ratio — the owner\'s to commission.')
 }
+
+// --- FULL, the live shop's Size ----------------------------------------------
+console.log('\n--- the hero at the live shop\'s Size (Full)\n')
+console.log('     viewport      shell  mounted  file                             srcPx/cssPx')
+for (const r of rowsFull) {
+  const d = r.drawnW ? r.natW / r.drawnW : 0
+  console.log(`     ${`${r.w}x${r.h}`.padEnd(13)} ${String(r.shell).padEnd(6)} ${String(r.hero).padEnd(8)} ${(r.file || '?').padEnd(32)} ${d.toFixed(2)}${d && d < 1 ? '   <- upscaled at 1x' : ''}`)
+}
+check(rowsFull.every((r) => r.hero && r.loaded), 'Full: the hero renders and its picture decodes at every viewport',
+  rowsFull.filter((r) => !r.hero || !r.loaded).map((r) => `${r.w}x${r.h}`).join(', '))
+check(rowsFull.filter((r) => r.w < 768).every((r) => /mobile=1/.test(r.file)), 'Full: the phone row is given the phone picture, as a phone is',
+  rowsFull.filter((r) => r.w < 768).map((r) => r.file).join(' '))
+const jumpFull = rowsFull.filter((r) => Math.abs(r.hero - r.shell) > 2)
+check(jumpFull.length === 0, 'Full: the pre-paint shell matches the mounted hero everywhere',
+  jumpFull.map((r) => `${r.w}x${r.h} ${r.shell}px -> ${r.hero}px (${r.hero - r.shell >= 0 ? '+' : ''}${r.hero - r.shell})`).join(', '))
 
 console.log(fails ? `\n${fails} failed` : '\nall ok — full screen at every size, with the shell agreeing')
 process.exit(fails ? 1 : 0)
