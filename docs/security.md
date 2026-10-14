@@ -124,19 +124,18 @@ The duplicate guard also normalises whitespace and case, so `' مقهى '` and
   inlines its hydration payload and a static export has no server to mint a
   per-request nonce. So the CSP is *not* a strong defence against injected
   inline script. What it does buy is real but narrower: script execution is
-  pinned to this origin plus unpkg, `connect-src` names Supabase and
+  pinned to this origin, `connect-src` names Supabase and
   ElevenLabs so exfiltration to an arbitrary host is blocked, `form-action`
   stops an injected form posting offsite, `base-uri` stops a `<base>` tag
   re-pointing every relative URL, and `object-src 'none'` removes plugins.
-- **شوق's widget is pinned to a major version, not an exact one** —
-  `https://unpkg.com/@elevenlabs/convai-widget-embed@1`. This entry used to say
-  the URL carried no version at all, which stopped being true when the `@1` was
-  added; unpkg can no longer serve a v2 with a changed API. It does still float
-  within v1, so a future or compromised 1.x publish would execute on the page
-  with full DOM access — including the admin's session in localStorage.
-  **Pin an exact version** (`…/convai-widget-embed@X.Y.Z`) and add an
-  `integrity` hash if the artifact allows. Inert until
-  `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is set.
+- **شوق's widget is third-party code running with full DOM access.** It is
+  self-hosted since 14 October — an exact devDependency copied into
+  `/vendor/convai-widget-embed-<x.y.z>/` at build time (`scripts/vendor-
+  widget.mjs`), so its bytes are the ones `package-lock.json`'s integrity hash
+  names and no CDN can change them. That closes the old «floating within v1»
+  risk this entry described; what remains is trusting that one published
+  version, and a bump is a reviewed lockfile change. Inert until
+  `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` resolves to an agent.
 - **The admin session lives in localStorage** (supabase-js `persistSession`).
   Standard, but it means any XSS on `/admin` can lift the JWT. Given the CSP
   caveat above, treat `/admin` as the sensitive surface it is.

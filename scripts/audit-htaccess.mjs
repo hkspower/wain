@@ -147,12 +147,12 @@ const NO_DIRECTIVE_NEEDED = [
 
 /* WHICH directive, not merely somewhere in the policy.
    The first version of this check asked whether the origin appeared anywhere
-   in the CSP string, and that is not the question. unpkg is named in both
+   in the CSP string, and that is not the question. unpkg was named in both
    script-src and connect-src, so deleting it from connect-src — precisely the
    omission that killed the speech bridge — left the check green. A policy is
-   per-directive and so is the failure. */
+   per-directive and so is the failure. (unpkg itself is gone: شوق's widget is
+   self-hosted under /vendor/ now and 'self' covers it.) */
 const DIRECTIVE = {
-  "https://unpkg.com": ["script-src", "connect-src"],
   "https://www.openstreetmap.org": ["frame-src"],
   // The two maps are two hosts in two directives, and confusing them is a
   // blank map with a console message nobody sees. `www.` is the static
@@ -194,7 +194,7 @@ if (!csp) {
   const excused = new Set(NO_DIRECTIVE_NEEDED.map(([o]) => o));
   // Counted, not subtracted: the exception list names more hosts than any one
   // build happens to contain, so `origins.length - excused.size` reported zero
-  // covered origins while quietly covering unpkg.
+  // covered origins while quietly covering one.
   const governed = origins.filter((o) => !excused.has(o));
   const parsed = parseCsp(csp);
   /** Is `origin` named in every directive it needs? Returns the missing ones. */

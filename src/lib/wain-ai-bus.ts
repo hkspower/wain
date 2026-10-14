@@ -1,7 +1,6 @@
 import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_API_ORIGIN,
-  WAIN_AI_WIDGET_ORIGIN,
   WAIN_AI_WIDGET_SRC,
 } from "@/lib/wain-ai";
 import type { Phase } from "@/components/WainAiCall";
@@ -68,26 +67,24 @@ export function onPhase(fn: (phase: Phase) => void): () => void {
 let warmed = false;
 
 /**
- * DNS and TLS to both origins, on the first sign of interest — a hover, a
- * focus, a finger landing. Two sockets, opened only for somebody who has
+ * DNS and TLS to ElevenLabs, on the first sign of interest — a hover, a
+ * focus, a finger landing. One socket, opened only for somebody who has
  * already reached for the button, and free to anyone who never does.
+ *
+ * It used to warm unpkg too, deliberately without `crossorigin` because the
+ * bundle arrives on a no-CORS <script>. The bundle is on this origin now, so
+ * there is nothing to warm for it. The API's fetches are CORS, so this one
+ * carries `crossorigin` — without it the preconnect warms a pool entry the
+ * widget cannot use.
  */
 export function warmCall(): void {
   if (warmed || !WAIN_AI_AGENT_ENABLED || typeof document === "undefined") return;
   warmed = true;
-  // See the notes in wain-ai.ts: the CDN is reached by a plain <script>, which
-  // is a no-CORS request, and a preconnect carrying `crossorigin` would warm a
-  // pool entry it cannot use. The API's fetches are CORS, so that one does.
-  for (const [href, cors] of [
-    [WAIN_AI_WIDGET_ORIGIN, false],
-    [WAIN_AI_API_ORIGIN, true],
-  ] as const) {
-    const link = document.createElement("link");
-    link.rel = "preconnect";
-    link.href = href;
-    if (cors) link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-  }
+  const link = document.createElement("link");
+  link.rel = "preconnect";
+  link.href = WAIN_AI_API_ORIGIN;
+  link.crossOrigin = "anonymous";
+  document.head.appendChild(link);
 }
 
 let widgetLoad: Promise<void> | null = null;
@@ -123,8 +120,8 @@ export function loadWidget(): Promise<void> {
        * correct for one still in flight and a trap for one that has already
        * failed: the listeners never fire and the promise never settles.
        *
-       * Measured, because the sandbox blocks this CDN and so exercises the
-       * failure path for real — the call sat on «يرن…» for the full
+       * Measured, back when this was a CDN the sandbox blocks, which exercised
+       * the failure path for real — the call sat on «يرن…» for the full
        * twenty-second dial timeout and then said «طوّلنا نرن», when the fetch
        * had failed at 926ms and should have said so.
        */

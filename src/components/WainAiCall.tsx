@@ -14,6 +14,7 @@ import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
   WAIN_AI_COPY,
+  WAIN_AI_WORKLET_PATHS,
   SALEM_VOICE_ID,
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
@@ -590,6 +591,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
       el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
+      // Without these the widget mints its worklets as blob:/data: URLs that
+      // script-src refuses, and the call has no audio. See WAIN_AI_WORKLET_PATHS.
+      for (const [attr, path] of Object.entries(WAIN_AI_WORKLET_PATHS)) el.setAttribute(attr, path);
       // See SALEM_VOICE_ID: set only at mount, because that is the one moment
       // the widget reads it. شوق's own agent voice needs no override at all.
       if (persona === "salem") el.setAttribute("override-voice-id", SALEM_VOICE_ID);

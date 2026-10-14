@@ -55,7 +55,7 @@ function build(env) {
      EMPTY string falls through to DEFAULT_AGENT_ID — the real production
      agent — and this label printed «local mode — no agent» over a build that
      had her fully on. The suite then failed at «ringing becomes connected»
-     because the widget cannot load (unpkg is blocked here), which reads
+     because the widget could not load (it came from unpkg then, blocked here), which reads
      exactly like a Web Speech fault and was written up as one.
 
      `||` is correct and deliberate — see wain-ai.ts, where `??` made an unset

@@ -163,7 +163,7 @@ export const SALEM_ROLE = "دليلك في الكويت";
 export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.";
 
 /**
- * CDN bundle that defines the <elevenlabs-convai> custom element.
+ * The bundle that defines the <elevenlabs-convai> custom element.
  *
  * THE VERSION MUST BE EXACT, AND THAT IS NOT A STYLE PREFERENCE.
  *
@@ -181,28 +181,34 @@ export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي 
  * `npm run audit:shouq-call` now refuses a range — that is the check that
  * would have caught this on the day it was written.
  *
- * The full path is spelled out for a second reason. `unpkg.com/<pkg>@<version>`
- * answers 302 to the package's `unpkg`/`main` entry, and a range answers 302 to
- * the resolved version first — two redirects on the critical path of a call, on
- * a phone, before 451KB of widget starts arriving. Naming `dist/index.js`
- * (which IS this package's `unpkg` field) makes it one request.
- *
- * Bump deliberately, and re-run the audit: it checks the registry for the exact
- * version and for the entry path when it can reach it.
+ * That was a unpkg.com URL. It is served from this origin now: the package is
+ * an exact devDependency and `scripts/vendor-widget.mjs` copies it into
+ * public/vendor/ on every build, so the version lives in package.json and in
+ * the path below — and `audit:shouq-call` fails if those two ever disagree. No CDN on
+ * the critical path of a call, no third-party host in script-src, and the
+ * bytes are the ones the lockfile's integrity hash names rather than whatever
+ * a CDN answered on the day. Root-relative on purpose: the iOS bundle has no
+ * origin, and the file ships inside it with the rest of out/.
  */
-export const WAIN_AI_WIDGET_SRC =
-  "https://unpkg.com/@elevenlabs/convai-widget-embed@0.18.1/dist/index.js";
+export const WAIN_AI_WIDGET_SRC = "/vendor/convai-widget-embed-0.20.0/index.js";
 
 /**
- * Origin of the above, warmed before a tap.
+ * The widget's three AudioWorklets, self-hosted beside it.
  *
- * Deliberately warmed WITHOUT `crossorigin`, because the widget arrives on a
- * plain `<script src>` — a no-CORS request. A preconnect that carries
- * `crossorigin` opens a different entry in the connection pool, so the script
- * would ignore the socket and open a second one: the classic way to make a
- * preconnect cost a connection instead of saving one.
+ * Left to itself the bundle loads two of them from a `blob:` URL it mints out
+ * of strings it carries, falling back to `data:` — and an AudioWorklet's
+ * addModule() is checked against script-src, which allows neither. That is
+ * the «Failed to load the rawAudioProcessor worklet module» recorded in
+ * public/.htaccess; the fix there named unpkg in worker-src, which does not
+ * govern worklets. The third, libsamplerate, it fetches from cdn.jsdelivr.net,
+ * which nothing allows. Each has a `worklet-path-*` attribute on the element,
+ * read out of the published bundle, so WainAiCall points all three here.
  */
-export const WAIN_AI_WIDGET_ORIGIN = "https://unpkg.com";
+export const WAIN_AI_WORKLET_PATHS = {
+  "worklet-path-raw-audio-processor": "/vendor/convai-widget-embed-0.20.0/raw-audio-processor.js",
+  "worklet-path-audio-concat-processor": "/vendor/convai-widget-embed-0.20.0/audio-concat-processor.js",
+  "worklet-path-libsamplerate": "/vendor/libsamplerate-js-2.1.2/libsamplerate.worklet.js",
+} as const;
 
 /**
  * Where the widget goes once it has loaded, warmed at the same moment.
@@ -211,10 +217,11 @@ export const WAIN_AI_WIDGET_ORIGIN = "https://unpkg.com";
  * `https://api.elevenlabs.io` and `wss://api.elevenlabs.io` as its defaults.
  * This one IS warmed with `crossorigin` — its fetches are CORS.
  *
- * It matters because the two round trips are otherwise strictly serial: the
- * CDN, then the bundle, then a cold DNS+TLS to ElevenLabs, and only then does
- * anything ring. Warming both at the first sign of interest overlaps them with
- * the visitor's own reaction time.
+ * It matters because the round trips are otherwise strictly serial: the
+ * bundle, then a cold DNS+TLS to ElevenLabs, and only then does anything ring.
+ * Warming it at the first sign of interest overlaps it with the visitor's own
+ * reaction time. The bundle needs no preconnect — it is on the page's own
+ * origin, whose connection is already open.
  */
 export const WAIN_AI_API_ORIGIN = "https://api.elevenlabs.io";
 

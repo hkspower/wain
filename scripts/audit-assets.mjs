@@ -87,6 +87,12 @@ for (const f of files) {
     // arrives here as "//www.wainkw.com/og/x.jpg" — which starts with a slash
     // and looks exactly like a rooted path. Taken literally that reported all
     // 25 share cards as missing while every one of them was present.
+    //
+    // Only OUR host, though. Stripping any host turned the self-hosted call
+    // widget's `https://storage.googleapis.com/eleven-public-cdn/…png` into
+    // a rooted `/eleven-public-cdn/…png` and reported it missing from out/ —
+    // a file on somebody else's server, which this audit has no claim on.
+    if (hit.startsWith("//") && !/^\/\/(?:www\.)?wainkw\.com\//.test(hit)) continue;
     const site = hit.replace(/^\/\/[^/]+/, "");
     if (site.startsWith("/") && !site.startsWith("//")) referenced.add(site);
   }

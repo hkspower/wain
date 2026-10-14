@@ -2,35 +2,37 @@
 /**
  * The one URL a call to شوق cannot survive being wrong about.
  *
- * `WAIN_AI_WIDGET_SRC` is fetched at the moment somebody taps «كلّم شوق», from
- * a CDN, by a <script> tag whose only failure signal is `onerror`. Nothing in
- * this repository builds against it, imports it, or renders it, so a URL that
+ * `WAIN_AI_WIDGET_SRC` is fetched at the moment somebody taps «كلّم شوق», by a
+ * <script> tag whose only failure signal is `onerror`. Nothing in this
+ * repository builds against it, imports it, or renders it, so a URL that
  * resolves to nothing is invisible to every other check here — and one was.
  *
- * It said `@elevenlabs/convai-widget-embed@1`. That is a semver RANGE, and the
- * package has never published a 1.x: 79 versions, 0.1.0 to 0.18.1. A range with
- * no match cannot resolve, so every call in agent mode ended at `agentFailed`
- * and told the visitor «ما قدرنا نوصلك بشوق — جرّب مرة ثانية», which reads as a
- * bad connection. Months of that.
+ * It said `unpkg.com/@elevenlabs/convai-widget-embed@1`. That is a semver
+ * RANGE, and the package has never published a 1.x. A range with no match
+ * cannot resolve, so every call in agent mode ended at `agentFailed` and told
+ * the visitor «ما قدرنا نوصلك بشوق — جرّب مرة ثانية», which reads as a bad
+ * connection. Months of that.
  *
- * So this asserts the two properties that make the URL survivable, offline,
- * from the module itself:
+ * The widget is self-hosted now — an exact devDependency that
+ * scripts/vendor-widget.mjs copies into public/vendor/ — so the URL is a path
+ * on this origin and the version lives in two places at once: package.json and
+ * the directory name. This asserts what keeps that survivable:
  *
- *   1. an EXACT version, never a range — the bug that happened;
- *   2. a path down to the file, so neither of unpkg's two redirects (range →
- *      version, version → entry) is on the critical path of a call.
- *
- * Then, only if the registry answers, it checks that the exact version is
- * really published and that the path really is that version's entry. That part
- * needs the network and says so when it cannot run; the two checks above are
- * the ones that catch this class of bug and they never need it.
+ *   1. the src and the three worklet paths are same-origin and are exactly the
+ *      paths the vendoring script writes — a drift there is a 404 mid-call;
+ *   2. package.json pins the package EXACTLY, never a range — the bug that
+ *      happened, in its new home;
+ *   3. the version in the path is the version installed, and the files are
+ *      really there once vendored.
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { VENDOR_FILES } from "./vendor-widget-paths.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 let errors = 0;
@@ -42,7 +44,7 @@ const note = (m) => { notes++; console.log(`  · ${m}`); };
 /* Read the constant by importing it, not by grepping for it — a regex over the
    source would keep passing if the export were renamed or moved. */
 const tmp = mkdtempSync(join(tmpdir(), "wain-shouq-call-"));
-let SRC, ORIGIN, AGENT_ENABLED;
+let SRC, WORKLETS, AGENT_ENABLED;
 /** Is شوق on, for a given value of the build-time variable? */
 let enabledWhen = () => null;
 try {
@@ -50,7 +52,7 @@ try {
   const bundle = join(tmp, "b.mjs");
   writeFileSync(
     entry,
-    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_WIDGET_ORIGIN, WAIN_AI_AGENT_ENABLED } from " +
+    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_WORKLET_PATHS, WAIN_AI_AGENT_ENABLED } from " +
       `${JSON.stringify(join(ROOT, "src/lib/wain-ai.ts"))};\n`
   );
   execFileSync(join(ROOT, "node_modules/.bin/esbuild"), [
@@ -59,7 +61,7 @@ try {
   ], { cwd: ROOT, stdio: "pipe" });
   const mod = await import(pathToFileURL(bundle).href);
   SRC = mod.WAIN_AI_WIDGET_SRC;
-  ORIGIN = mod.WAIN_AI_WIDGET_ORIGIN;
+  WORKLETS = mod.WAIN_AI_WORKLET_PATHS;
   AGENT_ENABLED = mod.WAIN_AI_AGENT_ENABLED;
 
   /**
@@ -88,63 +90,67 @@ try {
 console.log("\n── the widget URL a call depends on ──");
 console.log(`  ${SRC}`);
 
-const url = new URL(SRC);
-if (url.protocol !== "https:") fail("it must be https", url.protocol);
-else ok("https");
+// Same-origin, root-relative. An absolute URL here is a CDN back on the
+// critical path of a call and a third-party host back in script-src.
+if (!SRC.startsWith("/") || SRC.startsWith("//")) {
+  fail("the src must be a root-relative path on this origin", SRC);
+} else ok("served from this origin");
 
-if (ORIGIN !== url.origin) {
-  fail("WAIN_AI_WIDGET_ORIGIN must be the origin of the src — it is what gets preconnected",
-       `${ORIGIN} vs ${url.origin}`);
-} else ok(`the preconnect origin matches it (${ORIGIN})`);
+if (SRC !== `/${VENDOR_FILES.widget}`) {
+  fail("the src is not where scripts/vendor-widget.mjs writes the bundle",
+       `${SRC} vs /${VENDOR_FILES.widget}`);
+} else ok("and is exactly where the vendoring step writes it");
 
-/* unpkg spells a package as /<name>@<version>/<path>, and the name may be
-   scoped, so the version is the last @ before the path. */
-const m = /^\/((?:@[^/@]+\/)?[^/@]+)@([^/]+)(\/.*)?$/.exec(url.pathname);
-if (!m) {
-  fail("the path does not name a package and a version", url.pathname);
-} else {
-  const [, pkg, version, path] = m;
-  ok(`package ${pkg}`);
-
-  // THE CHECK. A range is what shipped, and a range is what could not resolve.
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-    fail(
-      `version «${version}» is a range or a tag, not an exact version`,
-      "A range resolves at request time, on a phone, with onerror as the only\n" +
-      "      signal — and `@1` resolved to nothing at all for months. Pin x.y.z."
-    );
-  } else ok(`exact version ${version}`);
-
-  if (!path || !path.endsWith(".js")) {
-    fail(
-      "the path does not name the entry file",
-      "unpkg answers 302 to the package entry when the file is left off, which\n" +
-      "      puts a redirect in front of 451KB at the moment a call is placed."
-    );
-  } else ok(`entry ${path} — no redirect on the way to it`);
-
-  // Everything below wants the registry. It is a bonus, not the check.
-  if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-    let meta = null;
-    try {
-      meta = JSON.parse(
-        execFileSync("npm", ["view", `${pkg}@${version}`, "--json"], {
-          cwd: ROOT, stdio: ["ignore", "pipe", "ignore"], timeout: 60_000, encoding: "utf8",
-        })
-      );
-    } catch {
-      note("the registry could not be reached — the version itself was NOT verified here");
-    }
-    if (meta) {
-      ok(`the registry has ${pkg}@${meta.version}`);
-      const declared = meta.unpkg ?? meta.main;
-      const want = declared ? `/${String(declared).replace(/^\.?\//, "")}` : null;
-      if (want && path && want !== path) {
-        fail(`the path is not this version's entry`, `declared ${want}, using ${path}`);
-      } else if (want) ok(`and declares that file as its entry (${want})`);
-    }
-  }
+const WANT_WORKLETS = {
+  "worklet-path-raw-audio-processor": VENDOR_FILES.rawAudioProcessor,
+  "worklet-path-audio-concat-processor": VENDOR_FILES.audioConcatProcessor,
+  "worklet-path-libsamplerate": VENDOR_FILES.libsamplerate,
+};
+for (const [attr, file] of Object.entries(WANT_WORKLETS)) {
+  if (WORKLETS?.[attr] !== `/${file}`) {
+    fail(`${attr} does not point at the vendored worklet`,
+         `${WORKLETS?.[attr]} vs /${file} — without it the widget falls back to a ` +
+         "blob: URL that script-src refuses, and the call has no audio");
+  } else ok(`${attr} → /${file}`);
 }
+
+console.log("\n── the version behind it ──");
+const pkgJson = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+for (const [name, file] of [
+  ["@elevenlabs/convai-widget-embed", VENDOR_FILES.widget],
+  ["@alexanderolsen/libsamplerate-js", VENDOR_FILES.libsamplerate],
+]) {
+  const declared = pkgJson.dependencies?.[name] ?? pkgJson.devDependencies?.[name];
+  // THE CHECK. A range is what shipped, and a range is what could not resolve.
+  if (!declared) {
+    fail(`${name} is not in package.json — the vendoring step has nothing to copy`);
+    continue;
+  }
+  if (!EXACT.test(declared)) {
+    fail(`${name} is declared as «${declared}», a range or a tag, not an exact version`,
+         "The directory name promises one version and .htaccess caches it for a\n" +
+         "      year as immutable. Pin x.y.z.");
+    continue;
+  }
+  ok(`${name} pinned exactly at ${declared}`);
+  if (!file.split("/")[1].endsWith(`-${declared}`)) {
+    fail(`the vendored path does not carry ${declared}`, file);
+  } else ok(`and the path carries the same version (${file.split("/")[1]})`);
+  const installed = join(ROOT, "node_modules", name, "package.json");
+  if (existsSync(installed)) {
+    const v = JSON.parse(readFileSync(installed, "utf8")).version;
+    if (v !== declared) fail(`node_modules has ${name}@${v}, not ${declared} — run npm ci`);
+    else ok(`installed ${name}@${v}`);
+  } else note(`${name} is not installed — run npm ci; the installed version was NOT checked`);
+}
+
+const missing = Object.values(VENDOR_FILES).filter((f) => !existsSync(join(ROOT, "public", f)));
+if (missing.length === Object.keys(VENDOR_FILES).length) {
+  note("public/vendor/ is not generated yet — npm run build writes it; the files were NOT checked");
+} else if (missing.length) {
+  fail("public/vendor/ is partly missing", missing.join(", "));
+} else ok("all four vendored files are in public/vendor/");
 
 /**
  * ── and whether a build actually carries her ──────────────────────────────

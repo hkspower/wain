@@ -15,6 +15,14 @@ const SAFE_PREFIX = "_next/static/";
 // name to discover new builds. .htaccess gives it max-age=0, must-revalidate,
 // so the immutable rule never applies to it.
 const EXEMPT = new Set(["sw.js"]);
+// vendor/<package>-<x.y.z>/ is not content-hashed, but it is version-pinned,
+// which here amounts to the same thing: scripts/vendor-widget.mjs refuses to
+// write a directory whose version differs from the locked package's, and npm's
+// integrity check fixes those bytes. A new version is a new directory, so a
+// visitor holding the old one for a year is holding the right file for the URL
+// it was asked for. A range or a tag in that name would break the promise, so
+// only an exact version passes.
+const VERSIONED_VENDOR = /^vendor\/[a-z0-9-]+-\d+\.\d+\.\d+\//;
 
 if (!existsSync(OUT)) {
   console.error("check-cache-safety: out/ not found — run the build first.");
@@ -28,7 +36,8 @@ const offenders = [];
     if (statSync(full).isDirectory()) walk(full);
     else {
       const rel = relative(OUT, full).split("\\").join("/");
-      if (IMMUTABLE.test(rel) && !rel.startsWith(SAFE_PREFIX) && !EXEMPT.has(rel))
+      if (IMMUTABLE.test(rel) && !rel.startsWith(SAFE_PREFIX) && !EXEMPT.has(rel) &&
+          !VERSIONED_VENDOR.test(rel))
         offenders.push(rel);
     }
   }

@@ -3,8 +3,10 @@ import { chromium } from 'playwright';
 /**
  * Agent mode — the path that runs once NEXT_PUBLIC_ELEVENLABS_AGENT_ID is set.
  *
- * The ElevenLabs widget itself cannot run here: the agent id is fake and unpkg
- * is unreachable from this box. So the widget bundle is stubbed with a script
+ * The ElevenLabs widget itself cannot run here: the agent id is fake and
+ * api.elevenlabs.io is unreachable from this box. So the widget bundle — served
+ * from this origin's /vendor/ since it stopped coming from unpkg — is stubbed
+ * with a script
  * that defines the custom element and fires the same config event the real one
  * does. That exercises everything on wain's side of the contract — the mode
  * switch, the pinned URL, the element and its agent-id, and the two client
@@ -19,7 +21,10 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
 const requested = [];
-await ctx.route('**/unpkg.com/**', async (route) => {
+// The vendored bundle and only it — its worklets live beside it and must not
+// be swallowed by the stub.
+const WIDGET = '**/vendor/convai-widget-embed-*/index.js';
+await ctx.route(WIDGET, async (route) => {
   requested.push(route.request().url());
   await route.fulfill({
     status: 200,
@@ -28,6 +33,9 @@ await ctx.route('**/unpkg.com/**', async (route) => {
       class ConvaiStub extends HTMLElement {
         connectedCallback() {
           window.__convaiAgentId = this.getAttribute('agent-id');
+          window.__convaiWorklets = [...this.attributes]
+            .filter((a) => a.name.startsWith('worklet-path-'))
+            .map((a) => [a.name, a.value]);
           // The real widget dispatches this so the host can inject client tools.
           const ev = new CustomEvent('elevenlabs-convai:call', { detail: { config: {} } });
           window.dispatchEvent(ev);
@@ -72,21 +80,40 @@ ok('and the call can be hung up', panel.includes('إنهاء المكالمة'))
 // next.config sets trailingSlash, so the rendered href is "/privacy/".
 ok('the privacy page is one tap away', (await p.locator('#wain-ai-panel a[href^="/privacy"]').count()) === 1);
 
-console.log('\n── the widget is loaded on demand, from a pinned URL ──');
+console.log('\n── the widget is loaded on demand, from this origin, at a pinned version ──');
 await p.waitForFunction(() => window.__convaiLoaded === true, null, { timeout: 8000 });
 ok('the bundle is fetched only after she is opened', requested.length === 1, requested.join(', '));
 /* This assertion used to be /convai-widget-embed@\d/ and it passed for months
    on `@elevenlabs/convai-widget-embed@1` — a semver RANGE, matching no
    published version of a package that has never had a 1.x. Every real call
    404'd at the CDN and told the caller «ما قدرنا نوصلك بشوق». `@\d` cannot
-   tell a pin from a range, so it must be x.y.z, and the entry file has to be
-   named too or unpkg answers two redirects before 451KB starts arriving. */
-ok('the URL names an exact version, not a range',
-  /convai-widget-embed@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\//.test(requested[0]), requested[0]);
-ok('and the entry file, so nothing redirects on the way to it',
-  /\/dist\/[^/]+\.js$/.test(requested[0]), requested[0]);
+   tell a pin from a range, so it must be x.y.z — now in the vendored
+   directory's name, which is what makes caching it as immutable safe. */
+ok('the bundle comes from this origin, not a CDN',
+  new URL(requested[0]).origin === new URL(B).origin, requested[0]);
+ok('and its path names an exact version, not a range',
+  /\/vendor\/convai-widget-embed-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\/index\.js$/.test(requested[0]), requested[0]);
 await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
 ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
+/* Without these the real widget mints its worklets as blob:/data: URLs, which
+   script-src refuses, and the call connects with no audio — the «Failed to
+   load the rawAudioProcessor worklet module» a real phone reported. So the
+   element must carry all three, each a same-origin file that really exists. */
+{
+  const worklets = await p.evaluate(() => window.__convaiWorklets ?? []);
+  ok('the element is handed all three worklets', worklets.length === 3, JSON.stringify(worklets));
+  // Two are processors; libsamplerate is a library the processors load, which
+  // announces itself on the worklet scope rather than registering anything.
+  const signature = (attr) =>
+    attr === 'worklet-path-libsamplerate' ? 'AudioWorkletGlobalScope' : 'registerProcessor(';
+  for (const [attr, path] of worklets) {
+    const res = await p.request.get(B + path);
+    const body = res.ok() ? await res.text() : '';
+    ok(`${attr} is a same-origin worklet that answers 200`,
+      path.startsWith('/vendor/') && res.ok() && body.includes(signature(attr)),
+      `${path} → ${res.status()}`);
+  }
+}
 
 // The widget owning the microphone IS the call connecting — until then the
 // sheet must still be ringing, or the timer would start before she can hear
@@ -272,7 +299,7 @@ console.log('\n── the call is warmed before it is placed ──');
 {
   const warmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
   const fetched = [];
-  await warmCtx.route('**/unpkg.com/**', async (route) => {
+  await warmCtx.route(WIDGET, async (route) => {
     fetched.push(route.request().url());
     await route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
   });
@@ -282,18 +309,17 @@ console.log('\n── the call is warmed before it is placed ──');
   const links = () => w.evaluate(() => [...document.querySelectorAll('link[rel=preconnect]')]
     .map((l) => `${new URL(l.href).origin}${l.crossOrigin ? ' [cors]' : ''}`));
   ok('nothing is warmed for a visitor who never reaches for her',
-    !(await links()).some((l) => /unpkg|elevenlabs/.test(l)) && fetched.length === 0,
+    !(await links()).some((l) => /elevenlabs/.test(l)) && fetched.length === 0,
     (await links()).join(', '));
 
   await w.locator('button[aria-controls="wain-ai-panel"]').first().hover();
   await w.waitForTimeout(200);
   const warm = await links();
-  // The CDN is reached by a plain <script> — a no-CORS request — so warming it
-  // WITH crossorigin would open a pool entry the script cannot use. The API's
-  // fetches are CORS and need the opposite. Getting this backwards is the
-  // classic way to make a preconnect cost a connection instead of saving one.
-  ok('a hover warms the CDN, without crossorigin', warm.includes('https://unpkg.com'), warm.join(', '));
-  ok('and the session host, with it', warm.includes('https://api.elevenlabs.io [cors]'), warm.join(', '));
+  // The API's fetches are CORS, so its preconnect needs crossorigin or it
+  // warms a pool entry the widget cannot use. The bundle is on this origin and
+  // needs nothing warmed — a preconnect to anywhere else would be a leftover.
+  ok('a hover warms the session host, with crossorigin', warm.includes('https://api.elevenlabs.io [cors]'), warm.join(', '));
+  ok('and the CDN it used to come from is not', !warm.some((l) => /unpkg/.test(l)), warm.join(', '));
   ok('but a hover does not pull half a megabyte', fetched.length === 0, fetched.join(', '));
 
   await w.mouse.down();
@@ -306,7 +332,7 @@ console.log('\n── the call is warmed before it is placed ──');
 console.log('\n── a bundle that never arrives fails the call, quickly ──');
 {
   const deadCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
-  await deadCtx.route('**/unpkg.com/**', (route) => route.abort('failed'));
+  await deadCtx.route(WIDGET, (route) => route.abort('failed'));
   const d = await deadCtx.newPage();
   await d.goto(B + '/search/', { waitUntil: 'networkidle' });
   const t0 = Date.now();

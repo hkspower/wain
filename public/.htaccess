@@ -330,8 +330,10 @@ Options -Indexes
   # mint a per-request nonce. So this is not a strong defence against injected
   # inline script. What it does buy, and what the site actually needs:
   #
-  #   * script-src pins executable code to this origin and unpkg (شوق's widget)
-  #     — nothing else can be loaded, whatever ends up in the DOM.
+  #   * script-src pins executable code to this origin — nothing else can be
+  #     loaded, whatever ends up in the DOM. شوق's widget used to come from
+  #     unpkg.com and is self-hosted under /vendor/ now (scripts/vendor-
+  #     widget.mjs), so no third-party host is left in it.
   #   * frame-ancestors 'none' blocks clickjacking of /admin.
   #   * form-action 'self' stops an injected form posting credentials offsite.
   #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
@@ -369,12 +371,14 @@ Options -Indexes
   #
   # It did, on wainkw.com itself: "Failed to load the rawAudioProcessor
   # worklet module" from the live widget, first seen on a real phone rather
-  # than in any audit — worker-src had 'self' and blob: but not unpkg.com,
-  # so the CSP silently blocked the widget's own AudioWorklet fetch the same
-  # way it would block anything else not explicitly named here. script-src
-  # already trusted unpkg.com for the widget's main bundle; worker-src is
-  # the separate directive an AudioWorklet's addModule() is checked
-  # against, and nothing here had told it the widget's worklet lives at the
-  # same host.
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob: https://unpkg.com; manifest-src 'self'"
+  # than in any audit. The fix recorded here at the time was to add unpkg.com
+  # to worker-src, and that diagnosis was wrong: worker-src governs Worker,
+  # SharedWorker and the service worker, and an AudioWorklet's addModule() is
+  # a script fetch, checked against SCRIPT-src. The widget mints that worklet
+  # as a blob: URL and falls back to data:, and script-src allows neither, so
+  # both were refused whatever worker-src said. Now the element is handed
+  # same-origin paths for all three worklets (WAIN_AI_WORKLET_PATHS in
+  # src/lib/wain-ai.ts) and 'self' covers them. Do not add blob: to
+  # script-src to «fix» a worklet error — point the widget at a file.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

@@ -117,7 +117,9 @@ the results page; the call ending is not her stopping.
 
 ## Getting the widget there before the tap does
 
-Agent mode's bundle is 451KB gzipped from a CDN, and the chain to a connected
+Agent mode's bundle is 451KB gzipped — from unpkg until 14 October, from this
+origin's `/vendor/` since (see CLAUDE.md, «شوق's widget is self-hosted now») —
+and the chain to a connected
 call used to be strictly serial and to start at the tap: fetch the
 `WainAiCall` chunk → mount it → create the `<script>` → cold DNS+TLS to
 unpkg → 451KB → cold DNS+TLS to `api.elevenlabs.io` → a session. The caller
@@ -125,12 +127,11 @@ listens to ring-back through every step of it.
 
 Two signals now, both on `ShouqCallButton`, both in `lib/wain-ai-bus.ts`:
 
-- **hover / focus / touch → `warmCall()`** — one `preconnect` to each origin.
-  `unpkg.com` **without** `crossorigin`, because the widget arrives on a plain
-  `<script src>` (a no-CORS request) and a preconnect carrying `crossorigin`
-  warms a pool entry the script cannot use. `api.elevenlabs.io` **with** it,
-  because its fetches are CORS. Both origins are read out of the published
-  bundle, not guessed.
+- **hover / focus / touch → `warmCall()`** — a `preconnect` to
+  `api.elevenlabs.io` **with** `crossorigin`, because its fetches are CORS,
+  read out of the published bundle rather than guessed. It used to warm unpkg
+  too, without `crossorigin` for the no-CORS `<script>`; the bundle is on this
+  origin now and needs nothing warmed.
 - **pointerdown → `armCall()`** — the bundle itself, ~100–300ms before the
   click. Kept off the hover path on purpose: half a megabyte is not something
   to spend on a pointer passing by.
@@ -164,9 +165,11 @@ resolve, so the script failed on every call and the visitor was told «ما قد
 Nothing could see it. No build step fetches that URL, and the agent suite's own
 check was `/convai-widget-embed@\d/`, which cannot tell `@1` from `@0.18.1`.
 
-So: `npm run audit:shouq-call` reads the constant (by importing it, not
-grepping) and refuses anything but an exact `x.y.z` **and** a path down to the
-entry file — the second because `unpkg.com/<pkg>@<version>` answers a 302 to
+So: `npm run audit:shouq-call` read the constant (by importing it, not
+grepping) and refused anything but an exact `x.y.z` **and** a path down to the
+entry file. Since the widget is self-hosted it asks the same question of
+package.json and the vendored directory name instead — the history below is
+why — the second because `unpkg.com/<pkg>@<version>` answers a 302 to
 the package entry, and a range answers one to the resolved version first. Two
 redirects in front of 451KB, on a phone, at the moment somebody taps. If the
 registry answers it also checks the version is published and that the path is

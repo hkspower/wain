@@ -113,3 +113,10 @@ wainkw-search.pdf
 # local file would silently widen it for one machine, which is the opposite of
 # what a checked-in allowlist is for.
 /.claude/settings.local.json
+
+# شوق's call widget and its three audio worklets, copied out of two exactly
+# pinned devDependencies by scripts/vendor-widget.mjs on every build. ~3.5MB
+# derived wholly from package-lock.json — committing it would be one more
+# permanent blob of output, and untracked it would dirty the tree and cost the
+# build its commit-named build id (see /public/voice/ above).
+/public/vendor/

@@ -77,7 +77,6 @@ const ROUTES = [
  */
 const KNOWN_THIRD_PARTIES = new Map([
   ["www.openstreetmap.org", "the basemap, in a sandboxed frame with no same-origin"],
-  ["unpkg.com", "the ElevenLabs widget, loaded only when the call button is pressed"],
   ["api.elevenlabs.io", "the voice call itself, once connected"],
   ["api.us.elevenlabs.io", "the voice call itself, once connected"],
   // NOT "the submission webhook", which is what this said and what the comment
