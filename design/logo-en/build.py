@@ -33,6 +33,9 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))   # design/, for png_store
+from png_store import write_png   # noqa: E402
+
 HERE = pathlib.Path(__file__).resolve().parent
 FONTS = HERE / "fonts"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
@@ -1159,7 +1162,7 @@ def main():
         br = p.chromium.launch(executable_path=CHROME)
         for n in FILES:
             im = rasterise(br, n)
-            im.save(HERE / f"{n}.png", optimize=True)
+            write_png(im, HERE / f"{n}.png")
             print("  wrote", f"{n}.png", f"{im.size[0]}×{im.size[1]}", im.mode)
         sheet(br)
         print("  wrote preview-sheet.png")
@@ -1170,7 +1173,7 @@ def main():
         page.write_text(with_masthead(page.read_text()))
         print("  wrote site index.html masthead")
         for path, im in site_pngs(br).items():
-            im.save(path, optimize=True)
+            write_png(im, path)
             print("  wrote site", path.name, f"{im.size[0]}×{im.size[1]}", f"{path.stat().st_size // 1024} KB")
         br.close()
 

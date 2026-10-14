@@ -382,10 +382,10 @@ def static_checks():
     # links and the service-worker precache must resolve to real files
     broken = []
     for p, t in texts.items():
-        for m in re.finditer(r'(?:href|src)="([^":#?]+\.(?:html|svg|webmanifest|js))"', t):
+        for m in re.finditer(r'(?:href|src)="([^":#?]+\.(?:html|svg|webmanifest|js|png|jpe?g|webp|ico))"', t):
             if not (ROOT / m.group(1)).exists(): broken.append(f"{p} -> {m.group(1)}")
     sw = (ROOT / "sw.js").read_text()
-    for m in re.finditer(r'"([a-z0-9._-]+\.(?:html|webmanifest|svg))"', sw):
+    for m in re.finditer(r'"([a-z0-9._-]+\.(?:html|webmanifest|svg|png|jpe?g|webp|ico))"', sw):
         if not (ROOT / m.group(1)).exists(): broken.append(f"sw.js -> {m.group(1)}")
     check(S, "every internal link and precache entry resolves", not broken, str(broken[:4]))
 
@@ -1049,7 +1049,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "955", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "956", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1082,7 +1082,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "955", "0", "100%"], str(finals))
+          finals == ["4", "956", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -4244,6 +4244,12 @@ def app_icon_checks(pg):
     each app page a sprite of the icons it uses, copied byte for byte from
     index.html's; these checks keep that copy honest and the emoji gone."""
     S = "icons"
+    # the four installed-app PNGs are drawn from icon.svg by app_icons.py; a
+    # hand edit, or a drawing that drifted from the anchor, fails here
+    icons = subprocess.run([sys.executable, str(ROOT.parent / "design" / "app_icons.py"), "--check"],
+                           capture_output=True, text=True)
+    check(S, "the installed-app PNGs are drawn from icon.svg (app_icons --check)",
+          icons.returncode == 0, (icons.stdout + icons.stderr).strip()[-200:])
     import importlib.util
     gen = subprocess.run([sys.executable, str(ROOT.parent / "design" / "app_sprite.py"), "--check"],
                          capture_output=True, text=True)
@@ -4621,24 +4627,23 @@ def asset_checks():
     pixels need, and a shipped file crediting a script that is gone."""
     S = "assets"
     import io
-    from PIL import Image, ImageChops
-    # Every PNG the site ships is at the size a lossless re-save gives it.
-    # app_icons.py kept Chromium's screenshot encoding, 3 to 7% over, and all
-    # four of its icons are precached on every install. 1% of slack, so a
+    from PIL import Image
+    # Every PNG the site ships is at its smallest lossless encoding, the
+    # smallest of the candidates design/png_store.py decodes to the same
+    # pixels. Pillow's own optimiser was the bar before, and it was not the
+    # smallest: 5.9 KB of headroom across the eleven. 1% of slack, so a
     # different zlib on another machine cannot fail a file that is already
-    # optimal; the pixel compare proves the re-save is the same image.
+    # optimal.
     pngs = sorted(ROOT.glob("*.png"))
     check(S, "the scan finds the shipped PNGs", len(pngs) >= 7, str(len(pngs)))
+    from png_store import smallest_png
     for f in pngs:
         raw = f.read_bytes()
         im = Image.open(io.BytesIO(raw)); im.load()
-        buf = io.BytesIO(); im.save(buf, "PNG", optimize=True)
-        again = Image.open(io.BytesIO(buf.getvalue())); again.load()
-        same = (again.mode == im.mode and again.size == im.size
-                and ImageChops.difference(again.convert("RGBA"), im.convert("RGBA")).getbbox() is None)
+        best = smallest_png(im)
         check(S, f"{f.name} is stored losslessly optimised",
-              same and len(buf.getvalue()) >= len(raw) * 0.99,
-              f"{len(raw)} B, a lossless re-save is {len(buf.getvalue())} B")
+              len(raw) <= len(best) * 1.01,
+              f"{len(raw)} B, the smallest lossless encoding is {len(best)} B")
     # A shipped file that credits a design script names one that exists: the
     # README and the company page's own comment both said og.png was drawn by
     # design/og_image.py, a script deleted when the logo kit took it over.

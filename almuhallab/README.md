@@ -167,7 +167,7 @@ can be traced to the script to re-run:
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 955 checks, exits non-zero on failure
+python3 design/test_suite.py     # 956 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the English logo and AC monogram,
