@@ -2959,8 +2959,9 @@ updates left are majors, and each is blocked:
 `@capacitor/cli`/`@capacitor/assets` and their own transitive `sharp`, `tar`,
 `uuid`, `xcode` — packages this repo does not import directly. Checked before
 writing this down: `@capacitor/core`, `@capacitor/ios`, `@capacitor/cli` are
-already at `8.5.2` and `@capacitor/assets` at `3.0.5`, each the latest
-published version, so there is no update to take. `npm audit fix --force`'s
+at `8.5.3` (bumped 14 October from `8.5.2`, `test:ios` green) and
+`@capacitor/assets` at `3.0.5`, each the latest published version, so there
+is no update to take. `npm audit fix --force`'s
 own suggestion is to install `@capacitor/cli@8.4.3` — older than what is
 already installed — which is Capacitor's own advisory tooling proposing a
 downgrade, not a fix; declined. `sharp` and `uuid` are both listed "no fix
