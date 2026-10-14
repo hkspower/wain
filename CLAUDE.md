@@ -7143,7 +7143,7 @@ The lesson `WAIN_AI_CHAT_COPY` taught on 7 October: an export ships wherever its
 **Not measured:** a real phone; Safari with storage blocked (Chromium with the storage getters throwing stood
 in); what people type beyond the cases read; the app on a device — it reaches phones only through a new build.
 
-## «fix safari issue» — 8 October (built and gated; not deployed)
+## «fix safari issue» — 8 October (live as `8818bfda`, 14 October)
 
 Asked with no detail, the morning after a report that ended «real Safari with
 cookies blocked was simulated in Chromium». Every browser suite here is
@@ -7341,4 +7341,26 @@ commit's own): build, `test:hangout`, `test:journey`, `test:orders` and
 /find's `sr-only` «كيف تبي تدوّر؟» at 1.10:1 over the page's dark end, the
 same shape as the layout's skip link, fixed the same way (`text-white` on the
 heading) in the commit after.
+
+## The 14 October deploy — `8818bfda` is live on both stages: the Safari batch
+
+**What shipped.** The batch since `be04047c` (8 October): four commits touching 61 files under `src/` and `public/`. `2171f343` is the Safari work recorded in «fix safari issue» above. `0f0436e9` gives local answers to greetings, places and misses, and carries the audit fixes, including the `text-white` heading that turned the scan green. `49a69482` stops the device voice when a call starts. `a5dd5930` makes the call sheet read the widget's own end and say that the call ended. The CSP in `public/.htaccess` gains one jsDelivr file in `script-src`: the resampler that Safari before 18.6, Firefox and an iPhone on AirPods load for a call. `/privacy` already says that jsDelivr sees the address then.
+
+**The archive and the route.** `97f9b7ad` is `wain-1.1.0.zip`, built at `8818bfda` with the agent variables (`NEXT_PUBLIC_ELEVENLABS_AGENT_ID` set, `NEXT_PUBLIC_WAIN_TTS_URL=none`): 4,663,111 bytes, sha256 `b99173da…962e9`. `deploy:plan` reported digest `8e5868854ab6939a`, 282 files and seven proofs. `DEPLOY_SECRET` is still unset, so the archive is one more permanent blob of about 4.7MB. Production ran one cron job through the installed caller (`storage/d.php`). Its reply was `{"ok":true,"version":"1.1.0","deployed":282,"removed":34,"emptied":1,"at":"2026-10-14T08:05:02+00:00"}`, and the job was deleted afterwards.
+
+Staging ran the same archive. Its stamp reads `8818bfda` with digest `8e5868854ab6939a` as of today. Its deploy reply is not in this session's notes, so no count is recorded for it.
+
+**Verified below the root, on both stages.** Read through `hosa` on 14 October: the stamp (`version`, `commit`, `digest`, `dirty: false`); the seven proofs (`css/db3058487427984e.css` 100,584; `css/e1d9ebe6800da497.css` 5,426; `8818bfda…/_buildManifest.js` 1,165; `chunks/app/search/page-ff92773a98f48dd6.js` 25,709; `explore/index.html` 20,502; the place page 66,758; `og/abdullah-al-salem-cultural-centre.jpg` 44,217); all twelve root files; the Leaflet stylesheet; both `index.txt` payloads; and all 52 og images. `npm run deploy:verify -- --observed <file>` answered «8818bfda is live — verified at the root and 7 levels below it» on each stage, with 74 of 282 files in the reading and all 74 byte-exact. The other 208 were not read. `deploy.php` checks the artifact's sha256 before it writes anything, and the reads above are the ones that prove the build. `_next/static/` holds only `css`, `chunks`, `media` and the `8818bfda…` directory, so the prune had run. `media/` holds `convai-0.19.0-bed4a1281647af42.js` (1,540,140 bytes), which is what an agent build should carry.
+
+**The cache, and the edge.** `hosting_cache_clear-website` answered «Request accepted» after the reading. That reply is not proof, so the edge is read by two one-shot cron jobs, each `wget -S --spider` (headers only): `/search/` (job `0it9LkXfhY`, due 08:30 UTC) and `/salem/` (job `pmDRoyjYKH`, due 08:31 UTC). This commit was written before either fired. Their output, the deletion of both jobs and the listing after it go in the next commit.
+
+**On the server, and not from this deploy.** The production docroot holds files that this export does not produce. This deploy did not put them there, and it did not remove them, because the prune only removes what an earlier manifest recorded. Staging's top level holds none of them; its only extra file is `default.php`, Hostinger's placeholder.
+- Top level: 82 files besides ours. 53 are zip archives, which `public/.htaccess` denies with 403. 29 are `.js` or `.css` files, which `public/.htaccess` does not deny. Three favicon files (`favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`) have no history in this repository and are not in `out/`.
+- Three directories this repository does not build, with `index.html` pages in place: `hangout/` (11 files, one of them a 2.3MB PNG), `shoug/` (7 files) and `call-center/` (8 files, plus a `media/` folder with two JPGs of about 0.5MB each).
+- In `api/`: `hangouts.php` (3,852 bytes), an endpoint anyone can POST to in order to create a hangout. It writes a JSON store and has no per-visitor limit that the code shows. Its lock file is there, the store itself is not yet, and `api/.htaccess` denies dotfiles, so the store cannot be read over HTTP. Also `call-center-data.php` (25,175 bytes), which was not read.
+- In our own chunk directory: `_next/static/chunks/app/search/page-shoug-kuwaiti-20261011a.js` (23,011 bytes). No page of this build references it, and it is in neither `out/` nor any tracked file. Staging's chunk directory holds only the planned chunk.
+
+Nothing here says who put these files there. Deleting them is hard to undo, so that waits for the owner's yes. The per-minute job `0fkXcI5UFt` in the crontab, described in the login scan above, is still there, next to sporta's ten standing jobs.
+
+**Not measured.** A real phone. iOS Safari itself: every Safari fix was checked in WebKitGTK and on the widget's own bundle, not on a device. A real call on the live site, because the socket is refused here. The AirPods resampler path.
 
