@@ -22,10 +22,10 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
-As of 14 October: **production is `8818bfda`** (the Safari batch, both agents' split NOT yet released) and
-**staging is `8deb030e`** (the two-agent split). Production is held until the owner says which
-endpoint should live at `api/deploy.php` (see «The 14 October deploy, after the split»). This block goes
-stale; the server's `build.json` is the only trustworthy source.
+As of the evening of 14 October: **production is `47c17464`** (the two-agent split, after
+`api/deploy.php` was restored — see «The 14 October deploy, third») and **staging is `8deb030e`**
+(the same split, code-identical). The call-centre fixes below are in the repository and NOT deployed.
+This block goes stale; the server's `build.json` is the only trustworthy source.
 
 ## History lives in `docs/history.md`
 
@@ -5515,6 +5515,93 @@ prompt would spend a test cycle on a rule that already fires.
 - **Nobody has reached either agent since the deploy** (read about 18:00 UTC): the day's only two conversations were on شوق over `js_sdk` before it (09:17 UTC, 21 s, judged a success; 11:18 UTC, 7 s), and there were no quota refusals. سالم's agent still carries شوق's 25 tests; his own 7 are not attached.
 - **Staging is still on `8deb030e`**, code-identical to production (above). The foreign files on production's docroot (`/shoug/`, `/hangout/`, `/call-center/`, `api/hangouts.php`, `api/call-center-data.php`, the top-level archives and scripts) are untouched: the prune removes only what the previous manifest recorded, and the owner's answer for them is «keep».
 - **Cron at the end:** sporta's `1mNk00yPZP` and nothing else. The foreign `0fkXcI5UFt` (`curl … hostinger_deploy.sh`) and sporta's `FK5S1O355Y` had gone on their own.
+
+## The call centre, scanned and fixed — 14 October, evening (built and gated, NOT deployed)
+
+«scall call center make full improve for all»: the call sheet, the launcher, the free call and the agent
+call, on the site and in the app, both live agents, and the hub other sessions put on the server. The scan
+was read-only (the hub stays as the owner said: «keep»); every defect below was then fixed red-first, on the
+web by running the new assertions against a worktree of the committed code (`80e8fe6d`) and on the app by
+putting each fix back one at a time. Nothing here is on the live site: production is `47c17464`.
+
+**Web, the sheet and the launcher (`WainAiCall.tsx`, `ShouqCallButton.tsx`, `wain-ai-bus.ts`, `WainAi.tsx`).**
+- **The microphone is asked for inside the tap.** On an agent call `getUserMedia` ran in an effect after
+  the chunk had loaded, so iOS answered it outside the gesture. The button calls `probeMic()` in the tap
+  and the call adopts the probe (`takeMicProbe`); a redial asks itself. `shouq-agent` records the event
+  the probe ran under and requires `click`.
+- **A refused microphone inside an app's browser (WhatsApp, Instagram) is not blamed on the microphone**:
+  it says the recogniser is unavailable there and offers «اكتب لسالم», as the free call already did.
+  `audio-capture` says «ما لقينا مايك», not «المايك مسموح».
+- **A widget that never arrives rings out as «ما قدرنا نوصلك»**, not as the free call's «check the
+  microphone»; `agentModeRef` decides the dial-timeout sentence.
+- **A chunk that cannot load no longer takes the site down.** The call sits outside every route's error
+  boundary, so a failed `import()` replaced the WHOLE tree with Next's «Application error». `WainAi.tsx`
+  wraps the call in its own boundary (`CallBoundary`): the page stays, one line says the call could not
+  start, and the next tap tries again. `shouq-flow` aborts the chunk carrying `wain-ai-panel` and reads
+  `main#main-content` still there.
+- **The dialog takes focus** when it opens (the button it opened from leaves with /find a moment later,
+  so focus fell to the body under an `aria-modal` dialog).
+- **سالم's sheet is his**: «جاهز» not «جاهزة», a handset badge instead of her drawn face, and his free
+  call lands on **his chat** (`/salem/?q=…`, as a question, with no `from`) instead of her answer card on
+  /search. **The free call waits for the next question**: after the spoken answer the sheet becomes a bar
+  at the foot of the results (`#wain-ai-bar`: the name, what was searched, «اسأل مرة ثانية», ×), each
+  follow-up its own tap because WebKit needs a gesture for every `start()`; leaving /search (or /salem for
+  him) takes the bar down, and `<main>` gets room under it (`html[data-call-bar]`).
+- **A question typed over the call's is typed**: /search drops `asked` on the first edit, so «كمّل مع
+  سالم» says «من جواب شوق» again, not «من مكالمتك».
+- Proof: `shouq-flow` 126 passed / **18 failed** on the old build, 144 / 0 on the new; `shouq-agent` 115 /
+  **6** old, 121 / 0 new. Two test faults on the way, both in the checks and not the code: `salemHandoff`
+  writes the space as `+` (URLSearchParams) and `decodeURIComponent` leaves it — read `searchParams.get`;
+  and the sheet's standing «يحتاج إذن المايك» note tripped a check for any «المايك» — exclude the blame
+  sentence, not the word.
+
+**The app (`flutter_app/lib/ai/*`, `screens/find_screen.dart`, `screens/salem_screen.dart`).**
+- **An orphan notification.** `keepAlive.start()` is not awaited (its permission dialogs must not hold
+  the dial), so a hang-up during the dialogs, or during the service's own start, left «إنهاء» in the shade
+  over a call that was over. `PlatformKeepAlive` counts generations: a start that finds a stop ran
+  meanwhile does not start the service, or stops it again. Its steps are injectable; `keep_alive_test`
+  holds both orderings open with completers.
+- **The free call asks for nothing**: it used to start the Android service too, two permission dialogs
+  over a twenty-second call in front. `start({title, background})`: the free call passes `background:
+  false` (screen awake only), and the title names whoever the call is with (it said «مكالمة مع شوق» over
+  his calls). The Kotlin channel is «مكالمات وين», naming neither.
+- **A phone that cannot listen** gets «افتح الإعدادات» and «اكتب لسالم» (the speech permission is its own
+  switch on iOS); the ended screen gets «رسّلها للربع» for the place the call put on screen
+  (`lastSlug`, `/places/<slug>?share=1`).
+- **A refusal for credits** is said as itself and the next call for a quarter hour is the free one
+  (`agent_health.dart`, the web's memory); the free call carries no agent id at all.
+- **`hangUp()` after the call ended is a no-op** — the notification's button could arrive late and
+  reopen the sheet as «انتهت المكالمة» over whatever the caller had moved on to.
+- **The free call's timing is honest**: «متصل» only once `listen` has returned (it said it while the
+  microphone was still being opened); silence for 8 s says «ما سمعناك» instead of the 20-second cap; the
+  cap landing while an answer was in flight no longer opens /search twice (`answering` guard).
+- **The sheet covers the page for TalkBack too** (`BlockSemantics`); the search box forgets the call's
+  question on the first edit; /find's lower half says «اكتب لسالم» with a send button and no role pill;
+  سالم's header button is coral while his call is up, with `expanded` for a screen reader; the iOS
+  purpose strings name both of them.
+- Proof: analyze clean, **1,553** tests; five sabotages (the answering guard, BlockSemantics, the
+  generation check, the quota branch + hang-up guard + free-call background, the /find label + the coral
+  button) each turned exactly the matching tests red.
+
+**The agents, read back.** Both widgets name their own persona in the first message, the rating and the
+«… سكّر/سكّرت المكالمة» line, with the same colours, radii and placement. **سالم has no tests of his own**:
+the workspace holds exactly the 25 attached to both agents, all written for her grammar («his own 7»
+in the record above never existed), so nothing was attached or detached — a run on his agent measures him
+against her judges until tests are written for him, which is a test-authoring cycle with credits.
+
+**Gates (14 October, evening, on `d6a135e3`):** the live-variable build (both agent ids, read-aloud bridge
+off) built clean; `test:widget-csp` on it 37 passed, 0 failed, no CSP violation. **The first `scan` on that
+build exited 1, and the cause was the red-first worktree, not the code**: `scratchpad/wt-old` (the `80e8fe6d`
+checkout used to prove every new assertion red) and its `out/` were inside the repository, so lint walked
+into a second copy of the site and its built chunks — 15,540 errors, all under `scratchpad/wt-old/`, none in
+`src/`. The worktree is removed (`git worktree remove --force`); `scan` is re-run on the clean tree below.
+**Put a red-first worktree outside the repository, or lint reads the old build as the code.** The free build,
+`test:hangout`, `test:journey` and `test:shouq` follow in the same chain; their readings are in the next entry.
+
+**Not measured:** any of it on a real phone — the gesture rule, the bar under a thumb, the in-app
+browser, the Android notification, TalkBack; and a real call on either agent (the socket is refused here).
+**Deploying both stages waits for the owner's yes**; the release is the usual agent build with the read-aloud
+bridge off.
 
 ## Style
 
