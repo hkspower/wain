@@ -782,11 +782,16 @@ function sendOrderMail(string $to, array $mail): bool {
     if (!function_exists('mail')) return false;
     $subject = '=?UTF-8?B?' . base64_encode($mail['subject']) . '?=';
     /* The envelope sender (-f) is what SPF is checked against and what
-       DMARC aligns to. Without it PHP's mail() uses the account's own
-       address on the host, which is not wainkw.com, so a receiver sees a
-       message From wainkw.com that neither SPF nor DKIM vouches for, and
-       wainkw.com's DMARC is p=quarantine. The Message-ID names our domain
-       for the same reason: a host-generated one is a spam signal. */
+       DMARC aligns to — and on this host it does not reach the receiver.
+       Measured with `mailtest` on staging, 14 October: the message arrived
+       with Return-Path noreply@srv2231.main-hosting.eu, spf=pass for THAT
+       domain, dkim=none, dmarc=fail «SPF not aligned (relaxed), No valid
+       DKIM», and wainkw.com's p=quarantine put it in Junk. Where the sender
+       is changed (sendmail_path or the relay) was not seen. Nothing here
+       DKIM-signs, so this path cannot pass DMARC for wainkw.com as it
+       stands; the expected fix, untested, is authenticated SMTP from a real
+       wainkw.com mailbox. -f stays because it costs nothing. The Message-ID
+       names our domain: a host-generated one is a spam signal. */
     $headers = "From: =?UTF-8?B?" . base64_encode('وين') . "?= <" . MAIL_FROM . ">\r\n"
              . "Message-ID: <" . bin2hex(random_bytes(12)) . "@wainkw.com>\r\n"
              . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64";
