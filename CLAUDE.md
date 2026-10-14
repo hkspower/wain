@@ -6860,6 +6860,14 @@ prompt would spend a test cycle on a rule that already fires.
 - Nothing has reached either agent from this sandbox: the socket is refused here. A real call
   and a real typed chat, on each agent, are the proof.
 
+## The 14 October hold — production stays on `8818bfda`; a second writer arrived on the branch
+
+- **The owner's reply «1» to the decision list was read as the deploy option.** It is not a clear go-ahead for a production push, and the branch changed underneath it (below). Nothing has been released or pushed to a stage since `8818bfda` (the Safari batch, live on both stages).
+- **At 12:30:34 UTC another session pushed `e647ac82`**: a Hostinger VPS that builds the branch head and POSTs a signed deploy to `staging.wainkw.com/api/deploy.php` (`docs/vps.md`, `scripts/vps/setup-vps.sh`, `scripts/vps/deploy-staging.sh`). Its doc says production is still promoted separately, by hand, and that step 4 (`php d.php allow srv2058651.hstgr.cloud`) waits for the owner's go-ahead. Both scripts pass `bash -n`; they were not run on the VPS.
+- **A VPS staging build would ship the FREE build.** `deploy-staging.sh` runs `npm run release` with none of the three agent variables exported, and no tracked file sets them (only `.env.example`). Staging would lose its sandbox agent unless the VPS shell exports `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`, `NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID` and `NEXT_PUBLIC_WAIN_TTS_URL=none`. Found by reading the script, not by running it.
+- **Read-only, 14 October.** Salem's agent `agent_5101m4wwgr3ae5qat412ezcnffhn` (version `agtvrsn_6801m4wz3v24fn8v5wv1bzqec2ft`) allowlists `www.wainkw.com`, `wainkw.com` and `staging.wainkw.com`, has `require_origin_header: false`, leaves `conversation.text_only` open (the only override the typed chat sends) and `tts.voice_id` closed. The Hostinger cron list held sporta's `1mNk00yPZP` and nothing of ours.
+- **Held:** the two-agent split is not released or deployed. Shouq's `tts.voice_id` override stays open until a split build is live.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
