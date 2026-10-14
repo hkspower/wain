@@ -125,29 +125,28 @@ console.log("\n── right to left ──");
 const RTL_EXEMPT = /(MapPin|SearchMap|PlaceMapFrame|LiveMap|CoordinatePicker)\.tsx$/;
 const PHYSICAL =
   /(?<![\w-])(?:ml|mr|pl|pr)-[a-z0-9.[\]/-]+|(?<![\w-])(?:left|right)-[a-z0-9.[\]/-]+|(?<![\w-])text-(?:left|right)(?![\w-])|(?<![\w-])border-[lr](?![\w-])|(?<![\w-])rounded-[lr](?![\w-])/g;
-/* The device's notch is physical too, and it is not a choice of language.
+/* The device's notch is physical, and it is not a choice of language.
    env(safe-area-inset-left) is the left edge of the screen in landscape
-   whatever the page's direction, and CSS names the left and right insets only
-   physically (top and bottom are the direction-neutral pair). So a value that
-   takes its inset from one of those two sides is right as written, and a
-   logical form would put the notch's gutter on the far edge in Arabic. The
-   exemption is that value, not a file or a class family: a plain pl-4 beside
-   it is still a finding. SalemChat, WainAiCall and AppTabBar use it, and each
-   pads both sides with the same rule, so there is nothing to mirror. */
-/* Token by token, and only when the token names ONE side. A token that carries
-   both insets (pl-[calc(env(left)+env(right))]) lands the right inset on the
-   left padding, so it is not exempt; a token that names the other side from
-   its utility (pl- with the right inset) is not exempt either. */
-const LEFT_UTIL  = /(?:^|[\s"'`{:])-?(?:pl|ml|left)-/;
-const RIGHT_UTIL = /(?:^|[\s"'`{:])-?(?:pr|mr|right)-/;
-const HAS_LEFT_INSET  = /env\(safe-area-inset-left\)/;
-const HAS_RIGHT_INSET = /env\(safe-area-inset-right\)/;
+   whatever the page's direction. The spec defines the left and right insets
+   only as physical names (a logical form is proposed in csswg-drafts #6379 and
+   is still open), so a gutter that takes its value from the inset on its own
+   side is right as written. A logical ps- would put the notch's gutter on the
+   far edge in Arabic. SalemChat, WainAiCall and AppTabBar use it.
+
+   What is exempt is a utility's own bracketed value, one side at a time: pl-
+   and ml- with the left inset, pr- and mr- with the right inset. A value that
+   names both insets, or the other side's, is not exempt. Only the bracket is
+   blanked, so a sibling pr-4 in the same token is still found. Positional
+   left- and right- are not exempt: the notch argument covers gutters, not
+   where a directional element is placed. That each gutter pads both sides is a
+   convention the audit does not enforce; a lone pl- with the left inset passes. */
+const SAFE_SIDE_VALUE = /(?<![\w-])(pl|ml|pr|mr)-\[([^\]]*)\]/g;
 function exemptSafeSide(line) {
-  return line.replace(/\S+/g, (tok) => {
-    const l = HAS_LEFT_INSET.test(tok), r = HAS_RIGHT_INSET.test(tok);
-    if (l && !r && LEFT_UTIL.test(tok)) return " ";
-    if (r && !l && RIGHT_UTIL.test(tok)) return " ";
-    return tok;
+  return line.replace(SAFE_SIDE_VALUE, (whole, util, value) => {
+    const left = /env\(safe-area-inset-left\)/.test(value);
+    const right = /env\(safe-area-inset-right\)/.test(value);
+    const wantsLeft = util === "pl" || util === "ml";
+    return (wantsLeft ? left && !right : right && !left) ? " " : whole;
   });
 }
 const physical = [];
