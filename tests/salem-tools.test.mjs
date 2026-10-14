@@ -24,7 +24,8 @@ const entry = join(tmp, "entry.ts");
 writeFileSync(
   entry,
   `export * from ${JSON.stringify(join(ROOT, "src/lib/salem-tools.ts"))};\n` +
-    `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n`
+    `export { answerOrder } from ${JSON.stringify(join(ROOT, "src/lib/answer-order.ts"))};\n` +
+    `export { buildIndex } from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n`
 );
 const bundle = join(tmp, "entry.mjs");
 execSync(
@@ -32,7 +33,7 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { formatShowPlaces, formatOpenPlace, answerOrder } = await import(pathToFileURL(bundle).href);
+const { formatShowPlaces, formatOpenPlace, answerOrder, buildIndex } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 const places = [
@@ -125,7 +126,13 @@ console.log("\n── the order is the answer's, and the chat keeps it ──");
     { ...base, slug: "souq-al-mubarakiya", nameAr: "سوق المباركية", category: "shopping", areaAr: "", taglineAr: "" },
   ];
   const JAN = { month: 0, hour: 14 };
-  const show = (q, hits) => formatShowPlaces(q, answerOrder(q, hits, { docs: [] }, fam, JAN).hits, fam);
+  // answerOrder reads the index for the words it could not place (missedWords),
+  // so it needs a whole index, not a stub with only `docs`: that stub crashed
+  // here with «reading 'has'» once missedWords started reading postings. An
+  // empty index built the way search builds one — these places are the test's
+  // own, and none of them is in the catalogue the index would hold.
+  const noDocs = buildIndex([]);
+  const show = (q, hits) => formatShowPlaces(q, answerOrder(q, hits, noDocs, fam, JAN).hits, fam);
 
   const given = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.95)], fam);
   ok("formatShowPlaces keeps the order it is handed — it no longer re-orders on its own",
