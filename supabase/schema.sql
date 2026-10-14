@@ -759,6 +759,36 @@ create policy "admins read the votes"
   using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
+-- Questions wain could not answer (14 October)
+--
+-- The live back end is wain's own PHP (scripts/publish/wain-api.php): the
+-- gap_report action writes this table and gaps_list reads it for admins. It is
+-- described here so the Postgres alternative names every table the API does
+-- (audit:schema), locked the way every other table is: no anonymous access at
+-- all, admins read. A gap is the question with any phone number or address
+-- taken out, the area and the place offered — never a name. The API deletes
+-- anything older than thirty days each time a new gap arrives.
+-- ---------------------------------------------------------------------------
+create table if not exists public.gaps (
+  id          text primary key check (id ~ '^[0-9a-f]{24}$'),
+  asked       text not null check (length(asked) between 2 and 200),
+  area        text not null default '' check (length(area) <= 80),
+  offered     text not null default '' check (length(offered) <= 120),
+  source      text not null check (source in ('call', 'salem', 'search')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists gaps_age_idx on public.gaps (created_at);
+
+alter table public.gaps enable row level security;
+revoke all on public.gaps from anon, authenticated;
+grant select on public.gaps to authenticated;
+
+drop policy if exists "admins read the gaps" on public.gaps;
+create policy "admins read the gaps"
+  on public.gaps for select
+  using (public.is_admin());
+
+-- ---------------------------------------------------------------------------
 -- Taking a number
 --
 -- The number cannot come from the device. Two people tapping at once would

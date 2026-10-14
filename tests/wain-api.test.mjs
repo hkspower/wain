@@ -125,7 +125,7 @@ try {
   console.log("\n── install-time CLI: migrate, seed, version ──");
   {
     const m = cli("migrate");
-    ok("migrate creates the six tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 6, j(m));
+    ok("migrate creates the seven tables on SQLite", m.ok && m.engine === "sqlite" && m.tables.length === 7, j(m));
     ok("the database file is 0600", (await import("node:fs")).statSync(join(storage, "wain.sqlite")).mode.toString(8).endsWith("600"));
     const s1 = cli("seed");
     ok("seed inserts the three rows of data/places.json", s1.ok && s1.inserted === 3 && s1.skipped === 0 && s1.total === 3, j(s1));
@@ -538,10 +538,45 @@ try {
     ok("the log names the poll by six characters and never the voter", /a=vote_cast poll=abc123 v=cast/.test(log) && !log.includes(voterA), "");
   }
 
+  console.log("\n── a question wain could not answer (gap_report) ──");
+  {
+    // An ASCII word on purpose: logline() drops every non-ASCII byte, so an
+    // Arabic question could never reach the log and the check below would pass
+    // by accident. «sushi» can, if the question were ever logged.
+    const asked = "أبي مطعم ياباني يقدّم sushi";
+    const r = await call("gap_report", { asked, area: "السالمية", offered: "", source: "call" });
+    ok("a gap is reported, and the reply is ok and nothing else", r.status === 200 && r.json.ok === true && Object.keys(r.json).join() === "ok", j(r.json));
+    const one = await call("gap_report", { asked: "أ" });
+    ok("a question of one character is refused", one.status === 422 && one.json.field === "asked", j(one.json));
+    const long = await call("gap_report", { asked: "س".repeat(121) });
+    ok("a question over 120 characters is refused", long.status === 422 && long.json.field === "asked", j(long.json));
+    const src = await call("gap_report", { asked: "قهوة بالمريخ", source: "email" });
+    ok("the source is one the server knows", src.status === 422 && src.json.field === "source", j(src.json));
+    ok("reporting is POST only", (await call("gap_report", { asked }, { method: "GET" })).status === 405);
+    const masked = await call("gap_report", { asked: "رقمي 9651 2345 678 وإيميلي a.b@example.com" });
+    ok("a question with a number and an address is still answered", masked.status === 200, j(masked.json));
+    const anon = await call("gaps_list", {});
+    ok("the gaps are the admin's to read", anon.status === 403 && anon.json.error === "admin_required", j(anon.json));
+    const list = await call("gaps_list", {}, { admin: true });
+    const mine = list.json.gaps?.find((g) => g.asked === asked);
+    ok("the admin reads the question back, with its area and source", list.status === 200 && mine?.area === "السالمية" && mine?.source === "call", j(list.json).slice(0, 300));
+    ok("a number and an address are masked before they are stored", list.json.gaps?.some((g) => g.asked === "رقمي [رقم] وإيميلي [بريد]") === true, j(list.json.gaps?.map((g) => g.asked)));
+    ok("the newest gap comes first", list.json.gaps?.[0]?.created_at >= list.json.gaps?.at(-1)?.created_at, "");
+    // A row older than GAP_KEEP_DAYS, written straight into the database the
+    // server uses; the next report is what deletes it, as the votes do.
+    const old = "سؤال قديم جداً";
+    execFileSync("php", ["-r", `$p = new PDO("sqlite:" . ${JSON.stringify(join(storage, "wain.sqlite"))}); $p->exec("INSERT INTO gaps (id, asked, area, offered, source, created_at) VALUES ('0123456789abcdef01234567', '${old}', '', '', 'call', '2001-01-01T00:00:00.000000Z')");`]);
+    await call("gap_report", { asked: "سؤال جديد بعد القديم" });
+    const after = await call("gaps_list", {}, { admin: true });
+    ok("a gap older than thirty days goes when the next one comes in", !after.json.gaps.some((g) => g.asked === old) && after.json.gaps.some((g) => g.asked === "سؤال جديد بعد القديم"), j(after.json.gaps.map((g) => g.asked)));
+    const log = readFileSync(join(storage, "logs", "wain.log"), "utf8");
+    ok("the log names a gap by eight characters and its source, never the question", /a=gap_report id=[0-9a-f]{8} src=call/.test(log) && !log.includes("sushi"), "");
+  }
+
   console.log("\n── selftest on this engine ──");
   {
     const st = cli("selftest");
-    ok("selftest passes on SQLite and cleans up", st.ok === true && st.cleaned === true && st.steps.length === 9, j(st));
+    ok("selftest passes on SQLite and cleans up", st.ok === true && st.cleaned === true && st.steps.length === 10, j(st));
     const places = (await call("places")).json.places;
     ok("…leaving no selftest row behind", !places.some((p) => p.slug.startsWith("selftest-")));
   }

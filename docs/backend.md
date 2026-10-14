@@ -114,10 +114,11 @@ second. `docs/admin-setup.md` has the owner's steps.
 ## The actions
 
 Public: `ping places order_place order_status order_cancel queue_join
-queue_status queue_leave queue_size submit`. Admin: `whoami places_all
-place_save place_delete place_publish place_location orders_list
-order_set_status queue_list queue_set_status submissions_list
-submission_reject submission_approve media_sign media_publish media_discard`.
+queue_status queue_leave queue_size submit vote_cast votes_get gap_report`.
+Admin: `whoami places_all place_save place_delete place_publish place_location
+orders_list order_set_status queue_list queue_set_status submissions_list
+submission_reject submission_approve media_sign media_publish media_discard
+gaps_list`.
 `queue_join` with `source: walk_in` is admin too. `php wain.php actions`
 prints the lists and `audit:schema` checks the client against them.
 
@@ -134,6 +135,27 @@ device moves rather than adds.
   voters.
 - `supabase/schema.sql` carries a twin of the table (`audit:schema` requires
   one for every table the API has). No Postgres client uses it.
+
+**Questions wain could not answer (14 October):** `gap_report {asked, area?,
+offered?, source?}` is public and answers `{ok: true}` and nothing else. The
+`gaps` table keeps what a visitor asked for that the catalogue does not hold.
+- `asked` is 2–120 characters. A phone number (seven or more digits, either
+  numeral set, with at most one space or dash between them) and an address are
+  replaced with «[رقم]» and «[بريد]» before anything is stored. That is a
+  pattern, not a guarantee: a number said in words is kept.
+- `source` is `call`, `salem` or `search` and defaults to `call`. `area` and
+  `offered` are optional text.
+- The log line carries the first eight characters of the row id and the source.
+  The question is never logged. `logline()` drops every non-ASCII byte, so the
+  suite checks for an ASCII word, which an Arabic-only check could not fail on.
+- Rows older than 30 days are deleted when the next gap arrives. Nothing deletes
+  them on a timer, so a quiet site keeps its last month until someone asks.
+- `gaps_list` (admin) returns the newest 200 rows and the total. Nothing on the
+  site reads it yet.
+- The agent's `report_gap` tool still posts to n8n. Repointing it is a live change
+  the owner has not yet approved (CLAUDE.md, 14 October).
+- `/privacy` does not describe this table yet. The sentence goes in with the
+  repoint and the deploy, not before: the live site sends nothing to it today.
 
 **Order emails (7 October):** the `shop_contacts` table maps a place to the
 address a new order is emailed to. There is no action for it. It is set from the

@@ -104,7 +104,7 @@ const READ_ACTIONS = ['ping', 'places', 'order_status', 'queue_status', 'queue_s
                       'submissions_list', 'votes_get'];
 
 /** Public writes the per-address write cap applies to. */
-const PUBLIC_WRITES = ['order_place', 'order_cancel', 'queue_join', 'queue_leave', 'submit', 'vote_cast'];
+const PUBLIC_WRITES = ['order_place', 'order_cancel', 'queue_join', 'queue_leave', 'submit', 'vote_cast', 'gap_report'];
 
 /* A shortlist's vote (/pick). A poll is the random id the sender's link
    carries — nothing registers it, so nothing here knows a poll's places
@@ -116,12 +116,19 @@ const RE_POLL         = '/^[a-z0-9]{10,16}$/';
 const VOTE_KEEP_DAYS  = 30;
 const VOTE_MAX_VOTERS = 200;
 
+/* A gap is a question wain could not answer (14 October: the agent's report_gap
+   tool posts here once it is repointed). Kept GAP_KEEP_DAYS and no longer,
+   and the question is stored with a phone number or an address taken out
+   (gapMask), so a caller who says their number does not leave it behind. */
+const GAP_KEEP_DAYS = 30;
+const GAP_SOURCES   = ['call', 'salem', 'search'];
+
 /** Actions that need `X-Wain-Admin`. `queue_join` with `source: walk_in` joins
  *  this list at runtime — a walk-in is somebody staff saw. */
 const ADMIN_ACTIONS = ['whoami', 'places_all', 'place_save', 'place_delete', 'place_publish',
                        'place_location', 'orders_list', 'order_set_status', 'queue_list',
                        'queue_set_status', 'submissions_list', 'submission_reject',
-                       'submission_approve', 'media_sign', 'media_publish', 'media_discard'];
+                       'submission_approve', 'media_sign', 'media_publish', 'media_discard', 'gaps_list'];
 
 /* ── the log ────────────────────────────────────────────────────────────────
    Identical in shape and promises to /api/tts.php's and /api/media.php's, and
@@ -461,6 +468,18 @@ final class Db {
         $this->ensureIndex('votes_poll_idx', 'votes', 'poll, place_slug');
         $this->ensureIndex('votes_age_idx', 'votes', 'updated_at');
 
+        /* What visitors asked for that wain does not have (14 October). Written
+           by gap_report, read by gaps_list, deleted by age. No lock row: a gap
+           is never updated, so two requests racing only insert two rows. */
+        $x('CREATE TABLE IF NOT EXISTS gaps (
+              id VARCHAR(32) NOT NULL PRIMARY KEY,
+              asked TEXT NOT NULL,
+              area VARCHAR(80) NOT NULL,
+              offered VARCHAR(120) NOT NULL,
+              source VARCHAR(16) NOT NULL,
+              created_at VARCHAR(32) NOT NULL)');
+        $this->ensureIndex('gaps_age_idx', 'gaps', 'created_at');
+
         $ignore = $this->driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
         foreach (['queue', 'orders', 'submissions', 'places', 'votes'] as $lock) {
             $this->run("$ignore INTO locks (name) VALUES (?)", [$lock]);
@@ -549,6 +568,16 @@ function vStrList(array $in, string $k, int $max, int $eachMax = 500): array {
 
 function vUuid(array $in, string $k): string {
     return strtolower(vRe($in, $k, '/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/', 'a uuid'));
+}
+
+/** A question is stored with a phone number and an address taken out of it.
+ *  Seven or more digits in a row (either numeral set, with at most one space or
+ *  dash between them) become «[رقم]»; anything shaped like an address becomes
+ *  «[بريد]». Best effort: a pattern catches what it describes, and the privacy
+ *  copy says so. */
+function gapMask(string $s): string {
+    $s = preg_replace('/[0-9\x{0660}-\x{0669}](?:[ \-]?[0-9\x{0660}-\x{0669}]){6,}/u', '[رقم]', $s) ?? $s;
+    return preg_replace('/[^\s@]+@[^\s@]+/u', '[بريد]', $s) ?? $s;
 }
 
 function vToken(array $in, string $k = 'track_token'): string {
@@ -859,7 +888,7 @@ if (PHP_SAPI === 'cli') {
         $db = $openDb($stage);
         $out(['ok' => true, 'stage' => $stage, 'engine' => $db->driver,
               'tables' => array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                    ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts'])]);
+                                    ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts', 'gaps'])]);
     }
 
     if ($mode === 'seed') {
@@ -955,6 +984,11 @@ if (PHP_SAPI === 'cli') {
                 if (count($rows) !== 1 || $rows[0]['place_slug'] !== 'b' || (int) $rows[0]['n'] !== 1) throw new RuntimeException('the changed vote did not read back');
                 $db->run('DELETE FROM votes WHERE poll = ?', [$poll]);
             });
+            $step('insert and read back a gap', function () use ($db, $tag, $now) {
+                $db->run('INSERT INTO gaps (id, asked, area, offered, source, created_at) VALUES (?,?,?,?,?,?)',
+                    [bin2hex(random_bytes(12)), $tag, '', '', 'call', $now]);
+                if ((int) $db->scalar('SELECT COUNT(*) FROM gaps WHERE asked = ?', [$tag]) !== 1) throw new RuntimeException('the gap did not read back');
+            });
             $step('read back counts', function () use ($db, $tag) {
                 foreach (['orders' => 'place_slug', 'queue_tickets' => 'place_slug', 'submissions' => 'name_ar'] as $t => $col) {
                     $n = (int) $db->scalar("SELECT COUNT(*) FROM $t WHERE $col = ?", [$tag]);
@@ -965,13 +999,13 @@ if (PHP_SAPI === 'cli') {
         } catch (Throwable $e) {
             $report['error'] = get_class($e) . ': ' . $e->getMessage();
         } finally {
-            foreach (['orders' => 'place_slug', 'queue_tickets' => 'place_slug', 'submissions' => 'name_ar', 'places' => 'slug'] as $t => $col) {
+            foreach (['orders' => 'place_slug', 'queue_tickets' => 'place_slug', 'submissions' => 'name_ar', 'places' => 'slug', 'gaps' => 'asked'] as $t => $col) {
                 try { $db->run("DELETE FROM $t WHERE $col = ?", [$tag]); } catch (Throwable) {}
             }
             $report['cleaned'] = true;
         }
         $report['counts'] = array_map(fn($t) => [$t => (int) $db->scalar("SELECT COUNT(*) FROM $t")],
-                                      ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts']);
+                                      ['places', 'orders', 'queue_tickets', 'submissions', 'votes', 'shop_contacts', 'gaps']);
         $out($report);
     }
 
@@ -1460,6 +1494,27 @@ try {
         $options = vStrList(['options' => is_string($raw) ? explode(',', $raw) : $raw], 'options', 3, 191);
         foreach ($options as $o) if (!preg_match(RE_SLUG, $o)) throw new Invalid('options', 'options must be slugs');
         $ok($tally($poll, $options), ['poll' => substr($poll, 0, 6)]);
+    }
+
+    case 'gap_report': {
+        $asked   = vStr($in, 'asked', 2, 120);
+        $area    = vStr($in, 'area', 0, 80);
+        $offered = vStr($in, 'offered', 0, 120);
+        $source  = vEnum($in, 'source', GAP_SOURCES, 'call');
+        $id     = bin2hex(random_bytes(12));
+        $now    = nowIso();
+        $cutoff = gmdate('Y-m-d\TH:i:s', time() - GAP_KEEP_DAYS * 86400);
+        $db->run('DELETE FROM gaps WHERE created_at < ?', [$cutoff]);
+        $db->run('INSERT INTO gaps (id, asked, area, offered, source, created_at) VALUES (?,?,?,?,?,?)',
+                 [$id, gapMask($asked), $area, $offered, $source, $now]);
+        /* The reply is only ok: the agent says what it says, and the id stays
+           here. The log carries the id and the source, never the question. */
+        $ok([], ['id' => substr($id, 0, 8), 'src' => $source]);
+    }
+
+    case 'gaps_list': {
+        $rows = $db->all('SELECT id, asked, area, offered, source, created_at FROM gaps ORDER BY created_at DESC LIMIT 200');
+        $ok(['total' => (int) $db->scalar('SELECT COUNT(*) FROM gaps'), 'gaps' => $rows]);
     }
 
     case 'submit': {
