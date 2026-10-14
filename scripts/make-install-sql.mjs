@@ -134,6 +134,9 @@ const PARTS = [
   ['purchasing.mysql.sql', 'purchasing — suppliers, purchase orders and which supplier a size comes from', API],
   ['security.mysql.sql', 'panel sign-in hardening — active admin sessions and passkeys', API],
   ['siteimages.mysql.sql', 'site pictures — the logo and features band, when the owner replaces them', API],
+  // ALTERS two tables, so it must come after both are created: admin_users by
+  // 1-schema, customers by customers.mysql.sql. Last is after both.
+  ['users.mysql.sql', 'Users page — block / sign out a shopper, switch off a panel colleague', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself

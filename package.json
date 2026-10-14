@@ -216,6 +216,7 @@
     "test:panel-light": "node scripts/panel-light-test.mjs",
     "test:security-layout": "node scripts/security-layout-test.mjs",
     "test:security-plus": "node scripts/security-plus-test.mjs",
+    "test:users": "node scripts/users-test.mjs",
     "make:overlay-strings": "node scripts/make-overlay-strings.mjs",
     "test:overlay-strings": "node scripts/make-overlay-strings.mjs --check",
     "test:hero-mobile": "node scripts/hero-mobile-test.mjs",

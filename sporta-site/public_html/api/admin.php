@@ -214,6 +214,9 @@ if ($r === 'login_code_resend' && $method === 'POST') {
     $q->execute([$id]);
     $u = $q->fetch();
     if (!$u || (int)$u['email_otp_enabled'] !== 1) store_fail('code_expired', 401);
+    // Switched off since this browser proved the password (2026-10-08): no more codes to an account
+    // the grant would refuse. The marker is the proof of the password, so this tells nobody new.
+    store_admin_refuse_disabled($u);
     // One a minute, from the row itself rather than a counter that a new
     // session would reset. Also throttled per IP, because the row is per
     // account and a spray is per address.
@@ -384,10 +387,14 @@ if ($r === 'password_reset_request' && $method === 'POST') {
     $email = strtolower(trim((string) ($b['email'] ?? '')));
     if ($email !== '' && strlen($email) <= 190) {
         try {
-            $q = $db->prepare('select id, email from admin_users where email = ?');
+            // `select *` so a shop without disabled_at yet (api/users.mysql.sql) still resets.
+            $q = $db->prepare('select * from admin_users where email = ?');
             $q->execute([$email]);
             $u = $q->fetch();
-            if ($u) {
+            // A SWITCHED-OFF ACCOUNT IS NOT MAILED A CODE (2026-10-08), and the answer below is the same
+            // {ok:true} — so the route still cannot be used to ask which addresses run the shop, nor
+            // which of them the owner has switched off. A reset could not undo the switch anyway.
+            if ($u && !store_admin_is_disabled($u)) {
                 $last = $db->prepare('select created_at from admin_password_resets where admin_id = ? and created_at > now() - interval 60 second');
                 $last->execute([$u['id']]);
                 if (!$last->fetchColumn()) {
@@ -418,11 +425,16 @@ if ($r === 'password_reset_confirm' && $method === 'POST') {
     $refuse = static fn () => store_fail('reset_refused', 401);
 
     try {
-        $q = $db->prepare('select u.id, u.email, r.code_hash, r.attempts, r.expires_at
+        // u.* rather than named columns, so disabled_at is read where it exists and its absence is no fault.
+        $q = $db->prepare('select u.*, r.code_hash, r.attempts, r.expires_at
                              from admin_users u join admin_password_resets r on r.admin_id = u.id where u.email = ?');
         $q->execute([$email]);
         $row = $q->fetch();
     } catch (Throwable $e) { $row = false; }
+    // SWITCHED OFF BY THE OWNER: refused with the SAME answer as a wrong code, and before the update
+    // below — which clears locked_until and would otherwise be a way round the switch. disabled_at is
+    // never written by this route; only the Team tab's team_unlock clears it.
+    if ($row && store_admin_is_disabled($row)) $refuse();
     if (!$row || strlen($code) !== 8 || strtotime((string) $row['expires_at']) < time() || (int) $row['attempts'] >= RESET_MAX_TRIES) {
         if ($row && (strtotime((string) $row['expires_at']) < time() || (int) $row['attempts'] >= RESET_MAX_TRIES)) {
             $db->prepare('delete from admin_password_resets where admin_id = ?')->execute([$row['id']]);
@@ -621,6 +633,9 @@ if ($r === 'passkey_login' && $method === 'POST') {
     $hasTotp = (int)($u['totp_enabled'] ?? 0) === 1 && (string)($u['totp_secret'] ?? '') !== '';
     $hasEmail = !$hasTotp && (int)($u['email_otp_enabled'] ?? 0) === 1;
     if (!$u['uv'] && ($hasTotp || $hasEmail)) {
+        // The signature is verified: a switched-off account is refused here rather than mailed a code.
+        // A passkey that needs no second code is refused by store_admin_grant() just below.
+        store_admin_refuse_disabled($u);
         // No biometric/PIN on this authenticator: it counts as the password did, so the second factor is asked.
         store_session_start(); session_regenerate_id(true);
         unset($_SESSION['admin_id'], $_SESSION['admin_email']);
@@ -3952,6 +3967,30 @@ if ($r === 'blocked') {
     )->fetchAll());
 }
 
+// The write itself, ONE home for both callers: block_customer below (the CRM
+// card and the order drawer) and the Users page's shopper_block, which can also
+// refuse orders from the account's phone. Two copies of an upsert would be two
+// ideas of what a blocked number is. $phone must already be store_phone()'s.
+//
+// $keepReason: an EMPTY reason leaves the one already on file in place rather
+// than blanking it. Only shopper_block asks for that — its reason box is about
+// the ACCOUNT and is often left empty, while the number's row may carry the
+// note the owner wrote in the CRM card. block_customer is left exactly as it
+// was (the CRM card refuses an empty reason before it sends).
+function admin_phone_block(PDO $db, string $phone, string $scope, string $reason, string $by, bool $keepReason = false): void {
+    $db->prepare(
+        'insert into blocked_customers (phone, scope, reason, blocked_by) values (?, ?, ?, ?)
+         on duplicate key update scope = values(scope), reason = '
+            . ($keepReason ? 'coalesce(values(reason), reason)' : 'values(reason)') . ',
+                                 blocked_by = values(blocked_by)'
+    )->execute([$phone, $scope === 'all' ? 'all' : 'cod', $reason === '' ? null : $reason, $by]);
+}
+function admin_phone_unblock(PDO $db, string $phone): int {
+    $q = $db->prepare('delete from blocked_customers where phone = ?');
+    $q->execute([$phone]);
+    return $q->rowCount();
+}
+
 if ($r === 'block_customer' && $method === 'POST') {
     $b = store_body();
     // Canonicalised with the SAME function the checkout uses, or the block is
@@ -3962,12 +4001,7 @@ if ($r === 'block_customer' && $method === 'POST') {
     $scope = ($b['scope'] ?? 'cod') === 'all' ? 'all' : 'cod';
     $reason = mb_substr(trim((string)($b['reason'] ?? '')), 0, 200);
 
-    $db->prepare(
-        'insert into blocked_customers (phone, scope, reason, blocked_by) values (?, ?, ?, ?)
-         on duplicate key update scope = values(scope), reason = values(reason),
-                                 blocked_by = values(blocked_by)'
-    )->execute([$phone, $scope, $reason === '' ? null : $reason,
-                (string)($_SESSION['admin_email'] ?? '')]);
+    admin_phone_block($db, $phone, $scope, $reason, (string)($_SESSION['admin_email'] ?? ''));
     store_out(['ok' => true, 'phone' => $phone, 'scope' => $scope]);
 }
 
@@ -3977,8 +4011,522 @@ if ($r === 'unblock_customer' && $method === 'POST') {
     $b = store_body();
     $phone = store_phone((string)($b['phone'] ?? ''));
     if ($phone === null) store_fail('invalid_phone');
-    $db->prepare('delete from blocked_customers where phone = ?')->execute([$phone]);
+    admin_phone_unblock($db, $phone);
     store_out(['ok' => true]);
+}
+
+// ================================================================ USERS PAGE
+//
+// 2026-10-08, the Users screen at /backends (assets/users-screen.js): two tabs,
+// SHOPPERS (the customer accounts of api/customer.php) and TEAM (admin_users).
+// The owner's choices: everyone on the team has full access (there are no
+// roles); the team can be listed, added to, switched off and on, and removed;
+// a shopper's account can be looked up, blocked and unblocked, signed out of
+// every browser, and deleted with its orders kept but unlinked.
+//
+// THE SIX COLUMNS ARE api/users.mysql.sql's, and a shop that has not run
+// migrate-users.php does not have them. Every route here answers 503
+// users_not_ready until it has. Outside this block they are only ever read
+// through `select *` (store_admin_row(), customer_id(), customer_grant()) or
+// written with a fallback (customer_seen()), so sign-in on both sides goes on
+// working before the migration exactly as it did.
+//
+// BELOW THE AUDIT HOOK ON PURPOSE: every successful POST here lands in
+// admin_audit_log with its request body, so "who switched off whom, and when"
+// is answered by the Activity log without a line of code here. Which is also
+// why the acting admin's secrets travel ONLY under `password` and `code` — the
+// two names store_admin_audit_redact() blanks. The temporary password minted
+// by team_add is in the RESPONSE, which the hook never records.
+//
+// NOT FOR THE EXPO APP. These routes are the website panel's only; the app's
+// panel has no Users screen (CLAUDE.md records the drift).
+
+function users_team_ready(PDO $db): bool {
+    static $ok = null;
+    if ($ok === null) {
+        try { $db->query('select disabled_at, added_by from admin_users limit 0'); $ok = true; }
+        catch (Throwable $e) { $ok = false; }
+    }
+    return $ok;
+}
+function users_shoppers_ready(PDO $db): bool {
+    static $ok = null;
+    if ($ok === null) {
+        try { $db->query('select blocked_at, blocked_reason, blocked_by, signed_out_at from customers limit 0'); $ok = true; }
+        catch (Throwable $e) { $ok = false; }
+    }
+    return $ok;
+}
+
+// THE ACTING ADMIN PROVES IT IS THEM, for every write on the Team tab: the
+// current password and, when one is enrolled, a live second-factor code —
+// exactly what account_update asks before changing a password. A session cookie
+// is a bearer token and an unlocked laptop is enough to hold one; adding a
+// colleague is handing somebody the whole shop, and switching one off or
+// removing them is the quickest way to take it from its owner. Same throttle
+// bucket and the same `bad_password` answer as account_update and totp_disable.
+function users_reauth(PDO $db, array $admin, array $b): void {
+    $q = $db->prepare('select password_hash from admin_users where id = ?');
+    $q->execute([(int) $admin['id']]);
+    $hash = $q->fetchColumn();
+    store_throttle($db, 'account', 10, 300);
+    if (!is_string($hash) || !password_verify((string) ($b['password'] ?? ''), $hash)) store_fail('bad_password', 401);
+    // TOTP, or a live emailed code (the panel asks otp_send for one first), or
+    // nothing at all for an account with no second factor enrolled.
+    store_require_fresh_code($db, $admin, (string) ($b['code'] ?? ''));
+}
+
+// One member, as the Team tab shows it. NEVER a secret: no password_hash, no
+// totp_secret, no email_otp_hash — the second factor is reduced to which KIND
+// is on in SQL, so the secret never even reaches PHP here.
+function users_team_rows(PDO $db, int $youId, ?int $onlyId = null): array {
+    $sql = 'select id, email, created_at, added_by, last_login_at, disabled_at,
+                   case when locked_until > now() then locked_until end as locked_until,
+                   (totp_enabled = 1 and coalesce(totp_secret, \'\') <> \'\') as has_totp,
+                   email_otp_enabled
+              from admin_users';
+    $args = [];
+    if ($onlyId !== null) { $sql .= ' where id = ?'; $args[] = $onlyId; }
+    $q = $db->prepare($sql . ' order by id');
+    $q->execute($args);
+    $rows = $q->fetchAll();
+    // Passkeys and signed-in browsers come from the ledger tables, which a shop
+    // without api/security.mysql.sql does not have: then both read 0.
+    $pk = []; $live = [];
+    if (sec_tables_ready($db)) {
+        foreach ($db->query('select admin_id, count(*) as n from admin_passkeys group by admin_id')->fetchAll() as $p) $pk[(int) $p['admin_id']] = (int) $p['n'];
+        // A browser counts while its row is not revoked AND it is inside both of
+        // store_session_admin()'s clocks — a row 4 days idle is a session that
+        // will be refused on its next request, not a signed-in browser.
+        $s = $db->prepare('select admin_id, count(*) as n from admin_sessions
+                            where revoked_at is null
+                              and last_seen > now() - interval ? second
+                              and created_at > now() - interval ? second
+                            group by admin_id');
+        $s->execute([STORE_ADMIN_IDLE_SECONDS, STORE_ADMIN_ABSOLUTE_SECONDS]);
+        foreach ($s->fetchAll() as $p) $live[(int) $p['admin_id']] = (int) $p['n'];
+    }
+    $out = [];
+    foreach ($rows as $u) {
+        $id = (int) $u['id'];
+        $out[] = [
+            'id'            => $id,
+            'email'         => $u['email'],
+            'you'           => $id === $youId,
+            'created_at'    => $u['created_at'],
+            'added_by'      => $u['added_by'],
+            'last_login_at' => $u['last_login_at'],
+            // TOTP wins where both are on, as store_login() decides.
+            'two_factor'    => (int) $u['has_totp'] === 1 ? 'app' : ((int) $u['email_otp_enabled'] === 1 ? 'email' : null),
+            'passkeys'      => $pk[$id] ?? 0,
+            'sessions'      => $live[$id] ?? 0,
+            'disabled_at'   => $u['disabled_at'],
+            'locked_until'  => $u['locked_until'],
+        ];
+    }
+    return $out;
+}
+
+// The target of a Team write, read BEFORE re-auth so a wrong id or a press on
+// your own row is refused without spending the code the owner just typed.
+function users_member(PDO $db, $id): array {
+    $id = (int) $id;
+    $q = $db->prepare('select id, email, disabled_at from admin_users where id = ?');
+    $q->execute([$id]);
+    $u = $q->fetch();
+    if (!$u) store_fail('member_not_found', 404);
+    return $u;
+}
+
+// THE LAST-ACTIVE-ADMIN GUARD, inside the transaction that writes. Every admin
+// row is locked (`for update`, in id order so two writers queue rather than
+// deadlock), and the write may go ahead only if at least one admin OTHER than
+// the target is still switched on afterwards. A shop with no active admin is
+// worse than locked: with no rows at all `register` reopens to anyone, and with
+// only switched-off rows nobody can sign in to switch one back.
+//
+// Read sequentially it looks unreachable — you cannot lock or remove yourself,
+// and you are active or your session would have ended — but two admins
+// switching each other off at the same moment both passed the gate first. The
+// row lock makes the second one wait for the first to commit and then count
+// what is really left: by then ITS OWN row is the one switched off, so the
+// count is zero and it is refused here. (A rig reproduces that without a race:
+// hold `select … for update` on the actor's row from another connection, send
+// the request, switch the actor off, commit.) After the count, an actor whose
+// own row stopped being active while the request waited is refused too, though
+// someone else is still on: their session is over, and so is their say.
+function users_guard_last_active(PDO $db, int $actorId, int $targetId): void {
+    $rows = $db->query('select id, disabled_at from admin_users order by id for update')->fetchAll();
+    $byId = [];
+    foreach ($rows as $r) $byId[(int) $r['id']] = $r;
+    $fail = function (string $t, int $c) use ($db) { if ($db->inTransaction()) $db->rollBack(); store_fail($t, $c); };
+    if (!isset($byId[$targetId])) $fail('member_not_found', 404);
+    $othersActive = 0;
+    foreach ($byId as $id => $r) if ($id !== $targetId && !store_admin_is_disabled($r)) $othersActive++;
+    if ($othersActive === 0) $fail('last_active_admin', 409);
+    if (!isset($byId[$actorId]) || store_admin_is_disabled($byId[$actorId])) $fail('not_signed_in', 401);
+}
+
+// Everything that could let a switched-off or removed colleague back in
+// without a password: signed-in browsers (the ledger rows — store_session_admin()
+// refuses the account anyway, this makes the Team tab's count honest), trusted
+// passcode devices, and a reset code in flight. The tables are optional on an
+// older shop, hence one try each. Returns the number of browsers signed out.
+function users_member_doors_close(PDO $db, int $id): int {
+    $ended = 0;
+    try {
+        $q = $db->prepare('update admin_sessions set revoked_at = now() where admin_id = ? and revoked_at is null');
+        $q->execute([$id]);
+        $ended = $q->rowCount();
+    } catch (Throwable $e) { /* no ledger table */ }
+    try { $db->prepare('delete from admin_devices where admin_id = ?')->execute([$id]); } catch (Throwable $e) {}
+    try { $db->prepare('delete from admin_password_resets where admin_id = ?')->execute([$id]); } catch (Throwable $e) {}
+    return $ended;
+}
+
+// ---- Team -----------------------------------------------------------------
+if ($r === 'team') {
+    if (!users_team_ready($db)) store_fail('users_not_ready', 503);
+    store_out(['team' => users_team_rows($db, (int) $admin['id']), 'ready' => true]);
+}
+
+if ($r === 'team_add' && $method === 'POST') {
+    if (!users_team_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    // The address is checked BEFORE the password and code, so a typo costs a
+    // retype and not a fresh code from the authenticator or the inbox.
+    $email = mb_strtolower(trim((string) ($b['email'] ?? '')));
+    if ($email === '' || mb_strlen($email) > 120 || !filter_var($email, FILTER_VALIDATE_EMAIL)) store_fail('bad_email');
+    $dupe = $db->prepare('select id from admin_users where lower(email) = ?');
+    $dupe->execute([$email]);
+    if ($dupe->fetchColumn() !== false) store_fail('member_exists', 409);
+    users_reauth($db, $admin, $b);
+
+    // A TEMPORARY PASSWORD, never one the owner types for somebody else: the
+    // newcomer is made to replace it at first sign-in (must_change_password,
+    // which store_require_admin() enforces with 428 on every route but the two
+    // that change it), so nobody but them ever knows the password they use.
+    // Sixteen characters from an alphabet with no 0/O/1/l/I, because it is
+    // read off a screen and typed by a person.
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    $temp = '';
+    for ($i = 0; $i < 16; $i++) $temp .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+    // must_change_password is NOT optional here, although api/users.mysql.sql
+    // does not add it: `me` already selects it by name, so a shop without the
+    // column has no working panel to reach this screen from.
+    try {
+        $db->prepare('insert into admin_users (email, password_hash, must_change_password, added_by) values (?, ?, 1, ?)')
+           ->execute([$email, password_hash($temp, PASSWORD_DEFAULT), (string) $admin['email']]);
+    } catch (PDOException $e) {
+        // Two adds of one address at once: the unique index decides, and the
+        // loser hears the same answer as the check above.
+        if ($e->getCode() === '23000') store_fail('member_exists', 409);
+        throw $e;
+    }
+    $id = (int) $db->lastInsertId();
+    store_out(['ok' => true, 'member' => users_team_rows($db, (int) $admin['id'], $id)[0] ?? null, 'temp_password' => $temp]);
+}
+
+if ($r === 'team_lock' && $method === 'POST') {
+    if (!users_team_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $target = users_member($db, $b['id'] ?? 0);
+    $tid = (int) $target['id'];
+    if ($tid === (int) $admin['id']) store_fail('cannot_lock_self', 409);
+    users_reauth($db, $admin, $b);
+    $db->beginTransaction();
+    users_guard_last_active($db, (int) $admin['id'], $tid);
+    // coalesce: switching off an account already off keeps the moment it was
+    // first switched off, which is the one the owner will want to see.
+    $db->prepare('update admin_users set disabled_at = coalesce(disabled_at, now()) where id = ?')->execute([$tid]);
+    // Passkeys are KEPT: a switched-off account cannot use them (the grant
+    // refuses it), and switching it back on gives the colleague their devices
+    // back rather than making them enrol each one again.
+    $ended = users_member_doors_close($db, $tid);
+    $db->commit();
+    store_out(['ok' => true, 'member' => users_team_rows($db, (int) $admin['id'], $tid)[0] ?? null, 'sessions_ended' => $ended]);
+}
+
+if ($r === 'team_unlock' && $method === 'POST') {
+    if (!users_team_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $tid = (int) users_member($db, $b['id'] ?? 0)['id'];
+    users_reauth($db, $admin, $b);
+    // The brute-force lock goes with it: an owner switching a colleague back on
+    // means "let them in", and a leftover five-wrong-tries lock would say no for
+    // another quarter of an hour with nothing on screen explaining why.
+    $db->prepare('update admin_users set disabled_at = null, failed_attempts = 0, locked_until = null where id = ?')->execute([$tid]);
+    store_out(['ok' => true, 'member' => users_team_rows($db, (int) $admin['id'], $tid)[0] ?? null]);
+}
+
+if ($r === 'team_remove' && $method === 'POST') {
+    if (!users_team_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $tid = (int) users_member($db, $b['id'] ?? 0)['id'];
+    if ($tid === (int) $admin['id']) store_fail('cannot_remove_self', 409);
+    users_reauth($db, $admin, $b);
+    $db->beginTransaction();
+    users_guard_last_active($db, (int) $admin['id'], $tid);
+    // admin_sessions, admin_passkeys and admin_known_ips cascade from the row;
+    // admin_devices and admin_password_resets have no foreign key and would be
+    // left as orphans. All of them are removed by name, so the outcome does not
+    // depend on which tables an older shop happens to have constraints on. The
+    // audit log keeps its rows: admin_id there has no foreign key ON PURPOSE, so
+    // what a removed colleague did stays on the record.
+    users_member_doors_close($db, $tid);
+    try { $db->prepare('delete from admin_passkeys where admin_id = ?')->execute([$tid]); } catch (Throwable $e) {}
+    try { $db->prepare('delete from admin_sessions where admin_id = ?')->execute([$tid]); } catch (Throwable $e) {}
+    $db->prepare('delete from admin_users where id = ?')->execute([$tid]);
+    $db->commit();
+    store_out(['ok' => true, 'removed' => $tid]);
+}
+
+// ---- Shoppers -------------------------------------------------------------
+
+// A shopper account's row as the panel may see it. `password_usable` is the one
+// fact about the password worth showing — an account opened by an emailed code
+// or Google, or one whose owner later proved the address, carries a RANDOM hash
+// nobody knows (customer_verified_account()), so only an account still
+// unverified signs in with a password it chose.
+//
+// THE COLUMNS ARE NAMED, never `select *` minus the hash (2026-10-14, review):
+// a denylist sends every column added to customers later — a reset-token hash,
+// a provider's subject id — to the panel automatically, and nothing would
+// notice. This list is what the screen shows; a new column reaches the panel
+// only when somebody adds it here. Every one of them exists by the time this is
+// called: the routes answer users_not_ready before api/users.mysql.sql.
+const USERS_SHOPPER_COLUMNS = ['id', 'email', 'name', 'phone', 'created_at', 'verified_at', 'last_seen_at',
+                               'blocked_at', 'blocked_reason', 'blocked_by', 'signed_out_at'];
+function users_shopper(PDO $db, $id): array {
+    $q = $db->prepare('select ' . implode(', ', USERS_SHOPPER_COLUMNS) . ' from customers where id = ?');
+    $q->execute([(int) $id]);
+    $s = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$s) store_fail('shopper_not_found', 404);
+    $s['id'] = (int) $s['id'];
+    $s['password_usable'] = $s['verified_at'] === null;
+    // The same name the list uses, for the column that is written at sign-in and never on activity.
+    $s['last_signin_at'] = $s['last_seen_at'];
+    return $s;
+}
+
+// Pending sign-in codes for an address, SPENT (used_at set), never deleted: a
+// code mailed before the block or the sign-out cannot be typed after it. Every
+// row — an unused one too, which carries up to four wrong tries of its own —
+// holds attempts that customer_code_verify() sums for its twenty-a-day cap, so
+// deleting any of them would hand a guesser a fresh allowance each time the
+// button was pressed (the first version deleted the unused ones; review,
+// 2026-10-14). Spending is also what customer_code_send() does to an older code.
+function users_shopper_codes_end(PDO $db, string $email): int {
+    try {
+        $q = $db->prepare('update customer_login_codes set used_at = now() where email = ? and used_at is null');
+        $q->execute([$email]);
+        return $q->rowCount();
+    } catch (Throwable $e) { return 0; }   // no fast sign-in table on this shop
+}
+
+if ($r === 'shoppers') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $where = [];
+    $args = [];
+    if (($_GET['filter'] ?? 'all') === 'blocked') $where[] = 'c.blocked_at is not null';
+    $term = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 120);
+    if ($term !== '') {
+        // Arabic-Indic and Persian digits first: a phone typed on an Arabic
+        // keyboard is ٥٥٥١٢٣٤٥, and \D would strip every one of them.
+        $ascii = store_ascii_digits($term);
+        // 00 is the international prefix typed the way it is dialled
+        // (00965 5551 2345); customers.phone is store_phone()'s 965XXXXXXXX,
+        // which has no 00 in it, so a number written that way found nothing.
+        $digits = preg_replace('/^00/', '', preg_replace('/\D/', '', $ascii));
+        $like = '%' . addcslashes($term, '\\%_') . '%';
+        $or = ['c.email like ?', 'c.name like ?'];
+        $args[] = $like; $args[] = $like;
+        // A PHONE only when the box holds nothing but a phone's characters and
+        // at least three digits: "sara2" must not match every number with a 2.
+        if (strlen($digits) >= 3 && preg_match('/^[\d\s+()\-]+$/', $ascii)) { $or[] = 'c.phone like ?'; $args[] = '%' . $digits . '%'; }
+        $where[] = '(' . implode(' or ', $or) . ')';
+    }
+    $w = $where ? ' where ' . implode(' and ', $where) : '';
+    $cq = $db->prepare('select count(*) from customers c' . $w);
+    $cq->execute($args);
+    $total = (int) $cq->fetchColumn();
+    $per = 50;
+    $pages = max(1, (int) ceil($total / $per));
+    $page = max(1, min($pages, (int) ($_GET['page'] ?? 1)));
+    // "Show more" pages by KEY: `before` is the last id the screen already holds,
+    // and the next page is the fifty below it. Paging by OFFSET (page=N) showed
+    // the last row of page 1 a second time when somebody registered between the
+    // two loads, and left a row out when an account was deleted (review,
+    // 2026-10-14) — the list is newest first, so every change at the top moves
+    // every offset. page=N still answers, for anything that asks by number.
+    // One row more than a page is read, so `more` is a fact rather than a sum.
+    $before = (int) ($_GET['before'] ?? 0);
+    $pw = $w; $pargs = $args;
+    if ($before > 0) { $pw = ($w ? $w . ' and' : ' where') . ' c.id < ?'; $pargs[] = $before; }
+    $tail = ' order by c.id desc limit ' . ($per + 1) . ($before > 0 ? '' : ' offset ' . (($page - 1) * $per));
+    // Orders counted by customer_id, never by phone — see customer.php's header
+    // for why a phone number is not a link between an account and an order.
+    $q = $db->prepare('select c.id, c.email, c.name, c.phone, c.created_at, c.verified_at,
+                              c.last_seen_at, c.blocked_at,
+                              (select count(*) from orders o where o.customer_id = c.id) as orders
+                         from customers c' . $pw . $tail);
+    $q->execute($pargs);
+    $rows = $q->fetchAll(PDO::FETCH_ASSOC);
+    $more = count($rows) > $per;
+    $rows = array_slice($rows, 0, $per);
+    $pk = [];
+    if ($rows) {
+        try {
+            $ids = array_map(fn ($x) => (int) $x['id'], $rows);
+            $pq = $db->prepare('select customer_id, count(*) as n from customer_passkeys where customer_id in ('
+                . implode(',', array_fill(0, count($ids), '?')) . ') group by customer_id');
+            $pq->execute($ids);
+            foreach ($pq->fetchAll() as $p) $pk[(int) $p['customer_id']] = (int) $p['n'];
+        } catch (Throwable $e) { /* no passkey table on this shop: 0 each */ }
+    }
+    $out = [];
+    foreach ($rows as $s) {
+        $out[] = [
+            'id' => (int) $s['id'], 'email' => $s['email'], 'name' => $s['name'], 'phone' => $s['phone'],
+            'created_at' => $s['created_at'], 'verified_at' => $s['verified_at'],
+            // last_seen_at is written at SIGN-IN (password, code, Google, passkey)
+            // and never on activity — named for what it is.
+            'last_signin_at' => $s['last_seen_at'],
+            'blocked_at' => $s['blocked_at'],
+            'orders' => (int) $s['orders'], 'passkeys' => $pk[(int) $s['id']] ?? 0,
+        ];
+    }
+    store_out(['shoppers' => $out, 'total' => $total, 'page' => $page, 'pages' => $pages, 'more' => $more, 'ready' => true]);
+}
+
+if ($r === 'shopper') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $s = users_shopper($db, $_GET['id'] ?? 0);
+    // BY customer_id ONLY. The CRM card groups orders by phone number, and
+    // that is "everything placed with this number" — which on this shop is not
+    // the same thing as "this account's orders", because a registration proves
+    // no phone. Showing phone-matched orders here would show one shopper's
+    // name, address and purchases under another shopper's account.
+    $oq = $db->prepare('select track_id, amount, payment_status, payment_method, fulfilment_status, created_at
+                          from orders where customer_id = ? order by id desc limit 100');
+    $oq->execute([$s['id']]);
+    $orders = $oq->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($orders as &$o) $o['amount'] = (float) $o['amount'];
+    unset($o);
+    $passkeys = [];
+    try {
+        $pq = $db->prepare('select label, created_at, last_used_at from customer_passkeys where customer_id = ? order by id');
+        $pq->execute([$s['id']]);
+        $passkeys = $pq->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {}
+    // The PHONE's block, separate from the account's: blocked_customers is the
+    // checkout's list, keyed by number, and stops orders rather than sign-ins.
+    $phoneBlock = null;
+    $phone = store_phone((string) ($s['phone'] ?? ''));
+    if ($phone !== null) {
+        $bq = $db->prepare('select scope, reason, created_at from blocked_customers where phone = ?');
+        $bq->execute([$phone]);
+        $phoneBlock = $bq->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    store_out(['shopper' => $s, 'orders' => $orders, 'passkeys' => $passkeys, 'phone_block' => $phoneBlock]);
+}
+
+if ($r === 'shopper_block' && $method === 'POST') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $s = users_shopper($db, $b['id'] ?? 0);
+    $reason = mb_substr(trim((string) ($b['reason'] ?? '')), 0, 200);
+    // coalesce keeps the time of the FIRST block when the reason is edited.
+    // Passkeys are KEPT — unblocking gives them back.
+    //
+    // A BLOCK IS ALSO A SIGN-OUT EVERYWHERE (signed_out_at = now()), and the
+    // screen's promise "any signed-in browser is signed out" depends on it.
+    // blocked_at alone ended a session only if that browser made a request
+    // WHILE the block stood: unblock cleared it, and a browser left idle through
+    // the block — the hijacker's, in the case the owner blocks for — was signed
+    // in again afterwards (found in review, 2026-10-14). The cut-off on the
+    // account is what outlives the unblock; customer_id() already ends any
+    // session that began at or before it.
+    $db->prepare('update customers set blocked_at = coalesce(blocked_at, now()), signed_out_at = now(), blocked_reason = ?, blocked_by = ? where id = ?')
+       ->execute([$reason === '' ? null : $reason, (string) $admin['email'], $s['id']]);
+    users_shopper_codes_end($db, (string) $s['email']);
+    // ALSO THE PHONE, on request: the account block stops signing in, and a
+    // blocked shopper can still order as a guest. The checkout's own list
+    // (blocked_customers, scope `all`) is what refuses an order — the same row
+    // block_customer writes, through the same function.
+    //
+    // keepReason: the number may already be on that list from the CRM card,
+    // with the owner's own reason ("three refused COD parcels"). An account
+    // block typed with no reason must not overwrite that note with nothing —
+    // measured, it did, and the reason was simply gone.
+    $phoneBlocked = false;
+    $phone = store_phone((string) ($s['phone'] ?? ''));
+    if (!empty($b['phone_too']) && $phone !== null) {
+        admin_phone_block($db, $phone, 'all', $reason, (string) $admin['email'], true);
+        $phoneBlocked = true;
+    }
+    store_out(['ok' => true, 'phone_blocked' => $phoneBlocked]);
+}
+
+if ($r === 'shopper_unblock' && $method === 'POST') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $s = users_shopper($db, $b['id'] ?? 0);
+    $db->prepare('update customers set blocked_at = null, blocked_reason = null, blocked_by = null where id = ?')->execute([$s['id']]);
+    $phoneUnblocked = false;
+    $phone = store_phone((string) ($s['phone'] ?? ''));
+    if (!empty($b['phone_too']) && $phone !== null) $phoneUnblocked = admin_phone_unblock($db, $phone) > 0;
+    store_out(['ok' => true, 'phone_unblocked' => $phoneUnblocked]);
+}
+
+// SIGN OUT EVERYWHERE. A shopper's sessions are PHP session files that the
+// panel cannot list or reach (admin.php runs on the ADMIN session, and PHP
+// allows one per request), so the cut-off is a time on the account instead:
+// customer_id() ends any session that signed in at or before it. Their
+// passkeys go too — the owner chose this as the "somebody else has got in"
+// button, and a passkey on a lost phone is a way back in that outlives every
+// session. Signing in again afterwards works as normal; that is Block's job.
+if ($r === 'shopper_signout' && $method === 'POST') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $s = users_shopper($db, $b['id'] ?? 0);
+    $db->prepare('update customers set signed_out_at = now() where id = ?')->execute([$s['id']]);
+    $keys = 0;
+    try {
+        $q = $db->prepare('delete from customer_passkeys where customer_id = ?');
+        $q->execute([$s['id']]);
+        $keys = $q->rowCount();
+    } catch (Throwable $e) {}
+    $codes = users_shopper_codes_end($db, (string) $s['email']);
+    store_out(['ok' => true, 'passkeys_removed' => $keys, 'codes_ended' => $codes]);
+}
+
+// DELETE THE ACCOUNT, on the shopper's request. Their ORDERS ARE KEPT — they
+// are the shop's records of a sale, a payment and a delivery, with their own
+// copy of the name and address — and only unlinked (customer_id set null), so
+// nothing left points at an account that is gone. The phone's block, the CRM's
+// phone-keyed notes and any return requests stay too: they are not the
+// account's. The address may register again afterwards; that is what deletion
+// means. Keeping somebody out is Block.
+//
+// The email must be typed back and match: the id alone is one wrong row away
+// from deleting the wrong person, and this cannot be undone.
+if ($r === 'shopper_delete' && $method === 'POST') {
+    if (!users_shoppers_ready($db)) store_fail('users_not_ready', 503);
+    $b = store_body();
+    $s = users_shopper($db, $b['id'] ?? 0);
+    if (mb_strtolower(trim((string) ($b['email'] ?? ''))) !== mb_strtolower((string) $s['email'])) store_fail('email_mismatch', 409);
+    $db->beginTransaction();
+    $u = $db->prepare('update orders set customer_id = null where customer_id = ?');
+    $u->execute([$s['id']]);
+    $unlinked = $u->rowCount();
+    try { $db->prepare('delete from customer_passkeys where customer_id = ?')->execute([$s['id']]); } catch (Throwable $e) {}
+    try { $db->prepare('delete from customer_login_codes where email = ?')->execute([(string) $s['email']]); } catch (Throwable $e) {}
+    $db->prepare('delete from customers where id = ?')->execute([$s['id']]);
+    $db->commit();
+    // Any browser still signed in to it ends on its next request: customer_id()
+    // finds no row.
+    store_out(['ok' => true, 'orders_unlinked' => $unlinked]);
 }
 
 // ----------------------------------------------------------------- discounts

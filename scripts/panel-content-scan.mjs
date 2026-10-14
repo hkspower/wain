@@ -3,7 +3,7 @@ import { chromium } from 'playwright'
 import { execSync } from 'node:child_process'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const EXE = execSync('ls -d /opt/pw-browsers/chromium-1194/*/chrome').toString().trim().split('\n')[0]
-const SCREENS = ['Overview', 'Orders', 'Catalogue', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Inventory', 'Settings', 'Payments', 'SEO', 'Setup', 'Reviews', 'Sporta AI', 'Notifications', 'Security']
+const SCREENS = ['Overview', 'Orders', 'Catalogue', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Inventory', 'Settings', 'Payments', 'SEO', 'Setup', 'Users', 'Reviews', 'Sporta AI', 'Notifications', 'Security']
 const b = await chromium.launch({ executablePath: EXE })
 const found = []
 for (const lang of ['en', 'ar']) for (const [w, dev] of [[1280, 'desktop'], [390, 'phone']]) {

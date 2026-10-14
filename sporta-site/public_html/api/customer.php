@@ -62,10 +62,17 @@ function customer_id(): ?int
     // THE ACCOUNT'S KEY MUST STILL BE THE ONE SIGNED IN WITH. When the real owner proves an
     // address, customer_verified_account() replaces an unverified account's password — and a
     // squatter who was already signed in must lose that session too, not keep it for 90 days.
+    //
+    // ONE ROW READ, and `select *` (2026-10-08): the Users page's blocked_at and signed_out_at are
+    // checked in the same read, and naming them would make every shopper request throw on a shop
+    // that has not run api/users.mysql.sql — a missing column must read as "not set", not as
+    // "nobody can stay signed in".
+    $row = null;
     try {
-        $q = store_db()->prepare('select password_hash from customers where id = ? limit 1');
+        $q = store_db()->prepare('select * from customers where id = ? limit 1');
         $q->execute([$id]);
-        $h = $q->fetchColumn();
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        $h = $row === false ? false : (string) $row['password_hash'];
     } catch (Throwable $e) { $h = null; }
     // A session signed in before this check existed carries no key: it adopts the current one once,
     // rather than signing every existing customer out.
@@ -74,8 +81,74 @@ function customer_id(): ?int
         store_session_end();
         return null;
     }
+    // BLOCKED, OR SIGNED OUT EVERYWHERE, from the panel's Users page. Both end THIS session now, on
+    // the request it is making — the panel cannot reach a shopper's session file, so this is where
+    // "every signed-in browser is signed out" actually happens. A database fault above leaves $row
+    // null and the session alive, as the key check already does (fail open: a hiccup is not a ban).
+    if (is_array($row) && (!empty($row['blocked_at']) || customer_signed_out_since($row, $id))) {
+        store_session_end();
+        return null;
+    }
     $_SESSION['customer_seen'] = $now;
     return $id;
+}
+
+/**
+ * Was this session signed in at or before the account's "sign out everywhere"?
+ *
+ * Compared as UNIX TIMES: signed_out_at is a TIMESTAMP that MySQL hands back in its session time
+ * zone, and strtotime() would read it in PHP's — two zones that are not promised to agree on shared
+ * hosting. unix_timestamp() in SQL gives the true instant, whatever either zone says.
+ * The two CLOCKS are still two (corrected 2026-10-14, review — this said both came from the
+ * database): customer_since is PHP's time() at sign-in and the cut-off is the database's now(). With
+ * the database on the same machine they are one clock. Were PHP's clock d seconds AHEAD of the
+ * database's, a session begun in the d seconds before a sign-out would outlive it — not measured
+ * here, where the two cannot differ.
+ * The second query only runs on the rare row where the column is set, so the ordinary request is
+ * still the one read above. AT OR BEFORE, not before: a session that began in the same second as
+ * the sign-out may have begun just before it, and the safe reading of a tie is "signed out".
+ */
+function customer_signed_out_since(array $row, int $id): bool
+{
+    if (empty($row['signed_out_at'])) return false;
+    try {
+        $q = store_db()->prepare('select unix_timestamp(signed_out_at) from customers where id = ?');
+        $q->execute([$id]);
+        $cut = $q->fetchColumn();
+    } catch (Throwable $e) { return false; }
+    return $cut !== false && $cut !== null && (int) ($_SESSION['customer_since'] ?? 0) <= (int) $cut;
+}
+
+/**
+ * Blocked from the panel's Users page? Read by customer-google.php before it grants, because that
+ * door is a browser navigation and must send the shopper back to the page with ?signin=blocked
+ * rather than answer JSON. A database fault, or a shop without the column yet, reads as "not
+ * blocked" — the same fail-open as customer_id().
+ */
+function customer_blocked(PDO $db, int $id): bool
+{
+    try {
+        $q = $db->prepare('select * from customers where id = ? limit 1');
+        $q->execute([$id]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) && !empty($row['blocked_at']);
+    } catch (Throwable $e) { return false; }
+}
+
+/**
+ * Record a sign-in in last_seen_at — the panel's "last sign-in" — but NOT one that is about to be
+ * refused: a blocked account whose password was right still reaches the doors' bookkeeping before
+ * customer_grant() says no, and the owner looking at a blocked shopper must not read a refused
+ * attempt as "signed in yesterday". Before api/users.mysql.sql there is no blocked_at to test, and
+ * nothing can be blocked, so the plain update stands in.
+ */
+function customer_seen(PDO $db, int $id): void
+{
+    try {
+        $db->prepare('update customers set last_seen_at = now() where id = ? and blocked_at is null')->execute([$id]);
+    } catch (PDOException $e) {
+        $db->prepare('update customers set last_seen_at = now() where id = ?')->execute([$id]);
+    }
 }
 
 /** A short fingerprint of the account's password hash: changes whenever the password is replaced. */
@@ -91,6 +164,18 @@ function customer_key(string $hash): string { return substr(hash('sha256', 'cust
  */
 function customer_grant(int $id, bool $remember = true): void
 {
+    // The account row is read FIRST now (2026-10-08), for two things: the key below, and the Users
+    // page's block. A BLOCKED ACCOUNT IS REFUSED HERE, before a session is started, so the refusal
+    // mints no cookie. Every door — register, password, emailed code, passkey, Google — has proved
+    // its credential before it calls this, so `account_blocked` is only ever said to someone who
+    // already holds the account's password, code, passkey or Google sign-in: it tells a stranger
+    // nothing. `select *` so a shop without blocked_at yet still signs everyone in. No try/catch:
+    // a database fault here fails the sign-in exactly as the key read always did.
+    $q = store_db()->prepare('select * from customers where id = ? limit 1');
+    $q->execute([$id]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+    if (is_array($row) && !empty($row['blocked_at'])) store_fail('account_blocked', 403);
+
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     store_session_start('shopper', $remember);
     // ROTATE. A fixed id across the sign-in boundary is session fixation: an
@@ -102,9 +187,9 @@ function customer_grant(int $id, bool $remember = true): void
     $_SESSION['customer_seen']  = time();
     $_SESSION['customer_since'] = time();
     $_SESSION['customer_short'] = $remember ? 0 : 1;
-    $q = store_db()->prepare('select password_hash from customers where id = ? limit 1');
-    $q->execute([$id]);
-    $_SESSION['customer_key'] = customer_key((string) $q->fetchColumn());
+    // A missing row keys to '' — as fetchColumn()'s false did — and customer_id() ends that session
+    // on its next request, finding no row.
+    $_SESSION['customer_key'] = customer_key(is_array($row) ? (string) $row['password_hash'] : '');
 }
 
 /** An email, normalised, or null if it is not one. */
@@ -200,8 +285,7 @@ function customer_login(PDO $db, array $in): array
     }
 
     try {
-        $db->prepare('update customers set last_seen_at = now() where id = ?')
-           ->execute([(int) $u['id']]);
+        customer_seen($db, (int) $u['id']);
     } catch (Throwable $e) {
         // Not worth failing a sign-in over. A missing timestamp is a smaller
         // problem than a customer who cannot get in.
@@ -250,10 +334,17 @@ function customer_orders(PDO $db, int $id): array
 /** Find the account for a PROVED email, or open one. Returns its id. */
 function customer_verified_account(PDO $db, string $email, ?string $name = null): int
 {
-    $q = $db->prepare('select id, verified_at from customers where email = ? limit 1');
+    // `select *` so a shop without api/users.mysql.sql's blocked_at still signs everyone in.
+    $q = $db->prepare('select * from customers where email = ? limit 1');
     $q->execute([$email]);
     $u = $q->fetch(PDO::FETCH_ASSOC);
     if ($u) {
+        // A BLOCKED ACCOUNT IS HANDED BACK UNTOUCHED (2026-10-14, review). Its door refuses it next —
+        // customer_grant() with account_blocked, customer-google.php with ?signin=blocked — and a
+        // refused sign-in must change nothing: the wipe below would take the password and the
+        // passkeys that Unblock promises to give back, and stamp verified_at, for an attempt that was
+        // turned away. The wipe still happens, on the first proof of the address after an unblock.
+        if (!empty($u['blocked_at'])) return (int) $u['id'];
         if ($u['verified_at'] === null) {
             // See the pre-hijack rule above.
             $db->prepare('update customers set password_hash = ?, verified_at = now() where id = ?')
@@ -261,7 +352,7 @@ function customer_verified_account(PDO $db, string $email, ?string $name = null)
             try { $db->prepare('delete from customer_passkeys where customer_id = ?')->execute([(int) $u['id']]); }
             catch (Throwable $e) { /* no table yet: nothing to remove */ }
         }
-        $db->prepare('update customers set last_seen_at = now() where id = ?')->execute([(int) $u['id']]);
+        customer_seen($db, (int) $u['id']);
         return (int) $u['id'];
     }
     // A new account with no password at all: nobody knows a random one. The customer signs in by
@@ -472,8 +563,12 @@ function customer_passkey_login(PDO $db, array $b): int
     $signed = $ad . hash('sha256', $cdj, true);
     if (openssl_verify($signed, sec_unb64u((string) ($resp['signature'] ?? '')), (string) $k['public_key'], OPENSSL_ALGO_SHA256) !== 1) store_fail('passkey_refused', 401);
     if ($count !== 0 && (int) $k['sign_count'] !== 0 && $count <= (int) $k['sign_count']) store_fail('passkey_refused', 401);
+    // BLOCKED: refused here, once the signature is proved (so the answer tells a stranger nothing) and
+    // BEFORE the bookkeeping, or the Users page would show this passkey as "last used" by an attempt
+    // that was turned away. customer_grant() refuses it too; this only keeps the refusal clean.
+    if (customer_blocked($db, (int) $k['customer_id'])) store_fail('account_blocked', 403);
     $db->prepare('update customer_passkeys set sign_count = ?, last_used_at = now() where id = ?')->execute([$count, (int) $k['id']]);
-    $db->prepare('update customers set last_seen_at = now() where id = ?')->execute([(int) $k['customer_id']]);
+    customer_seen($db, (int) $k['customer_id']);
     return (int) $k['customer_id'];
 }
 

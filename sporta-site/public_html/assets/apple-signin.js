@@ -47,7 +47,10 @@
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j } }) })
   }
 
+  // The SIGNED-OUT screen's password form only: see google-signin.js's findForm(). A signed-in screen with a password
+  // box of its own (Payments credentials, the Users screen's "your password") is not the login form.
   function findForm() {
+    if (document.querySelector('.admin-content')) return null
     var pw = document.querySelector('#backends input[type="password"], input[type="password"]')
     if (!pw) return null
     return pw.closest('form') || pw.parentElement

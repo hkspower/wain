@@ -311,6 +311,10 @@ function sec_passkey_login(PDO $db, array $b): array {
     $ok = openssl_verify($signed, $sig, (string) $k['public_key'], OPENSSL_ALGO_SHA256);
     if ($ok !== 1) store_fail('passkey_refused', 401);
     if ($count !== 0 && (int) $k['sign_count'] !== 0 && $count <= (int) $k['sign_count']) store_fail('passkey_replayed', 401);
+    // SWITCHED OFF (the Users page): refused once the signature is proved and BEFORE the bookkeeping,
+    // so a refused attempt does not show on the Security screen as this passkey's "last used". Both
+    // later refusals (the pending marker, store_admin_grant()) stay; this only makes the first one clean.
+    store_admin_refuse_disabled(['id' => (int) $k['admin_id']]);
     $db->prepare('update admin_passkeys set sign_count = ?, last_used_at = now() where id = ?')->execute([$count, (int) $k['id']]);
     $uq = $db->prepare('select id, email, totp_enabled, totp_secret, email_otp_enabled from admin_users where id = ?'); $uq->execute([(int) $k['admin_id']]);
     $u = $uq->fetch();

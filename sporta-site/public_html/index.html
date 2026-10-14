@@ -1118,6 +1118,10 @@
     <script src="/assets/password-reset.js" data-panel defer></script>
     <script src="/assets/login-log.js" data-panel defer></script>
     <script src="/assets/payments-screen.js" data-panel defer></script>
+    <!-- The Users screen (2026-10-08): shopper accounts and the panel team, two tabs. After the other own
+         screens by habit only — it closes from window's capture phase and waits for any other own screen to
+         close before it opens, so it lights the right nav button whatever order these tags are in. -->
+    <script src="/assets/users-screen.js" data-panel defer></script>
 
     <!-- Same reasoning, same scoping, for Apple: the CSP names
          appleid.cdn-apple.com and appleid.apple.com for /backends only. -->

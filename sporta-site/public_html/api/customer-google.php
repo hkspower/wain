@@ -6,7 +6,9 @@
  *   POST /api/customer-google.php  (id_token, state)        -> 303 back to the shop, signed in
  *
  * On any refusal it goes back to the page with ?signin=failed rather than showing an error page:
- * the shopper is mid-browse, and the sheet says what happened.
+ * the shopper is mid-browse, and the sheet says what happened. A blocked account (the panel's Users
+ * page) comes back with ?signin=blocked instead, so the sheet can say "contact us" rather than "try
+ * again" — trying again would fail the same way for ever.
  */
 declare(strict_types=1);
 require __DIR__ . '/store.php';
@@ -77,5 +79,11 @@ if ($claims === null || !hash_equals((string) ($state['n'] ?? ''), (string) ($cl
 $email = customer_email((string) $claims['email']);
 if ($email === null) cg_back($return, 'failed');
 
-customer_grant(customer_verified_account($db, $email, (string) ($claims['name'] ?? '')), !empty($state['m']));
+$cid = customer_verified_account($db, $email, (string) ($claims['name'] ?? ''));
+// BLOCKED from the panel's Users page (2026-10-08). customer_grant() would refuse it with JSON, which a
+// browser arriving from Google would show as a bare error page; this door says it the way it says
+// every other outcome, as a flag on the page the shopper came from. Google has proved the address by
+// now, so the flag tells nobody but the account's owner.
+if (customer_blocked($db, $cid)) cg_back($return, 'blocked');
+customer_grant($cid, !empty($state['m']));
 cg_back($return, 'google');

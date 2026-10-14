@@ -436,7 +436,11 @@
       var host = head.parentNode
       var header = host && host.parentNode
       var section = header && header.parentNode
-      if (section) section.appendChild(card)
+      // ABOVE the Live tracking card (order-tracking-panel.js) when that one is already there. Both used to append
+      // to this section, so their order was whichever timer fired first — crm's 150 ms debounce against its 200 ms
+      // throttle — and one more panel script was enough to flip it (measured 2026-10-08: test:panel-scripts' Orders
+      // words differed in 3 runs of 4). This keeps the order the panel had nearly always shown, Customers first.
+      if (section) section.insertBefore(card, section.querySelector(':scope > [data-sporta-tracking]'))
       else if (header) header.insertBefore(card, host.nextSibling)
       else document.body.appendChild(card)
       render()

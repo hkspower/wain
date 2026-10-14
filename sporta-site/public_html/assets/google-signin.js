@@ -47,8 +47,16 @@
 
   /* The password form, found by its PASSWORD INPUT rather than by a class.
      The bundle's class names are compiled and change with every build; a field
-     of type=password on the panel is the login form by definition. */
+     of type=password on the panel is the login form by definition — on the
+     SIGNED-OUT screen only, as password-reset.js and login-polish.js already
+     say. The observer that calls mount() runs for the life of the page and the
+     panel signs in without a reload, so a signed-in screen's own password box
+     (the Payments credentials card, the Users screen's "your password" form)
+     was found as "the login form" and given a Sign in with Google button.
+     Measured 2026-10-08 with sign-in switched on; nothing showed it while the
+     client id was empty, which it is on the live shop. */
   function findForm() {
+    if (document.querySelector('.admin-content')) return null
     var pw = document.querySelector('#backends input[type="password"], input[type="password"]')
     if (!pw) return null
     return pw.closest('form') || pw.parentElement

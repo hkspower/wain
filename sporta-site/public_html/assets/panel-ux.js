@@ -321,9 +321,14 @@
    * the panel's own screens and every overlay alike — and needs to know none
    * of them. Only WRITING routes are announced, picked by the verb in the
    * route name: a POST that reads (or signs in) must not claim "Saved". The
-   * request itself is untouched; this only reads a clone of the reply. */
+   * request itself is untouched; this only reads a clone of the reply.
+   *
+   * NOT the Users screen's routes (team_*, shopper_*, 2026-10-14): that screen says what each one did, or why it
+   * was refused, in its own words beside the button — and the verb test here answered half of its eight actions
+   * ("Saved" on Add, "Deleted" on Remove) and none of the rest, and put "Couldn't save — Bad password" on top of
+   * a refused REMOVE, where the screen had already said "That is not your password". */
   var WRITES = /(save|delete|remove|add|create|update|upload|assign|set|reorder|toggle|push|refund|cancel|status|restock|enable|disable|import|mark)/
-  var NOT = /^(login|logout|me|google_login|apple_login|otp_|totp_|password_check)/
+  var NOT = /^(login|logout|me|google_login|apple_login|otp_|totp_|password_check|team_|shopper_)/
 
   function toastBox() {
     var t = document.querySelector('.spux-toast')

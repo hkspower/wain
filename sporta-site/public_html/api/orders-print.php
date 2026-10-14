@@ -62,6 +62,9 @@ if ($who === null) {
        . 'Sign in to <a href="/backends">the panel</a> first, then open this page again.</p>');
 }
 
+// A temporary password is not a sign-in yet: see store_admin_page_refuse_must_change().
+store_admin_page_refuse_must_change($who);
+
 // Order state carries names, telephone numbers and addresses. No cache, no
 // index, ever — the same headers the payment endpoints carry.
 //

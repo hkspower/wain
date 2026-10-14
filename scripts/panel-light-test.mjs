@@ -12,7 +12,7 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const EXE = process.env.CHROME_PATH ?? execSync('ls -d /opt/pw-browsers/chromium-1194/*/chrome').toString().trim().split('\n')[0]
 let bad = 0
 const check = (ok, what, extra = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${ok ? '' : ' ' + extra}`); if (!ok) bad++ }
-const SCREENS = ['Overview', 'Orders', 'Catalogue', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Inventory', 'Settings', 'Payments', 'SEO', 'Setup', 'Reviews', 'Sporta AI', 'Notifications', 'Security']
+const SCREENS = ['Overview', 'Orders', 'Catalogue', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Inventory', 'Settings', 'Payments', 'SEO', 'Setup', 'Users', 'Reviews', 'Sporta AI', 'Notifications', 'Security']
 const b = await chromium.launch({ executablePath: EXE })
 for (const [w, tag] of [[1280, 'desktop'], [390, 'phone']]) {
   const ctx = await b.newContext({ viewport: { width: w, height: 900 }, hasTouch: w < 500, isMobile: w < 500 })

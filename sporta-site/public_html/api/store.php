@@ -2130,8 +2130,57 @@ function store_session_admin(): ?array {
     // request. Without the ledger's tables every session is alive, as before.
     require_once __DIR__ . '/security.php';
     if (!sec_session_alive((int)$_SESSION['admin_id'])) { store_session_end(); return null; }
+    // THE ACCOUNT MUST STILL EXIST AND STILL BE SWITCHED ON (2026-10-08, the Users page's Team tab).
+    // Without this, removing a colleague did not sign them out: the ledger rows cascade away with the
+    // admin_users row, sec_session_alive() then "adopts" the session, the adoption insert fails on the
+    // foreign key, the error is swallowed, and the browser kept the whole shop for up to seven days.
+    // And disabled_at (the owner's switch) would mean nothing to a browser already signed in. So the row
+    // itself is read here, on every request, `me` included — a removed or switched-off colleague is
+    // signed out on the very next thing their browser asks for. A DATABASE FAULT keeps today's answer
+    // (fail open, exactly as sec_session_alive() does): a hiccup must not sign the owner out of their
+    // own shop. Only a row that is definitely gone, or definitely switched off, ends the session.
+    $row = store_admin_row((int)$_SESSION['admin_id']);
+    if ($row === false || store_admin_is_disabled($row)) { store_session_end(); return null; }
     $_SESSION['seen_at'] = $now;
     return ['id' => (int)$_SESSION['admin_id'], 'email' => $_SESSION['admin_email'] ?? ''];
+}
+
+// The admin_users row for $id, read once per request: an array, FALSE when there is no such row, or
+// NULL when the database could not be asked. `select *` on purpose: disabled_at and added_by arrive
+// with api/users.mysql.sql, and a named column the live table does not have yet would throw — which
+// would turn "migration not run" into "nobody can sign in". A missing column reads as not set.
+//
+// CACHED for the request because store_session_admin() and store_admin_must_change_password() both
+// need it on every gated request, and the gate was one query before this and is one query still.
+// $fresh skips the cache for the one caller that must see the row as it is NOW: store_admin_grant().
+function store_admin_row(int $id, bool $fresh = false): array|false|null {
+    static $cache = [];
+    if (!$fresh && array_key_exists($id, $cache)) return $cache[$id];
+    try {
+        $q = store_db()->prepare('select * from admin_users where id = ?');
+        $q->execute([$id]);
+        $row = $q->fetch();
+        return $cache[$id] = ($row ?: false);
+    } catch (Throwable $e) {
+        error_log('admin row check: ' . $e->getMessage());
+        return null;   // not cached: the next caller asks again
+    }
+}
+
+// Switched off by the owner from the Users page (admin_users.disabled_at). A row read before the
+// column existed has no such key and is therefore on — see store_admin_row().
+function store_admin_is_disabled($row): bool {
+    return is_array($row) && !empty($row['disabled_at']);
+}
+
+// For the doors that hand out a HALF sign-in — the pending marker that asks for a second code (password,
+// Google, Apple, a passkey without biometrics) — and, for the emailed factor, mail that code. The grant
+// refuses a switched-off account anyway once the code is typed; refusing here as well means no code is
+// mailed to an account that cannot use it. Called only AFTER the door has proved its credential, so the
+// answer tells nobody but the account's own holder that the address runs the shop.
+function store_admin_refuse_disabled(array $u): void {
+    $row = store_admin_is_disabled($u) ? $u : store_admin_row((int) ($u['id'] ?? 0), true);
+    if (store_admin_is_disabled($row)) store_fail('account_disabled', 403);
 }
 
 // The custom-header half of the CSRF defence, on its own so the routes ABOVE
@@ -2183,10 +2232,36 @@ function store_require_admin(bool $allowMustChange = false): array {
 // when the flag clears (account_update ends the session on a password change
 // regardless), so caching it in $_SESSION would mean a stale "must change"
 // answer for however long the OLD session happened to survive.
+//
+// The row store_session_admin() just read is reused (store_admin_row()'s
+// per-request cache) — the gate stays one query. Only when that read failed
+// is the old single-column query asked, so a database fault behaves as it
+// always did here.
 function store_admin_must_change_password(int $id): bool {
+    $row = store_admin_row($id);
+    if (is_array($row)) return (int)($row['must_change_password'] ?? 0) === 1;
+    if ($row === false) return false;
     $q = store_db()->prepare('select must_change_password from admin_users where id = ?');
     $q->execute([$id]);
     return (int)$q->fetchColumn() === 1;
+}
+
+// THE PAGES A BROWSER OPENS AS A NAVIGATION — orders-print.php, labels.php,
+// invoice-file.php — are gated by store_session_admin() rather than
+// store_require_admin(), for the header reason orders-print.php gives. That
+// skipped the gate's OTHER rule: a session on a temporary password may do
+// nothing but choose its own. The Team tab's Add member made such sessions
+// routine (2026-10-14, review), and whoever else held the temporary password
+// could read every order's name, phone and address through these pages without
+// ever changing it — silently, and leaving it working for the newcomer. The
+// panel answers 428 for the same session; these answer the same rule as a page.
+function store_admin_page_refuse_must_change(array $who): void {
+    if (!store_admin_must_change_password((int)($who['id'] ?? 0))) return;
+    http_response_code(403);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store, private');
+    exit('<!doctype html><meta charset="utf-8"><p style="font:16px system-ui;padding:2rem">'
+       . 'Choose your own password in <a href="/backends">the panel</a> first, then open this page again.</p>');
 }
 
 // ============================================================ two-factor auth
@@ -2546,12 +2621,16 @@ function store_login(string $email, string $password): array {
         store_fail('no_admin_account', 409);
     }
 
-    $q = $db->prepare('select id, email, password_hash, failed_attempts, locked_until,
-                              totp_secret, totp_enabled, email_otp_enabled
-                         from admin_users where email = ?');
+    // `select *`, not a column list: disabled_at (api/users.mysql.sql) may not exist yet on a shop that
+    // has not run that migration, and naming it would make every sign-in throw. See store_admin_row().
+    $q = $db->prepare('select * from admin_users where email = ?');
     $q->execute([mb_strtolower(trim($email))]);
     $u = $q->fetch();
 
+    // PRE-EXISTING, AND NOTED RATHER THAN CHANGED (2026-10-08): `locked` is answered BEFORE the
+    // password is checked, so it tells anyone that the address is a panel account and is locked out.
+    // The owner's switch (disabled_at) deliberately does NOT follow that shape — it is refused only
+    // after the password has been proved, in store_admin_grant() and before a pending code below.
     if ($u && $u['locked_until'] !== null && strtotime($u['locked_until']) > time()) {
         store_fail('locked', 429);
     }
@@ -2607,6 +2686,9 @@ function store_login(string $email, string $password): array {
     if ($forced) $hasEmail = true;
 
     if ($hasTotp || $hasEmail) {
+        // The password is proved; a switched-off account stops HERE rather than being mailed a code
+        // the grant would refuse after it is typed.
+        store_admin_refuse_disabled($u);
         store_session_start();
         // A fresh id here too: the pending marker is a privilege change of its
         // own, small as it is, and fixating it is the same attack.
@@ -2643,6 +2725,17 @@ function store_login(string $email, string $password): array {
 // one-factor path above and the code-verifying path below, so the two cannot
 // drift into different ideas of what a signed-in admin looks like.
 function store_admin_grant(PDO $db, array $u, string $method = 'password'): void {
+    // SWITCHED OFF BY THE OWNER, OR REMOVED (2026-10-08, the Users page). Refused FIRST — before the
+    // lock is cleared, before the new-address mail, before a session or a ledger row exists — so a
+    // refused grant leaves nothing behind. This is the one function every door ends in (password, the
+    // second code, passkey, Google, Apple, passcode, register), and every one of them has proved its
+    // credential before calling it, so `account_disabled` is only ever said to someone who already
+    // holds that account's password, code, passkey or token: it reveals nothing to a stranger.
+    // A database fault here fails OPEN like the session check (store_admin_row() returns null), and the
+    // update just below would then fail on its own.
+    $row = store_admin_row((int)$u['id'], true);
+    if ($row === false || store_admin_is_disabled($row)) store_fail('account_disabled', 403);
+
     $db->prepare('update admin_users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = ?')
        ->execute([$u['id']]);
 
@@ -4519,6 +4612,9 @@ function store_google_login(string $idToken): array {
     $hasEmail = !$hasTotp && (int) ($u['email_otp_enabled'] ?? 0) === 1;
 
     if ($hasTotp || $hasEmail) {
+        // The token is verified; a switched-off account gets no pending marker (store_admin_grant()
+        // refuses it without one).
+        store_admin_refuse_disabled($u);
         store_session_start();
         session_regenerate_id(true);
         unset($_SESSION['admin_id'], $_SESSION['admin_email']);
@@ -4684,6 +4780,9 @@ function store_apple_login(string $idToken): array {
     $hasEmail = !$hasTotp && (int) ($u['email_otp_enabled'] ?? 0) === 1;
 
     if ($hasTotp || $hasEmail) {
+        // The token is verified; a switched-off account gets no pending marker (store_admin_grant()
+        // refuses it without one).
+        store_admin_refuse_disabled($u);
         store_session_start();
         session_regenerate_id(true);
         unset($_SESSION['admin_id'], $_SESSION['admin_email']);

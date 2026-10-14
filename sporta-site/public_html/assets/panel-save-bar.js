@@ -243,19 +243,31 @@
     return b
   }
 
+  /** The dirty cards that are ON SCREEN now. A card stays on the dirty list
+   *  while it is merely hidden — an own screen (Users, SEO, Setup, Payments)
+   *  hides the bundle's screen without unmounting it, and the edit is still in
+   *  its field when the owner goes back — but discover() leaves a hidden save
+   *  button out of `cards`, so counting `dirty` itself put "Unsaved changes in
+   *  undefined." over the Users screen, and "Save changes" pressed nothing and
+   *  went away, the edit still unsaved (review, 2026-10-14). The bar offers
+   *  only what it can press, and comes back with the card. */
+  function liveDirty() {
+    var out = []
+    for (var i = 0; i < dirty.length; i++) if (entryFor(dirty[i])) out.push(dirty[i])
+    return out
+  }
+
   function render() {
     if (!bar) return
-    var n = dirty.length
+    var n = liveDirty().length
     bar.hidden = n === 0 && !saving
     document.querySelector('.admin-content') &&
       document.querySelector('.admin-content').classList.toggle('spsb-room', !bar.hidden)
     if (bar.hidden) return
     if (saving) return                       // saveAll writes its own progress
     var names = []
-    for (var i = 0; i < dirty.length; i++) {
-      var e = entryFor(dirty[i])
-      if (e) names.push(e.title)
-    }
+    var live = liveDirty()
+    for (var i = 0; i < live.length; i++) names.push(entryFor(live[i]).title)
     bar._what.textContent = n === 1
       ? 'Unsaved changes in ' + names[0] + '.'
       : 'Unsaved changes in ' + n + ' cards: ' + names.join(', ') + '.'
@@ -270,9 +282,9 @@
    *  has twice mistaken for a broken feature when it was the limiter answering.
    *  The gap is generous for the same reason. */
   function saveAll() {
-    if (saving || !dirty.length) return
+    if (saving || !liveDirty().length) return
     saving = true
-    var queue = dirty.slice()
+    var queue = liveDirty()
     var total = queue.length
     var done = 0
     bar._go.disabled = true

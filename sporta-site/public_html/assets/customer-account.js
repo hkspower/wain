@@ -49,6 +49,9 @@
     err_bad_credentials: ['Wrong email or password.', 'البريد أو كلمة المرور غير صحيحة.'],
     err_too_many: ['Too many attempts. Wait a few minutes and try again.', 'محاولات كثيرة. انتظر دقائق ثم حاول مجددًا.'],
     err_generic: ['Something went wrong. Please try again.', 'حدث خطأ. حاول مرة أخرى.'],
+    // The panel's Users page blocked this account (customer_grant(), 403). Said plainly and with
+    // somewhere to go: "try again" would fail the same way for ever.
+    err_account_blocked: ['This account can\'t sign in. Please contact us.', 'لا يمكن تسجيل الدخول بهذا الحساب. يرجى التواصل معنا.'],
     pk: ['Sign in with Face ID / fingerprint', 'الدخول بالوجه أو البصمة'],
     google: ['Continue with Google', 'المتابعة بحساب Google'],
     or: ['or', 'أو'], remember: ['Keep me signed in', 'تذكّرني على هذا الجهاز'],
@@ -267,7 +270,7 @@
       else throw r
     }).catch(function (r) {
       state.busy = false; go.disabled = false
-      msg.textContent = r && r.status === 429 ? t('err_too_many') : t('err_passkey'); msg.hidden = false
+      msg.textContent = r && r.status === 429 ? t('err_too_many') : r && r.j && r.j.error === 'account_blocked' ? t('err_account_blocked') : t('err_passkey'); msg.hidden = false
     })
   }
   function passkeyAdd() {
@@ -612,9 +615,10 @@
   mountButton()
   var back = null
   try { back = new URL(location.href).searchParams.get('signin') } catch (e) {}
-  if (back === 'google' || back === 'failed') {
+  // ?signin=blocked is customer-google.php's answer for an account the panel has blocked.
+  if (back === 'google' || back === 'failed' || back === 'blocked') {
     try { var u = new URL(location.href); u.searchParams.delete('signin'); history.replaceState(history.state, '', u.pathname + u.search + u.hash) } catch (e) {}
-    state.flash = t(back === 'google' ? 'g_ok' : 'g_failed')
+    state.flash = t(back === 'google' ? 'g_ok' : back === 'blocked' ? 'err_account_blocked' : 'g_failed')
     loadMe().then(function () { mountButton(); openSheet() })
   } else loadMe()
 })()

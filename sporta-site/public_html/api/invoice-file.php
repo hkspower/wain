@@ -50,6 +50,9 @@ if ($who === null) {
         . 'Sign in to the panel first, then open this page again.</p>');
 }
 
+// A temporary password is not a sign-in yet: see store_admin_page_refuse_must_change().
+store_admin_page_refuse_must_change($who);
+
 $cfg = store_config();
 $id = trim((string) ($_GET['id'] ?? ''));
 

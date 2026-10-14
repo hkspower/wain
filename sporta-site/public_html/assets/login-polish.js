@@ -10,8 +10,9 @@
  *   Caps Lock warning        a line under the password field while Caps Lock is on.
  *   Autofocus                the email box, when it is empty and nothing else is focused.
  *   Clearer refusals         the bundle's own error text stays; a line under it explains `locked`
- *                            (15 minutes) and `ip_not_allowed` in plain words, read from the
- *                            response the form received (the fetch is observed, not replaced).
+ *                            (15 minutes), `ip_not_allowed` and `account_disabled` (switched off on
+ *                            the Users page) in plain words, read from the response the form
+ *                            received (the fetch is observed, not replaced).
  *
  * Nothing here holds a credential: the passkey assertion goes straight to the server, the password is
  * only ever toggled between type=password and type=text in the field the owner is typing into.
@@ -32,6 +33,9 @@
   var WHY = {
     locked: ['Too many wrong tries — this account is locked for 15 minutes.', 'محاولات كثيرة خاطئة — الحساب مقفل ١٥ دقيقة.'],
     ip_not_allowed: ['Signing in is not allowed from this network. Use a listed address, or ask the shop owner.', 'تسجيل الدخول غير مسموح من هذه الشبكة.'],
+    // The Users page's Team tab switched this account off (store_admin_grant(), 403, said only after the
+    // password, code, passkey or passcode was right).
+    account_disabled: ['This account has been switched off by the shop\'s owner.', 'أوقف مالك المتجر هذا الحساب.'],
     passkey_refused: ['That passkey was not accepted.', 'لم يُقبل مفتاح المرور.'],
     passkeys_not_ready: ['Passkeys are not set up on this shop yet.', 'مفاتيح المرور غير مفعّلة بعد.'],
     bad_credentials: null, no_admin_account: null,
@@ -113,7 +117,7 @@
   window.fetch = function (input, init) {
     var url = typeof input === 'string' ? input : (input && input.url) || ''
     var p = of.apply(this, arguments)
-    if (/admin\.php\?r=(login|login_code|passcode_unlock)(&|$)/.test(url)) {
+    if (/admin\.php\?r=(login|login_code|passcode_unlock|google_login|apple_login)(&|$)/.test(url)) {
       p.then(function (r) { if (r.ok) return; r.clone().json().then(function (j) { var w = j && WHY[j.error]; var f = form(); if (!w || !f) return; var old = f.querySelector('[data-splp-why]'); if (old) old.remove(); var n = el('p', 'splp-why', w[document.documentElement.lang === 'ar' ? 1 : 0]); n.setAttribute('data-splp-why', '1'); f.appendChild(n) }).catch(function () {}) }).catch(function () {})
     }
     return p
