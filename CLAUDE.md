@@ -4702,7 +4702,7 @@ binaries, `git add`/`commit`, the GitHub Actions read and dispatch tools, and
 the Hostinger calls a deploy makes are allowed now. Still asking: reset,
 rebase, history rewrites, `checkout -B`, PRs, file writes through GitHub, any
 push to another branch. **Hostinger is decided per operation by
-`.claude/hooks/hosa-guard.mjs`**, because every Hostinger operation goes
+`.claude/hooks/hostinger-guard.mjs`**, because every Hostinger operation goes
 through one tool (`mcp__hosa__execute`) and a permission rule cannot tell a
 cron listing from a website deletion — which is also why the old
 `deny: mcp__hosa__hosting_deployStaticSiteArchiveV1` never matched anything.
@@ -7668,4 +7668,4 @@ Measured in a fresh session, not carried over from the sections above.
 - **A fresh container has no `node_modules`.** `npm ci` first. Never `npx next …` without it: npx fetches Next 16, which this file says not to retry, and a killed install leaves a half-written tree that `rm -rf` then fails on. Start the dev server as `./node_modules/.bin/next dev -p 3111` and stop it by PID. `pkill -f "next dev"` matches the shell that runs it. `next dev` also spawns `npm install @types/react` when types are missing, which writes into `node_modules` behind you.
 - **Egress, as measured:** `registry.npmjs.org` and `raw.githubusercontent.com` answer; `www.wainkw.com`, `developers.hostinger.com`, `api.elevenlabs.io`, `unpkg.com` and `srv2231-files.hstgr.io` are refused at CONNECT (000). `curl "$HTTPS_PROXY/__agentproxy/status"` lists every refused host. The environment's Allowed domains is where that changes, and a new session picks it up.
 - **The branch may not exist on arrival.** The container can start detached on another branch. If `git push` is rejected, the remote already has commits: check out `origin/claude/wainkw-design-issues-2bggdi` and cherry-pick, never force.
-- **`.claude/settings.json` `git branch*` was too wide**: it allowed `-D` and `-m`. Now only the read-only forms are allowed. A tool-name rule cannot deny one Hostinger operation, because everything goes through `mcp__ppok__execute`; `.claude/hooks/hosa-guard.mjs` does that per operation and its matcher covers `mcp__ppok__*` as well as the old `hosa` names.
+- **`.claude/settings.json` `git branch*` was too wide**: it allowed `-D` and `-m`. Now only the read-only forms are allowed. A tool-name rule cannot deny one Hostinger operation, because everything goes through `mcp__ppok__execute`; `.claude/hooks/hostinger-guard.mjs` does that per operation and its matcher covers `mcp__ppok__*` as well as the old `hosa` names.
