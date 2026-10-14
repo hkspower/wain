@@ -7659,3 +7659,13 @@ Read-aloud staying on after a free call (shoug 3, second half) was not answered,
 5. Only then the repoint, read back with `agents_get_tool`. Watch the first real report in `gaps_list`, not in the transcript.
 
 The scan records above stay as they were written. This section is the decisions and the state.
+
+## Cloud session notes — 14 October
+
+Measured in a fresh session, not carried over from the sections above.
+
+- **`mcp/hostinger-mcp.mjs` and the `hostinger` entry in `.mcp.json` are gone** from this branch; `.mcp.json` lists `wain` alone. The token route described in older sections does not exist here, so `HOSTINGER_API_TOKEN` buys nothing. The Hostinger API is `mcp__ppok__*`, and `npm run hosting:check` is not a script.
+- **A fresh container has no `node_modules`.** `npm ci` first. Never `npx next …` without it: npx fetches Next 16, which this file says not to retry, and a killed install leaves a half-written tree that `rm -rf` then fails on. Start the dev server as `./node_modules/.bin/next dev -p 3111` and stop it by PID. `pkill -f "next dev"` matches the shell that runs it. `next dev` also spawns `npm install @types/react` when types are missing, which writes into `node_modules` behind you.
+- **Egress, as measured:** `registry.npmjs.org` and `raw.githubusercontent.com` answer; `www.wainkw.com`, `developers.hostinger.com`, `api.elevenlabs.io`, `unpkg.com` and `srv2231-files.hstgr.io` are refused at CONNECT (000). `curl "$HTTPS_PROXY/__agentproxy/status"` lists every refused host. The environment's Allowed domains is where that changes, and a new session picks it up.
+- **The branch may not exist on arrival.** The container can start detached on another branch. If `git push` is rejected, the remote already has commits: check out `origin/claude/wainkw-design-issues-2bggdi` and cherry-pick, never force.
+- **`.claude/settings.json` `git branch*` was too wide**: it allowed `-D` and `-m`. Now only the read-only forms are allowed. A tool-name rule cannot deny one Hostinger operation, because everything goes through `mcp__ppok__execute`.
