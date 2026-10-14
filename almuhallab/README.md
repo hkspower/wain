@@ -1,4 +1,4 @@
-# Almuhallab Code — المهلب كود
+# Almuhallab Code · المهلب كود
 
 The website of **Almuhallab Code**, a software company in Kuwait, plus the
 systems it runs. An **HTML5 Progressive Web App** with no build step and no
@@ -6,42 +6,42 @@ dependencies: open it in a browser, or install النوخذة to a phone's home 
 and run it offline.
 
 The root of the site is the **company**. **النوخذة** is a product
-inside it, entered at `/nokhatha` — not the front door.
+inside it, entered at `/nokhatha`, not the front door.
 
 ## Site map
 
 | File | Page |
 |------|------|
-| `index.html` | **Almuhallab Code** — the company site: what النوخذة is, services, work, how we work, contact |
-| `nokhatha.html` | **النوخذة portal** — landing, registration, login, dashboard, and what the system includes |
-| `nizam.html` | **النظام الموحد** — one page, five tabs: المركز المالي · صافي · XBRL · التوصيل, and التواصل, a reference desk |
+| `index.html` | **Almuhallab Code** · the company site: what النوخذة is, services, work, how we work, contact |
+| `nokhatha.html` | **النوخذة portal** · landing, registration, login, dashboard, and what the system includes |
+| `nizam.html` | **النظام الموحد** · one page, five tabs: المركز المالي · صافي · XBRL · التوصيل, and التواصل, a reference desk |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
-| `admin.html` | **Admin console** — customers, operations, finance, settings |
+| `admin.html` | **Admin console** · customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the company home page |
 | `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg`, `favicon.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company marks (the English logo and its AC monogram, written by `design/logo-en/build.py`) |
 | `SECURITY.md` | security measures and their limits |
 
-## النوخذة — the portal (`/nokhatha`)
+## النوخذة · the portal (`/nokhatha`)
 
 Arabic-first (RTL) and presented as **one system**:
 
-- **Registration & login** — PBKDF2-hashed passwords (Web Crypto), login
+- **Registration & login**: PBKDF2-hashed passwords (Web Crypto), login
   throttling, 24-hour sessions (see `SECURITY.md`)
 - **Dashboard** with stats and one-click access to every service unit
-- **Free** — one plan, every unit open to every registered account. No price, no
+- **Free**: one plan, every unit open to every registered account. No price, no
   payment, nothing to upgrade to
 
 ## One system, not three
 
 The three service units used to be three separate pages with three separate
-data stores and nothing flowing between them — the revenue you typed into XBRL
+data stores and nothing flowing between them, the revenue you typed into XBRL
 had no relationship to the orders you had actually delivered. They are now the four units, as tabs of `nizam.html`, over **one shared data core**, so the numbers are derived
 rather than retyped:
 
 | Source | Feeds |
 |--------|-------|
-| صافي — portfolio market value | XBRL **non-current assets** |
-| التوصيل — delivered orders | XBRL **revenue** |
+| صافي · portfolio market value | XBRL **non-current assets** |
+| التوصيل · delivered orders | XBRL **revenue** |
 
 The **المركز المالي** tab states that linkage on screen and shows the combined
 position (portfolio value, portfolio P/L, delivery revenue, orders in progress,
@@ -63,7 +63,7 @@ and the admin console keep working.
   filing framework (IFRS). Line items go in (cash, receivables, inventory,
   PP&E, borrowings, end-of-service provision, capital, reserves…); every
   subtotal is computed, never typed. An audit pass then reports **errors**
-  (unbalanced sheet, zero capital, negative equity — these block filing),
+  (unbalanced sheet, zero capital, negative equity, these block filing),
   **legal warnings** (accumulated losses at half the capital, quarterly period
   for an annual filing, liquidity), and **suggestions with the amount worked
   out** (statutory-reserve transfer, end-of-service provision, zakat for closed
@@ -79,15 +79,15 @@ and the admin console keep working.
 `admin.html` is the operator view, behind its own PBKDF2 passphrase (separate
 from customer accounts, 30-minute sessions, 5-try lockout):
 
-- **Overview** — five KPIs and three charts: signups over eight weeks, the order pipeline, and portfolio profit/loss
-- **Customers** — search, filter by status, sort any column, suspend or activate, delete, and bulk actions. A suspended account is
+- **Overview**: five KPIs and three charts: signups over eight weeks, the order pipeline, and portfolio profit/loss
+- **Customers**: search, filter by status, sort any column, suspend or activate, delete, and bulk actions. A suspended account is
   refused at the portal login, so the action has real effect
-- **Operations** — every order with filters, plus per-courier performance
-- **Finance** — portfolio aggregate with charts, and the XBRL filing history
-- **Settings** — backup export and import (JSON), a
+- **Operations**: every order with filters, plus per-courier performance
+- **Finance**: portfolio aggregate with charts, and the XBRL filing history
+- **Settings**: backup export and import (JSON), a
   guarded wipe, passphrase change, and an audit log of every admin action
 
-Charts are inline SVG with a hover layer — no chart library, so the strict CSP
+Charts are inline SVG with a hover layer, no chart library, so the strict CSP
 holds. Colour follows the encoding: ordinal ramps where order carries meaning
 (pipeline stages) and a diverging pair for profit/loss, where the
 sign is shown by bar direction and a signed label as well as hue.
@@ -120,7 +120,7 @@ The live site is served by Hostinger (LiteSpeed) from this folder, which reads `
 ## Typography
 
 Arabic is set in **Cairo** (SIL OFL), bundled in `fonts/` rather
-than fetched from a CDN — the strict CSP forbids external origins, and a
+than fetched from a CDN, the strict CSP forbids external origins, and a
 self-hosted face renders identically everywhere instead of depending on what the
 visitor's OS happens to have installed.
 
@@ -135,12 +135,12 @@ visitor's OS happens to have installed.
 ## Found and shared
 
 - `robots.txt`, `sitemap.xml` and `llms.txt` are generated by
-  `design/seo_files.py` from one source of truth — the indexable list is
+  `design/seo_files.py` from one source of truth, the indexable list is
   asserted against the `noindex` tags actually in the files, and `<lastmod>`
   is each page's real last-commit date. Re-run it after adding a page;
   `--check` (which the suite runs) fails if the committed files are stale.
 - Canonical URLs, Open Graph and Twitter cards on all three public pages, so a
-  link pasted into واتساب — the company's main channel — renders a real card
+  link pasted into واتساب, the company's main channel, renders a real card
   instead of a bare URL.
 - `og.png` (2400×1260: the 1200×630 card at 2x, so its wordmark carries the
   kit's twenty bands, 122 KB, under WhatsApp's 300 KB preview limit) is drawn by `design/logo-en/build.py` **from the logo
@@ -148,7 +148,7 @@ visitor's OS happens to have installed.
   JetBrains Mono), so the share card cannot drift from the mark; its `--check`
   re-renders it.
 - JSON-LD: Organization (its logo `logo-1024.png`, the AC monogram), WebSite and the النوخذة SoftwareApplication at 0 KWD.
-  Only facts already stated on the page — no founding date, no head count, no
+  Only facts already stated on the page, no founding date, no head count, no
   invented ratings.
 
 ## Visual assets and the scripts that draw them
@@ -167,12 +167,12 @@ can be traced to the script to re-run:
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 956 checks, exits non-zero on failure
+python3 design/test_suite.py     # 957 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the English logo and AC monogram,
 the logo's amber and near-black values, the one dark theme, the logo's faces,
-and the real contact channels — these are final and the suite fails on any
+and the real contact channels, these are final and the suite fails on any
 drift), the company/product
 split (the root is the company site and carries no
 account UI), token consistency and contrast, SAFI/XBRL/delivery
@@ -185,13 +185,13 @@ tab bar, iOS-safe 16px inputs, and 44px touch targets.
 
 ## HTTP/3
 
-HTTP/3 (QUIC over UDP/443) is negotiated by the **server** — the pages
+HTTP/3 (QUIC over UDP/443) is negotiated by the **server**, the pages
 themselves are protocol-agnostic and need no change to be served over it. What
 this repo provides:
 
 - `.htaccess` sets `Alt-Svc: h3=":443"` so clients that arrive over HTTP/1.1 or
   HTTP/2 learn the origin is also reachable over HTTP/3. **Only keep it if the
-  host really speaks h3** — advertising it otherwise makes browsers wait on a
+  host really speaks h3**, advertising it otherwise makes browsers wait on a
   QUIC handshake that has to time out first.
 - `design/check-http3.sh` reports what your domain actually negotiates, whether
   h3 is advertised, and whether UDP/443 is reachable at all. Run it from your
@@ -206,16 +206,16 @@ Turning it on, easiest first:
 | **Cloudflare** (free, in front of any host) | Speed → Optimization → enable HTTP/3 (with QUIC) |
 | **Hostinger** (LiteSpeed) | hPanel → Advanced → enable QUIC / HTTP/3 |
 | **Own server** | use the Caddy or nginx config in `design/http3/` |
-| **GitHub Pages** | not available — Pages terminates at HTTP/2 |
+| **GitHub Pages** | not available · Pages terminates at HTTP/2 |
 
 The site already meets HTTP/3's prerequisites: HTTPS is forced, HSTS is set, and
 the service worker precaches every page, so after the first visit the transport
 matters little anyway.
 
-## ⚠️ Status — what's real and what isn't
+## ⚠️ Status · what's real and what isn't
 
 Everything above works today, entirely in the browser. Accounts, portfolios,
-reports, and orders are stored in each visitor's own browser — there is **no
+reports, and orders are stored in each visitor's own browser, there is **no
 shared database and no payment yet**. Production needs a backend:
 
 1. **Payment**: none, by design. النوخذة is free and nothing is sold, so there is no gateway to add.
@@ -223,7 +223,7 @@ shared database and no payment yet**. Production needs a backend:
    Replace the `localStorage` calls with API calls; hash passwords
    server-side (bcrypt/argon2) in addition to the client-side PBKDF2.
 3. **Service backends**: live market prices for SAFI, an XBRL filing channel,
-   and shared multi-branch order data for Delivery — all behind a server that
+   and shared multi-branch order data for Delivery, all behind a server that
    checks each customer's account.
 
 The unit list (`UNITS`) and the single free plan (`PLANS`) in `nokhatha.html` are

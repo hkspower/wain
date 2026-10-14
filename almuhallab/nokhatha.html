@@ -145,12 +145,11 @@
       --warn-bg: #161514;
       /* the amber and the ground at an alpha, each named once: the logo's
          rule (.55 fading to 0), its halo (.32), the raised glow (.18, .26
-         hovered), the flagship's sheen (.16), the rain's lit glyph (.9), and
+         hovered), the flagship's sheen (.16), and
          the ground's own fade (0) and pressed ripple (.28) */
       --tint-a0: rgba(230, 169, 92, 0); --tint-a16: rgba(230, 169, 92, .16);
       --tint-a18: rgba(230, 169, 92, .18); --tint-a26: rgba(230, 169, 92, .26);
       --tint-a32: rgba(230, 169, 92, .32); --tint-a55: rgba(230, 169, 92, .55);
-      --tint-a90: rgba(230, 169, 92, .9);
       --bg-a0: rgba(10, 9, 8, 0); --bg-a28: rgba(10, 9, 8, .28);
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */
@@ -328,7 +327,7 @@
     .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     /* the page's one focal card: an amber ring and the faint amber glow */
     .plan.featured { border-color: var(--tint);
-      box-shadow: 0 0 0 1px var(--tint), 0 0 24px var(--tint-a18); }
+      box-shadow: 0 0 0 1px var(--tint), 0 8px 24px var(--tint-a18); }
     .plan .name { font-weight: 800; font-size: 17px; }
     .plan .price { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
     .plan .price small { font-size: 13px; color: var(--muted); font-weight: 600; }

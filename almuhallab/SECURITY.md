@@ -18,16 +18,16 @@ every header it sets is inert there:
 | Header in `.htaccess` | Live on GitHub Pages? | Covered another way? |
 |---|---|---|
 | `Referrer-Policy: no-referrer` | ❌ | ✅ `<meta name="referrer">` on every page |
-| `X-Content-Type-Options: nosniff` | ❌ | ❌ — no static equivalent |
+| `X-Content-Type-Options: nosniff` | ❌ | ❌ · no static equivalent |
 | `X-Frame-Options: SAMEORIGIN` | ❌ | ⚠️ frame-buster script (below) |
-| `Permissions-Policy` | ❌ | ❌ — no static equivalent |
-| `Strict-Transport-Security` | ❌ | ⚠️ GitHub Pages sends HSTS when *Enforce HTTPS* is on — **check that setting** |
+| `Permissions-Policy` | ❌ | ❌ · no static equivalent |
+| `Strict-Transport-Security` | ❌ | ⚠️ GitHub Pages sends HSTS when *Enforce HTTPS* is on · **check that setting** |
 
 ### HTTPS
 
 Only the host can 301 a plaintext request; a static file cannot send a
-redirect. On GitHub Pages that is one checkbox — **Settings → Pages → Enforce
-HTTPS** — and nothing in this repository can set it. Turn it on.
+redirect. On GitHub Pages that is one checkbox, **Settings → Pages → Enforce
+HTTPS**, and nothing in this repository can set it. Turn it on.
 
 What the pages do themselves, either way:
 
@@ -36,7 +36,7 @@ What the pages do themselves, either way:
   `http://` subresource is fetched over TLS instead.
 - **A scheme upgrade** at the top of every page: a visitor who arrives over
   `http://` is sent to `https://` before anything else runs. It cannot protect
-  that first request — nothing client-side can — but it protects every request
+  that first request, nothing client-side can, but it protects every request
   after it. `localhost` is exempt so local testing still works.
 
 Neither is a substitute for the checkbox. Both are pinned by the suite.
@@ -48,9 +48,9 @@ On GitHub Pages they cannot be delivered from a static file.
 `frame-ancestors` is **ignored inside a `<meta>` CSP**, and `X-Frame-Options`
 exists only as a real header. So `nokhatha.html`, `nizam.html` and `admin.html`
 carry a frame-buster: if the page finds itself framed it hides itself and
-navigates the top window away. This is weaker than a header — a sandboxed frame
+navigates the top window away. This is weaker than a header, a sandboxed frame
 can block the navigation, which is why the page hides *first* and navigates
-second — and it is a mitigation, not a fix. The fix is a server that sends the
+second, and it is a mitigation, not a fix. The fix is a server that sends the
 header.
 
 ---
@@ -59,12 +59,12 @@ header.
 
 Whatever runs in this repository's workflows is trusted by everyone who
 downloads النوخذة: two jobs hold `contents: write`, `id-token: write` and
-`attestations: write` — enough to publish a release and sign a provenance
+`attestations: write`, enough to publish a release and sign a provenance
 attestation in the company's name.
 
 - **Every action is pinned to a full commit SHA**, with the tag it came from in
   a comment beside it. `actions/checkout@v4` is a moveable pointer; whoever can
-  move that tag — on a third-party action especially — runs their code inside
+  move that tag, on a third-party action especially, runs their code inside
   those jobs. Provenance an attacker can mint is worse than no provenance,
   because the download asks a stranger to trust exactly that signature.
 - **The workflow default is `contents: read`.** Each job opts into the writes
@@ -79,7 +79,7 @@ The suite fails if any action goes back to a tag, if a workflow's default
 permission becomes a write, or if the updater disappears.
 
 **No secret has ever been committed.** Verified by scanning every blob in every
-commit in the repository's history — 1,224 files across 104 commits — for
+commit in the repository's history, 1,224 files across 104 commits, for
 private keys, cloud credentials, tokens and high-entropy assignments: zero
 hits. The one secret this project has ever handled (an ElevenLabs webhook
 signing key) was pasted into a chat and never written to a file.
@@ -96,21 +96,21 @@ signing key) was pasted into a chat and never written to a file.
 - **Output encoding**: every user-supplied string rendered into HTML goes
   through `esc()` (textContent-based). Numbers are re-coerced and **clamped**
   on read: `localStorage` is user-writable and is treated as untrusted input.
-  Verified against hostile payloads — script tags, non-numeric quantities,
-  `1e308`, wrong types, broken JSON, `null` entries — none of which execute,
+  Verified against hostile payloads, script tags, non-numeric quantities,
+  `1e308`, wrong types, broken JSON, `null` entries, none of which execute,
   crash the page, or render.
 - **Service worker** (`sw.js`): same-origin GET only; cross-origin responses
   are never cached, and neither is any same-origin file outside its own
   precache list (the origin also serves other apps). On activation it deletes
   only its own earlier caches.
 - **Redirect stubs** (`safi.html`, `xbrl.html`, `delivery.html`, `nokha1.html`,
-  `404.html`) navigate to **hardcoded** destinations — no parameter reaches
+  `404.html`) navigate to **hardcoded** destinations, no parameter reaches
   `location`, so none of them is an open redirect.
 - **CSV export** neutralises spreadsheet formula injection: a company name
   beginning `=`, `+`, `-`, `@` or a **TAB** is prefixed with `'`, and CR/LF are
   collapsed to a space so a name can never break the row and inject a new one.
 
-## Accounts (`nokhatha.html` — the النوخذة portal)
+## Accounts (`nokhatha.html` · the النوخذة portal)
 
 `index.html`, the company page, carries **no account UI at all**.
 
@@ -133,7 +133,7 @@ signing key) was pasted into a chat and never written to a file.
 
 - Passwords: PBKDF2-SHA256, 310,000 iterations, tested against two published
   RFC 7914 vectors.
-- **No network capability at all** — no network-capable package in the
+- **No network capability at all**: no network-capable package in the
   dependency tree and no socket in the code, enforced by
   `test/supply_chain_test.dart`, which fails the build if either appears.
 - No `Process.run`/`Process.start`; the release build is not obfuscated.
@@ -149,7 +149,7 @@ signing key) was pasted into a chat and never written to a file.
 ## Limits that are real, and cannot be fixed client-side
 
 1. **Data lives in each visitor's own browser.** Anyone with the device or its
-   devtools can read and modify their own records — including their own account
+   devtools can read and modify their own records, including their own account
    record. Client-side hashing protects a reused password from casual
    disclosure; it is not server-side authentication.
 2. **The lockouts and the admin gate are advisory.** They keep a casual visitor
@@ -160,4 +160,4 @@ signing key) was pasted into a chat and never written to a file.
 
 Fixing 1–3 needs a backend: server-side auth (argon2/bcrypt) over TLS, a real
 database, and server-enforced permissions. The client-side measures above stay
-regardless — defence in depth — but they are not a substitute.
+regardless, defence in depth, but they are not a substitute.

@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v60";   /* v60: status inks at 7:1, border and word fixes, console and system padding, the smallest lossless PNGs, twitter:image:alt */
+var CACHE = "nokhatha-v61";   /* v61: one focal glow per page (the rain's lit heads carry none), the voice pill's hover on the shared raised glow, the docs' dashes */
 /* The site root is not listed: "./" and "index.html" are the same 155 KB
    page, and every install fetched it twice. A request for the root is
    looked up as index.html below. logo.svg is not listed either: no page,

@@ -319,12 +319,11 @@
       --warn-bg: #161514;
       /* the amber and the ground at an alpha, each named once: the logo's
          rule (.55 fading to 0), its halo (.32), the raised glow (.18, .26
-         hovered), the flagship's sheen (.16), the rain's lit glyph (.9), and
+         hovered), the flagship's sheen (.16), and
          the ground's own fade (0) and pressed ripple (.28) */
       --tint-a0: rgba(230, 169, 92, 0); --tint-a16: rgba(230, 169, 92, .16);
       --tint-a18: rgba(230, 169, 92, .18); --tint-a26: rgba(230, 169, 92, .26);
       --tint-a32: rgba(230, 169, 92, .32); --tint-a55: rgba(230, 169, 92, .55);
-      --tint-a90: rgba(230, 169, 92, .9);
       --bg-a0: rgba(10, 9, 8, 0); --bg-a28: rgba(10, 9, 8, .28);
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */
@@ -704,7 +703,7 @@
     @keyframes rain { from { transform: translateY(-50%); } to { transform: translateY(0); } }
     .rain i { position: absolute; display: block; width: 1em; text-align: center; font-style: normal;
       font-family: var(--mono); line-height: 1; color: var(--tint); }
-    .rain i.hd { color: var(--on-bar); text-shadow: 0 0 10px var(--tint-a90); }
+    .rain i.hd { color: var(--on-bar); }   /* the lit head is bright ink, not a glow: one focal glow per page */
     .hero > * { position: relative; }
     /* .hero > * matched the art layer too and, coming later at the same
        specificity, made it a 0px-tall relative box */
@@ -1045,7 +1044,7 @@
       box-shadow: 0 8px 24px var(--tint-a18);
       transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
     }
-    .callfab:hover { transform: translateY(-3px); box-shadow: 0 12px 30px var(--tint-a26); }
+    .callfab:hover { transform: translateY(-3px); box-shadow: 0 8px 24px var(--tint-a26); }
     /* it steps aside over the contact bar and the footer: down there the
        channels are on screen anyway, and a fixed pill would sit on one of
        them — measured, it landed squarely on واتساب */
@@ -1411,7 +1410,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="956">956</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="957">957</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>تبعيات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل بدون إنترنت</span></div>
       </div>

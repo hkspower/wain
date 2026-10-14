@@ -69,12 +69,11 @@
       --warn-bg: #161514;
       /* the amber and the ground at an alpha, each named once: the logo's
          rule (.55 fading to 0), its halo (.32), the raised glow (.18, .26
-         hovered), the flagship's sheen (.16), the rain's lit glyph (.9), and
+         hovered), the flagship's sheen (.16), and
          the ground's own fade (0) and pressed ripple (.28) */
       --tint-a0: rgba(230, 169, 92, 0); --tint-a16: rgba(230, 169, 92, .16);
       --tint-a18: rgba(230, 169, 92, .18); --tint-a26: rgba(230, 169, 92, .26);
       --tint-a32: rgba(230, 169, 92, .32); --tint-a55: rgba(230, 169, 92, .55);
-      --tint-a90: rgba(230, 169, 92, .9);
       --bg-a0: rgba(10, 9, 8, 0); --bg-a28: rgba(10, 9, 8, .28);
       /* charts: one amber ramp, every step at least 2:1 on the card, monotone
          in lightness so later steps carry more ink */

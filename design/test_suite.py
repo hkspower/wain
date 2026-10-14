@@ -794,6 +794,53 @@ XSS = '<img src=x onerror="window.__pwned=1">'
 # the same attack aimed at an attribute rather than at element text
 ATTR_XSS = '" onmouseover="window.__pwned=1" x="'
 
+def glow_checks(br):
+    """One focal glow per page, and the raised glow is the only other amber
+    shadow (glow audit, 2026-10-14). The rain's lit heads each carried a
+    0.9-alpha, 10px glow: 47 of them on the company page, so 47 focal glows.
+    A glow at .30 or more counts as focal; a raised glow is .18 at rest."""
+    S = "glow"
+    GLOWS = r"""() => {
+      const alpha = s => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return 1;
+        const v = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return v.length > 3 ? v[3] : 1; };
+      const split = s => s.split(/,(?![^(]*\))/);
+      const out = [];
+      for (const e of document.querySelectorAll('*')) {
+        const cs = getComputedStyle(e);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        const label = e.tagName.toLowerCase() + (e.id ? '#' + e.id : '');
+        if (cs.textShadow && cs.textShadow !== 'none') {
+          const px = cs.textShadow.match(/-?[\d.]+px/g) || [];
+          out.push({kind: 'text', el: label, a: alpha(cs.textShadow), blur: parseFloat(px[2] || 0)});
+        }
+        if (cs.filter && cs.filter.includes('drop-shadow')) {
+          const px = cs.filter.match(/-?[\d.]+px/g) || [];
+          out.push({kind: 'drop', el: label, a: alpha(cs.filter), blur: parseFloat(px[2] || 0)});
+        }
+        if (cs.boxShadow && cs.boxShadow !== 'none') {
+          for (const part of split(cs.boxShadow)) {
+            const px = part.match(/-?[\d.]+px/g) || [];
+            out.push({kind: 'box', el: label, a: alpha(part), blur: parseFloat(px[2] || 0)});
+          }
+        }
+      }
+      return out;
+    }"""
+    offenders = []
+    for page in ("index.html", "nokhatha.html", "nizam.html", "admin.html"):
+        ctx = br.new_context(viewport={"width": 1440, "height": 900}, locale="ar-KW", reduced_motion="reduce")
+        gp = ctx.new_page()
+        gp.goto(f"{BASE}/{page}", wait_until="networkidle"); gp.wait_for_timeout(300)
+        glows = gp.evaluate(GLOWS)
+        focal = [g for g in glows if g["a"] >= 0.30 and g["blur"] > 0]
+        raised = [g for g in glows if g["kind"] == "box" and g["a"] > 0.18 and g["blur"] > 0]
+        if len(focal) > 1 or raised:
+            offenders.append(f"{page}: {len(focal)} focal ({', '.join(sorted({g['el'] for g in focal})[:3])}), {len(raised)} raised above .18")
+        ctx.close()
+    check(S, "every page has at most one focal glow, and no raised glow above .18 at rest",
+          not offenders, " | ".join(offenders))
+
+
 def browser_checks():
     Handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROOT))
     socketserver.TCPServer.allow_reuse_address = True
@@ -846,6 +893,7 @@ def browser_checks():
         font_checks(pg)
         app_icon_checks(pg)
         theme_state_checks(pg)
+        glow_checks(br)
         ux_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
@@ -1049,7 +1097,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "956", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "957", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1082,7 +1130,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "956", "0", "100%"], str(finals))
+          finals == ["4", "957", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
