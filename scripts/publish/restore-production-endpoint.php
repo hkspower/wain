@@ -15,7 +15,7 @@
  * It changes nothing it cannot check. It refuses to replace anything but the
  * scope endpoint. The rebuilt file must reproduce staging's copy byte for byte
  * through the generator's own forward transform, must be the recorded
- * production size (10,985 bytes, 28 September), and must lint. The scope
+ * production size (10,985 bytes, 28 September), and must parse. The scope
  * endpoint is kept in storage/ first, so it can be put back. One-shot: fetched
  * from a pinned commit, run once, then deleted.
  *
@@ -96,16 +96,21 @@ if (!str_contains($current, SCOPE_MARKER)) {
     done(['ok' => false, 'error' => 'refusing_to_overwrite', 'why' => 'the file in place is not the scope endpoint', 'bytes' => strlen($current)]);
 }
 
+// Parse in-process, before anything is written. This used to shell out to `php -l`,
+// and under cron that child never returned: the job ran with no output, so it was
+// only found by waiting. The tokenizer needs no child process.
+if (!function_exists('token_get_all')) done(['ok' => false, 'error' => 'cannot_lint', 'why' => 'the tokenizer extension is not loaded']);
+try {
+    token_get_all($rebuilt, TOKEN_PARSE);
+} catch (ParseError $e) {
+    done(['ok' => false, 'error' => 'lint_failed', 'message' => $e->getMessage(), 'line' => $e->getLine()]);
+}
+
 if (!copy($prod, $backup) || filesize($backup) !== strlen($current)) {
     done(['ok' => false, 'error' => 'backup_failed', 'path' => $backup]);
 }
 
 if (file_put_contents($tmp, $rebuilt) !== strlen($rebuilt)) done(['ok' => false, 'error' => 'write_failed', 'path' => $tmp]);
-exec('php -l ' . escapeshellarg($tmp) . ' 2>&1', $lint, $code);
-if ($code !== 0) {
-    @unlink($tmp);
-    done(['ok' => false, 'error' => 'lint_failed', 'lint' => $lint]);
-}
 chmod($tmp, 0644);
 // Same filesystem, so the rename replaces the file in one step: no half-written endpoint is ever served.
 if (!rename($tmp, $prod)) done(['ok' => false, 'error' => 'rename_failed', 'path' => $prod, 'backup' => $backup]);
