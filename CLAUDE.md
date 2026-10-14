@@ -22,9 +22,8 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
-As of the evening of 14 October: **production is `47c17464`** (the two-agent split, after
-`api/deploy.php` was restored — see «The 14 October deploy, third») and **staging is `8deb030e`**
-(the same split, code-identical). The call-centre fixes below are in the repository and NOT deployed.
+As of the night of 14 October: **production AND staging are `d667c103`** — the call-centre batch
+(see «The 14 October deploy, fourth»), an agent build with both agent ids and the read-aloud bridge off.
 The back end (`api/wain.php`) differs by stage: staging runs `e005f90`, production `4dd1b20` (see
 «The staging back end reinstalled»; `php …/api/wain.php version` prints both fingerprints).
 This block goes stale; the server's `build.json` is the only trustworthy source.
@@ -5616,8 +5615,39 @@ totals, none failed). Screenshots at 390 on the free build (شوق's sheet ringi
 
 **Not measured:** any of it on a real phone — the gesture rule, the bar under a thumb, the in-app
 browser, the Android notification, TalkBack; and a real call on either agent (the socket is refused here).
-**Deploying both stages waits for the owner's yes**; the release is the usual agent build with the read-aloud
-bridge off.
+**Deployed the same night on the owner's «deploy»** — the next entry.
+
+## The 14 October deploy, fourth — `d667c103` is live on both stages: the call centre
+
+- **Release at `d667c103`** (`451f90b2` carries the archive): the merge of this session's call-centre
+  commits (`d6a135e3`, `27bdd997`, `c1ee809b`) with another session's four (`7546a53b`…`1b2f0ca5`:
+  the staging `wain.php` record, `docs/orders.md`, a comment in `wain-api.php` — nothing under `src/`
+  or `public/`). The push was refused once because those four had landed first; merged, never rebased.
+  Built with `NEXT_PUBLIC_ELEVENLABS_AGENT_ID`, `NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID` and
+  `NEXT_PUBLIC_WAIN_TTS_URL=none`: digest `7660c75ddd07fa52`, 281 files, 4,665,321 bytes, sha256
+  `ac21a71f…329d6`. One more permanent blob; `DEPLOY_SECRET` is still unset. `deploy:plan` passed on
+  the installed caller `22015bb67b0959ad`.
+- **Staging first.** Job `NJKMQvK7U3`, read at its FIRST firing: `{"ok":true,"version":"1.1.0",
+  "deployed":282,"removed":10,"emptied":1,"at":"2026-10-14T19:42:02+00:00"}`. Deleted, listed gone.
+- **Production.** Job `ZK6srliQLZ`, read at 19:44:01 — the SECOND firing (`removed:0, emptied:0`, the
+  idempotent pass; it was created at about 19:42:50). The disk settled it: `_next/static/` holds
+  `css`, `chunks`, `media` and `d667c103…/` alone, so the prune had run. Deleted, listed gone.
+- **Verified**, both stages, `deploy:verify --observed` on 30 readings each (the stamp, the twelve
+  root files, the three stylesheets, the build-id pair, the /search, /salem, /find and layout chunks,
+  the shared `8623-…` chunk, the widget `convai-0.19.0-…` at 1,540,140, `explore/`, a place page,
+  three og images): «d667c103 is live — verified at the root and 7 levels below it», every reading
+  byte-exact, on each stage.
+- **Purge accepted, then the edge** by three one-shot `wget -S --spider` jobs (`pSHCv7w8G3`,
+  `5ctEsLmMwK`, `nq4o5cs4wd`; fired 19:46:01, read, deleted, listed gone): `www.wainkw.com/salem/`
+  and `/find/` 200 with `Last-Modified: 19:44:01` (production's deploy minute); `staging.wainkw.com/
+  salem/` 200 with `Last-Modified: 19:42:02` and `X-Robots-Tag: noindex, nofollow`. All three
+  `x-hcdn-cache-status: DYNAMIC`, the CSP carrying the jsDelivr resampler.
+- **Crontab before and after:** sporta's `1mNk00yPZP` and nothing else.
+- **Still on production's disk, untouched** (the owner's «keep»): the foreign chunks beside ours
+  (`chunks/app/search/page-shoug-kuwaiti-20261011a.js`, six `page-salem-*` variants, `6692.wain-
+  universal-…`, `8623-wain-kuwaiti-…`, `6203-wain-map-accurate-…`) and the 80-odd top-level archives
+  and scripts. Staging has none of them. The prune removes only what the previous manifest recorded.
+- **Not measured:** a real phone, and a real call or typed chat on either agent.
 
 ## Style
 
