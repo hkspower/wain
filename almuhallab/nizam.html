@@ -206,6 +206,7 @@
     footer.site a { display: inline-block; padding: 6px 4px; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
       border-top: 0; line-height: 1.9; background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
+    @media (max-width: 640px) { footer.site { padding-inline: 16px; } }
 
     nav.tabs { display:flex; gap: 4px; padding: 0 20px; background:var(--panel);
       border-bottom:1px solid var(--border); overflow-x:auto; }
@@ -219,6 +220,12 @@
     h2 { font-size:18px; margin: 24px 0 12px; } h2:first-child { margin-top: 4px; }
 
     .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(186px,1fr)); gap: 12px; }
+    /* 3+1 at 768 and 4+1 at 844 left one tile alone with the row empty beside it */
+    @media (min-width: 641px) and (max-width: 819px) {
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    }
+    @media (min-width: 820px) and (max-width: 1017px) { .tiles > .tile:last-child:nth-child(5) { grid-column: 1 / -1; } }
     .tile { background:var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px; }
     /* figures are set in the logo's mono. At 18px «+1,234,567.890» measures
        151px and the narrowest desktop tile holds 153px (24px Cairo overran it) */
@@ -252,6 +259,7 @@
     /* figures in a field read left to right, or a negative total shows its
        sign at the wrong end («25,995.250-»); right-aligned as before */
     input[type="number"], input[readonly] { font-family: var(--mono); direction: ltr; text-align: right; }
+    form input, form select { height: 44px; box-sizing: border-box; }
 
     .btn { font-size:14px; line-height: var(--lh-ui); font-weight:700; border-radius: 8px; padding: 12px 16px;
       border:1px solid var(--border-input); background:var(--panel-2); color:var(--text); }
@@ -301,7 +309,7 @@
     .fig { margin: 0 0 20px; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
     .fig .cap { margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
-    .fig .plot { direction: ltr; max-width: 640px; margin-inline: auto; }
+    .fig .plot { direction: ltr; max-width: 640px; margin-inline: auto 0; }
     .fig svg { width: 100%; height: auto; display: block; overflow: visible; }
     .empty-fig { padding: 24px 0; text-align: center; color: var(--muted); font-size: 13px; }
 
@@ -340,7 +348,9 @@
     }
     fieldset { border:1px solid var(--border); border-radius: 12px; background:var(--panel); padding: 20px 16px;
       margin: 0 0 12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
-    legend { font-size:13px; font-weight:800; color:var(--tint); padding: 0 8px; }
+    /* the legend's own 8px padding set its text 8px inside the field labels' edge; the padding stays for the border gap */
+    legend { font-size:13px; font-weight:800; color:var(--tint); padding: 0 8px; margin-inline-start: -8px; }
+    #xbrl-check > .ic { margin-inline: 8px 0; }
 
     .check { border:1px solid var(--border); border-radius:12px; padding: 12px 16px; font-size:13.5px;
       line-height:1.85; margin: 12px 0; background:var(--panel); }
@@ -354,6 +364,7 @@
        new is the warning yellow, on the way the amber accent */
     .status { font-size:12px; font-weight:800; border-radius:999px; padding: 4px 12px; border:1px solid;
       background: var(--panel-2); }
+    #del-couriers .status { display:inline-flex; align-items:center; gap: 4px; }
     .st-0{color:var(--text);border-color:var(--border-input)} .st-1{color:var(--info);border-color:var(--info)}
     .st-2{color:var(--tint);border-color:var(--tint)} .st-3{color:var(--good);border-color:var(--good)}
     .st-4{color:var(--danger);border-color:var(--danger)}
@@ -365,6 +376,10 @@
     .order .who .meta { display:flex; flex-wrap:wrap; gap: 4px 16px; margin-top: 4px; }
     .order .who .mi { display:inline-flex; align-items:center; gap: 6px; min-width:0; }
     .order .amount { font-family:var(--mono); font-weight:700; font-variant-numeric:tabular-nums; }
+    /* the actions take their own line under the figures, so they no longer push the amount and status left */
+    .order .oact { flex-basis: 100%; display:flex; gap: 8px; }
+    /* one width for the status pill, so the amount beside it starts on the same x in every card */
+    .order .status { min-width: 112px; text-align: center; }
     .orders { display:flex; flex-direction:column; gap: 12px; }
 
     /* social centre: a card that carries a block of copyable text. Only a
@@ -379,13 +394,14 @@
     /* a channel's two actions share one row: on a phone the copy button used
        to wrap beside the value and «فتح القناة» sat alone two lines below */
     .soc .acts { display:flex; gap: 8px; flex-wrap:wrap; }
+    .soc .acts [data-clip] { margin-inline-start: auto; }
     .soc .val { font-weight:700; color:var(--tint); direction:ltr; unicode-bidi:isolate; }
     .soc p { margin:0; font-size:13.5px; line-height:1.85; white-space:pre-line; }
     .soc .tags { font-size:13px; color:var(--muted); line-height:1.9; }
     /* Only a Latin run gets the mono, LTR treatment. Arabic hashtags set that
        way came out stretched with the # on the wrong side — the neutral #
        resolves by what follows it, the same defect that printed «ce1925#». */
-    .soc .tags.ltr { direction:ltr; unicode-bidi:isolate; text-align:start;
+    .soc .tags.ltr { direction:ltr; unicode-bidi:isolate; text-align:end;
       font-family:var(--mono); }
     /* A Latin measurement inside an Arabic sentence or cell: without an
        isolate, «1200×630» is two LTR runs laid out right-to-left and reads
@@ -458,6 +474,8 @@
          the 141px a half tile holds at its narrowest (a 382px screen) */
       .tile .n { font-size: 17px; letter-spacing: -.02em; }
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
+      #xbrl-form > .row:has(#xbrl-preview) { flex-direction: column; align-items: stretch; }
+      #xbrl-form > .row:has(#xbrl-preview) .btn { width: 100%; }
       #del-courier-form { grid-template-columns: 1fr 1fr; }
       #del-courier-form .btn { grid-column: 1 / -1; }
       main { padding-top: 12px; padding-inline: 16px; }
@@ -525,6 +543,11 @@
     @media (min-width: 900px) {
       #xbrl-form fieldset:first-of-type { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
+    /* a single field left on its row, three columns empty beside it */
+    @media (min-width: 668px) and (max-width: 869px) {
+      #xbrl-form label:has(> input[name=otherCA]), #xbrl-form label:has(> input[name=retained]) { grid-column: 1 / -1; }
+    }
+    @media (min-width: 870px) { #xbrl-form label:has(> input[name=otherInc]) { grid-column: 1 / -1; } }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
@@ -660,7 +683,7 @@
       </p>
       <div class="row">
         <button class="btn primary" id="xbrl-derive"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> احسب من النظام</button>
-        <span class="note" style="align-self:center">
+        <span class="note" style="align-self:center;margin:0">
           يملأ الاستثمارات المالية من صافي، والإيرادات من الطلبات المسلّمة.
         </span>
       </div>
@@ -1278,7 +1301,7 @@
       ? "القائمة متوازنة: الأصول (" + kwd(t.assets) + " د.ك) = الالتزامات + حقوق الملكية (" + kwd(t.liab + t.eq) + " د.ك)"
       : "غير متوازنة: الأصول " + kwd(t.assets) + " د.ك مقابل " + kwd(t.liab + t.eq) +
         " د.ك، الفرق " + kwd(diff) + " د.ك";
-    c.insertAdjacentHTML("afterbegin", icon(ok ? "i-check" : "i-x"));
+    c.insertAdjacentHTML("beforeend", icon(ok ? "i-check" : "i-x"));
 
     var TITLES = { err: "خطأ", warn: "تنبيه", sug: "اقتراح" };
     var COLORS = { err: "var(--danger)", warn: "var(--sand)", sug: "var(--tint)" };
@@ -1456,7 +1479,7 @@
         '<span class="meta">' + mi("i-phone", '<bdi dir="ltr">' + esc(o.phone) + "</bdi>") + mi("i-pin", esc(o.address)) + "</span>" +
         '<span class="meta">' + mi("i-bag", esc(o.items)) + (o.courier ? mi("i-delivery", esc(o.courier)) : "") + "</span></div>" +
         '<div class="amount">' + kwd(o.amount) + ' د.ك</div><span class="status st-' + o.status + '">' +
-        STATUSES[o.status] + "</span>" + adv + can + "</div>";
+        STATUSES[o.status] + "</span>" + (adv || can ? '<div class="oact">' + adv + can + "</div>" : "") + "</div>";
     }).join("");
     /* «no orders yet» was false under a filter with orders present */
     el("del-empty").textContent = delFilter < 0 ? "لا توجد طلبات بعد." : "لا توجد طلبات بحالة «" + STATUSES[delFilter] + "».";

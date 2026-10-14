@@ -838,6 +838,7 @@ def browser_checks():
         alignment_checks(br)
         align_company_checks(br)
         align_portal_checks(br)
+        align_system_checks(br)
         mobile_layout_checks(br)
         code_quality_checks(br)
         portal_checks(pg)
@@ -1047,7 +1048,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "936", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "949", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1080,7 +1081,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "936", "0", "100%"], str(finals))
+          finals == ["4", "949", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -4966,7 +4967,7 @@ def _al_orphans(br, path, w, h, csel, isel, before=None):
 SYS_ORDERS_JS = r"""
   const os = [...document.querySelectorAll('#del-orders .order')].filter(AL.vis);
   return { st: os.map(o => AL.round(o.querySelector('.status').getBoundingClientRect().left)),
-           am: os.map(o => AL.round(o.querySelector('.amount').getBoundingClientRect().right)) };
+           am: os.map(o => AL.round(o.querySelector('.amount').getBoundingClientRect().left)) };
 """
 
 SYS_FOOTER_JS = r"""
@@ -5011,15 +5012,18 @@ SYS_FORM_JS = r"""
 """
 
 SYS_STATUS_JS = r"""
+  // a line of mixed Arabic and Latin splits into one rect per bidi run: a line's start
+  // edge is the furthest right of its runs, so the rights are taken per line
   const c = document.getElementById('xbrl-check'), cs = getComputedStyle(c);
   const edge = c.getBoundingClientRect().right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
-  const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), rights = []; let n;
+  const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), lines = new Map(); let n;
   while ((n = w.nextNode())) {
     if (!n.textContent.trim() || n.parentElement.closest('svg')) continue;
     const g = document.createRange(); g.selectNodeContents(n);
-    for (const q of g.getClientRects()) if (q.width > 0) rights.push(AL.round(q.right - edge));
+    for (const q of g.getClientRects()) if (q.width > 0) {
+      const k = Math.round(q.top); lines.set(k, Math.max(lines.get(k) ?? -1e9, q.right)); }
   }
-  return rights;
+  return [...lines.values()].map(r => AL.round(r - edge));
 """
 
 SYS_LEGEND_JS = r"""
@@ -5288,6 +5292,8 @@ def align_console_checks(br):
         c.close()
     check(S, "each tab's first block starts on the overview's line", not bad, "; ".join(bad))
 # ═══════════════════════════════════════════ ALIGN-FIX END
+
+
 
 
 
