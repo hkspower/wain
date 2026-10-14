@@ -77,6 +77,11 @@ const kPlacesCount = CountForms(
   many: 'مكان',
 );
 
+/// A place's price band in words, by `priceLevel` (the web's PRICE_LABEL in
+/// place-words.ts) — the place page shows it, and سالم says it when asked
+/// «كم سعره؟», since the catalogue holds a band and never a price.
+const kPriceLabel = ['', 'اقتصادي', 'متوسط', 'راقي'];
+
 /// «مكان واحد مطابق» / «مكانين مطابقين» / «أماكن مطابقة» — the call's and the
 /// chat's «N places matched», agreeing (the web's MATCHING_PLACES in
 /// wain-ai.ts). The adjective agrees too, so it is not kPlacesCount + «مطابق».

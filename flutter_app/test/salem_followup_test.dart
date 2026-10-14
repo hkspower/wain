@@ -21,6 +21,8 @@ Map<String, Object?> _wire(FollowUp f) => {
   if (f.added != null) 'added': f.added,
   if (f.area != null) 'area': f.area,
   if (f.slug != null) 'slug': f.slug,
+  if (f.price) 'price': true,
+  if (f.at != null) 'at': f.at,
   if (f.act != null) 'act': f.act!.name,
   if (f.what != null) 'what': f.what!.name,
   if (f.opener != null) 'opener': f.opener!.name,
@@ -68,10 +70,21 @@ void main() {
     final kinds = {for (final r in reads) (r['out'] as Map)['kind']};
     expect(
       kinds,
-      containsAll(['new', 'refine', 'more', 'pick', 'where', 'social', 'ask']),
+      containsAll([
+        'new', 'refine', 'more', 'pick', 'where', 'social', 'ask', //
+        'count', 'beyond', 'reject',
+      ]),
     );
     final acts = {for (final r in reads) (r['out'] as Map)['act']};
-    expect(acts, containsAll(['salam', 'greet', 'how', 'thanks', 'who', 'ok']));
+    expect(
+      acts,
+      containsAll(['salam', 'greet', 'how', 'thanks', 'afia', 'who', 'ok']),
+    );
+    expect(
+      reads.any((r) => (r['out'] as Map)['price'] == true),
+      isTrue,
+      reason: 'a price question',
+    );
     expect(
       reads.any((r) => (r['out'] as Map)['opener'] != null),
       isTrue,

@@ -24,6 +24,8 @@ import { markAgentUnavailable, markSalemLineUnavailable, salemLineAvailable } fr
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 import { CHOICE_MAX } from "@/lib/hangout";
+import { PLACES_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
+import { PRICE_LABEL } from "@/lib/place-words";
 
 /** A typed-chat line — شوق's own reply, the visitor's own, a note from this
  * page itself (a tool it could not run), or one of her two tool RESULTS
@@ -93,8 +95,6 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
  * agent speaks in its own voice, and a typed session renders no audio anyway.
  * Until 14 October this page shared شوق's agent and sent his voice on it, which
  * is the mix the owner ended. Nothing here may fall back to her agent.
- *
- * `show_places`/`open_place` are wired nowlines.
  *
  * `show_places`/`open_place` are wired now, on request — see
  * `lib/salem-tools.ts` for why they could not simply be `WainAiCall.tsx`'s
@@ -389,10 +389,26 @@ export default function SalemChat() {
       };
       const slugOf = (h: { doc: { id: string } }) => h.doc.id.replace(/^place:/, "");
 
+      const C = WAIN_AI_CHAT_COPY;
       if (intent.kind === "social") {
         say(socialLine(intent.act, intent.opener, !!ctx && ctx.shown.length > 0));
       } else if (intent.kind === "ask") {
-        say(`${opener}${intent.what === "area" ? WAIN_AI_CHAT_COPY.askArea : WAIN_AI_CHAT_COPY.askSubject}`);
+        say(`${opener}${intent.what === "area" ? C.askArea : C.askSubject}`);
+      } else if (intent.kind === "count") {
+        // The answer on screen, or the whole guide when there is none. Said,
+        // and nothing remembered changes.
+        if (ctx && ctx.shown.length > 0) {
+          const seen = ctx.seen.length < ctx.ranked.length ? toArabicDigits(ctx.seen.length) : null;
+          say(`${opener}${C.count(countAr(ctx.ranked.length, PLACES_COUNT), ctx.query, seen)}`);
+        } else {
+          say(`${opener}${C.countAll(countAr(places.length, PLACES_COUNT))}`);
+        }
+      } else if (ctx && intent.kind === "beyond") {
+        const ordinal = intent.at <= C.ordinals.length ? C.ordinals[intent.at - 1] : C.ordinalNumber(toArabicDigits(intent.at));
+        say(`${opener}${C.beyond(ordinal, countAr(ctx.shown.length, PLACES_COUNT), follow.nextPlaces(ctx).length > 0)}`);
+      } else if (ctx && intent.kind === "reject") {
+        // A «no» to the answer: it stays, and he asks what instead.
+        say(`${opener}${C.reject(ctx.shown.length === 1, follow.nextPlaces(ctx).length > 0)}`);
       } else if (ctx && intent.kind === "more") {
         const slugs = follow.nextPlaces(ctx);
         if (slugs.length === 0) {
@@ -407,11 +423,15 @@ export default function SalemChat() {
         const place = bySlug(intent.slug)!;
         activeRef.current = place.slug;
         if (intent.kind === "pick") {
-          parts = [{ key: `try-${place.slug}`, text: placeTryLine(place) }, ...whenParts(place, clock.month, clock.hour)];
+          // «كم سعره؟» — the guide holds a band, not a price, and says so
+          // instead of the place's try-line (14 October).
+          parts = intent.price
+            ? [{ text: C.priceNote(place.nameAr, PRICE_LABEL[place.priceLevel] ?? "") }]
+            : [{ key: `try-${place.slug}`, text: placeTryLine(place) }, ...whenParts(place, clock.month, clock.hour)];
           answerLine(parts);
           lines.push({ role: "place", slug: place.slug });
         } else {
-          parts = [{ text: `${place.nameAr} — ${place.areaAr}.` }];
+          parts = [{ text: follow.whereLine(place) }];
           lines.push(
             { role: "agent", text: `${opener}${parts[0].text} ${WAIN_AI_CHAT_COPY.where}` },
             { role: "where", slug: place.slug }
@@ -451,10 +471,12 @@ export default function SalemChat() {
         const { hits, ranked } = search(query);
         if (ranked.length === 0) {
           // A part of Kuwait with nothing in it says so by name; anything else
-          // is a word that matched nothing.
+          // is a word that matched nothing. The answer on screen stays — a
+          // miss used to wipe the memory, so the «غيره» typed next asked «عن
+          // شنو؟» while the chip under that answer still worked (14 October).
           const where = follow.elsewhereNamed(query, index);
-          say(`${opener}${where ? WAIN_AI_CHAT_COPY.elsewhere(where) : WAIN_AI_CHAT_COPY.freeEmpty}`);
-          ctxRef.current = null;
+          const kept = !!ctx && ctx.shown.length > 0;
+          say(`${opener}${where ? C.elsewhere(where) : kept ? C.freeEmptyKept : C.freeEmpty}`);
         } else {
           const { slugs } = formatShowPlaces(query, hits, places);
           const found = slugs.flatMap((slug) => bySlug(slug) ?? []);

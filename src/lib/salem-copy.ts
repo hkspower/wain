@@ -64,6 +64,10 @@ export const WAIN_AI_CHAT_COPY = {
   freeStatus: "جاهز",
   freeNotice: "اللي تكتبه يبقى بجهازك — البحث يصير داخل الصفحة وما ينرسل لأحد.",
   freeEmpty: "ما لقيت شي يطابق هذا — جرّب كلمة ثانية، مثل «قهوة» أو «بحر» أو اسم منطقة.",
+  // The same miss with an answer already on screen. It used to wipe the
+  // chat's memory, so the «غيره» typed next asked «عن شنو؟» while the chip
+  // under the old answer still worked (14 October). The answer stays now.
+  freeEmptyKept: "ما لقيت شي يطابق هذا — جرّب كلمة ثانية، والأماكن اللي قبل باقية فوق.",
   notConfigured: "المحادثة مو متاحة الحين.",
   // The chat's memory (lib/salem-followup.ts): what he says when a short
   // reply is read against his last answer rather than as a new question.
@@ -71,6 +75,29 @@ export const WAIN_AI_CHAT_COPY = {
   moreNone: "هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.",
   refineNone: "ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.",
   where: "مكانه على الخريطة تحت.",
+  /*
+   * Four more replies the chat's memory reads (14 October), each of which was
+   * searched and answered with a stranger: «كم مكان فيه؟» (a count, of the
+   * answer on screen or of the whole guide), «الخامس» under four places (a
+   * position past the end), «مو هذي» (a «no» to the answer, which stays), and
+   * «كم سعره؟» (the guide holds a price band, never a price, and says so).
+   */
+  count: (found: string, query: string, seen: string | null) =>
+    seen ? `لقيت ${found} عن «${query}» — وريتك ${seen} منها، وإذا تبي الباقي قول «غيره».` : `لقيت ${found} عن «${query}»، وكلها قدامك.`,
+  countAll: (found: string) => `عندي ${found} بالكويت — قول لي وش تبي وأدوّر لك فيها.`,
+  beyond: (ordinal: string, onScreen: string, more: boolean) =>
+    `ما عندي ${ordinal} — اللي قدامك ${onScreen} بس.${more ? " قول «غيره» وأوريك غيرها." : ""}`,
+  // «ما عندي خامس», and past the tenth by number: «ما عندي رقم ١٢».
+  ordinals: ["أول", "ثاني", "ثالث", "رابع", "خامس", "سادس", "سابع", "ثامن", "تاسع", "عاشر"],
+  ordinalNumber: (digits: string) => `رقم ${digits}`,
+  reject: (one: boolean, more: boolean) =>
+    one
+      ? "ما عجبك؟ قول لي وش تبي بداله وأدوّر لك."
+      : more
+        ? "ما عجبتك؟ قول لي وش تبي بدالها، أو قول «غيره» وأوريك غيرها."
+        : "ما عجبتك؟ قول لي وش تبي بدالها وأدوّر لك.",
+  priceNote: (name: string, band: string) =>
+    band ? `${name}: ما عندي أسعاره بالضبط، بس مستواه «${band}».` : `${name}: ما عندي أسعاره بالضبط.`,
   /*
    * What he says to a message that is not about places (lib/salem-followup.ts,
    * 8 October). Each of these was searched: «السلام عليكم» → «جرّب قصر

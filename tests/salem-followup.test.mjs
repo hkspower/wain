@@ -37,7 +37,7 @@ execSync(
 );
 const {
   readFollowUp, nextPlaces, followUpChips, withinAnswer, areaIndex, places, buildIndex, search, answerOrder,
-  elsewhereNamed, isTopicless,
+  elsewhereNamed, isTopicless, whereLine = () => "(no whereLine)",
 } = await import(
   pathToFileURL(bundle).href
 );
@@ -291,6 +291,125 @@ console.log("\n── a part of Kuwait with nothing in it is named back ──")
   for (const q of ["قهوة", "السالمية", "مطعم بالسالمية", "صباح الأحمد"]) {
     ok(`«${q}» names nowhere`, elsewhereNamed(q, idx) === null, String(elsewhereNamed(q, idx)));
   }
+}
+
+/*
+ * The 14 October scan: each message below was replayed against the free chat
+ * and answered as a search — a thanks with a house, «ابشر» with «ما لقيت شي»
+ * and the memory wiped, «مو هذي» with the same eight beaches again, «ما أبي
+ * بحر» with an answer narrowed TOWARDS the sea, «كم مكان فيه؟» with one place
+ * opened, «الخامس» under four cafés with a souq.
+ */
+console.log("\n── thanks, blessings and welcomes are said to a person, never searched (14 October) ──");
+{
+  const SAID = [
+    ["يعطيك الصحة", "afia"], ["الله يعطيك الصحة", "afia"], ["يعطيك ألف عافية", "afia"], ["يعطيكم العافية", "afia"],
+    ["مشكورين", "thanks"], ["الله يحفظك", "thanks"], ["الله يسعدك", "thanks"], ["الله يوفقك", "thanks"],
+    ["ما تقصر", "thanks"], ["عساك على القوة", "thanks"], ["ممنون", "thanks"], ["يسلمو", "thanks"],
+    ["تسلم يا الغالي", "thanks"], ["حياك الله", "greet"], ["حياك", "greet"], ["الله يحييك", "greet"],
+    ["ابشر", "ok"], ["أبشر", "ok"], ["خلاص", "ok"], ["تم", "ok"], ["بس", "ok"], ["يلا", "ok"],
+  ];
+  for (const [msg, act] of SAID) {
+    const a = readFollowUp(msg, null);
+    const b = readFollowUp(msg, coffee);
+    ok(`«${msg}» is «${act}», with or without a last answer`, a.kind === "social" && a.act === act && b.kind === "social" && b.act === act,
+      `${JSON.stringify(a)} / ${JSON.stringify(b)}`);
+  }
+  // A thumbs-up is a nod, not a hello — it was «هلا والله!» with nothing on screen.
+  ok("«👍» is a nod with nothing on screen too", readFollowUp("👍", null).act === "ok", JSON.stringify(readFollowUp("👍", null)));
+  const doneCoffee = readFollowUp("خلاص أبي قهوة", null);
+  ok("«خلاص أبي قهوة» asks «أبي قهوة»", doneCoffee.kind === "new" && doneCoffee.query === "أبي قهوة", JSON.stringify(doneCoffee));
+  const sureSecond = readFollowUp("ابشر، وين الثاني؟", coffee);
+  ok("«ابشر، وين الثاني؟» is where the second one is", sureSecond.kind === "where" && sureSecond.slug === coffee.shown[1], JSON.stringify(sureSecond));
+}
+
+console.log("\n── «not these» keeps the answer and asks what instead (14 October) ──");
+{
+  const beach = context("بحر", JANUARY_EVENING);
+  for (const msg of ["مو هذي", "ما أبي", "ما عجبني", "ما يعجبني", "لا مو هذا", "مو هذا اللي أبيه", "مو حلو", "مو قهوة", "غلط", "ما ابي بحر"]) {
+    const r = readFollowUp(msg, beach);
+    ok(`«${msg}» after an answer is a «no» to it, not a search`, r.kind === "reject", JSON.stringify(r));
+    const fresh = readFollowUp(msg, null);
+    ok(`«${msg}» with nothing on screen asks what about`, fresh.kind === "ask" && fresh.what === "subject", JSON.stringify(fresh));
+  }
+  // The pair the order reads is still a narrowing, and so is a wish with one
+  // in it — «لا» in front of a wish is not a «no» to the answer.
+  for (const msg of ["مو غالي", "ما ابي شي غالي", "للعيال وما يكون غالي", "لا أبي شي مو غالي"]) {
+    const r = readFollowUp(msg, beach);
+    ok(`«${msg}» still narrows`, r.kind === "refine" && r.query.startsWith("بحر "), JSON.stringify(r));
+  }
+  // «مو برا» is «داخلي»: narrowed by the word, it was narrowed TO the outdoors.
+  for (const [msg, to] of [["مو برا", "داخلي"], ["مو داخلي", "برا"], ["مو زحمة", "هادي"], ["ما ابي مكان زحمة", "هادي"]]) {
+    const r = readFollowUp(msg, beach);
+    ok(`«${msg}» narrows to «${to}»`, r.kind === "refine" && r.query === `بحر ${to}`, JSON.stringify(r));
+  }
+  // End to end: by day the narrowed answer leads with a place that is not
+  // open-air. At eight in the evening the science centre is a morning place
+  // (answer-order's night rule) and a beach at «داخلي»'s 0.3 ties a half-
+  // covered souq — the shared ordering's strength, not this reading — so what
+  // is held there is the direction: more of the first four are not open-air
+  // than in the beach answer. Read as «برا», it went the other way.
+  const noonBeach = context("بحر", { month: 0, hour: 12 });
+  const noonInside = withinAnswer(ask(readFollowUp("مو برا", noonBeach).query, { month: 0, hour: 12 }), noonBeach);
+  ok("«مو برا» by day leads with a place that is not open-air", bySlug.get(noonInside[0]).setting !== "outdoor", noonInside.slice(0, 3).join(" "));
+  const notOpen = (list) => list.slice(0, 4).filter((s) => bySlug.get(s).setting !== "outdoor").length;
+  const eveningInside = withinAnswer(ask(readFollowUp("مو برا", beach).query), beach);
+  ok("«مو برا» in the evening moves the answer indoors", notOpen(eveningInside) > notOpen(beach.shown),
+    `${notOpen(beach.shown)} → ${notOpen(eveningInside)}: ${eveningInside.slice(0, 4).join(" ")}`);
+  const asTyped = withinAnswer(ask("بحر مو برا"), beach);
+  ok("further than «بحر مو برا» searched as typed, which the order reads as «برا»", notOpen(eveningInside) > notOpen(asTyped),
+    `${notOpen(asTyped)}: ${asTyped.slice(0, 4).join(" ")}`);
+  // «ما فيه…؟» is a question about what there is, not a «no».
+  const areas = areaIndex(places.map((p) => p.areaAr));
+  const salmiya = readFollowUp("ما فيه شي بالسالمية؟", context("مطعم", JANUARY_EVENING), null, areas);
+  ok("«ما فيه شي بالسالمية؟» is the last answer in السالمية", salmiya.kind === "refine" && salmiya.area === "السالمية", JSON.stringify(salmiya));
+  const quiet = readFollowUp("ما في مكان هادي؟", beach);
+  ok("«ما في مكان هادي؟» narrows to quiet", quiet.kind === "refine" && quiet.query.includes("هادي"), JSON.stringify(quiet));
+  const cheapQ = readFollowUp("ما عندك شي رخيص؟", beach);
+  ok("«ما عندك شي رخيص؟» narrows to cheap", cheapQ.kind === "refine" && cheapQ.query.includes("رخيص"), JSON.stringify(cheapQ));
+}
+
+console.log("\n── how many, and how much (14 October) ──");
+{
+  for (const msg of ["كم مكان فيه؟", "كم عدد الأماكن؟", "عددهم كم؟", "كم واحد؟", "كم مكان عندك؟"]) {
+    const a = readFollowUp(msg, coffee);
+    const b = readFollowUp(msg, null);
+    ok(`«${msg}» is a count, with or without a last answer`, a.kind === "count" && b.kind === "count", `${JSON.stringify(a)} / ${JSON.stringify(b)}`);
+  }
+  const price = readFollowUp("كم سعره؟", coffee, coffee.shown[2]);
+  ok("«كم سعره؟» is still the place pointed at — and marked a price question", price.kind === "pick" && price.slug === coffee.shown[2] && price.price === true, JSON.stringify(price));
+  const firstPrice = readFollowUp("كم سعر الأول؟", coffee);
+  ok("«كم سعر الأول؟» is the first place, a price question", firstPrice.kind === "pick" && firstPrice.slug === coffee.shown[0] && firstPrice.price === true, JSON.stringify(firstPrice));
+  const plain = readFollowUp("الثاني", coffee);
+  ok("«الثاني» is not a price question", plain.kind === "pick" && !plain.price, JSON.stringify(plain));
+}
+
+console.log("\n── a position past the end says so, and keeps the answer (14 October) ──");
+{
+  // «قهوة» alone finds four places (see above): a list shorter than five.
+  const cafes = context("قهوة", JANUARY_EVENING);
+  const coffee4 = () => cafes;
+  ok("«قهوة» puts four places on screen, or this proves nothing", coffee4().shown.length === 4, String(coffee4().shown.length));
+  const fifth = readFollowUp("الخامس", coffee4());
+  ok("«الخامس» under four cafés is past the end", fifth.kind === "beyond" && fifth.at === 5, JSON.stringify(fifth));
+  const third = readFollowUp("الثالث", coffee4());
+  ok("«الثالث» under four is the third", third.kind === "pick" && third.slug === coffee4().shown[2], JSON.stringify(third));
+  const ninth = readFollowUp("رقم ٩", coffee);
+  ok("«رقم ٩» under eight is past the end", ninth.kind === "beyond" && ninth.at === 9, JSON.stringify(ninth));
+  const tenth = readFollowUp("العاشر", coffee);
+  ok("«العاشر» under eight is past the end", tenth.kind === "beyond" && tenth.at === 10, JSON.stringify(tenth));
+  const whereSixth = readFollowUp("وين السادس؟", coffee4());
+  ok("«وين السادس؟» under four is past the end too", whereSixth.kind === "beyond" && whereSixth.at === 6, JSON.stringify(whereSixth));
+  const ninthFresh = readFollowUp("رقم ٩", null);
+  ok("«رقم ٩» with nothing on screen asks what about", ninthFresh.kind === "ask" && ninthFresh.what === "subject", JSON.stringify(ninthFresh));
+}
+
+console.log("\n── where a place is, said once (14 October) ──");
+{
+  const shaab = bySlug.get("al-shaab-beach");
+  ok("«شاطئ الشعب» is said without «— الشعب» after it", whereLine(shaab) === `${shaab.nameAr}.`, whereLine(shaab));
+  const towers = bySlug.get("kuwait-towers");
+  ok("a place whose name does not carry its area says the area", whereLine(towers) === `${towers.nameAr} — ${towers.areaAr}.`, whereLine(towers));
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);

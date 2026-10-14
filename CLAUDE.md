@@ -5762,6 +5762,38 @@ Nothing here says who put these files there. Deleting them is hard to undo, so t
 
 The web reader and the Dart reader share their lists by port, so A and B land in both. Any change to `search.ts` needs the parity fixtures rebuilt on both sides. The replay that produced these findings should become a test once the owner has decided what each message ought to get.
 
+## سالم's replies, fixed — 14 October, night (in the repository; not deployed)
+
+The owner's «improve salem feedback», read as: fix the findings of «The Salem scan» above in the local reader — the free build, and every agent build's fallback after a refusal — on the site and in the app. The scan's open decisions were taken by default (below). Nothing is deployed: the live sites still run the old reader.
+
+**What changed** — web `src/lib/social.ts`, `src/lib/salem-followup.ts`, `src/app/salem/SalemChat.tsx`, `src/lib/salem-copy.ts`; app `lib/data/salem_followup.dart`, `lib/screens/salem_screen.dart`, `lib/ai/config.dart`:
+- **Said to a person, never searched** (findings 1, 2, 6, 10). `social.ts` gains the common ways a Kuwaiti closes a message: thanks and blessings («مشكورين», «الله يحفظك», «يعطيك الصحة», «ما تقصر», «ممنون»), welcomes («حياك الله», «الله يحييك») and nods («ابشر», «خلاص», «تم», «بس», «يلا», «ما شاء الله», «ما يخالف», «عادي»). «ما فهمت» and «ما أدري» are `help`. «👍» is a nod with nothing on screen too (it was «هلا والله!»). The table is /search's as well, so /search reads these the same way.
+- **A «no» to the answer** (finding 3) is a new kind, `reject`: «مو هذي», «ما عجبني», «لا مو هذا», «مو قهوة», «ما أبي بحر», «غلط». The answer stays, and he asks «ما عجبتك؟ قول لي وش تبي بدالها…». A negator reads with the next word that says something (`readNegation`): «مو غالي» still narrows, because `answerOrder` reads the pair; «مو برا», «مو داخلي», «مو زحمة» narrow to the opposite («داخلي», «برا», «هادي») — read as words, «مو برا» narrowed toward the outdoors; and a leading «لا» in front of a wish is taken off, so «لا، أبي مطعم» asks for a restaurant. «ما فيه…؟» and «ما عندك…؟» are questions about what there is, not a «no».
+- **A count** (finding 4), `count`: «كم مكان فيه؟» and «عددهم كم؟» count the answer on screen («لقيت ١٤ مكان عن «مطعم» — وريتك ٨ منها…»), or the guide when nothing is on screen. «كم سعره؟» stays a price question: a count names what it counts.
+- **A position past the end** (finding 5), `beyond`: ordinals reach the tenth by name and forty by number. «رقم ٩» under eight says «ما عندي تاسع — اللي قدامك ٨ أماكن بس.» and keeps the answer.
+- **A miss keeps the answer** (findings 6–7, decision C): «… والأماكن اللي قبل باقية فوق.», and «غيره» typed after it goes on as the chip did.
+- **A price question** (finding 8) says the guide holds a band: «{name}: ما عندي أسعاره بالضبط، بس مستواه «متوسط».» (`pick` carries `price`).
+- **The where line names the area once** (finding 10): `whereLine`.
+- **The app mirrors all of it**: the same tables, `FollowUp.price` and `.at`, three new kinds, the same words in `ChatCopy`; `kPriceLabel` moved from the place page to `text_kit.dart`.
+
+**Decisions taken by default, for the owner to overturn:** C (a miss keeps the answer), B (a «no» asks what instead, rather than showing the next places), and D's wording. Not done: G (letting «كافيه» outrank a literal «بحر» — a search change with its own parity), and the agent's closing question before a tool call (a prompt change: the test cycle and credits).
+
+**Found, not changed:**
+- **The shared «داخلي» factor can tie.** At 8 pm in January, «بحر» then «مو برا» narrows to «بحر داخلي», and Messilah Beach (×0.3) ties Souq Sharq (×0.7) at 3.84; the science centre is ×0.6 there as a morning place at night. By day the narrowed answer leads indoors. The factor is /search's and the app's too, so it was left alone, and the evening test holds the direction, not the lead.
+- **`readAsks` ignores a negator in front of «برا»**, so /search reads «بحر مو برا» as asking for the outdoors (the search's own antonym rule softens it). Shared and ported, so not changed here.
+- **The hangout message says the area twice too**: «شاطئ الشعب — الشعب 📍» (`hangout.ts:223` and `:463`, `place-words.ts:33`). The `whereLine` rule fits; not applied, since the message has its own parity fixtures.
+
+**Tests, each red first:**
+- `tests/salem-followup.test.mjs`: 196 (was 120); 66 failed against the old reader.
+- `tests/salem.test.mjs`, «thanks, counts, «no» and a miss keep the answer»: 15 checks. 13 failed against a free build of the old code — built in a worktree in the scratchpad, outside the repository — each showing the scan's original reply. The whole file passes 95 on the new free build.
+- App: `salem_followup_test.dart` replays the regenerated fixtures (44 new chat messages, read with nothing on screen and against 14 answers; 9 new /search questions) and passes 17; `search_parity_test.dart` passes 989; `salem_together_test.dart` gains the same sequence and passes 20, proved red by two separate sabotages (the count branch off; the miss wiping the memory). `flutter analyze` clean.
+- `npm run scan` exit 0 on the free build. `audit:arabic` reports 0 errors; its notes went 79 → 99, all one kind — the reader's word lists are written folded («الصحه», «ابشر»), as the existing entries are, and the audit pairs them with the hamza'd spellings in prose.
+- The shared answer suites: `shouq-answers` 135, the question battery 106.
+
+**One trap, met:** the end-to-end check «مو برا leads indoors» failed at 8 pm and passed at noon. The cause was the night rule on a morning place plus a tie, read off `answerFactor` × the search score, not the reader. Read the scores before bending a reader to fit an ordering.
+
+**Not yet run when this was saved:** the other `test:hangout` suites, `test:journey`, `test:shouq`, and the full Flutter suite. **Not measured:** a phone, a native speaker's ear on the new lines, and the agent build's fallback path (the same code, reached only after a refusal).
+
 
 ## The redirect scan — 14 October: the apex has not redirected since 20 September, and CLAUDE.md still says it does
 

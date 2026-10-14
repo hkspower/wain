@@ -19,6 +19,8 @@ import '../data/places.g.dart';
 import '../data/answer_order.dart' show AnswerClock, kuwaitClock;
 import '../data/salem_followup.dart';
 import '../data/search.dart' show elsewhereNamed;
+import '../data/text_kit.dart'
+    show countAr, kPlacesCount, kPriceLabel, toArabicDigits;
 import '../data/voice_lines.dart';
 import '../map/wain_map.dart';
 import '../share/directions.dart';
@@ -472,6 +474,32 @@ class _SalemScreenState extends State<SalemScreen> {
       say(
         '$opener${intent.what == AskWhat.area ? ChatCopy.askArea : ChatCopy.askSubject}',
       );
+    } else if (intent.kind == FollowUpKind.count) {
+      // The answer on screen, or the whole guide when there is none. Said,
+      // and nothing remembered changes.
+      if (ctx != null && ctx.shown.isNotEmpty) {
+        final seen = ctx.seen.length < ctx.ranked.length
+            ? toArabicDigits(ctx.seen.length)
+            : null;
+        say(
+          '$opener${ChatCopy.count(countAr(ctx.ranked.length, kPlacesCount), ctx.query, seen)}',
+        );
+      } else {
+        say('$opener${ChatCopy.countAll(countAr(kPlaces.length, kPlacesCount))}');
+      }
+    } else if (ctx != null && intent.kind == FollowUpKind.beyond) {
+      final at = intent.at!;
+      final ordinal = at <= ChatCopy.ordinals.length
+          ? ChatCopy.ordinals[at - 1]
+          : ChatCopy.ordinalNumber(toArabicDigits(at));
+      say(
+        '$opener${ChatCopy.beyond(ordinal, countAr(ctx.shown.length, kPlacesCount), nextPlaces(ctx).isNotEmpty)}',
+      );
+    } else if (ctx != null && intent.kind == FollowUpKind.reject) {
+      // A «no» to the answer: it stays, and he asks what instead.
+      say(
+        '$opener${ChatCopy.reject(one: ctx.shown.length == 1, more: nextPlaces(ctx).isNotEmpty)}',
+      );
     } else if (ctx != null && intent.kind == FollowUpKind.more) {
       final slugs = nextPlaces(ctx);
       if (slugs.isEmpty) {
@@ -486,11 +514,24 @@ class _SalemScreenState extends State<SalemScreen> {
       final place = getPlace(intent.slug!)!;
       _active = place.slug;
       if (intent.kind == FollowUpKind.pick) {
-        parts = placeParts(place);
+        // «كم سعره؟» — the guide holds a band, not a price, and says so
+        // instead of the place's try-line (14 October).
+        parts = intent.price
+            ? [
+                SpeechPart(
+                  text: ChatCopy.priceNote(
+                    place.nameAr,
+                    place.priceLevel < kPriceLabel.length
+                        ? kPriceLabel[place.priceLevel]
+                        : '',
+                  ),
+                ),
+              ]
+            : placeParts(place);
         answerLine(parts);
         lines.add(ChatPlace(place.slug));
       } else {
-        parts = [SpeechPart(text: '${place.nameAr} — ${place.areaAr}.')];
+        parts = [SpeechPart(text: whereLine(place))];
         lines.add(
           ChatText('agent', '$opener${parts.first.text} ${ChatCopy.where}'),
         );
@@ -535,12 +576,14 @@ class _SalemScreenState extends State<SalemScreen> {
       final ranked = chatRanked(query, searchIndex, kPlaces, clock);
       if (ranked.isEmpty) {
         // A part of Kuwait with nothing in it says so by name; anything else
-        // is a word that matched nothing.
+        // is a word that matched nothing. The answer on screen stays — a miss
+        // used to wipe the memory, so the «غيره» typed next asked «عن شنو؟»
+        // while the chip under that answer still worked (14 October).
         final where = elsewhereNamed(query, searchIndex);
+        final kept = ctx != null && ctx.shown.isNotEmpty;
         say(
-          '$opener${where != null ? ChatCopy.elsewhere(where) : ChatCopy.freeEmpty}',
+          '$opener${where != null ? ChatCopy.elsewhere(where) : kept ? ChatCopy.freeEmptyKept : ChatCopy.freeEmpty}',
         );
-        _ctx = null;
       } else {
         final slugs = ranked.take(8).toList();
         final spoken = spokenFor(slugs);

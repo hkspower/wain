@@ -206,12 +206,68 @@ console.log('\n── he answers what is said, not only what is searched ──'
 
   await ask(p, 'زززققق');
   ok('a word that matches nothing still says so', (await lastSaid(p)).includes('ما لقيت شي'));
-  // A miss forgets the answer — but a chip still on screen belongs to the
-  // answer it came with, and acts on it.
+  // A chip still on screen belongs to the answer it came with, and acts on
+  // it — whatever the memory holds (a miss used to wipe it; it keeps it now).
   before = await pages();
   await p.locator('[data-followups] button', { hasText: 'وين بالضبط؟' }).click({ timeout: 3000 }).catch(() => {});
   const after = await where(before);
   ok('…and the coffee answer\'s chip still acts on the coffee, with a map of its own', coffee.includes(after ?? ''), `${after} vs ${coffee.join(',')}`);
+  ok('no page errors in any of it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── thanks, counts, «no» and a miss keep the answer (14 October) ──');
+{
+  /* Replayed against the free chat on 14 October, each of these was a search:
+     «يعطيك الصحة» answered with a house, «كم مكان فيه؟» opened one place, «رقم
+     ٩» under eight a stranger, «مو هذي» the same eight again, and a miss wiped
+     the memory so the «غيره» typed after it asked «عن شنو؟». The reader is
+     unit-tested; this is the page saying what the reader read. */
+  const { ctx, p, errors } = await fresh('/salem/');
+  const cards = () => p.locator('[role="log"] a[href^="/places/"]').count();
+
+  await ask(p, '👍');
+  let said = await lastSaid(p);
+  ok('a thumbs-up with nothing on screen is a nod, not a hello', said.includes('تمام') && !said.includes('هلا'), said);
+  await ask(p, 'كم مكان عندك؟');
+  said = await lastSaid(p);
+  ok('«كم مكان عندك؟» with nothing on screen counts the guide', said.includes('عندي') && said.includes('مكان بالكويت'), said);
+
+  await ask(p, 'مطعم');
+  const shown = await cards();
+  ok('«مطعم» is an answer with more than one page of places', shown >= 8, String(shown));
+
+  await ask(p, 'يعطيك الصحة');
+  said = await lastSaid(p);
+  ok('«يعطيك الصحة» is thanked back, not searched', said.includes('الله يعافيك'), said);
+  ok('…with no cards drawn for it', (await cards()) === shown);
+
+  await ask(p, 'كم مكان فيه؟');
+  said = await lastSaid(p);
+  ok('«كم مكان فيه؟» counts the answer on screen', said.includes('لقيت') && said.includes('«مطعم»') && said.includes('غيره'), said);
+  ok('…and draws nothing', (await cards()) === shown);
+
+  await ask(p, 'رقم ٩');
+  said = await lastSaid(p);
+  ok('«رقم ٩» under eight says there is no ninth', said.includes('ما عندي تاسع'), said);
+
+  await ask(p, 'كم سعره؟');
+  said = await lastSaid(p);
+  ok('«كم سعره؟» says the guide has no price, only its band', said.includes('ما عندي أسعاره بالضبط'), said);
+
+  const before = await cards();
+  await ask(p, 'مو هذي');
+  said = await lastSaid(p);
+  ok('«مو هذي» is a «no» to the answer: he asks what instead', said.includes('ما عجبتك') && said.includes('بدالها'), said);
+  ok('…and nothing is searched for it', (await cards()) === before);
+
+  await ask(p, 'زززققق');
+  said = await lastSaid(p);
+  ok('a miss after an answer says the answer is still there', said.includes('ما لقيت شي') && said.includes('اللي قبل باقية'), said);
+  await ask(p, 'غيره');
+  said = await lastSaid(p);
+  ok('…and «غيره» typed after it goes on with that answer, not «عن شنو؟»', said.includes('وهذي غيرها') && !said.includes('عن شنو'), said);
+  ok('…with more cards', (await cards()) > before, `${before} → ${await cards()}`);
   ok('no page errors in any of it', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

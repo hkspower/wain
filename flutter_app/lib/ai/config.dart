@@ -257,6 +257,11 @@ abstract final class ChatCopy {
       'اللي تكتبه يبقى بجهازك — البحث يصير داخل الصفحة وما ينرسل لأحد.';
   static const freeEmpty =
       'ما لقيت شي يطابق هذا — جرّب كلمة ثانية، مثل «قهوة» أو «بحر» أو اسم منطقة.';
+
+  /// The same miss with an answer already on screen: the answer stays (it
+  /// used to be wiped, so the «غيره» typed next asked «عن شنو؟»).
+  static const freeEmptyKept =
+      'ما لقيت شي يطابق هذا — جرّب كلمة ثانية، والأماكن اللي قبل باقية فوق.';
   static const unavailableStatus = 'مو متاح الحين';
   static const retryLater = 'جرّب مرة ثانية';
   static const notConfigured = 'المحادثة مو متاحة الحين.';
@@ -275,6 +280,32 @@ abstract final class ChatCopy {
       'هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.';
   static const refineNone = 'ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.';
   static const where = 'مكانه على الخريطة تحت.';
+
+  /// Four more replies the memory reads (14 October — the web's `count`,
+  /// `countAll`, `beyond`, `reject` and `priceNote`, the same words), each of
+  /// which was searched and answered with a stranger.
+  static String count(String found, String query, String? seen) => seen != null
+      ? 'لقيت $found عن «$query» — وريتك $seen منها، وإذا تبي الباقي قول «غيره».'
+      : 'لقيت $found عن «$query»، وكلها قدامك.';
+  static String countAll(String found) =>
+      'عندي $found بالكويت — قول لي وش تبي وأدوّر لك فيها.';
+  static String beyond(String ordinal, String onScreen, bool more) =>
+      'ما عندي $ordinal — اللي قدامك $onScreen بس.${more ? ' قول «غيره» وأوريك غيرها.' : ''}';
+
+  /// «ما عندي خامس», and past the tenth by number: «ما عندي رقم ١٢».
+  static const ordinals = [
+    'أول', 'ثاني', 'ثالث', 'رابع', 'خامس', 'سادس', 'سابع', 'ثامن', 'تاسع', //
+    'عاشر',
+  ];
+  static String ordinalNumber(String digits) => 'رقم $digits';
+  static String reject({required bool one, required bool more}) => one
+      ? 'ما عجبك؟ قول لي وش تبي بداله وأدوّر لك.'
+      : more
+      ? 'ما عجبتك؟ قول لي وش تبي بدالها، أو قول «غيره» وأوريك غيرها.'
+      : 'ما عجبتك؟ قول لي وش تبي بدالها وأدوّر لك.';
+  static String priceNote(String name, String band) => band.isNotEmpty
+      ? '$name: ما عندي أسعاره بالضبط، بس مستواه «$band».'
+      : '$name: ما عندي أسعاره بالضبط.';
 
   /// What he says to a message that is not about places (8 October — the
   /// web's `opener`, `askTail`, `social`, `askSubject`, `askArea`,

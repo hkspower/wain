@@ -21,7 +21,6 @@ import '../widgets/layout.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 
-const _priceLabel = ['', 'اقتصادي', 'متوسط', 'راقي'];
 const _settingLabel = {
   'indoor': 'مكيّف',
   'outdoor': 'برا',
@@ -487,7 +486,7 @@ class _InfoGrid extends StatelessWidget {
           _Heading('coins', 'مستوى الأسعار', WainColors.sand600),
           const SizedBox(height: 6),
           Text(
-            _priceLabel[place.priceLevel],
+            kPriceLabel[place.priceLevel],
             style: wainText(WainText.sm, color: WainColors.ink600),
           ),
           const SizedBox(height: 16),

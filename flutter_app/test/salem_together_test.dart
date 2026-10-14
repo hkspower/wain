@@ -21,6 +21,9 @@ import 'package:wain/data/answer_order.dart' show AnswerClock;
 import 'package:wain/data/catalogue.dart';
 import 'package:wain/data/models.dart';
 import 'package:wain/data/places.g.dart';
+import 'package:wain/data/salem_followup.dart' show whereLine;
+import 'package:wain/data/text_kit.dart'
+    show countAr, kPlacesCount, kPriceLabel, toArabicDigits;
 import 'package:wain/data/voice_lines.dart';
 import 'package:wain/map/wain_map.dart';
 import 'package:wain/screens/salem_screen.dart';
@@ -370,7 +373,8 @@ void main() {
       await _ask(t, 'وين الثاني؟');
       expect(whereSlug(), coffee[1], reason: 'the second café');
       await _ask(t, 'زززققق');
-      expect(find.text(ChatCopy.freeEmpty), findsOneWidget);
+      // The coffee is on screen, so the miss says it stays (14 October).
+      expect(find.text(ChatCopy.freeEmptyKept), findsOneWidget);
       // Counted, not only read: the newest map block is the one «وين
       // الثاني؟» drew until a new one comes, so reading it alone passed with
       // the chip asking the (now empty) memory instead of its own answer.
@@ -391,6 +395,72 @@ void main() {
       );
       await t.pumpWidget(const SizedBox());
     });
+  });
+
+  // Replayed against the web's free chat on 14 October, each of these was a
+  // search: a thanks answered with a house, «كم مكان فيه؟» opened one place,
+  // «رقم ٩» under eight a stranger, «مو هذي» the same eight again, and a miss
+  // wiped the memory so the «غيره» typed after it asked «عن شنو؟».
+  testWidgets('thanks, counts, «no» and a miss keep the answer', (t) async {
+    await _pump(t);
+    await _ask(t, '👍');
+    expect(find.text(ChatCopy.socialOkFresh), findsOneWidget, reason: '👍');
+    await _ask(t, 'كم مكان عندك؟');
+    expect(
+      find.text(ChatCopy.countAll(countAr(kPlaces.length, kPlacesCount))),
+      findsOneWidget,
+      reason: 'the guide, counted',
+    );
+    await _ask(t, 'مطعم');
+    final ranked = chatRanked('مطعم', searchIndex, kPlaces, _january8pm);
+    expect(ranked.length, greaterThan(8), reason: 'more than one page');
+    final cards = find.byKey(const ValueKey('chat-places')).evaluate().length;
+    await _ask(t, 'يعطيك الصحة');
+    expect(find.text(ChatCopy.socialAfia), findsOneWidget);
+    await _ask(t, 'كم مكان فيه؟');
+    expect(
+      find.text(
+        ChatCopy.count(
+          countAr(ranked.length, kPlacesCount),
+          'مطعم',
+          toArabicDigits(8),
+        ),
+      ),
+      findsOneWidget,
+      reason: 'the answer on screen, counted',
+    );
+    await _ask(t, 'رقم ٩');
+    expect(
+      find.text(ChatCopy.beyond('تاسع', countAr(8, kPlacesCount), true)),
+      findsOneWidget,
+      reason: 'no ninth under eight',
+    );
+    await _ask(t, 'كم سعره؟');
+    final first = getPlace(ranked.first)!;
+    expect(
+      find.textContaining(
+        ChatCopy.priceNote(first.nameAr, kPriceLabel[first.priceLevel]),
+      ),
+      findsOneWidget,
+      reason: 'a band, not a price',
+    );
+    await _ask(t, 'مو هذي');
+    expect(
+      find.text(ChatCopy.reject(one: false, more: true)),
+      findsOneWidget,
+      reason: 'a «no» to the answer',
+    );
+    expect(
+      find.byKey(const ValueKey('chat-places')).evaluate().length,
+      cards,
+      reason: 'nothing searched for any of it',
+    );
+    await _ask(t, 'زززققق');
+    expect(find.text(ChatCopy.freeEmptyKept), findsOneWidget);
+    await _ask(t, 'غيره');
+    expect(find.textContaining(ChatCopy.moreIntro), findsOneWidget);
+    expect(find.text(ChatCopy.askSubject), findsNothing);
+    await t.pumpWidget(const SizedBox());
   });
 
   testWidgets('«الثاني» picks the second card: its card and the share panel', (
@@ -466,7 +536,7 @@ void main() {
     );
     await _ask(t, 'وين بالضبط؟');
     expect(
-      find.text('${fourth.nameAr} — ${fourth.areaAr}. ${ChatCopy.where}'),
+      find.text('${whereLine(fourth)} ${ChatCopy.where}'),
       findsOneWidget,
     );
     final where = _newest('chat-where');

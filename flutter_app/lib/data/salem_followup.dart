@@ -55,7 +55,21 @@ class ChatContext {
   });
 }
 
-enum FollowUpKind { newQuestion, refine, more, pick, where, social, ask }
+/// `count` («كم مكان فيه؟»), `beyond` (a position past the end of what is on
+/// screen, [FollowUp.at]) and `reject` («مو هذي» — a «no» to the answer,
+/// which stays) joined on 14 October; see the web file.
+enum FollowUpKind {
+  newQuestion,
+  refine,
+  more,
+  pick,
+  where,
+  count,
+  beyond,
+  reject,
+  social,
+  ask,
+}
 
 /// A message that is not about places. The first four are also the greetings
 /// said in front of a question ([FollowUp.opener]). Named as the web names
@@ -80,6 +94,13 @@ class FollowUp {
   /// The place, for [FollowUpKind.pick] and [FollowUpKind.where].
   final String? slug;
 
+  /// A [FollowUpKind.pick] asked as a price — «كم سعره؟». The catalogue holds
+  /// a price band, not a price, and the answer says so.
+  final bool price;
+
+  /// The position asked for, counted from one, for [FollowUpKind.beyond].
+  final int? at;
+
   /// What was said, for [FollowUpKind.social].
   final SocialAct? act;
 
@@ -96,6 +117,8 @@ class FollowUp {
     this.added,
     this.area,
     this.slug,
+    this.price = false,
+    this.at,
     this.act,
     this.what,
     this.opener,
@@ -107,6 +130,8 @@ class FollowUp {
     added: added,
     area: area,
     slug: slug,
+    price: price,
+    at: at,
     act: act,
     what: what,
     opener: o,
@@ -119,6 +144,9 @@ class FollowUp {
     FollowUpKind.more => 'more',
     FollowUpKind.pick => 'pick',
     FollowUpKind.where => 'where',
+    FollowUpKind.count => 'count',
+    FollowUpKind.beyond => 'beyond',
+    FollowUpKind.reject => 'reject',
     FollowUpKind.social => 'social',
     FollowUpKind.ask => 'ask',
   };
@@ -133,7 +161,10 @@ final Set<String> _filler = _fold(const [
   'هذي', 'هذاك', 'طيب', 'اوكي', 'اوك', 'ok', 'يعني', 'و', 'بس', 'حلو', //
   'زين', 'عن', 'على', 'ع', 'ال', 'انا', 'احنا', 'لو', 'سمحت', 'تكفى', //
   'ممكن', 'شنو', 'شو', 'ايش', 'عاد', 'هم', 'بعد', 'كذا', 'اذا', 'يا', //
-  'سالم', 'الله', 'يخليك', 'لي', 'لنا', 'حق', 'مال',
+  'سالم', 'الله', 'يخليك', 'لي', 'لنا', 'حق', 'مال', 'عندك', 'عندكم', //
+  'يوجد', 'موجود', 'موجوده',
+  // «مافيه…؟» typed as one word: the question about what there is.
+  'مافيه', 'مافي', 'ماعندك', 'ماعندكم',
 ]);
 
 /// «غيره» — the next places of the same answer.
@@ -150,7 +181,9 @@ final Set<String> _where = _fold(const [
   'خريطه', 'الخريطه', 'العنوان', 'عنوانه', 'هو', 'هي',
 ]);
 
-/// «الثاني», «رقم ٣» — one of the places on screen, by its position.
+/// «الثاني», «رقم ٣» — one of the places on screen, by its position. To the
+/// tenth by name and to forty by number, so a position past the end of what is
+/// on screen is read as one ([FollowUpKind.beyond]) rather than searched.
 final Map<String, int> _ordinals = {
   for (final w in const ['الاول', 'اول', 'اولها', 'الاولى']) normalise(w): 0,
   for (final w in const ['الثاني', 'الثانيه', 'ثانيها']) normalise(w): 1,
@@ -158,7 +191,12 @@ final Map<String, int> _ordinals = {
     normalise(w): 2,
   for (final w in const ['الرابع', 'الرابعه', 'رابع']) normalise(w): 3,
   for (final w in const ['الخامس', 'الخامسه', 'خامس']) normalise(w): 4,
-  for (var d = 1; d <= 8; d++) '$d': d - 1,
+  for (final w in const ['السادس', 'السادسه', 'سادس']) normalise(w): 5,
+  for (final w in const ['السابع', 'السابعه', 'سابع']) normalise(w): 6,
+  for (final w in const ['الثامن', 'الثامنه', 'ثامن']) normalise(w): 7,
+  for (final w in const ['التاسع', 'التاسعه', 'تاسع']) normalise(w): 8,
+  for (final w in const ['العاشر', 'العاشره', 'عاشر']) normalise(w): 9,
+  for (var d = 1; d <= 40; d++) '$d': d - 1,
 };
 final Set<String> _ordinalFiller = _fold(const [
   'رقم', 'المكان', 'اللي', 'الي', 'خلنا', 'ناخذ', 'نروح', 'ابي', 'ودي', //
@@ -190,7 +228,8 @@ final Set<String> _nearFiller = _fold(const [
 ]);
 
 /// Words that narrow an answer. «مو غالي» is two of them. «قريب» is not one:
-/// the order cannot know what is near (see [_near]).
+/// the order cannot know what is near (see [_near]). The negators are here so
+/// «وما»/«ومو» lose their «و»; a negator on its own narrows nothing.
 final Set<String> _refiners = _fold(const [
   // the price
   'رخيص', 'رخيصه', 'ارخص', 'اقتصادي', 'ميزانيه', 'بلاش', 'غالي', 'مو', //
@@ -209,6 +248,104 @@ final Set<String> _refiners = _fold(const [
   'العصر', 'الحين', 'باجر', 'الويكند',
 ]);
 
+/// «كم مكان فيه؟», «عددهم كم؟» — a count. It needs a word for what is
+/// counted: «كم» alone, and «كم سعره؟», stay price questions.
+final Set<String> _countAsk = _fold(const ['كم', 'عدد', 'العدد', 'عددهم', 'عددها']);
+final Set<String> _countNoun = _fold(const [
+  'مكان', 'اماكن', 'الاماكن', 'واحد', 'عدد', 'العدد', 'عددهم', 'عددها', //
+  'خيار', 'خيارات', 'نتيجه', 'نتايج', 'نتائج', 'محل', 'محلات',
+]);
+final Set<String> _countWords = _fold(const [
+  'لقيت', 'طلع', 'طلعت', 'كلها', 'كلهم', 'بالكل', 'تقريبا', //
+]);
+
+/// A «no» to the answer, and the words it is said with — see [_readNegation].
+/// «ولا» is not one: it is «or», and is never peeled to «لا».
+final Set<String> _negators = _fold(const [
+  'مو', 'ما', 'مب', 'مش', 'موب', 'مهوب', 'لا', //
+]);
+
+/// Skipped between a negator and what it negates: «ما أبي أروح البحر».
+final Set<String> _want = _fold(const [
+  'ابي', 'ابغى', 'ابا', 'نبي', 'نبغى', 'ودي', 'بغيت', 'اروح', 'نروح', //
+  'اطلع', 'نطلع',
+]);
+
+/// What a «no» says after its negator, and needs nothing after it.
+final Set<String> _notThis = _fold(const [
+  'هذا', 'هذي', 'هذاك', 'هذيك', 'هذول', 'هذولا', 'هاذي', 'هاذا', 'ذا', 'ذي', //
+  'اللي', 'الي', 'كذا', 'عجبني', 'يعجبني', 'عاجبني', 'عجبتني', 'تعجبني', //
+  'عاجبتني', 'حبيته', 'حبيتها', 'احبه', 'احبها', 'ابيه', 'ابيها', 'ابيهم', //
+  'ابغاه', 'ابغاها', 'حلو', 'حلوه', 'زين', 'زينه', 'صح', 'مناسب', 'مناسبه', //
+  'يصلح', 'ينفع',
+]);
+
+/// «غلط», «خايس» — a «no» with no negator.
+final Set<String> _wrong = _fold(const [
+  'غلط', 'خطا', 'سيء', 'سيئ', 'سيئه', 'خايس', 'خايسه', 'زفت', 'بايخ', 'بايخه', //
+]);
+
+/// «مو غالي» — the one pair `answerOrder` reads.
+final Set<String> _dear = _fold(const ['غالي', 'غاليه', 'مكلف']);
+
+/// A word that a negator turns into another narrowing: «مو برا» is «داخلي».
+final Map<String, String> _opposite = {
+  for (final w in const ['برا', 'بره', 'خارجي', 'مكشوف']) normalise(w): 'داخلي',
+  for (final w in const ['داخلي', 'داخل', 'مكيف', 'مكيفه', 'مسكر'])
+    normalise(w): 'برا',
+  normalise('زحمه'): 'هادي',
+};
+
+/// «ما فيه…؟», «ما عندك…؟» — a question about what there is: its «ما» says
+/// nothing and is dropped before anything reads it.
+final Set<String> _thereIs = _fold(const [
+  'فيه', 'في', 'عندك', 'عندكم', 'يوجد', 'موجود', //
+]);
+final String _ma = normalise('ما');
+
+/// What the negators in a short reply do (`readNegation` on the web): none,
+/// kept (`مو غالي`), a «no» to the answer, or the opposite narrowing asked
+/// for, as [words].
+({String kind, List<String> words}) _readNegation(List<String> words) {
+  const none = (kind: 'none', words: <String>[]);
+  if (!words.any(_negators.contains)) return none;
+  bool says(String w) =>
+      !_filler.contains(w) && !_want.contains(w) && !_negators.contains(w);
+  final out = <String>[];
+  var swapped = false;
+  for (var k = 0; k < words.length; k++) {
+    final w = words[k];
+    if (!_negators.contains(w)) {
+      out.add(w);
+      continue;
+    }
+    var n = k + 1;
+    while (n < words.length &&
+        !_notThis.contains(words[n]) &&
+        !says(words[n])) {
+      n++;
+    }
+    final next = n < words.length ? words[n] : null;
+    if (next != null && _dear.contains(next)) {
+      out.add(w);
+      continue;
+    }
+    final opposite = next == null ? null : _opposite[next];
+    if (opposite != null) {
+      out.add(opposite);
+      swapped = true;
+      k = n;
+      continue;
+    }
+    // A «no»: only when nothing after it asks for something else.
+    final after = words
+        .sublist(n + 1 > words.length ? words.length : n + 1)
+        .where((x) => says(x) && !_notThis.contains(x));
+    return after.isEmpty ? (kind: 'reject', words: <String>[]) : none;
+  }
+  return swapped ? (kind: 'swap', words: out) : (kind: 'keep', words: <String>[]);
+}
+
 /// The things people say to a person and not to a search box, matched as
 /// whole words: «السلام» opens «السلام عليكم» and is never looked for inside
 /// «قصر السلام». The web's `SOCIAL`, in the same order.
@@ -225,7 +362,8 @@ const List<(SocialAct, List<String>)> _social = [
     [
       'هلا', 'هلا والله', 'هلا وغلا', 'هلا فيك', 'هلا بك', 'يا هلا', 'اهلا', //
       'اهلين', 'اهلا وسهلا', 'مرحبا', 'مرحبتين', 'هاي', 'هلو', 'hi', 'hello', //
-      'hey', 'salam',
+      'hey', 'salam', 'حياك', 'حياك الله', 'حياكم', 'حياكم الله', //
+      'الله يحييك', 'الله يحييكم', 'سلامات',
     ],
   ),
   (
@@ -249,12 +387,21 @@ const List<(SocialAct, List<String>)> _social = [
       'شكرا', 'شكرا لك', 'شكرا جزيلا', 'مشكور', 'مشكوره', 'تسلم', 'تسلم يدك', //
       'تسلم ايدك', 'ما قصرت', 'كفو', 'مرسي', 'ميرسي', 'ثانكس', 'ثانكيو', //
       'جزاك الله خير', 'يزاك الله خير', 'الله يجزاك خير', 'thanks', //
-      'thank you', 'thx', 'ty',
+      'thank you', 'thx', 'ty', 'مشكورين', 'تسلمون', 'تسلمين', 'يسلمو', //
+      'يسلموا', 'يسلمو ايدك', 'ما تقصر', 'ما تقصرون', 'ما قصرتوا', //
+      'كفيت ووفيت', 'الله يحفظك', 'الله يحفظكم', 'الله يسعدك', 'الله يسعدكم', //
+      'الله يوفقك', 'الله يوفقكم', 'الله يخليك', 'ربي يحفظك', 'ربي يسعدك', //
+      'عساك على القوه', 'عساك عالقوه', 'ممنون', 'ممنونك', 'ممنونين', 'تشكر', //
+      'thank u',
     ],
   ),
   (
     SocialAct.afia,
-    ['يعطيك العافيه', 'الله يعطيك العافيه', 'عطاك الله العافيه'],
+    [
+      'يعطيك العافيه', 'الله يعطيك العافيه', 'عطاك الله العافيه', //
+      'يعطيكم العافيه', 'الله يعطيكم العافيه', 'يعطيك الف عافيه', //
+      'الله يعطيك الف عافيه', 'يعطيك الصحه', 'الله يعطيك الصحه',
+    ],
   ),
   (
     SocialAct.who,
@@ -275,6 +422,8 @@ const List<(SocialAct, List<String>)> _social = [
       'شنو تقدر تسوي', 'شنو تسوي', 'وش تقدر تسوي', 'وش تسوي', 'شتسوي', //
       'شنو عندك', 'وش عندك', 'شعندك', 'ساعدني', 'كيف استخدمك', //
       'شلون استخدمك', 'شلون استخدمه', 'help',
+      // Lost, not refusing: never read as a «no» to the answer.
+      'ما فهمت', 'ما فهمتك', 'مو فاهم', 'ما ادري', 'مادري', 'ما اعرف', 'محتار',
     ],
   ),
   (
@@ -291,6 +440,13 @@ const List<(SocialAct, List<String>)> _social = [
       'اوكي', 'اوك', 'اوكيه', 'ok', 'okay', 'تمام', 'طيب', 'زين', 'ماشي', //
       'حلو', 'ايه', 'اي', 'اكيد', 'نعم', 'يب', 'يس', 'yes', 'هه', 'ه', //
       'هاها', 'lol',
+      // «ابشر», «خلاص», «بس», «يلا» on their own: a nod, not a search.
+      'ابشر', 'ابشري', 'ابشروا', 'خلاص', 'تم', 'بس', 'عدل', 'يلا', 'يالله', //
+      'يلا يلا', 'انزين',
+      // Praise and «never mind»: three open with «ما» and are no «no».
+      'ما شاء الله', 'ماشاء الله', 'ماشالله', 'تبارك الله', 'حلوه', 'روعه', //
+      'رهيب', 'واو', 'wow', 'nice', 'ما يخالف', 'مايخالف', 'ما عليه', //
+      'ماعليه', 'لا باس', 'مو مشكله', 'عادي',
     ],
   ),
   (SocialAct.no, ['لا', 'لا شكرا', 'لا مشكور', 'no', 'no thanks']),
@@ -484,7 +640,11 @@ bool _known(String w) =>
     _last.contains(w) ||
     _best.contains(w) ||
     _price.contains(w) ||
-    _near.contains(w);
+    _near.contains(w) ||
+    _countAsk.contains(w) ||
+    _countNoun.contains(w) ||
+    _wrong.contains(w) ||
+    _notThis.contains(w);
 
 /// A leading «و» peeled off a word the lists know: «وللعيال» is «للعيال».
 String _peelWaw(String w) =>
@@ -536,18 +696,16 @@ FollowUp readFollowUp(
   final units = parsed.units;
   final remembers = ctx != null && ctx.shown.isNotEmpty;
   if (all.isEmpty) {
-    // «؟», «👍» — punctuation or an emoji, nothing to read.
+    // «؟», «👍» — punctuation or an emoji: a nod, never a search, and never
+    // a hello (it was «هلا والله!» with nothing on screen).
     return text.isNotEmpty
-        ? FollowUp._(
-            FollowUpKind.social,
-            act: remembers ? SocialAct.ok : SocialAct.greet,
-          )
+        ? const FollowUp._(FollowUpKind.social, act: SocialAct.ok)
         : FollowUp._(FollowUpKind.newQuestion, query: text);
   }
 
   // What is said to a person, at the front and the back. Every act is noted;
   // only greetings, thanks and «تمام» are taken off a message that goes on to
-  // say something else — «لا أبي شي مو غالي» is not a «no».
+  // say something else.
   final w = [for (final x in all) x.w];
   final frame = socialFrame(w);
   final lead = frame.lead;
@@ -560,20 +718,35 @@ FollowUp readFollowUp(
     final a = socialAct([...lead, ...trail]);
     return FollowUp._(FollowUpKind.social, act: a.act, opener: a.opener);
   }
-  // A greeting in front of a question is answered first; a «no», a «who» or a
-  // goodbye in front of one is not a greeting, and the message is read whole.
-  if (!_peelable(lead)) i = 0;
+  // A greeting in front of a question is answered first; a «who» or a goodbye
+  // in front of one is not a greeting, and the message is read whole. A «لا»
+  // in front is the «no» said before what is wanted instead — «لا، أبي مطعم»
+  // — so it is taken off too and the rest is read.
+  if (!lead.every(
+    (a) => _openers.contains(a) || _silent.contains(a) || a == SocialAct.no,
+  )) {
+    i = 0;
+  }
   if (!_peelable(trail)) j = w.length;
   final opener = lead.where(_openers.contains).firstOrNull;
   final from = i;
   FollowUp withOpener(FollowUp f) =>
       opener != null && from > 0 ? f._withOpener(opener) : f;
 
-  final kept = all.sublist(i, j);
+  // «ما فيه…؟», «ما عندك…؟» — a question about what there is: its «ما» says
+  // nothing.
+  final framed = all.sublist(i, j);
+  final kept = [
+    for (var k = 0; k < framed.length; k++)
+      if (!(_peelWaw(framed[k].w) == _ma &&
+          k + 1 < framed.length &&
+          _thereIs.contains(_peelWaw(framed[k + 1].w))))
+        framed[k],
+  ];
   // The question as typed, without the greeting: every typed unit with a word
   // left in it.
   final keptUnits = {for (final x in kept) x.unit};
-  final rest = i == 0 && j == w.length
+  final rest = i == 0 && j == w.length && kept.length == all.length
       ? text
       : [
           for (var u = 0; u < units.length; u++)
@@ -582,6 +755,58 @@ FollowUp readFollowUp(
   final restWords = [for (final x in kept) _peelWaw(x.w)];
   final core = restWords.where((x) => !_filler.contains(x)).toList();
   final asNew = withOpener(FollowUp._(FollowUpKind.newQuestion, query: rest));
+
+  // How many: «كم مكان فيه؟», «عددهم كم؟» — the last answer's, or the
+  // catalogue's with nothing on screen. «كم سعره؟» is not one.
+  if (restWords.any(_countAsk.contains) &&
+      restWords.any(_countNoun.contains) &&
+      restWords.every(
+        (x) =>
+            _countAsk.contains(x) ||
+            _countNoun.contains(x) ||
+            _countWords.contains(x) ||
+            _filler.contains(x),
+      )) {
+    return withOpener(const FollowUp._(FollowUpKind.count));
+  }
+
+  // A «no» to the answer: «مو هذي», «ما عجبني», «ما أبي بحر», «غلط». The
+  // answer stays and he asks what instead; with nothing on screen, what about.
+  final negation = restWords.length <= _short + 2
+      ? _readNegation(restWords)
+      : (kind: 'none', words: const <String>[]);
+  final wrong =
+      core.any(_wrong.contains) &&
+      core.every((x) => _wrong.contains(x) || _notThis.contains(x));
+  if (negation.kind == 'reject' || wrong) {
+    return withOpener(
+      remembers
+          ? const FollowUp._(FollowUpKind.reject)
+          : const FollowUp._(FollowUpKind.ask, what: AskWhat.subject),
+    );
+  }
+  // «مو برا» is «داخلي», «ما أبي مكان زحمة» is «هادي» — the opposite, asked
+  // for. Narrowed by the words themselves, «مو برا» went to the outdoors.
+  if (negation.kind == 'swap') {
+    final said = negation.words
+        .where((x) => !_filler.contains(x) && !_more.contains(x))
+        .toList();
+    final narrowing = said.where((x) => !_negators.contains(x)).toList();
+    if (narrowing.isNotEmpty &&
+        said.length <= _short &&
+        narrowing.every(_refiners.contains)) {
+      final added = said.join(' ');
+      return withOpener(
+        remembers
+            ? FollowUp._(
+                FollowUpKind.refine,
+                query: '${ctx.query} $added',
+                added: added,
+              )
+            : FollowUp._(FollowUpKind.newQuestion, query: added),
+      );
+    }
+  }
 
   // «قريب مني» — there is nothing on this screen to be near to.
   if (core.any(_near.contains) &&
@@ -641,7 +866,8 @@ FollowUp readFollowUp(
   if (restWords.length > _short + 2) return asNew;
 
   // A position on screen: «الثاني», «رقم ٢», «الأخير», «أحسن واحد» — and
-  // where it is, when that is what was asked: «وين الثاني؟».
+  // where it is, when that is what was asked: «وين الثاني؟». A position past
+  // the end of what is on screen is [FollowUpKind.beyond], never a search.
   bool positional(String x) =>
       _ordinals.containsKey(x) ||
       _ordinalFiller.contains(x) ||
@@ -649,11 +875,15 @@ FollowUp readFollowUp(
       _best.contains(x) ||
       _where.contains(x) ||
       _price.contains(x);
+  final price = core.any(_price.contains);
   if (core.isNotEmpty && core.every(positional)) {
     final ordinal = core.where(_ordinals.containsKey).firstOrNull;
     final at = ordinal != null ? _ordinals[ordinal]! : null;
+    if (at != null && at >= ctx.shown.length) {
+      return withOpener(FollowUp._(FollowUpKind.beyond, at: at + 1));
+    }
     final String? slug = at != null
-        ? (at < ctx.shown.length ? ctx.shown[at] : null)
+        ? ctx.shown[at]
         : core.any(_last.contains)
         ? ctx.shown.last
         : core.any(_best.contains)
@@ -661,10 +891,9 @@ FollowUp readFollowUp(
         : null;
     if (slug != null) {
       return withOpener(
-        FollowUp._(
-          core.any(_where.contains) ? FollowUpKind.where : FollowUpKind.pick,
-          slug: slug,
-        ),
+        core.any(_where.contains)
+            ? FollowUp._(FollowUpKind.where, slug: slug)
+            : FollowUp._(FollowUpKind.pick, slug: slug, price: price),
       );
     }
   }
@@ -677,7 +906,9 @@ FollowUp readFollowUp(
   if (core.isNotEmpty &&
       core.any(_price.contains) &&
       core.every((x) => _price.contains(x) || _where.contains(x))) {
-    return withOpener(FollowUp._(FollowUpKind.pick, slug: pointed));
+    return withOpener(
+      FollowUp._(FollowUpKind.pick, slug: pointed, price: true),
+    );
   }
 
   // Where — and only where: «وين بالضبط؟» is a follow-up, «وين أتعشى» is not.
@@ -691,11 +922,13 @@ FollowUp readFollowUp(
   }
 
   // Narrowing: short, and every word one that narrows. «غيره أرخص» is the
-  // same narrowing — the «غيره» says nothing the narrowed answer does not.
+  // same narrowing — the «غيره» says nothing the narrowed answer does not. A
+  // negator narrows nothing by itself: it travels with the word it negates.
   final refining = core.where((x) => !_more.contains(x)).toList();
-  if (refining.isNotEmpty &&
+  final narrowing = refining.where((x) => !_negators.contains(x)).toList();
+  if (narrowing.isNotEmpty &&
       refining.length <= _short &&
-      refining.every(_refiners.contains)) {
+      narrowing.every(_refiners.contains)) {
     final added = core.length == refining.length
         ? rest
         : [
@@ -726,6 +959,14 @@ FollowUp readFollowUp(
   }
 
   return asNew;
+}
+
+/// Where a place is, as he says it: its name and its area — once. «شاطئ الشعب
+/// — الشعب.» said the area twice (14 October). Matched as whole words, folded.
+String whereLine(Place p) {
+  final name = ' ${_splitWords(normalise(p.nameAr)).join(' ')} ';
+  final area = ' ${_splitWords(normalise(p.areaAr)).join(' ')} ';
+  return name.contains(area) ? '${p.nameAr}.' : '${p.nameAr} — ${p.areaAr}.';
 }
 
 /// A narrowed question's places, kept to the ones the answer it narrows had
