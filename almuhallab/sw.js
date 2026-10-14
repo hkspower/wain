@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v55";   /* v55: the share card at 2400x1260, the structured data's logo at 1024 */
+var CACHE = "nokhatha-v56";   /* v56: company page alignment (drawing, tabs, footer, channels, counters, steps, labels) */
 /* The site root is not listed: "./" and "index.html" are the same 155 KB
    page, and every install fetched it twice. A request for the root is
    looked up as index.html below. logo.svg is not listed either: no page,

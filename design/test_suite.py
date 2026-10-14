@@ -836,6 +836,7 @@ def browser_checks():
         fit_checks(br)
         logo_hq_checks(br)
         alignment_checks(br)
+        align_company_checks(br)
         mobile_layout_checks(br)
         code_quality_checks(br)
         portal_checks(pg)
@@ -1045,7 +1046,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "922", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "931", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -1078,7 +1079,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "922", "0", "100%"], str(finals))
+          finals == ["4", "931", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -4640,6 +4641,663 @@ def asset_checks():
     check(S, "the scan finds the scripts the shipped files credit", len(named) >= 8, str(len(named)))
     gone = {p: sorted(w) for p, w in named.items() if not (REPO / p).is_file()}
     check(S, "every design script a shipped file credits exists", not gone, str(gone))
+
+# ═══════════════════════════════════════════ ALIGN-FIX BEGIN
+# ── alignment fix block: shared helpers and the company page ───────────────
+ALIGN_SIZES = [(1440, 900), (1024, 768), (844, 390), (768, 1024), (390, 844), (320, 640)]
+# the same measuring helpers in every page's script: an element's visibility,
+# its rounded numbers, and the union of its text's line boxes (what a reader sees,
+# not the box the text sits in)
+AL_HELP = r"""
+  const AL = {
+    vis: e => !!e && e.checkVisibility() && e.getBoundingClientRect().width > 0,
+    round: x => Math.round(x * 10) / 10,
+    txt: (el, skip) => {
+      if (!el) return null;
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), rs = []; let n;
+      while ((n = w.nextNode())) {
+        if (!n.textContent.trim() || (skip && n.parentElement.closest(skip))) continue;
+        const g = document.createRange(); g.selectNodeContents(n);
+        for (const q of g.getClientRects()) if (q.width > 0) rs.push(q);
+      }
+      if (!rs.length) return null;
+      const l = Math.min(...rs.map(q => q.left)), r = Math.max(...rs.map(q => q.right));
+      const t = Math.min(...rs.map(q => q.top)), b = Math.max(...rs.map(q => q.bottom));
+      return { l, r, t, b, cx: (l + r) / 2, cy: (t + b) / 2 };
+    }
+  };
+"""
+
+
+def _al_page(br, path, w, h, js, before=None):
+    """One page at one viewport, motion off, the body measured by `js` (a function
+    body that returns a plain object). `before` runs first, for a route or a tab."""
+    c = br.new_context(viewport={"width": w, "height": h}, is_mobile=w <= 844, has_touch=w <= 844,
+                       reduced_motion="reduce", locale="ar-KW")
+    pg = c.new_page()
+    pg.goto(f"{BASE}/{path}", wait_until="networkidle"); pg.wait_for_timeout(250)
+    if before:
+        before(pg); pg.wait_for_timeout(200)
+    pg.evaluate("document.querySelectorAll('.callfab').forEach(e => e.remove())")
+    r = pg.evaluate("() => {" + AL_HELP + js + "}")
+    c.close()
+    return r
+
+
+COMPANY_JS = r"""
+  const out = {};
+  const svg = document.querySelector('.product.lead svg.scene.wide');
+  const tile = document.querySelector('.product.lead h3 .tile');
+  if (AL.vis(svg) && tile) {
+    // the drawing's ink (its own bounding box, in its viewBox units) mapped to the page
+    const box = svg.getBoundingClientRect(), bb = svg.getBBox(), vb = svg.viewBox.baseVal;
+    const s = Math.min(box.width / vb.width, box.height / vb.height);
+    const ox = box.left + (box.width - vb.width * s) / 2;
+    out.gap = AL.round(tile.getBoundingClientRect().right - (ox + (bb.x + bb.width - vb.x) * s));
+    const win = svg.querySelector('rect.soft');
+    const wx = +win.getAttribute('x'), ww = +win.getAttribute('width');
+    out.labels = [...svg.querySelectorAll('text.tab')].map(t => { const b = t.getBBox();
+      return [t.textContent.trim(), AL.round(b.x - wx), AL.round(wx + ww - (b.x + b.width))]; });
+  }
+  out.fcols = [...document.querySelectorAll('.fcols > div')].filter(AL.vis).map(e => {
+    const r = e.getBoundingClientRect(); return [e.classList.contains('fbrand') ? 'brand' : 'col', AL.round(r.top), AL.round(r.width)]; });
+  out.pills = [...document.querySelectorAll('.channels .channel')].filter(AL.vis).map(e => AL.round(e.getBoundingClientRect().width));
+  out.stats = [...document.querySelectorAll('.hero .stats .stat')].filter(AL.vis).map(s => { const t = AL.txt(s.querySelector('.num')); return t ? AL.round(t.cx) : null; });
+  const h1 = AL.txt(document.querySelector('.hero h1'));
+  const k = document.querySelector('.hero .kicker');
+  if (h1 && AL.vis(k)) out.kicker = AL.round(AL.txt(k, '.pr, .cur').cx - h1.cx);
+  const tm = document.querySelector('header .brand .term');
+  if (h1 && AL.vis(tm)) out.term = AL.round(AL.txt(tm, '.pr, .cur').cx - h1.cx);
+  const hub = document.querySelector('.flowmap .fnode.hub');
+  if (AL.vis(hub)) { const hb = hub.getBoundingClientRect();
+    out.hub = [AL.round(hb.top), AL.round(hb.bottom)].concat([...document.querySelectorAll('.flowmap .frow .wire')].filter(AL.vis).map(w => {
+      const r = w.getBoundingClientRect(); return AL.round((r.top + r.bottom) / 2); })); }
+  return out;
+"""
+
+
+def _al_ink_steps(br, w, h):
+    """Each process step's title, measured on its rendered ink against the ring's
+    centre. A text-range rect is the em box, and Arabic ink sits low in that box:
+    the em-box centre read 2px high after the review's 4px fix while the ink
+    landed 0.3 to 1.2px under the ring centre (2026-10-14, 3x screenshots)."""
+    import io
+    from PIL import Image
+    c = br.new_context(viewport={"width": w, "height": h}, is_mobile=w <= 844, has_touch=w <= 844,
+                       reduced_motion="reduce", locale="ar-KW")
+    pg = c.new_page(); pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(250)
+    pg.evaluate("document.querySelectorAll('.callfab').forEach(e => e.remove())")
+    out = []
+    for i in range(pg.evaluate("document.querySelectorAll('ol.flow li').length")):
+        g = pg.evaluate("""(i) => { const li = document.querySelectorAll('ol.flow li')[i];
+          li.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const b = li.querySelector('b').getBoundingClientRect(), cs = getComputedStyle(li, '::before');
+          const ring = li.getBoundingClientRect().top + (parseFloat(cs.top) || 0) +
+            (parseFloat(cs.height) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)) / 2;
+          return { b: [b.left, b.top, b.right, b.bottom], ring }; }""", i)
+        im = Image.open(io.BytesIO(pg.screenshot())).convert("L")
+        l, t, r, bt = g["b"]
+        rows = [y for y in range(max(0, int(t) - 3), min(im.height, int(bt) + 4))
+                if any(im.getpixel((x, y)) > 110 for x in range(max(0, int(l)), min(im.width, int(r))))]
+        out.append(round((min(rows) + max(rows) + 1) / 2 - g["ring"], 1) if rows else None)
+    c.close()
+    return out
+
+
+def align_company_checks(br):
+    """Company page, measured at the six sizes (owner's «make full aligment»,
+    2026-10-14). One check per class of misalignment; each names the sizes it
+    holds at and the numbers it found, so a failure says where and by how much."""
+    S = "align"
+    rows = {(w, h): _al_page(br, "index.html", w, h, COMPANY_JS) for w, h in ALIGN_SIZES}
+
+    # 1. a drawing hugs its row: its ink reaches the edge its title sets
+    bad = [f"{w}px: {r['gap']}px short" for (w, h), r in rows.items() if 'gap' in r and abs(r['gap']) > 2]
+    check(S, "the product drawing's ink reaches the title's start edge at every width", not bad, "; ".join(bad))
+
+    # 2. labels sit inside the frame they name, with room on both sides
+    bad = [f"{w}px {l[0]}: {l[1]}/{l[2]}" for (w, h), r in rows.items() for l in r.get('labels', []) if min(l[1], l[2]) < 6]
+    check(S, "every tab label in the product drawing sits inside its window", not bad, "; ".join(bad[:4]))
+
+    # 3. the footer's link columns share a row where the grid is three across
+    bad = []
+    for (w, h), r in rows.items():
+        if 641 <= w <= 900:
+            cols = [c for c in r['fcols'] if c[0] == 'col']
+            tops = [c[1] for c in cols]; wid = [c[2] for c in cols]
+            if len(cols) != 3 or max(tops) - min(tops) > 1 or max(wid) - min(wid) > 2:
+                bad.append(f"{w}px tops {tops} widths {wid}")
+    check(S, "the footer's three link columns share one row and one width from 641 to 900px", not bad, "; ".join(bad))
+
+    # 4. same kind, same width: the channel pills on one bar
+    bad = [f"{w}px {p}" for (w, h), r in rows.items() for p in [r.get('pills', [])]
+           if p and max(p) - min(p) > 2]
+    check(S, "the contact pills on the bar share one width at every size", not bad, "; ".join(bad))
+
+    # 5. a two-column counter block: each column one centre line
+    bad = []
+    for (w, h), r in rows.items():
+        s = r.get('stats', [])
+        if w <= 390 and len(s) == 4 and None not in s:
+            if abs(s[0] - s[2]) > 1 or abs(s[1] - s[3]) > 1:
+                bad.append(f"{w}px columns {s}")
+    check(S, "the hero's counters keep one centre line per column on a phone", not bad, "; ".join(bad))
+
+    # 6. a step's title shares its numbered ring's centre line (below 900px)
+    bad = []
+    for w, h in ((844, 390), (768, 1024), (390, 844), (320, 640)):
+        for v in _al_ink_steps(br, w, h):
+            if v is None or abs(v) > 2:
+                bad.append(f"{w}px {v}")
+    check(S, "each process step's title ink shares its numbered ring's centre line", not bad, "; ".join(bad[:8]))
+
+    # 7. centred labels on the headline's axis: the kicker and masthead term
+    bad = [f"{w}px kicker {r['kicker']} term {r.get('term')}" for (w, h), r in rows.items()
+           if w in (1440, 390, 320) and 'kicker' in r and (abs(r['kicker']) > 1.5 or abs(r.get('term', 0)) > 1.5)]
+    check(S, "the kicker and the masthead term centre on the headline's axis", not bad, "; ".join(bad))
+
+    # 8. a flow node is as tall as the wires that meet it (the horizontal map)
+    bad = []
+    for (w, h), r in rows.items():
+        if w >= 901 and 'hub' in r:
+            top, bot, *wires = r['hub']
+            bad += [f"{w}px wire {v} outside hub {top}-{bot}" for v in wires if not (top - 1 <= v <= bot + 1)]
+    check(S, "both source wires of the flow map land on the hub's flank", not bad, "; ".join(bad))
+
+
+# ── alignment fix block: the portal (nokhatha.html) ────────────────────────
+def _al_rule_offset(pg, h2sel, tsel):
+    """The heading's amber rule (its ::after, which no rect can reach) found on
+    the rendered pixels, against the centre of the block it heads (`tsel`).
+    Offset in px: + is right of centre. The rule is a 2px row under the heading."""
+    import io
+    from PIL import Image
+    pg.evaluate("(s) => document.querySelector(s).scrollIntoView({ block: 'center', behavior: 'instant' })", h2sel)
+    g = pg.evaluate("""([a, b]) => { const h = document.querySelector(a).getBoundingClientRect();
+      const t = document.querySelector(b).getBoundingClientRect();
+      return [h.left, h.right, h.bottom, (t.left + t.right) / 2]; }""", [h2sel, tsel])
+    im = Image.open(io.BytesIO(pg.screenshot())).convert("RGB"); px = im.load()
+    l, r, bot, tc = g
+    num = den = 0.0
+    for x in range(max(0, int(l)), min(im.width, int(r))):
+        m = max(0, max(px[x, y][0] - px[x, y][2] - 8 for y in range(max(0, int(bot) - 3), min(im.height, int(bot)))))
+        num += (x + 0.5) * m; den += m
+    return None if den == 0 else round(num / den - tc, 1)
+
+
+def _al_portal(br, path, w, h, js, before=None):
+    return _al_page(br, path, w, h, js, before)
+
+
+PORTAL_CARDS_JS = r"""
+  const rows = []; const cards = [...document.querySelectorAll('#mcp-grid-home .card')].filter(AL.vis);
+  for (const c of cards) { const t = c.getBoundingClientRect().top; let r = rows.find(x => Math.abs(x.t - t) < 3);
+    if (!r) rows.push(r = { t, cs: [] }); r.cs.push(c); }
+  return rows.map(r => r.cs.map(c => [AL.round(c.querySelector('h3 .tile').getBoundingClientRect().top),
+                                      AL.round(c.querySelector('p').getBoundingClientRect().top)]));
+"""
+
+PORTAL_FOOTER_JS = r"""
+  const f = document.querySelector('footer'), m = document.querySelector('main');
+  const fc = getComputedStyle(f), mc = getComputedStyle(m), fr = f.getBoundingClientRect(), mr = m.getBoundingClientRect();
+  return { footer: [AL.round(fr.left + parseFloat(fc.paddingLeft)), AL.round(fr.right - parseFloat(fc.paddingRight))],
+           main: [AL.round(mr.left + parseFloat(mc.paddingLeft)), AL.round(mr.right - parseFloat(mc.paddingRight))] };
+"""
+
+PORTAL_PLAN_JS = r"""
+  const h = AL.txt(document.querySelector('#page-pricing h2')), sub = AL.txt(document.querySelector('#page-pricing .sub')),
+        note = AL.txt(document.querySelector('#page-pricing .form-note')), plan = document.querySelector('#plans .plan');
+  if (!AL.vis(plan) || !h) return null;
+  const pc = plan.getBoundingClientRect().left + plan.getBoundingClientRect().width / 2;
+  return { h: AL.round(h.cx - pc), sub: sub ? AL.round(sub.cx - pc) : null, note: note ? AL.round(note.cx - pc) : null };
+"""
+
+PORTAL_NAV_JS = r"""
+  const hd = document.querySelector('header'), brand = AL.txt(document.querySelector('header .brand'));
+  const br = document.querySelector('header .brand').getBoundingClientRect();
+  const first = [...document.querySelectorAll('header #nav > *')].find(AL.vis);
+  return { headerH: AL.round(hd.getBoundingClientRect().height), brandR: AL.round(br.right),
+           firstR: first ? AL.round(first.getBoundingClientRect().right) : null };
+"""
+
+
+def align_portal_checks(br):
+    """The portal, measured (owner's «make full aligment», 2026-10-14)."""
+    S = "align"
+    # 1. a centred heading's rule sits on the centre of the block it heads
+    bad = []
+    for w, h in ALIGN_SIZES:
+        for route, h2, tgt in (("register", "#page-register h2.section", "#form-register"),
+                               ("login", "#page-login h2.section", "#form-login"),
+                               ("pricing", "#page-pricing h2.section", "#plans .plan")):
+            c = br.new_context(viewport={"width": w, "height": h}, is_mobile=w <= 844, has_touch=w <= 844,
+                               reduced_motion="reduce", locale="ar-KW")
+            pg = c.new_page(); pg.goto(f"{BASE}/nokhatha.html#/{route}", wait_until="networkidle")
+            pg.wait_for_timeout(300)
+            off = _al_rule_offset(pg, h2, tgt)
+            c.close()
+            if off is None or abs(off) > 2:
+                bad.append(f"{route} {w}px {off}")
+    check(S, "each centred heading's rule sits on the centre of the form or plan it heads", not bad, "; ".join(bad))
+
+    # 2. a wrapped bar starts its links under the brand, not at the far end
+    bad = []
+    for w, h in ((641, 900), (700, 900), (768, 1024), (823, 900)):
+        r = _al_page(br, "nokhatha.html#/", w, h, PORTAL_NAV_JS)
+        if r["headerH"] > 90 and (r["firstR"] is None or abs(r["firstR"] - r["brandR"]) > 2):
+            bad.append(f"{w}px first link {r['firstR']} vs brand {r['brandR']}")
+    check(S, "a wrapped bar from 641 to 823px starts its links under the brand", not bad, "; ".join(bad))
+
+    # 3. the pricing heading, subline and note share the plan's centre line
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (844, 390), (768, 1024)):
+        r = _al_page(br, "nokhatha.html#/pricing", w, h, PORTAL_PLAN_JS)
+        if r is None or any(v is not None and abs(v) > 2 for v in (r["h"], r["sub"], r["note"])):
+            bad.append(f"{w}px {r}")
+    check(S, "the pricing heading, subline and note centre over the plan card", not bad, "; ".join(bad))
+
+    # 4. the unit cards in one row share their icon and description tops
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (768, 1024), (390, 844)):
+        for row in _al_page(br, "nokhatha.html#/", w, h, PORTAL_CARDS_JS):
+            tiles = {t for t, d in row}; descs = {d for t, d in row}
+            if max(tiles) - min(tiles) > 1 or max(descs) - min(descs) > 1:
+                bad.append(f"{w}px tiles {sorted(tiles)} descriptions {sorted(descs)}")
+    check(S, "unit cards in one row share their icon and description tops", not bad, "; ".join(bad))
+
+    # 5. the footer keeps the phone's 16px gutter, the same as the column above it
+    bad = []
+    for w, h in ((390, 844), (320, 640)):
+        r = _al_page(br, "nokhatha.html#/", w, h, PORTAL_FOOTER_JS)
+        if abs(r["footer"][0] - r["main"][0]) > 1 or abs(r["footer"][1] - r["main"][1]) > 1:
+            bad.append(f"{w}px footer {r['footer']} main {r['main']}")
+    check(S, "the footer's text box matches the phone column's 16px gutter", not bad, "; ".join(bad))
+
+
+# ── alignment fix block: the system page (nizam.html) ──────────────────────
+# the demo records the review measured with (six orders, four holdings, two couriers),
+# written in the shape the page reads back: a fresh context has none of them
+SEED_DELIVERY_JS = """() => {
+  const o = (id, cust, amt, st, cr) => ({ id, customer: cust, phone: '99887766', address: 'السالمية',
+    items: 'طلب', amount: amt, courier: cr, status: st, createdAt: '2026-10-01T10:00:00.000Z' });
+  localStorage.setItem('nokhatha-delivery-couriers-v1', JSON.stringify([
+    { name: 'سالم', phone: '99012345' }, { name: 'خالد', phone: '99001122' }]));
+  localStorage.setItem('nokhatha-delivery-orders-v1', JSON.stringify([
+    o('ORD-0001', 'عميل ١', 7.5, 3, 'سالم'), o('ORD-0002', 'عميل ٢', 12.25, 4, ''),
+    o('ORD-0003', 'عميل ٣', 3, 3, 'خالد'), o('ORD-0004', 'عميل ٤', 9, 0, ''),
+    o('ORD-0005', 'عميل ٥', 15.5, 1, 'سالم'), o('ORD-0006', 'عميل ٦', 4.25, 2, '')]));
+}"""
+SEED_SAFI_JS = """() => {
+  localStorage.setItem('nokhatha-safi-v1', JSON.stringify([
+    { ticker: 'NBK', name: 'بنك الكويت الوطني', qty: 100, cost: 850, price: 900 },
+    { ticker: 'ZAIN', name: 'زين', qty: 200, cost: 500, price: 480 },
+    { ticker: 'AGILITY', name: 'أجيليتي', qty: 150, cost: 620, price: 700 },
+    { ticker: 'KFH', name: 'بيت التمويل', qty: 300, cost: 300, price: 310 }]));
+}"""
+
+
+def _al_seed(js):
+    """A `before` hook for _al_page: write the records, then reload onto the route."""
+    return lambda pg: (pg.evaluate(js), pg.reload(wait_until="networkidle"))
+
+
+def _al_orphan_js(csel, isel):
+    """Every container matching `csel`: its items (direct children matching
+    `isel`) grouped into rows. A row of one item is an orphan when the container
+    is a multi-column grid (some row holds two or more) and that item is not
+    spanning the container: a lone half-width item among full rows. A statement
+    total spans its row by design, so its row is not an orphan."""
+    return ("""  return [...document.querySelectorAll(%r)].filter(AL.vis).map(c => {
+    const items = [...c.children].filter(e => e.matches(%r) && AL.vis(e)), rows = [];
+    for (const e of items) { const t = e.getBoundingClientRect().top; let r = rows.find(x => Math.abs(x.t - t) < 3);
+      if (!r) rows.push(r = { t, n: [] }); r.n.push(e); }
+    const cs = getComputedStyle(c), content = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const multi = rows.some(r => r.n.length > 1);
+    return { rows: rows.map(r => r.n.length), content: AL.round(content),
+      lone: multi ? rows.filter(r => r.n.length === 1).map(r => AL.round(r.n[0].getBoundingClientRect().width)) : [] };
+  });""" % (csel, isel))
+
+
+def _al_orphans(br, path, w, h, csel, isel, before=None):
+    return _al_page(br, path, w, h, _al_orphan_js(csel, isel), before)
+
+
+SYS_ORDERS_JS = r"""
+  const os = [...document.querySelectorAll('#del-orders .order')].filter(AL.vis);
+  return { st: os.map(o => AL.round(o.querySelector('.status').getBoundingClientRect().left)),
+           am: os.map(o => AL.round(o.querySelector('.amount').getBoundingClientRect().right)) };
+"""
+
+SYS_FOOTER_JS = r"""
+  const f = document.querySelector('footer.site'), m = document.querySelector('main');
+  const fc = getComputedStyle(f), mc = getComputedStyle(m), fr = f.getBoundingClientRect(), mr = m.getBoundingClientRect();
+  return { footer: [AL.round(fr.left + parseFloat(fc.paddingLeft)), AL.round(fr.right - parseFloat(fc.paddingRight))],
+           main: [AL.round(mr.left + parseFloat(mc.paddingLeft)), AL.round(mr.right - parseFloat(mc.paddingRight))] };
+"""
+
+SYS_PLOT_JS = r"""
+  return [...document.querySelectorAll('#safi-chart .fig')].filter(AL.vis).map(f => {
+    const p = f.querySelector('.plot').getBoundingClientRect(), t = AL.txt(f.querySelector('h3'));
+    const cs = getComputedStyle(f), content = f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return p.width < content - 2 ? AL.round(p.right - t.r) : 'uncapped'; });
+"""
+
+SYS_SOCIAL_JS = r"""
+  const tags = [...document.querySelectorAll('#soc-tags .soc')].filter(AL.vis).map(c =>
+    AL.round(AL.txt(c.querySelector('.tags')).r - AL.txt(c.querySelector('.head b')).r));
+  const btns = [...document.querySelectorAll('#soc-channels [data-clip], #soc-copy [data-clip], #soc-tags [data-clip]')]
+    .filter(AL.vis).map(e => AL.round(e.getBoundingClientRect().left));
+  return { tags, btns };
+"""
+
+SYS_DERIVE_JS = r"""
+  const btn = document.getElementById('xbrl-derive'), note = btn.nextElementSibling;
+  if (!AL.vis(btn) || !AL.vis(note)) return null;
+  if (Math.abs(note.getBoundingClientRect().top - btn.getBoundingClientRect().top) > 20) return 'wrapped';
+  return AL.round(AL.txt(note).cy - AL.txt(btn, 'svg').cy);
+"""
+
+SYS_CHIP_JS = r"""
+  return [...document.querySelectorAll('#del-couriers .status')].filter(AL.vis).map(ch => {
+    const bc = ch.querySelector('button').getBoundingClientRect();
+    return AL.round(AL.txt(ch, 'button, svg').cy - (bc.top + bc.bottom) / 2); });
+"""
+
+SYS_FORM_JS = r"""
+  const f = document.getElementById(FORMID);
+  return [...f.querySelectorAll('input:not([type=checkbox]):not([type=hidden]), select')].filter(AL.vis)
+    .map(e => AL.round(e.getBoundingClientRect().height));
+"""
+
+SYS_STATUS_JS = r"""
+  const c = document.getElementById('xbrl-check'), cs = getComputedStyle(c);
+  const edge = c.getBoundingClientRect().right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+  const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), rights = []; let n;
+  while ((n = w.nextNode())) {
+    if (!n.textContent.trim() || n.parentElement.closest('svg')) continue;
+    const g = document.createRange(); g.selectNodeContents(n);
+    for (const q of g.getClientRects()) if (q.width > 0) rights.push(AL.round(q.right - edge));
+  }
+  return rights;
+"""
+
+SYS_LEGEND_JS = r"""
+  return [...document.querySelectorAll('#xbrl-form fieldset')].filter(AL.vis).map(f => {
+    const lg = AL.txt(f.querySelector('legend')), lab = AL.txt(f.querySelector(':scope > label'), 'input, select, option, button, svg');
+    return lg && lab ? AL.round(lg.r - lab.r) : null; });
+"""
+
+SYS_BUTTONS_JS = r"""
+  const row = document.getElementById('xbrl-preview').closest('.row'), cs = getComputedStyle(row);
+  const content = row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  return [...row.querySelectorAll('button')].filter(AL.vis).map(b => AL.round(b.getBoundingClientRect().width / content));
+"""
+
+
+def align_system_checks(br):
+    """The system page, measured on each tab (owner's «make full aligment», 2026-10-14)."""
+    S = "align"
+    ALL = ALIGN_SIZES
+    # 1. a status column: the same x on every order card
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (844, 390), (768, 1024)):
+        r = _al_page(br, "nizam.html#/delivery", w, h, SYS_ORDERS_JS, before=_al_seed(SEED_DELIVERY_JS))
+        if len(r["st"]) >= 2 and (max(r["st"]) - min(r["st"]) > 1 or max(r["am"]) - min(r["am"]) > 1):
+            bad.append(f"{w}px status {sorted(set(r['st']))} amount {sorted(set(r['am']))}")
+    check(S, "the status and amount columns sit on one x in every order card", not bad, "; ".join(bad))
+
+    # 2. no tile is left alone on a row unless it spans the row
+    bad = []
+    for route, cs in (("position", "#pos-tiles"), ("safi", "#safi-tiles"), ("delivery", "#del-tiles")):
+        for w, h in ALL:
+            for c in _al_orphans(br, f"nizam.html#/{route}", w, h, cs, ".tile"):
+                if any(v < 0.9 * c["content"] for v in c["lone"]):
+                    bad.append(f"{route} {w}px rows {c['rows']} lone {c['lone']} of {c['content']}")
+    check(S, "no tile on the portfolio, position or delivery grids is left alone on a row", not bad, "; ".join(bad))
+
+    # 3. no field is left alone on a row of a statement's fieldset
+    bad = []
+    for w, h in ALL:
+        for c in _al_orphans(br, "nizam.html#/xbrl", w, h, "#xbrl-form fieldset", "label"):
+            if any(v < 0.9 * c["content"] for v in c["lone"]):
+                bad.append(f"{w}px rows {c['rows']} lone {c['lone']} of {c['content']}")
+    check(S, "no field on the statement fieldsets is left alone on a row", not bad, "; ".join(bad[:4]))
+
+    # 4. a capped chart's plot shares its title's start edge
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (844, 390), (768, 1024)):
+        for v in _al_page(br, "nizam.html#/safi", w, h, SYS_PLOT_JS, before=_al_seed(SEED_SAFI_JS)):
+            if v != "uncapped" and abs(v) > 2:
+                bad.append(f"{w}px {v}")
+    check(S, "a chart's plot, when capped, shares its title's start edge", not bad, "; ".join(bad))
+
+    # 5. a card's text runs from the same edge as its heading, Latin runs included
+    # and the copy action sits at one edge on every card kind
+    r = _al_page(br, "nizam.html#/social", 1440, 900, SYS_SOCIAL_JS)
+    r2 = _al_page(br, "nizam.html#/social", 390, 844, SYS_SOCIAL_JS)
+    bad = [f"1440px {v}" for v in r["tags"] if abs(v) > 2] + [f"390px {v}" for v in r2["tags"] if abs(v) > 2]
+    check(S, "each hashtag card's text starts on its heading's edge, Latin run included", not bad, "; ".join(bad))
+    bad = []
+    for rr, w in ((r, 1440), (r2, 390)):
+        if rr["btns"] and max(rr["btns"]) - min(rr["btns"]) > 2:
+            bad.append(f"{w}px copy buttons at {sorted(set(rr['btns']))}")
+    check(S, "the copy button sits at one edge on every channel, copy and hashtag card", not bad, "; ".join(bad))
+
+    # 6. the derive note sits on the button's centre line
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (844, 390), (768, 1024)):
+        v = _al_page(br, "nizam.html#/xbrl", w, h, SYS_DERIVE_JS)
+        if isinstance(v, (int, float)) and abs(v) > 1.5:
+            bad.append(f"{w}px {v}")
+    check(S, "the note beside the derive button shares the button's centre line", not bad, "; ".join(bad))
+
+    # 7. a courier's name shares its remove button's centre line
+    bad = []
+    for w, h in ((1440, 900), (390, 844)):
+        for v in _al_page(br, "nizam.html#/delivery", w, h, SYS_CHIP_JS, before=_al_seed(SEED_DELIVERY_JS)):
+            if abs(v) > 1.5:
+                bad.append(f"{w}px {v}")
+    check(S, "each courier's name shares its remove button's centre line", not bad, "; ".join(bad))
+
+    # 8. the controls in one form share one height
+    bad = []
+    for route, w in (("delivery", 1440), ("xbrl", 1440), ("safi", 1440), ("delivery", 390), ("xbrl", 390)):
+        fid = {"delivery": "del-form", "xbrl": "xbrl-form", "safi": "safi-form"}[route]
+        hs = _al_page(br, f"nizam.html#/{route}", w, 900 if w == 1440 else 844, SYS_FORM_JS.replace("FORMID", repr(fid)))
+        if hs and max(hs) - min(hs) > 1:
+            bad.append(f"{route} {w}px {sorted(set(hs))}")
+    check(S, "the inputs and selects in one form share one height", not bad, "; ".join(bad))
+
+    # 9. the status line's text runs from the start edge its audit items use
+    bad = []
+    for w, h in ((1440, 900), (390, 844)):
+        r = _al_page(br, "nizam.html#/xbrl", w, h, SYS_STATUS_JS,
+                     before=lambda pg: pg.click("#xbrl-validate"))
+        if any(abs(v) > 1.5 for v in r):
+            bad.append(f"{w}px lines {r}")
+    check(S, "the status line's text runs flush from its start edge, icon and all", not bad, "; ".join(bad))
+
+    # 10. a fieldset's title shares its fields' start edge
+    bad = []
+    for w, h in ((1440, 900), (768, 1024), (390, 844)):
+        for v in _al_page(br, "nizam.html#/xbrl", w, h, SYS_LEGEND_JS):
+            if v is not None and abs(v) > 2:
+                bad.append(f"{w}px {v}")
+    check(S, "each fieldset title shares the start edge of its field labels", not bad, "; ".join(bad))
+
+    # 11. on a phone the statement's actions fill the column, none alone on a line
+    bad = []
+    for w, h in ((390, 844), (320, 640)):
+        for v in _al_page(br, "nizam.html#/xbrl", w, h, SYS_BUTTONS_JS):
+            if v < 0.9:
+                bad.append(f"{w}px {v}")
+    check(S, "on a phone every action of the statement fills the column", not bad, "; ".join(bad))
+
+    # 12. the system's footer keeps the phone's 16px gutter
+    bad = []
+    for w, h in ((390, 844), (320, 640)):
+        r = _al_page(br, "nizam.html#/position", w, h, SYS_FOOTER_JS)
+        if abs(r["footer"][0] - r["main"][0]) > 1 or abs(r["footer"][1] - r["main"][1]) > 1:
+            bad.append(f"{w}px footer {r['footer']} main {r['main']}")
+    check(S, "the system footer's text box matches the phone column's 16px gutter", not bad, "; ".join(bad))
+
+
+# ── alignment fix block: the console (admin.html) ──────────────────────────
+SEED_USERS_JS = """() => {
+  const u = (name, st) => ({ name, status: st, createdAt: '2026-10-01T10:00:00.000Z' });
+  localStorage.setItem('nokhatha-users-v1', JSON.stringify({
+    'ali@example.com': u('علي', 'active'), 'sara@example.com': u('سارة', 'active'),
+    'omar@example.com': u('عمر', 'suspended'), 'mona@example.com': u('منى', 'active') }));
+}"""
+
+
+def _al_console(br, w, h, seed=None):
+    """The console past its first-run gate, on the overview tab. `seed` writes the
+    records the tabs list, after the clear and before the gate is set."""
+    c = br.new_context(viewport={"width": w, "height": h}, is_mobile=w <= 844, has_touch=w <= 844,
+                       reduced_motion="reduce", locale="ar-KW")
+    pg = c.new_page()
+    pg.goto(f"{BASE}/admin.html", wait_until="networkidle")
+    pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+    if seed:
+        pg.evaluate(seed)
+    pg.fill('#gate-form input[name="pass"]', "AdminPass123")
+    pg.fill('#gate-form input[name="confirm"]', "AdminPass123")
+    pg.evaluate("document.getElementById('gate-form').requestSubmit()"); pg.wait_for_timeout(1500)
+    return c, pg
+
+
+def _al_console_js(pg, js, tab=None):
+    if tab:
+        pg.click(f'nav.tabs button[data-tab="{tab}"]'); pg.wait_for_timeout(200)
+    pg.evaluate("document.querySelectorAll('.callfab').forEach(e => e.remove())")
+    return pg.evaluate("() => {" + AL_HELP + js + "}")
+
+
+CON_TILES_JS = r"""
+  return [...document.querySelectorAll('#tab-overview .tile')].filter(AL.vis).map(t => {
+    const n = AL.txt(t.querySelector('.n')), l = AL.txt(t.querySelector('.l'));
+    return n && l ? AL.round(n.r - l.r) : null; });
+"""
+
+CON_PLOTS_JS = r"""
+  return [...document.querySelectorAll('figure.fig')].filter(AL.vis).map(f => {
+    const p = f.querySelector('.plot').getBoundingClientRect(), t = AL.txt(f.querySelector('h3'));
+    const cs = getComputedStyle(f), content = f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    return p.width < content - 2 ? AL.round(p.right - t.r) : 'uncapped'; });
+"""
+
+CON_BULK_JS = r"""
+  const tb = document.querySelector('#tab-customers .toolbar'), cs = getComputedStyle(tb);
+  const edge = tb.getBoundingClientRect().right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+  return ['bulk-suspend', 'bulk-activate', 'bulk-delete'].map(id =>
+    AL.round(document.getElementById(id).getBoundingClientRect().right - edge));
+"""
+
+CON_STATUS_JS = r"""
+  const tb = document.querySelector('#tab-%s .toolbar'), cs = getComputedStyle(tb), tr = tb.getBoundingClientRect();
+  const L = tr.left + parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth),
+        R = tr.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+  return [...tb.querySelectorAll('select')].filter(AL.vis).map(s => { const b = s.getBoundingClientRect();
+    return Math.min(Math.abs(b.left - L), Math.abs(b.right - R)) <= 1 ? 0 : AL.round(Math.min(b.left - L, R - b.right)); });
+"""
+
+CON_TICK_JS = r"""
+  const rows = [...document.querySelectorAll('#cust-rows tr')].filter(r => AL.vis(r) && r.querySelector('input.sel')).slice(0, 3);
+  const out = rows.map(r => { const i = r.querySelector('input.sel').getBoundingClientRect(), b = r.getBoundingClientRect();
+    return AL.round((i.top + i.bottom) / 2 - (b.top + b.bottom) / 2); });
+  // the header box is centred against the label of its neighbouring header cell
+  const all = document.getElementById('cust-all'), ai = all.getBoundingClientRect();
+  const lab = [...all.closest('tr').querySelectorAll('th')].filter(th => th !== all.closest('th') && AL.txt(th));
+  out.push(lab.length ? AL.round((ai.top + ai.bottom) / 2 - AL.txt(lab[0]).cy) : null);
+  return out;
+"""
+
+CON_FIRST_JS = r"""
+  const s = document.getElementById(%r), e = s.firstElementChild;
+  return AL.round(e.getBoundingClientRect().top);
+"""
+
+
+def align_console_checks(br):
+    """The console, measured after its gate (owner's «make full aligment», 2026-10-14)."""
+    S = "align"
+    # 1. a stat tile's figure and its label share an edge
+    bad = []
+    for w, h in ((1440, 900), (390, 844), (320, 640)):
+        c, pg = _al_console(br, w, h)
+        for v in _al_console_js(pg, CON_TILES_JS):
+            if v is not None and abs(v) > 2:
+                bad.append(f"{w}px {v}")
+        c.close()
+    check(S, "each stat tile's figure ends on the same edge as its label", not bad, "; ".join(bad))
+
+    # 2. a capped chart's plot shares its title's start edge, on both tabs
+    bad = []
+    for w, h in ((1440, 900), (1024, 768), (844, 390), (768, 1024)):
+        c, pg = _al_console(br, w, h)
+        for tab in (None, "finance"):
+            for v in _al_console_js(pg, CON_PLOTS_JS, tab):
+                if v != "uncapped" and abs(v) > 2:
+                    bad.append(f"{w}px {tab or 'overview'} {v}")
+        c.close()
+    check(S, "a chart's plot, when capped, shares its title's start edge on both tabs", not bad, "; ".join(bad))
+
+    # 3. the bulk actions end on the toolbar's edge, the same one as the fields
+    bad = []
+    for w, h in ((320, 640), (390, 844)):
+        c, pg = _al_console(br, w, h, seed=SEED_USERS_JS)
+        v = _al_console_js(pg, CON_BULK_JS, "customers")
+        if any(abs(x) > 1 for x in v):
+            bad.append(f"{w}px {v}")
+        c.close()
+    check(S, "the bulk actions on the customers toolbar end on one edge at phone widths", not bad, "; ".join(bad))
+
+    # 4. the status select starts on the toolbar's gutter, not 12px in
+    bad = []
+    for w, h in ((390, 844), (320, 640)):
+        c, pg = _al_console(br, w, h)
+        for tab in ("customers", "ops"):
+            v = _al_console_js(pg, CON_STATUS_JS % tab, tab)
+            if any(abs(x) > 1 for x in v):
+                bad.append(f"{w}px {tab} {v}")
+        c.close()
+    check(S, "each toolbar control on a phone sits flush with an edge of the gutter", not bad, "; ".join(bad))
+
+    # 5. a row's checkbox sits on its row's centre line
+    bad = []
+    for w, h in ((1440, 900), (390, 844)):
+        c, pg = _al_console(br, w, h, seed=SEED_USERS_JS)
+        v = _al_console_js(pg, CON_TICK_JS, "customers")
+        if any(x is None or abs(x) > 1.5 for x in v):
+            bad.append(f"{w}px {v}")
+        c.close()
+    check(S, "each row's checkbox sits on its row's centre line", not bad, "; ".join(bad))
+
+    # 6. every tab's first block starts on the same line as the overview's
+    bad = []
+    for w, h in ((1440, 900), (390, 844), (320, 640)):
+        c, pg = _al_console(br, w, h)
+        tops = {}
+        for tab, sid in (("overview", "tab-overview"), ("customers", "tab-customers"), ("ops", "tab-ops"),
+                         ("finance", "tab-finance"), ("settings", "tab-settings")):
+            tops[tab] = _al_console_js(pg, CON_FIRST_JS % sid, tab)
+        if max(tops.values()) - min(tops.values()) > 1:
+            bad.append(f"{w}px {tops}")
+        c.close()
+    check(S, "each tab's first block starts on the overview's line", not bad, "; ".join(bad))
+# ═══════════════════════════════════════════ ALIGN-FIX END
+
+
+
+
+
+
+
+
+
+
+
 
 # ═══════════════════════════════════════════ run
 static_checks()

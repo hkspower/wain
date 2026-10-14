@@ -11,6 +11,7 @@
 | `sounding-lines-plate-iv.png` | `design/plate.py` |
 | `topbar/before/`, `topbar/after/` | قياس الشريط العلوي (2026-10-07): الصفحات الأربع بستّة مقاسات، أعلى الصفحة وبعد التمرير، و`measure.json` بالأرقام |
 | `logo-hq/before/`, `logo-hq/after/`, `logo-hq/pairs/` | الشعار بجودة أعلى (2026-10-08): شعار الشريط بستّة مقاسات × كثافة 1 و2 و3، أعلى الصفحة وبعد التمرير، وعلامة التذييل؛ `pairs/` قبل وبعد مكبّرة 4 إلى 8 مرّات (ومعها الأيقونات وبطاقة المشاركة والشعار المربّع، ونسخ «قبل» منها في `before-files/`)، و`measure.json` بأطوال الشريط. سكربت القصّ مؤقّت لم يُحفظ في المستودع |
+| `alignment/before/`, `alignment/after/`, `alignment/pairs/` — محاذاة الصفحات (2026-10-14): لقطات قبل التعديل وبعده، وكل زوج جنباً إلى جنب | `design/alignment_shots.py` (`shoot before <dir>`, `shoot after`, `pairs`) |
 
 وكان هذا كلّه مبعثراً في `design/` نفسه بين السكربتات، فلا يُعرف الداخل من
 الخارج. والمجلّدات الأخرى (`film/`, `ship/`, `logo-pack/`, `instagram/`,

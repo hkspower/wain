@@ -163,7 +163,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 922 checks, exits non-zero on failure
+python3 design/test_suite.py     # 931 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the English logo and AC monogram,
