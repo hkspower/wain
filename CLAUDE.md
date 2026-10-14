@@ -6779,6 +6779,87 @@ A read-only scan of how each back end authenticates, asked for as «scan backend
 
 **Pre-deploy reads on 14 October.** The installed caller reports fingerprint `22015bb67b0959ad` (installed 11 September), and its signed `probe` got past the HMAC check; compare that with the repository copy's fingerprint, which `deploy:plan` prints. Cron output arrives late: two jobs created at 07:27 read empty for their first few minutes and held output afterwards, so an empty read at one minute is not a failure. Crontab job `0fkXcI5UFt` is not ours. It runs `curl … hostinger_deploy.sh` every minute, pinned to commit `5aeefb95…`, which origin does not serve («not our ref»), so the `curl` probably fails silently and the job's output stays empty. It was left alone; its owner should delete it or say what it is.
 
+
+## The two agents — 14 October: شوق and سالم no longer share one
+
+The owner asked for two native ElevenLabs agents that never mix. Before this, both
+personas used شوق's agent, and his voice came from a mid-call `override-voice-id`, so his
+voice spoke her brain. Every surface that said «one agent» was describing that mix.
+
+| persona | agent | web | app (`--dart-define`) |
+|---|---|---|---|
+| شوق — calls, `/find`, the home page | `agent_1701m1gcrccrethae9y3nyv1e116` | `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` | `WAIN_AI_AGENT_ID` |
+| سالم — typed chat at `/salem`, his call from `/salem`'s header | `agent_5101m4wwgr3ae5qat412ezcnffhn` | `NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID` | `WAIN_SALEM_AGENT_ID` |
+
+Unset, empty and «none» are off for each, separately. **Nothing falls back from one id to
+the other**: `agentIdFor(persona)` in `src/lib/wain-ai.ts` and `agentIdFor` in
+`flutter_app/lib/ai/config.dart` read only their own persona's id, and `audit:shouq-call`
+has rows for each combination, including the two where only one agent is set.
+
+- **His agent is his.** Its prompt is a masculine rewrite that introduces «أنا سالم من
+  «وين»», with his own first message and his voice (Mustafa, `eleven_v4`). Earlier notes
+  here said his prompt was a feminine copy of hers; that was wrong, and it is corrected.
+- **The typed chat** (`src/lib/salem-chat.ts`, `SalemChat.tsx`, Flutter `ai/salem_chat.dart`)
+  sends `conversation.text_only` and no `tts` override. The socket reaches his id even when
+  hers is set (`tests/salem-chat.test.mjs`, red when pointed at hers).
+- **His call's tools** answer in his grammar. The sentences a call's `show_places` and
+  `open_place` return are read by the agent on the line, so they carry its second-person
+  forms: hers («قولي», «لا تسكتين»), his («قول», «لا تسكت»). `agentSay(persona)` picks on
+  the web; `showPlacesForCall(..., salem:)` and `openPlaceForCall(..., salem:)` in
+  `flutter_app/lib/ai/tools.dart` pick in the app. The typed chat's replies are his alone.
+- **The header button on `/salem` is his call**, so it says «كلّم سالم» (`callShouq` in
+  his copy, `wain-ai.ts`). Two tests still expected the old «كلّم شوق» there and failed on
+  this run; they now expect his label.
+- **Count agreement** in those sentences uses `countAr` with `kMatchingPlacesCount`
+  (`flutter_app/lib/data/text_kit.dart`, the web's `MATCHING_PLACES`). The app used to write
+  «1 أماكن» and «2 أماكن» by hand.
+- **Widget.** `scripts/vendor-widget.mjs --copy` ships the widget when EITHER id is set. The
+  bus loads it when either agent is on, and each element gets its own `agent-id`.
+
+**One memory per failure, not one for both (14 October).** `src/lib/agent-health.ts` used to
+keep a single 15-minute memory of refusals. `SalemChat` wrote it for every failed line to
+his agent — refused at the door, no answer in time, or no reason given — and the calls read
+it too. So a dropped line for سالم took شوق's calls down to the free call for a quarter
+hour. `test:shouq`'s agent pass caught it, in a browser with no network to ElevenLabs.
+Now there are two memories:
+- `wain:agent-off` — a refusal for CREDITS, which is the account: both agents off here.
+- `wain:salem-off` — any other failure of his line: his typed chat only. Calls ignore it.
+`agentAvailable()` (calls) reads the first; `salemLineAvailable()` (the typed chat) reads
+both. The regression is the last check in the Salem-call section of `tests/shouq-agent.test.mjs`:
+his line fails in the same browser, and her call still reaches her agent.
+
+**The read-back rule is already in both prompts, and it works (14 October).** Shouq's
+call habit 1 says «قبل ما تجاوبين — بكلمتين بس: «أوكي، تبين قهوة هادية…»», and the reply
+shape's step 1 says the same. Salem's prompt has the masculine form. A live call read on
+14 October (`conv_3201m4k39fmqfzztdgnkcfe5e6v7`, 51 s, Saturday evening) shows it firing:
+the caller said «مطعم للعائلة، عشان أشتغل»; she answered «أبشر، مطعم عائلي… رشّحت لك ميس
+الغانم…», and the evaluation grades `read_back` as success. What went wrong in that call
+was not the read-back: the caller broke in at 40 seconds («أنا أريد») and cut her reply at
+«ومشويات», so the map line and the closing question never reached them; and the first reply
+came about 15 seconds after the caller had finished (the caller said «شلون؟» at 30 s). That
+gap is turn-taking (`turn_eagerness: eager`, `speculative_turn: true`, `turn_timeout: 7`),
+not wording. **No prompt change was made for read-back.** A further change to Shouq's
+prompt would spend a test cycle on a rule that already fires.
+
+**Gates on the split tree (`36a3046a`):** `npm run build` (free), `test:hangout`,
+`test:journey`, `test:shouq` (both passes), `build` with both agent ids plus `test:widget-csp`,
+`npm run scan` under the agent variables, and Flutter `analyze` and `test`.
+**Gates, run on `36a3046a` one after another, one browser at a time:** `npm run build` (free) green; `test:hangout` green, every suite; `test:journey` green; `test:shouq` green in both passes, every suite; a build with both ids, then `test:widget-csp` green; `npm run scan` under both ids exit 0; Flutter `analyze` clean and `test` 1530 passed. The first run of the same gates, before the failure-memory fix, was red in `test:hangout` (two header-label expectations) and in `test:shouq`'s agent pass (the Salem-call section, which is where the shared memory showed).
+
+**Still open, named, not done.**
+- **Close Shouq's `tts.voice_id` override** after the deploy is live (the build no longer
+  sends `override-voice-id`). `agents_update_client_overrides` takes the whole override object:
+  read it, send it back with only that field off, read it again.
+- **Salem's agent still has the 25 Shouq tests attached** (`platform_settings.testing`); his
+  own 7 are not attached. Detach the 25 and attach his 7 so a run on his agent measures
+  him. Attaching changes nothing a caller hears, and costs no credits.
+- **His full archive is not in `docs/agent-live/`** (only hers is).
+- **Storage permissions** (the 14 October call-centre scan): `storage/call-center.sqlite`,
+  `wain.sqlite`, `wain-staging.sqlite` and `elevenlabs.key.off` are mode 644 in a 755 directory;
+  `deploy.secret` is 600. Changing them is the owner's yes, a `chmod` run by the cron route.
+- Nothing has reached either agent from this sandbox: the socket is refused here. A real call
+  and a real typed chat, on each agent, are the proof.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
