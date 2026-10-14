@@ -6729,7 +6729,13 @@ Two traps, both met in measurement:
 
 **Tests:** the «ends a call on its own» section of `tests/shouq-widget-csp.test.mjs` (three ends, plus a redial).
 Red on the previous build: 6 failed, the sheet-says-ended and clock-stops checks for each end. Green now: 37
-passed. The redial check passes before and after by design; it guards the fix and is not a red-first check.
+passed, on the agent build. The redial check passes before and after by design; it guards the fix and is not a
+red-first check.
+
+**Gates on HEAD (`8b78d516`), 8 October, on a free build:** `test:hangout` exits 0, and every total it prints
+reads 0 failed. The full `test:shouq` run exits 0 with «شوق: all suites passed», twelve suite totals and none
+failed. That is the first clean full run on HEAD. The earlier one had a single crash, in `salem-tools.test.mjs`,
+which built a stub index that `answerOrder` cannot read; `8b78d516` gives it a real empty index.
 
 **Not measured:** a real call (the socket is refused in this sandbox), the agent's Kuwaiti rating text (the
 harness config carries the widget's default), and a phone.
