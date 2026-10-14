@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => '2d80eaab09ec4adcdb2a36be113c2a74ea8818928efb67ab5acb2070243a1ace',
+    '.htaccess' => 'f9b60ceb6ff42e30186faffc603f3d61cc0637a597c9f0492673b1d643b03f14',
     'admin.webmanifest' => '2a36ff5a76af4f6e43877dad32f0a1ea3edc3b7afb8d3a5c06ef0897a979ca94',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
@@ -194,6 +194,7 @@ $WANT = [
     'assets/hero-lazy.js' => 'cd4069e10c0ac42fe52736dbf94b53d6d5e1185beb33d66ebe9671161ae84a7a',
     'assets/hero-preload.js' => '91bdc088cced765ad8055d6c440732238437f4f2dad0c30eb425841ac371259d',
     'assets/hero-slides.js' => '867c022fb66f56ee2db2e86a50aed97d51c8d3753393fdd2e4998dc0ff692ed1',
+    'assets/hero-text-side.js' => 'f55d715026ec98f847fd6c639449c4d75e926757ac4220e27a6c9c5ad575581a',
     'assets/home-banner-editor.js' => '3c66d1ada309cf0b11bbd3ca133bd197d0ec292cc9e7a43b47d724001ad972bb',
     'assets/home-banner.js' => '7a81c78068aea5d3ba5996320cc8aa90c10d3d6fabb2796bca54643d77984a3d',
     'assets/home-layout-editor.js' => '493f61d0e19f708a4ec0818d0908db008a6c139b5ac9083b56f161c5d8a96326',
@@ -260,9 +261,9 @@ $WANT = [
     'assets/social-links.js' => 'a21ed1c9e267e994dc55a4cf29591654540bcb3aca8ba7fa39fbceb52228a79e',
     'assets/social-setup.js' => 'a6403def6f7f585e0dc58f356da47af4fc5530d10bffd06c923e823b1b83b007',
     'assets/sporta-dark.css' => '7b9445725c3d0c8a3e01720914dc10d39b503248c598510b135043fbce0b9a7f',
-    'assets/sporta-desktop.css' => '12414e04642c1845b073db583030c0dafaf822e8c5392a7550deddc1aad6d4e3',
-    'assets/sporta-mobile.css' => '8ebca13a3d66ed6d3e9faa8a623b83530698b4fcab1782418bd2976d30188a7e',
-    'assets/sporta-ui.css' => 'd1713f9c08fc892128065e98d5e30dfbac1d84b761fedea1f8f8fecfc58b42bc',
+    'assets/sporta-desktop.css' => 'd19bdbe52ed7b7f0b4dd55716efbb2e93780f5926ba3deba35a630eb041a1807',
+    'assets/sporta-mobile.css' => '4782b9e644a3a4ebccccec37884bc9f66f165d85b63f214579715ba3402475ea',
+    'assets/sporta-ui.css' => '6a52ccf396a2669b8dea6d056271de00a187b3c833ecb01d24237be5a78bc284',
     'assets/theme-colors.js' => 'ed913d1b97ccbef2f52c3f24ffe8fbeac31142894173a274014d4d1327d37811',
     'assets/theme.js' => 'cf0044660306b1eedd3c830ed9ec432a7400d15e27aabdd3ce57d435b7c60403',
     'assets/tile-art.js' => 'fcdcd5e1d8391057a0217ff9875874a064c292571d3cca0124e1b1debee46f0f',
@@ -349,7 +350,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => '73c40f0f0c13188eac51fe2c64cca737e980eb86a14dd45ab5556682192e7c9c',
+    'index.html' => '9b637b02a9c063245d5edff6ee49edd08be56d698b0070ab1332b09e5e3a7b71',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => 'b97c587a569e9849b25aba4bf7dce88dcd5c7151d40c095b5ab2b48e0a81e62b',
     'knet/config.example.php' => 'b13cecaa5998ee52d5de1b11f272ac011eb2320f38494460da25e1455538ad09',
@@ -375,7 +376,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'c7aae1fd6155d06b913acbe1d63d80a0c8a4aad043570d4f7e5bae0486518d3a',
+    'sw.js' => '19c18950519ebb452d4af3c688154e12b84d9fba70f1293a4f47504c912ff240',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

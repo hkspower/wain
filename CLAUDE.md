@@ -4645,3 +4645,86 @@ Arabic (16px from the left, −396px from the right, in both languages). The par
 `display:contents`, which `product-mobile-layout.js` uses to flatten the column, and such a box is 0×0.
 Measured against the page, the row is symmetric (16px gutter on each side). **A `display:contents`
 element has no box. Measure against the nearest ancestor that has one.**
+
+## The hero, polished — 2026-10-14
+
+Asked for as "full polish for hero images /design". Measured first: `scratchpad/hero/` held the
+numbers. Technical fixes shipped without asking. The owner chose the four design changes, each
+from rendered options.
+
+**Technical fixes (no design change):**
+- **First frame.** A first visit used to paint three pictures in a row: the old dark
+  "BODY BUILDING" shell banner, the bundle's drawn slide, then the photo. On a throttled phone the
+  photo appeared at 7.0 s. Now:
+  - `seo.php` writes the first slide's two picture URLs and its focal point onto `<html>`. It writes
+    both URLs, never one chosen by User-Agent, because the page has an ETag and no Vary.
+  - The boot script picks one with api.php's own rule, preloads it, draws it in the shell, and lays
+    it behind the carousel as a bridge. Its CSP hash moved, all three copies.
+  - `92-hero-first-frame.css` hides the drawn slides while photo slides exist.
+  - `hero-preload.js` gives their eager `<img>`s `loading=lazy` just before React sets `src`. This is
+    a narrow `setAttribute` patch: display:none alone does not stop an eager image downloading.
+  - `api-dedupe.js` holds `?r=slides` for 30 s.
+  - Result: phone photo 7.27 s → about 4.0 s, LCP now on the slide.
+- **Header height.** The shell header and the React header both hold the menu bar's height, so the
+  hero no longer drops 43-46 px at mount.
+- **Neighbour slides** (`hero-lazy.js`) are fetched only when the slider can move (controls
+  visible, autoplay on, or touch) and never before `load`.
+- **One `<h1>`.** The hero caption is screen-reader-only below 1024 px rather than `display:none`,
+  so the home page has its one `<h1>`.
+
+**The owner's choices:**
+- **Controls on a dark pill, with autoplay every 6.5 s and a pause button** (`css/93-hero-polish.css`).
+  - The pause button that `06-` hides everywhere (2026-09-20) is shown again inside the hero's pill
+    only. The newer choice wins.
+  - The bundle already pauses on hover, on focus and under reduced motion.
+  - Phones show dots and pause only. On touch, the pill is drawn 30 px tall (`::before`) behind the
+    44 px tap targets.
+- **From 1024 px, each slide's headline and Shop button sit in the photo's empty side.**
+  - `assets/hero-text-side.js` reads the focal x the picture is drawn with and marks the slide
+    `data-sp-side`: left, right, or centre. CrossFit is the centre case and gets a light card.
+  - The side is physical, not reading direction, because the photo is not mirrored.
+  - The headline is dark ink at 10.6-15:1 against the photo. The button is the shop's own orange
+    primary.
+- **Square phone pictures, cut from the art, not generated.**
+  - Every 1080×1350 phone picture is a full-height crop of its desktop master (template match
+    0.997-0.999). So `scripts/make-hero-polish.py` builds the square from the master's own sides
+    and lays the sharper phone picture over the centre.
+  - The only synthesised pixels are a strip of plain floor. Its height is MEASURED, so the
+    athlete's foot line lands at 83% of the square, just above the pill on the shortest phone box
+    (iPhone in Safari, 1.07:1). CrossFit is waist-up and gets no strip.
+  - `--check` rebuilds the pictures byte for byte.
+- **One white.** The five slides are graded with per-channel gains in linear light so each studio
+  is sRGB 224: activewear lost its beige cast, crossfit lifts 3%. Slides 2 and 3 are switched off
+  (`active = 0`; nothing is deleted).
+
+**Live = one database write:** `scripts/publish/publish-hero-polish.php`, AFTER `publish-all`
+(the CSS and script must be there first).
+- It swaps a row only when its desktop AND phone bytes are the known neutral ones, and backs up
+  what it replaces.
+- It writes autoplay and speed into the `hero` row and keeps the other keys.
+- It refuses to switch off slides 2 and 3 if that would empty the hero.
+- It reports STATE: `HEROPOLISH polished=5/5 phoneSquare=5/5 slides23=off/off autoplay=on/6500`.
+- `$COMMIT` pins the artefacts. `npm run make:hero-polish-table` regenerates its hash table, and
+  `test:hero-polish-table` fails when the pin, the table and the files disagree.
+- Hero pictures go from 1.14 MB to 766 kB.
+
+**Tests:** `test:hero-polish` holds the pill contrast, autoplay and pause, the text sides in both
+languages at 1280 and 1920, headline contrast, square phone pictures and feet clearance.
+`MUTATE=1-4` each fail it.
+
+**Two rig traps, both mine:**
+- **A rig that hides part of the page changes what it measures.** `test:hero-first-frame` first hid
+  the new overlays with an injected style. That produced a blank frame on a phone's return visit
+  that the page never shows: 2 runs in 3 with the base code and the new rig. It now masks the
+  overlay cells out of the pixel comparison, and it fails if it stops finding them.
+- **A check that compares two identical pictures passes.** The headline-contrast check first hid
+  the text with a rule that lost on specificity, so it measured nothing and printed `none found`
+  under `ok`. It now requires at least 40 ink samples. It also judges the darkest quarter of the
+  letters, because the single worst pixel is always an anti-aliased edge.
+
+**Left for the owner:**
+- Tall and Short on phones are 66-84 px strips that the pill half-covers.
+- Tablets (768-1023 px) show 53% of the banner's width.
+- The Slides screen's phone preview is stale, and a phone picture uploaded through the panel is
+  shrunk to 1200 px.
+- Full still subtracts the old 58/64 px header from the height.
