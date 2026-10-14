@@ -6868,6 +6868,15 @@ prompt would spend a test cycle on a rule that already fires.
 - **Read-only, 14 October.** Salem's agent `agent_5101m4wwgr3ae5qat412ezcnffhn` (version `agtvrsn_6801m4wz3v24fn8v5wv1bzqec2ft`) allowlists `www.wainkw.com`, `wainkw.com` and `staging.wainkw.com`, has `require_origin_header: false`, leaves `conversation.text_only` open (the only override the typed chat sends) and `tts.voice_id` closed. The Hostinger cron list held sporta's `1mNk00yPZP` and nothing of ours.
 - **Held:** the two-agent split is not released or deployed. Shouq's `tts.voice_id` override stays open until a split build is live.
 
+## The 14 October split deploy — archive `12284c20` is pushed and gated; the deploy waits on hosa
+
+- **The owner's «deploy», after the hold above, was taken as the go-ahead** for the two-agent split: staging first, then production, through the installed caller.
+- **Built at `b946de90`** with both agent ids and the read-aloud bridge off: `NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116 NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID=agent_5101m4wwgr3ae5qat412ezcnffhn NEXT_PUBLIC_WAIN_TTS_URL=none npm run release`. Digest `5fdb66be8fdca412`, 282 files. Archive sha256 `7e301b70aac5d71f7f83c298315d5e80841484055fadd4a46096c8a55114c8ec` (the commit body carries only its first 32 digits; the full value is in `deploy-plan.json`), committed as `12284c20` and pushed.
+- **Gates on that tree:** `test:widget-csp` 37 passed, 0 failed, no CSP violation on the agent build. `npm run scan` under the same two ids, exit 0.
+- **`deploy:plan` passed:** the archive URL is `…/hkspower/wain/12284c2/wain-1.1.0.zip` and answers at the archive's size. The installed caller is `22015bb67b0959ad`, matching the repository copy. The staging command measures 203 characters against the planner's 210.
+- **Not done:** the staging job, the production job, the proof readings, the cache purge and the edge checks. Every one goes through the hosa connector, which answered «needs you to sign in again (run /mcp to re-authenticate)» after the scan, and a retry failed the same way. Nothing was created on the server. **Resume:** re-authorize hosa, confirm with a cron listing, then staging, verify with `deploy:verify --observed`, production, verify, purge, and the edge reads of `/salem/` and `/find/`.
+- Closing Shouq's `tts.voice_id` override waits until the split is live on production.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
