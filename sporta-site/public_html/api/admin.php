@@ -3717,7 +3717,18 @@ if ($r === 'settings_save' && $method === 'POST') {
     // `rules` is not in STORE_SETTING_DEFAULTS — its defaults are built at call
     // time, because several of the constants behind them are declared later in
     // store.php than that array is. So it reads back through its own accessor.
-    store_out($name === 'rules' ? store_rules($db) : store_setting($db, $name));
+    $saved = store_setting($db, $name);
+    // SEC-01 (2026-10-14): the KNET row holds bearer credentials, and this response is
+    // read by no client for them. Return whether each one is saved, never the value —
+    // the same discipline as the GET route below.
+    if ($name === 'knet') {
+        foreach (['tranportal_password', 'resource_key', 'cbk_client_secret', 'cbk_encrp_key',
+                  'cbk_test_client_secret', 'cbk_test_encrp_key'] as $secret) {
+            $saved[$secret . '_set'] = (string) ($saved[$secret] ?? '') !== '';
+            unset($saved[$secret]);
+        }
+    }
+    store_out($name === 'rules' ? store_rules($db) : $saved);
 }
 
 // --------------------------------------------------------------- knet, read

@@ -628,8 +628,10 @@ function toDiscount(d: WireDiscount): Discount {
     value: d.type === 'fixed' ? toFils(d.value) : d.value,
     minOrder: toFils(d.min_order),
     category: d.category,
-    startsAt: d.starts_at,
-    endsAt: d.ends_at,
+    // N01 (2026-10-14): the server returns the stored datetime; the editor works in
+    // YYYY-MM-DD, so the day part is what it reads back.
+    startsAt: d.starts_at ? String(d.starts_at).slice(0, 10) : null,
+    endsAt: d.ends_at ? String(d.ends_at).slice(0, 10) : null,
     usageLimit: d.usage_limit,
     usedCount: d.used_count,
     active: d.active,

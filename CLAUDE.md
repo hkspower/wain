@@ -5047,6 +5047,8 @@ Votes that were not unanimous (2 of 3) are marked **(split)**. Every item with `
 
 ## Backend deep scan, 2026-10-14 — read-only, nothing changed
 
+**Fixed in the repo so far (2026-10-14, not live — the deploy hold stands):** SEC-01 (the Payments save returns booleans, never the secret values) and N01 (a plain date saves as the start of that day; the app reads an existing date back as YYYY-MM-DD). Held by `npm run test:backend-fixes` (mutation: `MUTATE=secret` fails the SEC-01 checks). The rest of the list below is still open.
+
 Four read-only passes over the /backends panel: the server routes and their security (`api/admin.php` and its helpers), the panel's front-end overlays (`assets/*.js`, `panel.php`), the server's business logic (orders, stock, money, purchasing, accounting, backups), and the Expo app's panel (`src/app/backends`, `src/lib/admin.ts`). Known items (TH-01, ADM2-01, ADM2-03, F01, F02, AF-04, AUTH-01, PUB-01, the price comma, cost-garbage-zero, category-women-bypass, the nav-menu loop) are not repeated.
 
 **Not measured:** the live database, the live cron schedules, and browser reproduction. Every finding below is from reading the code. Items marked VERIFIED were re-read against the code in the parent session; the rest are the scanners' reports, not yet reproduced.

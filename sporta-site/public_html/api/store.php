@@ -3946,6 +3946,9 @@ function store_datetime(?string $raw): ?string {
     $v = trim((string)$raw);
     if ($v === '') return null;
     $v = str_replace('T', ' ', $v);
+    // N01 (2026-10-14): the promotion screens send a plain date (YYYY-MM-DD). Read it as
+    // the start of that day, so a dated promotion saves instead of answering invalid_date.
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) $v .= ' 00:00';
     if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) store_fail('invalid_date');
     return strlen($v) === 16 ? $v . ':00' : $v;
 }

@@ -269,6 +269,7 @@
     "test:touch-feedback": "node scripts/touch-feedback-test.mjs",
     "test:alignment": "node scripts/alignment-test.mjs",
     "test:knet-modes": "node scripts/knet-modes-test.mjs",
+    "test:backend-fixes": "node scripts/backend-fixes-test.mjs",
     "make:schema-manifest": "node scripts/make-schema-manifest.mjs",
     "test:schema-manifest": "node scripts/make-schema-manifest.mjs --check",
     "test:schema-usage": "node scripts/schema-usage-audit.mjs",
