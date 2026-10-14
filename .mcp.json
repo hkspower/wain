@@ -3,6 +3,10 @@
     "wain": {
       "command": "node",
       "args": ["mcp/wain-mcp.mjs"]
+    },
+    "hostinger": {
+      "command": "node",
+      "args": ["mcp/hostinger-mcp.mjs"]
     }
   }
 }

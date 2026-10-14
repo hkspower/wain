@@ -14,6 +14,21 @@ Everything below is a thing that has already gone wrong at least once.
 - Never put a model name or identifier in a commit message, PR, code comment,
   or anything else that lands in the repository.
 
+## Hostinger access: `hosa` lapses, the token route does not
+
+`hosa` is an OAuth claude.ai connector and its sign-in lapses about daily —
+the session expiring, not the account; it works again the moment it is
+reconnected at claude.ai/customize/connectors. Nothing in the repository can
+stop that. **`hostinger` in `.mcp.json` is the route that does not lapse**:
+Hostinger's own `hostinger-api-mcp`, pinned, run by `mcp/hostinger-mcp.mjs`,
+authenticating with an API token instead of OAuth — the same search/execute/
+multi-execute tools. It needs two settings in the cloud environment, never in
+the repository: the `HOSTINGER_API_TOKEN` variable (hPanel → API, a long
+expiry), and `developers.hostinger.com` under Allowed domains — the gateway
+refuses it today (403, 14 October). Without the token it exits at once rather
+than starting the package's browser OAuth, which would hang here.
+`npm run hosting:check` says which of the three is missing.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:

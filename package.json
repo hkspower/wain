@@ -64,6 +64,7 @@
     "pdf": "node scripts/gen-site-pdf.mjs",
     "scan:design": "node scripts/scan-design.mjs",
     "mcp": "node mcp/wain-mcp.mjs",
+    "hosting:check": "node scripts/hostinger-check.mjs",
     "test:mcp": "node tests/mcp.test.mjs",
     "audit:hero": "node scripts/audit-hero.mjs",
     "design:boards": "node scripts/gen-theme-boards.mjs",
