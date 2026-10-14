@@ -509,7 +509,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      the account sheet, the card's brand line, the sale chip, card thumbnails, and the footer's
      editable wording, social links and payment chips. api-dedupe.js comes first: four of them
      ask for ?r=products, and it makes that one request. -->
-<script src="/assets/api-dedupe.js?v=20260929" defer></script>
+<script src="/assets/api-dedupe.js?v=20261014" defer></script>
 <script src="/assets/theme.js" defer></script>
 <script src="/assets/category-topbar.js" defer></script>
 <script src="/assets/card-heart.js" defer></script>

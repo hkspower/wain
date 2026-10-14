@@ -19,6 +19,16 @@
  * this wrapper falls back to the original fetch. Two seconds is short enough
  * that an owner's edit followed by a reload — a new page load, a new copy of
  * this script — can never see it.
+ *
+ * `?r=slides` IS HELD FOR THIRTY, 2026-10-14. On a throttled phone the overlay
+ * scripts ask for it as the page is parsed, and the storefront bundle asks
+ * again only once it has mounted — about three seconds after the first answer,
+ * outside the two-second window. That second request cost a 330 ms round trip
+ * while the hero sat empty between the boot shell and its photo. One page view
+ * cannot see a newer slide list anyway (a reload is a new copy of this
+ * script), so its answer is kept for thirty seconds after it arrives.
+ * A caller that asks for `cache: 'no-store'` (the panel's own editors) still
+ * gets the ordinary two seconds, never the long hold.
  */
 (function () {
   'use strict'
@@ -34,6 +44,7 @@
   // the cookie travels with every one of them.
   var ADMIN_ROUTES = /[?&]r=(me|google_config|apple_config|passcode_status|couriers|products_all|brands|orders|variants|stats|notifications|rules|revenue|products_state|settings)(&|$)/
   var HOLD = 2000
+  var LONG = /[?&]r=slides(&|$)/, LONG_HOLD = 30000
   var seen = Object.create(null)
   var native = window.fetch.bind(window)
 
@@ -72,7 +83,8 @@
     var k = keyOf(input, init)
     if (!k) return native(input, init)
     var hit = seen[k]
-    if (hit && (hit.open || Date.now() - hit.t < HOLD)) {
+    var hold = LONG.test(k) && !(init && init.cache === 'no-store') ? LONG_HOLD : HOLD
+    if (hit && (hit.open || Date.now() - hit.t < hold)) {
       return hit.p.then(function (r) { return r.clone() })
     }
     var entry = { open: true, t: Date.now(), p: null }

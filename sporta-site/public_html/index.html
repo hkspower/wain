@@ -313,7 +313,49 @@
             // and the boot script has one less thing to get wrong.
             b.href = '/hero/' + dev + '/bodybuilding-men.webp'
             b.setAttribute('fetchpriority', 'high')
-            document.head.appendChild(b)
+
+            // THE SHOP'S OWN FIRST SLIDE, WHEN IT HAS PHOTO SLIDES — 2026-10-14.
+            // A first visit used to paint THREE pictures in a row: the shipped
+            // banner above (a dark one, words burnt in), then the bundle's
+            // drawn slide while ?r=slides was in flight, then the real photo —
+            // 7.0s into a throttled phone visit. seo.php now writes the first
+            // active slide's two picture URLs onto <html> (the exact URLs
+            // ?r=slides hands the bundle, so this preload IS the carousel's
+            // copy), and this picks the one the carousel will draw.
+            //
+            // THE PICK IS api.php's OWN RULE, ported, not a new one: ?r=slides
+            // ("PHONES ARE HANDED THEIR OWN PICTURE") gives a phone the phone
+            // picture only in the Full size, only on a phone User-Agent, and
+            // only when the slide has one. Both URLs come from the server so
+            // its page never depends on the User-Agent (it carries an ETag and
+            // no Vary). KEEP THE TWO IN STEP; test:hero-first-frame compares
+            // this preload with the picture the carousel finally shows.
+            //
+            // data-hero-slides with no picture means the first slide is not
+            // knowable (the Slides screen's Shuffle): the box stays charcoal
+            // rather than showing a picture that is about to change.
+            var hd = el.getAttribute('data-hero-desktop'), hp = el.getAttribute('data-hero-phone'), ua = navigator.userAgent
+            if (el.hasAttribute('data-hero-slides')) {
+              if (hd) {
+                var src = el.getAttribute('data-hero-size') === 'full' && hp &&
+                  /iPhone|iPod|Android.+Mobile|Mobile.+Safari|Windows Phone/i.test(ua) && !/iPad|Tablet/i.test(ua) ? hp : hd
+                var fp = /^(\d{1,3}) (\d{1,3})$/.exec(el.getAttribute('data-hero-focal') || '')
+                var pos = fp ? fp[1] + '% ' + fp[2] + '%' : '50% 50%'
+                b.href = src
+                window.__SPORTA_HERO = { src: src, pos: pos }
+                el.setAttribute('data-hero-shell', 'slide')
+                // The same picture behind the carousel itself, so the frames
+                // between React clearing this shell and its photo slide
+                // painting show it too, instead of an empty box. Scoped to
+                // data-hero-slides, which hero-preload.js removes if the list
+                // comes back empty.
+                var bridge = document.createElement('style')
+                bridge.textContent = ':root[data-hero-slides] section[aria-roledescription="carousel"]{background:#000 url("' +
+                  src.replace(/["\\\n]/g, '') + '") ' + pos + '/cover no-repeat!important}'
+                document.head.appendChild(bridge)
+              } else b = null
+            }
+            if (b) document.head.appendChild(b)
 
             // The banner is DRAWN by the shell markup in <body>, not from
             // here — this script runs in <head>, where .boot-hero has not been
@@ -328,7 +370,7 @@
             // the wrong content, plus a 21 kB download those pages never show.
             // Caught by the request budget (/shop went 19 -> 20) rather than by
             // eye, which is exactly what that budget is for.
-            if (kind === 'banner') document.documentElement.setAttribute('data-hero-shell', 'on')
+            if (kind === 'banner' && !el.hasAttribute('data-hero-slides')) document.documentElement.setAttribute('data-hero-shell', 'on')
           }
 
           var sub = ar ? 'arabic' : 'latin'
@@ -356,7 +398,7 @@
          script and a module script both execute in document order after parsing
          — so window.SPORTA_CONFIG is set before anything reads it, and the CSS
          is discovered a round trip sooner. -->
-    <script src="/assets/api-dedupe.js?v=20260929" defer></script>
+    <script src="/assets/api-dedupe.js?v=20261014" defer></script>
     <script src="/config.js" defer></script>
     <script src="/assets/hero-preload.js" data-shop defer></script>
     <script src="/assets/hero-lazy.js" data-shop defer></script>
@@ -481,6 +523,21 @@
                        max-height: 100%; overflow: hidden }
       .boot-hero-pic img { position: absolute; inset: 0; display: block;
                            width: 100%; height: 100%; object-fit: contain }
+      /* The shop's own first slide (data-hero-shell="slide", 2026-10-14) is
+         drawn the way the carousel draws a photo slide: the whole hero box,
+         object-fit cover, at the slide's focal point (set inline by the
+         script below). Not the 2.52:1 box above, which is the shipped
+         banner's own shape. */
+      html[data-hero-shell="slide"] .boot-hero-pic { aspect-ratio: auto; height: 100%; overflow: visible }
+      /* ONE PIXEL TALLER than the box, on purpose. The same picture is laid
+         behind the mounted carousel (the boot script's bridge rule), and LCP
+         sizes a BACKGROUND image by its whole-pixel rect (469px for a
+         468.6px box) while it sizes an <img> exactly — so a bridge the same
+         size as this picture counted as a larger, later "largest paint" and
+         moved LCP from the shell to React's mount. 1px more here keeps this
+         the largest; the extra row is the picture's own bottom edge, for as
+         long as the shell lives. */
+      html[data-hero-shell="slide"] .boot-hero-pic img { object-fit: cover; height: calc(100% + 1px) }
       /* Drawn ONLY when the boot script says so: on the home page, and only
          when the hero coming is the shipped banner rather than an owner's
          uploaded slide (a different picture entirely — see the note on the
@@ -601,14 +658,22 @@
           // Here, one line below the element, it runs during body parse — as
           // early as anything can that is not the parser itself — and the
           // <head> preload has already started the download.
+          //
+          // 'slide' (2026-10-14) is the shop's own first slide, picked by the
+          // <head> script: drawn the way the carousel draws it — cover, at the
+          // slide's focal point, the whole box — so React's photo lands over
+          // the same pixels.
           (function () {
             var html = document.documentElement
-            if (html.getAttribute('data-hero-shell') !== 'on') return
+            var shell = html.getAttribute('data-hero-shell')
+            var hero = window.__SPORTA_HERO
+            if (shell !== 'on' && !(shell === 'slide' && hero)) return
             var box = document.querySelector('.boot-hero-pic')
             if (!box) return
             var dev = matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile'
             var img = document.createElement('img')
-            img.src = '/hero/' + dev + '/bodybuilding-men.webp'
+            if (shell === 'slide') { img.src = hero.src; img.style.objectPosition = hero.pos }
+            else img.src = '/hero/' + dev + '/bodybuilding-men.webp'
             img.alt = ''
             img.setAttribute('fetchpriority', 'high')
             img.setAttribute('decoding', 'sync')

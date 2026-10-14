@@ -1,43 +1,68 @@
 /**
- * The hero holds ONE height from its first frame — 2026-10-01.
+ * The hero from its FIRST frame — 2026-10-01, extended 2026-10-14.
  *
  *   bash scripts/sandbox.sh && node scripts/hero-first-frame-test.mjs
+ *   ONLY=size,picture,top   (any of them) narrows it
  *
- * Asked for as "fix main hero slide layout, sometimes half view". Measured with
- * the live shop's Size (Full), a FIRST visit painted the default Tall strip —
- * 84px on a phone, 144px on a desktop — and grew to 469px / 442px only when
- * ?r=slides answered; on a desktop it also passed through 600px on EVERY visit,
- * because the bundle draws its built-in slides while the slide list loads and
- * those were a fixed 75svh. On a slow connection the strip is what a shopper
- * saw, for as long as the request took.
+ * ONE HEIGHT (2026-10-01, "fix main hero slide layout, sometimes half view"). Measured with the live
+ * shop's Size (Full), a FIRST visit painted the default Tall strip and grew only when ?r=slides
+ * answered. So, for each of the three Sizes, on a phone and a desktop, first and return visit: every
+ * frame from the first paint to three seconds in shows the hero at one height. Run twice: with the
+ * sandbox's hero_slides EMPTY (the shipped banner and the bundle's drawn slides) and with the live
+ * shop's seven slides seeded (scripts/_hero-seed.mjs).
  *
- * So, for each of the three Sizes, on a phone (a real phone User-Agent, which
- * is what decides the phone picture) and on a desktop, for a FIRST visit and a
- * RETURN visit: every frame from the first paint to three seconds in must show
- * the hero at the same height. It also checks the server half on its own: the
- * home page's <html> carries the shop's Size, and /shop does not.
+ * ONE PICTURE (2026-10-14, "the first frame"). A first visit used to paint three pictures in a row:
+ * the boot shell's old dark banner, then the bundle's drawn slide while ?r=slides was in flight, then
+ * the real first photo — 7.0s into a throttled phone visit, with LCP on the drawn banner. With the
+ * live shop's slides, on a real phone descriptor (the server picks the phone picture by User-Agent)
+ * and a 1280 desktop, throttled as a shopper is, first and return visit, it asserts:
  *
- * Every comparison first asserts it measured something — a hero that never
- * rendered has a perfectly steady height of nothing.
+ *   - the ONE picture preloaded is the URL the carousel finally shows, at high priority;
+ *   - that picture is downloaded once (the carousel reuses the preload), nothing under /hero/ (the
+ *     old banner, the drawn slides) is requested at all, and ?r=slides is asked over the network once;
+ *   - every picture ever visible in the hero, frame by frame, is that one URL;
+ *   - THE PIXELS AGREE: every screencast frame's hero is that picture or still empty, and once the
+ *     picture has appeared no frame goes back to empty (the gap between React clearing the shell
+ *     and its photo painting);
+ *   - every LCP candidate is that picture.
  *
- * SANDBOX ONLY: it changes the `hero` settings row and puts it back.
+ * And the other half, so the fix cannot win by breaking the empty shop: with hero_slides EMPTY the
+ * page carries no data-hero-slides, the shell preloads and draws the shipped banner exactly as
+ * before, and the bundle's drawn slide shows with its picture loaded.
+ *
+ * ONE TOP (2026-10-14). The shell's header had no room for the menu bar (assets/menu-bar.js, inside
+ * header.app-header since 2026-10-02), so the hero dropped 43-46px when React mounted. At
+ * 390/412/768/1280/1920, every frame from the first to the settled page has the hero's top within
+ * 1px of the settled top — and at least one of them was the shell, or the check measured nothing.
+ *
+ * Every comparison first asserts it measured something: a hero that never rendered has a perfectly
+ * steady height of nothing, and a page that painted no frames shows no wrong picture.
+ *
+ * SANDBOX ONLY: it rewrites hero_slides and the `hero` settings row, and puts both back exactly.
+ * DUMP=<dir> saves every screencast frame the pixel check classified, named by its class.
  */
 import { chromium, devices } from 'playwright'
-import { execFileSync } from 'node:child_process'
+import { snapshotHero, restoreHero, seedLiveHero, setHero, sql } from './_hero-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
+const ONLY = (process.env.ONLY || 'size,picture,top').split(',')
 let fails = 0
 const check = (ok, what, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${d ? '   ' + d : ''}`) }
-const sql = (q) => execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-N', '-e', q], { encoding: 'utf8' })
-
-const saved = sql(`select value from settings where name = 'hero'`).trim() || null
-const setSize = (size) => {
-  const v = JSON.stringify({ speed_ms: 6500, shuffle: false, autoplay: true, ...(saved ? JSON.parse(saved) : {}), size })
-  sql(`insert into settings (name, value) values ('hero', '${v}') on duplicate key update value = values(value)`)
+const strip = (o) => { const c = { ...o }; delete c.defaultBrowserType; return c }
+const PHONE = strip(devices['Pixel 7'])
+const DESKTOP = { viewport: { width: 1280, height: 800 }, userAgent: devices['Desktop Chrome'].userAgent }
+// the measurement agent's shopper: a mid-range phone on 3G-ish, an ordinary desktop line
+const THROTTLE = {
+  phone: { net: { latency: 150, downloadThroughput: 1.6e6 / 8, uploadThroughput: 750e3 / 8 }, cpu: 4 },
+  desktop: { net: { latency: 40, downloadThroughput: 10e6 / 8, uploadThroughput: 5e6 / 8 }, cpu: 1 },
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium' })
-const SAMPLE = () => {
+const saved = snapshotHero()
+const empty = () => sql('delete from hero_slides')
+
+// ------------------------------------------------------------------ one height, every Size
+const HEIGHTS = () => {
   window.__hero = []
   const t0 = performance.now()
   const tick = () => {
@@ -49,42 +74,240 @@ const SAMPLE = () => {
   }
   requestAnimationFrame(tick)
 }
-
-try {
+async function heights(state) {
   for (const size of ['full', 'tall', 'short']) {
-    setSize(size)
-    // the server half, on its own
+    setHero({ size, autoplay: false })
     const home = await (await fetch(`${BASE}/?lang=en`)).text()
     const shop = await (await fetch(`${BASE}/shop?lang=en`)).text()
-    check(new RegExp(`<html[^>]*\\bdata-hero-size="${size}"`).test(home), `${size}: the home page's <html> carries the shop's Size`, (home.match(/<html[^>]*>/) || [''])[0])
-    check(!/<html[^>]*\bdata-hero-size=/.test(shop), `${size}: /shop's does not (it has no hero)`)
-
-    for (const [name, opts] of [
-      ['phone', { ...devices['Pixel 7'] }],
-      ['desktop', { viewport: { width: 1280, height: 800 } }],
-    ]) {
+    check(new RegExp(`<html[^>]*\\bdata-hero-size="${size}"`).test(home), `${state} ${size}: the home page's <html> carries the shop's Size`, (home.match(/<html[^>]*>/) || [''])[0].slice(0, 90))
+    check(!/<html[^>]*\bdata-hero-(size|slides|desktop)=/.test(shop), `${state} ${size}: /shop's does not (it has no hero)`)
+    for (const [name, opts] of [['phone', PHONE], ['desktop', DESKTOP]]) {
       const ctx = await browser.newContext({ ...opts, serviceWorkers: 'block' })
-      await ctx.addInitScript(SAMPLE)
+      await ctx.addInitScript(HEIGHTS)
       const page = await ctx.newPage()
       for (const visit of ['first', 'return']) {
         await page.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' })
         await page.waitForTimeout(3100)
         const s = await page.evaluate(() => window.__hero)
-        const L = `${size} ${name} ${visit} visit:`
+        const L = `${state} ${size} ${name} ${visit} visit:`
         check(s.length > 20 && s.some(([, k]) => k === 'hero'), `${L} the hero was measured from its first frame`, `${s.length} frames`)
-        const heights = [...new Set(s.map(([, , h]) => h))]
-        const steady = Math.max(...heights) - Math.min(...heights) <= 1
-        // the trail of changes, for the message: each distinct height with the time it first appeared
+        const hs = [...new Set(s.map(([, , h]) => h))]
         const trail = s.filter((x, i) => i === 0 || x[2] !== s[i - 1][2]).map(([t, k, h]) => `${t}ms ${k}=${h}`).join(' -> ')
-        check(steady, `${L} one height from the first frame to the last`, trail)
+        check(Math.max(...hs) - Math.min(...hs) <= 1, `${L} one height from the first frame to the last`, trail)
       }
       await ctx.close()
     }
   }
+}
+
+// ------------------------------------------------------------------ one picture
+/* Runs in the page from before the first byte: every animation frame, which pictures are VISIBLE in
+   the hero (the shell's, the carousel's, the drawn slides'), and every LCP candidate. */
+const PICTURES = () => {
+  window.__seen = []; window.__lcp = []; window.__nav = performance.timeOrigin
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lcp.push({ t: Math.round(e.startTime), url: (e.url || '').replace(location.origin, ''), tag: e.element ? e.element.tagName : null, size: e.size }) }).observe({ type: 'largest-contentful-paint', buffered: true }) } catch {}
+  const shown = (img, box) => {
+    if (!img.complete || !img.naturalWidth) return false
+    const cs = getComputedStyle(img); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false
+    // the picture's own box, clipped by its frame (the slow zoom scales a picture past its frame,
+    // and a neighbour's frame ends exactly where the hero does), and then by the hero
+    const a = img.getBoundingClientRect(), p = img.parentElement.getBoundingClientRect()
+    const w = Math.min(a.right, p.right, box.right) - Math.max(a.left, p.left, box.left)
+    const h = Math.min(a.bottom, p.bottom, box.bottom) - Math.max(a.top, p.top, box.top)
+    return w > 2 && h > 2 && w * h > 0.02 * box.width * box.height
+  }
+  const tick = () => {
+    const urls = new Set()
+    const sec = document.querySelector('section[aria-roledescription="carousel"]')
+    const shell = document.querySelector('.boot-hero')
+    const host = sec || shell
+    if (host) {
+      const box = host.getBoundingClientRect()
+      for (const img of host.querySelectorAll('img')) if (shown(img, box)) urls.add((img.currentSrc || img.src).replace(location.origin, ''))
+    }
+    const key = [...urls].sort().join(' ')
+    const last = window.__seen[window.__seen.length - 1]
+    if (!last || last.key !== key) window.__seen.push({ t: Math.round(performance.now()), key })
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
+/* A screencast frame's hero, as a 16 x 6 grid of mean RGB, decoded in a page of its own. */
+async function grids(dec, frames, rect, vw) {
+  return dec.evaluate(async ({ frames, rect, vw }) => {
+    const out = []
+    for (const f of frames) {
+      const bmp = await createImageBitmap(await (await fetch('data:image/jpeg;base64,' + f.data)).blob())
+      const s = bmp.width / vw
+      const c = new OffscreenCanvas(bmp.width, bmp.height); const g = c.getContext('2d'); g.drawImage(bmp, 0, 0)
+      const x0 = Math.round(rect.left * s), y0 = Math.round(rect.top * s), w = Math.round(rect.width * s), h = Math.round(Math.min(rect.height, f.vh - rect.top) * s)
+      const d = g.getImageData(x0, y0, w, h).data
+      const GX = 16, GY = 6, cells = []
+      for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++) {
+        let r = 0, gg = 0, b = 0, n = 0
+        for (let y = Math.floor(gy * h / GY); y < Math.floor((gy + 1) * h / GY); y += 2) for (let x = Math.floor(gx * w / GX); x < Math.floor((gx + 1) * w / GX); x += 2) {
+          const i = (y * w + x) * 4; r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++
+        }
+        cells.push([r / n, gg / n, b / n])
+      }
+      out.push({ t: f.t, cells })
+    }
+    return out
+  }, { frames, rect, vw })
+}
+const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+const diff = (a, b) => a.reduce((s, c, i) => s + Math.abs(c[0] - b[i][0]) + Math.abs(c[1] - b[i][1]) + Math.abs(c[2] - b[i][2]), 0) / (a.length * 3)
+const flat = (a) => { const l = a.map(lum); return Math.max(...l) - Math.min(...l) < 12 }
+
+async function onePicture() {
+  const dec = await (await browser.newContext()).newPage()
+  for (const [name, opts] of [['phone', PHONE], ['desktop', DESKTOP]]) {
+    const ctx = await browser.newContext({ ...opts, serviceWorkers: 'block' })
+    await ctx.addInitScript(PICTURES)
+    const page = await ctx.newPage()
+    const cdp = await ctx.newCDPSession(page)
+    await cdp.send('Network.enable')
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, ...THROTTLE[name].net })
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE[name].cpu })
+    const reqs = new Map()
+    cdp.on('Network.requestWillBeSent', (e) => reqs.set(e.requestId, { url: e.request.url.replace(BASE, ''), bytes: 0, cached: false }))
+    cdp.on('Network.requestServedFromCache', (e) => { const r = reqs.get(e.requestId); if (r) r.cached = true })
+    cdp.on('Network.responseReceived', (e) => { const r = reqs.get(e.requestId); if (r && (e.response.fromDiskCache || e.response.fromPrefetchCache)) r.cached = true })
+    cdp.on('Network.loadingFinished', (e) => { const r = reqs.get(e.requestId); if (r) r.bytes = e.encodedDataLength })
+    let frames = []
+    cdp.on('Page.screencastFrame', async (f) => { frames.push({ t: f.metadata.timestamp, data: f.data, vh: opts.viewport.height }); await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {}) })
+    for (const visit of ['first', 'return']) {
+      const L = `picture ${name} ${visit} visit:`
+      reqs.clear(); frames = []
+      await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 70, maxWidth: opts.viewport.width, maxHeight: opts.viewport.height, everyNthFrame: 1 })
+      const t0 = Date.now() / 1000
+      await page.goto(`${BASE}/`, { waitUntil: 'load', timeout: 120000 })
+      await page.waitForFunction(() => { const i = document.querySelector('section[aria-roledescription="carousel"] [aria-hidden="false"] img[src*="slide_image"]'); return i && i.complete && i.naturalWidth }, null, { timeout: 60000 }).catch(() => {})
+      await page.waitForTimeout(1500)
+      await cdp.send('Page.stopScreencast')
+      const st = await page.evaluate(() => {
+        const cur = document.querySelector('section[aria-roledescription="carousel"] [aria-hidden="false"] img[src*="slide_image"]')
+        const sec = document.querySelector('section[aria-roledescription="carousel"]')
+        const r = sec ? sec.getBoundingClientRect() : null
+        return {
+          final: cur ? (cur.currentSrc || cur.src).replace(location.origin, '') : '',
+          preloads: [...document.querySelectorAll('link[rel=preload][as=image]')].map((l) => [l.href.replace(location.origin, ''), l.getAttribute('fetchpriority')]),
+          seen: window.__seen, lcp: window.__lcp,
+          rect: r && { left: r.left, top: r.top, width: r.width, height: r.height },
+          bridge: sec ? getComputedStyle(sec).backgroundImage.replace(location.origin, '') : '',
+        }
+      })
+      const final = st.final
+      check(/slide_image/.test(final), `${L} the carousel settled on a photo slide`, final)
+      const want = name === 'phone' ? /mobile=1/ : /^(?!.*mobile=1)/
+      check(want.test(final), `${L} and it is the ${name === 'phone' ? 'phone' : 'desktop'} picture ?r=slides gives this device`, final)
+      const pics = st.preloads.filter(([h]) => /slide_image|\/hero\//.test(h))
+      check(pics.length === 1 && pics[0][0] === final && pics[0][1] === 'high', `${L} the one hero picture preloaded IS the one the carousel shows, at high priority`, JSON.stringify(pics))
+      const all = [...reqs.values()]
+      const got = all.filter((r) => r.url === final)
+      const fetched = got.filter((r) => r.bytes > 0 && !r.cached)
+      check(visit === 'first' ? fetched.length === 1 : fetched.length === 0, `${L} that picture is downloaded ${visit === 'first' ? 'once' : 'never (it is cached)'}`, `${fetched.length} network fetch(es), ${got.length} request(s)`)
+      const drawn = all.filter((r) => /^\/hero\//.test(r.url))
+      check(drawn.length === 0, `${L} nothing under /hero/ is requested (no old banner, no drawn slide)`, drawn.map((r) => r.url).join(' '))
+      const lists = all.filter((r) => /r=slides(&|$)/.test(r.url) && !r.cached)
+      check(lists.length === 1, `${L} ?r=slides is asked over the network once`, String(lists.length))
+      const keys = [...new Set(st.seen.map((s) => s.key).filter(Boolean).flatMap((k) => k.split(' ')))]
+      check(st.seen.length > 1 && keys.length === 1 && keys[0] === final, `${L} every picture ever visible in the hero is that one`, keys.join(' | ') || '(none seen)')
+      check(st.bridge === `url("${final}")`, `${L} the picture laid behind the carousel (for the frames between the shell and the photo) is that one too`, st.bridge)
+      const shownAt = (st.seen.find((s) => s.key) || {}).t
+      // the pixels
+      check(frames.length > 5 && !!st.rect, `${L} the screencast recorded the visit`, `${frames.length} frames`)
+      if (frames.length > 5 && st.rect) {
+        const g = await grids(dec, frames, st.rect, opts.viewport.width)
+        const ref = g[g.length - 1].cells
+        let firstMatch = -1, other = [], gaps = []
+        for (const [i, fr] of g.entries()) {
+          const dd = diff(fr.cells, ref)
+          const k = dd < 14 ? 'match' : flat(fr.cells) ? 'empty' : 'other'
+          if (k === 'match' && firstMatch < 0) firstMatch = i
+          if (k === 'other') other.push(`${Math.round((fr.t - t0) * 1000)}ms d=${dd.toFixed(0)}`)
+          if (process.env.DUMP) (await import('node:fs')).writeFileSync(`${process.env.DUMP}/${name}-${visit}-${String(i).padStart(3, '0')}-${k}-${Math.round((fr.t - t0) * 1000)}ms-d${dd.toFixed(0)}.jpg`, Buffer.from(frames[i].data, 'base64'))
+          if (k === 'empty' && firstMatch >= 0) gaps.push(`${Math.round((fr.t - t0) * 1000)}ms`)
+        }
+        check(firstMatch >= 0, `${L} the picture appears in the frames`, firstMatch >= 0 ? `first at ${Math.round((g[firstMatch].t - t0) * 1000)}ms` : '')
+        check(other.length === 0, `${L} no frame shows a different picture`, other.slice(0, 6).join(', '))
+        check(gaps.length === 0, `${L} once shown, no frame goes back to an empty hero`, gaps.slice(0, 6).join(', '))
+      }
+      const lc = st.lcp.filter((e) => e.size > 50000)
+      check(lc.length > 0 && lc.every((e) => e.url === final), `${L} every large LCP candidate is that picture`, lc.map((e) => `${e.t}ms ${e.tag} ${e.url.slice(-40)}`).join(' ; '))
+      console.log(`     ${name} ${visit}: picture visible in the DOM at ${shownAt}ms, LCP ${st.lcp.length ? st.lcp[st.lcp.length - 1].t + 'ms ' + st.lcp[st.lcp.length - 1].tag : '-'}`)
+    }
+    await ctx.close()
+  }
+  await dec.context().close()
+}
+
+/* With hero_slides EMPTY the boot shell is exactly what it was: the shipped banner, preloaded and
+   drawn, and the bundle's drawn slide visible with its picture. */
+async function emptyShop() {
+  setHero({ size: 'full', autoplay: false })
+  const home = await (await fetch(`${BASE}/`)).text()
+  check(!/<html[^>]*\bdata-hero-(slides|desktop|phone|focal)=/.test(home), 'empty: the home page carries no slide attributes', (home.match(/<html[^>]*>/) || [''])[0])
+  for (const [name, opts] of [['phone', PHONE], ['desktop', DESKTOP]]) {
+    const ctx = await browser.newContext({ ...opts, serviceWorkers: 'block' })
+    await ctx.addInitScript(() => { window.__shell = null; const mo = new MutationObserver(() => { const i = document.querySelector('.boot-hero-pic img'); if (i && !window.__shell) window.__shell = { src: i.getAttribute('src'), attr: document.documentElement.getAttribute('data-hero-shell') } }); mo.observe(document, { childList: true, subtree: true }) })
+    const page = await ctx.newPage()
+    const dev = name === 'phone' ? 'mobile' : 'desktop'
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' }); await page.waitForTimeout(800)
+    const s = await page.evaluate(() => ({
+      shell: window.__shell,
+      preloads: [...document.querySelectorAll('link[rel=preload][as=image]')].map((l) => l.href.replace(location.origin, '')),
+      slides: document.documentElement.hasAttribute('data-hero-slides'),
+      drawn: [...document.querySelectorAll('section[aria-roledescription="carousel"] .hero-strength img')].filter((i) => i.complete && i.naturalWidth && getComputedStyle(i).display !== 'none').length,
+    }))
+    check(!s.slides, `empty ${name}: no data-hero-slides on <html>`)
+    check(s.preloads.includes(`/hero/${dev}/bodybuilding-men.webp`), `empty ${name}: the shell preloads the shipped banner, as before`, s.preloads.join(' '))
+    check(s.shell && s.shell.src === `/hero/${dev}/bodybuilding-men.webp` && s.shell.attr === 'on', `empty ${name}: a first visit's shell draws it, as before`, JSON.stringify(s.shell))
+    check(s.drawn > 0, `empty ${name}: the bundle's drawn slide shows, with its picture loaded`, `${s.drawn} picture(s)`)
+    await ctx.close()
+  }
+}
+
+// ------------------------------------------------------------------ one top
+async function oneTop() {
+  for (const [name, opts] of [
+    ['390', strip(devices['iPhone 13'])], ['412', PHONE],
+    ['768', { viewport: { width: 768, height: 1024 } }], ['1280', DESKTOP], ['1920', { viewport: { width: 1920, height: 1080 } }],
+  ]) {
+    const ctx = await browser.newContext({ ...opts, serviceWorkers: 'block' })
+    await ctx.addInitScript(() => {
+      window.__tops = []
+      const tick = () => {
+        const sec = document.querySelector('section[aria-roledescription="carousel"]'); const shell = document.querySelector('.boot-hero')
+        const el = sec || shell
+        if (el) window.__tops.push([sec ? 'hero' : 'shell', Math.round(el.getBoundingClientRect().top * 10) / 10])
+        if (window.__tops.length < 600) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
+    const page = await ctx.newPage()
+    const cdp = await ctx.newCDPSession(page)
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })   // so the shell lives for several frames
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1500)
+    const t = await page.evaluate(() => window.__tops)
+    const settled = t.length ? t[t.length - 1][1] : NaN
+    const shellTops = t.filter(([k]) => k === 'shell').map(([, v]) => v)
+    const off = t.filter(([, v]) => Math.abs(v - settled) > 1)
+    check(shellTops.length > 0 && t.some(([k]) => k === 'hero'), `top ${name}: the shell and the mounted hero were both measured`, `${shellTops.length} shell frame(s) of ${t.length}`)
+    check(off.length === 0, `top ${name}: the hero's top is within 1px of the settled ${settled}px in every frame`,
+      off.length ? `shell ${[...new Set(shellTops)].join('/')}px -> ${settled}px` : `shell ${[...new Set(shellTops)].join('/')}px`)
+    await ctx.close()
+  }
+}
+
+try {
+  if (ONLY.includes('size')) { empty(); await heights('empty'); seedLiveHero(); await heights('seeded') }
+  if (ONLY.includes('picture')) { empty(); await emptyShop(); seedLiveHero({ size: 'full', autoplay: false }); await onePicture() }
+  if (ONLY.includes('top')) { seedLiveHero({ size: 'full', autoplay: false }); await oneTop() }
 } finally {
-  if (saved) sql(`update settings set value = '${saved.replace(/'/g, "''")}' where name = 'hero'`)
-  else sql(`delete from settings where name = 'hero'`)
+  restoreHero(saved)
   await browser.close()
 }
-console.log(fails ? `\n${fails} FAILED` : '\nall ok — the hero is the height the shop chose from the first frame, in every Size')
+console.log(fails ? `\n${fails} FAILED` : '\nall ok — one height, one picture and one top from the hero\'s first frame')
 process.exit(fails ? 1 : 0)

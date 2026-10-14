@@ -2481,3 +2481,6 @@ nav > ol > li > a.tap-row {
     align-items: center;
   }
 }
+:root[data-hero-slides] .hero-strength { background: none !important; }
+:root[data-hero-slides] .hero-strength > * { visibility: hidden !important; }
+:root[data-hero-slides] .hero-strength img { display: none !important; }

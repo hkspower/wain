@@ -1,0 +1,21 @@
+/* THE DRAWN SLIDES STAY OUT OF SIGHT WHILE THE SHOP'S PHOTOS LOAD — 2026-10-14.
+ *
+ * The bundle draws its five built-in slides (.hero-strength) on every visit while ?r=slides is in
+ * flight, then swaps in the photo slides. With photo slides on the shop, that is a second, wrong
+ * picture between the boot shell and the real one. seo.php marks <html data-hero-slides> when the
+ * shop has active photo slides; while it is there the drawn slides keep their box (so nothing
+ * moves) and paint nothing, and the picture behind the carousel is the first photo slide (the
+ * boot script's bridge rule).
+ *
+ * display:none on the pictures does NOT stop the download on its own: the first drawn slide's
+ * pictures are loading="eager", and an eager <img> is fetched whether or not it is displayed.
+ * assets/hero-preload.js turns those two to loading="lazy" while this attribute is set, and a
+ * lazy picture with no box is never fetched. If the slide list comes back empty, hero-preload.js
+ * removes the attribute and the drawn slides show and load exactly as before.
+ *
+ * visibility, not display, on the wrapper's children: the first drawn slide carries the page's
+ * <h1> (screen-reader-only) and a Shop link, and neither may be read out or focused for a slide
+ * that is not on screen. */
+:root[data-hero-slides] .hero-strength { background: none !important; }
+:root[data-hero-slides] .hero-strength > * { visibility: hidden !important; }
+:root[data-hero-slides] .hero-strength img { display: none !important; }

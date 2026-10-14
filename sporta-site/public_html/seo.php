@@ -540,22 +540,72 @@ $dir = $isEn ? 'ltr' : 'rtl';
  * database, no row, a value that is not one of the three — writes nothing, and
  * the page behaves exactly as before. The value is WHITELISTED, never echoed. */
 $heroSize = '';
+$heroAttrs = '';
 if ($path === '/') {
     try {
         require_once __DIR__ . '/api/store.php';
-        $s = (string) (store_setting(store_db(), 'hero')['size'] ?? '');
+        $heroDb = store_db();
+        $heroSet = store_setting($heroDb, 'hero');
+        $s = (string) ($heroSet['size'] ?? '');
         if (in_array($s, ['short', 'tall', 'full'], true)) $heroSize = $s;
     } catch (Throwable $e) {
         $heroSize = '';
+    }
+
+    /* THE FIRST SLIDE'S PICTURES, ON THE HOME PAGE ONLY — 2026-10-14. A first
+     * visit painted three pictures in a row (the shipped banner, the bundle's
+     * drawn slide, then the photo) because nothing before ?r=slides knew which
+     * photo was coming. This writes the first active slide's picture URLs —
+     * EXACTLY the ones ?r=slides hands the bundle (same query, same order,
+     * same `api.php?r=slide_image&id=&v=` shape, under the /api the bundle
+     * prefixes), so the boot script's preload is the carousel's own copy —
+     * and its focal point.
+     *
+     * BOTH URLs, NEVER CHOSEN HERE. Which one a visitor gets depends on the
+     * User-Agent (api.php's rule), and this page is cached by ETag with no
+     * Vary: choosing here would hand one device's page to another. The boot
+     * script makes the choice, with the same rule.
+     *
+     * data-hero-slides says the shop HAS photo slides, so the drawn fallback
+     * slides are hidden while the list loads. With Shuffle on, the first
+     * slide is decided in the browser, so no picture is written.
+     *
+     * One query, by the index api.php uses. Any failure writes nothing, and
+     * the page is exactly what it was. Every value is whitelisted. */
+    try {
+        if (isset($heroDb)) {
+            $row = $heroDb->query(
+                'select id, image_hash, image_mobile_hash, focal_x, focal_y
+                   from hero_slides where active = 1 and image is not null order by sort, id limit 1'
+            )->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $heroAttrs = ' data-hero-slides=""';
+                $id = (int) $row['id'];
+                $v  = substr((string) $row['image_hash'], 0, 16);
+                $mv = $row['image_mobile_hash'] === null ? '' : substr((string) $row['image_mobile_hash'], 0, 16);
+                $fx = (int) $row['focal_x'];
+                $fy = (int) $row['focal_y'];
+                if (empty($heroSet['shuffle']) && $id > 0 && preg_match('/^[0-9a-f]{16}$/', $v)
+                    && $fx >= 0 && $fx <= 100 && $fy >= 0 && $fy <= 100) {
+                    $base = '/api/api.php?r=slide_image&id=' . $id;
+                    $heroAttrs .= ' data-hero-desktop="' . e($base . '&v=' . $v) . '"'
+                        . (preg_match('/^[0-9a-f]{16}$/', $mv) ? ' data-hero-phone="' . e($base . '&mobile=1&v=' . $mv) . '"' : '')
+                        . ' data-hero-focal="' . $fx . ' ' . $fy . '"';
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $heroAttrs = '';
     }
 }
 
 $html = preg_replace_callback(
     '#<html\b([^>]*)>#i',
-    static function (array $m) use ($lang, $dir, $heroSize): string {
-        $rest = preg_replace('#\s(?:lang|dir|data-hero-size)=["\'][^"\']*["\']#i', '', $m[1]) ?? '';
+    static function (array $m) use ($lang, $dir, $heroSize, $heroAttrs): string {
+        $rest = preg_replace('#\s(?:lang|dir|data-hero-(?:size|slides|desktop|phone|focal))=["\'][^"\']*["\']#i', '', $m[1]) ?? '';
         return '<html lang="' . $lang . '" dir="' . $dir . '"'
             . ($heroSize !== '' ? ' data-hero-size="' . $heroSize . '"' : '')
+            . $heroAttrs
             . $rest . '>';
     },
     $html,
