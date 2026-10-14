@@ -4789,3 +4789,52 @@ else changes.
 9. With require_2fa on, should team actions demand an emailed code from an account with no second
    factor?
 10. The typed email from a delete confirmation is kept in the Activity log.
+
+## Scan findings, 2026-10-14 — PARTIAL (verification still running)
+
+Three scans ran against the merged checkout (commit e202b0e) on port 4340. Their verifiers had not
+all reported when this section was written. Only the items below marked VERIFIED have three
+independent verifiers agreeing. Everything else is a scanner's report, NOT yet reproduced. A later
+section will replace this one with the final list.
+
+**Verified: shopper profile and the Users page** (`scan3`, three verifiers each):
+- PROF-01 (medium, CONFIRMED 3/3): a session cut while the account sheet is open leaves the signed-in
+  account on screen. `customer-account.js` loads the account once, at `loadMe`, and nothing re-checks it.
+- PROF-02 (medium, CONFIRMED 3/3): a refused passkey removal still makes the device's passkey look removed.
+  `customer-account.js:536` sets `state.pks` from the response without checking that the call succeeded.
+- PROF-03 (medium, PARTIAL 3/3): signing out while the connection is down leaves the button disabled,
+  with an unhandled error, and the session still alive. The core defect reproduces; the exact sign-out
+  call path needs the owner's check.
+
+**Reported, NOT yet verified: high-severity items**, from the three scans' scanner reports:
+- Storefront language (the owner's contract: saved choice first, then `?lang=`, then Arabic). An English
+  shopper who taps Men, Women, Accessories or Outlet on the home page lands on the Arabic category page;
+  `category.php:75` reads only `?lang=`, and `category-tiles.js` builds bare paths. The return link on
+  `/returns` also drops `?lang=en` and saves the return request as Arabic.
+- Checkout: the phone normaliser in `Checkout-*.js` drops the 9th and later digits and still shows the
+  green tick. Reported as CA-01.
+- Panel: saving a product from the Expo app clears its featured flag, featured order, legacy photo list
+  and main image (`src/lib/admin.ts` `saveProduct`). Toggling a hero slide on or off wipes its title,
+  subtitle, button and focal point.
+- Policy: Privacy §5 says "this site sets no cookies at all", which is false now that accounts set a
+  session cookie. Privacy §1 and §4 understate the data collected and the third parties contacted.
+  Terms §2 says an order is confirmed once payment is captured, which is wrong for cash on delivery.
+  The return rules contradict each other across About, the returns page, Terms and the form. The
+  WhatsApp delivery-update promise is not backed by any queued message unless the token is set.
+- Checkout data: "remember my address" is ticked by default, which saves name, phone, email and address
+  on the device unless the shopper unticks it. The stated privacy claim for it is wrong.
+
+**Also reported, NOT verified, medium:** the free-delivery threshold is enforced by the server but not
+stated on the policy pages; the "How far from me?" control never works, because the site-wide
+Permissions-Policy turns geolocation off; the Users page shows raw tokens such as `http_500`.
+
+**Harness notes from the scans:**
+- `test:css` reports `assets/driver.css` as dead, but `api/driver.php` links it. A false positive.
+- `test:dark-audit` fails on the wishlist heart because it measures the box behind a placeholder image.
+- `test:page-language` only asks category pages with `?lang=`, so it passes while the bugs above are present.
+- `storage-scan` describes a remember tick box that is now on by default, and crashes partway.
+- `test:text-colour` dies before its verdict when an unguarded quick-add click times out.
+
+**Next:** when the scans finish, every item above is either VERIFIED (three verifiers), or REFUTED, and
+the verified ones are fixed under the auto-deploy rule, with the owner's decisions (policy wording,
+the remember-address default, the Expo app's feature gaps) asked first.
