@@ -41,6 +41,24 @@ lapse; the server name is assigned per session and has changed once already,
 so find it by its tools rather than by name. Writes through it (deploys, DNS,
 cron jobs, deletes) still need a person's yes.
 
+Operations proved by use on 14 October, all reads. The account is one order,
+`1007674463` (`hostinger_business_v2`), one username, `u130124229`:
+
+- `hosting_websites_list` — takes `domain` (substring) and `per_page`; 10 sites.
+- `hosting_ssl_status` — **needs `username` as well as `domain`**; sending the
+  domain alone fails with «Missing required parameter(s)». All nine hosted
+  domains: lifetime certificate, HTTPS redirect on, nearest expiry 25 Nov.
+- `hosting_databases_list` (`username`), `hosting_orders_list` (`statuses`),
+  `wordpress_installations_list` (`ownership: "all"`, empty here),
+  `billing_subscriptions_list` (no params).
+- `multi-execute` stops at the first failing step and returns nothing from the
+  steps before it, so one wrong parameter costs the whole batch; send the
+  parameters the `search` result's `inputSchema` lists, not a guess.
+- Billing prices are bare integers (`20388` for the hosting plan) with no
+  stated unit; do not quote them as dollars.
+- Outside-in checks (`curl` to the live site) cannot be made from this sandbox,
+  so "reachable" is never established by `ppok` alone.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:
