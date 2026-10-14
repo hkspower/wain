@@ -29,6 +29,18 @@ refuses it today (403, 14 October). Without the token it exits at once rather
 than starting the package's browser OAuth, which would hang here.
 `npm run hosting:check` says which of the three is missing.
 
+**A third route appeared on 14 October: the Hostinger plugin from the
+Anthropic Directory** («Hostinger Connector», enabled on the claude.ai
+account). Its MCP server, `plugin:hostinger:hostinger`, was refused by the
+egress gateway (`ERR_PROXY_TUNNEL`, 403) — but the same Hostinger API tools
+(`search`, `execute`, `multi-execute`) also arrived as a server named
+**`ppok`**, and a read-only `hosting_websites_list` through it returned all ten
+vhosts. So `ppok` is the route in use now, in place of `hosa`, which
+disconnected the same day. It is OAuth like `hosa`, so expect the same
+lapse; the server name is assigned per session and has changed once already,
+so find it by its tools rather than by name. Writes through it (deploys, DNS,
+cron jobs, deletes) still need a person's yes.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:
