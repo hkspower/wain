@@ -7,11 +7,13 @@
 /// one persona's voice on the other's agent.
 library;
 
-/// شوق's ElevenLabs agent — used ONLY by a sandbox build that asks for it:
+/// شوق's ElevenLabs agent — used ONLY by a build that asks for it:
 ///   flutter build … --dart-define=WAIN_AI_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116
-/// The live app is the free build since 2 October (local_session.dart): the
-/// paid account ran dry and a live call showed its English quota error over
-/// our own sheet. The web made the same change (src/lib/wain-ai.ts).
+/// The app's builds are free (local_session.dart): the paid account ran dry
+/// on 2 October and a live call showed its English quota error over our own
+/// sheet, and CI passes no id. An agent build falls back to the free call for
+/// a quarter hour after a refusal for credits (agent_health.dart), as the web
+/// does (src/lib/agent-health.ts).
 const String kSandboxAgentId = 'agent_1701m1gcrccrethae9y3nyv1e116';
 const String _configured = String.fromEnvironment('WAIN_AI_AGENT_ID');
 
@@ -79,6 +81,8 @@ class CallPersonaCopy {
     required this.failed,
     required this.offline,
     required this.micNote,
+    required this.agentUnavailable,
+    required this.callTitle,
     required this.face,
   });
 
@@ -96,6 +100,14 @@ class CallPersonaCopy {
   final String offline;
   final String micNote;
 
+  /// The agent refused for credits (agent_health.dart): the next call is the
+  /// free one, and this says so — the web's `agentUnavailable`.
+  final String agentUnavailable;
+
+  /// The Android notification's title while the call goes on behind another
+  /// app. It said «مكالمة مع شوق» on his calls too until 14 October.
+  final String callTitle;
+
   /// The picture on the sheet.
   final String face;
 }
@@ -110,6 +122,8 @@ const shouqCallCopy = CallPersonaCopy(
   failed: CallCopy.failed,
   offline: CallCopy.offline,
   micNote: CallCopy.micNote,
+  agentUnavailable: CallCopy.agentUnavailable,
+  callTitle: 'مكالمة مع شوق',
   face: 'assets/img/shouq-face.jpg',
 );
 
@@ -124,6 +138,8 @@ const salemCallCopy = CallPersonaCopy(
   failed: 'ما قدرنا نشغّل سالم الحين — جرّب مرة ثانية بعدين.',
   offline: 'ما فيه إنترنت — سالم يحتاج اتصال عشان يرد.',
   micNote: 'يحتاج إذن المايك عشان تكلّمه.',
+  agentUnavailable: 'سالم مو متاح الحين — اتصل مرة ثانية وأدوّر لك من دليل وين.',
+  callTitle: 'مكالمة مع سالم',
   face: 'assets/img/salem-face.jpg',
 );
 
@@ -140,7 +156,10 @@ abstract final class AiPrivacyCopy {
   static const chatNotice =
       'المحادثة تنحفظ عند مزوّد خدمة الصوت وما تنمسح تلقائياً.';
   static const details = 'التفاصيل';
-  static const consentTitle = 'قبل ما تكلّم شوق أو تكتب لسالم';
+  // Asked before her call, his call and his chat alike (call_button.dart,
+  // salem_screen.dart), so it names neither channel: it read «أو تكتب لسالم»
+  // over his CALL until 14 October.
+  static const consentTitle = 'قبل ما تكلّم شوق أو سالم';
   static const consentBody =
       'صوتك، وأي شي تكتبه، يروح لمزوّد خدمة الصوت عشان المساعد يسمعك ويرد عليك — '
       'وينحفظ عندهم تحت حسابنا وما ينمسح تلقائياً. فلا تقول ولا تكتب شي ما تبيه ينحفظ.';
@@ -191,10 +210,24 @@ abstract final class CallCopy {
   static const micBusy = 'المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.';
   static const failed = 'ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.';
 
+  /// The agent refused for credits (the web's `agentUnavailable`): the next
+  /// call is the free one, our own search, which needs no account.
+  static const agentUnavailable =
+      'شوق مو متاحة الحين — اتصل مرة ثانية وأدوّر لك من دليل وين.';
+
   /// The free call (local_session.dart) — the web's local-mode lines.
   static const noSpeech = 'ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.';
   static const speechUnavailable =
       'جوالك ما يقدر يسمعك الحين — اكتب اللي تبيه بالبحث.';
+
+  /// The ways on from a phone that cannot listen (speechUnavailable): the
+  /// speech permission lives in Settings on iOS, and typing to سالم answers
+  /// the same question. It was a sentence with no button until 14 October.
+  static const typeToSalem = 'اكتب لسالم';
+
+  /// The last place the call put on screen, one tap from its last screen —
+  /// the web's «رسّلها للربع» on the ended sheet.
+  static const shareLast = 'رسّلها للربع';
 }
 
 abstract final class ChatCopy {
@@ -205,10 +238,10 @@ abstract final class ChatCopy {
   static const disconnected = 'انتهت المحادثة.';
   static const reconnect = 'ابدأ من جديد';
 
-  /// The calls are شوق's: it said «كلّمه بمكالمة», a call to him there is no
-  /// button for.
+  /// Said in HIS chat, whose header places HIS call (14 October): it read
+  /// «كلّم شوق بمكالمة» there, pointing at a button the page does not have.
   static const toolUnavailable =
-      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّم شوق بمكالمة.';
+      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّم سالم بمكالمة.';
   static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
 
   /// The server refused for something a retry this minute cannot change (out

@@ -296,7 +296,13 @@ class _SearchScreenState extends State<SearchScreen> {
               const SizedBox(height: 10),
               _QueryBox(
                 controller: _controller,
-                onChanged: () => setState(() {}),
+                onChanged: () {
+                  // A question typed over the call's is typed, not «من
+                  // مكالمتك»: the web's /search forgets `asked` on the first
+                  // edit (14 October). Nothing to do without a controller.
+                  context.read<CallController?>()?.forgetLastQueryUnless(_q);
+                  setState(() {});
+                },
                 onClear: () => setState(() => _controller.clear()),
               ),
               // Only the kinds this query found: a greyed chip that cannot be

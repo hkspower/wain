@@ -76,7 +76,10 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
           // one that is not about to end on its own, or it races the teardown.
           if (stayOpen) return;
           if (error) { setTimeout(() => this.onerror?.({ error }), 320); return; }
-          setTimeout(() => this.onresult?.({ results: [[{ transcript }]] }), 320);
+          // A later call in the same page can be given other words — the
+          // follow-up sections ask a second question through the bar.
+          const heard = window.__nextTranscript ?? transcript;
+          setTimeout(() => this.onresult?.({ results: [[{ transcript: heard }]] }), 320);
           setTimeout(() => { window.__gestureOver = true; this.onend?.(); }, 720);
         }
         stop() { window.__stopped = true; this.onend?.(); }
@@ -196,6 +199,12 @@ console.log('\n── one tap places the call ──');
   ok('announced as the call centre', /مركز اتصال وين/.test(label), label);
   ok('it starts out ringing', (await sheet(p).textContent()).includes('يرن'));
   ok('and says what to ask her while it rings', (await sheet(p).textContent()).includes('قول لي وش تبي'));
+  // The dialog takes focus: the button it was opened from leaves with /find a
+  // moment later, so focus used to fall to the body under an aria-modal
+  // dialog and a screen reader went on reading the page the sheet covered.
+  await p.waitForFunction(() => document.querySelector('#wain-ai-panel')?.contains(document.activeElement), null, { timeout: 2000 });
+  ok('and the dialog takes focus', await p.evaluate(() => document.querySelector('#wain-ai-panel')?.contains(document.activeElement) === true),
+    await p.evaluate(() => `${document.activeElement?.tagName}#${document.activeElement?.id}`));
   // Was read off the button after the tap; the button leaves with /find now.
   ok('the button reported expanded before it handed over',
     (await p.evaluate(() => window.__expanded)).includes('true'),
@@ -426,7 +435,10 @@ console.log('\n── the reason given matches the reason ──');
   // telling them it is sends them back to speak louder into the same failure.
   for (const [err, expect, label] of [
     ['network', 'ما قدرنا نوصلك', 'the speech service is unreachable'],
-    ['audio-capture', 'ما قدرنا نوصلك', 'there is no usable microphone'],
+    // The engine found no usable microphone — the fact the agent path's probe
+    // already reports as noMic. It read «we could not reach her» until
+    // 14 October, which sent the caller to retry a line that was fine.
+    ['audio-capture', 'ما لقينا مايك', 'there is no usable microphone'],
     // `service-not-allowed` is NOT the microphone: WebKit says it when
     // Siri/Dictation is off or the locale is one Apple lacks. It read «allow
     // the microphone» until 3 October, to callers whose microphone was on.
@@ -534,7 +546,148 @@ console.log('\n── the call connects her, and she answers ──');
     !said.includes('حوش السوق') && !said.includes('وإذا تبي غيره'), said);
   ok('the results are on screen behind her', (await p.locator('a[href^="/places/"]').count()) > 0);
   ok('the voice toggle is left on', (await p.evaluate(() => localStorage.getItem('wain-voice-enabled'))) === '1');
+
+  /**
+   * «From your call» is a property of the arrival, not of the words. The
+   * answer card hands the question to سالم as her call's (`from=call`), and it
+   * used to do so again whenever the box held the spoken words — type
+   * something else, type them back, and سالم was told «من مكالمتك مع شوق»
+   * about a question that was typed (14 October).
+   */
+  const toSalem = () => p.locator('a[href*="/salem/"]', { hasText: 'كمّل مع سالم' }).first()
+    .getAttribute('href', { timeout: 4000 }).then((h) => new URL(h ?? '', B).searchParams.get('from')).catch(() => null);
+  ok('her answer card hands the spoken question to سالم as the call\'s', (await toSalem()) === 'call', String(await toSalem()));
+  const box = p.locator('input[type="search"]').first();
+  await box.fill('بحر');
+  await p.waitForFunction(() => /بحر/.test(decodeURIComponent(location.search)), null, { timeout: 4000 });
+  await box.fill('قهوة هادية');
+  await p.waitForFunction(() => /قهوة هادية/.test(decodeURIComponent(location.search)), null, { timeout: 4000 });
+  await p.waitForTimeout(400);
+  ok('typed back after an edit, the same words are no longer «from the call»', (await toSalem()) === 'shouq', String(await toSalem()));
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── after the answer, the call waits for the next question ──');
+{
+  /**
+   * One question per call, then a walk back to /find for the next — that was
+   * the free call until 14 October, and the owner asked for follow-ups without
+   * a limit. The sheet shrinks to a bar over the results the moment the answer
+   * lands: the page is the answer, so it has to be seen and scrolled; the one
+   * thing left to press is «اسأل مرة ثانية», and it is a tap of its own
+   * because WebKit starts recognition only inside a gesture.
+   */
+  const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية', at: new Date('2026-01-15T11:00:00Z') });
+  await call(p);
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 }).catch(() => {});
+  const bar = p.locator('#wain-ai-bar');
+  await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  ok('the call becomes a bar over the results', await bar.isVisible().catch(() => false));
+  ok('and the full sheet is gone', (await p.locator('#wain-ai-panel').count()) === 0);
+  const barText = (await bar.textContent().catch(() => '')) ?? '';
+  ok('it names her and what she searched for', barText.includes('شوق') && barText.includes('قهوة هادية'), barText.slice(0, 120));
+  ok('and offers the next question', barText.includes('اسأل مرة ثانية'), barText.slice(0, 120));
+  ok('the page behind it is not locked', await p.evaluate(() => !document.documentElement.hasAttribute('data-call-open')));
+  ok('and is given room for the bar', await p.evaluate(() => document.documentElement.hasAttribute('data-call-bar')));
+  ok('the results are there to see', (await p.locator('a[href^="/places/"]').count()) > 0);
+  // Not a launcher: /search keeps its one-call-button count of zero (find.test).
+  ok('the bar is not a second call button', (await p.locator('button[aria-controls="wain-ai-panel"]:visible').count()) === 0);
+  // The sheet comes out from under the bar: the bar's bottom edge is the
+  // viewport's, in both modes, so nothing the page draws there (the tab bar in
+  // the installed app) paints over it.
+  const under = await p.evaluate(() => {
+    const r = document.querySelector('#wain-ai-bar')?.getBoundingClientRect();
+    return r ? { bottom: r.bottom, vh: innerHeight, h: r.height } : null;
+  });
+  ok('the bar sits at the foot of the screen', !!under && Math.abs(under.bottom - under.vh) < 1 && under.h >= 48, JSON.stringify(under));
+
+  await p.evaluate(() => { window.__startInGesture = null; window.__nextTranscript = 'بحر'; });
+  await bar.getByRole('button', { name: 'اسأل مرة ثانية' }).click({ timeout: 4000 }).catch(() => {});
+  await p.waitForSelector('#wain-ai-panel', { timeout: 4000 }).catch(() => {});
+  ok('«اسأل مرة ثانية» brings the sheet back, ringing', (await p.locator('#wain-ai-panel').textContent().catch(() => '')).includes('يرن'));
+  ok('and starts listening inside its own tap, as WebKit requires', (await p.evaluate(() => window.__startInGesture)) === true,
+    String(await p.evaluate(() => window.__startInGesture)));
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('بحر'), { timeout: 9000 }).catch(() => {});
+  ok('the second question becomes the search', decodeURIComponent(p.url()).includes('بحر'), p.url());
+  await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  ok('and the bar is back, naming it', ((await bar.textContent().catch(() => '')) ?? '').includes('بحر'));
+
+  // Leaving the results is leaving the call: a bar that followed the caller
+  // round the site would be a call nobody is on.
+  await p.locator('a[href^="/places/"]').first().click({ timeout: 4000 }).catch(() => {});
+  await p.waitForURL((u) => new URL(u).pathname.startsWith('/places/'), { timeout: 6000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  ok('tapping a result takes the bar down', (await p.locator('#wain-ai-bar').count()) === 0);
+  ok('and the room under the page with it', await p.evaluate(() => !document.documentElement.hasAttribute('data-call-bar')));
+  ok('no page errors through it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── the bar can be closed, and the close is quiet ──');
+{
+  const { ctx, p } = await fresh({ transcript: 'قهوة هادية' });
+  await call(p);
+  const bar = p.locator('#wain-ai-bar');
+  await bar.waitFor({ state: 'visible', timeout: 9000 }).catch(() => {});
+  const before = (await p.evaluate(() => window.__vibrations)).length;
+  await bar.getByRole('button', { name: 'إغلاق' }).click({ timeout: 4000 }).catch(() => {});
+  await p.waitForTimeout(200);
+  ok('إغلاق takes the bar down', (await p.locator('#wain-ai-bar').count()) === 0);
+  ok('without a hang-up buzz — there was no call to end', (await p.evaluate(() => window.__vibrations)).length === before);
+  await ctx.close();
+}
+
+console.log("\n── سالم's free call lands on his chat, not on her card ──");
+{
+  /**
+   * His call from his header, with no agent: the phone's recogniser and our
+   * search, as hers. It used to end on /search — her answer card, her name —
+   * so a caller who had asked سالم was answered by شوق (14 October). His chat
+   * answers the question in his name instead.
+   */
+  const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية', at: new Date('2026-01-15T11:00:00Z') });
+  await p.goto(B + '/salem/', { waitUntil: 'networkidle' });
+  await p.getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 4000 }).catch(() => {});
+  await p.waitForSelector('#wain-ai-panel', { timeout: 6000 }).catch(() => {});
+  const ringing = (await p.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+  ok('the sheet rings in his name', ringing.includes('سالم') && !ringing.includes('شوق'), ringing.slice(0, 120));
+  // Read as the page reads it (searchParams): salemHandoff writes the space
+  // as «+», which decodeURIComponent leaves alone.
+  await p.waitForURL((u) => new URL(u).searchParams.get('q') === 'قهوة هادية', { timeout: 9000 }).catch(() => {});
+  const u = new URL(p.url());
+  ok('the question lands on his chat', u.pathname === '/salem/' && u.searchParams.get('q') === 'قهوة هادية', p.url());
+  ok('as a question, not as «from her call»', !u.searchParams.has('from'), p.url());
+  const bar = p.locator('#wain-ai-bar');
+  await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+  ok('and the bar waits there in his name', ((await bar.textContent().catch(() => '')) ?? '').includes('سالم'));
+  ok('his chat answers it', await p.waitForSelector('[role="log"] p', { timeout: 8000 }).then(() => true, () => false));
+  ok('no page errors through it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── a call whose code cannot be loaded does not take the site down ──');
+{
+  /**
+   * The call sits outside <main> in the root layout, so the route's error
+   * boundary never sees it: a chunk that failed to load replaced the WHOLE
+   * tree with Next's bare «Application error» — the page, the tab bar and the
+   * way out, gone for one call that could not start (14 October).
+   */
+  const { ctx, p } = await fresh();
+  await ctx.route('**/_next/static/chunks/*.js', async (route) => {
+    const r = await route.fetch();
+    const body = await r.text();
+    if (body.includes('wain-ai-panel')) return route.abort('failed');
+    return route.fulfill({ response: r, body });
+  });
+  await dial(p);
+  await p.waitForSelector('[data-call-failed]', { timeout: 8000 }).catch(() => {});
+  ok('the page is still there', (await p.locator('main#main-content').count()) === 1);
+  ok('and not Next\'s error page', !(await p.locator('body').textContent()).includes('Application error'));
+  ok('no sheet opened', (await p.locator('#wain-ai-panel').count()) === 0);
+  const said = (await p.locator('[data-call-failed]').textContent().catch(() => '')) ?? '';
+  ok('the caller is told in one line', said.includes('ما قدرنا نشغّل المكالمة'), said);
   await ctx.close();
 }
 

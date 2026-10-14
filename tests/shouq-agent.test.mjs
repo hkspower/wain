@@ -50,8 +50,8 @@ const WIDGET = '**/_next/static/media/convai-*';
 /** One browser context wired the way a phone with the widget would be.
  *  `micError` is the DOMException name getUserMedia should reject with, or
  *  null for a working microphone. */
-async function makeCtx(micError, seen) {
-  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+async function makeCtx(micError, seen, { userAgent = null } = {}) {
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW', ...(userAgent ? { userAgent } : {}) });
   await c.addInitScript(RECORD_INTEGRITY);
   await c.route(WIDGET, async (route) => {
     seen.push(route.request().url());
@@ -109,6 +109,10 @@ async function makeCtx(micError, seen) {
       value: {
         getUserMedia: async () => {
           window.__micRequests++;
+          // Which event, if any, the request was made inside of. The call's
+          // own comment said «inside the tap» for a fortnight over a probe
+          // that ran from an effect — `window.event` is undefined there.
+          window.__micEvent = window.event?.type ?? null;
           if (err) throw Object.assign(new Error(err), { name: err });
           return { getTracks: () => [{ stop() { window.__micStopped++; } }] };
         },
@@ -213,7 +217,8 @@ ok('the widget carries no voice override (her own voice, her own agent)',
 ok('the widget is left at its own collapsed default, not force-expanded over the sheet',
   (await p.evaluate(() => window.__convaiDefaultExpanded)) === null);
 ok('the microphone was asked for INSIDE the tap, once',
-  (await p.evaluate(() => window.__micRequests)) === 1);
+  (await p.evaluate(() => window.__micRequests)) === 1 && (await p.evaluate(() => window.__micEvent)) === 'click',
+  `requests=${await p.evaluate(() => window.__micRequests)} event=${await p.evaluate(() => window.__micEvent)}`);
 ok('and released at once — it was a permission probe, not a capture',
   (await p.evaluate(() => window.__micStopped)) === 1);
 const startBtn = p.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
@@ -546,6 +551,39 @@ for (const [name, want, label] of [
     !(await m.locator('#wain-ai-panel').textContent()).includes('اضغط «بدء مكالمة»'));
   await mctx.close();
 }
+{
+  // Inside WhatsApp's own browser the refusal is the host app's, not a switch
+  // the caller can find — the free call already says so and offers typing to
+  // سالم; the agent path said «allow the microphone» (14 October).
+  const wctx = await makeCtx('NotAllowedError', [], { userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0 Mobile Safari/537.36 WhatsApp/2.24' });
+  const w = await wctx.newPage();
+  await dial(w);
+  await w.waitForSelector('#wain-ai-panel [role="alert"]', { timeout: 8000 }).catch(() => {});
+  const wt = (await w.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+  ok('inside an app\'s browser, a refused microphone is not blamed on the microphone',
+    wt.includes('التعرّف على الصوت مو شغّال') && !wt.includes('المايك مسموح'), wt.slice(0, 140));
+  ok('and typing to سالم is offered instead', (await w.locator('#wain-ai-panel a[href="/salem/"]', { hasText: 'اكتب لسالم' }).count()) === 1);
+  await wctx.close();
+}
+
+console.log('\n── a widget that never arrives rings out as a line that could not be reached ──');
+{
+  // A bundle that hangs (not fails) runs into the 20-second dial timeout, and
+  // that one used to say «check the microphone» — the free call's advice,
+  // where the ring IS the microphone prompt. On an agent call the microphone
+  // was probed and fine before the ring; it is the widget that never came.
+  const hctx = await makeCtx(null, []);
+  await hctx.route(WIDGET, () => new Promise(() => {}));
+  const h = await hctx.newPage();
+  await dial(h);
+  const alerted = await h.waitForSelector('#wain-ai-panel [role="alert"]', { timeout: 26_000 }).then(() => true, () => false);
+  const ht = (await h.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
+  ok('the ring-out is said', alerted, ht.slice(0, 140));
+  // The sheet's standing note («يحتاج إذن المايك…») names the microphone
+  // on every screen; what must be absent is the free call's blame.
+  ok('as the line not reached, not as the microphone', ht.includes('ما قدرنا نوصلك') && !ht.includes('ما وصلنا صوتك') && !ht.includes('طوّلنا نرن'), ht.slice(0, 140));
+  await hctx.close();
+}
 
 /* The phone's recogniser, for the calls that fall back to it. */
 const REC_STUB = () => {
@@ -799,6 +837,11 @@ console.log("\n── سالم's call reaches HIS agent, and hers never reaches 
   ok("and never to شوق's", got !== 'agent_test_0123456789', String(got));
   const salemSheet = await sp.locator('#wain-ai-panel').textContent().catch(() => '');
   ok('the sheet names him, not her', salemSheet.includes('سالم') && !salemSheet.includes('شوق'), salemSheet.slice(0, 160));
+  // His ready line in his grammar: «جاهز», not her «جاهزة» (14 October).
+  await sp.waitForFunction(() => document.querySelector('#wain-ai-panel header')?.textContent.includes('جاهز'), null, { timeout: 8000 }).catch(() => {});
+  const salemHeader = (await sp.locator('#wain-ai-panel header').textContent().catch(() => '')) ?? '';
+  ok('and its ready line is in his grammar', salemHeader.includes('جاهز') && !salemHeader.includes('جاهزة'), salemHeader.slice(0, 120));
+  ok('his badge is a handset, not her drawn face', (await sp.locator('#wain-ai-panel .shouq').count()) === 0);
   ok('no voice override is sent with his call either',
     await sp.evaluate(() => !document.querySelector('elevenlabs-convai')?.hasAttribute('override-voice-id')));
   // Press the widget's own Start, as the visitor would, so the call registers

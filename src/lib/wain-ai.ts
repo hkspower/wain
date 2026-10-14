@@ -1,22 +1,24 @@
 import { WAIN_AI_WIDGET_PATH } from "@/lib/widget-src.g";
 
 /**
- * وين AI — the assistant behind the hold-to-talk button.
+ * وين AI — the two assistants behind the call button and the typed chat.
  *
- * Two ways it can answer, chosen by what is configured:
+ * Two ways a call can answer, chosen by what is configured:
  *
- * 1. Agent mode — the ElevenLabs Conversational AI widget, speaking as شوق,
- *    a young Kuwaiti woman's voice. Wain ships as a static export with no
+ * 1. Agent mode — the ElevenLabs Conversational AI widget, speaking as شوق
+ *    (or as سالم, on his own agent). Wain ships as a static export with no
  *    server to hold an API key, so the widget does the microphone, streaming
  *    and turn-taking entirely in the browser against an agent you own; the
  *    only thing the site needs is that agent's public ID. The agent drives
- *    the map through a client tool (see WainAi.tsx) — when it recommends
- *    places it can put them in front of the visitor, not just say them.
+ *    the page through two client tools (see WainAiCall.tsx) — when it
+ *    recommends places it can put them in front of the visitor, not just say
+ *    them.
  *
- * 2. Local mode — no agent configured yet. The browser's own Arabic speech
- *    recognition takes the question, وين's local search engine answers it,
- *    and صوت وين reads the best result aloud in شوق's voice. Fully offline
- *    logic, nothing configured, works today.
+ * 2. Local mode — no agent configured, or the account refused for credits
+ *    (lib/agent-health.ts). The browser's own Arabic speech recognition takes
+ *    the question, وين's local search engine answers it, and the answer is
+ *    read aloud on the results page. Fully offline logic, nothing configured,
+ *    works today.
  *
  * Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID at build time to switch on her agent, and
  * NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID to switch on his (see agentIdFor below).
@@ -24,21 +26,23 @@ import { WAIN_AI_WIDGET_PATH } from "@/lib/widget-src.g";
  * unconfigured build ships with the lesser assistant, not a broken button.
  */
 /**
- * شوق's ElevenLabs agent is OFF unless a build asks for it — the live site
- * runs the free call (local mode above), and only staging.wainkw.com builds
- * with the agent. The owner's decision, 2 October, after the account ran out
- * of credits and a phone showed what that does to a live call: the widget
- * mounted inside our sheet, printed «You've run out of credits
- * [quota_exceeded]» in English over our hang-up button, added its
- * «Powered by» line, while our own header said «متصل». A paid service that
- * can run dry is not something to put in front of every visitor by default.
+ * شوق's ElevenLabs agent is OFF unless a build asks for it. The owner's
+ * decision, 2 October, after the account ran out of credits and a phone showed
+ * what that does to a live call: the widget mounted inside our sheet, printed
+ * «You've run out of credits [quota_exceeded]» in English over our hang-up
+ * button, added its «Powered by» line, while our own header said «متصل». A
+ * paid service that can run dry is not something a build should turn on by
+ * accident. Since 7 October the live site IS built with the agent (the owner
+ * asked for her real voice back), and since 14 October with both agents; the
+ * free call is what a refusal for credits falls back to, and what a build
+ * without the ids ships.
  *
  * This reverses a default that was ON for a reason worth keeping in mind:
  * «a feature that ships switched off by default ships switched off» — the
  * agent existed for weeks while every visitor got the free call because a
  * variable was never set. That is now the intent rather than the accident.
  *
- * To build with her (staging, or a sandbox on a laptop):
+ * To build with her (the release, or a sandbox on a laptop):
  *
  *   NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116 npm run build
  *
@@ -108,10 +112,10 @@ export function agentSay(persona: CallPersona): (fem: string, masc: string) => s
 /**
  * سالم's own display identity — his name and role line, matching the shape
  * `WAIN_AI_COPY.name`/`.role` already hold for شوق. Kept separate rather than
- * folded into `WAIN_AI_COPY` because `WAIN_AI_COPY` is still hers — the phone
- * call in `WainAiCall.tsx` never changes identity, only its voice — and a
- * shared object would make it too easy for a future edit to retarget her own
- * surfaces at his name by mistake. `role` is the masculine form of hers
+ * folded into `WAIN_AI_COPY` because `WAIN_AI_COPY` is hers: the call sheet
+ * reads his words through `callCopy("salem")` below, which overlays only the
+ * lines that name him or agree with him, so a future edit cannot retarget her
+ * own surfaces at his name by mistake. `role` is the masculine form of hers
  * («دليلتك» → «دليلك»): the ة in «دليلة» marks the GUIDE's own gender, not
  * the visitor's — شوق is «دليلتك», a female guide, and سالم is «دليلك», a
  * male one, both still addressing the same «you» either way.
@@ -214,10 +218,19 @@ export const WAIN_AI_COPY = {
   answering: "شوق ترد…",
   hangUp: "إنهاء المكالمة",
   callAgain: "اتصل مرة ثانية",
-  // Named as a VOICE change, deliberately not «كلّمي سالم» — it is still شوق
-  // answering, her brain and her tools untouched; only the TTS voice reading
-  // her replies changes. Calling it a different agent would be a promise this
-  // button does not keep.
+  /**
+   * The free call after its answer (14 October, the owner's «unlimited»
+   * follow-ups): the sheet shrinks to a bar over the results and this is the
+   * one thing to press on it. Each press is its own tap, because WebKit starts
+   * recognition only inside a gesture — a bar that listened again on its own
+   * would be refused on every iPhone.
+   */
+  askAgain: "اسأل مرة ثانية",
+  // The bar's one line while the results are on screen behind it.
+  answered: "جوابها على الشاشة",
+  // His call ends on a page that is not his chat (his tools drive /search and
+  // the place pages), so the last screen offers the way back.
+  backToSalem: "رجوع لسالم",
   /**
    * What she just did to the screen behind the call sheet.
    *
@@ -280,7 +293,10 @@ export const WAIN_AI_COPY = {
   micBusy: "المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.",
   noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.",
   unsupported: "متصفحك ما يدعم الإدخال الصوتي — اكتب اللي تبيه.",
-  failed: "ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.",
+  // The call's own code could not be loaded or threw (WainAi.tsx's boundary):
+  // the site stays up and this is all that is said of it. Not persona-aware —
+  // no sheet is there to know whose call it was.
+  failed: "ما قدرنا نشغّل المكالمة الحين — جرّب مرة ثانية بعدين.",
   // The agent refused for credits (lib/agent-health.ts). Not «جرّب مرة ثانية»
   // as if the same thing might work: the next dial goes to the free call, our
   // own search, which needs no account — and this says so.
@@ -304,6 +320,9 @@ const SALEM_CALL_COPY = {
   answering: "سالم يرد…",
   connectingLine: "نوصّلك بسالم…",
   onTheLine: "على الخط — كلّمه عادي",
+  // «جاهز», not «جاهزة»: the sheet read hers over his widget (14 October).
+  readyToStart: "جاهز — اضغط «بدء مكالمة»",
+  answered: "جوابه على الشاشة",
   micNote: "يحتاج إذن المايك عشان تكلّمه.",
   callShouq: "كلّم سالم",
   callHint: "اضغط عشان تكلّم سالم",

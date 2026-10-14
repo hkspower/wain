@@ -13,12 +13,12 @@ import type { Phase } from "@/components/WainAiCall";
  * Two window events between the button that starts a call and the call itself,
  * because the two cannot be in the same React tree.
  *
- * The button belongs in the search box — it is the page's one voice control,
- * sitting where the visitor is already looking. The call cannot live there:
+ * The button lives where a call is offered — /find's phone, and سالم's header
+ * on /salem (since 7 October). The call cannot live on either page:
  * `open_place` is a route change, the `<elevenlabs-convai>` element is created
- * imperatively inside `WainAiCall`, and a call the search page owned would be
- * torn down by its own tool mid-sentence. So the call stays in the root layout
- * and the two talk across the gap.
+ * imperatively inside `WainAiCall`, and a call a page owned would be torn down
+ * by its own tool mid-sentence. So the call stays in the root layout and the
+ * two talk across the gap.
  *
  * A window event rather than a context provider or a store: this is one
  * request and one status, between exactly two components, and wrapping the
@@ -87,6 +87,42 @@ export function takeRequestedPersona(): CallPersona | null {
 export function callActive(): boolean {
   if (lastPhase !== "idle" && lastPhase !== "ended" && lastPhase !== "error") return true;
   return Date.now() - requestedAt < 3000;
+}
+
+/* ── the microphone, asked for inside the tap ────────────────────────────────
+ *
+ * Agent mode's permission probe (WainAiCall.checkMic) used to run from the
+ * call's own start, after the window event, the chunk fetch and an effect — so
+ * the sheet's header comment said «ask for the microphone HERE, inside the tap»
+ * over code that did not (14 October). Safari prompts for a microphone asked
+ * for outside a gesture only sometimes, and a probe that is refused silently is
+ * a call that says «على الخط» over a widget nobody can hear. The launcher starts
+ * the probe here, synchronously in the tap, and the call adopts its answer the
+ * way it adopts a recogniser the tap started.
+ */
+export type MicProbeResult = { ok: true } | { ok: false; name: string };
+
+let micProbe: Promise<MicProbeResult> | null = null;
+
+/** A permission probe, not a capture: the stream is released at once. */
+export function probeMic(): void {
+  const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+  micProbe = md?.getUserMedia
+    ? md.getUserMedia({ audio: true }).then(
+        (stream) => {
+          stream.getTracks().forEach((t) => t.stop());
+          return { ok: true } as const;
+        },
+        (err: unknown) => ({ ok: false as const, name: (err as { name?: string } | null)?.name ?? "" })
+      )
+    : null;
+}
+
+/** The tap's probe, once. Null when no tap asked for one (a redial from the sheet). */
+export function takeMicProbe(): Promise<MicProbeResult> | null {
+  const p = micProbe;
+  micProbe = null;
+  return p;
 }
 
 /* ── listening, started inside the tap ────────────────────────────────────────

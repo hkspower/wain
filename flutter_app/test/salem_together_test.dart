@@ -573,8 +573,34 @@ void main() {
       reason: 'his header places his call, never hers',
     );
     expect(find.text('the find screen'), findsNothing);
+    // While his call is up the button says so: coral, and «expanded» for a
+    // screen reader — it stayed green and silent until 14 October.
+    final live = t.widget<FilledButton>(
+      find.byKey(const ValueKey('chat-call-salem')),
+    );
+    expect(
+      live.style?.backgroundColor?.resolve(<WidgetState>{}),
+      WainColors.coral600,
+      reason: 'coral while his call is up',
+    );
+    expect(
+      t
+          .getSemantics(find.byKey(const ValueKey('chat-call-salem')))
+          .flagsCollection
+          .isExpanded,
+      Tristate.isTrue,
+    );
     _call.hangUp();
     await t.pump();
+    expect(
+      t
+          .widget<FilledButton>(find.byKey(const ValueKey('chat-call-salem')))
+          .style
+          ?.backgroundColor
+          ?.resolve(<WidgetState>{}),
+      WainColors.palm600,
+      reason: 'green again once the call is over',
+    );
     await t.pumpWidget(const SizedBox());
     await _pump(t);
     await _ask(t, 'مطعم');

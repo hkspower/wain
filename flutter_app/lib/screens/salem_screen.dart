@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../ai/call_button.dart' show placeCall;
+import '../ai/call_controller.dart';
 import '../ai/config.dart';
 import '../ai/salem_transcript.dart';
 import '../app/app_state.dart';
@@ -877,15 +878,21 @@ class _CallSalemButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 400;
     final icon = WainSvg.icon('call', size: 16, color: Colors.white);
+    // Coral while HIS call is up, as every call button is while its call is
+    // in progress (call_button.dart): the pill stayed green over his own
+    // live call until 14 October.
+    final call = context.watch<CallController>();
+    final live = call.active && call.persona == CallPersona.salem;
     return Semantics(
       button: true,
       label: ChatCopy.callSalem,
+      expanded: live && call.sheetOpen,
       excludeSemantics: true,
       child: FilledButton(
         key: const ValueKey('chat-call-salem'),
         onPressed: () => placeCall(context, persona: CallPersona.salem),
         style: FilledButton.styleFrom(
-          backgroundColor: WainColors.palm600,
+          backgroundColor: live ? WainColors.coral600 : WainColors.palm600,
           foregroundColor: Colors.white,
           minimumSize: const Size(48, 48),
           padding: EdgeInsets.symmetric(horizontal: wide ? 14 : 0),

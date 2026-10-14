@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/models.dart';
 import '../data/search.dart';
+import 'agent_health.dart';
 import 'config.dart';
 import 'keep_alive.dart';
 import 'local_session.dart' show kNoSpeech;
@@ -71,7 +72,11 @@ class CallController extends ChangeNotifier {
     this.salemAgentId,
     this.keepAlive,
     this.isOffline,
-  });
+    AgentHealth? health,
+  }) : _health = health ?? AgentHealth.instance;
+
+  /// Whether the agent refused for credits lately (agent_health.dart).
+  final AgentHealth _health;
 
   final SessionFactory sessionFactory;
   final List<Place> places;
@@ -90,9 +95,9 @@ class CallController extends ChangeNotifier {
   final String? shouqAgentId;
   final String? salemAgentId;
 
-  /// Screen awake, and on Android the foreground service that keeps the
-  /// microphone open while the app is behind another one. Started once the
-  /// microphone is granted, stopped on every way a call can end.
+  /// Screen awake, and on an agent call the Android foreground service that
+  /// keeps the microphone open while the app is behind another one. Started
+  /// once the microphone is granted, stopped on every way a call can end.
   final CallKeepAlive? keepAlive;
   bool _kept = false;
 
@@ -104,6 +109,7 @@ class CallController extends ChangeNotifier {
   String? _error;
   String? _lastAction;
   String? _lastQuery;
+  String? _lastSlug;
   CallPersona _persona = CallPersona.shouq;
   bool _local = false;
   Duration _elapsed = Duration.zero;
@@ -127,12 +133,24 @@ class CallController extends ChangeNotifier {
   /// screen and for /search to know its question came from her call.
   String? get lastQuery => _lastQuery;
 
+  /// The search box moved on from the call's question: a question typed back
+  /// later is typed, not «من مكالمتك» (the web's `asked`, 14 October).
+  void forgetLastQueryUnless(String typed) {
+    if (_lastQuery == null || _lastQuery == typed.trim()) return;
+    _lastQuery = null;
+    notifyListeners();
+  }
+
+  /// The place the call last put on screen — the first of a search, or the
+  /// one it opened — for «رسّلها للربع» on the last screen, as on the web.
+  String? get lastSlug => _lastSlug;
+
   /// Who the call is with: the sheet's name, picture and sentences follow it.
   CallPersona get persona => _persona;
 
   /// Whether a call with [p] would be the free one: no agent on the line for
-  /// that persona.
-  bool isFree(CallPersona p) => _agentFor(p).isEmpty;
+  /// that persona, or the agent refused for credits lately.
+  bool isFree(CallPersona p) => _agentFor(p).isEmpty || !_health.available;
 
   /// «كمّل مع سالم» is only offered after HER call: the hand-over says «من
   /// مكالمتك مع شوق», which is not true of a call with him.
@@ -192,7 +210,7 @@ class CallController extends ChangeNotifier {
     final copy = persona.copy;
     // Set before anything can fail, so a refused call shows the right person.
     _persona = persona;
-    _local = id.isEmpty;
+    _local = isFree(persona);
     if (isOffline?.call() ?? false) {
       _error = copy.offline;
       _sheetOpen = true;
@@ -204,6 +222,7 @@ class CallController extends ChangeNotifier {
     _error = null;
     _lastAction = null;
     _lastQuery = null;
+    _lastSlug = null;
     _heard = '';
     _elapsed = Duration.zero;
     _sheetOpen = true;
@@ -224,7 +243,10 @@ class CallController extends ChangeNotifier {
     }
 
     _kept = true;
-    keepAlive?.start();
+    // Not awaited: its permission dialogs must not hold the dial. The service
+    // is an agent call's; the free call keeps the screen awake and nothing
+    // more (keep_alive.dart).
+    keepAlive?.start(title: copy.callTitle, background: !_local);
 
     _dial = Timer(dialTimeout, () {
       if (token != _token || _phase != CallPhase.ringing) return;
@@ -269,6 +291,12 @@ class CallController extends ChangeNotifier {
         if (token != _token) return;
         if (message == kNoSpeech) {
           _fail(CallCopy.noSpeech);
+        } else if (!_local && isQuotaRefusal(message)) {
+          // The account is out of credits (7 October on the web): said as
+          // itself, and the next call for a quarter hour is the free one —
+          // it used to read as «ما قدرنا نوصلك» and ring the agent again.
+          _health.markUnavailable();
+          _fail(copy.agentUnavailable);
         } else if (_local) {
           // The phone's recogniser gave up, ringing or live. It used to end a
           // live call as «انتهت المكالمة», which says she hung up on them.
@@ -283,7 +311,10 @@ class CallController extends ChangeNotifier {
 
     try {
       await session.start(
-        agentId: id,
+        // The free call carries no agent, whether there is none for this
+        // persona or the account refused: a local session ignores the id,
+        // and handing it one anyway said «agent» of a call with nobody on it.
+        agentId: _local ? '' : id,
         tools: {'show_places': _showPlaces, 'open_place': _openPlace},
       );
     } catch (_) {
@@ -302,6 +333,7 @@ class CallController extends ChangeNotifier {
     navigate('/search?q=${Uri.encodeQueryComponent(r.query)}');
     _lastAction = lastActionForSearch(r.query, r.total);
     _lastQuery = r.query;
+    _lastSlug = r.slugs.isEmpty ? null : r.slugs.first;
     notifyListeners();
     return r.spoken;
   }
@@ -315,11 +347,17 @@ class CallController extends ChangeNotifier {
     if (r.slug == null) return r.spoken;
     navigate('/places/${r.slug}');
     _lastAction = '${CallCopy.didOpen} «${r.place!.nameAr}»';
+    _lastSlug = r.slug;
     notifyListeners();
     return r.spoken;
   }
 
   Future<void> hangUp() async {
+    // Only a call in progress can be hung up. The notification's «إنهاء» can
+    // arrive after the call has ended on its own (or failed), and used to
+    // re-open the sheet as «انتهت المكالمة» over whatever the caller had moved
+    // on to.
+    if (!active) return;
     final session = _session;
     _teardown();
     _session = null;
@@ -331,6 +369,22 @@ class CallController extends ChangeNotifier {
       /* already gone */
     }
     session?.dispose();
+  }
+
+  /// «رسّلها للربع» on the last screen: the place the call put on screen,
+  /// opened at its share panel.
+  void shareLastPlace() {
+    final slug = _lastSlug;
+    if (slug == null || active) return;
+    closeSheet();
+    navigate('/places/$slug?share=1');
+  }
+
+  /// «اكتب لسالم» on a phone that cannot listen: the same question, typed.
+  void typeToSalem() {
+    if (active) return;
+    closeSheet();
+    navigate('/salem');
   }
 
   /// «كمّل مع سالم» on the last screen: the same question, typed, with him.

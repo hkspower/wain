@@ -1,5 +1,6 @@
-/// The call launcher — one control, and since 1 October one place: /find's
-/// call half, on the phone it draws. It does the gesture work inside the tap:
+/// The call launcher: /find's call half, on the phone it draws (hers), and —
+/// through [placeCall], the same tap — سالم's header on his chat (his, since
+/// 14 October on his own agent). It does the gesture work inside the tap:
 /// haptic now, and the microphone prompt is the controller's first step, so the
 /// system sees a user gesture rather than a timer.
 library;

@@ -23,6 +23,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wain/ai/call_button.dart';
+import 'package:wain/ai/config.dart';
 import 'package:wain/ai/keep_alive.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/data/places.g.dart';
@@ -283,7 +284,9 @@ void main() {
     t,
   ) async {
     final keep = PlatformKeepAlive();
-    await keep.start();
+    // An agent call's start: the notification titled for her, and the
+    // service behind it (the free call asks only for the screen).
+    await keep.start(title: shouqCallCopy.callTitle);
     await settle(t, 1500);
     expect(await PlatformKeepAlive.isRunning(), isTrue);
     await keep.stop();
