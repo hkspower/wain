@@ -131,6 +131,17 @@ repeat of the same order (`again: true`) sends nothing. The log line records
 `mail=none|sent|failed` and never the address. A failed send does not fail the
 order: the order is already on the board.
 
+**Delivery is measured, not assumed.** The message goes out through PHP's
+`mail()` with `-forders@wainkw.com` (the envelope sender, which is what SPF
+checks and DMARC aligns to) and a Message-ID on `wainkw.com`. wainkw.com's DMARC
+is `p=quarantine`, so a message that fails both SPF and DKIM goes to spam. Nothing
+DKIM-signs `mail()` output, so SPF alignment is the only thing carrying it, and
+whether Hostinger's relay satisfies `include:_spf.mail.hostinger.com` for the web
+host's address is the open question. `php …/api/wain.php mailtest <address>` sends
+one real test message through the same path; read its headers in the mailbox for
+`Authentication-Results` (spf, dkim, dmarc). If spf or dmarc fails, the fix is
+authenticated SMTP from a real `orders@wainkw.com` mailbox, not more headers.
+
 ## Turning it on for a business (with a database)
 
 Two things are required, and a menu alone is not enough:

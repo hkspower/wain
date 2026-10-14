@@ -750,6 +750,7 @@ function timeArPhp(string $hhmm): string {
 function orderRef(string $id): string {
     return strtoupper(substr(str_replace('-', '', $id), 0, 6));
 }
+const MAIL_FROM = 'orders@wainkw.com';
 function orderEmail(string $id, array $row): array {
     $lines = [];
     foreach ($row['lines'] as $l) {
@@ -780,9 +781,16 @@ function sendOrderMail(string $to, array $mail): bool {
     }
     if (!function_exists('mail')) return false;
     $subject = '=?UTF-8?B?' . base64_encode($mail['subject']) . '?=';
-    $headers = "From: =?UTF-8?B?" . base64_encode('وين') . "?= <orders@wainkw.com>\r\n"
+    /* The envelope sender (-f) is what SPF is checked against and what
+       DMARC aligns to. Without it PHP's mail() uses the account's own
+       address on the host, which is not wainkw.com, so a receiver sees a
+       message From wainkw.com that neither SPF nor DKIM vouches for, and
+       wainkw.com's DMARC is p=quarantine. The Message-ID names our domain
+       for the same reason: a host-generated one is a spam signal. */
+    $headers = "From: =?UTF-8?B?" . base64_encode('وين') . "?= <" . MAIL_FROM . ">\r\n"
+             . "Message-ID: <" . bin2hex(random_bytes(12)) . "@wainkw.com>\r\n"
              . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64";
-    return @mail($to, $subject, chunk_split(base64_encode($mail['body'])), $headers);
+    return @mail($to, $subject, chunk_split(base64_encode($mail['body'])), $headers, '-f' . MAIL_FROM);
 }
 
 /* ── CLI: install / version / selftest / seed / migrate / log ───────────────*/
@@ -1030,6 +1038,18 @@ if (PHP_SAPI === 'cli') {
         $out(['ok' => true, 'slug' => $slug, 'order_email' => $email]);
     }
 
+    /* `mailtest <address>` — one real message through the same path an order
+       takes, so delivery can be MEASURED: read the received headers for
+       Authentication-Results (spf, dkim, dmarc). Never invents an order and
+       never touches a database. */
+    if ($mode === 'mailtest') {
+        $to = (string) ($argv[2] ?? '');
+        if (!preg_match(RE_EMAIL, $to) || strlen($to) > 191) $out(['ok' => false, 'error' => 'usage: mailtest <address>']);
+        $sent = sendOrderMail($to, ['subject' => 'اختبار بريد وين ' . gmdate('H:i:s') . 'Z',
+                                    'body' => "هذي رسالة اختبار من وين، مو طلب.\n"]);
+        $out(['ok' => $sent, 'to' => $to, 'from' => MAIL_FROM]);
+    }
+
     /* `sync-orders [file]` — the ordering fields of the catalogue onto rows
        that already exist. `seed` never overwrites, which is right for a
        place an admin has edited and wrong for a menu the owner sent: without
@@ -1098,7 +1118,8 @@ if (PHP_SAPI === 'cli') {
               'usage' => ['php wain.php install', 'php wain.php version', 'php wain.php migrate',
                           'php wain.php seed [places.json]', 'php wain.php selftest [production|staging]',
                           'php wain.php log [n]', 'php wain.php logformat', 'php wain.php actions',
-                          'php wain.php order-email <slug> <email|none>', 'php wain.php sync-orders [places.json]']]);
+                          'php wain.php order-email <slug> <email|none>', 'php wain.php sync-orders [places.json]',
+                          'php wain.php mailtest <address>']]);
     }
 
     /* install: copy to both stages, create the empty secret, migrate each
