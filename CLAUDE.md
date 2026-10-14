@@ -5792,7 +5792,7 @@ The owner's «improve salem feedback», read as: fix the findings of «The Salem
 
 **One trap, met:** the end-to-end check «مو برا leads indoors» failed at 8 pm and passed at noon. The cause was the night rule on a morning place plus a tie, read off `answerFactor` × the search score, not the reader. Read the scores before bending a reader to fit an ordering.
 
-**Not yet run when this was saved:** the other `test:hangout` suites, `test:journey`, `test:shouq`, and the full Flutter suite. **Not measured:** a phone, a native speaker's ear on the new lines, and the agent build's fallback path (the same code, reached only after a refusal).
+**Gates, run after that save, on `d5843066` with a free build:** `test:hangout` exit 0 — 18 suites, every total «0 failed» (`salem` 95, `back-button` 174, `ux-pass` 156 among them); `test:journey` 46 passed; `test:shouq` exit 0, «all suites passed», twelve totals and none failed; Flutter `test` 1,590 passed. **Not measured:** a phone, a native speaker's ear on the new lines, and the agent build's fallback path (the same code, reached only after a refusal).
 
 
 ## The redirect scan — 14 October: the apex has not redirected since 20 September, and CLAUDE.md still says it does
@@ -5988,3 +5988,79 @@ The owner's words: «Keep the production endpoint as it is» (staging only, with
 - **Verified:** `deploy:verify --observed` (7 readings: stamp, two stylesheets, build-id manifest, /search chunk, /explore, a place page, an og image): «2d4ee7a5 is live — verified at the root and 7 levels below it», all byte-exact. The other 275 files are covered by the endpoint's sha256 check, not by a reading.
 - **Cache and edge:** `hosting_cache_clear-website` accepted. `wget -S --spider` through the edge: `https://www.wainkw.com/salem/` 200, `Last-Modified 20:33:01` (the deploy's minute), `DYNAMIC`. `https://wainkw.com/explore/` 301 → `https://www.wainkw.com/explore/` (`MISS`), then 200. Both probe jobs deleted and gone.
 - **Not measured:** a real phone; the focus-ring and phone-transition defects in `globals.css` (still open, owner's choice).
+
+## The job travels between the agents — 14 October, night (in progress: the ticket is in the repository, nothing reads it yet)
+
+«improve to transfer jobs and tasks between all call center agents», read as: when a visitor moves between the
+four agents — شوق's call, her written answer on /search, سالم's typed chat, his call — what they asked, the
+places they were shown and the one they picked go with them, and the next agent is told, so nobody says it twice.
+The owner's three answers: **live in-conversation transfer on 0%-traffic test branches first** (it spends credits;
+switched on only after they see the results); **no new visible buttons** (the design rule); **سالم reads the hub's
+job** — when the server's `/call-center/` page sends someone to `/salem`, he says «من مركز الاتصال: …» and answers
+it, and the hub's own files stay untouched.
+
+**What travels today, mapped read-only (an agent read every surface; the findings were checked against the code).**
+- The one carrier into سالم is `salemHandoff(q, from)` → `/salem/?q=&from=call|shouq` (`src/lib/wain-ai.ts`):
+  the question, 120 characters, nothing else. `SalemChat` reads it **once, at mount** and strips it from the
+  address bar, clears its memory, draws the «من مكالمتك مع شوق» line locally, and sends `q` as a plain user
+  message after the greeting.
+- So every agent session starts blind: the widget sets `agent-id` alone (no `dynamic-variables`, no
+  `allow-events`), the typed socket sends `text_only` and nothing more, the app's `startSession(agentId)` the
+  same. The places shown, the pick, the area, the group and any reported gap stay behind, and «الثاني» against
+  her list means nothing to his agent.
+- Lost on each path: her ended sheet carries only the last `show_places` query (nothing if she only talked or
+  only opened a place); /search's card drops the recommended slug, the active pin and the hangout panel; the free
+  follow-up bar searches each question alone; his chat and his call share nothing in either direction (his
+  `show_places` pushes /search, which unmounts the chat and closes the socket; «رجوع لسالم» opens a fresh
+  conversation); nothing goes from his chat to her call; the query typed on /search is dropped on the way to /find.
+- **Two likely defects, inferred from the code and not yet run.** His free call placed from `/salem` pushes
+  `/salem/?q=…`, and `SalemChat` reads `q` only at mount — Next keeps the page mounted across a search-param push
+  (`SearchClient` documents the same no-remount for /search), so the question is never asked;
+  `tests/shouq-flow.test.mjs` cannot see it because the free greeting already matches `[role="log"] p`. And in the
+  app every call, his included, lands on **her** /search card (`call_controller.dart` `_showPlaces`), while the
+  web moved his free call onto his chat on 14 October. The `from` label mislabels too: after his call the app's
+  card says «من مكالمتك مع شوق», and after her agent call the web card says `from=shouq`, because `wain:asked`
+  is written by the free call only.
+- Nothing is configured for agent-to-agent transfer: the built-in tools are `end_call`, `language_detection`,
+  `skip_turn`; `subagents: []`; a lone start node. `docs/call-center-training.md:341` says «there is nobody to
+  transfer to», which stopped being true on 14 October.
+
+**The protocol, read out of the packages (not against a live agent — the socket is refused here).**
+- A contextual update is `{"type":"contextual_update","text":…}` on the typed socket (one more `socket.send`
+  beside `user_message`), `ConversationClient.sendContextualUpdate(text)` in `elevenlabs_agents` 0.6.1, and —
+  for the widget — a DOM `CustomEvent("elevenlabs-agent:contextual-update", {detail:{message}})` dispatched on
+  the `<elevenlabs-convai>` element. **The widget forwards it only with `allow-events="true"` on the element**
+  (its `iw()` reads the attribute), only while a conversation is live, and only when `detail.message` is a
+  non-empty string. `elevenlabs-agent:user-message` and `user-activity` ride the same switch, and the call
+  event's `detail.config` goes into `startSession`, so `dynamicVariables` and `overrides` can be set there the
+  way `clientTools` already is.
+- A transfer shows to a client as `agent_tool_response` with `tool_name: "transfer_to_agent"`. The widget
+  surfaces no transfer event to the page, so the call sheet cannot know a mid-call transfer happened: the
+  header would keep the persona it dialled. Named here as a limitation, not hidden.
+- `agents_update_transfer_to_agent_tool` writes the whole slot: `name`, `params.transfers[]` of `{agent_id,
+  branch_id, condition, transfer_message, enable_transferred_agent_first_message, preserve_voice_settings,
+  preserve_client_tts_overrides, delay_ms}`. `agents_run_tests` takes `body.branch_id`; a tool test names the
+  system tool as `referenced_tool: {id, type: "system"}` and `verify_absence` is the «was not called» form.
+
+**Built so far.** `src/lib/agent-job.ts` — the ticket: `wain:job:v1` in this tab's sessionStorage, `{v, by,
+asked, shown[≤8], ranked[≤40], picked, at}`, a 30-minute TTL, a future stamp or a bad shape read as no job,
+slugs filtered to `^[a-z0-9-]{1,80}$`; `writeJob`, `pickInJob` (a pick outside the job starts one of its own),
+`jobFor(agent)` (never an agent's own last answer back as news), and `jobContext(job, nameOf)` — the one Arabic
+contextual update the next agent reads as background («سياق للتسليم: الزائر جاي من مكالمته مع شوق. طلبه: «…».
+الأماكن اللي طلعت له: …. واختار منها: …. كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.»), names passed in so the
+module stays catalogue-free (the call sits in the root layout). `tests/agent-job.test.mjs` is 29 checks against
+a Map-backed store that can be made to throw, and `test:agent-job` is in `scan`. **Nothing imports the module
+yet.** The two test branches exist, at 0% traffic and still without a transfer tool (read back: `end_call`,
+`language_detection`, `skip_turn`, the three shared tools, `gemini-3.8-flash`): شوق
+`agtbrch_0101m4y7sg0gfwqsv9zsg52nasmb` (`agtvrsn_5301m4y7sg0fenzsm4kzwvk99ybn`), سالم
+`agtbrch_6101m4y7ssj0f1nacw4xh00kd664` (`agtvrsn_0301m4y7sshzf1q8jdbg5fth7c90`).
+
+**Next, in order:** the writers and readers on the web (`WainAiCall` writes on `show_places`/`open_place` and
+sets `allow-events`, then dispatches the context once the call has started; `SalemChat` writes on a list, a
+pick and a where, reads a handed-over job — `from=call|shouq|call-center` and the hub's `wain:agents:handoff` —
+seeds its memory and cards from it, and sends the context after init in agent mode; `ShouqAnswer`'s «كمّل مع
+سالم» writes `shouq-answer`), the `/privacy` sentence for agent builds, `docs/call-center-training.md:341`; the
+Flutter mirror (an in-memory ticket; `sendContextualUpdate` after connect; the chat the same); then
+`transfer_to_agent` on both branches with a tool test each way and the transcript's `agent_tool_response`
+turned into a system line in the chat — run on the branches with one repeat, results to the owner, nothing
+switched on. Every new assertion red first with the build green.
