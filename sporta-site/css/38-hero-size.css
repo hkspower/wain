@@ -6,15 +6,17 @@
  * index.html's boot script puts the saved size on <html data-hero-size> before
  * the first paint, and assets/rules-live.js corrects it from ?r=slides once
  * the page loads (a first visit, or a size just changed). TALL IS THE DEFAULT,
- * so a shop that never opens the control follows 02-hero.css's 40svh / 75svh.
+ * so a shop that never opens the control follows 02-hero.css's 10svh / 18svh.
  *
- *   short   phone 32svh                  desktop 55svh
- *   tall    phone 40svh                  desktop 75svh
+ *   short   phone 8svh                   desktop 13svh
+ *   tall    phone 10svh                  desktop 18svh
+ *   full    phone (100svh - 58px) x 0.6  desktop (100svh - 64px) x 0.6
  *
- * PHONE HEIGHTS LOWERED 2026-09-29 ("reduce hero slides layout size to be fitted
- * with mobile", the owner chose about 40% of the screen): tall was 55svh and
- * short 40svh, so both come down and keep their order. Desktop is unchanged.
- *   full    the screen below the header  (58px phone, 64px desktop)
+ * Measured 2026-10-14 (test:hero-first-frame): a Pixel 7 (412x839) gets 67 /
+ * 84 / 469px, a 1280x800 window 104 / 144 / 442px. The values have moved four
+ * times (55svh, 40svh, 24svh, then these on 2026-09-29, "Hero 60% shorter
+ * again", and Full's header allowance on 2026-10-01); a number written in a
+ * comment here is a claim to re-measure, not the value in force.
  *
  * Both the pre-paint shell (--hero-h / --hero-h-md) and the mounted hero
  * (34-hero-band.css reads them through --sp-hero-h) follow the same variable,

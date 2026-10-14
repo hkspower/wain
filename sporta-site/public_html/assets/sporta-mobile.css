@@ -150,6 +150,11 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
 }
 }
 @media (max-width: 767px) {
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+  padding: 0 !important;
+}
+}
+@media (max-width: 767px) {
   [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
     grid-template-columns: minmax(0, 1fr) !important;
   }

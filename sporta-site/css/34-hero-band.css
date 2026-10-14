@@ -13,7 +13,8 @@
  * never touch an athlete, and it is also the bundle's own phone layout (image
  * in an aspect box, caption below it), which sporta-ui.css had overridden.
  *
- * THE HERO KEEPS ITS HEIGHT (40svh on a phone since 2026-09-29, 55svh before, --hero-h-md on desktop), so
+ * THE HERO KEEPS ITS HEIGHT (--hero-h on a phone, --hero-h-md on desktop: 10svh / 18svh in the
+ * default Tall since 2026-09-29, the other Sizes in 38-hero-size.css), so
  * the boot shell in index.html still matches and nothing jumps at mount. The
  * band comes out of the photo's share:
  *
@@ -21,7 +22,9 @@
  *   desktop 1440x900  photo 563px   banner shown 100%            no crop
  *
  * Only the photo slides are affected. The five drawn fallback slides
- * (.hero-strength etc.) never render while an active row exists. */
+ * (.hero-strength) DO render while an active row exists — the bundle draws them
+ * while ?r=slides is in flight — and are kept out of sight by
+ * 92-hero-first-frame.css while the shop has photo slides. */
 section[aria-roledescription="carousel"] {
   --sp-hero-h: var(--hero-h, 10svh);   /* follows the Slides screen's Size, 38-hero-size.css */
   --sp-band: 132px;
@@ -151,8 +154,29 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
 section[aria-roledescription="carousel"] {
   --sp-band: 0px !important;
 }
-section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div,
 section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+  display: none !important;
+}
+/* THE CAPTION IS HIDDEN FROM THE EYE, NOT FROM A SCREEN READER — 2026-10-14. It was display:none
+ * with the band, and the first slide's caption holds the home page's only <h1> (the bundle makes
+ * the first slide's title an h1 and every other slide's a <p>), so the page had no h1 at all.
+ * The screen-reader-only pattern keeps the heading in the accessibility tree and paints nothing;
+ * everything in the caption that is NOT that heading — the other slides' titles, the subtitle,
+ * the Shop link — stays display:none, so no invisible link can take focus. */
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+  display: block !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div > :not(h1) {
   display: none !important;
 }
 section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"] > span[class~="bg-gradient-to-r"] {
