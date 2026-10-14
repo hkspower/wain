@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
-import { primeAudio } from "@/lib/voice";
+import { primeAudio, stop as stopVoice } from "@/lib/voice";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
 import {
   armCall,
@@ -149,6 +149,14 @@ export default function ShouqCallButton({
      * with the real phase a moment later, which is the same value.
      */
     const free = phaseRef.current === "idle" || phaseRef.current === "ended" || phaseRef.current === "error";
+    /**
+     * A call that is starting cuts whatever she is still saying. An answer
+     * being read out (from /salem's chat, or the last call's) would otherwise
+     * talk over the ring-back and her greeting for the first second of the
+     * call. Only a start: a tap on a call that is already live leaves her alone.
+     * Here, in the gesture, because the call itself mounts a chunk later.
+     */
+    if (free) stopVoice();
     /**
      * And, with no agent, start listening HERE too — see
      * `startLocalRecognition`. WebKit starts recognition only inside the

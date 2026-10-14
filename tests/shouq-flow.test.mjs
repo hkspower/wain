@@ -38,7 +38,7 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
     Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
       speak(u) { if (u.text === '') window.__primed = window.__gestureOver ? 'late' : 'in-gesture';
                  else window.__said.push(u.text); setTimeout(() => u.onend?.(), 10); },
-      cancel() {}, getVoices() { return [{ lang: 'ar-KW', name: 'stub' }]; } } });
+      cancel() { window.__cancels = (window.__cancels || 0) + 1; }, getVoices() { return [{ lang: 'ar-KW', name: 'stub' }]; } } });
     if (noRecognition) {
       // Chromium ships webkitSpeechRecognition natively, so removing only the
       // unprefixed name leaves the real one in place and the no-support branch
@@ -534,6 +534,32 @@ console.log('\n── the call connects her, and she answers ──');
     !said.includes('حوش السوق') && !said.includes('وإذا تبي غيره'), said);
   ok('the results are on screen behind her', (await p.locator('a[href^="/places/"]').count()) > 0);
   ok('the voice toggle is left on', (await p.evaluate(() => localStorage.getItem('wain-voice-enabled'))) === '1');
+  ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── starting a call stops whatever is being read aloud ──');
+{
+  // The header launcher on /salem is the same button as /find's, so one tap
+  // there covers both. A reply is spoken first (read-aloud is on), then the
+  // tap: the device voice must be cancelled in the tap itself, or the call's
+  // ring-back and her answer overlap for the whole first second.
+  const { ctx, p, errors } = await fresh({ at: new Date('2026-01-15T11:00:00Z') });
+  await p.goto(B + '/salem/', { waitUntil: 'networkidle' });
+  // Read-aloud is the chat's own switch, pressed the way a visitor presses it
+  // (the press is also what unlocks audio on iOS). Setting its storage key
+  // directly would not reach the chat's state until a reload.
+  const readAloud = p.getByRole('button', { name: 'اقرا لي الردود', exact: true });
+  await readAloud.click();
+  ok('the read-aloud switch is on', (await readAloud.getAttribute('aria-pressed')) === 'true');
+  await p.fill('#salem-q', 'قهوة هادية');
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => window.__said.length > 0, null, { timeout: 12000 }).catch(() => {});
+  ok('a reply is being read aloud before the call starts', (await p.evaluate(() => window.__said.length)) > 0);
+  const before = await p.evaluate(() => window.__cancels || 0);
+  await p.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  const during = await p.evaluate(() => window.__cancels || 0);
+  ok('the tap cancels the device voice, in the gesture', during > before, `cancel() calls: ${before} before the tap, ${during} after`);
   ok('no page errors during the whole flow', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

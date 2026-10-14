@@ -6,7 +6,7 @@ import Link from "next/link";
 import { IconClose, IconPhone, IconSend, IconShouq, IconSpeaker } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { getRecognition, isInAppBrowser, speechLang, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
-import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
+import { primeAudio, setEnabled as setVoiceEnabled, stop as stopVoice } from "@/lib/voice";
 import { usePlaces } from "@/lib/usePlaces";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
@@ -982,6 +982,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // cannot carry over to a later redial from this sheet.
     const asked = takeRequestedMode();
     if (phase !== "idle" && phase !== "ended" && phase !== "error") return;
+    // The redial from the ended screen starts a call too, and an answer can
+    // still be read out there. The launcher's tap stops it as well (see
+    // ShouqCallButton); this covers the redial that does not come from a tap.
+    stopVoice();
     haptic("tap");
     // Spend the gesture's audio permission now — see primeAudio(). By the time
     // شوق has an answer we are a navigation and a fetch away from here, and
