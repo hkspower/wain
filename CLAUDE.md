@@ -4915,3 +4915,89 @@ Copy the rig's `LoadModule` list, `Listen` a spare port, and point `DocumentRoot
 
 **Next:** HT-01 and HT-02 need the owner's answer. HT-03 to HT-07 are mechanical and go through the auto-deploy
 rule once `test:htaccess` passes, with a new check for HT-03 and HT-04.
+
+## Profile and Users scan, 2026-10-14 — verified, not yet fixed
+
+Workflow `wf_975dfbf3-c81`: 95 agents, 31 survivors (26 confirmed, 5 partly confirmed, each by three independent
+verifiers), 0 refuted. Run against the merged checkout on `localhost:4340` (commit `e202b0e`). The live server was
+not touched. The scan's shoppers are `scan3-` fixtures on the sandbox database.
+
+**Medium (7)**
+
+- **PROF-01 — a session cut while the account sheet is open leaves the account on screen (confirmed).** The sheet
+  reuses `state.me` and never re-reads the session (`customer-account.js:170`). Reproduced in a browser in four
+  scenarios: cut while closed, cut while open, a blocked account, and Arabic on a phone. **The obvious fix is wrong
+  as written:** a live session can also answer 401 `passkey_challenge_expired` (`customer.php:469-478`), so a sign-out
+  must match 401 with `not_signed_in`, not any 401. The sign-in dot (`data-signed`) must clear too. An open sheet that
+  sits idle makes no request, so it needs a re-check on focus.
+- **PROF-02 — a refused passkey removal still makes the device look removed (confirmed).** `customer-account.js:536`
+  replaces `state.pks` without checking the response. Keep the rows on failure.
+- **PROF-03 — sign-out with the connection down leaves the button disabled and the session alive (partly
+  confirmed).** The core defect reproduces. The exact call path needs the owner's check.
+- **PROF-04 — shopper passwords have no per-account lock and are not checked against breach lists (confirmed).**
+  Owner decision (below).
+- **PROF-05 — shoppers cannot change their name or phone (partly confirmed).** Owner decision (below).
+- **UP-1 — Users actions show a raw `http_500` token (confirmed).** Map `http_N` to plain words in `why()`.
+- **UP-2 — deleting a shopper resets that address's emailed-code guess caps (confirmed).** The delete at
+  `admin.php:4524` should spend the codes the way the block route does, not clear them.
+
+**Owner decisions, each with options in the scan:** PROF-04 (account lock; breach screening at sign-up), PROF-05
+(who may change name and phone), PROF-11 (keep the "already has an account" message, or one neutral message),
+PROF-12 (blank personal data on past orders after deletion), PROF-13 (stop code mail and ordering for a blocked
+address), PROF-14 (keep the live van position public by track id), UP-3 (raw route names in the Activity log),
+UP-5 (a "Clear lock" on a locked member's row), UP-6 (a password for shopper block, sign-out and delete).
+
+**Low (24):** PROF-06 to PROF-10, PROF-15 to PROF-19, UP-4, UP-7 to UP-12. Notable among them: PROF-07 the
+show/hide password button does not say what it controls; PROF-08 focus jumps to Close after removing a passkey;
+PROF-15 orders are listed by insertion order, not by date; UP-7 "also refuse orders from its phone" can be ticked and
+do nothing; UP-8 a domestic number typed with a leading 0 finds no account.
+
+**Two test rigs are faults, not findings about the shop:** PROF-18 `test:customer-profile` picks "the two newest
+unlinked orders" from the shared database, so another actor can make it fail; PROF-19 `test:customer-fast-login`
+writes into the checkout and changes the shared `google_auth` setting. Both need dedicated fixtures and cleanup in
+the rig before they can be trusted alongside other work.
+
+## Static host dependency scan, 2026-10-14 — no runtime dependency in the repository
+
+Workflow `wf_befaf05b-c9f` (read-only, 8 agents): 55 references to `static.sporta.com.kw`, all confirmed, 0 refuted.
+None is a runtime dependency. By kind: 25 doc, 3 historical, 12 config, 15 test.
+
+- **Config (12):** the static-host rules in `sporta-site/public_html/.htaccess` (rule 0, the rule 1 exemption, the
+  CORS, Vary and noindex headers, and `SPORTA_ASSET_HOST`), the four CSP allowances, and the first-party line in
+  `sw.js:251`. No shopper page, panel page or service worker loads from the host.
+- **Tests and live checkers (15):** `htaccess-test.mjs` asserts the host's behaviour, and `live-index-check.php`,
+  `live-cert-check.php`, `live-apex-check.php` and `live-url-security.php` probe it.
+- **Repository-wide grep:** nothing else names the host, including `src/` (the app), the SQL and the PHP.
+- **Not checked:** the live database rows and the cron commands. Either could hold a `static.sporta.com.kw` URL,
+  so both need a read-only check on the server before the webroot changes.
+- **After the webroot changes:** rule 0 and the static headers become dead, the CSP allowances are unused, and
+  `htaccess-test.mjs` (lines 138-166) and the static noindex check in `live-index-check.php` will report failures
+  that are not real faults. The repo cleanup is a follow-up, and removing the CSP allowances narrows the policy.
+
+## Live server state and deploy hold, 2026-10-14
+
+- **The connector.** The Hostinger API connector loads as `ppok` (`mcp__ppok__execute`), not `hosa`. The account
+  `u130124229` hosts `sporta.com.kw` (main) and `static.sporta.com.kw` (subdomain), both with root
+  `/home/u130124229/domains/sporta.com.kw/public_html`.
+- **Cron, read with `hosting_cron-jobs_list`.** One job: `* * * * *`
+  `php /home/u130124229/domains/sporta.com.kw/storage/cron-all.php` (uid `1mNk00yPZP`), output empty. The file is not
+  in the repository, and none of the shop jobs this file records is present. Not touched. The owner must say whether
+  it is theirs.
+- **File check at `63bb4f6`,** run through one temporary cron job and deleted after its output: walked 147 files;
+  same 22 of 353, differ 67, missing 264, untracked 53, and `mustNotBeHere=5`: `knet/selftest.php`,
+  `knet/setup-config.php`, `api/setup-admin.php`, `api/preflight.php`, `go-live.html`.
+- **What that means.** The 264 missing files include files published on 2026-10-04 (`admin.webmanifest`,
+  `api/cron-push.php`, `api/customer.php`). The server looks rolled back or was never fully published. The owner must
+  say which, because a deploy would replace about 330 files.
+- **`api/setup-admin.php` is present.** This file was removed from the repository, and nothing has verified whether
+  it is reachable or whether it creates admin accounts. It needs a read-only probe first.
+- **Held, not deployed.** The deploy waits for the owner's answer on the live state, and for the eight database
+  suites to run once the scans release the shared database. The pin in `publish-all.php` is `4f61d4b`, whose content
+  equals HEAD except this file.
+- **Probe method.** A read-only check is one cron job: fetch the script from a full 40-character commit SHA with
+  `wget -nv -O r.php <url> && php r.php`, read its output on the next tick, then delete the job. Nothing goes after
+  `php r.php`.
+
+**Next:** (1) the owner says whether the live shop should be in its current state or should receive the repository;
+(2) a read-only probe of `api/setup-admin.php`; (3) the owner says whether `cron-all.php` is theirs; (4) the scan
+decisions above, PROF-01 to PROF-05 and UP-1 and UP-2 first, then the fixes under the auto-deploy rule with tests.
