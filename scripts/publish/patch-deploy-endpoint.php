@@ -10,7 +10,7 @@
  *
  * WHY THIS EXISTS AS A SCRIPT AND NOT AN EDIT
  *
- * Nothing in a Claude session can write to this server. The hosa connector's
+ * Nothing in a Claude session can write to this server. The ppok connector's
  * file tools are read-only, its one upload path is a host the sandbox gateway
  * refuses at CONNECT, and so is www.wainkw.com. The only write path is the one
  * sporta's eight cron jobs already use: the server fetching over the open
