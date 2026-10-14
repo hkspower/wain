@@ -4838,3 +4838,80 @@ Permissions-Policy turns geolocation off; the Users page shows raw tokens such a
 **Next:** when the scans finish, every item above is either VERIFIED (three verifiers), or REFUTED, and
 the verified ones are fixed under the auto-deploy rule, with the owner's decisions (policy wording,
 the remember-address default, the Expo app's feature gaps) asked first.
+
+## `.htaccess` scan, 2026-10-14 — read-only, nothing changed
+
+Four files, 1,259 lines: `sporta-site/public_html/.htaccess` (965), `api/.htaccess` (51), `knet/.htaccess`
+(116), `pay/.htaccess` (127). Each was read in full, then tested against a real Apache (`apache2`, a probe on
+port 4410 with the rig's module list, stopped afterwards) and against the 356 tracked files for the deny list.
+
+**Not measured:** the live server (the proxy refuses `sporta.com.kw` from the container and `hosa` is not
+authorised), the Google and Apple popups (no client id is configured), and how browsers treat the cache
+directives. Every header below is a plain `Header set`, which the 2026-09-05 measurement shows LiteSpeed
+honours, so Apache's answer is expected to match the live one. That is not proved until a live check.
+
+### Decisions the owner makes first
+
+- **HT-01 — `Permissions-Policy` turns geolocation off on every response** (root line 736, `geolocation=()`).
+  Measured on `/api/driver.php` and `/assets/driver.js` as well as the storefront. The driver's position
+  posting (`driver.js:52-54`) and "How far from me?" (`order-progress.js:138-139`) both ask for a position the
+  browser is forbidden to give, so the live-tracking feature built on 2026-10-04 cannot work on the shop.
+  Proposed: `geolocation=(self)`. It is a privacy header, so it is the owner's call. The recommendation is
+  yes, because it switches on the feature the owner approved.
+- **HT-02 — `Cross-Origin-Opener-Policy: same-origin` severs the popup return path of Google and Apple
+  sign-in** (root line 692, from `28131aa`, the 20 August go-live package, so it predates both sign-ins).
+  Google's `renderButton` (no `ux_mode`, so popup) and Apple's `usePopup: true` both return the credential
+  through the opener. Measured: the header is on `/backends`. Not measured in a browser, because no client id
+  exists yet. Proposed: `same-origin-allow-popups` on `/backends`, set before a client id goes in. The
+  2026-10-04 notes record that a `same-origin-allow-popups` line was removed before it shipped, so only
+  `same-origin` remains in force.
+
+### Mechanical findings (measured unless marked otherwise)
+
+- **HT-03 — a query string overrides the rewritten route.** Lines 190, 195, 196 and 305 use `[L,QSA]`. The
+  Apache trace shows `/cats/desktop/art-men.webp?r=site_image` reaching `api.php` as
+  `r=cat_art&…&r=site_image`, because PHP keeps the last value. `/men?slug=women` renders women at `/men`, a
+  duplicate URL whose canonical still names `/women`. Not an escalation: the `api.php` routes are already
+  public at `/api/api.php`, and `category.php` whitelists four slugs. Fix: drop `QSA` from those four rules.
+- **HT-04 — the SEO outputs are `no-store`.** `robots.txt`, `sitemap.xml`, `sitemap-products.xml` and
+  `llms.txt` are rewritten to `api/*.php`. `api/.htaccess` sets `no-store` on every file except `api.php`, so
+  the root rule's hour and day (line 450) never reach them. Cost: crawlers refetch the 46 kB products sitemap on
+  every visit. Fix: exempt the SEO output scripts by name in `api/.htaccess`, and cover them in `htaccess-test`.
+- **HT-05 — the `.html` cache rule is written twice, and the first one is dead.** Lines 506-508 set
+  `no-cache, must-revalidate`; lines 682-684 set `no-cache, stale-while-revalidate=60` later, and that wins.
+  Measured on `card.html`: `no-cache, stale-while-revalidate=60`. The two comments (492-505 and 669-681) argue
+  opposite cases. Separately, `no-cache` and `stale-while-revalidate` conflict under RFC 9111: `no-cache`
+  forbids using a response without validation, and stale-while-revalidate allows a stale use. Fix: delete the
+  dead block. The owner decides whether the shell is `no-cache` alone; browser behaviour is not measured.
+- **HT-06 — two vendored files get no `Cache-Control`.** `assets/leaflet/leaflet.js` and `leaflet.css` match no
+  rule, so they get heuristic caching. The file's own rule says un-hashed files revalidate, so they belong in
+  the list.
+- **HT-07 — a stale comment in `knet/.htaccess`** (lines 67-72) says `callback.php` writes a `location.replace()`
+  script. That script was removed (`callback.php:191-194`). Nothing breaks, but the comment describes a fallback
+  that no longer exists.
+
+### Checked and clean
+
+- No hand-written asset matches the immutable-cache rule by accident. The 26 matches are all Vite bundles.
+- The deny list covers the tracked files: no backup, map, include or `.ini` names; `config.example.php` is
+  denied in all three folders; the only non-standard public file is `assets/leaflet/LICENSE`.
+- The `pay/` CSP hash equals `pay.php`'s script hash, computed byte for byte. `knet/` has no forms, so its
+  `form-action 'none'` breaks nothing.
+- The canonical-host, HTTPS, `index.php`, `default.php`, `/admin` and `/backends` rules read correctly.
+
+### Noted, no action yet
+
+- HSTS `includeSubDomains` also covers `ftp.sporta.com.kw`, an FTP host that HSTS does not affect. It would
+  bite only if a plain-HTTP web page ever lived under a subdomain.
+- `knet/selftest.php` is still tracked. Its live copy was removed and the manifest excludes it, but
+  `knet/.htaccess` does not deny it.
+- `*.inc`, `*.map` and `*~` are missing from the root deny list. No such file exists yet.
+
+### Reproducing the probe
+
+Copy the rig's `LoadModule` list, `Listen` a spare port, and point `DocumentRoot` at the docroot with
+`AllowOverride All`. `LogLevel rewrite:trace4` shows the rewritten arguments (`split uri=… args=…`), and
+`curl -D -` gives the headers. Stop the probe afterwards.
+
+**Next:** HT-01 and HT-02 need the owner's answer. HT-03 to HT-07 are mechanical and go through the auto-deploy
+rule once `test:htaccess` passes, with a new check for HT-03 and HT-04.
