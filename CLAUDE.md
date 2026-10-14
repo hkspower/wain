@@ -5649,6 +5649,45 @@ browser, the Android notification, TalkBack; and a real call on either agent (th
   and scripts. Staging has none of them. The prune removes only what the previous manifest recorded.
 - **Not measured:** a real phone, and a real call or typed chat on either agent.
 
+## The CSS scan — 14 October, night: a cascade defect on every phone, and one dead class
+
+Read in full (`globals.css`, 795 lines), with `audit:css`, `audit:theme` and the built stylesheet.
+`globals.css` now carries no colour literal, `!important` only where reduced motion needs it, and the
+audits are green. Two findings are real and both come from one cause, so they are recorded together.
+
+**The cause: Tailwind v4 puts utilities in `@layer utilities`, and an unlayered rule beats any layered
+rule for the same property, whatever the specificity.** `globals.css` has unlayered rules that set
+properties the utilities also set.
+
+- **Every link and button loses its colour transition on a phone.** Line 223 sets
+  `transition: transform 120ms` on `:where(a, button, [role="button"])` under `pointer: coarse`, and
+  that replaces the `transition` utility (colour, background, border, shadow, opacity at 150ms). Measured
+  in Chromium on /explore at 390px, twice each: under touch **117 of 117** elements with a transition
+  class keep no colour transition; under a mouse **0 of 117** lose it.
+- **The designed focus halo on the search inputs never shows.** Line 259 sets the global
+  `focus-visible` ring (`ring-2 ring-sea-600 ring-offset-2`) on every input. `ExploreClient` and
+  `SearchClient` put `focus:ring-4 focus:ring-sea-100` on the same input, and the global ring wins. The
+  measured box-shadow is the 2px sea-600 ring with a white offset; the 4px sea-100 halo is absent.
+- **The two fixes pull against each other.** Moving the unlayered rules into a layer restores the phone
+  transitions, and it also restores the pale sea-100 halo. That halo is about 1.1:1 against white, so
+  it would fail the focus-visible contrast the global ring exists to meet. The accessible ring is the
+  one that has been showing by accident. **This needs the owner's choice** (it changes what a phone and
+  a keyboard user see): either keep the global ring and delete the `focus:ring-4` pairs, or keep the
+  halo and give it sea-600, and in both cases move the unlayered rules into `@layer base` so the phone
+  transition returns.
+
+**Removed, no pixel changed:** `.eq-bar` and its `eq-bounce` keyframes. No element in `src/`, `scripts/`
+or `tests/` used the class, and the comment above it pointed at an equalizer in the call sheet's CSS that
+does not exist.
+
+**`audit:css` reports three notes that are not dead.** `leaflet-container`, `leaflet-safari` and
+`leaflet-tile` are added at runtime by Leaflet's own JavaScript (the map div, the Safari user-agent flag and
+each tile), so a static scan cannot see them. The audit should allow them by name with that reason; it is
+a tooling change, not made here.
+
+**Not measured:** the look on a real phone, and whether the restored transitions read as intended. The
+focus decision above is the owner's.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
