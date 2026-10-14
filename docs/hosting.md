@@ -148,7 +148,7 @@ curl: (56) CONNECT tunnel failed, response 403
 proxy status → { "kind": "connect_rejected", "host": "srv2231-files.hstgr.io:443" }
 ```
 
-The `hosa` connector's **read** tools work, because that MCP server reaches
+The `ppok` connector's **read** tools work, because that MCP server reaches
 Hostinger's API server-side — which is how everything in this file was
 measured. `hosting_generateUploadURLV1` returns a valid TUS URL and credentials
 that this environment then cannot reach, and both archive-deploy endpoints
@@ -513,7 +513,7 @@ archive over a live docroot is the one outcome worth waiting five minutes to
 avoid.
 
 Afterwards, `npm run deploy:verify -- --observed <readings.json>` — the
-readings being what the `hosa` connector reports, since nothing here can reach
+readings being what the `ppok` connector reports, since nothing here can reach
 the live site. It checks six files below the root as well as the stamp.
 
 **Sizes cannot tell two builds apart.** A build id is written into every HTML

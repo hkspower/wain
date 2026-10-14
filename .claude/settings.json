@@ -1,14 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-
   "permissions": {
     "defaultMode": "acceptEdits",
-
     "allow": [
       "Read",
       "Grep",
       "Glob",
-
       "Bash(npm run scan)",
       "Bash(npm run scan:design)",
       "Bash(npm run lint)",
@@ -42,12 +39,10 @@
       "Bash(node tests/*)",
       "Bash(node -e*)",
       "Bash(php*)",
-
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
       "Bash(git show*)",
-      "Bash(git branch*)",
       "Bash(git rev-parse*)",
       "Bash(git ls-files*)",
       "Bash(git stash list*)",
@@ -57,11 +52,9 @@
       "Bash(git checkout -- *)",
       "Bash(git push -u origin claude/wainkw-design-issues-2bggdi)",
       "Bash(git push origin claude/wainkw-design-issues-2bggdi)",
-
       "Bash(npm run *)",
       "Bash(/opt/flutter/bin/flutter *)",
       "Bash(/opt/flutter/bin/dart *)",
-
       "Bash(ls*)",
       "Bash(cat*)",
       "Bash(head*)",
@@ -80,19 +73,20 @@
       "Bash(unzip -Z1*)",
       "Bash(printf*)",
       "Bash(mkdir -p*)",
-
       "mcp__wain__*",
-
-      "mcp__hosa__search",
       "mcp__ppok__search",
       "mcp__github__actions_run_trigger",
       "mcp__github__actions_list",
       "mcp__github__actions_get",
       "mcp__github__get_job_logs",
       "mcp__github__get_commit",
-      "mcp__Claude_Code_Remote__send_later"
+      "mcp__Claude_Code_Remote__send_later",
+      "Bash(git branch)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch -a*)",
+      "Bash(git branch -v*)",
+      "Bash(git branch --list*)"
     ],
-
     "ask": [
       "Bash(git reset --hard*)",
       "Bash(git checkout -B*)",
@@ -100,14 +94,19 @@
       "Bash(git rebase*)",
       "Bash(git filter-repo*)",
       "Bash(git filter-branch*)",
-
       "mcp__github__create_pull_request",
       "mcp__github__merge_pull_request",
       "mcp__github__push_files",
       "mcp__github__create_or_update_file",
-      "mcp__github__delete_file"
+      "mcp__github__delete_file",
+      "Bash(git branch -D*)",
+      "Bash(git branch -d*)",
+      "Bash(git branch -m*)",
+      "mcp__plugin_small-business_*",
+      "mcp__Intuit_QuickBooks__*",
+      "mcp__Hostinger_Mail__send_email",
+      "mcp__Hostinger_Mail__messages_delete-bulk"
     ],
-
     "deny": [
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~*)",
@@ -115,18 +114,18 @@
       "Bash(git push -f*)",
       "Bash(git push * --force*)",
       "Bash(git push * -f*)",
-      "mcp__hosa__hosting_deployStaticSiteArchiveV1"
+      "Bash(find*-delete*)",
+      "Bash(find*-exec*)"
     ]
   },
-
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__hosa__execute|mcp__hosa__multi-execute|mcp__ppok__execute|mcp__ppok__multi-execute",
+        "matcher": "mcp__ppok__execute|mcp__ppok__multi-execute",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/hosa-guard.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/hostinger-guard.mjs\"",
             "timeout": 10
           }
         ]

@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
- * PreToolUse guard for the Hostinger connector (`mcp__hosa__execute` and
- * `mcp__hosa__multi-execute`, and the same two under `mcp__ppok__*`: the
- * connector was renamed on 14 October, and until the matcher named both the
- * guard silently covered nothing).
+ * PreToolUse guard for the Hostinger connector (`mcp__ppok__execute` and
+ * `mcp__ppok__multi-execute`).
  *
  * Every Hostinger operation goes through those two tools, so a permission
  * rule can only say yes or no to ALL of them — deleting a website and listing
- * a cron job look the same to settings.json. That is why the old
- * `deny: mcp__hosa__hosting_deployStaticSiteArchiveV1` never matched anything:
- * no tool has that name; it is an `operation` argument. This reads the
+ * a cron job look the same to settings.json. A deny on an operation's name
+ * never matches: no tool has that name; it is an `operation` argument. This
+ * reads the
  * argument instead.
  *
  * - The deploy routine (cron jobs, reading the docroot, purging the cache) is

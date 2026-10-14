@@ -17,7 +17,7 @@
  *
  * Nothing here can read the live site: www.wainkw.com resolves through the
  * same egress policy that refuses the upload host. The readings come from the
- * `hosa` connector, whose read tools reach Hostinger's API server-side, and
+ * `ppok` connector, whose read tools reach Hostinger's API server-side, and
  * are handed in as JSON:
  *
  *   { "buildJson": "<the file's text>",
