@@ -19,7 +19,8 @@ import { chromium } from 'playwright';
  * comment in `lib/wain-ai.ts` for the full account before changing this
  * again. It shipped as سالم's, was corrected to شوق's, and was reversed
  * again on request, 30 September, back to his — his own regenerated photo,
- * his own pill and greeting, his own voice on the wire. What is real and
+ * his own pill and greeting. The typed chat sent his voice on the wire until
+ * 14 October and sends none now. What is real and
  * asserted below: the call half is شوق's, the typing half is سالم's, and the
  * real ShouqCallButton actually places a call rather than only navigating.
  */

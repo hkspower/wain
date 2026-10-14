@@ -16,7 +16,8 @@ import { readFileSync } from 'node:fs';
  * `first_message` («أنا شوق», feminine grammar throughout, because the
  * agent never changed). Corrected to assert her name with no voice badge
  * at all, her own voice unchanged. Reversed again on request, 30 September,
- * back to his name and his voice — `SALEM_VOICE_ID`'s own comment in
+ * back to his name and his voice (the typed chat stopped sending the voice on
+ * 14 October) — `SALEM_VOICE_ID`'s own comment in
  * `lib/wain-ai.ts` has the full account of why, including the one thing
  * that is still true regardless of this reversal: the agent's own
  * `first_message` still says «أنا شوق», so what is asserted below is

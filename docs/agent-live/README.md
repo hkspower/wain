@@ -6,6 +6,8 @@ The other two (`agent_7601k…` «Agent agent», `agent_0001k…` «البحار
 project. **سالم is not a separate agent**: `/salem` and the app's chat open a text-only session
 against this same agent (`conversation.text_only` override). His voice (Mustafa,
 `TbzNVcMOFmKd8tUT5liY`) is the `tts.voice_id` override, which the agent allows.
+The mid-call switch sends it. The typed chat has not sent it since 14 October:
+`lib/salem-chat.ts` opens with `conversation.text_only` alone.
 
 ## Live now (7 October): Main is the tuned agent, 100% of traffic
 

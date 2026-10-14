@@ -123,6 +123,16 @@ export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.length > 0;
  * first line, which still reads «أنا شوق» regardless of the header above it.
  * Recorded so the next person does not read this as the tension having been
  * resolved — it has been accepted, on request, not solved.
+ *
+ * Fourth pass, 14 October: the typed chat no longer sends this override. Its
+ * socket opens with `text_only` and nothing else (`lib/salem-chat.ts`), so a
+ * typed session never carried audio and nothing a visitor hears changed. His
+ * voice still comes from the mid-call switch, which mounts the widget with
+ * this id (`WainAiCall.tsx`), and from the read-aloud bridge's سالم lines
+ * (`scripts/publish/tts-endpoint.php`), never from the typed chat.
+ * `tests/salem-chat.test.mjs` and
+ * `flutter_app/test/salem_chat_test.dart` assert the whole override, so a `tts`
+ * key added back under any name fails them.
  */
 export const SALEM_VOICE_ID = "TbzNVcMOFmKd8tUT5liY"; // Mustafa Abdulla — Kuwaiti male, the owner's pick 3 October (was Eid)
 

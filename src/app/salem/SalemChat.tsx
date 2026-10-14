@@ -88,7 +88,8 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
 }
 
 /**
- * سالم's typed chat — his name, his portrait, his voice on the wire.
+ * سالم's typed chat — his name and his portrait. No voice override is sent
+ * (14 October, see the fourth pass below).
  *
  * Third pass on the identity question, and worth reading the first two
  * before touching this again. It shipped as his page once — his name, his
@@ -109,6 +110,12 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
  * still appear, under his name and his photo, the first time anyone actually
  * talks to him. See `SALEM_VOICE_ID`'s own comment in `lib/wain-ai.ts` for
  * the full account of why that was accepted rather than solved.
+ *
+ * Fourth pass, 14 October: the typed chat no longer asks for his voice. Its
+ * socket opens with `text_only` and no override (`lib/salem-chat.ts`), so a
+ * typed session has never carried audio and nothing a visitor hears changed.
+ * His voice is still the mid-call switch's, and the read-aloud bridge's own
+ * سالم lines.
  *
  * `show_places`/`open_place` are wired now, on request — see
  * `lib/salem-tools.ts` for why they could not simply be `WainAiCall.tsx`'s

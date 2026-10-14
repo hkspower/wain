@@ -59,6 +59,11 @@ function useFindMoment(): FindMoment {
  * lost to the site — the search button in the bottom rail and /search's own
  * box are one tap away from every page, including this one.
  *
+ * Fourth pass, 14 October: the typed chat no longer sends his voice. Its socket
+ * opens with `text_only` and no override (`lib/salem-chat.ts`), so this half is
+ * his name and portrait over the agent's own voice, and a typed session renders
+ * no audio either way. His voice is still heard on the call's mid-call switch.
+ *
  * Both halves are full-bleed AI-illustrated portraits (public/find/) of the
  * character each half actually leads to — a bottom-weighted scrim carries
  * the text instead of the flat colour this used to be.
