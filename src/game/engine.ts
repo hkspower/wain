@@ -9,7 +9,9 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH, spanU } from "./track";
+import { MARKINGS, junctions } from "./markings";
+import { STREET_DETAIL } from "./street";
 import { currentPaintHex } from "./paints";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
 import { worldDraws } from "./rand";
@@ -8821,6 +8823,13 @@ export class GameEngine {
     (window as unknown as { __grnStreets: typeof STREETS }).__grnStreets = STREETS;
     (window as unknown as { __grnCoastU: typeof COAST_U }).__grnCoastU = COAST_U;
     (window as unknown as { __grnRoadHalf: number }).__grnRoadHalf = ROAD_HALF_WIDTH;
+    // The street's spec, the junction model and the tunnel's span, for
+    // tests/street.mjs: it measures the built kerbs and furniture against
+    // the numbers that placed them rather than against a second copy.
+    (window as unknown as { __grnStreetDetail: typeof STREET_DETAIL }).__grnStreetDetail = STREET_DETAIL;
+    (window as unknown as { __grnMarkings: typeof MARKINGS }).__grnMarkings = MARKINGS;
+    (window as unknown as { __grnJunctions: unknown }).__grnJunctions = junctions(this.track, STREETS);
+    (window as unknown as { __grnTunnelU: unknown }).__grnTunnelU = spanU(LAP.tunnel);
     // The district table and where each landmark was actually placed, so
     // the road test can check the lap against the real Kuwait rather
     // than against a second copy of the same guess.

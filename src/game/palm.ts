@@ -980,7 +980,7 @@ export function palmBarkTextures(): { map: THREE.DataTexture; normalMap: THREE.D
 export interface PalmFixture {
   s: number;
   lat: number;
-  kind: "column" | "signal" | "gantry" | "mast" | "floodlight" | "street" | "flyover";
+  kind: "column" | "signal" | "gantry" | "mast" | "floodlight" | "street" | "flyover" | "shelter" | "cabinet" | "sign";
   /** Flyovers: a half-length along the road that holds at every palm
    *  lateral (a deck crosses the whole verge). Absent for point
    *  fixtures, which use PALM_PLACE.clear. */

@@ -127,6 +127,25 @@ const r = await page.evaluate(() => {
     // The palm change set names the trunks; until it lands there is no
     // name to find them by, and the check says so rather than passing.
     if (o.isInstancedMesh && o.name === "palm-trunks") palmTrunks = o;
+    // The street's furniture (src/game/street.ts), instanced: every
+    // standing slot, with the radius streetAvoid gives the beds.
+    const STREET_R = { "bus-shelter": 1.3, "utility-cabinet": 0.6, "street-bin": 0.4, "speed-sign": 0.3 };
+    if (o.isInstancedMesh && STREET_R[o.name]) {
+      const M = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, M);
+        // A hidden slot is a zero matrix; decompose() reads a zero scale
+        // as NaN, so the elements are read raw.
+        if (M.elements[0] === 0 && M.elements[5] === 0 && M.elements[10] === 0) continue;
+        M.decompose(p, q, sc);
+        p.applyMatrix4(o.matrixWorld);
+        if (o.name === "bus-shelter") {
+          // Three circles along a 4 m shelter, as streetAvoid lays them.
+          const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+          for (const ds of [-1.4, 0, 1.4]) furniture.push({ name: o.name, x: p.x + fwd.x * ds, z: p.z + fwd.z * ds, r: STREET_R[o.name] });
+        } else furniture.push({ name: o.name, x: p.x, z: p.z, r: STREET_R[o.name] });
+      }
+    }
   });
   if (palmTrunks) {
     const pm = new THREE.Matrix4();

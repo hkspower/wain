@@ -95,3 +95,64 @@ export function buildRibbon(
   geo.computeVertexNormals();
   return geo;
 }
+
+/**
+ * A section swept along the track: the guardrail's W-beam, the kerb.
+ *
+ * `profile` is (out, up) pairs from the lateral line, `facing` the sign
+ * that puts `out` on the outside of the road. v runs along the section
+ * so a texture bands correctly across it; u runs down the road at the
+ * same 14 m tile as everything else on this surface. Lived in world.ts;
+ * here because street.ts sweeps the kerb with it and must not import
+ * world.ts.
+ */
+export function buildProfiled(
+  track: Track,
+  lateral: LatOffset,
+  profile: ReadonlyArray<[number, number]>,
+  facing: number,
+  step = 4,
+  u0 = 0,
+  u1 = 1
+): THREE.BufferGeometry {
+  const span = (u1 - u0) * track.length;
+  const n = Math.ceil(span / step);
+  const m = profile.length;
+  const positions = new Float32Array((n + 1) * m * 3);
+  const uvs = new Float32Array((n + 1) * m * 2);
+  const indices: number[] = [];
+  const p = new THREE.Vector3();
+  const side = new THREE.Vector3();
+
+  // v runs along the section so a texture would band correctly across
+  // the beam; u runs down the road at the same 14 m tile as everything
+  // else on this surface.
+  for (let i = 0; i <= n; i++) {
+    const s = u0 * track.length + (i / n) * span;
+    track.pose(s, latAt(lateral, s), p, side);
+    for (let k = 0; k < m; k++) {
+      const [out, up] = profile[k];
+      const o = (i * m + k) * 3;
+      positions[o] = p.x + side.x * out * facing;
+      positions[o + 1] = up;
+      positions[o + 2] = p.z + side.z * out * facing;
+      const ou = (i * m + k) * 2;
+      uvs[ou] = k / (m - 1);
+      uvs[ou + 1] = s / 14;
+    }
+    if (i < n) {
+      for (let k = 0; k < m - 1; k++) {
+        const a = i * m + k;
+        const b = a + m;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}

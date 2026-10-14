@@ -62,6 +62,7 @@ const SHOTS = [
   { name: "ring", hour: 2.5, m: 5400 },    // the Second Ring through Mansuriya
   { name: "station", hour: 2.5, m: 3888 }, // pulling up to the pumps in Shuwaikh
   { name: "love", hour: 2.5, m: 6155 },    // Love Street, at its own sign
+  { name: "street", hour: 2.5, m: 3020 },  // the kerb, a gully, a bus shelter at 3040
   { name: "towers", hour: 2.5, m: -110 },  // Kuwait Towers on the approach
   { name: "towersday", hour: 16.5, m: -110 }, // same frame by day, so the pair compares
   { name: "drift", hour: 2.5, m: 2203, drift: true },

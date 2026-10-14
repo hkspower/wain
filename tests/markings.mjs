@@ -327,6 +327,11 @@ const STANDARD = Object.freeze({
   streetGap: { band: [8.99, 9.15], cite: "MUTCD §3A.06: 30 ft" },
   legendAlong: { band: [1.6, 2.8], cite: "UK TSM ch5 elongated legends: 1.6 m to 40 mph, 2.8 m above (recalled)" },
   legendWidth: { band: [0, 2.5], cite: "a legend sits inside one lane" },
+  zebraStripe: { band: [0.5, 0.715], cite: "UK TSRGD Sch 14 dia 1055: stripes 500-715 mm" },
+  zebraLength: { band: [2.4, 10.0], cite: "TSRGD: a crossing 2.4-10 m wide between its edges" },
+  zebraToStop: { band: [1.1, 3.0], cite: "TSRGD: the stop line 1.1-3.0 m before the crossing" },
+  streetStopWidth: { band: [0.30, 0.61], cite: "MUTCD §3B.16: 12-24 in; UK dia 1001: 300 mm" },
+  streetStopSetback: { band: [1.0, 2.0], cite: "a bar 1-2 m back from the major road's edge; an ASSUMPTION, no manual in reach" },
   paintAlbedo: { band: [0.65, 0.85], cite: "thermoplastic 0.75-0.85 when laid, falling with wear (world.ts lineMat note)" },
   wheelPath: { band: [0.75, 0.85], cite: "1.55-1.6 m vehicle track; the brake-rubber streaks at ±0.78" },
   sealantRoughness: { band: [0.70, 1.0], cite: "crack sealant is dull bitumen, not the road's glossiest surface" },
@@ -354,6 +359,11 @@ const STANDARD = Object.freeze({
     streetGap: MARKINGS.street.gap,
     legendAlong: (MARKINGS.legend.length * MARKINGS.legend.glyphPx) / MARKINGS.legend.canvasPx,
     legendWidth: MARKINGS.legend.width,
+    zebraStripe: MARKINGS.zebra.stripe,
+    zebraLength: MARKINGS.zebra.length,
+    zebraToStop: MARKINGS.zebra.afterStop,
+    streetStopWidth: MARKINGS.streetStop.width,
+    streetStopSetback: MARKINGS.streetStop.setback,
     paintAlbedo: Object.values(MARKINGS.paint).map(albedo),
     wheelPath: ASPHALT.wheelPathM,
     sealantRoughness: ASPHALT.sealantRoughness,
@@ -637,6 +647,27 @@ const bbox = (geo) => { geo.computeBoundingBox(); const b = geo.boundingBox; ret
   const gaps = J.filter((j) => j.open);
   const ss = one("street-stop");
   check(gaps.length > 0 || !ss || ss.count === 0, `${ss?.count} street stop lines behind an uninterrupted rail`);
+  // The rail is open now: one bar per open arm, across the approach half
+  // only (right-hand traffic: s > js on the +lat street, s < js on the
+  // -lat one), set back from the strip by the spec's own figure.
+  if (gaps.length) {
+    const arms = gaps.reduce((n, j) => n + (j.plus ? 1 : 0) + (j.minus ? 1 : 0), 0);
+    check(!!ss && ss.count === arms, `${ss?.count} street stop lines for ${arms} open arms`);
+    let offLat = 0, offS = 0, wrongHalf = 0;
+    for (const m of layout.streetStop) {
+      const j = J[m.j];
+      const want = hw(j.s) + STRIP + MARKINGS.streetStop.setback + MARKINGS.streetStop.width / 2;
+      offLat = Math.max(offLat, Math.abs(Math.abs(m.lat) - want));
+      const d = track.deltaAhead(j.s, m.s);
+      if (m.lat > 0 ? d <= 0 : d >= 0) wrongHalf++;
+      offS = Math.max(offS, Math.abs(Math.abs(d) - MARKINGS.streetStop.span / 2));
+      if (m.axis !== "side" || Math.abs(m.w - MARKINGS.streetStop.span) > 1e-9 || Math.abs(m.l - MARKINGS.streetStop.width) > 1e-9) wrongHalf++;
+    }
+    check(offLat < 0.01, `a street stop line sits ${offLat.toFixed(3)} m off its setback`);
+    check(wrongHalf === 0, `${wrongHalf} street stop lines on the wrong half of the street, or the wrong shape`);
+    check(offS < 0.01, `a street stop line is ${offS.toFixed(3)} m off the centre of its half`);
+    if (ss) crossCheck(ss, layout.streetStop);
+  }
   let buried = 0, swell = 0, tunnel = 0;
   for (const m of layout.streetDash) {
     const lo = m.axis === "side" ? m.lat - m.l / 2 : m.lat - m.w / 2;
@@ -655,6 +686,33 @@ const bbox = (geo) => { geo.computeBoundingBox(); const b = geo.boundingBox; ret
   const swollen = J.filter((j) => j.mouthInSwell).map((j) => j.i);
   check(swollen.join(",") === "5,33,50", `the street paint skips junctions ${swollen.join(",")}, expected 5 (plaza), 33 (station), 50 (paint shop)`);
   console.log(`\nstreets no stop line behind a closed rail (${gaps.length} open junctions); no street paint on a forecourt, at junctions ${swollen.join("/")}, or over the tunnel`);
+}
+
+// --- 13b. Zebra crossings, at the signalised junctions the rail opens for --
+// Fourteen 500 mm stripes on a 500 mm gap across all four lanes, between
+// the stop line's downstream face (1.1-3.0 m back, TSRGD) and the near
+// kerb of the cross street.
+{
+  const z = one("road-zebra");
+  const open = SIG.filter((j) => j.open);
+  check((!!z) === open.length > 0, `road-zebra ${z ? "built" : "missing"} with ${open.length} open signalised junctions`);
+  if (z) {
+    check(z.count === open.length * MARKINGS.zebra.stripes, `${z.count} stripes for ${open.length} crossings of ${MARKINGS.zebra.stripes}`);
+    crossCheck(z, layout.zebra);
+    const b = bbox(z.geometry);
+    check(Math.abs(b.x - MARKINGS.zebra.stripe) < 0.005 && Math.abs(b.z - MARKINGS.zebra.length) < 0.005, `a stripe is ${b.x.toFixed(2)} x ${b.z.toFixed(2)} m`);
+    let bad = 0, wide = 0;
+    for (const m of layout.zebra) {
+      const j = J[m.j];
+      const d = track.deltaAhead(j.s, m.s);
+      const stopDown = stopLineS(j).downstream - j.s;
+      if (d - m.l / 2 < stopDown + 1.1 - 1e-9 || d + m.l / 2 > -STREETS.half + 1e-9) bad++;
+      if (Math.abs(m.lat) + m.w / 2 > hw(j.s) + 1e-9) wide++;
+    }
+    check(bad === 0, `${bad} stripes outside the band from 1.1 m past the stop line to the near kerb`);
+    check(wide === 0, `${wide} stripes reach past the tarmac edge`);
+    console.log(`zebra   ${z.count} stripes at ${open.length} junctions, ${MARKINGS.zebra.stripe} m on ${MARKINGS.zebra.gap} m, ${MARKINGS.zebra.length} m deep, ${MARKINGS.zebra.afterStop} m past the stop line`);
+  }
 }
 
 // --- 14. Street centre lines: 100 mm, 3 on 9, between the mouths --------
@@ -756,13 +814,14 @@ const bbox = (geo) => { geo.computeBoundingBox(); const b = geo.boundingBox; ret
     const r = layout.studs[i];
     lat = Math.max(lat, Math.abs(Math.abs(r.lat) - (hw(r.s) + 0.10)));
     if (i >= 2) spacing = Math.max(spacing, Math.abs(r.s - layout.studs[i - 2].s - MARKINGS.stud.spacing));
-    if (J.some((j) => j.open && Math.abs(track.deltaAhead(j.s, r.s)) < 10)) inGap++;
+    const atMouth = J.some((j) => j.open && (r.lat > 0 ? j.plus : j.minus) && Math.abs(track.deltaAhead(j.s, r.s)) < MARKINGS.stud.mouthClear);
+    if (!!r.hidden !== atMouth) inGap++;
   }
   check(st.count === 2 * Math.floor(L / MARKINGS.stud.spacing), `${st.count} studs`);
   check(base <= 0.002, `a stud's base is ${base.toFixed(4)} m off the paint`);
   check(lat <= 0.01, `a stud is ${lat.toFixed(3)} m off hw + 0.10`);
   check(spacing < 1e-9, `the stud spacing is off ${MARKINGS.stud.spacing} m by ${spacing}`);
-  check(inGap === 0, `${inGap} studs in a rail gap`);
+  check(inGap === 0, `${inGap} studs standing in a rail gap, or hidden outside one`);
   // One material for both rows under the 'white' convention.
   check(MARKINGS.convention !== "white" || !Array.isArray(st.material), "under 'white' both stud rows share one material");
   console.log(`studs   ${st.count}, ${(b.x * 1000).toFixed(0)} mm across and ${(b.y * 1000).toFixed(0)} mm proud (were 140 mm and 110 mm), base on the paint, ` +

@@ -130,7 +130,7 @@ export const MARKINGS = deepFreeze({
    * is the top of the nightGlow band (world.ts), so they are dimmed by
    * day like every other retroreflector.
    */
-  stud: { footprint: 0.1, proud: 0.025, spacing: 18, emissive: 2.0 },
+  stud: { footprint: 0.1, proud: 0.025, spacing: 18, emissive: 2.0, mouthClear: 10 },
   /**
    * The stop line at a signalised junction: 300 mm (UK dia 1001 above
    * 40 mph; MUTCD 12-24 in) across all four lanes, centred 13.0 m before
@@ -190,6 +190,25 @@ export const MARKINGS = deepFreeze({
     minStretch: 0.3,
     rise: 0.006,
   },
+  /**
+   * Zebra crossings at the signalised junctions the rail opens for:
+   * fourteen 500 mm stripes on a 500 mm gap across the four lanes (UK
+   * TSRGD Sch 14 dia 1055: 500-715 mm stripes), 2.5 m deep, starting
+   * 1.25 m past the stop line's downstream face (the stop line 1.1-3.0 m
+   * before the crossing). The last stripe ends 4.1 m short of the near
+   * kerb at js - 5.
+   */
+  zebra: { stripe: 0.5, gap: 0.5, length: 2.5, afterStop: 1.25, stripes: 14, y: 0.031 },
+  /**
+   * The cross-street stop line: 300 mm, across the approach half only
+   * (right-hand traffic: the half at s > js on the +lat street, s < js
+   * on the -lat one), its centre 1.5 m back from the marginal strip's
+   * outer edge. 1-2 m is an ASSUMPTION; no manual in reach gives a bar's
+   * setback from a major road's kerb line. Built only where the rail is
+   * open (street.ts railGaps): a bar facing an unbroken W-beam is paint
+   * for a road nobody can reach.
+   */
+  streetStop: { width: 0.3, span: 4.85, setback: 1.5 },
   /**
    * The plaza legend: elongated so it reads at a glancing angle. The
    * 512 x 256 canvas carries 118 px glyphs, so a 6.0 m plane lays them
@@ -333,8 +352,10 @@ export interface Junction {
   mouthInSwell: boolean;
   /** Every other street, clear of the tunnel and of every swell. */
   signalised: boolean;
-  /** The rail is open across the mouth. False everywhere until the rail
-   *  gaps are built; turn arrows and street stop lines wait for it. */
+  /** The rail is open across the mouth: every junction outside the
+   *  tunnel whose mouth is on plain tarmac (src/game/street.ts railGaps
+   *  builds the gaps from this). Turn arrows, street stop lines and the
+   *  zebra crossings follow it. */
   open: boolean;
 }
 
@@ -379,7 +400,7 @@ export function junctions(track: Track, streets: StreetGrid): Junction[] {
       inSwell,
       mouthInSwell,
       signalised: i % J.signalEvery === 0 && !inTunnel && !inSwell,
-      open: false,
+      open: !inTunnel && !mouthInSwell,
     });
   }
   return out;
@@ -528,6 +549,7 @@ export interface MarkingsLayout {
   streetDash: Mark[];
   streetSegments: StreetSegment[];
   streetStop: Mark[];
+  zebra: Mark[];
   legend: Mark[];
 }
 
@@ -826,6 +848,13 @@ export function markingsLayout(track: Track, streets: StreetGrid): MarkingsLayou
   for (let i = 0; i < studN; i++) {
     const s = i * MARKINGS.stud.spacing;
     for (const side of [-1, 1]) {
+      // The edge line's studs stop at an open mouth, as the kerb and the
+      // rail do: a reflector in the middle of a street's throat is one a
+      // turning car drives over. Hidden, not dropped, so the count and
+      // the cadence stay the layout's.
+      const hidden = Jall.some(
+        (j) => j.open && (side > 0 ? j.plus : j.minus) && Math.abs(track.deltaAhead(j.s, s)) < MARKINGS.stud.mouthClear
+      );
       studs.push({
         kind: "stud",
         s,
@@ -834,12 +863,46 @@ export function markingsLayout(track: Track, streets: StreetGrid): MarkingsLayou
         l: MARKINGS.stud.footprint,
         y: MARKINGS.edge.y,
         axis: "tangent",
+        hidden,
       });
     }
   }
 
   const street = streetCentreLine(track, streets, Jall);
   const legend = legendLayout();
+
+  // Street stop lines, one per open arm, across the approach half.
+  const streetStop: Mark[] = [];
+  for (const j of Jall) {
+    if (!j.open) continue;
+    for (const sign of [1, -1]) {
+      if (sign > 0 ? !j.plus : !j.minus) continue;
+      const SS = MARKINGS.streetStop;
+      streetStop.push({
+        kind: "street-stop",
+        s: track.wrap(j.s + sign * (SS.span / 2)),
+        lat: sign * (track.halfWidthAt(j.s) + MARKINGS.strip.width + SS.setback + SS.width / 2),
+        w: SS.span,
+        l: SS.width,
+        y: streets.yCross + MARKINGS.street.rise,
+        axis: "side",
+        j: j.i,
+      });
+    }
+  }
+
+  // Zebra crossings at the open signalised junctions.
+  const zebra: Mark[] = [];
+  for (const j of sig) {
+    if (!j.open) continue;
+    const Z = MARKINGS.zebra;
+    const s = track.wrap(stopLineS(j).downstream + Z.afterStop + Z.length / 2);
+    const pitch = Z.stripe + Z.gap;
+    for (let k = 0; k < Z.stripes; k++) {
+      const lat = (k - (Z.stripes - 1) / 2) * pitch;
+      zebra.push({ kind: "zebra", s, lat, w: Z.stripe, l: Z.length, y: Z.y, axis: "tangent", j: j.i });
+    }
+  }
 
   return {
     junctions: Jall,
@@ -850,9 +913,8 @@ export function markingsLayout(track: Track, streets: StreetGrid): MarkingsLayou
     studs,
     streetDash: street.marks,
     streetSegments: street.segments,
-    // No stop line faces an unbroken rail. These come back with the rail
-    // gaps, on the approach half only, at the open junctions.
-    streetStop: [],
+    streetStop,
+    zebra,
     legend,
   };
 }
@@ -1011,7 +1073,10 @@ export function buildRoadMarkings(
     )
   );
   if (layout.streetStop.length) {
-    paint(instanced(track, "street-stop", flatPlane(4.85, 0.3), mats.street, layout.streetStop));
+    paint(instanced(track, "street-stop", flatPlane(MARKINGS.streetStop.span, MARKINGS.streetStop.width), mats.street, layout.streetStop));
+  }
+  if (layout.zebra.length) {
+    paint(instanced(track, "road-zebra", flatPlane(MARKINGS.zebra.stripe, MARKINGS.zebra.length), mats.dash, layout.zebra));
   }
   return out;
 }

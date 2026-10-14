@@ -57,7 +57,18 @@ import { RIVALS } from "./rivals";
 import { applyFacadeSkin, masonryTextures } from "./facadeSkin";
 import { FACADE_WALL_HEX, OCT_PERIMETER, masonryFamily, shadeOpaqueCoverage } from "./masonry";
 import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
-import { buildRibbon, latAt, type LatOffset } from "./ribbon";
+import { buildProfiled, buildRibbon, latAt, type LatOffset } from "./ribbon";
+import {
+  STREET_DETAIL,
+  buildStreetDetail,
+  flaredLateral,
+  inGap,
+  railGaps,
+  spansBetween,
+  streetAvoid,
+  streetDetailLayout,
+  type StreetLayout,
+} from "./street";
 import {
   ASPHALT,
   MARKINGS,
@@ -380,57 +391,6 @@ function buildWall(
  * flipped. The section is traced in order, so the points describe the
  * face from bottom lip to top lip.
  */
-function buildProfiled(
-  track: Track,
-  lateral: LatOffset,
-  profile: ReadonlyArray<[number, number]>,
-  facing: number,
-  step = 4,
-  u0 = 0,
-  u1 = 1
-): THREE.BufferGeometry {
-  const span = (u1 - u0) * track.length;
-  const n = Math.ceil(span / step);
-  const m = profile.length;
-  const positions = new Float32Array((n + 1) * m * 3);
-  const uvs = new Float32Array((n + 1) * m * 2);
-  const indices: number[] = [];
-  const p = new THREE.Vector3();
-  const side = new THREE.Vector3();
-
-  // v runs along the section so a texture would band correctly across
-  // the beam; u runs down the road at the same 14 m tile as everything
-  // else on this surface.
-  for (let i = 0; i <= n; i++) {
-    const s = u0 * track.length + (i / n) * span;
-    track.pose(s, latAt(lateral, s), p, side);
-    for (let k = 0; k < m; k++) {
-      const [out, up] = profile[k];
-      const o = (i * m + k) * 3;
-      positions[o] = p.x + side.x * out * facing;
-      positions[o + 1] = up;
-      positions[o + 2] = p.z + side.z * out * facing;
-      const ou = (i * m + k) * 2;
-      uvs[ou] = k / (m - 1);
-      uvs[ou + 1] = s / 14;
-    }
-    if (i < n) {
-      for (let k = 0; k < m - 1; k++) {
-        const a = i * m + k;
-        const b = a + m;
-        indices.push(a, b, a + 1, b, b + 1, a + 1);
-      }
-    }
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
-
 /**
  * The W-beam's section, in metres, bottom lip to top lip.
  *
@@ -1802,6 +1762,181 @@ function stripeTexture(colorA: string, colorB: string): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * The kerb's concrete: a precast unit every metre, its joint a dark
+ * line, the face lightly pitted. One tile is 14 m of kerb (buildProfiled
+ * lays v = s / 14), so fourteen joints; u runs across the section. Its
+ * own seeded stream, not the shared one.
+ */
+let kerbTex: THREE.CanvasTexture | null = null;
+function kerbTexture(): THREE.CanvasTexture {
+  if (kerbTex) return kerbTex;
+  const W = 64, H = 1024;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  const rng = makeRng((WORLD_SEED ^ 0x4b455242) >>> 0); // "KERB"
+  const img = g.createImageData(W, H);
+  const units = 14;
+  for (let y = 0; y < H; y++) {
+    const v = y / H;
+    const inUnit = (v * units) % 1;
+    const joint = inUnit < 0.012 || inUnit > 0.988;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const grain = (rng() - 0.5) * 18;
+      const base = joint ? 112 : 182 + grain;
+      img.data[i] = base;
+      img.data[i + 1] = base - 3;
+      img.data[i + 2] = base - 10;
+      img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  kerbTex = tex;
+  return tex;
+}
+
+/** A height field to a colour and a normal map, the way the tyre and the
+ *  seats are made (cars.ts): green = -dy, the glTF convention, carried
+ *  into three's frame by a negative normalScale.y. */
+function heightToMaps(
+  W: number,
+  H: number,
+  h: Float32Array,
+  colour: (e: number, x: number, y: number) => [number, number, number],
+  gain: number
+): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
+  const colC = document.createElement("canvas");
+  const nrmC = document.createElement("canvas");
+  colC.width = nrmC.width = W;
+  colC.height = nrmC.height = H;
+  const col = colC.getContext("2d")!.createImageData(W, H);
+  const nrm = nrmC.getContext("2d")!.createImageData(W, H);
+  const at = (x: number, y: number) => h[Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const e = h[y * W + x];
+      const [r, gg, b] = colour(e, x, y);
+      col.data[i] = r;
+      col.data[i + 1] = gg;
+      col.data[i + 2] = b;
+      col.data[i + 3] = 255;
+      const dx = (at(x + 1, y) - at(x - 1, y)) * gain;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * gain;
+      const len = Math.hypot(dx, dy, 1);
+      nrm.data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 2] = Math.round((1 / len) * 0.5 * 255 + 127.5);
+      nrm.data[i + 3] = 255;
+    }
+  }
+  colC.getContext("2d")!.putImageData(col, 0, 0);
+  nrmC.getContext("2d")!.putImageData(nrm, 0, 0);
+  const map = new THREE.CanvasTexture(colC);
+  const normalMap = new THREE.CanvasTexture(nrmC);
+  map.colorSpace = THREE.SRGBColorSpace;
+  normalMap.colorSpace = THREE.NoColorSpace;
+  return { map, normalMap };
+}
+
+/** A kerb gully's grate: five bars over four slots, cast iron with a
+ *  little rust at the edges. */
+let gullyTex: { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } | null = null;
+function gullyTextures() {
+  if (gullyTex) return gullyTex;
+  const W = 128, H = 128;
+  const h = new Float32Array(W * H);
+  const rng = makeRng((WORLD_SEED ^ 0x47554c59) >>> 0); // "GULY"
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const u = x / W;
+      const v = y / H;
+      const frame = u < 0.07 || u > 0.93 || v < 0.07 || v > 0.93;
+      const slotPhase = ((u - 0.07) / 0.86) * 9; // 5 bars, 4 slots
+      const slot = !frame && Math.floor(slotPhase) % 2 === 1;
+      h[y * W + x] = frame ? 1 : slot ? 0.1 : 0.92 + (rng() - 0.5) * 0.06;
+    }
+  }
+  gullyTex = heightToMaps(W, H, h, (e) => {
+    const k = e < 0.3 ? 8 : 52 + (e - 0.9) * 120;
+    return [k * 1.02, k, k * 0.96];
+  }, 2.4);
+  return gullyTex;
+}
+
+/** A manhole cover: a 600 mm iron disc with a raised rim and a lattice
+ *  of diamonds, dark and a little rusty; the frame around it darker. */
+let manholeTex: { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } | null = null;
+function manholeTextures() {
+  if (manholeTex) return manholeTex;
+  const W = 128, H = 128;
+  const h = new Float32Array(W * H);
+  const rng = makeRng((WORLD_SEED ^ 0x4d414e48) >>> 0); // "MANH"
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const u = x / W - 0.5;
+      const v = y / H - 0.5;
+      const r = Math.hypot(u, v) * 2; // 1 at the rim
+      let e = 0.5;
+      if (r > 0.97) e = 0.2; // the frame
+      else if (r > 0.9) e = 0.85; // the raised rim
+      else {
+        const dx = ((u * 12) % 1 + 1) % 1;
+        const dy = ((v * 12) % 1 + 1) % 1;
+        const diamond = Math.abs(dx - 0.5) + Math.abs(dy - 0.5) < 0.3;
+        e = diamond ? 0.72 : 0.5;
+      }
+      h[y * W + x] = e + (rng() - 0.5) * 0.04;
+    }
+  }
+  manholeTex = heightToMaps(W, H, h, (e, x, y) => {
+    const u = x / W - 0.5, v = y / H - 0.5;
+    const r = Math.hypot(u, v) * 2;
+    const rust = r > 0.85 ? 10 : 0;
+    const k = 40 + e * 22;
+    return [k + rust, k, k - 6];
+  }, 2.0);
+  return manholeTex;
+}
+
+/** The repeater: 100 in a red ring on white, the Vienna-convention
+ *  roundel every Gulf road carries. */
+function speedSignTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#f4f4f1";
+  g.beginPath();
+  g.arc(64, 64, 63, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#c8102e";
+  g.lineWidth = 14;
+  g.beginPath();
+  g.arc(64, 64, 55, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = "#151515";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = `700 46px ${latinDisplay()}`;
+  g.fillText("100", 64, 66);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function signFaceMat100(map: THREE.Texture): THREE.MeshStandardMaterial {
+  // A retroreflective face: a little lit at night, inside the nightGlow
+  // band so it is plain paint by day.
+  return new THREE.MeshStandardMaterial({ name: "speed-sign-face", map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.3, roughness: 0.5 });
+}
+
 /** Gulf-standard bend board: black chevrons on a yellow panel, pointing
  *  into the turn. Drawn double-wide so three arrows read at speed. */
 function chevronTexture(pointRight: boolean): THREE.CanvasTexture {
@@ -3163,6 +3298,8 @@ export function vergeFurniture(track: Track, palms: readonly PlantSeed[]): Verge
   for (let i = 0; i < FLAG_IDS.length - 1; i++) {
     out.push({ s: track.wrap(-26 - i * 13), lat: -(ROAD_HALF_WIDTH + 4), r: 10 * 0.0129 });
   }
+  // The street's furniture, as the circles street.ts gives them.
+  for (const c of streetAvoid(streetLayout(track))) out.push(c);
   return out;
 }
 
@@ -3510,6 +3647,29 @@ function lampColumnStands(track: Track, s: number): boolean {
 }
 
 /**
+ * The street's ground-level layout (src/game/street.ts), laid once per
+ * track: the rail reads its gaps from it, the kerbs and furniture are
+ * built from it, and the beds and the palms step round what stands in
+ * it. Pure, seeded on its own tag, so laying it costs the shared stream
+ * nothing.
+ */
+let streetLayoutMemo: { track: Track; layout: StreetLayout } | null = null;
+function streetLayout(track: Track): StreetLayout {
+  if (streetLayoutMemo && streetLayoutMemo.track === track) return streetLayoutMemo.layout;
+  const columns = Math.floor(track.length / LAMP_COLUMNS.spacing);
+  const layout = streetDetailLayout(track, STREETS, {
+    standing: (s) => lampColumnStands(track, s),
+    // An inland column stands at every even multiple of the spacing.
+    columnAt: (s) => {
+      const i = Math.round(s / LAMP_COLUMNS.spacing);
+      return i >= 0 && i < columns && i % 2 === 0 && lampColumnStands(track, i * LAMP_COLUMNS.spacing);
+    },
+  });
+  streetLayoutMemo = { track, layout };
+  return layout;
+}
+
+/**
  * Everything on the corniche's verges a palm crown must clear, for
  * placePalms: every standing lamp column, every signal pole, both posts
  * of every gantry, every flag mast, the plaza's floodlights, every cross
@@ -3561,6 +3721,13 @@ export function palmFixtures(track: Track): PalmFixture[] {
       f.deck / 2 / Math.cos(f.skew) + PALM_PLACE.latMax * Math.tan(Math.abs(f.skew)) + PALM_PLACE.crownReach;
     out.push({ s: f.s, lat: 0, kind: "flyover", half });
   }
+  // The street's standing furniture: the shelters, the cabinets, the
+  // repeater signs. Point fixtures, cleared by PALM_PLACE.clear like a
+  // column.
+  const sl = streetLayout(track);
+  for (const p of sl.shelters) if (!p.hidden) out.push({ s: p.s, lat: p.lat, kind: "shelter" });
+  for (const p of sl.cabinets) if (!p.hidden) out.push({ s: p.s, lat: p.lat, kind: "cabinet" });
+  for (const p of sl.signs) if (!p.hidden) out.push({ s: p.s, lat: p.lat, kind: "sign" });
   return out;
 }
 
@@ -5000,7 +5167,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const paverMat = new THREE.MeshStandardMaterial({ map: paver, roughness: 0.95 });
   for (const [u0, u1] of coastalSpans) {
     const walkway = new THREE.Mesh(
-      buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 0.8), 0.06, 10, u0, u1),
+      // At the kerb's own height, so the promenade meets the kerb flush
+      // rather than 90 mm below it. The palms are footed 0.25 m deep
+      // (TRUNK_FOOTING), so they stand in it as they stood in the 0.06.
+      buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 1.1), STREET_DETAIL.footway.walkwayY, 10, u0, u1),
       paverMat
     );
     walkway.name = "corniche-walkway";
@@ -5339,21 +5509,30 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // and far enough apart that they read as a dotted line running ahead
   // into the dark rather than as a continuous glowing strip.
   const REFLECTOR_EVERY = 4;
-  for (const edge of [-1, 1]) {
+  // The rail opens at the junctions (street.ts railGaps: every cross
+  // street outside the tunnel whose mouth is on plain tarmac) — 6 m
+  // either side of the street's centreline — and each span ends in a
+  // terminal flared 0.3 m outward over its last 2 m, which is how a cut
+  // rail is finished and what keeps a gap from reading as a hole. The
+  // spans merge into the one mesh the shadow and planting tests find by
+  // name. Posts and reflectors inside a gap are kept at zero scale, so
+  // their counts and order are what they were.
+  const gapsAll = railGaps(track, STREETS);
+  const hiddenScale = new THREE.Vector3(0, 0, 0);
+  for (const edge of [-1, 1] as const) {
     const lateral: LatOffset = (s: number) => edge * (track.halfWidthAt(s) + 0.6);
-    const rail = new THREE.Mesh(
-      buildProfiled(
-        track,
-        lateral,
-        // Lifted onto the rail's own height here rather than baking the
-        // height into W_BEAM, so the section stays a section and can be
-        // hung at whatever height a given barrier needs.
-        W_BEAM.map(([out, up]) => [out, up + RAIL_Y] as [number, number]),
-        edge,
-        4
-      ),
-      railMat
-    );
+    // Lifted onto the rail's own height here rather than baking the
+    // height into W_BEAM, so the section stays a section and can be
+    // hung at whatever height a given barrier needs.
+    const section = W_BEAM.map(([out, up]) => [out, up + RAIL_Y] as [number, number]);
+    const spans = spansBetween(track, edge, gapsAll);
+    // Swept every 2 m, not 4: the terminal's flare is 2 m long, and a 4 m
+    // sample smeared it a sample back along the beam.
+    const parts = spans.map((sp) => buildProfiled(track, flaredLateral(track, sp, lateral), section, edge, 2, sp.u0, sp.u1));
+    const railGeo = mergeGeometries(parts);
+    if (!railGeo) throw new Error("guardrail: nothing merged");
+    for (const g of parts) g.dispose();
+    const rail = new THREE.Mesh(railGeo, railMat);
     // A rail casts AND receives: it is the nearest tall thing to the
     // road, so it takes the shadow of every pole and every car that
     // passes it, and it is where a shadow is read at eye height rather
@@ -5438,7 +5617,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       mp.x += mside.x * edge * 0.1;
       mp.z += mside.z * edge * 0.1;
       mp.y = (RAIL_Y + 0.16) / 2;
-      mm.compose(mp, mq, one);
+      const gapped = inGap(track, gapsAll, edge, s, 0.3);
+      mm.compose(mp, mq, gapped ? hiddenScale : one);
       posts.setMatrixAt(i, mm);
 
       if (i % REFLECTOR_EVERY === 0 && ri < reflectorCount) {
@@ -5447,13 +5627,84 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         mp.x -= mside.x * edge * 0.02;
         mp.z -= mside.z * edge * 0.02;
         mp.y = RAIL_Y + 0.23;
-        mm.compose(mp, mq, one);
+        mm.compose(mp, mq, gapped ? hiddenScale : one);
         reflectors.setMatrixAt(ri++, mm);
       }
     }
     posts.instanceMatrix.needsUpdate = true;
     reflectors.instanceMatrix.needsUpdate = true;
     scene.add(posts, reflectors);
+  }
+
+  // ------------------------------------------------------- the street
+  //
+  // What a road has at its edge besides paint and a rail: a kerb, a
+  // footway, drains, covers, somewhere to wait for a bus. The layout is
+  // src/game/street.ts's, pure and seeded on its own tag; this block
+  // only hands it materials and adds what it builds. Here, after the
+  // road, the streets, the paint and the rail it sits against, and
+  // before the verge is planted (vergeFurniture reads the same layout,
+  // so the beds step round the shelters). Nothing here is additive, so
+  // the lamp pools below stay the scene's first additive instanced mesh
+  // (tests/daynight.mjs reads them that way).
+  {
+    const layout = streetLayout(track);
+    const kerbTex = kerbTexture();
+    const kerbMat = new THREE.MeshStandardMaterial({ name: "kerb", map: kerbTex, roughness: 0.88, metalness: 0 });
+    // Black-and-yellow kerb blocks at the junction radii: the stripe
+    // texture is 8 bands up its v, and buildProfiled lays v = s / 14, so
+    // a band is 1.75 m — a painted kerb unit and its neighbour.
+    const kerbStripe = stripeTexture("#15161a", "#e2b81e");
+    kerbStripe.wrapS = kerbStripe.wrapT = THREE.RepeatWrapping;
+    const kerbPaintMat = new THREE.MeshStandardMaterial({ name: "kerb-paint", map: kerbStripe, roughness: 0.55, metalness: 0 });
+    const gullyTex = gullyTextures();
+    const gullyMat = new THREE.MeshStandardMaterial({
+      name: "gully",
+      map: gullyTex.map,
+      normalMap: gullyTex.normalMap,
+      normalScale: new THREE.Vector2(1.0, -1.0),
+      roughness: 0.75,
+      metalness: 0.6,
+    });
+    const manholeTex = manholeTextures();
+    const manholeMat = new THREE.MeshStandardMaterial({
+      name: "manhole",
+      map: manholeTex.map,
+      normalMap: manholeTex.normalMap,
+      normalScale: new THREE.Vector2(0.8, -0.8),
+      roughness: 0.7,
+      metalness: 0.65,
+    });
+    const frameMat = new THREE.MeshStandardMaterial({ name: "shelter-frame", color: 0x2c3036, roughness: 0.45, metalness: 0.6 });
+    const glassMat = new THREE.MeshStandardMaterial({ name: "shelter-glass", color: 0x1e2630, roughness: 0.15, metalness: 0.4, envMapIntensity: 1.4 });
+    // The stop's panel, lit: 1.5 is inside the nightGlow band, so it dims
+    // by day like every other lit sign.
+    const shelterSignMat = new THREE.MeshStandardMaterial({ name: "shelter-sign", color: 0xdfe8ff, emissive: 0xdfe8ff, emissiveIntensity: 1.5, roughness: 0.4 });
+    const cabinetMat = new THREE.MeshStandardMaterial({ name: "cabinet", color: 0x8a8f86, roughness: 0.7, metalness: 0.2 });
+    const binMat = new THREE.MeshStandardMaterial({ name: "bin", color: 0x2f6b3a, roughness: 0.6, metalness: 0.3 });
+    const bollardMat = new THREE.MeshStandardMaterial({ name: "bollard", color: 0xf5b301, roughness: 0.6 });
+    const postMat2 = new THREE.MeshStandardMaterial({ name: "sign-post", color: 0x7d838a, roughness: 0.5, metalness: 0.4 });
+    const signFaceMat = signFaceMat100(speedSignTexture());
+    const built = buildStreetDetail(
+      track,
+      {
+        kerb: kerbMat,
+        kerbPaint: kerbPaintMat,
+        footway: paverMat,
+        gully: gullyMat,
+        manhole: manholeMat,
+        frame: frameMat,
+        glass: glassMat,
+        shelterSign: shelterSignMat,
+        cabinet: cabinetMat,
+        bin: binMat,
+        bollard: bollardMat,
+        post: postMat2,
+        signFace: signFaceMat,
+      },
+      layout
+    );
+    for (const o of built) scene.add(o);
   }
 
   // Streetlights: single-arm LED road lanterns on galvanised columns,

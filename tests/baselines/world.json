@@ -3,6 +3,18 @@
   "count": 258930,
   "hash": "875de0516f12"
  },
+ "bus-shelter": {
+  "count": 21,
+  "hash": "6952573e0e11"
+ },
+ "bus-shelter-glass": {
+  "count": 21,
+  "hash": "6952573e0e11"
+ },
+ "bus-shelter-sign": {
+  "count": 21,
+  "hash": "6952573e0e11"
+ },
  "cityBlocks": {
   "count": 337,
   "hash": "3356bf932bde"
@@ -37,46 +49,122 @@
  },
  "guardrail-post": {
   "count": 2123,
-  "hash": "932bededb777"
+  "hash": "1020f309a169"
  },
  "guardrail-post#1": {
   "count": 2123,
-  "hash": "fb244512e1ab"
+  "hash": "bdaf4a1d021b"
  },
  "guardrail-reflector": {
   "count": 530,
-  "hash": "14c5c1aa7c27"
+  "hash": "8774613fb2c2"
  },
  "guardrail-reflector#1": {
   "count": 530,
-  "hash": "6daa0e074c6a"
+  "hash": "c2ef289eed51"
+ },
+ "kerb-drop": {
+  "count": 206,
+  "hash": "fc934e4f2b62"
+ },
+ "kerb-gully": {
+  "count": 706,
+  "hash": "b398b41ad3c0"
+ },
+ "palm-crowns-full": {
+  "count": 26,
+  "hash": "c3a9bbdf85e1"
+ },
+ "palm-crowns-kept": {
+  "count": 86,
+  "hash": "df2c55c9c712"
+ },
+ "palm-crowns-young": {
+  "count": 19,
+  "hash": "acd9f0b56cce"
+ },
+ "palm-trunks": {
+  "count": 131,
+  "hash": "a06490674bc7"
  },
  "planting": {
-  "count": 438,
-  "hash": "7a2b30b6312c"
+  "count": 1109,
+  "hash": "a9cf3cc983e0"
  },
  "planting#1": {
-  "count": 438,
-  "hash": "804b4620f992"
+  "count": 411,
+  "hash": "564c68bf8bc6"
  },
  "planting#2": {
-  "count": 437,
-  "hash": "a5fb5d612606"
+  "count": 145,
+  "hash": "e540375488c7"
+ },
+ "planting#3": {
+  "count": 167,
+  "hash": "46273abc3c12"
+ },
+ "road-arrow-ahead": {
+  "count": 81,
+  "hash": "eea86a17f09f"
+ },
+ "road-arrow-left": {
+  "count": 18,
+  "hash": "b31dd06b49e4"
+ },
+ "road-arrow-right": {
+  "count": 33,
+  "hash": "9cd8d0e3de03"
  },
  "road-dash": {
   "count": 2124,
-  "hash": "8ff573eaa4bf"
+  "hash": "cb7cfa739960"
+ },
+ "road-manhole": {
+  "count": 371,
+  "hash": "de57eca8ece3"
+ },
+ "road-stop": {
+  "count": 33,
+  "hash": "3d163b1b52fc"
+ },
+ "road-stud": {
+  "count": 942,
+  "hash": "4f4e391504a6"
+ },
+ "road-zebra": {
+  "count": 462,
+  "hash": "5b11fb920aae"
+ },
+ "speed-sign": {
+  "count": 33,
+  "hash": "20ec615ec705"
+ },
+ "speed-sign-face": {
+  "count": 33,
+  "hash": "20ec615ec705"
+ },
+ "street-bin": {
+  "count": 54,
+  "hash": "e0ce23b62603"
+ },
+ "street-bollard": {
+  "count": 202,
+  "hash": "13c560abb662"
  },
  "street-columns": {
   "count": 202,
   "hash": "e7167474758f"
  },
  "street-dash": {
-  "count": 4806,
-  "hash": "98e6dd580bf8"
+  "count": 5377,
+  "hash": "fe2f5f458167"
  },
  "street-stop": {
-  "count": 114,
-  "hash": "d3f703ef7fed"
+  "count": 101,
+  "hash": "437ef6b66843"
+ },
+ "utility-cabinet": {
+  "count": 36,
+  "hash": "3588ad7c09f2"
  }
 }
