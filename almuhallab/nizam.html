@@ -61,7 +61,7 @@
 }
   </script>
   <title>النظام الموحد | النوخذة</title>
-  <meta name="description" content="النظام الموحد في النوخذة: المركز المالي، صافي للمحافظ، الميزانية السنوية وXBRL، والتوصيل، فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
+  <meta name="description" content="النظام الموحد في النوخذة: المركز المالي، صافي للمحافظ، الميزانية السنوية و XBRL، والتوصيل، فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
   <style>
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -633,7 +633,7 @@
         <div id="flow-lines"></div>
         <p class="note">
           هذه الأرقام تُشتق مباشرة من صافي والتوصيل، وتُغذّي القوائم المالية في
-          تبويب XBRL عند الضغط على «احسب من النظام». يمكنك دائماً تعديلها يدوياً بعد ذلك.
+          تبويب XBRL عند الضغط على «احسب من النظام». يمكنك دائماً تعديل أي بند منها يدوياً في تبويب XBRL بعد ذلك.
         </p>
       </div>
     </section>
@@ -644,8 +644,8 @@
       <div class="tiles" id="safi-tiles"></div>
       <div id="safi-chart"></div>
 
-      <h2>إضافة / تحديث سهم</h2>
-      <form id="safi-form">
+      <h2>إضافة سهم أو تحديثه</h2>
+      <form id="safi-form" novalidate>
         <label>رمز السهم <input name="ticker" required maxlength="12" placeholder="مثال: NBK"
           style="font-family:var(--mono);text-transform:uppercase" /></label>
         <label>اسم الشركة <input name="name" required maxlength="80" placeholder="بنك الكويت الوطني" /></label>
@@ -664,7 +664,7 @@
         <table>
           <thead><tr>
             <th>الرمز</th><th>الشركة</th><th>الكمية</th><th>التكلفة (فلس)</th><th>السعر (فلس)</th>
-            <th>القيمة (د.ك)</th><th>الربح/الخسارة (د.ك)</th><th>%</th><th class="col-act"></th>
+            <th>القيمة (د.ك)</th><th>الربح أو الخسارة (د.ك)</th><th>%</th><th class="col-act"></th>
           </tr></thead>
           <tbody id="safi-rows"></tbody>
         </table>
@@ -674,12 +674,12 @@
 
     <!-- ═══════════ XBRL — الميزانية السنوية ═══════════ -->
     <section class="tab" id="tab-xbrl">
-      <h2>الميزانية السنوية: الإيداع الإلكتروني</h2>
+      <h2>الميزانية السنوية: إعداد ملف XBRL</h2>
       <p class="note" style="margin:0 0 12px">
         إعداد الميزانية السنوية للشركات في دولة الكويت وفق الإطار المعتمد لدى
         وزارة التجارة والصناعة (معايير IFRS): تُدخل البنود التفصيلية، والمجاميع
         تُحسب تلقائياً، ثم يفحص النظام الميزانية ويقترح التصحيحات قبل توليد ملف
-        XBRL. الاعتماد النهائي يتم عبر بوابة الوزارة.
+        XBRL. التقديم النهائي يتم عبر بوابة وزارة التجارة والصناعة، ولا يُعدّ الملف المولَّد تقديماً بذاته.
       </p>
       <div class="row">
         <button class="btn primary" id="xbrl-derive"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> احسب من النظام</button>
@@ -688,7 +688,7 @@
         </span>
       </div>
 
-      <form id="xbrl-form" style="display:block;background:none;border:0;padding:0">
+      <form id="xbrl-form" novalidate style="display:block;background:none;border:0;padding:0">
         <fieldset>
           <legend>المنشأة والفترة</legend>
           <label>اسم الشركة كما في السجل <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة" /></label>
@@ -704,7 +704,7 @@
           </label>
           <label>الفترة
             <select name="period">
-              <option value="FY" selected>سنوية (الإيداع الرسمي)</option>
+              <option value="FY" selected>سنوية (التقديم الرسمي)</option>
               <option value="Q1">ربع أول: داخلي</option>
               <option value="Q2">ربع ثانٍ: داخلي</option>
               <option value="Q3">ربع ثالث: داخلي</option>
@@ -776,10 +776,10 @@
       <h2>التقارير المحفوظة</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>المنشأة</th><th>السجل</th><th>النهاية</th><th>الأصول</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
+          <thead><tr><th>المنشأة</th><th>السجل التجاري</th><th>نهاية السنة</th><th>الأصول</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
           <tbody id="xbrl-rows"></tbody>
         </table>
-        <div class="empty" id="xbrl-empty">لا توجد تقارير محفوظة بعد.</div>
+        <div class="empty" id="xbrl-empty">لا توجد تقارير محفوظة بعد. يُحفظ التقرير هنا عند توليد ملف XBRL.</div>
       </div>
     </section>
 
@@ -789,7 +789,7 @@
       <div class="tiles" id="del-tiles"></div>
 
       <h2>طلب جديد</h2>
-      <form id="del-form">
+      <form id="del-form" novalidate>
         <label>اسم العميل <input name="customer" required maxlength="80" placeholder="أم محمد" /></label>
         <label>الهاتف <input name="phone" required maxlength="15" pattern="[0-9+ ]{7,15}" title="أرقام فقط، من 7 إلى 15 خانة" inputmode="tel" autocomplete="tel" placeholder="9XXXXXXX" /></label>
         <label>العنوان <input name="address" required maxlength="160" placeholder="السالمية، قطعة 2" /></label>
@@ -800,7 +800,7 @@
       </form>
 
       <h2>المناديب</h2>
-      <form id="del-courier-form">
+      <form id="del-courier-form" novalidate>
         <label>الاسم <input name="cname" required maxlength="80" placeholder="سالم" /></label>
         <label>الهاتف <input name="cphone" required maxlength="15" pattern="[0-9+ ]{7,15}" title="أرقام فقط، من 7 إلى 15 خانة" inputmode="tel" autocomplete="tel" placeholder="9XXXXXXX" /></label>
         <button class="btn" type="submit">إضافة</button>
@@ -810,7 +810,7 @@
       <h2>سجل الطلبات</h2>
       <div class="row" id="del-filters"></div>
       <div class="orders" id="del-orders"></div>
-      <div class="empty" id="del-empty">لا توجد طلبات بعد.</div>
+      <div class="empty" id="del-empty">لا توجد طلبات بعد. أضف أول طلب من النموذج أعلاه.</div>
     </section>
 
     <!-- ═══════════ social media centre ═══════════
@@ -832,14 +832,11 @@
 
       <h2>الأصول البصرية</h2>
       <p class="note">
-        علامات الشركة كلها يكتبها مولّد واحد، <code>design/logo-en/build.py</code>،
-        من حروف الشعار الإنجليزي نفسها، فلا يمكن أن تنحرف عن الهوية. وأيقونة
-        النوخذة هي المرساة الكهرمانية من <code>icon.svg</code>. أعد تشغيل المولّد
-        بعد أي تغيير في الشعار.
+        علامات الشركة كلها مُولَّدة من حروف الشعار الإنجليزي نفسها، فلا تنحرف عن الهوية. وأيقونة النوخذة هي المرساة الكهرمانية نفسها.
       </p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>الأصل</th><th>المقاس</th><th>أين يُستخدم</th><th>المولّد</th></tr></thead>
+          <thead><tr><th>الأصل</th><th>المقاس</th><th>أين يُستخدم</th></tr></thead>
           <tbody id="soc-assets"></tbody>
         </table>
       </div>
@@ -858,7 +855,7 @@
 
   <footer class="site">
     المهلب كود · Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
-    <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a>
+    <a href="index.html">المهلب كود</a> · <a href="nokhatha.html">بوابة النوخذة</a>
   </footer>
 
   <div id="tip"></div>
@@ -912,9 +909,10 @@
   function wr(k, v) {
     try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; }
   }
-  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز، المساحة ممتلئة أو التصفح الخاص مفعّل.";
+  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز: المساحة ممتلئة أو التصفح الخاص مفعّل. أفرغ بعض السجلات أو أوقف التصفح الخاص، ثم أعد المحاولة.";
 
   var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
+  var NEXT_ACTION = ["بدء التحضير", "إرسال للتوصيل", "تأكيد التسليم"];   // the button names the step it takes (W-49)
   var DELIVERED = 3, CANCELLED = 4;
 
   /* Escapes for BOTH contexts this output lands in. The old version set
@@ -961,6 +959,27 @@
     if (ic) t.insertAdjacentHTML("afterbegin", icon(ic)); t.classList.add("on");
     /* a 62-character error at 1.8s was gone before it was read */
     clearTimeout(tT); tT = setTimeout(function () { t.classList.remove("on"); }, Math.max(1800, 60 * m.length)); }
+
+  /* a refused form says why in Arabic, in this page's own toast: the browser's
+     English bubble sits outside the page (words audit W-32). Capture on the
+     document, so it runs before any form handler and stops the submit first. */
+  document.addEventListener("submit", function (e) {
+    var form = e.target, bad = null, why = "";
+    if (!form || !form.querySelectorAll) return;
+    form.querySelectorAll("input, select, textarea").forEach(function (field) {
+      if (bad || field.disabled || field.type === "hidden" || field.type === "submit" || field.type === "button") return;
+      var v = field.validity;
+      if (v.valid) return;
+      bad = field;
+      why = v.valueMissing ? "هذا الحقل مطلوب." : v.tooShort ? "يلزم " + field.minLength + " أحرف على الأقل."
+        : v.patternMismatch ? (field.title || "الصيغة غير صحيحة.") : "القيمة غير صحيحة.";
+    });
+    if (!bad) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    bad.setAttribute("aria-invalid", "true");
+    if (bad.offsetParent) bad.focus();
+    toast(why);
+  }, true);
 
   /* localStorage is user-writable, so everything is re-coerced on read */
   function holdings() {
@@ -1048,7 +1067,7 @@
   }
   function noData(msg) { return '<div class="empty-fig">' + esc(msg) + '</div>'; }
   function divergingBars(rows, fmt) {
-    if (!rows.length) return noData("لا توجد بيانات.");
+    if (!rows.length) return noData("أضف سهماً لتظهر هنا الأرباح والخسائر لكل سهم.");
     var W = 560, rowH = 34, P = { t: 8, r: 16, b: 6, l: 96 };
     var H = P.t + rows.length * rowH + P.b;
     var span = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.v); })) || 1;
@@ -1107,7 +1126,7 @@
     var p = position();
     el("pos-tiles").innerHTML = tiles([
       ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), ar(p.portfolio.count, "سهم", "سهمان", "أسهم"), "", "p-value"],
-      ["ربح/خسارة المحفظة (د.ك)", signed(p.portfolio.pl),
+      ["الربح أو الخسارة (د.ك)", signed(p.portfolio.pl),
        pct1(p.portfolio.pct) + "%", ["neg", "", "pos"][sgn(p.portfolio.pl) + 1], "p-pl"],
       ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), ar(p.delivery.delivered, "طلب مسلّم", "طلبان مسلّمان", "طلبات مسلّمة"), "", "p-revenue"],
       ["الطلبات قيد التنفيذ", p.delivery.active, "من " + ar(p.delivery.total, "طلب", "طلبين", "طلبات", "طلب واحد"), "", "p-active"],
@@ -1129,7 +1148,7 @@
     el("safi-tiles").innerHTML = tiles([
       ["التكلفة (د.ك)", kwd(t.cost), "", "", "s-cost"],
       ["القيمة السوقية (د.ك)", kwd(t.value), "", "", "s-value"],
-      ["الربح/الخسارة (د.ك)", signed(t.pl),
+      ["الربح أو الخسارة (د.ك)", signed(t.pl),
        pct1(t.pct) + "%", ["neg", "", "pos"][sgn(t.pl) + 1], "s-pl"],
       ["عدد الأسهم", t.count, "", "", "s-count"]
     ]);
@@ -1157,9 +1176,9 @@
     [].forEach.call(f.querySelectorAll("[aria-invalid]"), function (x) { x.removeAttribute("aria-invalid"); });
     serr.textContent = "";
     function refuse(field, msg) { serr.textContent = msg; field.setAttribute("aria-invalid", "true"); field.focus(); toast(msg); }
-    if (!t) return refuse(f.ticker, "رمز السهم غير صالح، أحرف لاتينية وأرقام فقط");
+    if (!t) return refuse(f.ticker, "رمز السهم غير صالح: استعمل أحرفاً لاتينية وأرقاماً فقط، مثل NBK.");
     var qty = Math.floor(clamp(f.qty.value, 1e9));
-    if (qty < 1) return refuse(f.qty, "الكمية يجب أن تكون 1 على الأقل");
+    if (qty < 1) return refuse(f.qty, "الكمية يجب أن تكون سهماً واحداً على الأقل");
     var list = holdings();
     var entry = { ticker: t, name: f.name.value.trim().slice(0, 80), qty: qty,
                   cost: clamp(f.cost.value, 1e7), price: clamp(f.price.value, 1e7) };
@@ -1170,7 +1189,9 @@
   });
   el("safi-rows").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-del-safi]"); if (!b) return;
-    var list = holdings(); var gone = list.splice(Number(b.getAttribute("data-del-safi")), 1);
+    var list = holdings(), at = Number(b.getAttribute("data-del-safi")), held = list[at];
+    if (!held || !confirm("حذف السهم " + held.ticker + " من المحفظة؟ لا يمكن التراجع.")) return;
+    var gone = list.splice(at, 1);
     if (!wr(K.safi, list)) { toast(STORAGE_FULL); return; }
     renderAll(); focusAfter("safi-rows"); toast("تم حذف " + (gone[0] ? gone[0].ticker : ""));
   });
@@ -1237,7 +1258,7 @@
     xf.investments.classList.add("derived");
     xf.revenue.classList.add("derived");
     recalc(); xvalidate(false);
-    toast("تم الحساب من صافي والتوصيل");
+    toast("حُسبت البنود من صافي والتوصيل.");
   });
 
   /* ---- the audit engine: each rule reports what is wrong AND how to fix it ---- */
@@ -1252,30 +1273,30 @@
     // what the user reads before filing, so it has to say this itself.
     if (!xf.periodEnd.value)
       out.push({ lvl: "err", msg: "نهاية السنة المالية غير محددة.",
-                 fix: "أدخل التاريخ كما في عقد التأسيس، الملف يُبنى على فترة، وبلا تاريخ لا فترة له." });
+                 fix: "أدخل التاريخ كما يرد في عقد التأسيس، فالملف يُبنى على فترة زمنية محددة." });
     if (Math.abs(diff) >= 0.0005)
       out.push({ lvl: "err", msg: "الميزانية غير متوازنة: الفرق " + kwd(diff) + " د.ك.",
                  fix: "راجع الأرباح المرحّلة أولاً، فرق التوازن يقع هناك غالباً، ثم تأكد أن كل أصل والتزام مُدرج مرة واحدة." });
     if (capital <= 0)
       out.push({ lvl: "err", msg: "رأس المال المدفوع صفر أو سالب.",
-                 fix: "أدخل رأس المال كما في السجل التجاري، لا تُقبل ميزانية بلا رأس مال." });
+                 fix: "أدخل رأس المال كما في السجل التجاري، ولا تستقيم ميزانية بلا رأس مال." });
     if (t.eq <= 0 && capital > 0)
       out.push({ lvl: "err", msg: "حقوق الملكية سالبة أو معدومة (" + kwd(t.eq) + " د.ك).",
                  fix: "الخسائر استنفدت رأس المال، يلزم قرار من الشركاء بالتغطية أو تخفيض رأس المال أو الحل." });
     if (capital > 0 && accumulated < 0 && Math.abs(accumulated) >= capital / 2)
       out.push({ lvl: "warn", msg: "الخسائر المتراكمة (" + kwd(Math.abs(accumulated)) +
                  " د.ك) بلغت نصف رأس المال أو أكثر.",
-                 fix: "قانون الشركات الكويتي يوجب عرض الأمر على الجمعية العامة لتقرر الاستمرار أو التخفيض أو الحل، وثّق القرار قبل الإيداع." });
+                 fix: "قانون الشركات الكويتي يوجب عرض الأمر على الجمعية العامة لتقرر الاستمرار أو التخفيض أو الحل، وثّق القرار قبل تقديم الملف." });
     if (xnum("cogs") > xnum("revenue") && xnum("revenue") > 0)
       out.push({ lvl: "warn", msg: "تكلفة الإيرادات أكبر من الإيرادات (مجمل خسارة).",
                  fix: "تأكد أن التكلفة لا تتضمن مصاريف إدارية أُدرجت مرتين، أو وثّق سبب مجمل الخسارة للمدقق." });
     if (t.cl > t.ca && t.assets > 0)
       out.push({ lvl: "warn", msg: "الالتزامات المتداولة (" + kwd(t.cl) + ") تتجاوز الأصول المتداولة (" + kwd(t.ca) +
                  "): نسبة التداول " + (t.cl > 0 ? (t.ca / t.cl).toFixed(2) : "-") + ".",
-                 fix: "خطر سيولة يلفت نظر المدقق والوزارة، جدوِل القروض القصيرة أو ادعم النقد قبل نهاية السنة." });
+                 fix: "خطر سيولة يلفت نظر المدقق والوزارة، أعد جدولة القروض القصيرة أو ادعم النقد قبل نهاية السنة." });
     if (xf.period.value !== "FY")
       out.push({ lvl: "warn", msg: "الفترة المختارة ربع سنوية.",
-                 fix: "إيداع الوزارة سنوي: اختر «سنوية» وتاريخ نهاية السنة المالية كما في عقد التأسيس." });
+                 fix: "الوزارة تطلب الميزانية السنوية: اختر «سنوية» وتاريخ نهاية السنة المالية كما في عقد التأسيس." });
     if (t.net > 0 && xnum("statRes") < capital / 2)
       out.push({ lvl: "sug", msg: "الاحتياطي القانوني (" + kwd(xnum("statRes")) + " د.ك) لم يبلغ نصف رأس المال.",
                  fix: "حوّل ما لا يقل عن 10% من صافي الربح = " + kwd(t.net * 0.10) + " د.ك إلى الاحتياطي القانوني قبل التوزيع." });
@@ -1296,12 +1317,15 @@
     var r = audit(), t = r.totals;
     var diff = t.assets - (t.liab + t.eq), ok = Math.abs(diff) < 0.0005;
     var c = el("xbrl-check");
-    c.className = "check " + (ok ? "ok" : "bad");
-    c.textContent = ok
+    var empty = t.assets === 0 && t.liab === 0 && t.eq === 0;   // an empty sheet is not a balanced one (W-42)
+    c.className = "check " + (empty ? "" : ok ? "ok" : "bad");
+    c.textContent = empty
+      ? "أدخل البنود ثم اضغط «افحص الميزانية»."
+      : ok
       ? "القائمة متوازنة: الأصول (" + kwd(t.assets) + " د.ك) = الالتزامات + حقوق الملكية (" + kwd(t.liab + t.eq) + " د.ك)"
       : "غير متوازنة: الأصول " + kwd(t.assets) + " د.ك مقابل " + kwd(t.liab + t.eq) +
         " د.ك، الفرق " + kwd(diff) + " د.ك";
-    c.insertAdjacentHTML("beforeend", icon(ok ? "i-check" : "i-x"));
+    if (!empty) c.insertAdjacentHTML("beforeend", icon(ok ? "i-check" : "i-x"));
 
     var TITLES = { err: "خطأ", warn: "تنبيه", sug: "اقتراح" };
     var COLORS = { err: "var(--danger)", warn: "var(--sand)", sug: "var(--tint)" };
@@ -1311,7 +1335,7 @@
             '<b style="color:' + COLORS[f.lvl] + '">' + TITLES[f.lvl] + ":</b> " + esc(f.msg) +
             '<br /><span class="note">' + icon("i-chev", "ic sm") + " " + esc(f.fix) + "</span></div>";
         }).join("")
-      : (announce ? '<div class="check ok" style="margin:8px 0">لا ملاحظات: الميزانية جاهزة للتوليد والإيداع.</div>' : "");
+      : (announce ? '<div class="check ok" style="margin:8px 0">لا ملاحظات: الميزانية جاهزة لتوليد ملف XBRL.</div>' : "");
     if (ok && announce && !r.findings.length) toast("الميزانية سليمة", "i-check");
     return { ok: ok, errs: r.findings.filter(function (f) { return f.lvl === "err"; }).length };
   }
@@ -1452,7 +1476,7 @@
                  ' <button class="btn sm danger" data-del-courier="' + i + '" aria-label="حذف المندوب ' + esc(c.name) + '">' +
                  icon("i-x", "ic sm") + "</button></span>";
         }).join("")
-      : '<span class="note">لا توجد مناديب.</span>';
+      : '<span class="note">لا يوجد مناديب بعد. أضف المندوب من النموذج أعلاه.</span>';
 
     el("del-filters").innerHTML = [-1].concat(STATUSES.map(function (_, i) { return i; }))
       .map(function (i) {
@@ -1471,7 +1495,7 @@
     el("del-orders").innerHTML = list.slice().reverse().map(function (x) {
       var o = x.o, idx = x.i;
       var adv = o.status < DELIVERED
-        ? '<button class="btn sm primary" data-next="' + idx + '">' + STATUSES[o.status + 1] + icon("i-chev", "ic sm") + "</button>" : "";
+        ? '<button class="btn sm primary" data-next="' + idx + '">' + NEXT_ACTION[o.status] + icon("i-chev", "ic sm") + "</button>" : "";
       var can = o.status < DELIVERED
         ? '<button class="btn sm danger" data-cancel="' + idx + '">إلغاء</button>' : "";
       return '<div class="order"><div class="who"><b>' + esc(o.customer) +
@@ -1482,7 +1506,7 @@
         STATUSES[o.status] + "</span>" + (adv || can ? '<div class="oact">' + adv + can + "</div>" : "") + "</div>";
     }).join("");
     /* «no orders yet» was false under a filter with orders present */
-    el("del-empty").textContent = delFilter < 0 ? "لا توجد طلبات بعد." : "لا توجد طلبات بحالة «" + STATUSES[delFilter] + "».";
+    el("del-empty").textContent = delFilter < 0 ? "لا توجد طلبات بعد. أضف أول طلب من النموذج أعلاه." : "لا توجد طلبات بحالة «" + STATUSES[delFilter] + "».";
     el("del-empty").style.display = list.length ? "none" : "block";
   }
   el("del-form").addEventListener("submit", function (e) {
@@ -1506,7 +1530,7 @@
   el("del-couriers").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-del-courier]"); if (!b) return;
     var cs = couriers(), ci = Number(b.getAttribute("data-del-courier")), cr = cs[ci];
-    if (!cr || !confirm("حذف المندوب " + cr.name + "؟")) return;
+    if (!cr || !confirm("حذف المندوب " + cr.name + "؟ لا يمكن التراجع.")) return;
     cs.splice(ci, 1);
     if (!wr(K.couriers, cs)) { toast(STORAGE_FULL); return; }
     renderAll(); toast("تم حذف المندوب " + cr.name); focusAfter("del-couriers");
@@ -1553,21 +1577,21 @@
   }
 
   var CHANNELS = [
-    ["واتساب", "+965 6589 4110", "https://wa.me/96565894110", "القناة الأولى: كل نموذج في الموقع ينتهي هنا"],
+    ["واتساب", "+965 6589 4110", "https://wa.me/96565894110", "القناة الأولى: كل نموذج في الموقع يصل إلى هذه القناة"],
     ["انستغرام", "@almuhallab.code", "https://www.instagram.com/almuhallab.code/", "صورة الحساب: حرفا AC من حزمة الشعار"],
     ["البريد", "hello@almuhallab-code.com", "mailto:hello@almuhallab-code.com", "للعروض والملفات الرسمية"]
   ];
 
   var ASSETS = [
-    ["صورة الحساب: الحرفان AC", "2048×2048", "انستغرام: تُقصّ دائرية وتُعرض عند 110 بكسل، والحبر داخل 80% من الدائرة", "design/logo-en/build.py"],
-    ["بطاقة المشاركة", "2400×1260", "واتساب · انستغرام · لينكدإن · نتائج البحث", "design/logo-en/build.py"],
-    ["حزمة الشعار", "SVG · PNG 4096px", "الشركاء والمطابع: داكن، ولخلفية داكنة، ولخلفية فاتحة", "design/logo-en/build.py"],
-    ["أيقونة التطبيق", "512×512", "النوخذة على الشاشة الرئيسية، المرساة الكهرمانية من icon.svg", "design/app_icons.py"],
-    ["أيقونة سطح المكتب", "ICO · PNG", "النوخذة على ويندوز وماك، المرساة نفسها", "design/windows_icon.py · macos_icon.py"]
+    ["صورة الحساب: الحرفان AC", "2048×2048", "انستغرام: تُقصّ دائرية وتُعرض عند 110 بكسل، والحبر داخل 80% من الدائرة"],
+    ["بطاقة المشاركة", "2400×1260", "واتساب · انستغرام · لينكدإن · نتائج البحث"],
+    ["حزمة الشعار", "SVG · PNG 4096px", "الشركاء والمطابع: نسخة داكنة، ونسخة للخلفيات الداكنة، ونسخة للخلفيات الفاتحة"],
+    ["أيقونة التطبيق", "512×512", "النوخذة على الشاشة الرئيسية، المرساة الكهرمانية من icon.svg"],
+    ["أيقونة سطح المكتب", "ICO · PNG", "النوخذة على ويندوز وماك، المرساة نفسها"]
   ];
 
   var COPY = [
-    ["السيرة (bio)",
+    ["النبذة التعريفية",
      "المهلب كود: شركة برمجة وأنظمة في الكويت.\n" +
      "مواقع · تطبيقات · برمجيات مخصّصة · ذكاء اصطناعي · UI/UX · حلول سحابية · تطوير ألعاب.\n" +
      "النوخذة: نظامنا الموحد للمحفظة والميزانية وملف XBRL والتوصيل، مجاناً."],
@@ -1578,7 +1602,7 @@
      "تواصل معنا على واتساب +965 6589 4110"],
     ["منشور: النوخذة",
      "النوخذة: النظام الموحد.\n" +
-     "المركز المالي · صافي للمحفظة · ملف XBRL للميزانية السنوية · التوصيل، " +
+     "المركز المالي · صافي لإدارة المحافظ · ملف XBRL للميزانية السنوية · التوصيل، " +
      "أربع وحدات على نواة بيانات واحدة، تعمل بلا إنترنت وبلا خادم.\n" +
      "مجاني بالكامل: خطة واحدة، كل الوحدات مفتوحة، ولا شيء يُشترى."],
     ["منشور: ملف XBRL",
@@ -1619,7 +1643,7 @@
 
     el("soc-assets").innerHTML = ASSETS.map(function (a) {
       return "<tr><td>" + esc(a[0]) + '</td><td><span class="ltr">' + esc(a[1]) + "</span></td><td>" +
-        esc(a[2]) + '</td><td><code>' + esc(a[3]) + "</code></td></tr>";
+        esc(a[2]) + "</td></tr>";
     }).join("");
 
     el("soc-copy").innerHTML = COPY.map(function (c) {
@@ -1761,11 +1785,11 @@
     // testing: addHolding({ticker:'NBK', qty:-50}) answered ok. A quantity
     // the caller cannot have meant is a caller error, not a zero.
     var qty = Math.floor(clamp(h.qty, 1e9));
-    if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
+    if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً على الأقل");
     // The same rule for money as for qty: a negative or non-numeric cost or
     // price was clamped to 0 and stored as a free holding, answered ok.
     // Absent (undefined, null, "") still means 0; a value given must be one.
-    if (badMoney(h.cost)) return fail("التكلفة يجب أن تكون رقماً صفراً فأكثر");
+    if (badMoney(h.cost)) return fail("التكلفة لا تقل عن صفر");
     if (badMoney(h.price)) return fail("السعر يجب أن يكون رقماً صفراً فأكثر");
     if (existing.some(function (x) { return x.ticker === ticker; }))
       return fail("هذا الرمز مضاف بالفعل: " + ticker);
@@ -1789,7 +1813,7 @@
     var id = String(o.id || "").slice(0, 12);
     if (!id) return fail("رقم الطلب مطلوب");
     if (existing.some(function (x) { return x.id === id; }))
-      return fail("رقم الطلب مستعمل: " + id);
+      return fail("رقم الطلب مستخدم: " + id);
     if (badMoney(o.amount)) return fail("المبلغ يجب أن يكون رقماً صفراً فأكثر");
     return ok({ id: id, customer: String(o.customer || "").slice(0, 80),
                 phone: String(o.phone || "").slice(0, 15),
@@ -1838,7 +1862,7 @@
       var list = orders(), found = false;
       var n = Math.floor(Number(status));
       if (!isFinite(n) || n < 0 || n > STATUSES.length - 1)
-        return fail("حالة غير معروفة: استعمل 0.." + (STATUSES.length - 1));
+        return fail("الحالة غير معروفة: اختر رقماً من 0 إلى 4" + (STATUSES.length - 1));
       list.forEach(function (x) {
         if (x.id === String(id).slice(0, 12)) { x.status = n; found = true; }
       });

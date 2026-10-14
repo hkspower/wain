@@ -1,4 +1,4 @@
-# Security — المهلب كود · النوخذة
+# Security: المهلب كود · النوخذة
 
 What this system does to protect data, what it cannot do, and how to check
 both. Written against the code as it stands; every claim here is either
@@ -10,9 +10,10 @@ enforced by `design/test_suite.py` or marked as a limit.
 
 ## Where the site actually runs, and what that costs
 
-The site is deployed to **GitHub Pages** (`.github/workflows/pages.yml`).
-`almuhallab/.htaccess` exists for Apache/LiteSpeed hosts and **GitHub Pages
-ignores it entirely** — so every header it sets is inert in production:
+The live site is served by Hostinger (LiteSpeed), which reads `almuhallab/.htaccess`,
+so the headers it sets are live. `pages.yml` has never run. The table below
+applies only if the site moves to GitHub Pages, which ignores `.htaccess`, so
+every header it sets is inert there:
 
 | Header in `.htaccess` | Live on GitHub Pages? | Covered another way? |
 |---|---|---|
@@ -40,9 +41,7 @@ What the pages do themselves, either way:
 
 Neither is a substitute for the checkbox. Both are pinned by the suite.
 
-**If these headers matter to you, move hosting to a server that reads
-`.htaccess`** (the file is already written and correct for that case). On
-GitHub Pages they cannot be delivered from a static file.
+On GitHub Pages they cannot be delivered from a static file.
 
 ### Clickjacking
 
@@ -126,7 +125,7 @@ signing key) was pasted into a chat and never written to a file.
 
 - Its own PBKDF2-SHA256 passphrase (310,000 iterations, random salt), stored
   separately from customer records; minimum 10 characters.
-- Sessions expire after **30 minutes**; 5 failures lock the console for 10.
+- Sessions expire after **30 minutes**; 5 failures lock the console for 10 minutes.
 - Every mutating action is written to an append-only audit log; destructive
   actions require confirmation, and a wipe requires two.
 
@@ -142,8 +141,8 @@ signing key) was pasted into a chat and never written to a file.
   kept aside as `.corrupt` rather than destroyed.
 - Every release carries a SHA-256 checksum and a **GitHub-signed build
   provenance attestation** (`gh attestation verify`).
-- **The records file is not encrypted.** Password hashes are, the records are
-  not: anyone with the disk can read them. See `docs/WINDOWS-TRUST.md`.
+- **The records file is not encrypted.** Passwords are stored as hashes; the records
+  are stored unencrypted, so anyone with the disk can read them. See `docs/WINDOWS-TRUST.md`.
 
 ---
 

@@ -2747,11 +2747,15 @@ def social_checks(pg):
     check(S, "no price appears in the ready-made copy",
           "د.ك" not in txt and "دينار" not in txt)
 
-    # Every asset row names the generator that draws it, so a stale asset is
-    # traceable to the script that must be re-run.
-    rows = pg.eval_on_selector_all("#soc-assets tr", "rs => rs.map(r => r.cells[3].innerText)")
-    check(S, "every asset names its generator",
-          len(rows) >= 5 and all(r.startswith("design/") for r in rows), str(rows))
+    # Every visual asset names the script that draws it. The paths left the
+    # social tab (words audit W-60: a build path is not product copy); the map
+    # from asset to script lives in almuhallab/README.md, so a stale image can
+    # still be traced to the script that must be re-run.
+    section = (ROOT / "README.md").read_text()
+    section = section[section.index("## Visual assets"):section.index("## Tests")]
+    gens = sorted(set(re.findall(r"design/[\w./-]+\.py", section)))
+    check(S, "every visual asset names the script that draws it, and that script exists",
+          len(gens) >= 4 and all((REPO / g).is_file() for g in gens), str(gens))
 
     # The copy buttons carry an index, never the text — a multi-line string in
     # a data attribute is one quote away from breaking the markup.

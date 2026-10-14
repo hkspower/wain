@@ -13,11 +13,11 @@ inside it, entered at `/nokhatha` — not the front door.
 | File | Page |
 |------|------|
 | `index.html` | **Almuhallab Code** — the company site: what النوخذة is, services, work, how we work, contact |
-| `nokhatha.html` | **النوخذة portal** — landing, registration, login, dashboard, plans |
-| `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
+| `nokhatha.html` | **النوخذة portal** — landing, registration, login, dashboard, and what the system includes |
+| `nizam.html` | **النظام الموحد** — one page, five tabs: المركز المالي · صافي · XBRL · التوصيل, and التواصل, a reference desk |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
-| `404.html` | not-found page that returns visitors to the portal |
+| `404.html` | not-found page that returns visitors to the company home page |
 | `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg`, `favicon.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company marks (the English logo and its AC monogram, written by `design/logo-en/build.py`) |
 | `SECURITY.md` | security measures and their limits |
 
@@ -35,8 +35,7 @@ Arabic-first (RTL) and presented as **one system**:
 
 The three service units used to be three separate pages with three separate
 data stores and nothing flowing between them — the revenue you typed into XBRL
-had no relationship to the orders you had actually delivered. They are now four
-tabs of `nizam.html` over **one shared data core**, so the numbers are derived
+had no relationship to the orders you had actually delivered. They are now the four units, as tabs of `nizam.html`, over **one shared data core**, so the numbers are derived
 rather than retyped:
 
 | Source | Feeds |
@@ -56,10 +55,10 @@ and the admin console keep working.
 
 ## The service units
 
-- **صافي — SAFI**: add holdings (ticker, quantity, average cost and current
+- **صافي**: add holdings (ticker, quantity, average cost and current
   price in fils), see market value and profit/loss per stock and for the whole
   portfolio in KWD, export the statement as CSV or print it.
-- **XBRL — الميزانية السنوية**: the annual balance-sheet filing for companies in
+- **XBRL**: the annual balance-sheet filing for companies in
   Kuwait, aligned with the Ministry of Commerce and Industry's electronic
   filing framework (IFRS). Line items go in (cash, receivables, inventory,
   PP&E, borrowings, end-of-service provision, capital, reserves…); every
@@ -71,7 +70,7 @@ and the admin console keep working.
   shareholding companies, labour-support tax + KFAS for listed ones). A clean
   sheet generates an IFRS-tagged XBRL instance identified by the commercial
   registration number. Final submission goes through the Ministry's portal.
-- **التوصيل — Delivery**: create orders with auto IDs (`ORD-0001`), advance
+- **التوصيل**: create orders with auto IDs (`ORD-0001`), advance
   them through جديد → قيد التحضير → في الطريق → تم التسليم (or cancel),
   manage couriers, filter by status, and track delivered revenue.
 
@@ -80,19 +79,17 @@ and the admin console keep working.
 `admin.html` is the operator view, behind its own PBKDF2 passphrase (separate
 from customer accounts, 30-minute sessions, 5-try lockout):
 
-- **Overview** — six KPIs and four charts: signups over eight weeks, plan
-  distribution, the order pipeline, and portfolio profit/loss
-- **Customers** — search, filter by plan or status, sort any column, change a
-  plan, suspend or activate, delete, and bulk actions. A suspended account is
+- **Overview** — five KPIs and three charts: signups over eight weeks, the order pipeline, and portfolio profit/loss
+- **Customers** — search, filter by status, sort any column, suspend or activate, delete, and bulk actions. A suspended account is
   refused at the portal login, so the action has real effect
 - **Operations** — every order with filters, plus per-courier performance
 - **Finance** — portfolio aggregate with charts, and the XBRL filing history
-- **Settings** — plan/revenue table, full JSON backup export and import, a
+- **Settings** — backup export and import (JSON), a
   guarded wipe, passphrase change, and an audit log of every admin action
 
 Charts are inline SVG with a hover layer — no chart library, so the strict CSP
 holds. Colour follows the encoding: ordinal ramps where order carries meaning
-(plan tiers, pipeline stages) and a diverging pair for profit/loss, where the
+(pipeline stages) and a diverging pair for profit/loss, where the
 sign is shown by bar direction and a signed label as well as hue.
 
 ## Install as an app
@@ -118,12 +115,7 @@ Opening files directly (`file://`) works for everything except offline install.
 
 ## Publish it live
 
-`.github/workflows/pages.yml` deploys this folder to **GitHub Pages** on every
-push to `main`. Enable it once in the repo: **Settings → Pages → Source:
-"GitHub Actions"**. The site then serves at
-`https://<owner>.github.io/<repo>/`. Any other static host (Netlify,
-Cloudflare Pages, or your own server) works the same way — just serve this
-folder.
+The live site is served by Hostinger (LiteSpeed) from this folder, which reads `.htaccess`. The GitHub Pages workflow (`.github/workflows/pages.yml`) has never run: it triggers on `main`, which is not this site.
 
 ## Typography
 
@@ -132,12 +124,11 @@ than fetched from a CDN — the strict CSP forbids external origins, and a
 self-hosted face renders identically everywhere instead of depending on what the
 visitor's OS happens to have installed.
 
-- Arabic subset only, four weights (400/500/700/800, with 500 serving the 600
-  slot) — 54 KB total. Latin and
-  digits stay on the system face, which is well-drawn on every platform and
-  keeps numerals native.
-- `font-display: swap`, the 400 weight preloaded, and all three precached by the
-  service worker so the face is present offline.
+- Arabic in Cairo, four weights (400/500/700/800, with 500 serving the 600
+  slot): an Arabic face and a Latin face for each, under their own ranges. The
+  display Latin is Chakra Petch 600/700, and figures and code are JetBrains Mono.
+- `font-display: swap`, the 400 weight preloaded, and every face precached by the
+  service worker, so the site works offline.
 - The CSP carries `font-src 'self'`; without it the browser silently refuses to
   paint a self-hosted font.
 
@@ -152,13 +143,26 @@ visitor's OS happens to have installed.
   link pasted into واتساب — the company's main channel — renders a real card
   instead of a bare URL.
 - `og.png` (2400×1260: the 1200×630 card at 2x, so its wordmark carries the
-  kit's twenty bands, 122 KB, under WhatsApp's 300) is drawn by `design/logo-en/build.py` **from the logo
+  kit's twenty bands, 122 KB, under WhatsApp's 300 KB preview limit) is drawn by `design/logo-en/build.py` **from the logo
   kit** (the lockup, «المهلب كود · شركة برمجة وأنظمة» in Cairo, the address in
   JetBrains Mono), so the share card cannot drift from the mark; its `--check`
   re-renders it.
 - JSON-LD: Organization (its logo `logo-1024.png`, the AC monogram), WebSite and the النوخذة SoftwareApplication at 0 KWD.
   Only facts already stated on the page — no founding date, no head count, no
   invented ratings.
+
+## Visual assets and the scripts that draw them
+
+Every image the site serves is drawn by one of these scripts, so a stale image
+can be traced to the script to re-run:
+
+| Asset | Size | Drawn by |
+|---|---|---|
+| The account picture: the AC monogram, square | 2048×2048 | `design/logo-en/build.py` |
+| The logo kit, SVG and PNG | SVG · PNG 4096px | `design/logo-en/build.py` |
+| The share card, `og.png` | 2400×1260 | `design/logo-en/build.py` |
+| The installed app's icon | 512×512 | `design/app_icons.py` |
+| The desktop app's icon | ICO · PNG | `design/windows_icon.py` · `design/macos_icon.py` |
 
 ## Tests
 
@@ -214,15 +218,13 @@ Everything above works today, entirely in the browser. Accounts, portfolios,
 reports, and orders are stored in each visitor's own browser — there is **no
 shared database and no payment yet**. Production needs a backend:
 
-1. **Payment gateway** (Kuwait-friendly): [MyFatoorah](https://myfatoorah.com),
-   [Tap Payments](https://tap.company), or Stripe — recurring-subscription
-   APIs plus webhooks to activate/deactivate plans.
+1. **Payment**: none, by design. النوخذة is free and nothing is sold, so there is no gateway to add.
 2. **Auth + database**: e.g. Supabase (email auth + Postgres) or Firebase.
    Replace the `localStorage` calls with API calls; hash passwords
    server-side (bcrypt/argon2) in addition to the client-side PBKDF2.
 3. **Service backends**: live market prices for SAFI, an XBRL filing channel,
    and shared multi-branch order data for Delivery — all behind a server that
-   checks each customer's plan.
+   checks each customer's account.
 
-The plan/unit gating logic (`UNITS`, `PLANS`, `minPlan`) in `index.html` is the
-single source of truth to port to that backend.
+The unit list (`UNITS`) and the single free plan (`PLANS`) in `nokhatha.html` are
+the source of truth to port to that backend.

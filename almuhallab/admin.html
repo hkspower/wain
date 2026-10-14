@@ -469,12 +469,12 @@
 
 <!-- ============================ GATE ============================ -->
 <section class="gate" id="gate">
-  <form id="gate-form" autocomplete="off">
+  <form id="gate-form" autocomplete="off" novalidate>
     <div style="display:flex;align-items:center;gap:12px">
       <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:22px;height:22px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
       <div>
         <div style="font-weight:800;font-size:17px">لوحة الإدارة</div>
-        <div style="font-size:12px;color:var(--muted)">إدارة النوخذة Console</div>
+        <div style="font-size:12px;color:var(--muted)">إدارة النوخذة</div>
       </div>
     </div>
     <p class="note" id="gate-lead"></p>
@@ -488,7 +488,7 @@
     <button class="btn primary" type="submit" id="gate-btn">دخول</button>
     <p class="note">
       <svg class="ic sm" aria-hidden="true"><use href="#i-warn"/></svg> هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
-      محلية وليست تحققاً من خادم، راجع SECURITY.md.
+      محلية وليست تحققاً من خادم، <a href="SECURITY.md" style="display:inline-block;padding:6px 4px">تفاصيل الحماية وحدودها</a>.
     </p>
     <p class="note"><a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 4px"><svg class="ic sm back" aria-hidden="true"><use href="#i-chev"/></svg> العودة إلى النوخذة</a></p>
   </form>
@@ -560,7 +560,7 @@
           </tr></thead>
           <tbody id="cust-rows"></tbody>
         </table>
-        <div class="empty" id="cust-empty" hidden>لا يوجد عملاء مطابقون.</div>
+        <div class="empty" id="cust-empty" hidden>لا يوجد عملاء مطابقون للبحث.</div>
       </div>
     </section>
 
@@ -584,7 +584,7 @@
           </tr></thead>
           <tbody id="ops-rows"></tbody>
         </table>
-        <div class="empty" id="ops-empty" hidden>لا توجد طلبات.</div>
+        <div class="empty" id="ops-empty" hidden>لا توجد طلبات بعد. تظهر الطلبات هنا بعد إضافتها من صفحة التوصيل.</div>
       </div>
       <h2>أداء المناديب</h2>
       <div class="table-wrap">
@@ -592,7 +592,7 @@
           <thead><tr><th>المندوب</th><th>الطلبات</th><th>تم التسليم</th><th>قيد التنفيذ</th><th>الإيراد (د.ك)</th></tr></thead>
           <tbody id="courier-rows"></tbody>
         </table>
-        <div class="empty" id="courier-empty" hidden>لا يوجد مناديب.</div>
+        <div class="empty" id="courier-empty" hidden>لا يوجد مناديب بعد. أضفهم من صفحة التوصيل.</div>
       </div>
     </section>
 
@@ -613,7 +613,7 @@
 
     <!-- ---------------- SETTINGS ---------------- -->
     <section class="tab" id="tab-settings">
-      <h2>الاشتراك</h2>
+      <h2>الوصول</h2>
       <div class="check ok">النوخذة مجاني بالكامل: كل الوحدات مفتوحة لكل حساب مسجّل، بلا باقات ولا رسوم.</div>
 
       <div class="grid2">
@@ -631,9 +631,9 @@
         </div>
         <div class="card">
           <h3>كلمة مرور المشرف</h3>
-          <form id="pw-form" autocomplete="off" style="display:flex;flex-direction:column;gap:12px">
-            <label>الحالية <input name="cur" type="password" required maxlength="128" /></label>
-            <label>الجديدة (10 أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
+          <form id="pw-form" autocomplete="off" novalidate style="display:flex;flex-direction:column;gap:12px">
+            <label>كلمة المرور الحالية <input name="cur" type="password" required maxlength="128" /></label>
+            <label>كلمة المرور الجديدة (10 أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
             <p class="err" id="pw-err"></p>
             <button class="btn primary" type="submit" style="align-self:flex-start">تغيير</button>
           </form>
@@ -647,7 +647,7 @@
 
   <footer class="site">
     المهلب كود · Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
-    <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a>
+    <a href="index.html">المهلب كود</a> · <a href="nokhatha.html">بوابة النوخذة</a>
   </footer>
 </div>
 
@@ -769,7 +769,7 @@
     }).join("");
   }
 
-  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز، المساحة ممتلئة أو التصفح الخاص مفعّل.";
+  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز: المساحة ممتلئة أو التصفح الخاص مفعّل. أفرغ بعض السجلات أو أوقف التصفح الخاص، ثم أعد المحاولة.";
   /* an overflowing row or table gives no sign of what lies past its edge: a
      class marks it until the end is reached, and the stylesheet fades that edge */
   function cueScroll(w) {
@@ -801,6 +801,27 @@
     var t = el("toast"); t.textContent = m; t.classList.add("on");
     clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("on"); }, Math.max(1800, 60 * m.length));
   }
+
+  /* a refused form says why in Arabic, in this page's own toast: the browser's
+     English bubble sits outside the page (words audit W-32). Capture on the
+     document, so it runs before any form handler and stops the submit first. */
+  document.addEventListener("submit", function (e) {
+    var form = e.target, bad = null, why = "";
+    if (!form || !form.querySelectorAll) return;
+    form.querySelectorAll("input, select, textarea").forEach(function (field) {
+      if (bad || field.disabled || field.type === "hidden" || field.type === "submit" || field.type === "button") return;
+      var v = field.validity;
+      if (v.valid) return;
+      bad = field;
+      why = v.valueMissing ? "هذا الحقل مطلوب." : v.tooShort ? "يلزم " + field.minLength + " أحرف على الأقل."
+        : v.patternMismatch ? (field.title || "الصيغة غير صحيحة.") : "القيمة غير صحيحة.";
+    });
+    if (!bad) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    bad.setAttribute("aria-invalid", "true");
+    if (bad.offsetParent) bad.focus();
+    toast(why);
+  }, true);
 
   /* the log is user-writable storage too: a non-array or a null entry threw
      here, in every write's audit line, and in the settings tab */
@@ -868,7 +889,7 @@
 
   /* area + line, one series (no legend — the title names it) */
   function areaChart(pts, fmt) {
-    if (pts.length < 2) return noData("لا توجد بيانات كافية بعد.");
+    if (pts.length < 2) return noData("لا توجد بيانات بعد. تظهر الأرقام بعد أول تسجيل أو طلب أو سهم.");
     var W = 560, H = 190, P = { t: 12, r: 14, b: 26, l: 40 };
     var max = Math.max.apply(null, pts.map(function (p) { return p.v; })) || 1;
     var nice = Math.ceil(max * 1.15) || 1;
@@ -901,7 +922,7 @@
 
   /* ordinal horizontal bars — order carries meaning, so one hue with lightness steps */
   function ordinalBars(rows, fmt) {
-    if (!rows.length) return noData("لا توجد بيانات.");
+    if (!rows.length) return noData("لا توجد بيانات بعد. تظهر الأرقام بعد أول تسجيل أو طلب أو سهم.");
     var W = 560, rowH = 38, P = { t: 6, r: 14, b: 6, l: 132 };
     var H = P.t + rows.length * rowH + P.b;
     var max = Math.max.apply(null, rows.map(function (r) { return r.v; })) || 1;
@@ -926,7 +947,7 @@
   /* diverging — sign is carried by direction AND a signed label, not colour alone
      (the validator put this pair in the CVD floor band, so secondary encoding is required) */
   function divergingBars(rows, fmt) {
-    if (!rows.length) return noData("لا توجد بيانات.");
+    if (!rows.length) return noData("لا توجد بيانات بعد. تظهر الأرقام بعد أول تسجيل أو طلب أو سهم.");
     var W = 560, rowH = 34, P = { t: 8, r: 16, b: 6, l: 96 };
     var H = P.t + rows.length * rowH + P.b;
     var span = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.v); })) || 1;
@@ -1100,6 +1121,9 @@
         '</div></td></tr>';
     }).join("");
     el("cust-empty").hidden = list.length > 0;
+    var stored = rd(K.users, {});   // no accounts at all is not a search with no match (W-69)
+    el("cust-empty").textContent = isRec(stored) && Object.keys(stored).length
+      ? "لا يوجد عملاء مطابقون للبحث." : "لا يوجد عملاء بعد. تظهر هنا الحسابات حين يُنشأ أول حساب في النوخذة.";
     var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
     ["bulk-suspend", "bulk-activate", "bulk-delete"].forEach(function (id) { el(id).disabled = n === 0; });
     /* the header box says what is selected: after a bulk action it stayed
@@ -1266,11 +1290,11 @@
       if (mutate(email, function (u) { u.status = u.status === "suspended" ? "active" : "suspended"; },
                  "تغيير حالة العميل")) toast("تم تحديث الحالة");
     } else if (act === "del") {
-      if (!live() || !confirm("حذف الحساب " + email + " نهائياً؟")) return;
+      if (!live() || !confirm("حذف الحساب " + email + " نهائياً؟ لا يمكن التراجع.")) return;
       var all = rd(K.users, {}); if (!isRec(all)) return;
       delete all[email];
       if (!wr(K.users, all)) { toast(STORAGE_FULL); return; }
-      delete selected[email]; audit("حذف عميل", email); toast("تم الحذف"); renderAll();
+      delete selected[email]; audit("حذف حساب", email); toast("تم حذف الحساب"); renderAll();
     }
   }
 
@@ -1285,7 +1309,7 @@
     emails.forEach(function (e) { if (isRec(all[e])) fn(all, e); });
     if (!wr(K.users, all)) { toast(STORAGE_FULL); return; }
     audit(action, ar(emails.length, "حساب", "حسابان", "حسابات", "حساب واحد"));
-    selected = {}; toast("تم التنفيذ"); renderAll();
+    selected = {}; toast("تم التنفيذ على " + emails.length + (emails.length === 1 ? " حساب" : " حسابات")); renderAll();
   }
   el("bulk-suspend").addEventListener("click", function () {
     bulk(function (all, e) { all[e].status = "suspended"; }, "إيقاف جماعي", true);
@@ -1352,7 +1376,7 @@
           keep[K.couriers] = function (l) { return l.filter(function (r) { return isRec(r) && String(r.name || ""); }); };
           keep[K.xbrl] = function (l) { return l.filter(isRec); };
           take.forEach(function (k) { d.data[k] = keep[k](d.data[k]); });
-          if (!confirm("استبدال البيانات الحالية بالنسخة المستوردة؟")) return;
+          if (!confirm("استبدال البيانات الحالية بالنسخة المستوردة؟ لا يمكن التراجع، فصدّر نسخة احتياطية أولاً إن أردت الاحتفاظ بها.")) return;
           /* all or nothing: a refused write puts back what was already replaced */
           var before = {}; take.forEach(function (k) { before[k] = localStorage.getItem(k); });
           var done = [], refused = take.some(function (k) {
@@ -1365,7 +1389,7 @@
             toast(STORAGE_FULL); return;
           }
           audit("استيراد نسخة احتياطية"); toast("تم الاستيراد"); imported = true;
-        } catch (e) { toast("ملف غير صالح"); return; }
+        } catch (e) { toast("الملف ليس نسخة احتياطية من النوخذة. اختر الملف الذي صدّرته من هذه اللوحة."); return; }
         /* outside the try: the writes decide what the toast says, never the render */
         if (imported) renderAll();
       };
@@ -1377,7 +1401,7 @@
     if (!live() || !confirm("مسح كل بيانات النوخذة على هذا الجهاز؟ لا يمكن التراجع.")) return;
     if (!confirm("تأكيد أخير: سيتم حذف الحسابات والطلبات والمحفظة والتقارير.")) return;
     [K.users, K.safi, K.orders, K.couriers, K.xbrl].forEach(function (k) { localStorage.removeItem(k); });
-    audit("مسح كل البيانات"); toast("تم المسح"); renderAll();
+    audit("مسح كل البيانات"); toast("تم مسح كل البيانات"); renderAll();
   });
 
   el("pw-form").addEventListener("submit", function (e) {
@@ -1386,15 +1410,15 @@
     if (!isRec(rec) || !live()) return;
     derive(f.cur.value, rec.salt).then(function (h) {
       if (!eq(h, rec.hash)) { err.textContent = "كلمة المرور الحالية غير صحيحة."; return; }
-      if (f.nw.value.length < 10) { err.textContent = "الجديدة قصيرة جداً."; return; }
+      if (f.nw.value.length < 10) { err.textContent = "كلمة المرور الجديدة 10 أحرف على الأقل."; return; }
       var s = salt();
       return derive(f.nw.value, s).then(function (nh) {
         if (!wr(K.admin, { salt: s, hash: nh, iter: ITER, createdAt: rec.createdAt })) {
           err.textContent = STORAGE_FULL; return;   // the old password is still the one in force
         }
-        err.textContent = ""; f.reset(); audit("تغيير كلمة مرور المشرف"); toast("تم التغيير"); renderSettings();
+        err.textContent = ""; f.reset(); audit("تغيير كلمة مرور المشرف"); toast("تم تغيير كلمة المرور"); renderSettings();
       });
-    }).catch(function () { err.textContent = "تعذّر التحقق."; });
+    }).catch(function () { err.textContent = "تعذّر التحقق من كلمة المرور. أعد المحاولة."; });
   });
 
   /* ============================ gate ============================ */
@@ -1416,15 +1440,15 @@
     f.querySelector("button").disabled = true;
 
     if (setupMode) {
-      if (pw.length < 10) { err.textContent = "10 أحرف على الأقل."; f.querySelector("button").disabled = false; return; }
-      if (pw !== f.confirm.value) { err.textContent = "التأكيد لا يطابق."; f.querySelector("button").disabled = false; return; }
+      if (pw.length < 10) { err.textContent = "كلمة المرور 10 أحرف على الأقل."; f.querySelector("button").disabled = false; return; }
+      if (pw !== f.confirm.value) { err.textContent = "كلمتا المرور غير متطابقتين."; f.querySelector("button").disabled = false; return; }
       var s = salt();
       derive(pw, s).then(function (h) {
         if (!wr(K.admin, { salt: s, hash: h, iter: ITER, createdAt: new Date().toISOString() })) {
           err.textContent = STORAGE_FULL; return;   // no record stored: do not open the console
         }
         audit("ضبط كلمة مرور المشرف"); sesSet(true); open_();
-      }).catch(function () { err.textContent = "تعذّر التشفير في هذا المتصفح."; })
+      }).catch(function () { err.textContent = "تعذّر التشفير في هذا المتصفح. جرّب متصفحاً حديثاً."; })
         .then(function () { f.querySelector("button").disabled = false; });
       return;
     }
@@ -1437,7 +1461,7 @@
       if (eq(h, rec.hash)) {
         localStorage.removeItem(K.adminLock); sesSet(true); audit("دخول المشرف"); open_();
       } else { lockFail(); err.textContent = "كلمة المرور غير صحيحة."; }
-    }).catch(function () { err.textContent = "تعذّر التحقق."; })
+    }).catch(function () { err.textContent = "تعذّر التحقق من كلمة المرور. أعد المحاولة."; })
       .then(function () { f.querySelector("button").disabled = false; });
   });
 
