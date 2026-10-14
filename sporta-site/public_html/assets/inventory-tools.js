@@ -72,7 +72,8 @@
   }
   var STATUS = {
     unknown_sku: 'no such item code', invalid_stock: 'not a whole number 0 or more', duplicate_sku: 'item code repeated',
-    no_sku: 'no item code', same: 'no change', ok: 'will change'
+    no_sku: 'no item code', same: 'no change', ok: 'will change',
+    stale: 'the count has moved since this change, so it was not put back — nothing was changed'
   }
 
   /* ---------------------------------------------------------------- data -- */
@@ -269,7 +270,8 @@
       var ub = el('div', 'spinv-row spinv-field')
       var ubt = el('button', 'spinv-btn', 'Undo last change (' + undo.rows.length + ' size' + (undo.rows.length === 1 ? '' : 's') + ')'); ubt.type = 'button'; ubt.disabled = S.busy
       ubt.setAttribute('data-spinv-undo', '1')
-      ubt.addEventListener('click', function () { applyList(undo.rows.map(function (u) { return { sku: u.sku, stock: String(u.before) } }), 'undo') })
+      // PNL-02: `expect` is the count this change wrote. The server refuses the undo if a sale moved it since.
+      ubt.addEventListener('click', function () { applyList(undo.rows.map(function (u) { return { sku: u.sku, stock: String(u.before), expect: u.after } }), 'undo') })
       ub.appendChild(ubt); card.appendChild(ub)
     }
 

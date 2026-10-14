@@ -2479,6 +2479,10 @@ if ($r === 'inventory_apply' && $method === 'POST') {
         $cur = $get->fetch();
         if (!$cur) { $row['status'] = 'unknown_sku'; $bad++; $out[] = $row; continue; }
         $row += ['slug' => $cur['slug'], 'size' => $cur['size'], 'before' => (int)$cur['stock'], 'after' => $new];
+        // PNL-02 (2026-10-14): an Undo sends `expect` = the count the change itself wrote. If a sale has
+        // moved the stock since, putting back the old count would restore stock that no longer exists,
+        // so the row is refused as stale and the whole batch with it.
+        if (isset($c['expect']) && (int)$c['expect'] !== $row['before']) { $row['status'] = 'stale'; $row['expected'] = (int)$c['expect']; $bad++; $out[] = $row; continue; }
         if ($row['before'] === $new) $row['status'] = 'same';
         $out[] = $row;
     }

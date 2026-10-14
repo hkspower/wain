@@ -113,6 +113,19 @@ try {
   const clicked = await p.evaluate((slug) => { const tr = [...document.querySelectorAll('.admin-content table.admin-table tbody tr, .admin-content .m-list > .m-row')].find((n) => n.textContent.includes('Flash Shorts')); if (!tr) return 'no-row'; tr.querySelector('td, .m-row__title').click(); return document.querySelector('[data-sporta-inventory] select[aria-label="Product to edit"]').value }, SLUG)
   check(clicked === SLUG, 'B7 clicking a row of the list selects that product in the grid', clicked)
 
+  // PNL-02: an Undo must not restore a count a sale has since moved. Change, sell, then undo with `expect`.
+  const base = Number(sql(`select stock from product_variants where sku = '${s1}'`))
+  r = await admin('inventory_apply', { changes: [{ sku: s1, stock: String(base + 4) }], reason: 'bulk' })
+  check(r.status === 200, 'P1 a change is applied', String(r.status))
+  sql(`update product_variants set stock = stock - 2 where sku = '${s1}'`)  // a sale in between
+  const moved = Number(sql(`select stock from product_variants where sku = '${s1}'`))
+  r = await admin('inventory_apply', { changes: [{ sku: s1, stock: String(base), expect: base + 4 }], reason: 'undo' })
+  check(r.status === 400 && r.j?.rows?.[0]?.status === 'stale', 'P2 an undo is refused when the count has moved since the change', `status ${r.status} ${r.j?.rows?.[0]?.status}`)
+  check(Number(sql(`select stock from product_variants where sku = '${s1}'`)) === moved, 'P3 the refused undo changed nothing')
+  r = await admin('inventory_apply', { changes: [{ sku: s1, stock: String(base), expect: moved }], reason: 'undo' })
+  check(r.status === 200 && Number(sql(`select stock from product_variants where sku = '${s1}'`)) === base, 'P4 an undo whose count still matches is applied')
+  sql(`update product_variants set stock = ${v0} where sku = '${s1}'`)
+
   /* ---------------------------------------------------------- C. purchasing */
   r = await admin('supplier_save', { name: '', lead_days: 10 })
   check(r.status === 400 && r.j?.error === 'supplier_name_required', 'C1 a supplier needs a name')
