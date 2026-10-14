@@ -6064,3 +6064,38 @@ Flutter mirror (an in-memory ticket; `sendContextualUpdate` after connect; the c
 `transfer_to_agent` on both branches with a tool test each way and the transcript's `agent_tool_response`
 turned into a system line in the chat — run on the branches with one repeat, results to the owner, nothing
 switched on. Every new assertion red first with the build green.
+
+## The hub's /shoug/ bridge is closed — 14 October, night (on the server; the redirect ships with the next deploy)
+
+«close shoug bridge», asked as a choice between the voice bridge (`/api/tts.php`) and the hub's: the owner
+picked **the hub's /shoug/ bridge**. This reverses their earlier «keep» for these files only. The voice bridge,
+`/call-center/`, `/hangout/` and every other foreign file on production stay as they were.
+
+- **What was closed.** `/shoug/`, a second شوق page another session put in production's docroot (not built from
+  this repository; `robots` index,follow and a canonical of its own; `index.html` 12,701 plus six assets), and
+  the two root scripts that carried a question between it, `/salem/` and `/call-center/` through localStorage:
+  `wain-call-center-bridge-v1.js` (4,233) and `wain-native-agent-bridge-v1.js` (665).
+- **Moved, not deleted**, by three one-shot cron jobs (`mv`, minute 24): to `<domain>/storage/closed-shoug/`,
+  `storage/closed-wain-call-center-bridge-v1.js` and `storage/closed-wain-native-agent-bridge-v1.js`. `storage/`
+  is the one directory `deploy.php` never prunes, and moving back is the same `mv` the other way. Verified by
+  the docroot listing: 895 entries before, 885 after — exactly the folder, its seven files and the two
+  scripts. `mv` prints nothing on success, so the empty job output was expected. The three jobs and the
+  `grep` job were deleted, and the crontab then held sporta's `1mNk00yPZP` alone.
+- **Who pointed at them, read first** (a one-shot `grep -rl` over the docroot's html/js/php): none of this
+  site's own pages. The hub's files do — `/call-center/` links `/shoug/` in four places, `/hangout/` loads
+  `wain-call-center-bridge-v1.js`, and `wain-agent-switcher-v1.js`, `wain-agent-collab-v2.js`,
+  `wain-live-places-v1/v2.js`, `wain-site-ui-v1.js`, `api/call-center-data.php` and two foreign `page-salem-*`
+  chunks name `/shoug/` or a bridge. `/hangout/` reads the bridge only through `window.WainCallCenterBridge?.`,
+  so without it that page still works and only forgets the call centre's question (read in
+  `hangout/wain-hangout-keyboard-v4.js`).
+- **The redirect.** `public/.htaccess` gains `RedirectMatch 301 ^/shoug(/.*)?$ /find/`, so the hub's
+  «كلّم شوق» links and a search engine's copy of the indexed page land on her real page instead of a 404.
+  mod_alias, not a second rewrite: `audit:htaccess` holds the apex block to be the file's only `RewriteRule`, and
+  it stays green. **It is in the repository, not on the server**: until the next deploy `/shoug/` answers this
+  site's own 404 page.
+- **What the two scripts did, read before the move.** `wain-call-center-bridge-v1.js` kept the question and the
+  picked place in `localStorage` `wain:cc:shared:v1` (30 minutes) and exposed `window.WainCallCenterBridge`
+  (`getState`, `rememberQuery`, `selectPlace`, `handoffUrl`); `wain-native-agent-bridge-v1.js` copied `?q=` into
+  `wain:agents:handoff`. **Consequence for the job-transfer work above:** with both closed, سالم reading the
+  hub's job means reading what `/call-center/` puts in the address (`?q=&from=call-center`), not those keys.
+  Whether `call-center/call-center.js` writes either key itself was not read.
