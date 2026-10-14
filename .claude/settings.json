@@ -102,8 +102,7 @@
       "mcp__github__delete_file",
       "Bash(git branch -D*)",
       "Bash(git branch -d*)",
-      "Bash(git branch -m*)",
-      "mcp__hostinger__*"
+      "Bash(git branch -m*)"
     ],
     "deny": [
       "Bash(rm -rf /*)",
@@ -114,8 +113,7 @@
       "Bash(git push * -f*)",
       "mcp__hosa__hosting_deployStaticSiteArchiveV1",
       "Bash(find*-delete*)",
-      "Bash(find*-exec*)",
-      "mcp__hostinger__hosting_deployStaticSiteArchiveV1"
+      "Bash(find*-exec*)"
     ]
   },
   "hooks": {
