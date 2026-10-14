@@ -333,7 +333,7 @@ def static_checks():
     bad = []
     for ink in ("text", "muted", "tint", "sand", "good", "danger", "info"):
         for surf in SURF:
-            need = 7.0 if ink in ("text", "muted") else 4.5
+            need = 7.0   # every ink, accents and statuses included (2026-10-14: the statuses sat at 6.0)
             r = contrast(P[ink], P[surf])
             if r < need: bad.append(f"{ink}/{surf}={r:.2f}")
     check(S, "theme: every ink clears contrast on every surface", not bad, ", ".join(bad[:4]))
