@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 import 'app/app_state.dart';
 import 'ai/call_controller.dart';
 import 'ai/call_overlay.dart';
-import 'ai/config.dart';
 import 'ai/elevenlabs_session.dart';
 import 'ai/local_session.dart';
 import 'ai/keep_alive.dart';
@@ -43,7 +42,11 @@ class WainApp extends StatefulWidget {
   final SessionFactory? sessionFactory;
   final MicCheck? checkMic;
   final CallKeepAlive? keepAlive;
-  final String? agentId;
+
+  /// Each persona's agent; null reads the build's (config.dart). Empty is that
+  /// persona's free call.
+  final String? shouqAgentId;
+  final String? salemAgentId;
   final Online? online;
 
   /// «طلباتي» on this device; tests seed one, production loads it.
@@ -55,7 +58,8 @@ class WainApp extends StatefulWidget {
     this.sessionFactory,
     this.checkMic,
     this.keepAlive,
-    this.agentId,
+    this.shouqAgentId,
+    this.salemAgentId,
     this.online,
     this.orderStore,
   });
@@ -76,21 +80,23 @@ class _WainAppState extends State<WainApp> {
 
   late final CallController _call = CallController(
     isOffline: () => _online.offline,
-    // The free call unless this build names an agent (config.dart): the live
-    // app spends no ElevenLabs credits since 2 October.
-    local: (widget.agentId ?? kAgentId).isEmpty,
+    // A call is the free one when its persona names no agent (config.dart):
+    // the live app spends no ElevenLabs credits since 2 October. The controller
+    // asks for [local] per call, so a Salem call is free while he has none.
     sessionFactory:
         widget.sessionFactory ??
-        ((widget.agentId ?? kAgentId).isEmpty
-            ? () => LocalSession(
-                onHeard: (words) => _call.hear(words),
-                // The search screen speaks its own answer once voice is on —
-                // the web's free call turns it on the same way.
-                onAnswered: (_) => widget.state.setVoiceEnabled(true),
-              )
-            : ElevenLabsSession.new),
+        ({required bool local}) {
+          if (!local) return ElevenLabsSession();
+          return LocalSession(
+            onHeard: (words) => _call.hear(words),
+            // The search screen speaks its own answer once voice is on — the
+            // web's free call turns it on the same way.
+            onAnswered: (_) => widget.state.setVoiceEnabled(true),
+          );
+        },
     keepAlive: _keepAlive,
-    agentId: widget.agentId,
+    shouqAgentId: widget.shouqAgentId,
+    salemAgentId: widget.salemAgentId,
     places: kPlaces,
     indexOf: () => searchIndex,
     // A place opens ON TOP of whatever she was showing, so back returns

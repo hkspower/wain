@@ -18,7 +18,9 @@ class FakeSession implements AgentSession {
   void Function(String)? onError;
   Map<String, ToolHandler> tools = {};
   String? startedAgent;
-  String? voice;
+
+  /// Whether the controller asked the factory for the free call.
+  bool? local;
   bool ended = false;
   bool disposed = false;
   Object? startError;
@@ -40,11 +42,9 @@ class FakeSession implements AgentSession {
   @override
   Future<void> start({
     required String agentId,
-    String? voiceId,
     required Map<String, ToolHandler> tools,
   }) async {
     startedAgent = agentId;
-    voice = voiceId;
     this.tools = tools;
     if (startError != null) throw startError!;
     await hold?.future;
@@ -57,6 +57,9 @@ class FakeSession implements AgentSession {
   void dispose() => disposed = true;
 }
 
+/// A controller whose sessions are [FakeSession]s. Her agent is `agent_test`;
+/// his is [salemAgentId], and null is the build's own — empty here, so his
+/// calls are the free call unless a test names him an agent.
 CallController testController({
   required List<FakeSession> sessions,
   void Function(String)? navigate,
@@ -64,13 +67,12 @@ CallController testController({
   Duration dial = const Duration(seconds: 20),
   void Function(FakeSession)? configure,
   CallKeepAlive? keepAlive,
-  bool local = false,
+  String? salemAgentId,
 }) {
   return CallController(
     keepAlive: keepAlive,
-    local: local,
-    sessionFactory: () {
-      final s = FakeSession();
+    sessionFactory: ({required bool local}) {
+      final s = FakeSession()..local = local;
       configure?.call(s);
       sessions.add(s);
       return s;
@@ -80,7 +82,8 @@ CallController testController({
     navigate: navigate ?? (_) {},
     checkMic: mic,
     dialTimeout: dial,
-    agentId: 'agent_test',
+    shouqAgentId: 'agent_test',
+    salemAgentId: salemAgentId,
   );
 }
 

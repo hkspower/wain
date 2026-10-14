@@ -37,7 +37,7 @@ void main() {
     final sessions = <FakeSession>[];
     final keep = FakeKeepAlive();
     final c = CallController(
-      sessionFactory: () {
+      sessionFactory: ({required bool local}) {
         final s = FakeSession();
         sessions.add(s);
         return s;
@@ -45,7 +45,7 @@ void main() {
       places: const [],
       indexOf: () => throw StateError('no index needed offline'),
       navigate: (_) {},
-      agentId: 'agent_test',
+      shouqAgentId: 'agent_test',
       keepAlive: keep,
       isOffline: () => true,
     );

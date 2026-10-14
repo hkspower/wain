@@ -40,54 +40,11 @@ function useFindMoment(): FindMoment {
  * answers the "nearest" case (شوق can ask where you are; nothing here
  * requests location any more).
  *
- * The lower half's identity has moved three times, and it is worth reading
- * all three before touching it a fourth. It shipped as a full سالم persona —
- * his name, his photo, his greeting, his voice — over an agent whose prompt
- * never changed to back it, which `SALEM_VOICE_ID`'s own comment in
- * `lib/wain-ai.ts` calls out as the actual defect. Corrected to name شوق
- * instead, plainly, same character as the call half above it. Reversed again
- * on request, 30 September, that history read first: this half is his once
- * more — `SALEM_NAME`, his own regenerated portrait (the originals were
- * deleted along with the second correction), his own voice reinstated in
- * `lib/salem-chat.ts`. What is different this time is that it is not the
- * SAME mistake repeated — the agent behind `/salem` is still شوق's, and
- * nothing here claims otherwise; it is a deliberate choice to show his
- * identity on the INVITATION while the live conversation behind it still
- * answers as her, first message included. See `SALEM_VOICE_ID`'s comment for
- * the full account of that tension and why it was accepted rather than
- * solved. The plain "type a place name" box either version replaced is not
- * lost to the site — the search button in the bottom rail and /search's own
- * box are one tap away from every page, including this one.
- *
- * Fourth pass, 14 October: the typed chat no longer sends his voice. Its socket
- * opens with `text_only` and no override (`lib/salem-chat.ts`), so this half is
- * his name and portrait over the agent's own voice, and a typed session renders
- * no audio either way. His voice is still heard on the call's mid-call switch.
- *
- * Both halves are full-bleed AI-illustrated portraits (public/find/) of the
- * character each half actually leads to — a bottom-weighted scrim carries
- * the text instead of the flat colour this used to be.
- *
- * Lighter since 1 October, on request («reduce tint and overlay and
- * shadow»): the scrims went from 40→75→90% to 10→40→65%, so the two faces
- * read as photographs rather than as shapes under a dark glass; the solid
- * patches behind «اتصال» and «اكتب», the red glow and red shimmer round the
- * call button and the amber glow under «أو» are gone. What carries the text
- * now is `text-on-photo` — a shadow on the letters, not a layer over the
- * picture — and the contrast was measured over the photo itself, not assumed. `object-position` is
- * tuned per breakpoint because the mobile crop (tall, narrow) and the
- * desktop crop (short, wide) need different framing of the same photo to
- * keep the subject in frame — see the object-[…] classes below.
- *
- * The boundary between them is a diagonal cut, not a flat line — a
- * `clip-path` on each section's own bottom/top edge, the bottom half pulled
- * up under the top half's cut by the same distance the cut is deep, so the
- * two edges interlock rather than leaving a gap. A pixel value rather than a
- * percentage: a percentage cut gets shallower or steeper as `min-h-[50vh]`
- * changes with the viewport, and a fixed depth reads the same everywhere.
- * The «أو» badge floats on that seam — see its own comment below for why it
- * is positioned by the wrapper's own half rather than by the cut's exact
- * pixel offset.
+ * The lower half is سالم's own card: his name and his portrait, and the typed
+ * chat behind it is his agent too (`SALEM_AGENT_ID`). The upper half calls شوق
+ * on her own agent. The two halves never share an agent, a voice or a name.
+ * Until 14 October the lower half named him over her agent, which is the mix
+ * the owner asked to end.
  */
 export default function FindChoice() {
   const router = useRouter();

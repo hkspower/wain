@@ -1,5 +1,7 @@
-/// شوق's phone call. Owns the session, the honest phase the sheet shows, the
-/// client tools she drives the app with, and the mid-call voice swap.
+/// A phone call with شوق or سالم. Owns the session, the honest phase the sheet
+/// shows, and the client tools she drives the app with. The persona picks the
+/// agent (config.dart): each persona has its own, and a call with no agent for
+/// its persona is the free call.
 ///
 /// Phases are named for what is TRUE, not what is hoped:
 ///   idle      no call
@@ -36,16 +38,20 @@ abstract class AgentSession {
     required void Function() onDisconnected,
     required void Function(String message) onError,
   });
+
+  /// No voice option: a call is the agent's own voice, whichever persona it is.
   Future<void> start({
     required String agentId,
-    String? voiceId,
     required Map<String, ToolHandler> tools,
   });
   Future<void> end();
   void dispose();
 }
 
-typedef SessionFactory = AgentSession Function();
+/// A session for one call. [local] is the free call — the phone's own speech
+/// and our own search, with no agent on the line — which the controller
+/// decides per call from the persona's agent id.
+typedef SessionFactory = AgentSession Function({required bool local});
 typedef MicCheck = Future<MicResult> Function();
 
 /// `blocked` is a refusal the app can no longer ask about (iOS after the first
@@ -61,16 +67,11 @@ class CallController extends ChangeNotifier {
     required this.navigate,
     this.checkMic,
     this.dialTimeout = const Duration(seconds: 20),
-    this.agentId,
+    this.shouqAgentId,
+    this.salemAgentId,
     this.keepAlive,
     this.isOffline,
-    this.local = false,
   });
-
-  /// The free call (local_session.dart): no agent, so no agent id is needed,
-  /// and once the search has opened the sheet gets out of the way of it — the
-  /// web's local mode closes the same way.
-  final bool local;
 
   final SessionFactory sessionFactory;
   final List<Place> places;
@@ -83,7 +84,11 @@ class CallController extends ChangeNotifier {
   final void Function(String location) navigate;
   final MicCheck? checkMic;
   final Duration dialTimeout;
-  final String? agentId;
+
+  /// Each persona's agent. Null reads the build's own (config.dart); an empty
+  /// id is that persona's free call. Never each other's: see [agentIdFor].
+  final String? shouqAgentId;
+  final String? salemAgentId;
 
   /// Screen awake, and on Android the foreground service that keeps the
   /// microphone open while the app is behind another one. Started once the
@@ -99,7 +104,8 @@ class CallController extends ChangeNotifier {
   String? _error;
   String? _lastAction;
   String? _lastQuery;
-  bool _salemVoice = false;
+  CallPersona _persona = CallPersona.shouq;
+  bool _local = false;
   Duration _elapsed = Duration.zero;
   bool _sheetOpen = false;
   String _heard = '';
@@ -120,7 +126,25 @@ class CallController extends ChangeNotifier {
   /// What she last searched for in this call, for «كمّل مع سالم» on the last
   /// screen and for /search to know its question came from her call.
   String? get lastQuery => _lastQuery;
-  bool get salemVoice => _salemVoice;
+
+  /// Who the call is with: the sheet's name, picture and sentences follow it.
+  CallPersona get persona => _persona;
+
+  /// Whether a call with [p] would be the free one: no agent on the line for
+  /// that persona.
+  bool isFree(CallPersona p) => _agentFor(p).isEmpty;
+
+  /// «كمّل مع سالم» is only offered after HER call: the hand-over says «من
+  /// مكالمتك مع شوق», which is not true of a call with him.
+  bool get canContinueWithSalem =>
+      !active && _persona == CallPersona.shouq && _lastQuery != null;
+
+  String _agentFor(CallPersona p) => agentIdFor(
+    p,
+    shouq: shouqAgentId ?? kAgentId,
+    salem: salemAgentId ?? kSalemAgentId,
+  );
+
   Duration get elapsed => _elapsed;
   bool get sheetOpen => _sheetOpen;
 
@@ -162,17 +186,15 @@ class CallController extends ChangeNotifier {
 
   /// Place the call. Called inside the tap, so the gesture that unlocks audio
   /// and the microphone prompt is the user's own.
-  Future<void> start({bool salem = false}) async {
+  Future<void> start({CallPersona persona = CallPersona.shouq}) async {
     if (active) return;
-    final id = agentId ?? kAgentId;
-    if (id.isEmpty && !local) {
-      _error = CallCopy.failed;
-      _sheetOpen = true;
-      _set(CallPhase.failed);
-      return;
-    }
+    final id = _agentFor(persona);
+    final copy = persona.copy;
+    // Set before anything can fail, so a refused call shows the right person.
+    _persona = persona;
+    _local = id.isEmpty;
     if (isOffline?.call() ?? false) {
-      _error = CallCopy.offline;
+      _error = copy.offline;
       _sheetOpen = true;
       _set(CallPhase.failed);
       return;
@@ -184,7 +206,6 @@ class CallController extends ChangeNotifier {
     _lastQuery = null;
     _heard = '';
     _elapsed = Duration.zero;
-    _salemVoice = salem;
     _sheetOpen = true;
     _set(CallPhase.ringing);
 
@@ -210,7 +231,7 @@ class CallController extends ChangeNotifier {
       _fail(CallCopy.noAnswer);
     });
 
-    final session = sessionFactory();
+    final session = sessionFactory(local: _local);
     _session = session;
     session.listen(
       onConnected: () {
@@ -232,7 +253,7 @@ class CallController extends ChangeNotifier {
       },
       onDisconnected: () {
         if (token != _token) return;
-        if (local) {
+        if (_local) {
           // The answer is on the search screen now; the sheet steps aside.
           final s = _session;
           _teardown();
@@ -248,12 +269,12 @@ class CallController extends ChangeNotifier {
         if (token != _token) return;
         if (message == kNoSpeech) {
           _fail(CallCopy.noSpeech);
-        } else if (local) {
+        } else if (_local) {
           // The phone's recogniser gave up, ringing or live. It used to end a
           // live call as «انتهت المكالمة», which says she hung up on them.
           _fail(CallCopy.speechUnavailable);
         } else if (_phase == CallPhase.ringing) {
-          _fail(CallCopy.callFailed);
+          _fail(copy.callFailed);
         } else {
           _finish(CallPhase.ended);
         }
@@ -263,16 +284,20 @@ class CallController extends ChangeNotifier {
     try {
       await session.start(
         agentId: id,
-        voiceId: salem ? kSalemVoiceId : null,
         tools: {'show_places': _showPlaces, 'open_place': _openPlace},
       );
     } catch (_) {
-      if (token == _token) _fail(CallCopy.callFailed);
+      if (token == _token) _fail(copy.callFailed);
     }
   }
 
   Future<String> _showPlaces(Map<String, dynamic> params) async {
-    final r = showPlacesForCall('${params['query'] ?? ''}', indexOf(), places);
+    final r = showPlacesForCall(
+      '${params['query'] ?? ''}',
+      indexOf(),
+      places,
+      salem: _persona == CallPersona.salem,
+    );
     if (r.query.isEmpty) return r.spoken;
     navigate('/search?q=${Uri.encodeQueryComponent(r.query)}');
     _lastAction = lastActionForSearch(r.query, r.total);
@@ -282,7 +307,11 @@ class CallController extends ChangeNotifier {
   }
 
   Future<String> _openPlace(Map<String, dynamic> params) async {
-    final r = openPlaceForCall('${params['slug'] ?? ''}', places);
+    final r = openPlaceForCall(
+      '${params['slug'] ?? ''}',
+      places,
+      salem: _persona == CallPersona.salem,
+    );
     if (r.slug == null) return r.spoken;
     navigate('/places/${r.slug}');
     _lastAction = '${CallCopy.didOpen} «${r.place!.nameAr}»';
@@ -290,21 +319,11 @@ class CallController extends ChangeNotifier {
     return r.spoken;
   }
 
-  /// There is no live voice hot-swap, so «switch» means a fresh session with
-  /// the voice override — a few hundred milliseconds of reconnect, not a
-  /// mid-sentence change. Every new call resets to شوق's own voice.
-  Future<void> switchVoice() async {
-    if (_phase != CallPhase.live && _phase != CallPhase.answering) return;
-    final salem = !_salemVoice;
-    await hangUp(keepSheet: true);
-    await start(salem: salem);
-  }
-
-  Future<void> hangUp({bool keepSheet = false}) async {
+  Future<void> hangUp() async {
     final session = _session;
     _teardown();
     _session = null;
-    if (!keepSheet) _sheetOpen = true;
+    _sheetOpen = true;
     _set(CallPhase.ended);
     try {
       await session?.end();
@@ -319,7 +338,7 @@ class CallController extends ChangeNotifier {
   /// and nothing else, and سالم knew nothing of what she had found.
   void continueWithSalem() {
     final q = _lastQuery;
-    if (q == null || active) return;
+    if (q == null || !canContinueWithSalem) return;
     closeSheet();
     navigate(salemHandoff(q, from: 'call'));
   }

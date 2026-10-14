@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../ai/call_button.dart' show placeShouqCall;
+import '../ai/call_button.dart' show placeCall;
 import '../ai/config.dart';
 import '../ai/salem_transcript.dart';
 import '../app/app_state.dart';
@@ -31,27 +31,26 @@ import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
 import '../widgets/typing_dots.dart';
 
-/// The typed conversation with سالم. Same agent, same prompt, same tools; text
-/// only. `show_places` / `open_place` put REAL place cards in the transcript
-/// instead of navigating — this screen IS the conversation, and a route
-/// change would close the socket mid-sentence.
+/// The typed conversation with سالم, on his own agent (14 October): text only.
+/// `show_places` / `open_place` put REAL place cards in the transcript instead
+/// of navigating — this screen IS the conversation, and a route change would
+/// close the socket mid-sentence.
 ///
-/// «سالم، شوق، الطلعة والخريطة كلها وحدة» (3 October, mirrored from the web's
-/// SalemChat.tsx): the free answer remembers what it said
-/// (data/salem_followup.dart), so «أرخص», «غيره», «الثاني» and «وين بالضبط؟»
-/// answer the last answer; each answer carries its cards, a map of its own,
-/// a way to the full search and the share panel, all pointing at one place;
-/// the transcript survives leaving the screen (ai/salem_transcript.dart); a
-/// question handed over from elsewhere is asked as the visitor's own; and his
-/// replies can be read aloud in his voice.
+/// The free answer (3 October, mirrored from the web's SalemChat.tsx)
+/// remembers what it said (data/salem_followup.dart), so «أرخص», «غيره»,
+/// «الثاني» and «وين بالضبط؟» answer the last answer; each answer carries its
+/// cards, a map of its own, a way to the full search and the share panel, all
+/// pointing at one place; the transcript survives leaving the screen
+/// (ai/salem_transcript.dart); a question handed over from elsewhere is asked
+/// as the visitor's own; and his replies can be read aloud in his voice.
 class SalemScreen extends StatefulWidget {
   /// Tests inject a socket factory; the app uses the real one.
   final ChannelFactory? connect;
 
-  /// The agent to talk to; null reads the build's (config.dart). Empty — the
-  /// live app since 2 October — is the free chat: سالم answers from the
-  /// app's own search, with nothing sent anywhere.
-  final String? agentId;
+  /// His agent; null reads the build's (config.dart). Empty — the live app
+  /// since 2 October — is the free chat: سالم answers from the app's own
+  /// search, with nothing sent anywhere.
+  final String? salemAgentId;
 
   /// A question handed over from somewhere else — «كمّل مع سالم» on the
   /// search screen's answer, «اسأل سالم» on an invitation or a shortlist —
@@ -68,7 +67,7 @@ class SalemScreen extends StatefulWidget {
   const SalemScreen({
     super.key,
     this.connect,
-    this.agentId,
+    this.salemAgentId,
     this.initialQuery,
     this.handoffFrom,
     this.clock,
@@ -130,7 +129,7 @@ class _SalemScreenState extends State<SalemScreen> {
   /// recorded conversation, before a word is typed.
   bool _awaitingConsent = false;
 
-  bool get _free => (widget.agentId ?? kAgentId).isEmpty;
+  bool get _free => (widget.salemAgentId ?? kSalemAgentId).isEmpty;
 
   @override
   void initState() {
@@ -197,7 +196,7 @@ class _SalemScreenState extends State<SalemScreen> {
       if (_entries.isNotEmpty) _entries.clear();
     });
     _handle = startSalemChat(
-      agentId: widget.agentId,
+      agentId: widget.salemAgentId,
       connect:
           widget.connect ?? (uri, protocols) => defaultChannel(uri, protocols),
       onStatus: (s) {
@@ -405,7 +404,9 @@ class _SalemScreenState extends State<SalemScreen> {
     final intent = readFollowUp(q, ctx, _active, _areas);
     final lines = <ChatLine>[];
     var parts = <SpeechPart>[];
-    final opener = intent.opener == null ? '' : '${_openerText(intent.opener!)} ';
+    final opener = intent.opener == null
+        ? ''
+        : '${_openerText(intent.opener!)} ';
 
     List<SpeechPart> placeParts(Place p) => [
       SpeechPart(key: 'try-${p.slug}', text: placeTryLine(p)),
@@ -463,7 +464,9 @@ class _SalemScreenState extends State<SalemScreen> {
     }
 
     if (intent.kind == FollowUpKind.social) {
-      say(_socialLine(intent.act!, intent.opener, (ctx?.shown ?? []).isNotEmpty));
+      say(
+        _socialLine(intent.act!, intent.opener, (ctx?.shown ?? []).isNotEmpty),
+      );
     } else if (intent.kind == FollowUpKind.ask) {
       say(
         '$opener${intent.what == AskWhat.area ? ChatCopy.askArea : ChatCopy.askSubject}',
@@ -647,9 +650,10 @@ class _SalemScreenState extends State<SalemScreen> {
                       onTap: _toggleReadAloud,
                     ),
                     const SizedBox(width: 8),
-                    // Her call, placed from here (7 October, on request): it
-                    // was a way to /find, a screen and a second tap.
-                    const _CallShouqButton(),
+                    // His call, placed from here (7 October, as her call; his
+                    // since 14 October): it was a way to /find, a screen and a
+                    // second tap.
+                    const _CallSalemButton(),
                   ],
                 ),
               ),
@@ -860,13 +864,14 @@ class _ReadAloudToggle extends StatelessWidget {
   }
 }
 
-/// «كلّم شوق» — her call, placed from his header with the same tap as every
-/// call button ([placeShouqCall]). The words go before the name does: under
-/// 400 wide the header holds the back button, his face, his name and two
-/// controls, so the button is its icon (and its label is still read). Green,
-/// as /find's call button is: a red handset reads as «hang up» on a phone.
-class _CallShouqButton extends StatelessWidget {
-  const _CallShouqButton();
+/// «كلّم سالم» — his call, placed from his header with the same tap as every
+/// call button ([placeCall]), on his agent: a free call with his name when he
+/// has none. The words go before the name does: under 400 wide the header holds
+/// the back button, his face, his name and two controls, so the button is its
+/// icon (and its label is still read). Green, as /find's call button is: a red
+/// handset reads as «hang up» on a phone.
+class _CallSalemButton extends StatelessWidget {
+  const _CallSalemButton();
 
   @override
   Widget build(BuildContext context) {
@@ -874,11 +879,11 @@ class _CallShouqButton extends StatelessWidget {
     final icon = WainSvg.icon('call', size: 16, color: Colors.white);
     return Semantics(
       button: true,
-      label: ChatCopy.callShouq,
+      label: ChatCopy.callSalem,
       excludeSemantics: true,
       child: FilledButton(
-        key: const ValueKey('chat-call-shouq'),
-        onPressed: () => placeShouqCall(context),
+        key: const ValueKey('chat-call-salem'),
+        onPressed: () => placeCall(context, persona: CallPersona.salem),
         style: FilledButton.styleFrom(
           backgroundColor: WainColors.palm600,
           foregroundColor: Colors.white,
@@ -893,7 +898,7 @@ class _CallShouqButton extends StatelessWidget {
                   icon,
                   const SizedBox(width: 6),
                   Text(
-                    ChatCopy.callShouq,
+                    ChatCopy.callSalem,
                     style: wainText(
                       WainText.sm,
                       weight: FontWeight.w600,

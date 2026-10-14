@@ -1,4 +1,4 @@
-import { WAIN_AI_AGENT_ENABLED } from "@/lib/wain-ai";
+import { WAIN_AI_ANY_AGENT_ENABLED } from "@/lib/wain-ai";
 
 /**
  * Is the voice agent worth trying right now?
@@ -33,7 +33,7 @@ export function markAgentUnavailable(now = Date.now()): void {
 }
 
 export function agentAvailable(now = Date.now()): boolean {
-  if (!WAIN_AI_AGENT_ENABLED) return false;
+  if (!WAIN_AI_ANY_AGENT_ENABLED) return false;
   let at = refusedAt;
   try {
     at = Math.max(at, Number(localStorage.getItem(KEY)) || 0);

@@ -61,10 +61,10 @@ function build(env) {
      `||` is correct and deliberate — see wain-ai.ts, where `??` made an unset
      CI variable ship the fallback. The off switch it implies is the «none»
      sentinel, and this is the only place that has to ask for it. */
-  const agent = env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+  const agents = [env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID, env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID];
   const which =
-    agent === "none" ? " (local mode — agent off)"
-    : agent ? " (with a test agent id)"
+    agents.every((a) => a === "none") ? " (local mode — both agents off)"
+    : agents.some((a) => a) ? " (with test agent ids)"
     : " (as it ships)";
   console.log(`\n▸ building${which}…`);
   const r = spawnSync("npm", ["run", "build"], {
@@ -166,6 +166,7 @@ console.log("\n════ شوق: the voice ════");
     // Defined though voice.ts no longer reads it (3 October): anything the
     // harness pulls in through wain-ai.ts would — the rule above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
+    '--define:process.env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID=""',
     '--define:process.env.NEXT_PUBLIC_WAIN_VOICE_CLIPS="1"',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="none"',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
@@ -217,6 +218,7 @@ console.log("\n════ شوق: the live bridge ════");
     // The bundle still reads شوق's switch through wain-ai.ts imports, so it
     // has to be defined — the rule in the comment above, met again.
     '--define:process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID=""',
+    '--define:process.env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID=""',
     '--define:process.env.NEXT_PUBLIC_WAIN_VOICE_CLIPS="1"',
     '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="/tts"',
     `--outfile=${join(btmp, "voice.js")}`, "--log-level=error"]);
@@ -256,7 +258,7 @@ console.log("\n════ شوق: the live bridge ════");
   const why = staleBuild(ROOT);
   if (why) console.log(`\n▸ out/ is missing or stale (${why})`);
 }
-build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "none" });
+build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "none", NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID: "none" });
 console.log("\n════ شوق: the button and the voice flow (local mode) ════");
 {
   const stop = await serve(PORT_FLOW);
@@ -266,7 +268,12 @@ console.log("\n════ شوق: the button and the voice flow (local mode) �
 
 /* 5 — agent mode, which needs the id compiled in. */
 if (!SKIP_AGENT) {
-  build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "agent_test_0123456789" });
+  // Two different test ids: a suite that sees the same id for both personas
+  // cannot tell a correct split from a fallback, so they must differ.
+  build({
+    NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "agent_test_0123456789",
+    NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID: "agent_test_salem_987654",
+  });
   console.log("\n════ شوق: agent mode ════");
   const stop = await serve(PORT_AGENT);
   failed += (await run("node", ["tests/shouq-agent.test.mjs"], { env: { ...process.env, WAIN_URL: `http://localhost:${PORT_AGENT}` } })) === 0 ? 0 : 1;
@@ -274,7 +281,7 @@ if (!SKIP_AGENT) {
   failed += (await run("node", ["tests/salem-agent.test.mjs"], { env: { ...process.env, WAIN_URL: `http://localhost:${PORT_AGENT}` } })) === 0 ? 0 : 1;
   stop();
   // Leave the shipping build behind, never the one with a fake agent in it.
-  build({});
+  build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "none", NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID: "none" });
 }
 
 console.log(failed ? `\n${failed} suite(s) failed` : "\nشوق: all suites passed");

@@ -1,5 +1,10 @@
-/// شوق's configuration — the agent, the words the call says, the voice swap.
-/// Mirrors `src/lib/wain-ai.ts`.
+/// The two agents, the words their calls say, and which agent a persona talks
+/// to. Mirrors `src/lib/wain-ai.ts`.
+///
+/// One agent per persona, never shared (14 October, the owner's decision): شوق
+/// has her own on ElevenLabs, سالم has his, and each has its own prompt, first
+/// message and voice. There is no voice override any more, so a call never puts
+/// one persona's voice on the other's agent.
 library;
 
 /// شوق's ElevenLabs agent — used ONLY by a sandbox build that asks for it:
@@ -19,23 +24,108 @@ String resolveAgentId([String configured = _configured]) {
   return c.isEmpty || c.toLowerCase() == 'none' ? '' : c;
 }
 
+/// شوق's agent id, or empty for her free call (see [resolveAgentId]).
 final String kAgentId = resolveAgentId();
 bool get kAgentEnabled => kAgentId.isNotEmpty;
 
-/// Eid — Gulf male, warm and clear. The voice of سالم: the mid-call
-/// «🔊 بصوت سالم» swap, and the override the typed chat sends.
-///
-/// An accepted tension, not a solved one, as on the web: it is the same agent —
-/// same prompt, tools and knowledge — with a different speaker. Her prompt is
-/// first-person feminine and her first message «أنا شوق», so he can still call
-/// himself her name on the wire. Fixing that means editing the live agent.
-const String kSalemVoiceId =
-    'TbzNVcMOFmKd8tUT5liY'; // Mustafa Abdulla since 3 October, as on the web
+/// سالم's own agent (14 October). Named by its own define and read by the same
+/// rules: unset, empty and «none» are the free call for him. Nothing falls back
+/// to شوق's id: the two personas are two agents, and a missing id for one of
+/// them is a free call with that persona's name, never a call to the other's
+/// agent. Build with
+///   flutter build … --dart-define=WAIN_SALEM_AGENT_ID=agent_5101m4wwgr3ae5qat412ezcnffhn
+const String _salemConfigured = String.fromEnvironment('WAIN_SALEM_AGENT_ID');
+final String kSalemAgentId = resolveAgentId(_salemConfigured);
+bool get kSalemAgentEnabled => kSalemAgentId.isNotEmpty;
 
 const String kSalemName = 'سالم';
 const String kSalemRole = 'دليلك في الكويت';
 const String kSalemGreeting =
     'هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.';
+
+/// Who a call is with. Each persona has its own agent and never falls back to
+/// the other's: her prompt is first-person feminine and her first message is
+/// «أنا شوق», so his voice on her agent was his name on her brain (the swap
+/// that put it there is gone, 14 October).
+enum CallPersona {
+  shouq,
+  salem;
+
+  /// What the call sheet and its failure sentences say for this one.
+  CallPersonaCopy get copy => switch (this) {
+    CallPersona.shouq => shouqCallCopy,
+    CallPersona.salem => salemCallCopy,
+  };
+}
+
+/// The agent id a persona calls, or empty for its free call. Both ids are
+/// arguments, so the rule can be tested without a build define: the salem
+/// branch never reads [shouq].
+String agentIdFor(
+  CallPersona persona, {
+  required String shouq,
+  required String salem,
+}) => persona == CallPersona.salem ? salem : shouq;
+
+/// The sentences of the call sheet that name the one on the line. The phase
+/// words, the buttons and the microphone copy are CallCopy's for both.
+class CallPersonaCopy {
+  const CallPersonaCopy({
+    required this.name,
+    required this.role,
+    required this.greeting,
+    required this.answering,
+    required this.callFailed,
+    required this.failed,
+    required this.offline,
+    required this.micNote,
+    required this.face,
+  });
+
+  /// The name in the title, on the bar and in the sheet's own sentences.
+  final String name;
+  final String role;
+
+  /// Said while the call rings.
+  final String greeting;
+
+  /// The status line while the agent is speaking.
+  final String answering;
+  final String callFailed;
+  final String failed;
+  final String offline;
+  final String micNote;
+
+  /// The picture on the sheet.
+  final String face;
+}
+
+/// Her copy, unchanged: the words the call has always used.
+const shouqCallCopy = CallPersonaCopy(
+  name: CallCopy.name,
+  role: CallCopy.role,
+  greeting: CallCopy.greeting,
+  answering: CallCopy.answering,
+  callFailed: CallCopy.callFailed,
+  failed: CallCopy.failed,
+  offline: CallCopy.offline,
+  micNote: CallCopy.micNote,
+  face: 'assets/img/shouq-face.jpg',
+);
+
+/// His: the same sentences as hers, with his name and his grammar (the
+/// masculine «يرد» and «تكلّمه»). New on 14 October; the owner should read it.
+const salemCallCopy = CallPersonaCopy(
+  name: kSalemName,
+  role: kSalemRole,
+  greeting: kSalemGreeting,
+  answering: 'سالم يرد…',
+  callFailed: 'ما قدرنا نوصلك بسالم — جرّب مرة ثانية.',
+  failed: 'ما قدرنا نشغّل سالم الحين — جرّب مرة ثانية بعدين.',
+  offline: 'ما فيه إنترنت — سالم يحتاج اتصال عشان يرد.',
+  micNote: 'يحتاج إذن المايك عشان تكلّمه.',
+  face: 'assets/img/salem-face.jpg',
+);
 
 /// What happens to a conversation once it has happened — the app's half of
 /// `WAIN_AI_RECORDING` in `src/lib/wain-ai.ts`, in the same words.
@@ -52,7 +142,7 @@ abstract final class AiPrivacyCopy {
   static const details = 'التفاصيل';
   static const consentTitle = 'قبل ما تكلّم شوق أو تكتب لسالم';
   static const consentBody =
-      'صوتك، وأي شي تكتبه، يروح لمزوّد خدمة الصوت عشان شوق تسمعك وترد عليك — '
+      'صوتك، وأي شي تكتبه، يروح لمزوّد خدمة الصوت عشان المساعد يسمعك ويرد عليك — '
       'وينحفظ عندهم تحت حسابنا وما ينمسح تلقائياً. فلا تقول ولا تكتب شي ما تبيه ينحفظ.';
   static const agree = 'أوافق وأكمّل';
   static const notNow = 'مو الحين';
@@ -85,8 +175,6 @@ abstract final class CallCopy {
   static const toSalem = 'كمّل مع سالم';
   static const didSearch = 'دوّرت لك';
   static const didOpen = 'فتحت لك صفحة';
-  static const switchToSalem = 'بصوت سالم';
-  static const switchToShouq = 'بصوت شوق';
   static const ended = 'انتهت المكالمة';
   static const callFailed = 'ما قدرنا نوصلك بشوق — جرّب مرة ثانية.';
   static const noAnswer =
@@ -116,6 +204,7 @@ abstract final class ChatCopy {
   static const connected = 'متصل';
   static const disconnected = 'انتهت المحادثة.';
   static const reconnect = 'ابدأ من جديد';
+
   /// The calls are شوق's: it said «كلّمه بمكالمة», a call to him there is no
   /// button for.
   static const toolUnavailable =
@@ -171,7 +260,7 @@ abstract final class ChatCopy {
   static const socialWho =
       'أنا سالم من وين — أدوّر لك بين أماكن الكويت اللي عندنا: قهوة، بحر، مطاعم، وطلعات. قول لي وش تبي.';
   static const socialNotShouq =
-      'لا، أنا سالم. شوق تكلّمك بمكالمة — زر الاتصال فوق.';
+      'لا، أنا سالم. شوق تكلّمك بمكالمة من صفحة «إلى وين؟».';
   static const socialHelp =
       'اكتب لي وش تبي — «قهوة هادية»، «عشا على البحر»، أو اسم منطقة — وأعطيك أماكن على الخريطة، وتقدر ترسلها للربع.';
   static const socialBye = 'الله يسلمك! حيّاك أي وقت.';
@@ -200,10 +289,10 @@ abstract final class ChatCopy {
   static const followLabel = 'تبي';
   static const noResults = 'ما لقينا شي لـ';
 
-  /// The other ways in, from inside the chat: the call (placed from his
-  /// header since 7 October, on request — it was a way to /find), the same
-  /// answer as a full search, and his voice.
-  static const callShouq = 'كلّم شوق';
+  /// The other ways in, from inside the chat: his call, placed from his header
+  /// (since 7 October, as her call; since 14 October it is his, on his agent),
+  /// the same answer as a full search, and his voice.
+  static const callSalem = 'كلّم سالم';
 
   /// The line over a question handed to him from شوق (the web's
   /// `WAIN_AI_CHAT_COPY.fromCall` / `fromShouq`).

@@ -100,10 +100,12 @@ Each suite was confirmed able to go red by breaking the code it guards.
 * **`/add`** says the back end is not connected instead of showing a form whose
   button does nothing. `supabaseEnabled` is false on the web too; order and
   queue panels render nothing (0 of 52 places satisfy either).
-* **Typed chat** sends `text_only` and no voice override (14 October: the
-  owner's answer to the shoug scan; the web matches). The agent is شوق's, and
-  the name the chat shows is still open (root `CLAUDE.md`, 14 October).
-  سالم's voice id is used only by the mid-call «🔊 بصوت سالم» swap.
+* **Two agents, never shared** (14 October). شوق's call runs on
+  `WAIN_AI_AGENT_ID`; سالم's call and his typed chat run on
+  `WAIN_SALEM_AGENT_ID` (`lib/ai/config.dart`). Unset, a persona's call is the
+  free call under its own name, and nothing falls back to the other's agent.
+  The typed chat sends `text_only` and no voice override, and there is no
+  mid-call voice switch.
 * **Voice is off until switched on**, as on the web.
 * **Always light.** The app follows the site's sand, not the phone's dark mode;
   the status bar is set per screen instead (`kChromeOnLight`/`kChromeOnDark`).

@@ -1,14 +1,24 @@
-/// What شوق is told after she drives the app — the strings the agent's prompt
-/// was tuned against, reproduced exactly. Two registers, as on the web: the
-/// PHONE CALL says «على الشاشة / الخريطة» (`WainAiCall.tsx`), because the page
-/// she drove is behind the call sheet; the TYPED CHAT says «قدام الزائر»
-/// (`salem-tools.ts`), because the cards appear in the conversation itself.
+/// What the agent on the line is told after it drives the app — the strings
+/// the agent's prompt was tuned against, reproduced exactly. Two registers, as
+/// on the web: the PHONE CALL says «على الشاشة / الخريطة» (`WainAiCall.tsx`),
+/// because the page the agent drove is behind the call sheet; the TYPED CHAT
+/// says «قدام الزائر» (`salem-tools.ts`), because the cards appear in the
+/// conversation itself.
+///
+/// Two agents (14 October): the call can be شوق's or سالم's, so its replies
+/// take `salem:` and speak in that agent's grammar — «قولي» and «لا تسكتين» for
+/// her, «قول» and «لا تسكت» for him. The typed chat is سالم's agent only, so it
+/// speaks in his grammar alone.
 library;
 
 import '../data/models.dart';
 import '../data/answer_order.dart';
 import '../data/search.dart';
 import '../data/text_kit.dart';
+
+/// The form of a second-person sentence for the agent on the line: [salem]
+/// chooses his, otherwise hers. Mirrors agentSay in src/lib/wain-ai.ts.
+String _tell(bool salem, String fem, String masc) => salem ? masc : fem;
 
 class ShowPlacesResult {
   /// What the agent is told.
@@ -72,12 +82,13 @@ List<String> chatRanked(
   ];
 }
 
-/// `show_places` on a CALL.
+/// `show_places` on a CALL. [salem] is true when his agent is on the line.
 ShowPlacesResult showPlacesForCall(
   String query,
   SearchIndex index,
-  List<Place> places,
-) {
+  List<Place> places, {
+  bool salem = false,
+}) {
   final q = query.trim();
   if (q.isEmpty) {
     return const ShowPlacesResult(
@@ -98,23 +109,36 @@ ShowPlacesResult showPlacesForCall(
   final names = found.take(3).map((h) => h.doc.title).toList();
   final total = found.length;
   if (total == 0) {
-    return ShowPlacesResult(
-      'ما لقيت ولا مكان يطابق «$q» — الشاشة الحين تقول «ما لقينا شي». '
+    final noMatch = _tell(
+      salem,
       'قولي له بصراحة إن هالكلمات ما طلّعت شي، ورشّحي أقرب مكان من معرفتك، '
-      'ونادي show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكتين.',
+          'ونادي show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكتين.',
+      'قول له بصراحة إن هالكلمات ما طلّعت شي، ورشّح أقرب مكان من معرفتك، '
+          'ونادِ show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكت.',
+    );
+    return ShowPlacesResult(
+      'ما لقيت ولا مكان يطابق «$q» — الشاشة الحين تقول «ما لقينا شي». $noMatch',
       q,
       slugs,
       total,
       names,
     );
   }
+  // Agreeing, with Arabic digits — the web's countAr(MATCHING_PLACES). The old
+  // line wrote «1 مكان مطابق» and «2 أماكن مطابقة» by hand; two is «مكانين».
   final summary = total > 0
-      ? '$total ${total == 1 ? "مكان مطابق" : "أماكن مطابقة"} لـ «$q» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. '
+      ? '${countAr(total, kMatchingPlacesCount)} لـ «$q» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. '
       : 'الأماكن المطابقة لـ «$q» الحين على الخريطة قدام الزائر. ';
+  // One place, not the list — the web's call says why (WainAiCall.tsx).
+  final ask = _tell(
+    salem,
+    'اختاري منها مكان واحد بس يناسب طلبه، وقولي بجملة وحدة ليش وإنه على الخريطة قدامه، '
+        'وبعدها سؤال قصير يرجّع له الدور. لا تعدّدين أماكن. لا تسكتين.',
+    'اختار منها مكان واحد بس يناسب طلبه، وقول بجملة وحدة ليش وإنه على الخريطة قدامه، '
+        'وبعدها سؤال قصير يرجّع له الدور. لا تعدّد أماكن. لا تسكت.',
+  );
   return ShowPlacesResult(
-    // One place, not the list — the web's call says why (WainAiCall.tsx).
-    '$summaryاختاري منها مكان واحد بس يناسب طلبه، وقولي بجملة وحدة ليش وإنه على الخريطة قدامه، '
-    'وبعدها سؤال قصير يرجّع له الدور. لا تعدّدين أماكن. لا تسكتين.',
+    '$summary$ask',
     q,
     slugs,
     total,
@@ -139,8 +163,12 @@ class OpenPlaceResult {
 
 final RegExp _slugRe = RegExp(r'^[a-z0-9-]+$');
 
-/// `open_place` on a CALL.
-OpenPlaceResult openPlaceForCall(String slug, List<Place> places) {
+/// `open_place` on a CALL. [salem] is true when his agent is on the line.
+OpenPlaceResult openPlaceForCall(
+  String slug,
+  List<Place> places, {
+  bool salem = false,
+}) {
   final s = slug.trim();
   if (!_slugRe.hasMatch(s)) {
     return const OpenPlaceResult(
@@ -154,16 +182,24 @@ OpenPlaceResult openPlaceForCall(String slug, List<Place> places) {
     if (p.slug == s) place = p;
   }
   if (place == null) {
-    return OpenPlaceResult(
-      'ما فيه مكان بالمعرّف ($s) في قائمتك — ما تغيّر شي على الشاشة. '
+    final unknown = _tell(
+      salem,
       'تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن على الخريطة بـ show_places بداله.',
+      'تأكد من الـ slug اللي في قاعدة المعرفة، أو حط الأماكن على الخريطة بـ show_places بداله.',
+    );
+    return OpenPlaceResult(
+      'ما فيه مكان بالمعرّف ($s) في قائمتك — ما تغيّر شي على الشاشة. $unknown',
       null,
       null,
     );
   }
-  return OpenPlaceResult(
-    'صفحة «${place.nameAr}» ($s) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. '
+  final ask = _tell(
+    salem,
     'قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.',
+    'قول له إنك فتحتها، واسأله سؤال قصير يرجّع له الدور. لا تسكت.',
+  );
+  return OpenPlaceResult(
+    'صفحة «${place.nameAr}» ($s) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. $ask',
     s,
     place,
   );
@@ -184,8 +220,8 @@ ShowPlacesResult showPlacesForChat(
   ];
   if (found.isEmpty) {
     return ShowPlacesResult(
-      'ما لقيت ولا مكان يطابق «$query» — لا تسكتين، قولي له بصراحة إن هالكلمات ما طلّعت شي، '
-      'ورشّحي أقرب مكان من معرفتك، ونادي show_places مرة ثانية بكلمة أوسع.',
+      'ما لقيت ولا مكان يطابق «$query» — لا تسكت، قول له بصراحة إن هالكلمات ما طلّعت شي، '
+      'ورشّح أقرب مكان من معرفتك، ونادِ show_places مرة ثانية بكلمة أوسع.',
       query,
       const [],
       0,
@@ -194,9 +230,9 @@ ShowPlacesResult showPlacesForChat(
   }
   final names = found.take(3).map((h) => h.doc.title).toList();
   return ShowPlacesResult(
-    '${found.length} ${found.length == 1 ? "مكان مطابق" : "أماكن مطابقة"} لـ «$query» الحين قدام الزائر، أولها: '
-    '${names.join("، ")}. قولي له بجملة وحدة إنها قدامه — وسمّي الأول لو ما ذكرتيه — '
-    'واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.',
+    '${countAr(found.length, kMatchingPlacesCount)} لـ «$query» الحين قدام الزائر، أولها: '
+    '${names.join("، ")}. قول له بجملة وحدة إنها قدامه — وسمّ الأول لو ما ذكرته — '
+    'واسأله سؤال قصير يرجّع له الدور. لا تسكت.',
     query,
     slugs,
     found.length,
@@ -221,14 +257,14 @@ OpenPlaceResult openPlaceForChat(String slug, List<Place> places) {
   if (place == null) {
     return OpenPlaceResult(
       'ما فيه مكان بالمعرّف ($s) في قائمتك — ما تغيّر شي عند الزائر. '
-      'تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن قدامه بـ show_places بداله.',
+      'تأكد من الـ slug اللي في قاعدة المعرفة، أو حط الأماكن قدامه بـ show_places بداله.',
       null,
       null,
     );
   }
   return OpenPlaceResult(
-    'بطاقة «${place.nameAr}» ($s) الحين قدام الزائر. قولي له إنك حطيتيها، '
-    'واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.',
+    'بطاقة «${place.nameAr}» ($s) الحين قدام الزائر. قول له إنك حطيتها، '
+    'واسأله سؤال قصير يرجّع له الدور. لا تسكت.',
     s,
     place,
   );

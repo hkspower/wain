@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { IconCheck, IconGo, IconLocate } from "@/components/icons";
-import { WAIN_AI_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_ANY_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
 import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         باختصار: <strong className="text-ink-900">وين ما يستخدم كوكيز</strong>، وما
         يتتبّعك، وما عنده حساب لك. الصفحة هذي تشرح الوضع بالتفصيل — بما فيه
         اللي ينحفظ: سطر تقني بسيط عندنا
-        {WAIN_AI_AGENT_ENABLED ? (
+        {WAIN_AI_ANY_AGENT_ENABLED ? (
           <>
             ، و
             <a href="#wain-ai" className="font-semibold text-ink-900 underline underline-offset-2">
@@ -175,7 +175,7 @@ export default function PrivacyPage() {
             «وين AI»، وتقدر تنهي المكالمة في أي وقت. قبل جذي ما يتحمّل شي منها
             ولا يصير أي اتصال خارجي، والمايك ما يشتغل إلا بعد ما تعطي الإذن.
           </p>
-{WAIN_AI_AGENT_ENABLED ? (
+{WAIN_AI_ANY_AGENT_ENABLED ? (
             <>
           {/* Read off the agent's settings, not assumed: record_voice on,
               retention_days -1, audio and transcripts not deleted, topic and

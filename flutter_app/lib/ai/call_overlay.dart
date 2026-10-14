@@ -16,7 +16,6 @@ import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
-import '../widgets/svg.dart';
 import 'call_controller.dart';
 import 'config.dart';
 
@@ -51,12 +50,15 @@ class _Sheet extends StatelessWidget {
   final CallController call;
   const _Sheet({required this.call});
 
+  /// Her sentences, or his: name, greeting, status and failures.
+  CallPersonaCopy get copy => call.persona.copy;
+
   String get _phaseWord => switch (call.phase) {
     CallPhase.ringing => CallCopy.ringing,
     CallPhase.live => CallCopy.onCall,
-    CallPhase.answering => CallCopy.answering,
+    CallPhase.answering => copy.answering,
     CallPhase.ended => CallCopy.ended,
-    CallPhase.failed => call.error ?? CallCopy.callFailed,
+    CallPhase.failed => call.error ?? copy.callFailed,
     CallPhase.idle => '',
   };
 
@@ -130,10 +132,14 @@ class _Sheet extends StatelessWidget {
                 style: wainText(WainText.sm, color: WainColors.sand300),
               ),
             const Spacer(),
-            _Face(speaking: speaking, ringing: call.phase == CallPhase.ringing),
+            _Face(
+              speaking: speaking,
+              ringing: call.phase == CallPhase.ringing,
+              image: copy.face,
+            ),
             const SizedBox(height: 20),
             Text(
-              CallCopy.name,
+              copy.name,
               style: wainText(
                 WainText.s3xl,
                 weight: FontWeight.w700,
@@ -141,13 +147,13 @@ class _Sheet extends StatelessWidget {
               ),
             ),
             Text(
-              CallCopy.role,
+              copy.role,
               style: wainText(WainText.sm, color: WainColors.sand300),
             ),
             const SizedBox(height: 16),
             if (call.phase == CallPhase.ringing)
               Text(
-                CallCopy.greeting,
+                copy.greeting,
                 textAlign: TextAlign.center,
                 style: wainText(
                   WainText.base,
@@ -202,30 +208,6 @@ class _Sheet extends StatelessWidget {
             ],
             const Spacer(),
             if (call.phase == CallPhase.ringing || live) ...[
-              // A voice switch needs the agent; the free call speaks with
-              // the phone's own voice.
-              if (live && !call.local)
-                TextButton.icon(
-                  key: const ValueKey('call-switch-voice'),
-                  onPressed: call.switchVoice,
-                  // A speaker drawn in the icon set, not the 🔊 emoji the
-                  // label used to start with (the web's switch, 7 October).
-                  icon: WainSvg.icon(
-                    'speaker',
-                    size: 16,
-                    color: WainColors.sand100,
-                  ),
-                  label: Text(
-                    call.salemVoice
-                        ? CallCopy.switchToShouq
-                        : CallCopy.switchToSalem,
-                    style: wainText(
-                      WainText.sm,
-                      weight: FontWeight.w600,
-                      color: WainColors.sand100,
-                    ),
-                  ),
-                ),
               const SizedBox(height: 8),
               _RoundButton(
                 key: const ValueKey('call-hangup'),
@@ -256,8 +238,9 @@ class _Sheet extends StatelessWidget {
             ],
             if (over) ...[
               // The same question, typed, with سالم — switching used to mean
-              // starting over (the web's last screen has the same button).
-              if (call.lastQuery != null) ...[
+              // starting over (the web's last screen has the same button). Her
+              // calls only: see CallController.canContinueWithSalem.
+              if (call.canContinueWithSalem) ...[
                 FilledButton(
                   key: const ValueKey('call-to-salem'),
                   onPressed: call.continueWithSalem,
@@ -275,7 +258,8 @@ class _Sheet extends StatelessWidget {
               ],
               FilledButton(
                 key: const ValueKey('call-again'),
-                onPressed: () => call.start(),
+                // Redials whoever this call was with.
+                onPressed: () => call.start(persona: call.persona),
                 style: FilledButton.styleFrom(
                   backgroundColor: WainColors.sea600,
                   minimumSize: const Size(220, 48),
@@ -303,7 +287,7 @@ class _Sheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Text(
-                  CallCopy.micNote,
+                  copy.micNote,
                   style: wainText(WainText.xs, color: WainColors.sand300),
                 ),
               ),
@@ -326,7 +310,7 @@ class _OnCallBar extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final label = call.phase == CallPhase.ringing
         ? CallCopy.ringing
-        : '${CallCopy.name} · ${_clock(call.elapsed)}';
+        : '${call.persona.copy.name} · ${_clock(call.elapsed)}';
     return Positioned(
       top: top + 6,
       left: 0,
@@ -416,13 +400,20 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
-/// Her face. The mouth/orb moves ONLY while she is actually speaking — an
-/// animation that is always on carries no information while looking exactly
+/// Her face, or his. The ring moves ONLY while the agent is actually speaking —
+/// an animation that is always on carries no information while looking exactly
 /// like one that does. While dialling it breathes, slowly.
 class _Face extends StatefulWidget {
   final bool speaking;
   final bool ringing;
-  const _Face({required this.speaking, required this.ringing});
+
+  /// The picture: the persona's own (CallPersonaCopy.face).
+  final String image;
+  const _Face({
+    required this.speaking,
+    required this.ringing,
+    required this.image,
+  });
 
   @override
   State<_Face> createState() => _FaceState();
@@ -451,7 +442,7 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
             ? 0.10 * t
             : (widget.ringing ? 0.04 * t : 0.0);
         return Container(
-          key: ValueKey(widget.speaking ? 'shouq-face-speaking' : 'shouq-face'),
+          key: ValueKey(widget.speaking ? 'call-face-speaking' : 'call-face'),
           width: 148 * (1 + pulse),
           height: 148 * (1 + pulse),
           decoration: BoxDecoration(
@@ -460,8 +451,8 @@ class _FaceState extends State<_Face> with SingleTickerProviderStateMixin {
               color: widget.speaking ? WainColors.palm400 : Colors.white24,
               width: widget.speaking ? 4 : 2,
             ),
-            image: const DecorationImage(
-              image: AssetImage('assets/img/shouq-face.jpg'),
+            image: DecorationImage(
+              image: AssetImage(widget.image),
               fit: BoxFit.cover,
             ),
           ),

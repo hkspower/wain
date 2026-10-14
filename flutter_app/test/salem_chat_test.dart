@@ -60,7 +60,7 @@ void main() {
   tearDown(() => agent.stop());
 
   test(
-    'handshake: convai subprotocol, text_only, and the voice override for سالم',
+    'handshake: convai subprotocol, text_only, and no voice override',
     () async {
       final statuses = <ChatStatus>[];
       final h = startSalemChat(
@@ -361,6 +361,27 @@ void main() {
       onMessage: (_) {},
       onToolUnavailable: () {},
     );
+    expect(statuses, [ChatStatus.error]);
+    h.send('x');
+    h.close();
+  });
+
+  // 14 October: no Salem agent is the free chat, which the screen answers from
+  // its own search. The chat itself never opens a socket for a missing id, and
+  // it has no path to her agent: its only id is his, or nothing.
+  test('no Salem agent: no socket opens, and the chat says so', () {
+    var opened = 0;
+    final statuses = <ChatStatus>[];
+    final h = startSalemChat(
+      connect: (_, _) {
+        opened++;
+        throw StateError('must not connect');
+      },
+      onStatus: statuses.add,
+      onMessage: (_) {},
+      onToolUnavailable: () {},
+    );
+    expect(opened, 0, reason: 'a null id is no socket');
     expect(statuses, [ChatStatus.error]);
     h.send('x');
     h.close();

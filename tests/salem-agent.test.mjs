@@ -8,24 +8,16 @@ import { readFileSync } from 'node:fs';
  *
  * Structure and client-side behaviour only.
  *
- * This suite has now asserted three different versions of what this page
- * claims, and all three were real states this page was actually in — read
- * before changing this a fourth time. First it asserted the header named
- * سالم and opened on a hand-written «أنا سالم» greeting — the mistake
- * `/salem` shipped with, caught by pulling the live agent's real
- * `first_message` («أنا شوق», feminine grammar throughout, because the
- * agent never changed). Corrected to assert her name with no voice badge
- * at all, her own voice unchanged. Reversed again on request, 30 September,
- * back to his name and his voice (the typed chat stopped sending the voice on
- * 14 October) — `SALEM_VOICE_ID`'s own comment in
- * `lib/wain-ai.ts` has the full account of why, including the one thing
- * that is still true regardless of this reversal: the agent's own
- * `first_message` still says «أنا شوق», so what is asserted below is
- * exactly what changed (the header, the identity) and exactly what did NOT
- * (still no hand-written greeting standing in for what the wire actually
- * sends — that would repeat the very first mistake, not fix anything). The
- * input starts disabled (status begins at "connecting", never "connected",
- * before any network event fires), and the page never throws.
+ * Since 14 October this page is سالم's own agent (his prompt, his first
+ * message «هلا والله! أنا سالم من «وين»…», his voice, text_only). The header
+ * and identity assertions below check that the page says his name and nothing
+ * of hers; `lib/wain-ai.ts` (SALEM_AGENT_ID) says why he never shares her
+ * agent. The earlier versions of this page's identity are in CLAUDE.md.
+ *
+ * What is asserted: the header names سالم, the greeting is not hand-written
+ * (what he says comes off the wire), the input starts disabled (status begins
+ * at "connecting", never "connected", before any network event fires), and
+ * the page never throws.
  *
  * `show_places`/`open_place` are covered too, by stubbing `window.WebSocket`
  * itself rather than waiting for a real agent — see that section's own

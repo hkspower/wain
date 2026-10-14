@@ -84,11 +84,18 @@ if (process.argv.includes("--check")) {
 
 if (!existsSync(OUT_TS) || readFileSync(OUT_TS, "utf8") !== ts) writeFileSync(OUT_TS, ts);
 
-/* The same switch as src/lib/wain-ai.ts: unset, empty or «none» is the free
-   build (the live site since 2 October), which never loads the widget — so it
-   does not ship it either. Only a sandbox build with an agent id carries it. */
-const agent = (process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "none").trim();
-const AGENT_BUILD = agent.toLowerCase() !== "none";
+/* The same switch as src/lib/wain-ai.ts, for each agent: unset, empty or «none»
+   is off. A build with EITHER agent loads the widget (the two personas each have
+   their own agent on the same widget), so either id is enough to ship it. Only
+   a build with no agent id at all is the free build, which never loads it and
+   so does not carry it. Whitespace counts as empty, as it does in wain-ai.ts. */
+const isAgentId = (value) => {
+  const id = (value || "").trim();
+  return id !== "" && id.toLowerCase() !== "none";
+};
+const AGENT_BUILD =
+  isAgentId(process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID) ||
+  isAgentId(process.env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID);
 
 if (process.argv.includes("--copy") && !AGENT_BUILD) {
   console.log("vendor-widget: free build — the call widget is not shipped");

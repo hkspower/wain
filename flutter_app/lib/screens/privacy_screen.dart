@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../ai/config.dart' show kAgentEnabled;
+import '../ai/config.dart' show kAgentEnabled, kSalemAgentEnabled;
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/layout.dart';
@@ -73,7 +73,13 @@ class PrivacyScreen extends StatelessWidget {
             '— وهي بحكم الحال في الكويت — وتنطبق سياسة الخصوصية الخاصة فيهم. ما نرسل لهم اسمك ولا بحثك.',
       ],
     ),
-    ('وين AI — شوق وسالم', kAgentEnabled ? _aiAgent : _aiFree),
+    // Either agent recording is enough for the recording copy: each persona has
+    // its own agent since 14 October, and a page that said nothing is recorded
+    // would be untrue for the one that is.
+    (
+      'وين AI — شوق وسالم',
+      kAgentEnabled || kSalemAgentEnabled ? _aiAgent : _aiFree,
+    ),
     (
       'صوت وين — «اقرا لي الجواب»',
       [

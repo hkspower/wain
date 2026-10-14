@@ -47,7 +47,7 @@ console.log("\n── formatShowPlaces: no matches ──");
   const r = formatShowPlaces("شي ما موجود", [], places);
   ok("no slugs", r.slugs.length === 0);
   ok("still names the query", r.spoken.includes("شي ما موجود"));
-  ok("tells her not to go quiet", r.spoken.includes("لا تسكتين"));
+  ok("tells him not to go quiet, in his grammar", r.spoken.includes("لا تسكت") && !r.spoken.includes("تسكتين"), r.spoken);
 }
 
 console.log("\n── formatShowPlaces: one match ──");
@@ -180,7 +180,7 @@ console.log("\n── formatOpenPlace: real slug ──");
   const r = formatOpenPlace("kuwait-towers", places);
   ok("slug returned as-is", r.slug === "kuwait-towers");
   ok("names the place in the spoken result", r.spoken.includes("أبراج الكويت"));
-  ok("tells her not to go quiet", r.spoken.includes("لا تسكتين"));
+  ok("tells him not to go quiet, in his grammar", r.spoken.includes("لا تسكت") && !r.spoken.includes("تسكتين"), r.spoken);
 }
 
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");

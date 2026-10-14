@@ -79,15 +79,15 @@ late CallController _call;
 Widget _host({String? q, String? from, AnswerClock clock = _january8pm}) {
   _state = AppState.ephemeral();
   _voice = _RecVoice();
-  // The free call — what the app ships — so a tap places it with no consent
-  // sheet in between.
-  final call = _call = testController(sessions: [], local: true);
+  // His agent is unset, so his call is the free call — what the app ships — and
+  // a tap places it with no consent sheet in between.
+  final call = _call = testController(sessions: []);
   final router = GoRouter(
     routes: [
       GoRoute(
         path: '/',
         builder: (_, _) => SalemScreen(
-          agentId: '',
+          salemAgentId: '',
           initialQuery: q,
           handoffFrom: from,
           clock: () => clock,
@@ -550,7 +550,7 @@ void main() {
     await t.pumpWidget(const SizedBox());
   });
 
-  testWidgets('«كلّم شوق» places her call from his header, with no detour '
+  testWidgets('«كلّم سالم» places his call from his header, with no detour '
       'to /find; «شوف الكل بالبحث» opens the same question as a search', (
     t,
   ) async {
@@ -558,15 +558,20 @@ void main() {
     expect(_call.active, isFalse);
     // Green, as /find's call button is: a red handset reads as «hang up».
     final button = t.widget<FilledButton>(
-      find.byKey(const ValueKey('chat-call-shouq')),
+      find.byKey(const ValueKey('chat-call-salem')),
     );
     expect(
       button.style?.backgroundColor?.resolve(<WidgetState>{}),
       WainColors.palm600,
     );
-    await t.tap(find.byKey(const ValueKey('chat-call-shouq')));
+    await t.tap(find.byKey(const ValueKey('chat-call-salem')));
     await t.pump();
     expect(_call.active, isTrue, reason: 'one tap places the call');
+    expect(
+      _call.persona,
+      CallPersona.salem,
+      reason: 'his header places his call, never hers',
+    );
     expect(find.text('the find screen'), findsNothing);
     _call.hangUp();
     await t.pump();
@@ -659,7 +664,7 @@ void main() {
       expect(t.takeException(), isNull);
       // The header holds its two controls at every width.
       expect(find.byKey(const ValueKey('chat-read-aloud')), findsOneWidget);
-      expect(find.byKey(const ValueKey('chat-call-shouq')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chat-call-salem')), findsOneWidget);
       await t.pumpWidget(const SizedBox());
     });
   }

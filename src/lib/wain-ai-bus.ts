@@ -1,7 +1,8 @@
 import {
-  WAIN_AI_AGENT_ENABLED,
+  WAIN_AI_ANY_AGENT_ENABLED,
   WAIN_AI_API_ORIGIN,
   WAIN_AI_WIDGET_SRC,
+  type CallPersona,
 } from "@/lib/wain-ai";
 import { WAIN_AI_WIDGET_INTEGRITY } from "@/lib/widget-src.g";
 import { getRecognition, speechLang, type SpeechRecognitionLike } from "@/lib/speech";
@@ -35,6 +36,7 @@ const PHASE = "wain-ai:phase";
 
 let requestedAt = 0;
 let requestedMode: CallMode | null = null;
+let requestedPersona: CallPersona | null = null;
 let lastPhase: Phase = "idle";
 
 /** The agent, or the phone's own recogniser and our search (agent-health.ts). */
@@ -44,9 +46,10 @@ export type CallMode = "agent" | "local";
  * Ask for a call. Do the gesture work (haptic, primeAudio) before this, and
  * say which call the tap prepared for — see takeRequestedMode.
  */
-export function requestCall(mode: CallMode): void {
+export function requestCall(mode: CallMode, persona: CallPersona = "shouq"): void {
   requestedAt = Date.now();
   requestedMode = mode;
+  requestedPersona = persona;
   window.dispatchEvent(new Event(CALL));
 }
 
@@ -62,6 +65,17 @@ export function takeRequestedMode(): CallMode | null {
   const mode = requestedMode;
   requestedMode = null;
   return mode;
+}
+
+/**
+ * Whose call the tap asked for, once — and null when no tap asked for one, so a
+ * redial from the sheet keeps the persona of the call it is redialling. The
+ * tap that starts a call on /salem names سالم; the one on /find names شوق.
+ */
+export function takeRequestedPersona(): CallPersona | null {
+  const persona = requestedPersona;
+  requestedPersona = null;
+  return persona;
 }
 
 /**
@@ -245,7 +259,7 @@ let widgetLoad: Promise<void> | null = null;
 export function loadWidget(): Promise<void> {
   if (!widgetLoad) {
     widgetLoad = new Promise<void>((resolve, reject) => {
-      if (!WAIN_AI_AGENT_ENABLED) {
+      if (!WAIN_AI_ANY_AGENT_ENABLED) {
         reject(new Error("agent mode is off"));
         return;
       }

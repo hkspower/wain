@@ -83,7 +83,7 @@ void main() {
       addTearDown(t.view.reset);
       final ch = _MemChannel();
       await t.pumpWidget(
-        _host(SalemScreen(connect: (_, _) => ch, agentId: 'agent_test')),
+        _host(SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test')),
       );
       await t.pump();
       ch.say({'type': 'conversation_initiation_metadata'});

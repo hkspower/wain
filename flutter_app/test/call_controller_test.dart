@@ -31,21 +31,18 @@ void main() {
       c.dispose();
     });
 
-    test(
-      'the agent id and no voice override go out on a normal call',
-      () async {
-        final sessions = <FakeSession>[];
-        final c = testController(sessions: sessions);
-        await c.start();
-        expect(sessions.single.startedAgent, 'agent_test');
-        expect(sessions.single.voice, isNull);
-        expect(
-          sessions.single.tools.keys,
-          containsAll(['show_places', 'open_place']),
-        );
-        c.dispose();
-      },
-    );
+    test('a call goes out with her agent id and the client tools', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      expect(sessions.single.startedAgent, 'agent_test');
+      expect(sessions.single.local, isFalse);
+      expect(
+        sessions.single.tools.keys,
+        containsAll(['show_places', 'open_place']),
+      );
+      c.dispose();
+    });
 
     test(
       'hanging up ends and disposes the session and stops the clock',
@@ -261,40 +258,116 @@ void main() {
     );
   });
 
-  group('the voice swap', () {
+  // 14 October: the voice swap is gone. Each persona is its own agent, so his
+  // voice never reaches her agent and her name never reaches his.
+  group('one agent per persona, never the other\'s', () {
+    test('a Shouq call goes to her agent, a Salem call to his', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+      );
+      await c.start();
+      expect(sessions.single.startedAgent, 'agent_test');
+      expect(c.persona, CallPersona.shouq);
+      await c.hangUp();
+
+      await c.start(persona: CallPersona.salem);
+      expect(sessions.last.startedAgent, 'agent_salem_test');
+      expect(sessions.last.local, isFalse);
+      expect(c.persona, CallPersona.salem);
+      c.dispose();
+    });
+
     test(
-      'reconnects with the override, and a fresh call resets to her own voice',
+      'with no Salem agent, his call is the free call, never hers',
       () async {
         final sessions = <FakeSession>[];
         final c = testController(sessions: sessions);
-        await c.start();
-        sessions.last.onConnected!();
-        await c.switchVoice();
-        expect(sessions, hasLength(2));
-        expect(sessions.last.voice, kSalemVoiceId);
-        expect(c.salemVoice, isTrue);
-        sessions.last.onConnected!();
-        await c.hangUp();
-        c.closeSheet();
-        await c.start();
+        await c.start(persona: CallPersona.salem);
         expect(
-          sessions.last.voice,
-          isNull,
-          reason: 'every fresh call starts on her voice',
+          sessions.single.local,
+          isTrue,
+          reason: 'no agent for him: the free call',
         );
-        expect(c.salemVoice, isFalse);
+        expect(
+          sessions.single.startedAgent,
+          '',
+          reason: "not her agent, which is 'agent_test' here",
+        );
+        expect(c.isFree(CallPersona.salem), isTrue);
+        expect(
+          c.isFree(CallPersona.shouq),
+          isFalse,
+          reason: 'her agent is still hers',
+        );
         c.dispose();
       },
     );
 
-    test('cannot swap while still ringing', () async {
+    test('a Salem call that cannot connect says so with his name', () async {
       final sessions = <FakeSession>[];
-      final c = testController(sessions: sessions);
-      await c.start();
-      await c.switchVoice();
-      expect(sessions, hasLength(1));
+      final c = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+        configure: (s) => s.startError = StateError('refused'),
+      );
+      await c.start(persona: CallPersona.salem);
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, salemCallCopy.callFailed);
+      expect(c.error, isNot(contains('شوق')));
       c.dispose();
     });
+
+    test(
+      'the hand-over to his chat is offered after her call, never his',
+      () async {
+        final sessions = <FakeSession>[];
+        final c = testController(
+          sessions: sessions,
+          salemAgentId: 'agent_salem_test',
+        );
+        await c.start();
+        sessions.single.onConnected!();
+        await sessions.single.tools['show_places']!({'query': 'بحر'});
+        await c.hangUp();
+        expect(c.canContinueWithSalem, isTrue);
+
+        await c.start(persona: CallPersona.salem);
+        sessions.last.onConnected!();
+        await sessions.last.tools['show_places']!({'query': 'بحر'});
+        await c.hangUp();
+        expect(c.lastQuery, 'بحر');
+        expect(
+          c.canContinueWithSalem,
+          isFalse,
+          reason: 'the hand-over says «من مكالمتك مع شوق»',
+        );
+        c.dispose();
+      },
+    );
+  });
+
+  test('the agent ids: each persona names its own, and never the other', () {
+    expect(kSalemAgentId, '', reason: 'the default build is free for him too');
+    expect(
+      agentIdFor(CallPersona.salem, shouq: 'agent_shouq', salem: 'agent_salem'),
+      'agent_salem',
+    );
+    expect(
+      agentIdFor(CallPersona.shouq, shouq: 'agent_shouq', salem: 'agent_salem'),
+      'agent_shouq',
+    );
+    expect(
+      agentIdFor(CallPersona.salem, shouq: 'agent_shouq', salem: ''),
+      '',
+      reason: 'an unset Salem agent never falls back to her id',
+    );
+    expect(
+      agentIdFor(CallPersona.shouq, shouq: '', salem: 'agent_salem'),
+      '',
+      reason: 'and her unset agent never falls back to his',
+    );
   });
 
   test('resolveAgentId: the free build unless an agent is named', () {

@@ -31,7 +31,6 @@ class ElevenLabsSession implements AgentSession {
   @override
   Future<void> start({
     required String agentId,
-    String? voiceId,
     required Map<String, ToolHandler> tools,
   }) async {
     final client = ConversationClient(
@@ -45,12 +44,8 @@ class ElevenLabsSession implements AgentSession {
       ),
     );
     _client = client;
-    await client.startSession(
-      agentId: agentId,
-      overrides: voiceId == null
-          ? null
-          : ConversationOverrides(tts: TtsOverrides(voiceId: voiceId)),
-    );
+    // No overrides: the agent's own voice and settings, for either persona.
+    await client.startSession(agentId: agentId);
   }
 
   @override

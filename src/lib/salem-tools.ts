@@ -1,7 +1,13 @@
 /**
- * شوق's tools, reused for `/salem` — the pure half.
+ * The tools the typed chat hands سالم's agent — the pure half.
  *
- * `WainAiCall.tsx` already has `show_places`/`open_place`: they run the same
+ * They were written for شوق's call (`WainAiCall.tsx` has `show_places` and
+ * `open_place`, and the same search index runs under both) and reused for
+ * `/salem`. Since 14 October the typed chat is his agent alone, so the
+ * sentences these return are in his grammar: «قول له» and «لا تسكت», not her
+ * «قولي له» and «لا تسكتين». The call's own replies choose by persona (agentSay).
+ *
+ * They run the same
  * search index the search page runs, then say what is now on screen so she
  * can announce it instead of leaving a caller to guess. `/salem` cannot
  * reuse the CALL's version outright — that one navigates the whole page
@@ -72,8 +78,8 @@ export function formatShowPlaces(query: string, hits: SalemSearchHit[], places: 
       query,
       slugs: [],
       spoken:
-        `ما لقيت ولا مكان يطابق «${query}» — لا تسكتين، قولي له بصراحة إن هالكلمات ما طلّعت شي، ` +
-        "ورشّحي أقرب مكان من معرفتك، ونادي show_places مرة ثانية بكلمة أوسع.",
+        `ما لقيت ولا مكان يطابق «${query}» — لا تسكت، قول له بصراحة إن هالكلمات ما طلّعت شي، ` +
+        "ورشّح أقرب مكان من معرفتك، ونادِ show_places مرة ثانية بكلمة أوسع.",
     };
   }
   const names = found.slice(0, 3).map((h) => h.doc.title);
@@ -93,8 +99,8 @@ export function formatShowPlaces(query: string, hits: SalemSearchHit[], places: 
     slugs,
     spoken:
       `${countAr(found.length, MATCHING_PLACES)} لـ «${query}»${onScreen}، أولها: ` +
-      `${names.join("، ")}. قولي له بجملة وحدة إنها قدامه — وسمّي الأول لو ما ذكرتيه — ` +
-      "واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.",
+      `${names.join("، ")}. قول له بجملة وحدة إنها قدامه — وسمّ الأول لو ما ذكرته — ` +
+      "واسأله سؤال قصير يرجّع له الدور. لا تسكت.",
   };
 }
 
@@ -116,13 +122,13 @@ export function formatOpenPlace(slug: string, places: Place[]): SalemOpenPlaceRe
       slug: null,
       spoken:
         `ما فيه مكان بالمعرّف (${s}) في قائمتك — ما تغيّر شي عند الزائر. ` +
-        "تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن قدامه بـ show_places بداله.",
+        "تأكد من الـ slug اللي في قاعدة المعرفة، أو حط الأماكن قدامه بـ show_places بداله.",
     };
   }
   return {
     slug: s,
     spoken:
-      `بطاقة «${place.nameAr}» (${s}) الحين قدام الزائر. قولي له إنك حطيتيها، ` +
-      "واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.",
+      `بطاقة «${place.nameAr}» (${s}) الحين قدام الزائر. قول له إنك حطيتها، ` +
+      "واسأله سؤال قصير يرجّع له الدور. لا تسكت.",
   };
 }

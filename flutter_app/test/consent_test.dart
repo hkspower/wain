@@ -123,7 +123,7 @@ void main() {
           state,
           call,
           SalemScreen(
-            agentId: 'agent_test',
+            salemAgentId: 'agent_test',
             connect: (uri, protocols) {
               opened++;
               throw StateError('no network in tests');
@@ -155,7 +155,7 @@ void main() {
           state,
           call,
           SalemScreen(
-            agentId: 'agent_test',
+            salemAgentId: 'agent_test',
             // A channel that never answers: the screen stays «connecting», so
             // the input row — and the notice over it — is what is drawn. Real
             // socket IO does not run inside a widget test's fake clock.
@@ -187,4 +187,80 @@ void main() {
       call.dispose();
     });
   });
+
+  // 14 October: the question follows the persona's own agent. His agent records
+  // his calls, so his asks first; with no agent for him his call and his chat
+  // are free, and nothing is recorded to agree to.
+  group('before his call, and his chat with no agent', () {
+    testWidgets('a Salem call with his agent asks first, like hers', (t) async {
+      final sessions = <FakeSession>[];
+      final call = testController(
+        sessions: sessions,
+        salemAgentId: 'agent_salem_test',
+      );
+      await t.pumpWidget(_host(AppState.ephemeral(), call, _placeSalemCall()));
+      await t.tap(find.text('go'));
+      await t.pumpAndSettle();
+      expect(find.text(AiPrivacyCopy.consentBody), findsOneWidget);
+      expect(sessions, isEmpty, reason: 'no session before the answer');
+
+      await t.tap(find.byKey(const ValueKey('ai-consent-decline')));
+      await t.pumpAndSettle();
+      expect(sessions, isEmpty, reason: 'declined: nothing is placed');
+      expect(call.active, isFalse);
+      call.dispose();
+    });
+
+    testWidgets('his free call asks nothing and goes out with no agent', (
+      t,
+    ) async {
+      final sessions = <FakeSession>[];
+      final call = testController(sessions: sessions);
+      await t.pumpWidget(_host(AppState.ephemeral(), call, _placeSalemCall()));
+      await t.tap(find.text('go'));
+      await t.pumpAndSettle();
+      expect(find.text(AiPrivacyCopy.consentBody), findsNothing);
+      expect(sessions, hasLength(1));
+      expect(sessions.single.local, isTrue);
+      expect(sessions.single.startedAgent, '');
+      call.dispose();
+    });
+
+    testWidgets(
+      'no Salem agent: the typed chat opens no socket and asks nothing',
+      (t) async {
+        var opened = 0;
+        final call = testController(sessions: []);
+        await t.pumpWidget(
+          _host(
+            AppState.ephemeral(),
+            call,
+            SalemScreen(
+              connect: (uri, protocols) {
+                opened++;
+                throw StateError('must not connect');
+              },
+            ),
+          ),
+        );
+        await t.pump();
+        expect(
+          opened,
+          0,
+          reason: 'free: nothing is opened, so nothing recorded',
+        );
+        expect(find.byKey(const ValueKey('chat-consent-body')), findsNothing);
+        expect(find.byKey(const ValueKey('chat-free-notice')), findsOneWidget);
+        call.dispose();
+      },
+    );
+  });
 }
+
+/// A button that places his call the way his header does.
+Widget _placeSalemCall() => Builder(
+  builder: (context) => TextButton(
+    onPressed: () => placeCall(context, persona: CallPersona.salem),
+    child: const Text('go'),
+  ),
+);

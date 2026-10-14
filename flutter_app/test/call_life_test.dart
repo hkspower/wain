@@ -2,16 +2,29 @@
 // back acts on the call rather than the page under it, and it is kept alive
 // (screen awake, Android's foreground service) for exactly as long as it runs.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/main.dart';
 import 'package:wain/screens/salem_screen.dart';
+import 'package:wain/theme/app_theme.dart';
 
 import 'support.dart';
 
 void main() {
+  // Widget tests draw every glyph as a square unless the app's face is loaded,
+  // and at that width his four-letter name overflowed the call bar by 6px that
+  // no phone draws. The bar is measured in the face a phone shows.
+  setUpAll(() async {
+    final loader = FontLoader(kFontFamily);
+    for (final w in const ['Regular', 'SemiBold', 'Bold']) {
+      loader.addFont(rootBundle.load('assets/fonts/IBMPlexSansArabic-$w.ttf'));
+    }
+    await loader.load();
+  });
+
   group('kept alive for exactly as long as the call runs', () {
     test(
       'started once the microphone is granted, stopped on hang-up',
@@ -110,8 +123,10 @@ void main() {
   group('in the app', () {
     Future<List<FakeSession>> placeCall(
       WidgetTester t,
-      FakeKeepAlive keep,
-    ) async {
+      FakeKeepAlive keep, {
+      CallPersona persona = CallPersona.shouq,
+      bool connected = true,
+    }) async {
       final sessions = <FakeSession>[];
       t.view.physicalSize = const Size(390 * 2, 844 * 2);
       t.view.devicePixelRatio = 2;
@@ -119,24 +134,158 @@ void main() {
       await t.pumpWidget(
         WainApp(
           state: AppState.ephemeral(),
-          sessionFactory: () {
+          sessionFactory: ({required bool local}) {
             final s = FakeSession();
             sessions.add(s);
             return s;
           },
           checkMic: () async => MicResult.ok,
           keepAlive: keep,
-          agentId: 'agent_test',
+          shouqAgentId: 'agent_test',
+          salemAgentId: 'agent_salem_test',
         ),
       );
       await t.pump(const Duration(milliseconds: 300));
       final c = read<CallController>(t, find.byType(Scaffold));
-      await c.start();
+      await c.start(persona: persona);
       await t.pump();
-      sessions.single.onConnected!();
-      await t.pump(const Duration(milliseconds: 100));
+      if (connected) {
+        sessions.single.onConnected!();
+        await t.pump(const Duration(milliseconds: 100));
+      }
       return sessions;
     }
+
+    /// The sheet's own words, so the rest of the app (the Home dial, the bar)
+    /// cannot satisfy a check about the sheet.
+    Finder inSheet(Finder f) => find.descendant(
+      of: find.byKey(const ValueKey('call-sheet')),
+      matching: f,
+    );
+
+    String faceAsset(WidgetTester t) {
+      final box = t.widget<Container>(find.byKey(const ValueKey('call-face')));
+      final image = (box.decoration! as BoxDecoration).image!.image;
+      return (image as AssetImage).assetName;
+    }
+
+    // 14 October: each persona's sheet says its own name, greeting and picture,
+    // and the other's name appears nowhere on it.
+    testWidgets(
+      'his sheet is his: his name, his greeting and face, no word of hers',
+      (t) async {
+        await placeCall(
+          t,
+          FakeKeepAlive(),
+          persona: CallPersona.salem,
+          connected: false,
+        );
+        expect(inSheet(find.text('سالم')), findsOneWidget);
+        expect(inSheet(find.text(kSalemGreeting)), findsOneWidget);
+        expect(inSheet(find.text(CallCopy.greeting)), findsNothing);
+        expect(inSheet(find.textContaining('شوق')), findsNothing);
+        expect(faceAsset(t), 'assets/img/salem-face.jpg');
+        expect(
+          inSheet(find.text(salemCallCopy.micNote)),
+          findsOneWidget,
+          reason: 'the microphone note names him, in the masculine',
+        );
+        await t.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('her sheet is hers: her name and greeting, no word of his', (
+      t,
+    ) async {
+      await placeCall(t, FakeKeepAlive(), connected: false);
+      expect(inSheet(find.text('شوق')), findsOneWidget);
+      expect(inSheet(find.text(CallCopy.greeting)), findsOneWidget);
+      expect(inSheet(find.textContaining('سالم')), findsNothing);
+      expect(faceAsset(t), 'assets/img/shouq-face.jpg');
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('while he speaks the status says so in his name', (t) async {
+      final sessions = await placeCall(
+        t,
+        FakeKeepAlive(),
+        persona: CallPersona.salem,
+      );
+      sessions.single.onSpeaking!(true);
+      await t.pump(const Duration(milliseconds: 100));
+      expect(inSheet(find.text(salemCallCopy.answering)), findsOneWidget);
+      expect(inSheet(find.text(CallCopy.answering)), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the sheet has no voice switch, on her call or his', (t) async {
+      for (final persona in CallPersona.values) {
+        await placeCall(t, FakeKeepAlive(), persona: persona);
+        expect(
+          find.byKey(const ValueKey('call-switch-voice')),
+          findsNothing,
+          reason: persona.name,
+        );
+        expect(find.text('بصوت سالم'), findsNothing, reason: persona.name);
+        expect(find.text('بصوت شوق'), findsNothing, reason: persona.name);
+        expect(find.byKey(const ValueKey('call-hangup')), findsOneWidget);
+        await t.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('minimised, his bar carries his name', (t) async {
+      await placeCall(t, FakeKeepAlive(), persona: CallPersona.salem);
+      await t.tap(find.byKey(const ValueKey('call-minimise')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('call-bar')),
+          matching: find.textContaining('سالم ·'),
+        ),
+        findsOneWidget,
+      );
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('«اتصل مرة ثانية» redials the same person', (t) async {
+      final sessions = await placeCall(
+        t,
+        FakeKeepAlive(),
+        persona: CallPersona.salem,
+      );
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.tap(find.byKey(const ValueKey('call-again')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(sessions, hasLength(2));
+      expect(
+        sessions.last.startedAgent,
+        'agent_salem_test',
+        reason: 'not her agent by default',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('his finished call offers no hand-over to his own chat', (
+      t,
+    ) async {
+      final sessions = await placeCall(
+        t,
+        FakeKeepAlive(),
+        persona: CallPersona.salem,
+      );
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      await t.pump(const Duration(milliseconds: 300));
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('call-again')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('call-to-salem')),
+        findsNothing,
+        reason: 'the hand-over says «من مكالمتك مع شوق»',
+      );
+      await t.pumpWidget(const SizedBox());
+    });
 
     testWidgets(
       'Android back puts a live call away instead of acting on the page',

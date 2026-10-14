@@ -41,15 +41,19 @@ const note = (m) => { notes++; console.log(`  · ${m}`); };
 /* Read the constant by importing it, not by grepping for it — a regex over the
    source would keep passing if the export were renamed or moved. */
 const tmp = mkdtempSync(join(tmpdir(), "wain-shouq-call-"));
-let SRC, INTEGRITY, AGENT_ENABLED;
-/** Is شوق on, for a given value of the build-time variable? */
+let SRC, INTEGRITY, ANY_AGENT;
+/** What the build decides for given values of the two build-time variables. */
 let enabledWhen = () => null;
+/** Salem's agent, as published — pinned here so a changed id is a deliberate edit. */
+const SALEM_AGENT = "agent_5101m4wwgr3ae5qat412ezcnffhn";
+/** Shouq's agent, as published. */
+const SHOUQ_AGENT = "agent_1701m1gcrccrethae9y3nyv1e116";
 try {
   const entry = join(tmp, "e.mjs");
   const bundle = join(tmp, "b.mjs");
   writeFileSync(
     entry,
-    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_AGENT_ENABLED } from " +
+    "export { WAIN_AI_WIDGET_SRC, WAIN_AI_AGENT_ENABLED, SALEM_AGENT_ENABLED, WAIN_AI_ANY_AGENT_ENABLED, agentIdFor } from " +
       `${JSON.stringify(join(ROOT, "src/lib/wain-ai.ts"))};\n` +
       `export { WAIN_AI_WIDGET_INTEGRITY } from ${JSON.stringify(join(ROOT, "src/lib/widget-src.g.ts"))};\n`
   );
@@ -60,27 +64,35 @@ try {
   const mod = await import(pathToFileURL(bundle).href);
   SRC = mod.WAIN_AI_WIDGET_SRC;
   INTEGRITY = mod.WAIN_AI_WIDGET_INTEGRITY;
-  AGENT_ENABLED = mod.WAIN_AI_AGENT_ENABLED;
+  ANY_AGENT = mod.WAIN_AI_ANY_AGENT_ENABLED;
 
   /**
-   * Ask the same module what it would decide under a given variable.
+   * Ask the same module what it would decide under given variables.
    *
    * A child process because `process.env` is read at module load and Node
    * caches modules; esbuild leaves the read intact in a node bundle, so the
-   * only honest way to vary it is to load it again somewhere else.
+   * only honest way to vary it is to load it again somewhere else. Both agent
+   * variables go in, and what comes back is what the page would do with each:
+   * whether each persona is on, and which agent id each one would reach.
    */
-  enabledWhen = (value) =>
-    execFileSync(process.execPath, [
-      "-e",
-      `import(${JSON.stringify(pathToFileURL(bundle).href)})` +
-        `.then((m) => console.log(m.WAIN_AI_AGENT_ENABLED ? "on" : "off"))`,
-    ], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      env: value === undefined
-        ? { ...process.env, NEXT_PUBLIC_ELEVENLABS_AGENT_ID: undefined }
-        : { ...process.env, NEXT_PUBLIC_ELEVENLABS_AGENT_ID: value },
-    }).trim();
+  enabledWhen = (shouqValue, salemValue) => {
+    const env = { ...process.env };
+    delete env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
+    delete env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID;
+    if (shouqValue !== undefined) env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID = shouqValue;
+    if (salemValue !== undefined) env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID = salemValue;
+    const probe =
+      `import(${JSON.stringify(pathToFileURL(bundle).href)}).then((m) => console.log(JSON.stringify({` +
+      `shouq: m.WAIN_AI_AGENT_ENABLED, salem: m.SALEM_AGENT_ENABLED, any: m.WAIN_AI_ANY_AGENT_ENABLED, ` +
+      `shouqId: m.agentIdFor("shouq"), salemId: m.agentIdFor("salem") })))`;
+    return JSON.parse(
+      execFileSync(process.execPath, ["-e", probe], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        env,
+      })
+    );
+  };
 } finally {
   // Deliberately NOT removed here — enabledWhen() re-imports the bundle below.
 }
@@ -126,7 +138,7 @@ const shipped = SRC ? join(ROOT, "out", SRC) : null;
 // Which build out/ is: the one this environment builds (the same switch the
 // build read). Reading it off the chunks does not work — the agent branch is
 // still in a free build's code, unreachable, behind a constant.
-const outIsAgent = existsSync(join(ROOT, "out")) ? AGENT_ENABLED : null;
+const outIsAgent = existsSync(join(ROOT, "out")) ? ANY_AGENT : null;
 if (!shipped || outIsAgent === null) {
   note("no out/ — whether the build carries the file was NOT checked here");
 } else if (!outIsAgent) {
@@ -173,27 +185,42 @@ if (pinned && EXACT.test(pinned)) {
  */
 console.log("\n── does a build carry شوق ──");
 {
+  /**
+   * Each row: shouq's variable, salem's variable, and what must follow.
+   *
+   * The two rows that matter most are the ones where only ONE agent is set.
+   * Before the split, a missing Salem id fell back to Shouq's agent, so his
+   * typed chat and his call were hers — and the reverse. Those rows fail if
+   * either persona picks up the other's id.
+   */
   const cases = [
-    [undefined, "off", "unset — a build from a laptop, a sandbox, or CI as it ships"],
-    ["", "off", "empty — an unset GitHub variable reaches the build as \"\""],
-    ["none", "off", "«none» — the explicit off switch"],
-    ["agent_1701m1gcrccrethae9y3nyv1e116", "on", "an agent id — the staging (sandbox) build"],
+    [undefined, undefined, { shouq: false, salem: false }, "both unset — a laptop, a sandbox, or CI as it ships"],
+    ["", "", { shouq: false, salem: false }, "both empty — unset GitHub variables reach the build as \"\""],
+    ["none", "none", { shouq: false, salem: false }, "both «none» — the explicit off switches"],
+    [SHOUQ_AGENT, undefined, { shouq: true, salem: false }, "only شوق's agent — Salem must NOT take her id"],
+    [undefined, SALEM_AGENT, { shouq: false, salem: true }, "only سالم's agent — شوق must NOT take his id"],
+    [SHOUQ_AGENT, SALEM_AGENT, { shouq: true, salem: true }, "both — the staging build, two agents"],
   ];
-  for (const [value, want, why] of cases) {
-    const got = enabledWhen(value);
-    if (got !== want) {
-      fail(`${why}: expected ${want}, got ${got}`,
-           want === "on"
-             ? "Staging can no longer build with her — the sandbox has lost its agent."
-             : "A build that did not ask for ElevenLabs gets it — the live site would\n" +
-               "      spend credits and show the widget again (2 October's screenshot).");
-    } else ok(`${why} → ${got}`);
+  for (const [shouqValue, salemValue, want, why] of cases) {
+    const got = enabledWhen(shouqValue, salemValue);
+    const problems = [];
+    if (got.shouq !== want.shouq) problems.push(`شوق ${want.shouq ? "on" : "off"} expected, got ${got.shouq ? "on" : "off"}`);
+    if (got.salem !== want.salem) problems.push(`سالم ${want.salem ? "on" : "off"} expected, got ${got.salem ? "on" : "off"}`);
+    if (got.any !== (want.shouq || want.salem)) problems.push(`the any-agent flag reads ${got.any}`);
+    if (got.shouqId !== (want.shouq ? SHOUQ_AGENT : "")) problems.push(`شوق reaches «${got.shouqId}»`);
+    if (got.salemId !== (want.salem ? SALEM_AGENT : "")) problems.push(`سالم reaches «${got.salemId}»`);
+    if (problems.length) {
+      fail(`${why}: ${problems.join("; ")}`,
+           "A persona reaching the other's agent is the mix the 14 October split ended.\n" +
+           "      Each persona's id must come only from its own variable, and an unset one\n" +
+           "      must stay unset (\"\"), never borrow the other's.");
+    } else ok(`${why} → شوق ${got.shouq ? "on" : "off"}, سالم ${got.salem ? "on" : "off"}`);
   }
 }
 rmSync(tmp, { recursive: true, force: true });
 
 // A URL nobody fetches is not a bug, so say which case this is.
-if (!AGENT_ENABLED) note("this environment builds free (the live default) — the widget path is used only by a sandbox build");
+if (!ANY_AGENT) note("this environment builds free — the widget path is used only by a build with an agent id");
 
 console.log(`\n${errors} errors, ${notes} notes`);
 process.exit(errors ? 1 : 0);

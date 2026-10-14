@@ -85,8 +85,7 @@ void main() {
   }) {
     late CallController c;
     c = CallController(
-      local: true,
-      sessionFactory: () => LocalSession(
+      sessionFactory: ({required bool local}) => LocalSession(
         recognizer: fresh?.call() ?? rec,
         maxListen: maxListen,
         onHeard: (w) => c.hear(w),
@@ -139,6 +138,24 @@ void main() {
         isFalse,
         reason: 'the sheet steps aside for the results',
       );
+      c.dispose();
+    },
+  );
+
+  // 14 October: a Salem call with no Salem agent is the same free call, under
+  // his name — it must not wait for, or reach for, her agent.
+  test(
+    'a Salem call with no Salem agent is the free call, and answers',
+    () async {
+      final rec = FakeRecognizer();
+      final c = controllerWith(rec);
+      await c.start(persona: CallPersona.salem);
+      expect(c.persona, CallPersona.salem);
+      expect(c.phase, CallPhase.live, reason: 'listening, not «failed»');
+      rec.say!('قهوة', true);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(went.single, startsWith('/search?q='));
+      expect(answered, ['قهوة']);
       c.dispose();
     },
   );

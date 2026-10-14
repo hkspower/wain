@@ -67,14 +67,14 @@ void main() {
     await t.pumpWidget(
       WainApp(
         state: AppState.ephemeral(),
-        sessionFactory: () {
+        sessionFactory: ({required bool local}) {
           final s = FakeSession();
           sessions.add(s);
           return s;
         },
         checkMic: () async => MicResult.ok,
         keepAlive: FakeKeepAlive(),
-        agentId: 'agent_test',
+        shouqAgentId: 'agent_test',
       ),
     );
     await t.pump(const Duration(milliseconds: 300));

@@ -11,7 +11,7 @@ import { IconGo, IconMap, IconSend, IconSpeaker, IconSpeakerOff } from "@/compon
 import type { Place } from "@/lib/places";
 import { WAIN_AI_CHAT_COPY } from "@/lib/salem-copy";
 import {
-  WAIN_AI_AGENT_ENABLED,
+  SALEM_AGENT_ENABLED,
   WAIN_AI_RECORDING,
   SALEM_NAME,
   type SalemHandoffFrom,
@@ -88,34 +88,13 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
 }
 
 /**
- * سالم's typed chat — his name and his portrait. No voice override is sent
- * (14 October, see the fourth pass below).
+ * سالم's typed chat — his own agent (`SALEM_AGENT_ID`), his name and his
+ * portrait. The socket opens with `text_only` and no voice override: his
+ * agent speaks in its own voice, and a typed session renders no audio anyway.
+ * Until 14 October this page shared شوق's agent and sent his voice on it, which
+ * is the mix the owner ended. Nothing here may fall back to her agent.
  *
- * Third pass on the identity question, and worth reading the first two
- * before touching this again. It shipped as his page once — his name, his
- * photo, a hand-written «أنا سالم» greeting — over an agent whose prompt
- * never changed to match: same first-person FEMININE grammar throughout, a
- * real `first_message` that says «أنا شوق». Corrected to name her instead
- * while still switching the TTS voice to his, then corrected again to drop
- * the voice switch too. Both were the right call for what they were fixing.
- *
- * Reversed again on request, 30 September, that history read back first: his
- * name and photo are back (`SALEM_NAME`, `public/find/salem-face.jpg` —
- * regenerated, the originals having been deleted with the second
- * correction), and `lib/salem-chat.ts` sends his `tts.voice_id` override
- * once more. What did NOT come back is the hand-written greeting — the first
- * line in the transcript is still whatever the wire actually sends, never a
- * scripted one that could disagree with it — because the agent's own prompt
- * is unchanged and its `first_message` still says «أنا شوق». That line will
- * still appear, under his name and his photo, the first time anyone actually
- * talks to him. See `SALEM_VOICE_ID`'s own comment in `lib/wain-ai.ts` for
- * the full account of why that was accepted rather than solved.
- *
- * Fourth pass, 14 October: the typed chat no longer asks for his voice. Its
- * socket opens with `text_only` and no override (`lib/salem-chat.ts`), so a
- * typed session has never carried audio and nothing a visitor hears changed.
- * His voice is still the mid-call switch's, and the read-aloud bridge's own
- * سالم lines.
+ * `show_places`/`open_place` are wired nowlines.
  *
  * `show_places`/`open_place` are wired now, on request — see
  * `lib/salem-tools.ts` for why they could not simply be `WainAiCall.tsx`'s
@@ -150,7 +129,7 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
  * a notice that the chat was being saved: a dead end that also claimed
  * something untrue.
  */
-const FREE = !WAIN_AI_AGENT_ENABLED;
+const FREE = !SALEM_AGENT_ENABLED;
 
 /**
  * An agent build answers this way too when the agent cannot: a refusal for
@@ -858,7 +837,7 @@ export default function SalemChat() {
             cost a page and a second tap. The real ShouqCallButton, never a
             look-alike: the tap has to spend its gesture on the audio and the
             recogniser, or the call rings silently. */}
-        <ShouqCallButton size="pill" className="shrink-0" />
+        <ShouqCallButton size="pill" persona="salem" className="shrink-0" />
       </header>
 
       {/* role="log": the transcript is the one thing on this page that changes

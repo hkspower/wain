@@ -2,7 +2,9 @@ import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 
 /**
- * Agent mode — the path that runs once NEXT_PUBLIC_ELEVENLABS_AGENT_ID is set.
+ * Agent mode — the path that runs once NEXT_PUBLIC_ELEVENLABS_AGENT_ID is set
+ * (شوق's own agent). سالم has his own agent, NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID,
+ * and the last section below checks that his call reaches it and hers never does.
  *
  * The ElevenLabs widget itself cannot run here: the agent id is fake and unpkg
  * is unreachable from this box. So the widget bundle is stubbed with a script
@@ -200,6 +202,11 @@ ok('the sheet tells the caller to press Start, in the widget\'s own words',
   readyPanel.includes('اضغط «بدء مكالمة»'), readyPanel.slice(0, 200));
 ok('it does not invite her to speak yet', !readyPanel.includes('قهوة هادية'), readyPanel.slice(0, 200));
 ok('and offers no voice switch on a call that has not begun', !readyPanel.includes('بصوت سالم'));
+// 14 October: the split. Her widget is given her agent and her voice, and
+// nothing that would let his voice speak her brain — the mid-call switch and
+// its override are gone, so the attribute must not be on the element at all.
+ok('the widget carries no voice override (her own voice, her own agent)',
+  await p.evaluate(() => !document.querySelector('elevenlabs-convai')?.hasAttribute('override-voice-id')));
 // Measured against the REAL widget (0.18.1, the agent's own config): expanded
 // it covers the sheet and shrinks the call control to an unlabelled icon;
 // collapsed it is a labelled «بدء مكالمة» card under the sheet's own text.
@@ -773,6 +780,37 @@ console.log('\n── storage that refuses the write still gets the free redial 
   ok('the redial is the free call even so, started inside the tap', starts > 0 && outside === 0 && widget === 0,
     `widget=${widget} recStarts=${starts} outside=${outside}`);
   await sctx.close();
+}
+
+console.log("\n── سالم's call reaches HIS agent, and hers never reaches him ──");
+{
+  // A fresh page, placed from /salem's own header button — the only call
+  // button on that page, persona "salem". The widget's agent-id must be his.
+  const sc = await makeCtx(null, []);
+  const sp = await sc.newPage();
+  const sErrors = [];
+  sp.on('pageerror', (e) => sErrors.push(e.message));
+  await sp.goto(B + '/salem/', { waitUntil: 'networkidle' });
+  await sp.locator('button[aria-controls="wain-ai-panel"]').first().click({ timeout: 6000 }).catch(() => {});
+  await sp.waitForSelector('#wain-ai-panel', { timeout: 6000 }).catch(() => {});
+  const got = await sp.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 }).then(
+    () => sp.evaluate(() => window.__convaiAgentId), () => null);
+  ok("a call from /salem is placed to سالم's own agent", got === 'agent_test_salem_987654', String(got));
+  ok("and never to شوق's", got !== 'agent_test_0123456789', String(got));
+  const salemSheet = await sp.locator('#wain-ai-panel').textContent().catch(() => '');
+  ok('the sheet names him, not her', salemSheet.includes('سالم') && !salemSheet.includes('شوق'), salemSheet.slice(0, 160));
+  ok('no voice override is sent with his call either',
+    await sp.evaluate(() => !document.querySelector('elevenlabs-convai')?.hasAttribute('override-voice-id')));
+  // Press the widget's own Start, as the visitor would, so the call registers
+  // its tools; then ask his registered tool for a query with no hit. What comes
+  // back is what his agent reads, so it must be in his grammar.
+  await startWidget(sp);
+  await sp.waitForFunction(() => !!window.__convaiConfig?.clientTools?.show_places, null, { timeout: 8000 }).catch(() => {});
+  const sNone = await sp.evaluate(() => window.__convaiConfig?.clientTools?.show_places?.({ query: 'زقزقة' }));
+  ok('his tools answer in his grammar: «لا تسكت», never her «لا تسكتين»',
+    /لا تسكت\.?\s*$/.test(String(sNone)) && !/تسكتين|قولي|ورشّحي/.test(String(sNone)), String(sNone));
+  ok('no page errors on /salem in agent mode', sErrors.length === 0, sErrors.join(' | '));
+  await sc.close();
 }
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));

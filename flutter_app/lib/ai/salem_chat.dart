@@ -7,8 +7,8 @@
 ///
 /// The override carries `conversation.text_only` and nothing else: no voice
 /// override, so the agent's own voice applies (14 October; the web's header
-/// says the same). The agent is شوق's, prompt and all, and the name the chat
-/// shows is still open — CLAUDE.md records it.
+/// says the same). The agent is سالم's own, never شوق's: [startSalemChat] takes
+/// his id, defaults to his and nothing else, so no path reaches her agent.
 library;
 
 import 'dart:async';
@@ -87,11 +87,14 @@ ChatHandle startSalemChat({
   /// refused and the reason is [isUnavailable].
   void Function()? onUnavailable,
   Map<String, ChatTool>? clientTools,
+
+  /// Salem's agent. Null reads the build's own (config.dart); empty opens
+  /// nothing, and the screen answers from its own search instead.
   String? agentId,
   ChannelFactory connect = defaultChannel,
   Duration connectTimeout = kConnectTimeout,
 }) {
-  final id = agentId ?? kAgentId;
+  final id = agentId ?? kSalemAgentId;
   if (id.isEmpty) {
     onStatus(ChatStatus.error);
     return _noop;

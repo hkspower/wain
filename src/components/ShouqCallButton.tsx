@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio, stop as stopVoice } from "@/lib/voice";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
+import { agentEnabledFor, callCopy, type CallPersona } from "@/lib/wain-ai";
 import {
   armCall,
   callAgentAvailable,
@@ -38,6 +38,7 @@ export default function ShouqCallButton({
   className = "",
   labelledBy,
   onTapped,
+  persona = "shouq",
   size = "sm",
 }: {
   className?: string;
@@ -50,8 +51,8 @@ export default function ShouqCallButton({
    * it (FindChoice) — her photo is on that phone's screen, so the button can
    * be what every phone's call button is.
    *
-   * "pill" is سالم's header since 7 October: the switch from his chat to her
-   * call, a green pill with a handset and «كلّم شوق» beside it from 400px (at
+   * "pill" is سالم's header: his call, a green pill with a handset and «كلّم سالم»
+   * beside it from 400px (at
    * 320 the header also holds the back button, his face, his name and the
    * read-aloud toggle, so the words go before anything else does). It was
    * coral until 7 October, and a red handset reads as «hang up» on a phone;
@@ -81,7 +82,14 @@ export default function ShouqCallButton({
    * repeating them, and the two buttons stop being indistinguishable.
    */
   labelledBy?: string;
+  /**
+   * Whose call this places: her agent («shouq», the default) or his («salem»).
+   * Each has its own agent, so this button never reaches the other one's — see
+   * `agentIdFor` in `lib/wain-ai.ts`. Its words and face follow the same choice.
+   */
+  persona?: CallPersona;
 }) {
+  const copy = callCopy(persona);
   const [phase, setPhase] = useState<Phase>("idle");
   const phaseRef = useRef<Phase>("idle");
   phaseRef.current = phase;
@@ -164,12 +172,12 @@ export default function ShouqCallButton({
      * away from this tap. The call is told which way this tap went rather
      * than asking again (takeRequestedMode).
      */
-    const local = !callAgentAvailable();
+    const local = !agentEnabledFor(persona) || !callAgentAvailable();
     if (free && local) startLocalRecognition();
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
-    requestCall(local ? "local" : "agent");
+    requestCall(local ? "local" : "agent", persona);
     onTapped?.();
-  }, [onTapped]);
+  }, [onTapped, persona]);
 
   return (
     <button
@@ -188,8 +196,8 @@ export default function ShouqCallButton({
           : size === "pill"
             ? // Its visible words, first and whole, for the same voice-control
               // reason as «اتصال» on the big button.
-              WAIN_AI_COPY.callShouq
-            : `${size === "call" ? "اتصال — " : ""}${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`
+              copy.callShouq
+            : `${size === "call" ? "اتصال — " : ""}${copy.launcher} — ${copy.callHint}`
       }
       aria-labelledby={labelledBy}
       aria-expanded={open}
@@ -238,7 +246,7 @@ export default function ShouqCallButton({
          */
         // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser
         <img
-          src="/find/shouq-face.jpg"
+          src={persona === "salem" ? "/find/salem-face.jpg" : "/find/shouq-face.jpg"}
           alt=""
           width={320}
           height={320}
@@ -251,7 +259,7 @@ export default function ShouqCallButton({
       )}
       {size === "pill" && (
         <span aria-hidden="true" className="sr-only min-[400px]:not-sr-only">
-          {WAIN_AI_COPY.callShouq}
+          {copy.callShouq}
         </span>
       )}
       {phase === "ringing" && (

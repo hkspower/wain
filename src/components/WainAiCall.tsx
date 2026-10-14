@@ -3,21 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconClose, IconPhone, IconSend, IconShouq, IconSpeaker } from "@/components/icons";
+import { IconClose, IconPhone, IconSend, IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { getRecognition, isInAppBrowser, speechLang, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled, stop as stopVoice } from "@/lib/voice";
 import { usePlaces } from "@/lib/usePlaces";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
-import {
-  MATCHING_PLACES,
-  WAIN_AI_AGENT_ENABLED,
-  WAIN_AI_AGENT_ID,
-  WAIN_AI_COPY,
-  SALEM_VOICE_ID,
-  salemHandoff,
-} from "@/lib/wain-ai";
+import { agentEnabledFor, agentIdFor, agentSay, callCopy, MATCHING_PLACES, salemHandoff, type CallPersona, WAIN_AI_ANY_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
 import {
@@ -26,6 +19,7 @@ import {
   markWidgetBroken,
   takeLocalRecognition,
   takeRequestedMode,
+  takeRequestedPersona,
 } from "@/lib/wain-ai-bus";
 import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
 
@@ -154,7 +148,7 @@ function inAppleSafari(): boolean {
   return !isInAppBrowser() && nav.standalone !== true && /Safari\//.test(nav.userAgent);
 }
 
-function errorCopy(code: string): string {
+function errorCopy(code: string, failed: string): string {
   // `service-not-allowed` is not the microphone. WebKit answers it when Siri
   // and Dictation are off or the locale is one Apple does not have, and an
   // app's built-in browser answers `not-allowed` because the host app never
@@ -164,8 +158,9 @@ function errorCopy(code: string): string {
   if (code === "service-not-allowed" || code === "language-not-supported") return WAIN_AI_COPY.speechOff;
   if (code === "not-allowed") return isInAppBrowser() ? WAIN_AI_COPY.speechOff : WAIN_AI_COPY.micDenied;
   if (code === "no-speech") return WAIN_AI_COPY.noSpeech;
-  // network, audio-capture, bad-grammar, language-not-supported.
-  return WAIN_AI_COPY.callFailed;
+  // network, audio-capture, bad-grammar, language-not-supported. `failed` is the
+  // persona's own words for «we could not reach them» (callCopy).
+  return failed;
 }
 
 /* The detection, the typings and the locale now live in lib/speech, because
@@ -212,7 +207,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * that met a refusal for credits gets the free call — the phone's own
    * recogniser and our search — instead of a widget that will only say no.
    */
-  const [agentMode, setAgentMode] = useState(WAIN_AI_AGENT_ENABLED);
+  const [agentMode, setAgentMode] = useState(WAIN_AI_ANY_AGENT_ENABLED);
   // This sheet showed a refusal for credits: its «اتصل مرة ثانية» promises the
   // guide, so that redial is the free call however long the screen stayed up.
   const refusedRef = useRef(false);
@@ -300,16 +295,18 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * same question, typed, with him — switching used to mean starting over. */
   const [lastQuery, setLastQuery] = useState<string | null>(null);
   /**
-   * Which voice the widget is set to render شوق's answers in — still شوق,
-   * still her tools, only the speaker changes. See SALEM_VOICE_ID for why a
-   * switch remounts the widget rather than adjusting it in place.
-   *
-   * This component never unmounts (see Props.startSignal above), so this
-   * survives across "ended" → redial unless startCall() resets it — which it
-   * does, deliberately: every fresh call begins in شوق's own voice, never
-   * carrying over a switch made on the call before it.
+   * Whose call this is: her agent or his. The tap that asked for the call says
+   * which (takeRequestedPersona in startCall); a redial from the sheet keeps it.
+   * There is no switch mid-call — each persona has its own agent, and a call
+   * never changes hands. This component never unmounts (see Props.startSignal
+   * above), so the state outlives the call and startCall() sets it afresh.
    */
-  const [persona, setPersona] = useState<"shouq" | "salem">("shouq");
+  const [persona, setPersona] = useState<CallPersona>("shouq");
+  const personaRef = useRef<CallPersona>("shouq");
+  personaRef.current = persona;
+  /** This persona's words for the sheet, read in render. Callbacks read
+      `callCopy(personaRef.current)` at the moment they speak. */
+  const copy = callCopy(persona);
 
   /**
    * Whether شوق's mouth moves — only when we actually KNOW she is speaking.
@@ -325,7 +322,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * And nothing here can know better. The widget keeps `isSpeaking` and `mode`
    * inside its own Preact state and dispatches exactly one custom event,
    * `elevenlabs-convai:call` — checked by reading the published 0.18.1 bundle,
-   * the same way `SALEM_VOICE_ID` was, rather than by hoping. So there is no
+   * rather than by hoping. So there is no
    * signal to animate from, and an animation that is always on carries no
    * information while looking exactly like one that does.
    *
@@ -411,22 +408,6 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setPhase("idle");
     }
   }, [teardown]);
-
-  /**
-   * «بصوت سالم» / «بصوت شوق» — the switch, mid-call.
-   *
-   * Only while actually connected: "ringing" has no widget to switch yet, and
-   * "ended"/"error" have nothing live to switch on. Clearing the slot is what
-   * makes the mount effect above treat this as a fresh connect — it sees an
-   * empty slot and remounts with (or without) SALEM_VOICE_ID, which is the
-   * one moment the widget reads that attribute.
-   */
-  const switchPersona = useCallback(() => {
-    if (phaseRef.current !== "live") return;
-    haptic("select");
-    slotRef.current?.replaceChildren();
-    setPersona((p) => (p === "shouq" ? "salem" : "shouq"));
-  }, []);
 
   /**
    * The × and Escape. Both mean "get me out", so they hang up *and* close —
@@ -592,7 +573,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         if (e.error === "aborted") return;
         recRef.current = null;
         silenceRing();
-        setErrorText(errorCopy(e.error));
+        setErrorText(errorCopy(e.error, callCopy(personaRef.current).callFailed));
         setPhase("error");
       },
       // Engines end recognition on their own after a pause — that IS the
@@ -606,7 +587,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       if (pre.failed) {
         recRef.current = null;
         silenceRing();
-        setErrorText(WAIN_AI_COPY.callFailed);
+        setErrorText(callCopy(personaRef.current).callFailed);
         setPhase("error");
         return;
       }
@@ -625,7 +606,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     } catch {
       recRef.current = null;
       silenceRing();
-      setErrorText(WAIN_AI_COPY.callFailed);
+      setErrorText(callCopy(personaRef.current).callFailed);
       setPhase("error");
     }
   }, [router, finishWith, silenceRing]);
@@ -725,6 +706,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       connected();
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
+      // Whose grammar the tools speak in — read once, for this call. See agentSay.
+      const say = agentSay(personaRef.current);
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {
         show_places: async ({ query }: { query?: string }) => {
           const q = (query ?? "").trim();
@@ -763,8 +746,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           if (total === 0) {
             return (
               `ما لقيت ولا مكان يطابق «${q}» — الشاشة الحين تقول «ما لقينا شي». ` +
-              "قولي له بصراحة إن هالكلمات ما طلّعت شي، ورشّحي أقرب مكان من معرفتك، " +
-              "ونادي show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكتين."
+              say(
+                "قولي له بصراحة إن هالكلمات ما طلّعت شي، ورشّحي أقرب مكان من معرفتك، " +
+                  "ونادي show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكتين.",
+                "قول له بصراحة إن هالكلمات ما طلّعت شي، ورشّح أقرب مكان من معرفتك، " +
+                  "ونادِ show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكت."
+              )
             );
           }
           const summary =
@@ -778,8 +765,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           // hears the end of.
           return (
             summary +
-            "اختاري منها مكان واحد بس يناسب طلبه، وقولي بجملة وحدة ليش وإنه على الخريطة قدامه، " +
-            "وبعدها سؤال قصير يرجّع له الدور. لا تعدّدين أماكن. لا تسكتين."
+            say(
+              "اختاري منها مكان واحد بس يناسب طلبه، وقولي بجملة وحدة ليش وإنه على الخريطة قدامه، " +
+                "وبعدها سؤال قصير يرجّع له الدور. لا تعدّدين أماكن. لا تسكتين.",
+              "اختار منها مكان واحد بس يناسب طلبه، وقول بجملة وحدة ليش وإنه على الخريطة قدامه، " +
+                "وبعدها سؤال قصير يرجّع له الدور. لا تعدّد أماكن. لا تسكت."
+            )
           );
         },
         open_place: async ({ slug }: { slug?: string }) => {
@@ -797,7 +788,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             setLastAction(WAIN_AI_COPY.noPlace);
             return (
               `ما فيه مكان بالمعرّف (${s}) في قائمتك — ما تغيّر شي على الشاشة. ` +
-              "تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن على الخريطة بـ show_places بداله."
+              say(
+                "تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن على الخريطة بـ show_places بداله.",
+                "تأكد من الـ slug اللي في قاعدة المعرفة، أو حط الأماكن على الخريطة بـ show_places بداله."
+              )
             );
           }
           router.push(`/places/${s}/`);
@@ -805,7 +799,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           setLastSlug(s);
           return (
             `صفحة «${place.nameAr}» (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
-            "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
+            say(
+              "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.",
+              "قول له إنك فتحتها، واسأله سؤال قصير يرجّع له الدور. لا تسكت."
+            )
           );
         },
       };
@@ -859,7 +856,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (!agentMode || !dialling || !agentReady || !slot) return;
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
-      el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
+      el.setAttribute("agent-id", agentIdFor(persona));
       // Deliberately NOT `default-expanded`. Rendered for real (the published
       // 0.18.1 bundle, this agent's own widget config, 390px): collapsed, it
       // is a compact card at the bottom with a big labelled «بدء مكالمة»
@@ -869,9 +866,6 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // of the sheet, and the call control shrinks to an unlabelled phone
       // icon beside a text box. The first version of this fix set it, on the
       // theory that the button was hidden behind a launcher; it never was.
-      // See SALEM_VOICE_ID: set only at mount, because that is the one moment
-      // the widget reads it. شوق's own agent voice needs no override at all.
-      if (persona === "salem") el.setAttribute("override-voice-id", SALEM_VOICE_ID);
       // Safari with «Block All Cookies» throws on any read of localStorage,
       // and the widget makes one, unguarded, to name the caller — after the
       // terms and before the call starts — so «قبول» did nothing and no call
@@ -894,9 +888,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       const floor = document.createElement("style");
       floor.textContent = "@media (pointer: coarse) { textarea, input { font-size: 16px !important; } }";
       el.shadowRoot?.appendChild(floor);
-      // switchPersona() clears the slot to force this branch mid-call: the
-      // widget is fresh again and has to be started again, so the sheet goes
-      // back to asking for that until the widget's own call event says it has.
+      // A fresh widget on a call that is already live (its slot was emptied under
+      // it) has to be started again, so the sheet goes back to asking for that
+      // until the widget's own call event says it has.
       if (phaseRef.current === "live") {
         setStarted(false);
         setReached(false);
@@ -944,7 +938,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       refusedRef.current = true;
       slotRef.current?.replaceChildren();
       teardown();
-      setErrorText(WAIN_AI_COPY.agentUnavailable);
+      setErrorText(callCopy(personaRef.current).agentUnavailable);
       setPhase("error");
     };
     const observer = new MutationObserver(check);
@@ -984,7 +978,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   useEffect(() => {
     if (!agentFailed || phase !== "ringing") return;
     silenceRing();
-    setErrorText(refusedRef.current ? WAIN_AI_COPY.agentUnavailable : WAIN_AI_COPY.callFailed);
+    setErrorText(refusedRef.current ? callCopy(personaRef.current).agentUnavailable : callCopy(personaRef.current).callFailed);
     setPhase("error");
   }, [agentFailed, phase, silenceRing]);
 
@@ -1045,6 +1039,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // The launcher's decision, taken even when no call starts here, so it
     // cannot carry over to a later redial from this sheet.
     const asked = takeRequestedMode();
+    const requestedWho = takeRequestedPersona();
     if (phase !== "idle" && phase !== "ended" && phase !== "error") return;
     // The redial from the ended screen starts a call too, and an answer can
     // still be read out there. The launcher's tap stops it as well (see
@@ -1067,11 +1062,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setLastAction("");
     setLastSlug(null);
     setLastQuery(null);
-    // A previous call may have switched to سالم's voice and left the widget
-    // mounted with that override (see the persona note above) — clearing the
-    // slot here means the mount effect below sees an empty one and creates a
-    // genuinely fresh connection, on شوق's own voice, for every dial.
-    setPersona("shouq");
+    // Clearing the slot here means the mount effect below sees an empty one and
+    // creates a genuinely fresh connection, with this call's agent, for every
+    // dial. A redial from the sheet keeps the persona of the call it redials.
+    const who = requestedWho ?? personaRef.current;
+    personaRef.current = who;
+    setPersona(who);
     slotRef.current?.replaceChildren();
     silenceRing();
     ringStartedAt.current = Date.now();
@@ -1086,7 +1082,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // A call from the launcher goes the way its tap went — the tap may already
     // have started the recogniser. A redial from this sheet decides here, and
     // a refusal it just showed wins over storage that may not have kept it.
-    const agent = asked ? asked === "agent" : !refusedRef.current && callAgentAvailable();
+    // Each persona has its own agent: with none for this one, the call is the
+    // free call, never the other persona's agent.
+    const agent = agentEnabledFor(who) && (asked ? asked === "agent" : !refusedRef.current && callAgentAvailable());
     refusedRef.current = false;
     // An agent call leaves no recogniser behind: one started by an earlier tap
     // would hold the microphone, and a later redial would adopt it, dead.
@@ -1188,13 +1186,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           رسّلها للربع
         </Link>
       )}
-      {lastQuery && (
+      {lastQuery && persona === "shouq" && (
         <Link
           href={salemHandoff(lastQuery, "call")}
           onClick={closeSheet}
           className="inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
         >
-          {WAIN_AI_COPY.toSalem}
+          {copy.toSalem}
         </Link>
       )}
     </>
@@ -1226,10 +1224,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             ? `${WAIN_AI_COPY.ended} · ${callDuration(seconds)}`
             : WAIN_AI_COPY.onCall
         : phase === "answering"
-          ? WAIN_AI_COPY.answering
+          ? copy.answering
           : phase === "ended"
             ? `${WAIN_AI_COPY.ended} · ${callDuration(seconds)}`
-            : WAIN_AI_COPY.role;
+            : copy.role;
 
   // The launcher lives in the static chunk; this file is only the sheet.
   if (!open) return null;
@@ -1239,7 +1237,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           id="wain-ai-panel"
           role="dialog"
           aria-modal="true"
-          aria-label={`${WAIN_AI_COPY.centre} — ${WAIN_AI_COPY.name}`}
+          aria-label={`${WAIN_AI_COPY.centre} — ${copy.name}`}
           // Full screen on a tap, not a floating card any more — a call
           // takes over the whole screen the way a phone's own call screen
           // does. `inset-0` replaces the old `start-5` + capped width +
@@ -1258,7 +1256,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-white">
             <span className="min-w-0 flex-1">
               <span className="block font-display text-lg font-semibold leading-tight">
-                {WAIN_AI_COPY.name}
+                {copy.name}
               </span>
               {/* The status is the one thing that changes without the visitor
                   touching anything, so it is the thing that gets announced —
@@ -1325,7 +1323,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   )}
                   {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
                   <img
-                    src="/find/shouq-face.jpg"
+                    src={persona === "salem" ? "/find/salem-face.jpg" : "/find/shouq-face.jpg"}
                     alt=""
                     aria-hidden="true"
                     width={320}
@@ -1341,13 +1339,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 {/* No `aria-live` — the header owns the announcement. */}
                 <p className="mt-4 text-balance font-display text-xl font-semibold leading-snug text-ink-900">
                   {phase === "ringing"
-                    ? WAIN_AI_COPY.connectingLine
+                    ? copy.connectingLine
                     : phase === "answering"
-                      ? WAIN_AI_COPY.answering
+                      ? copy.answering
                       : agentMode && !started
                         ? WAIN_AI_COPY.pressStart
                         : transcript ||
-                          (agentMode ? WAIN_AI_COPY.onTheLine : WAIN_AI_COPY.listening)}
+                          (agentMode ? copy.onTheLine : WAIN_AI_COPY.listening)}
                 </p>
                 {startHint && (
                   <p className="mt-2 text-sm font-semibold text-coral-800">{WAIN_AI_COPY.startNudge}</p>
@@ -1357,7 +1355,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     line, the short examples are enough. */}
                 {phase === "ringing" && (
                   <p className="mt-1 text-xs leading-relaxed text-ink-500">
-                    {WAIN_AI_COPY.greeting}
+                    {copy.greeting}
                   </p>
                 )}
                 {phase === "live" && !transcript && (!agentMode || (started && !endedByWidget)) && (
@@ -1384,7 +1382,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                       <div ref={slotRef} />
                     ) : (
                       <p className="py-4 text-center text-sm font-semibold text-ink-500">
-                        {WAIN_AI_COPY.loading}
+                        {copy.loading}
                       </p>
                     )}
                   </div>
@@ -1404,26 +1402,11 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   </p>
                 )}
 
-                {/* Only once she has actually picked up — "ringing" has no
-                    widget yet to switch, and switching is undone on every
-                    redial (see startCall), so a caller never has to remember
-                    to switch back. Secondary styling on purpose: hanging up is
-                    still the one button every path ends at. */}
                 {/* The buttons, pinned to the foot (`mt-auto`) and full width,
                     one column: two 44px targets with a gap between them, not
-                    two small pills side by side that can touch at 320px. */}
+                    two small pills side by side that can touch at 320px. There
+                    is no voice switch here: each persona has its own agent. */}
                 <div className="mt-auto flex flex-col gap-2 pt-4">
-                  {agentMode && phase === "live" && started && !endedByWidget && (
-                    <button
-                      type="button"
-                      onClick={switchPersona}
-                      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
-                    >
-                      <IconSpeaker className="size-4" aria-hidden="true" />
-                      {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
-                    </button>
-                  )}
-
                   {/* One red button that hangs up, on every path, meaning
                       exactly one thing — round and labelled under, the way a
                       phone's own call screen draws it (2 October). It was a
@@ -1518,7 +1501,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             )}
 
             <p className="mt-3 text-center text-2xs leading-relaxed text-ink-500">
-              {WAIN_AI_COPY.micNote}{" "}
+              {copy.micNote}{" "}
               <Link href="/privacy" className="underline hover:text-coral-700">
                 الخصوصية
               </Link>

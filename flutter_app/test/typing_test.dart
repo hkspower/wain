@@ -132,7 +132,7 @@ void main() {
         'to her answer, through a tool call', (t) async {
       final ch = _MemChannel();
       await t.pumpWidget(
-        _host(SalemScreen(connect: (_, _) => ch, agentId: 'agent_test')),
+        _host(SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test')),
       );
       await t.pump();
       expect(_typing, findsNothing, reason: 'not before the line is open');
@@ -182,7 +182,7 @@ void main() {
     ) async {
       final ch = _MemChannel();
       await t.pumpWidget(
-        _host(SalemScreen(connect: (_, _) => ch, agentId: 'agent_test')),
+        _host(SalemScreen(connect: (_, _) => ch, salemAgentId: 'agent_test')),
       );
       await t.pump();
       ch.say({'type': 'conversation_initiation_metadata'});

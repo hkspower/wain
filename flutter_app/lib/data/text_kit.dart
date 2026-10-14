@@ -77,6 +77,16 @@ const kPlacesCount = CountForms(
   many: 'مكان',
 );
 
+/// «مكان واحد مطابق» / «مكانين مطابقين» / «أماكن مطابقة» — the call's and the
+/// chat's «N places matched», agreeing (the web's MATCHING_PLACES in
+/// wain-ai.ts). The adjective agrees too, so it is not kPlacesCount + «مطابق».
+const kMatchingPlacesCount = CountForms(
+  one: 'مكان واحد مطابق',
+  two: 'مكانين مطابقين',
+  few: 'أماكن مطابقة',
+  many: 'مكان مطابق',
+);
+
 const kMinutesCount = CountForms(
   one: 'دقيقة',
   two: 'دقيقتين',

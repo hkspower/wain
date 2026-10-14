@@ -38,9 +38,12 @@ execSync(
   { cwd: ROOT, stdio: "pipe" }
 );
 // The socket client is the sandbox build's (staging, since 2 October the
-// live default is free — see wain-ai.ts); give the module an agent id to talk
-// as, or every session below is the free build's no-op handle.
+// live default is free — see wain-ai.ts). It talks as سالم, so the module
+// needs HIS agent id — and, since 14 October, shouq's id is set too, on
+// purpose: the two agents must never swap, so the socket has to reach his
+// agent even when hers is present and first in the environment.
 process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID = "agent_test_0123456789";
+process.env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID = "agent_test_salem_987654";
 const { startSalemChat, stripFiller, cleanReply } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
@@ -98,6 +101,12 @@ console.log("\n── a connection that answers in time is not falsely timed out
   const statuses = [];
   startSalemChat({ onStatus: (s) => statuses.push(s), onMessage: () => {}, onToolUnavailable: () => {} });
   const sock = FakeSocket.last;
+  // The socket must reach سالم's agent, and only his. A socket that reached
+  // شوق's id (the test's first value) would be the two personas mixed, which
+  // the split exists to end.
+  const reached = new URL(sock.url).searchParams.get("agent_id");
+  ok("the typed socket reaches سالم's own agent", reached === "agent_test_salem_987654", reached);
+  ok("and never شوق's", reached !== "agent_test_0123456789", reached);
 
   sock.readyState = FakeSocket.OPEN;
   sock.emit("open", {});

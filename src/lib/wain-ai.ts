@@ -18,7 +18,8 @@ import { WAIN_AI_WIDGET_PATH } from "@/lib/widget-src.g";
  *    and صوت وين reads the best result aloud in شوق's voice. Fully offline
  *    logic, nothing configured, works today.
  *
- * Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID at build time to switch on agent mode.
+ * Set NEXT_PUBLIC_ELEVENLABS_AGENT_ID at build time to switch on her agent, and
+ * NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID to switch on his (see agentIdFor below).
  * When it is absent the button quietly uses local mode instead — an
  * unconfigured build ships with the lesser assistant, not a broken button.
  */
@@ -56,85 +57,53 @@ export const WAIN_AI_AGENT_ID = configured.toLowerCase() === OFF ? "" : configur
 export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.length > 0;
 
 /**
- * سالم's voice — for the mid-call switch below, and ONLY for that. It
- * briefly had a second use, `/salem`'s typed chat, and the whole detour is
- * worth recording rather than quietly undone.
+ * Two agents, never one with a switch.
  *
- * `/salem` went through two framing mistakes in one session, each corrected
- * on being asked rather than caught by any check here. First: a design
- * canvas explored سالم as a full second CHARACTER, this repository twice
- * ruled that out — «Two choices, not three» in CLAUDE.md — and then,
- * reversing that, `/salem` shipped as if he WERE one: his own name, his own
- * greeting, his own photo, his own headline on `/find`, `SALEM_VOICE_ID` set
- * as a live `tts.voice_id` override. Nothing about the agent backing it had
- * changed to match — still شوق's prompt, still her tools, still her
- * first-person FEMININE grammar throughout, including a `first_message` that
- * says «أنا شوق» — so the first real reply on his own page would have
- * contradicted the page around it. Caught by pulling the live agent config
- * directly and reading what she actually says, not by assuming the plumbing
- * settled the framing question.
+ * سالم has his own ElevenLabs agent: his own prompt, first message, voice,
+ * widget text and overrides. شوق keeps hers. Until 14 October both personas
+ * shared شوق's agent, and his voice came from a mid-call `override-voice-id`,
+ * so his voice spoke her brain — the mix the owner asked to end.
  *
- * First correction kept the voice switch and fixed only the naming: her name
- * and photo in the header, «بصوت سالم» as a badge in the exact words
- * `WAIN_AI_COPY.switchToSalem` already uses for the mid-call button, not a
- * second name. Asked directly afterwards to go further — keep her voice,
- * don't change it — and that is what shipped: `lib/salem-chat.ts` sends no
- * `tts` override at all now, `/salem` and `/find`'s typing half read
- * `WAIN_AI_COPY` only, and this file has no second export for `/salem` to
- * import. `SALEM_VOICE_ID` is back to describing exactly one thing, below.
- *
- * Same id `scripts/gen-voice.mjs` and the live TTS bridge
- * (`scripts/publish/tts-endpoint.php`) already use for him — Eid, Gulf male —
- * so a voice heard on a call and a recorded سالم clip elsewhere are the same
- * speaker, the same rule `docs/voice.md`'s three-way table holds the clips
- * and the bridge to.
- *
- * Only the VOICE changes when this is applied. The brain, the tools, her name
- * in the call sheet — all still شوق's. Conversational AI negotiates a
- * session's voice once, at connect: the widget bundle does expose an
- * `override-voice-id` attribute (verified by extracting
- * @elevenlabs/convai-widget-embed and reading it — elevenlabs.io itself is
- * blocked from this repository's own egress, so the published bundle was the
- * only source available), but it is read into the conversation's *initial*
- * overrides, and nothing in that bundle suggests a value change reaches an
- * already-open session. So "switching" — see WainAiCall — means dropping the
- * current `<elevenlabs-convai>` element and mounting a fresh one with this
- * attribute set, not a live hot-swap mid-sentence.
- *
- * The agent has to PERMIT the override, and for its first days it did not:
- * `platform_settings.overrides.conversation_config_override.tts.voice_id` was
- * `false`, so the reconnect carried an override the agent's own config
- * refuses, and the tap meant to hand the caller to سالم could only end their
- * call. Nothing in this repository can see that setting — it lives on the
- * agent — so it is written here, beside the one line that depends on it.
- * Enabled 27 September. Only `voice_id` is open; model, stability and speed
- * stay locked to the agent's own values.
- *
- * Third pass, on request 30 September: his identity is back — his name, his
- * own portrait (`public/find/salem.jpg`/`salem-face.jpg`, regenerated; the
- * originals were deleted along with the second correction), and this file's
- * `tts.voice_id` override reinstated in `lib/salem-chat.ts`. Asked directly,
- * with the first two corrections' reasoning read back in full first — the
- * agent behind `/salem` is still شوق's, unchanged, first-person feminine
- * grammar throughout, `first_message` still «أنا شوق» — and asked to proceed
- * anyway. That fact does not change here: what shipped is his name and his
- * voice over what she says, not a rewritten prompt. The one thing no session
- * can fix without touching the live agent itself is the transcript's own
- * first line, which still reads «أنا شوق» regardless of the header above it.
- * Recorded so the next person does not read this as the tension having been
- * resolved — it has been accepted, on request, not solved.
- *
- * Fourth pass, 14 October: the typed chat no longer sends this override. Its
- * socket opens with `text_only` and nothing else (`lib/salem-chat.ts`), so a
- * typed session never carried audio and nothing a visitor hears changed. His
- * voice still comes from the mid-call switch, which mounts the widget with
- * this id (`WainAiCall.tsx`), and from the read-aloud bridge's سالم lines
- * (`scripts/publish/tts-endpoint.php`), never from the typed chat.
- * `tests/salem-chat.test.mjs` and
- * `flutter_app/test/salem_chat_test.dart` assert the whole override, so a `tts`
- * key added back under any name fails them.
+ * NOTHING falls back from one id to the other. An unset Salem id means /salem
+ * and his call take the free path, never her agent, and the reverse holds too.
+ * Both ids are public by construction (a static export hands the widget
+ * everything it needs), and each agent is origin-locked to the wainkw.com
+ * hosts. Unset, empty or «none» all mean off, the same `||` rule as above.
  */
-export const SALEM_VOICE_ID = "TbzNVcMOFmKd8tUT5liY"; // Mustafa Abdulla — Kuwaiti male, the owner's pick 3 October (was Eid)
+const salemConfigured = (process.env.NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID || OFF).trim();
+
+export const SALEM_AGENT_ID = salemConfigured.toLowerCase() === OFF ? "" : salemConfigured;
+
+export const SALEM_AGENT_ENABLED = SALEM_AGENT_ID.length > 0;
+
+/** Either agent on: the widget bundle is needed and the quota memory applies. */
+export const WAIN_AI_ANY_AGENT_ENABLED = WAIN_AI_AGENT_ENABLED || SALEM_AGENT_ENABLED;
+
+/** Whose agent a call or a typed chat reaches. */
+export type CallPersona = "shouq" | "salem";
+
+/** The one agent a persona talks to — "" when that agent is off. */
+export function agentIdFor(persona: CallPersona): string {
+  return persona === "salem" ? SALEM_AGENT_ID : WAIN_AI_AGENT_ID;
+}
+
+export function agentEnabledFor(persona: CallPersona): boolean {
+  return agentIdFor(persona).length > 0;
+}
+
+/**
+ * The grammar of what the call's tools say TO the agent on the line.
+ *
+ * Their sentences are instructions to whoever is speaking, so the second-person
+ * forms must be hers or his: «قولي له» and «لا تسكتين» for شوق, «قول له» and
+ * «لا تسكت» for سالم. Until 14 October the tools only ever served her, and the
+ * feminine forms were simply the forms; with two agents, a reply in her
+ * grammar reaches his agent too. `say(fem, masc)` returns the form for the
+ * persona on the line.
+ */
+export function agentSay(persona: CallPersona): (fem: string, masc: string) => string {
+  return (fem, masc) => (persona === "salem" ? masc : fem);
+}
 
 /**
  * سالم's own display identity — his name and role line, matching the shape
@@ -278,8 +247,6 @@ export const WAIN_AI_COPY = {
   // 15 seconds on the ready screen with Start unpressed: the widget's own
   // button is the only way forward and nothing else on the sheet can press it.
   startNudge: "للحين ما بدأت المكالمة — اضغط «بدء مكالمة» تحت.",
-  switchToSalem: "بصوت سالم",
-  switchToShouq: "بصوت شوق",
   ended: "انتهت المكالمة",
   callFailed: "ما قدرنا نوصلك بشوق — جرّب مرة ثانية.",
   // A call that rang out. Said separately from callFailed because the caller
@@ -321,6 +288,35 @@ export const WAIN_AI_COPY = {
   // The call button's label in سالم's header (ShouqCallButton size="pill").
   callShouq: "كلّم شوق",
 } as const;
+
+/**
+ * The call sheet's words for سالم. Only the words that name him, or agree with
+ * him in gender, differ from شوق's — everything else in WAIN_AI_COPY (the mic
+ * messages, the buttons, the widget's own labels) is shared, so the two sheets
+ * cannot drift apart on anything that is not theirs. «نوصّلك بسالم» reads the
+ * same for both; the masculine verbs are where the forms change.
+ */
+const SALEM_CALL_COPY = {
+  name: SALEM_NAME,
+  role: SALEM_ROLE,
+  greeting: SALEM_GREETING,
+  loading: "نجهّز سالم…",
+  answering: "سالم يرد…",
+  connectingLine: "نوصّلك بسالم…",
+  onTheLine: "على الخط — كلّمه عادي",
+  micNote: "يحتاج إذن المايك عشان تكلّمه.",
+  callShouq: "كلّم سالم",
+  callHint: "اضغط عشان تكلّم سالم",
+  callFailed: "ما قدرنا نوصلك بسالم — جرّب مرة ثانية.",
+  agentUnavailable: "سالم مو متاح الحين — اتصل مرة ثانية وأدوّر لك من دليل وين.",
+} as const;
+
+const SALEM_COPY: Record<keyof typeof WAIN_AI_COPY, string> = { ...WAIN_AI_COPY, ...SALEM_CALL_COPY };
+
+/** The words for one persona's call sheet and launcher. */
+export function callCopy(persona: CallPersona): Record<keyof typeof WAIN_AI_COPY, string> {
+  return persona === "salem" ? SALEM_COPY : WAIN_AI_COPY;
+}
 
 /**
  * Where a question handed to سالم came from: her call, or her written answer

@@ -14,14 +14,13 @@ import { chromium } from 'playwright';
  * would have caught it; a navigation to /search alone would not have,
  * because the outer button produced that too.
  *
- * The typing half's identity has moved three times, and this file has
- * asserted a different one of them each time — read `SALEM_VOICE_ID`'s own
- * comment in `lib/wain-ai.ts` for the full account before changing this
- * again. It shipped as سالم's, was corrected to شوق's, and was reversed
- * again on request, 30 September, back to his — his own regenerated photo,
- * his own pill and greeting. The typed chat sent his voice on the wire until
- * 14 October and sends none now. What is real and
- * asserted below: the call half is شوق's, the typing half is سالم's, and the
+ * Since 14 October the two halves are two agents. The call half is شوق's
+ * (NEXT_PUBLIC_ELEVENLABS_AGENT_ID) and the typing half is سالم's
+ * (NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID); lib/wain-ai.ts says why nothing
+ * falls back from one to the other. The earlier reversals of his identity are
+ * in CLAUDE.md, not here.
+ *
+ * What is asserted below: the call half is شوق's, the typing half is سالم's, and the
  * real ShouqCallButton actually places a call rather than only navigating.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';

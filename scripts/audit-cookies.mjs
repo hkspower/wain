@@ -184,9 +184,9 @@ const unmeasured = new Set();
 {
   const bus = await readFile(new URL("../src/lib/wain-ai-bus.ts", import.meta.url), "utf8");
   const injects = bus.includes("script.src = WAIN_AI_WIDGET_SRC");
-  const gated = /if \(!WAIN_AI_AGENT_ENABLED\)\s*\{\s*reject\(/.test(bus);
+  const gated = /if \(!WAIN_AI_ANY_AGENT_ENABLED\)\s*\{\s*reject\(/.test(bus);
   if (!injects) problems.push("wain-ai-bus.ts no longer injects the widget — this check is reading the wrong file");
-  else if (!gated) problems.push("wain-ai-bus.ts: loadWidget no longer refuses when agent mode is off");
+  else if (!gated) problems.push("wain-ai-bus.ts: loadWidget no longer refuses when no agent is on");
   else notes.push("the call widget is injected only by loadWidget(), which refuses when agent mode is off");
 
   /* The rule is about what loads from somewhere else on every page. One inline

@@ -207,7 +207,6 @@ class LocalSession implements AgentSession {
   @override
   Future<void> start({
     required String agentId,
-    String? voiceId,
     required Map<String, ToolHandler> tools,
   }) async {
     // No speech service, or its permission refused: said as a failure while

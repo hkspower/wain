@@ -1,15 +1,12 @@
 /**
- * شوق's typed chat — a minimal, hand-rolled client for ElevenLabs
- * Conversational AI's text-only WebSocket protocol. /salem shows it as سالم;
- * the agent behind it is شوق's and says so in its first message. Whether the
- * page should call her سالم is still the owner's decision (CLAUDE.md, the
- * 14 October shoug scan, decision 1).
+ * سالم's typed chat — a minimal, hand-rolled client for ElevenLabs
+ * Conversational AI's text-only WebSocket protocol. The agent behind it is his
+ * own (`SALEM_AGENT_ID`), never شوق's: the two never share a socket, a prompt
+ * or a voice (14 October, the owner's decision).
  *
- * This socket sends no voice override. It sent `tts.voice_id` as سالم's voice
- * from 30 September until 14 October, when the owner asked for her own voice
- * on the typed chat. A text-only session renders no audio either way, so the
- * change is in what the page sends, not in anything a visitor hears.
- * `SALEM_VOICE_ID` remains the mid-call switch's voice (`lib/wain-ai.ts`).
+ * This socket sends no voice override. His agent speaks in its own voice, and
+ * a text-only session renders no audio anyway. Until 14 October it sent
+ * `tts.voice_id` on شوق's agent, which is the mix that is gone now.
  *
  * Not the `@elevenlabs/client` SDK. Importing just its `TextConversation`
  * still pulls in the SDK's own connection factory, which references
@@ -26,7 +23,7 @@
  * a live agent from this session. Same limitation every ElevenLabs feature in
  * this repository carries; say so rather than claim more.
  */
-import { WAIN_AI_AGENT_ID } from "@/lib/wain-ai";
+import { SALEM_AGENT_ID } from "@/lib/wain-ai";
 import { isQuotaRefusal } from "@/lib/agent-health";
 
 export interface SalemMessage {
@@ -204,13 +201,13 @@ export function startSalemChat({
   clientTools,
   onToolUnavailable,
 }: SalemChatCallbacks): SalemChatHandle {
-  if (!WAIN_AI_AGENT_ID) {
+  if (!SALEM_AGENT_ID) {
     onStatus("error");
     return NOOP_HANDLE;
   }
 
   const url =
-    `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${encodeURIComponent(WAIN_AI_AGENT_ID)}` +
+    `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${encodeURIComponent(SALEM_AGENT_ID)}` +
     `&source=${SOURCE}&version=1`;
 
   let socket: WebSocket;
