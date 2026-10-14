@@ -1,17 +1,15 @@
 /**
  * شوق's typed chat — a minimal, hand-rolled client for ElevenLabs
- * Conversational AI's text-only WebSocket protocol, answering as سالم.
+ * Conversational AI's text-only WebSocket protocol. /salem shows it as سالم;
+ * the agent behind it is شوق's and says so in its first message. Whether the
+ * page should call her سالم is still the owner's decision (CLAUDE.md, the
+ * 14 October shoug scan, decision 1).
  *
- * An earlier version of this page set `SALEM_VOICE_ID` as a `tts.voice_id`
- * override here — cosmetically, since a text-only session never renders
- * audio — then dropped it on request to keep her own voice unchanged. Both
- * of those were correct calls at the time; this is a third pass, not a
- * mistake being repeated: asked again on 30 September, with that history
- * read back first, to bring the override back. It is still cosmetic today
- * (text-only renders no audio either way) and still means something the
- * moment this page ever carries sound — see `SALEM_VOICE_ID`'s own comment
- * in `lib/wain-ai.ts`, which this now shares with `WainAiCall.tsx`'s
- * mid-call switch rather than describing only that one.
+ * This socket sends no voice override. It sent `tts.voice_id` as سالم's voice
+ * from 30 September until 14 October, when the owner asked for her own voice
+ * on the typed chat. A text-only session renders no audio either way, so the
+ * change is in what the page sends, not in anything a visitor hears.
+ * `SALEM_VOICE_ID` remains the mid-call switch's voice (`lib/wain-ai.ts`).
  *
  * Not the `@elevenlabs/client` SDK. Importing just its `TextConversation`
  * still pulls in the SDK's own connection factory, which references
@@ -28,7 +26,7 @@
  * a live agent from this session. Same limitation every ElevenLabs feature in
  * this repository carries; say so rather than claim more.
  */
-import { WAIN_AI_AGENT_ID, SALEM_VOICE_ID } from "@/lib/wain-ai";
+import { WAIN_AI_AGENT_ID } from "@/lib/wain-ai";
 import { isQuotaRefusal } from "@/lib/agent-health";
 
 export interface SalemMessage {
@@ -271,16 +269,12 @@ export function startSalemChat({
     // The one message the server requires before anything else: the
     // overrides this session wants, in the shape `overrides.ts` in the
     // published SDK constructs it. `text_only` is what keeps the server
-    // from ever opening a mic/audio track on its side. `tts.voice_id` is
-    // back — see this file's own header for the third pass that put it
-    // there — and stays cosmetic until this session ever carries audio.
+    // from ever opening a mic/audio track on its side. No voice override:
+    // the agent's own voice applies (see this file's header).
     socket.send(
       JSON.stringify({
         type: "conversation_initiation_client_data",
-        conversation_config_override: {
-          conversation: { text_only: true },
-          tts: { voice_id: SALEM_VOICE_ID },
-        },
+        conversation_config_override: { conversation: { text_only: true } },
         source_info: { source: SOURCE, version: "1" },
       })
     );

@@ -5,10 +5,10 @@
 /// the handshake, `user_message`/`agent_response`, the ping keepalive and an
 /// answer to every tool call — and nothing of the audio stack the SDK drags in.
 ///
-/// The override carries `conversation.text_only` and the `tts.voice_id` of
-/// سالم — the latest decision (his identity is back on /find and /salem). The
-/// agent behind it is still شوق's, prompt and all; that tension is accepted
-/// and recorded in CLAUDE.md, not hidden here.
+/// The override carries `conversation.text_only` and nothing else: no voice
+/// override, so the agent's own voice applies (14 October; the web's header
+/// says the same). The agent is شوق's, prompt and all, and the name the chat
+/// shows is still open — CLAUDE.md records it.
 library;
 
 import 'dart:async';
@@ -140,7 +140,6 @@ ChatHandle startSalemChat({
           'type': 'conversation_initiation_client_data',
           'conversation_config_override': {
             'conversation': {'text_only': true},
-            'tts': {'voice_id': kSalemVoiceId},
           },
           'source_info': {'source': _source, 'version': '1'},
         });

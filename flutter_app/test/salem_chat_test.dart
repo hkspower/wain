@@ -83,8 +83,7 @@ void main() {
       expect(init['type'], 'conversation_initiation_client_data');
       expect(init['conversation_config_override'], {
         'conversation': {'text_only': true},
-        'tts': {'voice_id': kSalemVoiceId},
-      }, reason: 'the latest decision: the typed chat carries سالم voice');
+      }, reason: "no voice override: the agent's own voice (14 October)");
       expect(statuses, [
         ChatStatus.connecting,
       ], reason: 'not "connected" until the agent says so');

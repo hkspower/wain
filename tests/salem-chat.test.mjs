@@ -104,6 +104,11 @@ console.log("\n── a connection that answers in time is not falsely timed out
   const sent = JSON.parse(sock.sent[0] ?? "{}");
   ok("the init message is sent on open", sock.sent.length === 1, JSON.stringify(sock.sent));
   ok("and asks for a text-only session", sent.conversation_config_override?.conversation?.text_only === true, JSON.stringify(sent));
+  // 14 October: the owner's answer to the shoug scan. The typed socket sent
+  // سالم's `tts.voice_id` from 30 September and no longer does; the agent's
+  // own voice applies. The check is on the whole override, not one key, so a
+  // voice added back under any name is caught here.
+  ok("and sends no voice override (her own voice)", Object.keys(sent.conversation_config_override ?? {}).join(",") === "conversation" && !("tts" in (sent.conversation_config_override ?? {})), JSON.stringify(sent));
   // The server stores the source as an enum (`conversation_initiation_source`
   // in the conversations API). This client sent «wain-salem-chat» from the
   // day it was written, and not one typed conversation was ever recorded for

@@ -100,11 +100,10 @@ Each suite was confirmed able to go red by breaking the code it guards.
 * **`/add`** says the back end is not connected instead of showing a form whose
   button does nothing. `supabaseEnabled` is false on the web too; order and
   queue panels render nothing (0 of 52 places satisfy either).
-* **Typed chat** is سالم's: his name, photo and `tts.voice_id` override, as
-  the web is since commit `ba0ae8ce` (see the root `CLAUDE.md`). The agent
-  behind it is still شوق's, so she may introduce herself by her own name; that
-  tension is accepted. His voice id is also used by the mid-call
-  «🔊 بصوت سالم» swap.
+* **Typed chat** sends `text_only` and no voice override (14 October: the
+  owner's answer to the shoug scan; the web matches). The agent is شوق's, and
+  the name the chat shows is still open (root `CLAUDE.md`, 14 October).
+  سالم's voice id is used only by the mid-call «🔊 بصوت سالم» swap.
 * **Voice is off until switched on**, as on the web.
 * **Always light.** The app follows the site's sand, not the phone's dark mode;
   the status bar is set per screen instead (`kChromeOnLight`/`kChromeOnDark`).
