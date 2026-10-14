@@ -4426,8 +4426,11 @@ def theme_state_checks(pg):
     # one radius system on every page: 999 pills, 12 panels, 8 controls, 2 hairlines
     for f in PAGES:
         src = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", (ROOT / f).read_text(), re.S))
-        radii = {int(v) for v in re.findall(r"border-radius:\s*(\d+)px", src)}
-        check(S, f"{f}: radii stay on the four-step system", radii <= {999, 50, 12, 8, 2, 999}, str(sorted(radii - {999, 12, 8, 2})))
+        # a percentage is a radius outside the four steps: 50% passed here before the
+        # portal avatar moved to 999px (borders audit, 2026-10-14, F4)
+        radii = re.findall(r"border-radius:\s*(\d+)(px|%)", src)
+        off = sorted({f"{v}{u}" for v, u in radii if u == "%" or int(v) not in {999, 12, 8, 2}})
+        check(S, f"{f}: radii stay on the four-step system", not off, str(off))
 
 
 def ux_checks(pg):

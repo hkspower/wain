@@ -254,7 +254,7 @@
     /* a computed field reads as one step up, never as a dimmed figure:
        opacity took a near-white total toward grey */
     input[readonly] { background: var(--panel-3); }
-    input.derived { border-color: var(--tint); background: var(--panel-3); }
+    input.derived { border-color: var(--border-input); background: var(--panel-3); }
     /* every amount a field holds, typed or computed, is a figure */
     /* figures in a field read left to right, or a negative total shows its
        sign at the wrong end («25,995.250-»); right-aligned as before */
@@ -284,7 +284,7 @@
        disabled that still reads */
     .btn:hover { background: var(--panel-3); border-color: var(--tint); }
     .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
-    .btn.danger:hover { background: var(--panel-3); border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+    .btn.danger:hover { background: var(--panel-3); border-color: var(--danger); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
     /* the amber ring belongs to the page; the bar keeps its own light ring */
     main .btn:focus-visible, main a:focus-visible, main input:focus-visible, main select:focus-visible,
@@ -497,7 +497,7 @@
     @media print {
       :root { color-scheme: light;
         --bg:#ffffff; --panel:#ffffff; --panel-2:#f1f4f8; --panel-3:#e6ebf1;
-        --border:#d0d7e1; --border-input:#7c858c; --text:#1b2430; --muted:#434d55;
+        --border:#bfc5cc; --border-input:#7c858c; --text:#1b2430; --muted:#434d55;
         --tint:#a36a11;   /* the logo's amber darkened in OKLCH: 4.54:1 on white */
         --on-tint:#ffffff; --stripe:#5a3a09; --sand:#7c4403;
         --good:#02783d; --danger:#ce1925; --info:#1964ce; --warn-bg:#ffffff;

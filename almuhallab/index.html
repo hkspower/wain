@@ -807,6 +807,7 @@
     /* The icon carries the card now that the copy is one line: it sits in its
        own tile at the head of the card, big enough to read at a glance. */
     .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2);
+      border: 1px solid var(--border);
       display: grid; place-items: center; flex: none; }
     .card .tile .ic { width: 21px; height: 21px; }
     .card .chip { margin-top: auto;  line-height: var(--lh-ui); }
@@ -1100,9 +1101,9 @@
        logo's fading amber rule so it reads as the foot of the masthead's
        column. Four columns (who we are, the company, what we do, the system)
        with the real channels written out, not only as icon buttons. */
-    footer { background: var(--panel); border-top: 1px solid var(--border); margin-top: 32px;
+    footer { background: var(--panel); border-top: 0; margin-top: 32px;
       color: var(--muted); font-size: 13px; line-height: 1.9; }
-    footer::before { content: ""; display: block; height: 2px;
+    footer::before { content: ""; display: block; height: 1px;
       background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)); }
     .fcols { max-width: 1060px; margin: 0 auto; padding: 32px 20px 24px;
       display: flex; flex-wrap: wrap; gap: 32px 24px; }
