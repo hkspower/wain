@@ -182,7 +182,7 @@
     [hidden] { display: none !important; }
     /* a checkbox feeds the bulk delete — 24px, the floor for any control.
        Amber, or a near-black tick vanishes into the dark field */
-    input.tick { width: 24px; height: 24px; padding: 0; margin: 0; accent-color: var(--tint); }
+    input.tick { width: 24px; height: 24px; padding: 0; margin: 0; vertical-align: middle; accent-color: var(--tint); }
 
     /* ---------- shell ---------- */
     .shell { display: none; }
@@ -248,7 +248,7 @@
     main { margin: 0 auto; padding: 20px 20px 56px;  line-height: var(--lh-text); }   /* its width: the one-column pass below */
     .tab { display: none; } .tab.on { display: block; }
     h2 { font-size: 18px; margin: 24px 0 12px; }
-    h2:first-child { margin-top: 4px; }
+    h2:first-child { margin-top: 0; }
 
     .banner { background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
       border-radius: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.75; margin-bottom: 16px; }
@@ -261,7 +261,7 @@
        narrowest tile's 154px (186 less its 32px of padding). 20px overran
        it by 15px at 1024 wide */
     .tile .n { font-family: var(--mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
-      line-height: var(--lh-ui); white-space: nowrap; }
+      line-height: var(--lh-ui); white-space: nowrap; text-align: right; }   /* the label's edge; the run stays LTR below */
     .tile .n small { font-size: 13px; font-weight: 700; color: var(--muted); margin-inline-start: 4px; }
 
     /* A SIGNED FIGURE IS AN LTR RUN. Measured in the browser: «+0.000» in a
@@ -283,7 +283,7 @@
     .fig { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
     .fig .cap { margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
-    .fig .plot { direction: ltr; max-width: 640px; margin-inline: auto; }
+    .fig .plot { direction: ltr; max-width: 640px; margin-inline: auto 0; }
     .fig svg { width: 100%; height: auto; display: block; overflow: visible; }
     .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
     .legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; margin-inline-end: 6px; vertical-align: -1px; }
@@ -303,6 +303,7 @@
     /* ---------- tables ---------- */
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
     .toolbar input, .toolbar select { width: auto; min-width: 150px; }
+    .toolbar .bulk { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
     .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
     th, td { padding: 12px 16px; text-align: right; border-bottom: 1px solid var(--border); }
@@ -388,6 +389,9 @@
       /* a signed 7-digit figure («+1,234,567.890») must fit a half-width
          tile: 12px sides and the mono at 17px, drawn in a touch, hold it */
       .tile { padding: 12px; }
+      /* the search takes the row's free width: the status select starts on the gutter, not 12px in */
+      .toolbar input { flex-grow: 1; }
+      .toolbar .bulk { flex-direction: column; align-items: stretch; width: 100%; margin-inline-start: 0; }
       .card { padding: 16px; }
       .tile .n { font-size: 17px; letter-spacing: -.02em; }
       .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
@@ -536,10 +540,11 @@
           <option value="active">نشط</option>
           <option value="suspended">موقوف</option>
         </select>
-        <span class="spacer" style="flex:1"></span>
-        <button class="btn" id="bulk-suspend" disabled>إيقاف المحدد</button>
-        <button class="btn" id="bulk-activate" disabled>تفعيل المحدد</button>
-        <button class="btn danger" id="bulk-delete" disabled>حذف المحدد</button>
+        <div class="bulk">
+          <button class="btn" id="bulk-suspend" disabled>إيقاف المحدد</button>
+          <button class="btn" id="bulk-activate" disabled>تفعيل المحدد</button>
+          <button class="btn danger" id="bulk-delete" disabled>حذف المحدد</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
