@@ -101,7 +101,11 @@
       "mcp__github__delete_file",
       "Bash(git branch -D*)",
       "Bash(git branch -d*)",
-      "Bash(git branch -m*)"
+      "Bash(git branch -m*)",
+      "mcp__plugin_small-business_*",
+      "mcp__Intuit_QuickBooks__*",
+      "mcp__Hostinger_Mail__send_email",
+      "mcp__Hostinger_Mail__messages_delete-bulk"
     ],
     "deny": [
       "Bash(rm -rf /*)",
