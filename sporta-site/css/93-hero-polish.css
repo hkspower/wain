@@ -1,0 +1,210 @@
+/* ------------------------------------------- the hero, polished — 2026-10-14
+ * "full polish for hero images /design". Out of options rendered with their measurements, the
+ * owner chose: the arrows and dots back ON A DARK PILL, with autoplay every 6.5s and a pause
+ * button (the autoplay itself is the `hero` settings row, scripts/publish/publish-hero-polish.php);
+ * and on a computer each slide's headline and Shop button IN THE EMPTY SIDE of the photo.
+ *
+ * WHY THE CONTROLS NEED A PILL. They were hidden on 2026-09-28 with the black band they sat in.
+ * Un-hidden as they were, over the bright studio photos, the idle dots (white at 40%) measured
+ * 1.0-1.1:1 and the arrow icons 2.7-3.0:1: there but unreadable. One dark backing behind the whole
+ * row fixes every control at once and never depends on which picture is behind it.
+ *
+ * WHY THE TEXT MOVES PER SLIDE. The athletes stand in different places (assets/hero-text-side.js
+ * reads where, from the focal point the picture is already drawn with, and marks the slide), so the
+ * headline goes to whichever side is empty. CrossFit has no empty side — the athlete is centred and
+ * the barbell spans the frame — so its text sits on a light card at the left.
+ *
+ * WHERE: the text from 1024px. On phones and tablets the photo fills the box at a size where any
+ * caption would cover the athlete; there the caption stays screen-reader-only (34-hero-band.css),
+ * and the phone's square pictures were made so the controls sit on floor, not on feet. */
+
+/* ---- the controls: one dark pill, every width ---- */
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+  display: flex !important;
+  bottom: 12px !important;
+  padding: 4px 6px;
+  gap: 2px !important;
+  border-radius: 9999px;
+  background: rgb(17 19 22 / 0.78);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.18);
+}
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 18px !important;
+  }
+}
+/* The arrows and pause carried their own translucent disc for sitting on a photo; inside the pill
+ * that would be a second, lighter disc on the dark one. */
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="rounded-full"] {
+  background: transparent !important;
+  color: #fff !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="rounded-full"]:hover {
+  background: rgb(255 255 255 / 0.16) !important;
+}
+/* Idle dots: white at 70% on the pill (3:1 and more against it, whatever photo is behind). The
+ * current one stays the bundle's orange bar, in the brighter brand orange so it reads on the dark. */
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button > span[class~="bg-white/40"] {
+  background-color: rgb(255 255 255 / 0.7) !important;
+}
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[aria-current="true"] > span {
+  background-color: var(--brand-bright, #ff7b17) !important;
+}
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+  border-radius: 9999px;
+}
+/* THE PAUSE BUTTON IS BACK, in the hero's pill only. 06-carousel-drawer-brand-logo.css hides it
+ * everywhere ("remove start and stop button", 2026-09-20). The owner's newer choice, 2026-10-14,
+ * is autoplay WITH a pause button; a slideshow that moves on its own needs a way to stop it
+ * (WCAG 2.2.2). The bundle already pauses on hover and focus and under reduced motion. */
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > [aria-label='إيقاف العرض مؤقتًا'],
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > [aria-label='استئناف العرض'],
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > [aria-label='Pause slideshow'],
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > [aria-label='Resume slideshow'] {
+  display: flex !important;
+}
+/* Touch: the dots are 44px tall to be tapped (06-), which made the pill a 50px slab over the
+ * photo. The pill is drawn behind them instead, 30px tall, and the taps keep their 44px. */
+@media (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]::before {
+    content: '';
+    position: absolute;
+    inset: 7px 0;
+    z-index: -1;
+    border-radius: 9999px;
+    background: rgb(17 19 22 / 0.78);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgb(0 0 0 / 0.18);
+  }
+}
+/* Phones swipe, and autoplay shows there is more: the arrows would make the pill 276px wide on a
+ * 390px screen, over the athlete. Dots and pause only. */
+@media (max-width: 767.98px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 8px !important;
+    padding: 3px 5px;
+  }
+}
+@media (max-width: 767.98px) and (pointer: coarse) {
+  /* the visible pill (::before, inset 7px) then runs from 8px to 38px above the foot */
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 1px !important;
+    padding: 0 6px;
+  }
+}
+@media (max-width: 767.98px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="h-8"]:not(:last-child) {
+    display: none !important;
+  }
+  /* the pause button, last in the row, at the dots' height so the pill stays 30px tall */
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="h-8"]:last-child {
+    height: 24px !important;
+    width: 28px !important;
+    margin-inline-start: 2px !important;
+  }
+}
+
+/* ---- the headline and Shop button, in the empty side, from 1024px ---- */
+@media (min-width: 1024px) {
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    max-width: none !important;
+    align-items: center !important;
+    padding: 0 clamp(40px, 6vw, 120px) !important;
+  }
+  /* undo the screen-reader-only box 34-hero-band.css puts on the caption below 1024px */
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    position: relative !important;
+    display: block !important;
+    width: auto !important;
+    max-width: min(34%, 480px) !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    clip-path: none !important;
+    white-space: normal !important;
+    text-align: start;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div > :not(h1) {
+    display: block !important;
+  }
+  /* physical sides: the picture, and so its empty side, is the same in both languages */
+  section[aria-roledescription="carousel"] [data-sp-side="left"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div,
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    margin-right: auto !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="right"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    margin-left: auto !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    padding: 22px 26px !important;
+    border-radius: 18px;
+    background: rgb(255 255 255 / 0.86);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+    max-width: min(24%, 380px) !important;   /* ends before the athlete's hand at 1280 and 1920 */
+  }
+  /* the card is narrow, so its headline is smaller: the Arabic one ran to four lines at 1280 */
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    font-size: clamp(24px, 2.1vw, 40px) !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    margin: 0 !important;
+    color: #171a1e !important;
+    font-size: clamp(30px, 2.9vw, 54px) !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.01em;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
+    margin: 12px 0 0 !important;
+    color: #3d434b !important;
+    font-size: 17px !important;
+    line-height: 1.45 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+  }
+  /* the shop's own primary button: brand orange, dark text (5.4:1) */
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div > a {
+    display: inline-flex !important;
+    white-space: nowrap !important;
+    align-items: center;
+    gap: 8px;
+    margin: 22px 0 0 !important;
+    min-height: 48px;
+    padding: 0 26px !important;
+    border-radius: 9999px;
+    background: var(--sp-ember-fill, #e0561c) !important;
+    color: #171a1e !important;
+    font-size: 16px !important;
+    font-weight: 700;
+    box-shadow: none !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a:hover {
+    background: var(--brand-bright, #ff7b17) !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a:focus-visible {
+    outline: 3px solid #171a1e;
+    outline-offset: 3px;
+  }
+}

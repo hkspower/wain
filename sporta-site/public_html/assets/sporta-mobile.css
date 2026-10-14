@@ -422,3 +422,46 @@ div:has(> div > h1.product-title) > div.flex-wrap:has(> .btn-primary) > .rounded
   .admin-content .pt-bar button { min-height: 2.375rem; }
 }
 }
+@media (max-width: 767px) {
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+  bottom: 12px !important;
+}
+}
+@media (max-width: 767px) {
+@media (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]::before {
+    inset: 7px 0;
+  }
+}
+}
+@media (max-width: 767.98px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 8px !important;
+    padding: 3px 5px;
+  }
+}
+@media (max-width: 767px) {
+@media (max-width: 767.98px) and (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 1px !important;
+  }
+}
+}
+@media (max-width: 767.98px) {
+@media (max-width: 767.98px) and (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 1px !important;
+    padding: 0 6px;
+  }
+}
+}
+@media (max-width: 767.98px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="h-8"]:not(:last-child) {
+    display: none !important;
+  }
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] > button[class~="h-8"]:last-child {
+    height: 24px !important;
+    width: 28px !important;
+    margin-inline-start: 2px !important;
+  }
+}

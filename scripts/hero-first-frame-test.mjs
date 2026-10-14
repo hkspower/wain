@@ -35,7 +35,8 @@
  *
  * ONE HEADING (2026-10-14). The first slide's title is the home page's <h1>, and the caption was
  * display:none, so the page had none. Exactly one h1 in the accessibility tree, the first slide's
- * title, in both languages; the caption paints nothing and nothing in it takes focus.
+ * title, in both languages; on a phone the caption paints nothing and nothing in it takes focus, and
+ * from 1024px it is drawn in the photo with the shown slide's Shop link focusable (2026-10-14).
  *
  * ONE TOP (2026-10-14). The shell's header had no room for the menu bar (assets/menu-bar.js, inside
  * header.app-header since 2026-10-02), so the hero dropped 43-46px when React mounted. At
@@ -220,6 +221,11 @@ async function onePicture() {
           seen: window.__seen, lcp: window.__lcp,
           rect: r && { left: r.left, top: r.top, width: r.width, height: r.height },
           bridge: sec ? getComputedStyle(sec).backgroundImage.replace(location.origin, '') : '',
+          // what is drawn OVER the picture once the app mounts (css/93-hero-polish.css, 2026-10-14):
+          // the controls' pill and, from 1024px, the headline. Not the picture; masked out below.
+          overlays: sec ? [sec.querySelector(':scope > div.absolute.bottom-2'), sec.querySelector('[aria-hidden="false"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div')]
+            .filter((e) => e && e.getClientRects().length && getComputedStyle(e).clipPath !== 'inset(50%)')
+            .map((e) => { const q = e.getBoundingClientRect(); return { left: q.left - 6, top: q.top - 6, right: q.right + 6, bottom: q.bottom + 6 } }) : [],
         }
       })
       const final = st.final
@@ -244,6 +250,24 @@ async function onePicture() {
       check(frames.length > 5 && !!st.rect, `${L} the screencast recorded the visit`, `${frames.length} frames`)
       if (frames.length > 5 && st.rect) {
         const g = await grids(dec, frames, st.rect, opts.viewport.width)
+        // The pill and the headline appear at mount and the shell has neither, so the cells they
+        // cover are not compared: each is replaced, in every frame and the reference alike, by the
+        // mean of its row's other cells. An empty frame stays flat; a photo frame stays the photo.
+        // (Hiding them with an injected style was tried first and changed what it measured: a
+        // blank frame appeared on a phone's return visit that the page without it never shows.)
+        const vh = opts.viewport.height, y0 = st.rect.top + 12, hh = Math.min(st.rect.height, vh - st.rect.top) - 12
+        const mask = Array.from({ length: 16 * 6 }, (_, i) => {
+          const gx = i % 16, gy = Math.floor(i / 16)
+          const cx0 = st.rect.left + gx * st.rect.width / 16, cx1 = cx0 + st.rect.width / 16, cy0 = y0 + gy * hh / 6, cy1 = cy0 + hh / 6
+          return st.overlays.some((o) => o.left < cx1 && o.right > cx0 && o.top < cy1 && o.bottom > cy0)
+        })
+        for (const fr of g) for (let gy = 0; gy < 6; gy++) {
+          const keep = [...Array(16).keys()].filter((gx) => !mask[gy * 16 + gx]).map((gx) => fr.cells[gy * 16 + gx])
+          if (!keep.length || keep.length === 16) continue
+          const m = [0, 1, 2].map((c) => keep.reduce((t, v) => t + v[c], 0) / keep.length)
+          for (let gx = 0; gx < 16; gx++) if (mask[gy * 16 + gx]) fr.cells[gy * 16 + gx] = m
+        }
+        check(st.overlays.length >= 1, `${L} the controls drawn over the picture were found and masked`, `${st.overlays.length} overlay(s), ${mask.filter(Boolean).length} of 96 cells`)
         const ref = g[g.length - 1].cells
         let firstMatch = -1, other = [], gaps = []
         for (const [i, fr] of g.entries()) {
@@ -318,8 +342,15 @@ async function oneHeading() {
         .filter((e) => (e.tagName === 'A' || e.tabIndex >= 0) && e.getClientRects().length && !e.closest('[aria-hidden="true"]'))
       return { box: r ? Math.round(r.width) + 'x' + Math.round(r.height) : null, painted: h ? getComputedStyle(h.parentElement).clipPath : '', focusable: focusable.length }
     })
-    check(cap.painted === 'inset(50%)', `heading ${name} ${lang}: the caption paints nothing (screen-reader-only)`, JSON.stringify(cap))
-    check(cap.focusable === 0, `heading ${name} ${lang}: nothing in the hero's caption can take focus`, String(cap.focusable))
+    if (name === 'phone') {
+      check(cap.painted === 'inset(50%)', `heading ${name} ${lang}: the caption paints nothing (screen-reader-only)`, JSON.stringify(cap))
+      check(cap.focusable === 0, `heading ${name} ${lang}: nothing in the hero's caption can take focus`, String(cap.focusable))
+    } else {
+      // from 1024px the owner chose the headline and Shop button IN the photo (2026-10-14):
+      // drawn, and the shown slide's Shop link is the one thing in the caption that takes focus
+      check(cap.painted !== 'inset(50%)' && /^[1-9]\d+x[1-9]\d+$/.test(cap.box || ''), `heading ${name} ${lang}: the caption is drawn in the photo (1024px and up)`, JSON.stringify(cap))
+      check(cap.focusable === 1, `heading ${name} ${lang}: only the shown slide's Shop link takes focus`, String(cap.focusable))
+    }
     await ctx.close()
   }
 }

@@ -140,6 +140,7 @@
     "make:file-manifest": "node scripts/make-file-manifest.mjs",
     "test:file-manifest": "node scripts/make-file-manifest.mjs --check",
     "make:hero-polish-table": "node scripts/make-hero-polish-table.mjs",
+    "test:hero-polish": "node scripts/hero-polish-test.mjs",
     "test:hero-polish-table": "node scripts/make-hero-polish-table.mjs --check",
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",

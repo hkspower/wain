@@ -762,3 +762,127 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
     box-shadow: 3.5rem -1px 0 0 var(--sp-pc-bg, #1b1d20), 3.5rem 0 0 0 var(--sp-pc-border, #494e54);
   }
 }
+@media (min-width: 768px) {
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+  bottom: 12px !important;
+}
+}
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 18px !important;
+  }
+}
+@media (min-width: 768px) {
+@media (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]::before {
+    inset: 7px 0;
+  }
+}
+}
+@media (min-width: 768px) {
+@media (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]::before {
+    inset: 7px 0;
+  }
+}
+}
+@media (min-width: 768px) {
+@media (max-width: 767.98px) and (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 1px !important;
+  }
+}
+}
+@media (min-width: 768px) {
+@media (max-width: 767.98px) and (pointer: coarse) {
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: 1px !important;
+  }
+}
+}
+@media (min-width: 1024px) {
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    max-width: none !important;
+    align-items: center !important;
+    padding: 0 clamp(40px, 6vw, 120px) !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    position: relative !important;
+    display: block !important;
+    width: auto !important;
+    max-width: min(34%, 480px) !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    clip-path: none !important;
+    white-space: normal !important;
+    text-align: start;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div > :not(h1) {
+    display: block !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="left"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div,
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    margin-right: auto !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="right"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    margin-left: auto !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    padding: 22px 26px !important;
+    border-radius: 18px;
+    background: rgb(255 255 255 / 0.86);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+    max-width: min(24%, 380px) !important;
+  }
+  section[aria-roledescription="carousel"] [data-sp-side="centre"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    font-size: clamp(24px, 2.1vw, 40px) !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    margin: 0 !important;
+    color: #171a1e !important;
+    font-size: clamp(30px, 2.9vw, 54px) !important;
+    font-weight: 800 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.01em;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
+    margin: 12px 0 0 !important;
+    color: #3d434b !important;
+    font-size: 17px !important;
+    line-height: 1.45 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div > a {
+    display: inline-flex !important;
+    white-space: nowrap !important;
+    align-items: center;
+    gap: 8px;
+    margin: 22px 0 0 !important;
+    min-height: 48px;
+    padding: 0 26px !important;
+    border-radius: 9999px;
+    background: var(--sp-ember-fill, #e0561c) !important;
+    color: #171a1e !important;
+    font-size: 16px !important;
+    font-weight: 700;
+    box-shadow: none !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a:hover {
+    background: var(--brand-bright, #ff7b17) !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a:focus-visible {
+    outline: 3px solid #171a1e;
+    outline-offset: 3px;
+  }
+}

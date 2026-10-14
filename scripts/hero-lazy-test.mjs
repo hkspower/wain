@@ -10,11 +10,11 @@
  *   PHONE (a touch device can swipe, so the slider can move): after `load` the current slide and its
  *   two neighbours (the wrap-around one included) are fetched, and NEITHER neighbour starts before
  *   the window's load event; "Next" fetches the new neighbour.
- *   DESKTOP AS THE LIVE SHOP IS (autoplay off, arrows and dots hidden, no touch): only the slide on
- *   screen is fetched — the 2026-10-02 version fetched both neighbours (+192 kB) for a slider nobody
+ *   DESKTOP WITH NO WAY TO MOVE (autoplay off, arrows and dots hidden — the live shop until
+ *   2026-10-14, recreated with a style): only the slide on screen is fetched — the 2026-10-02 version fetched both neighbours (+192 kB) for a slider nobody
  *   could move. If it moves anyway, the new slide and then its neighbours load.
- *   DESKTOP WITH AUTOPLAY ON, and DESKTOP WITH THE CONTROLS DRAWN: the neighbours are fetched again,
- *   after load — read from the page's real state, so the owner bringing either back just works.
+ *   DESKTOP WITH AUTOPLAY ON, and DESKTOP WITH THE CONTROLS DRAWN (the shop since 2026-10-14): the
+ *   neighbours are fetched, after load — read from the page's real state.
  *   Everywhere: the slide on screen is never a deferred (hidden) picture and has its bytes.
  */
 import { chromium, devices } from 'playwright'
@@ -24,7 +24,9 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0
 const check = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${extra ? '   ' + extra : ''}`) }
 const strip = (o) => { const c = { ...o }; delete c.defaultBrowserType; return c }
-const SHOW_CONTROLS = '<style>section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]{display:flex!important}</style>'
+// The controls are drawn by default since 2026-10-14 (css/93-hero-polish.css). The no-way-to-move
+// case is still worth holding, for a shop that hides them again: HIDE_CONTROLS recreates it.
+const HIDE_CONTROLS = '<style>section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"]{display:none!important}</style>'
 
 const saved = snapshotHero()
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium' })
@@ -34,10 +36,10 @@ try {
   const around = (cur) => [ids[(cur - 1 + ids.length) % ids.length], ids[cur], ids[(cur + 1) % ids.length]]
   const fmt = (a) => [...new Set(a)].sort((x, y) => x - y).join(',')
 
-  async function visit(nm, dev, { controls = false } = {}) {
+  async function visit(nm, dev, { hideControls = false } = {}) {
     const ctx = await browser.newContext({ ...dev, serviceWorkers: 'block' })
-    if (controls) await ctx.route((u) => new URL(u).pathname === '/', async (route) => {
-      const r = await route.fetch(); const h = (await r.text()).replace('</head>', SHOW_CONTROLS + '</head>')
+    if (hideControls) await ctx.route((u) => new URL(u).pathname === '/', async (route) => {
+      const r = await route.fetch(); const h = (await r.text()).replace('</head>', HIDE_CONTROLS + '</head>')
       await route.fulfill({ response: r, body: h, headers: { ...r.headers(), 'content-length': String(Buffer.byteLength(h)) } })
     })
     const p = await ctx.newPage(); const got = new Set()
@@ -66,9 +68,9 @@ try {
     check(s && s.id === ids[1] && !s.deferred && s.h > 0, 'phone: the slide on screen is shown with its picture loaded', JSON.stringify(s))
     await v.ctx.close()
   }
-  // ---- desktop as live: cannot move
+  // ---- desktop with no way to move (the controls hidden, as the live shop was until 2026-10-14)
   {
-    const v = await visit('desktop', { viewport: { width: 1280, height: 900 } })
+    const v = await visit('desktop', { viewport: { width: 1280, height: 900 } }, { hideControls: true })
     check(fmt([...v.got]) === String(ids[0]), 'desktop, autoplay off and no controls: only the slide on screen is fetched', `${fmt([...v.got])} of ${ids.length}`)
     const s0 = await v.shown()
     check(s0 && s0.id === ids[0] && !s0.deferred && s0.h > 0, 'desktop: the slide on screen is shown with its picture loaded', JSON.stringify(s0))
@@ -88,9 +90,9 @@ try {
     await v.ctx.close()
     setHero({ size: 'full', autoplay: false })
   }
-  // ---- desktop with the controls drawn
+  // ---- desktop as the shop is now: the controls drawn (2026-10-14)
   {
-    const v = await visit('desktop-controls', { viewport: { width: 1280, height: 900 } }, { controls: true })
+    const v = await visit('desktop-controls', { viewport: { width: 1280, height: 900 } })
     check(fmt([...v.got]) === fmt(around(0)), 'desktop with arrows and dots drawn: the two neighbours are fetched after load', fmt([...v.got]))
     await v.ctx.close()
   }
