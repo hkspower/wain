@@ -117,7 +117,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Every colour is a CSS custom property in one `:root` block. **All pages must
   carry the identical token set** — divergence between pages has been a real bug
   before. That includes a colour at an alpha: the amber and the ground are
-  `--tint-a0 … --tint-a90` and `--bg-a0`, `--bg-a28` (2026-10-08: 42 `rgba()`
+  `--tint-a0 … --tint-a55` and `--bg-a0`, `--bg-a28` (2026-10-08: 42 `rgba()`
   literals had to be found by hand at every change of ink), and the suite
   fails on an amber or ground literal outside `:root`. Never `color-mix()`:
   Chromium serialises it as `color(srgb …)`, and the theme scan reads only
@@ -163,7 +163,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   every character, misses the glyph, and the browser skips to the next family
   instead of the Latin file. The suite asks the engine what actually painted
   (`CSS.getPlatformFontsForNode`). Redirect stubs load no webfont at all.
-- **The logo's own marks are the page's ornaments** (scan of `design/logo-en`, 2026-10-07): every rule (masthead foot on all four bars, section rule, footer top) is the logo's CODE rule, amber at .55 fading to 0; every cursor is the logo's block, `.47em` x `1em`, amber at .85; the flagship row's edge carries the logo's stripe at its proportion, band 2 of every 7 (kit: 2.05 in 7.16); one focal glow per page at the logo's halo, amber .32, sigma .19 of the mark (masthead wordmark 8px on index, the English hero line on the portal, the anchor on the system and console). Tagline tracking (.3em) is not applied to the Arabic kickers: letter-spacing breaks Arabic joining.
+- **The logo's own marks are the page's ornaments** (scan of `design/logo-en`, 2026-10-07): every rule (masthead foot on all four bars, section rule, footer top) is the logo's CODE rule, amber at .55 fading to 0; every cursor is the logo's block, `.47em` x `1em`, amber at .85; the flagship row's edge carries the logo's stripe at its proportion, band 2 of every 7 (kit: 2.05 in 7.16); one focal glow per page at the logo's halo, amber .32, sigma .19 of the mark (masthead wordmark 10px at 336px and 8px at 280px on index, the English hero line on the portal, the anchor on the system and console). The lit heads of the code rain carry no glow: each had one at .9, so the company page had 47 focal glows (glow audit, 2026-10-14). `glow_checks` in the suite counts them: at most one focal glow per page, and no raised glow above .18 at rest. Tagline tracking (.3em) is not applied to the Arabic kickers: letter-spacing breaks Arabic joining.
 - **There is one theme, and it is dark** (owner's choice 2026-10-07, «Dark,
   like the logo», reversing the white rule of 2026-07): `color-scheme: dark`
   on `:root` and no `prefers-color-scheme` block, so a device set to light
@@ -284,7 +284,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   an offer under "our work" presents it as something already delivered.
 - **No em dash anywhere a visitor reads** (owner's word, 2026-10-07): use
   «:» for a label, «،» or «.» in a sentence, «·» between names, «|» in a
-  title, «-» in an empty cell. Comments may keep theirs. Pinned by the suite.
+  title, «-» in an empty cell. Comments may keep theirs. The markdown the host serves (README, SECURITY, docs/*.md) is read by visitors too, so it carries none (2026-10-14).
 - **One numeral system across the whole site**, not just the company page:
   placeholders read «٨ أحرف» and the not-found page was titled ٤٠٤ while every
   figure beside them was Latin. Pinned per page.
@@ -452,7 +452,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 956 checks covering
+- `python3 design/test_suite.py` is the full system test — 957 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -684,6 +684,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **Dates in generated filings must be computed in UTC** and anchored to the
   first of the opening month. Local-midnight parsing shifts the date east of
   Greenwich, and subtracting months from a 31st overflows into the wrong month.
+- **This container cannot reach the host** (2026-10-14: the egress proxy refused the CONNECT with 403). A host scan is therefore a scan of the deploy set: `git ls-files almuhallab` minus `.htaccess`, the same set `design/deploy/hostinger_deploy.sh` ships (`find . -type f ! -name .htaccess`). A deploy needs the Hostinger hosting connector (hosa) authorized in the claude.ai connector settings; in a session where it is not loaded, the deploy waits for the owner or for a session that has it.
 - **The live site is on Hostinger, not GitHub Pages** (found 2026-09-28): `almuhallab-code.com`
   is an addon domain on account `u130124229`, LiteSpeed, web root
   `domains/almuhallab-code.com/public_html` — which also holds `discs/` (a live
@@ -900,3 +901,5 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **A lossless PNG is measured against the smallest encoding, not Pillow's default.** `optimize=True` was never the smallest. `design/png_store.py` tries the candidates and keeps the smallest that decodes to the same pixels; every PNG a generator writes goes through it, and the suite holds each shipped PNG to within 1% of that. A PNG's colour mode is part of its bytes: the full-bleed icons are RGB, and a render converted to RGBA grew them by 3 to 5%.
 - **A coarse-pointer rule comes after the rule it overrides.** The company's contact links had their touch target written before the base rule that overrode it, so above 640px it never applied (36.7px). Measure at 844×390 with a coarse pointer, not only at phone widths.
 - **Dead declarations are found by the cascade, not by reading.** A declaration that matched many elements and won none can go with no visual change. Count matches and wins over every rule with `getComputedStyle`, then delete.
+- **A glow repeated per element is a glow per page.** The code rain's lit heads each carried a 0.9-alpha, 10px amber glow. Each one was a focal glow, so the company page had 47 where the rule allows one. The scan found it by counting every computed shadow on the rendered page (`getComputedStyle`), not by reading the rule. The suite now counts them too.
+- **The alpha tokens are named for use, and an unused one is dead.** `--tint-a90` existed only for the rain's lit glyph; with the glow gone it was removed from all four pages together, so the token set stays identical.
