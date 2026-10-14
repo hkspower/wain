@@ -1,7 +1,7 @@
 {
  "car": "zeta-300-gtr",
  "tier": "ultra",
- "served": "production build",
+ "served": "dev server",
  "roll": -0.94,
  "pitch": 0.93,
  "yaw": 32.1,

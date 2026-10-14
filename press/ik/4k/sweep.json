@@ -1,7 +1,7 @@
 {
  "car": "zeta-300-gtr",
  "tier": "ultra",
- "served": "production build",
+ "served": "dev server",
  "roll": -1.01,
  "pitch": 1.1,
  "yaw": 0.7,
@@ -23,7 +23,7 @@
   2160
  ],
  "scene": "Ras Al-Ard at 120 km/h, wheel straight",
- "lat": -1.741940838742725,
+ "lat": -1.7419408387427386,
  "rivalLat": 1.75,
  "rival": "storm-s8",
  "rivalRoll": -0.94,
