@@ -5001,3 +5001,46 @@ None is a runtime dependency. By kind: 25 doc, 3 historical, 12 config, 15 test.
 **Next:** (1) the owner says whether the live shop should be in its current state or should receive the repository;
 (2) a read-only probe of `api/setup-admin.php`; (3) the owner says whether `cron-all.php` is theirs; (4) the scan
 decisions above, PROF-01 to PROF-05 and UP-1 and UP-2 first, then the fixes under the auto-deploy rule with tests.
+
+## Verification of the 27 high-severity claims, 2026-10-14 — final, supersedes the PARTIAL section above
+
+Three independent verifiers per claim, each reproducing it in the sandbox (`127.0.0.1:4300`, repository HEAD `1ff979e`), majority vote. **Result: CONFIRMED 23, PARTIAL 4, REFUTED 0.** Nothing was edited in the repository. The evidence is local scratch outside the checkout and is not committed.
+
+Votes that were not unanimous (2 of 3) are marked **(split)**. Every item with `needsOwner` is marked **(owner)**: the fix needs the owner's wording or choice before code.
+
+**Confirmed, fix is clear (no owner decision needed):**
+- **PUB-01** — public POST routes accept cross-site `text/plain` requests. A visitor's browser can place a real COD order that queues a confirmation mail to any address. Only `customer_*` routes have the same-origin JSON gate (`api/api.php:570-574`). Fix first.
+- **AUTH-01** — the TOTP second factor ignores the five-strike account lock. `store_login_code` (`api/store.php:3057`) does not select `locked_until`.
+- **AF-04** — `card_settled` accepts a bank reference already attached to another order. The UPDATE has no uniqueness check and no `rowCount` check (`api/admin.php:1226-1262`).
+- **ADM2-01** — the audit log keeps CBK gateway secrets in plaintext, and every admin can read them.
+- **TH-01** — panel theme cards overwrite each other's saves (lost update). `theme-colors.js:258-262` sends the load-time snapshot.
+- **F01** — the Expo `saveProduct` (`src/lib/admin.ts`) sends no `featured`, `featured_sort`, `image`, `images` or sale dates, and the save clears them.
+- **F02** (split) — the hero on/off switch (`hero-slides.js` `setActive`) posts only `{id, active, focal_y}`, wiping title, subtitle and CTA.
+- **P01** — `/returns` link drops `?lang=en`. An English shopper lands on the Arabic request form, which is saved as Arabic (`returns-link.js:44`).
+- **P02** — category pages ignore a saved English choice, and `?lang=en` overrides a saved Arabic one (`category.php:75` reads only `$_GET`).
+- **P03** — the category language switch does not write `localStorage` before navigating.
+- **LANG-02** — home Best sellers link to `/product/<slug>` without `?lang=en` (`home-products.js:166`). An English shopper lands on the Arabic product page.
+- **P11** — the Terms "last changed" date stays on the bundle's date after an owner edit of the legal text (`legal-pages.js`).
+
+**Confirmed, owner decision needed first (the scanner marked these `needsOwner`):**
+- **P04** (owner) — Privacy §5 says "this site sets no cookies at all". False for any shopper who creates an account or signs in.
+- **P05** (owner) — WhatsApp delivery-update promises on several pages and in checkout, with nothing queued unless the token and templates are configured. Configure it, or change the copy.
+- **P06** (owner) — returns rules contradict each other across About, Returns, Terms and the form. The server does not enforce the policy. The owner picks one rule.
+- **P07** (owner) — the refund promise cannot be kept for cash-on-delivery orders, and T-Pay is not named. There is no refund process in code.
+- **P08** (owner) — Privacy and Terms say KNET is processed by CBK's page. In `legacy` mode the shopper is sent to KNET's own gateway. The owner confirms the live mode.
+- **P09** (owner, split) — Privacy §1 says "we ask only for what a driver needs" and lists four data kinds. The shop also holds email, account data, size measurements, reviews and a phone blocklist.
+- **P10** (owner) — "remember my address" is ticked by default and saves name, phone, email and note, not only the address. The default lives in the bundle, so changing it needs a rebuild or an overlay.
+- **P12** (owner) — Terms §2 says an order is confirmed once payment is captured, which is not true for COD. Scanner verdict PARTIAL (see below).
+- **price-decimal-comma** (owner, split) — a decimal comma typed in a money box saves the price ten times too high. Needs one reading of `,` for every money field, enforced server-side.
+- **category-women-bypass** — PARTIAL (see below). Category is free text, so a women's garment saved as "Women" loses the women's no-exchange rule. The fix is a fixed category list, chosen by the owner.
+- **THEME-01** (owner, split) — owner-uploaded fonts never render on the live shop. The storefront CSP (`.htaccess:796-800`) has no `data:` in `font-src`. Three options: allow `data:`, serve uploads as files, or remove the feature.
+- **ADM2-03** (owner) — restore's preview token is computed by the client, so a forged file passes without a preview, and a restore can replace the whole admin list. The server-issued token is clear; the step-up re-authentication is the owner's choice.
+- **LANG-01** (owner) — category pages ignore the saved English choice (same family as P02/P03). The scanner marked the carry-over mechanism as the owner's choice.
+
+**PARTIAL (the defect is real, the scanner's wording was too broad in part):**
+- **P12** — the COD confirmation claim is false; the scope of the "confirmed once payment" wording needs the owner's rule.
+- **LANG-06** — a shopper whose browser blocks site data gets a blank storefront. The unguarded `localStorage` read is in the compiled bundle and in `assets/cart-motion.js:27`. Not a language fault; found on the contract path.
+- **cost-garbage-zero** — a non-numeric PO or variant cost is saved as `0.00`, and `po_receive` then writes that zero over the product's cost (`admin.php:2233`, `:2635`). The fix is clear once the comma rule above is settled.
+- **category-women-bypass** — see above; the rule itself needs the owner.
+
+**What this means for the fix order.** The clear list (PUB-01, AUTH-01, AF-04, ADM2-01, TH-01, F01, F02, P01, P02, P03, LANG-02, P11, plus the non-owner part of cost-garbage-zero) goes first under the auto-deploy rule, each with a test and a mutation check. The owner-decision list waits for the owner's answers. The product-page scan (`wf_eb5262cb-c27`) was still running at the time of writing and is recorded in a later section.
