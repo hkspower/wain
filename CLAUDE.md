@@ -7492,3 +7492,61 @@ The web reader and the Dart reader share their lists by port, so A and B land in
 **Decisions for the owner.** (1) The typed chat's name: شوق or سالم (finding 5)? (2) Keep سالم's voice id on the typed socket, or remove it (finding 7)? (3) One question per free call, or follow-ups? And should read-aloud switch on for good (finding 8)? (4) An idle timeout on the typed socket (A)? And should origin enforcement come back, which the 1 October decision turned off? (5) Build `gap_report` now (G)? (6) Which of D, E and F first, and when the credits allow it? (7) Were the 9 October calls yours (finding 3)?
 
 **Cleanup.** The eight probe jobs for the redirect scan were deleted after their output was read. The crontab afterwards held sporta's ten standing jobs and `0fkXcI5UFt`, and nothing of ours.
+
+## The owner's answers to the 14 October scans — what was built, what was asked
+
+The scan report ended with numbered decisions. The owner answered `1 apex 2 keep 3 salem 4 no just shoug 5 no 6 unlemit 7 yes 8 no need`. The readings, and where each stands:
+
+| Decision | Answer | Reading | State |
+|---|---|---|---|
+| Redirect 1: the apex (R-A) | apex | Restore the apex → www 301 | Built; not deployed |
+| Redirect 2–3: `/areas/`, `/shoug/`, `/hangout/`, `/call-center/` (R-B, R-C) | keep | No change | Nothing to do |
+| Shoug 1: the typed chat's name | salem | The typed chat should be called سالم | Not built: the mechanism is open (below) |
+| Shoug 2: سالم's voice on the typed socket | no, just شوق | Remove the override; her own voice | Built; repo only |
+| Shoug 4: idle timeout, origin enforcement | no | Neither | Nothing to do |
+| Shoug 3: one question per free call, or follow-ups | unlemit | Follow-ups unlimited | Design below; waits for a yes |
+| Shoug 5: build `gap_report` now | yes | Build it | Built; not deployed, not repointed |
+| Shoug 7: were the 9 October calls the owner's | no need | Do not investigate | Nothing to do |
+| Shoug 6: which of D, E, F first, and when credits allow | (no answer) | — | Nothing started |
+
+Read-aloud staying on after a free call (shoug 3, second half) was not answered, so it stays as it is.
+
+**Built, and what proved each one.**
+
+- **The apex redirect.** `public/.htaccess` has the block from `2e299e56` back, with its comments: `RewriteEngine On`, the host condition `^wainkw\.com$` (the bare apex only, so `staging.` and `hub.` never match), `/api/` excluded (a 301 drops a POST body), and `RewriteRule ^(.*)$ https://www.wainkw.com/$1 [L,R=301]`. `scripts/audit-htaccess.mjs` now holds the block to that shape: it must be the file's only rewrite, and it fails if the host condition, the `/api/` exemption or the target goes. Proved red with two sabotages (exemption dropped; host loosened) and green on the file. **Not deployed**: the live apex answers 200 until a site deploy carries this file.
+- **The typed chat sends no voice override.** `src/lib/salem-chat.ts` and `flutter_app/lib/ai/salem_chat.dart` send `conversation_config_override: {conversation: {text_only: true}}` and nothing else. The mid-call switch keeps `SALEM_VOICE_ID`. Proved: `tests/salem-chat.test.mjs` 76 of 76, and with the override put back 75 passed and 1 failed. `flutter test test/salem_chat_test.dart` 12 of 12, and with the override put back it fails. `flutter analyze` is clean on both files. The live agent is unchanged (no `agents_update`), so the record and the code agree without a test cycle.
+- **`gap_report`, server side only.** In `scripts/publish/wain-api.php`:
+  - `gap_report {asked 2–120, area ≤80, offered ≤120, source call|salem|search (default call)}` is public, answers `{ok: true}` and nothing else, and sits under the per-address write cap.
+  - `gaps_list` is admin: the newest 200 rows and the total.
+  - A `gaps` table (the dialect both engines run), with an index on `created_at`. A report deletes rows more than 30 days old. **Thirty days is my default, copied from the votes table. The owner has not set a retention.**
+  - Before anything is stored, seven or more digits (either numeral set, at most one space or dash between them) become `[رقم]`, and an address-shaped token becomes `[بريد]`. That is a pattern, not a guarantee: a number said in words is kept.
+  - The log line is `a=gap_report id=<8 hex> src=<source>`. The question is never logged. `logline()` drops every non-ASCII byte, so the check uses an ASCII word: an Arabic-only check would pass by accident.
+  - The selftest gains an insert-and-read step (ten steps).
+  - The Postgres twin is a `gaps` block in `scripts/gen-schema.mjs`. The regenerated `supabase/schema.sql` adds exactly those 30 lines. RLS is on, anonymous access is revoked, and admins read.
+  - Proved: `test:wain-api` 184 of 184, with 12 new checks. With the masking and the logging sabotaged, 182 passed and 2 failed, and the two failures are the two named checks. `audit:schema` is green. `audit:rls` covers 8 tables. `test:db` is 38 of 38 with the Postgres binaries on PATH. `docs/backend.md` lists both actions and the rules above.
+
+**Not done, and why.**
+
+- **The repoint.** The agent's `report_gap` tool still posts to `https://sportake.app.n8n.cloud/webhook/wain-gap`. The repoint is one `agents_update_tool` call to `https://www.wainkw.com/api/wain.php?a=gap_report`, with the body kept as it is (`asked`, `area`, `offered`; `source` defaults to `call`). It waits for the back end to be installed, a site deploy, and the owner's yes.
+- **`/privacy`.** It says nothing about the `gaps` table. The sentence goes in with the deploy that carries the repoint, because the live site sends nothing to it until then.
+- **Deploy.** Nothing here is on the live site. R-D (`/index.html`) and R-E (the dot-path test) were not in the answers and are not done.
+
+**Still open, with the facts behind them.**
+
+- **The typed chat's name (shoug 1).** The live agent's `platform_settings.overrides` refuses `agent.first_message` and `agent.prompt.prompt` (read from `docs/agent-live/shouq-agtvrsn_6801m4ass4apec1v9apsx2svzscw.json`), so a session cannot give her another first message or prompt. Its `dynamic_variables` placeholder list is empty, so no variable exists yet. The options:
+  - **A.** A channel-aware name through dynamic variables. The first message and the prompt take placeholders, the typed client sends the value at session start, and the call sends its own. This is a live change: a prompt edit, the 25-test cycle, and a credit balance check first (a suite cost 7–9K credits). **Not verified**: whether the typed client can send `dynamic_variables` at session start. The SDK package could not be fetched in this session, so that check is still to do.
+  - **B.** Keep شوق as the name everywhere. Copy only: `/find`, `/salem` and the speech-off button stop saying سالم. It reverses the 29 September reversal.
+  - **C.** Leave it. The page says سالم, and her own first message says «أنا شوق». Finding 5 of the scan is the cost.
+- **Follow-ups on the free call (shoug 3).** Designed, not built. After the spoken answer the sheet stays open with the answer and a 48px «اسأل مرة ثانية», which starts recognition inside its own tap, because iOS needs a gesture for every start. Today the sheet closes after 700 ms and pushes `/search?q=…` (`WainAiCall.tsx`, `ANSWER_MS`). The change touches `WainAiCall.tsx`, `tests/shouq-flow.test.mjs`, `flutter_app/lib/ai/call_controller.dart` and `call_overlay.dart`, and it is a design change: it needs a yes first.
+- **Read-aloud after a call.** The free call writes the read-aloud preference to `localStorage` (`writePref` in `src/lib/voice.ts`), so one call turns it on for every later search on that device. Not answered; it stays as it is.
+- **The agent test cycle (shoug 6, D, E, F).** Not started. Needs the balance checked first.
+
+**The deploy, when the owner says yes.** The order matters.
+
+1. Install the back end on both stages first, by the recorded fetch-pin-run route. `selftest` must print ten steps, `ok` and `cleaned`, and `migrate` creates `gaps`.
+2. Add the `/privacy` sentence in the same change as the release, so the archive carries it.
+3. **Release with the agent variables, because the live site is the agent build:** `NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116 NEXT_PUBLIC_WAIN_TTS_URL=none npm run release`. A free build would switch the agent off on the live site. Scan that build under the same variables (`scan`, then `test:widget-csp`).
+4. Commit the archive, `deploy:plan`, one cron job per stage, first firing, delete, list, `deploy:verify`, purge, then the edge: `https://wainkw.com/` answers 301 to `https://www.wainkw.com/`, `https://www.wainkw.com/api/wain.php` still answers, and `https://staging.wainkw.com/` still answers 200 with `noindex`.
+5. Only then the repoint, read back with `agents_get_tool`. Watch the first real report in `gaps_list`, not in the transcript.
+
+The scan records above stay as they were written. This section is the decisions and the state.
