@@ -174,7 +174,7 @@
        --on-bar measures 18.09:1 on it. These app screens keep their row
        layout so the nav and tabs stay within reach; the company page centres
        its mark. The anchor tile carries النوخذة's amber. */
-    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 20px;
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 8px;
       background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill); position: relative; }
     header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
       background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)); pointer-events: none; }
@@ -204,11 +204,12 @@
     .topbar { position: sticky; top: 0; z-index: 20; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
-    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
+    @media (pointer: coarse) { footer.site a { min-height: 44px; } }
+    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 20px;
       border-top: 0; line-height: 1.9; background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
     @media (max-width: 640px) { footer.site { padding-inline: 16px; } }
 
-    nav.tabs { display:flex; gap: 4px; padding: 0 20px; background:var(--panel);
+    nav.tabs { display:flex; gap: 4px; padding-block: 0; background:var(--panel);
       border-bottom:1px solid var(--border); overflow-x:auto; }
     nav.tabs button { background:transparent; border:0; border-bottom:2px solid transparent;
       color:var(--muted); font-size:14px; font-weight:700; padding: 12px 12px; white-space:nowrap;
@@ -253,7 +254,6 @@
     input::placeholder { color: var(--muted); opacity: 1; }
     /* a computed field reads as one step up, never as a dimmed figure:
        opacity took a near-white total toward grey */
-    input[readonly] { background: var(--panel-3); }
     input.derived { border-color: var(--border-input); background: var(--panel-3); }
     /* every amount a field holds, typed or computed, is a figure */
     /* figures in a field read left to right, or a negative total shows its
@@ -362,7 +362,7 @@
 
     /* five states, five inks, each as text and edge on a recessed fill:
        new is the warning yellow, on the way the amber accent */
-    .status { font-size:12px; font-weight:800; border-radius:999px; padding: 4px 12px; border:1px solid;
+    .status { font-size:12px; font-weight:800; border-radius:999px; padding: 4px 8px; border:1px solid;
       background: var(--panel-2); }
     #del-couriers .status { display:inline-flex; align-items:center; gap: 4px; }
     .st-0{color:var(--text);border-color:var(--border-input)} .st-1{color:var(--info);border-color:var(--info)}
@@ -387,7 +387,7 @@
        direction, and a bidi-neutral character at the edge of a Latin run
        otherwise resolves against it. */
     .soc { background:var(--panel); border:1px solid var(--border); border-radius: 12px;
-      padding: 16px; display:flex; flex-direction:column; gap: 8px; }
+      padding: 20px; display:flex; flex-direction:column; gap: 8px; }
     .soc .head { display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
     .soc .head b { font-size:15px; }
     .soc .head .btn { margin-inline-start:auto; }
@@ -408,7 +408,7 @@
        back as «630×1200» — a different size. */
     .ltr { direction:ltr; unicode-bidi:isolate; }
     code { font-family:var(--mono); font-size:12.5px; direction:ltr; unicode-bidi:isolate;
-      background:var(--panel-2); border:1px solid var(--border); border-radius: 8px; padding: 1px 4px; }
+      background:var(--panel-2); border:1px solid var(--border); border-radius: 8px; padding: 0 4px; }
 
     /* the link between modules, stated rather than implied */
     .flow { background:var(--panel); border:1px solid var(--border); border-radius: 12px;
@@ -479,7 +479,7 @@
       #del-courier-form { grid-template-columns: 1fr 1fr; }
       #del-courier-form .btn { grid-column: 1 / -1; }
       main { padding-top: 12px; padding-inline: 16px; }
-      fieldset { padding: 16px; }
+      .soc { padding: 16px; }   /* phones: the card rule; the fieldset keeps 20px 16px (P14, P06) */
       h2 { margin-top: 20px; }
       /* when the flow line wraps, the amount takes its own full row at the
          reading start instead of hanging at the line-box's far edge */
@@ -517,7 +517,6 @@
       h2 { margin: 8px 0 6px; }
       body { background: var(--bg); }
     }
-    @media (max-width: 640px) { th, td { padding: 12px; } }
   
     /* ═══════ one column (layout pass, 2026-10-07) ═══════
        The bar, the tab strip and the content share one 1020px column on all

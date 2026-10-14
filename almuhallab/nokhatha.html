@@ -177,7 +177,7 @@
        reach; the company page centres its mark. */
     header {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-      padding: 8px 20px; background: var(--tint-strong);
+      padding-block: 8px; background: var(--tint-strong);
       border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50;
     }
@@ -202,7 +202,7 @@
     /* wrapped, the links hung at the far end: 227px from the brand's edge at 768 */
     @media (min-width: 641px) and (max-width: 823px) { header #nav { width: 100%; margin-inline-start: 0; } }
     nav a, .btn {
-      font-size: 14px; line-height: var(--lh-ui); font-weight: 600; color: var(--text);
+      font-size: 14px; line-height: var(--lh-ui); font-weight: 600;
       padding: 12px 16px; border-radius: 8px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -235,12 +235,10 @@
     .btn { font-weight: 700; }                  /* nav links stay 600, as on the system page */
     .btn.primary { background: var(--tint); color: var(--on-tint); border-color: var(--tint); }
     .btn.outline { border-color: var(--border-input); background: var(--panel-2); color: var(--text); }
-    .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
     /* states, the same on every page: a hover that can be seen (the edge turns
        amber; a fill step alone is 1.1:1 here), a disabled that still reads */
     .btn:hover { background: var(--panel-3); border-color: var(--tint); }
     .btn.primary:hover { background: var(--tint-hover); border-color: var(--tint-hover); }
-    .btn.danger:hover { background: var(--panel-3); border-color: var(--danger); }
     .btn:disabled { opacity: .6; cursor: not-allowed; }
     .btn.outline:disabled:hover { background: var(--panel-2); border-color: var(--border-input); }
 
@@ -276,7 +274,7 @@
     .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
-    .grid { display: grid; gap: 12px; margin-top: 24px; }   /* its columns: the one-column pass below */
+    .grid { display: grid; gap: 12px; margin-top: 0; }   /* its columns: the one-column pass below */
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
       display: flex; flex-direction: column; gap: 8px;
@@ -312,10 +310,10 @@
     h1, h2, h3 {
       line-height: var(--lh-head);
     }
-    h2.section { font-size: 20px; margin: 8px 0 4px; }
+    h2.section { font-size: 20px; margin: 32px 0 4px; }
     h2.section::after { content: ""; display: block; width: 96px; height: 2px; border-radius: 2px;
       margin-top: 6px; background: linear-gradient(270deg, var(--tint-a55), var(--tint-a0)); }
-    .sub { color: var(--muted); margin: 0 0 16px; line-height: 1.8; }
+    .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.8; }
     /* the forms and the plan are centred, so their headings and rules are too: the rule
        stayed on the start edge, 462px off the form's centre at 1440 */
     #page-register h2.section, #page-login h2.section, #page-pricing h2.section,
@@ -326,7 +324,7 @@
     /* Pricing */
     .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px;
       max-width: 420px; margin-inline: auto; }   /* one free plan — a single centred card */
-    .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     /* the page's one focal card: an amber ring and the faint amber glow */
     .plan.featured { border-color: var(--tint);
       box-shadow: 0 0 0 1px var(--tint), 0 0 24px var(--tint-a18); }
@@ -337,7 +335,7 @@
     .plan .btn { margin-top: auto; text-align: center; }
 
     /* Forms */
-    form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     label { font-size: 12px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
     input {
       background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 8px;
@@ -365,7 +363,7 @@
     .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     /* an amber disc carries a dark initial: white on amber is 2.06:1 */
     .avatar { width: 44px; height: 44px; border-radius: 999px; background: var(--tint); display: grid; place-items: center; font-weight: 800; color: var(--on-tint); font-size: 18px; }
-    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint); color: var(--tint); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; }
+    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint); color: var(--tint); border-radius: 999px; padding: 4px 8px; font-size: 12.5px; font-weight: 700; }
     .plan-badge.free { border-color: var(--border); color: var(--muted); }
     .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
     /* drawn as the system page draws its figures, so the portal and the
@@ -393,7 +391,7 @@
     /* full-bleed under the bar, so it is edged above and below, not at the sides */
     .offline-banner {
       background: var(--warn-bg); border-block: 1px solid var(--sand); color: var(--sand);
-      padding: 8px 20px; font-size: 13px; font-weight: 600; text-align: center; line-height: 1.7;
+      padding: 12px 16px; font-size: 13px; font-weight: 600; text-align: center; line-height: 1.7;
     }
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
@@ -415,13 +413,15 @@
       .brand small { display: none; }            /* the wordmark carries the header */
       .brand > div { height: auto; }
       nav a, .btn { padding: 12px 16px; min-height: 44px; }
-      nav a, nav .btn { padding: 12px; }
+      nav a, nav .btn { padding: 12px 16px; }
       main { padding: 20px 16px 56px; }
       .card { padding: 16px; }
       .stat { padding: 12px; }
       .hero { padding: 24px 0 32px; }
       .hero p { font-size: 15px; }
-      form.auth { padding: 20px 16px; }
+      form.auth { padding: 16px; }
+      .plan { padding: 16px; }
+      h2.section { margin-top: 24px; }
       input { font-size: 16px; }                 /* < 16px makes iOS zoom on focus */
       .plans { grid-template-columns: 1fr; }
       .stat-row { grid-template-columns: repeat(3, 1fr); }
@@ -431,10 +431,11 @@
        a tablet too, which the max-width rule above never reached */
     @media (pointer: coarse) { input { font-size: 16px; } }
 
-    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px; border-top: 0; line-height: 1.9;
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 20px; border-top: 0; line-height: 1.9;
       background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer a { display: inline-block; padding: 6px 4px; }
+    @media (pointer: coarse) { footer a { min-height: 44px; } }
     /* the footer rule above sets 24px on every width, after the phone block, so the phone gutter is restated here */
     @media (max-width: 640px) { footer { padding-inline: 16px; } }
   
@@ -455,7 +456,6 @@
     #page-dashboard > h2.section, #page-dashboard > .sub, #page-dashboard > .grid { order: 1; }
     #page-dashboard > .demo-banner { order: 3; margin: 0; }
     #page-dashboard > .stat-row { margin-top: 32px; }
-    #page-dashboard > h2.section { margin-top: 16px; }
     /* four units: four across, two by two on a tablet, never three and an orphan */
     .grid { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
     @media (min-width: 560px) and (max-width: 1023px) { .grid { grid-template-columns: 1fr 1fr; } }

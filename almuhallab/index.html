@@ -339,7 +339,7 @@
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--sans); }
-    a { color: var(--tint); text-decoration: none; }
+    a { text-decoration: none; }
 
     /* Centred masthead: the logo, the terminal line beneath it, then the nav,
        one axis, one rhythm.
@@ -792,7 +792,7 @@
 
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
-      display: flex; flex-direction: column; gap: 6px;
+      display: flex; flex-direction: column; gap: 8px;
     }
     /* One drawn icon family instead of emoji: emoji are a different typeface on
        every platform (and a different colour), so the page looked different on
@@ -1126,7 +1126,7 @@
        footer that a mouse hits perfectly well at 32, so the height is spent
        where it buys something: a coarse pointer. */
     @media (pointer: coarse) {
-      .fcols nav a { padding: 10px 0; }
+      .fcols nav a { padding: 12px 0; }
       .fcontact a { padding: 10px 0; min-height: 44px; }
     }
     /* the AC monogram (favicon.svg, on its own rounded tile) beside the name
@@ -1145,6 +1145,7 @@
       gap: 4px; margin-top: 12px; }
     .fcontact a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
       padding: 6px 0; min-height: 32px; transition: color .18s ease; }
+    @media (pointer: coarse) { .fcontact a { padding: 12px 0; min-height: 44px; } }
     .fcontact a:hover { color: var(--tint); }
     .fcontact .ic { width: 16px; height: 16px; stroke: var(--muted); color: var(--muted); stroke-width: 2;
       transition: stroke .18s ease, color .18s ease; }
@@ -1214,7 +1215,7 @@
       .fcols .fbrand { flex: 1 1 100%; }
       .fcols > div:not(.fbrand) { flex: 1 1 40%; }
       .fcontact a { min-height: 44px; }
-      .base { flex-direction: column; gap: 12px; text-align: center; }
+      .base { flex-direction: column; gap: 12px; text-align: center; padding-inline: 16px; }
       :target, section[id], h2.section[id] { scroll-margin-top: 175px; }   /* the 150.14px top bar + 24, rounded up */
       .qform { grid-template-columns: 1fr; padding: 16px; }
       /* (the rain is not drawn here: see .heroart, hidden below 820px. On a
@@ -1239,9 +1240,6 @@
         transition: none !important;
       }
       html { scroll-behavior: auto; }
-      html.motion [data-reveal] { opacity: 1 !important; transform: none !important; }
-      html.motion [data-reveal] ol.flow::before { transform: none !important; }
-      html.motion [data-reveal] ol.flow li { opacity: 1 !important; transform: none !important; }
     }
   </style>
 <script>

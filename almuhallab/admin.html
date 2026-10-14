@@ -128,7 +128,7 @@
     .gate { line-height: var(--lh-text); min-height: 100vh; display: grid; place-items: center; padding: 24px; }
     .gate form {
       width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px;
+      border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px;
     }
     /* النوخذة's amber anchor on one surface step up, as on the bar's tile */
     .gate .mark { color: var(--tint); width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
@@ -142,6 +142,7 @@
     input:focus, select:focus { border-color: var(--tint); }
     input::placeholder { color: var(--muted); opacity: 1; }
     .err { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
+    .err:empty { display: none; }   /* an empty line is not 18px of gap above the button (P03) */
     .note { font-size: 12.5px; color: var(--muted); line-height: 1.75; margin: 0; }
 
     .btn {
@@ -153,6 +154,7 @@
     /* outlined, never a red fill under light ink */
     .btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
     .btn.sm { padding: 6px 12px; font-size: 12px; }
+    @media (pointer: coarse) { .btn.sm { min-height: 44px; } }
     /* states, the same on every page: a hover that can be seen (a fill step
        alone is about 1.1:1 on this dark ground, so the edge turns amber), a
        disabled that still reads and does not answer the pointer */
@@ -195,7 +197,7 @@
        --on-bar measures 18.09:1 on it. These app screens keep their row
        layout so the nav and tabs stay within reach; the company page centres
        its mark. The anchor tile carries النوخذة's amber. */
-    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 20px;
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 8px;
       background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50; }
     header::after { content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 1px;
@@ -235,10 +237,11 @@
     .topbar { position: sticky; top: 0; z-index: 20; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
-    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
+    @media (pointer: coarse) { footer.site a { min-height: 44px; } }
+    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 20px;
       border-top: 0; line-height: 1.9; background: linear-gradient(90deg, var(--tint-a0), var(--tint-a55), var(--tint-a0)) top / 100% 1px no-repeat; }
 
-    nav.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel);
+    nav.tabs { display: flex; gap: 4px; padding-block: 0; background: var(--panel);
       border-bottom: 1px solid var(--border); overflow-x: auto; }
     nav.tabs button {
       background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
@@ -252,7 +255,7 @@
     h2:first-child { margin-top: 0; }
 
     .banner { background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
-      border-radius: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.75; margin-bottom: 16px; }
+      border-radius: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.75; }
 
     /* ---------- tiles ---------- */
     .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(186px, 1fr)); gap: 12px; }
@@ -368,10 +371,10 @@
       /* the logout wrapped alone to a third row: the two actions share the
          brand's row at its far end, and the two links take a row of their own
          from the inline start, under the brand */
-      header > .btn { order: 1; padding: 12px; }
+      header > .btn { order: 1; padding: 12px 16px; }
       #btn-refresh { margin-inline-start: auto; }
       nav.site { order: 2; width: 100%; margin-inline-start: 0; }
-      nav.site a { padding: 12px; }
+      nav.site a { padding: 12px 16px; }
       nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30; gap: 0;
         border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
         padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -381,11 +384,13 @@
         font-size: 12px; padding: 6px 4px; min-height: 52px; line-height: 1.75; }
       nav.tabs button.on { border-top-color: var(--tint); }
       main { padding: 12px 16px calc(56px + env(safe-area-inset-bottom, 0px)); }
-      footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+      footer.site { padding-inline: 16px; padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       #toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       input, select { font-size: 16px; }
       .btn { min-height: 44px; }
-      .btn.sm { min-height: 34px; }
+      .btn.sm { min-height: 44px; }
+      .gate { padding: 16px; }
+      .gate form { padding: 20px 16px; }
       /* two figures a row where they fit, as on the system page */
       .tiles { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
       /* a signed 7-digit figure («+1,234,567.890») must fit a half-width
@@ -407,7 +412,6 @@
     /* iOS zooms on focus into any field under 16px — on a landscape phone and
        a tablet too, which the max-width rule above never reached */
     @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
-    @media (max-width: 640px) { th, td { padding: 12px; } }
   
     /* ═══════ one column (layout pass, 2026-10-07) ═══════
        The bar, the tab strip and the content share one 1020px column on all
@@ -488,7 +492,7 @@
     <button class="btn primary" type="submit" id="gate-btn">دخول</button>
     <p class="note">
       <svg class="ic sm" aria-hidden="true"><use href="#i-warn"/></svg> هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
-      محلية وليست تحققاً من خادم، <a href="SECURITY.md" style="display:inline-block;padding:6px 4px">تفاصيل الحماية وحدودها</a>.
+      محلية وليست تحققاً من خادم، <a href="SECURITY.md" style="display:inline-block;padding:6px 0">تفاصيل الحماية وحدودها</a>.
     </p>
     <p class="note"><a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 4px"><svg class="ic sm back" aria-hidden="true"><use href="#i-chev"/></svg> العودة إلى النوخذة</a></p>
   </form>
