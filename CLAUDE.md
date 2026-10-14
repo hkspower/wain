@@ -870,3 +870,25 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   saves you until an importer strips whitespace. Pinned with real payloads.
 - Screenshots must be **looked at**, not just asserted on — layout defects
   (orphaned tiles, wrapped values) do not fail a test.
+- **Alignment is measured, and every measure has its own trap** (alignment pass,
+  2026-10-14: 33 findings, 32 checks, each run against the pre-change tree first
+  and failing there). Read the numbers off the page with `getBoundingClientRect`,
+  `getBBox` and text-range rects, and know where each one lies:
+  - A text-range rect is the em box, and Arabic ink sits low in its box: a
+    title on a numbered ring read 2px high by the em box while its ink sat
+    0.3 to 1.2px off the ring. Ring alignment is measured on the rendered ink.
+  - A `::after` rule has no rect. Its position is read from the pixels under it.
+  - A line of Arabic with Latin figures splits into one rect per bidi run, so
+    a line's start edge is the furthest right of its runs, not the first rect.
+  - A wrapped grid's lone item must be looked for on every row. A statement's
+    lone field sat in the middle, under a full-width total, and a scan of only
+    the last row passed it.
+  - `:scope` inside `Element.matches()` matches nothing, so an orphan scan
+    written that way passes every page. Prove a scan on a planted case first.
+  - A panel cannot sit flush with the ink it frames without its frame touching
+    the panel's edge, so the wide product drawing stands on the card with no
+    panel. `margin-inline: auto 0` on an LTR `.plot` pins it to the physical
+    right, which is the start edge of its RTL card.
+  - Before and after crops are judged as pairs, side by side
+    (`design/alignment_shots.py pairs`), and the pair is looked at, not only
+    asserted on: the drawing panel crowding its frame passed every number.
