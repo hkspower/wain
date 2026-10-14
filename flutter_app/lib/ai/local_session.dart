@@ -1,12 +1,14 @@
-/// شوق's FREE call — the phone's own speech recognition, our own search, the
-/// phone's own voice. No ElevenLabs, no network of ours, no credits.
+/// The FREE call, hers or his — the phone's own speech recognition, our own
+/// search, the phone's own voice. No ElevenLabs, no network of ours, no
+/// credits.
 ///
-/// The live app is the free build since 2 October (config.dart): the paid
-/// agent's account ran dry and a live call showed its English quota error over
-/// our own sheet. This is the app's half of the website's local mode
-/// (`WainAiCall.tsx`): listen once, hand what was heard to the same
-/// `show_places` tool the agent drives (it opens /search with the words), and
-/// end — the search screen speaks its own answer once voice is on.
+/// The app's builds are free (config.dart): the paid account ran dry on
+/// 2 October and a live call showed its English quota error over our own
+/// sheet. An agent build takes this path too for a quarter hour after a
+/// refusal for credits (agent_health.dart). This is the app's half of the
+/// website's local mode (`WainAiCall.tsx`): listen once, hand what was heard
+/// to the same `show_places` tool the agent drives (it opens /search with the
+/// words), and end — the search screen speaks its own answer once voice is on.
 ///
 /// It sits behind [AgentSession] so the controller, the sheet and every test
 /// of them stay as they are; only `main.dart` chooses which session to build.
@@ -149,7 +151,7 @@ String? pickLocale(List<String> ids) {
 /// What the platform calls «heard nothing». Android reports silence as an
 /// error, not as an empty result, and it used to end the call as «انتهت
 /// المكالمة» instead of saying nothing was heard.
-const Set<String> _silence = {
+const Set<String> _silenceErrors = {
   'error_speech_timeout',
   'error_no_match',
   'error_no_speech',
@@ -165,6 +167,7 @@ class LocalSession implements AgentSession {
     this.onAnswered,
     this.answerDelay = const Duration(milliseconds: 700),
     this.maxListen = const Duration(seconds: 20),
+    this.silenceFor = const Duration(seconds: 8),
   }) : _rec = recognizer ?? DeviceRecognizer();
 
   final Recognizer _rec;
@@ -183,6 +186,11 @@ class LocalSession implements AgentSession {
   /// 15s, which a phone that never reports anything does not honour.
   final Duration maxListen;
 
+  /// Listening with nothing heard yet: stop and say so — the web's
+  /// SILENCE_MS. The only end for silence used to be [maxListen] or the
+  /// plugin's own timeout, fifteen to twenty seconds of «متصل» over nothing.
+  final Duration silenceFor;
+
   void Function()? _connected;
   void Function(bool)? _speaking;
   void Function()? _disconnected;
@@ -190,6 +198,7 @@ class LocalSession implements AgentSession {
   bool _done = false;
   Timer? _answer;
   Timer? _cap;
+  Timer? _silence;
 
   @override
   void listen({
@@ -212,8 +221,9 @@ class LocalSession implements AgentSession {
     // No speech service, or its permission refused: said as a failure while
     // still «ringing», which the controller turns into a sentence.
     final ok = await _rec.init(
-      onError: (e) =>
-          _finish(error: _silence.contains(e) ? kNoSpeech : 'recognizer'),
+      onError: (e) => _finish(
+        error: _silenceErrors.contains(e) ? kNoSpeech : 'recognizer',
+      ),
     );
     if (_done) return;
     if (!ok) {
@@ -223,11 +233,16 @@ class LocalSession implements AgentSession {
     }
     final ids = await _rec.localeIds().catchError((_) => <String>[]);
     if (_done) return;
-    _connected?.call();
     var heard = '';
+    // Once only. The cap and the final result could each reach here — a
+    // final word landing while the cap's answer was still awaiting the search
+    // opened /search twice and spoke twice (14 October).
+    var answering = false;
     Future<void> answer() async {
-      if (_done) return;
+      if (_done || answering) return;
+      answering = true;
       _cap?.cancel();
+      _silence?.cancel();
       _speaking?.call(true);
       await tools['show_places']?.call({'query': heard});
       onAnswered?.call(heard);
@@ -257,6 +272,15 @@ class LocalSession implements AgentSession {
         await answer();
       },
     );
+    if (_done) return;
+    // «متصل» once the microphone is open, not before: the sheet said it as
+    // the recogniser was being asked to start, a moment the ring is for.
+    _connected?.call();
+    _silence = Timer(silenceFor, () {
+      if (_done || heard.isNotEmpty) return;
+      _rec.stop();
+      _finish(error: kNoSpeech);
+    });
   }
 
   void _finish({String? error}) {
@@ -264,6 +288,7 @@ class LocalSession implements AgentSession {
     _done = true;
     _answer?.cancel();
     _cap?.cancel();
+    _silence?.cancel();
     if (error != null) {
       _error?.call(error);
     } else {
@@ -276,6 +301,7 @@ class LocalSession implements AgentSession {
     _done = true;
     _answer?.cancel();
     _cap?.cancel();
+    _silence?.cancel();
     await _rec.stop();
   }
 
@@ -284,6 +310,7 @@ class LocalSession implements AgentSession {
     _done = true;
     _answer?.cancel();
     _cap?.cancel();
+    _silence?.cancel();
   }
 }
 

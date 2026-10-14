@@ -225,6 +225,13 @@ export default function SearchClient() {
       /* private mode — no echo */
     }
   }, [params]);
+  // And forgotten the moment the box is edited. The card compared the box
+  // with the spoken words on every render, so a visitor who typed something
+  // else and then the same words back was told the question came «من
+  // مكالمتك» again, and سالم was handed it as her call's (14 October).
+  useEffect(() => {
+    if (asked !== null && q.trim() !== asked) setAsked(null);
+  }, [q, asked]);
 
   /**
    * What شوق says about this search — once, for the page and for the voice.

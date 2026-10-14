@@ -9,6 +9,7 @@ import {
   armCall,
   callAgentAvailable,
   onPhase,
+  probeMic,
   requestCall,
   startLocalRecognition,
   warmCall,
@@ -16,19 +17,14 @@ import {
 import type { Phase } from "@/components/WainAiCall";
 
 /**
- * شوق, inside the search box.
+ * The call button: on /find's phone (hers), and in سالم's header (his).
  *
  * She used to be a coral button floating over the corner of every page, then
- * over the corner of this one. Both were a second voice control on a page that
- * already had one: this box carried its own microphone, which dictated a
- * question into the field, beside a launcher that placed a call — two
- * microphone-ish icons offering what a visitor reads as the same thing.
- *
- * There is one now, and it is here rather than floating because this is where
- * the question is being asked. In local mode a call still ends up doing what
- * the box mic did — take the sentence, search it, read the answer back — so
- * nothing is lost on a browser without the agent; in agent mode it is a
- * conversation instead of one shot.
+ * over the corner of /search, then inside the search box beside its own
+ * dictation mic — two microphone-ish icons offering what a visitor reads as
+ * the same thing. Since 1 October there is one way to call her, on /find, on
+ * request; since 7 October سالم's header places his call with the same
+ * component, so the two taps cannot drift apart.
  *
  * What it is NOT is the call itself. That stays mounted in the root layout, or
  * `open_place` would kill it while navigating; this only asks. See
@@ -36,56 +32,38 @@ import type { Phase } from "@/components/WainAiCall";
  */
 export default function ShouqCallButton({
   className = "",
-  labelledBy,
   onTapped,
   persona = "shouq",
   size = "sm",
 }: {
   className?: string;
   /**
-   * "lg" for a standalone choice (the /find page, one of two equal options).
-   * Everywhere else this sits inline beside other text at its original
-   * size-8, and that sizing stays the default so nothing already shipping
-   * has to change. "call" is /find's since 2 October: a big green round
-   * button with a handset, the one thing to press on the phone drawn around
-   * it (FindChoice) — her photo is on that phone's screen, so the button can
-   * be what every phone's call button is.
+   * "call" is /find's since 2 October: a big green round button with a handset,
+   * the one thing to press on the phone drawn around it (FindChoice) — her
+   * photo is on that phone's screen, so the button can be what every phone's
+   * call button is. "sm" is the inline size-8 launcher, kept as the default so
+   * nothing that still renders it has to change.
    *
    * "pill" is سالم's header: his call, a green pill with a handset and «كلّم سالم»
-   * beside it from 400px (at
-   * 320 the header also holds the back button, his face, his name and the
-   * read-aloud toggle, so the words go before anything else does). It was
-   * coral until 7 October, and a red handset reads as «hang up» on a phone;
-   * green is what /find's call button and every phone's call button are.
+   * beside it from 400px (at 320 the header also holds the back button, his
+   * face, his name and the read-aloud toggle, so the words go before anything
+   * else does). It was coral until 7 October, and a red handset reads as «hang
+   * up» on a phone; green is what /find's call button and every phone's call
+   * button are.
    */
-  size?: "sm" | "lg" | "call" | "pill";
+  size?: "sm" | "call" | "pill";
   /**
    * Run synchronously right after the call is requested — for a surface that
-   * has to get out of the way.
-   *
-   * The ⌘K palette is the one that needs it: it is a modal at z-60 and the call
-   * sheet mounts in the root layout, so a call placed from inside the palette
-   * rings underneath its own backdrop. Not an `onClick` on a wrapper, because
-   * the tap has to reach `primeAudio` first and a bubbling handler that closes
-   * the dialog could unmount this button mid-gesture.
+   * has to move on. /find's phone pushes /search here, where every call's
+   * answers land. Not an `onClick` on a wrapper, because the tap has to reach
+   * `primeAudio` and the recogniser first, and a bubbling handler that
+   * navigates could unmount this button mid-gesture.
    */
   onTapped?: () => void;
   /**
-   * Id of visible text that already names this button, used INSTEAD of the
-   * built-in aria-label.
-   *
-   * There are two of these on /search now — one in the query box, one in the
-   * empty state — and they had the same accessible name, so a screen reader's
-   * button list read «وين AI — اضغط عشان تكلّم شوق» twice with nothing to tell
-   * them apart. The one in the empty state sits beside that sentence in plain
-   * sight, so pointing at it makes the visible words the name rather than
-   * repeating them, and the two buttons stop being indistinguishable.
-   */
-  labelledBy?: string;
-  /**
    * Whose call this places: her agent («shouq», the default) or his («salem»).
    * Each has its own agent, so this button never reaches the other one's — see
-   * `agentIdFor` in `lib/wain-ai.ts`. Its words and face follow the same choice.
+   * `agentIdFor` in `lib/wain-ai.ts`. Its words follow the same choice.
    */
   persona?: CallPersona;
 }) {
@@ -118,9 +96,8 @@ export default function ShouqCallButton({
    */
   const preload = useCallback(() => {
     void import("@/components/WainAiCall");
-    // …and the two origins the call needs after that. The chunk is ours and
-    // near; the widget is 451KB from a CDN and then a session on a third
-    // origin, and all of it used to start only once the tap had arrived.
+    // …and the origin the call needs after that. The chunk is ours and near;
+    // the session is on a third origin, and used to be dialled cold.
     warmCall();
   }, []);
 
@@ -155,8 +132,15 @@ export default function ShouqCallButton({
      * worse here than on any other button, because the one thing everybody
      * knows about phones is that they ring at once. The bus overwrites this
      * with the real phase a moment later, which is the same value.
+     *
+     * «answered» is a call waiting for its next question (the bar over the
+     * results), and a tap then starts that question: free, like idle.
      */
-    const free = phaseRef.current === "idle" || phaseRef.current === "ended" || phaseRef.current === "error";
+    const free =
+      phaseRef.current === "idle" ||
+      phaseRef.current === "ended" ||
+      phaseRef.current === "error" ||
+      phaseRef.current === "answered";
     /**
      * A call that is starting cuts whatever she is still saying. An answer
      * being read out (from /salem's chat, or the last call's) would otherwise
@@ -166,15 +150,17 @@ export default function ShouqCallButton({
      */
     if (free) stopVoice();
     /**
-     * And, with no agent, start listening HERE too — see
+     * And start listening HERE too, with no agent — see
      * `startLocalRecognition`. WebKit starts recognition only inside the
      * gesture, and the call that used to start it is a chunk and an effect
-     * away from this tap. The call is told which way this tap went rather
-     * than asking again (takeRequestedMode).
+     * away from this tap. With an agent, the microphone PROBE starts here for
+     * the same reason (`probeMic`). The call is told which way this tap went
+     * rather than asking again (takeRequestedMode).
      */
     const local = !agentEnabledFor(persona) || !callAgentAvailable();
     if (free && local) startLocalRecognition();
-    setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
+    if (free && !local) probeMic();
+    setPhase((p) => (p === "idle" || p === "ended" || p === "error" || p === "answered" ? "ringing" : p));
     requestCall(local ? "local" : "agent", persona);
     onTapped?.();
   }, [onTapped, persona]);
@@ -189,71 +175,34 @@ export default function ShouqCallButton({
       onTouchStart={arm}
       // The "call" button has «اتصال» printed under it, so its name starts with
       // that word: a name that leaves out the visible label is the one a
-      // voice-control user cannot say («اضغط اتصال» has to find it).
-      aria-label={
-        labelledBy
-          ? undefined
-          : size === "pill"
-            ? // Its visible words, first and whole, for the same voice-control
-              // reason as «اتصال» on the big button.
-              copy.callShouq
-            : `${size === "call" ? "اتصال — " : ""}${copy.launcher} — ${copy.callHint}`
-      }
-      aria-labelledby={labelledBy}
+      // voice-control user cannot say («اضغط اتصال» has to find it). The pill's
+      // name is its visible words, first and whole, for the same reason.
+      aria-label={size === "pill" ? copy.callShouq : `${size === "call" ? "اتصال — " : ""}${copy.launcher} — ${copy.callHint}`}
       aria-expanded={open}
       aria-controls="wain-ai-panel"
-      // size-8, not the new size-6 floor: this holds an actual icon and an
+      // size-8, not the size-6 floor: this holds an actual icon and an
       // animated ring, not a text glyph, so it needs padding the floor's bare
       // 24px does not leave — at size-6 the size-5 icon would touch the
       // button's own edge. 32px keeps the icon's ~45% share of the button
       // (20/44 before, 16/32 now) and still clears the floor with margin.
-      // size-20 at "lg" is a photo filling the whole circle, not an icon
-      // inset within it — see the size==="lg" branch below.
       className={`relative grid place-items-center overflow-hidden rounded-full transition ${
         size === "call"
           ? "size-24"
-          : size === "lg"
-            ? "size-20"
-            : size === "pill"
-              ? "min-h-11 min-w-11 grid-flow-col gap-1.5 px-3 text-sm font-semibold"
-              : "size-8"
+          : size === "pill"
+            ? "min-h-11 min-w-11 grid-flow-col gap-1.5 px-3 text-sm font-semibold"
+            : "size-8"
       } ${
         size === "pill"
           ? `bg-palm-600 text-white hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
           : size === "call"
-          ? `bg-palm-600 text-white shadow-lg shadow-palm-700/30 hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
-          : size === "lg"
-          ? open
-            ? "shadow-sm ring-4 ring-coral-500"
-            : "shadow-sm"
-          : open
-            ? "bg-coral-600 text-white shadow-md"
-            : "text-coral-700 hover:bg-coral-50"
+            ? `bg-palm-600 text-white shadow-lg shadow-palm-700/30 hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
+            : open
+              ? "bg-coral-600 text-white shadow-md"
+              : "text-coral-700 hover:bg-coral-50"
       } ${className}`}
     >
       {size === "call" ? (
         <IconPhone className="size-11" />
-      ) : size === "lg" ? (
-        /**
-         * A photo, not IconShouq, at this one size — IconShouq's own
-         * comment documents why: a headphone shape drawn into that glyph
-         * survived at 20–24px only as mush, so it was left out of the icon
-         * itself. It was never a bad fit for a larger use, only for the
-         * small ones IconShouq actually has to serve everywhere else it is
-         * used (WainAiCall, ShouqAnswer, the inline size-8 launcher) — at
-         * size-20 there is finally room for it, as a real photo instead of
-         * a redrawn glyph.
-         */
-        // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser
-        <img
-          src={persona === "salem" ? "/find/salem-face.jpg" : "/find/shouq-face.jpg"}
-          alt=""
-          width={320}
-          height={320}
-          loading="eager"
-          decoding="async"
-          className="size-full object-cover"
-        />
       ) : (
         <IconCall className={`size-4 ${phase === "ringing" || talking ? "call--live" : ""}`} />
       )}

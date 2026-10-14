@@ -22,10 +22,10 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
-As of 14 October: **production is `8818bfda`** (the Safari batch, both agents' split NOT yet released) and
-**staging is `8deb030e`** (the two-agent split). Production is held until the owner says which
-endpoint should live at `api/deploy.php` (see «The 14 October deploy, after the split»). This block goes
-stale; the server's `build.json` is the only trustworthy source.
+As of the evening of 14 October: **production is `47c17464`** (the two-agent split, after
+`api/deploy.php` was restored — see «The 14 October deploy, third») and **staging is `8deb030e`**
+(the same split, code-identical). The call-centre fixes below are in the repository and NOT deployed.
+This block goes stale; the server's `build.json` is the only trustworthy source.
 
 ## History lives in `docs/history.md`
 
@@ -5499,8 +5499,109 @@ prompt would spend a test cycle on a rule that already fires.
 - **Production is held, and nothing on it changed.** Job `haaUDh3Rg8` fired and got **HTTP 400 `bad_scope`** from `www.wainkw.com`, which listed `images`, `css`, `code` as allowed scopes. Production's `api/deploy.php` is no longer wain's: it is a 594-line, three-scope endpoint with its own manifests and rollback. Its header is not in this repository, and a search of the repository's history and its remote branches found no copy. The rejected request wrote nothing: production's `build.json` still reads `8818bfda` (digest `8e5868854ab6939a`). The job was deleted and the listing confirmed it. The owner chose to hold production until they say which endpoint should live at `api/deploy.php`. Do not overwrite that file, and do not deploy through it: it deploys per scope, so it would not place this build.
 - **The connector changed mid-session.** Every hosa call failed with «Error POSTing to endpoint: Not Found» from the morning of 14 October, and the server was then removed from the configuration. The same Hostinger API is now under `mcp__ppok__*`. The project guard matched only `mcp__hosa__*`, so ppok calls skipped it. The owner allowed the deploy through ppok on two conditions: only the planned operations (own cron jobs, file reads, one cache purge), and the guard pointed at ppok afterwards. `.claude/settings.json` (the matcher, and `mcp__ppok__search` beside hosa's) and the guard's header are updated in the commit that records this.
 - **Planner note.** This commit touches `CLAUDE.md` and `.claude/`, so `deploy:plan` will refuse build `8deb030e` from now on. Any production deploy needs `npm run release` again, which costs another archive. Make the release from the HEAD that will be deployed.
-- **Still open.** Shouq's `tts.voice_id` override on `agent_1701m1gcrccrethae9y3nyv1e116` stays open. The build no longer sends it (checked by grep at `0f9bdc40`), but production has not taken this build, so closing it now would change the live agent ahead of the deploy it belongs to. Salem's typed chat has still never had a real reply; the first one on staging is the proof.
+- **Still open.** Shouq's `tts.voice_id` override on `agent_1701m1gcrccrethae9y3nyv1e116` stays open (closed the same evening, once production had the split: next section). The build no longer sends it (checked by grep at `0f9bdc40`), but production has not taken this build, so closing it now would change the live agent ahead of the deploy it belongs to. Salem's typed chat has still never had a real reply; the first one on staging is the proof.
 - **Cron, as found.** Sporta's `1mNk00yPZP` and `FK5S1O355Y` (a sporta probe) remain. Another session's per-minute `fYcVwmQsl3` (`scripts/live/live-schema-full.php`, pinned to `1ff979e6`) appeared during the work and was gone by the end. It was not ours, so it was left alone.
+
+## The 14 October deploy, third — `47c17464` is live on production: the two-agent split, after the endpoint was restored
+
+- **Production's `api/deploy.php` was put back first.** The owner picked «1», «Rebuild from staging» and «Deploy through ppok». `scripts/publish/restore-production-endpoint.php` (`60361d05`, fixed in `47c17464`) reverses `setup-staging-endpoint.php`'s three path rewrites and its header block onto staging's copy. It refuses to replace anything but the scope endpoint, keeps that endpoint at `storage/deploy-scope-endpoint.backup.txt`, and writes only a file that reproduces staging's copy byte for byte through the generator's forward transform, is the recorded production size, and parses. Tested on a stand-in tree built by the real generator: a byte-exact restore, a no-op second run, and both refusals leaving the file untouched. On the server, by fetch-pin-run: `wget` of the pinned script into `storage/` (job `RsHFzrC58B`, `saved [6022/6022]`), `php …/storage/restore-endpoint.php /home/u130124229/domains/wainkw.com` (job `FLW1kd2fYC`), then `rm -f` (job `ovxMrNaeYA`).
+  - **The first restore run never reported.** It reached a lint step that ran `php -l` through `exec()`, and the job was still open when it was deleted. The cause was not read: `exec` is among the host's `disable_functions`, which is reason enough on its own. `47c17464` parses with `token_get_all(…, TOKEN_PARSE)` in-process, before it backs up or writes anything.
+  - **The second run's output never arrived before its job was deleted either** (cron output lags; see «Pre-deploy reads» above). The proof is elsewhere: the `api/` listing went from `deploy.php` **23,369** bytes (the scope endpoint) to **10,985** (wain's recorded production size), the file's header read back as wain's own, and `php …/storage/d.php probe` (job `9k0sR4oASZ`) answered `host_not_allowed` with «the request got past the HMAC check», where the scope endpoint had answered `bad_scope`.
+- **Release rebuilt at `47c17464`** (`08524e66`): the planner refused `0f9bdc40` once the branch gained the restore script and this file. Same three variables (both agent ids, the read-aloud bridge off). Digest `4cff029a9cefa03b`, sha256 `89b9a406…71ed1`, 4.45 MB — one more permanent blob, `DEPLOY_SECRET` still unset. No file under `src/` or `public/` changed between `8deb030e` (staging) and `47c17464`, so the two exports differ only in their stamp.
+- **Deploy.** Job `ETTPzhZ4SW`, read at its FIRST firing: `{"ok":true,"version":"1.1.0","deployed":282,"removed":15,"emptied":1,"at":"2026-10-14T15:33:02+00:00"}`. Deleted, listed gone.
+- **Verified.** `deploy:verify` on 74 readings (the stamp, the 12 root files, the three stylesheets, the build-id directory's two files, the /search chunk `page-d4de11fb86183fd8.js` 25,709, `explore/`, a place page, all 52 og images): «47c17464 is live — verified at the root and 7 levels below it», 74 of 74 byte-exact. The other 208 are covered by the endpoint's sha256 check, not by a reading.
+- **Purge accepted, then the edge**, by three one-shot `wget -S --spider` jobs (`eazpR2TShN`, `k72jUU4eYv`, `lPgqHreb7p`; fired 17:55:01, read, deleted after a container restart, listed gone): `/salem/` and `/find/` 200 with `Last-Modified: Wed, 14 Oct 2026 15:33:02 GMT` (the deploy's minute), `x-hcdn-cache-status: DYNAMIC`, the CSP carrying the jsDelivr resampler and nothing of supabase. **`https://wainkw.com/explore/` answers 301 → `https://www.wainkw.com/explore/`**: the apex redirect restored on the owner's «apex» answer is live (the edge served the 301 from cache, `Age: 5760`, `HIT`).
+- **Shouq's `tts.voice_id` override is closed.** `agents_update_client_overrides` with the whole override object: version `agtvrsn_2201m4xs1ya7fj1rers2hxf46hvj`, `tts.voice_id: false`, `conversation.text_only: true`, `prompt.llm: true`, everything else false. The mid-call switch is out of the build, so nothing a visitor can tap asks for it any more.
+- **Nobody has reached either agent since the deploy** (read about 18:00 UTC): the day's only two conversations were on شوق over `js_sdk` before it (09:17 UTC, 21 s, judged a success; 11:18 UTC, 7 s), and there were no quota refusals. سالم's agent still carries شوق's 25 tests; his own 7 are not attached.
+- **Staging is still on `8deb030e`**, code-identical to production (above). The foreign files on production's docroot (`/shoug/`, `/hangout/`, `/call-center/`, `api/hangouts.php`, `api/call-center-data.php`, the top-level archives and scripts) are untouched: the prune removes only what the previous manifest recorded, and the owner's answer for them is «keep».
+- **Cron at the end:** sporta's `1mNk00yPZP` and nothing else. The foreign `0fkXcI5UFt` (`curl … hostinger_deploy.sh`) and sporta's `FK5S1O355Y` had gone on their own.
+
+## The call centre, scanned and fixed — 14 October, evening (built and gated, NOT deployed)
+
+«scall call center make full improve for all»: the call sheet, the launcher, the free call and the agent
+call, on the site and in the app, both live agents, and the hub other sessions put on the server. The scan
+was read-only (the hub stays as the owner said: «keep»); every defect below was then fixed red-first, on the
+web by running the new assertions against a worktree of the committed code (`80e8fe6d`) and on the app by
+putting each fix back one at a time. Nothing here is on the live site: production is `47c17464`.
+
+**Web, the sheet and the launcher (`WainAiCall.tsx`, `ShouqCallButton.tsx`, `wain-ai-bus.ts`, `WainAi.tsx`).**
+- **The microphone is asked for inside the tap.** On an agent call `getUserMedia` ran in an effect after
+  the chunk had loaded, so iOS answered it outside the gesture. The button calls `probeMic()` in the tap
+  and the call adopts the probe (`takeMicProbe`); a redial asks itself. `shouq-agent` records the event
+  the probe ran under and requires `click`.
+- **A refused microphone inside an app's browser (WhatsApp, Instagram) is not blamed on the microphone**:
+  it says the recogniser is unavailable there and offers «اكتب لسالم», as the free call already did.
+  `audio-capture` says «ما لقينا مايك», not «المايك مسموح».
+- **A widget that never arrives rings out as «ما قدرنا نوصلك»**, not as the free call's «check the
+  microphone»; `agentModeRef` decides the dial-timeout sentence.
+- **A chunk that cannot load no longer takes the site down.** The call sits outside every route's error
+  boundary, so a failed `import()` replaced the WHOLE tree with Next's «Application error». `WainAi.tsx`
+  wraps the call in its own boundary (`CallBoundary`): the page stays, one line says the call could not
+  start, and the next tap tries again. `shouq-flow` aborts the chunk carrying `wain-ai-panel` and reads
+  `main#main-content` still there.
+- **The dialog takes focus** when it opens (the button it opened from leaves with /find a moment later,
+  so focus fell to the body under an `aria-modal` dialog).
+- **سالم's sheet is his**: «جاهز» not «جاهزة», a handset badge instead of her drawn face, and his free
+  call lands on **his chat** (`/salem/?q=…`, as a question, with no `from`) instead of her answer card on
+  /search. **The free call waits for the next question**: after the spoken answer the sheet becomes a bar
+  at the foot of the results (`#wain-ai-bar`: the name, what was searched, «اسأل مرة ثانية», ×), each
+  follow-up its own tap because WebKit needs a gesture for every `start()`; leaving /search (or /salem for
+  him) takes the bar down, and `<main>` gets room under it (`html[data-call-bar]`).
+- **A question typed over the call's is typed**: /search drops `asked` on the first edit, so «كمّل مع
+  سالم» says «من جواب شوق» again, not «من مكالمتك».
+- Proof: `shouq-flow` 126 passed / **18 failed** on the old build, 144 / 0 on the new; `shouq-agent` 115 /
+  **6** old, 121 / 0 new. Two test faults on the way, both in the checks and not the code: `salemHandoff`
+  writes the space as `+` (URLSearchParams) and `decodeURIComponent` leaves it — read `searchParams.get`;
+  and the sheet's standing «يحتاج إذن المايك» note tripped a check for any «المايك» — exclude the blame
+  sentence, not the word.
+
+**The app (`flutter_app/lib/ai/*`, `screens/find_screen.dart`, `screens/salem_screen.dart`).**
+- **An orphan notification.** `keepAlive.start()` is not awaited (its permission dialogs must not hold
+  the dial), so a hang-up during the dialogs, or during the service's own start, left «إنهاء» in the shade
+  over a call that was over. `PlatformKeepAlive` counts generations: a start that finds a stop ran
+  meanwhile does not start the service, or stops it again. Its steps are injectable; `keep_alive_test`
+  holds both orderings open with completers.
+- **The free call asks for nothing**: it used to start the Android service too, two permission dialogs
+  over a twenty-second call in front. `start({title, background})`: the free call passes `background:
+  false` (screen awake only), and the title names whoever the call is with (it said «مكالمة مع شوق» over
+  his calls). The Kotlin channel is «مكالمات وين», naming neither.
+- **A phone that cannot listen** gets «افتح الإعدادات» and «اكتب لسالم» (the speech permission is its own
+  switch on iOS); the ended screen gets «رسّلها للربع» for the place the call put on screen
+  (`lastSlug`, `/places/<slug>?share=1`).
+- **A refusal for credits** is said as itself and the next call for a quarter hour is the free one
+  (`agent_health.dart`, the web's memory); the free call carries no agent id at all.
+- **`hangUp()` after the call ended is a no-op** — the notification's button could arrive late and
+  reopen the sheet as «انتهت المكالمة» over whatever the caller had moved on to.
+- **The free call's timing is honest**: «متصل» only once `listen` has returned (it said it while the
+  microphone was still being opened); silence for 8 s says «ما سمعناك» instead of the 20-second cap; the
+  cap landing while an answer was in flight no longer opens /search twice (`answering` guard).
+- **The sheet covers the page for TalkBack too** (`BlockSemantics`); the search box forgets the call's
+  question on the first edit; /find's lower half says «اكتب لسالم» with a send button and no role pill;
+  سالم's header button is coral while his call is up, with `expanded` for a screen reader; the iOS
+  purpose strings name both of them.
+- Proof: analyze clean, **1,553** tests; five sabotages (the answering guard, BlockSemantics, the
+  generation check, the quota branch + hang-up guard + free-call background, the /find label + the coral
+  button) each turned exactly the matching tests red.
+
+**The agents, read back.** Both widgets name their own persona in the first message, the rating and the
+«… سكّر/سكّرت المكالمة» line, with the same colours, radii and placement. **سالم has no tests of his own**:
+the workspace holds exactly the 25 attached to both agents, all written for her grammar («his own 7»
+in the record above never existed), so nothing was attached or detached — a run on his agent measures him
+against her judges until tests are written for him, which is a test-authoring cycle with credits.
+
+**Gates (14 October, evening, on `d6a135e3`):** the live-variable build (both agent ids, read-aloud bridge
+off) built clean; `test:widget-csp` on it 37 passed, 0 failed, no CSP violation. **The first `scan` on that
+build exited 1, and the cause was the red-first worktree, not the code**: `scratchpad/wt-old` (the `80e8fe6d`
+checkout used to prove every new assertion red) and its `out/` were inside the repository, so lint walked
+into a second copy of the site and its built chunks — 15,540 errors, all under `scratchpad/wt-old/`, none in
+`src/`. The worktree is removed (`git worktree remove --force`); `scan` is re-run on the clean tree below.
+**Put a red-first worktree outside the repository, or lint reads the old build as the code.** The free build,
+`test:hangout`, `test:journey` and `test:shouq` follow in the same chain; their readings are in the next entry.
+
+**Not measured:** any of it on a real phone — the gesture rule, the bar under a thumb, the in-app
+browser, the Android notification, TalkBack; and a real call on either agent (the socket is refused here).
+**Deploying both stages waits for the owner's yes**; the release is the usual agent build with the read-aloud
+bridge off.
 
 ## Style
 

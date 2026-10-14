@@ -11,10 +11,11 @@ import '../share/hangout.dart' show msToNextKuwaitHour;
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/back_fab.dart';
+import '../widgets/svg.dart';
 
 /// /find — two halves: شوق's call on top, drawn as a phone with one big call
-/// button (the web's, 2 October), and a typed conversation below. Both lead to the same place (/search is where a call's answer
-/// appears), and the page says so once, in its own words.
+/// button (the web's, 2 October), and سالم's typed chat below. The web's
+/// FindChoice.tsx, in the same order and words.
 ///
 /// What both halves say follows the moment (data/find_moment.dart), and is
 /// redrawn on each Kuwait hour so a screen left open does not go stale.
@@ -65,86 +66,106 @@ class _FindScreenState extends State<FindScreen> {
           // It scrolls, as the web does. Two halves fixed to the screen
           // shrank the phone to 0.72 at 390 and to 0.46 at 320, where its
           // call button came out 42 wide — a phone too small to be the point.
-          LayoutBuilder(
-            builder: (context, box) => SingleChildScrollView(
-              child: Column(
-                children: [
-                  _CallHalf(
-                    key: const ValueKey('find-call'),
-                    greeting: findGreeting(CallCopy.name, _moment),
-                  ),
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      SizedBox(
-                        height: (box.maxHeight * 0.5).clamp(380, 520),
-                        child: _Half(
-                          key: const ValueKey('find-type'),
-                          label: 'اكتب',
-                          image: 'assets/img/salem.jpg',
-                          pill: kSalemRole,
-                          background: WainColors.sea950,
-                          tint: WainColors.sea950,
-                          accent: WainColors.sea300,
-                          pillFg: WainColors.sea900,
-                          body: findGreeting(kSalemName, _moment),
-                          hint: CallCopy.typeHint,
-                          action: FilledButton(
-                            onPressed: () => context.push('/salem'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: WainColors.sea600,
-                              // 56, not 48: on a short screen this block is
-                              // scaled down to fit (the FittedBox below), and
-                              // 48 came out 41.8 tall at 320 — under Android's
-                              // finger-size guideline.
-                              minimumSize: const Size(0, 56),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 28,
+          // The page ends on سالم's dark half, and so does what lies past it:
+          // the web paints the body below dark (data-dark-end). A bounce at
+          // the bottom showing white under the dark half read as a seam, and
+          // one at the top would show dark over the sun half — so no bounce.
+          ColoredBox(
+            color: WainColors.sea950,
+            child: LayoutBuilder(
+              builder: (context, box) => SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: Column(
+                  children: [
+                    _CallHalf(
+                      key: const ValueKey('find-call'),
+                      greeting: findGreeting(CallCopy.name, _moment),
+                    ),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        SizedBox(
+                          height: (box.maxHeight * 0.5).clamp(380, 520),
+                          child: _Half(
+                            key: const ValueKey('find-type'),
+                            // His name in the heading, as the web since
+                            // 7 October; the role pill went with it there,
+                            // because two «في الكويت» pills a screen apart
+                            // read as a repeat. The app kept both until
+                            // 14 October.
+                            label: 'اكتب ل$kSalemName',
+                            image: 'assets/img/salem.jpg',
+                            background: WainColors.sea950,
+                            tint: WainColors.sea950,
+                            accent: WainColors.sea300,
+                            body: findGreeting(kSalemName, _moment),
+                            hint: CallCopy.typeHint,
+                            action: FilledButton.icon(
+                              key: const ValueKey('find-type-action'),
+                              onPressed: () => context.push('/salem'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: WainColors.sea600,
+                                // 56, not 48: on a short screen this block is
+                                // scaled down to fit (the FittedBox below),
+                                // and 48 came out 41.8 tall at 320 — under
+                                // Android's finger-size guideline.
+                                minimumSize: const Size(0, 56),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 28,
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              'ابدأ الكتابة',
-                              style: wainText(
-                                WainText.base,
-                                weight: FontWeight.w600,
+                              // The web's button carries IconSend: a send
+                              // icon says «type», the way the handset says
+                              // «call» on the half above.
+                              icon: WainSvg.icon(
+                                'send',
+                                size: 20,
                                 color: Colors.white,
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // The seam: «أو», decorative, on the seam itself —
-                      // painted after the call half, so over it.
-                      Positioned(
-                        top: -22,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: ExcludeSemantics(
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              alignment: Alignment.center,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: WainShadows.sm,
-                              ),
-                              child: Text(
-                                'أو',
+                              label: Text(
+                                'ابدأ الكتابة',
                                 style: wainText(
-                                  WainText.sm,
-                                  weight: FontWeight.w700,
-                                  color: WainColors.ink900,
+                                  WainText.base,
+                                  weight: FontWeight.w600,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        // The seam: «أو», decorative, on the seam itself —
+                        // painted after the call half, so over it.
+                        Positioned(
+                          top: -22,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: ExcludeSemantics(
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                alignment: Alignment.center,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: WainShadows.sm,
+                                ),
+                                child: Text(
+                                  'أو',
+                                  style: wainText(
+                                    WainText.sm,
+                                    weight: FontWeight.w700,
+                                    color: WainColors.ink900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -330,11 +351,9 @@ class _Phone extends StatelessWidget {
 class _Half extends StatelessWidget {
   final String label;
   final String image;
-  final String pill;
   final Color background;
   final Color tint;
   final Color accent;
-  final Color pillFg;
   final String body;
   final String hint;
   final Widget action;
@@ -342,11 +361,9 @@ class _Half extends StatelessWidget {
     super.key,
     required this.label,
     required this.image,
-    required this.pill,
     required this.background,
     required this.tint,
     required this.accent,
-    required this.pillFg,
     required this.body,
     required this.hint,
     required this.action,
@@ -420,25 +437,6 @@ class _Half extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                              child: Text(
-                                pill,
-                                style: wainText(
-                                  WainText.sm,
-                                  weight: FontWeight.w600,
-                                  color: pillFg,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
                             Text(
                               label,
                               style: wainText(

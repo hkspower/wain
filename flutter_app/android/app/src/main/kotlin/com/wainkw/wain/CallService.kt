@@ -12,7 +12,7 @@ import android.os.Build
 import android.os.IBinder
 
 /**
- * Keeps شوق's call alive while the app is not in front.
+ * Keeps a call — شوق's or سالم's — alive while the app is not in front.
  *
  * Android cuts the microphone of a backgrounded app unless a foreground
  * service of type `microphone` is running, and requires a notification while
@@ -99,8 +99,10 @@ class CallService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             manager.getNotificationChannel(CHANNEL_ID) == null
         ) {
+            // The channel's name is what Settings shows for every call's
+            // notification, hers and his, so it names neither (14 October).
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "مكالمة شوق", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL_ID, "مكالمات وين", NotificationManager.IMPORTANCE_LOW)
                     .apply { setShowBadge(false) },
             )
         }

@@ -2,16 +2,37 @@
 // back acts on the call rather than the page under it, and it is kept alive
 // (screen awake, Android's foreground service) for exactly as long as it runs.
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/main.dart';
+import 'package:wain/map/wain_map.dart';
+import 'package:wain/screens/place_detail_screen.dart';
 import 'package:wain/screens/salem_screen.dart';
 import 'package:wain/theme/app_theme.dart';
 
 import 'support.dart';
+
+/// Every label in the semantics tree as a screen reader would meet it.
+Set<String> _spokenLabels(WidgetTester t) {
+  final out = <String>{};
+  void walk(SemanticsNode n) {
+    if (n.label.isNotEmpty) out.add(n.label);
+    n.visitChildren((c) {
+      walk(c);
+      return true;
+    });
+  }
+
+  // The implicit view's owner, as Flutter's own semantics_tester reads it.
+  // ignore: deprecated_member_use
+  final root = t.binding.pipelineOwner.semanticsOwner?.rootSemanticsNode;
+  if (root != null) walk(root);
+  return out;
+}
 
 void main() {
   // Widget tests draw every glyph as a square unless the app's face is loaded,
@@ -54,6 +75,35 @@ void main() {
       expect(keep.log, isEmpty);
       c.dispose();
     });
+
+    test(
+      'the free call keeps the screen awake and nothing more; an agent call '
+      'names whoever it is with',
+      () async {
+        // The free call used to start the Android service too — two
+        // permission dialogs over a twenty-second call in front — and the
+        // notification said «مكالمة مع شوق» over his calls (14 October).
+        final sessions = <FakeSession>[];
+        final keep = FakeKeepAlive();
+        final c = testController(sessions: sessions, keepAlive: keep);
+        await c.start(persona: CallPersona.salem); // no Salem agent: free
+        expect(sessions.single.local, isTrue);
+        expect(
+          keep.starts.single,
+          (title: salemCallCopy.callTitle, background: false),
+        );
+        await c.hangUp();
+
+        await c.start();
+        expect(sessions.last.local, isFalse);
+        expect(
+          keep.starts.last,
+          (title: shouqCallCopy.callTitle, background: true),
+        );
+        expect(keep.starts.last.title, isNot(contains('سالم')));
+        c.dispose();
+      },
+    );
 
     test(
       'stopped when she hangs up, the line drops, or dialling fails',
@@ -126,6 +176,7 @@ void main() {
       FakeKeepAlive keep, {
       CallPersona persona = CallPersona.shouq,
       bool connected = true,
+      String salemAgentId = 'agent_salem_test',
     }) async {
       final sessions = <FakeSession>[];
       t.view.physicalSize = const Size(390 * 2, 844 * 2);
@@ -135,14 +186,14 @@ void main() {
         WainApp(
           state: AppState.ephemeral(),
           sessionFactory: ({required bool local}) {
-            final s = FakeSession();
+            final s = FakeSession()..local = local;
             sessions.add(s);
             return s;
           },
           checkMic: () async => MicResult.ok,
           keepAlive: keep,
           shouqAgentId: 'agent_test',
-          salemAgentId: 'agent_salem_test',
+          salemAgentId: salemAgentId,
         ),
       );
       await t.pump(const Duration(milliseconds: 300));
@@ -335,6 +386,102 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const ValueKey('call-again')), findsOneWidget);
       expect(find.byKey(const ValueKey('call-to-salem')), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    // 14 October, the call-centre scan.
+    testWidgets(
+      'a phone that cannot listen offers Settings and «اكتب لسالم», which '
+      'lands on his chat',
+      (t) async {
+        // «جوالك ما يقدر يسمعك» was a sentence with no button: the speech
+        // permission is its own switch in Settings on iOS, and typing the
+        // same question to سالم answers it.
+        final sessions = await placeCall(
+          t,
+          FakeKeepAlive(),
+          persona: CallPersona.salem,
+          salemAgentId: '',
+          connected: false,
+        );
+        expect(sessions.single.local, isTrue, reason: 'the free call');
+        sessions.single.onError!('unavailable');
+        await t.pump(const Duration(milliseconds: 100));
+        expect(inSheet(find.text(CallCopy.speechUnavailable)), findsOneWidget);
+        expect(find.byKey(const ValueKey('call-open-settings')), findsOneWidget);
+        expect(find.byKey(const ValueKey('call-type-salem')), findsOneWidget);
+        await t.tap(find.byKey(const ValueKey('call-type-salem')));
+        for (var i = 0; i < 6; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        expect(find.byKey(const ValueKey('call-sheet')), findsNothing);
+        expect(find.byType(SalemScreen), findsOneWidget);
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets(
+      'the last screen offers «رسّلها للربع» for the place the call opened, '
+      'at its share panel',
+      (t) async {
+        debugTileUrl = '';
+        addTearDown(() => debugTileUrl = null);
+        final sessions = await placeCall(t, FakeKeepAlive());
+        await sessions.single.tools['open_place']!({'slug': 'kuwait-towers'});
+        await t.pump(const Duration(milliseconds: 300));
+        await t.tap(find.byKey(const ValueKey('call-hangup')));
+        await t.pump(const Duration(milliseconds: 100));
+        expect(find.byKey(const ValueKey('call-share-last')), findsOneWidget);
+        expect(inSheet(find.text(CallCopy.shareLast)), findsOneWidget);
+        await t.tap(find.byKey(const ValueKey('call-share-last')));
+        for (var i = 0; i < 6; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        expect(find.byKey(const ValueKey('call-sheet')), findsNothing);
+        final page = t.widget<PlaceDetailScreen>(
+          find.byType(PlaceDetailScreen),
+        );
+        expect(page.place.slug, 'kuwait-towers');
+        expect(page.share, isTrue, reason: 'opened at its share panel');
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('a call that opened nothing offers no share', (t) async {
+      await placeCall(t, FakeKeepAlive());
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('call-share-last')), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('the sheet covers the page for a screen reader too', (t) async {
+      // TalkBack walked the Home page under a sheet drawn over it.
+      final handle = t.ensureSemantics();
+      await placeCall(t, FakeKeepAlive(), connected: false);
+      expect(find.text('إلى وين؟'), findsOneWidget, reason: 'Home is under it');
+      expect(
+        _spokenLabels(t).where((l) => l.contains('إلى وين')),
+        isEmpty,
+        reason: 'but a screen reader cannot reach it',
+      );
+      expect(
+        _spokenLabels(t).where((l) => l.contains(CallCopy.hangUp)),
+        isNotEmpty,
+        reason: 'the sheet itself is read',
+      );
+      await t.tap(find.byKey(const ValueKey('call-hangup')));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.tap(find.byKey(const ValueKey('call-close')));
+      await t.pump(const Duration(milliseconds: 100));
+      expect(
+        _spokenLabels(t).where((l) => l.contains('إلى وين')),
+        isNotEmpty,
+        reason: 'the page is back once the sheet is gone',
+      );
+      handle.dispose();
       await t.pumpWidget(const SizedBox());
     });
 

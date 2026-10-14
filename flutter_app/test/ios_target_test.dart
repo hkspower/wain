@@ -88,12 +88,18 @@ void _uploadReadiness() {
     expect(RegExp('<string>').allMatches(modes!).length, 1);
   });
 
-  test('the microphone has a purpose string (شوق\'s call)', () {
-    expect(value('NSMicrophoneUsageDescription'), isNotEmpty);
+  test('the microphone has a purpose string naming both of them', () {
+    // iOS shows it at the prompt; one naming only her over his call is the
+    // mix the two agents ended (14 October).
+    expect(
+      value('NSMicrophoneUsageDescription'),
+      allOf(contains('شوق'), contains('سالم')),
+    );
     // The free call (2 October) uses the phone's speech recognition; iOS
     // ends the app on first use without this key, the same way it did for a
     // missing microphone string.
     expect(value('NSSpeechRecognitionUsageDescription'), isNotEmpty);
+    expect(value('NSSpeechRecognitionUsageDescription'), isNot(contains('شوق')));
   });
 
   // flutter_webrtc, under livekit under elevenlabs_agents, calls

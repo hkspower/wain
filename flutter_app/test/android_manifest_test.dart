@@ -40,6 +40,10 @@ void main() {
     ).readAsStringSync();
     expect(kt, contains('FOREGROUND_SERVICE_TYPE_MICROPHONE'));
     expect(kt, contains('START_NOT_STICKY'));
+    // The channel is what Settings shows for every call's notification, hers
+    // and his, so it names neither (14 October); the title names the caller.
+    expect(kt, contains('"مكالمات وين"'));
+    expect(kt, isNot(contains('"مكالمة شوق"')));
   });
 
   test('a shared /places/ or /pick/ link is claimed for verification, on '

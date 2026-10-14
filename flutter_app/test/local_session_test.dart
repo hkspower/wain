@@ -1,6 +1,8 @@
 // The free call (lib/ai/local_session.dart) through the real controller, with
 // a fake recogniser standing in for the phone's speech service. The live app
 // is the free build since 2 October: no agent, no ElevenLabs, no credits.
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
@@ -20,6 +22,9 @@ class FakeRecognizer implements Recognizer {
   String? locale;
   bool stopped = false;
 
+  /// Holds `listen` open: the microphone is still being asked for.
+  Completer<void>? hold;
+
   @override
   Future<bool> init({required void Function(String error) onError}) async {
     fail = onError;
@@ -36,6 +41,7 @@ class FakeRecognizer implements Recognizer {
   }) async {
     locale = localeId;
     say = onWords;
+    await hold?.future;
   }
 
   @override
@@ -82,15 +88,18 @@ void main() {
     Recognizer rec, {
     Recognizer Function()? fresh,
     Duration maxListen = const Duration(seconds: 20),
+    Duration silenceFor = const Duration(seconds: 8),
+    Duration answerDelay = const Duration(milliseconds: 10),
   }) {
     late CallController c;
     c = CallController(
       sessionFactory: ({required bool local}) => LocalSession(
         recognizer: fresh?.call() ?? rec,
         maxListen: maxListen,
+        silenceFor: silenceFor,
         onHeard: (w) => c.hear(w),
         onAnswered: answered.add,
-        answerDelay: const Duration(milliseconds: 10),
+        answerDelay: answerDelay,
       ),
       places: kPlaces,
       indexOf: () => searchIndex,
@@ -276,6 +285,75 @@ void main() {
         reason: 'any Arabic beats none',
       );
       expect(pickLocale(['en_US']), isNull, reason: 'else the phone\'s own');
+    });
+  });
+
+  // 14 October, the call-centre scan: what the free call says, and when.
+  group('honest about its own timing', () {
+    test('«متصل» only once the recogniser is listening', () async {
+      // The sheet said «متصل» as the recogniser was being asked to start —
+      // the moment the ring is for.
+      final rec = FakeRecognizer()..hold = Completer<void>();
+      final c = controllerWith(rec);
+      final started = c.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        c.phase,
+        CallPhase.ringing,
+        reason: 'the microphone is still being opened',
+      );
+      rec.hold!.complete();
+      await started;
+      expect(c.phase, CallPhase.live);
+      c.dispose();
+    });
+
+    test('nothing heard for a while: «ما سمعناك», well before the cap', () async {
+      // The only end for silence used to be the twenty-second cap or the
+      // plugin's own timeout: that long of «متصل» over nothing.
+      final rec = FakeRecognizer();
+      final c = controllerWith(
+        rec,
+        silenceFor: const Duration(milliseconds: 40),
+      );
+      await c.start();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(rec.stopped, isTrue);
+      expect(c.phase, CallPhase.failed);
+      expect(c.error, CallCopy.noSpeech);
+      expect(went, isEmpty);
+      c.dispose();
+    });
+
+    test('a first word, even a partial one, keeps her listening', () async {
+      final rec = FakeRecognizer();
+      final c = controllerWith(
+        rec,
+        silenceFor: const Duration(milliseconds: 40),
+      );
+      await c.start();
+      rec.say!('قه', false);
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(c.phase, CallPhase.live);
+      expect(rec.stopped, isFalse);
+      c.dispose();
+    });
+
+    test('the cap landing while the answer is in flight answers once', () async {
+      // A final word landing while the cap's answer was still awaiting the
+      // search opened /search twice and spoke twice.
+      final rec = FakeRecognizer();
+      final c = controllerWith(
+        rec,
+        maxListen: const Duration(milliseconds: 40),
+        answerDelay: const Duration(milliseconds: 200),
+      );
+      await c.start();
+      rec.say!('قهوة', true);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(went, hasLength(1), reason: 'one /search, not two');
+      expect(answered, ['قهوة'], reason: 'spoken once');
+      c.dispose();
     });
   });
 

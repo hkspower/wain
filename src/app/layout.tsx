@@ -174,10 +174,10 @@ export default function RootLayout({
             today's ticket, which is why it is not the top bar coming back —
             see LiveTray. */}
         <LiveTray />
-        {/* Above the router, but only *offered* on /search — the button hides
-            itself everywhere else. It has to outlive a route change because
-            `open_place` is a route change: a call mounted by the search page
-            would be killed by its own tool. See WainAi. */}
+        {/* Above the router, offered on /find (hers) and in سالم's header
+            (his). It has to outlive a route change because `open_place` is a
+            route change: a call mounted by the page that offered it would be
+            killed by its own tool. See WainAi. */}
         <WainAi />
         <AppTabBar />
         <AppShell />

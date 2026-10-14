@@ -6,8 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:wain/ai/call_button.dart';
 import 'package:wain/ai/call_controller.dart';
+import 'package:wain/ai/config.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/screens/find_screen.dart';
+import 'package:wain/widgets/svg.dart';
 
 import 'support.dart';
 
@@ -64,6 +66,48 @@ void main() {
     await t.pump(const Duration(minutes: 2));
     expect(_greetings(t), contains('هلا!'));
     expect(_greetings(t), contains('غدا'));
+    await t.pumpWidget(const SizedBox());
+  });
+
+  // The web's سالم half since 7 October, in the app since 14 October: his name
+  // in the heading, no role pill under it (two «في الكويت» pills a screen
+  // apart read as a repeat), and a send icon on the button, the way the
+  // handset says «call» on the half above.
+  testWidgets('سالم\'s half: «اكتب لسالم», no role pill, a send button', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(390 * 3, 844 * 3);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_host(() => DateTime.utc(2026, 7, 15, 9)));
+    final half = find.byKey(const ValueKey('find-type'));
+    expect(
+      find.descendant(of: half, matching: find.text('اكتب ل$kSalemName')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: half, matching: find.text(kSalemRole)),
+      findsNothing,
+      reason: 'the heading names him; the pill repeated it',
+    );
+    final action = find.byKey(const ValueKey('find-type-action'));
+    expect(action, findsOneWidget);
+    expect(
+      find.descendant(
+        of: action,
+        matching: find.byWidgetPredicate(
+          (w) => w is WainSvg && w.asset.endsWith('/send.svg'),
+        ),
+      ),
+      findsOneWidget,
+      reason: 'a send icon says «type»',
+    );
+    expect(
+      t.getRect(action).height,
+      greaterThanOrEqualTo(48),
+      reason: 'a finger\'s button',
+    );
+    expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());
   });
 

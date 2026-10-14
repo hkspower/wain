@@ -101,13 +101,19 @@ Future<void> pumpApp(WidgetTester tester, String location) async {
 T read<T>(WidgetTester tester, Finder f) =>
     Provider.of<T>(tester.element(f.first), listen: false);
 
-/// Records when the call asked to be kept alive, and when it let go.
+/// Records when the call asked to be kept alive, and when it let go — and, for
+/// each start, whose call the notification would name and whether the Android
+/// service was asked for at all (the free call asks only for the screen).
 class FakeKeepAlive implements CallKeepAlive {
   final List<String> log = [];
+  final List<({String title, bool background})> starts = [];
   bool get running => log.isNotEmpty && log.last == 'start';
 
   @override
-  Future<void> start() async => log.add('start');
+  Future<void> start({required String title, bool background = true}) async {
+    log.add('start');
+    starts.add((title: title, background: background));
+  }
 
   @override
   Future<void> stop() async => log.add('stop');

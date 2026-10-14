@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wain/ai/agent_health.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
 
@@ -346,6 +347,142 @@ void main() {
         c.dispose();
       },
     );
+  });
+
+  // 14 October, the call-centre scan: what a call does around its edges.
+  group('around the edges of a call', () {
+    tearDown(() {
+      AgentHealth.instance.reset();
+      AgentHealth.instance.now = DateTime.now;
+    });
+
+    test(
+      'a refusal for credits is said as itself, and the next call for a '
+      'quarter hour is the free one',
+      () async {
+        var at = DateTime.utc(2026, 10, 14, 12);
+        AgentHealth.instance
+          ..reset()
+          ..now = () => at;
+        final sessions = <FakeSession>[];
+        final c = testController(sessions: sessions);
+        await c.start();
+        sessions.single.onError!("[quota_exceeded] You've run out of credits");
+        expect(c.phase, CallPhase.failed);
+        expect(
+          c.error,
+          CallCopy.agentUnavailable,
+          reason: 'not «ما قدرنا نوصلك», which blames the line',
+        );
+        expect(c.isFree(CallPersona.shouq), isTrue);
+
+        await c.start();
+        expect(sessions.last.local, isTrue, reason: 'our own search');
+        expect(sessions.last.startedAgent, '');
+        await c.hangUp();
+
+        at = at.add(const Duration(minutes: 16));
+        await c.start();
+        expect(
+          sessions.last.local,
+          isFalse,
+          reason: 'the agent is tried again after the quarter hour',
+        );
+        c.dispose();
+      },
+    );
+
+    test('a refusal for credits on the FREE call is not the account', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start(persona: CallPersona.salem); // no agent: free
+      sessions.single.onError!('quota_exceeded');
+      expect(c.error, CallCopy.speechUnavailable);
+      expect(AgentHealth.instance.available, isTrue);
+      c.dispose();
+    });
+
+    test('«إنهاء» arriving after the call ended changes nothing', () async {
+      // The notification's button can reach the app after the call has
+      // ended on its own; it used to reopen the sheet as «انتهت المكالمة»
+      // over whatever the caller had moved on to.
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      sessions.single.onDisconnected!();
+      expect(c.phase, CallPhase.ended);
+      c.closeSheet();
+      expect(c.sheetOpen, isFalse);
+      await c.hangUp();
+      expect(c.sheetOpen, isFalse, reason: 'no sheet reopened');
+      expect(c.phase, CallPhase.idle);
+      c.dispose();
+    });
+
+    test('the place the call put on screen is kept for «رسّلها للربع»', () async {
+      final nav = <String>[];
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions, navigate: nav.add);
+      await c.start();
+      sessions.single.onConnected!();
+      expect(c.lastSlug, isNull);
+      await sessions.single.tools['show_places']!({'query': 'قهوة'});
+      expect(c.lastSlug, isNotNull, reason: 'the first of the search');
+      await sessions.single.tools['open_place']!({'slug': 'kuwait-towers'});
+      expect(c.lastSlug, 'kuwait-towers');
+      nav.clear();
+      c.shareLastPlace();
+      expect(nav, isEmpty, reason: 'not while the call is up');
+      await c.hangUp();
+      c.shareLastPlace();
+      expect(nav, ['/places/kuwait-towers?share=1']);
+      expect(c.sheetOpen, isFalse);
+      c.dispose();
+    });
+
+    test('a new call forgets the last one\'s place', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      await sessions.single.tools['open_place']!({'slug': 'kuwait-towers'});
+      await c.hangUp();
+      await c.start();
+      expect(c.lastSlug, isNull);
+      c.dispose();
+    });
+
+    test('the search box moving on forgets the call\'s question', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      await c.hangUp();
+      expect(c.lastQuery, 'بحر');
+      c.forgetLastQueryUnless(' بحر ');
+      expect(c.lastQuery, 'بحر', reason: 'the same words, trimmed');
+      c.forgetLastQueryUnless('بحر هادي');
+      expect(c.lastQuery, isNull);
+      expect(c.canContinueWithSalem, isFalse);
+      c.dispose();
+    });
+
+    test('«اكتب لسالم» lands on his chat, only once the call is over', () async {
+      final nav = <String>[];
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions, navigate: nav.add);
+      await c.start();
+      c.typeToSalem();
+      expect(nav, isEmpty);
+      sessions.single.onError!('refused');
+      expect(c.phase, CallPhase.failed);
+      c.typeToSalem();
+      expect(nav, ['/salem']);
+      expect(c.sheetOpen, isFalse);
+      c.dispose();
+    });
   });
 
   test('the agent ids: each persona names its own, and never the other', () {

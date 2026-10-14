@@ -3,10 +3,12 @@
 /// and a call the page owned would be killed by its own tool.
 ///
 /// Honesty is the design: «يرن…» while dialling, «متصل» only once the session
-/// really opened, her mouth and orb animate only while she is speaking, the
+/// really opened, the face pulses only while the agent is speaking, the
 /// stopwatch sits OUTSIDE the announced region (a screen reader re-read it
 /// every second), and because the sheet covers the page she just drove, it
-/// says in words what she did there.
+/// says in words what she did there. It also covers the page for a screen
+/// reader: `BlockSemantics`, or TalkBack walked the page under a sheet that
+/// was drawn over it (14 October).
 library;
 
 import 'package:flutter/material.dart';
@@ -16,6 +18,7 @@ import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/svg.dart';
 import 'call_controller.dart';
 import 'config.dart';
 
@@ -40,7 +43,7 @@ class CallOverlay extends StatelessWidget {
     return Positioned.fill(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: kChromeOnDark,
-        child: _Sheet(call: call),
+        child: BlockSemantics(child: _Sheet(call: call)),
       ),
     );
   }
@@ -218,9 +221,13 @@ class _Sheet extends StatelessWidget {
               ),
             ],
             // A refusal the app can no longer ask about: only Settings undoes
-            // it, so the way there is a button, not just a sentence.
+            // it, so the way there is a button, not just a sentence. The same
+            // for a phone that cannot listen (the speech permission is its
+            // own switch on iOS), which was a dead end until 14 October — and
+            // that one also offers the question typed, to سالم.
             if (call.phase == CallPhase.failed &&
-                call.error == CallCopy.micBlocked) ...[
+                (call.error == CallCopy.micBlocked ||
+                    call.error == CallCopy.speechUnavailable)) ...[
               FilledButton(
                 key: const ValueKey('call-open-settings'),
                 onPressed: openAppSettings,
@@ -236,7 +243,47 @@ class _Sheet extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
+            if (call.phase == CallPhase.failed &&
+                call.error == CallCopy.speechUnavailable) ...[
+              FilledButton(
+                key: const ValueKey('call-type-salem'),
+                onPressed: call.typeToSalem,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: WainColors.ink900,
+                  minimumSize: const Size(220, 48),
+                ),
+                child: Text(
+                  CallCopy.typeToSalem,
+                  style: wainText(WainText.base, weight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (over) ...[
+              // The place the call put on screen, one tap from its last
+              // screen — the web's ended sheet has had it since 3 October.
+              if (call.lastSlug != null) ...[
+                FilledButton.icon(
+                  key: const ValueKey('call-share-last'),
+                  onPressed: call.shareLastPlace,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: WainColors.coral600,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(220, 48),
+                  ),
+                  icon: WainSvg.icon('send', size: 16, color: Colors.white),
+                  label: Text(
+                    CallCopy.shareLast,
+                    style: wainText(
+                      WainText.base,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               // The same question, typed, with سالم — switching used to mean
               // starting over (the web's last screen has the same button). Her
               // calls only: see CallController.canContinueWithSalem.
