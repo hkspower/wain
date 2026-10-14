@@ -134,15 +134,27 @@ const PHYSICAL =
    exemption is that value, not a file or a class family: a plain pl-4 beside
    it is still a finding. SalemChat, WainAiCall and AppTabBar use it, and each
    pads both sides with the same rule, so there is nothing to mirror. */
-const SAFE_SIDE_INSET = [
-  /\S*(?:pl|ml|left)-\S*env\(safe-area-inset-left\)\S*/g,
-  /\S*(?:pr|mr|right)-\S*env\(safe-area-inset-right\)\S*/g,
-];
+/* Token by token, and only when the token names ONE side. A token that carries
+   both insets (pl-[calc(env(left)+env(right))]) lands the right inset on the
+   left padding, so it is not exempt; a token that names the other side from
+   its utility (pl- with the right inset) is not exempt either. */
+const LEFT_UTIL  = /(?:^|[\s"'`{:])-?(?:pl|ml|left)-/;
+const RIGHT_UTIL = /(?:^|[\s"'`{:])-?(?:pr|mr|right)-/;
+const HAS_LEFT_INSET  = /env\(safe-area-inset-left\)/;
+const HAS_RIGHT_INSET = /env\(safe-area-inset-right\)/;
+function exemptSafeSide(line) {
+  return line.replace(/\S+/g, (tok) => {
+    const l = HAS_LEFT_INSET.test(tok), r = HAS_RIGHT_INSET.test(tok);
+    if (l && !r && LEFT_UTIL.test(tok)) return " ";
+    if (r && !l && RIGHT_UTIL.test(tok)) return " ";
+    return tok;
+  });
+}
 const physical = [];
 for (const f of files) {
   if (RTL_EXEMPT.test(f.path)) continue;
   f.text.split("\n").forEach((line, i) => {
-    const scanned = SAFE_SIDE_INSET.reduce((s, re) => s.replace(re, " "), line);
+    const scanned = exemptSafeSide(line);
     for (const m of scanned.matchAll(PHYSICAL)) physical.push(`${f.path}:${i + 1}  ${m[0]}`);
   });
 }
