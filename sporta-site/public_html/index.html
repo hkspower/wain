@@ -529,14 +529,16 @@
          script below). Not the 2.52:1 box above, which is the shipped
          banner's own shape. */
       html[data-hero-shell="slide"] .boot-hero-pic { aspect-ratio: auto; height: 100%; overflow: visible }
-      /* ONE PIXEL TALLER than the box, on purpose. The same picture is laid
-         behind the mounted carousel (the boot script's bridge rule), and LCP
-         sizes a BACKGROUND image by its whole-pixel rect (469px for a
-         468.6px box) while it sizes an <img> exactly — so a bridge the same
-         size as this picture counted as a larger, later "largest paint" and
-         moved LCP from the shell to React's mount. 1px more here keeps this
-         the largest; the extra row is the picture's own bottom edge, for as
-         long as the shell lives. */
+      /* UNCLIPPED AND ONE PIXEL TALLER than the box, on purpose. The same
+         picture is laid behind the mounted carousel (the boot script's
+         bridge rule), and LCP sized that BACKGROUND by its whole-pixel rect
+         (469px for a 468.6px box) while it sized this <img> by its CLIPPED
+         box (468.6px) — so the bridge counted as a larger, later "largest
+         paint" and moved LCP from the shell to React's mount (measured on a
+         throttled phone: 3.6s -> 6.9s). Unclipped, the two come out equal;
+         the extra pixel keeps this one the larger whatever the rounding. The
+         extra row is the picture's own bottom edge, for as long as the shell
+         lives. test:hero-first-frame checks LCP is the picture's first show. */
       html[data-hero-shell="slide"] .boot-hero-pic img { object-fit: cover; height: calc(100% + 1px) }
       /* Drawn ONLY when the boot script says so: on the home page, and only
          when the hero coming is the shipped banner rather than an owner's
