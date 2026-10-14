@@ -4728,3 +4728,64 @@ languages at 1280 and 1920, headline contrast, square phone pictures and feet cl
 - The Slides screen's phone preview is stale, and a phone picture uploaded through the panel is
   shrunk to 1200 px.
 - Full still subtracts the old 58/64 px header from the height.
+
+## The Users page — shoppers and the panel team, 2026-10-14
+
+Asked for as "make users page at backends". The owner chose:
+- one screen with two tabs, Shoppers and Team;
+- full access for every team member, with no roles;
+- for shoppers: list, search, details, block/unblock, sign out everywhere, delete.
+
+The screen is `assets/users-screen.js`, an own-screen overlay like `seo-screen.js`. The routes are a
+USERS PAGE block in `admin.php` below the audit hook.
+
+**Live:** publish, THEN run `scripts/publish/migrate-users.php`. It adds four columns to `customers`
+(`blocked_at`, `blocked_reason`, `blocked_by`, `signed_out_at`) and two to `admin_users`
+(`disabled_at`, `added_by`). It is strict: it reads back each column's type and reports
+`columns=6/6 READY`. Until it has run, every new route answers `users_not_ready` 503 and nothing
+else changes.
+
+**Team actions** (`team_add`, `team_lock`, `team_unlock`, `team_remove`):
+- Each needs the signed-in admin's password AND second-factor code, sent in the body as `password`
+  and `code` so the audit log redacts them.
+- `team_add` shows a temporary password once, with `must_change_password` set.
+- Nobody can lock or remove themselves (`cannot_lock_self`, `cannot_remove_self`), and the last
+  active admin can be neither (`last_active_admin`, decided inside one locked transaction).
+- A switched-off admin is refused at EVERY sign-in door with `account_disabled`, before anything is
+  written: password, code and resend, passkey, Google, Apple, passcode, and password reset (reset
+  sends no mail and still answers ok). Their sessions end on the next request.
+- A temporary password cannot open the print, label or invoice pages either.
+
+**Shopper actions:**
+- Orders are matched by `customer_id` only, never by phone. CLAUDE.md's account-takeover reasoning
+  applies.
+- Block refuses every customer door with `account_blocked` before a session or cookie exists, and
+  also sets `signed_out_at`, so an idle browser stays signed out after an unblock.
+- "Sign out everywhere" ends sessions older than `signed_out_at` (compared in SQL with
+  `unix_timestamp`), removes passkeys, and marks pending codes as used rather than deleting them,
+  so their wrong tries still count.
+- Delete needs the shopper's email typed again (`email_mismatch` otherwise) and unlinks their
+  orders rather than deleting them.
+- Details come from a NAMED column list, so a column added later is never shown by accident.
+- Search covers email, name and phone. A leading 00 and Arabic or Persian digits are normalised.
+  Paging is keyset (`before=<id>`).
+
+**Tests:** `test:users`, 235 checks. `MUTATE=all` catches 19 mutations, each naming its own check.
+
+**Open questions for the owner, from the review (none were changed):**
+1. Restoring a backup can bring back removed admins and undo blocks and switch-offs. Should restore
+   ask for the password and code? Should it refuse a file that leaves no active admin?
+2. Should an unused temporary password expire?
+3. Push alerts keep going to a removed colleague's phones. The fix needs `push_subscriptions.admin_id`,
+   a schema change.
+4. Panel times print in the database's time zone. Should they be Kuwait time?
+5. Should a wrong password at re-authentication count towards the lockout and appear in the sign-in
+   log?
+6. "Also lift the phone block" on unblock removes a CRM phone block that existed before the account
+   block.
+7. The Expo app shows a blocked shopper "Try again shortly", and shows a switched-off admin the raw
+   token `account_disabled`.
+8. Leaving the Users screen loses a temporary password that is still on screen.
+9. With require_2fa on, should team actions demand an emailed code from an account with no second
+   factor?
+10. The typed email from a delete confirmation is kept in the Activity log.
