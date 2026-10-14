@@ -4614,3 +4614,34 @@ and keeps a backup in the home directory. **It holds only at the 1.000 KWD fee:*
 - `test:numeric-keyboard`'s Settings section is stale;
 - `test:quick-add-grids` (click intercepted), `test:hero-size` (2), `test:image-sizes` (hero and infobar
   upscale), `test:dark`, `test:css` (driver.css), `test:overlay-strings` drift.
+
+## Alignment scan, live commit 6041c48 — five faults fixed, 2026-10-14
+
+Five faults were measured by the full alignment scan (scratchpad tool, 244 scans) and fixed. Each one was
+first reproduced in a browser.
+
+- **Footer links.** The columns are `text-align:center` at every width. A link narrower than its 44px
+  minimum box ("Terms", "الشحن", "الإرجاع") had its box centred but its text at the box's start, so the text
+  sat 1.3-2.5px off the column's centre line. Fixed with `justify-content:center` in `07-`. That file's own
+  comment had said "the text itself does not shift"; that held for the box but not for the column.
+- **Checkout steps.** The finished "Bag" step is an `a.tap-row`. The bundle's `.tap-row` CSS is written for
+  a flex box, but this element is `display:block`, so its 24px row sat at the top of its 44px box, 10px
+  above the other two steps. Fixed in `91-alignment-fixes.css`.
+- **/track.** The row's default `stretch` cannot stretch a fixed-height button. The Arabic input is taller
+  (line-height 1.75), which left the button 3.1px off the input's centre. Fixed with
+  `align-items:center`, from 640px only. Below 640px the form is a column, and centring a column would
+  shrink the input to its content width.
+- **Inventory.** `.spinv-label`'s `margin-bottom:6px` is for a label above a block. Inside a row it lifted
+  the text 3.9px. Fixed with `.spinv-row>.spinv-label{margin-bottom:0}`.
+- **Brands bulk list.** The rows need 4px of padding so a checkbox's focus ring is not clipped by the
+  scroll box. The list now reaches 4px into the card's padding, so the row content lines up with the
+  card's other content.
+
+`test:alignment` holds the three storefront fixes. With `MUTATE=3` it fails with the original numbers:
+2.5px, 10px and 3.1px.
+
+**Not a fault:** the scan flagged the phone product page's gallery and colour row as "not mirrored" in
+Arabic (16px from the left, −396px from the right, in both languages). The parent it measured against is
+`display:contents`, which `product-mobile-layout.js` uses to flatten the column, and such a box is 0×0.
+Measured against the page, the row is symmetric (16px gutter on each side). **A `display:contents`
+element has no box. Measure against the nearest ancestor that has one.**

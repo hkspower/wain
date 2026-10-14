@@ -410,6 +410,9 @@
     + '.spinv-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}'
     + '.spinv-field{margin-top:14px}'
     + '.spinv-label{font-size:13px;font-weight:600;margin-bottom:6px}'
+    // a label INSIDE a row sits on the row's centre line; the 6px under it is for a
+    // label above a block, and in a row it lifted the text 3-4px off its input
+    + '.spinv-row>.spinv-label{margin-bottom:0}'
     + '.spinv-hint{font-size:12px;opacity:.7;flex:1 1 220px}'
     + '.spinv-chip{padding:6px 12px;border-radius:999px;border:1px solid var(--border,#2a2d31);font-size:13px}'
     + '.spinv-c-out{border-color:#b3261e;background:rgba(179,38,30,.18)}'

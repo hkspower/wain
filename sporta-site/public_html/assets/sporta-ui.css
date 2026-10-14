@@ -272,7 +272,7 @@ footer.app-footer > .mx-auto.max-w-7xl {
   text-wrap: balance;
 }
 .app-footer a.inline-flex.min-h-11,
-footer a.inline-flex.min-h-11 { min-width: 44px; }
+footer a.inline-flex.min-h-11 { min-width: 44px; justify-content: center; }
 main > section:has(> h1.text-brand-dark):has(h2),
 main > section:has(> div > h1.text-brand-dark):has(h2) {
   --doc-body: 14.75px;
@@ -2470,4 +2470,12 @@ main:not(.admin-content) .space-y-3 .rounded-2xl ul > li > a[aria-current="page"
 .admin-content .h-28.items-end > .group > span {
   position: absolute;
   bottom: 0;
+}
+nav > ol > li > a.tap-row {
+  display: flex;
+}
+@media (min-width: 640px) {
+  main#main > section > form.flex-col.sm\:flex-row {
+    align-items: center;
+  }
 }

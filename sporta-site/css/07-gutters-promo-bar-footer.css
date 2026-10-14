@@ -188,7 +188,14 @@ footer.app-footer > .mx-auto.max-w-7xl {
  * NOTHING MOVES ON SCREEN. The links are stacked list items, so a wider box
  * extends into empty space beside the text rather than pushing anything; and
  * with the default flex-start the text itself does not shift a pixel. The hit
- * area grows, the layout does not. Measured before and after. */
+ * area grows, the layout does not. Measured before and after.
+ *
+ * CORRECTED 2026-10-14: "the text does not shift" was true of the box and not
+ * of the column. The columns are text-align:center at every width, so a link
+ * narrower than 44px ("Terms", "الشحن", "الإرجاع") had its BOX centred and its
+ * TEXT at the box's start, 1.3-2.5px off the column centre the other links
+ * sit on (alignment scan, 2026-10-08). Centring the text in the box puts it
+ * back on that line; a link already wider than 44px is unaffected. */
 .app-footer a.inline-flex.min-h-11,
-footer a.inline-flex.min-h-11 { min-width: 44px; }
+footer a.inline-flex.min-h-11 { min-width: 44px; justify-content: center; }
 

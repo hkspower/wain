@@ -8,7 +8,10 @@
  *   - the four category tiles put their text block at the same place
  *   - the product page centres its price and its size, fit and colour buttons (owner, 2026-10-07)
  *
- * Run `bash scripts/sandbox.sh` first. MUTATE=1 removes the icon fix and MUTATE=2 the product-page centring; each must fail.
+ *   - footer links, the checkout steps and the /track row (2026-10-08 scan, css/91-alignment-fixes.css)
+ *
+ * Run `bash scripts/sandbox.sh` first. MUTATE=1 removes the icon fix, MUTATE=2 the product-page centring and
+ * MUTATE=3 the 2026-10-08 fixes; each must fail.
  */
 import { chromium, devices } from 'playwright'
 import { PNG } from 'pngjs'
@@ -95,10 +98,50 @@ try {
       return out
     })
     for (const k of ['price', 'sizes', 'fit', 'colour']) check(pc[k] >= 0 && pc[k] <= 2, `${tag} product page: the ${k === 'fit' ? 'fit buttons are' : k === 'price' ? 'price is' : k === 'colour' ? 'colours are' : k + ' are'} centred`, `${pc[k].toFixed(1)}px off`)
+
+    // --- the 2026-10-08 scan: footer links, checkout steps, the /track row (css/91-alignment-fixes.css)
+    const undo = 'footer a.inline-flex.min-h-11{justify-content:flex-start!important}nav>ol>li>a.tap-row{display:block!important}main#main>section>form.flex-col{align-items:normal!important}'
+    await p.goto(BASE + '/terms', { waitUntil: 'networkidle' })
+    if (process.env.MUTATE === '3') await p.addStyleTag({ content: undo })
+    await p.waitForTimeout(500)
+    const ft = await p.evaluate(() => {
+      let worst = 0, n = 0
+      for (const ul of document.querySelectorAll('footer ul.text-sm')) {
+        const cs = [...ul.querySelectorAll('li > a.inline-flex')].map((a) => { const g = document.createRange(); g.selectNodeContents(a); const r = g.getBoundingClientRect(); return (r.left + r.right) / 2 })
+        if (cs.length > 1) { n += cs.length; worst = Math.max(worst, Math.max(...cs) - Math.min(...cs)) }
+      }
+      return { worst, n }
+    })
+    check(ft.n >= 4 && ft.worst <= 1, `${tag} footer: every link's text sits on its column's centre line`, `${ft.n} links, spread ${ft.worst.toFixed(1)}px`)
+    // checkout needs something in the bag: the shop's own size box puts it there
+    await p.goto(BASE + '/shop', { waitUntil: 'networkidle' })
+    await p.waitForSelector('.cardopt-size:not([disabled])', { timeout: 15000 })
+    await p.evaluate(() => [...document.querySelectorAll('.cardopt-size')].find((x) => !x.disabled && x.getAttribute('aria-disabled') !== 'true').click())
+    await p.waitForTimeout(900)
+    await p.goto(BASE + '/checkout', { waitUntil: 'networkidle' })
+    if (process.env.MUTATE === '3') await p.addStyleTag({ content: undo })
+    await p.waitForTimeout(900)
+    const st = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('nav > ol > li > * > span.flex')].map((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 })
+      return { n: rows.length, spread: rows.length ? Math.max(...rows) - Math.min(...rows) : -1 }
+    })
+    check(st.n === 3 && st.spread <= 1, `${tag} checkout: the three steps share one centre line`, `${st.n} steps, spread ${st.spread.toFixed(1)}px`)
+    if (dev === 'desktop') {
+      await p.goto(BASE + '/track', { waitUntil: 'networkidle' })
+      if (process.env.MUTATE === '3') await p.addStyleTag({ content: undo })
+      await p.waitForTimeout(600)
+      const tr = await p.evaluate(() => {
+        const f = document.querySelector('main#main > section > form.flex-col')
+        const c = (e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2 }
+        const i = f && f.querySelector('input'), b = f && f.querySelector('button')
+        return i && b ? Math.abs(c(i) - c(b)) : -1
+      })
+      check(tr >= 0 && tr <= 1, `${tag} /track: the Track button is centred on the order-number box`, `${tr.toFixed(1)}px off`)
+    }
     await ctx.close()
   }
 } finally {
   await browser.close()
 }
-console.log(fails ? `\n${fails} failed` : '\nall ok — titles, header, menu and tiles line up')
+console.log(fails ? `\n${fails} failed` : '\nall ok — titles, header, menu, tiles, footer, checkout and /track line up')
 process.exit(fails ? 1 : 0)

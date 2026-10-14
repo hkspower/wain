@@ -1,0 +1,26 @@
+/* Alignment faults found by the full alignment scan (2026-10-08, live commit
+ * 6041c48), each measured in a browser before it was fixed. Nothing here picks
+ * a new size or colour; each rule puts an element back on the line its
+ * neighbours already sit on. */
+
+/* Checkout step bar. The finished "Bag" step is a link carrying the bundle's
+ * `.tap-row` (align-items:center; min-height:44px), which assumes a flex box,
+ * but the element is display:block. So its 24px circle and label sat at the
+ * TOP of the 44px box, 10px above "Delivery" and "Payment" on phones and
+ * tablets. Making it the flex box the class was written for centres it. */
+nav > ol > li > a.tap-row {
+  display: flex;
+}
+
+/* /track: the order-number box and the Track button share a row from 640px
+ * (`flex-col sm:flex-row`). The row's default stretch could not stretch the
+ * button (its height is fixed), so it sat at the top. The Arabic box is taller
+ * (line-height 1.75), which put the button 3.1px above the box's centre.
+ * Centring the row's items fixes both languages. Below 640px the form is a
+ * column and is left alone: centring a column would shrink the box to its
+ * content width. */
+@media (min-width: 640px) {
+  main#main > section > form.flex-col.sm\:flex-row {
+    align-items: center;
+  }
+}

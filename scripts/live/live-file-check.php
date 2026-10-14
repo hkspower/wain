@@ -156,7 +156,7 @@ $WANT = [
     'assets/bidi-aEAFfM9w.js' => '2d2f9386b7166e9eb7fc75bc3aa85cbcb3f21037f75ae92894bb2570c4436424',
     'assets/brand-badge.js' => '8e67e1cd42dba8b07da441470ebb54a6de237ea120596a0cd486118720c1a590',
     'assets/brand-image-picker.js' => '12f369b7bcc96e31c2e2ccf446e7ad6bdbb40a28e7cd662bbb633eb6f9c6a667',
-    'assets/brand-logos.js' => '4442eee47cff809363c04bcecf358945bec746804c2a57f50c98798904b14e0c',
+    'assets/brand-logos.js' => '80ddff3c7433d9e18dbb78aae02c43a90412f2ae1df0c6fda6fb0646262c7275',
     'assets/brand-strip.js' => '9e2c4ae3d55c1ee9e393eb15a3b3f0694b0f9b3929593ccca3fd4d811cce3f69',
     'assets/card-badges.js' => '2140aa40823461aa06da59a2338b91eb789ddfb380ec6a115ad771d646c31a02',
     'assets/card-heart.js' => '9768f49b782e63c2190ee2bfccf524b1c555ab76a99798e0684296ef6a80f4fe',
@@ -202,7 +202,7 @@ $WANT = [
     'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
     'assets/inventory-scan.js' => '756167af3c89caeca7527cef34ca93d05b329acf2ae7412d29b8080f87dfb543',
-    'assets/inventory-tools.js' => '41f45e6d6546a54704e71baf01bc1dba83f7c6f031f8c35e294149a87e0f1ed2',
+    'assets/inventory-tools.js' => '3a250c4149d0221ec69e16f67fae25c4414631dd3fc88fccb518c142a178cc2e',
     'assets/invoice-preview.js' => '4bca30de1e90b495fa5f57fab4eee559a7a19e5b325d6570d59f1c0975dfd61d',
     'assets/invoices.js' => '4014c84e42538aae132ec42e63d05fb63c5147c6bdeef0ea0aa11670de845c2f',
     'assets/keyboard-hints.js' => '71a4dc5f2429ed9cd0d885c4e9afad76cd6a66f9d74548cdbf13f3237ca85334',
@@ -262,7 +262,7 @@ $WANT = [
     'assets/sporta-dark.css' => '7b9445725c3d0c8a3e01720914dc10d39b503248c598510b135043fbce0b9a7f',
     'assets/sporta-desktop.css' => '3cf069aec1f0e8da465f22c9cd9f12e181c6e631322aad1e55b36be22506b419',
     'assets/sporta-mobile.css' => '9406b5372781c237857386bffcc6aad51a28f63624797368f72c46cea97bd899',
-    'assets/sporta-ui.css' => 'd83bd69a4414b8568a130a374f992d0dc68ec6a6cb1cb94fdebb41a63a056857',
+    'assets/sporta-ui.css' => '8a0d25dcad7027525ce77ed131b6655b51ac191feb454c973e41acabdd661a8d',
     'assets/theme-colors.js' => 'ed913d1b97ccbef2f52c3f24ffe8fbeac31142894173a274014d4d1327d37811',
     'assets/theme.js' => 'cf0044660306b1eedd3c830ed9ec432a7400d15e27aabdd3ce57d435b7c60403',
     'assets/tile-art.js' => 'fcdcd5e1d8391057a0217ff9875874a064c292571d3cca0124e1b1debee46f0f',
@@ -375,7 +375,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '21880db0fc2a8f405bcb613358695e864d1786b3b34b3ddd24553667f25a46a6',
+    'sw.js' => '2bb66df7a30fdf67fea14e8e7dc1ecd6c8d57be86c126f7dacff19c79ba30235',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

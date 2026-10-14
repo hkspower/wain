@@ -319,7 +319,10 @@
     + '.sbl-go{min-height:40px;padding:0 18px;border-radius:999px;cursor:pointer;border:0;'
     + 'background:var(--brand,#e0561c);color:#171a1e;font:inherit;font-weight:700}'
     + '.sbl-go[disabled]{opacity:.45;cursor:default}'
-    + '.sbl-list{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto}'
+    // margin -4px: the rows keep 4px inside the scroll box so a checkbox focus ring is
+    // not clipped, and the list reaches 4px into the card's padding so the rows'
+    // content lines up with the card's other content instead of sitting 4px in
+    + '.sbl-list{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto;margin-inline:-4px}'
     + '.sbl-row{display:flex;gap:10px;align-items:center;min-height:48px;padding:0 4px;cursor:pointer}'
     + '.sbl-name{font-weight:600}'
     /* A CHECKERBOARD BEHIND IT, and it is not decoration. Most of these marks
