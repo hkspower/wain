@@ -409,6 +409,108 @@ ok("and the device does not switch her off", typed.flag === null, String(typed.f
 ok("the widget's text box is 16px under a finger, so an iPhone does not zoom into it",
   parseFloat(typed.boxFont) >= 16, String(typed.boxFont));
 
+/**
+ * The widget ends a call without telling the page (8 October). The agent's
+ * end_call, the server's limit on a call's length and the caller's own إنهاء
+ * inside the widget all end the session: 0.19.0 dispatches no end event, and
+ * its startSession overwrites any callback the page passed in. What it does in
+ * every case is take its red إنهاء away, bring back its بدء مكالمة and keep its
+ * rating on screen. The sheet read none of that — it kept saying «متصل» and its
+ * clock kept running over a call that had ended. Measured on the real bundle,
+ * the start control returns within about 60ms of the end.
+ *
+ * `how` is the way the call ends. `redial` presses the widget's own Start
+ * afterwards, which must make the sheet live again. That is a guard for the
+ * fix, not a red-first check: it passed before the fix and must still pass.
+ */
+async function runEnd({ how, redial = false }) {
+  const server = createServer((req, res) => {
+    let file = join(OUT, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
+    if (!existsSync(file)) { res.writeHead(404); return res.end("nf"); }
+    res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream", "Content-Security-Policy": CSP, "Permissions-Policy": PERMISSIONS });
+    res.end(readFileSync(file));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const port = server.address().port;
+  const browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+  });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "ar-KW", permissions: ["microphone"] });
+  await ctx.route(/api(\.us)?\.elevenlabs\.io/, (r) => {
+    if (/\/widget/.test(r.request().url()))
+      return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WIDGET_CONFIG) });
+    return r.abort("failed");
+  });
+  // Kept, not only answered: the end has to go down the socket the call is on.
+  let sock = null;
+  await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
+    sock = ws;
+    ws.onMessage((m) => {
+      let j = {};
+      try { j = JSON.parse(typeof m === "string" ? m : m.toString()); } catch { /* binary audio */ }
+      if (j.type === "conversation_initiation_client_data")
+        ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
+    });
+  });
+  const page = await ctx.newPage();
+  await page.goto(`http://127.0.0.1:${port}/find/`, { waitUntil: "networkidle" });
+  await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  const widget = page.locator("#wain-ai-panel elevenlabs-convai");
+  // The sheet's own line under her name, whitespace folded.
+  const line = () => page.locator("#wain-ai-panel header").textContent({ timeout: 1000 }).then((t) => t.replace(/\s+/g, " ").trim(), () => "");
+  const r = { live: "", ended: "", endedLater: "", widgets: -1, redialed: "" };
+  try {
+    await page.waitForSelector("#wain-ai-panel elevenlabs-convai", { state: "attached", timeout: 15000 });
+    await page.waitForTimeout(2500);
+    await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(1200);
+    const accept = widget.getByRole("button", { name: /قبول/ }).first();
+    if (await accept.count()) await accept.click({ timeout: 5000 });
+    await page.waitForTimeout(3000);
+    r.live = await line();
+    if (how === "agent")
+      sock.send(JSON.stringify({ type: "agent_tool_response", agent_tool_response: { tool_name: "end_call", tool_call_id: "t-end", tool_type: "system", is_error: false, event_id: 9 } }));
+    else if (how === "max")
+      sock.send(JSON.stringify({ type: "error", error_event: { error_type: "max_duration_exceeded", message: "limit" } }));
+    else
+      await widget.getByRole("button", { name: /إنهاء/ }).first().click({ timeout: 5000 });
+    await page.waitForTimeout(2000);
+    r.ended = await line();
+    await page.waitForTimeout(2500);
+    r.endedLater = await line();
+    r.widgets = await page.locator("#wain-ai-panel elevenlabs-convai").count();
+    if (redial) {
+      await widget.getByRole("button", { name: /بدء مكالمة/ }).first().click({ timeout: 5000 });
+      await page.waitForTimeout(1200);
+      const again = widget.getByRole("button", { name: /قبول/ }).first();
+      if (await again.count()) await again.click({ timeout: 5000 });
+      await page.waitForTimeout(3000);
+      r.redialed = await line();
+    }
+  } catch (e) {
+    console.log(`  · the ${how} end did not get as far as it meant to: ${String(e.message).split("\n")[0]}`);
+  }
+  await browser.close();
+  server.close();
+  return r;
+}
+
+console.log("\n── the widget ends a call on its own, and the sheet follows ──");
+for (const [how, label] of [
+  ["agent", "the agent's end_call"],
+  ["max", "the server's limit on a call's length"],
+  ["caller", "the caller's own إنهاء in the widget"],
+]) {
+  const e = await runEnd({ how, redial: how === "agent" });
+  ok(`${label}: the sheet was live before it`, e.live.includes("متصل"), e.live);
+  ok(`${label}: the sheet says the call ended, not متصل`, e.ended.includes("انتهت المكالمة") && !e.ended.includes("متصل"), e.ended);
+  ok(`${label}: the clock stops at the end`, e.ended !== "" && e.ended === e.endedLater, `${e.ended} → ${e.endedLater}`);
+  ok(`${label}: the widget stays on the sheet, with its rating`, e.widgets === 1, `${e.widgets} widgets`);
+  if (how === "agent") ok("a redial from the widget's own Start makes the sheet live again", e.redialed.includes("متصل"), e.redialed);
+}
+
 jsdelivr.close();
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

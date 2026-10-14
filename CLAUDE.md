@@ -6700,6 +6700,51 @@ listing held sporta's jobs only. Both `build.json` files read `c0c30f46…` / `3
 
 **Not measured:** a phone. The app's green button reaches phones only with a new build.
 
+## The call sheet knows when the widget ended the call — 8 October
+
+The call-centre scan (read-only; eight findings, each re-read by a verifier) ranked this first. The sheet
+kept saying «متصل» and running its clock after the widget had ended the call, on all three ways a call ends:
+the agent's `end_call`, the server's `max_duration_exceeded`, and the caller's own «إنهاء» inside the widget.
+Nothing reaches the page: 0.19.0 dispatches no end event, and `startSession` overwrites any callback the page
+passed in.
+
+What the widget does instead, measured on the real bundle through a mock socket: in the first 64ms after the
+end its red «إنهاء» goes and its «بدء مكالمة» comes back. After an agent end its rating (1–5) stays up; after
+a max-duration end it does not. It is never removed, so the rating stays where the caller can use it.
+
+The sheet reads those two controls (`WainAiCall.tsx`, `WIDGET_START_LABEL` / `WIDGET_END_LABEL`). An observer on
+the widget's open shadow root sets `endedByWidget`, which stops the clock, freezes the duration and makes the
+status line «انتهت المكالمة · ٠٠:٠٤». A redial from the widget's own «بدء مكالمة» makes it live again: a
+«إنهاء» coming back clears the flag.
+
+Two traps, both met in measurement:
+
+- **A start control is not evidence by itself.** Right after the call event the widget still shows its start
+  control for about half a second while its consent sheet closes, and a first version that trusted it fired at
+  once. A start control counts only after this call's «إنهاء» has been seen (`connectedRef`), and every new call
+  resets that.
+- **The two labels are the agent's `text_contents`** (`start_call`, `end_call`), drawn as aria-labels. A change
+  in the dashboard must change both constants. `tests/shouq-widget-csp.test.mjs` carries the same strings, so it
+  does not catch that drift by itself.
+
+**Tests:** the «ends a call on its own» section of `tests/shouq-widget-csp.test.mjs` (three ends, plus a redial).
+Red on the previous build: 6 failed, the sheet-says-ended and clock-stops checks for each end. Green now: 37
+passed. The redial check passes before and after by design; it guards the fix and is not a red-first check.
+
+**Not measured:** a real call (the socket is refused in this sandbox), the agent's Kuwaiti rating text (the
+harness config carries the widget's default), and a phone.
+
+**Item 3 of the same scan** (read-aloud talking into a new call) is `49a69482`. The launcher's tap and the call's
+start cancel the device voice inside the gesture. `shouq-flow` counts the `cancel()` calls: 1 before the tap and
+1 after on the old build, 1 → 2 now.
+
+**Still open from that scan, not fixed, each waiting for the owner:** a failed call-chunk load can blank the whole
+site (the call sits outside every error boundary; needs a device to see); the agent path checks the microphone
+outside the tap, and an in-app browser gets the microphone message with no route to the typed chat; the sheet's
+header comment says the free call names its speech vendor, and only /privacy does; iOS may stop listening when
+the phone locks (needs a device); Android's call service can start after a hang-up that arrived first (Flutter);
+typed search still says «من مكالمتك» after the call that produced it.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

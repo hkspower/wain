@@ -91,6 +91,15 @@ const LISTEN_MAX_MS = 15_000;
 
 /** How long the ready screen waits for Start before pointing at it again. */
 const START_NUDGE_MS = 15_000;
+/**
+ * The widget's own two controls, by the labels its config gives them: start_call
+ * («بدء مكالمة») and end_call («إنهاء»). The widget draws them with these as
+ * aria-labels inside its shadow root, which is the only place the sheet can see
+ * whether a call is up. They must match the agent's widget text_contents; the
+ * widget suite (tests/shouq-widget-csp.test.mjs) carries the same two strings.
+ */
+const WIDGET_START_LABEL = "بدء مكالمة";
+const WIDGET_END_LABEL = "إنهاء";
 
 /**
  * Whether her widget's bundle, once loaded, actually ran.
@@ -233,6 +242,27 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * moment, so the suite pinned the bug in place.
    */
   const [started, setStarted] = useState(false);
+  /**
+   * The widget ended the call on its own — the agent's end_call, the server's
+   * limit on a call's length, or the caller's own إنهاء inside the widget.
+   *
+   * Nothing tells the sheet so: 0.19.0 dispatches no end event, and startSession
+   * overwrites any callback the page passes in. What the widget does in all three
+   * cases is take its red إنهاء away, bring back its بدء مكالمة and keep its
+   * rating on screen (measured on the real bundle, 8 October). The sheet reads
+   * that change — see the observer below. The widget is LEFT on the sheet: its
+   * rating is the widget's, and removing it would remove the one place the caller
+   * can rate the call.
+   */
+  const [endedByWidget, setEndedByWidget] = useState(false);
+  /**
+   * Whether this call's إنهاء has been seen, so the widget is connected. Only
+   * after that does its بدء مكالمة count as an end: right after the call event the
+   * widget still shows its start control while its consent sheet closes, and on
+   * a slow connection for longer. A ref, because the observer reads it from its
+   * own callback.
+   */
+  const connectedRef = useRef(false);
   /**
    * The caller has pressed something in the widget before the call started —
    * its Start, which opens its consent sheet. The box waits for Start at a
@@ -435,8 +465,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // In agent mode «connected» means the widget started a call, not that it
   // mounted — see `started` — so the clock waits for that too. A clock running
   // over a widget nobody has pressed Start on is the same lie as the word
-  // «متصل» beside it.
-  const clockRunning = phase === "live" && (!agentMode || started);
+  // «متصل» beside it. Nor one over a call the widget has already ended — the
+  // clock stops where the call stopped (endedByWidget).
+  const clockRunning = phase === "live" && (!agentMode || (started && !endedByWidget));
   useEffect(() => {
     if (!clockRunning) return;
     const startedAt = Date.now();
@@ -687,6 +718,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       // starting» signal there is. It comes again after a voice switch, when
       // the widget is mounted fresh and has to be started again.
       setStarted(true);
+      // A call that has just begun is not over yet — see connectedRef. This is
+      // also how a redial from the widget's own Start makes the sheet live again.
+      connectedRef.current = false;
+      setEndedByWidget(false);
       connected();
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
@@ -865,6 +900,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       if (phaseRef.current === "live") {
         setStarted(false);
         setReached(false);
+        // The widget is new, so nothing it showed before counts any more.
+        setEndedByWidget(false);
+        connectedRef.current = false;
       }
     }
     // The widget is mounted — but mounting is NOT the call connecting. It
@@ -914,6 +952,32 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     check();
     return () => observer.disconnect();
   }, [agentMode, dialling, agentReady, started, persona, teardown]);
+
+  /**
+   * The widget's own end, read where it draws its controls (see endedByWidget).
+   *
+   * Two steps, and the first is what keeps it from crying wolf: a start control
+   * counts as an end only once this call's إنهاء has been seen (connectedRef).
+   * A إنهاء back on the widget is the other way round — a redial from the
+   * widget's own Start, which makes the sheet live again.
+   */
+  useEffect(() => {
+    const root = slotRef.current?.querySelector("elevenlabs-convai")?.shadowRoot;
+    if (!agentMode || phase !== "live" || !started || !root) return;
+    const check = () => {
+      if (root.querySelector(`button[aria-label="${WIDGET_END_LABEL}"]`)) {
+        connectedRef.current = true;
+        setEndedByWidget(false);
+        return;
+      }
+      if (connectedRef.current && root.querySelector(`button[aria-label="${WIDGET_START_LABEL}"]`))
+        setEndedByWidget(true);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label"] });
+    check();
+    return () => observer.disconnect();
+  }, [agentMode, phase, started, persona]);
 
   // A widget that never loads is a call that never connects — say so rather
   // than ringing for ever.
@@ -997,6 +1061,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setAgentFailed(false);
     setStarted(false);
     setReached(false);
+    setEndedByWidget(false);
+    connectedRef.current = false;
     // Or a fresh call opens announcing what the previous one did.
     setLastAction("");
     setLastSlug(null);
@@ -1147,7 +1213,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * accessibility tree, and simply not announced.
    *
    * `ended` is the exception and keeps its duration: it fires once, it is
-   * final, and how long the call lasted is the news rather than a tick.
+   * final, and how long the call lasted is the news rather than a tick. A call
+   * the widget ended is the same news, so it lands here too (endedByWidget).
    */
   const status =
     phase === "ringing"
@@ -1155,7 +1222,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       : phase === "live"
         ? agentMode && !started
           ? WAIN_AI_COPY.readyToStart
-          : WAIN_AI_COPY.onCall
+          : agentMode && endedByWidget
+            ? `${WAIN_AI_COPY.ended} · ${callDuration(seconds)}`
+            : WAIN_AI_COPY.onCall
         : phase === "answering"
           ? WAIN_AI_COPY.answering
           : phase === "ended"
@@ -1291,7 +1360,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {WAIN_AI_COPY.greeting}
                   </p>
                 )}
-                {phase === "live" && !transcript && (!agentMode || started) && (
+                {phase === "live" && !transcript && (!agentMode || (started && !endedByWidget)) && (
                   <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
                 )}
 
@@ -1344,7 +1413,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     one column: two 44px targets with a gap between them, not
                     two small pills side by side that can touch at 320px. */}
                 <div className="mt-auto flex flex-col gap-2 pt-4">
-                  {agentMode && phase === "live" && started && (
+                  {agentMode && phase === "live" && started && !endedByWidget && (
                     <button
                       type="button"
                       onClick={switchPersona}
