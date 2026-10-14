@@ -59,6 +59,30 @@ Operations proved by use on 14 October, all reads. The account is one order,
 - Outside-in checks (`curl` to the live site) cannot be made from this sandbox,
   so "reachable" is never established by `ppok` alone.
 
+**Opening the token route is two settings and a new session.** Allowed
+domains takes the bare host — `developers.hostinger.com`, no scheme, no path —
+with «Allow package managers» left ticked so `npx` can still fetch
+`hostinger-api-mcp`; `HOSTINGER_API_TOKEN` goes in the environment's
+variables. Neither reaches a container that is already running, so test only
+after a fresh session, with `npm run hosting:check`.
+
+Measured from this sandbox on 14 October, before either was set — `curl`
+through the gateway, `000` meaning «CONNECT tunnel failed, response 403»:
+
+| host | result |
+|---|---|
+| `registry.npmjs.org` | 200 |
+| `raw.githubusercontent.com`, `github.com` | reachable (301, 400) |
+| `developers.hostinger.com` | **403** |
+| `srv2231-files.hstgr.io`, `www.wainkw.com` | 403 |
+| `api.elevenlabs.io`, `unpkg.com` | 403 |
+| `tile.openstreetmap.org`, `www.openstreetmap.org` | 403 |
+
+The plugin connectors that fail at session start (`plugin:*`, about 55 of
+them, `ERR_PROXY_TUNNEL`) are the same gateway refusing, and the error does
+not name their hosts. `ppok` is unaffected because it travels through
+`mcp-proxy.anthropic.com`, which the gateway exempts.
+
 ## There is no server
 
 `output: 'export'` is not a detail, it is the shape of the whole project:
