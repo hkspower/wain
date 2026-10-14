@@ -20,7 +20,7 @@ import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voi
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext, Opener, SocialAct } from "@/lib/salem-followup";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
-import { agentAvailable, markAgentUnavailable } from "@/lib/agent-health";
+import { markAgentUnavailable, markSalemLineUnavailable, salemLineAvailable } from "@/lib/agent-health";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 import { CHOICE_MAX } from "@/lib/hangout";
@@ -268,7 +268,7 @@ export default function SalemChat() {
     if (FREE) {
       restoreKept();
       restoredRef.current = true;
-    } else if (!agentAvailable()) {
+    } else if (!salemLineAvailable()) {
       // The HTML of an agent build says «connecting»; a device that met a
       // refusal in the last quarter hour is answered here instead, at once.
       answerHere(false);
@@ -551,15 +551,18 @@ export default function SalemChat() {
           return;
         }
         // A refusal for credits: he answers from our own search instead, and
-        // this device skips the agent for a while (lib/agent-health.ts). And
+        // this device skips the agents for a while (lib/agent-health.ts). And
         // a line that never opened — refused at the door, or no answer from
         // the server in time — is the same for a visitor: there is no agent to
         // talk to, and there is a search engine on this page. It used to be
         // «ما قدرنا نوصله — جرّب مرة ثانية» over a locked box, and the retry
         // met the same wall (8 October). A line that dropped mid-chat still
-        // offers to start again: the agent was there a moment ago.
+        // offers to start again: the agent was there a moment ago. Only the
+        // credits case is the account; any other failure is his line alone,
+        // so شوق's calls keep their agent (14 October).
         if (s === "error" && (f === "unavailable" || f === "refused" || f === "timeout" || f === undefined)) {
-          markAgentUnavailable();
+          if (f === "unavailable") markAgentUnavailable();
+          else markSalemLineUnavailable();
           answerHere(true);
           return;
         }
@@ -619,7 +622,7 @@ export default function SalemChat() {
   }
 
   useEffect(() => {
-    if (FREE || !agentAvailable()) return;
+    if (FREE || !salemLineAvailable()) return;
     connect();
     return () => {
       handleRef.current?.close();

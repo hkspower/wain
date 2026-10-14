@@ -245,7 +245,7 @@ console.log('\n── with the browser\'s storage blocked, his buttons still wor
   await p.waitForTimeout(800);
   const label = ((await send.textContent({ timeout: 2000 }).catch(() => '')) ?? '').trim();
   ok('«رسّلها» sends and comes back, instead of staying on «لحظة…»', label === 'رسّلها', label);
-  await p.locator('header').getByRole('button', { name: 'كلّم شوق' }).click({ timeout: 3000 }).catch(() => {});
+  await p.locator('header').getByRole('button', { name: 'كلّم سالم' }).click({ timeout: 3000 }).catch(() => {});
   const rang = await p.locator('#wain-ai-panel').waitFor({ state: 'visible', timeout: 4000 }).then(() => true, () => false);
   ok('the call button in his header opens the call', rang);
   ok('no page errors', errors.length === 0, errors.join(' | '));

@@ -1,13 +1,16 @@
-# شوق and سالم — the agent as ElevenLabs holds it
+# شوق and سالم — the agents as ElevenLabs holds them
 
-**There is one wain agent, not two.** The workspace holds three agents; only
-`agent_1701m1gcrccrethae9y3nyv1e116` («شوق — وين AI», tags `wain shouq wainkw.com`) is wain's.
-The other two (`agent_7601k…` «Agent agent», `agent_0001k…` «البحار») belong to the almuhallab
-project. **سالم is not a separate agent**: `/salem` and the app's chat open a text-only session
-against this same agent (`conversation.text_only` override). His voice (Mustafa,
-`TbzNVcMOFmKd8tUT5liY`) is the `tts.voice_id` override, which the agent allows.
-The mid-call switch sends it. The typed chat has not sent it since 14 October:
-`lib/salem-chat.ts` opens with `conversation.text_only` alone.
+**There are two wain agents, and nothing falls back from one to the other.** Shouq (شوق) is
+`agent_1701m1gcrccrethae9y3nyv1e116` («شوق — وين AI»): her calls and her own surfaces. Salem (سالم) is
+`agent_5101m4wwgr3ae5qat412ezcnffhn`: his typed chat at `/salem` and his call from `/salem`'s header.
+Each has its own first message, prompt (hers in feminine grammar, his in masculine), voice (Maryam
+`3AH0h1SXwwhE8vUUWuQW` for her, Mustafa `TbzNVcMOFmKd8tUT5liY` for him, both `eleven_v4`) and widget
+settings. They share the knowledge base (v5) and the three tools by id. The 25 Shouq tests are still
+attached to his agent, which is an open item (see CLAUDE.md, 14 October).
+
+The site and the app pick the agent by persona: `agentIdFor(persona)` in `src/lib/wain-ai.ts`, and
+`agentIdFor` in `flutter_app/lib/ai/config.dart`. The typed chat sends `conversation.text_only` and no
+voice override. The mid-call «بصوت سالم» switch and its `override-voice-id` are gone.
 
 ## Live now (7 October): Main is the tuned agent, 100% of traffic
 

@@ -810,6 +810,17 @@ console.log("\n── سالم's call reaches HIS agent, and hers never reaches 
   ok('his tools answer in his grammar: «لا تسكت», never her «لا تسكتين»',
     /لا تسكت\.?\s*$/.test(String(sNone)) && !/تسكتين|قولي|ورشّحي/.test(String(sNone)), String(sNone));
   ok('no page errors on /salem in agent mode', sErrors.length === 0, sErrors.join(' | '));
+  // The same device, the other way round: his line has just failed here, so the
+  // device remembers it for HIM only (agent-health, 14 October). Her call, placed
+  // from her own page in this browser, still goes to her agent.
+  const salemLineFailed = await sp.evaluate(() => Number(localStorage.getItem('wain:salem-off')) > 0).catch(() => false);
+  ok('his typed line failed here, and the device remembers it for him', salemLineFailed);
+  const hp = await sc.newPage();
+  await hp.goto(B + '/find/', { waitUntil: 'networkidle' });
+  await hp.locator('button[aria-controls="wain-ai-panel"]').first().click({ timeout: 6000 }).catch(() => {});
+  const hers = await hp.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 }).then(
+    () => hp.evaluate(() => window.__convaiAgentId), () => null);
+  ok('and her call still goes to her agent', hers === 'agent_test_0123456789', String(hers));
   await sc.close();
 }
 

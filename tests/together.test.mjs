@@ -201,7 +201,7 @@ console.log('\n── 4b. switching between them (7 October) ──');
   ok('his header carries the real call button', (await soft(() => call.count(), 0)) === 1);
   const box = await soft(() => call.boundingBox(), null);
   ok('…a finger-sized target', !!box && box.width >= 44 && box.height >= 44, JSON.stringify(box));
-  ok('…named by its words', (await soft(() => call.getAttribute('aria-label'))) === 'كلّم شوق');
+  ok('…named by its words', (await soft(() => call.getAttribute('aria-label'))) === 'كلّم سالم');
   // Green, as /find's call button is: a red handset reads as «hang up».
   const bg = await soft(() => call.evaluate((el) => getComputedStyle(el).backgroundColor), '');
   const rgb = (bg.match(/\d+(\.\d+)?/g) ?? []).map(Number);

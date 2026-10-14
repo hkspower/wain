@@ -639,7 +639,7 @@ console.log('\n── a line that never opens: he answers from وين\'s own sea
     await log.locator('a[href^="/places/"]').first().waitFor({ timeout: 8000 }).catch(() => {});
     ok(`${label}: a question gets places`, await log.locator('a[href^="/places/"]').count() > 0);
     ok(`${label}: the device remembers, so the next page does not wait on the line again`,
-      await p.evaluate(() => Number(localStorage.getItem('wain:agent-off')) > 0).catch(() => false));
+      await p.evaluate(() => Number(localStorage.getItem('wain:salem-off')) > 0).catch(() => false));
     ok(`${label}: no page errors`, errs.length === 0, errs.join(' | '));
     await c.close();
   }
