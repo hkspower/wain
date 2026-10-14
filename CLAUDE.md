@@ -3731,6 +3731,39 @@ element-visibility waits in an earlier run made while `test:shouq` was also
 driving Chromium concurrently on this machine — re-run alone, clean, which is
 what settled it as resource contention rather than a regression.
 
+## Dependencies and the sandbox — 14 October
+
+**Production audit is 0 again, and it had quietly stopped being.** `npm audit
+--omit=dev` read 2 (`next` moderate, `source-map-js` high) while the notes
+above said 0. Next to **15.5.27** — the last 15.x, so the Next 16 objections
+stand — and `npm audit fix` for the transitive `source-map-js`. The full
+`npm run scan` was green after both. **A number written into this file is a
+claim about one day**; re-run `npm audit` before repeating it.
+
+Also bumped, all inside their existing ranges (so only the lockfile moved):
+Capacitor `core`/`ios`/`cli` to 8.5.3 (`test:ios`, 24 assertions, green),
+`@supabase/supabase-js` 2.117.3, `@types/node` 22.20.5, `typescript-eslint`
+8.71.2.
+
+**Playwright was deliberately NOT bumped** (1.63.0 → 1.64.1 is out). The
+sandbox's pre-installed Chromium is matched to the installed version, and a
+newer client against it is how the browser suites stop launching. Do it in a
+session that can also verify `test:hangout`.
+
+**`npm run scan` rewrites `docs/icons.png` and `docs/place-icons.png`.** The
+working tree is dirty afterwards though nothing was edited, and committing
+them adds binary blobs to a history that cannot be rewritten. `git checkout --
+docs/icons.png docs/place-icons.png` before committing.
+
+**The sandbox itself**: Ubuntu 24.04, Node 22.22, PHP 8.3.6 — production is
+PHP 8.5.4, so the PHP suites run on an older interpreter than the server.
+`apt-get upgrade` works (Docker packages held) but only until the container is
+reclaimed. `rm -rf` under `~/.npm` is denied by the permission rules, so the
+~142MB `_npx` cache cannot be cleared from a session; it is harmless.
+
+**Checked and unchanged**: `test:db` 27/27 with the PostgreSQL 16 binaries on
+`PATH`; the MySQL databases on the account are 35MB and 2MB of 3072MB each.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
