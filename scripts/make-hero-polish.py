@@ -29,7 +29,12 @@ centre with a 48px feathered edge, and nothing in the frame is invented except a
 under the feet. That strip exists because the controls sit at the foot of the phone hero and the
 feet stood at 89-97% of the old picture's height, under them. The floor is the floor's own last
 rows, blurred along the row and carried down, with the picture's own grain; it is plain studio
-floor in the four full-body slides. CrossFit is waist-up: it has no feet to clear and gets none
+floor in the four full-body slides. HOW MUCH floor is measured, not chosen: the lowest row with
+anything but floor in it (shoes and their shadow) is found, and the strip is sized so that row
+lands at 83% of the square. On the shortest phone hero (iPhone, Safari toolbars: a 1.07:1 box,
+1% cut from the top at the focal point) the controls' pill begins at 85% of the picture, so every
+athlete's feet stand on the same line, just above it. Measured feet: features 92%, runner 96%,
+activewear 99%, training 99% of the old picture. CrossFit is waist-up: it has no feet to clear and gets none
 (a strip there smeared the shorts into a grey band), so its square is 1350, the art's own height.
 
 The phone picture's athlete is exactly the pixels the shop showed before (graded); only the frame
@@ -45,7 +50,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HERO = ROOT / 'sporta-site' / 'assets' / 'hero'
 NAMES = ['crossfit', 'features', 'runner', 'activewear', 'training']
 TARGET = 224.0           # sRGB grey the studio white is taken to
-FLOOR = 120              # px of floor added under the phone picture (phone scale)
+FEET_AT = 0.83           # the athlete's lowest pixel (shoes and their shadow) lands at 83% of the square
 NO_FLOOR = {'crossfit'}  # waist-up: there are no feet, and a strip would smear the shorts
 FEATHER = 48             # px ramp where the phone picture is laid over the master's sides
 DESKTOP_W = 2560
@@ -113,6 +118,13 @@ def floor_strip(img, rows, rng):
     return out
 
 
+def feet_row(img):
+    """The lowest row with more than a few pixels that are not floor: far (>45) from their row's median."""
+    d = np.abs(img - np.median(img, axis=1, keepdims=True)).max(2)
+    rows = np.nonzero((d > 45).sum(1) > 6)[0]
+    return int(rows.max()) if rows.size else img.shape[0] - 1
+
+
 def build(name):
     master = np.asarray(Image.open(HERO / f'{name}-neutral-desktop.webp').convert('RGB')).astype(np.float32)
     phone = np.asarray(Image.open(HERO / f'{name}-neutral-mobile.webp').convert('RGB')).astype(np.float32)
@@ -129,7 +141,7 @@ def build(name):
     mw = round(master.shape[1] * s)
     up = np.asarray(Image.fromarray(np.clip(np.rint(gm), 0, 255).astype(np.uint8)).resize((mw, ph), Image.LANCZOS)).astype(np.float32)
     px, corr = locate(cv2.cvtColor(up.astype(np.uint8), cv2.COLOR_RGB2GRAY), cv2.cvtColor(np.clip(gp, 0, 255).astype(np.uint8), cv2.COLOR_RGB2GRAY), s)
-    floor = 0 if name in NO_FLOOR else FLOOR
+    floor = 0 if name in NO_FLOOR else max(0, -(-int(feet_row(phone) / FEET_AT) // 2) * 2 - ph)
     side = ph + floor
     x0 = px + pw // 2 - side // 2
     x0 = max(0, min(mw - side, x0))
