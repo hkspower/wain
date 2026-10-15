@@ -17,7 +17,7 @@ import '../ai/tools.dart';
 import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../data/places.g.dart';
-import '../data/answer_order.dart' show AnswerClock, kuwaitClock;
+import '../data/answer_order.dart' show AnswerClock, kuwaitClock, readAsks;
 import '../data/salem_followup.dart';
 import '../data/search.dart' show elsewhereNamed;
 import '../data/text_kit.dart'
@@ -522,6 +522,18 @@ class _SalemScreenState extends State<SalemScreen> {
       );
     }
 
+    // A narrowing whose first place is the one already on top would repeat
+    // the last reply word for word («بحر» then «أرخص», 15 October), so it
+    // says it narrowed and that the first stayed. «أرخصها» only when the
+    // refine asked for the cheap end (`readAsks`, the order's own reading).
+    String sameTopLead(List<String> slugs) {
+      if (ctx == null || ctx.shown.isEmpty || slugs.first != ctx.shown.first) {
+        return '';
+      }
+      final cheap = readAsks(intent.added ?? '').cheap;
+      return '${cheap ? ChatCopy.refineSameTopCheap : ChatCopy.refineSameTop} ';
+    }
+
     if (intent.kind == FollowUpKind.social) {
       say(
         _socialLine(intent.act!, intent.opener, (ctx?.shown ?? []).isNotEmpty),
@@ -541,7 +553,9 @@ class _SalemScreenState extends State<SalemScreen> {
           '$opener${ChatCopy.count(countAr(ctx.ranked.length, kPlacesCount), ctx.query, seen)}',
         );
       } else {
-        say('$opener${ChatCopy.countAll(countAr(kPlaces.length, kPlacesCount))}');
+        say(
+          '$opener${ChatCopy.countAll(countAr(kPlaces.length, kPlacesCount))}',
+        );
       }
     } else if (ctx != null && intent.kind == FollowUpKind.beyond) {
       final at = intent.at!;
@@ -608,7 +622,7 @@ class _SalemScreenState extends State<SalemScreen> {
       } else {
         final slugs = there.take(8).toList();
         final spoken = spokenFor(slugs);
-        answerLine(spoken);
+        answerLine(spoken, sameTopLead(slugs));
         showList(intent.query!, slugs, there, slugs, spoken);
       }
     } else if (ctx != null && intent.kind == FollowUpKind.refine) {
@@ -625,7 +639,7 @@ class _SalemScreenState extends State<SalemScreen> {
       } else {
         final slugs = within.take(8).toList();
         final spoken = spokenFor(slugs);
-        answerLine(spoken);
+        answerLine(spoken, sameTopLead(slugs));
         showList(intent.query!, slugs, within, slugs, spoken);
       }
     } else {
@@ -639,7 +653,11 @@ class _SalemScreenState extends State<SalemScreen> {
         final where = elsewhereNamed(query, searchIndex);
         final kept = ctx != null && ctx.shown.isNotEmpty;
         say(
-          '$opener${where != null ? ChatCopy.elsewhere(where) : kept ? ChatCopy.freeEmptyKept : ChatCopy.freeEmpty}',
+          '$opener${where != null
+              ? ChatCopy.elsewhere(where)
+              : kept
+              ? ChatCopy.freeEmptyKept
+              : ChatCopy.freeEmpty}',
         );
       } else {
         final slugs = ranked.take(8).toList();

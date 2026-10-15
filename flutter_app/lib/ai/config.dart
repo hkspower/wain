@@ -138,7 +138,8 @@ const salemCallCopy = CallPersonaCopy(
   failed: 'ما قدرنا نشغّل سالم الحين — جرّب مرة ثانية بعدين.',
   offline: 'ما فيه إنترنت — سالم يحتاج اتصال عشان يرد.',
   micNote: 'يحتاج إذن المايك عشان تكلّمه.',
-  agentUnavailable: 'سالم مو متاح الحين — اتصل مرة ثانية وأدوّر لك من دليل وين.',
+  agentUnavailable:
+      'سالم مو متاح الحين — اتصل مرة ثانية وأدوّر لك من دليل وين.',
   callTitle: 'مكالمة مع سالم',
   face: 'assets/img/salem-face.jpg',
 );
@@ -279,6 +280,14 @@ abstract final class ChatCopy {
   static const moreNone =
       'هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.';
   static const refineNone = 'ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.';
+
+  /// A narrowing that keeps the same first place (15 October). «بحر» then «أرخص»
+  /// answered «جرّب شاطئ المسيلة…» twice, word for word: the top three were
+  /// already the cheapest, every changed card sat below the first screen, and
+  /// the request read as ignored. «أرخصها» only when the refine asked for the
+  /// cheap end — said after «غالي» it would be false.
+  static const refineSameTopCheap = 'هذي أرخصها — والأول ما تغيّر:';
+  static const refineSameTop = 'ضيّقتها لك — والأول ما تغيّر:';
   static const where = 'مكانه على الخريطة تحت.';
 
   /// Four more replies the memory reads (14 October — the web's `count`,

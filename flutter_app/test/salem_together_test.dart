@@ -309,6 +309,72 @@ void main() {
     await t.pumpWidget(const SizedBox());
   });
 
+  group('a narrowing that keeps the first place says so (15 October)', () {
+    // «بحر» then «أرخص» answered «جرّب شاطئ المسيلة…» twice, word for word:
+    // the top three were already the cheapest, every changed card sat below
+    // the first screen, and the request read as ignored.
+    List<String> replies(WidgetTester t) => [
+      for (final w in t.widgetList<Text>(find.byType(Text)))
+        if ((w.data ?? '').contains('جرّب')) w.data!,
+    ];
+    String topAfter(String q, String r) {
+      final had = chatRanked(q, searchIndex, kPlaces, _january8pm).toSet();
+      return chatRanked(
+        '$q $r',
+        searchIndex,
+        kPlaces,
+        _january8pm,
+      ).firstWhere(had.contains);
+    }
+
+    testWidgets('«بحر» then «أرخص»: the cheap lead, then the same sentence', (
+      t,
+    ) async {
+      final first = chatRanked('بحر', searchIndex, kPlaces, _january8pm).first;
+      expect(topAfter('بحر', 'أرخص'), first, reason: 'the case being tested');
+      await _pump(t);
+      await _ask(t, 'بحر');
+      final before = replies(t);
+      expect(before, hasLength(1));
+      await _ask(t, 'أرخص');
+      final second = replies(t).where((r) => r != before.single).toList();
+      expect(second, ['${ChatCopy.refineSameTopCheap} ${before.single}']);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('«بحر» then «للعيال»: the plain lead — «أرخصها» would be '
+        'false', (t) async {
+      final first = chatRanked('بحر', searchIndex, kPlaces, _january8pm).first;
+      expect(topAfter('بحر', 'للعيال'), first, reason: 'the case being tested');
+      await _pump(t);
+      await _ask(t, 'بحر');
+      await _ask(t, 'للعيال');
+      expect(
+        find.textContaining(RegExp('^${ChatCopy.refineSameTop} جرّب')),
+        findsOneWidget,
+      );
+      expect(find.textContaining(ChatCopy.refineSameTopCheap), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('«مطعم» then «أرخص» changes the first place: no lead', (
+      t,
+    ) async {
+      final first = chatRanked('مطعم', searchIndex, kPlaces, _january8pm).first;
+      final top = topAfter('مطعم', 'أرخص');
+      expect(top, isNot(first), reason: 'the case being tested');
+      await _pump(t);
+      await _ask(t, 'مطعم');
+      await _ask(t, 'أرخص');
+      expect(
+        find.textContaining(RegExp('^جرّب ${getPlace(top)!.nameAr}')),
+        findsWidgets,
+      );
+      expect(find.textContaining('ما تغيّر'), findsNothing);
+      await t.pumpWidget(const SizedBox());
+    });
+  });
+
   group('what is said to a person is answered, not searched (8 October)', () {
     String said(WidgetTester t) => t
         .widgetList<Text>(find.byType(Text))
@@ -535,10 +601,7 @@ void main() {
       reason: 'the pin follows the panel',
     );
     await _ask(t, 'وين بالضبط؟');
-    expect(
-      find.text('${whereLine(fourth)} ${ChatCopy.where}'),
-      findsOneWidget,
-    );
+    expect(find.text('${whereLine(fourth)} ${ChatCopy.where}'), findsOneWidget);
     final where = _newest('chat-where');
     expect(
       find.descendant(of: where, matching: find.byType(WainMap)),
