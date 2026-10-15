@@ -408,6 +408,12 @@ if ($r === 'password_reset_request' && $method === 'POST') {
                           . "صالح لمرة واحدة ولمدة " . RESET_MINUTES . " دقيقة. إن لم تطلبه فتجاهل الرسالة.";
                     $html = str_replace("\n", '<br>', '<p style="font:16px system-ui">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p>');
                     store_send_mail(store_config(), (string) $u['email'], 'Sporta — password reset code / رمز إعادة التعيين', $text, $html);
+                    // AND the recovery address, once it has been proved (2026-10-15): the point of it is the day
+                    // the main mailbox is lost. The same code works from either; the answer stays {ok:true}.
+                    $rec = strtolower(trim((string) ($u['recovery_email'] ?? '')));
+                    if ($rec !== '' && !empty($u['recovery_verified_at']) && $rec !== strtolower((string) $u['email'])) {
+                        store_send_mail(store_config(), $rec, 'Sporta — password reset code / رمز إعادة التعيين', $text, $html);
+                    }
                 }
             }
         } catch (Throwable $e) { error_log('admin reset request: ' . $e->getMessage()); }
@@ -5484,6 +5490,114 @@ if ($r === 'totp_disable' && $method === 'POST') {
 // Change the password, the email, or the mobile number. One route, because
 // they carry the same authority and must not drift into three different ideas
 // of how much proof a change needs.
+// ---------------------------------------------------------- recovery email (2026-10-15)
+// A second address for password-reset codes. Setting or removing it takes the account's password
+// and second-factor code (store_require_fresh_code), exactly as changing the sign-in email does —
+// otherwise a browser left signed in could quietly point the account's resets at a stranger. A new
+// address gets reset codes only after a code mailed TO it is typed back, and the sign-in address is
+// told every time it changes. Routes answer 503 recovery_not_ready until api/recovery.mysql.sql has run.
+function admin_recovery_ready(PDO $db): bool {
+    try { $db->query('select recovery_email, recovery_verified_at, recovery_code_hash, recovery_code_expires, recovery_code_tries from admin_users limit 0'); return true; }
+    catch (Throwable $e) { return false; }
+}
+function admin_recovery_row(PDO $db, int $id): array {
+    $q = $db->prepare('select email, password_hash, recovery_email, recovery_verified_at, recovery_code_expires from admin_users where id = ?');
+    $q->execute([$id]);
+    $u = $q->fetch();
+    if (!$u) store_fail('account_not_found', 404);
+    return $u;
+}
+function admin_recovery_out(array $u): array {
+    $pending = $u['recovery_email'] !== null && $u['recovery_verified_at'] === null;
+    return ['ready' => true, 'email' => $u['recovery_email'], 'verified' => $u['recovery_email'] !== null && !$pending,
+            'pending' => $pending, 'code_expires' => $pending ? $u['recovery_code_expires'] : null];
+}
+function admin_recovery_mail_code(PDO $db, int $id, string $to): void {
+    $code = str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+    $db->prepare('update admin_users set recovery_code_hash = ?, recovery_code_expires = ?, recovery_code_tries = 0 where id = ?')
+       ->execute([password_hash($code, PASSWORD_DEFAULT), date('Y-m-d H:i:s', time() + 15 * 60), $id]);
+    $text = "Your code to confirm this address as the recovery email for a Sporta panel account is {$code}.\n"
+          . "It expires in 15 minutes. If you did not expect this, ignore it — nothing changes until the code is typed.\n\n"
+          . "رمز تأكيد هذا البريد كبريد استرداد لحساب في لوحة سبورتا: {$code}\nصالح لمدة ١٥ دقيقة. إن لم تتوقعه فتجاهله.";
+    store_send_mail(store_config(), $to, 'Sporta — confirm your recovery email / تأكيد بريد الاسترداد', $text,
+        '<p style="font:16px system-ui">' . str_replace("\n", '<br>', htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</p>');
+}
+function admin_recovery_tell_owner(array $u, string $what): void {
+    $text = "The recovery email on your Sporta panel account was {$what}.\n"
+          . "If this was not you, sign in, change your password, and check Security → Recovery email.\n\n"
+          . "تم تعديل بريد الاسترداد في حسابك بلوحة سبورتا. إن لم تكن أنت فغيّر كلمة المرور فورًا.";
+    store_send_mail(store_config(), (string) $u['email'], 'Sporta — recovery email changed / تغيير بريد الاسترداد', $text,
+        '<p style="font:16px system-ui">' . str_replace("\n", '<br>', htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</p>');
+}
+
+if ($r === 'recovery_state') {
+    if (!admin_recovery_ready($db)) store_out(['ready' => false]);
+    store_out(admin_recovery_out(admin_recovery_row($db, (int) $admin['id'])));
+}
+
+if ($r === 'recovery_set' && $method === 'POST') {
+    if (!admin_recovery_ready($db)) store_fail('recovery_not_ready', 503);
+    $b = store_body();
+    store_throttle($db, 'recovery', 6, 900);
+    $u = admin_recovery_row($db, (int) $admin['id']);
+    if (!password_verify((string) ($b['password'] ?? ''), (string) $u['password_hash'])) store_fail('bad_password', 401);
+    store_require_fresh_code($db, $admin, (string) ($b['code'] ?? ''));
+    $email = mb_strtolower(trim((string) ($b['email'] ?? '')));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 190) store_fail('invalid_email');
+    if ($email === mb_strtolower((string) $u['email'])) store_fail('same_as_sign_in_email');
+    $db->prepare('update admin_users set recovery_email = ?, recovery_verified_at = null where id = ?')->execute([$email, $admin['id']]);
+    admin_recovery_mail_code($db, (int) $admin['id'], $email);
+    admin_recovery_tell_owner($u, 'changed to ' . $email . ' (waiting for its code)');
+    store_out(admin_recovery_out(admin_recovery_row($db, (int) $admin['id'])));
+}
+
+if ($r === 'recovery_resend' && $method === 'POST') {
+    if (!admin_recovery_ready($db)) store_fail('recovery_not_ready', 503);
+    store_throttle($db, 'recovery', 6, 900);
+    $u = admin_recovery_row($db, (int) $admin['id']);
+    if ($u['recovery_email'] === null || $u['recovery_verified_at'] !== null) store_fail('nothing_to_confirm');
+    admin_recovery_mail_code($db, (int) $admin['id'], (string) $u['recovery_email']);
+    store_out(admin_recovery_out(admin_recovery_row($db, (int) $admin['id'])));
+}
+
+if ($r === 'recovery_verify' && $method === 'POST') {
+    if (!admin_recovery_ready($db)) store_fail('recovery_not_ready', 503);
+    store_throttle($db, 'recovery_verify', 20, 900);
+    $b = store_body();
+    $code = preg_replace('/\D/', '', strtr((string) ($b['code'] ?? ''), ['٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9']));
+    // Locked, so two tabs typing at once cannot both spend a try and both pass.
+    $db->beginTransaction();
+    $q = $db->prepare('select recovery_email, recovery_verified_at, recovery_code_hash, recovery_code_expires, recovery_code_tries
+                         from admin_users where id = ? for update');
+    $q->execute([$admin['id']]);
+    $u = $q->fetch();
+    $live = $u && $u['recovery_email'] !== null && $u['recovery_verified_at'] === null && $u['recovery_code_hash'] !== null
+         && strtotime((string) $u['recovery_code_expires']) >= time() && (int) $u['recovery_code_tries'] < 5;
+    if (!$live) { $db->rollBack(); store_fail('code_expired'); }
+    if (strlen($code) !== 8 || !password_verify($code, (string) $u['recovery_code_hash'])) {
+        $db->prepare('update admin_users set recovery_code_tries = recovery_code_tries + 1 where id = ?')->execute([$admin['id']]);
+        $db->commit();
+        store_fail('bad_code');
+    }
+    $db->prepare('update admin_users set recovery_verified_at = now(), recovery_code_hash = null, recovery_code_expires = null, recovery_code_tries = 0 where id = ?')
+       ->execute([$admin['id']]);
+    $db->commit();
+    store_out(admin_recovery_out(admin_recovery_row($db, (int) $admin['id'])));
+}
+
+if ($r === 'recovery_remove' && $method === 'POST') {
+    if (!admin_recovery_ready($db)) store_fail('recovery_not_ready', 503);
+    $b = store_body();
+    store_throttle($db, 'recovery', 6, 900);
+    $u = admin_recovery_row($db, (int) $admin['id']);
+    if (!password_verify((string) ($b['password'] ?? ''), (string) $u['password_hash'])) store_fail('bad_password', 401);
+    store_require_fresh_code($db, $admin, (string) ($b['code'] ?? ''));
+    $db->prepare('update admin_users set recovery_email = null, recovery_verified_at = null, recovery_code_hash = null, recovery_code_expires = null, recovery_code_tries = 0 where id = ?')
+       ->execute([$admin['id']]);
+    if ($u['recovery_email'] !== null) admin_recovery_tell_owner($u, 'removed');
+    store_out(admin_recovery_out(admin_recovery_row($db, (int) $admin['id'])));
+}
+
 if ($r === 'account_update' && $method === 'POST') {
     $b = store_body();
 

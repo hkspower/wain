@@ -137,6 +137,8 @@ const PARTS = [
   // ALTERS two tables, so it must come after both are created: admin_users by
   // 1-schema, customers by customers.mysql.sql. Last is after both.
   ['users.mysql.sql', 'Users page — block / sign out a shopper, switch off a panel colleague', API],
+  // ALTERS admin_users (made by 1-schema), so after it.
+  ['recovery.mysql.sql', 'recovery email — a second address for a panel account\'s password-reset codes', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself
