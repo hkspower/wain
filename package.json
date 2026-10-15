@@ -214,6 +214,7 @@
     "test:home-layout": "node scripts/home-layout-test.mjs",
     "test:inventory-plus": "node scripts/inventory-plus-test.mjs",
     "test:fulfilment-transitions": "node scripts/fulfilment-transition-test.mjs",
+    "test:late-payment": "node scripts/late-payment-test.mjs",
     "test:panel-light": "node scripts/panel-light-test.mjs",
     "test:security-layout": "node scripts/security-layout-test.mjs",
     "test:security-plus": "node scripts/security-plus-test.mjs",

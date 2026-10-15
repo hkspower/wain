@@ -987,9 +987,82 @@ function store_wa_e164(?string $raw): ?string {
     return null;
 }
 
+/**
+ * BL-01 (2026-10-14, owner's choice: re-claim the stock, or flag the order for a refund).
+ *
+ * A card capture can land AFTER the sweeper (cron-stock.php) has released the hold — the shopper
+ * paid late, and the garment may have gone to someone else. Marking such an order paid without a
+ * check oversells the size. This runs inside the same transaction as the payment record, before the
+ * warehouse message is queued:
+ *   - the order is locked, and nothing happens unless it was claimed AND released;
+ *   - a CANCELLED order is never re-claimed (it would take stock for an order nobody will ship);
+ *   - otherwise the lines are claimed again through store_stock_claim(). If every line is still
+ *     there, stock_released goes back to 0 so a later cancel restocks it properly;
+ *   - if any line is short, the partial claim is rolled back to a savepoint, nothing is taken, and a
+ *     zero-delta stock_log row with reason 'late_payment' names the order. The panel's Recent changes
+ *     shows it. The money is in and the order stays paid: refunding it is a manual step.
+ *
+ * NEVER THROWS. The payment record is the thing that must survive; a failure here is logged and the
+ * order is left as the payment left it.
+ */
+function store_late_payment_reclaim(PDO $db, int $orderId): void {
+    // The gateway callbacks already hold a transaction when they settle a payment, and PDO cannot
+    // begin a second. Join theirs; begin and end our own only when no transaction is open.
+    $own = !$db->inTransaction();
+    try {
+        if ($own) $db->beginTransaction();
+        $lock = $db->prepare('select stock_claimed, stock_released, fulfilment_status, track_id
+                                from orders where id = ? for update');
+        $lock->execute([$orderId]);
+        $o = $lock->fetch();
+        if (!$o || (int)$o['stock_claimed'] !== 1 || (int)$o['stock_released'] !== 1) { if ($own) $db->commit(); return; }
+
+        // Summed per variant, as store_stock_release() does, so a cart naming a size twice is one claim.
+        $lines = $db->prepare(
+            'select p.slug as slug, i.size as size, sum(i.qty) as qty
+               from order_items i join products p on p.id = i.product_id
+              where i.order_id = ? and i.size is not null
+              group by p.slug, i.size'
+        );
+        $lines->execute([$orderId]);
+        $lines = $lines->fetchAll();
+
+        $short = true;
+        if ($o['fulfilment_status'] !== 'cancelled') {
+            $db->exec('SAVEPOINT late_reclaim');
+            $r = store_stock_claim($db, $lines);
+            $short = $r['short'] !== null;
+            if (!$short) {
+                $db->exec('RELEASE SAVEPOINT late_reclaim');
+                $db->prepare('update orders set stock_released = 0 where id = ?')->execute([$orderId]);
+            } else {
+                // Roll the partial takes back: a half re-claim is worse than none.
+                $db->exec('ROLLBACK TO SAVEPOINT late_reclaim');
+                $db->exec('RELEASE SAVEPOINT late_reclaim');
+            }
+        }
+        if ($short) {
+            // Named in the stock history so it is seen, with zero delta: nothing moved.
+            $sku = $db->prepare('select sku from product_variants where slug = ? and size = ? limit 1');
+            $note = $db->prepare("insert into stock_log (sku, slug, size, delta, stock_after, reason, actor, ref)
+                                  values (?, ?, ?, 0, null, 'late_payment', null, ?)");
+            foreach ($lines as $l) {
+                $sku->execute([$l['slug'], $l['size']]);
+                $code = (string)($sku->fetchColumn() ?: ($l['slug'] . '-' . $l['size']));
+                $note->execute([$code, $l['slug'], $l['size'], (string)$o['track_id']]);
+            }
+        }
+        if ($own) $db->commit();
+    } catch (Throwable $e) {
+        if ($own && $db->inTransaction()) $db->rollBack();
+        error_log('store_late_payment_reclaim order ' . $orderId . ': ' . $e->getMessage());
+    }
+}
+
 // Called wherever payment_status reaches a settled state — the callback and
 // the admin's mark-cash-paid. Mirrors trg_queue_fulfilment_payment.
 function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
+    if ($newStatus === 'paid') store_late_payment_reclaim($db, $orderId);
     if (in_array($newStatus, ['paid', 'failed'], true)) {
         store_queue_fulfilment($db, $orderId, 'payment');
     }
