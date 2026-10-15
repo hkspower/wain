@@ -1123,6 +1123,11 @@ if ($r === 'setup_status') {
     $knetFile = is_array($knetFile) ? $knetFile : [];
     $tid = trim((string) ($knetRow['tranportal_id'] ?? '')) !== '' ? (string) $knetRow['tranportal_id'] : (string) ($knetFile['tranportal_id'] ?? '');
     $add('knet_tranportal', $set($tid), 'payments', ['source' => trim((string) ($knetRow['tranportal_id'] ?? '')) !== '' ? 'panel' : 'file']);
+    // The two secrets KNET needs besides the ID (2026-10-15). Only a state and where it is set: never the value.
+    $knetPw = trim((string) ($knetRow['tranportal_password'] ?? '')) !== '' ? (string) $knetRow['tranportal_password'] : (string) ($knetFile['tranportal_password'] ?? '');
+    $knetRk = trim((string) ($knetRow['resource_key'] ?? '')) !== '' ? (string) $knetRow['resource_key'] : (string) ($knetFile['resource_key'] ?? '');
+    $add('knet_password', $set($knetPw), 'payments', ['source' => trim((string) ($knetRow['tranportal_password'] ?? '')) !== '' ? 'panel' : 'file']);
+    $add('knet_resource_key', $set($knetRk), 'payments', ['source' => trim((string) ($knetRow['resource_key'] ?? '')) !== '' ? 'panel' : 'file']);
     $methods = store_rule($db, 'payment_methods');
     $add('payment_methods', is_array($methods) && $methods ? 'ready' : 'missing', 'payments', ['count' => is_array($methods) ? count($methods) : 0]);
     // messages

@@ -121,7 +121,7 @@ try {
   check(statusCalls.length === after, 'E6 a delivered order is not polled any more', `${statusCalls.length - after} extra calls`)
   check((await post(path, { lat: 29.38, lng: 47.98 })).status === 410, 'E7 the driver link stops working once the order is delivered')
   // a carrier order: the link
-  await admin('fulfilment', { order_id: id2, status: 'shipped' }); await admin('courier', { order_id: id2, courier: 'dhl', courier_ref: 'JD014600003' })
+  await admin('fulfilment', { order_id: id2, status: 'packed' }); await admin('fulfilment', { order_id: id2, status: 'shipped' }); await admin('courier', { order_id: id2, courier: 'dhl', courier_ref: 'JD014600003' })
   await tp.locator('main form input').first().fill('SPLIVERIG2'); await tp.locator('main form button').first().click(); await tp.waitForTimeout(2500)
   const link = await tp.evaluate(() => { const a = document.querySelector('[data-order-progress] .op-courier-link'); return a ? [a.textContent, a.href, a.target] : null })
   check(link && link[0] === 'DHL' && /dhl\.com.*JD014600003/.test(link[1]) && link[2] === '_blank', 'E8 a carrier order links to the carrier\'s tracking page in a new tab', JSON.stringify(link))
@@ -132,7 +132,7 @@ try {
   await c3.addInitScript(() => { try { localStorage.setItem('lang', 'en') } catch (e) {} })
   const pp = await c3.newPage()
   await pp.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
-  await pp.fill('input[autocomplete="username"]', 'manager@sporta.com.kw'); await pp.fill('input[type=password]', 'correct horse'); await pp.press('input[type=password]', 'Enter')
+  await pp.fill('input[autocomplete~="username"]', 'manager@sporta.com.kw'); await pp.fill('input[type=password]', 'correct horse'); await pp.press('input[type=password]', 'Enter')
   await pp.waitForTimeout(2500)
   const ordersBtn = pp.locator('aside button, nav button', { hasText: /^Orders$/ }).first()
   await ordersBtn.evaluate((x) => x.click()); await pp.waitForTimeout(3000)
