@@ -2561,3 +2561,13 @@ section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom
     padding: 0 6px;
   }
 }
+header button > svg[fill="none"][stroke="currentColor"]:not([width="56"]),
+header a > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+  stroke-width: 2px;
+  width: 22px;
+  height: 22px;
+}
+header button[aria-label="Switch language"] > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+  width: 20px;
+  height: 20px;
+}

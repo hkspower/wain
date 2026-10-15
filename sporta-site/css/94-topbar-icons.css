@@ -1,0 +1,26 @@
+/* Top bar icons, 2026-10-15 — the owner chose outline icons with a 2px stroke.
+ *
+ * The header's icons are drawn by the compiled bundle (no source here), and the
+ * bundle gives them different strokes (1.75 to 2.6) and the language globe a
+ * 14px box next to 22px ones. The computed stroke was 1.5px everywhere, from the
+ * stylesheet, so the attributes never reached the screen. This file sets one
+ * stroke, one box, and keeps each icon's own colour (the bag stays orange).
+ *
+ * Scoped to icons inside a header button or link, so the product page, the
+ * cards and the panel are not touched. */
+
+/* The attribute part matches the general outline rule in 52-icons.css, which sets 1.5px on every
+ * outline SVG; this selector is at least as specific, and later, so it wins. */
+header button > svg[fill="none"][stroke="currentColor"]:not([width="56"]),
+header a > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+  stroke-width: 2px;
+  width: 22px;
+  height: 22px;
+}
+
+/* The language switch is a globe, drawn smaller than the others: give it the same
+ * visual weight as the 22px icons beside it. */
+header button[aria-label="Switch language"] > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+  width: 20px;
+  height: 20px;
+}
