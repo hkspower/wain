@@ -1,0 +1,41 @@
+/* One spacing rhythm for the home page, 2026-10-15 — the owner chose "Balanced".
+ *
+ * Measured before (phone / desktop): features → categories 28px, categories → best sellers 40px,
+ * best sellers → returns strip 64px, strip → footer 96px; the features panel had 24px above and
+ * 12px below on desktop; best sellers ended with 50px, categories with 32px. Each section's
+ * spacing came from a different rule (bundle utilities, trust-strip.js, 49-, 66-).
+ *
+ * Now every section carries the SAME space ABOVE it and none below: 24px on phones, 40px from
+ * 768px. Space above rather than below because the sections are stacked by flex `order`
+ * (home-sections.js), so "the last one" is not the last child. A heading sits 16px above its
+ * content. The footer starts 32px / 48px after the last section. The hero (the carousel) keeps
+ * no padding. Scoped to the HOME page by its Best sellers section (a direct child, so the :has()
+ * is cheap); `data-home-order` is only set when the owner saved a custom order. */
+main#main:has(> section.sporta-home-products) > section:not([aria-roledescription="carousel"]) {
+  padding-top: 24px !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+main#main:has(> section.sporta-home-products) section.sts-wrap > .sts-title {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+main#main:has(> section.sporta-home-products) ~ footer {
+  margin-top: 32px !important;
+}
+@media (min-width: 768px) {
+  main#main:has(> section.sporta-home-products) > section:not([aria-roledescription="carousel"]) {
+    padding-top: 40px !important;
+  }
+  main#main:has(> section.sporta-home-products) ~ footer {
+    margin-top: 48px !important;
+  }
+}

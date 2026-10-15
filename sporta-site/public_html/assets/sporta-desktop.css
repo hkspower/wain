@@ -914,3 +914,62 @@ section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom
   }
 }
 }
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 16px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main#main:has(> section.sporta-home-products) section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main#main:has(> section.sporta-home-products) section.sporta-home-products > h2.sporta-home-products__heading {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+}
+@media (min-width: 768px) {
+  main#main:has(> section.sporta-home-products) > section:not([aria-roledescription="carousel"]) {
+    padding-top: 40px !important;
+  }
+  main#main:has(> section.sporta-home-products) ~ footer {
+    margin-top: 48px !important;
+  }
+}
