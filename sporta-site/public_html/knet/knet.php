@@ -402,6 +402,21 @@ function knet_store_response(array $cfg, string $trackid, string $encrypted, str
     }
 }
 
+// KNET's error URL is a browser redirect carrying ErrorText and no signature (K-064 §5). It may only leave a
+// NOTE on an order that is still pending — never a status, never on a settled order — so a forged request can
+// at most write a message on a pending order whose track id it already knew. The mirror of
+// cbk_note_gateway_error() in pay/callback.php. Never throws.
+function knet_note_gateway_error(array $cfg, string $trackid, string $message): void
+{
+    if ($trackid === '') return;
+    try {
+        knet_pdo($cfg)->prepare("update orders set cbk_message = ? where track_id = ? and payment_status = 'pending'")
+            ->execute([$message, $trackid]);
+    } catch (Throwable $e) {
+        knet_log($cfg, 'callback.note_failed', ['error' => $e->getMessage()]);
+    }
+}
+
 function knet_db_configured(array $cfg): bool
 {
     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';

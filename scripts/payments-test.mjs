@@ -230,8 +230,10 @@ console.log('\n--- what a forged callback cannot do')
   const short = `paymentid=P2&result=CAPTURED&trackid=${cheap.track}&amt=0.100&ref=R2`
   await get(`${SITE}/knet/callback.php?trandata=${encodeURIComponent(enc(short))}`)
   const under = await statusOf(cheap.track)
-  check(under?.payment_status === 'failed',
-    `CAPTURED for 0.100 against an order of ${owed} is FAILED, not paid (${under?.payment_status})`)
+  // REVIEW, not failed, since 2026-10-15: the bank captured money, so "failed" told the warehouse
+  // "do not ship" over a payment the shop holds. Still never PAID — the guard this check exists for.
+  check(under?.payment_status === 'review',
+    `CAPTURED for 0.100 against an order of ${owed} is held for REVIEW, never paid (${under?.payment_status})`)
 
   // 3. NO AMOUNT AT ALL. The guard fails closed: what cannot be verified is
   //    held for review rather than trusted. It used to be marked paid.

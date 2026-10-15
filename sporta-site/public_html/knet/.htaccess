@@ -95,7 +95,7 @@
   # implemented. scripts/cookie-flags-test.mjs fails if this comes back.
 </IfModule>
 
-<FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php)$">
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php|selftest\.php|responses\.mysql\.sql)$">
   Require all denied
 </FilesMatch>
 

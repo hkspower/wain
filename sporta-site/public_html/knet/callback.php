@@ -10,11 +10,21 @@ require __DIR__ . '/knet.php';
 knet_require_https();
 $cfg = knet_config();
 
-$return   = $cfg['result_page_url'];
+// A missing result_page_url must not send the shopper to a bare "?status=…" (2026-10-15).
+$return   = (string) ($cfg['result_page_url'] ?? '') ?: '/payment/result';
 $in       = $_POST + $_GET;
 $trandata = (string)($in['trandata'] ?? '');
 
 if ($trandata === '') {
+    // THE ERROR URL (K-064 §5): KNET sends the SHOPPER'S BROWSER here when it could not process the
+    // payment, with ErrorText/Error and no trandata. Nothing here is signed, so it may only leave a note
+    // on a still-pending order — never a status — exactly as pay/callback.php treats CBK's error return.
+    $errText = substr(trim((string) ($in['ErrorText'] ?? $in['Error'] ?? '')), 0, 200);
+    $errTrack = (string) ($in['trackid'] ?? '');
+    if ($errText !== '' && preg_match('/^[A-Za-z0-9]{1,30}$/', $errTrack) && knet_db_configured($cfg)) {
+        knet_note_gateway_error($cfg, knet_resolve_track($cfg, $errTrack), $errText);
+    }
+    knet_log($cfg, 'callback.error_url', ['trackid' => $errTrack, 'error' => $errText]);
     knet_send_customer_onward($cfg, $return . '?status=error&reason=missing_data');
     exit;
 }
@@ -65,7 +75,14 @@ try {
 }
 
 $result    = strtoupper((string)($fields['result'] ?? ''));
-$paid      = ($result === 'CAPTURED' || $result === 'APPROVED');
+// K-064 §3.6: "success only if result parameter returns CAPTURED otherwise any other value should be
+// considered failure". APPROVED used to count as paid; it is not in the manual's list of results.
+$paid      = $result === 'CAPTURED';
+// HOST TIMEOUT means the bank did not answer in time, not that the card was declined: the money may have
+// been taken. The manual's answer is an inquiry. Until somebody checks, the order is held for REVIEW rather
+// than marked failed, so the warehouse is not told "do not ship" over a payment that may exist. APPROVED is
+// held the same way: a word the bank should not send for a purchase is a question, not an answer.
+$hold      = $result === 'HOST TIMEOUT' || $result === 'APPROVED';
 // What the bank echoes back is the reference we SENT, which on a retry carries
 // an attempt suffix. Resolve it to the order's own track id immediately, before
 // anything else touches it: every lookup and the settling UPDATE below key on
@@ -125,7 +142,8 @@ if ($haveDb) {
 // marked PAID. Now anything we cannot positively verify is held for review
 // instead of being trusted.
 // ---------------------------------------------------------------------------
-$review = false;
+$review = $hold;
+if ($hold) knet_log($cfg, 'callback.held', ['trackid' => $trackid, 'result' => $result]);
 if ($paid && $haveDb) {
     $lookup = knet_order_lookup($cfg, $trackid);
     if ($lookup['state'] !== 'found' || $paidAmt === '') {
@@ -134,7 +152,10 @@ if ($paid && $haveDb) {
         $result = 'UNVERIFIED_' . strtoupper($lookup['state']);
         knet_log($cfg, 'callback.unverified', ['trackid' => $trackid, 'state' => $lookup['state']]);
     } elseif (abs((float) $lookup['amount'] - (float) $paidAmt) >= 0.001) {
+        // REVIEW, NOT FAILED (2026-10-15). The bank captured money; marking the order failed told the
+        // warehouse "do not ship" while the shop held the payment. A person decides: ship, or refund.
         $paid = false;
+        $review = true;
         $result = 'AMOUNT_MISMATCH';
         knet_log($cfg, 'callback.amount_mismatch', [
             'trackid' => $trackid, 'expected' => $lookup['amount'], 'paid' => $paidAmt,
@@ -180,7 +201,16 @@ exit;
 // force the plain 302 if the bank confirms the browser-redirect style.
 function knet_send_customer_onward(array $cfg, string $url): void
 {
-    $style = $cfg['callback_response'] ?? 'both';
+    // 'auto' (the default since 2026-10-15) answers each caller the way K-064 says it must:
+    //   - the NOTIFICATION — KNET's server POSTing trandata to responseURL (§5) — gets ONLY the line
+    //     REDIRECT=<url>. §10.2.1 lists HTML tags and redirects in this reply as causes of AUTO-VOID.
+    //   - everything else is a BROWSER (the errorURL redirect, a shopper refreshing) and gets a 302:
+    //     a bare text line would be shown to the shopper as the page.
+    // 'redirect', 'line' and 'both' still pin one answer for every caller, for a bank that says otherwise.
+    $style = (string) ($cfg['callback_response'] ?? '') ?: 'auto';
+    if ($style === 'auto') {
+        $style = (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (string) ($_POST['trandata'] ?? '') !== '') ? 'line' : 'redirect';
+    }
     if ($style === 'redirect') {
         header('Location: ' . $url, true, 302);
         return;
@@ -245,7 +275,7 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
             $pdo->rollBack();
             return false;
         }
-        if ($before === 'paid' && $paid) { // already settled: succeed, silently
+        if ($before === 'paid') {          // already settled: never downgraded, nothing re-stamped
             $pdo->rollBack();
             return true;
         }
