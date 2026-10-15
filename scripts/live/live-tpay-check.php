@@ -18,7 +18,8 @@ $methods = '?';
 if (is_array($a)) { try { $db = new PDO("mysql:host={$a['db_host']};dbname={$a['db_name']};charset=utf8mb4", $a['db_user'], $a['db_pass']);
   $r = $db->query("select value from settings where name='rules'")->fetchColumn(); $j = $r ? json_decode($r, true) : null;
   $methods = is_array($j['payment_methods'] ?? null) ? implode('+', $j['payment_methods']) : 'default(knet+tpay+cod)'; } catch (Throwable $e) { $methods = 'db-error'; } }
-$js = @file_get_contents($ROOT . '/config.js'); $tp = preg_match('/tpayEnabled\s*:\s*(true|false)/', (string) $js, $m) ? $m[1] : '?';
+$js = @file_get_contents($ROOT . '/config.js'); // The value is the STRING 'true' since 2026-10-07 (the bundle compares a string); accept both forms.
+$tp = preg_match('/tpayEnabled\s*:\s*[\'"]?(true|false)[\'"]?/', (string) $js, $m) ? $m[1] : '?';
 $auth = 'skipped(credentials not all set)';
 if ($id === 'set' && $sec === 'set' && $key === 'set') {
   try { [$s, $res] = cbk_http('POST', cbk_base($cfg) . '/ePay/api/cbk/online/pg/merchant/Authenticate', $cfg, ['ClientId' => $cfg['client_id'], 'ClientSecret' => $cfg['client_secret'], 'ENCRP_KEY' => $cfg['encrp_key']]);
