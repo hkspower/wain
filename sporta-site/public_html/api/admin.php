@@ -1023,14 +1023,40 @@ if ($r === 'fulfilment' && $method === 'POST') {
         store_fail('invalid_status');
     }
     $orderId = (int)($b['order_id'] ?? 0);
-    // Each step keeps its own time (live tracking, 2026-10-04): set when the step is first reached,
-    // never cleared, so re-marking an order does not lose when it really left.
-    $db->prepare('update orders set fulfilment_status = ?,
-                    packed_at    = case when ? = \'packed\'    and packed_at    is null then now() else packed_at    end,
-                    shipped_at   = case when ? = \'shipped\'   and shipped_at   is null then now() else shipped_at   end,
-                    fulfilled_at = case when ? = \'delivered\' then now() else fulfilled_at end
-                  where id = ?')
-       ->execute([$status, $status, $status, $status, $orderId]);
+    // BL-02 (2026-10-14, owner's choice: forward only). A status moves forward through the
+    // warehouse steps; it may be cancelled from any step short of delivery; a cancelled order
+    // may be reopened to unfulfilled. Re-marking the same status is a no-op, not an error.
+    // Read under a row lock so two staff members cannot both pass the check on the same order.
+    $allowed = [
+        'unfulfilled' => ['packed', 'cancelled'],
+        'packed'      => ['shipped', 'cancelled'],
+        'shipped'     => ['delivered', 'cancelled'],
+        'delivered'   => [],
+        'cancelled'   => ['unfulfilled'],
+    ];
+    $db->beginTransaction();
+    try {
+        $cur = $db->prepare('select fulfilment_status from orders where id = ? for update');
+        $cur->execute([$orderId]);
+        $from = $cur->fetchColumn();
+        if ($from === false) { $db->rollBack(); store_fail('not_found', 404); }
+        if ($from !== $status && !in_array($status, $allowed[$from] ?? [], true)) {
+            $db->rollBack();
+            store_out(['error' => 'bad_transition', 'from' => $from, 'to' => $status], 409);
+        }
+        // Each step keeps its own time (live tracking, 2026-10-04): set when the step is first reached,
+        // never cleared, so re-marking an order does not lose when it really left.
+        $db->prepare('update orders set fulfilment_status = ?,
+                        packed_at    = case when ? = \'packed\'    and packed_at    is null then now() else packed_at    end,
+                        shipped_at   = case when ? = \'shipped\'   and shipped_at   is null then now() else shipped_at   end,
+                        fulfilled_at = case when ? = \'delivered\' then now() else fulfilled_at end
+                      where id = ?')
+           ->execute([$status, $status, $status, $status, $orderId]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
     // A delivered or cancelled order has no van to follow: its driver position goes, and the
     // driver link stops being accepted (driver.php checks the status).
     if (in_array($status, ['delivered', 'cancelled'], true)) {
