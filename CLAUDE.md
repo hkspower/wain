@@ -6242,7 +6242,7 @@ It had been inert since 7 October (key renamed to `elevenlabs.key.off`, live bui
 - **Crontab after:** sporta's `1mNk00yPZP` alone.
 - **Not measured:** a phone; a real agent reading the handover update (the socket is refused here).
 
-## The call widget ships without the ElevenLabs copyright notice — 15 October (not deployed; staging serves the old file until its next deploy)
+## The call widget ships without the ElevenLabs copyright notice — 15 October (deployed to both stages in `436259f9`)
 
 Asked: «remove all elevenlabs copyright». The only copyright in the build was the MIT notice that
 `scripts/vendor-widget.mjs` put in front of the self-hosted widget (`Copyright (c) 2025 ElevenLabs`, from the
@@ -6259,7 +6259,7 @@ widget's own «Powered by ElevenAgents» line is not copyright, and `disable_ban
 Verified in a scratch worktree at HEAD with the change applied: an agent-mode `npm run build` (BUILD OK), the served
 widget has no copyright text, and `tests/shouq-widget-csp.test.mjs` passes 42 of 42 (no CSP violation, audio leaves the page).
 
-## The touch press is in @layer base — 15 October (committed; not deployed)
+## The touch press is in @layer base — 15 October (committed and deployed to both stages in `436259f9`)
 
 Asked: «1» (apply the cascade fix from the outdated-files review). On a phone (`pointer: coarse`), the unlayered
 rule in `globals.css` set `transition: transform 120ms` and `transform: scale(0.975)` on every link and button.
@@ -6283,3 +6283,16 @@ Verified with `tests/press.test.mjs` (in `test:hangout`), red on HEAD in a scrat
 transition list lacked colour (2 assertions) and its held press was 0.926 (1). Green on the fix: 8 of 8, with the
 guards (a plain control presses to 0.975, the typing link to 0.95, a mouse keeps its transitions). `scan` exit 0.
 Not measured: a real phone's press.
+
+## The 15 October deploy — `436259f9` is live on both stages (archive `8d615cdc`)
+
+- **What shipped:** the touch press in `@layer base` (`436259f9`), the call widget served without the ElevenLabs notice (`a8703760`), the tab bar's height and step-aside moved into `globals.css` (`68d9c392`), and the map's `maxHeight` prop (`2d6ce67d`). Built with both agent ids and `NEXT_PUBLIC_WAIN_TTS_URL=none`, from a clean tree (`dirty: false`). Archive `8d615cdc` is `wain-1.1.0.zip`, 4,671,330 bytes, sha256 `06ad99b9…8191583`, digest `63f03891f17e5d92`, 281 files. One more permanent blob; `DEPLOY_SECRET` is still unset.
+- **Staging first**, one job through the installed caller (`storage/d.php`), read at its first firing: `{"ok":true,"version":"1.1.0","deployed":282,"removed":7,"emptied":1,"at":"2026-10-15T11:57:02+00:00"}`. Deleted, gone from the listing.
+- **Production**, the same way: `{"ok":true,"version":"1.1.0","deployed":282,"removed":7,"emptied":1,"at":"2026-10-15T12:03:02+00:00"}`. Deleted, gone from the listing.
+- **Verified below the root** on both stages with `npm run deploy:verify -- --observed`: «436259f9 is live — verified at the root and 7 levels below it». The seven required proofs were byte-exact on each stage.
+- **Cache and edge:** `hosting_cache_clear-website` accepted. `wget -S --spider` through the edge, one job each, read and deleted: `www.wainkw.com/salem/` and `/search/` both 200 with `Last-Modified 12:03:02` (the production deploy's minute) and `x-hcdn-cache-status: DYNAMIC`; `staging.wainkw.com/salem/` 200 with `Last-Modified 11:57:02` and `X-Robots-Tag: noindex, nofollow`.
+- **Not in this deploy:** the eleven uncommitted paths in the working tree (another session's /salem work: `salem_screen.dart`, `SalemChat.tsx`, `globals.css`, `map-frame.ts`, `salem-copy.ts` and their tests). The archive was built from the committed tree, so none of them is live. They stay uncommitted until that session finishes.
+- **Not read back:** the widget file itself (`convai-0.19.0-698d5d4343458b6f.js`) is in the archive, but the seven proofs do not include it, so its served bytes were not read on either stage.
+- **Known and open:** `MapPin` and `ClusterPin` lose their touch press on phones, because their hover scale is unconditional (see the section above). The owner has not decided this. Also, MIT asks for the notice to travel with copies of the widget; the trade-off is recorded in the copyright section above.
+- **Crontab after:** sporta's `1mNk00yPZP` alone.
+- **Not measured:** the press and the widget on a real phone.
