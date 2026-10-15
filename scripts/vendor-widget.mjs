@@ -25,10 +25,12 @@
  * its bytes. It is not referenced by any page's HTML, so gen-sw leaves it out
  * of the service worker's precache — it is on-demand, like the live map.
  *
- * The file is the package's `dist/index.js` with its MIT licence in front, as
- * a `/*!` comment: the licence requires the notice to travel with every copy,
- * and the published bundle carries none of its own. The hash and the
- * integrity are of what ships, licence included.
+ * The file is the package's `dist/index.js`, byte for byte, with no notice in
+ * front. Until 15 October it carried the package's MIT notice as a `/*!`
+ * comment, because the licence asks for the notice to travel with every copy.
+ * The owner asked for the ElevenLabs copyright to come out of what the site
+ * serves, and chose that knowing the licence condition; CLAUDE.md records it.
+ * The hash and the integrity are of exactly what ships.
  *
  * `--check` fails when the generated module is not what the installed
  * package would produce (wired into audit:shouq-call).
@@ -53,12 +55,7 @@ if (declared !== pkg.version) {
   );
   process.exit(1);
 }
-const licence = readFileSync(join(PKG_DIR, "LICENSE"), "utf8").trim().replace(/\*\//g, "* /");
-const body = readFileSync(join(PKG_DIR, pkg.unpkg ?? "dist/index.js"));
-const bytes = Buffer.concat([
-  Buffer.from(`/*! ${pkg.name} ${pkg.version}\n\n${licence}\n*/\n`),
-  body,
-]);
+const bytes = readFileSync(join(PKG_DIR, pkg.unpkg ?? "dist/index.js"));
 const hash = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
 const integrity = `sha384-${createHash("sha384").update(bytes).digest("base64")}`;
 const path = `/_next/static/media/convai-${pkg.version}-${hash}.js`;

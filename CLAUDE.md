@@ -6241,3 +6241,20 @@ It had been inert since 7 October (key renamed to `elevenlabs.key.off`, live bui
   recorded.
 - **Crontab after:** sporta's `1mNk00yPZP` alone.
 - **Not measured:** a phone; a real agent reading the handover update (the socket is refused here).
+
+## The call widget ships without the ElevenLabs copyright notice — 15 October (not deployed; staging serves the old file until its next deploy)
+
+Asked: «remove all elevenlabs copyright». The only copyright in the build was the MIT notice that
+`scripts/vendor-widget.mjs` put in front of the self-hosted widget (`Copyright (c) 2025 ElevenLabs`, from the
+package's LICENSE). The notice is no longer written. The served file is `dist/index.js` byte for byte, so its
+path, hash and SRI changed (`convai-0.19.0-698d5d4343458b6f.js`, `sha384-Hq6Ry47v…`), and `widget-src.g.ts` is
+regenerated.
+
+The owner was told the trade-off before choosing: MIT requires the notice to be included in all copies or
+substantial portions, and removing it from a redistributed copy does not meet that condition. The choice is
+recorded here so it can be reversed by restoring the header in `vendor-widget.mjs`, which is a one-line change.
+Nothing else in the repo depends on the header (no test or audit reads it). Visible branding is unchanged: the
+widget's own «Powered by ElevenAgents» line is not copyright, and `disable_banner` is ignored on this tier.
+
+Verified in a scratch worktree at HEAD with the change applied: an agent-mode `npm run build` (BUILD OK), the served
+widget has no copyright text, and `tests/shouq-widget-csp.test.mjs` passes 42 of 42 (no CSP violation, audio leaves the page).
