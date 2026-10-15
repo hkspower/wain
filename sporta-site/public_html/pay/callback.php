@@ -358,6 +358,10 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
                 if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
                 if (is_file($lib)) {
                     require_once $lib;
+                    // BL-01: a capture that lands after the sweeper released the hold takes the
+                    // stock back, or names the order for a refund. Before the warehouse message,
+                    // in this transaction. Never throws.
+                    if ($paid) store_late_payment_reclaim($pdo, (int) $orderId);
                     store_queue_fulfilment($pdo, (int) $orderId, 'payment');
                     // And the books, on the same terms — mirrored from the
                     // KNET dropin, as every rule here is. store_post_to_ledger

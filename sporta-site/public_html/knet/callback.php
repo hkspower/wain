@@ -294,6 +294,10 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
                 if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
                 if (is_file($storeLib)) {
                     require_once $storeLib;
+                    // BL-01: a capture that lands after the sweeper released the hold takes the
+                    // stock back, or names the order for a refund. Before the warehouse message,
+                    // in this transaction. Never throws.
+                    if ($paid) store_late_payment_reclaim($pdo, (int)$orderId);
                     store_queue_fulfilment($pdo, (int)$orderId, 'payment');
                     // And the books, on the same terms: store_post_to_ledger
                     // swallows its own failures for exactly the reason spelled

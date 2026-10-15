@@ -1009,6 +1009,7 @@ function store_late_payment_reclaim(PDO $db, int $orderId): void {
     // The gateway callbacks already hold a transaction when they settle a payment, and PDO cannot
     // begin a second. Join theirs; begin and end our own only when no transaction is open.
     $own = !$db->inTransaction();
+    $sp = false;
     try {
         if ($own) $db->beginTransaction();
         $lock = $db->prepare('select stock_claimed, stock_released, fulfilment_status, track_id
@@ -1029,16 +1030,16 @@ function store_late_payment_reclaim(PDO $db, int $orderId): void {
 
         $short = true;
         if ($o['fulfilment_status'] !== 'cancelled') {
-            $db->exec('SAVEPOINT late_reclaim');
+            $db->exec('SAVEPOINT late_reclaim'); $sp = true;
             $r = store_stock_claim($db, $lines);
             $short = $r['short'] !== null;
             if (!$short) {
-                $db->exec('RELEASE SAVEPOINT late_reclaim');
+                $db->exec('RELEASE SAVEPOINT late_reclaim'); $sp = false;
                 $db->prepare('update orders set stock_released = 0 where id = ?')->execute([$orderId]);
             } else {
                 // Roll the partial takes back: a half re-claim is worse than none.
                 $db->exec('ROLLBACK TO SAVEPOINT late_reclaim');
-                $db->exec('RELEASE SAVEPOINT late_reclaim');
+                $db->exec('RELEASE SAVEPOINT late_reclaim'); $sp = false;
             }
         }
         if ($short) {
@@ -1054,6 +1055,9 @@ function store_late_payment_reclaim(PDO $db, int $orderId): void {
         }
         if ($own) $db->commit();
     } catch (Throwable $e) {
+        // Inside a caller's transaction (the bank callbacks), a half-done claim must not ride along
+        // with the payment record: undo back to the savepoint and leave the order as the payment left it.
+        if (!$own && $sp && $db->inTransaction()) { try { $db->exec('ROLLBACK TO SAVEPOINT late_reclaim'); } catch (Throwable $_) {} }
         if ($own && $db->inTransaction()) $db->rollBack();
         error_log('store_late_payment_reclaim order ' . $orderId . ': ' . $e->getMessage());
     }

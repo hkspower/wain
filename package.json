@@ -286,7 +286,8 @@
     "test:product-page-layout": "node scripts/product-page-layout-test.mjs",
     "test:no-exchange-line": "node scripts/no-exchange-line-test.mjs",
     "test:size-chart": "node scripts/size-chart-test.mjs",
-    "test:oversize-fixes": "node scripts/oversize-fixes-test.mjs"
+    "test:oversize-fixes": "node scripts/oversize-fixes-test.mjs",
+    "test:late-payment-callback": "node scripts/late-payment-callback-test.mjs"
   },
   "private": true
 }
