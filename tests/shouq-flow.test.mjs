@@ -676,6 +676,11 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
    * the bar — at 320×568 on «اسأل مرة ثانية», which rang again (15 October).
    * The page-room rule for the bar pads <main>, and this chat is a fixed frame.
    */
+  // A home bar under all of it (34px, an iPhone's), so each mode's own inset
+  // padding is part of what is measured.
+  const cdp = await ctx.newCDPSession(p);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 34 } }).catch(() => {});
+  await p.waitForTimeout(200);
   const reachable = () => p.evaluate(() => {
     const hit = (el) => {
       const r = el.getBoundingClientRect();
@@ -684,25 +689,31 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
     };
     const box = document.getElementById('salem-q');
     const send = box?.form?.querySelector('button[type="submit"]');
-    return { box: !!box && hit(box), send: !!send && hit(send) };
+    const bar = document.getElementById('wain-ai-bar')?.getBoundingClientRect();
+    return {
+      box: !!box && hit(box), send: !!send && hit(send),
+      // Clear of the bar, not only hit at its centre.
+      clear: !!box && !!bar && box.getBoundingClientRect().bottom <= bar.top,
+    };
   }).catch(() => null);
+  const fine = (r) => !!r?.box && !!r?.send && !!r?.clear;
   const stillUp = () => p.locator('#wain-ai-bar').isVisible().catch(() => false);
   let reach = await reachable();
-  ok('390: with his bar up, the chat\'s box and send button take a tap', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  ok('390: with his bar up, the chat\'s box and send button take a tap', fine(reach) && await stillUp(), JSON.stringify(reach));
   await p.setViewportSize({ width: 320, height: 568 });
   await p.waitForTimeout(300);
   reach = await reachable();
-  ok('320: …and on a small phone', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  ok('320: …and on a small phone', fine(reach) && await stillUp(), JSON.stringify(reach));
   await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
   await p.waitForTimeout(300);
   reach = await reachable();
-  ok('320 installed: …and over the tab bar', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  ok('320 installed: …and over the tab bar', fine(reach) && await stillUp(), JSON.stringify(reach));
   // Installed, the tab bar steps aside while the box has focus and the chat
   // takes its room; the bar has to come down with it, or it sits on the form.
   await p.locator('#salem-q').focus({ timeout: 3000 }).catch(() => {});
   await p.waitForTimeout(300);
   reach = await reachable();
-  ok('320 installed, typing: …and still with the tab bar stepped aside', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  ok('320 installed, typing: …and still with the tab bar stepped aside', fine(reach) && await stillUp(), JSON.stringify(reach));
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

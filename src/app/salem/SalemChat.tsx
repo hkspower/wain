@@ -147,6 +147,33 @@ const FREE = !SALEM_AGENT_ENABLED;
 /** How long a free answer may take before the chat says it got none. */
 const FREE_REPLY_MS = 10_000;
 
+/**
+ * This chat's window on a phone held sideways, for its maps (SearchMap's
+ * `maxHeight`): the screen's short side less the header, the notice and the
+ * box (69 + 49 + 68px) and a margin. Fitted at the wide frame's 2.2:1, «بحر»'s
+ * map was 525px tall in a 204px window at 844×390 — no scroll position showed
+ * all of its pins (15 October). 0 when it is not a phone on its side.
+ *
+ * Read off the SCREEN, not the window: Android shrinks the window for its
+ * keyboard (interactive-widget=resizes-content), and a cap keyed on the
+ * window's height re-fitted — and reloaded — every map in the chat as the
+ * keyboard came and went. `screen.orientation` does not move for a keyboard;
+ * where it is missing (iOS before 16.4) the window's orientation is used,
+ * which the keyboard does not change there either. Here and not in SearchMap
+ * so that /search, which shares the map, does not carry it.
+ */
+const SIDEWAYS_CHROME_PX = 206;
+const PHONE_SHORT_SIDE_PX = 500;
+function sidewaysRoom(): number {
+  if (typeof window === "undefined") return 0;
+  const { width, height, orientation } = window.screen;
+  const short = Math.min(width, height);
+  const sideways = orientation?.type
+    ? orientation.type.startsWith("landscape")
+    : window.matchMedia("(orientation: landscape)").matches;
+  return sideways && short <= PHONE_SHORT_SIDE_PX ? short - SIDEWAYS_CHROME_PX : 0;
+}
+
 export default function SalemChat() {
   const [free, setFree] = useState(FREE);
   const freeRef = useRef(FREE);
@@ -1152,10 +1179,12 @@ export default function SalemChat() {
       </p>
       {/* px-4: the header, the transcript and the notice sit 16px in, and the
           box sat 12 — the input started 4px outside everything above it
-          (15 October). */}
+          (15 October). Installed, the tab bar pads for the home bar, so the
+          form does not — except while the box has focus and the tab bar has
+          stepped aside (see the frame). */}
       <form
         onSubmit={send}
-        className="flex shrink-0 items-stretch gap-2 bg-sea-950 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 md:px-[calc(50%-21rem)]"
+        className="flex shrink-0 items-stretch gap-2 bg-sea-950 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 standalone:has-[#salem-q:focus]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:px-[calc(50%-21rem)]"
       >
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}
@@ -1270,7 +1299,7 @@ function SalemPlacesResult({
         ))}
       </ul>
       <div className="rounded-3xl border border-line bg-white p-4 sm:p-5 text-ink-900">
-        <SearchMap places={places} active={activeSlug} onActive={choose} compact />
+        <SearchMap places={places} active={activeSlug} onActive={choose} compact maxHeight={sidewaysRoom} />
         <Link
           href={`/search/?q=${encodeURIComponent(query)}`}
           className="mt-2 inline-flex min-h-tap items-center gap-1.5 text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
@@ -1305,7 +1334,7 @@ function SalemPlacesResult({
 function SalemWhere({ place }: { place: Place }) {
   return (
     <div className="space-y-2 rounded-3xl border border-line bg-white p-4 sm:p-5 text-ink-900">
-      <SearchMap places={[place]} active={place.slug} compact />
+      <SearchMap places={[place]} active={place.slug} compact maxHeight={sidewaysRoom} />
       <div className="flex flex-wrap gap-2">
         <a
           href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
