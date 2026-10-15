@@ -5090,3 +5090,40 @@ SEC-04 (accounting routes return driver error text to admins), SEC-06 (inventory
 **Owner decisions:** whether cancel and refund reverse money automatically (BL-03); whether the KNET Clear buttons should exist, or need a confirmation (N04); whether backups should carry admin password hashes (SEC-03); whether a restore should ask for the password and code and refuse a file that leaves no active admin (BL-11).
 
 **Suggested order for fixes:** the money and stock paths first (BL-01, BL-02, SEC-01, PNL-02, BL-05, BL-04), then the promotion dates (N01), then PNL-01. Each fix needs a test and mutation check, and nothing goes live while the 2026-10-14 deploy hold stands.
+
+## KNET and CBK, 2026-10-15 — callback refreshed, live configs restored
+
+**Repository (pushed, NOT live — the deploy hold stands):**
+- **BL-01 now reaches the bank callbacks** (`c91ae01`). `store_late_payment_reclaim()` had run only from the
+  admin routes; `knet/callback.php` and `pay/callback.php` settle orders themselves, so a late capture was
+  still oversold. Both now call it when an order becomes paid. `test:late-payment-callback` (MUTATE=1).
+- **KNET callback refreshed to K-064 v1.5** (`06cbb9a`). `callback_response` default is `'auto'`: KNET's
+  server-to-server notification (POST with trandata) gets ONLY `REDIRECT=<url>`; a browser (error URL,
+  refresh) gets a 302. §10.2.1 lists HTML or a redirect in the notification reply as causes of AUTO-VOID,
+  so the old `'both'` and `'redirect'` each broke one rule, and one file serves both callers. Only
+  `CAPTURED` is paid; `HOST TIMEOUT`, `APPROVED` and a wrong captured amount go to `review` (the receipt
+  page already says "do not pay again"). ErrorText from the unsigned error URL is a NOTE on a pending order
+  only. `test:knet-refresh` (MUTATE=style|approved|mismatch). **When a live `knet/config.php` is written by
+  hand, omit `callback_response` or set `'auto'`** — an explicit `'redirect'` brings the auto-void back.
+- Open with KNET (PGSupport@knet.com.kw): which reply style the terminal uses, and `www.kpay.com.kw` versus
+  `kpay.com.kw` (every manual URL has `www.`; `/kpg/PaymentHTTP.htm` is not in the manual at all).
+
+**Live server:**
+- **Both gateway config files were MISSING** and no copy existed anywhere on the account (folder dated
+  2026-10-14, likely the redeploy). Recreated from the repo templates by
+  `scripts/publish/restore-gateway-configs.php` — no secrets, 0600, never overwrites. Credentials come from
+  the `/backends → Payments` row, which overrides the file.
+- CBK Test set: Client ID saved (`scripts/publish/set-cbk-test-client-id.php`, value given on the cron
+  command line, never committed; backup `~/settings-knet-20261015-094501.json`). Mode = test.
+  **Test Client Secret and ENCRP_KEY are still placeholders** — CBK sign-in cannot succeed until the owner
+  enters them. The owner's old OpenCart screenshot also shows a Merchant ID (M18717): CBK's hosted API
+  (and its own sample code) uses no merchant ID, so it has nowhere to go.
+- KNET checkout chain, measured with a fake track id (`scripts/live/live-knet-redirect.php`):
+  `/knet/pay.php` → 303 `/pay/pay.php?…&paytype=1` → 404 "Unknown order" (refused before any bank call).
+- Strays moved to `~/removed-2026-10-15/` (renamed, not deleted): `knet/selftest.php`, `api/preflight.php`,
+  `go-live.html`. Re-check later — this docroot has restored a removed file before.
+- `live-file-check` at `4773130`: same=319/354, differ=10 (today's unpublished fixes), missing=25 —
+  `assets/leaflet/` (the /track map cannot load) and `api/wallet-assets/` (Wallet card images).
+- `live-tpay-check.php` prints `configJsTpayEnabled=?` because `config.js` now holds the STRING `'true'`;
+  that is the probe's regex, not the shop.
+- The only cron job on the account is `cron-all.php` (not ours); every probe job was deleted after reading.
