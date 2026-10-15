@@ -268,7 +268,10 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
         // untangles a PDO trap: rowCount() counts rows CHANGED, not matched,
         // so rewriting identical values returns 0 and the old code read that
         // as a failed write and logged a lost payment that was never lost.
-        $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+        // FOR UPDATE (2026-10-15): two deliveries of the same result (KNET's notification and
+        // the browser at once) both read 'pending' without a lock and both queued a payment
+        // message. Locked, the second waits, then reads 'paid' and returns below.
+        $cur = $pdo->prepare('select payment_status from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $before = $cur->fetchColumn();
         if ($before === false) {           // no such order — nothing to write

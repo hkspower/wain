@@ -324,11 +324,14 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
     try {
         $pdo = cbk_pdo($cfg);
         $pdo->beginTransaction();
-        $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+        // FOR UPDATE, and ANY result on a paid order stops here (2026-10-15). Unlocked, two
+        // deliveries both read 'pending' and both queued a payment message; and a stale
+        // non-paid replay of a paid order changed nothing yet still queued one.
+        $cur = $pdo->prepare('select payment_status from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $before = $cur->fetchColumn();
         if ($before === false) { $pdo->rollBack(); return; }
-        if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
+        if ($before === 'paid') { $pdo->rollBack(); return; }
 
         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
                   cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,

@@ -36,7 +36,7 @@ const srv = spawn('php', ['-S', `127.0.0.1:${PORT}`, '-t', ROOT + 'sporta-site/p
   { env: { ...process.env, PHP_CLI_SERVER_WORKERS: '4' }, stdio: 'ignore' })
 const order = (i, items, track) => fetch(API, {
   method: 'POST', headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${PORT}` },
-  body: JSON.stringify({ track_id: track || `${TAG}${String(i).padStart(3, '0')}`, items, method: 'cod', lang: 'en',
+  body: JSON.stringify({ track_id: track || `${TAG}${String(i).padStart(3, '0')}`, items, payment_method: 'cod', lang: 'en',
     customer: { name: 'Concurrency Rig', phone: '5' + String(6000000 + i), email: 'cc@example.com', governorate: 'capital', area: 'Salmiya', block: '1', street: 'One', building: '1' } }),
 }).then(async (r) => ({ s: r.status, b: await r.text() })).catch((e) => ({ s: 0, b: String(e) }))
 

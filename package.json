@@ -293,7 +293,9 @@
     "test:input-text": "node scripts/input-text-test.mjs",
     "test:product-save-keep": "node scripts/product-save-keep-test.mjs",
     "test:product-editor-plus": "node scripts/product-editor-plus-test.mjs",
-    "test:checkout-concurrency": "node scripts/checkout-concurrency-test.mjs"
+    "test:checkout-concurrency": "node scripts/checkout-concurrency-test.mjs",
+    "test:settle-once": "node scripts/settle-once-test.mjs",
+    "test:track-polling": "node scripts/track-polling-test.mjs"
   },
   "private": true
 }

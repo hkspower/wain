@@ -3899,51 +3899,54 @@ function store_stock_claim(PDO $db, array $lines): array {
 // so a double call (a failed callback retried, then the sweeper) cannot restock
 // the same order twice, which would be inventing garments.
 function store_stock_release(PDO $db, int $orderId): bool {
-    $mark = $db->prepare(
-        'update orders set stock_released = 1
-          where id = ? and stock_claimed = 1 and stock_released = 0'
-    );
-    $mark->execute([$orderId]);
-    if ($mark->rowCount() !== 1) return false;
+    // ONE TRANSACTION, WITH THE ORDER ROW LOCKED (2026-10-15). This used to be two
+    // autocommitted statements chosen from an unlocked select in cron-stock.php, so:
+    // a bank callback could mark the order paid between the cron's select and the
+    // mark, and a paid order's garments went back on sale; and a failure between the
+    // mark and the put-back left the order "released" with nothing returned. Now the
+    // reason to release is re-checked under the lock, and both writes land or neither.
+    $own = !$db->inTransaction();
+    if ($own) $db->beginTransaction();
+    try {
+        $o = $db->prepare('select payment_status, fulfilment_status, stock_claimed, stock_released
+                             from orders where id = ? for update');
+        $o->execute([$orderId]);
+        $row = $o->fetch();
+        $why = $row && (int)$row['stock_claimed'] === 1 && (int)$row['stock_released'] === 0
+            && ($row['fulfilment_status'] === 'cancelled'
+                || !in_array($row['payment_status'], ['paid', 'review'], true));
+        if (!$why) { if ($own) $db->rollBack(); return false; }
+        $db->prepare('update orders set stock_released = 1 where id = ?')->execute([$orderId]);
 
-    // order_items records the size that was taken; that is what goes back.
-    //
-    // SUMMED PER VARIANT, not joined line by line. store_stock_claim() walks
-    // the cart and decrements ONCE PER LINE, and nothing merges a cart that
-    // names the same slug+size twice — store_price_lines() prices whatever it
-    // is handed, and a client posting two identical entries is a POST away.
-    // A multi-table UPDATE joined straight onto order_items updates each
-    // product_variants row AT MOST ONCE however many lines matched, so that
-    // order was decremented twice and credited back once: the difference
-    // vanished off the shelf permanently, with no error anywhere to find it
-    // by. Aggregating first makes the release the exact mirror of the claim.
-    $back = $db->prepare(
-        'select p.slug as slug, i.size as size, sum(i.qty) as qty
-           from order_items i join products p on p.id = i.product_id
-          where i.order_id = ? and i.size is not null
-          group by p.slug, i.size'
-    );
-    $back->execute([$orderId]);
-    $backRows = $back->fetchAll();
-    $put = $db->prepare(
-        'update product_variants v
-           join (select p.slug as slug, i.size as size, sum(i.qty) as qty
-                   from order_items i
-                   join products p on p.id = i.product_id
-                  where i.order_id = ? and i.size is not null
-                  group by p.slug, i.size) s
-             on s.slug = v.slug and s.size = v.size
-            set v.stock = v.stock + s.qty'
-    );
-    $put->execute([$orderId]);
-    $now = $db->prepare('select sku, stock from product_variants where slug = ? and size = ?');
-    foreach ($backRows as $br) {
-        $now->execute([$br['slug'], $br['size']]);
-        $nr = $now->fetch();
-        if ($nr) store_stock_log($db, (string)$nr['sku'], $br['slug'], $br['size'], (int)$br['qty'], (int)$nr['stock'],
-                                 'release', null, 'order:' . $orderId);
+        // order_items records the size that was taken; that is what goes back.
+        // SUMMED PER VARIANT: a cart naming the same slug+size twice was claimed once
+        // per line, so it is credited back by the total. And walked in (slug, size)
+        // order, the same order store_stock_claim() takes its locks in, so a release
+        // and a checkout cannot deadlock on the same two sizes.
+        $back = $db->prepare(
+            'select p.slug as slug, i.size as size, sum(i.qty) as qty
+               from order_items i join products p on p.id = i.product_id
+              where i.order_id = ? and i.size is not null
+              group by p.slug, i.size
+              order by p.slug, i.size'
+        );
+        $back->execute([$orderId]);
+        $put = $db->prepare('update product_variants set stock = stock + ? where slug = ? and size = ?');
+        $now = $db->prepare('select sku, stock from product_variants where slug = ? and size = ?');
+        foreach ($back->fetchAll() as $br) {
+            $put->execute([(int)$br['qty'], $br['slug'], $br['size']]);
+            $now->execute([$br['slug'], $br['size']]);
+            $nr = $now->fetch();
+            if ($nr) store_stock_log($db, (string)$nr['sku'], $br['slug'], $br['size'], (int)$br['qty'], (int)$nr['stock'],
+                                     'release', null, 'order:' . $orderId);
+        }
+        if ($own) $db->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($own && $db->inTransaction()) $db->rollBack();
+        if (!$own) throw $e;
+        return false;
     }
-    return true;
 }
 
 // ------------------------------------------------------------- pricing a cart

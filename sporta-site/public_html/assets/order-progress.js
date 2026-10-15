@@ -189,11 +189,20 @@
     var found = card && !card.matches('p, .skeleton') && card.textContent.indexOf(id) !== -1 && id
     if (!found) { if (shown) shown.remove(); lastId = ''; return }
     if (shown && lastId === id) return
-    lastId = id; lastJson = ''
+    lastId = id; lastJson = ''; lastSig = ''; quiet = 0; errs = 0
     refresh(id, holder)
   }
   /* ---- the live part: ask again every ten seconds while the order is moving and the tab is visible ---- */
-  var lastJson = '', timer = null
+  var lastJson = '', lastSig = '', timer = null, quiet = 0, errs = 0
+  /* HOW OFTEN (2026-10-15). Every 10 s while something is changing; after 5 minutes with no
+     change, once a minute; after an hour with no change, stop until the tab is shown again —
+     an abandoned "pending" order used to be asked about every 10 s for as long as the tab
+     stayed open. A failed request (offline, 429, 500) retries at 20, 40, 80, 120 s instead of
+     stopping for good, which it did: the old timer id was never cleared, so nothing restarted it. */
+  function later(id, holder, ms) {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(function () { timer = null; if (!document.hidden) refresh(id, holder) }, ms)
+  }
   function moving(o) { var f = o.fulfilment_status || 'unfulfilled'; return f !== 'delivered' && f !== 'cancelled' && o.payment_status !== 'failed' }
   function refresh(id, holder) {
     if (busy) return
@@ -202,7 +211,9 @@
       .then(function (r) { return r.ok ? r.json() : null })
       .then(function (o) {
         busy = false
-        if (!o || lastId !== id) return
+        if (lastId !== id) return
+        if (!o) { errs++; later(id, holder, Math.min(120000, 10000 * Math.pow(2, errs))); return }
+        errs = 0
         var json = JSON.stringify(o)
         var box = holder.querySelector('[data-order-progress]')
         if (json !== lastJson || !box) {
@@ -217,13 +228,22 @@
           var upd = holder.querySelector('.op-map-upd')
           if (upd && o.location) upd.textContent = t('updated') + ' ' + ago(o.location.age_sec)
         }
-        if (timer) clearTimeout(timer)
-        if (moving(o)) timer = setTimeout(function () { if (!document.hidden) refresh(id, holder); else timer = null }, 10000)
+        // `age_sec` ticks on every answer, so "changed" is judged without the location's age.
+        var sig = JSON.stringify(o, function (k, v) { return k === 'age_sec' ? undefined : v })
+        quiet = sig === lastSig ? quiet + 1 : 0
+        lastSig = sig
+        if (timer) { clearTimeout(timer); timer = null }
+        if (moving(o) && quiet < 90) later(id, holder, quiet < 30 ? 10000 : 60000)
       })
-      .catch(function () { busy = false })
+      .catch(function () {
+        busy = false
+        if (lastId !== id) return
+        errs++
+        later(id, holder, Math.min(120000, 10000 * Math.pow(2, errs)))
+      })
   }
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && lastId && !timer) { var h = document.querySelector('main section > div.mt-8'); if (h) refresh(lastId, h) }
+    if (!document.hidden && lastId && !timer) { quiet = 0; var h = document.querySelector('main section > div.mt-8'); if (h) refresh(lastId, h) }
   })
 
   var CSS = '.op{margin-top:14px;padding:16px 18px;border-radius:16px;background:var(--sp-tile,rgba(255,255,255,.05));border:1px solid var(--sp-line,rgba(255,255,255,.1));color:var(--sp-text,#dbdfe4)}'

@@ -1220,8 +1220,16 @@ if ($r === 'cod_paid' && $method === 'POST') {
 
     $db->beginTransaction();
     try {
-        $db->prepare('update orders set payment_status = ?, paid_at = ? where id = ?')
-           ->execute([$paid ? 'paid' : 'pending', $paid ? date('Y-m-d H:i:s') : null, $id]);
+        // GUARDED ON THE STATE CHECKED ABOVE (2026-10-15). The check runs before the
+        // transaction, so a double-click passed it twice and settled twice — two
+        // "payment" messages to the warehouse. Only the request that moves the row
+        // settles; the other is refused as if it had arrived second.
+        $mv = $db->prepare('update orders set payment_status = ?, paid_at = ? where id = ? and payment_status = ?');
+        $mv->execute([$paid ? 'paid' : 'pending', $paid ? date('Y-m-d H:i:s') : null, $id, $paid ? 'pending' : 'paid']);
+        if ($mv->rowCount() !== 1) {
+            $db->rollBack();
+            store_fail($paid ? 'order_not_pending' : 'order_not_paid');
+        }
         // Cash collected is a settled outcome: the warehouse follow-up fires
         // exactly as it does when the bank confirms a card.
         if ($paid) store_payment_settled($db, $id, 'paid');
@@ -1272,17 +1280,24 @@ if ($r === 'card_settled' && $method === 'POST') {
 
     $db->beginTransaction();
     try {
-        $db->prepare(
+        $mv = $db->prepare(
             "update orders set payment_status = 'paid', paid_at = ?,
                     cbk_status = 'MANUAL_BANK_CONFIRMED',
                     cbk_paymentid = ?, cbk_message = ?
               where id = ? and payment_status <> 'paid'"
-        )->execute([
+        );
+        $mv->execute([
             date('Y-m-d H:i:s'),
             $ref,
             'settled in admin by ' . (string)($_SESSION['admin_email'] ?? '?'),
             $id,
         ]);
+        // Settle only if THIS request moved it (2026-10-15): a double-click, or a bank
+        // callback landing between the check above and here, used to settle twice.
+        if ($mv->rowCount() !== 1) {
+            $db->rollBack();
+            store_fail('order_already_paid');
+        }
         store_payment_settled($db, $id, 'paid');
         $db->commit();
     } catch (Throwable $e) {
