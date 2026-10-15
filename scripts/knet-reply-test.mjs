@@ -23,6 +23,11 @@ try {
   setStyle('both')
   const b = await call()
   check(b.text.startsWith('REDIRECT=') && b.text.includes('<html'), "'both' keeps the old answer (REDIRECT= first, then markup)")
+  // 'redirect': the bank redirects the browser to this URL (confirmed 2026-10-15), so a plain 302 is the answer.
+  setStyle('redirect')
+  const c = await fetch(`${SITE}/knet/callback.php?trackid=NOSUCHORDER1&result=CAPTURED&amt=1.000`, { redirect: 'manual', headers: { 'X-Forwarded-Proto': 'https' } })
+  const loc = c.headers.get('location') || ''
+  check(c.status === 302 && /^https?:\/\//.test(loc), "'redirect' mode answers a plain 302 to the receipt URL", `status ${c.status} location ${loc.slice(0, 80)}`)
 } finally { writeFileSync(CFG, original) }
 check(readFileSync(CFG, 'utf8') === original, 'knet/config.php is back exactly as it was')
 const pay = readFileSync(ROOT + 'knet/pay.php', 'utf8')

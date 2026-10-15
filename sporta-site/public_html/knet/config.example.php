@@ -149,12 +149,12 @@ return [
     // in callback.php: KPG either redirects the browser here, or calls this URL
     // server-to-server and reads `REDIRECT=<url>` out of the reply. Which one
     // your Tranportal ID gets is the bank's choice.
-    //   'both'     (default) answers correctly in EITHER style — leave it here
+    //   'both'     answers correctly in EITHER style (the default until 2026-10-15)
     //              unless the bank tells you otherwise.
-    //   'redirect' plain HTTP 302, browser-redirect deployments only.
+    //   'redirect' (default since 2026-10-15) plain HTTP 302: KNET redirects the browser, confirmed by the bank.
     //   'line'     ONLY the line REDIRECT=<url>, nothing else — what KNET's manual (K-064 v1.5, §5 and §10.2.1)
     //              requires of the notification URL. Use it once the bank confirms server-to-server style.
-    'callback_response' => 'both',
+    'callback_response' => 'redirect',
 
     // --- ORDERS DATABASE. REQUIRED for a live shop ---
     //
