@@ -194,6 +194,28 @@ html:has(#salem-q:focus) #wain-ai-bar {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
 
+/* The installed app's tab bar (AppTabBar), and two things about it that are
+   rules of the page around it, so they are written here rather than as its
+   classes — where they would also be bytes of script on every route, and
+   /search sits at its budget.
+
+   Exactly 4.25rem plus the inset: what the body (below), سالم's chat frame and
+   the call bar all leave for it. Its own content measured 64.94px, and the 3px
+   between left a strip of white page under the chat on every visit (15
+   October). The extra goes under the labels; the links do not move.
+
+   And out of the way while سالم's box has focus: Android shrinks the layout
+   for its keyboard, and the bar rode up on top of it, a sixth of the screen
+   the conversation needed — 79px of chat at 360×640, against 147 in a browser
+   tab (15 October). It is back the moment the box is left. `nav`, because the
+   back button is `.app-chrome` too, and it stays. */
+nav.app-chrome {
+  min-height: calc(4.25rem + env(safe-area-inset-bottom));
+}
+html:has(#salem-q:focus) nav.app-chrome {
+  display: none;
+}
+
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the call sheet moves up out of the tab bar's way, and the page stops
    rubber-banding at its edges the way a document does.
