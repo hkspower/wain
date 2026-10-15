@@ -23,9 +23,10 @@ if ($trandata === '') {
 // below are answered identically, and it is worth the space because the fix
 // looks like cosmetics and is not.
 //
-// KNET's trandata is AES-128-CBC with a FIXED, PUBLISHED IV and NO MAC. The
-// only thing authenticating this callback is that the ciphertext decrypts
-// under the resource key. That is fine on its own — nobody else holds the key.
+// KNET's trandata is AES-128-CBC with NO MAC. Its IV is the resource key itself
+// (since 2026-09-18; before that it was a fixed, published string, and this
+// comment said so until it was corrected here). The only thing authenticating
+// this callback is that the ciphertext decrypts under the resource key. That is fine on its own — nobody else holds the key.
 // It stops being fine the moment the server will tell a stranger whether the
 // PADDING was valid, because CBC without a MAC plus a padding oracle is not a
 // confidentiality problem, it is a FORGERY problem: the standard CBC-R
