@@ -22,11 +22,13 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
-As of the night of 14 October: **production AND staging are `d667c103`** — the call-centre batch
-(see «The 14 October deploy, fourth»), an agent build with both agent ids and the read-aloud bridge off.
-The back end (`api/wain.php`) differs by stage: staging runs `e005f90`, production `4dd1b20` (see
-«The staging back end reinstalled»; `php …/api/wain.php version` prints both fingerprints).
-This block goes stale; the server's `build.json` is the only trustworthy source.
+Read at 00:30 UTC on 15 October: **production is `2d4ee7a5`** (the apex redirect; «The 14 October deploy,
+fifth») and **staging is `d667c103`** (the call-centre batch; «The 14 October deploy, fourth»). Both are
+agent builds with both agent ids and the read-aloud bridge off. The back end (`api/wain.php`) differs by
+stage: staging runs `e005f90`, production `4dd1b20` (see «The staging back end reinstalled»; `php
+…/api/wain.php version` prints both fingerprints). The branch is ahead of both: the job handover, سالم's
+replies and the `/shoug/` redirect are built and gated, not yet deployed (see the 15 October sections at the
+end). This block goes stale; the server's `build.json` is the only trustworthy source.
 
 ## History lives in `docs/history.md`
 
@@ -6120,3 +6122,84 @@ picked **the hub's /shoug/ bridge**. This reverses their earlier «keep» for th
   `wain:agents:handoff`. **Consequence for the job-transfer work above:** with both closed, سالم reading the
   hub's job means reading what `/call-center/` puts in the address (`?q=&from=call-center`), not those keys.
   Whether `call-center/call-center.js` writes either key itself was not read.
+
+## سالم made patient — 15 October, night (live on his agent; nothing deployed)
+
+«make salem more Patience». Read first on his Main branch (100% of traffic, `agtvrsn_6801m4wz3v24fn8v5wv1bzqec2ft`):
+`turn_eagerness: eager`, `speculative_turn: true`, `turn_timeout: 7`, `silence_end_call_timeout: -1`, the
+«ثانية وحدة…» soft timeout at 3 s, and 26 Arabic ignore terms («إي», «تمام», «كفو»…). Changed with
+`agents_update_turn_taking`, nothing else sent: **`turn_eagerness: patient`, `turn_timeout: 10`**. Read back
+from the reply: those two moved and every other turn field is as it was. Live version
+**`agtvrsn_5901m4yg04s6frvrmrds3w7qx0ps`**.
+
+- What it does: he waits for a surer end of the caller's turn before speaking, so he cuts in less on a pause
+  mid-sentence; and a caller who goes quiet gets 10 s before he speaks up, not 7. The cost is a later start to
+  each reply. `speculative_turn` stays on, which starts the model during the silence and so offsets some of it.
+- Only his voice calls. The typed chat has no turn-taking (`text_only`), and شوق is unchanged
+  (`eager`, 7 s — finding F of «The شوق scan» proposed `normal` for her, still the owner's call).
+- **Not measured**: a call. Turn-taking is not something the text test suite can see, and the socket is
+  refused here. To undo: `agents_update_turn_taking` with `eager` and `7`, or the middle setting `normal`.
+
+## Call-centre research — 15 October (deep-research workflow, 99 agents, 19 of 23 claims held)
+
+Asked for the realistic call-centre design (canvas https://claude.ai/artifact/7FFYCajkUiFTXUC4Kbnq3u, its
+five questions still with the owner). Four topics; **only «what we can build» and the keypad menu came back
+with evidence that survived three-way checking.** elevenlabs.io and several research hosts were unreachable
+from the sandbox, which is much of why.
+
+- **Handover context works on both clients.** The widget forwards `elevenlabs-agent:contextual-update` only
+  with `allow-events="true"` (undocumented — the package has no README — read from the bundle; could change);
+  `elevenlabs_agents` 0.6.1 has `sendContextualUpdate`, `dynamicVariables` and `overrides`. Agrees with what
+  was built and tested (the job handover section above), including that start-time config still goes through
+  the `elevenlabs-convai:call` event.
+- **No key press reaches the agent** from the widget or the app SDK: ElevenLabs' DTMF (`play_keypad_touch_tone`,
+  `dtmf_input_settings`) is for Twilio and SIP calls. A keypad menu is wain's own — a key becomes a typed
+  question or a local answer.
+- **Mute**: the app has `setMicMuted`/`toggleMute`; the widget has its own mute behind `mic_muting_enabled`
+  (on in the live widget config). A claim that the widget resets mute at call end was refuted.
+- **Speaker/earpiece: app only**, through `livekit_client`'s `setSpeakerOutputPreferred` (iOS/Android; a
+  connected headset wins unless `force`); `elevenlabs_agents` does not expose it and turns the speaker on at
+  connect on Android. Whether a web page can pick the earpiece was **not established**. LiveKit owns the iOS
+  audio session, so a speaker button could fight `speech_to_text` in the free call (inferred, not tested).
+- **«Available/busy» cannot come from the widget's queue events** (refuted); it has to come from what the site
+  knows (agent-health's memory), as the canvas's «ترد من بحث وين» state does.
+- **Keypad menu**: one peer-reviewed study (Commarford et al., Human Factors 50(1), 2008): a broad, flat menu
+  beat a deep one on success and satisfaction, more so for low working memory; the «five options or fewer»
+  rule rests on a misreading of Miller (1956). One 2008 study of spoken English menus — it transfers only
+  partly to an on-screen keypad.
+- The widget's latest is **0.20.0** (13 October; adds `persistent-session` for text chats, which stores a
+  resume token and transcript on the device — a privacy line if ever adopted). wain pins 0.19.0.
+- **Unanswered (no claim held):** ringback and hold tones, transfer etiquette and repetition, barge-in and
+  latency, rating design and timing, what Kuwaiti and Gulf callers expect (dialect, greetings, agent gender and
+  voice, trust in AI, waits), Kuwait's CITRA data-protection rules for recordings, on-device history and
+  ratings, and whether `transfer_to_agent` works in widget/SDK sessions or sends the page any event.
+- **For the rating pick**: the agent's widget already shows its own 1–5 rating at the end of an agent call
+  (`end_feedback: rating`), and that rating goes to ElevenLabs. A star rating of our own would ask twice.
+
+The full result is in the session's workflow output, not in the repository.
+
+## صوت وين's bridge closed — 15 October, night (on both stages; the code default ships with the next deploy)
+
+«close bridge», then the owner picked **the voice bridge, `/api/tts.php`**, over the hub's remaining scripts.
+It had been inert since 7 October (key renamed to `elevenlabs.key.off`, live builds with
+`NEXT_PUBLIC_WAIN_TTS_URL=none`); now it is gone from both docroots and the code no longer points at it.
+
+- **Server.** Two one-shot cron jobs at minute 38, one per file:
+  `mv …/public_html/api/tts.php …/storage/closed-tts-production.php` (job `JJgKS1ADaV`) and
+  `mv …/public_html/staging/api/tts.php …/storage/closed-tts-staging.php` (`Bw6IZ0KUh7`), both 40,526 bytes
+  before. `mv` prints nothing, so the proof is two `wget -S --spider` jobs at minute 40 (`jDBd2S6EOl`,
+  `y4ZSZsSYjo`): **`https://www.wainkw.com/api/tts.php` and `https://staging.wainkw.com/api/tts.php` both
+  answer 404 through the edge at 00:40:01 UTC** — the site's own 404 page — where a GET used to get
+  `tts.php`'s own 405. All four jobs deleted, and the list then held sporta's `1mNk00yPZP` alone.
+  `storage/elevenlabs.key.off` and `storage/tts/` (the cache) are untouched; deleting them was not asked.
+- **Code (`ea6bd8ac`).** `src/lib/tts-bridge.ts` holds the switch, default **«none»**: voice.ts is a client
+  module and the privacy page, rendered at build, needs the value. The app's `resolveTtsUrl` is off unless a
+  build names a URL; its test was red on the old default (expected `''`, got the bridge URL). `/privacy`
+  follows the switch — with it off, answers and سالم's replies are read by the device and nothing leaves it;
+  it had gone on saying every sentence went to our server and the voice provider, true of no live build since
+  7 October. `together.test` reads whether the export carries the bridge, as `map-layout` already did.
+- **To reopen:** move the two files back, then build with `NEXT_PUBLIC_WAIN_TTS_URL=/api/tts.php` (and the app
+  with `WAIN_TTS_URL=https://www.wainkw.com/api/tts.php`), and rename the key back.
+- **The hub's remaining scripts are not touched** (`wain-agent-switcher-v1.js`, `wain-agent-collab-v2.js`,
+  `wain-live-places-v1/v2.js`, `wain-site-ui-v1.js`, `api/call-center-data.php`, `/call-center/`, `/hangout/`);
+  that was the other option and was not chosen. `api/hangouts.php` is still on production too.
