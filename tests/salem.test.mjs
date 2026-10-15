@@ -719,12 +719,14 @@ console.log('\n── sideways with the keyboard up, the box is whole ──');
   // rows needed 218px and the box was clipped. The consent line steps aside
   // while the box has focus there, and only there (on request, 15 October).
   const read = (p) => p.evaluate(() => {
-    const notice = document.querySelector('form')?.previousElementSibling;
+    const form = document.querySelector('form');
+    const notice = form?.previousElementSibling;
     const input = document.getElementById('salem-q').getBoundingClientRect();
     const frame = document.querySelector('header').parentElement.getBoundingClientRect();
     return {
       notice: !!notice && getComputedStyle(notice).display !== 'none' && notice.getBoundingClientRect().height > 0,
-      top: Math.round(input.top), bottom: Math.round(input.bottom), floor: Math.round(Math.min(frame.bottom, innerHeight)),
+      top: Math.round(input.top), bottom: Math.round(form.getBoundingClientRect().bottom),
+      floor: Math.round(Math.min(frame.bottom, innerHeight)), log: document.querySelector('[role="log"]').clientHeight,
     };
   }).catch(() => null);
   {
@@ -734,7 +736,10 @@ console.log('\n── sideways with the keyboard up, the box is whole ──');
     await p.waitForTimeout(200);
     const typing = await read(p);
     ok('844×200: …and steps aside while the box has focus', typing?.notice === false, JSON.stringify(typing));
-    ok('844×200: …so the box is whole on the screen', !!typing && typing.top >= 0 && typing.bottom <= typing.floor, JSON.stringify(typing));
+    // The form's own foot too: it was the row the frame clipped (218px of
+    // fixed rows in 200), and the transcript was its own 32px of padding.
+    ok('844×200: …so the box\'s row is whole on the screen', !!typing && typing.top >= 0 && typing.bottom <= typing.floor, JSON.stringify(typing));
+    ok('844×200: …with room left for the conversation', (typing?.log ?? 0) > 40, JSON.stringify(typing));
     await p.evaluate(() => document.activeElement?.blur()).catch(() => {});
     await p.waitForTimeout(200);
     ok('844×200: …and comes back when the box is left', !!(await read(p))?.notice);

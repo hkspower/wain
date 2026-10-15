@@ -44,7 +44,9 @@ import { PRICE_LABEL } from "@/lib/place-words";
  * `PlaceCard` — the same one /explore and every "أماكن مشابهة" rail use —
  * rather than a second, ad-hoc card shape that would drift from it. */
 type ChatLine =
-  | { role: "user" | "agent" | "system"; text: string }
+  // `handoff`: the line saying where a handed-over question came from — the
+  // scroll keeps it in view with the reply (see the scroll effect).
+  | { role: "user" | "agent" | "system"; text: string; handoff?: true }
   | { role: "places"; query: string; slugs: string[]; chips?: string[]; ctx?: ChatContext }
   | { role: "place"; slug: string }
   | { role: "where"; slug: string };
@@ -712,13 +714,41 @@ export default function SalemChat() {
       if (m.role === "user") lastUser = i;
     });
     const replyStart = !pending && lastUser >= 0 && lastUser < messages.length - 1 ? lastUser + 1 : -1;
-    const start = replyStart >= 0 ? el.querySelector<HTMLElement>(`[data-line="${replyStart}"]`) : null;
-    if (start) {
-      const top = el.scrollTop + start.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
-      el.scrollTo({ top, behavior });
+    if (replyStart < 0 || !el.querySelector(`[data-line="${replyStart}"]`)) {
+      el.scrollTo({ top: el.scrollHeight, behavior });
       return;
     }
-    el.scrollTo({ top: el.scrollHeight, behavior });
+    // A question handed over from a call or from شوق comes under a line saying
+    // so, and anchoring the reply at its own start left that line above the
+    // transcript at every phone width — the visitor never saw where the
+    // question came from, or the place picked with her (15 October). The line
+    // is where to start when it, the question and the reply's first card fit
+    // the transcript together; otherwise the reply's start, as before.
+    const above = messages[lastUser - 1];
+    const handoffLine = above?.role === "system" && above.handoff ? lastUser - 1 : -1;
+    const toStart = () => {
+      const start = el.querySelector<HTMLElement>(`[data-line="${replyStart}"]`);
+      if (!start) return;
+      let anchor = start;
+      const line = handoffLine >= 0 ? el.querySelector<HTMLElement>(`[data-line="${handoffLine}"]`) : null;
+      if (line) {
+        const end = (start.nextElementSibling?.querySelector("li[data-slug]") ?? start).getBoundingClientRect().bottom;
+        if (end - line.getBoundingClientRect().top + 8 <= el.clientHeight) anchor = line;
+      }
+      const top = el.scrollTop + anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
+      el.scrollTo({ top, behavior });
+    };
+    toStart();
+    // And once more a frame later. A reply's map is fitted in a layout effect
+    // that commits after this effect has run, so the scroll was taken while
+    // the map was 2px tall, clamped to the shorter transcript, and never
+    // repeated: «وينه؟» landed with 11–21% of the map it points to on screen
+    // (15 October). A frame on, the map has its height, and it has not yet
+    // been painted without it.
+    const raf = requestAnimationFrame(() => {
+      if (stickRef.current) toStart();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [messages, pending]);
 
   const typing = status === "connected" && (pending || awaitingGreeting);
@@ -783,7 +813,10 @@ export default function SalemChat() {
       const C = WAIN_AI_CHAT_COPY;
       const label = handoff.from === "call" ? C.fromCall : handoff.from === "call-center" ? C.fromCallCenter : C.fromShouq;
       const name = picked ? places.find((p) => p.slug === picked)?.nameAr : undefined;
-      setMessages((prev) => [...prev, { role: "system", text: `${label}: «${handoff.q}»${name ? C.fromPicked(name) : ""}` }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "system", text: `${label}: «${handoff.q}»${name ? C.fromPicked(name) : ""}`, handoff: true },
+      ]);
     }
     submit(handoff.q);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- submit closes over the same state listed here
