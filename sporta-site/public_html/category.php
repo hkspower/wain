@@ -336,7 +336,11 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="index, follow, max-image-preview:large">
+<?php /* AN EMPTY CATEGORY IS NOT INDEXED (2026-10-15). sitemap-categories.php already leaves one
+   out ("submitting a thin page is how a site earns a crawled-not-indexed report"), but the page itself
+   still said index — so Google found /outlet through the home tile and was told to index a page with
+   no products. noindex,follow until a product is in it. A database fault is NOT read as empty. */ ?>
+<meta name="robots" content="<?= ($count === 0 && !$dbError) ? 'noindex, follow' : 'index, follow, max-image-preview:large' ?>">
 <meta name="theme-color" content="#2d3034">
 <title><?= e($title) ?></title>
 <meta name="description" content="<?= e($desc) ?>">

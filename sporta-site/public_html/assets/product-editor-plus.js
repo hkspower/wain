@@ -13,7 +13,7 @@
  *   2. CLEAR LABELS. The "On sale" tick is products.active — whether the product is SHOWN in the
  *      shop — and sat in a form that now has a real sale, so it reads "Shown in the shop" (and
  *      the catalogue table's column reads "In the shop", "Shown" / "Hidden"). Category is a
- *      fixed list (men, women, accessories, outerwear): it is free text in the bundle, and a
+ *      fixed list (men, women, accessories, outerwear, outlet — the four with a home tile and outerwear): it is free text in the bundle, and a
  *      typo such as "Women" quietly lost the women's no-exchange rule. A value outside the list
  *      that a product already has is kept as its own option, so nothing is lost by opening it.
  *   3. PHOTO PATHS UNDER "ADVANCED". The raw Image URL and More photos boxes are hidden behind
@@ -30,7 +30,7 @@
 
   var MARK = 'data-spep'
   var API = '/api/admin.php?r='
-  var CATS = [['men', 'Men'], ['women', 'Women'], ['accessories', 'Accessories'], ['outerwear', 'Outerwear']]
+  var CATS = [['men', 'Men'], ['women', 'Women'], ['accessories', 'Accessories'], ['outerwear', 'Outerwear'], ['outlet', 'Outlet']]
   var open = null   // { modal, id, fields: {desc_en, desc_ar, sale, from, to}, note }
 
   function el(tag, attrs, text) {

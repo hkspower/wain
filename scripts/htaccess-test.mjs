@@ -288,6 +288,16 @@ try {
     const r = get(p)
     check(r.status === 403 || r.status === 404, `${p} is refused (${r.status})`)
   }
+  // THE SEO OUTPUTS KEEP THEIR OWN CACHING (2026-10-15). api/.htaccess forces no-store on everything
+  // in api/ except api.php; robots.txt and the sitemaps are rewritten to scripts there, so the hour
+  // they each set was replaced and crawlers re-fetched the product sitemap every visit. Asked of the
+  // FILE, because this Apache has no PHP: the header rule is what is under test, not the script.
+  console.log('\n--- the SEO outputs are not no-store')
+  for (const p of ['/api/sitemap-products.php', '/api/sitemap-index.php', '/api/sitemap-categories.php', '/api/sitemap-custom.php', '/api/robots.php', '/api/llms.php']) {
+    check(!/no-store/i.test(headerOn('www.sporta.com.kw', p, 'cache-control')), `${p} is not forced to no-store`)
+  }
+  check(/no-store/i.test(headerOn('www.sporta.com.kw', '/api/admin.php', 'cache-control')), '/api/admin.php still is (the exemption is by name)')
+
   // LOGS AND DUMPS, anywhere in the docroot. The two payment logs are
   // configured to live two levels ABOVE public_html, so a correct install
   // never puts one here — this is for the install that is not correct.

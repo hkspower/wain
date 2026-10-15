@@ -43,7 +43,11 @@
 # keeps the blanket, which is why this stays a deny-by-default rule with one
 # named hole rather than a list of the files it should cover.
 <IfModule mod_headers.c>
-  <FilesMatch "^(?!api\.php$).*$">
+  # THE PUBLIC SEO OUTPUTS ARE EXEMPT TOO (2026-10-15). robots.txt, sitemap.xml and its children and
+  # llms.txt are rewritten to scripts in this folder, and this rule replaced the hour / half-hour each
+  # one sets with no-store, so Google re-fetched the 46 kB product sitemap on every visit. Each sets its
+  # own Cache-Control, and holds nothing private: they print what any visitor can already see.
+  <FilesMatch "^(?!(api|robots|llms|sitemap-index|sitemap-products|sitemap-categories|sitemap-custom)\.php$).*$">
     Header set Cache-Control "no-store"
   </FilesMatch>
 </IfModule>
