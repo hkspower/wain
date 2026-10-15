@@ -37,6 +37,10 @@ if (!is_dir($dir) && !@mkdir($dir, 0700, true)) store_fail('backup_dir_not_writa
 @chmod($dir, 0700);
 if (!is_writable($dir)) store_fail('backup_dir_not_writable', 500);
 
+// A whole-database dump can outlast the host's default execution limit as photos accumulate, and
+// a run killed half-way leaves a .tmp behind and no backup (2026-10-15). It runs once a day.
+@set_time_limit(600);
+@ignore_user_abort(true);
 require_once __DIR__ . '/backup-build.php';   // the same writer the Backup card uses
 $db = store_db();
 

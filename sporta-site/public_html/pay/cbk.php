@@ -336,6 +336,9 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
         CURLOPT_CUSTOMREQUEST  => $method,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
+        // A host that does not answer is refused in 8 s rather than holding the shopper (and a PHP
+        // worker) for the whole 30 (2026-10-15). The 30 s total still covers a slow but live bank.
+        CURLOPT_CONNECTTIMEOUT => 8,
         // BOTH of these, explicitly, and they are the one place this file
         // deliberately contradicts CBK's own reference implementation.
         //

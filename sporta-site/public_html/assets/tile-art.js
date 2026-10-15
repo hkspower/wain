@@ -98,46 +98,6 @@
     return now === was ? null : { node: node, attr: attr, was: was, now: now.trim() }
   }
 
-  /** Probe ONE url — the exact candidate the browser has already chosen for
-   *  this <img> under the current viewport and format support, swapped. Then
-   *  swap everything if it arrives.
-   *
-   *  THE FIRST VERSION PROBED EVERY PLANNED URL and that was a real regression:
-   *  the tiles carry a webp and a jpeg <source> for each of two crops, so an
-   *  Arabic phone fetched the jpegs it will never display. `test:tile-art`
-   *  caught it — "Arabic, phone: every tile is webp — art-women-rtl.jpg" —
-   *  counting REQUESTS rather than what was painted, which is the difference
-   *  that mattered. The whole reason these tiles are webp is the bytes, and a
-   *  guard that quietly re-downloads the jpeg beside it gives that back.
-   *
-   *  currentSrc is the right thing to probe precisely because the browser
-   *  computed it: it already applied the media queries and the type support,
-   *  so it names the one file that is actually going to be used, and the
-   *  browser serves it from cache the moment the swap lands. */
-  function probeUrl(tile) {
-    var img = tile.querySelector('img')
-    if (!img) return null
-
-    // WAIT FOR THE BROWSER TO HAVE CHOSEN. currentSrc is empty until the image
-    // has actually been selected and started loading, and the first version
-    // fell back to the `src` attribute when it was — which is the JPEG, so the
-    // probe fetched a jpeg on a page whose whole point is webp. One request
-    // rather than two, and still the wrong one. `load` is not a mutation, so
-    // the observer cannot see this happen; it has to be waited for directly.
-    if (!img.currentSrc) {
-      if (!img.getAttribute('data-rtl-wait')) {
-        img.setAttribute('data-rtl-wait', '1')
-        img.addEventListener('load', apply, { once: true })
-      }
-      return null
-    }
-
-    var live = img.currentSrc
-    if (live.indexOf(FROM) === -1) return null
-    var next = swap(live)
-    return next === live ? null : next
-  }
-
   function applyTile(tile) {
     var state = tile.getAttribute('data-rtl-art')
     // 'checking' is in flight; 'unavailable' means the art is not there and
@@ -152,22 +112,29 @@
     }
     if (!plans.length) return
 
-    var url = probeUrl(tile)
-    if (!url) return
-
-    tile.setAttribute('data-rtl-art', 'checking')
-    var probe = new Image()
-    probe.onerror = function () { tile.setAttribute('data-rtl-art', 'unavailable') }
-    probe.onload = function () {
-      for (var j = 0; j < plans.length; j++) {
-        // Re-read: the bundle may have re-rendered while the probe was in
-        // flight, and writing a stale value back would undo its work.
-        if ((plans[j].node.getAttribute(plans[j].attr) || '') !== plans[j].was) continue
-        plans[j].node.setAttribute(plans[j].attr, plans[j].now)
-      }
-      tile.setAttribute('data-rtl-art', '1')
+    // SWAP AT ONCE, BEFORE THE BROWSER FETCHES (2026-10-15). The old way waited for the English
+    // frame to LOAD and then probed the -rtl one, so an Arabic visitor downloaded both: measured
+    // 282 kB wasted on a phone home page (women, accessories, outlet). Every tile now has its -rtl
+    // art in both crops and both formats, so the attributes are rewritten as soon as the tile is
+    // seen, and the browser's first choice is already the Arabic frame. The safety net the probe
+    // gave is kept as an error listener: if an -rtl file is ever missing, the tile goes back to the
+    // English frame and is marked 'unavailable', rather than painting no artwork at all.
+    for (var j = 0; j < plans.length; j++) {
+      if ((plans[j].node.getAttribute(plans[j].attr) || '') !== plans[j].was) continue
+      plans[j].node.setAttribute(plans[j].attr, plans[j].now)
     }
-    probe.src = url
+    tile.setAttribute('data-rtl-art', '1')
+    var imgs = tile.querySelectorAll('img')
+    for (var k = 0; k < imgs.length; k++) {
+      if (imgs[k].getAttribute('data-rtl-guard')) continue
+      imgs[k].setAttribute('data-rtl-guard', '1')
+      imgs[k].addEventListener('error', function (ev) {
+        var im = ev.currentTarget
+        if ((im.currentSrc || im.src || '').indexOf('-rtl') === -1) return
+        revertTile(tile)
+        tile.setAttribute('data-rtl-art', 'unavailable')
+      })
+    }
   }
 
   /** Back to English: put the tile back and forget, so a later switch to

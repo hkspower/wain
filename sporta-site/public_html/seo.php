@@ -240,7 +240,7 @@ try {
         require_once __DIR__ . '/api/store.php';
         $db = store_db();
         $stmt = $db->prepare(
-            'select name_ar, name_en, desc_ar, desc_en, price, image
+            'select slug, name_ar, name_en, desc_ar, desc_en, price, image
                from products
               where slug = ? and active = 1
               limit 1'
@@ -249,6 +249,15 @@ try {
         $p = $stmt->fetch();
 
         if ($p) {
+            // THE STORED SLUG, not the one typed (2026-10-15). The match ignores case, so
+            // /product/CAGLIARI-… answered with the product and a canonical naming the
+            // uppercase address — a second indexable copy of every product page. Canonical,
+            // hreflang and og:url now all name the one lower-case address.
+            if ((string) $p['slug'] !== '' && (string) $p['slug'] !== $slug) {
+                $slug = (string) $p['slug'];
+                $path = '/product/' . $slug;
+                $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
+            }
             $productSlug = $slug;
             $name = $isEn ? ($p['name_en'] ?: $p['name_ar']) : ($p['name_ar'] ?: $p['name_en']);
             $body = $isEn ? ($p['desc_en'] ?: $p['desc_ar']) : ($p['desc_ar'] ?: $p['desc_en']);

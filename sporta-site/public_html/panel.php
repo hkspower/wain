@@ -36,6 +36,15 @@ if ($html === false) {
 $stripped = @preg_replace('#[ \t]*<script\b(?=[^>]*\sdata-shop\b)(?=[^>]*\ssrc=)[^>]*></script>[ \t]*\r?\n?#', '', $html);
 if (is_string($stripped) && strlen($stripped) > 1000 && strpos($stripped, '</html>') !== false) $html = $stripped;
 
+// THE SHOP'S SEARCH TAGS DO NOT BELONG ON THE PANEL (2026-10-15). The shell carries the home page's
+// canonical, its hreflang pair and `index, follow`, so /backends said "index me as the home page" in
+// its HTML while its header said noindex. Dropped, and the robots meta made to agree with the header.
+// Same fail-safe as above: if the result does not look like the page, the shell goes out unchanged.
+$seoless = @preg_replace(['#[ \t]*<link rel="canonical"[^>]*>\r?\n?#i', '#[ \t]*<link rel="alternate" hreflang="[^"]*"[^>]*>\r?\n?#i',
+                          '#<meta name="robots" content="[^"]*"\s*/?>#i'],
+                         ['', '', '<meta name="robots" content="noindex, nofollow" />'], $html);
+if (is_string($seoless) && strlen($seoless) > 1000 && strpos($seoless, '</html>') !== false) $html = $seoless;
+
 // The light panel (assets/panel-light.js): a blocking script in <head>, so the first frame is already light.
 $withLight = is_string($html) ? preg_replace('#</head>#i', '<script src="/assets/panel-light.js"></script></head>', $html, 1) : null;
 if (is_string($withLight) && strpos($withLight, 'panel-light.js') !== false) $html = $withLight;

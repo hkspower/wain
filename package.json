@@ -296,7 +296,8 @@
     "test:checkout-concurrency": "node scripts/checkout-concurrency-test.mjs",
     "test:settle-once": "node scripts/settle-once-test.mjs",
     "test:track-polling": "node scripts/track-polling-test.mjs",
-    "test:recovery-email": "node scripts/recovery-email-test.mjs"
+    "test:recovery-email": "node scripts/recovery-email-test.mjs",
+    "test:url-hygiene": "node scripts/url-hygiene-test.mjs"
   },
   "private": true
 }

@@ -98,6 +98,14 @@ for (const [label, url, width] of [
       : `${label}: the men tile is the English composition`,
     tiles.filter((h) => /men/.test(h.path)).map((h) => h.path.split('/').pop()).join(', '))
 
+  // 2b. an Arabic page downloads ONLY the Arabic frames (2026-10-15): the old swap waited for the
+  // English frame to load first, which cost 282 kB a phone visit for three tiles.
+  if (arabic) {
+    const english = tiles.filter((h) => /art-[a-z]+\.webp$/.test(h.path) && !/-rtl/.test(h.path))
+    check(english.length === 0, `${label}: no English frame is downloaded first`,
+      english.map((h) => h.path.split('/').pop()).join(', '))
+  }
+
   // 3. the deliberate 404s
   const plain = dead.filter((h) => /\/(men|women|accessories|outlet)\.(jpe?g|webp)$/.test(h.path))
   check(plain.length === 4,
