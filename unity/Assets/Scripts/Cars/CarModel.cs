@@ -33,8 +33,8 @@ namespace NightRacer.Cars
         public const int CarLayer = 9;
 
         public string Id;
-        /// <summary>The source, when built from a GLB; null when the model
-        /// came from a baked prefab.</summary>
+        /// <summary>The source, kept only by a build with keepReadable (the
+        /// baker); null in the game and when the model came from a prefab.</summary>
         public CarAsset Asset;
         public GameObject Template;
         public Texture2D[] Textures;
@@ -42,6 +42,11 @@ namespace NightRacer.Cars
         /// <summary>The meshes built, by part name ("Body", "Hood",
         /// "Tyre-F", "Wheel-FL"…), for the baker to save.</summary>
         public readonly Dictionary<string, Mesh> Meshes = new Dictionary<string, Mesh>();
+        /// <summary>This car's contact-shadow lid and its material (on the
+        /// template's "ContactShadow" renderer), for the baker to save.
+        /// Readable only when built with keepReadable.</summary>
+        public Texture2D ContactShadowTexture;
+        public Material ContactShadowMaterial;
 
         /// <summary>A model backed by a baked prefab (Assets/Resources/Cars).</summary>
         public static CarModel FromPrefab(string id, GameObject prefab) =>
@@ -56,6 +61,8 @@ namespace NightRacer.Cars
         public static CarModel Build(CarAsset asset, Transform holder, float night = 1f,
             Material[] materials = null, Texture2D[] textures = null, bool keepReadable = false)
         {
+            // The asset is only needed while building; the game drops it
+            // after (its parsed buffers are the GLB again, in managed memory).
             var model = new CarModel { Id = asset.Id, Asset = asset };
             if (materials == null)
             {
@@ -153,9 +160,10 @@ namespace NightRacer.Cars
                 tailLens >= 0 ? model.Materials[tailLens] : null,
                 tailCore >= 0 ? model.Materials[tailCore] : null);
 
-            ContactShadow(root.transform, asset);
+            ContactShadow(root.transform, asset, model, keepReadable);
             SetLayer(root, CarLayer);
             model.Template = root;
+            model.Asset = keepReadable ? asset : null;
             return model;
         }
 
@@ -286,33 +294,135 @@ namespace NightRacer.Cars
 
         // ------------------------------------------------------- grounding
 
-        /// <summary>The export strips the web's contact-shadow lid, and the
-        /// moon's shadow alone barely grounds a car (cars.ts measured 5.8
-        /// of 255 under it). The port's own soft blob stands in.</summary>
-        static void ContactShadow(Transform root, CarAsset a)
+        /// <summary>The web's contact-shadow lid (cars.ts contactShadowTexture),
+        /// which the export strips. What grounds a car at night is not the
+        /// moon's shadow (5.8 of 255 under it) but occlusion: the body is a
+        /// lid over its patch of road. So: the body's footprint as a rounded
+        /// rectangle at alpha 0.75 (radius 0.28 of its shorter side), a
+        /// darker ellipse at 0.95 where each tyre meets the road, drawn hard
+        /// and blurred once (a Gaussian of 0.055 of the texture), on a plane
+        /// that reaches 0.44 m past the body all round — the band outside
+        /// the sill is the only part anyone sees. Sized from this car, a
+        /// tyre patch on each actual wheel (the Black Demon's nose wheel
+        /// gets one, on the centre line).</summary>
+        static void ContactShadow(Transform root, CarAsset a, CarModel model, bool keepReadable)
         {
+            const float Reach = 0.44f;
+            float bodyW = a.Max.X - a.Min.X, bodyL = a.Max.Z - a.Min.Z;
+            float w = bodyW + Reach * 2f, l = bodyL + Reach * 2f;
+            float cz = (a.Min.Z + a.Max.Z) * 0.5f;
+
             var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
             Kill(quad.GetComponent<Collider>());
             quad.name = "ContactShadow";
             quad.transform.SetParent(root, false);
-            float cz = (a.Min.Z + a.Max.Z) * 0.5f;
+            // Above the lane paint (y 0.03), so it darkens markings too. The
+            // quad's +Y (texture v) turns to the nose, its face to the sky.
             quad.transform.localPosition = new Vector3(0f, 0.035f, cz);
             quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            float width = 0f;
-            foreach (var w in a.Wheels) width = Mathf.Max(width, Mathf.Abs(w.Pivot.X) * 2f + 0.5f);
-            if (width <= 0f) width = (a.Max.X - a.Min.X) * 0.9f;
-            quad.transform.localScale = new Vector3(width + 0.44f, (a.Max.Z - a.Min.Z) + 0.44f, 1f);
+            quad.transform.localScale = new Vector3(w, l, 1f);
+
+            var wheels = new Vector2[a.Wheels.Length];
+            for (int i = 0; i < wheels.Length; i++)
+                wheels[i] = new Vector2(0.5f + a.Wheels[i].Pivot.X / w, 0.5f + (a.Wheels[i].Pivot.Z - cz) / l);
+            var tex = LidTexture(a.Id, bodyW / 2f / w, bodyL / 2f / l, wheels, keepReadable);
+            var mat = Mats.AlphaBlend(Color.white, tex);
+            mat.name = a.Id + "-ContactShadow";
+            if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", tex);
+            if (mat.HasProperty("_QueueOffset")) mat.SetFloat("_QueueOffset", CarMaterials.ShadowQueue);
+            mat.renderQueue = (int)RenderQueue.Transparent + CarMaterials.ShadowQueue;
+
             var r = quad.GetComponent<MeshRenderer>();
-            r.sharedMaterial = BlobMaterial();
+            r.sharedMaterial = mat;
             r.shadowCastingMode = ShadowCastingMode.Off;
-            r.receiveShadows = false;
+            r.receiveShadows = false; // it IS a shadow; never a shadow of one
+            r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            model.ContactShadowTexture = tex;
+            model.ContactShadowMaterial = mat;
+        }
+
+        /// <summary>The lid's alpha, 128 px square (black, alpha only).
+        /// <paramref name="bodyU"/>/<paramref name="bodyV"/> are the body's
+        /// half-width and half-length as fractions of the plane; the wheels
+        /// are tyre-patch centres in plane UV, v toward the nose.</summary>
+        public static Texture2D LidTexture(string id, float bodyU, float bodyV, Vector2[] wheels, bool keepReadable = false)
+        {
+            const int S = 128;
+            var a = new float[S * S];
+            float bw = bodyU * 2f * S, bh = bodyV * 2f * S;
+            float rad = Mathf.Min(bw, bh) * 0.28f;
+            float hx = bw * 0.5f - rad, hy = bh * 0.5f - rad;
+            float ex = S * 0.055f, ey = S * 0.085f;
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float px = x + 0.5f, py = y + 0.5f;
+                    // Rounded rectangle, by its signed distance.
+                    float qx = Mathf.Abs(px - S * 0.5f) - hx, qy = Mathf.Abs(py - S * 0.5f) - hy;
+                    float d = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude + Mathf.Min(Mathf.Max(qx, qy), 0f) - rad;
+                    float v = d <= 0f ? 0.75f : 0f;
+                    // Tyre patches, composited over it (source-over).
+                    foreach (var wh in wheels)
+                    {
+                        float tx = (px - wh.x * S) / ex, ty = (py - wh.y * S) / ey;
+                        if (tx * tx + ty * ty <= 1f) { v = 0.95f + v * 0.05f; break; }
+                    }
+                    a[y * S + x] = v;
+                }
+            Blur(a, S, S * 0.055f);
+
+            var px32 = new Color32[S * S];
+            for (int i = 0; i < px32.Length; i++) px32[i] = new Color32(0, 0, 0, (byte)Mathf.RoundToInt(Mathf.Clamp01(a[i]) * 255f));
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, true)
+            {
+                name = id + "-ContactShadow",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Trilinear,
+            };
+            tex.SetPixels32(px32);
+            tex.Apply(true, !keepReadable);
+            return tex;
+        }
+
+        /// <summary>Separable Gaussian of std-dev <paramref name="sigma"/> px,
+        /// transparent beyond the edges — the canvas filter blur() the web
+        /// draws the lid through.</summary>
+        static void Blur(float[] a, int s, float sigma)
+        {
+            int r = Mathf.CeilToInt(sigma * 3f);
+            var k = new float[r * 2 + 1];
+            float sum = 0f;
+            for (int i = -r; i <= r; i++) sum += k[i + r] = Mathf.Exp(-i * i / (2f * sigma * sigma));
+            for (int i = 0; i < k.Length; i++) k[i] /= sum;
+            var t = new float[a.Length];
+            for (int y = 0; y < s; y++)
+                for (int x = 0; x < s; x++)
+                {
+                    float v = 0f;
+                    for (int i = -r; i <= r; i++) { int xx = x + i; if (xx >= 0 && xx < s) v += a[y * s + xx] * k[i + r]; }
+                    t[y * s + x] = v;
+                }
+            for (int y = 0; y < s; y++)
+                for (int x = 0; x < s; x++)
+                {
+                    float v = 0f;
+                    for (int i = -r; i <= r; i++) { int yy = y + i; if (yy >= 0 && yy < s) v += t[yy * s + x] * k[i + r]; }
+                    a[y * s + x] = v;
+                }
         }
 
         static Material blob;
-        /// <summary>The contact-shadow material (the baker saves it as an asset).</summary>
+        /// <summary>The unlit alpha-blend material the lid uses, as a template
+        /// (no texture of its own; each car's lid is ContactShadowMaterial).</summary>
         public static Material BlobMaterial()
         {
-            if (blob == null) blob = Mats.AlphaBlend(Color.white, Mats.Blob());
+            if (blob == null)
+            {
+                blob = Mats.AlphaBlend(Color.white);
+                blob.name = "ContactShadow";
+                if (blob.HasProperty("_QueueOffset")) blob.SetFloat("_QueueOffset", CarMaterials.ShadowQueue);
+                blob.renderQueue = (int)RenderQueue.Transparent + CarMaterials.ShadowQueue;
+            }
             return blob;
         }
 

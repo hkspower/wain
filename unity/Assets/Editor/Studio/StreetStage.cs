@@ -366,7 +366,7 @@ namespace NightRacer.Studio
             var rim = new GameObject("RimLight").AddComponent<Light>();
             rim.type = LightType.Point;
             rim.color = new Color(1f, 0.957f, 0.902f);
-            rim.intensity = 0.95f;
+            rim.intensity = 1.22f;
             rim.range = 13f;
             rim.shadows = LightShadows.None;
             rim.transform.SetParent(rig.transform, false);

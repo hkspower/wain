@@ -53,7 +53,7 @@ static partial class Program
                 $"{string.Join("/", car.Wheels.Select(w => w.Radius.ToString("F3")).Distinct())}  " +
                 $"{string.Join("/", car.Wheels.Select(w => w.Pivot.Z.ToString("F2")).Distinct())}   {car.HeadLamps.Length,3} {car.TailLamps.Length,3}  {car.Finish,-6} " +
                 $"{car.Body.Chunks.Length}+{string.Join(",", car.Wheels.Select(w => w.Chunks.Length))}  {ms} ms");
-            Console.WriteLine($"{"",18} screen foot z {car.WindscreenZ:F2} · hood {Area(car.Hood):F2} m² at z {CentreOf(car.Hood).Z:F2} y {CentreOf(car.Hood).Y:F2} · " +
+            Console.WriteLine($"{"",18} screen foot z {car.WindscreenZ:F2} · hood {Area(car.Hood, c => car.Materials[c.Material].Role == MatRole.Paint):F2} m² at z {CentreOf(car.Hood).Z:F2} y {CentreOf(car.Hood).Y:F2} · " +
                 $"rear window {Area(car.RearWindow):F2} m² at z {CentreOf(car.RearWindow).Z:F2} · " +
                 $"wing {(car.RearWing == null ? "-" : car.RearWing.TriangleCount.ToString("N0") + " tris")} · " +
                 $"tyre {car.Wheels[0].Tyre.TriangleCount:N0} tris, mirror {(TyresMirror(car) ? "yes" : "no")}");
@@ -103,12 +103,34 @@ static partial class Program
             // 3b. The panels made into separate assets: a hood on every car,
             // forward, on top, a plausible size; a rear window on every car,
             // rearward; the rear wing exactly where the file has a `wing`.
-            Check(car.Hood != null && Area(car.Hood) > 0.35f && Area(car.Hood) < 3.5f, $"{id}: hood area {Area(car.Hood):F2} m²");
+            // (The panel's own area: the livery that rides on it lies over
+            // the paint, often in layers, and would count it twice or more.)
+            float hoodArea = Area(car.Hood, c => car.Materials[c.Material].Role == MatRole.Paint);
+            Check(car.Hood != null && hoodArea > 0.35f && hoodArea < 3.5f, $"{id}: hood paint area {hoodArea:F2} m²");
             if (car.Hood != null)
             {
                 var hc = CentreOf(car.Hood);
                 Check(hc.Z > 0.3f && hc.Y > car.Max.Y * 0.33f && Math.Abs(hc.X) < 0.1f, $"{id}: hood centred at {hc}");
-                Check(car.Hood.Chunks.All(c => car.Materials[c.Material].Role == MatRole.Paint), $"{id}: hood has non-paint");
+                Check(car.Hood.Chunks.All(c => car.Materials[c.Material].Role == MatRole.Paint || Livery(car.Materials[c.Material])),
+                    $"{id}: hood has something other than paint and livery");
+                Check(car.Hood.Chunks.Any(c => car.Materials[c.Material].Role == MatRole.Paint), $"{id}: hood has no paint");
+            }
+            // 3c. Livery over the hood comes off with it: no decal, accent-
+            // stripe or hot-stripe triangle left on the body inside the
+            // hood's footprint (windscreen foot to nose, between the
+            // fenders, above the wheel tops), on any car that has some there.
+            {
+                int onHood = car.Hood?.Chunks.Where(c => Livery(car.Materials[c.Material])).Sum(c => c.Indices.Length / 3) ?? 0;
+                int left = 0;
+                foreach (var c in car.Body.Chunks.Where(c => Livery(car.Materials[c.Material])))
+                    for (int t = 0; t + 2 < c.Indices.Length; t += 3)
+                    {
+                        Vector3 P(int i) => new Vector3(c.Positions[i * 3], c.Positions[i * 3 + 1], c.Positions[i * 3 + 2]);
+                        if (InHoodFootprint(car, (P(c.Indices[t]) + P(c.Indices[t + 1]) + P(c.Indices[t + 2])) / 3f)) left++;
+                    }
+                if (onHood + left > 0)
+                    Console.WriteLine($"{"",18} hood livery {onHood:N0} tris on the hood, {left:N0} left on the body");
+                Check(left == 0, $"{id}: {left} livery triangles left on the body over the hood");
             }
             Check(car.RearWindow != null && Area(car.RearWindow) > 0.12f, $"{id}: rear window area {Area(car.RearWindow):F2} m²");
             if (car.RearWindow != null)
@@ -209,11 +231,21 @@ static partial class Program
         return (lo + hi) * 0.5f;
     }
 
-    static float Area(Part p)
+    /// <summary>Painted-on livery: rides with the panel it lies on.</summary>
+    static bool Livery(CarMat m) => m.Role == MatRole.Decal || m.Name == "accent-stripe" || m.Name == "hot-stripe";
+
+    /// <summary>The hood's footprint, from the car's own measurements:
+    /// windscreen foot to just short of the nose, the middle 72% of the
+    /// width, above 38% of the height.</summary>
+    static bool InHoodFootprint(CarAsset car, Vector3 c) =>
+        c.Z > car.WindscreenZ - 0.05f && c.Z < car.Max.Z - 0.02f
+        && Math.Abs(c.X) < (car.Max.X - car.Min.X) * 0.36f && c.Y > car.Max.Y * 0.38f;
+
+    static float Area(Part p, Func<Chunk, bool> which = null)
     {
         if (p == null) return 0f;
         double a = 0;
-        foreach (var c in p.Chunks)
+        foreach (var c in p.Chunks.Where(c => which == null || which(c)))
             for (int t = 0; t < c.Indices.Length; t += 3)
             {
                 Vector3 P(int i) => new Vector3(c.Positions[i * 3], c.Positions[i * 3 + 1], c.Positions[i * 3 + 2]);

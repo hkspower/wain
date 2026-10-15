@@ -46,7 +46,7 @@
     "max:import": "node tools/max/import.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:unity": "node scripts/check-unity-sync.mjs",
-    "check:unity-compile": "node scripts/run-dotnet.mjs build tools/unity/typecheck -nologo -v q",
+    "check:unity-compile": "node scripts/check-unity-monobehaviours.mjs && node scripts/run-dotnet.mjs build tools/unity/typecheck -nologo -v q",
     "check:unreal": "node scripts/check-unreal-sync.mjs",
     "check:structure": "node scripts/check-structure.mjs",
     "check:structure:rules": "node scripts/check-structure.mjs --self-test",

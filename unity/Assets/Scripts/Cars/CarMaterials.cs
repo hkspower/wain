@@ -153,10 +153,35 @@ namespace NightRacer.Cars
             float cull = m.Role == MatRole.ExhaustBore ? 1f : m.DoubleSided ? 0f : 2f;
             if (urp) mat.SetFloat("_Cull", cull);
 
+            // --- reflection --------------------------------------------------
+            NightReflections.EnvFactor(mat, EnvFactor(m));
+
             // --- transparency -----------------------------------------------
-            if (m.Role == MatRole.Glass || m.Role == MatRole.GlassTint) Transparent(mat, preserveSpecular: true, queueOffset: 0);
-            else if (m.Blend) Transparent(mat, preserveSpecular: false, queueOffset: -50);
+            if (m.Role == MatRole.Glass) Transparent(mat, preserveSpecular: true, queueOffset: GlassQueue);
+            else if (m.Role == MatRole.GlassTint) Transparent(mat, preserveSpecular: true, queueOffset: TintQueue);
+            else if (m.Blend) Transparent(mat, preserveSpecular: false, queueOffset: LiveryQueue);
             return mat;
+        }
+
+        /// <summary>Transparent queue offsets (URP's _QueueOffset, -50..50).
+        /// The road's contact shadow first, under everything; then blended
+        /// livery that lies on the paint; then the glass, which composites
+        /// over both from inside the cabin as from out; and the sun band
+        /// last, because it is printed on the windscreen it shares a depth
+        /// with. Within one queue URP sorts back to front by renderer.</summary>
+        public const int ShadowQueue = -40, LiveryQueue = -20, GlassQueue = 0, TintQueue = 1;
+
+        /// <summary>How much of the environment a material reflects, as a
+        /// share of the probe's 2.1 gain (NightReflections): gloss paint all
+        /// of it, satin 0.62 (≈1.3), matte 0.3 (≈0.63); metals all of it;
+        /// every other dielectric — glass, plastics, tyre, lamps — 0.476,
+        /// which puts them back at a gain of 1.</summary>
+        public static float EnvFactor(CarMat m)
+        {
+            if (m.Role == MatRole.Paint)
+                return !m.HasClearcoat ? 0.3f : m.Clearcoat >= 0.9f ? 1f : 0.62f;
+            if (m.Role == MatRole.Metal || m.Role == MatRole.Disc || m.Metallic >= 0.5f) return 1f;
+            return 0.476f;
         }
 
         /// <summary>Emissive strength to use: the as-built idle level the GLB
@@ -180,7 +205,9 @@ namespace NightRacer.Cars
         /// <summary>URP Lit/Complex Lit transparent setup, as URP's own
         /// BaseShaderGUI.SetupMaterialBlendModeInternal does it (17.0).
         /// preserveSpecular: alpha scales the diffuse only, so 45%-opaque
-        /// glass keeps its full reflection — the web's premultiplied glass.</summary>
+        /// glass keeps its full reflection — the web's premultiplied glass.
+        /// queueOffset goes into _QueueOffset as well as renderQueue, so the
+        /// order survives URP's material editor recomputing the queue.</summary>
         public static void Transparent(Material mat, bool preserveSpecular, int queueOffset)
         {
             if (!Urp)
@@ -193,6 +220,8 @@ namespace NightRacer.Cars
                 mat.renderQueue = (int)RenderQueue.Transparent + queueOffset;
                 return;
             }
+            queueOffset = Mathf.Clamp(queueOffset, -50, 50);
+            mat.SetFloat("_QueueOffset", queueOffset);
             mat.SetFloat("_Surface", 1f);
             mat.SetFloat("_Blend", 0f); // Alpha
             mat.SetFloat("_BlendModePreserveSpecular", preserveSpecular ? 1f : 0f);

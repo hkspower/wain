@@ -14,6 +14,11 @@ namespace NightRacer.Cars
     {
         public string CarId;
         public string Finish = "gloss";
+        /// <summary>LastWriteTimeUtc ticks of the GLB a baked prefab was made
+        /// from (CarAssetBaker stamps it; 0 on a car built at runtime, or
+        /// baked before the stamp existed). In the Editor CarLibrary reads the
+        /// GLB instead of a prefab older than it.</summary>
+        public long SourceTicks;
         public MeshRenderer Body;
         /// <summary>The parts that are assets of their own once baked.</summary>
         public GameObject Hood, RearWindow, RearWing;

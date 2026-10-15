@@ -5,7 +5,10 @@ using UnityEngine;
 // palms, the Kuwait Towers and friends — all procedural, no assets.
 public static class WorldBuilder
 {
-    public static void Build(TrackSpline track)
+    /// <summary>Build the street under one "World" root and hand the root
+    /// back, so the caller can treat the world as a whole (GameController
+    /// takes it out of the car probe with NightReflections.ExcludeWorld).</summary>
+    public static Transform Build(TrackSpline track)
     {
         var root = new GameObject("World");
 
@@ -27,6 +30,14 @@ public static class WorldBuilder
         moon.shadowNormalBias = 0.35f;
         moon.transform.rotation = Quaternion.LookRotation(new Vector3(0.5f, -0.8f, -0.33f));
         moon.transform.SetParent(root.transform);
+        // The cars' moon shadows stop at 70 m, the rest of the street's at
+        // the full shadow distance (0 = no override). A car past 70 m is a
+        // few dozen pixels high and its shadow is under a pixel of the
+        // cascade, but it still costs a full draw of every part per
+        // cascade — traffic is 16 cars of hood, glass and tyres.
+        var shadowCull = new float[32];
+        shadowCull[NightRacer.Cars.CarModel.CarLayer] = 70f;
+        moon.layerShadowCullDistances = shadowCull;
 
         // Ground + sea
         Plane(root, "Ground", new Vector3(2700, -0.08f, -1400), new Vector2(8000, 8000),
@@ -140,6 +151,7 @@ public static class WorldBuilder
                 new Vector3(14f + (float)rng.NextDouble() * 18f, h, 14f + (float)rng.NextDouble() * 18f)));
         }
         Combined(root, "Blocks", blocks, blockMat);
+        return root.transform;
     }
 
     // ---- landmark builders -------------------------------------------

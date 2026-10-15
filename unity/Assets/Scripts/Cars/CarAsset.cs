@@ -108,8 +108,8 @@ namespace NightRacer.Cars
         /// <summary>Everything that is not one of the parts below.</summary>
         public Part Body = new Part();
         /// <summary>The bonnet: the paint ahead of the windscreen that faces
-        /// the sky, between the fenders. Cut out of the body shell, which in
-        /// the export is one mesh.</summary>
+        /// the sky, between the fenders, with the decal and stripes that lie
+        /// on it. Cut out of the body shell, which in the export is one mesh.</summary>
         public Part Hood;
         /// <summary>The rear window: the canopy glass behind its middle that
         /// faces backwards. Null on a car without one.</summary>
@@ -317,9 +317,16 @@ namespace NightRacer.Cars
                 // The hood: paint ahead of the windscreen's foot, facing the
                 // sky, between the fenders (not over them), above the wheel
                 // tops. The fenders and the nose's curve stay with the body.
-                bool IsHood(Vector3 c, Vector3 nrm) =>
-                    nrm.Y > 0.5f && c.Z > glassFront - 0.05f && c.Z < max.Z - 0.02f
+                bool InHoodFootprint(Vector3 c) =>
+                    c.Z > glassFront - 0.05f && c.Z < max.Z - 0.02f
                     && Math.Abs(c.X) < hoodHalf && c.Y > hoodFloor;
+                bool IsHood(Vector3 c, Vector3 nrm) => nrm.Y > 0.5f && InHoodFootprint(c);
+                // What is painted ON the hood comes off with it: the decal,
+                // accent-stripe and hot-stripe triangles inside the same
+                // footprint. No normal test: a stripe's triangles follow the
+                // hood's crown and its lifted edges, and any of them left on
+                // the body would float over the bay once the hood is off.
+                bool OnHood(Vector3 c, Vector3 nrm) => InHoodFootprint(c);
                 // The rear window: canopy glass behind its middle that faces
                 // backwards (a fastback's faces mostly up, which still counts:
                 // its normal leans rearward). Side windows face sideways and
@@ -340,6 +347,7 @@ namespace NightRacer.Cars
                     if (w >= 0) { (role == MatRole.Tyre ? tyres[w] : rims[w]).Add(g, hubs[w]); continue; }
                     if (onWing) { wing.Add(g, Vector3.Zero); continue; }
                     if (role == MatRole.Paint) { Split(g, IsHood, hood, body); continue; }
+                    if (g.Material >= 0 && RidesWithHood(car.Materials[g.Material])) { Split(g, OnHood, hood, body); continue; }
                     if (role == MatRole.Glass) { Split(g, IsRearWindow, rearWindow, body); continue; }
                     body.Add(g, Vector3.Zero);
                 }
@@ -742,6 +750,12 @@ namespace NightRacer.Cars
                 t.OffsetV = 1f - sv - ov;
                 return t;
             }
+
+            /// <summary>Livery painted on the panels — the decal, the accent
+            /// stripes and the night-floor hot stripe — which goes with
+            /// whichever panel it lies on (the hood, when over it).</summary>
+            static bool RidesWithHood(CarMat m) =>
+                m.Role == MatRole.Decal || m.Name == "accent-stripe" || m.Name == "hot-stripe";
 
             static MatRole Classify(CarMat m)
             {

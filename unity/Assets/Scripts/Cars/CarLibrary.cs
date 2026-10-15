@@ -20,6 +20,10 @@ namespace NightRacer.Cars
     ///                                   (npm run sync:unity-cars copies them)
     ///   &lt;repo&gt;/press/renders/glb/&lt;id&gt;.glb the export itself, in the Editor only
     ///
+    /// Of the two GLBs the newer one wins (NewestGlb). In the Editor a baked
+    /// prefab older than that GLB (CarRig.SourceTicks) is stale: the GLB is
+    /// read instead, and the log says once to bake again.
+    ///
     /// A car whose file is missing is not an error: CarFactory falls back to
     /// the procedural silhouette and says so once in the log.
     ///
@@ -48,6 +52,11 @@ namespace NightRacer.Cars
         readonly Dictionary<string, CarModel> models = new Dictionary<string, CarModel>();
         readonly Dictionary<string, Task<CarAsset>> reading = new Dictionary<string, Task<CarAsset>>();
         readonly HashSet<string> missing = new HashSet<string>();
+#if UNITY_EDITOR
+        /// <summary>Cars already reported stale (static: the studio makes a
+        /// new library per car).</summary>
+        static readonly HashSet<string> stale = new HashSet<string>();
+#endif
         Transform holder;
 
         /// <summary>Lamp level the materials are built for: 1 = night, the
@@ -76,18 +85,54 @@ namespace NightRacer.Cars
         public static GameObject BakedPrefab(string id) =>
             string.IsNullOrEmpty(id) ? null : Resources.Load<GameObject>(ResourcePath(id));
 
-        /// <summary>Where a car's GLB is, or null.</summary>
-        public static string PathFor(string id)
+        /// <summary>Where a car's GLB is, or null: the newer of the two.</summary>
+        public static string PathFor(string id) => NewestGlb(id).Path;
+
+        /// <summary>A car's GLB and its LastWriteTimeUtc ticks: in the Editor
+        /// the newer of StreamingAssets/Cars and the repo's press/renders/glb
+        /// (a fresh `npm run cars:export` lands in the second before any sync
+        /// copies it into the first), elsewhere StreamingAssets alone. A URL
+        /// (Android/WebGL, read through UnityWebRequest) has no time: 0.
+        /// (null, 0) when there is none.</summary>
+        public static (string Path, long Ticks) NewestGlb(string id)
         {
-            if (string.IsNullOrEmpty(id)) return null;
+            if (string.IsNullOrEmpty(id)) return (null, 0L);
             var streaming = Path.Combine(Application.streamingAssetsPath, "Cars", id + ".glb");
-            if (streaming.Contains("://")) return streaming; // Android/WebGL: read through UnityWebRequest
-            if (File.Exists(streaming)) return streaming;
+            if (streaming.Contains("://")) return (streaming, 0L);
+            string best = null;
+            long ticks = 0L;
+            if (File.Exists(streaming)) { best = streaming; ticks = File.GetLastWriteTimeUtc(streaming).Ticks; }
 #if UNITY_EDITOR
             var repo = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "press", "renders", "glb", id + ".glb"));
-            if (File.Exists(repo)) return repo;
+            if (File.Exists(repo))
+            {
+                long t = File.GetLastWriteTimeUtc(repo).Ticks;
+                if (best == null || t > ticks) { best = repo; ticks = t; }
+            }
 #endif
-            return null;
+            return (best, ticks);
+        }
+
+        /// <summary>The baked prefab to use, or null to read the GLB: in the
+        /// Editor a prefab baked from an older GLB than the newest one is
+        /// passed over (said once per car), so a re-export shows up without
+        /// a rebake.</summary>
+        static GameObject Usable(string id)
+        {
+            var baked = BakedPrefab(id);
+#if UNITY_EDITOR
+            if (baked == null) return null;
+            var rig = baked.GetComponent<CarRig>();
+            var glb = NewestGlb(id);
+            if (rig != null && glb.Path != null && glb.Ticks > rig.SourceTicks)
+            {
+                if (stale.Add(id))
+                    Debug.Log($"[cars] {id}: the baked prefab is older than {glb.Path} — reading the GLB instead. " +
+                              "Bake again (Night Racer ▸ Bake Cars to Assets) to refresh it.");
+                return null;
+            }
+#endif
+            return baked;
         }
 
         public bool TryGet(string id, out CarModel model)
@@ -103,7 +148,7 @@ namespace NightRacer.Cars
         public void Request(string id)
         {
             if (string.IsNullOrEmpty(id) || models.ContainsKey(id) || reading.ContainsKey(id) || missing.Contains(id)) return;
-            var baked = BakedPrefab(id);
+            var baked = Usable(id);
             if (baked != null)
             {
                 models[id] = CarModel.FromPrefab(id, baked);
@@ -170,7 +215,7 @@ namespace NightRacer.Cars
         public CarModel LoadNow(string id)
         {
             if (TryGet(id, out var m)) return m;
-            var baked = BakedPrefab(id);
+            var baked = Usable(id);
             if (baked != null) return models[id] = CarModel.FromPrefab(id, baked);
             if (reading.TryGetValue(id, out var task))
             {
@@ -219,7 +264,7 @@ namespace NightRacer.Cars
         /// baker's source). Null when there is no GLB.</summary>
         public static CarAsset ReadGlb(string id)
         {
-            var path = PathFor(id);
+            var path = NewestGlb(id).Path;
             if (path == null || path.Contains("://")) return null;
             return CarAssetReader.Read(File.ReadAllBytes(path), id);
         }

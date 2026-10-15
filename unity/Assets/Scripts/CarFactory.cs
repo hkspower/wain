@@ -227,9 +227,14 @@ public static class CarFactory
         var root = new GameObject("Car");
         var s = ShapeFor(style, lengthM);
         var car = new Car { Root = root, Length = s.Length, Width = s.Width, Front = s.Length * 0.5f };
+        // Every material below is minted for this car alone, so the car
+        // owns it: MaterialOwner destroys the set with the GameObject.
+        // Without it each respawned rival left its paint, glass, lamps and
+        // wheels behind as native objects for the rest of the session.
+        var own = MaterialOwner.On(root);
 
-        var bodyMat = Mats.CarPaint(body);
-        var glassMat = Mats.Lit(new Color(0.05f, 0.07f, 0.1f), 0.9f, 0.97f);
+        var bodyMat = own.Own(Mats.CarPaint(body));
+        var glassMat = own.Own(Mats.Lit(new Color(0.05f, 0.07f, 0.1f), 0.9f, 0.97f));
 
         float halfL = s.Length * 0.5f;
         float bodyY = 0.30f + s.BodyH * 0.5f;
@@ -255,8 +260,8 @@ public static class CarFactory
         {
             Box(root, "Splitter", new Vector3(0, 0.16f, halfL + 0.12f),
                 new Vector3(s.Width * 1.05f, 0.04f, 0.5f),
-                Mats.Lit(new Color(0.06f, 0.07f, 0.08f), 0.35f, 0.5f));
-            var dark = Mats.Lit(new Color(0.06f, 0.07f, 0.08f), 0.35f, 0.5f);
+                own.Own(Mats.Lit(new Color(0.06f, 0.07f, 0.08f), 0.35f, 0.5f)));
+            var dark = own.Own(Mats.Lit(new Color(0.06f, 0.07f, 0.08f), 0.35f, 0.5f));
             foreach (float sx in new[] { -0.5f, 0.5f })
                 Box(root, "WingStay", new Vector3(sx, 1.15f, -halfL + 0.25f),
                     new Vector3(0.05f, 0.55f, 0.2f), dark);
@@ -272,10 +277,10 @@ public static class CarFactory
         if (accent.HasValue && style == BodyStyle.Sedan)
             Box(root, "Stripe", new Vector3(0, bodyY + s.BodyH * 0.5f + 0.01f, 0),
                 new Vector3(0.5f, 0.04f, s.Length * 1.005f),
-                Mats.Lit(accent.Value, 0.2f, 0.6f));
+                own.Own(Mats.Lit(accent.Value, 0.2f, 0.6f)));
 
         // HDR intensities so the bloom pass actually blooms them
-        var headMat = Mats.Emissive(new Color(1f, 0.96f, 0.81f), 6f);
+        var headMat = own.Own(Mats.Emissive(new Color(1f, 0.96f, 0.81f), 6f));
         float lampY = bodyY + s.BodyH * 0.22f;
         if (style == BodyStyle.ZX)
         {
@@ -294,7 +299,7 @@ public static class CarFactory
         car.HeadLamps = style == BodyStyle.ZX
             ? new[] { new Vector3(-s.Width * 0.3f, lampY, halfL), new Vector3(s.Width * 0.3f, lampY, halfL) }
             : new[] { new Vector3(-0.62f, lampY, halfL), new Vector3(0.62f, lampY, halfL) };
-        car.TailMat = Mats.Emissive(new Color(1f, 0.13f, 0.13f), 3.5f);
+        car.TailMat = own.Own(Mats.Emissive(new Color(1f, 0.13f, 0.13f), 3.5f));
         Box(root, "Taillight", new Vector3(0, lampY + 0.08f, -halfL + 0.02f),
             new Vector3(s.Width * 0.92f, 0.1f, 0.06f), car.TailMat);
 
@@ -302,10 +307,10 @@ public static class CarFactory
         if (style != BodyStyle.ZX && style != BodyStyle.RX7)
             Box(root, "Grille", new Vector3(0, bodyY - s.BodyH * 0.15f, halfL - 0.01f),
                 new Vector3(1.05f, 0.17f, 0.06f),
-                Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.3f, 0.4f));
+                own.Own(Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.3f, 0.4f)));
 
-        var wheelMat = Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.2f, 0.25f);
-        var rimMat = Mats.Lit(new Color(0.78f, 0.8f, 0.84f), 0.95f, 0.85f);
+        var wheelMat = own.Own(Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.2f, 0.25f));
+        var rimMat = own.Own(Mats.Lit(new Color(0.78f, 0.8f, 0.84f), 0.95f, 0.85f));
         var wheels = new Transform[4];
         // 0.66 m tyres, the real diameter for this class of car
         float wx = s.Width * 0.47f, wr = WheelRadius;
@@ -358,9 +363,17 @@ public static class CarFactory
         blob.transform.localRotation = Quaternion.Euler(90, 0, 0);
         blob.transform.localScale = new Vector3(s.Width * 1.45f, s.Length * 1.18f, 1f);
         var br = blob.GetComponent<MeshRenderer>();
-        br.sharedMaterial = Mats.AlphaBlend(Color.white, Mats.Blob());
+        br.sharedMaterial = own.Own(Mats.AlphaBlend(Color.white, Mats.Blob()));
         br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         br.receiveShadows = false;
+
+        // On the car layer, like the game's own models (CarModel.Spawn):
+        // the reflection probe leaves the cars out of the street it
+        // captures, the camera culls them at its car distance and the moon
+        // stops drawing their shadows sooner. A stand-in on Default was in
+        // the probe's own capture — mirrored in the paint it sat next to —
+        // and cast moon shadow from across the city.
+        CarModel.SetLayer(root, CarModel.CarLayer);
 
         return car;
     }

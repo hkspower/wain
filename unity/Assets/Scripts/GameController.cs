@@ -90,10 +90,14 @@ public class GameController : MonoBehaviour
         QualitySettings.shadowDistance = 220f;
         QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
         track = new TrackSpline();
-        WorldBuilder.Build(track);
+        var worldRoot = WorldBuilder.Build(track);
         // Something for the paint to reflect: the night environment as the
         // scene's reflection and the probes' sky (NightReflections).
         NightReflections.Install();
+        // ...and the street itself reflects that environment only: the car
+        // probe is sized for the paint, and a road or tower it happens to
+        // overlap would swap reflections as the player drove past.
+        NightReflections.ExcludeWorld(worldRoot);
 
         var camGo = new GameObject("ChaseCam");
         camGo.tag = "MainCamera"; // Camera.main, used by the corona billboards
@@ -104,6 +108,14 @@ public class GameController : MonoBehaviour
         cam.farClipPlane = 4000f;
         cam.allowHDR = true;
         cam.allowMSAA = true;
+        // Cars stop drawing at 350 m (0 = the far plane, for the rest). The
+        // city is 4 km deep; a car on the far side of it is under a pixel
+        // and still a full draw of every part. Spherical, so swinging the
+        // camera round does not pop the cars at the frustum's corners.
+        var cull = new float[32];
+        cull[CarModel.CarLayer] = 350f;
+        cam.layerCullDistances = cull;
+        cam.layerCullSpherical = true;
         camGo.AddComponent<AudioListener>();
         AttachPostProcessing(camGo);
 
@@ -124,18 +136,23 @@ public class GameController : MonoBehaviour
         }
 
         // The game's own cars, before anything is spawned: the player's,
-        // the first rival's and the traffic models. A missing file is not
-        // fatal — that car drives the procedural body — and the wait is
-        // capped, after which stragglers keep loading in the background.
+        // every rival's and the traffic models. Every rival, not the first:
+        // SpawnRival builds the next one the moment a battle is won, and a
+        // car still loading then is a procedural box for that whole race.
+        // A missing file is not fatal — that car drives the procedural body
+        // — and the wait is capped, after which stragglers keep loading in
+        // the background. Phones skip the traffic models (see below).
         var startCar = PlayerCar();
-        var firstRival = rivalIndex < RivalDef.All.Length ? RivalDef.All[rivalIndex] : null;
         var preload = new System.Collections.Generic.List<string> { startCar.Id };
-        if (firstRival != null) preload.Add(firstRival.CarId);
-        preload.AddRange(TrafficModels);
+        foreach (var r in RivalDef.All)
+            if (!string.IsNullOrEmpty(r.CarId) && !preload.Contains(r.CarId)) preload.Add(r.CarId);
+        bool modelTraffic = !MobileTier.IsMobile;
+        if (modelTraffic)
+            foreach (var id in TrafficModels)
+                if (!preload.Contains(id)) preload.Add(id);
         loadingCars = true;
         yield return CarLibrary.Instance.Preload(preload, 45f);
         loadingCars = false;
-        foreach (var r in RivalDef.All) CarLibrary.Instance.Request(r.CarId); // the rest, in the background
 
         playerCar = CarFactory.Create(startCar.Id, startCar.Paint, new Color(0f, 0.48f, 0.24f),
             startCar.Style, startCar.AttackKit, startCar.LengthM, repaint: false);
@@ -146,12 +163,16 @@ public class GameController : MonoBehaviour
         NightReflections.Follow(playerCar.Root.transform);
 
         // Warm rim light behind the roofline (engine.ts "rim": 3.0 at decay
-        // 1.8, physical units -> about 0.95 in Unity's), so the warm paints
-        // keep their hue against a blue night.
+        // 1.8), so the warm paints keep their hue against a blue night.
+        // 1.22, not the 0.95 the physical-units conversion gives: that was
+        // matched against the stand-in boxes, and the game's own models —
+        // a real roofline, a rear window and a hood that curve away from
+        // it — catch about three quarters of what a flat deck did.
+        // StreetStage (the studio's street) uses the same figure.
         var rim = new GameObject("RimLight").AddComponent<Light>();
         rim.type = LightType.Point;
         rim.color = new Color(1f, 0.957f, 0.902f);
-        rim.intensity = 0.95f;
+        rim.intensity = 1.22f;
         rim.range = 13f;
         rim.shadows = LightShadows.None;
         rim.transform.SetParent(playerCar.Root.transform, false);
@@ -199,10 +220,18 @@ public class GameController : MonoBehaviour
         {
             int c = trafficColors[i % trafficColors.Length];
             var colour = new Color(((c >> 16) & 255) / 255f, ((c >> 8) & 255) / 255f, (c & 255) / 255f);
+            // On phones traffic is the procedural saloon: sixteen of the
+            // game's models is sixteen sets of hood, glass, rear window and
+            // tyre parts, which is most of a mobile GPU's draw budget for
+            // cars nobody looks at. The player and the rival keep theirs.
+            var car = modelTraffic
+                ? CarFactory.Create(TrafficModels[i % TrafficModels.Length], colour, null,
+                    BodyStyle.Sedan, false, 0f, repaint: true)
+                : CarFactory.Create(colour, null, BodyStyle.Sedan);
+            Background(car, wheelShadows: false);
             traffic[i] = new Traffic
             {
-                Car = CarFactory.Create(TrafficModels[i % TrafficModels.Length], colour, null,
-                    BodyStyle.Sedan, false, 0f, repaint: true),
+                Car = car,
                 S = track.Wrap(120f + (float)i / traffic.Length * track.Length),
                 Lat = TrackSpline.Lanes[i % 4],
                 Speed = 21f + Random.value * 9f,
@@ -305,11 +334,43 @@ public class GameController : MonoBehaviour
         // carId), in their colours.
         rivalCar = CarFactory.Create(rivalDef.CarId, rivalDef.Body, rivalDef.Accent, rivalDef.Style,
             false, 0f, repaint: true);
+        Background(rivalCar, wheelShadows: true);
         rS = track.Wrap(pS + 260f);
         rLat = rTargetLat = TrackSpline.Lanes[2];
         rSpeed = 27f;
         rSp = 100f;
         rivalState = RivalState.Cruise;
+    }
+
+    /// <summary>
+    /// The render trims every car but the player's gets. A single-level
+    /// LODGroup over all its renderers culls the car once it is under 1.5 %
+    /// of the screen's height. The group measures the car by its longest
+    /// side, so for a 4.7 m saloon at this field of view that is about
+    /// 250 m, inside the camera's 350 m car-layer distance, which catches
+    /// anything the group misses. Unity only culls whole
+    /// groups, so the hood, rear window and tyres go together rather than
+    /// the small parts blinking out first. <paramref name="wheelShadows"/>
+    /// off drops the wheel and tyre renderers from the shadow pass: on
+    /// traffic they are four draws per cascade for a shadow the body's
+    /// already covers.
+    /// </summary>
+    static void Background(CarFactory.Car car, bool wheelShadows)
+    {
+        if (car == null || car.Root == null) return;
+        if (!wheelShadows && car.Wheels != null)
+            foreach (var w in car.Wheels)
+                if (w != null)
+                    foreach (var r in w.GetComponentsInChildren<Renderer>(true))
+                        r.shadowCastingMode = ShadowCastingMode.Off;
+        var renderers = car.Root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return;
+        // Not ??: a missing component can come back as Unity's fake null,
+        // which the C# operator does not see.
+        var lod = car.Root.GetComponent<LODGroup>();
+        if (lod == null) lod = car.Root.AddComponent<LODGroup>();
+        lod.SetLODs(new[] { new LOD(0.015f, renderers) });
+        lod.RecalculateBounds();
     }
 
     void Say(string arabicText, string clipId, float stability)

@@ -3,6 +3,7 @@
 //
 //   npm run sync:unity-cars
 //   node scripts/sync-unity-cars.mjs --only black-demon,falcon-720
+//   node scripts/sync-unity-cars.mjs --force     (baked cars too; see below)
 //
 // press/renders/glb/<id>.glb  ->  unity/Assets/StreamingAssets/Cars/<id>.glb
 //
@@ -23,6 +24,15 @@
 // is no longer in the export is removed, so a renamed car does not ship
 // twice. Cars/ is git-ignored (unity/.gitignore): 17 cars are 179 MB of
 // binaries rebuilt from the game, the same reason press/renders/glb/ is.
+//
+// A car that has been BAKED (Night Racer ▸ Cars ▸ Bake, CarAssetBaker:
+// unity/Assets/Resources/Cars/<id>/<id>.prefab, with its hood, rear window,
+// rear wing and tyres as their own assets) is skipped: the build ships the
+// prefab, and CarLibrary takes it over any GLB, so a copy would be ~10 MB
+// of the player build nothing reads. Its StreamingAssets copy, left by an
+// earlier run, is pruned the same way (and logged). --force copies the
+// baked cars as well and keeps their copies — for a build that wants the
+// raw GLB beside the prefab, say to compare the two.
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -32,12 +42,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "press", "renders", "glb");
 const DST = join(ROOT, "unity", "Assets", "StreamingAssets", "Cars");
 const DATA = join(ROOT, "unity", "Assets", "Scripts", "GRNData.cs");
+const BAKED = join(ROOT, "unity", "Assets", "Resources", "Cars");
 const rel = (p) => relative(ROOT, p) || ".";
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] ?? "" : null;
 };
+const FORCE = process.argv.includes("--force");
 const ONLY = (arg("only") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 if (arg("only") !== null && !ONLY.length) {
   console.error("--only needs a comma-separated list of car ids, e.g. --only black-demon,falcon-720");
@@ -73,6 +85,12 @@ const catalogue = existsSync(DATA)
   ? readFileSync(DATA, "utf8").split("new Car {").slice(1).map((b) => b.match(/\bId = "([^"]+)"/)?.[1]).filter(Boolean)
   : [];
 
+// The cars CarAssetBaker has baked into prefabs (the game's own assets,
+// each with its parts). Matched on the exact <id>/<id>.prefab the baker
+// writes, so a half-finished bake folder with no prefab still syncs.
+const isBaked = (id) => existsSync(join(BAKED, id, `${id}.prefab`));
+const baked = FORCE ? [] : exported.filter(isBaked);
+
 mkdirSync(DST, { recursive: true });
 // The half-copies of a run that was killed (see below).
 for (const f of readdirSync(DST)) if (/^\..+\.glb\.part$/.test(f)) unlinkSync(join(DST, f));
@@ -82,8 +100,13 @@ for (const f of readdirSync(DST)) if (/^\..+\.glb\.part$/.test(f)) unlinkSync(jo
 // re-copy every car on every run there.
 const same = (a, b) => a.size === b.size && Math.abs(a.mtimeMs - b.mtimeMs) < 2000;
 
-let copied = 0, copiedBytes = 0, kept = 0, pruned = 0, prunedBytes = 0;
+let copied = 0, copiedBytes = 0, kept = 0, pruned = 0, prunedBytes = 0, skipped = 0;
 for (const id of ONLY.length ? ONLY : exported) {
+  if (baked.includes(id)) {
+    skipped++;
+    console.log(`  baked   ${id.padEnd(16)}           (${rel(join(BAKED, id, `${id}.prefab`))}; --force to copy anyway)`);
+    continue;
+  }
   const from = join(SRC, `${id}.glb`);
   const to = join(DST, `${id}.glb`);
   const s = statSync(from);
@@ -107,8 +130,11 @@ for (const id of ONLY.length ? ONLY : exported) {
 
 // Pruned against the whole export, never against --only: a --only run
 // copies less, it does not mean the other cars have gone.
+// A baked car's copy goes whatever --only says: it is dead weight in the
+// build either way.
 for (const id of glbIds(DST)) {
-  if (exported.includes(id)) continue;
+  const gone = !exported.includes(id);
+  if (!gone && !baked.includes(id)) continue;
   const p = join(DST, `${id}.glb`);
   const size = statSync(p).size;
   unlinkSync(p);
@@ -116,19 +142,23 @@ for (const id of glbIds(DST)) {
   if (existsSync(`${p}.meta`)) unlinkSync(`${p}.meta`);
   pruned++;
   prunedBytes += size;
-  console.log(`  pruned  ${id.padEnd(16)} ${MB(size).padStart(8)}  (no longer in ${rel(SRC)}/)`);
+  console.log(
+    `  pruned  ${id.padEnd(16)} ${MB(size).padStart(8)}  ` +
+      (gone ? `(no longer in ${rel(SRC)}/)` : `(baked: ${rel(join(BAKED, id, `${id}.prefab`))})`)
+  );
 }
 
 const held = glbIds(DST);
 const heldBytes = held.reduce((t, id) => t + statSync(join(DST, `${id}.glb`)).size, 0);
 console.log(
-  `\n${copied} copied (${MB(copiedBytes)}), ${kept} unchanged, ${pruned} pruned` +
+  `\n${copied} copied (${MB(copiedBytes)}), ${kept} unchanged, ${skipped} baked (skipped), ${pruned} pruned` +
     (pruned ? ` (${MB(prunedBytes)})` : "") +
     `; ${rel(DST)}/ holds ${held.length} car${held.length === 1 ? "" : "s"}, ${MB(heldBytes)}.`
 );
 
 if (!ONLY.length && catalogue.length) {
-  const notExported = catalogue.filter((id) => !exported.includes(id));
+  // A baked car needs no GLB: the build ships its prefab.
+  const notExported = catalogue.filter((id) => !exported.includes(id) && !isBaked(id));
   const notSold = exported.filter((id) => !catalogue.includes(id));
   if (notExported.length) {
     console.warn(
