@@ -315,10 +315,19 @@
       say('Check ' + got.error + ' — it has to be a number.')
       return
     }
+    // SEND ONLY WHAT THE OWNER CHANGED (2026-10-15). The Payments screen carries a second card
+    // (payments-screen.js) that saves payment_methods and the cash limits too, and this card's
+    // copy of them is whatever it read when it was drawn. Sending the whole form put that stale
+    // copy back over a newer save from the other card. The server keeps any field it is not sent.
+    var changed = {}, base = state.rules || {}
+    Object.keys(got.value).forEach(function (k) {
+      if (JSON.stringify(got.value[k]) !== JSON.stringify(base[k])) changed[k] = got.value[k]
+    })
+    if (!Object.keys(changed).length) { say('Nothing changed.'); return }
     state.busy = true
     state.note = ''
     render()
-    ask('settings_save', { name: 'rules', value: got.value }).then(function (res) {
+    ask('settings_save', { name: 'rules', value: changed }).then(function (res) {
       state.busy = false
       if (res && res.error) {
         state.note = explain(res.error)
@@ -335,6 +344,7 @@
       } else {
         state.rules = res
         state.note = 'Saved. The next order uses these.'
+        document.dispatchEvent(new CustomEvent('sporta:rules-saved', { detail: { from: 'rules' } }))
       }
       render()
     }).catch(function () {
@@ -350,6 +360,16 @@
       if (b) { b.disabled = false; b.textContent = 'Save rules' }
     })
   }
+
+  // RE-READ WHEN THE OTHER CARD SAVED, unless the owner has unsaved edits here: drawing over them
+  // would throw their typing away. Their next save sends only what they changed (see submit).
+  document.addEventListener('sporta:rules-saved', function (e) {
+    if (!e.detail || e.detail.from === 'rules' || !card || !card.isConnected || state.busy) return
+    var got = collect()
+    if (got.error) return
+    var dirty = Object.keys(got.value).some(function (k) { return JSON.stringify(got.value[k]) !== JSON.stringify((state.rules || {})[k]) })
+    if (!dirty) load()
+  })
 
   function load() {
     ask('rules').then(function (res) {

@@ -488,6 +488,16 @@
     payBox = el('div')
     c.appendChild(payBox)
 
+    // ATTACH EVERY LABEL TO ITS FIELD (2026-10-15 scan). The labels were plain text beside the
+    // inputs, so a screen reader announced twelve unnamed password boxes and a click on a label
+    // did not focus its field. Each label names the input or select straight after it.
+    c.querySelectorAll('label.spk-label').forEach(function (lb, i) {
+      var f = lb.nextElementSibling
+      if (!f || !/^(INPUT|SELECT|TEXTAREA)$/.test(f.tagName)) return
+      if (!f.id) f.id = 'spk-f' + i
+      lb.htmlFor = f.id
+    })
+
     return c
   }
 

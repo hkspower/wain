@@ -72,8 +72,10 @@
     + '.spps-row:last-child{border-bottom:0}'
     + '.spps-name{font-weight:600;flex:1}'
     + '.spps-badge{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap}'
-    + '.spps-ok{background:rgba(22,163,74,.18);color:#16a34a}.spps-warn{background:rgba(220,38,38,.18);color:#dc2626}'
-    + '.spps-off{background:rgba(128,128,128,.2);color:inherit;opacity:.75}.spps-unk{background:rgba(217,119,6,.18);color:#d97706}'
+    // Status pill inks darkened 2026-10-15: #16a34a / #dc2626 / #d97706 on their own 18% tint measured
+    // 3.2-3.3:1 at 12px, under the 4.5:1 small text needs. These read 5.4-6.4:1 on the same tints.
+    + '.spps-ok{background:rgba(22,163,74,.18);color:#166534}.spps-warn{background:rgba(220,38,38,.18);color:#991b1b}'
+    + '.spps-off{background:rgba(128,128,128,.2);color:inherit;opacity:.75}.spps-unk{background:rgba(217,119,6,.18);color:#92400e}'
     + '.spps-btn{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;background:#4f46e5;color:#fff;font:inherit;font-weight:700}'
     + '.spps-btn[disabled]{opacity:.5;cursor:default}'
     + '.spps-in{padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.5);background:transparent;color:inherit;font:inherit;width:9em}'
@@ -190,10 +192,15 @@
         saveBtn.disabled = false
         if (!r.ok || (r.j && r.j.error)) { say(why(r.j && r.j.error), false); return }
         say('Saved.', true); load()
+        // The Shop rules card on this screen shows the same switches and limits: tell it to re-read.
+        document.dispatchEvent(new CustomEvent('sporta:rules-saved', { detail: { from: 'payments' } }))
       })
     })
     return s
   }
+
+  // And re-read when the Shop rules card saved them.
+  document.addEventListener('sporta:rules-saved', function (e) { if (e.detail && e.detail.from !== 'payments' && boxes.knet && boxes.knet.isConnected) load() })
 
   function load() {
     call('rules').then(function (r) {
