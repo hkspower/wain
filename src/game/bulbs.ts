@@ -47,10 +47,13 @@ export interface BulbSpec {
  * Main beam, against the same bulb dipped.
  *
  * A main beam is not a dipped beam turned up. It is aimed higher — at the
- * horizon rather than at the road forty metres out — so it reaches past
- * where the dipped one is cut off, and that reach is most of what it is
- * for. `aim` is how far the beam's aim point rises, in metres at the
- * target 42 m ahead.
+ * horizon rather than at the dipped beam's cut-off, which is 1.2 % down
+ * and meets the road about 55 m out (lowbeam.ts) — and it has no cut-off
+ * at all, so it reaches past where the dipped one stops, and that reach
+ * is most of what it is for. `aim` is how far the beam's aim point
+ * rises, in metres at the target 42 m ahead: 0.45 m lifts the axis
+ * 0.6 deg, from the cut-off to about the horizon. `angle` widens the
+ * main-beam cookie's spread rather than the lamp's cone.
  */
 export interface HighBeam {
   intensity: number;

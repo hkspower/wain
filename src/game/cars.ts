@@ -9519,6 +9519,9 @@ export function createCar(colors: CarColors): THREE.Group {
   // Flashed with the lamps by the engine's challenge ritual
   group.userData.headGlowMats = headGlowMats;
   group.userData.lampPositions = lampPositions;
+  // Which lens is fitted, so the engine can dim the light through a
+  // smoked one as well as its glow.
+  group.userData.headlamps = lamps;
   // The paint is per-car (glass/chrome/rims are shared modules), so the
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.

@@ -342,9 +342,15 @@ results.traffic = await shoot("traffic", `
   if (e.rival) e.rival.s = away;
   return inLanes(async (k) => {
   t.lat = -1.75 * k;
+  // The player 22 m back, not 9: the civilian sits at the far end of a
+  // dipped beam and is lit as a car ahead is — low, under the cut-off —
+  // and the camera, 7 m past it, stands where the beam has run out
+  // rather than in its body. At 9 m the camera was 16 m in front of the
+  // lamps, and the polished wheel paths threw the whole beam back into
+  // the lens (5.9 % of the frame pinned, against 0.5).
   for (let i = 0; i < 90; i++) {
     t.s = 3040 + i * 0.55; t.speed = 33;
-    e.player.s = t.s - 9; e.player.lat = 1.75 * k; e.player.speed = 33; e.prevSpeed = 33;
+    e.player.s = t.s - 22; e.player.lat = 1.75 * k; e.player.speed = 33; e.prevSpeed = 33;
     e.update(1/60);
   }
   const a = axes(t.mesh);

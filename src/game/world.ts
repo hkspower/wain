@@ -16,6 +16,7 @@ import {
   BUILDING_FOOTING_M,
 } from "./track";
 import { applyTextureManifest } from "./assets";
+import { LOW_BEAM, patchHeadlampRetro } from "./lowbeam";
 import { PARTS } from "./mods";
 import { newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
 import {
@@ -121,6 +122,34 @@ function palmTrunkMaterial(): THREE.MeshStandardMaterial {
  * (patchPalmLeafFragment: no back-face flip, thin-leaf transmission)
  * makes the collision a wrong program rather than a wasted one.
  */
+/**
+ * The road's back-scatter of the player's own headlamps: asphalt and its
+ * paint are brighter seen from beside a lamp than from anywhere else,
+ * and Lambert has none of that, so a dipped beam that is right in shape
+ * and strength read as barely there from the chase camera (lowbeam.ts,
+ * LOW_BEAM.retro). Only the two lamps carry a cookie, and only they get
+ * the term; every other light on the road is untouched.
+ */
+function headlampRetro(mat: THREE.MeshStandardMaterial): void {
+  const chunk = patchHeadlampRetro(THREE.ShaderChunk.lights_fragment_begin);
+  if (!chunk) {
+    console.warn("headlampRetro: three's lights_fragment_begin has changed shape; the road keeps plain Lambert");
+    return;
+  }
+  mat.defines = {
+    ...mat.defines,
+    GRN_RETRO_GAIN: LOW_BEAM.retro.gain.toFixed(3),
+    GRN_RETRO_POW: LOW_BEAM.retro.power.toFixed(1),
+  };
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev.call(mat, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <lights_fragment_begin>", chunk);
+  };
+  mat.customProgramCacheKey = () => "grn-headlamp-retro";
+  mat.userData.headlampRetro = true;
+}
+
 function palmLeafMaterial(): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -5235,6 +5264,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     metalness: 0.0, // asphalt is a dielectric
     envMapIntensity: 1.15,
   });
+  headlampRetro(roadMat);
   // Out to the rail lip, not to halfWidthAt: the 0.60 m marginal strip
   // (MARKINGS.strip) is paved, so the edge line sits on asphalt with
   // asphalt outboard of it instead of on the last 150 mm before the
@@ -5280,6 +5310,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // The same asphalt, read a step down from the highway so the route
     // you are actually racing stays the brightest line in the scene.
     streetMat.color = new THREE.Color(0xb4b4b4);
+    headlampRetro(streetMat); // a clone does not carry the shader hook
     const parts: THREE.BufferGeometry[] = [];
     const outer = STREETS.avenues[STREETS.avenues.length - 1];
 

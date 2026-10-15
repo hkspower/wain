@@ -47,7 +47,10 @@ const at = (age) => page.evaluate((age) => {
   return {
     spot: +e.headlight.intensity.toFixed(2),
     off: +e.headlightR.intensity.toFixed(2),
-    angle: +e.headlight.angle.toFixed(4),
+    // How far the beam has opened from dipped to main (lowbeam.ts): the
+    // cookie both lamps project, not the cone, which no longer moves.
+    angle: +e.beamBlend.toFixed(3),
+    offReach: +e.headlightR.distance.toFixed(1),
     reach: +e.headlight.distance.toFixed(1),
   };
 }, age);
@@ -60,9 +63,9 @@ await page.evaluate(() => {
 });
 const rest = await at(9);   // long past any flash: the dipped beam
 console.log(`\nthe dipped beam at night: ${rest.spot} spot, ${rest.off} offside, ` +
-  `${rest.angle} rad, ${rest.reach} m`);
+  `main-beam blend ${rest.angle}, ${rest.reach} m`);
 
-console.log("\n  age(s)   spot    off   angle   reach");
+console.log("\n  age(s)   spot    off   blend   reach");
 const rows = [];
 for (let a = 0; a <= 0.5; a += 0.025) {
   const r = await at(+a.toFixed(3));
@@ -82,9 +85,12 @@ if (peak <= rest.spot * 1.5)
 const dimmest = Math.min(...rows.map((r) => r.spot));
 if (dimmest < rest.spot - 0.01)
   fail.push(`the lamps dropped to ${dimmest}, below the dipped ${rest.spot} — the flash goes down as well as up`);
-// The cone has to open and throw with it, or it is a brighter dipped beam.
-if (Math.max(...rows.map((r) => r.angle)) <= rest.angle + 1e-4)
-  fail.push("the beam does not widen — brightness alone reads as a lamp fault, not a main beam");
+// The beam has to open and throw with it, or it is a brighter dipped
+// beam: the main-beam cookie (no cut-off) blends in on both lamps.
+if (Math.max(...rows.map((r) => r.angle)) < 0.9)
+  fail.push("the beam does not open — brightness alone reads as a lamp fault, not a main beam");
+if (rows.some((r) => r.offReach !== r.reach))
+  fail.push("the two lamps throw different distances during the flash — a flash is both lamps");
 if (Math.max(...rows.map((r) => r.reach)) <= rest.reach + 0.1)
   fail.push("the beam does not throw any further than the dipped one");
 // Two pulses, the way a hand on a stalk actually moves.

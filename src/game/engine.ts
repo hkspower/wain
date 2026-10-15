@@ -31,6 +31,7 @@ import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
 import { solveWing } from "./aero";
 import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
 import { BULBS, bulbColor, highBeamOf, kelvinColor, warmupOf } from "./bulbs";
+import { LOW_BEAM, bakeCookie, lampTargetY } from "./lowbeam";
 import { dayEnvironment, nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
@@ -182,8 +183,12 @@ const SMOKE_LAMP = 0.75;
  *  0.16 on the idle lens (0.55 of 1.7), both at night. */
 const SMOKE_TAIL = 0.5;
 /** The dipped beams' candela, per π, times this: it follows the live
- *  intensities, so a flash or daylight dimming reaches the smoke too. */
-const SMOKE_HEAD = 0.25;
+ *  intensities, so a flash or daylight dimming reaches the smoke too.
+ *  0.25 of the old round pair's 144 cd; the cookie-shaped pair is
+ *  2 x LOW_BEAM.candela and puts most of that into a band a few degrees
+ *  deep, which the smoke's round cone cannot see, so the smoke is lit
+ *  as it was graded: the same 0.25 of 144 at the same night. */
+const SMOKE_HEAD = (0.25 * 144) / (2 * LOW_BEAM.candela);
 /** How much of the car's own speed the air it drags along gives a new
  *  puff, along the road: the wake that stretches a plume out behind a
  *  car instead of stopping it dead where it was born. */
@@ -351,11 +356,16 @@ const FLASH_FALL = 0.13;
 /** The second pulse of one press. */
 const FLASH_PULSE_AT = [0, 0.19];
 /** How far past the dipped beam a main beam reaches. Brightness alone
- *  reads as a lamp fault; the cone has to open and throw further with
- *  it, which is what the eye actually recognises as high beam. */
+ *  reads as a lamp fault; the beam has to open and throw further with
+ *  it, which is what the eye actually recognises as high beam. The
+ *  opening is the main-beam cookie blending in over the dipped one's
+ *  cut-off (lowbeam.ts) — on both lamps — not a wider cone, which would
+ *  stretch the cut-off along with everything else. */
 const FLASH_GAIN = 1.9;
-const FLASH_ANGLE_GAIN = 0.22;
 const FLASH_REACH_GAIN = 0.55;
+/** The haze cones' outward splay, rad, and how flat they are (y scale). */
+const BEAM_SPLAY = 0.035;
+const BEAM_FLAT = 0.45;
 
 function playerFlashBoost(sinceS: number): number {
   let best = 0;
@@ -987,62 +997,6 @@ function poseWing(car: THREE.Object3D, brake: number, speed: number, dt: number)
 }
 
 /**
- * The headlight splash on the asphalt: two overlapping lobes rather than
- * one blob, because a car has two lamps and the pair reads as a wide hot
- * bar near the bumper that merges into a single pool further out. The
- * near edge is cut off sharply — light does not wrap back under the car.
- */
-function headlightPoolTexture(): THREE.CanvasTexture {
-  const S = 256;
-  const c = document.createElement("canvas");
-  c.width = c.height = S;
-  const ctx = c.getContext("2d")!;
-  // v runs 0 at the near (bumper) edge to 1 far up the road
-  const lobe = (cx: number, cy: number, rx: number, ry: number, a: number) => {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(rx, ry);
-    // Sampled, not three stops. At 0.42 of peak still 45% of the way
-    // out, each lobe was a plateau with a soft rim, and the pair read as
-    // a hard-edged wedge painted on the road rather than as light
-    // falling on it. This is broader than a point source — it is light
-    // landing on tarmac — but it still has to decay the whole way.
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    for (let i = 0; i <= 10; i++) {
-      const t = i / 10;
-      const f = (1 - t * t) ** 1.9;
-      g.addColorStop(t, `rgba(255,${Math.round(248 - 12 * t)},${Math.round(222 - 32 * t)},${(a * f).toFixed(4)})`);
-    }
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, 1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  };
-  ctx.globalCompositeOperation = "lighter";
-  // Two lamp lobes, splayed and reaching up the road
-  //
-  // Nearer the bumper than they were (0.66/0.56 of the way up rather
-  // than 0.56/0.44), on a shorter plane that starts a metre past it: the
-  // old pool began four metres out and the ik lock still showed it as a
-  // warm patch floating on its own ahead of the car.
-  lobe(S * 0.36, S * 0.66, S * 0.3, S * 0.42, 0.5);
-  lobe(S * 0.64, S * 0.66, S * 0.3, S * 0.42, 0.5);
-  // The shared hot spot where both beams overlap
-  lobe(S * 0.5, S * 0.56, S * 0.26, S * 0.3, 0.34);
-  // Fade the very near edge so the pool does not start under the nose
-  const cut = ctx.createLinearGradient(0, S, 0, S * 0.9);
-  cut.addColorStop(0, "rgba(0,0,0,1)");
-  cut.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.globalCompositeOperation = "destination-out";
-  ctx.fillStyle = cut;
-  ctx.fillRect(0, 0, S, S);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/**
  * Length-wise gradient for the visible beam cone. A cone painted a flat
  * colour reads as a solid wedge of plastic; real light in dusty air is
  * brightest at the lamp and dissolves as it spreads.
@@ -1259,10 +1213,21 @@ export class GameEngine {
    * it would go with it.
    */
   private lampRig!: THREE.Group;
-  /** The light on the asphalt. Stays flat on the road — it is where the
-   *  beam LANDS, not part of the car — but follows the aim. */
-  private poolPivot!: THREE.Group;
-  private pool!: THREE.Mesh;
+  /**
+   * The beam's shape, projected through both lamps (SpotLight.map — see
+   * lowbeam.ts). One texture shared by the pair; its bytes are the
+   * dipped and main-beam cookies blended by `beamBlend`, rewritten only
+   * when that moves. Both bakes are redone when the bulb changes.
+   */
+  private beamCookie!: THREE.DataTexture;
+  private cookieLow!: Uint8Array;
+  private cookieMain!: Uint8Array;
+  /** How much main beam is in the cookie now, 0..1 (-1 = not yet written). */
+  private beamBlend = -1;
+  /** Lamps the car actually has lit: 2, or 1 with one taken out. */
+  private lampCount = 2;
+  /** The lens's own loss: 1, or a smoked lens's share. */
+  private lampLens = 1;
   /** The two image-based lights, baked once (env.ts). */
   private envNight: THREE.Texture | null = null;
   private envDay: THREE.Texture | null = null;
@@ -1271,8 +1236,6 @@ export class GameEngine {
    *  dressReflections carries it onto the paint, which binds the bake
    *  explicitly and so no longer inherits it. */
   private envDip = 1;
-  /** The pool's opacity at this hour, before the view takes any off. */
-  private poolBaseOpacity = 0.4;
   /** Adaptive front lighting: how far the lamps have swivelled into the
    *  corner, in target-metres of lateral offset. Damped, so it leans
    *  rather than twitches. */
@@ -1299,8 +1262,11 @@ export class GameEngine {
   private lampRest: {
     spot: number; off: number; angle: number; reach: number;
     emissive: number; glow: number[];
-  } = { spot: 90, off: 54, angle: 0.32, reach: 95, emissive: 0, glow: [] };
-  // These are the HALOGEN values. applyBulb() rewrites them from BULBS
+  } = { spot: LOW_BEAM.candela, off: LOW_BEAM.candela, angle: 0.32, reach: 95, emissive: 0, glow: [] };
+  // `spot` and `off` are the two lamps (equal: a car's lamps are a
+  // pair). `angle` is no longer the lamps' cone — that is the cookie's
+  // fixed envelope — but the beam's body as the smoke's round cone sees
+  // it. These are the HALOGEN values. applyBulb() rewrites them from BULBS
   // whenever the garage changes, because every flash and every dip is
   // measured from here — a lamp that dips back to a beam the car no
   // longer has is the bug this field exists to prevent.
@@ -2400,35 +2366,74 @@ export class GameEngine {
     this.lampRig = new THREE.Group();
     this.playerMesh.add(this.lampRig);
 
-    // Narrower than it was (0.42 rad, a 48-degree spread) because that
-    // much cone spreads the same light over twice the road and gives a
-    // pool with no edge to it. A dipped beam is a wide, shallow, sharply
-    // cut thing; 0.32 with a soft penumbra is much closer.
-    // The bulb decides colour, brightness and throw. Halogen's numbers
-    // are the ones that were here as literals — bulbColor("halogen") is
-    // 0xfff2cc bit for bit and its multipliers are all 1 — so a car that
-    // has bought nothing lights the road exactly as it always did, and
-    // the night grade this picture was measured against is untouched.
+    // The dipped beam: two lamps, each a SpotLight whose cone is only an
+    // envelope (LOW_BEAM.envelope, +-38 deg) and whose shape is the
+    // cookie it projects — a flat cut-off at the aim, the kerb-side step,
+    // the hot zone just under the line and a foreground held down
+    // (lowbeam.ts). The bulb decides colour, brightness and throw;
+    // halogen's multipliers are all 1.
+    //
+    // The pair used to be 90 and 54 cd of round cone aimed 2.9 % down
+    // (the axis met the road at 23 m), and a painted additive pool two to
+    // six metres off the bumper did all of the visible work: a warm blob
+    // in front of the car that stopped short of the first lane arrow.
+    // The lamps themselves added 0-1 of 255 to the road beyond 8 m. Lamps
+    // on minus lamps off now, chase view at 02:30, Salmiya straight:
+    //
+    //   m ahead              8    10    15    20    25    30    40    50
+    //   2.5 m right (kerb)  4.6   7.1   8.0  13.6  16.7  11.4  10.8   5.2
+    //   centre               -     -   14.6  22.7  21.4   9.7   7.5   2.8
+    //   2.5 m left          1.6   3.5   3.8   9.0   9.9   8.0   3.9   1.2
+    //
+    // A tongue of lit lane from about 10 m to past 40, longest on the
+    // kerb side; nothing above the cut-off, so the car ahead is lit to
+    // its bumper, not in its mirrors; and the road right under the nose
+    // all but dark, as the bumper keeps it. 1500 cd each: at 2000 a
+    // camera standing in the beam's body (ik4k's traffic, before it was
+    // restaged) had the polished wheel paths throw it back into the lens
+    // and a sixth of the frame pinned. Seen from behind, the road needs
+    // its back-scatter to show any of it — LOW_BEAM.retro, which
+    // world.ts patches into the asphalt for these two lamps only.
+    // tests/lowbeam.mjs reads the beam on an ECE aiming screen and on
+    // the road.
     const bulb = BULBS[this.tune.bulb];
+    this.cookieLow = bakeCookie(this.tune.bulb, "low");
+    this.cookieMain = bakeCookie(this.tune.bulb, "main");
+    this.beamCookie = new THREE.DataTexture(
+      new Uint8Array(this.cookieLow),
+      LOW_BEAM.cookie.w,
+      LOW_BEAM.cookie.h,
+      THREE.RGBAFormat
+    );
+    // Linear data, sampled and multiplied straight into the light's
+    // colour; no mips (a cut-off seen at grazing angles is exactly what a
+    // mip chain would blur away).
+    this.beamCookie.colorSpace = THREE.NoColorSpace;
+    this.beamCookie.minFilter = THREE.LinearFilter;
+    this.beamCookie.magFilter = THREE.LinearFilter;
+    this.beamCookie.generateMipmaps = false;
+    this.beamCookie.needsUpdate = true;
+    this.beamBlend = 0;
     this.headlight = new THREE.SpotLight(
       bulbColor(this.tune.bulb),
-      90 * bulb.intensity,
+      LOW_BEAM.candela * bulb.intensity,
       95 * bulb.reach,
-      0.32 * bulb.angle,
-      0.55,
-      1.4
+      LOW_BEAM.envelope,
+      LOW_BEAM.penumbra,
+      LOW_BEAM.decay
     );
-    this.headlightBase = 90 * bulb.intensity;
-    // Aimed slightly DOWN — a real dipped beam meets the road, it does
-    // not shine at the horizon. Source height and this target height
-    // together set the cutoff distance; fitLampsToCar() puts the source
-    // at the car's own lamps.
-    this.headlight.target.position.set(0, -0.55, 42);
+    this.headlight.map = this.beamCookie;
+    this.headlightBase = LOW_BEAM.candela * bulb.intensity;
+    // Aimed at the cut-off: lowbeam.ts's 1.2 % down from the lamp. The
+    // source height and this together put the line on the road about
+    // 55 m out; fitLampsToCar() moves both onto the car's own lamps.
+    this.headlight.target.position.set(0, lampTargetY(0.66), LOW_BEAM.aimAt);
     // Your own headlights throw real moving shadows off traffic and rails
     this.headlight.castShadow = true;
     this.headlight.shadow.mapSize.set(1024, 1024);
-    this.headlight.shadow.camera.near = 2;
-    // (shadow far is governed by the light's distance, 90 m)
+    this.headlight.shadow.camera.near = 0.3; // see fitLampsToCar
+    // (shadow far is the light's distance, 95 m x the bulb's reach; its
+    // fov is the envelope's, which is also the cookie's frame)
     this.headlight.shadow.bias = -0.002;
     this.headlight.shadow.normalBias = 0.03;
 
@@ -2534,15 +2539,22 @@ export class GameEngine {
     this.cubeCam = new THREE.CubeCamera(0.5, PROBE_FAR, this.cubeRT);
     this.scene.add(this.cubeCam);
     this.applyLiveReflections();
+    // The other lamp of the pair: the same beam, the same cookie. It
+    // casts no shadow (one shadow map from the lamps is the budget), and
+    // three projects a map through a light without one all the same.
     this.headlightR = new THREE.SpotLight(
       bulbColor(this.tune.bulb),
-      54 * bulb.intensity,
+      LOW_BEAM.candela * bulb.intensity,
       95 * bulb.reach,
-      0.34 * bulb.angle,
-      0.6,
-      1.4
+      LOW_BEAM.envelope,
+      LOW_BEAM.penumbra,
+      LOW_BEAM.decay
     );
-    this.headlightR.target.position.set(0, -0.55, 42);
+    this.headlightR.map = this.beamCookie;
+    // The cookie's frustum starts here; nothing of the car is this close
+    // in front of a lamp's lens.
+    this.headlightR.shadow.camera.near = 0.3;
+    this.headlightR.target.position.set(0, lampTargetY(0.66), LOW_BEAM.aimAt);
     this.lampRig.add(
       this.headlight,
       this.headlight.target,
@@ -2550,15 +2562,20 @@ export class GameEngine {
       this.headlightR.target
     );
 
-    // Visible beam cones + a splash of light on the road ahead
+    // Visible beam cones: the lit air in front of each lamp. (The light
+    // on the road is the lamps' own now, shaped by the cookie — there is
+    // no painted pool any more.)
     {
       const beamGeo = new THREE.ConeGeometry(1.5, 13, 14, 1, true);
       beamGeo.rotateX(-Math.PI / 2); // apex toward the car, opening forward
+      // ...with the apex at the origin, so each cone hangs off its lamp
+      // and splays and dips about the lens rather than about its middle.
+      beamGeo.translate(0, 0, 6.5);
       const beamMat = new THREE.MeshBasicMaterial({
         map: beamGradientTexture(),
         color: 0xfff3cf,
         transparent: true,
-        opacity: 0.05, // barely-there haze; the road pool does the work
+        opacity: 0.05, // barely-there haze; the lamps light the road
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -2599,38 +2616,19 @@ export class GameEngine {
       this.beams = [];
       for (const sx of [-1, 1]) {
         const beam = new THREE.Mesh(beamGeo, beamMat);
-        beam.position.set(sx * 0.66, 0.66, 8.7);
+        beam.position.set(sx * 0.66, 0.66, 2.3);
         // Splay each beam outward a touch so the pair diverges down the
-        // road instead of running as two parallel tubes
-        beam.rotation.y = -sx * 0.035;
+        // road instead of running as two parallel tubes. +x is the car's
+        // left, so outward is +sx — it was -sx, which crossed them.
+        beam.rotation.y = sx * BEAM_SPLAY;
+        // Flattened into a wedge and dipped so its top edge runs along
+        // the cut-off: lit haze under a dipped beam has the beam's flat
+        // top, not a round tube's.
+        beam.scale.y = BEAM_FLAT;
+        beam.rotation.x = Math.atan(LOW_BEAM.aimDrop) + (1.5 / 13) * BEAM_FLAT;
         this.lampRig.add(beam);
         this.beams.push(beam);
       }
-      const pool = new THREE.Mesh(
-        new THREE.PlaneGeometry(7, 13),
-        new THREE.MeshBasicMaterial({
-          map: headlightPoolTexture(),
-          transparent: true,
-          opacity: 0.4,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          fog: false,
-        })
-      );
-      pool.rotation.x = -Math.PI / 2;
-      // Rotated flat, the plane's +v axis points back toward the car, so
-      // the texture's near-edge cut lands at the bumper end.
-      pool.rotation.z = Math.PI;
-      pool.position.set(0, 0.07, 8.5);
-      // On a pivot rather than straight onto the car. The pool is where
-      // the beam LANDS, so it has to swing with the aim — but it also
-      // has to stay flat on the asphalt, which it would not if it
-      // inherited the body's roll and pitch. The pivot takes the yaw and
-      // leaves the rest.
-      this.pool = pool;
-      this.poolPivot = new THREE.Group();
-      this.poolPivot.add(pool);
-      this.playerMesh.add(this.poolPivot);
     }
 
     this.fitLampsToCar();
@@ -2661,26 +2659,73 @@ export class GameEngine {
    */
   private fitLampsToCar(): void {
     const raw = (this.carBody?.userData.lampPositions as THREE.Vector3[]) ?? [];
+    // cars.ts records the lamps in the shell's own units, before the
+    // length fit scales the group onto its published metres. The lamp
+    // rig is a sibling of the body, not a child, so it does not inherit
+    // that fit: on a car fitted up 10 % the sources sat 10 % inboard,
+    // low and behind their own lenses. Scale them here.
+    const k = this.carBody?.scale ?? new THREE.Vector3(1, 1, 1);
+    const fit = (v: THREE.Vector3) => new THREE.Vector3(v.x * k.x, v.y * k.y, v.z * k.z);
     // Left-most and right-most, so a car with a light bar (which records
     // two) and one with pop-ups plus indicators (which records more)
     // both give the outer pair.
     const sorted = [...raw].sort((a, b) => a.x - b.x);
-    const left = sorted[0] ?? new THREE.Vector3(-0.66, 0.66, 1.9);
-    const right = sorted[sorted.length - 1] ?? new THREE.Vector3(0.66, 0.66, 1.9);
+    const left = fit(sorted[0] ?? new THREE.Vector3(-0.66, 0.66, 1.9));
+    const right = fit(sorted[sorted.length - 1] ?? new THREE.Vector3(0.66, 0.66, 1.9));
+    // A car with a lamp taken out records one (tests/lamps.mjs), and a
+    // single source must not be lit twice over: the second light goes
+    // dark and the car runs on half the light, which is the mod.
+    this.lampCount = right.x - left.x > 0.3 ? 2 : 1;
+    // A smoked lens dims whatever bulb is behind it (bulbs.ts): cars.ts
+    // takes the lens's glow most of the way down; the light through it
+    // loses a quarter.
+    this.lampLens = this.carBody?.userData.headlamps === "smoked" ? 0.75 : 1;
     // A hair proud of the lens so the source is not inside its own glass.
     const out = 0.06;
     this.headlight.position.set(left.x, left.y, left.z + out);
     this.headlightR.position.set(right.x, right.y, right.z + out);
-    this.headlight.target.position.set(left.x * 0.35, -0.55, 42);
-    this.headlightR.target.position.set(right.x * 0.35, -0.55, 42);
+    // Aimed parallel, straight down the car's axis, at the cut-off. The
+    // old aim toed each lamp in to 0.35 of its offset; a real pair is set
+    // parallel on the aiming screen and the cookie's own spread does the
+    // overlapping.
+    this.headlight.target.position.set(left.x + this.lampSwivel, lampTargetY(left.y), LOW_BEAM.aimAt);
+    this.headlightR.target.position.set(right.x + this.lampSwivel, lampTargetY(right.y), LOW_BEAM.aimAt);
     if (this.beams.length === 2) {
-      this.beams[0].position.set(left.x, left.y, left.z + 6.9);
-      this.beams[1].position.set(right.x, right.y, right.z + 6.9);
+      this.beams[0].position.set(left.x, left.y, left.z + 0.4);
+      this.beams[1].position.set(right.x, right.y, right.z + 0.4);
+      this.beams[0].rotation.y = Math.sign(left.x || -1) * BEAM_SPLAY;
+      this.beams[1].rotation.y = Math.sign(right.x || 1) * BEAM_SPLAY;
+      this.beams[1].visible = this.lampCount === 2;
     }
-    // The shadow camera's near plane has to clear the car's own nose or
-    // the bumper shadows the road immediately in front of it.
-    this.headlight.shadow.camera.near = 1.2;
+    // The shadow camera is also the cookie's frame, and three projects a
+    // spot's map only INSIDE it: anything nearer than the near plane gets
+    // the raw, unshaped light. At the old 1.2 m — set to clear the nose,
+    // so the bumper would not shadow the road in front of it — the road
+    // within a metre of the lens took all 2000 cd, and from a camera
+    // facing the car it was a white blaze on the tarmac. The cookie keeps
+    // that road all but dark anyway (LOW_BEAM.foreground, under 12 deg),
+    // so the bumper's shadow lands where there is no light to take away:
+    // 0.3 m, a lens's depth, for both lamps.
+    this.headlight.shadow.camera.near = 0.3;
     this.headlight.shadow.camera.updateProjectionMatrix?.();
+    this.headlightR.shadow.camera.near = 0.3;
+    this.headlightR.shadow.camera.updateProjectionMatrix?.();
+    this.applyLampOutput();
+  }
+
+  /**
+   * Both lamps at the dipped beam the clock and the bulb set, through
+   * the lens the car has fitted and with however many lamps it has.
+   * Everything that sets the lamps' rest — the hour, the bulb, the
+   * garage — comes through here, so a flash always comes home to it.
+   */
+  private applyLampOutput(): void {
+    const dark = 1 - this.daylight;
+    const each = this.headlightBase * this.lampLens * (0.25 + 0.75 * dark);
+    this.lampRest.spot = each;
+    this.lampRest.off = this.lampCount === 2 ? each : 0;
+    this.headlight.intensity = this.lampRest.spot;
+    this.headlightR.intensity = this.lampRest.off;
   }
 
   /** The night the paint reflects — see env.ts. Shared with the main
@@ -3702,14 +3747,8 @@ export class GameEngine {
     // ABOVE this, applied every frame from here — so the hour can change
     // mid-flash, two flashes can overlap, and the lamps still come home
     // to the light the clock says they should be showing.
-    this.lampRest.spot = this.headlightBase * (0.25 + 0.75 * dark);
-    this.lampRest.off = this.headlightBase * 0.6 * (0.25 + 0.75 * dark);
-    this.headlight.intensity = this.lampRest.spot;
-    this.headlightR.intensity = this.lampRest.off;
+    this.applyLampOutput();
     this.beamBaseOpacity = this.beamBaseOpacityNight * dark;
-    // And the pool is light that only shows in the dark: at noon a
-    // halogen adds nothing you could see to sunlit asphalt.
-    this.poolBaseOpacity = 0.4 * dark;
     // Each flare sprite at its own night level, which the car was built
     // with: the halo 0.9 as it always was, the star 0.55 rather than the
     // same 0.9, and a smoked lens's tint kept rather than overwritten
@@ -3835,7 +3874,9 @@ export class GameEngine {
     this.tierRatioBoost = ultra ? 1.5 : 1;
     this.tierRatioCap = ultra || tier === "high" ? 2 : balanced ? 1.5 : 1;
     // Sharper shadow cascades to match the extra pixels
-    const shadowSize = this.budget(ultra ? 4096 : 1024);
+    // The headlight's frustum is the beam's envelope, +-38 deg — twice
+    // the old cone's — so High pays 2048 to keep a texel the size it was.
+    const shadowSize = this.budget(ultra ? 4096 : high ? 2048 : 1024);
     if (this.headlight.shadow.mapSize.x !== shadowSize) {
       this.headlight.shadow.mapSize.setScalar(shadowSize);
       this.headlight.shadow.map?.dispose();
@@ -4930,21 +4971,45 @@ export class GameEngine {
     this.lampsStruck = performance.now() / 1000;
     const bulb = BULBS[this.tune.bulb];
     const color = bulbColor(this.tune.bulb);
-    this.headlightBase = 90 * bulb.intensity;
-    this.lampRest.spot = this.headlightBase;
-    this.lampRest.off = 54 * bulb.intensity;
+    this.headlightBase = LOW_BEAM.candela * bulb.intensity;
     this.lampRest.angle = 0.32 * bulb.angle;
     this.lampRest.reach = 95 * bulb.reach;
-    for (const [lamp, base, angle] of [
-      [this.headlight, 90, 0.32],
-      [this.headlightR, 54, 0.34],
-    ] as const) {
+    // The beam's shape is the bulb's too: a projector's sharper line, and
+    // a longer throw's narrower spread (lowbeam.ts reads BULBS).
+    this.cookieLow = bakeCookie(this.tune.bulb, "low");
+    this.cookieMain = bakeCookie(this.tune.bulb, "main");
+    this.beamBlend = -1;
+    this.writeBeamCookie(0);
+    for (const lamp of [this.headlight, this.headlightR]) {
       if (!lamp) continue;
       lamp.color.setHex(color);
-      lamp.intensity = base * bulb.intensity;
-      lamp.distance = 95 * bulb.reach;
-      lamp.angle = angle * bulb.angle;
+      lamp.distance = this.lampRest.reach;
     }
+    this.beamMat?.color.setHex(color);
+    this.applyLampOutput();
+  }
+
+  /**
+   * The cookie both lamps project, `k` of the way from dipped to main
+   * beam. Rewritten only when k has moved by a byte's worth, so a lamp
+   * left on either beam costs nothing; a flash or the stalk is half a
+   * megabyte a frame for the fifth of a second it takes.
+   */
+  private writeBeamCookie(k: number): void {
+    const q = Math.round(Math.min(1, Math.max(0, k)) * 255);
+    if (q === Math.round(this.beamBlend * 255)) return;
+    this.beamBlend = q / 255;
+    const d = this.beamCookie.image.data as Uint8Array;
+    const lo = this.cookieLow, hi = this.cookieMain;
+    if (q === 0) d.set(lo);
+    else if (q === 255) d.set(hi);
+    else {
+      for (let i = 0; i < d.length; i += 4) {
+        const v = lo[i] + Math.round(((hi[i] - lo[i]) * q) / 255);
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+    }
+    this.beamCookie.needsUpdate = true;
   }
 
   private applyGarage(): void {
@@ -5288,9 +5353,13 @@ export class GameEngine {
       this.headlight.color.setHex(c);
       this.headlightR.color.setHex(c);
     }
-    // Aimed up for main beam: toward the horizon, past the dipped cut-off.
-    this.headlight.target.position.y = -0.55 + hb.aim;
-    this.headlightR.target.position.y = -0.55 + hb.aim;
+    // Aimed up for main beam: toward the horizon, past the dipped cut-off
+    // — and the cookie opened from the dipped beam's to the main beam's,
+    // which takes the cut-off away. A flash is the main beam going on for
+    // a moment, so it opens the cookie as far as it is in.
+    this.headlight.target.position.y = lampTargetY(this.headlight.position.y, hb.aim);
+    this.headlightR.target.position.y = lampTargetY(this.headlightR.position.y, hb.aim);
+    this.writeBeamCookie(Math.max(this.highBeamK, boost));
     // The flare from behind, which is where the chase camera sees these
     // lamps from: the facing fade puts it at 0 there, so a flash lifts the
     // floor under the fade with its own boost and nothing else does —
@@ -5307,14 +5376,16 @@ export class GameEngine {
       rest.glow = glows.map((g) => g.opacity);
       this.headlight.intensity = rest.spot;
       this.headlightR.intensity = rest.off;
-      this.headlight.angle = rest.angle;
       this.headlight.distance = rest.reach;
+      this.headlightR.distance = rest.reach;
       return;
     }
+    // Both lamps: a main beam is the pair, not one of them.
+    const reach = rest.reach * hb.reach * (1 + FLASH_REACH_GAIN * boost);
     this.headlight.intensity = rest.spot * bright * (1 + FLASH_GAIN * boost);
     this.headlightR.intensity = rest.off * bright * (1 + FLASH_GAIN * boost);
-    this.headlight.angle = rest.angle * hb.angle * (1 + FLASH_ANGLE_GAIN * boost);
-    this.headlight.distance = rest.reach * hb.reach * (1 + FLASH_REACH_GAIN * boost);
+    this.headlight.distance = reach;
+    this.headlightR.distance = reach;
     // The lens itself: brighter on main beam, dim while a xenon strikes.
     const lensK = (1 + 0.5 * this.highBeamK) * (0.4 + 0.6 * warm.output);
     if (headMat) headMat.emissiveIntensity = rest.emissive * lensK * (1 + 1.6 * boost);
@@ -6399,20 +6470,9 @@ export class GameEngine {
     // lock, damped so it leans rather than twitches on every correction.
     const swivelTarget = this.steerSmooth * 5.5;
     this.lampSwivel += (swivelTarget - this.lampSwivel) * Math.min(1, dt * 4);
-    this.headlight.target.position.x = this.lampSwivel + this.headlight.position.x * 0.35;
-    this.headlightR.target.position.x = this.lampSwivel + this.headlightR.position.x * 0.35;
+    this.headlight.target.position.x = this.lampSwivel + this.headlight.position.x;
+    this.headlightR.target.position.x = this.lampSwivel + this.headlightR.position.x;
 
-    // The pool on the asphalt follows the aim but stays flat: it is
-    // where the light lands, not part of the car. Yaw from the body,
-    // reach from the pitch — brake hard and the lit patch pulls in
-    // toward the bumper, which is exactly what a diving nose does to it.
-    this.poolPivot.rotation.y = this.carBody.rotation.y;
-    this.pool.position.z = 8.5 - this.pitch * 62;
-    // Where the swivelled beam actually is at the pool's distance: the
-    // lamps aim lampSwivel across at 42 m, so at z it is z/42 of that.
-    // It was a flat 0.5 of it, which swung the pool 2.2x further than
-    // the light it is a picture of.
-    this.pool.position.x = this.lampSwivel * (this.pool.position.z / 42);
     // Lit-up rears visibly overspin the road speed — the launch tell.
     //
     // The wheels roll at the component of travel along the car's OWN
@@ -7336,18 +7396,6 @@ export class GameEngine {
     const behind = Math.max(0, align);
     const hide = behind * behind * (3 - 2 * behind); // smoothstep
     this.beamMat.opacity = this.beamBaseOpacity * (1 - hide);
-    // The pool is a decal, and from just in front of the car, looking
-    // back at it, a decal is all edge: there is no road ahead for it to
-    // light from where you stand. Fade it as the camera comes round in
-    // front and close.
-    const poolMat = this.pool?.material as THREE.MeshBasicMaterial | undefined;
-    if (poolMat) {
-      const near = 1 - THREE.MathUtils.smoothstep(
-        this.camera.position.distanceTo(this.playerMesh.position), 8, 12
-      );
-      const ahead = 1 - THREE.MathUtils.smoothstep(align, -0.6, -0.2);
-      poolMat.opacity = this.poolBaseOpacity * (1 - near * ahead);
-    }
   }
 
   /** Which shot is live. */
@@ -8576,7 +8624,10 @@ export class GameEngine {
     hl.target.getWorldPosition(this.smokeTmp2);
     L.uHeadDir.value.subVectors(this.smokeTmp2, this.smokeTmp).normalize();
     L.uHeadCol.value.copy(hl.color).multiplyScalar(((hl.intensity + hr.intensity) / Math.PI) * SMOKE_HEAD);
-    L.uHeadCos.value.set(Math.cos(hl.angle), Math.cos(hl.angle * (1 - hl.penumbra)));
+    // The beam's body as a round cone (the smoke shader has no cookie):
+    // the dipped beam's old 0.32 rad x the bulb, with its old penumbra.
+    const cone = this.lampRest.angle;
+    L.uHeadCos.value.set(Math.cos(cone), Math.cos(cone * 0.45));
 
     // --- Street lanterns (the nearest four, found by pickLamps)
     if (!this.smokeFx.points.visible && !this.dustFx.points.visible) return;

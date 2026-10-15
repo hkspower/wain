@@ -21,7 +21,11 @@
 //   swivel      steer and the aim leads into the corner
 //   at the lamp the source sits where that car's lamps are, not at an
 //               average guess a metre above them
-//   flat        and the pool stays on the asphalt through all of it
+//   aim         the dipped beam is aimed 1.0-1.5 % down, so its cut-off
+//               meets the road tens of metres out, not in front of the
+//               bumper (lowbeam.ts; tests/lowbeam.mjs reads the shape)
+//   parallel    and the pair point the same way, as a real pair is set
+//               on the aiming screen — not toed in at each other
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 
@@ -121,14 +125,9 @@ const probe = (state) =>
       e.carBody.getWorldQuaternion(new THREE.Quaternion())
     );
 
-    // The pool's world normal — it has to still be pointing at the sky.
-    // A PlaneGeometry lies in its own XY plane and faces local +Z, NOT
-    // +Y. Reading +Y here reported the flat-on-the-road pool as ninety
-    // degrees off flat, which is the instrument being wrong about a
-    // convention rather than the pool being wrong about anything.
-    const poolUp = new THREE.Vector3(0, 0, 1).applyQuaternion(
-      e.pool.getWorldQuaternion(new THREE.Quaternion())
-    );
+    // The other lamp's axis, for the pair's parallelism.
+    const srcR = wp(e.headlightR);
+    const dirR = wp(e.headlightR.target).sub(srcR).normalize();
 
     const flat = (v) => new THREE.Vector3(v.x, 0, v.z).normalize();
     const signedAngle = (a, b) => {
@@ -136,8 +135,11 @@ const probe = (state) =>
       return Math.atan2(fa.x * fb.z - fa.z * fb.x, fa.dot(fb));
     };
 
+    // Where the lamps are on the car as it stands: cars.ts records them
+    // in the shell's own units, and the length fit scales the shell.
+    const k = e.carBody.scale;
     const lamps = (e.carBody.userData.lampPositions ?? []).map((p) => ({
-      x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3),
+      x: +(p.x * k.x).toFixed(3), y: +(p.y * k.y).toFixed(3), z: +(p.z * k.z).toFixed(3),
     }));
 
     return {
@@ -149,8 +151,10 @@ const probe = (state) =>
       // move with the car; the second should not.
       vsRoad: +(signedAngle(dir, tan) * (180 / Math.PI)).toFixed(2),
       vsBody: +(signedAngle(dir, bodyFwd) * (180 / Math.PI)).toFixed(2),
-      poolTilt: +(Math.acos(Math.min(1, poolUp.y)) * (180 / Math.PI)).toFixed(2),
-      poolZ: +e.pool.position.z.toFixed(2),
+      // How far down the axis points, as a fraction (1.2 % = 0.012), and
+      // the angle between the two lamps' axes.
+      drop: +(-dir.y / Math.hypot(dir.x, dir.z)).toFixed(4),
+      apart: +((Math.acos(Math.min(1, dir.dot(dirR))) * 180) / Math.PI).toFixed(3),
       lamps,
       pitch: +e.pitch.toFixed(4),
     };
@@ -178,18 +182,16 @@ console.log(
 // --- 2. Dive -------------------------------------------------------
 const braking = await probe({ speed: 40, brake: 1, holdSpeed: false });
 const power = await probe({ speed: 8, throttle: 1, holdSpeed: false });
+// Read as the axis's drop rather than where it lands: a dipped beam
+// aimed 1.2 % down leaves the road altogether when the nose lifts under
+// power, which is exactly what a real one does and not a failure.
+const lands = (r) => (r.reach === null ? "past the horizon" : `${r.reach} m`);
 console.log(
   `dive      ${check(
-    braking.reach !== null && power.reach !== null && braking.reach < power.reach - 1.5,
-    `the beam reaches ${braking.reach} m under braking and ${power.reach} m under power — the nose does not dive`
-  )}  ${braking.reach} m braking vs ${power.reach} m on the throttle ` +
-    `(pitch ${braking.pitch} vs ${power.pitch})`
-);
-console.log(
-  `pool      ${check(
-    braking.poolZ < power.poolZ - 0.5,
-    `the lit patch sits at ${braking.poolZ} m braking and ${power.poolZ} m on power — it does not follow the aim`
-  )}  patch pulls in to ${braking.poolZ} m under braking, out to ${power.poolZ} m on power`
+    braking.drop > power.drop + 0.003,
+    `the beam drops ${(braking.drop * 100).toFixed(2)} % under braking and ${(power.drop * 100).toFixed(2)} % under power — the nose does not dive`
+  )}  ${(braking.drop * 100).toFixed(2)} % down braking (lands ${lands(braking)}) vs ` +
+    `${(power.drop * 100).toFixed(2)} % on the throttle (${lands(power)}), pitch ${braking.pitch} vs ${power.pitch}`
 );
 
 // --- 3. Swivel ------------------------------------------------------
@@ -232,19 +234,26 @@ console.log(
   )}  ${straight.srcY} m above the asphalt`
 );
 
-// --- 5. And the pool is still on the asphalt ------------------------
-// The pool follows the aim, which is the point. What it must NOT do is
-// inherit the body's roll and pitch — a lit patch tilted into the road
-// is a poster hanging off the bumper.
-const worstTilt = Math.max(
-  straight.poolTilt, sideways.poolTilt, braking.poolTilt, power.poolTilt,
-  left.poolTilt, right.poolTilt
+// --- 5. Aimed like a dipped beam -------------------------------------
+// The old rig aimed 2.9 % down — the axis met the road at 23 m — and a
+// painted pool did the rest two to six metres off the bumper.
+console.log(
+  `aim       ${check(
+    straight.drop >= 0.01 && straight.drop <= 0.015,
+    `the beam is aimed ${(straight.drop * 100).toFixed(2)} % down — a dipped beam is 1.0 to 1.5 %`
+  )}  ${(straight.drop * 100).toFixed(2)} % down`
 );
 console.log(
-  `flat      ${check(
-    worstTilt < 1,
-    `the lit patch tilts ${worstTilt} deg off the road — it has been parented to the car body`
-  )}  never more than ${worstTilt} deg off flat, through drift, dive and lock`
+  `          ${check(
+    straight.reach !== null && straight.reach > 35 && straight.reach < 70,
+    `the cut-off meets the road ${straight.reach} m out`
+  )}  the cut-off meets the road ${straight.reach} m out`
+);
+console.log(
+  `parallel  ${check(
+    straight.apart < 0.5,
+    `the two lamps are ${straight.apart} deg apart — toed in or splayed`
+  )}  the pair's axes ${straight.apart} deg apart`
 );
 
 await browser.close();
