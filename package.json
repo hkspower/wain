@@ -216,6 +216,7 @@
     "test:fulfilment-transitions": "node scripts/fulfilment-transition-test.mjs",
     "test:late-payment": "node scripts/late-payment-test.mjs",
     "test:checkout-phone-length": "node scripts/checkout-phone-length-test.mjs",
+    "test:load-storefront": "node scripts/load-storefront-test.mjs",
     "test:panel-light": "node scripts/panel-light-test.mjs",
     "test:security-layout": "node scripts/security-layout-test.mjs",
     "test:security-plus": "node scripts/security-plus-test.mjs",
