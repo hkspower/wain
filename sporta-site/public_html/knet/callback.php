@@ -54,8 +54,10 @@ if ($trandata === '') {
 // Nothing diagnostic is lost: the log below still records which of the two it
 // was, in full. The log is on the server, where the attacker is not.
 $fields = null;
+$plain  = null;
 try {
-    $fields = knet_parse_response(knet_decrypt($trandata, $cfg['resource_key']));
+    $plain  = knet_decrypt($trandata, $cfg['resource_key']);
+    $fields = knet_parse_response($plain);
 } catch (Throwable $e) {
     // Deliberately NOT answered here — it falls through to the shared exit
     // below, so that this branch and the noise branch are one response.
@@ -106,6 +108,13 @@ if ($fields === null || $result === '' || $trackid === '') {
     ]);
     knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
     exit;
+}
+
+// STORAGE (K-064 §3.5.2, 2026-10-15). The merchant MUST save both the encrypted and the plain-text
+// response. Only a usable one is stored (the gate above has passed); a failure to store is logged
+// and never refuses a payment that has been taken. See knet_store_response() in knet.php.
+if ($haveDb) {
+    knet_store_response($cfg, $trackid, $trandata, (string) $plain);
 }
 
 // ---------------------------------------------------------------------------

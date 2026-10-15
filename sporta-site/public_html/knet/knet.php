@@ -390,6 +390,18 @@ function knet_log(array $cfg, string $event, array $data = []): void
 // the whole card path when the shop moved to MySQL — every payment refused
 // with 400 Invalid amount, every captured payment unrecorded. One question,
 // one answer now, and scripts/knet-test.mjs holds it there.
+// Saves the encrypted and the plain-text response for one order (K-064 §3.5.2). A row per response, never
+// updated. NEVER THROWS: a missing table or an unreachable database is logged, and the payment carries on.
+function knet_store_response(array $cfg, string $trackid, string $encrypted, string $plain): void
+{
+    try {
+        knet_pdo($cfg)->prepare('insert into knet_responses (track_id, encrypted, plaintext) values (?, ?, ?)')
+            ->execute([$trackid, $encrypted, $plain]);
+    } catch (Throwable $e) {
+        knet_log($cfg, 'response.store_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+    }
+}
+
 function knet_db_configured(array $cfg): bool
 {
     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';

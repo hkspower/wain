@@ -218,6 +218,7 @@
     "test:checkout-phone-length": "node scripts/checkout-phone-length-test.mjs",
     "test:load-storefront": "node scripts/load-storefront-test.mjs",
     "test:ledger-reverse-race": "node scripts/ledger-reverse-race-test.mjs",
+    "test:knet-response-storage": "node scripts/knet-response-storage-test.mjs",
     "test:panel-light": "node scripts/panel-light-test.mjs",
     "test:security-layout": "node scripts/security-layout-test.mjs",
     "test:security-plus": "node scripts/security-plus-test.mjs",
