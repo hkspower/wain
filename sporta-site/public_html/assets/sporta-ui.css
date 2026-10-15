@@ -465,6 +465,9 @@ html[data-theme='light'] .admin-shell {
 html[data-theme='light'] .admin-shell .stc-good { color: #11703f !important; }
 html[data-theme='light'] .admin-shell .stc-ok { color: #8a5300 !important; }
 html[data-theme='light'] .admin-shell .stc-bad { color: #b3261e !important; }
+html[data-theme='light'] .admin-shell input::placeholder,
+html[data-theme='light'] .admin-shell textarea::placeholder { color: #64748b !important; opacity: 1; }
+html[data-theme='light'] .admin-shell .scc-box { background: #fff !important; border-color: #cbd5e1 !important; color: #0f172a !important; }
 html[data-theme='light'] .admin-shell .bkp-warn { color: #b03a0c !important; }
 html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='255, 107, 107'] { color: #b3261e !important; }
 html[data-theme='light'] .admin-shell [data-sporta-loginlog] td[style*='251, 191, 36'] { color: #8a5300 !important; }

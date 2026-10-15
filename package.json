@@ -289,7 +289,8 @@
     "test:oversize-fixes": "node scripts/oversize-fixes-test.mjs",
     "test:late-payment-callback": "node scripts/late-payment-callback-test.mjs",
     "test:knet-refresh": "node scripts/knet-refresh-test.mjs",
-    "test:payment-cards": "node scripts/payment-cards-test.mjs"
+    "test:payment-cards": "node scripts/payment-cards-test.mjs",
+    "test:input-text": "node scripts/input-text-test.mjs"
   },
   "private": true
 }
