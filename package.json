@@ -298,7 +298,8 @@
     "test:track-polling": "node scripts/track-polling-test.mjs",
     "test:recovery-email": "node scripts/recovery-email-test.mjs",
     "test:url-hygiene": "node scripts/url-hygiene-test.mjs",
-    "test:sitemap-validate": "node scripts/sitemap-validate-test.mjs"
+    "test:sitemap-validate": "node scripts/sitemap-validate-test.mjs",
+    "test:order-review": "node scripts/order-review-test.mjs"
   },
   "private": true
 }
