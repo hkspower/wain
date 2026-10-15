@@ -1,5 +1,13 @@
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+
+// Whether this export reads answers through صوت وين's bridge at all (the URL
+// is in the bundle only when NEXT_PUBLIC_WAIN_TTS_URL names one — off by
+// default since 15 October). The same reading map-layout.test.mjs makes.
+const chunkDir = new URL('../out/_next/static/chunks/', import.meta.url);
+const BRIDGED = readdirSync(chunkDir, { recursive: true })
+  .filter((f) => String(f).endsWith('.js'))
+  .some((f) => readFileSync(new URL(String(f), chunkDir), 'utf8').includes('api/tts.php'));
 
 /**
  * سالم, شوق, the hangout and the map as one thing — 3 October, on request
@@ -236,8 +244,15 @@ console.log('\n── 5. his replies, read aloud in his voice ──');
   await p.waitForTimeout(1200);
   const asked = tts.map((b) => { try { return JSON.parse(b).persona; } catch { return null; } });
   const spoken = await p.evaluate(() => window.__spoken.length);
-  ok('then a reply is read, through the bridge', tts.length > 0, `${tts.length} bridge, ${spoken} device`);
-  ok('in سالم\'s voice, whatever /search is set to', tts.length > 0 && asked.every((x) => x === 'salem'), asked.join(','));
+  if (BRIDGED) {
+    ok('then a reply is read, through the bridge', tts.length > 0, `${tts.length} bridge, ${spoken} device`);
+    ok('in سالم\'s voice, whatever /search is set to', tts.length > 0 && asked.every((x) => x === 'salem'), asked.join(','));
+  } else {
+    // The bridge is closed (15 October, lib/tts-bridge.ts): the reply is read
+    // by the device, and nothing knocks on the door that was taken away.
+    ok('then a reply is read, by the device\'s own voice', spoken > 0, `${tts.length} bridge, ${spoken} device`);
+    ok('and nothing is asked of the closed bridge', tts.length === 0, `${tts.length} requests`);
+  }
   ok('and the choice is remembered', (await p.evaluate(() => localStorage.getItem('wain-salem-read'))) === '1');
   await ctx.close();
 }

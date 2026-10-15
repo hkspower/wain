@@ -422,10 +422,10 @@ void main() {
     },
   );
 
-  test('resolveTtsUrl: absolute by default (a native app has no origin), none switches off', () {
-    // On in every build since 3 October: a sentence per request means the
-    // server cache pays for each fixed sentence once.
-    expect(resolveTtsUrl(''), 'https://www.wainkw.com/api/tts.php');
+  test('resolveTtsUrl: off by default (the bridge is closed), a URL turns it on', () {
+    // Closed on 15 October and its endpoint moved off the server: a build that
+    // names no bridge must not ask one that is gone.
+    expect(resolveTtsUrl(''), '');
     expect(resolveTtsUrl('none'), '');
     expect(resolveTtsUrl('https://s.example/tts'), 'https://s.example/tts');
   });

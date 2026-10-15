@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { IconCheck, IconGo, IconLocate } from "@/components/icons";
 import { WAIN_AI_ANY_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { TTS_BRIDGE_ON } from "@/lib/tts-bridge";
 import BackButton from "@/components/BackButton";
 
 export const metadata: Metadata = {
@@ -255,8 +256,9 @@ export default function PrivacyPage() {
             <strong className="text-ink-900">المكالمة ما تنسجّل ولا تنحفظ.</strong>{" "}
             سؤالك الصوتي يتحوّل لنص عن طريق{" "}
             <strong className="text-ink-900">التعرف على الصوت في جوالك أو متصفحك</strong>،
-            والبحث نفسه يصير داخل جهازك بين أماكن وين، والجواب ينقرا بصوت شوق
-            أو سالم (شوف «صوت وين» تحت) — وكلامك أنت ما ينرسل للنطق. تحويل
+            والبحث نفسه يصير داخل جهازك بين أماكن وين، والجواب ينقرا{" "}
+            {TTS_BRIDGE_ON ? "بصوت شوق أو سالم" : "بصوت جهازك"} (شوف «صوت وين»
+            تحت) — وكلامك أنت ما ينرسل للنطق. تحويل
             الصوت لنص يمرّ على خدمة الشركة المطوّرة للمتصفح أو الجوال (قوقل في
             كروم وأندرويد، آبل في سفاري والآيفون) حسب سياساتهم — وما نرسل إحنا
             شي عنك لأي مكان.
@@ -283,7 +285,7 @@ export default function PrivacyPage() {
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           <p>
-            إذا شغّلت «اقرا لي الجواب» واخترت صوت شوق أو سالم، اختيارك ينحفظ{" "}
+            إذا شغّلت «اقرا لي الجواب»{TTS_BRIDGE_ON ? " واخترت صوت شوق أو سالم" : ""}، اختيارك ينحفظ{" "}
             <strong className="text-ink-900">داخل متصفحك بس</strong> (Local
             Storage) عشان يبقى محفوظ لك على نفس المتصفح — ما ينرسل لأي خادم ولا
             يُستخدم للتتبّع.
@@ -295,6 +297,12 @@ export default function PrivacyPage() {
               receives is the fixed sentences about places. The visitor's own
               question is the one thing it never receives (voice.ts skips the
               echo), and that is the sentence worth stating. */}
+          {/* Two builds, two truths (lib/tts-bridge.ts). The bridge was closed
+              on 15 October and the live builds had it off from 7 October, while
+              this page went on saying every sentence went to our server and the
+              voice provider. */}
+          {TTS_BRIDGE_ON ? (
+            <>
           <p>
             الجواب اللي ينقرا جُمل ثابتة عن الأماكن — اسم المكان ووينه، وأحلى
             وقت له، وتنبيه الحر — وكل جملة منها تنرسل{" "}
@@ -311,6 +319,14 @@ export default function PrivacyPage() {
             وإذا النطق مو مشغّل على الخادم أو تعطّل، ينقرا الجواب بصوت جهازك
             العربي الداخلي وما يطلع شي.
           </p>
+            </>
+          ) : (
+          <p>
+            الجواب، وردود سالم في «اقرا لي الردود»، ينقرون{" "}
+            <strong className="text-ink-900">بصوت جهازك العربي الداخلي</strong>{" "}
+            — داخل جهازك، وما ينرسل منهم شي لأي خادم ولا لمزوّد خدمة صوت.
+          </p>
+          )}
         </div>
       </section>
 

@@ -24,18 +24,14 @@ const String kWainOrigin = 'https://www.wainkw.com';
 const String _ttsConfigured = String.fromEnvironment('WAIN_TTS_URL');
 const Duration kTtsDeadline = Duration(seconds: 4);
 
-/// Absolute, because a native app has no origin to be relative to — the web's
-/// `/api/tts.php` would resolve against nothing. `none` switches the bridge off.
-///
-/// On in every build since 3 October, as on the web (voice.ts): each sentence
-/// is its own request, so the fixed ones are paid for once and served from the
-/// server's cache after that. From 2 October to then it followed شوق's switch
-/// and a free build never asked it.
+/// Off unless a build names it: the owner closed the bridge on 15 October and
+/// `/api/tts.php` was moved off the server, as on the web (voice.ts), so every
+/// answer is read by the phone's own voice. A URL turns it back on — absolute,
+/// because a native app has no origin to be relative to — once the endpoint
+/// is reinstalled. `none` stays off.
 String resolveTtsUrl([String configured = _ttsConfigured]) {
-  final c = configured.trim().isEmpty
-      ? '$kWainOrigin/api/tts.php'
-      : configured.trim();
-  return c.toLowerCase() == 'none' ? '' : c;
+  final c = configured.trim();
+  return c.isEmpty || c.toLowerCase() == 'none' ? '' : c;
 }
 
 class Clip {

@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { deadlineFetch } from "@/lib/net";
 import { audioContext } from "@/lib/audio-context";
+import { TTS_URL } from "@/lib/tts-bridge";
 import {
   PERSONAS,
   forSpeech,
@@ -46,28 +47,22 @@ export { PERSONAS, type PersonaId };
  * on staging as in production — so there is nothing left for a variable to
  * carry. A feature that ships switched off by default ships switched off.
  *
- * The variable still overrides, and `||` rather than `??` for the reason
- * written up in wain-ai.ts: an unset GitHub Actions variable expands to `""`,
- * which `??` passes through as the value. Write «none» to turn the bridge off.
+ * That was the case for a default of `/api/tts.php` (3–15 October). The bridge
+ * is closed now and the default is «none»; the reasoning stands for the day it
+ * is reopened. `||` rather than `??` for the reason written up in wain-ai.ts:
+ * an unset GitHub Actions variable expands to `""`, which `??` passes through
+ * as the value.
  *
  * Unreachable or unconfigured, the browser voice speaks — once, for the whole
  * page, because `bridgeOff` below stops it asking again. This is an upgrade to
  * a path that already worked, never a dependency.
  */
-// On in every build since 3 October, the free one included. From 2 October it
-// followed شوق's switch (wain-ai.ts) and a free build never asked it for
-// anything, because every answer was ONE render of a sentence that echoed the
-// visitor's own words — a new paid render per listen. Now each sentence is its
-// own request (see speakLive), and almost all of them are fixed text the server
-// cache pays for once and serves free for ever: the owner's «full voices, not
-// ElevenLabs credits all the time». Unconfigured on the server (no key), it
-// answers 503 once and the device voice speaks, exactly as before.
-const TTS_CONFIGURED = process.env.NEXT_PUBLIC_WAIN_TTS_URL || "/api/tts.php";
-const TTS_URL = TTS_CONFIGURED.trim().toLowerCase() === "none" ? "" : TTS_CONFIGURED;
+// Off by default since 15 October, when the owner closed the bridge — see
+// lib/tts-bridge.ts, which holds the switch so the privacy page can read it.
 
 /**
  * Whether a «اسمعها» button may say whose voice it is. With the bridge off
- * (`NEXT_PUBLIC_WAIN_TTS_URL=none`, the live build since 7 October) every
+ * (the default since 15 October, and the live build since 7 October) every
  * answer is read by the phone's own voice — on an iPhone that may be a man's —
  * so «بصوت شوق» would name a voice nobody hears.
  */
