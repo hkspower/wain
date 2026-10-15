@@ -65,7 +65,12 @@
   var COPY = {
     ar: {
       title: 'مميزات سبورتا',
-      returns: function (n) { return 'استبدال مجاني خلال ' + (n ? String(n).replace(/[0-9]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[+d] }) : '—') + ' يومًا' },
+      returns: function (n) {
+        // Arabic counts agree with the number (rules-live.js arDays): يوم واحد, يومين, ٣-١٠ أيام, ١١+ يومًا.
+        if (!n) return 'استبدال مجاني خلال — يومًا'
+        var d = String(n).replace(/[0-9]/g, function (x) { return '٠١٢٣٤٥٦٧٨٩'[+x] })
+        return 'استبدال مجاني خلال ' + (n === 1 ? 'يوم واحد' : n === 2 ? 'يومين' : n <= 10 ? d + ' أيام' : d + ' يومًا')
+      },
       // FIXED "1 KWD", chosen by the owner 2026-10-02 over following the delivery fee in
       // /backends. The space before د.ك is U+00A0 on purpose: rules-live.js rewrites the
       // ordinary-space form to the fee rule, and this line must not follow it.
@@ -73,7 +78,7 @@
     },
     en: {
       title: 'Sporta features',
-      returns: function (n) { return 'Free exchange within ' + (n || '—') + ' days' },
+      returns: function (n) { return 'Free exchange within ' + (n || '—') + (n === 1 ? ' day' : ' days') },
       delivery: 'Delivery 1\u00a0KWD to all Kuwait',
     },
   }

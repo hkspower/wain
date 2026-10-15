@@ -81,6 +81,9 @@
       out.push([/\b14 days\b/g, n === 1 ? '1 day' : n + ' days'])
       out.push([/\b14 day\b/g, n + ' day'])
       out.push([/١٤\s*(?:يومًا|يوماً|يوم)/g, arDays(n)])
+      // About spells the window out ("Fourteen days to change your mind", 2026-10-15).
+      out.push([/\b[Ff]ourteen days\b/g, n === 1 ? '1 day' : n + ' days'])
+      out.push([/أربعة عشر (?:يومًا|يوماً)/g, arDays(n)])
     }
     var f = rules.delivery_fee_fils
     if (typeof f === 'number' && f >= 0 && f !== DEFAULT_FEE) {
@@ -114,7 +117,7 @@
       acceptNode: function (t) {
         var p = t.parentNode
         if (!p || SKIP[p.nodeName] || p.isContentEditable) return NodeFilter.FILTER_REJECT
-        return /14|١٤|1 KWD|١ د|60%|٦٠/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
+        return /14|١٤|[Ff]ourteen|أربعة عشر|1 KWD|١ د|60%|٦٠/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
       },
     })
     var t

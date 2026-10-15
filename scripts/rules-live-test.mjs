@@ -100,6 +100,16 @@ try {
 
     const home = await pageText('/?lang=en')
     check(!/14-day|14 days/.test(home), 'English home page: no "14" returns copy left')
+    const homeAr = await pageText('/')
+    check(/خلال ٣ أيام/.test(homeAr) && !/٣ يومًا/.test(homeAr), 'Arabic home features: "خلال ٣ أيام", not "٣ يومًا"',
+      homeAr.match(/.{0,15}(يوم|أيام).{0,5}/g)?.join(' | '))
+    // About spells the window out in words (2026-10-15): "Fourteen days" / "أربعة عشر يومًا".
+    const about = await pageText('/about?lang=en')
+    check(!/[Ff]ourteen days|14 days/.test(about) && /3 days to change/.test(about), 'English About: the spelled-out window follows the rule',
+      about.match(/.{0,20}days.{0,20}/g)?.join(' | '))
+    const aboutAr = await pageText('/about')
+    check(!/أربعة عشر|١٤\s*يوم/.test(aboutAr) && /٣ أيام لتغيير/.test(aboutAr), 'Arabic About: "٣ أيام لتغيير رأيك"',
+      aboutAr.match(/.{0,15}(يوم|أيام).{0,15}/g)?.join(' | '))
 
     const { p, ctx } = await checkoutPage('?lang=en')
     const opts = await offered(p)
