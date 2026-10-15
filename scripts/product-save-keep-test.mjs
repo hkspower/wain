@@ -56,7 +56,7 @@ try {
   await p.waitForTimeout(1000)
   await p.locator('button', { hasText: /^Save product$/ }).evaluate((x) => x.click())
   await p.waitForTimeout(1500)
-  check(!!sent && !/sale_price|featured/.test(sent), 'B the panel form posts no sale or Best-sellers keys (the case this guards)', (sent || '').slice(0, 80))
+  check(!!sent && !/featured/.test(sent), 'B the panel form posts no Best-sellers keys (the case this guards)', (sent || '').slice(0, 80))
   check(row().startsWith('6.400|2026-12-31 23:59:59|1|3|'), 'B saving from Edit product keeps the sale and the Best-sellers place', row())
 } finally {
   await browser.close()

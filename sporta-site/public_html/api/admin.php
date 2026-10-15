@@ -1542,6 +1542,9 @@ if ($r === 'product_save' && $method === 'POST') {
             if (!array_key_exists($k, $b)) $b[$k] = $keep[$k];
         }
     }
+    // ONE SPELLING PER CATEGORY. The returns rule tests category === 'women', so "Women " or
+    // "WOMEN" typed anywhere would quietly lose the no-exchange rule (category-women-bypass).
+    if (isset($b['category']) && is_string($b['category'])) $b['category'] = strtolower(trim($b['category']));
 
     // WHICH BRAND MADE IT. Checked against the brands table rather than stored
     // as typed: a slug with a typo would silently show no brand on the product
