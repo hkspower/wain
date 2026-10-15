@@ -127,6 +127,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
   console.log("\n════ إلى وين: the dial, and the choice it leads to now ════");
   failed += (await run("node", ["tests/find.test.mjs"], { env })) === 0 ? 0 : 1;
 
+  console.log("\n════ اللمس: a finger's press, and the transitions a phone keeps ════");
+  failed += (await run("node", ["tests/press.test.mjs"], { env })) === 0 ? 0 : 1;
+
   console.log("\n════ معالم الكويت: the slideshow under the hero ════");
   failed += (await run("node", ["tests/landmarks.test.mjs"], { env })) === 0 ? 0 : 1;
 

@@ -259,13 +259,21 @@ html[data-standalone="true"] body {
 }
 
 /* Immediate, felt response to a tap — native controls acknowledge touch
-   before anything navigates. Pointer-coarse only, so a mouse keeps hover. */
-@media (pointer: coarse) {
-  :where(a, button, [role="button"]):active {
-    transform: scale(0.975);
-  }
-  :where(a, button, [role="button"]) {
-    transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+   before anything navigates. Pointer-coarse only, so a mouse keeps hover.
+
+   In @layer base, and pressed with the `scale` property rather than transform.
+   Unlayered, this rule beat the `transition` utility on every control on a
+   phone (colour and shadow stopped easing), and its transform press stacked on
+   active:scale-95, which compiles to `scale`. Now any utility wins over it, and
+   the press is the utility's own where it has one. */
+@layer base {
+  @media (pointer: coarse) {
+    :where(a, button, [role="button"]):active {
+      scale: 0.975;
+    }
+    :where(a, button, [role="button"]) {
+      transition: scale 120ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
   }
 }
 

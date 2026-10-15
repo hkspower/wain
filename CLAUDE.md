@@ -6258,3 +6258,28 @@ widget's own «Powered by ElevenAgents» line is not copyright, and `disable_ban
 
 Verified in a scratch worktree at HEAD with the change applied: an agent-mode `npm run build` (BUILD OK), the served
 widget has no copyright text, and `tests/shouq-widget-csp.test.mjs` passes 42 of 42 (no CSP violation, audio leaves the page).
+
+## The touch press is in @layer base — 15 October (committed; not deployed)
+
+Asked: «1» (apply the cascade fix from the outdated-files review). On a phone (`pointer: coarse`), the unlayered
+rule in `globals.css` set `transition: transform 120ms` and `transform: scale(0.975)` on every link and button.
+Unlayered beats Tailwind's `@layer utilities` whatever the specificity, so the `transition` utility lost on touch:
+colour, background and shadow stopped easing, and the press stacked a second squeeze on `active:scale-95`, which
+compiles to the individual `scale` property. Measured on HEAD in a touch emulation: the call button's transition
+list was `transform` only, and its held press was 0.926 (0.975 × 0.95) against 0.95 on a mouse.
+
+Now the default sits in `@layer base`: `scale: 0.975` on press and `transition: scale 120ms` for the fallback, so a
+utility on the element always wins. The transform press is gone. The press audit (`consumers`, 156 listed) found:
+
+- 139 base-press controls keep their 0.975 press. Their colour and shadow transitions come back on touch.
+- 15 utility-press controls keep their utility's press. The double squeeze goes, and the press now eases.
+- **2 hover-scale controls lose their touch press**: `MapPin` (the active pin is `scale-110`, unconditional) and
+  `ClusterPin` (`hover:scale-110`). A sticky hover after a tap keeps their own scale, so they show no press on touch.
+  This is a side effect the owner has not yet decided on; the pins keep their hover scale.
+- `animate-reveal-up` masks the old transform press on `.animate-reveal-up` links. The scale press shows through
+  it now, though those links also carry a utility press, so nothing changes there.
+
+Verified with `tests/press.test.mjs` (in `test:hangout`), red on HEAD in a scratch worktree: the call button's
+transition list lacked colour (2 assertions) and its held press was 0.926 (1). Green on the fix: 8 of 8, with the
+guards (a plain control presses to 0.975, the typing link to 0.95, a mouse keeps its transitions). `scan` exit 0.
+Not measured: a real phone's press.
