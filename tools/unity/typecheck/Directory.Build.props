@@ -1,0 +1,15 @@
+<Project>
+  <!-- Shared by typecheck.csproj, stubs/stubs.csproj and graft/graft.csproj. -->
+  <PropertyGroup>
+    <!-- Every project here builds under typecheck/obj/<project>/, so the
+         repo's ignore rule for /tools/unity/*/obj/ covers the nested ones
+         too and nothing lands next to the sources. -->
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)obj/$(MSBuildProjectName)/bin/</BaseOutputPath>
+
+    <!-- What Unity 6000.0.32f1 defines for every script, version-wise
+         (UNITY_<ver>_OR_NEWER back to 5.3, then the exact version). The
+         project's own #if UNITY_2022_1_OR_NEWER branches need these. -->
+    <UnityVersionDefines>UNITY_5_3_OR_NEWER;UNITY_5_4_OR_NEWER;UNITY_5_5_OR_NEWER;UNITY_5_6_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2017_2_OR_NEWER;UNITY_2017_3_OR_NEWER;UNITY_2017_4_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2018_2_OR_NEWER;UNITY_2018_3_OR_NEWER;UNITY_2018_4_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2019_2_OR_NEWER;UNITY_2019_3_OR_NEWER;UNITY_2019_4_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2020_2_OR_NEWER;UNITY_2020_3_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_2022_2_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_2023_2_OR_NEWER;UNITY_2023_3_OR_NEWER;UNITY_6000_0_OR_NEWER;UNITY_6000;UNITY_6000_0;UNITY_6000_0_32</UnityVersionDefines>
+  </PropertyGroup>
+</Project>

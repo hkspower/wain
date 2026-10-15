@@ -206,3 +206,9 @@ press/unity/unity.log
 press/unreal/**/*.png
 press/unreal/**/*.exr
 press/unreal/**/logs/
+
+# dotnet's build output for the Unity port's out-of-Unity checks
+# (tools/unity/carcheck: npm run test:unity-cars; tools/unity/typecheck:
+# npm run check:unity-compile). Rebuilt on every run, and machine-specific.
+/tools/unity/*/bin/
+/tools/unity/*/obj/

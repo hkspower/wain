@@ -47,6 +47,13 @@ public static class GRNData
         public Color Body, Accent;
         public float TopSpeedKmh;
         public BodyStyle Style;
+        /// <summary>The showroom car they bring: an Id in Cars, and the
+        /// name of the GLB the car library loads for them. Empty for a
+        /// rival with no listed car. Style is not a stand-in for it: the
+        /// Sahara V12 and the Zeta 300 are both ZX and 310 mm apart in
+        /// length, and a rival's Style need not be its car's (Al-Daboos
+        /// is drawn ZX and brings the Gulf Coupe RS, a hatch).</summary>
+        public string CarId;
         public int PrizeKd;
         public string IntroAr, WinAr, LoseAr;
     }
@@ -57,7 +64,7 @@ public static class GRNData
             Id = "abu-shanab", Name = "Abu Shanab", ArabicName = "أبو شنب",
             Crew = "Salmiya Street Kings", Area = "Salmiya",
             Body = Hex(0xC8CDD6), Accent = Hex(0x16A34A),
-            TopSpeedKmh = 232f, Style = BodyStyle.Sedan, PrizeKd = 400,
+            TopSpeedKmh = 232f, Style = BodyStyle.Sedan, CarId = "hawally-2t", PrizeKd = 400,
             IntroAr = "هلا والله! يلا ورّني شنو عندك يا بطل",
             WinAr = "هاهاها! روح تعلّم السواقة وبعدين تعال",
             LoseAr = "ما شاء الله عليك... خذت الليلة مني",
@@ -66,7 +73,7 @@ public static class GRNData
             Id = "bint-aldeera", Name = "Bint Al-Deera", ArabicName = "بنت الديرة",
             Crew = "Gulf Road Gazelles", Area = "Sharq",
             Body = Hex(0xB84DD6), Accent = Hex(0xFFFFFF),
-            TopSpeedKmh = 246f, Style = BodyStyle.Sedan, PrizeKd = 700,
+            TopSpeedKmh = 246f, Style = BodyStyle.Sedan, CarId = "salmiya-turbo", PrizeKd = 700,
             IntroAr = "تبي تسابقني؟ يلا نشوف شطارتك",
             WinAr = "قلت لك، شارع الخليج لي أنا",
             LoseAr = "زين لعبت... بس هالمرة وبس",
@@ -75,7 +82,7 @@ public static class GRNData
             Id = "al-daboos", Name = "Al-Daboos", ArabicName = "الدبوس",
             Crew = "Hawally Night Hawks", Area = "Hawally",
             Body = Hex(0xF5C211), Accent = Hex(0x111111),
-            TopSpeedKmh = 261f, Style = BodyStyle.ZX, PrizeKd = 1000,
+            TopSpeedKmh = 261f, Style = BodyStyle.ZX, CarId = "gulf-coupe-rs", PrizeKd = 1000,
             IntroAr = "أنا الدبوس! محد يعدّيني في حولي",
             WinAr = "ولا يهمك، تدرّب زين وتعال مرة ثانية",
             LoseAr = "عيل صدق إنك سريع... احترمتك",
@@ -84,7 +91,7 @@ public static class GRNData
             Id = "bu-machboos", Name = "Bu Machboos", ArabicName = "بو مجبوس",
             Crew = "Fahaheel Phantoms", Area = "Fahaheel",
             Body = Hex(0xE8641B), Accent = Hex(0xFFFFFF),
-            TopSpeedKmh = 277f, Style = BodyStyle.GTR, PrizeKd = 1300,
+            TopSpeedKmh = 277f, Style = BodyStyle.GTR, CarId = "storm-s8", PrizeKd = 1300,
             IntroAr = "اللي يخسر يعزم على المجبوس... اتفقنا؟",
             WinAr = "يلا! المجبوس عليك الليلة، هاهاها",
             LoseAr = "خذ فوزك... بس مجبوسي أطيب، صدقني",
@@ -93,7 +100,7 @@ public static class GRNData
             Id = "al-saqer", Name = "Al-Saqer", ArabicName = "الصقر",
             Crew = "Jahra Junoon", Area = "Jahra",
             Body = Hex(0xC1121F), Accent = Hex(0x111111),
-            TopSpeedKmh = 293f, Style = BodyStyle.ZX, PrizeKd = 1600,
+            TopSpeedKmh = 293f, Style = BodyStyle.ZX, CarId = "falcon-720", PrizeKd = 1600,
             IntroAr = "الصقر يصيد في الليل... انتبه لنفسك",
             WinAr = "الصقر ما يطيح مرتين",
             LoseAr = "صدت الصقر... لك كل الاحترام",
@@ -102,7 +109,7 @@ public static class GRNData
             Id = "bu-torab", Name = "Bu Torab", ArabicName = "بو تراب",
             Crew = "Doha Dust Devils", Area = "Doha",
             Body = Hex(0x565F6B), Accent = Hex(0xD97706),
-            TopSpeedKmh = 301f, Style = BodyStyle.ZX, PrizeKd = 1900,
+            TopSpeedKmh = 301f, Style = BodyStyle.ZX, CarId = "zeta-300", PrizeKd = 1900,
             IntroAr = "الغبار اللي وراك؟ هذا أنا... بو تراب",
             WinAr = "قلت لك، التراب ما يخون أهله",
             LoseAr = "فحّطت عليّ صج... خذها بشرف",
@@ -111,7 +118,7 @@ public static class GRNData
             Id = "al-sayyaf", Name = "Al-Sayyaf", ArabicName = "السياف",
             Crew = "Bayan Blade Runners", Area = "Bayan",
             Body = Hex(0x0F766E), Accent = Hex(0xE2E8F0),
-            TopSpeedKmh = 307f, Style = BodyStyle.GTR, PrizeKd = 2200,
+            TopSpeedKmh = 307f, Style = BodyStyle.GTR, CarId = "kaiju-r", PrizeKd = 2200,
             IntroAr = "السيف قطع قبلك خمسة... إنت السادس",
             WinAr = "قطعة نظيفة... مثل ما وعدتك",
             LoseAr = "نصلك أحدّ من نصلي... السيف لك",
@@ -120,7 +127,7 @@ public static class GRNData
             Id = "shabah-alkhaleej", Name = "Shabah Al-Khaleej", ArabicName = "شبح الخليج",
             Crew = "???", Area = "Gulf Road",
             Body = Hex(0x0A0A0C), Accent = Hex(0x38E8FF),
-            TopSpeedKmh = 318f, Style = BodyStyle.GTR, PrizeKd = 2500,
+            TopSpeedKmh = 318f, Style = BodyStyle.GTR, CarId = "sahara-v12", PrizeKd = 2500,
             IntroAr = "وصلت للنهاية... بس الشبح ما ينغلب",
             WinAr = "ارجع لما تكون جاهز",
             LoseAr = "الشارع لك... يا ملك الخليج",
@@ -240,6 +247,9 @@ public static class GRNData
         /// arch that is not drawn over it — see createCar in
         /// src/game/cars.ts and spinWheels in src/game/engine.ts.</summary>
         public bool Trike;
+        /// <summary>Which wheels the engine drives: front and rear do
+        /// opposite things under power. See src/game/grip.ts.</summary>
+        public Drivetrain Drive;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
         /// <summary>Tank, litres.</summary>
@@ -271,7 +281,7 @@ public static class GRNData
             Engine = 4, TankLitres = 82f, LengthM = 4.66f,
             ZeroTo100s = 2.6f,
             LockedRivals = 8, LockedCar = "zeta-300-gtr",
-            FactoryBuild = new[] { "twin-turbo", "intake", "ecu", "exhaust-ti", "brakes-carbon", "tires-slick", "lsd", "coilovers", "cage", "rack", "weight", "nos" },
+            FactoryBuild = new string[] { "twin-turbo", "intake", "ecu", "exhaust-ti", "brakes-carbon", "tires-slick", "lsd", "coilovers", "cage", "rack", "weight", "nos", },
         },
         new Car {
             Id = "zeta-300-gtr", Name = "Zeta 300 GTR", Price = 240000,
@@ -280,7 +290,7 @@ public static class GRNData
             Engine = 3, TankLitres = 70f, LengthM = 4.53f,
             ZeroTo100s = 2.4f,
             LockedRivals = 8, LockedCar = "",
-            FactoryBuild = new[] { "twin-turbo", "intake", "ecu", "exhaust-ti", "brakes-carbon", "tires-slick", "lsd", "coilovers", "cage", "rack", "weight", "nos" },
+            FactoryBuild = new string[] { "twin-turbo", "intake", "ecu", "exhaust-ti", "brakes-carbon", "tires-slick", "lsd", "coilovers", "cage", "rack", "weight", "nos", },
         },
         new Car {
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
@@ -289,7 +299,7 @@ public static class GRNData
             Engine = 3, TankLitres = 55f, LengthM = 4.42f,
             ZeroTo100s = 3f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "sahara-v12", Name = "Sahara V12", Price = 96000,
@@ -298,7 +308,7 @@ public static class GRNData
             Engine = 4, TankLitres = 90f, LengthM = 4.62f,
             ZeroTo100s = 3.2f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "falcon-720", Name = "Falcon 720", Price = 71000,
@@ -307,7 +317,7 @@ public static class GRNData
             Engine = 4, TankLitres = 72f, LengthM = 4.54f,
             ZeroTo100s = 3.4f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "storm-s8", Name = "Storm S8", Price = 54000,
@@ -316,7 +326,7 @@ public static class GRNData
             Engine = 3, TankLitres = 68f, LengthM = 4.8f,
             ZeroTo100s = 3.8f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "anniversary-30", Name = "Bareed 30 Anniversary", Price = 35000,
@@ -325,7 +335,7 @@ public static class GRNData
             Engine = 4, TankLitres = 61f, LengthM = 4.92f,
             ZeroTo100s = 4.8f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
@@ -334,7 +344,7 @@ public static class GRNData
             Engine = 3, TankLitres = 74f, LengthM = 4.6f,
             ZeroTo100s = 4.4f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
@@ -343,7 +353,7 @@ public static class GRNData
             Engine = 2, TankLitres = 60f, LengthM = 4.3f,
             ZeroTo100s = 5.2f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
@@ -352,7 +362,7 @@ public static class GRNData
             Engine = 3, TankLitres = 70f, LengthM = 4.31f,
             ZeroTo100s = 5.8f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
@@ -361,7 +371,7 @@ public static class GRNData
             Engine = 1, TankLitres = 50f, LengthM = 4.28f,
             ZeroTo100s = 5.6f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
@@ -370,7 +380,7 @@ public static class GRNData
             Engine = 1, TankLitres = 60f, LengthM = 4.64f,
             ZeroTo100s = 6.6f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2T", Price = 16000,
@@ -379,7 +389,7 @@ public static class GRNData
             Engine = 1, TankLitres = 55f, LengthM = 4.56f,
             ZeroTo100s = 8.2f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
@@ -388,7 +398,7 @@ public static class GRNData
             Engine = 1, TankLitres = 60f, LengthM = 4.7f,
             ZeroTo100s = 9.5f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
@@ -397,7 +407,7 @@ public static class GRNData
             Engine = 4, TankLitres = 80f, LengthM = 5.16f,
             ZeroTo100s = 8f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
@@ -406,7 +416,7 @@ public static class GRNData
             Engine = 0, TankLitres = 42f, LengthM = 3.95f,
             ZeroTo100s = 10.8f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
@@ -415,7 +425,7 @@ public static class GRNData
             Engine = 0, TankLitres = 50f, LengthM = 4.45f,
             ZeroTo100s = 11.5f,
             LockedRivals = 0, LockedCar = "",
-            FactoryBuild = new[] {  },
+            FactoryBuild = new string[] { },
         },
     };
 

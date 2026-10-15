@@ -1,19 +1,85 @@
+using NightRacer.Cars;
 using UnityEngine;
 
-// Procedural cars from primitives — body, glass cabin, wheels the game
-// spins, emissive light strips. Forward is +Z (local).
+// The cars on the road. The game's own cars — the 17 the web build drives,
+// read from the GLBs it exports (NightRacer.Cars.CarLibrary) — when their
+// files are there; otherwise procedural cars from primitives (body, glass
+// cabin, wheels the game spins, emissive light strips), so the port still
+// runs from a clean clone. Forward is +Z (local), the root on the ground.
 public static class CarFactory
 {
     public class Car
     {
         public GameObject Root;
-        public Transform[] Wheels;   // fl, fr, rl, rr
+        public Transform[] Wheels;   // fl, fr, rl, rr (nose, rl, rr on the trike)
         public Material TailMat;     // brake flare
         /// <summary>Built dimensions in metres. Callers hang lights and
         /// effects off these rather than hardcoding a nose position — the
         /// silhouettes are 4.30 m to 4.70 m long, so a fixed offset lands
         /// inside the bodywork on the short ones.</summary>
         public float Length, Width, LampHeight;
+        /// <summary>The nose's z in the car's own frame. The game's models
+        /// keep the web's car origin, which is not the middle of the car
+        /// (zeta-300-gtr runs -2.22 to +2.31), so a lamp hung at Length/2
+        /// would float; this is where the nose actually is.</summary>
+        public float Front;
+        /// <summary>Headlamp centres, car frame.</summary>
+        public Vector3[] HeadLamps = new Vector3[0];
+        /// <summary>The game's model behind this car, or null when it is a
+        /// procedural stand-in.</summary>
+        public CarRig Rig;
+
+        /// <summary>Roll the wheels through <paramref name="metres"/> of road.
+        /// A model rolls each wheel at its own radius; the stand-in at the
+        /// game's tyre radius.</summary>
+        public void Roll(float metres)
+        {
+            if (Rig != null) { Rig.Roll(metres); return; }
+            foreach (var w in Wheels)
+                w.Rotate(metres / WheelRadius * Mathf.Rad2Deg, 0, 0, Space.Self);
+        }
+
+        /// <summary>Tail lamps on the brake or at idle.</summary>
+        public void SetBrake(bool down)
+        {
+            if (Rig != null) { Rig.SetBrake(down ? 1f : 0f); return; }
+            if (TailMat != null)
+                TailMat.SetColor("_EmissionColor", new Color(1f, 0.13f, 0.13f) * (down ? 14f : 3.5f));
+        }
+    }
+
+    /// <summary>
+    /// A car by its catalogue id: the game's own model when CarLibrary has
+    /// it loaded, the procedural silhouette otherwise. <paramref name="paint"/>
+    /// recolours the model when <paramref name="repaint"/> is set (traffic, a
+    /// rival in their colours); the player's car keeps its factory paint.
+    /// </summary>
+    public static Car Create(string carId, Color paint, Color? accent, BodyStyle style,
+        bool attackKit, float lengthM, bool repaint)
+    {
+        if (!string.IsNullOrEmpty(carId) && CarLibrary.Instance.TryGet(carId, out var model))
+        {
+            var rig = model.Spawn();
+            if (repaint) rig.Repaint(paint);
+            rig.SetBrake(0f);
+            float lampY = 0f;
+            foreach (var h in rig.HeadLamps) lampY += h.y;
+            lampY = rig.HeadLamps.Length > 0 ? lampY / rig.HeadLamps.Length : 0.6f;
+            return new Car
+            {
+                Root = rig.gameObject,
+                Wheels = rig.Wheels,
+                TailMat = rig.TailCore,
+                Length = rig.Length,
+                Width = rig.Width,
+                LampHeight = lampY,
+                Front = rig.Front,
+                HeadLamps = rig.HeadLamps,
+                Rig = rig,
+            };
+        }
+        if (!string.IsNullOrEmpty(carId)) CarLibrary.Instance.Request(carId);
+        return Create(paint, accent, style, attackKit, lengthM);
     }
 
     /// <summary>
@@ -160,7 +226,7 @@ public static class CarFactory
     {
         var root = new GameObject("Car");
         var s = ShapeFor(style, lengthM);
-        var car = new Car { Root = root, Length = s.Length, Width = s.Width };
+        var car = new Car { Root = root, Length = s.Length, Width = s.Width, Front = s.Length * 0.5f };
 
         var bodyMat = Mats.CarPaint(body);
         var glassMat = Mats.Lit(new Color(0.05f, 0.07f, 0.1f), 0.9f, 0.97f);
@@ -225,6 +291,9 @@ public static class CarFactory
         }
 
         car.LampHeight = lampY;
+        car.HeadLamps = style == BodyStyle.ZX
+            ? new[] { new Vector3(-s.Width * 0.3f, lampY, halfL), new Vector3(s.Width * 0.3f, lampY, halfL) }
+            : new[] { new Vector3(-0.62f, lampY, halfL), new Vector3(0.62f, lampY, halfL) };
         car.TailMat = Mats.Emissive(new Color(1f, 0.13f, 0.13f), 3.5f);
         Box(root, "Taillight", new Vector3(0, lampY + 0.08f, -halfL + 0.02f),
             new Vector3(s.Width * 0.92f, 0.1f, 0.06f), car.TailMat);
@@ -247,20 +316,26 @@ public static class CarFactory
         };
         for (int i = 0; i < 4; i++)
         {
+            // The hub, unrotated, is what the game spins (about local X,
+            // the axle). The cylinder hangs under it turned onto its side.
+            // Spinning the turned cylinder itself, as this used to, spun it
+            // about the car's vertical: tyres turning like coins on a table.
+            var hub = new GameObject("Wheel").transform;
+            hub.SetParent(root.transform, false);
+            hub.localPosition = slots[i];
             var w = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            w.name = "Wheel";
-            Object.Destroy(w.GetComponent<Collider>());
-            w.transform.SetParent(root.transform, false);
-            w.transform.localPosition = slots[i];
+            w.name = "Tyre";
+            CarModel.Kill(w.GetComponent<Collider>());
+            w.transform.SetParent(hub, false);
             w.transform.localRotation = Quaternion.Euler(0, 0, 90);
             w.transform.localScale = new Vector3(wr * 2f, 0.13f, wr * 2f);
             w.GetComponent<MeshRenderer>().sharedMaterial = wheelMat;
-            wheels[i] = w.transform;
+            wheels[i] = hub;
 
             // Rim face so the wheel reads as an alloy, not a black puck
             var rim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             rim.name = "Rim";
-            Object.Destroy(rim.GetComponent<Collider>());
+            CarModel.Kill(rim.GetComponent<Collider>());
             rim.transform.SetParent(w.transform, false);
             rim.transform.localScale = new Vector3(0.62f, 1.04f, 0.62f);
             rim.GetComponent<MeshRenderer>().sharedMaterial = rimMat;
@@ -277,7 +352,7 @@ public static class CarFactory
         // Contact shadow — grounds the car even where the moon shadow is soft
         var blob = GameObject.CreatePrimitive(PrimitiveType.Quad);
         blob.name = "ContactShadow";
-        Object.Destroy(blob.GetComponent<Collider>());
+        CarModel.Kill(blob.GetComponent<Collider>());
         blob.transform.SetParent(root.transform, false);
         blob.transform.localPosition = new Vector3(0, 0.035f, 0);
         blob.transform.localRotation = Quaternion.Euler(90, 0, 0);
@@ -294,7 +369,7 @@ public static class CarFactory
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = name;
-        Object.Destroy(go.GetComponent<Collider>());
+        CarModel.Kill(go.GetComponent<Collider>());
         go.transform.SetParent(parent.transform, false);
         go.transform.localPosition = pos;
         go.transform.localScale = size;

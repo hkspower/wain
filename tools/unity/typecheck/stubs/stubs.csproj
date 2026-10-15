@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Declarations of the Unity API that the reference assemblies lack,
+       compiled to UnityStubs.dll. Bodies are `throw null`: only the
+       signatures matter. By folder:
+
+         Engine/     members Unity 6000.0 has on engine types 2021.3 already
+                     has ([GraftOnto]: ../graft copies them onto the real
+                     types, so they are not types of this assembly)
+         Editor/     the same for UnityEditor types, over Unity3D.SDK's
+                     2021.1 UnityEditor.dll (create it when something needs it)
+         Core/       com.unity.render-pipelines.core 17.0 (runtime)
+         Universal/  com.unity.render-pipelines.universal 17.0 (runtime)
+
+       Compiled against the Unity assemblies after ../graft has put their
+       real access modifiers back (obj/stubs/unity-restored), so an override
+       or a call here is held to what Unity actually exposes.
+
+       Built twice by ../typecheck.csproj: UnityFlavor=Editor, as Unity
+       compiles scripts for Play mode, and UnityFlavor=Player, as a player
+       build sees them: no UNITY_EDITOR, so the packages' editor-only
+       members vanish as they do in the real ones. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>UnityStubs</AssemblyName>
+    <UnityFlavor Condition="'$(UnityFlavor)' == ''">Editor</UnityFlavor>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(UnityFlavor)/</IntermediateOutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)../obj/stubs/out/$(UnityFlavor)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <DefineConstants>$(UnityVersionDefines)</DefineConstants>
+    <DefineConstants Condition="'$(UnityFlavor)' == 'Editor'">$(DefineConstants);UNITY_EDITOR</DefineConstants>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Declarations only: fields nobody assigns, events nobody raises. -->
+    <NoWarn>$(NoWarn);CS0067;CS0169;CS0414;CS0649</NoWarn>
+
+    <UnityRestored>$(MSBuildThisFileDirectory)../obj/stubs/unity-restored/</UnityRestored>
+    <GraftTool>$(MSBuildThisFileDirectory)../obj/graft/out/graft.dll</GraftTool>
+    <DotnetHost>$(DOTNET_HOST_PATH)</DotnetHost>
+    <DotnetHost Condition="'$(DotnetHost)' == ''">dotnet</DotnetHost>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Downloaded for their files only; the rewritten copies are referenced. -->
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" ExcludeAssets="all" GeneratePathProperty="true" />
+    <!-- lib/ has no framework folder, hence NU1701; it is never referenced as is. -->
+    <PackageReference Include="Unity3D.SDK" Version="2021.1.14.1" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
+    <!-- One build of the tool for both flavours: they share its output path. -->
+    <ProjectReference Include="../graft/graft.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="UnityFlavor" />
+    <Compile Include="*.cs;Engine/**/*.cs;Core/**/*.cs;Universal/**/*.cs" />
+    <Compile Include="Editor/**/*.cs" Condition="'$(UnityFlavor)' == 'Editor'" />
+  </ItemGroup>
+
+  <Target Name="UnityRestore" DependsOnTargets="ResolveProjectReferences"
+          Inputs="$(GraftTool);$(PkgUnity3D_SDK)/lib/UnityEditor.dll;$(PkgUnityEngine_Modules)/lib/netstandard2.0/UnityEngine.CoreModule.dll"
+          Outputs="$(UnityRestored)restore.stamp">
+    <RemoveDir Directories="$(UnityRestored)" />
+    <Exec Command="&quot;$(DotnetHost)&quot; &quot;$(GraftTool)&quot; --unity &quot;$(PkgUnityEngine_Modules)/lib/netstandard2.0&quot; --editor &quot;$(PkgUnity3D_SDK)/lib/UnityEditor.dll&quot; --out &quot;$(UnityRestored)&quot;"
+          StandardOutputImportance="low" />
+    <Touch Files="$(UnityRestored)restore.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="UnityReferences" DependsOnTargets="UnityRestore" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Include="$(UnityRestored)engine/*.dll" Private="false" />
+      <Reference Include="$(UnityRestored)editor/UnityEditor.dll" Private="false" Condition="'$(UnityFlavor)' == 'Editor'" />
+    </ItemGroup>
+  </Target>
+</Project>

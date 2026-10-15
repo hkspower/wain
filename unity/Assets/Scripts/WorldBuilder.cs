@@ -72,8 +72,11 @@ public static class WorldBuilder
             // Soft corona around every head so the string of lights reads
             // the way a real sodium-lit highway does
             var corona = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Object.Destroy(corona.GetComponent<Collider>());
+            NightRacer.Cars.CarModel.Kill(corona.GetComponent<Collider>());
             corona.name = "Corona";
+            // Seen by the cameras, left out of the car reflection probe:
+            // sized for the main view, a corona smears across a probe face.
+            corona.layer = NightRacer.Cars.NightReflections.GlowLayer;
             corona.transform.SetParent(root.transform);
             corona.transform.position = headPos;
             corona.transform.localScale = Vector3.one * 7f;
@@ -190,7 +193,7 @@ public static class WorldBuilder
         if (cubeMesh != null) return cubeMesh;
         var tmp = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cubeMesh = tmp.GetComponent<MeshFilter>().sharedMesh;
-        Object.Destroy(tmp);
+        NightRacer.Cars.CarModel.Kill(tmp);
         return cubeMesh;
     }
 
@@ -215,7 +218,7 @@ public static class WorldBuilder
     static void Prim(GameObject parent, PrimitiveType type, Vector3 pos, Vector3 scale, Material mat)
     {
         var go = GameObject.CreatePrimitive(type);
-        Object.Destroy(go.GetComponent<Collider>());
+        NightRacer.Cars.CarModel.Kill(go.GetComponent<Collider>());
         go.transform.SetParent(parent.transform, false);
         go.transform.localPosition = pos;
         go.transform.localScale = scale;
@@ -225,7 +228,7 @@ public static class WorldBuilder
     static void Plane(GameObject root, string name, Vector3 pos, Vector2 size, Material mat)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        Object.Destroy(go.GetComponent<Collider>());
+        NightRacer.Cars.CarModel.Kill(go.GetComponent<Collider>());
         go.name = name;
         go.transform.SetParent(root.transform);
         go.transform.position = pos;

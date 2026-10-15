@@ -7,7 +7,7 @@ public static class Bootstrap
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Init()
     {
-        if (Object.FindObjectOfType<GameController>() != null) return;
+        if (Object.FindFirstObjectByType<GameController>() != null) return;
 
         // The data client goes up first so its fetch is already in flight
         // by the time the controller spawns the world. It never blocks:

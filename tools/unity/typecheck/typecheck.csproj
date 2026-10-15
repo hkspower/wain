@@ -1,0 +1,205 @@
+<Project>
+  <!-- Type-checks the Unity port's C# without Unity:
+
+         dotnet build tools/unity/typecheck -nologo -v q
+         (npm run check:unity-compile)
+
+       Every .cs under unity/Assets is compiled the way Unity 6000.0.32f1
+       compiles a project with no .asmdef: C# 9 against .NET Standard 2.1,
+       runtime scripts as Assembly-CSharp, scripts under any folder named
+       Editor as Assembly-CSharp-Editor. Errors print as unity/Assets/...
+       paths relative to the repo root.
+
+       What it compiles against, since Unity itself isn't here:
+       - UnityEngine 2021.3.33 reference assemblies (NuGet UnityEngine.Modules)
+         and Unity's real UnityEditor.dll 2021.1.14 (NuGet Unity3D.SDK), both
+         run through graft/ first: that makes the internal, private and
+         protected members the NuGet engine assemblies had turned public
+         inaccessible again, lets the editor assembly see the per-module
+         engine types, and adds the Unity 6000.0 API the project uses that
+         these older versions lack (declared in stubs/Engine, copied onto
+         the real types), with Unity 6's deprecations of what it calls.
+       - Core RP 17 and URP 17: hand-written declarations of the API the
+         project uses (stubs/Core, stubs/Universal), each citing the package
+         source its signatures come from.
+       A name the references and stubs don't have fails the check even if
+       Unity 6 has it: add it to the stub from the cited source rather than
+       loosening anything. What Unity 6 removed or deprecated but 2021 still
+       has passes unless stubs/Engine says otherwise.
+
+       Four compiles, each later one only once the earlier ones are clean:
+       1. everything as one assembly, with UNITY_EDITOR: the full error
+          list in one go;
+       2. Assembly-CSharp alone, as Unity builds it: catches runtime
+          scripts that use a type from an Editor folder;
+       3. Assembly-CSharp-Editor against 2: catches editor scripts that
+          use something internal to the runtime scripts;
+       4. Assembly-CSharp as a player build sees it: no UNITY_EDITOR, no
+          UnityEditor, no editor-only package API. Catches editor calls
+          outside #if UNITY_EDITOR, which Play mode never shows.
+
+       Not modelled, and an error rather than a silent gap if they appear:
+       .asmdef/.asmref files and the Plugins / Standard Assets firstpass
+       assemblies. Platform defines (UNITY_ANDROID, UNITY_IOS ...) are not
+       set, so code only under them is not compiled. -->
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <!-- Unity 6's default API compatibility level. Restore resolves the
+         netstandard reference assemblies (with the mscorlib, System and
+         System.Core facades the Unity assemblies bind to) from this. -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <CopyBuildOutputToOutputDirectory>false</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <DebugType>none</DebugType>
+
+    <RepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', '..'))</RepoRoot>
+    <UnityAssets>$(RepoRoot)unity/Assets/</UnityAssets>
+    <UnityRefs>$(BaseIntermediateOutputPath)unity-refs/</UnityRefs>
+    <UnityOut>$(BaseIntermediateOutputPath)compile/</UnityOut>
+    <GraftTool>$(MSBuildThisFileDirectory)obj/graft/out/graft.dll</GraftTool>
+    <StubsOut>$(MSBuildThisFileDirectory)obj/stubs/out/</StubsOut>
+    <DotnetHost>$(DOTNET_HOST_PATH)</DotnetHost>
+    <DotnetHost Condition="'$(DotnetHost)' == ''">dotnet</DotnetHost>
+    <!-- The SDK's own compiler, run directly so that its working directory
+         can be the repo root: csc prints a source path relative to its
+         working directory when the file is under it, absolute otherwise,
+         and the Csc task always runs in the project's directory. -->
+    <UnityCsc>$(RoslynTargetsPath)/bincore/csc.dll</UnityCsc>
+    <!-- Unity's script compiler passes -nowarn:0169 and 0649 (fields only
+         the serializer touches); 1701/1702 are assembly-version noise. -->
+    <UnityNoWarn>0169,0649,1701,1702</UnityNoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- stubs/ restores the Unity packages and builds graft/ itself. -->
+    <ProjectReference Include="graft/graft.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="stubs/stubs.csproj" ReferenceOutputAssembly="false" AdditionalProperties="UnityFlavor=Editor" />
+  </ItemGroup>
+
+  <!-- What Unity compiles: every .cs under Assets except in hidden folders
+       (.name, name~), which Unity's asset database skips too. -->
+  <ItemGroup>
+    <UnityScript Include="$(UnityAssets)**/*.cs" Exclude="$(UnityAssets)**/.*/**;$(UnityAssets)**/*~/**" />
+    <UnityAssemblyDefinition Include="$(UnityAssets)**/*.asmdef;$(UnityAssets)**/*.asmref" Exclude="$(UnityAssets)**/.*/**;$(UnityAssets)**/*~/**" />
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- The player flavour of the stubs, and the inputs of the graft: the
+       Unity assemblies stubs/ compiled against (access already restored). -->
+  <Target Name="UnityPrepare" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild Projects="stubs/stubs.csproj" Properties="UnityFlavor=Player" />
+    <PropertyGroup>
+      <_UnityModules>$(MSBuildThisFileDirectory)obj/stubs/unity-restored/engine/</_UnityModules>
+      <_UnityEditor>$(MSBuildThisFileDirectory)obj/stubs/unity-restored/editor/UnityEditor.dll</_UnityEditor>
+    </PropertyGroup>
+    <ItemGroup>
+      <_UnityModule Include="$(_UnityModules)*.dll" />
+    </ItemGroup>
+    <Error Condition="'@(_UnityModule)' == ''" Text="No UnityEngine assemblies in '$(_UnityModules)': stubs/stubs.csproj should have written them." />
+    <Error Condition="!Exists('$(_UnityEditor)')" Text="No UnityEditor.dll at '$(_UnityEditor)': stubs/stubs.csproj should have written it." />
+    <Error Condition="!Exists('$(UnityCsc)')" Text="The C# compiler was not found at '$(UnityCsc)'." />
+  </Target>
+
+  <Target Name="UnityGraft" DependsOnTargets="UnityPrepare"
+          Inputs="@(_UnityModule);$(_UnityEditor);$(GraftTool);$(StubsOut)Editor/UnityStubs.dll"
+          Outputs="$(UnityRefs)graft.stamp">
+    <RemoveDir Directories="$(UnityRefs)" />
+    <Exec Command="&quot;$(DotnetHost)&quot; &quot;$(GraftTool)&quot; --unity &quot;$(_UnityModules)&quot; --editor &quot;$(_UnityEditor)&quot; --stubs &quot;$(StubsOut)Editor/UnityStubs.dll&quot; --out &quot;$(UnityRefs)&quot;"
+          StandardOutputImportance="low" />
+    <Touch Files="$(UnityRefs)graft.stamp" AlwaysCreate="true" />
+  </Target>
+
+  <!-- Replaces the SDK's compile of this project, which has no sources of
+       its own. Not incremental on purpose: it is a check. -->
+  <Target Name="CoreCompile" DependsOnTargets="UnityGraft">
+    <ItemGroup>
+      <_Script Include="@(UnityScript)">
+        <Rel>$([MSBuild]::MakeRelative('$(RepoRoot)', '%(FullPath)').Replace('\', '/'))</Rel>
+      </_Script>
+      <_EditorScript Include="@(_Script)" Condition="$([System.String]::Copy('/%(Rel)').Contains('/Editor/'))" />
+      <_RuntimeScript Include="@(_Script)" Exclude="@(_EditorScript)" />
+      <_FirstpassScript Include="@(_Script)" Condition="$([System.String]::Copy('%(Rel)').StartsWith('unity/Assets/Plugins/')) or $([System.String]::Copy('%(Rel)').StartsWith('unity/Assets/Standard Assets/')) or $([System.String]::Copy('%(Rel)').StartsWith('unity/Assets/Pro Standard Assets/'))" />
+
+      <_EngineRef Include="$(UnityRefs)engine/*.dll" />
+      <_Arg Include="/nostdlib+;/nologo;/utf8output;/target:library;/langversion:9.0;/nullable:disable;/deterministic+;/debug-;/nowarn:$(UnityNoWarn)" />
+      <_Ref Include="@(ReferencePath->'/reference:&quot;%(FullPath)&quot;');@(_EngineRef->'/reference:&quot;%(FullPath)&quot;')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_Script)' == ''" Text="No .cs files under $(UnityAssets): nothing to check." />
+    <Error Condition="'@(UnityAssemblyDefinition)' != ''"
+           Text="unity/Assets has assembly definitions (@(UnityAssemblyDefinition->'%(Filename)%(Extension)', ', ')). This check only knows Unity's default Assembly-CSharp / Assembly-CSharp-Editor split; teach tools/unity/typecheck/typecheck.csproj the new assemblies." />
+    <Error Condition="'@(_FirstpassScript)' != ''"
+           Text="Scripts under Plugins or Standard Assets compile into Unity's firstpass assemblies, which this check doesn't model: @(_FirstpassScript->'%(Rel)', ', ')" />
+
+    <PropertyGroup>
+      <_EditorDefines>$(UnityVersionDefines.Replace(';', ',')),UNITY_EDITOR</_EditorDefines>
+      <_PlayerDefines>$(UnityVersionDefines.Replace(';', ','))</_PlayerDefines>
+      <_EditorRefs>/reference:&quot;$(StubsOut)Editor/UnityStubs.dll&quot;;/reference:&quot;$(UnityRefs)editor/UnityEditor.dll&quot;</_EditorRefs>
+      <_PlayerRefs>/reference:&quot;$(StubsOut)Player/UnityStubs.dll&quot;</_PlayerRefs>
+      <_Runtime>$(UnityOut)editor/Assembly-CSharp.dll</_Runtime>
+      <!-- /noconfig only counts on the command line, not in a response
+           file; /shared uses the SDK's compiler server, as dotnet build
+           does, so only the first run pays csc's start-up. -->
+      <_Csc>&quot;$(DotnetHost)&quot; &quot;$(UnityCsc)&quot; /noconfig /shared</_Csc>
+    </PropertyGroup>
+    <MakeDir Directories="$(UnityOut)all;$(UnityOut)editor;$(UnityOut)player" />
+
+    <WriteLinesToFile File="$(UnityOut)all.rsp" Overwrite="true"
+      Lines="@(_Arg);/warn:4;@(_Ref);$(_EditorRefs);/define:$(_EditorDefines);/out:&quot;$(UnityOut)all/Assembly-CSharp.dll&quot;;@(_Script->'&quot;%(Rel)&quot;')" />
+    <WriteLinesToFile File="$(UnityOut)runtime.rsp" Overwrite="true"
+      Lines="@(_Arg);/warn:0;@(_Ref);$(_EditorRefs);/define:$(_EditorDefines);/out:&quot;$(_Runtime)&quot;;@(_RuntimeScript->'&quot;%(Rel)&quot;')" />
+    <WriteLinesToFile File="$(UnityOut)editor.rsp" Overwrite="true"
+      Lines="@(_Arg);/warn:0;@(_Ref);$(_EditorRefs);/reference:&quot;$(_Runtime)&quot;;/define:$(_EditorDefines);/out:&quot;$(UnityOut)editor/Assembly-CSharp-Editor.dll&quot;;@(_EditorScript->'&quot;%(Rel)&quot;')" />
+    <WriteLinesToFile File="$(UnityOut)player.rsp" Overwrite="true"
+      Lines="@(_Arg);/warn:0;@(_Ref);$(_PlayerRefs);/define:$(_PlayerDefines);/out:&quot;$(UnityOut)player/Assembly-CSharp.dll&quot;;@(_RuntimeScript->'&quot;%(Rel)&quot;')" />
+
+    <!-- 1. Everything at once. The later passes recompile the same files
+         and run with warnings off, since theirs would repeat these; they
+         are there for the errors only they can see. -->
+    <Exec Command="$(_Csc) @&quot;$(UnityOut)all.rsp&quot;" WorkingDirectory="$(RepoRoot)" EchoOff="true"
+          StandardOutputImportance="low" IgnoreExitCode="true" ContinueOnError="ErrorAndContinue">
+      <Output TaskParameter="ExitCode" PropertyName="_Exit" />
+    </Exec>
+    <PropertyGroup>
+      <_Failed Condition="'$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0'">true</_Failed>
+    </PropertyGroup>
+
+    <!-- 2. Assembly-CSharp on its own. -->
+    <Exec Condition="'$(_Failed)' != 'true'" Command="$(_Csc) @&quot;$(UnityOut)runtime.rsp&quot;" WorkingDirectory="$(RepoRoot)" EchoOff="true"
+          StandardOutputImportance="low" IgnoreExitCode="true" ContinueOnError="ErrorAndContinue">
+      <Output TaskParameter="ExitCode" PropertyName="_Exit" />
+    </Exec>
+    <Error Condition="'$(_Failed)' != 'true' and ('$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0')"
+           Text="The errors above come from compiling Assembly-CSharp on its own, as Unity does: scripts outside Editor folders cannot use types from scripts inside one." />
+    <PropertyGroup>
+      <_Failed Condition="'$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0'">true</_Failed>
+    </PropertyGroup>
+
+    <!-- 3. Assembly-CSharp-Editor against 2. -->
+    <Exec Condition="'$(_Failed)' != 'true' and '@(_EditorScript)' != ''" Command="$(_Csc) @&quot;$(UnityOut)editor.rsp&quot;" WorkingDirectory="$(RepoRoot)" EchoOff="true"
+          StandardOutputImportance="low" IgnoreExitCode="true" ContinueOnError="ErrorAndContinue">
+      <Output TaskParameter="ExitCode" PropertyName="_Exit" />
+    </Exec>
+    <Error Condition="'$(_Failed)' != 'true' and ('$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0')"
+           Text="The errors above come from compiling Assembly-CSharp-Editor against Assembly-CSharp, as Unity does: editor scripts cannot use what is internal to the runtime scripts." />
+    <PropertyGroup>
+      <_Failed Condition="'$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0'">true</_Failed>
+    </PropertyGroup>
+
+    <!-- 4. Assembly-CSharp as a player build compiles it. -->
+    <Exec Condition="'$(_Failed)' != 'true'" Command="$(_Csc) @&quot;$(UnityOut)player.rsp&quot;" WorkingDirectory="$(RepoRoot)" EchoOff="true"
+          StandardOutputImportance="low" IgnoreExitCode="true" ContinueOnError="ErrorAndContinue">
+      <Output TaskParameter="ExitCode" PropertyName="_Exit" />
+    </Exec>
+    <Error Condition="'$(_Failed)' != 'true' and ('$(MSBuildLastTaskResult)' == 'false' or '$(_Exit)' != '0')"
+           Text="The errors above come from compiling Assembly-CSharp for a player build (no UNITY_EDITOR, no UnityEditor): Play mode would not show them, a build would fail." />
+  </Target>
+</Project>

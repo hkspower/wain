@@ -53,6 +53,13 @@ const rivals = rivalBlocks
       accent: f(/accentColor: 0x([0-9a-fA-F]{6})/),
       top: +f(/topSpeedKmh: ([\d.]+)/),
       style: f(/bodyStyle: "(\w+)"/) ?? "sedan",
+      // The showroom car they bring, by id. Optional in rivals.ts (a
+      // rival with none is a privateer in a generic shell), so an absent
+      // key is "" — but a key that IS there and does not parse is a
+      // regex that has drifted, and that must stop the build rather than
+      // quietly hand the port a rival with no car.
+      carId: f(/\bcarId: "([\w-]+)"/) ?? "",
+      hasCarKey: /\bcarId:/.test(b),
       intro: f(/intro: "([^"]*)"/),
       win: f(/win: "([^"]*)"/),
       lose: f(/lose: "([^"]*)"/),
@@ -60,6 +67,8 @@ const rivals = rivalBlocks
   })
   .filter(Boolean);
 if (rivals.length < 6) throw new Error(`rival parse failed (${rivals.length})`);
+const unparsedCar = rivals.filter((r) => r.hasCarKey && !r.carId).map((r) => r.id);
+if (unparsedCar.length) throw new Error(`rival carId parse failed: ${unparsedCar.join(", ")}`);
 
 // -------------------------------------------------------------- engines
 // Two fours, two sixes and a V8, parsed from engines.ts. Ship the cars
@@ -198,6 +207,14 @@ if (cars.length < 5) throw new Error(`car parse failed (${cars.length})`);
 for (const c of cars) {
   if (!c.engine) throw new Error(`${c.id}: no stock engine — every car has one`);
 }
+// A rival's car is joined to the showroom by id at runtime (the Unity
+// CarLibrary loads <id>.glb), so an id that names no car would surface as
+// a missing file in a player build. Caught here instead, where the fix is.
+for (const r of rivals) {
+  if (r.carId && !cars.some((c) => c.id === r.carId)) {
+    throw new Error(`rival ${r.id} brings "${r.carId}", which is not in CARS (mods.ts)`);
+  }
+}
 
 // ------------------------------------------------------------- handling
 const handling = {};
@@ -308,6 +325,17 @@ const style = (s, who) => {
 const cs = (s) => (s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 const col = (hex) => `Hex(0x${hex.toUpperCase()})`;
 const f = (n) => `${n}f`;
+// Typed, never `new[] { ... }`. An implicitly typed array takes its type
+// from its elements, so the empty one — the factory build of fifteen of
+// the seventeen cars — is error CS0826 and the file does not compile.
+//
+// It did not, from 21 August (39e076f1, the empty arrays) until this was
+// fixed, and from 23 August for a second reason (dda96954): every car row
+// set `Drive = Drivetrain.X` and class Car declared no Drive (CS0117).
+// check:unity stayed green through both, because it reads the TEXT of the
+// file and the text was right. Only a compiler sees this kind of fault,
+// which is what npm run check:unity-compile is for.
+const strArr = (xs) => `new string[] { ${xs.map((x) => `"${cs(x)}", `).join("")}}`;
 
 const out = `// GENERATED FILE — do not edit by hand.
 // Produced by scripts/export-unity-data.mjs from the web build's
@@ -343,6 +371,13 @@ ${points.map((p) => `        new TrackPoint { X = ${f(p.x)}, Z = ${f(p.z)} },`).
         public Color Body, Accent;
         public float TopSpeedKmh;
         public BodyStyle Style;
+        /// <summary>The showroom car they bring: an Id in Cars, and the
+        /// name of the GLB the car library loads for them. Empty for a
+        /// rival with no listed car. Style is not a stand-in for it: the
+        /// Sahara V12 and the Zeta 300 are both ZX and 310 mm apart in
+        /// length, and a rival's Style need not be its car's (Al-Daboos
+        /// is drawn ZX and brings the Gulf Coupe RS, a hatch).</summary>
+        public string CarId;
         public int PrizeKd;
         public string IntroAr, WinAr, LoseAr;
     }
@@ -355,7 +390,7 @@ ${rivals
             Id = "${cs(r.id)}", Name = "${cs(r.name)}", ArabicName = "${cs(r.arabic)}",
             Crew = "${cs(r.crew)}", Area = "${cs(r.area)}",
             Body = ${col(r.color)}, Accent = ${col(r.accent)},
-            TopSpeedKmh = ${f(r.top)}, Style = ${style(r.style, r.id)}, PrizeKd = ${400 + i * 300},
+            TopSpeedKmh = ${f(r.top)}, Style = ${style(r.style, r.id)}, CarId = "${cs(r.carId)}", PrizeKd = ${400 + i * 300},
             IntroAr = "${cs(r.intro)}",
             WinAr = "${cs(r.win)}",
             LoseAr = "${cs(r.lose)}",
@@ -441,6 +476,9 @@ ${engines
         /// arch that is not drawn over it — see createCar in
         /// src/game/cars.ts and spinWheels in src/game/engine.ts.</summary>
         public bool Trike;
+        /// <summary>Which wheels the engine drives: front and rear do
+        /// opposite things under power. See src/game/grip.ts.</summary>
+        public Drivetrain Drive;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
         /// <summary>Tank, litres.</summary>
@@ -474,7 +512,7 @@ ${cars
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
             ZeroTo100s = ${f(c.zeroTo100s)},
             LockedRivals = ${c.lockedRivals}, LockedCar = "${cs(c.lockedCar)}",
-            FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },
+            FactoryBuild = ${strArr(c.factoryBuild)},
         },`
   )
   .join("\n")}

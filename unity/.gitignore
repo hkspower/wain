@@ -6,3 +6,24 @@ UserSettings/
 Build/
 *.csproj
 *.sln
+
+# The car GLBs copied in for player builds by `npm run sync:unity-cars`
+# (scripts/sync-unity-cars.mjs): 17 files, 179 MB of binaries rebuilt
+# from press/renders/glb/, which is itself ignored and rebuilt from the
+# game. The Editor reads that export directly and never needs the copy.
+# The .meta is Unity's, written for the folder the first time it sees it.
+/Assets/StreamingAssets/Cars/
+/Assets/StreamingAssets/Cars.meta
+
+# The cars baked into Unity assets (Night Racer ▸ Bake Cars to Assets, or
+# tools/unity/bake-cars.sh): a prefab per car with its hood, rear window,
+# rear wing and tyres as prefabs of their own, plus meshes, materials and
+# textures. Generated from the GLBs, several hundred MB under Force Text
+# serialization, so baked on each machine rather than committed.
+/Assets/Resources/Cars/
+/Assets/Resources/Cars.meta
+
+# The studio's scratch (baked probes) — deleted at the end of every render
+# run, ignored in case a run is killed first.
+/Assets/StudioCache/
+/Assets/StudioCache.meta

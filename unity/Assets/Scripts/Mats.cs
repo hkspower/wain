@@ -90,12 +90,26 @@ public static class Mats
     /// Clearcoat car paint: metallic base under a glossy lacquer.
     public static Material CarPaint(Color c)
     {
-        var m = Lit(c, 0.75f, 0.86f);
+        // The web's gloss paint (cars.ts): basecoat roughness 0.24, metal
+        // from the colour by the paint law, a lacquer coat at roughness
+        // 0.045. The coat needs URP's Complex Lit — plain Lit has no
+        // _CLEARCOAT variant, so the keyword this used to set on Lit did
+        // nothing and the stand-in cars had no lacquer at all.
+        int hex = (Mathf.RoundToInt(Mathf.Clamp01(c.r) * 255f) << 16)
+                  | (Mathf.RoundToInt(Mathf.Clamp01(c.g) * 255f) << 8)
+                  | Mathf.RoundToInt(Mathf.Clamp01(c.b) * 255f);
+        var m = Lit(c, NightRacer.Cars.PaintLaw.Metalness(hex), 0.76f);
         if (urp)
         {
-            m.EnableKeyword("_CLEARCOAT");
-            m.SetFloat("_ClearCoatMask", 1f);
-            m.SetFloat("_ClearCoatSmoothness", 0.92f);
+            var complex = Shader.Find(NightRacer.Cars.CarMaterials.ComplexLitShader);
+            if (complex != null)
+            {
+                m.shader = complex;
+                m.SetFloat("_ClearCoat", 1f);
+                m.SetFloat("_ClearCoatMask", 1f);
+                m.SetFloat("_ClearCoatSmoothness", 0.955f);
+                m.EnableKeyword("_CLEARCOAT");
+            }
         }
         return m;
     }

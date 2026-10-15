@@ -16,6 +16,10 @@ public class RivalDef
     public Color Body, Accent;
     public float TopSpeedKmh;
     public BodyStyle Style;
+    /// <summary>The showroom car they bring (an id in GRNData.Cars, and
+    /// the GLB NightRacer.Cars.CarLibrary loads). Empty when none is
+    /// listed; Style is then the only clue to their shape.</summary>
+    public string CarId;
     public int PrizeKd;
     public string IntroAr, WinAr, LoseAr; // spoken via ElevenLabs
     public float VoiceStability = 0.5f;   // per-character delivery
@@ -44,6 +48,7 @@ public class RivalDef
                     Body = r.Body, Accent = r.Accent,
                     TopSpeedKmh = r.TopSpeedKmh,
                     Style = r.Style,
+                    CarId = r.CarId ?? "",
                     PrizeKd = r.PrizeKd,
                     IntroAr = r.IntroAr, WinAr = r.WinAr, LoseAr = r.LoseAr,
                     // The final boss speaks flatter and colder than the rest

@@ -101,13 +101,15 @@ if (lanes.length !== api.track.lanes.length || lanes.some((v, i) => v !== api.tr
 const rivalBlocks = src.split("new Rival {").slice(1);
 const field = (b, re) => b.match(re)?.[1];
 const rivals = rivalBlocks.map((b) => ({
-  id: field(b, /Id = "([^"]*)"/),
+  // \b, because `CarId = "..."` also ends in `Id = "`.
+  id: field(b, /\bId = "([^"]*)"/),
   name: field(b, /Name = "([^"]*)"/),
   crew: field(b, /Crew = "([^"]*)"/),
   area: field(b, /Area = "([^"]*)"/),
   body: field(b, /Body = Hex\(0x([0-9A-F]{6})\)/),
   top: +field(b, /TopSpeedKmh = ([\d.]+)f/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
+  carId: field(b, /\bCarId = "([^"]*)"/),
   prize: +field(b, /PrizeKd = (\d+)/),
   arabic: field(b, /ArabicName = "([^"]*)"/),
   accent: field(b, /Accent = Hex\(0x([0-9A-F]{6})\)/),
@@ -142,8 +144,57 @@ if (rivals.length !== api.rivals.length) {
     if (u.intro !== a.lines.intro) fail(`rival ${a.id} intro line differs`);
     if (u.win !== a.lines.win) fail(`rival ${a.id} win line differs`);
     if (u.lose !== a.lines.lose) fail(`rival ${a.id} lose line differs`);
+    // The car they bring, which the Unity car library loads by this id.
+    // A GRNData.cs from before the field has no CarId at all, and that
+    // reads as undefined here and fails, rather than passing as "none".
+    if (u.carId !== (a.carId ?? "")) {
+      fail(`rival ${a.id} car: ${u.carId ?? "(no CarId in GRNData.cs)"} vs ${a.carId ?? "(none)"}`);
+    } else if (u.carId) {
+      // And it must name a car the port itself carries, under the name
+      // the web gives it: the join is made against GRNData.Cars at
+      // runtime, so that is the table it is checked against.
+      const carBlock = src.split("new Car {").slice(1).find((cb) => field(cb, /\bId = "([^"]*)"/) === u.carId);
+      if (!carBlock) fail(`rival ${a.id} brings ${u.carId}, which is not in GRNData.Cars`);
+      else if (field(carBlock, /\bName = "([^"]*)"/) !== a.car) {
+        fail(`rival ${a.id} car name: GRNData.Cars says ${field(carBlock, /\bName = "([^"]*)"/)}, the web ${a.car}`);
+      }
+    }
+    if (a.index !== i) fail(`rival ${a.id}: the API numbers it ${a.index}, it is entry ${i} here`);
   }
-  if (!failed) ok(`rivals: ${rivals.length} match (id, names, crew, area, both colours, speed, body, prize, all 3 voice lines)`);
+  if (!failed) ok(`rivals: ${rivals.length} match (index, id, names, crew, area, both colours, speed, body, car, prize, all 3 voice lines)`);
+}
+
+// Every field the API publishes per rival, claimed the same way the
+// sections are at the bottom of this file. The section-level gate cannot
+// see inside "rivals": carId has been published since September and this
+// check compared everything around it, so the Unity port carried no car
+// for any rival and still printed a tick.
+{
+  const CHECKED = [
+    "index", "id", "name", "arabicName", "crew", "area", "bodyStyle", "bodyColor",
+    "accentColor", "topSpeedKmh", "carId", "car", "prizeKd", "lines",
+  ];
+  const ABSENT = {
+    country: "challenge-card decoration; the Unity HUD shows the rival's name and nothing of where they are from",
+    flag: "challenge-card decoration, as country",
+    crest: "the crew emblem; the Unity port draws no crests, the player's or a rival's",
+    taunt: "the English text taunt; Unity speaks the Arabic lines (intro, win, lose) and shows no taunt",
+    rejectLine: "spoken when a rival turns a challenge down; the Unity career has no challenge to refuse",
+    voice: "browser speech-synthesis pitch and rate; Unity voices through ElevenLabs (RivalDef.VoiceStability)",
+  };
+  const keys = [...new Set(api.rivals.flatMap((r) => Object.keys(r)))];
+  const unclaimed = keys.filter((k) => !CHECKED.includes(k) && !(k in ABSENT));
+  const stale = [...CHECKED, ...Object.keys(ABSENT)].filter((k) => !keys.includes(k));
+  if (unclaimed.length) {
+    fail(
+      `coverage: every rival carries ${unclaimed.join(", ")}, which this check neither verifies nor ` +
+        `declares the Unity port does without — decide which, in the rivals section of check-unity-sync.mjs`
+    );
+  }
+  if (stale.length) fail(`coverage: the rivals check still names ${stale.join(", ")}, which the API no longer publishes`);
+  if (!unclaimed.length && !stale.length) {
+    ok(`rival fields: all ${keys.length} accounted for — ${CHECKED.length} checked, ${Object.keys(ABSENT).length} declared absent with a reason`);
+  }
 }
 
 // ---- engines --------------------------------------------------------
@@ -217,7 +268,7 @@ const cars = carBlocks.map((b) => ({
   zeroTo100s: +field(b, /ZeroTo100s = ([\d.]+)f/),
   lockedRivals: +(b.match(/LockedRivals = (\d+)/)?.[1] ?? 0),
   lockedCar: b.match(/LockedCar = "([^"]*)"/)?.[1] ?? "",
-  factoryBuild: [...(b.match(/FactoryBuild = new\[\] \{([^}]*)\}/)?.[1] ?? "")
+  factoryBuild: [...(b.match(/FactoryBuild = new(?: string)?\[\] \{([^}]*)\}/)?.[1] ?? "")
     .matchAll(/"([^"]+)"/g)].map((m) => m[1]),
 }));
 

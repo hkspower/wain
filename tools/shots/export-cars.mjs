@@ -40,8 +40,10 @@
 // rewritten on the fly to read them off window.__grnThree and injected
 // with addScriptTag — no bundler, no import map.
 import { chromium } from "playwright-core";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -69,14 +71,105 @@ const exporterGlobal = exporterSrc
   .replace(/^export \{ GLTFExporter \};\s*$/m, "window.__grnGLTFExporter = GLTFExporter;");
 if (!exporterGlobal.includes("window.__grnGLTFExporter")) { console.error("GLTFExporter.js export statement not found"); process.exit(2); }
 
+// ---- the browser ----------------------------------------------------
+//
+// playwright-core brings no browser, so this has to find one; any
+// Chromium-family browser drives it. It used to look in four places, all
+// Linux-shaped, so on a stock Mac (Chrome in /Applications, or
+// Playwright's build in ~/Library/Caches) it found none of them and
+// exited "no chromium". Those four come first and in their old order, so
+// nothing changes on a machine where one of them is there.
+const HOME = homedir();
+const PW = process.env.PLAYWRIGHT_BROWSERS_PATH;
+const OS = process.platform;
+/** A .app bundle is a directory; the binary is Contents/MacOS/<name>.
+ *  Lets CHROME_PATH="/Applications/Google Chrome.app" work as typed. */
+const appExe = (p) => (p && p.endsWith(".app") ? join(p, "Contents", "MacOS", basename(p, ".app")) : p);
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+/** Playwright's versioned installs under one cache root (chromium-1194,
+ *  chromium-1200...), newest build first, each tried in every layout
+ *  Playwright has used on this OS: Chromium.app in chrome-mac/ from the
+ *  older releases, Chrome for Testing in chrome-mac-arm64/ and
+ *  chrome-mac-x64/ in the one installed here (1.62). The host's own
+ *  architecture first: an x64 build does run on Apple silicon, under
+ *  Rosetta. */
+function playwrightBuilds(root) {
+  const prefix = { darwin: "chrome-mac", linux: "chrome-linux", win32: "chrome-win" }[OS];
+  const exes = {
+    darwin: ["Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing", "Chromium.app/Contents/MacOS/Chromium"],
+    linux: ["chrome"],
+    win32: ["chrome.exe"],
+  }[OS];
+  const ls = (d) => { try { return readdirSync(d); } catch { return []; } };
+  if (!root || !prefix) return [];
+  const out = [];
+  const builds = ls(root).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => b.slice(9) - a.slice(9));
+  for (const b of builds) {
+    const dirs = ls(join(root, b)).filter((d) => d.startsWith(prefix))
+      .sort((x, y) => y.includes(process.arch) - x.includes(process.arch));
+    for (const d of dirs) for (const e of exes) out.push(join(root, b, d, e));
+  }
+  return out;
+}
+// Where `npx playwright-core install chromium` puts it when
+// PLAYWRIGHT_BROWSERS_PATH is not set (and, for =0, inside the package).
+const PW_CACHE = {
+  darwin: join(HOME, "Library", "Caches", "ms-playwright"),
+  linux: join(process.env.XDG_CACHE_HOME || join(HOME, ".cache"), "ms-playwright"),
+  win32: process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, "ms-playwright"),
+}[OS];
+const INSTALLED = {
+  darwin: ["/Applications", join(HOME, "Applications")].flatMap((dir) => [
+    `${dir}/Google Chrome.app/Contents/MacOS/Google Chrome`,
+    `${dir}/Chromium.app/Contents/MacOS/Chromium`,
+    `${dir}/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`,
+  ]),
+  linux: ["/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/snap/bin/chromium", "/usr/bin/microsoft-edge"],
+  win32: [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA].filter(Boolean).flatMap((dir) => [
+    join(dir, "Google", "Chrome", "Application", "chrome.exe"),
+    join(dir, "Microsoft", "Edge", "Application", "msedge.exe"),
+  ]),
+}[OS] ?? [];
 const C = [
-  process.env.CHROME_PATH,
-  process.env.PLAYWRIGHT_BROWSERS_PATH && `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium/chrome-linux/chrome`,
-  process.env.PLAYWRIGHT_BROWSERS_PATH && `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium`,
+  appExe(process.env.CHROME_PATH),
+  PW && `${PW}/chromium/chrome-linux/chrome`,
+  PW && `${PW}/chromium`,
   "/usr/bin/chromium",
+  // Playwright's own builds, the browser playwright-core is made against,
+  // before the installed ones.
+  ...playwrightBuilds(PW),
+  ...playwrightBuilds(PW_CACHE),
+  ...playwrightBuilds(join("node_modules", "playwright-core", ".local-browsers")),
+  ...INSTALLED,
 ].filter(Boolean);
-const exe = C.find((p) => existsSync(p));
-if (!exe) { console.error("no chromium"); process.exit(2); }
+if (process.env.CHROME_PATH && !isFile(C[0])) console.warn(`CHROME_PATH=${process.env.CHROME_PATH} is not a file; looking elsewhere`);
+const exe = C.find(isFile);
+if (!exe) {
+  const fix = {
+    darwin: [
+      "On a Mac, any one of these, then run it again:",
+      "  - install Google Chrome from https://www.google.com/chrome/ (into /Applications, where this looks)",
+      "  - or fetch Playwright's build:  npx playwright-core install chromium",
+      "    (it lands in ~/Library/Caches/ms-playwright, which this also searches)",
+      '  - or name any Chromium-family browser:  CHROME_PATH="/Applications/Brave Browser.app" npm run cars:export',
+    ],
+    linux: [
+      "Install one (apt install chromium, or  npx playwright-core install chromium),",
+      "or name it:  CHROME_PATH=/path/to/chrome npm run cars:export",
+    ],
+    win32: [
+      "Install Google Chrome or Edge, or run  npx playwright-core install chromium,",
+      "or name it:  set CHROME_PATH=C:\\path\\to\\chrome.exe  and run it again",
+    ],
+  }[OS] ?? ["Set CHROME_PATH to a Chromium-family browser's executable."];
+  console.error(`no chromium: no Chromium-family browser in any of the ${C.length} places this looks:`);
+  for (const p of C) console.error(`  ${p}`);
+  const roots = [PW, PW_CACHE].filter(Boolean);
+  console.error(`and no Playwright build (chromium-<n>/) under ${roots.join(" or ") || "a Playwright cache"}.`);
+  console.error(`\n${fix.join("\n")}`);
+  process.exit(2);
+}
+console.log(`browser: ${exe}`);
 const browser = await chromium.launch({
   executablePath: exe,
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage"],

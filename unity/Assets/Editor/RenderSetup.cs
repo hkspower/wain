@@ -7,7 +7,7 @@ using UnityEngine.Rendering.Universal;
 
 // One-click render setup: builds the URP asset, renderer, quality
 // settings and the post-processing volume profile the game expects, then
-// wires them into Graphics/Quality settings.
+// wires them into Graphics/Quality/Player settings.
 //
 //   Menu: Night Racer ▸ Setup Rendering (URP + Post)
 //
@@ -23,22 +23,68 @@ public static class RenderSetup
     const string PipelinePath = Dir + "/GulfRoadURP.asset";
     const string ProfilePath = ResDir + "/GulfRoadPostProfile.asset";
 
+    // URP's own post-processing resources (bloom, tonemapping LUTs, grain
+    // textures). PostProcessData.GetDefaultPostProcessData() loads exactly
+    // this path but is internal in URP 17 (PostProcessData.cs:39-43), so it
+    // is loaded the same way here.
+    const string PostProcessDataPath =
+        "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset";
+
+    // Every shader the game builds materials from at runtime with
+    // Shader.Find (Mats.cs, Cars/CarMaterials.cs, Cars/NightReflections.cs).
+    // No material asset in a build references them, so without this a
+    // player gets a null Shader.Find and pink cars, and the shader_feature
+    // variants the code switches on (_CLEARCOAT, _EMISSION, _NORMALMAP,
+    // _METALLICSPECGLOSSMAP, _SURFACE_TYPE_TRANSPARENT, _ALPHAPREMULTIPLY_ON)
+    // are stripped as unused. Play mode in the editor hides both.
+    static readonly string[] RuntimeShaders =
+    {
+        "Universal Render Pipeline/Complex Lit", // car paint: clear coat
+        "Universal Render Pipeline/Lit",
+        "Universal Render Pipeline/Unlit",       // lamp coronas, glows
+        "Skybox/Cubemap",                        // the night reflection sky
+    };
+
     [MenuItem("Night Racer/Setup Rendering (URP + Post)")]
     public static void Setup()
     {
+        // Checked before anything is written: a renderer without it renders
+        // no post-processing at all, which is the whole night look.
+        var postData = AssetDatabase.LoadAssetAtPath<PostProcessData>(PostProcessDataPath);
+        if (postData == null)
+        {
+            Debug.LogError(
+                "[Night Racer] URP's PostProcessData was not found at " + PostProcessDataPath +
+                ". Is com.unity.render-pipelines.universal installed (Packages/manifest.json)? Nothing was changed.");
+            return;
+        }
+
         Directory.CreateDirectory(Dir);
         Directory.CreateDirectory(ResDir);
+
+        // ---- colour space ---------------------------------------------
+        // The car materials, the HDR emissive strengths and the paint law
+        // are all authored in linear light, as the web build is. The
+        // project folder ships no ProjectSettings to say so, and under
+        // Gamma Unity neither linearises sRGB colours and textures nor adds
+        // light linearly, so every value tuned against the web lands wrong.
+        PlayerSettings.colorSpace = ColorSpace.Linear;
 
         // ---- renderer -------------------------------------------------
         var rendererData = ScriptableObject.CreateInstance<UniversalRendererData>();
         rendererData.name = "GulfRoadRenderer";
-        rendererData.postProcessData = PostProcessData.GetDefaultPostProcessData();
+        rendererData.postProcessData = postData;
         // Depth+opaque textures let distortion/soft-particle style effects work
         AssetDatabase.CreateAsset(rendererData, RendererPath);
 
         // ---- pipeline asset -------------------------------------------
         var urp = UniversalRenderPipelineAsset.Create(rendererData);
         urp.name = "GulfRoadURP";
+        // 64-bit (RGBA16F) colour buffers instead of the default 32-bit
+        // R11G11B10: the night sky and the sodium-lit tarmac are long, dark
+        // gradients that band at 32 bits, and R11G11B10's blue channel is
+        // the coarsest (URP's own note, UniversalRenderPipelineAsset.cs:164).
+        urp.hdrColorBufferPrecision = HDRColorBufferPrecision._64Bits;
 
         var so = new SerializedObject(urp);
         void Set(string prop, object value)
@@ -67,6 +113,13 @@ public static class RenderSetup
         Set("m_ShadowCascadeCount", 4);
         Set("m_SoftShadowsSupported", true);
         Set("m_UseSRPBatcher", true);
+        // Off, URP's forward path gives each renderer only its most
+        // important probe, so paint snaps between a car's probe and the sky
+        // at the probe's edge; on, it blends them, which is what the car
+        // bodies ask for (CarModel: ReflectionProbeUsage.BlendProbesAndSkybox).
+        // The setter is internal in URP 17
+        // (UniversalRenderPipelineAsset.cs:1342-1346), hence the field.
+        Set("m_ReflectionProbeBlending", true);
         so.ApplyModifiedProperties();
 
         AssetDatabase.CreateAsset(urp, PipelinePath);
@@ -127,6 +180,14 @@ public static class RenderSetup
         QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
         QualitySettings.antiAliasing = 4;
         QualitySettings.vSyncCount = 0;
+        // The car paint's reflection is a realtime probe that rides with
+        // the player (NightReflections.Follow), and Unity's lower default
+        // quality levels ship with realtime probes off. MobileTier turns
+        // them off again on phones, on purpose: there the paint reflects
+        // the fixed night environment (NightReflections.Install) instead.
+        QualitySettings.realtimeReflectionProbes = true;
+
+        AlwaysInclude(RuntimeShaders);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -137,6 +198,48 @@ public static class RenderSetup
             "Press Play — the game finds the profile automatically."
         );
         Selection.activeObject = urp;
+    }
+
+    // Adds shaders to Graphics settings ▸ Always Included Shaders, once
+    // each. Unity compiles every variant of an always-included shader into
+    // the player rather than only the ones its materials use (URP still
+    // strips the variants of pipeline features the URP asset turns off), so
+    // builds get slower and bigger; in exchange any keyword set the game
+    // turns on at runtime is there. GraphicsSettings has no typed API for
+    // the list, so it is edited through the settings object itself, as the
+    // Graphics settings inspector does. GetGraphicsSettings() is public in
+    // 6000.0 (GraphicsSettings.bindings.cs:108) and returns the live object
+    // behind ProjectSettings/GraphicsSettings.asset.
+    static void AlwaysInclude(string[] shaderNames)
+    {
+        var settings = GraphicsSettings.GetGraphicsSettings();
+        var gso = settings != null ? new SerializedObject(settings) : null;
+        var list = gso?.FindProperty("m_AlwaysIncludedShaders");
+        if (list == null || !list.isArray)
+        {
+            Debug.LogError(
+                "[Night Racer] Could not read Always Included Shaders from the Graphics settings. " +
+                "Add these in Project Settings ▸ Graphics by hand, or player builds render them pink: " +
+                string.Join(", ", shaderNames));
+            return;
+        }
+
+        foreach (var name in shaderNames)
+        {
+            var shader = Shader.Find(name);
+            if (shader == null)
+            {
+                Debug.LogError($"[Night Racer] Shader '{name}' not found, so it is not in Always Included Shaders.");
+                continue;
+            }
+            bool present = false;
+            for (int i = 0; i < list.arraySize && !present; i++)
+                present = list.GetArrayElementAtIndex(i).objectReferenceValue == shader;
+            if (present) continue;
+            list.arraySize++;
+            list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+        }
+        gso.ApplyModifiedProperties();
     }
 }
 #endif

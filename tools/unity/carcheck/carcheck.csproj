@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Unity port's car reader, compiled and run outside Unity against
+       the game's own GLBs. Only the files with no UnityEngine dependency
+       are included: that is the point of keeping them pure. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../unity/Assets/Scripts/Cars/MiniJson.cs" />
+    <Compile Include="../../../unity/Assets/Scripts/Cars/CarAsset.cs" />
+    <Compile Include="../../../unity/Assets/Scripts/Cars/PaintLaw.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

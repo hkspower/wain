@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The build step that turns the UnityEngine 2021.3 reference assemblies
+       into Unity 6000.0 ones for the type check: it copies the members
+       declared in ../stubs/Engine onto the real types and puts back the
+       access modifiers the NuGet copies lost. typecheck.csproj builds and
+       runs it; see the comment there. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- A fixed path, so typecheck.csproj can run it without asking. -->
+    <OutputPath>$(MSBuildThisFileDirectory)../obj/graft/out/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+</Project>

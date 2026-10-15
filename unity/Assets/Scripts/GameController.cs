@@ -1,3 +1,4 @@
+using NightRacer.Cars;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -64,7 +65,15 @@ public class GameController : MonoBehaviour
     float messageUntil;
     float bumpCooldown, scrapeCooldown;
 
-    void Start()
+    /// <summary>The street cars traffic is drawn from — the web uses plain
+    /// saloon and SUV shells for traffic; these are the catalogue's own
+    /// street machines, repainted in the traffic palette.</summary>
+    static readonly string[] TrafficModels = { "deera-sedan", "hawally-2t", "sharq-hatch", "jahra-pickup", "wain-special" };
+
+    /// <summary>True while the cars are still loading (OnGUI says so).</summary>
+    bool loadingCars;
+
+    System.Collections.IEnumerator Start()
     {
         // Frame pacing. Unlike the web build — where the browser locks
         // rendering to v-sync with no way to switch it off — this is fully
@@ -82,6 +91,9 @@ public class GameController : MonoBehaviour
         QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
         track = new TrackSpline();
         WorldBuilder.Build(track);
+        // Something for the paint to reflect: the night environment as the
+        // scene's reflection and the probes' sky (NightReflections).
+        NightReflections.Install();
 
         var camGo = new GameObject("ChaseCam");
         camGo.tag = "MainCamera"; // Camera.main, used by the corona billboards
@@ -111,10 +123,39 @@ public class GameController : MonoBehaviour
             if (GRNApi.Instance.Ready && GRNApi.Instance.Live) pendingLiveRebuild = true;
         }
 
+        // The game's own cars, before anything is spawned: the player's,
+        // the first rival's and the traffic models. A missing file is not
+        // fatal — that car drives the procedural body — and the wait is
+        // capped, after which stragglers keep loading in the background.
         var startCar = PlayerCar();
-        playerCar = CarFactory.Create(startCar.Paint, new Color(0f, 0.48f, 0.24f),
-            startCar.Style, startCar.AttackKit);
+        var firstRival = rivalIndex < RivalDef.All.Length ? RivalDef.All[rivalIndex] : null;
+        var preload = new System.Collections.Generic.List<string> { startCar.Id };
+        if (firstRival != null) preload.Add(firstRival.CarId);
+        preload.AddRange(TrafficModels);
+        loadingCars = true;
+        yield return CarLibrary.Instance.Preload(preload, 45f);
+        loadingCars = false;
+        foreach (var r in RivalDef.All) CarLibrary.Instance.Request(r.CarId); // the rest, in the background
+
+        playerCar = CarFactory.Create(startCar.Id, startCar.Paint, new Color(0f, 0.48f, 0.24f),
+            startCar.Style, startCar.AttackKit, startCar.LengthM, repaint: false);
         pLat = TrackSpline.Lanes[1];
+
+        // The paint's live reflection rides with the player, as the web's
+        // probe does: the street around the car, without the cars.
+        NightReflections.Follow(playerCar.Root.transform);
+
+        // Warm rim light behind the roofline (engine.ts "rim": 3.0 at decay
+        // 1.8, physical units -> about 0.95 in Unity's), so the warm paints
+        // keep their hue against a blue night.
+        var rim = new GameObject("RimLight").AddComponent<Light>();
+        rim.type = LightType.Point;
+        rim.color = new Color(1f, 0.957f, 0.902f);
+        rim.intensity = 0.95f;
+        rim.range = 13f;
+        rim.shadows = LightShadows.None;
+        rim.transform.SetParent(playerCar.Root.transform, false);
+        rim.transform.localPosition = new Vector3(0f, 2.6f, playerCar.Front - playerCar.Length - 2.2f);
 
         var headlight = new GameObject("Headlight").AddComponent<Light>();
         headlight.type = LightType.Spot;
@@ -130,20 +171,25 @@ public class GameController : MonoBehaviour
         // Off the car's real nose, not a fixed offset: the silhouettes run
         // 4.30 m to 4.70 m, so a constant lands inside the shorter bodies.
         headlight.transform.localPosition =
-            new Vector3(0, playerCar.LampHeight + 0.45f, playerCar.Length * 0.38f);
+            new Vector3(0, playerCar.LampHeight + 0.45f, playerCar.Front - playerCar.Length * 0.12f);
 
-        // Glow discs at the lamps themselves
-        foreach (float gx in new[] { -0.62f, 0.62f })
+        // Glow discs at the lamps themselves — the model's own lamp
+        // centres, a hair ahead of the lens. Kept out of the car probe.
+        var glowMat = Mats.Additive(new Color(1f, 0.95f, 0.8f, 1f), Mats.Glow());
+        foreach (var lamp in playerCar.HeadLamps)
         {
             var glow = GameObject.CreatePrimitive(PrimitiveType.Quad);
             Destroy(glow.GetComponent<Collider>());
             glow.name = "HeadlightGlow";
+            glow.layer = NightReflections.GlowLayer;
             glow.transform.SetParent(playerCar.Root.transform, false);
-            glow.transform.localPosition =
-                new Vector3(gx, playerCar.LampHeight, playerCar.Length * 0.5f + 0.02f);
-            glow.transform.localScale = Vector3.one * 1.6f;
+            glow.transform.localPosition = lamp + new Vector3(0f, 0f, 0.06f);
+            // A Quad's face looks down -Z; turned round, it faces the road
+            // ahead (and anyone in front), where a headlamp's glow is seen.
+            glow.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            glow.transform.localScale = Vector3.one * (playerCar.Rig != null ? 1.1f : 1.6f);
             var gr = glow.GetComponent<MeshRenderer>();
-            gr.sharedMaterial = Mats.Additive(new Color(1f, 0.95f, 0.8f, 1f), Mats.Glow());
+            gr.sharedMaterial = glowMat;
             gr.shadowCastingMode = ShadowCastingMode.Off;
         }
 
@@ -152,9 +198,11 @@ public class GameController : MonoBehaviour
         for (int i = 0; i < traffic.Length; i++)
         {
             int c = trafficColors[i % trafficColors.Length];
+            var colour = new Color(((c >> 16) & 255) / 255f, ((c >> 8) & 255) / 255f, (c & 255) / 255f);
             traffic[i] = new Traffic
             {
-                Car = CarFactory.Create(new Color(((c >> 16) & 255) / 255f, ((c >> 8) & 255) / 255f, (c & 255) / 255f)),
+                Car = CarFactory.Create(TrafficModels[i % TrafficModels.Length], colour, null,
+                    BodyStyle.Sedan, false, 0f, repaint: true),
                 S = track.Wrap(120f + (float)i / traffic.Length * track.Length),
                 Lat = TrackSpline.Lanes[i % 4],
                 Speed = 21f + Random.value * 9f,
@@ -253,7 +301,10 @@ public class GameController : MonoBehaviour
         rivalCar = null;
         if (rivalIndex >= RivalDef.All.Length) return;
         rivalDef = RivalDef.All[rivalIndex];
-        rivalCar = CarFactory.Create(rivalDef.Body, rivalDef.Accent, rivalDef.Style);
+        // The rival drives their own car from the catalogue (the web's
+        // carId), in their colours.
+        rivalCar = CarFactory.Create(rivalDef.CarId, rivalDef.Body, rivalDef.Accent, rivalDef.Style,
+            false, 0f, repaint: true);
         rS = track.Wrap(pS + 260f);
         rLat = rTargetLat = TrackSpline.Lanes[2];
         rSpeed = 27f;
@@ -272,6 +323,7 @@ public class GameController : MonoBehaviour
 
     void Update()
     {
+        if (playerCar == null) return; // still loading the cars (Start)
         // Applied here rather than inside the callback: OnReady can fire
         // from the fetch coroutine mid-frame, and rebuilding the spline
         // while UpdatePlayer is walking it is asking for trouble.
@@ -337,8 +389,11 @@ public class GameController : MonoBehaviour
         brakeTune.GripAccel = pc.Grip;
 
         double latDemand = Mathf.Clamp01(Mathf.Abs(steerSmooth));
+        // The car's own grip (the web: gripAtSpeed(car.gripAccel, ...)).
+        // This read GRNData.Handling.GripAccel, a constant that does not
+        // exist — the port had never been compiled to say so.
         double gripNow = GRNSim.GripAtSpeed(
-            GRNData.Handling.GripAccel, brakeDownforce, pSpeed);
+            brakeTune.GripAccel, brakeDownforce, pSpeed);
         GRNSim.BrakeResult brakeOut = GRNSim.SolveBrakes(
             ref brakeState, brakeTune, dt,
             brakeAmt, pSpeed, latDemand, steerSmooth, throttleAmt, gripNow);
@@ -387,10 +442,8 @@ public class GameController : MonoBehaviour
 
         pS = track.Wrap(pS + pSpeed * dt);
         PoseCar(playerCar, pS, pLat, -heading * 0.85f);
-        foreach (var w in playerCar.Wheels)
-            w.Rotate(pSpeed / CarFactory.WheelRadius * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
-        playerCar.TailMat.SetColor("_EmissionColor",
-            new Color(1f, 0.13f, 0.13f) * (down ? 14f : 3.5f));
+        playerCar.Roll(pSpeed * dt);
+        playerCar.SetBrake(down);
 
         if (bumpCooldown <= 0)
             foreach (var t in traffic)
@@ -415,6 +468,7 @@ public class GameController : MonoBehaviour
         {
             t.S = track.Wrap(t.S + t.Speed * dt);
             PoseCar(t.Car, t.S, t.Lat, 0);
+            t.Car.Roll(t.Speed * dt);
         }
     }
 
@@ -445,8 +499,7 @@ public class GameController : MonoBehaviour
         rLat += Mathf.Clamp(rTargetLat - rLat, -6f * dt, 6f * dt);
         rS = track.Wrap(rS + rSpeed * dt);
         PoseCar(rivalCar, rS, rLat, 0);
-        foreach (var w in rivalCar.Wheels)
-            w.Rotate(rSpeed / CarFactory.WheelRadius * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
+        rivalCar.Roll(rSpeed * dt);
     }
 
     void TryFlash()
@@ -514,7 +567,9 @@ public class GameController : MonoBehaviour
     void PoseCar(CarFactory.Car car, float s, float lat, float bodyYaw)
     {
         Vector3 pos = track.Pose(s, lat);
-        car.Root.transform.position = pos;
+        // On the asphalt, which WorldBuilder lays 2 cm above the ground
+        // plane: at y 0 the tyres sat 2 cm into the road.
+        car.Root.transform.position = pos + Vector3.up * 0.02f;
         car.Root.transform.rotation =
             Quaternion.LookRotation(track.TangentAt(s)) * Quaternion.Euler(0, bodyYaw * Mathf.Rad2Deg, 0);
     }
@@ -541,6 +596,13 @@ public class GameController : MonoBehaviour
     void OnGUI()
     {
         GUI.color = Color.white;
+        if (playerCar == null)
+        {
+            if (loadingCars)
+                GUI.Label(new Rect(30, 20, 600, 40), "Loading the cars…",
+                    new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold });
+            return;
+        }
         var big = new GUIStyle(GUI.skin.label) { fontSize = 42, fontStyle = FontStyle.Bold };
         var mid = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
         GUI.Label(new Rect(30, Screen.height - 80, 300, 60), Mathf.RoundToInt(pSpeed * 3.6f) + " km/h", big);

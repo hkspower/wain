@@ -115,6 +115,11 @@ public class GRNApi : MonoBehaviour
     [Serializable] class RivalDto
     {
         public string id, name, arabicName, crew, area, bodyStyle, bodyColor, accentColor;
+        /// <summary>The showroom car they bring. Published as null for a
+        /// rival with none, and absent from a server older than the
+        /// field; JsonUtility may hand either back as null or as "", and
+        /// both mean "ask the bake".</summary>
+        public string carId;
         public float topSpeedKmh;
         public int prizeKd;
         public LinesDto lines;
@@ -124,7 +129,7 @@ public class GRNApi : MonoBehaviour
     {
         public string id, name, color, bodyStyle, kit;
         public int price;
-        public float power, topSpeedKmh, grip, brake;
+        public float power, topSpeedKmh, grip, brake, lengthM;
     }
 
     bool TryParse(string json)
@@ -163,6 +168,9 @@ public class GRNApi : MonoBehaviour
                 Body = ParseHex(d.bodyColor), Accent = ParseHex(d.accentColor),
                 TopSpeedKmh = d.topSpeedKmh,
                 Style = StyleFrom(d.bodyStyle),
+                // Without this a live roster drops the car the baked one
+                // names, and the rival is built as their silhouette.
+                CarId = !string.IsNullOrEmpty(d.carId) ? d.carId : BakedRivalCar(d.id),
                 PrizeKd = d.prizeKd,
                 IntroAr = d.lines != null ? d.lines.intro : "",
                 WinAr = d.lines != null ? d.lines.win : "",
@@ -175,6 +183,14 @@ public class GRNApi : MonoBehaviour
         {
             var d = p.cars[i];
             if (string.IsNullOrEmpty(d.id)) return false;
+            // The DTO reads what the menu shows; everything else about the
+            // car comes from the bake of the same id. Before this a live
+            // car left every unread field at its default — length 0,
+            // engine 0, no factory build (null), four wheels on the trike —
+            // so the live table described a different machine from the
+            // baked one under the same name. A car the bake does not know
+            // keeps those defaults, which is no worse than before.
+            var baked = BakedCar(d.id);
             c.Add(new GRNData.Car
             {
                 Id = d.id, Name = d.name, Price = d.price,
@@ -182,6 +198,17 @@ public class GRNApi : MonoBehaviour
                 Paint = ParseHex(d.color),
                 Style = StyleFrom(d.bodyStyle),
                 AttackKit = d.kit == "attack",
+                // Read live, as the Unreal client does: the shell is fitted
+                // to the length on the card.
+                LengthM = d.lengthM > 0f ? d.lengthM : (baked != null ? baked.LengthM : 0f),
+                Trike = baked != null && baked.Trike,
+                Drive = baked != null ? baked.Drive : GRNData.Drivetrain.RWD,
+                Engine = baked != null ? baked.Engine : 0,
+                TankLitres = baked != null ? baked.TankLitres : 0f,
+                ZeroTo100s = baked != null ? baked.ZeroTo100s : 0f,
+                LockedRivals = baked != null ? baked.LockedRivals : 0,
+                LockedCar = baked != null ? baked.LockedCar : "",
+                FactoryBuild = baked != null ? baked.FactoryBuild : new string[0],
             });
         }
 
@@ -199,6 +226,26 @@ public class GRNApi : MonoBehaviour
         return true;
     }
 
+    /// <summary>The baked car for a rival, by rival id: what a payload
+    /// without carId (an older server) falls back to.</summary>
+    static string BakedRivalCar(string rivalId)
+    {
+        foreach (var b in GRNData.Rivals)
+            if (b.Id == rivalId) return b.CarId ?? "";
+        return "";
+    }
+
+    static GRNData.Car BakedCar(string id)
+    {
+        foreach (var b in GRNData.Cars)
+            if (b.Id == id) return b;
+        return null;
+    }
+
+    /// <summary>Every web silhouette. This knew four of nine, so a live
+    /// payload turned both hatches, the pony, the pickup and the supercar
+    /// into saloons; the rivals use only styles it knew, which is why
+    /// nobody saw it.</summary>
     static BodyStyle StyleFrom(string s)
     {
         switch (s)
@@ -206,6 +253,11 @@ public class GRNApi : MonoBehaviour
             case "zx": return BodyStyle.ZX;
             case "gtr": return BodyStyle.GTR;
             case "rx7": return BodyStyle.RX7;
+            case "hatch": return BodyStyle.Hatch;
+            case "pony": return BodyStyle.Pony;
+            case "pickup": return BodyStyle.Pickup;
+            case "super": return BodyStyle.Super;
+            case "suv": return BodyStyle.SUV;
             default: return BodyStyle.Sedan;
         }
     }
