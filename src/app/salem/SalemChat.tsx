@@ -476,7 +476,7 @@ export default function SalemChat() {
         } else {
           const slugs = there.slice(0, 8);
           const spoken = answerParts([], slugs.flatMap((s) => bySlug(s) ?? []), clock);
-          answerLine(spoken);
+          answerLine(spoken, slugs[0] === ctx.shown[0] ? `${C.refineSameTop} ` : "");
           showList(intent.query, slugs, there, slugs, spoken);
         }
       } else if (ctx && intent.kind === "refine") {
@@ -493,7 +493,11 @@ export default function SalemChat() {
           const inside = hits.filter((h) => h.doc.kind !== "place" || keep.has(slugOf(h)));
           const { slugs } = formatShowPlaces(intent.query, inside, places);
           const spoken = answerParts(inside, slugs.flatMap((slug) => bySlug(slug) ?? []), clock);
-          answerLine(spoken);
+          // The same first place says the same sentence: said so first, the
+          // way «غيره» leads with moreIntro.
+          const sameTop = slugs[0] === ctx.shown[0];
+          const cheaper = order.readAsks(intent.added).cheap;
+          answerLine(spoken, sameTop ? `${cheaper ? C.refineSameTopCheaper : C.refineSameTop} ` : "");
           showList(intent.query, slugs, within, slugs, spoken);
         }
       } else {
@@ -737,16 +741,24 @@ export default function SalemChat() {
       }
       const top = el.scrollTop + anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
       el.scrollTo({ top, behavior });
+      return top;
     };
-    toStart();
+    const from = el.scrollTop;
+    const to = toStart() ?? from;
     // And once more a frame later. A reply's map is fitted in a layout effect
     // that commits after this effect has run, so the scroll was taken while
     // the map was 2px tall, clamped to the shorter transcript, and never
     // repeated: «وينه؟» landed with 11–21% of the map it points to on screen
     // (15 October). A frame on, the map has its height, and it has not yet
     // been painted without it.
+    //
+    // Not if the visitor has moved the transcript in between — read from where
+    // it is, not from `stickRef`: an instant scroll (reduced motion) has fired
+    // its own scroll event by the time the frame runs, and a reply's start
+    // sits more than 120px from the bottom, so `stickRef` already read «not
+    // following» and the second scroll never came. Measured red that way.
     const raf = requestAnimationFrame(() => {
-      if (stickRef.current) toStart();
+      if (el.scrollTop >= Math.min(from, to) - 1 && el.scrollTop <= Math.max(from, to) + 1) toStart();
     });
     return () => cancelAnimationFrame(raf);
   }, [messages, pending]);
@@ -1127,15 +1139,23 @@ export default function SalemChat() {
       {/* The free build sends nothing anywhere, so it says that instead —
           a recording notice over a chat that records nothing would be the
           same overstatement in the other direction. */}
-      <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200 md:px-[calc(50%-21rem)]">
+      {/* Under 300px tall — a phone on its side with the keyboard up — it
+          steps aside while the box has focus, on request (15 October): the
+          frame's fixed rows needed 218px of 200, the box was clipped and the
+          conversation was its own padding. It is on screen before anything is
+          typed, every time, which is when it is the consent. */}
+      <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200 md:px-[calc(50%-21rem)] [@media(max-height:299px)]:[html:has(#salem-q:focus)_&]:hidden">
         {free ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
         <Link href="/privacy/#wain-ai" className="inline-flex min-h-tap items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
         </Link>
       </p>
+      {/* px-4: the header, the transcript and the notice sit 16px in, and the
+          box sat 12 — the input started 4px outside everything above it
+          (15 October). */}
       <form
         onSubmit={send}
-        className="flex shrink-0 items-stretch gap-2 bg-sea-950 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 md:px-[calc(50%-21rem)]"
+        className="flex shrink-0 items-stretch gap-2 bg-sea-950 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 md:px-[calc(50%-21rem)]"
       >
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}
@@ -1147,7 +1167,7 @@ export default function SalemChat() {
           enterKeyHint="send"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
+          placeholder={ready && status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
           disabled={!ready || status !== "connected"}
           // No `disabled:opacity-*` — the box already reads a normal white
           // field, and the header's own status line is what says "not yet".
@@ -1155,6 +1175,12 @@ export default function SalemChat() {
         />
         <button
           type="submit"
+          // A tap moved focus from the box to this button, which then
+          // disables itself on the empty draft: focus fell to <body> after
+          // every tapped send, and Android drops its keyboard when the box
+          // loses focus — Enter kept it up (15 October). The keyboard's own
+          // Tab and Space send no mousedown, so they still reach the button.
+          onMouseDown={(e) => e.preventDefault()}
           disabled={!ready || status !== "connected" || pending || draft.trim() === ""}
           aria-label={WAIN_AI_CHAT_COPY.send}
           className="grid size-11 shrink-0 place-items-center rounded-full bg-sea-600 text-white transition hover:bg-sea-700 disabled:opacity-40"
@@ -1208,7 +1234,8 @@ function SalemPlacesResult({
 
   if (!target) {
     return (
-      <p className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
+      // It quotes the query, and a query can be a link with no place to break.
+      <p className="mx-auto max-w-[85%] wrap-anywhere rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
         {WAIN_AI_CHAT_COPY.noResults} «{query}»
       </p>
     );
@@ -1216,7 +1243,12 @@ function SalemPlacesResult({
 
   return (
     <div className="space-y-2" data-salem-places="">
-      <ul role="list" ref={railRef} className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+      {/* -mx, px and scroll-px stay equal. Without scroll-px the first card
+          snapped to the scroller's own edge, which the bleed puts on the
+          screen's: the recommended place sat flush at 0px, 16px out of line
+          with the rest of the answer (15 October) — the home page's rail had
+          the same fix already. */}
+      <ul role="list" ref={railRef} className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1">
         {places.map((place) => (
           <li
             key={place.slug}

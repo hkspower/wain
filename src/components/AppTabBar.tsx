@@ -31,6 +31,16 @@ const COLUMNS: Record<number, string> = {
  * the PWA defined by manifest.ts) it becomes the primary navigation, native
  * style: fixed to the bottom edge, safe-area aware. The separation is pure
  * CSS, so both versions ship in one static export.
+ *
+ * Exactly 4.25rem plus the inset, which is what the body, سالم's chat frame
+ * and the call bar all leave for it: its own content measured 64.94px, and the
+ * 3px between left a strip of white page under the chat on every visit
+ * (15 October). The extra goes under the labels; the links do not move.
+ *
+ * And out of the way while سالم's box has focus: Android shrinks the layout
+ * for its keyboard, and the bar rode up on top of it, a sixth of the screen
+ * the conversation needed (15 October). It is back the moment the box is left.
+ * The id in the selector outranks `standalone:block`.
  */
 export default function AppTabBar() {
   const pathname = usePathname();
@@ -47,7 +57,7 @@ export default function AppTabBar() {
   return (
     <nav
       aria-label="تنقّل التطبيق"
-      className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur standalone:block"
+      className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden min-h-[calc(4.25rem+env(safe-area-inset-bottom))] border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur standalone:block [html:has(#salem-q:focus)_&]:hidden"
     >
       <div className={`mx-auto grid max-w-md ${COLUMNS[tabs.length] ?? "grid-cols-3"}`}>
         {tabs.map(({ href, label, icon: Icon, exact }) => {

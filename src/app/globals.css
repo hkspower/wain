@@ -172,6 +172,25 @@ html[data-call-bar] main {
   padding-bottom: 5rem;
 }
 
+/* سالم's chat is a fixed frame, not flow in <main>, so the rule above moved
+   nothing there and his bar — the next step after his call is typing — sat on
+   the box: a tap on the input landed on the bar, at 320×568 on «اسأل مرة
+   ثانية», which rang again (15 October). 3.8125rem is the bar's own height:
+   its 1px border, pt-2, the 44px row and pb-2. No safe-area term — the form
+   already pads for it, and installed the frame already ends where the bar
+   does — so one rule holds in both modes. */
+html[data-call-bar] [data-salem-frame] {
+  padding-bottom: 3.8125rem;
+}
+
+/* Installed, the tab bar steps aside while the chat's box has focus and the
+   frame takes its room (AppTabBar, SalemChat). The call bar sits on the tab
+   bar there, so it comes down with it, or it would land on the form the rule
+   above made room for. Outside the app it is at the foot already. */
+html:has(#salem-q:focus) #wain-ai-bar {
+  bottom: 0;
+}
+
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the call sheet moves up out of the tab bar's way, and the page stops
    rubber-banding at its edges the way a document does.

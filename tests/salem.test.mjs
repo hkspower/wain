@@ -641,8 +641,15 @@ for (const [width, height, reduced] of [[320, 568, false], [390, 844, false], [3
   await settle(p);
   const map = await inLog(p, '[role="log"] [data-map-frame]');
   ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: the map «وينه؟» points to is all on screen`, !!map?.whole, JSON.stringify(map));
+  // At the top, or as near it as the transcript goes: a short reply at the
+  // end of a tall screen cannot be lifted further than the bottom.
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
-  ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: …and the reply still starts at the top`, !!said?.whole && said.top <= 24, JSON.stringify(said));
+  const end = await p.evaluate(() => {
+    const log = document.querySelector('[role="log"]');
+    return log.scrollHeight - log.scrollTop - log.clientHeight < 2;
+  }).catch(() => false);
+  ok(`${width}×${height}${reduced ? ', reduced motion' : ''}: …and the reply still starts at the top`,
+    !!said?.whole && (said.top <= 24 || end), JSON.stringify({ ...said, end }));
   await ctx.close();
 }
 

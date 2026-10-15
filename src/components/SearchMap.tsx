@@ -52,6 +52,46 @@ const PIN_PX = 32;
 const PHONE_FRAME_PX = 520;
 
 /**
+ * How far a surveyed pin's head stands above its tip: half the head, and the
+ * nose's diagonal under it (MapPin). Places are grouped by their HEADS, which
+ * is what must not overlap; grouped by tip, a surveyed pin and an approximate
+ * one (whose round head is centred on its point) were 36.9px apart at the tip
+ * and 23.8px at the head, and at 320 the Gulf Road cafés covered half of سوق
+ * الصفافير — a tap on that half chose the cafés (15 October).
+ */
+const HEAD_LIFT = PIN_PX / 2 + Math.round(PIN_PX * 0.34) * Math.SQRT1_2;
+const headLift = (p: Place) => (p.coordsUnverified ? 0 : HEAD_LIFT);
+
+/**
+ * The chat's window on a phone held sideways: its header, the notice and the
+ * box (69 + 49 + 68px) and a margin, off the screen's short side. A map
+ * fitted at the wide frame's 2.2:1 was 525px tall in a 204px window at 844×390
+ * — no scroll position showed all of its pins (15 October).
+ */
+const SIDEWAYS_CHROME_PX = 206;
+/** A screen whose short side is at most this is a phone. */
+const PHONE_SHORT_SIDE_PX = 500;
+
+/**
+ * A phone on its side, read off the SCREEN rather than the window: Android
+ * shrinks the window for its keyboard (interactive-widget=resizes-content),
+ * and a cap keyed on the window's height re-fitted — and reloaded — every map
+ * in the chat as the keyboard came and went. `screen.orientation` does not
+ * move for a keyboard; where it is missing (iOS before 16.4) the window's
+ * orientation is used, which the keyboard does not change there either.
+ * Returns the room in px, or 0 when it is not a phone on its side.
+ */
+function sidewaysRoom(): number {
+  if (typeof window === "undefined") return 0;
+  const { width, height, orientation } = window.screen;
+  const short = Math.min(width, height);
+  const sideways = orientation?.type
+    ? orientation.type.startsWith("landscape")
+    : window.matchMedia("(orientation: landscape)").matches;
+  return sideways && short <= PHONE_SHORT_SIDE_PX ? short - SIDEWAYS_CHROME_PX : 0;
+}
+
+/**
  * What a tall frame shares the screen with before anything scrolls: the page's
  * top padding, the map's own header row above it and a margin below — the
  * frame starts at 105px on /search at 1280. 80 fitted the sticky position and
@@ -145,9 +185,11 @@ export default function SearchMap({
   // measured, which is after mount, and a resize re-measures the width anyway.
   // A hook with its own listener cost /search 0.1K over its budget.
   const roomH = tall && typeof window !== "undefined" ? window.innerHeight - TALL_CHROME_PX : 0;
+  // سالم's chat, sideways: no taller than the chat's window, the same way.
+  const sideways = compact ? sidewaysRoom() : 0;
   const minAspect = tall
     ? Math.max(0.7, roomH > 0 && frameW > 0 ? frameW / roomH : 0)
-    : 1.2;
+    : Math.max(1.2, sideways > 0 && frameW > 0 ? frameW / sideways : 0);
   const maxAspectFit = Math.max(maxAspect, minAspect);
   const f = useMemo(
     () =>
@@ -322,7 +364,9 @@ export default function SearchMap({
               // the overlay by a transform and only re-projects when it ends,
               // so a pin dropped for being off-screen would stay missing while
               // the visitor drags it back in. The frame's overflow clips them.
-              const shown = places.map((p, i) => ({ x: at[i].x, y: at[i].y, item: p }));
+              // Grouped by head (HEAD_LIFT); a pin drawn alone goes back to
+              // its tip below.
+              const shown = places.map((p, i) => ({ x: at[i].x, y: at[i].y - headLift(p), item: p }));
               // At street level every place is drawn as itself — a bubble
               // that a press cannot split would be a trap.
               const groups =
@@ -336,9 +380,9 @@ export default function SearchMap({
                     // `pointerEvents` because the overlay layer is
                     // `pointer-events-none` — it must not swallow the drag
                     // that pans the map, and a pin must still be tappable.
-                    { left: g.x, top: g.y, pointerEvents: "auto" },
+                    { left: g.x, top: g.y + headLift(g.members[0]), pointerEvents: "auto" },
                     g.x,
-                    g.y,
+                    g.y + headLift(g.members[0]),
                     box.w
                   )
                 ) : (
@@ -379,10 +423,14 @@ export default function SearchMap({
                   .map((p, i) => ({ x: pins[i].x * W, y: pins[i].y * H, item: p }))
                   .filter((q) => q.x > -PIN_PX && q.x < W + PIN_PX && q.y > -PIN_PX && q.y < H + PIN_PX * 2);
                 // Zoomed into a bubble, every place is drawn as itself (and
-                // nudged apart, above); on the wide view, grouped.
+                // nudged apart, above); on the wide view, grouped — by head
+                // (HEAD_LIFT), and a pin drawn alone goes back to its tip.
                 const groups = focus
                   ? shown.map((q) => ({ x: q.x, y: q.y, members: [q.item] }))
-                  : clusterPoints(shown, apart);
+                  : clusterPoints(
+                      shown.map((q) => ({ ...q, y: q.y - headLift(q.item) })),
+                      apart
+                    ).map((g) => (g.members.length === 1 ? { ...g, y: g.y + headLift(g.members[0]) } : g));
                 return groups.map((g) => {
                   // Physical left/top on purpose. The page is RTL, but
                   // geography is not — a logical inset would mirror the map.

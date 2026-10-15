@@ -74,6 +74,13 @@ export const WAIN_AI_CHAT_COPY = {
   moreIntro: "وهذي غيرها:",
   moreNone: "هذي كل الأماكن اللي عندي عن هالطلب — جرّب كلمة ثانية.",
   refineNone: "ما لقيت شي يجمع الاثنين — هذي اللي عندي قبل.",
+  // Before a narrowed answer whose first place did not move: the sentence
+  // after it is the last reply word for word, and «بحر» then «أرخص» read as
+  // ignored — the top three were already the cheapest, and every card that
+  // changed was off the first screen (15 October). The price line only when
+  // the order read the narrowing as cheaper (answer-order's `readAsks`).
+  refineSameTop: "ضيّقتها لك — والأول ما تغيّر:",
+  refineSameTopCheaper: "هذي أرخصها — والأول ما تغيّر:",
   where: "مكانه على الخريطة تحت.",
   /*
    * Four more replies the chat's memory reads (14 October), each of which was
