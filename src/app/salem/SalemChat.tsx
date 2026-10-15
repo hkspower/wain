@@ -17,7 +17,8 @@ import {
   SALEM_NAME,
   type SalemHandoffFrom,
 } from "@/lib/wain-ai";
-import { jobContext, jobFor, pickInJob, writeJob } from "@/lib/agent-job";
+import { jobFor, pickInJob, writeJob } from "@/lib/agent-job";
+import { jobContext } from "@/lib/agent-job-context";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext, Opener, SocialAct } from "@/lib/salem-followup";

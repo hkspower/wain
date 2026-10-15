@@ -22,7 +22,11 @@ const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-agent-job-"));
 const entry = join(tmp, "entry.ts");
-writeFileSync(entry, `export * from ${JSON.stringify(join(ROOT, "src/lib/agent-job.ts"))};\n`);
+writeFileSync(
+  entry,
+  `export * from ${JSON.stringify(join(ROOT, "src/lib/agent-job.ts"))};\n` +
+    `export * from ${JSON.stringify(join(ROOT, "src/lib/agent-job-context.ts"))};\n`
+);
 const bundle = join(tmp, "entry.mjs");
 execSync(
   `npx -y esbuild ${JSON.stringify(entry)} --bundle --format=esm ` +

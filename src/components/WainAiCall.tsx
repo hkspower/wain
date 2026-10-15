@@ -24,7 +24,8 @@ import {
   type MicProbeResult,
 } from "@/lib/wain-ai-bus";
 import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
-import { jobContext, jobFor, pickInJob, writeJob, type JobAgent } from "@/lib/agent-job";
+import { jobFor, pickInJob, writeJob, type JobAgent } from "@/lib/agent-job";
+import { jobContext } from "@/lib/agent-job-context";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.

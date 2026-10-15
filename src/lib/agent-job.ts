@@ -16,13 +16,13 @@
  * So every agent writes the job it is holding — what was asked, the places it
  * showed, the one picked — and the next one reads it when it starts: his chat
  * keeps her places as its own answer, and an agent session is told the job in
- * one contextual update (`jobContext`), which the agent reads as background
- * and never answers aloud. Nothing here leaves the device by itself: the job
+ * one contextual update (`jobContext`, in agent-job-context.ts so /search does
+ * not carry its text), which the agent reads as background and never answers
+ * aloud. Nothing here leaves the device by itself: the job
  * sits in this tab's sessionStorage for half an hour, and only an agent
  * session the visitor has opened is told it.
  *
- * Catalogue-free, like place-kit: the call component is in the root layout,
- * and the names `jobContext` needs are passed in.
+ * Catalogue-free, like place-kit: the call component is in the root layout.
  */
 
 /** Who held the job last. */
@@ -135,33 +135,4 @@ export function pickInJob(by: JobAgent, slug: string, name: string, store: Store
 export function jobFor(agent: JobAgent, store: Store | null = session(), now = Date.now()): AgentJob | null {
   const job = readJob(store, now);
   return job && job.by !== agent ? job : null;
-}
-
-/** Where the job was, as the next agent hears it. */
-const WHERE: Record<JobAgent, string> = {
-  "shouq-call": "مكالمته مع شوق",
-  "shouq-answer": "جواب شوق المكتوب في صفحة البحث",
-  "salem-chat": "محادثته المكتوبة مع سالم",
-  "salem-call": "مكالمته مع سالم",
-  "call-center": "مركز الاتصال",
-};
-
-/**
- * The job as one contextual update for the agent picking it up: background it
- * reads, not a message it answers. Arabic, because the agent's prompt is, and
- * short, because it rides in every turn after it. `nameOf` turns a slug into
- * the place's name; a slug it does not know is left out rather than read out.
- */
-export function jobContext(job: AgentJob, nameOf: (slug: string) => string | undefined): string {
-  const names = job.shown.map(nameOf).filter((n): n is string => !!n).slice(0, 3);
-  const picked = job.picked ? nameOf(job.picked) : undefined;
-  return [
-    `سياق للتسليم: الزائر جاي من ${WHERE[job.by]}.`,
-    job.asked ? `طلبه: «${job.asked}».` : "",
-    names.length ? `الأماكن اللي طلعت له: ${names.join("، ")}.` : "",
-    picked ? `واختار منها: ${picked}.` : "",
-    "كمّل معه من هني، ولا تعيد عليه سؤال جاوبه.",
-  ]
-    .filter(Boolean)
-    .join(" ");
 }
