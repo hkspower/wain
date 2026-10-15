@@ -870,15 +870,22 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.failedDropped
         : WAIN_AI_CHAT_COPY.failed;
 
-  const statusLine = free
-    ? WAIN_AI_CHAT_COPY.freeStatus
-    : status === "connecting"
-      ? WAIN_AI_CHAT_COPY.connecting
-      : status === "connected"
-        ? WAIN_AI_CHAT_COPY.connected
-        : status === "disconnected"
-          ? WAIN_AI_CHAT_COPY.disconnected
-          : WAIN_AI_CHAT_COPY.offline;
+  // Not «جاهز» before the page's script has run: the box is disabled until it
+  // has, and the header said ready over it — a tap in those 3–4 seconds on a
+  // slow phone was lost, with nothing on screen saying why (15 October). The
+  // server render and the first client render both have `ready` false, so
+  // the two agree.
+  const statusLine = !ready
+    ? WAIN_AI_CHAT_COPY.connecting
+    : free
+      ? WAIN_AI_CHAT_COPY.freeStatus
+      : status === "connecting"
+        ? WAIN_AI_CHAT_COPY.connecting
+        : status === "connected"
+          ? WAIN_AI_CHAT_COPY.connected
+          : status === "disconnected"
+            ? WAIN_AI_CHAT_COPY.disconnected
+            : WAIN_AI_CHAT_COPY.offline;
 
   return (
     // text-white here: not decorative — the sr-only <label> below inherits
@@ -894,10 +901,17 @@ export default function SalemChat() {
     // grew instead, the box and her newest reply slid below the fold, and the
     // scroll-to-newest effect scrolled a list that could not scroll. Reported
     // as «she did not answer», 1 October. Installed, the body already pads
-    // for the tab bar, so the frame is that much shorter.
+    // for the tab bar, so the frame is that much shorter — except while the box
+    // has focus, when the tab bar steps aside (AppTabBar) and the frame takes
+    // its room: on Android the bar rode up over the keyboard and left 79px of
+    // conversation at 360×640, against 147 in a browser tab (15 October).
+    //
+    // `data-salem-frame`: the call bar's room is made here, not in <main>
+    // (globals.css) — this frame is fixed, so padding the page moved nothing.
     <div
       ref={frameRef}
-      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))]"
+      data-salem-frame=""
+      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))] standalone:has-[#salem-q:focus]:h-[var(--vvh,100dvh)]"
     >
       {/* On a wide screen every row keeps to one centred 42rem column
           (`md:px-[calc(50%-21rem)]`): the chat used to run the whole
@@ -966,8 +980,17 @@ export default function SalemChat() {
       >
         {messages.map((m, i) => {
           if (m.role === "system") {
+            // `data-line`, so the scroll can find the handoff line. And
+            // `wrap-anywhere` here and on every bubble: a pasted link has no
+            // place to break, and at 320 its bubble's text ran 186px off the
+            // screen and slid the whole transcript sideways (15 October).
             return (
-              <p key={i} role="status" className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
+              <p
+                key={i}
+                data-line={i}
+                role="status"
+                className="mx-auto max-w-[85%] wrap-anywhere rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200"
+              >
                 {m.text}
               </p>
             );
@@ -1030,7 +1053,7 @@ export default function SalemChat() {
             <div key={i} data-line={i} className={`flex items-end gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role !== "user" && <ReplyFace />}
               <p
-                className={`animate-bubble-in max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={`animate-bubble-in max-w-[80%] whitespace-pre-line wrap-anywhere rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user" ? "rounded-ee-md bg-sea-600 text-white" : "rounded-es-md bg-white text-ink-900"
                 }`}
               >
