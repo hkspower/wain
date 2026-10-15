@@ -22,13 +22,12 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
-Read at 00:30 UTC on 15 October: **production is `2d4ee7a5`** (the apex redirect; «The 14 October deploy,
-fifth») and **staging is `d667c103`** (the call-centre batch; «The 14 October deploy, fourth»). Both are
-agent builds with both agent ids and the read-aloud bridge off. The back end (`api/wain.php`) differs by
-stage: staging runs `e005f90`, production `4dd1b20` (see «The staging back end reinstalled»; `php
-…/api/wain.php version` prints both fingerprints). The branch is ahead of both: the job handover, سالم's
-replies and the `/shoug/` redirect are built and gated, not yet deployed (see the 15 October sections at the
-end). This block goes stale; the server's `build.json` is the only trustworthy source.
+Read at 06:56 UTC on 15 October: **production and staging are both `b75c9bca`** («The 15 October
+deploy» at the end): the job handover, سالم's replies, the `/shoug/` redirect and the voice bridge off by
+default. An agent build with both agent ids and the read-aloud bridge off. The back end (`api/wain.php`)
+differs by stage: staging runs `e005f90`, production `4dd1b20` (see «The staging back end reinstalled»;
+`php …/api/wain.php version` prints both fingerprints). This block goes stale; the server's `build.json` is
+the only trustworthy source.
 
 ## History lives in `docs/history.md`
 
@@ -6203,3 +6202,42 @@ It had been inert since 7 October (key renamed to `elevenlabs.key.off`, live bui
 - **The hub's remaining scripts are not touched** (`wain-agent-switcher-v1.js`, `wain-agent-collab-v2.js`,
   `wain-live-places-v1/v2.js`, `wain-site-ui-v1.js`, `api/call-center-data.php`, `/call-center/`, `/hangout/`);
   that was the other option and was not chosen. `api/hangouts.php` is still on production too.
+
+## The 15 October deploy — `b75c9bca` is live on both stages
+
+- **What shipped:** the job handover between the agents (web half), سالم's replies (thanks, «no», counts,
+  a miss keeps the answer), the `/shoug/` → `/find/` redirect, and the voice bridge off by default. The same
+  agent build on both stages: both agent ids, `NEXT_PUBLIC_WAIN_TTS_URL=none`.
+- **The first gate failed, and the cause was real.** `npm run ship` stopped on `audit:js`: /search was
+  176.1K against its 176K budget on the AGENT build. The earlier gates had all run on the free build, which
+  never checks that. Measured against a build of the live commit `2d4ee7a5` in a scratch worktree, /search
+  had grown 1.5K: +0.94K in its page chunk and +0.32K for the new social phrases. The page chunk carried
+  `jobContext` and its Arabic sentence table, which /search never calls. Webpack keeps every export a module
+  has anywhere in the app in each chunk the module lands in (here three: the call's lazy chunk, /salem,
+  /search). `b75c9bca` moves `jobContext` to `src/lib/agent-job-context.ts`, imported only by the call and
+  سالم's chat, and /search is 175.8K. This is not a lazy load hiding the cost: /search's visitors no longer
+  download that text at all. **Run `ship` on the agent build before calling a batch ready; the free build's
+  sizes are not the live site's.**
+- **Archive** `bb20b783` (`wain-1.1.0.zip`, 4,670,764 bytes, sha256 `9bcc6e74…6e53b3`, digest
+  `d868825efcd08935`, 281 files). One more permanent blob; `DEPLOY_SECRET` is still unset. `ship` green:
+  `scan`, `release`, `test:widget-csp` 42 passed, 0 failed.
+- **Staging**, job `yOm5TJ8q5I` at minute 45, read at its first firing: `{"ok":true,"deployed":282,
+  "removed":19,"emptied":1,"at":"2026-10-15T06:45:02+00:00"}`. **Production**, job `djxfohMj7k` at minute 51:
+  `{"ok":true,"deployed":282,"removed":13,"emptied":1,"at":"2026-10-15T06:51:02+00:00"}`. Both deleted and
+  listed gone. A job at a fixed minute (`45 * * * *`) fires once in the window it is read in, where a
+  per-minute job fires twice and wastes a rollback slot.
+- **Verified:** `deploy:verify --observed` on each stage: «b75c9bca is live — verified at the root and 7
+  levels below it». Staging: 126 files read, all byte-exact (every top-level chunk and the widget included).
+  Production: 90, all byte-exact. `_next/static/` on production holds `css`, `chunks`, `media` and the
+  `b75c9bca…/` directory alone.
+- **Edge**, after the cache purge, by three one-shot `wget -S --spider` jobs at minute 56 (read, deleted,
+  listed gone):
+  - `www.wainkw.com/salem/`: 200, `Last-Modified 06:51:01`, `DYNAMIC`.
+  - `www.wainkw.com/shoug/`: **301 → `https://www.wainkw.com/find/`**, so the closed hub page now lands on
+    her real one.
+  - `staging.wainkw.com/salem/`: 200, `Last-Modified 06:45:02`, `X-Robots-Tag: noindex, nofollow`.
+- **Unchanged and still on production's disk:** the foreign top-level archives and scripts, and
+  `chunks/app/search/page-shoug-kuwaiti-20261011a.js`. The prune removes only what an earlier manifest of ours
+  recorded.
+- **Crontab after:** sporta's `1mNk00yPZP` alone.
+- **Not measured:** a phone; a real agent reading the handover update (the socket is refused here).
