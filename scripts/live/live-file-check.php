@@ -28,7 +28,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 $WANT = [
     '.htaccess' => 'a87437f6b4ead4b5dc79fa0e62c02c8e64f8b7780cb682d769c89e761602e15c',
     'admin.webmanifest' => '2a36ff5a76af4f6e43877dad32f0a1ea3edc3b7afb8d3a5c06ef0897a979ca94',
-    'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
+    'api/.htaccess' => 'c54c74610cd6903586c90a9f3c80c23a690695331a4f80ee39aef9f374e04a9f',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '1bdfbccd23b9b188e833b8561f3105ced39866b47f2377bd6d4184db46f0422f',
     'api/admin.php' => 'bb71f8cf2e77772e5f5822384c958c345416b7f6993c2f9a8bc04f009cfebeb9',
@@ -240,7 +240,7 @@ $WANT = [
     'assets/payments-screen.js' => 'e0f2fd7a87dbf17fcfd9143da50bdf6a1912a781a9fa0cd220f4474d9176d300',
     'assets/product-attrs.js' => '57eb015784ab810a0f0a71f432ea6a614031b2879eda530b9744a89f5bf6ac21',
     'assets/product-cards.js' => '63c037fecc9332bca5d39229824f959ec830a4488efa96981bfdb61bd40cdf81',
-    'assets/product-editor-plus.js' => 'cd78755be5583880f589d27fc9757fffce450a8ecfbf5e50aa63137c875b7c9a',
+    'assets/product-editor-plus.js' => 'e9601dfd605a0fe72ea69acbce3e1e41222a9ebf00976f8ee137fab91c98ea57',
     'assets/product-mobile-layout.js' => 'a276006a1e48558da93f6ed2ab685c4f3b8c0c839df0e8c652e08d5f02fb7be1',
     'assets/product-photos.js' => 'a21739795ae5267bbf0dde2956f0190e8e128405fd7e27ad4611517a8892f4f6',
     'assets/product-polish.js' => 'fffc7b52ee995d68dbf5b89b6b84a117098e37a8bbe1d8224269f509b72de104',
@@ -280,7 +280,7 @@ $WANT = [
     'assistant-bot.png' => 'a589c66921ceb50accebe71449e0ca595e11649ca595517f864246e339483e00',
     'assistant-bot.webp' => '74b4d1a0ffdb119ae12b735b98468ae0de461d4c6f5ac8d14f652ad89b279803',
     'card.html' => '0e303bd23b23712cd6d9c3fe3113ab9c8a6e54cd286874b8063013bca2a96917',
-    'category.php' => '1fbe94eca335764aa06c0752a1871f3cc419a96242c05f34c6961ad87379a436',
+    'category.php' => 'b82c199231d561637ca8281bcf776abe4c4f8c302baea9c19a14aa5a91ad4af6',
     'cats/desktop/art-accessories-rtl.jpg' => '0a81aa0cb3fcae6aa8fabf250ce5fc96558c18e0675cea4f14caee916469088a',
     'cats/desktop/art-accessories-rtl.webp' => 'f9eba2e81448fad79efda7b2f394a4731d457d7df318f4031a6257143308a1b8',
     'cats/desktop/art-accessories.jpg' => '19d22654be977f73176022ad5f7dfa00f8027359c46ffb589617ee75823b6d0e',
@@ -383,7 +383,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'e6e11980e69b12eb369a947ab65d0ec3d331d7f43245ac26e501f941d6721c93',
+    'sw.js' => '15030a039dadd10226cab067eee8ea76798fcf46e6ec2f48fba76971b7fe4e2b',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
