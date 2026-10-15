@@ -2,12 +2,17 @@
 
 A native Unity build of the game for the Steam release: same Gulf Road
 spline, handling model, rival roster, SP battle rules and Kuwaiti voice
-lines as the web version, ported to C#. Everything is procedural — no
-art assets, no scene wiring.
+lines as the web version, ported to C#. The world is procedural — no art
+assets, no scene wiring — and the cars are the web build's own 17,
+brought in from the GLBs the game exports and baked into Unity assets
+(one prefab per car, with its hood, rear window, rear wing and tyres as
+prefabs of their own). See **The cars** below.
 
-> **Status:** authored code-only (this repo has no Unity editor), so the
-> first person to open it should expect to fix small compile nits if your
-> Unity version's API differs. The scripts target **Unity 6 LTS
+> **Status:** authored without a Unity editor. Every script is compiled
+> in CI-style against Unity's reference assemblies plus source-checked
+> URP stubs (`npm run check:unity-compile`, 0 errors), and the car reader
+> is run against all 17 real GLBs (`npm run test:unity-cars`), but nothing
+> has been played in Unity yet. The scripts target **Unity 6 LTS
 > (6000.0)** with the **Universal Render Pipeline**.
 
 ## Open & play
@@ -18,8 +23,72 @@ art assets, no scene wiring.
 3. Run the menu item **Night Racer ▸ Setup Rendering (URP + Post)**
    once. It generates the pipeline asset, renderer and post-processing
    profile and wires them into Graphics/Quality settings.
-4. Open any empty scene (File → New Scene → Basic) and press **Play**.
+4. The cars (once per export): with `npm run dev` running at the repo
+   root, `npm run cars:export` writes the 17 GLBs to `press/renders/glb/`.
+   Then **Night Racer ▸ Bake Cars to Assets** (or
+   `tools/unity/bake-cars.sh`) turns each into its own prefab. Skipping
+   the bake still works in the Editor — the GLBs are read directly — and
+   skipping the export too gives the procedural stand-in cars.
+5. Open an empty scene (File → New Scene → **Empty**: the Basic template
+   adds a second Main Camera and a daylight sun) and press **Play**.
    `Bootstrap.cs` spawns the whole game automatically — no scene setup.
+
+## The cars
+
+The web build's cars, not lookalikes. `NightRacer.Cars.CarLibrary` finds
+each car in this order:
+
+| Source | What it is |
+| --- | --- |
+| `Assets/Resources/Cars/<id>/<id>.prefab` | the car baked into Unity assets — instant to load, ships in a build |
+| `Assets/StreamingAssets/Cars/<id>.glb` | the export copied in by `npm run sync:unity-cars`, read at runtime |
+| `press/renders/glb/<id>.glb` | the export itself (Editor only) |
+| — | none of these: the procedural silhouette, so a clean clone still runs |
+
+**Baked, every car is its own asset** (`Assets/Resources/Cars/<id>/`):
+
+| Asset | |
+| --- | --- |
+| `<id>.prefab` | the whole car, `CarRig` on the root, with the parts below nested as prefab instances |
+| `Parts/Hood.prefab` | the bonnet panel (paint ahead of the windscreen's foot, facing up, between the fenders) |
+| `Parts/RearWindow.prefab` | the back glass |
+| `Parts/RearWing.prefab` | the wing, on the seven cars that carry one |
+| `Parts/Tyre-F.prefab`, `Tyre-R.prefab` | the tyres; each axle's right tyre is the left one mirrored (checked on all 17) |
+| `Meshes/`, `Materials/`, `Textures/` | every mesh by part, every material, the plate/decal/tyre/seat maps |
+
+Edit `Parts/Tyre-F.prefab` and both front wheels follow. The folder is
+generated (hundreds of MB of mesh data) and git-ignored: bake again after
+re-exporting.
+
+**What is carried across**, from the GLB's own values: the paint on URP
+**Complex Lit** with the real clear coat (gloss 1 / 0.045, satin 0.45 /
+0.42, matte none); glass that keeps its reflection at 45% opacity
+(premultiplied, URP's "preserve specular"); lamps at their real emissive
+strengths, with brake levels from the web (`CarRig.SetBrake`); plates,
+decals and reflectors at their night floors; tyre and seat maps with
+their texture transforms. The reader is our own (`CarAsset.cs`), not
+glTFast: glTFast ignores `KHR_materials_emissive_strength`, which dims
+the lamps to a quarter and lights plates, decals and brake discs white.
+
+**Something to reflect**: a procedural night environment (the web's
+`env.ts` recipe: horizon band, lamp heads, moon, lit towers) is the
+scene's reflection, and a realtime probe rides with the player's car,
+leaving cars and lamp coronas out of what it sees.
+
+**On the road**: the player drives the catalogue car `PlayerCar()`
+picks, each rival their own car (`CarId`, generated from the web roster)
+in their colours, and traffic the five street cars repainted in the
+traffic palette by the web's paint law. Wheels roll at each car's own
+tyre radius about their hubs; the front pair can steer
+(`CarRig.Steer`).
+
+**Checks**, runnable without Unity (both need the .NET 8 SDK):
+
+```bash
+npm run test:unity-cars       # the reader against all 17 GLBs: triangles, size,
+                              # hubs, radii, parts, winding, the paint law
+npm run check:unity-compile   # every script against Unity's reference assemblies
+```
 
 ## The data connection
 
@@ -103,7 +172,8 @@ live data reaches the race it was fetched for rather than the one after.
 
 ## The render stack
 
-Everything is procedural — no textures or models ship in the repo.
+The world is procedural — no textures or models ship in the repo; the
+cars come from the game's export (above).
 
 | Feature | Detail |
 | --- | --- |
@@ -116,7 +186,7 @@ Everything is procedural — no textures or models ship in the repo.
 | Headlights | Spot light with **soft real-time shadows** — traffic throws moving shadows up the road |
 | Street lamps | HDR emissive heads + camera-facing coronas, point lights every 4th pole |
 | Road | Procedurally generated asphalt: four octaves of tileable value noise for graded aggregate, tyre-polished wear bands, oil drips, plus a matching normal map from the same height field. 16x anisotropic |
-| Cars | Four silhouettes (saloon, Z-wedge, R34-style coupe, FD) at real-world sizes, clearcoat paint, alloy rims, HDR emissive lamps, brake flare, soft contact shadow |
+| Cars | The web build's own 17 cars (above): Complex Lit clear-coat paint, premultiplied glass, lamps at their real emissive strengths, a realtime reflection probe on the player's car over a procedural night environment, soft contact shadow. Without the export, four procedural silhouettes stand in |
 
 If you open the project before installing URP, the game still runs on the
 built-in pipeline (materials fall back to `Standard`) and logs a warning
@@ -207,6 +277,7 @@ at the repo root to pre-render them once for both platforms.
 | Gulf Road spline (real corniche layout) | ✅ same control points |
 | Handling (heading, grip-limited yaw, curve slip) | ✅ same constants |
 | Rival roster, SP battles, flash-to-start | ✅ |
+| The cars themselves (all 17, as separate assets with their parts) | ✅ from the game's own export |
 | Traffic + collisions | ✅ |
 | Kuwaiti voice lines | ✅ via ElevenLabs |
 | Engine/wind/impact audio | ✅ procedural (OnAudioFilterRead) |
