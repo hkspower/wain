@@ -36,6 +36,10 @@
     street: ['Enter your street', 'اكتب اسم الشارع'],
     building: ['Enter the house or building number', 'اكتب رقم المنزل أو المبنى'],
   }
+  // CA-01 (2026-10-14, owner's choice: refuse with a message). The bundle keeps the first 8 digits of a
+  // phone and drops the rest on input, so a 9th digit used to vanish under a green tick. It is refused here.
+  var OVER = ['Only 8 digits: remove the extra digit', 'ثمانية أرقام فقط: احذف الرقم الزائد']
+  var overflow = false
   var MORE = ['Add floor, flat or a delivery note', 'أضف الدور أو الشقة أو ملاحظة للتوصيل']
 
   function ascii(s) {
@@ -76,11 +80,12 @@
     var ok = RULES[field](input.value)
     var bundleErr = document.getElementById('e-' + field)
     var state = ''
-    if (ok && has) state = 'ok'
+    if (field === 'phone' && overflow) state = 'bad'
+    else if (ok && has) state = 'ok'
     else if (touched[field] && !bundleErr) state = 'bad'
     if (state) c.setAttribute('data-cf', state); else c.removeAttribute('data-cf')
     msg.className = 'cf-msg' + (state ? ' cf-' + state : '')
-    msg.textContent = state === 'ok' ? '✓' : state === 'bad' ? MSG[field][ar() ? 1 : 0] : ''
+    msg.textContent = state === 'ok' ? '✓' : state === 'bad' ? (field === 'phone' && overflow ? OVER[ar() ? 1 : 0] : MSG[field][ar() ? 1 : 0]) : ''
     msg.hidden = !state
   }
 
@@ -90,11 +95,41 @@
     input.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
+  // Refuse an edit that would make the phone more than 8 digits, before the bundle truncates it.
+  document.addEventListener('beforeinput', function (e) {
+    if (!onCheckout() || !e.target || e.target.id !== 'f-phone') return
+    if (!e.inputType || e.inputType.indexOf('delete') === 0) return
+    var t = e.target, cur = t.value
+    var s = t.selectionStart == null ? cur.length : t.selectionStart
+    var en = t.selectionEnd == null ? s : t.selectionEnd
+    var add = e.data || (e.dataTransfer && e.dataTransfer.getData('text')) || ''
+    // Stopped here, in capture, so keyboard-hints.js (which re-inserts converted Arabic digits from a
+    // bubble listener on window) never sees a refused edit and cannot put it back.
+    if (phoneDigits(cur.slice(0, s) + add + cur.slice(en)).length > 8) {
+      e.preventDefault(); e.stopImmediatePropagation(); overflow = true; touched.phone = true; paint('phone')
+    }
+  }, true)
+  // The second line of defence: an input that arrived with more than 8 digits (a path that fires no
+  // beforeinput, such as a programmatic insert or a keyboard that skips it) is put back to the last valid
+  // value, and the event is stopped before the bundle truncates it. The value is set through the native
+  // setter, so React's tracker still matches the DOM.
+  var lastGood = ''
   document.addEventListener('input', function (e) {
     if (!onCheckout()) return
     var id = e.target && e.target.id
     if (!id || id.indexOf('f-') !== 0) return
     var f = id.slice(2)
+    if (f === 'phone') {
+      var el = e.target
+      if (phoneDigits(el.value).length > 8) {
+        e.stopImmediatePropagation()
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, lastGood)
+        overflow = true; touched.phone = true; paint('phone')
+        return
+      }
+      lastGood = el.value
+      overflow = false
+    }
     if (RULES[f]) paint(f)
   }, true)
   document.addEventListener('focusout', function (e) {
