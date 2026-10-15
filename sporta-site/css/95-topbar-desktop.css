@@ -1,0 +1,33 @@
+/* Top bar from 768px, 2026-10-15 — the owner chose "fix sizing, keep look".
+ *
+ * Measured before: on a desktop the account and bag buttons were bare 22x22 boxes 13px
+ * apart (`.tap` grows to 44px only under pointer: coarse), and the language pill was
+ * 30-32px tall beside them. Now each icon button is a 40px circle with a soft hover
+ * tint, 8px apart, and the pill is 40px tall. Colours, icons and the phone layout are
+ * unchanged. The same markup is drawn by category.php, so both are covered. */
+@media (min-width: 768px) {
+  header nav.max-w-7xl > div:last-child {
+    gap: 8px;
+  }
+  header nav.max-w-7xl > div:last-child > .tap {
+    width: 40px;
+    height: 40px;
+    border-radius: 9999px;
+    transition: background-color 0.15s ease;
+  }
+  header nav.max-w-7xl > div:last-child > .tap:hover {
+    background-color: rgb(255 255 255 / 0.1);
+  }
+  header nav.max-w-7xl > div:last-child > .tap:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+  header nav.max-w-7xl > div:first-child > .tap {
+    min-height: 40px;
+  }
+}
+@media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+  header nav.max-w-7xl > div:last-child > .tap {
+    transition: none;
+  }
+}

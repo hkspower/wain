@@ -19,8 +19,11 @@ header a > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
 }
 
 /* The language switch is a globe, drawn smaller than the others: give it the same
- * visual weight as the 22px icons beside it. */
-header button[aria-label="Switch language"] > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+ * visual weight as the 22px icons beside it. Matched by its PLACE (first group of the
+ * logo row), not by its label: the label is "Switch language" in English only, so the
+ * Arabic globe stayed 22px (measured 2026-10-15). A button on the shop, a link on the
+ * category pages. */
+header nav.max-w-7xl > div:first-child > .tap > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
   width: 20px;
   height: 20px;
 }

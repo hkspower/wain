@@ -2567,7 +2567,12 @@ header a > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
   width: 22px;
   height: 22px;
 }
-header button[aria-label="Switch language"] > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+header nav.max-w-7xl > div:first-child > .tap > svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
   width: 20px;
   height: 20px;
+}
+@media (min-width: 768px) and (prefers-reduced-motion: reduce) {
+  header nav.max-w-7xl > div:last-child > .tap {
+    transition: none;
+  }
 }
