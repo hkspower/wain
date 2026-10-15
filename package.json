@@ -292,7 +292,8 @@
     "test:payment-cards": "node scripts/payment-cards-test.mjs",
     "test:input-text": "node scripts/input-text-test.mjs",
     "test:product-save-keep": "node scripts/product-save-keep-test.mjs",
-    "test:product-editor-plus": "node scripts/product-editor-plus-test.mjs"
+    "test:product-editor-plus": "node scripts/product-editor-plus-test.mjs",
+    "test:checkout-concurrency": "node scripts/checkout-concurrency-test.mjs"
   },
   "private": true
 }

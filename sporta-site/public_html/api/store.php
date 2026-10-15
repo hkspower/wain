@@ -3833,7 +3833,10 @@ function store_stock_claim(PDO $db, array $lines): array {
         'update product_variants set stock = stock - ?
           where slug = ? and size = ? and stock >= ?'
     );
-    $left = $db->prepare('select stock from product_variants where slug = ? and size = ?');
+    // A LOCKING read, so the count is the one that just refused the claim. A plain
+    // select reads the transaction's REPEATABLE READ snapshot, which can predate
+    // other checkouts' commits: a shopper refused at 0 was told "only 3 left".
+    $left = $db->prepare('select stock from product_variants where slug = ? and size = ? for update');
     $skuQ = $db->prepare('select sku, stock from product_variants where slug = ? and size = ?');
     // IS THIS PRODUCT STOCK-TRACKED AT ALL — which is not the same question as
     // "did the order name a size", and reading it as such broke a working
@@ -3845,6 +3848,16 @@ function store_stock_claim(PDO $db, array $lines): array {
     $tracked = $db->prepare('select 1 from product_variants where slug = ? limit 1');
     $known = [];
     $claimed = 0;
+    // ONE LOCK ORDER FOR EVERY CHECKOUT (2026-10-15). Each update below locks its
+    // variant row until the order commits, and the cart arrives in the order the
+    // shopper added things — so two bags holding [A, B] and [B, A] took the same
+    // two locks in opposite orders and InnoDB killed one checkout with a deadlock
+    // (measured: 5 of 40 concurrent crossing orders answered 500 "failed").
+    // Claiming in (slug, size) order makes every checkout queue behind the other
+    // instead. Nothing reads the claim's order: `short` names the line itself.
+    usort($lines, function ($a, $b) {
+        return [(string)$a['slug'], (string)($a['size'] ?? '')] <=> [(string)$b['slug'], (string)($b['size'] ?? '')];
+    });
     foreach ($lines as $l) {
         if ($l['size'] === null) continue;
         if (!array_key_exists($l['slug'], $known)) {
