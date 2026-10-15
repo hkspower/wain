@@ -669,6 +669,40 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
   const bar = p.locator('#wain-ai-bar');
   await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
   ok('and the bar waits there in his name', ((await bar.textContent().catch(() => '')) ?? '').includes('سالم'));
+
+  /**
+   * The next step after his call is typing a follow-up, and the bar sat on the
+   * box: 61px at z-60 over the chat's form, so a tap on the input landed on
+   * the bar — at 320×568 on «اسأل مرة ثانية», which rang again (15 October).
+   * The page-room rule for the bar pads <main>, and this chat is a fixed frame.
+   */
+  const reachable = () => p.evaluate(() => {
+    const hit = (el) => {
+      const r = el.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!at && (at === el || el.contains(at));
+    };
+    const box = document.getElementById('salem-q');
+    const send = box?.form?.querySelector('button[type="submit"]');
+    return { box: !!box && hit(box), send: !!send && hit(send) };
+  }).catch(() => null);
+  const stillUp = () => p.locator('#wain-ai-bar').isVisible().catch(() => false);
+  let reach = await reachable();
+  ok('390: with his bar up, the chat\'s box and send button take a tap', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  await p.setViewportSize({ width: 320, height: 568 });
+  await p.waitForTimeout(300);
+  reach = await reachable();
+  ok('320: …and on a small phone', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
+  await p.waitForTimeout(300);
+  reach = await reachable();
+  ok('320 installed: …and over the tab bar', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
+  // Installed, the tab bar steps aside while the box has focus and the chat
+  // takes its room; the bar has to come down with it, or it sits on the form.
+  await p.locator('#salem-q').focus({ timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  reach = await reachable();
+  ok('320 installed, typing: …and still with the tab bar stepped aside', !!reach?.box && !!reach?.send && await stillUp(), JSON.stringify(reach));
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
