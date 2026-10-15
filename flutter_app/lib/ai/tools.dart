@@ -28,6 +28,10 @@ class ShowPlacesResult {
   /// Slugs to put in front of the visitor (chat) — at most eight.
   final List<String> slugs;
 
+  /// Every matching place, in the answer's order — what the job carries for
+  /// «غيره» in the next agent (agent_job.dart).
+  final List<String> ranked;
+
   /// Matching places in all, or -1 when the search could not run.
   final int total;
   final List<String> names;
@@ -36,51 +40,56 @@ class ShowPlacesResult {
     this.query,
     this.slugs,
     this.total,
-    this.names,
-  );
+    this.names, {
+    this.ranked = const [],
+  });
 }
 
 /// The place hits in the order the answer gives them — `answerOrder`, the
 /// one ordering the search screen and the chat share, so a question names the
 /// same place on screen, in the chat and in what she is told (3 October).
+///
+/// The search is over EVERY kind (limit 40, so a category or an area takes a
+/// slot the way it does there), then the places: the web's call and chat
+/// `show_places`. It searched places alone until 15 October, which is the
+/// same answer until more than forty documents match — «بحر الكويت» matches
+/// 46, and a call said forty places where the site says 36, and handed the
+/// next agent a job holding places the web's job does not (agent_job.dart).
 List<SearchHit> placeHits(
   String query,
   SearchIndex index,
   List<Place> places, [
   AnswerClock? clock,
-]) => answerOrder(
-  query,
-  search(query, index, limit: 40, kinds: const ['place']),
-  index,
-  places,
-  clock,
-).hits;
+]) => [
+  for (final h in answerOrder(
+    query,
+    search(query, index, limit: 40),
+    index,
+    places,
+    clock,
+  ).hits)
+    if (h.doc.kind == 'place') h,
+];
+
+/// The slugs of [hits] that name a place in [places], in order.
+List<String> _known(Iterable<SearchHit> hits, List<Place> places) {
+  final known = {for (final p in places) p.slug};
+  return [
+    for (final h in hits)
+      if (known.contains(h.doc.id.substring('place:'.length)))
+        h.doc.id.substring('place:'.length),
+  ];
+}
 
 /// The places a free answer in سالم's chat is made of, in its order — the
-/// web's SalemChat `search`: the search over EVERY kind (limit 40, so a
-/// category or an area takes a slot the way it does there), `answerOrder`,
-/// then the place hits. Not [placeHits], which searches places alone and so
-/// finds more of them than the web's chat remembers.
+/// web's SalemChat `search`, which is the same search as [placeHits] since
+/// that one stopped searching places alone.
 List<String> chatRanked(
   String query,
   SearchIndex index,
   List<Place> places, [
   AnswerClock? clock,
-]) {
-  final known = {for (final p in places) p.slug};
-  return [
-    for (final h in answerOrder(
-      query,
-      search(query, index, limit: 40),
-      index,
-      places,
-      clock,
-    ).hits)
-      if (h.doc.kind == 'place' &&
-          known.contains(h.doc.id.substring('place:'.length)))
-        h.doc.id.substring('place:'.length),
-  ];
-}
+]) => _known(placeHits(query, index, places, clock), places);
 
 /// `show_places` on a CALL. [salem] is true when his agent is on the line.
 ShowPlacesResult showPlacesForCall(
@@ -100,12 +109,8 @@ ShowPlacesResult showPlacesForCall(
     );
   }
   final found = placeHits(q, index, places);
-  final known = {for (final p in places) p.slug};
-  final slugs = [
-    for (final h in found.take(8))
-      if (known.contains(h.doc.id.substring('place:'.length)))
-        h.doc.id.substring('place:'.length),
-  ];
+  final ranked = _known(found, places);
+  final slugs = _known(found.take(8), places);
   final names = found.take(3).map((h) => h.doc.title).toList();
   final total = found.length;
   if (total == 0) {
@@ -122,6 +127,7 @@ ShowPlacesResult showPlacesForCall(
       slugs,
       total,
       names,
+      ranked: ranked,
     );
   }
   // Agreeing, with Arabic digits — the web's countAr(MATCHING_PLACES). The old
@@ -143,6 +149,7 @@ ShowPlacesResult showPlacesForCall(
     slugs,
     total,
     names,
+    ranked: ranked,
   );
 }
 
@@ -212,12 +219,7 @@ ShowPlacesResult showPlacesForChat(
   List<Place> places,
 ) {
   final found = placeHits(query, index, places);
-  final known = {for (final p in places) p.slug};
-  final slugs = [
-    for (final h in found.take(8))
-      if (known.contains(h.doc.id.substring('place:'.length)))
-        h.doc.id.substring('place:'.length),
-  ];
+  final slugs = _known(found.take(8), places);
   if (found.isEmpty) {
     return ShowPlacesResult(
       'ما لقيت ولا مكان يطابق «$query» — لا تسكت، قول له بصراحة إن هالكلمات ما طلّعت شي، '
@@ -237,6 +239,7 @@ ShowPlacesResult showPlacesForChat(
     slugs,
     found.length,
     names,
+    ranked: _known(found, places),
   );
 }
 

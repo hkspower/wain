@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../ai/agent_job.dart';
 import '../ai/call_button.dart' show placeCall;
 import '../ai/call_controller.dart';
 import '../ai/config.dart';
@@ -61,7 +62,8 @@ class SalemScreen extends StatefulWidget {
   final String? initialQuery;
 
   /// Where [initialQuery] came from: «call» (her call's last screen, or a
-  /// search her call opened) or «shouq» (her answer). Said in the chat.
+  /// search her call opened), «shouq» (her answer) or «call-center» (the
+  /// site's call-centre page, opened in the app). Said in the chat.
   final String? handoffFrom;
 
   /// Kuwait's month and hour; tests pin them, the app reads the clock.
@@ -102,6 +104,10 @@ class _SalemScreenState extends State<SalemScreen> {
 
   /// The handed-over question, until it has been asked.
   String? _handoff;
+
+  /// The place the visitor had picked with the agent before, for the first
+  /// answer here to point at (see `showList`), so «وينه؟» means it.
+  String? _carriedPick;
   final _input = TextEditingController();
   final _scroll = ScrollController();
   ChatStatus _status = ChatStatus.connecting;
@@ -204,6 +210,14 @@ class _SalemScreenState extends State<SalemScreen> {
           widget.connect ?? (uri, protocols) => defaultChannel(uri, protocols),
       onStatus: (s) {
         if (!mounted) return;
+        // The line is open: the job the visitor brings from another agent
+        // goes in as background before anything is asked (agent_job.dart) —
+        // the handed-over question waits for his greeting, so it comes after
+        // this.
+        if (s == ChatStatus.connected) {
+          final job = jobFor(JobAgent.salemChat);
+          if (job != null) _handle?.tell(jobContext(job, _nameOf));
+        }
         setState(() => _status = s);
         // She speaks first: connected means her greeting is on its way.
         _wait(s == ChatStatus.connected);
@@ -237,16 +251,29 @@ class _SalemScreenState extends State<SalemScreen> {
           final q = '${p['query'] ?? ''}'.trim();
           final r = showPlacesForChat(q, searchIndex, kPlaces);
           _add(ChatPlaces(q, r.slugs));
+          if (q.isNotEmpty) {
+            writeJob(
+              JobAgent.salemChat,
+              asked: q,
+              shown: r.slugs,
+              ranked: r.ranked,
+            );
+          }
           return r.spoken;
         },
         'open_place': (p) {
           final r = openPlaceForChat('${p['slug'] ?? ''}', kPlaces);
-          if (r.place != null) _add(ChatPlace(r.place!.slug));
+          if (r.place != null) {
+            _add(ChatPlace(r.place!.slug));
+            pickInJob(JobAgent.salemChat, r.place!.slug, r.place!.nameAr);
+          }
           return r.spoken;
         },
       },
     );
   }
+
+  static String? _nameOf(String slug) => getPlace(slug)?.nameAr;
 
   void _add(ChatLine e) {
     if (!mounted) return;
@@ -330,12 +357,29 @@ class _SalemScreenState extends State<SalemScreen> {
     // place first.
     _ctx = null;
     _active = null;
-    final from = widget.handoffFrom;
-    if (from == 'call' || from == 'shouq') {
+    // The job this question comes with, when it is this question's: the place
+    // the visitor picked there is the one «وينه؟» means here, and the line
+    // says so. (His agent is told the whole job when its line opens.)
+    final job = jobFor(JobAgent.salemChat);
+    final cut = job == null
+        ? null
+        : job.asked.length > 120
+        ? job.asked.substring(0, 120)
+        : job.asked;
+    final picked = cut == q ? job!.picked : null;
+    _carriedPick = picked;
+    final label = switch (widget.handoffFrom) {
+      'call' => ChatCopy.fromCall,
+      'shouq' => ChatCopy.fromShouq,
+      'call-center' => ChatCopy.fromCallCenter,
+      _ => null,
+    };
+    if (label != null) {
+      final name = picked == null ? null : _nameOf(picked);
       _add(
         ChatText(
           'system',
-          '${from == 'call' ? ChatCopy.fromCall : ChatCopy.fromShouq}: «$q»',
+          '$label: «$q»${name == null ? '' : ChatCopy.fromPicked(name)}',
         ),
       );
     }
@@ -451,8 +495,20 @@ class _SalemScreenState extends State<SalemScreen> {
         ),
       );
       _ctx = next;
-      _active = null;
+      // The place picked with the agent before, when this answer has it:
+      // «وينه؟» and «كم سعره؟» then mean the one the visitor had already
+      // chosen.
+      final carried = _carriedPick;
+      _carriedPick = null;
+      _active = carried != null && ranked.contains(carried) ? carried : null;
       parts = spoken;
+      writeJob(
+        JobAgent.salemChat,
+        asked: query,
+        shown: slugs,
+        ranked: ranked,
+        picked: _active,
+      );
     }
 
     // An answer's own sentence, for its first eight places.
@@ -513,6 +569,7 @@ class _SalemScreenState extends State<SalemScreen> {
         intent.kind == FollowUpKind.where) {
       final place = getPlace(intent.slug!)!;
       _active = place.slug;
+      pickInJob(JobAgent.salemChat, place.slug, place.nameAr);
       if (intent.kind == FollowUpKind.pick) {
         // «كم سعره؟» — the guide holds a band, not a price, and says so
         // instead of the place's try-line (14 October).
@@ -862,7 +919,15 @@ extension on _SalemScreenState {
           query: p.query,
           chips: latest && !_waiting && connected ? p.chips : null,
           onChip: (c) => _submit(c, p.context),
-          onActive: latest ? (slug) => _active = slug : null,
+          onActive: latest
+              ? (slug) {
+                  _active = slug;
+                  final picked = getPlace(slug);
+                  if (picked != null) {
+                    pickInJob(JobAgent.salemChat, slug, picked.nameAr);
+                  }
+                }
+              : null,
         );
       case ChatPlace p:
         final place = getPlace(p.slug);

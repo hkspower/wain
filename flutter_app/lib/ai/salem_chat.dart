@@ -70,12 +70,26 @@ const Duration kConnectTimeout = Duration(seconds: 12);
 
 class ChatHandle {
   final void Function(String text) send;
+
+  /// Background for the agent: a `contextual_update`, which it reads and never
+  /// answers — the job a visitor brings from another agent (agent_job.dart).
+  /// Nothing waits for a reply to it. Whether it went out (the web's `tell`).
+  final bool Function(String text) tell;
   final void Function() close;
-  const ChatHandle({required this.send, required this.close});
+  const ChatHandle({
+    required this.send,
+    required this.tell,
+    required this.close,
+  });
 }
 
-const ChatHandle _noop = ChatHandle(send: _ignore, close: _ignore0);
+const ChatHandle _noop = ChatHandle(
+  send: _ignore,
+  tell: _untold,
+  close: _ignore0,
+);
 void _ignore(String _) {}
+bool _untold(String _) => false;
 void _ignore0() {}
 
 ChatHandle startSalemChat({
@@ -114,6 +128,10 @@ ChatHandle startSalemChat({
 
   var deliberatelyClosed = false;
   var settled = false;
+  // Open from `ready` until the line closes, from either end — the web's
+  // `readyState === OPEN`. [ChatHandle.tell] reads it: after the SERVER had
+  // closed, the sink swallowed the write and tell still said it went.
+  var open = false;
   // Set once the server has said why it refused, so the close that follows
   // cannot overwrite it with a guess.
   var unavailable = false;
@@ -139,6 +157,7 @@ ChatHandle startSalemChat({
   // The handshake goes out as soon as the socket is ready.
   channel.ready
       .then((_) {
+        open = true;
         sendJson({
           'type': 'conversation_initiation_client_data',
           'conversation_config_override': {
@@ -229,6 +248,7 @@ ChatHandle startSalemChat({
       }
     },
     onError: (_) {
+      open = false;
       settled = true;
       timer?.cancel();
       if (deliberatelyClosed) return;
@@ -236,6 +256,7 @@ ChatHandle startSalemChat({
       onStatus(ChatStatus.error);
     },
     onDone: () {
+      open = false;
       timer?.cancel();
       if (isUnavailable(channel.closeReason ?? '')) unavailable = true;
       if (deliberatelyClosed) return;
@@ -253,6 +274,11 @@ ChatHandle startSalemChat({
 
   return ChatHandle(
     send: (text) => sendJson({'type': 'user_message', 'text': text}),
+    tell: (text) {
+      if (!open || deliberatelyClosed || text.trim().isEmpty) return false;
+      sendJson({'type': 'contextual_update', 'text': text});
+      return true;
+    },
     close: () {
       deliberatelyClosed = true;
       timer?.cancel();

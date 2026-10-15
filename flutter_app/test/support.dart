@@ -50,6 +50,12 @@ class FakeSession implements AgentSession {
     await hold?.future;
   }
 
+  /// What the agent on the line was told as background (agent_job.dart).
+  final List<String> told = [];
+
+  @override
+  void tell(String text) => told.add(text);
+
   @override
   Future<void> end() async => ended = true;
 

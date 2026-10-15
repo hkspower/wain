@@ -26,7 +26,7 @@ class PrivacyScreen extends StatelessWidget {
   ];
 
   /// The agent build's account of the call (staging only since 2 October).
-  static const _aiAgent = [
+  static const aiAgent = [
     'شوق ما تشتغل إلا إذا اتصلت فيها أنت، بالضغط على زر الاتصال، وتقدر تنهي المكالمة في أي وقت. '
         'قبل جذي ما يصير أي اتصال بخدمتها.',
     'المايك ما يشتغل إلا بعد ما تعطي الإذن. وخلال المكالمة صوتك يتنقل مباشرة لمزوّد '
@@ -44,17 +44,35 @@ class PrivacyScreen extends StatelessWidget {
     'فلا تقول ولا تكتب شي ما تبيه ينحفظ — رقمك، عنوان بيتك، أو أي معلومة خاصة. وقبل أول '
         'مكالمة وأول محادثة يسألك التطبيق إذا توافق، ويتذكّر جوابك.',
     'وإذا قالت لك «دوّرت لك» أو فتحت لك مكان، هذي أوامر تنفّذها داخل التطبيق على جهازك — البحث نفسه يصير عندك.',
+    jobAgent,
   ];
+
+  /// The job a visitor carries between the two (ai/agent_job.dart): kept in
+  /// the app's memory while it runs — the web's says «this tab», which the
+  /// app has none of — and told to the next agent the visitor opens, which
+  /// makes it part of that conversation, kept as above.
+  static const jobAgent =
+      'ولمّا تنتقل من وحد للثاني — من مكالمة شوق أو جوابها لمحادثة سالم، أو العكس — '
+      'سؤالك والأماكن اللي طلعت لك واللي اخترته ينحفظون في ذاكرة التطبيق بس وهو شغّال، '
+      'نص ساعة بالكثير، وينمسحون لما تسكّره، عشان اللي بعده ما يسألك من جديد. وإذا فتحت '
+      'مكالمة أو محادثة مع الخدمة، ينقال لها هالشي في بدايتها، فيصير جزء من المحادثة المحفوظة.';
+
+  /// The same job in the free app: nobody to tell, so it stays on the phone.
+  static const jobFree =
+      'ولمّا تنتقل من شوق لسالم أو العكس، سؤالك والأماكن اللي طلعت لك واللي اخترته يبقون '
+      'في ذاكرة التطبيق بس وهو شغّال، نص ساعة بالكثير، عشان اللي بعده ما يسألك من جديد — '
+      'وينمسحون لما تسكّره، وما ينرسلون لأي مكان.';
 
   /// The live app's free call and chat: the phone's own recognition and voice,
   /// our own search, nothing kept anywhere.
-  static const _aiFree = [
+  static const aiFree = [
     'شوق ما تشتغل إلا إذا اتصلت فيها أنت، بالضغط على زر الاتصال. المايك ما يشتغل إلا بعد ما تعطي الإذن.',
     'المكالمة ما تنسجّل ولا تنحفظ. كلامك يتحوّل لنص عن طريق خدمة التعرف على الكلام في جوالك '
         '(آبل في الآيفون، قوقل في أندرويد) حسب سياساتهم، والبحث نفسه يصير داخل التطبيق، والجواب '
         'ينقرا بالصوت العربي اللي في جوالك — وما نرسل إحنا شي عنك لأي مكان.',
     'ومحادثة سالم المكتوبة نفس الشي: اللي تكتبه يبقى في جوالك، ونبحث فيه بين أماكن وين داخل '
         'التطبيق — ما ينرسل لأي خادم.',
+    jobFree,
   ];
 
   static final sections = <(String, List<String>)>[
@@ -78,7 +96,7 @@ class PrivacyScreen extends StatelessWidget {
     // would be untrue for the one that is.
     (
       'وين AI — شوق وسالم',
-      kAgentEnabled || kSalemAgentEnabled ? _aiAgent : _aiFree,
+      kAgentEnabled || kSalemAgentEnabled ? aiAgent : aiFree,
     ),
     (
       'صوت وين — «اقرا لي الجواب»',

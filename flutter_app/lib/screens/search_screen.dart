@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../ai/agent_job.dart';
 import '../ai/call_controller.dart';
 import '../ai/config.dart';
 import '../app/app_state.dart';
@@ -344,6 +345,27 @@ class _SearchScreenState extends State<SearchScreen> {
                     onShare: recommends
                         ? () => _shareFromAnswer(hitPlaces.first.slug)
                         : null,
+                    // The job goes with the question: the places she put on
+                    // screen, in their order, and the one pointed at — so
+                    // «الثاني» in his chat is her second, and his agent is
+                    // told what she found (agent_job.dart). Her call's after
+                    // her agent call too, where the web counts her free call
+                    // only (its `asked` is the free call's) and files this as
+                    // her written answer's: the controller knows the call
+                    // asked it either way, so the app keeps the truer label.
+                    onToSalem: (fromCall) {
+                      final slugs = [for (final p in hitPlaces) p.slug];
+                      final picked = _activeSlug;
+                      writeJob(
+                        fromCall ? JobAgent.shouqCall : JobAgent.shouqAnswer,
+                        asked: q,
+                        shown: slugs.take(8).toList(),
+                        ranked: slugs,
+                        picked: picked != null && slugs.contains(picked)
+                            ? picked
+                            : null,
+                      );
+                    },
                   ),
                 if (hits.isNotEmpty) ...[
                 Text(
@@ -741,10 +763,15 @@ class _AnswerLine extends StatelessWidget {
 
   /// «رسّلها للربع» for the place she named — none when she named none.
   final VoidCallback? onShare;
+
+  /// «كمّل مع سالم», just before his chat opens: whether the question came
+  /// from her call, for the job it carries.
+  final void Function(bool fromCall) onToSalem;
   const _AnswerLine({
     required this.text,
     required this.query,
     required this.onShare,
+    required this.onToSalem,
   });
 
   @override
@@ -815,14 +842,22 @@ class _AnswerLine extends StatelessWidget {
               key: const ValueKey('answer-salem'),
               // Whether the question came from her call (the search a call's
               // show_places opened) or from this box — his chat says which.
-              onPressed: () => context.push(
-                salemHandoff(
-                  query,
-                  from: context.read<CallController?>()?.lastQuery == query
-                      ? 'call'
-                      : 'shouq',
-                ),
-              ),
+              // Only HER call counts, as `canContinueWithSalem` already says: a
+              // call with him opens this screen too (his free call lands here,
+              // and either call's show_places does), and his chat then said
+              // «من مكالمتك مع شوق» — and told his agent so — of a call that
+              // was with him.
+              onPressed: () {
+                final call = context.read<CallController?>();
+                final fromCall =
+                    call != null &&
+                    call.lastQuery == query &&
+                    call.persona == CallPersona.shouq;
+                onToSalem(fromCall);
+                context.push(
+                  salemHandoff(query, from: fromCall ? 'call' : 'shouq'),
+                );
+              },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
                 backgroundColor: Colors.white,

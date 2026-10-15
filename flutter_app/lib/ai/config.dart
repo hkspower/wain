@@ -359,22 +359,29 @@ abstract final class ChatCopy {
   static const callSalem = 'كلّم سالم';
 
   /// The line over a question handed to him from شوق (the web's
-  /// `WAIN_AI_CHAT_COPY.fromCall` / `fromShouq`).
+  /// `WAIN_AI_CHAT_COPY.fromCall` / `fromShouq`), or from the site's
+  /// call-centre page (`fromCallCenter`).
   static const fromCall = 'من مكالمتك مع شوق';
   static const fromShouq = 'من جواب شوق';
+  static const fromCallCenter = 'من مركز الاتصال';
+
+  /// After it, the place picked with the agent before, when the job it came
+  /// with has one (agent_job.dart): «— واخترت «X»».
+  static String fromPicked(String name) => ' — واخترت «$name»';
   static const seeAll = 'شوف الكل بالبحث';
   static const readAloud = 'اقرا لي الردود';
 }
 
-/// `/salem?q=…&from=call|shouq` — a question handed to سالم, and where it came
-/// from. The chat asks it as a NEW question whatever it remembers: read
-/// against an older chat, «شي رخيص» from her became a narrowing of that
-/// chat's subject (the web's `salemHandoff`).
+/// `/salem?q=…&from=call|shouq|call-center` — a question handed to سالم, and
+/// where it came from. The chat asks it as a NEW question whatever it
+/// remembers: read against an older chat, «شي رخيص» from her became a
+/// narrowing of that chat's subject (the web's `salemHandoff`).
 String salemHandoff(String q, {String? from}) {
   final t = q.trim();
   final params = {
     'q': t.length > 120 ? t.substring(0, 120) : t,
-    if (from == 'call' || from == 'shouq') 'from': from!,
+    if (from == 'call' || from == 'shouq' || from == 'call-center')
+      'from': from!,
   };
   return Uri(path: '/salem', queryParameters: params).toString();
 }

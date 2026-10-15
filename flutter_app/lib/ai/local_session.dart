@@ -283,6 +283,10 @@ class LocalSession implements AgentSession {
     });
   }
 
+  /// Nobody on the line to tell: the free call is the phone and our search.
+  @override
+  void tell(String text) {}
+
   void _finish({String? error}) {
     if (_done) return;
     _done = true;

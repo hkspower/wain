@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import '../data/models.dart';
 import '../data/search.dart';
 import 'agent_health.dart';
+import 'agent_job.dart';
 import 'config.dart';
 import 'keep_alive.dart';
 import 'local_session.dart' show kNoSpeech;
@@ -45,6 +46,12 @@ abstract class AgentSession {
     required String agentId,
     required Map<String, ToolHandler> tools,
   });
+
+  /// Background for the agent on the line — a contextual update it reads and
+  /// never answers: the job the caller brings from the agent before
+  /// (agent_job.dart). Only once the line is open; the free call has nobody
+  /// to tell.
+  void tell(String text);
   Future<void> end();
   void dispose();
 }
@@ -59,6 +66,11 @@ typedef MicCheck = Future<MicResult> Function();
 /// «لا», Android after «لا تسأل مرة ثانية»): only Settings can undo it, so the
 /// sheet offers a way there instead of a sentence alone.
 enum MicResult { ok, denied, blocked, missing, busy }
+
+/// Which agent holds the job on a call with this persona (agent_job.dart) —
+/// the web's `jobAgentOf`.
+JobAgent jobAgentOf(CallPersona persona) =>
+    persona == CallPersona.salem ? JobAgent.salemCall : JobAgent.shouqCall;
 
 class CallController extends ChangeNotifier {
   CallController({
@@ -117,6 +129,10 @@ class CallController extends ChangeNotifier {
   String _heard = '';
 
   AgentSession? _session;
+
+  /// Whether this call's agent has been told the job it was handed — once a
+  /// call, whatever the line does after.
+  bool _told = false;
   Timer? _dial;
   Timer? _clock;
   DateTime? _liveAt;
@@ -225,6 +241,7 @@ class CallController extends ChangeNotifier {
     _lastSlug = null;
     _heard = '';
     _elapsed = Duration.zero;
+    _told = false;
     _sheetOpen = true;
     _set(CallPhase.ringing);
 
@@ -266,6 +283,15 @@ class CallController extends ChangeNotifier {
           notifyListeners();
         });
         _set(CallPhase.live);
+        // The line is open: the agent is told the job the caller brings from
+        // the agent before — background it reads and never answers — so the
+        // caller is not asked again what they just told the other one. Not
+        // its own job back, and not the free call, which has nobody on it.
+        if (!_local && !_told) {
+          _told = true;
+          final job = jobFor(jobAgentOf(_persona));
+          if (job != null) session.tell(jobContext(job, _nameOf));
+        }
       },
       onSpeaking: (speaking) {
         if (token != _token ||
@@ -322,6 +348,13 @@ class CallController extends ChangeNotifier {
     }
   }
 
+  String? _nameOf(String slug) {
+    for (final p in places) {
+      if (p.slug == slug) return p.nameAr;
+    }
+    return null;
+  }
+
   Future<String> _showPlaces(Map<String, dynamic> params) async {
     final r = showPlacesForCall(
       '${params['query'] ?? ''}',
@@ -334,6 +367,16 @@ class CallController extends ChangeNotifier {
     _lastAction = lastActionForSearch(r.query, r.total);
     _lastQuery = r.query;
     _lastSlug = r.slugs.isEmpty ? null : r.slugs.first;
+    // Whose job the places become, for whichever agent the caller turns to
+    // next. The free call writes what was asked and nothing more, as the
+    // web's does: the search screen it opens shows the answer in its own
+    // order, and «كمّل مع سالم» there writes those places.
+    writeJob(
+      jobAgentOf(_persona),
+      asked: r.query,
+      shown: _local ? const [] : r.slugs,
+      ranked: _local ? const [] : r.ranked,
+    );
     notifyListeners();
     return r.spoken;
   }
@@ -348,6 +391,7 @@ class CallController extends ChangeNotifier {
     navigate('/places/${r.slug}');
     _lastAction = '${CallCopy.didOpen} «${r.place!.nameAr}»';
     _lastSlug = r.slug;
+    pickInJob(jobAgentOf(_persona), r.slug!, r.place!.nameAr);
     notifyListeners();
     return r.spoken;
   }

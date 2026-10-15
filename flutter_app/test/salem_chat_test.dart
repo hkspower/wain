@@ -387,6 +387,63 @@ void main() {
     h.close();
   });
 
+  // The job a visitor brings from another agent (agent_job.dart) goes in as a
+  // contextual update: background the agent reads, never a message it
+  // answers — the web's `tell`.
+  test('tell: a contextual_update on the open line, and nothing once it is '
+      'closed or with nothing to say', () async {
+    final statuses = <ChatStatus>[];
+    final h = startSalemChat(
+      agentId: 'a',
+      connect: agent.factory,
+      onStatus: statuses.add,
+      onMessage: (_) {},
+      onToolUnavailable: () {},
+    );
+    await agent.connected.future;
+    agent.say({'type': 'conversation_initiation_metadata'});
+    await until(() => statuses.contains(ChatStatus.connected));
+    expect(h.tell('سياق للتسليم: الزائر جاي من مكالمته مع شوق.'), isTrue);
+    await until(
+      () => agent.received.any((m) => m['type'] == 'contextual_update'),
+    );
+    expect(
+      agent.received.where((m) => m['type'] == 'contextual_update').single,
+      {
+        'type': 'contextual_update',
+        'text': 'سياق للتسليم: الزائر جاي من مكالمته مع شوق.',
+      },
+    );
+    expect(h.tell('   '), isFalse, reason: 'nothing to say is not said');
+    h.close();
+    expect(h.tell('x'), isFalse, reason: 'a closed line takes nothing');
+    expect(
+      agent.received.where((m) => m['type'] == 'contextual_update'),
+      hasLength(1),
+    );
+  });
+
+  // The web's `tell` asks the socket whether it is OPEN. The app's asked only
+  // whether the visitor had closed it, so after the SERVER closed the line it
+  // said «sent» of a write the closed sink had swallowed.
+  test('tell: nothing once the server has closed the line', () async {
+    final statuses = <ChatStatus>[];
+    final h = startSalemChat(
+      agentId: 'a',
+      connect: agent.factory,
+      onStatus: statuses.add,
+      onMessage: (_) {},
+      onToolUnavailable: () {},
+    );
+    await agent.connected.future;
+    agent.say({'type': 'conversation_initiation_metadata'});
+    await until(() => statuses.contains(ChatStatus.connected));
+    await agent.socket!.close(1000);
+    await until(() => statuses.contains(ChatStatus.disconnected));
+    expect(h.tell('سياق للتسليم'), isFalse, reason: 'nobody on the line');
+    h.close();
+  });
+
   test('a refused connection is an error, not a hang', () async {
     final statuses = <ChatStatus>[];
     final dead = await HttpServer.bind('127.0.0.1', 0);

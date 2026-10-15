@@ -6,8 +6,10 @@
 // the web's countAr(MATCHING_PLACES) does.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/ai/tools.dart';
+import 'package:wain/data/answer_order.dart';
 import 'package:wain/data/catalogue.dart';
 import 'package:wain/data/places.g.dart';
+import 'package:wain/data/search.dart';
 import 'package:wain/data/text_kit.dart';
 
 void main() {
@@ -107,5 +109,35 @@ void main() {
     expect(r.spoken, contains('قول له إنك حطيتها'));
     expect(r.spoken, endsWith('لا تسكت.'));
     expect(r.spoken, isNot(contains('تسكتين')));
+  });
+
+  // The web's call and chat search EVERY kind (limit 40, so a category or an
+  // area takes a slot), order the hits with answerOrder and keep the places.
+  // The app searched places alone, which is the same answer until more than
+  // forty documents match: «بحر الكويت» matches 46, and the app said forty
+  // places where the site says fewer — and handed the next agent a job
+  // holding places the web's job does not (agent_job.dart).
+  test('show_places counts, shows and hands on the web\'s answer: every '
+      'kind, then the places', () {
+    const q = 'بحر الكويت';
+    expect(search(q, index, limit: 200).length, greaterThan(40));
+    final web = [
+      for (final h in answerOrder(
+        q,
+        search(q, index, limit: 40),
+        index,
+        kPlaces,
+      ).hits)
+        if (h.doc.kind == 'place') h.doc.id.substring('place:'.length),
+    ];
+    for (final r in [
+      showPlacesForCall(q, index, kPlaces),
+      showPlacesForChat(q, index, kPlaces),
+    ]) {
+      expect(r.total, web.length);
+      expect(r.ranked, web);
+      expect(r.slugs, web.take(8).toList());
+    }
+    expect(chatRanked(q, index, kPlaces), web);
   });
 }

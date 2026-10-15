@@ -1,7 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wain/ai/agent_health.dart';
+import 'package:wain/ai/agent_job.dart';
 import 'package:wain/ai/call_controller.dart';
 import 'package:wain/ai/config.dart';
+import 'package:wain/data/answer_order.dart';
+import 'package:wain/data/catalogue.dart';
+import 'package:wain/data/places.g.dart';
+import 'package:wain/data/search.dart';
 
 import 'support.dart';
 
@@ -481,6 +486,144 @@ void main() {
       c.typeToSalem();
       expect(nav, ['/salem']);
       expect(c.sheetOpen, isFalse);
+      c.dispose();
+    });
+  });
+
+  // The job travels between the agents (agent_job.dart, the web's
+  // agent-job.ts, 14–15 October): what was asked, the places shown and the one
+  // picked, so the next agent does not ask again.
+  group('the job travels between the agents', () {
+    setUp(AgentJobs.instance.reset);
+    tearDown(AgentJobs.instance.reset);
+    String? nameOf(String slug) => getPlace(slug)?.nameAr;
+
+    test('an agent call is told the job from the agent before — once, and '
+        'only after its line is open', () async {
+      writeJob(
+        JobAgent.shouqAnswer,
+        asked: 'قهوة',
+        shown: ['kuwait-towers', 'souq-al-mubarakiya'],
+        picked: 'souq-al-mubarakiya',
+      );
+      final job = readJob()!;
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      expect(sessions.single.told, isEmpty, reason: 'ringing: nobody to tell');
+      sessions.single.onConnected!();
+      expect(sessions.single.told, [jobContext(job, nameOf)]);
+      expect(sessions.single.told.single, contains('جواب شوق المكتوب'));
+      expect(sessions.single.told.single, contains('«قهوة»'));
+      sessions.single.onConnected!();
+      expect(sessions.single.told, hasLength(1), reason: 'told once a call');
+      c.dispose();
+    });
+
+    test(
+      'never its own job back; the other persona\'s agent is told it',
+      () async {
+        writeJob(JobAgent.shouqCall, asked: 'بحر', shown: ['kuwait-towers']);
+        final sessions = <FakeSession>[];
+        final c = testController(
+          sessions: sessions,
+          salemAgentId: 'agent_salem_test',
+        );
+        await c.start();
+        sessions.single.onConnected!();
+        expect(sessions.single.told, isEmpty, reason: 'her own job, not news');
+        await c.hangUp();
+        await c.start(persona: CallPersona.salem);
+        sessions.last.onConnected!();
+        expect(sessions.last.told, hasLength(1));
+        expect(sessions.last.told.single, contains('مكالمته مع شوق'));
+        c.dispose();
+      },
+    );
+
+    test('a job half an hour old is not told', () async {
+      final at = DateTime.utc(2026, 10, 15, 18);
+      AgentJobs.instance.now = () => at;
+      writeJob(JobAgent.shouqAnswer, asked: 'قهوة', shown: ['kuwait-towers']);
+      AgentJobs.instance.now = () => at.add(const Duration(minutes: 31));
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      expect(sessions.single.told, isEmpty);
+      c.dispose();
+    });
+
+    test('show_places writes what was asked, the first eight and the whole '
+        'answer; open_place picks inside it', () async {
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      final job = readJob()!;
+      expect(job.by, JobAgent.shouqCall);
+      expect(job.asked, 'بحر');
+      expect(job.shown, hasLength(8), reason: 'the first eight of the answer');
+      expect(job.ranked.length, greaterThan(8), reason: 'and all of it');
+      expect(job.ranked.take(8), job.shown);
+      final second = job.shown[1];
+      await sessions.single.tools['open_place']!({'slug': second});
+      final picked = readJob()!;
+      expect(picked.picked, second);
+      expect(picked.asked, 'بحر', reason: 'the pick stays with its job');
+      c.dispose();
+    });
+
+    // A place past the web's answer is a job of its own, as on the web: the
+    // app's show_places searched places alone and kept forty for «بحر
+    // الكويت», so opening one the web never listed stayed inside the job
+    // here and started its own there.
+    test('open_place of a place outside the web\'s answer starts a job of its '
+        'own', () async {
+      const q = 'بحر الكويت';
+      final sessions = <FakeSession>[];
+      final c = testController(sessions: sessions);
+      await c.start();
+      sessions.single.onConnected!();
+      await sessions.single.tools['show_places']!({'query': q});
+      final job = readJob()!;
+      final outside = [
+        for (final h in answerOrder(
+          q,
+          search(q, searchIndex, limit: 40, kinds: const ['place']),
+          searchIndex,
+          kPlaces,
+        ).hits)
+          h.doc.id.substring('place:'.length),
+      ].firstWhere((s) => !job.ranked.contains(s));
+      await sessions.single.tools['open_place']!({'slug': outside});
+      final picked = readJob()!;
+      expect(picked.picked, outside);
+      expect(picked.asked, nameOf(outside), reason: 'not «$q»: its own job');
+      expect(picked.shown, [outside]);
+      c.dispose();
+    });
+
+    test('his call writes his job; the free call writes what was asked and '
+        'tells nobody', () async {
+      writeJob(JobAgent.shouqAnswer, asked: 'قهوة', shown: ['kuwait-towers']);
+      final sessions = <FakeSession>[];
+      // His agent unset: his call is the free one.
+      final c = testController(sessions: sessions);
+      await c.start(persona: CallPersona.salem);
+      expect(sessions.single.local, isTrue);
+      sessions.single.onConnected!();
+      expect(sessions.single.told, isEmpty, reason: 'nobody on the line');
+      await sessions.single.tools['show_places']!({'query': 'بحر'});
+      final job = readJob()!;
+      expect(job.by, JobAgent.salemCall);
+      expect(job.asked, 'بحر');
+      expect(
+        job.shown,
+        isEmpty,
+        reason: 'the search screen shows the places, in its own order',
+      );
       c.dispose();
     });
   });
