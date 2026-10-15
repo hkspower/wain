@@ -78,7 +78,8 @@ export const WAIN_AI_CHAT_COPY = {
   // after it is the last reply word for word, and «بحر» then «أرخص» read as
   // ignored — the top three were already the cheapest, and every card that
   // changed was off the first screen (15 October). The price line only when
-  // the order read the narrowing as cheaper (answer-order's `readAsks`).
+  // the order read the narrowing as cheaper (answer-order's `readAsks`), and
+  // neither when it changed nothing at all: «ضيّقتها» would then be untrue.
   refineSameTop: "ضيّقتها لك — والأول ما تغيّر:",
   refineSameTopCheaper: "هذي أرخصها — والأول ما تغيّر:",
   where: "مكانه على الخريطة تحت.",

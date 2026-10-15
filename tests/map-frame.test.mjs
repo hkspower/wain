@@ -511,6 +511,26 @@ console.log("\n── many pins: grouped where they would cover each other ─�
     order(clusterPoints(row)) === "abc" && order(clusterPoints(row, (i) => i === "b")) === "abc",
     `${order(clusterPoints(row))} / ${order(clusterPoints(row, (i) => i === "b"))}`);
 
+  // A surveyed pin's head stands 23.8px above its point, an approximate one's
+  // sits on it. The Gulf Road cafés and سوق الصفافير at 320: 36.9px apart at
+  // the point, 23.8 at the head, and the cafés covered half of the souq.
+  const LIFT = 23.8;
+  const lift = (i) => (i === "surveyed" ? LIFT : 0);
+  const heads = [{ x: 100, y: 100, item: "surveyed" }, { x: 123.3, y: 71.4, item: "approx" }];
+  ok("(the pair is 36.9px apart at the point and 23.8 at the head)",
+    Math.abs(Math.hypot(23.3, 28.6) - 36.9) < 0.05 && Math.abs(Math.hypot(23.3, 100 - LIFT - 71.4) - 23.8) < 0.05);
+  const byHead = clusterPoints(heads, undefined, lift);
+  ok("two pins whose heads cover each other are one bubble, however far apart their points",
+    byHead.length === 1 && byHead[0].members.length === 2, JSON.stringify(byHead));
+  ok("…drawn where the two places are, not where the heads are",
+    byHead.length === 1 && Math.abs(byHead[0].y - (100 + 71.4) / 2) < 1e-9, JSON.stringify(byHead));
+  // The heads are an extra reason to merge, never a reason to split: grouped
+  // by heads alone, a pin left the bubble its point had always been in and
+  // landed half under /search's top result («مطعم» at 390, 15 October).
+  const close = clusterPoints([{ x: 100, y: 100, item: "surveyed" }, { x: 100, y: 110, item: "approx" }], undefined, lift);
+  ok("two points ten pixels apart stay one bubble whatever their heads do",
+    close.length === 1 && close[0].members.length === 2, JSON.stringify(close));
+
   // Every place in the catalogue, on a phone-width frame of the whole country
   // — the all-places map. Measured unclustered: 42 of 52 centres covered.
   const W = 370;

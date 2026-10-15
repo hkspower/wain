@@ -420,6 +420,102 @@ console.log('\n── the basemap is fetched once, not twice ──');
   }
 }
 
+console.log('\n── grouped where the heads meet, drawn where the places are ──');
+{
+  /**
+   * Places are grouped where their HEADS would cover each other as well as
+   * where their points are close (map-frame's `clusterPoints`). The first
+   * version grouped by heads alone, by lifting every surveyed point 23.8px
+   * before the grid: groups the points had always made came apart — «مطعم» at
+   * 390 dropped مجمع الصالحية out of its bubble and half under the top result
+   * — and every bubble was drawn at its members' heads, 12–24px north of the
+   * places it holds, on 40 of 48 /search maps (15 October).
+   *
+   * The clock is pinned: the order of an answer, so which pin is on top and
+   * kept apart, moves with Kuwait's hour.
+   */
+  const at = async (w) => {
+    const phone = w < 1024;
+    const ctx = await browser.newContext({
+      viewport: { width: w, height: phone ? 844 : 900 }, locale: 'ar-KW',
+      ...(phone ? { isMobile: true, hasTouch: true } : {}),
+    });
+    const p = await ctx.newPage();
+    await p.clock.setFixedTime(new Date('2026-10-15T07:00:00Z')).catch(() => {});
+    await p.route('**openstreetmap.org**', (r) => r.abort());
+    await p.goto(`${B}/search/?q=${encodeURIComponent('مطعم')}`, { waitUntil: 'networkidle' }).catch(() => {});
+    if (phone) await p.getByRole('button', { name: /اعرض الخريطة/ }).tap({ timeout: 4000 }).catch(() => {});
+    await p.locator('[data-map-frame] iframe').first().waitFor({ state: 'attached', timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(400);
+    return { ctx, p };
+  };
+  // Where each result's point is, from the frame's own bbox (the embed's) and
+  // the export's own rows; then the bubbles' centres, weighted by how many
+  // each holds, against the points of the places no pin draws. Equal when
+  // every bubble stands at its members' points, whichever places they are.
+  const weigh = (p) => p.evaluate(async () => {
+    const frame = document.querySelector('[data-map-frame]');
+    const src = frame?.querySelector('iframe')?.src;
+    if (!src) return null;
+    const rows = new Map((await (await fetch('/data/places.json')).json()).map((r) => [r.slug, r]));
+    const [, south, , north] = new URL(src).searchParams.get('bbox').split(',').map(Number);
+    const rad = (d) => (d * Math.PI) / 180;
+    const merc = (lat) => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
+    const box = frame.getBoundingClientRect();
+    const top = box.top + frame.clientTop;
+    const pointY = (slug) => top + ((merc(north) - merc(rows.get(slug).lat)) / (merc(north) - merc(south))) * frame.clientHeight;
+    const drawn = new Set([...frame.querySelectorAll('a[href^="/places/"]')].map((a) => a.getAttribute('href').split('/')[2]));
+    const results = [...new Set([...document.querySelectorAll('main a[href^="/places/"]')]
+      .filter((a) => !a.closest('[data-map-frame]')).map((a) => a.getAttribute('href').split('/')[2]))];
+    const held = results.filter((s) => !drawn.has(s));
+    const bubbles = [...frame.querySelectorAll('button[data-count]')].map((b) => {
+      const r = b.getBoundingClientRect();
+      return { n: Number(b.dataset.count), y: r.top + r.height / 2 };
+    });
+    const n = bubbles.reduce((s, b) => s + b.n, 0);
+    return {
+      bubbles: bubbles.length, held: held.length, n,
+      dy: n ? (bubbles.reduce((s, b) => s + b.n * b.y, 0) - held.reduce((s, x) => s + pointY(x), 0)) / n : 0,
+    };
+  }).catch(() => null);
+  for (const w of [390, 1280]) {
+    const { ctx, p } = await at(w);
+    const m = await weigh(p);
+    ok(`«مطعم» at ${w}: the bubbles hold the places no pin draws`, !!m && m.bubbles > 0 && m.n === m.held, JSON.stringify(m));
+    ok(`«مطعم» at ${w}: …and stand where those places are, not 24px north of them`, !!m && Math.abs(m.dy) < 1, JSON.stringify(m));
+    await ctx.close();
+  }
+  {
+    // How much of each pin's head another marker on the map covers, sampled
+    // with elementFromPoint after scrolling it into view. Points the frame
+    // clips, or that land on anything that is not the map, count neither way.
+    const { ctx, p } = await at(390);
+    const covered = await p.evaluate(() => {
+      const frame = document.querySelector('[data-map-frame]');
+      const out = [];
+      for (const pin of frame?.querySelectorAll('a[href^="/places/"]') ?? []) {
+        pin.scrollIntoView({ block: 'center' });
+        const r = pin.getBoundingClientRect();
+        const R = r.width / 2;
+        let all = 0, under = 0;
+        for (let dx = -R + 1; dx < R; dx += 2)
+          for (let dy = -R + 1; dy < R; dy += 2) {
+            if (dx * dx + dy * dy > (R - 1) * (R - 1)) continue;
+            all++;
+            const hit = document.elementFromPoint(r.left + R + dx, r.top + R + dy);
+            if (hit && frame.contains(hit) && !pin.contains(hit) && hit.closest('a[href^="/places/"], button[data-count]')) under++;
+          }
+        out.push({ slug: pin.getAttribute('href').split('/')[2], pct: all ? Math.round((under / all) * 100) : 0 });
+      }
+      return out;
+    }).catch(() => null);
+    const worst = (covered ?? []).filter((c) => c.pct > 25);
+    ok('«مطعم» at 390: a pin per result that is not in a bubble', (covered?.length ?? 0) > 0, JSON.stringify(covered));
+    ok('«مطعم» at 390: no pin is more than a quarter hidden by another, the top result included', !!covered && worst.length === 0, JSON.stringify(worst));
+    await ctx.close();
+  }
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

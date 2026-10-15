@@ -706,6 +706,55 @@ console.log('\n── his tools answer from the live rows, not the snapshot they
   await lctx.close();
 }
 
+console.log('\n── a search of his that finds nothing quotes it inside its line ──');
+{
+  // The line under a `show_places` that found nothing quotes the query, and a
+  // query can be a pasted link with no place to break: the bubbles above it
+  // ran 186px off a 320 screen that way (15 October). Only his agent reaches
+  // this line, so only this suite can.
+  const nctx = await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await nctx.addInitScript(() => {
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  });
+  const np = await nctx.newPage();
+  await np.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await np.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  // 60 characters with no place to break, that match no place: a link with a
+  // word in it can match one (a maps link drew ميس الغانم's card here).
+  const link = 'zqxj'.repeat(15);
+  await np.evaluate((q) => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+    s.emit('message', { data: JSON.stringify({
+      type: 'client_tool_call',
+      client_tool_call: { tool_call_id: 'none1', tool_name: 'show_places', parameters: { query: q } },
+    }) });
+  }, link).catch(() => {});
+  const line = np.locator('[role="log"] p', { hasText: 'ما لقينا شي لـ' }).last();
+  await line.waitFor({ state: 'attached', timeout: 8000 }).catch(() => {});
+  const m = await line.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const rects = [...range.getClientRects()];
+    return {
+      w: innerWidth, own: el.scrollWidth, ownClient: el.clientWidth,
+      left: Math.round(Math.min(...rects.map((r) => r.left))), right: Math.round(Math.max(...rects.map((r) => r.right))),
+    };
+  }).catch(() => null);
+  ok('320: the «nothing found» line quotes a long unbroken query inside the screen', !!m && m.left >= 0 && m.right <= m.w && m.own <= m.ownClient, JSON.stringify(m));
+  await nctx.close();
+}
+
 console.log('\n── the job from the agent before is told to his line when it opens (14 October) ──');
 for (const [by, expected] of [['shouq-call', true], ['salem-chat', false]]) {
   const jctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });

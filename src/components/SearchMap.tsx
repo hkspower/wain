@@ -53,19 +53,12 @@ const PHONE_FRAME_PX = 520;
 
 /**
  * How far a surveyed pin's head stands above its tip: half the head, and the
- * nose's diagonal under it (MapPin). Places are grouped by their HEADS, which
- * is what must not overlap; grouped by tip, a surveyed pin and an approximate
- * one (whose round head is centred on its point) were 36.9px apart at the tip
- * and 23.8px at the head, and at 320 the Gulf Road cafés covered half of سوق
- * الصفافير — a tap on that half chose the cafés (15 October).
+ * nose's diagonal under it (MapPin). An approximate place is a round head
+ * centred on its point, so it has none. `clusterPoints` merges groups whose
+ * heads would cover each other as well as groups whose points are close.
  */
 const HEAD_LIFT = PIN_PX / 2 + Math.round(PIN_PX * 0.34) * Math.SQRT1_2;
 const headLift = (p: Place) => (p.coordsUnverified ? 0 : HEAD_LIFT);
-/** `clusterPoints` on the heads; a place left on its own comes back at its tip. */
-const byHead = (points: { x: number; y: number; item: Place }[], apart: (p: Place) => boolean) =>
-  clusterPoints(points.map((q) => ({ ...q, y: q.y - headLift(q.item) })), apart).map((g) =>
-    g.members.length === 1 ? { ...g, y: g.y + headLift(g.members[0]) } : g
-  );
 
 /**
  * What a tall frame shares the screen with before anything scrolls: the page's
@@ -353,7 +346,7 @@ export default function SearchMap({
               const groups =
                 (view.zoom ?? 0) >= 16
                   ? shown.map((q) => ({ x: q.x, y: q.y, members: [q.item] }))
-                  : byHead(shown, apart);
+                  : clusterPoints(shown, apart, headLift);
               return groups.map((g) =>
                 g.members.length === 1 ? (
                   renderPin(
@@ -404,10 +397,10 @@ export default function SearchMap({
                   .map((p, i) => ({ x: pins[i].x * W, y: pins[i].y * H, item: p }))
                   .filter((q) => q.x > -PIN_PX && q.x < W + PIN_PX && q.y > -PIN_PX && q.y < H + PIN_PX * 2);
                 // Zoomed into a bubble, every place is drawn as itself (and
-                // nudged apart, above); on the wide view, grouped by head.
+                // nudged apart, above); on the wide view, grouped by point or head.
                 const groups = focus
                   ? shown.map((q) => ({ x: q.x, y: q.y, members: [q.item] }))
-                  : byHead(shown, apart);
+                  : clusterPoints(shown, apart, headLift);
                 return groups.map((g) => {
                   // Physical left/top on purpose. The page is RTL, but
                   // geography is not — a logical inset would mirror the map.

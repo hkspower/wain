@@ -45,8 +45,9 @@ import { PRICE_LABEL } from "@/lib/place-words";
  * rather than a second, ad-hoc card shape that would drift from it. */
 type ChatLine =
   // `handoff`: the line saying where a handed-over question came from — the
-  // scroll keeps it in view with the reply (see the scroll effect).
-  | { role: "user" | "agent" | "system"; text: string; handoff?: true }
+  // scroll keeps it in view with the reply (see the scroll effect). `picked`:
+  // the line also names the place picked there.
+  | { role: "user" | "agent" | "system"; text: string; handoff?: true; picked?: true }
   | { role: "places"; query: string; slugs: string[]; chips?: string[]; ctx?: ChatContext }
   | { role: "place"; slug: string }
   | { role: "where"; slug: string };
@@ -438,6 +439,19 @@ export default function SalemChat() {
       const answerLine = (spoken: SpeechPart[], intro = "") => {
         lines.push({ role: "agent", text: `${opener}${intro}${spoken.map((p) => p.text).join(" ")}` });
       };
+      // A narrowing that kept the first place says the same sentence: said so
+      // first, the way «غيره» leads with moreIntro — «أرخصها» when it asked for
+      // the cheap end (the order's own reading). Only when it changed something:
+      // «قهوة» then «للعيال» or «هادي», and «بحر» then «برا», gave back the
+      // same places in the same order, and «ضيّقتها لك» said a narrowing had
+      // happened that had not (15 October). Those repeat the answer as it is.
+      const sameTopLead = (prev: ChatContext, slugs: string[], kept: string[], added: string) => {
+        if (slugs[0] !== prev.shown[0]) return "";
+        const changed = kept.length < prev.ranked.length || slugs.join() !== prev.shown.join();
+        if (!changed) return "";
+        const { refineSameTopCheaper, refineSameTop } = WAIN_AI_CHAT_COPY;
+        return `${order.readAsks(added).cheap ? refineSameTopCheaper : refineSameTop} `;
+      };
       const search = (query: string) => {
         const { hits } = order.answerOrder(query, mod.search(query, index, { limit: 40 }), index, places, clock);
         const ranked = hits.filter((h) => h.doc.kind === "place").map((h) => h.doc.id.replace(/^place:/, ""));
@@ -503,7 +517,7 @@ export default function SalemChat() {
         } else {
           const slugs = there.slice(0, 8);
           const spoken = answerParts([], slugs.flatMap((s) => bySlug(s) ?? []), clock);
-          answerLine(spoken, slugs[0] === ctx.shown[0] ? `${C.refineSameTop} ` : "");
+          answerLine(spoken, sameTopLead(ctx, slugs, there, intent.added));
           showList(intent.query, slugs, there, slugs, spoken);
         }
       } else if (ctx && intent.kind === "refine") {
@@ -520,11 +534,7 @@ export default function SalemChat() {
           const inside = hits.filter((h) => h.doc.kind !== "place" || keep.has(slugOf(h)));
           const { slugs } = formatShowPlaces(intent.query, inside, places);
           const spoken = answerParts(inside, slugs.flatMap((slug) => bySlug(slug) ?? []), clock);
-          // The same first place says the same sentence: said so first, the
-          // way «غيره» leads with moreIntro.
-          const sameTop = slugs[0] === ctx.shown[0];
-          const cheaper = order.readAsks(intent.added).cheap;
-          answerLine(spoken, sameTop ? `${cheaper ? C.refineSameTopCheaper : C.refineSameTop} ` : "");
+          answerLine(spoken, sameTopLead(ctx, slugs, within, intent.added));
           showList(intent.query, slugs, within, slugs, spoken);
         }
       } else {
@@ -755,15 +765,22 @@ export default function SalemChat() {
     // question came from, or the place picked with her (15 October). The line
     // is where to start when it, the question and the reply's first card fit
     // the transcript together; otherwise the reply's start, as before.
+    //
+    // A line that names a pick only needs the reply's sentence under it: the
+    // pick is what a later «وينه؟» answers about, and gated on the card its
+    // two-line text at 320×568 still sat 58px above the transcript, 0px of it
+    // on screen (15 October). The card is cut instead (158 of 174px there).
     const above = messages[lastUser - 1];
-    const handoffLine = above?.role === "system" && above.handoff ? lastUser - 1 : -1;
+    const handoff = above?.role === "system" && above.handoff ? above : null;
+    const handoffLine = handoff ? lastUser - 1 : -1;
     const toStart = () => {
       const start = el.querySelector<HTMLElement>(`[data-line="${replyStart}"]`);
       if (!start) return;
       let anchor = start;
       const line = handoffLine >= 0 ? el.querySelector<HTMLElement>(`[data-line="${handoffLine}"]`) : null;
       if (line) {
-        const end = (start.nextElementSibling?.querySelector("li[data-slug]") ?? start).getBoundingClientRect().bottom;
+        const card = handoff?.picked ? null : start.nextElementSibling?.querySelector("li[data-slug]");
+        const end = (card ?? start).getBoundingClientRect().bottom;
         if (end - line.getBoundingClientRect().top + 8 <= el.clientHeight) anchor = line;
       }
       const top = el.scrollTop + anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - 8;
@@ -854,7 +871,12 @@ export default function SalemChat() {
       const name = picked ? places.find((p) => p.slug === picked)?.nameAr : undefined;
       setMessages((prev) => [
         ...prev,
-        { role: "system", text: `${label}: «${handoff.q}»${name ? C.fromPicked(name) : ""}`, handoff: true },
+        {
+          role: "system",
+          text: `${label}: «${handoff.q}»${name ? C.fromPicked(name) : ""}`,
+          handoff: true,
+          ...(name ? { picked: true as const } : {}),
+        },
       ]);
     }
     submit(handoff.q);
@@ -943,14 +965,17 @@ export default function SalemChat() {
     // for the tab bar, so the frame is that much shorter — except while the box
     // has focus, when the tab bar steps aside (AppTabBar) and the frame takes
     // its room: on Android the bar rode up over the keyboard and left 79px of
-    // conversation at 360×640, against 147 in a browser tab (15 October).
+    // conversation at 360×640, against 147 in a browser tab (15 October). On a
+    // touch screen only, where a keyboard comes up: installed on a computer, a
+    // click on the box took the app's navigation away and moved the box 68px
+    // from under the pointer that had just pressed it.
     //
     // `data-salem-frame`: the call bar's room is made here, not in <main>
     // (globals.css) — this frame is fixed, so padding the page moved nothing.
     <div
       ref={frameRef}
       data-salem-frame=""
-      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))] standalone:has-[#salem-q:focus]:h-[var(--vvh,100dvh)]"
+      className="fixed inset-x-0 top-0 z-10 flex h-[var(--vvh,100dvh)] flex-col overflow-hidden bg-sea-950 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] text-white standalone:h-[calc(var(--vvh,100dvh)-4.25rem-env(safe-area-inset-bottom))] standalone:pointer-coarse:has-[#salem-q:focus]:h-[var(--vvh,100dvh)]"
     >
       {/* On a wide screen every row keeps to one centred 42rem column
           (`md:px-[calc(50%-21rem)]`): the chat used to run the whole
@@ -1180,11 +1205,11 @@ export default function SalemChat() {
       {/* px-4: the header, the transcript and the notice sit 16px in, and the
           box sat 12 — the input started 4px outside everything above it
           (15 October). Installed, the tab bar pads for the home bar, so the
-          form does not — except while the box has focus and the tab bar has
-          stepped aside (see the frame). */}
+          form does not — except while the box has focus on a touch screen and
+          the tab bar has stepped aside (see the frame). */}
       <form
         onSubmit={send}
-        className="flex shrink-0 items-stretch gap-2 bg-sea-950 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 standalone:has-[#salem-q:focus]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:px-[calc(50%-21rem)]"
+        className="flex shrink-0 items-stretch gap-2 bg-sea-950 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3 standalone:pointer-coarse:has-[#salem-q:focus]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:px-[calc(50%-21rem)]"
       >
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}

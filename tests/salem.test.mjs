@@ -668,6 +668,7 @@ console.log('\n── on a phone: a pasted link stays in its bubble ──');
     const rects = [...range.getClientRects()];
     return {
       scroll: log.scrollWidth, client: log.clientWidth, w: innerWidth,
+      own: el.scrollWidth, ownClient: el.clientWidth,
       left: Math.round(Math.min(...rects.map((r) => r.left))), right: Math.round(Math.max(...rects.map((r) => r.right))),
     };
   }, sel).catch(() => null);
@@ -683,8 +684,11 @@ console.log('\n── on a phone: a pasted link stays in its bubble ──');
     const { ctx, p } = await at(`/salem/?q=${encodeURIComponent(link)}&from=call`, { viewport: { width: 320, height: 568 } });
     await p.locator('[role="log"] .justify-end p').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
     await settle(p);
+    // The line's own box and its own text only: the transcript's sideways
+    // scroll is the bubbles' to answer for (above), and the handed-over link's
+    // own bubble overflowing it read here as the line's fault.
     const m = await lines(p, 'p[role="status"]');
-    ok('320: the line over a handed-over link stays on the screen too', !!m && m.scroll <= m.client && m.left >= 0 && m.right <= m.w, JSON.stringify(m));
+    ok('320: the line over a handed-over link stays on the screen too', !!m && m.own <= m.ownClient && m.left >= 0 && m.right <= m.w, JSON.stringify(m));
     await ctx.close();
   }
 }
@@ -717,6 +721,37 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   ok(`${width}×${height}: the «من مكالمتك» line is all on screen`, !!line?.whole, JSON.stringify(line));
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
   ok(`${width}×${height}: …and so is his answer's first sentence`, !!said?.whole, JSON.stringify(said));
+  await ctx.close();
+}
+{
+  // With a place picked with her, the line runs to two lines at 320 and the
+  // line, the question, the sentence and the first card did not fit together,
+  // so the reply's start won and the line — the one place that says what
+  // «وينه؟» will answer about — sat 58px above the transcript, 0px on screen.
+  const { ctx, p } = await at('/privacy/', { viewport: { width: 320, height: 568 } });
+  await p.evaluate(() => sessionStorage.setItem('wain:job:v1', JSON.stringify({
+    v: 1, by: 'shouq-call', asked: 'قهوة', shown: [], ranked: [], picked: 'hamad-al-mubarak-street', at: Date.now(),
+  }))).catch(() => {});
+  await p.goto(`${B}/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { waitUntil: 'networkidle' }).catch(() => {});
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  await settle(p);
+  const text = (await p.locator('[role="log"] p[role="status"]').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  ok('320×568, a pick carried with her: the line names it', text.includes('واخترت'), text);
+  const line = await inLog(p, '[role="log"] p[role="status"]');
+  ok('320×568, a pick carried with her: …and the line is all on screen', !!line?.whole, JSON.stringify(line));
+  const said = await inLog(p, '[role="log"] div[data-line].justify-start');
+  ok('320×568, a pick carried with her: …with his answer\'s first sentence under it', !!said?.whole, JSON.stringify(said));
+  await ctx.close();
+}
+{
+  // Sideways the transcript is about 204px, and the line, the question and the
+  // first card do not fit in it together: the reply keeps its start at the
+  // top, as before, so its first card is on screen rather than cut to 40px.
+  const { ctx, p } = await at(`/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { viewport: { width: 844, height: 390 } });
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  await settle(p);
+  const said = await inLog(p, '[role="log"] div[data-line].justify-start');
+  ok('844×390, from a call: the reply still starts at the top of the transcript', !!said?.whole && said.top <= 16, JSON.stringify(said));
   await ctx.close();
 }
 
@@ -840,6 +875,26 @@ console.log('\n── sideways, an answer\'s map fits the chat window ──');
   ok('844×390: «بحر»\'s map is no taller than the chat window', !!m && m.map > 0 && m.map <= m.log, JSON.stringify(m));
   await ctx.close();
 }
+{
+  // The «وينه؟» map is the other map in the chat (SalemWhere), and it was
+  // 630×420 in a 204px window — capped by the same `maxHeight`, and nothing
+  // held it to that until now.
+  const { ctx, p } = await at('/salem/', { viewport: { width: 844, height: 390 } });
+  await ask(p, 'قهوة');
+  await ask(p, 'وينه؟');
+  await p.waitForTimeout(400);
+  const m = await p.evaluate(() => ({
+    map: Math.round([...document.querySelectorAll('[role="log"] [data-map-frame]')].at(-1)?.getBoundingClientRect().height ?? -1),
+    log: document.querySelector('[role="log"]').clientHeight,
+    // The newest map is the «وينه؟» one, not the answer's above it.
+    where: (() => {
+      const frame = [...document.querySelectorAll('[role="log"] [data-map-frame]')].at(-1);
+      return !!frame && !frame.closest('[data-salem-places]');
+    })(),
+  })).catch(() => null);
+  ok('844×390: «وينه؟»\'s map is no taller than the chat window either', !!m && m.where && m.map > 0 && m.map <= m.log, JSON.stringify(m));
+  await ctx.close();
+}
 
 console.log('\n── installed, typing: the tab bar steps aside ──');
 {
@@ -869,27 +924,73 @@ console.log('\n── installed, typing: the tab bar steps aside ──');
   ok('installed: …and comes back when the box is left', !!back && back !== 'none', String(back));
   await app.ctx.close();
 }
+{
+  // Only where a keyboard comes up. Installed on a computer, a click on the
+  // box hid the app's navigation and moved the box 68px from under the
+  // pointer that had just pressed it, and nothing followed to use the room.
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.route('**openstreetmap.org**', (r) => r.abort());
+  await p.goto(`${B}/salem/`, { waitUntil: 'networkidle' }).catch(() => {});
+  await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; }).catch(() => {});
+  await p.waitForTimeout(200);
+  const read = () => p.evaluate(() => ({
+    nav: getComputedStyle(document.querySelector('nav.app-chrome')).display,
+    top: Math.round(document.getElementById('salem-q').getBoundingClientRect().top),
+  })).catch(() => null);
+  const before = await read();
+  await p.locator('#salem-q').click({ timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(200);
+  const after = await read();
+  ok('installed, with a mouse: the box took the click', await p.evaluate(() => document.activeElement?.id === 'salem-q').catch(() => false));
+  ok('installed, with a mouse: …and the tab bar stays', !!after && after.nav !== 'none', JSON.stringify({ before, after }));
+  ok('installed, with a mouse: …and the box stays where it was clicked', !!before && !!after && before.top === after.top, JSON.stringify({ before, after }));
+  await ctx.close();
+}
 
 console.log('\n── a narrowing that keeps the first place says so ──');
 {
   // «بحر» then «أرخص»: both replies said «جرّب شاطئ المسيلة. روح العصر لين
   // الغروب.», word for word — the top three were already the cheapest, so the
   // first screen did not change and the request read as ignored.
+  //
+  // `said` returns the first reply and only the replies the second message
+  // drew. It used to read the last two lines of the log, so a narrowing that
+  // drew no reply at all was checked against the first one and passed.
   const said = async (first, then) => {
     const { ctx, p } = await at('/salem/');
+    const HIS = '[role="log"] div[data-line].justify-start > p';
     await ask(p, first);
+    const before = await p.locator(HIS).allTextContents().catch(() => []);
     await ask(p, then);
-    const lines = await p.locator('[role="log"] div[data-line].justify-start > p').allTextContents().catch(() => []);
+    const after = await p.locator(HIS).allTextContents().catch(() => []);
     await ctx.close();
-    return lines.slice(-2);
+    return { first: before.at(-1) ?? '', added: after.slice(before.length) };
   };
-  const [a, b] = await said('بحر', 'أرخص');
-  ok('«بحر» then «أرخص»: the second reply is not the first one again', !!a && !!b && a !== b, `${a} || ${b}`);
-  ok('…it says these are the cheapest and the first is unchanged', (b ?? '').startsWith('هذي أرخصها — والأول ما تغيّر:'), b);
-  const [, c] = await said('قهوة', 'للعيال');
-  ok('«قهوة» then «للعيال», same first place: a narrowing line that is true of it', (c ?? '').startsWith('ضيّقتها لك — والأول ما تغيّر:'), c);
-  const [, d] = await said('قهوة', 'داخلي');
-  ok('«قهوة» then «داخلي», a new first place: no such line', !!d && !d.includes('ما تغيّر'), d);
+  const tried = (r) => r.added.length === 1 && r.added[0].length > 0;
+  // The place a reply recommends, with its area: «جرّب …» up to the full stop.
+  const placeOf = (line) => line.match(/جرّب ([^.]+)\./)?.[1] ?? null;
+
+  const cheaper = await said('بحر', 'أرخص');
+  ok('«بحر» then «أرخص»: one new reply, not the first one again', tried(cheaper) && cheaper.added[0] !== cheaper.first, JSON.stringify(cheaper));
+  ok('…it says these are the cheapest and the first is unchanged', (cheaper.added[0] ?? '').startsWith('هذي أرخصها — والأول ما تغيّر:'), JSON.stringify(cheaper));
+
+  // «للعيال» after «مطعم» reorders the restaurants and keeps ميس الغانم on top.
+  const narrowed = await said('مطعم', 'للعيال');
+  ok('«مطعم» then «للعيال», a new order under the same first place: a narrowing line',
+    tried(narrowed) && narrowed.added[0].startsWith('ضيّقتها لك — والأول ما تغيّر:'), JSON.stringify(narrowed));
+
+  // «للعيال» after «قهوة» gives back the same four cafés in the same order:
+  // «ضيّقتها لك» said a narrowing had happened that had not.
+  const same = await said('قهوة', 'للعيال');
+  ok('«قهوة» then «للعيال», nothing changed: a reply, with no narrowing claimed',
+    tried(same) && same.added[0].startsWith('جرّب') && !same.added[0].includes('ضيّقتها'), JSON.stringify(same));
+
+  const moved = await said('قهوة', 'داخلي');
+  ok('«قهوة» then «داخلي», a new first place: one new reply, naming it, with no such line',
+    tried(moved) && moved.added[0].startsWith('جرّب') && !moved.added[0].includes('ما تغيّر')
+      && !!placeOf(moved.added[0]) && placeOf(moved.added[0]) !== placeOf(moved.first),
+    JSON.stringify({ ...moved, was: placeOf(moved.first), now: placeOf(moved.added[0] ?? '') }));
 }
 
 console.log('\n── one edge for every row ──');

@@ -188,10 +188,13 @@ html[data-call-bar] [data-salem-frame] {
    in a browser tab, and so is the call bar — it sits on the tab bar there, so
    it comes down with it, or it would land on the form the rule above made
    room for, and it pads for the home bar the tab bar was padding for. In a
-   browser tab this is what the bar's own classes already say. */
-html:has(#salem-q:focus) #wain-ai-bar {
-  bottom: 0;
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+   browser tab this is what the bar's own classes already say. A touch screen
+   only, as the tab bar's own rule below. */
+@media (pointer: coarse) {
+  html:has(#salem-q:focus) #wain-ai-bar {
+    bottom: 0;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 /* The installed app's tab bar (AppTabBar), and two things about it that are
@@ -208,12 +211,17 @@ html:has(#salem-q:focus) #wain-ai-bar {
    for its keyboard, and the bar rode up on top of it, a sixth of the screen
    the conversation needed — 79px of chat at 360×640, against 147 in a browser
    tab (15 October). It is back the moment the box is left. `nav`, because the
-   back button is `.app-chrome` too, and it stays. */
+   back button is `.app-chrome` too, and it stays. On a touch screen only: no
+   keyboard comes up for a mouse, and installed on a computer a click on the
+   box took the navigation away and moved the box 68px from under the
+   pointer. */
 nav.app-chrome {
   min-height: calc(4.25rem + env(safe-area-inset-bottom));
 }
-html:has(#salem-q:focus) nav.app-chrome {
-  display: none;
+@media (pointer: coarse) {
+  html:has(#salem-q:focus) nav.app-chrome {
+    display: none;
+  }
 }
 
 /* App version (installed to the home screen). The bottom tab bar becomes the

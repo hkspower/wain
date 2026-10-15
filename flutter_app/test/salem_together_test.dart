@@ -357,6 +357,44 @@ void main() {
       await t.pumpWidget(const SizedBox());
     });
 
+    // «قهوة» then «للعيال» gives back the same four cafés in the same order:
+    // «ضيّقتها لك» said a narrowing had happened that had not (15 October).
+    testWidgets('«قهوة» then «للعيال» changes nothing: no lead, the answer '
+        'as it is', (t) async {
+      final had = chatRanked('قهوة', searchIndex, kPlaces, _january8pm);
+      final next = chatRanked(
+        'قهوة للعيال',
+        searchIndex,
+        kPlaces,
+        _january8pm,
+      ).where(had.toSet().contains).toList();
+      expect(next, had, reason: 'the case being tested: nothing changes');
+      SalemTranscript.instance.clear();
+      await _pump(t);
+      await _ask(t, 'قهوة');
+      final before = replies(t);
+      expect(before, hasLength(1));
+      await _ask(t, 'للعيال');
+      // Read in the transcript, only what came after the question: on screen
+      // the first reply is scrolled away, and a narrowing that drew no reply
+      // at all would read the same as one that repeated it.
+      final lines = SalemTranscript.instance.lines
+          .whereType<ChatText>()
+          .toList();
+      final asked = lines.lastIndexWhere(
+        (l) => l.role == 'user' && l.text == 'للعيال',
+      );
+      expect(asked, isNonNegative);
+      expect(
+        [
+          for (final l in lines.skip(asked + 1))
+            if (l.role == 'agent') l.text,
+        ],
+        [before.single],
+      );
+      await t.pumpWidget(const SizedBox());
+    });
+
     testWidgets('«مطعم» then «أرخص» changes the first place: no lead', (
       t,
     ) async {

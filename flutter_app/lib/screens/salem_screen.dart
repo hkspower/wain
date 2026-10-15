@@ -526,10 +526,17 @@ class _SalemScreenState extends State<SalemScreen> {
     // the last reply word for word («بحر» then «أرخص», 15 October), so it
     // says it narrowed and that the first stayed. «أرخصها» only when the
     // refine asked for the cheap end (`readAsks`, the order's own reading).
-    String sameTopLead(List<String> slugs) {
+    // Only when it changed something: «قهوة» then «للعيال» gave back the same
+    // four cafés in the same order, and «ضيّقتها لك» said a narrowing had
+    // happened that had not. `kept` is what the narrowing left of the answer.
+    String sameTopLead(List<String> slugs, List<String> kept) {
       if (ctx == null || ctx.shown.isEmpty || slugs.first != ctx.shown.first) {
         return '';
       }
+      final changed =
+          kept.length < ctx.ranked.length ||
+          slugs.join(',') != ctx.shown.join(',');
+      if (!changed) return '';
       final cheap = readAsks(intent.added ?? '').cheap;
       return '${cheap ? ChatCopy.refineSameTopCheap : ChatCopy.refineSameTop} ';
     }
@@ -622,7 +629,7 @@ class _SalemScreenState extends State<SalemScreen> {
       } else {
         final slugs = there.take(8).toList();
         final spoken = spokenFor(slugs);
-        answerLine(spoken, sameTopLead(slugs));
+        answerLine(spoken, sameTopLead(slugs, there));
         showList(intent.query!, slugs, there, slugs, spoken);
       }
     } else if (ctx != null && intent.kind == FollowUpKind.refine) {
@@ -639,7 +646,7 @@ class _SalemScreenState extends State<SalemScreen> {
       } else {
         final slugs = within.take(8).toList();
         final spoken = spokenFor(slugs);
-        answerLine(spoken, sameTopLead(slugs));
+        answerLine(spoken, sameTopLead(slugs, within));
         showList(intent.query!, slugs, within, slugs, spoken);
       }
     } else {

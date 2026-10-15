@@ -382,10 +382,21 @@ export interface Clustered<T> {
  * `apart` keeps a point out of every group — the pin a visitor is pointing at,
  * the result the search ranked first — so the thing being looked at is never
  * swallowed by a number. Deterministic: same points in, same groups out.
+ *
+ * `lift` is how far a point's drawn head stands above it (SearchMap: a
+ * surveyed pin's head, not an approximate one's). Two groups also merge when
+ * their HEADS are nearer than `CLUSTER_MERGE`, because the head is what covers
+ * a neighbour: a surveyed pin and an approximate one 36.9px apart at the point
+ * were 23.8px apart at the head, and at 320 the Gulf Road cafés covered half
+ * of سوق الصفافير (15 October). Added to the points' own distance, not put in
+ * its place — grouped by heads alone, groups the points had always made came
+ * apart, and a pin left its bubble to land half under the top result. Groups
+ * are still placed at their points: the bubble is where the places are.
  */
 export function clusterPoints<T>(
   points: { x: number; y: number; item: T }[],
-  apart: (item: T) => boolean = () => false
+  apart: (item: T) => boolean = () => false,
+  lift: (item: T) => number = () => 0
 ): Clustered<T>[] {
   // Every group carries the input position of its first member, and the
   // answer comes back in that order. It used to be «groups, then the ones kept
@@ -393,7 +404,7 @@ export function clusterPoints<T>(
   // the overlay, React moved its node, and a pin that moves under the pointer
   // between mousedown and mouseup never receives the click: on a desktop the
   // first click on a pin stopped opening its place.
-  type Acc = { sx: number; sy: number; first: number; members: T[] };
+  type Acc = { sx: number; sy: number; sl: number; first: number; members: T[] };
   const alone: (Clustered<T> & { first: number })[] = [];
   const cells = new Map<string, Acc>();
   points.forEach((p, i) => {
@@ -403,14 +414,17 @@ export function clusterPoints<T>(
     }
     const key = `${Math.floor(p.x / CLUSTER_CELL)},${Math.floor(p.y / CLUSTER_CELL)}`;
     let cell = cells.get(key);
-    if (!cell) cells.set(key, (cell = { sx: 0, sy: 0, first: i, members: [] }));
+    if (!cell) cells.set(key, (cell = { sx: 0, sy: 0, sl: 0, first: i, members: [] }));
     cell.sx += p.x;
     cell.sy += p.y;
+    cell.sl += lift(p.item);
     cell.members.push(p.item);
   });
+  // `l`: the members' mean lift, so `y − l` is where their heads are.
   const groups = [...cells.values()].map((c) => ({
     x: c.sx / c.members.length,
     y: c.sy / c.members.length,
+    l: c.sl / c.members.length,
     first: c.first,
     members: c.members,
   }));
@@ -420,11 +434,16 @@ export function clusterPoints<T>(
       for (let j = i + 1; j < groups.length; j++) {
         const a = groups[i];
         const b = groups[j];
-        if (Math.hypot(a.x - b.x, a.y - b.y) >= CLUSTER_MERGE) continue;
+        if (
+          Math.hypot(a.x - b.x, a.y - b.y) >= CLUSTER_MERGE &&
+          Math.hypot(a.x - b.x, a.y - a.l - (b.y - b.l)) >= CLUSTER_MERGE
+        )
+          continue;
         const n = a.members.length + b.members.length;
         groups[i] = {
           x: (a.x * a.members.length + b.x * b.members.length) / n,
           y: (a.y * a.members.length + b.y * b.members.length) / n,
+          l: (a.l * a.members.length + b.l * b.members.length) / n,
           first: Math.min(a.first, b.first),
           members: [...a.members, ...b.members],
         };
