@@ -281,6 +281,35 @@ console.log("\n── send() says whether the message left, and typing follows i
   mock.timers.reset();
 }
 
+console.log("\n── the job from the agent before him goes in as background ──");
+{
+  // 14 October: what the visitor asked another agent, and the places it put
+  // on screen, are told to his session once it is open — a contextual update,
+  // which the agent reads and never answers, and which starts no «typing».
+  globalThis.WebSocket = FakeSocket;
+  const pend = [];
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onPending: (v) => pend.push(v),
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  const context = "سياق للتسليم: الزائر جاي من مكالمته مع شوق. طلبه: «قهوة».";
+  ok("a socket that is not open does not take it", handle.tell?.(context) === false);
+  ok("and sends nothing", sock.sent.length === 0, JSON.stringify(sock.sent));
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  sock.sent.length = 0;
+  ok("an open one does", handle.tell?.(context) === true);
+  const out = JSON.parse(sock.sent[0] ?? "{}");
+  ok("as a contextual_update with the text", out.type === "contextual_update" && out.text === context, JSON.stringify(out));
+  ok("and nothing waits for a reply to it", pend.length === 0, pend.join(","));
+  ok("an empty one is not sent", handle.tell?.("  ") === false && sock.sent.length === 1, JSON.stringify(sock.sent));
+  handle.close();
+}
+
 console.log("\n── a correction replaces what she said ──");
 {
   globalThis.WebSocket = FakeSocket;

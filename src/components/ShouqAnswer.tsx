@@ -67,6 +67,7 @@ export default function ShouqAnswer({
   query,
   fromCall = false,
   onShare,
+  onToSalem,
 }: {
   parts: SpeechPart[];
   /** The question, for «كمّل مع سالم» — the same question, in his chat. */
@@ -75,6 +76,8 @@ export default function ShouqAnswer({
   fromCall?: boolean;
   /** «رسّلها للربع» for the place she named: the page's own share panel, on it. */
   onShare?: (slug: string) => void;
+  /** «كمّل مع سالم» was pressed: the page hands him the job it is holding. */
+  onToSalem?: () => void;
 }) {
   if (parts.length === 0) return null;
 
@@ -169,6 +172,7 @@ export default function ShouqAnswer({
           {query && (
             <Link
               href={salemHandoff(query, fromCall ? "call" : "shouq")}
+              onClick={onToSalem}
               className="inline-flex min-h-tap items-center rounded-xl border border-coral-200 bg-white px-3 text-sm font-semibold text-coral-800 transition hover:border-coral-300"
             >
               {WAIN_AI_COPY.toSalem}

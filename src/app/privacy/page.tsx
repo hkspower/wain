@@ -224,6 +224,17 @@ export default function PrivacyPage() {
             <strong className="text-ink-900">ربع ساعة بس</strong>، عشان ما
             يجرّبها كل مرة على الفاضي — وقت وبس، ما فيه شي عنك.
           </p>
+          {/* The job a visitor carries between the two (lib/agent-job.ts):
+              kept in the tab, and told to the next agent the visitor opens —
+              which makes it part of that conversation, kept as above. */}
+          <p>
+            ولمّا تنتقل من وحد للثاني — من مكالمة شوق أو جوابها لمحادثة سالم،
+            أو العكس — سؤالك والأماكن اللي طلعت لك واللي اخترته ينحفظون في{" "}
+            <strong className="text-ink-900">هالتبويب بس</strong> (Session
+            Storage) <strong className="text-ink-900">نص ساعة</strong>، عشان
+            اللي بعده ما يسألك من جديد. وإذا فتحت مكالمة أو محادثة مع الخدمة،
+            ينقال لها هالشي في بدايتها، فيصير جزء من المحادثة المحفوظة.
+          </p>
           <p>
             لمّا تفتحها في وضع المحادثة، يتصل متصفحك بمزوّد خدمة الصوت عشان
             يشتغل الصوت، ووقتها تنطبق سياسة الخصوصية الخاصة فيهم — وممكن يحفظ
@@ -256,7 +267,9 @@ export default function PrivacyPage() {
             تنحفظ في{" "}
             <strong className="text-ink-900">هالتبويب بس</strong> (Session
             Storage) عشان لو فتحت مكان ورجعت تلقاها مثل ما خليتها، وتنمسح لما
-            تسكّر التبويب.
+            تسكّر التبويب. ولمّا تنتقل من شوق لسالم أو العكس، سؤالك والأماكن
+            اللي طلعت لك واللي اخترته ينحفظون في نفس التبويب نص ساعة، عشان
+            اللي بعده ما يسألك من جديد.
           </p>
             </>
           )}

@@ -534,6 +534,60 @@ console.log('\n── reading aloud, remembered from an earlier visit, speaks on
   await ctx.close();
 }
 
+console.log('\n── the job travels between them (14 October) ──');
+{
+  /**
+   * «كمّل مع سالم» carried one string: the places she had put on screen, and
+   * the one the visitor had picked, stayed behind (lib/agent-job.ts). The job
+   * goes with the question now, in this tab only.
+   */
+  const job = (p) => p.evaluate(() => {
+    try { return JSON.parse(sessionStorage.getItem('wain:job:v1') ?? 'null'); } catch { return null; }
+  });
+  const { ctx, p, errors } = await fresh('/search/?q=' + encodeURIComponent('قهوة'));
+  const results = await p.locator('main a[href^="/places/"]').evaluateAll((as) =>
+    [...new Set(as.map((a) => new URL(a.href).pathname.split('/')[2]).filter(Boolean))]);
+  await p.getByRole('link', { name: 'كمّل مع سالم' }).first().click({ timeout: 4000 }).catch(() => {});
+  await p.waitForURL((u) => new URL(u).pathname === '/salem/', { timeout: 6000 }).catch(() => {});
+  const handed = await job(p);
+  ok('«كمّل مع سالم» hands him her job: the question', handed?.by === 'shouq-answer' && handed?.asked === 'قهوة', JSON.stringify(handed));
+  ok('and her places, in her order', !!handed && handed.shown.length > 0 && handed.shown[0] === results[0],
+    `${JSON.stringify(handed?.shown?.slice(0, 3))} vs ${JSON.stringify(results.slice(0, 3))}`);
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  const mine = await job(p);
+  ok('his answer becomes the job he holds', mine?.by === 'salem-chat' && mine?.asked === 'قهوة' && mine.shown.length > 0, JSON.stringify(mine));
+
+  // A job with a pick, handed over with its question: the line names the
+  // place picked there, and «وينه؟» means it.
+  const second = results[1];
+  await p.goto(`${B}/search/?q=${encodeURIComponent('قهوة')}`, { waitUntil: 'networkidle' });
+  await p.evaluate(([s, ranked]) => sessionStorage.setItem('wain:job:v1', JSON.stringify({
+    v: 1, by: 'shouq-call', asked: 'قهوة', shown: ranked.slice(0, 8), ranked, picked: s, at: Date.now(),
+  })), [second, results]);
+  await p.goto(`${B}/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { waitUntil: 'networkidle' });
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  // The newest line: the tab keeps the chat from before, with its own line.
+  const line = (await p.locator('[role="log"] p[role="status"]').last().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
+  ok('the line over the question names the place picked with her', line.includes('من مكالمتك مع شوق') && line.includes('واخترت'), line);
+  await ask(p, 'وينه؟');
+  const where = await lastSaid(p);
+  const picked = await p.evaluate(async (s) => {
+    const html = await (await fetch(`/places/${s}/`)).text();
+    return html.match(/<h1[^>]*>([^<]+)</)?.[1] ?? '';
+  }, second);
+  ok('and «وينه؟» means that place, not his first', !!picked && where.includes(picked), `${where} — expected ${picked}`);
+  ok('no page errors through it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+{
+  // The server's call-centre page hands a question over the same way.
+  const { ctx, p } = await fresh(`/salem/?q=${encodeURIComponent('بحر')}&from=call-center`);
+  await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
+  const line = (await p.locator('[role="log"] p[role="status"]').first().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
+  ok('a question from the call centre says so', line.includes('من مركز الاتصال') && line.includes('بحر'), line);
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

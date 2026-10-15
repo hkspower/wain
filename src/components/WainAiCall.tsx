@@ -10,7 +10,7 @@ import { primeAudio, setEnabled as setVoiceEnabled, stop as stopVoice } from "@/
 import { usePlaces } from "@/lib/usePlaces";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
-import { agentEnabledFor, agentIdFor, agentSay, callCopy, MATCHING_PLACES, salemHandoff, type CallPersona, WAIN_AI_ANY_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { agentEnabledFor, agentIdFor, agentSay, callCopy, MATCHING_PLACES, SALEM_ASK_EVENT, salemHandoff, type CallPersona, WAIN_AI_ANY_AGENT_ENABLED, WAIN_AI_COPY } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
 import {
@@ -24,6 +24,7 @@ import {
   type MicProbeResult,
 } from "@/lib/wain-ai-bus";
 import { isQuotaRefusal, markAgentUnavailable } from "@/lib/agent-health";
+import { jobContext, jobFor, pickInJob, writeJob, type JobAgent } from "@/lib/agent-job";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -192,6 +193,14 @@ type Props = {
   onPhase: (phase: Phase) => void;
 };
 
+/** Which agent holds the job on a call with this persona (lib/agent-job.ts). */
+const jobAgentOf = (persona: CallPersona): JobAgent => (persona === "salem" ? "salem-call" : "shouq-call");
+
+/** The widget's door for background the agent reads and never answers. It
+ *  listens only with `allow-events` on the element, and passes it on only
+ *  while a conversation is open (read out of 0.19.0). */
+const CONTEXT_EVENT = "elevenlabs-agent:contextual-update";
+
 export default function WainAiCall({ startSignal, onPhase }: Props) {
   const router = useRouter();
   // Where the caller is, for the bar after a free call's answer: it belongs to
@@ -215,6 +224,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * layout still imports no place data.
    */
   const { places } = usePlaces();
+  // For the job's place names, read when the line opens — an effect that does
+  // not otherwise re-run when the rows arrive.
+  const placesRef = useRef(places);
+  placesRef.current = places;
+  // Read at the moment it is needed, like the persona below.
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const [phase, setPhase] = useState<Phase>("idle");
   /**
    * Is THIS call the agent's? The build says whether there is an agent at all;
@@ -325,6 +341,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   /** This persona's words for the sheet, read in render. Callbacks read
       `callCopy(personaRef.current)` at the moment they speak. */
   const copy = callCopy(persona);
+  /** Whether this call's agent has been told the job it was handed. */
+  const toldRef = useRef(false);
 
   /**
    * Whether شوق's mouth moves — only when we actually KNOW she is speaking.
@@ -516,6 +534,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       }
       setLastQuery(q);
       setLastAction(`${WAIN_AI_COPY.didSearch} «${q}»`);
+      // What was asked, for whichever agent the visitor turns to next; the
+      // page the answer lands on writes the places it shows.
+      writeJob(jobAgentOf(personaRef.current), { asked: q, shown: [] });
       answerTimer.current = window.setTimeout(() => {
         answerTimer.current = null;
         // Not idle: the call waits for the next question as a bar over the
@@ -523,6 +544,14 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         // found, and closing outright meant a walk back to /find per question.
         setPhase("answered");
         setTranscript("");
+        // His chat is already the page when he is called from its header, and
+        // a push to the same page remounts nothing: the chat reads `?q=` once,
+        // at mount, so the question was never asked (14 October). It is handed
+        // to the open chat instead.
+        if (his && pathnameRef.current.startsWith("/salem")) {
+          window.dispatchEvent(new CustomEvent(SALEM_ASK_EVENT, { detail: { q } }));
+          return;
+        }
         router.push(his ? salemHandoff(q) : `/search?q=${encodeURIComponent(q)}`);
       }, ANSWER_MS);
     },
@@ -751,6 +780,36 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       if (!detail?.config) return;
       // Whose grammar the tools speak in — read once, for this call. See agentSay.
       const say = agentSay(personaRef.current);
+      // And whose job the places become.
+      const agent = jobAgentOf(personaRef.current);
+      // A new conversation — a redial from the widget's own Start included —
+      // is told the job again once its line is open.
+      toldRef.current = false;
+      // Once its line is open, the agent is told the job the visitor brings
+      // from the agent before — background it reads and never answers — so
+      // the caller is not asked again what they just told the other one.
+      //
+      // Not when «إنهاء» appears: the widget draws that while still
+      // connecting, and drops this event until its conversation is stored,
+      // which is after the session has started (0.19.0; the first version sent
+      // it at «إنهاء» and nothing arrived). The SDK's own onConnect — which
+      // the widget leaves to the page — fires as the session starts, and the
+      // widget stores the conversation in the microtasks after it, so a
+      // zero-delay timeout lands after both.
+      const config = detail.config as { onConnect?: (props: { conversationId: string }) => void };
+      const theirs = config.onConnect;
+      config.onConnect = (props) => {
+        theirs?.(props);
+        window.setTimeout(() => {
+          const el = slotRef.current?.querySelector("elevenlabs-convai");
+          if (!el || toldRef.current) return;
+          toldRef.current = true;
+          const job = jobFor(agent);
+          if (!job) return;
+          const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
+          el.dispatchEvent(new CustomEvent(CONTEXT_EVENT, { detail: { message: jobContext(job, nameOf) } }));
+        }, 0);
+      };
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {
         show_places: async ({ query }: { query?: string }) => {
           const q = (query ?? "").trim();
@@ -769,10 +828,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               .hits.filter((h) => h.doc.kind === "place");
             total = found.length;
             names = found.slice(0, 3).map((h) => h.doc.title);
-            setLastSlug(found[0] ? found[0].doc.id.replace(/^place:/, "") : null);
+            const slugs = found.map((h) => h.doc.id.replace(/^place:/, ""));
+            setLastSlug(slugs[0] ?? null);
+            writeJob(agent, { asked: q, shown: slugs.slice(0, 8), ranked: slugs });
           } catch {
             // The page is still navigating and will show whatever it finds;
             // fall through to the generic wording rather than fail the call.
+            writeJob(agent, { asked: q, shown: [] });
           }
           // Said to the caller, not to her: the same fact, in the sheet that
           // is covering the page it happened on. `countAr` and not a
@@ -840,6 +902,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           router.push(`/places/${s}/`);
           setLastAction(`${WAIN_AI_COPY.didOpen} «${place.nameAr}»`);
           setLastSlug(s);
+          pickInJob(agent, s, place.nameAr);
           return (
             `صفحة «${place.nameAr}» (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
             say(
@@ -900,6 +963,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
       el.setAttribute("agent-id", agentIdFor(persona));
+      // So it takes the job from the agent before (CONTEXT_EVENT). The same
+      // switch lets the page type into the call; nothing here does.
+      el.setAttribute("allow-events", "true");
       // Deliberately NOT `default-expanded`. Rendered for real (the published
       // 0.18.1 bundle, this agent's own widget config, 390px): collapsed, it
       // is a compact card at the bottom with a big labelled «بدء مكالمة»

@@ -706,6 +706,46 @@ console.log('\n── his tools answer from the live rows, not the snapshot they
   await lctx.close();
 }
 
+console.log('\n── the job from the agent before is told to his line when it opens (14 October) ──');
+for (const [by, expected] of [['shouq-call', true], ['salem-chat', false]]) {
+  const jctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await jctx.addInitScript((who) => {
+    if (!sessionStorage.getItem('__seeded')) {
+      sessionStorage.setItem('__seeded', '1');
+      sessionStorage.setItem('wain:job:v1', JSON.stringify({ v: 1, by: who, asked: 'قهوة هادية',
+        shown: ['mubarakiya-tea-houses'], ranked: ['mubarakiya-tea-houses'], picked: null, at: Date.now() }));
+    }
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  }, by);
+  const jp = await jctx.newPage();
+  await jp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  await jp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).catch(() => {});
+  await jp.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1;
+    s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+  }).catch(() => {});
+  await jp.waitForTimeout(300);
+  const told = await jp.evaluate(() => (window.__salemSocket?.sent ?? []).map((d) => JSON.parse(d))
+    .filter((m) => m.type === 'contextual_update').map((m) => m.text)).catch(() => []);
+  if (expected) {
+    ok('her job is told to his agent once his line is open', told.length === 1, JSON.stringify(told));
+    ok('naming her call and what was asked', /شوق/.test(told[0] ?? '') && /قهوة هادية/.test(told[0] ?? ''), told[0] ?? '');
+  } else {
+    ok('his own last job is not handed back to him', told.length === 0, JSON.stringify(told));
+  }
+  await jctx.close();
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

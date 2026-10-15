@@ -12,10 +12,12 @@ import type { Place } from "@/lib/places";
 import { WAIN_AI_CHAT_COPY } from "@/lib/salem-copy";
 import {
   SALEM_AGENT_ENABLED,
+  SALEM_ASK_EVENT,
   WAIN_AI_RECORDING,
   SALEM_NAME,
   type SalemHandoffFrom,
 } from "@/lib/wain-ai";
+import { jobContext, jobFor, pickInJob, writeJob } from "@/lib/agent-job";
 import { answerParts, placeTryLine, whenParts, type SpeechPart } from "@/lib/voice-lines";
 import { primeAudio, speak, stop as stopVoice } from "@/lib/voice";
 import type { ChatContext, Opener, SocialAct } from "@/lib/salem-followup";
@@ -288,16 +290,35 @@ export default function SalemChat() {
   // «اسأل سالم» on an invitation. Asked once, as the visitor's own message,
   // and taken off the address bar so a reload does not ask it again.
   const handoffRef = useRef<{ q: string; from: SalemHandoffFrom | null } | null>(null);
+  // The place the visitor had picked with the agent before, for the first
+  // answer here to point at (see showList).
+  const carriedPickRef = useRef<string | null>(null);
+  // A question handed to the chat that is already open (SALEM_ASK_EVENT) has
+  // no mount to be read at; this makes the effect below look again.
+  const [askTick, setAskTick] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const q = params.get("q")?.trim();
     if (!q) return;
     const from = params.get("from");
-    handoffRef.current = { q: q.slice(0, 120), from: from === "call" || from === "shouq" ? from : null };
+    handoffRef.current = {
+      q: q.slice(0, 120),
+      from: from === "call" || from === "shouq" || from === "call-center" ? from : null,
+    };
     params.delete("q");
     params.delete("from");
     const rest = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+  }, []);
+  useEffect(() => {
+    const ask = (event: Event) => {
+      const q = String((event as CustomEvent<{ q?: string }>).detail?.q ?? "").trim();
+      if (!q) return;
+      handoffRef.current = { q: q.slice(0, 120), from: null };
+      setAskTick((n) => n + 1);
+    };
+    window.addEventListener(SALEM_ASK_EVENT, ask);
+    return () => window.removeEventListener(SALEM_ASK_EVENT, ask);
   }, []);
 
   // Sized to the screen that is actually visible. `h-dvh` alone ignored the
@@ -375,8 +396,13 @@ export default function SalemChat() {
         const shown = slugs.flatMap((s) => bySlug(s) ?? []);
         lines.push({ role: "places", query, slugs, chips: follow.followUpChips(next, shown, clock), ctx: next });
         ctxRef.current = next;
-        activeRef.current = null;
+        // The place picked with the agent before, when this answer has it: «وينه؟»
+        // and «كم سعره؟» then mean the one the visitor had already chosen.
+        const carried = carriedPickRef.current;
+        carriedPickRef.current = null;
+        activeRef.current = carried && ranked.includes(carried) ? carried : null;
         parts = spoken;
+        writeJob("salem-chat", { asked: query, shown: slugs, ranked, picked: activeRef.current });
       };
       // His sentence for an answer, with the greeting it was asked with.
       const answerLine = (spoken: SpeechPart[], intro = "") => {
@@ -422,6 +448,7 @@ export default function SalemChat() {
       } else if (intent.kind === "pick" || intent.kind === "where") {
         const place = bySlug(intent.slug)!;
         activeRef.current = place.slug;
+        pickInJob("salem-chat", place.slug, place.nameAr);
         if (intent.kind === "pick") {
           // «كم سعره؟» — the guide holds a band, not a price, and says so
           // instead of the place's try-line (14 October).
@@ -589,6 +616,16 @@ export default function SalemChat() {
           return;
         }
         if (freeRef.current) return;
+        // The line is open: the job the visitor brings from another agent goes
+        // in as background before anything is asked (lib/agent-job.ts) — the
+        // handed-over question waits for his greeting, so it comes after this.
+        if (s === "connected") {
+          const job = jobFor("salem-chat");
+          if (job) {
+            const nameOf = (slug: string) => placesRef.current.find((p) => p.slug === slug)?.nameAr;
+            handle.tell(jobContext(job, nameOf));
+          }
+        }
         setStatus(s);
         if (s === "error" || s === "disconnected") setAwaitingGreeting(false);
         setFailure(s === "error" ? (f ?? "refused") : null);
@@ -631,11 +668,17 @@ export default function SalemChat() {
           const { hits } = order.answerOrder(q, mod.search(q, index, { limit: 40 }), index, live);
           const { spoken, slugs } = formatShowPlaces(q, hits, live);
           setMessages((prev) => [...prev, { role: "places", query: q, slugs }]);
+          const ranked = hits.filter((h) => h.doc.kind === "place").map((h) => h.doc.id.replace(/^place:/, ""));
+          writeJob("salem-chat", { asked: q, shown: slugs, ranked });
           return spoken;
         },
         open_place: async ({ slug }) => {
           const { spoken, slug: opened } = formatOpenPlace(String(slug ?? ""), placesRef.current);
-          if (opened) setMessages((prev) => [...prev, { role: "place", slug: opened }]);
+          if (opened) {
+            setMessages((prev) => [...prev, { role: "place", slug: opened }]);
+            const name = placesRef.current.find((p) => p.slug === opened)?.nameAr ?? opened;
+            pickInJob("salem-chat", opened, name);
+          }
           return spoken;
         },
       },
@@ -729,13 +772,21 @@ export default function SalemChat() {
     // ordering her answer uses (lib/answer-order.ts) puts the same place first.
     ctxRef.current = null;
     activeRef.current = null;
+    // The job this question comes with, when it is this question's: the place
+    // the visitor picked there is the one «وينه؟» means here, and the line
+    // says so. (His agent is told the whole job when its line opens.)
+    const job = jobFor("salem-chat");
+    const picked = job && job.asked.slice(0, 120) === handoff.q ? job.picked : null;
+    carriedPickRef.current = picked;
     if (handoff.from) {
-      const label = handoff.from === "call" ? WAIN_AI_CHAT_COPY.fromCall : WAIN_AI_CHAT_COPY.fromShouq;
-      setMessages((prev) => [...prev, { role: "system", text: `${label}: «${handoff.q}»` }]);
+      const C = WAIN_AI_CHAT_COPY;
+      const label = handoff.from === "call" ? C.fromCall : handoff.from === "call-center" ? C.fromCallCenter : C.fromShouq;
+      const name = picked ? places.find((p) => p.slug === picked)?.nameAr : undefined;
+      setMessages((prev) => [...prev, { role: "system", text: `${label}: «${handoff.q}»${name ? C.fromPicked(name) : ""}` }]);
     }
     submit(handoff.q);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- submit closes over the same state listed here
-  }, [ready, status, pending, awaitingGreeting]);
+  }, [ready, status, pending, awaitingGreeting, askTick]);
 
   function toggleReadAloud() {
     const on = !readAloud;
@@ -909,7 +960,15 @@ export default function SalemChat() {
                 query={m.query}
                 chips={latest && !pending && status === "connected" ? m.chips : undefined}
                 onChip={(c) => submit(c, m.ctx)}
-                onActive={latest ? (slug) => (activeRef.current = slug) : undefined}
+                onActive={
+                  latest
+                    ? (slug) => {
+                        activeRef.current = slug;
+                        const picked = places.find((p) => p.slug === slug);
+                        if (picked) pickInJob("salem-chat", slug, picked.nameAr);
+                      }
+                    : undefined
+                }
               />
             );
           }

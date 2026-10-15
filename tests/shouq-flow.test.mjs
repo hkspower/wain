@@ -652,16 +652,23 @@ console.log("\n── سالم's free call lands on his chat, not on her card �
   await p.waitForSelector('#wain-ai-panel', { timeout: 6000 }).catch(() => {});
   const ringing = (await p.locator('#wain-ai-panel').textContent().catch(() => '')) ?? '';
   ok('the sheet rings in his name', ringing.includes('سالم') && !ringing.includes('شوق'), ringing.slice(0, 120));
-  // Read as the page reads it (searchParams): salemHandoff writes the space
-  // as «+», which decodeURIComponent leaves alone.
-  await p.waitForURL((u) => new URL(u).searchParams.get('q') === 'قهوة هادية', { timeout: 9000 }).catch(() => {});
-  const u = new URL(p.url());
-  ok('the question lands on his chat', u.pathname === '/salem/' && u.searchParams.get('q') === 'قهوة هادية', p.url());
-  ok('as a question, not as «from her call»', !u.searchParams.has('from'), p.url());
+  // His chat is already the page, so nothing navigates: it used to push
+  // /salem/?q=… there, which remounts nothing, and the chat — reading ?q= only
+  // at mount — never asked it; the old check here passed on his greeting
+  // alone (14 October). The question has to appear as the caller's own line
+  // and be answered with places.
+  const log = p.locator('[role="log"]');
+  const asked = await log.locator('.justify-end p', { hasText: 'قهوة هادية' }).first()
+    .waitFor({ state: 'visible', timeout: 9000 }).then(() => true, () => false);
+  ok('the question lands on his chat, as the caller\'s own line', asked);
+  ok('and is answered there with places', await log.locator('a[href^="/places/"]').first()
+    .waitFor({ state: 'attached', timeout: 9000 }).then(() => true, () => false));
+  const text = (await log.textContent().catch(() => '')) ?? '';
+  ok('as a question, not as «from her call»', !text.includes('من مكالمتك مع شوق'), text.slice(0, 160));
+  ok('on the same page', new URL(p.url()).pathname === '/salem/', p.url());
   const bar = p.locator('#wain-ai-bar');
   await bar.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
   ok('and the bar waits there in his name', ((await bar.textContent().catch(() => '')) ?? '').includes('سالم'));
-  ok('his chat answers it', await p.waitForSelector('[role="log"] p', { timeout: 8000 }).then(() => true, () => false));
   ok('no page errors through it', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }

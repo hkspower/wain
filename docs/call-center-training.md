@@ -338,9 +338,15 @@ worth not undoing.
   not as sentences: a script in dialect read by a model becomes stilted
   instantly, and the prompt already bans exactly the phrases a script would
   introduce.
-- **Hold, transfer, escalation.** There is nobody to transfer to. «يرجى
-  الانتظار» is banned in the prompt for this reason — a hold message on a call
-  with no hold is theatre.
+- **Hold and escalation.** «يرجى الانتظار» is banned in the prompt — a hold
+  message on a call with no hold is theatre. **Transfer is no longer on this
+  list (14 October):** there are two agents now, شوق and سالم, and the visitor
+  moves between them. What was imported is the one transfer habit that
+  matters — the next agent is handed the job, so the caller is not asked again
+  what they just said: what was asked, the places put on screen and the one
+  picked travel in the tab (`src/lib/agent-job.ts`) and are told to the next
+  agent's session as background (a contextual update) when its line opens.
+  An in-call `transfer_to_agent` is being tried on 0%-traffic branches only.
 
 ---
 

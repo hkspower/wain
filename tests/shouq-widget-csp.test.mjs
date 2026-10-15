@@ -136,6 +136,7 @@ async function run({ withPolicy, init = null, outputFormat = "pcm_16000", viewpo
   });
   const askedBefore = resamplerAsked;
   const sent = [];
+  const contexts = [];
   await ctx.routeWebSocket(/elevenlabs\.io/, (ws) => {
     ws.onMessage((m) => {
       let type = "binary";
@@ -144,6 +145,7 @@ async function run({ withPolicy, init = null, outputFormat = "pcm_16000", viewpo
       try {
         const j = JSON.parse(typeof m === "string" ? m : m.toString());
         type = j.type ?? Object.keys(j)[0] ?? "?";
+        if (type === "contextual_update") contexts.push(String(j.text ?? ""));
       } catch { /* binary */ }
       sent.push(type);
       if (type === "conversation_initiation_client_data")
@@ -186,7 +188,7 @@ async function run({ withPolicy, init = null, outputFormat = "pcm_16000", viewpo
   const called = await page.evaluate(() => window.__called);
   await browser.close();
   server.close();
-  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, violations, hangup, resampler: resamplerAsked - askedBefore, called, terms };
+  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, contexts, violations, hangup, resampler: resamplerAsked - askedBefore, called, terms };
 }
 
 /**
@@ -408,6 +410,28 @@ ok("and the device does not switch her off", typed.flag === null, String(typed.f
 // fields have — or an iPhone zooms the call sheet in on the first tap into it.
 ok("the widget's text box is 16px under a finger, so an iPhone does not zoom into it",
   parseFloat(typed.boxFont) >= 16, String(typed.boxFont));
+
+/**
+ * The job a caller brings from the agent before (lib/agent-job.ts) goes into
+ * the call as a contextual update — background the agent reads and never
+ * answers. Through the real widget, because the widget decides: it passes the
+ * page's event on only with `allow-events` on the element, and only while a
+ * conversation is open (14 October, read out of 0.19.0).
+ */
+console.log("\n── the job from the agent before goes into the call ──");
+const seedJob = (by) => `(() => {
+  if (sessionStorage.getItem("__seeded")) return;
+  sessionStorage.setItem("__seeded", "1");
+  sessionStorage.setItem("wain:job:v1", JSON.stringify({ v: 1, by: ${JSON.stringify(by)}, asked: "قهوة هادية",
+    shown: ["mubarakiya-tea-houses"], ranked: ["mubarakiya-tea-houses"], picked: "mubarakiya-tea-houses", at: Date.now() }));
+})()`;
+const handed = await run({ withPolicy: true, init: seedJob("salem-chat") });
+ok("control: the call opened", handed.sent.includes("conversation_initiation_client_data"), handed.sent.slice(0, 4).join(","));
+ok("the call is told the job once its line is open", handed.contexts.length === 1, `${handed.contexts.length} updates; sent: ${handed.sent.slice(0, 8).join(",")}`);
+ok("naming who had it and what was asked", /سالم/.test(handed.contexts[0] ?? "") && /قهوة هادية/.test(handed.contexts[0] ?? ""), handed.contexts[0] ?? "");
+ok("and the place picked there, by name", /اختار منها/.test(handed.contexts[0] ?? ""), handed.contexts[0] ?? "");
+const own = await run({ withPolicy: true, init: seedJob("shouq-call") });
+ok("her own last job is not handed back to her as news", own.contexts.length === 0, own.contexts.join(" | "));
 
 /**
  * The widget ends a call without telling the page (8 October). The agent's

@@ -142,6 +142,11 @@ export const WAIN_AI_CHAT_COPY = {
   // picked up rather than looking like the visitor typed it.
   fromCall: "من مكالمتك مع شوق",
   fromShouq: "من جواب شوق",
+  // The server's call-centre page, handing over the question asked there.
+  fromCallCenter: "من مركز الاتصال",
+  // After the question, the place picked with the agent before — it travels
+  // with the job (lib/agent-job.ts).
+  fromPicked: (name: string) => ` — واخترت «${name}»`,
   seeAll: "شوف الكل بالبحث",
   readAloud: "اقرا لي الردود",
 } as const;

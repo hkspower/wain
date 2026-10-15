@@ -338,19 +338,27 @@ export function callCopy(persona: CallPersona): Record<keyof typeof WAIN_AI_COPY
 }
 
 /**
- * Where a question handed to سالم came from: her call, or her written answer
- * on /search. Read by `SalemChat` to say so and to ask it as a NEW question —
+ * Where a question handed to سالم came from: her call, her written answer on
+ * /search, or the server's call-centre page (`from=call-center`, which this
+ * repository does not build). Read by `SalemChat` to say so and to ask it as a NEW question —
  * a handover used to be read against whatever was left of an older chat in
  * this tab, so «شي رخيص» from her became «قهوة رخيص» if the last thing typed
  * to him was about coffee.
  */
-export type SalemHandoffFrom = "call" | "shouq";
+export type SalemHandoffFrom = "call" | "shouq" | "call-center";
 
 export function salemHandoff(q: string, from?: SalemHandoffFrom): string {
   const params = new URLSearchParams({ q: q.trim().slice(0, 120) });
   if (from) params.set("from", from);
   return `/salem/?${params.toString()}`;
 }
+
+/**
+ * A question for the chat that is already open — his free call placed from
+ * /salem's own header. `detail: { q }`. A push of `salemHandoff(q)` there
+ * remounts nothing, and the chat reads `?q=` only at mount.
+ */
+export const SALEM_ASK_EVENT = "wain:salem-ask";
 
 /**
  * What happens to a conversation once it has happened, said once because it

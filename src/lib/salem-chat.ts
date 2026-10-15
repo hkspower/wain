@@ -71,6 +71,12 @@ export interface SalemChatHandle {
    * already drawn the visitor's bubble — a sent message that never was.
    */
   send: (text: string) => boolean;
+  /**
+   * Background for the agent: a `contextual_update`, which it reads and never
+   * answers — the job a visitor brings from another agent (lib/agent-job.ts).
+   * Nothing waits for a reply to it. Whether it left, as `send` says.
+   */
+  tell: (text: string) => boolean;
   close: () => void;
 }
 
@@ -163,7 +169,7 @@ export function cleanReply(text: string): string {
  */
 const SOURCE = "js_sdk";
 
-const NOOP_HANDLE: SalemChatHandle = { send: () => false, close: () => {} };
+const NOOP_HANDLE: SalemChatHandle = { send: () => false, tell: () => false, close: () => {} };
 
 /**
  * How long "نوصّل شوق…" waits before giving up.
@@ -423,6 +429,11 @@ export function startSalemChat({
       if (socket.readyState !== WebSocket.OPEN) return false;
       socket.send(JSON.stringify({ type: "user_message", text }));
       setPending(true);
+      return true;
+    },
+    tell(text: string) {
+      if (socket.readyState !== WebSocket.OPEN || !text.trim()) return false;
+      socket.send(JSON.stringify({ type: "contextual_update", text }));
       return true;
     },
     close() {

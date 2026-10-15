@@ -23,6 +23,7 @@ import { answerOrder, kuwaitClock, readQuestion } from "@/lib/answer-order";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
 import { callActive } from "@/lib/wain-ai-bus";
+import { writeJob } from "@/lib/agent-job";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -455,6 +456,19 @@ export default function SearchClient() {
             parts={answer}
             query={deferredQ.trim()}
             fromCall={!!asked && asked.trim() === deferredQ.trim()}
+            onToSalem={() => {
+              // The job goes with the question: the places she put on screen,
+              // in their order, and the one pointed at — so «الثاني» in his
+              // chat is her second, and his agent is told what she found.
+              const slugs = hitPlaces.map((p) => p.slug);
+              const fromCall = !!asked && asked.trim() === deferredQ.trim();
+              writeJob(fromCall ? "shouq-call" : "shouq-answer", {
+                asked: deferredQ,
+                shown: slugs.slice(0, 8),
+                ranked: slugs,
+                picked: activeSlug && slugs.includes(activeSlug) ? activeSlug : null,
+              });
+            }}
             onShare={(slug) => {
               setActiveSlug(slug);
               const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
