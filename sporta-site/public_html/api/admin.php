@@ -1513,6 +1513,36 @@ if ($r === 'product_save' && $method === 'POST') {
     $featured = !empty($b['featured']) ? 1 : 0;
     $featuredSort = (int)($b['featured_sort'] ?? 0);
 
+    // A FIELD THE FORM DOES NOT SEND IS KEPT, NOT CLEARED (2026-10-15). The
+    // website panel's Edit product form has no sale or Best-sellers fields and
+    // posts neither, so every Save cleared the sale price, its dates, `featured`
+    // and its order — measured: a 6.400 sale ending 31 December came back NULL.
+    // The Expo app's saveProduct omits the same keys (F01). Absent means
+    // "unchanged"; sending the key, even empty, still sets or clears it.
+    $keep = null;
+    if ($id > 0) {
+        $kq = $db->prepare('select desc_en, desc_ar, sale_price, sale_starts_at, sale_ends_at, featured,
+                                   featured_sort, category, brand_slug, image, images
+                              from products where id = ?');
+        $kq->execute([$id]);
+        $keep = $kq->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if ($keep !== null) {
+        if (!array_key_exists('sale_price', $b)) {
+            // A kept sale must still be below the (possibly new) list price, or
+            // it would charge more than the price on the page: it ends instead.
+            $kept = $keep['sale_price'];
+            if ($kept !== null && (float)$kept > 0 && (float)$kept < (float)$price) {
+                $salePrice = $kept; $saleFrom = $keep['sale_starts_at']; $saleTo = $keep['sale_ends_at'];
+            }
+        }
+        if (!array_key_exists('featured', $b))      $featured = (int)$keep['featured'];
+        if (!array_key_exists('featured_sort', $b)) $featuredSort = (int)$keep['featured_sort'];
+        foreach (['desc_en', 'desc_ar', 'category', 'image'] as $k) {
+            if (!array_key_exists($k, $b)) $b[$k] = $keep[$k];
+        }
+    }
+
     // WHICH BRAND MADE IT. Checked against the brands table rather than stored
     // as typed: a slug with a typo would silently show no brand on the product
     // page, and "the logo did not appear" is a much harder thing to diagnose
@@ -1523,6 +1553,7 @@ if ($r === 'product_save' && $method === 'POST') {
     // is a HOSTNAME, not a path, so an off-site URL cannot be spelled here.
     // Blank entries are dropped rather than becoming empty <img> tags.
     $extraImages = null;
+    if ($keep !== null && !array_key_exists('images', $b)) $b['images'] = (string)($keep['images'] ?? '');
     $rawImages = trim((string)($b['images'] ?? ''));
     if ($rawImages !== '') {
         $clean = [];
@@ -1534,6 +1565,7 @@ if ($r === 'product_save' && $method === 'POST') {
         $extraImages = $clean ? implode(',', $clean) : null;
     }
 
+    if ($keep !== null && !array_key_exists('brand_slug', $b)) $b['brand_slug'] = (string)($keep['brand_slug'] ?? '');
     $brandSlug = trim((string)($b['brand_slug'] ?? ''));
     if ($brandSlug === '') {
         $brandSlug = null;

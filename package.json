@@ -290,7 +290,8 @@
     "test:late-payment-callback": "node scripts/late-payment-callback-test.mjs",
     "test:knet-refresh": "node scripts/knet-refresh-test.mjs",
     "test:payment-cards": "node scripts/payment-cards-test.mjs",
-    "test:input-text": "node scripts/input-text-test.mjs"
+    "test:input-text": "node scripts/input-text-test.mjs",
+    "test:product-save-keep": "node scripts/product-save-keep-test.mjs"
   },
   "private": true
 }
