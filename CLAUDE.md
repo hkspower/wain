@@ -5989,7 +5989,7 @@ The owner's words: «Keep the production endpoint as it is» (staging only, with
 - **Cache and edge:** `hosting_cache_clear-website` accepted. `wget -S --spider` through the edge: `https://www.wainkw.com/salem/` 200, `Last-Modified 20:33:01` (the deploy's minute), `DYNAMIC`. `https://wainkw.com/explore/` 301 → `https://www.wainkw.com/explore/` (`MISS`), then 200. Both probe jobs deleted and gone.
 - **Not measured:** a real phone; the focus-ring and phone-transition defects in `globals.css` (still open, owner's choice).
 
-## The job travels between the agents — 14 October, night (in progress: the ticket is in the repository, nothing reads it yet)
+## The job travels between the agents — 14 October, night (the web half is built, 15 October; the app and the live transfer are not)
 
 «improve to transfer jobs and tasks between all call center agents», read as: when a visitor moves between the
 four agents — شوق's call, her written answer on /search, سالم's typed chat, his call — what they asked, the
@@ -6055,15 +6055,36 @@ yet.** The two test branches exist, at 0% traffic and still without a transfer t
 `agtbrch_0101m4y7sg0gfwqsv9zsg52nasmb` (`agtvrsn_5301m4y7sg0fenzsm4kzwvk99ybn`), سالم
 `agtbrch_6101m4y7ssj0f1nacw4xh00kd664` (`agtvrsn_0301m4y7sshzf1q8jdbg5fth7c90`).
 
-**Next, in order:** the writers and readers on the web (`WainAiCall` writes on `show_places`/`open_place` and
-sets `allow-events`, then dispatches the context once the call has started; `SalemChat` writes on a list, a
-pick and a where, reads a handed-over job — `from=call|shouq|call-center` and the hub's `wain:agents:handoff` —
-seeds its memory and cards from it, and sends the context after init in agent mode; `ShouqAnswer`'s «كمّل مع
-سالم» writes `shouq-answer`), the `/privacy` sentence for agent builds, `docs/call-center-training.md:341`; the
-Flutter mirror (an in-memory ticket; `sendContextualUpdate` after connect; the chat the same); then
-`transfer_to_agent` on both branches with a tool test each way and the transcript's `agent_tool_response`
-turned into a system line in the chat — run on the branches with one repeat, results to the owner, nothing
-switched on. Every new assertion red first with the build green.
+**The web half, built 15 October (`72839701`).** Writers and readers:
+- **Both calls** (`WainAiCall`): `show_places` writes the job (asked, the first 8 shown, the 40 ranked),
+  `open_place` the pick, and the free call what was asked. The widget gets `allow-events="true"`, and the job
+  is told to the agent as a contextual update from **the SDK's `onConnect`**, which the widget does not set
+  itself (read: the callbacks between `startSession({...g,` and `e.current=await t.current` are 13, and
+  `onConnect` is not one). **The first version sent it when «إنهاء» appeared, and nothing arrived**: the
+  widget draws «إنهاء» while still connecting, and drops the event until `e.current` is stored, after the
+  session has started. A zero-delay timeout inside `onConnect` lands after that store.
+- **/search**: «كمّل مع سالم» writes her places in her order and the pin pointed at (`shouq-answer`, or
+  `shouq-call` when the question came from her call).
+- **سالم's chat**: writes what it shows, a pick (an ordinal, «وينه؟», a card pointed at, `open_place`); a
+  handed-over question whose job matches carries its pick — the line says «… — واخترت «X»» and «وينه؟» means X;
+  in agent mode `salem-chat.ts`'s new `tell()` sends the contextual update on `conversation_initiation_metadata`,
+  before the handed-over question. `from=call-center` is read and said («من مركز الاتصال»). Whether the hub's
+  page actually sends that was not read.
+- **A defect fixed on the way**: his free call placed from /salem's own header pushed `/salem/?q=…` onto
+  /salem, which remounts nothing, and the chat reads `?q=` only at mount — the question was never asked.
+  `shouq-flow`'s check passed on his greeting alone (`[role="log"] p`). It is handed to the open chat now
+  (`SALEM_ASK_EVENT`), and the check asks for the caller's own line and a card.
+- `/privacy` (both builds) says what the tab keeps, for half an hour, and that an agent is told it;
+  `docs/call-center-training.md` no longer says «there is nobody to transfer to».
+
+Red first, on a worktree of `5bebc362` in the scratchpad: `salem` 6 red, `shouq-flow` 2, `shouq-widget-csp`
+3 (the real 0.19.0 bundle, mock socket), `salem-agent` 2, `salem-chat` 4. Green on `72839701`: 102, 145, 42,
+114, 84. **Not measured:** a real agent reading the update (the socket is refused here), a phone.
+
+**Still to do:** the Flutter mirror (an in-memory ticket; `sendContextualUpdate` after connect; the chat the
+same); then `transfer_to_agent` on both branches with a tool test each way and the transcript's
+`agent_tool_response` turned into a system line in the chat — run on the branches with one repeat, results to
+the owner, nothing switched on.
 
 ## The hub's /shoug/ bridge is closed — 14 October, night (on the server; the redirect ships with the next deploy)
 
