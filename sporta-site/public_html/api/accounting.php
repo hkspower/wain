@@ -207,8 +207,15 @@ function acc_post(
         }
 
         if ($reverses !== null) {
-            $db->prepare('update journal_entries set reversed_by_id = ? where id = ? and reversed_by_id is null')
-               ->execute([$entryId, $reverses]);
+            // SEC-02 (2026-10-15). Two reversals of one entry used to both post: each read reversed_by_id
+            // as empty before either wrote it, and this update matched nothing on the second without
+            // anybody noticing. The link is claimed here, in the same transaction as the reversal's own
+            // lines; a row that is already claimed refuses the whole reversal, which rolls back.
+            $claim = $db->prepare('update journal_entries set reversed_by_id = ? where id = ? and reversed_by_id is null');
+            $claim->execute([$entryId, $reverses]);
+            if ($claim->rowCount() !== 1) {
+                throw new RuntimeException('accounting: that entry has already been reversed');
+            }
         }
 
         if ($ownTx) $db->commit();
@@ -349,36 +356,50 @@ function acc_order_cost_fils(PDO $db, int $orderId, string $rate): int {
  * reason a ledger is worth keeping.
  */
 function acc_reverse(PDO $db, int $entryId, string $memo, ?string $by = null): ?int {
-    $e = $db->prepare('select id, entry_date, memo, reversed_by_id from journal_entries where id = ?');
-    $e->execute([$entryId]);
-    $entry = $e->fetch(PDO::FETCH_ASSOC);
-    if (!$entry) return null;
-    // Reversing a reversal twice would net the original back into existence
-    // without anybody meaning it.
-    if ($entry['reversed_by_id'] !== null) return null;
+    // SEC-02 (2026-10-15). The check and the posting are one transaction, and the original entry's row is
+    // LOCKED for the whole of it. A second reversal of the same entry waits on that lock, then reads the
+    // link the first one wrote, and returns null. Without the lock both read "not reversed" and both posted.
+    $ownTx = !$db->inTransaction();
+    if ($ownTx) $db->beginTransaction();
+    try {
+        $sel = $db->prepare('select id, entry_date, memo, reversed_by_id from journal_entries where id = ? for update');
+        $sel->execute([$entryId]);
+        $entry = $sel->fetch(PDO::FETCH_ASSOC);
+        // Reversing a reversal twice would net the original back into existence without anybody meaning it.
+        if (!$entry || $entry['reversed_by_id'] !== null) {
+            if ($ownTx) $db->commit();
+            return null;
+        }
 
-    $l = $db->prepare('select a.code, l.debit, l.credit, l.memo
-                         from journal_lines l join accounts a on a.id = l.account_id
-                        where l.entry_id = ?');
-    $l->execute([$entryId]);
+        $l = $db->prepare('select a.code, l.debit, l.credit, l.memo
+                             from journal_lines l join accounts a on a.id = l.account_id
+                            where l.entry_id = ?');
+        $l->execute([$entryId]);
 
-    $lines = [];
-    foreach ($l as $row) {
-        // Debit becomes credit and credit becomes debit. That is the whole of
-        // a reversal.
-        $lines[] = [
-            'code'   => $row['code'],
-            'debit'  => store_fils($row['credit']),
-            'credit' => store_fils($row['debit']),
-            'memo'   => $row['memo'],
-        ];
+        $lines = [];
+        foreach ($l as $row) {
+            // Debit becomes credit and credit becomes debit. That is the whole of a reversal.
+            $lines[] = [
+                'code'   => $row['code'],
+                'debit'  => store_fils($row['credit']),
+                'credit' => store_fils($row['debit']),
+                'memo'   => $row['memo'],
+            ];
+        }
+        if (!$lines) {
+            if ($ownTx) $db->commit();
+            return null;
+        }
+
+        // Dated TODAY, not the original's date, and this is a real choice. Dating a reversal back would
+        // silently rewrite a month that may already have been reported to somebody.
+        $id = acc_post($db, date('Y-m-d'), $memo, $lines, 'manual', null, null, $by, $entryId);
+        if ($ownTx) $db->commit();
+        return $id;
+    } catch (Throwable $e) {
+        if ($ownTx && $db->inTransaction()) $db->rollBack();
+        throw $e;
     }
-    if (!$lines) return null;
-
-    // Dated TODAY, not the original's date, and this is a real choice. Dating a
-    // reversal back would silently rewrite a month that may already have been
-    // reported to somebody. The correction belongs to the day it was made.
-    return acc_post($db, date('Y-m-d'), $memo, $lines, 'manual', null, null, $by, $entryId);
 }
 
 // ---------------------------------------------------------------- reports

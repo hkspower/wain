@@ -5846,7 +5846,12 @@ if ($r === 'acc_entry_reverse' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['entry_id'] ?? 0);
     $memo = mb_substr(trim((string)($b['memo'] ?? '')), 0, 200) ?: 'Reversal';
-    $new = acc_reverse($db, $id, $memo, (string)($_SESSION['admin_email'] ?? ''));
+    try {
+        $new = acc_reverse($db, $id, $memo, (string)($_SESSION['admin_email'] ?? ''));
+    } catch (RuntimeException $e) {
+        // Already reversed by a concurrent request, or the entry does not balance: refused, nothing written.
+        store_fail('cannot_reverse', 409);
+    }
     if ($new === null) store_fail('cannot_reverse');
     store_out(['id' => $new]);
 }
