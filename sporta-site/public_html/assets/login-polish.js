@@ -29,7 +29,10 @@
     return fetch(API + route, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Sporta-Admin': '1' }, credentials: 'include', body: JSON.stringify(body || {}) })
       .then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, status: r.status, j: j } }) })
   }
-  var T = function (en, ar) { return document.documentElement.lang === 'ar' ? ar : en }
+  // THE PANEL IS AN ENGLISH SCREEN (2026-10-15). This read document.lang, which is 'ar' on every page
+  // because Arabic is the STOREFRONT's default, so the sign-in card mixed the bundle's English form
+  // with Arabic buttons beside it. The Arabic strings stay, for the day the panel gets a language switch.
+  var T = function (en) { return en }
   var WHY = {
     locked: ['Too many wrong tries — this account is locked for 15 minutes.', 'محاولات كثيرة خاطئة — الحساب مقفل ١٥ دقيقة.'],
     ip_not_allowed: ['Signing in is not allowed from this network. Use a listed address, or ask the shop owner.', 'تسجيل الدخول غير مسموح من هذه الشبكة.'],
@@ -49,7 +52,12 @@
     + '[data-splp-col]{flex-direction:column;gap:0}[data-splp-col]>*:not(form){width:100%;max-width:24rem;box-sizing:border-box}'
     + '.splp-wrap{position:relative}.splp-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);min-width:44px;min-height:44px;border:0;background:transparent;color:#334155;font:inherit;font-size:13px;font-weight:600;cursor:pointer}'
     + '.splp-caps{margin:6px 0 0;font-size:12.5px;color:#b45309}.splp-why{margin:8px 0 0;font-size:13px;color:#b91c1c}'
-    + '.splp-pk{display:block;width:100%;margin-top:12px;min-height:44px;padding:10px 14px;border-radius:8px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font:inherit;font-weight:700;cursor:pointer}'
+    // The passkey button is the Sign in button's outline twin (2026-10-15): same height, radius and
+    // ink, white ground, so the two doors read as one pair instead of a lavender slab under the card.
+    + '.splp-pk{display:block;width:100%;margin-top:10px;min-height:48px;padding:10px 14px;border-radius:12px;border:1.5px solid #4f46e5;background:#fff;color:#4338ca;font:inherit;font-size:15px;font-weight:700;cursor:pointer}'
+    + '.splp-pk:hover{background:#eef2ff}.splp-pk:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}'
+    // An English form, laid out left to right: the page's own dir is the storefront's rtl.
+    + '[data-splp-col]{direction:ltr}[data-splp-col] input[type=email],[data-splp-col] input[type=password],[data-splp-col] input[data-splp-pw]{direction:ltr;text-align:left}'
     + '.splp-pk[disabled]{opacity:.6;cursor:default}.splp-or{text-align:center;font-size:12px;opacity:.6;margin:10px 0 0}'
   function style() { if (document.getElementById('splp-css')) return; var s = el('style'); s.id = 'splp-css'; s.textContent = CSS; document.head.appendChild(s) }
 
@@ -75,6 +83,8 @@
     var f = form()
     var existing = document.querySelector('[' + MARK + ']')
     if (!f) { if (existing && existing.parentNode) existing.parentNode.removeChild(existing); return }
+    // The column's left-to-right rule first, so the toggle below is placed on the side it will end up on.
+    if (f.parentElement && f.parentElement.getAttribute('data-splp-col') == null) { style(); f.parentElement.setAttribute('data-splp-col', '1') }
     var pw = pwField(f)
     if (pw && !pw.hasAttribute('data-splp-pw')) {
       style()
@@ -88,7 +98,7 @@
          positioning parent: sit the toggle on the box's own vertical centre and inside
          the form's padding, instead of at the middle of the whole card. */
       if (wrap === f) {
-        var place = function () { var cs = getComputedStyle(f); eye.style.top = (pw.offsetTop + pw.offsetHeight / 2) + 'px'; eye.style[(document.documentElement.dir === 'rtl') ? 'left' : 'right'] = (parseFloat(cs.paddingRight) + 6) + 'px'; eye.style[(document.documentElement.dir === 'rtl') ? 'right' : 'left'] = 'auto' }
+        var place = function () { var cs = getComputedStyle(f); eye.style.top = (pw.offsetTop + pw.offsetHeight / 2) + 'px'; var rtl = cs.direction === 'rtl'; eye.style[rtl ? 'left' : 'right'] = (parseFloat(cs.paddingRight) + 6) + 'px'; eye.style[rtl ? 'right' : 'left'] = 'auto' }
         place(); window.addEventListener('resize', place); pw.addEventListener('focus', place)
       }
       pw.style.paddingInlineEnd = '56px'
@@ -100,7 +110,6 @@
     var email = f.querySelector('input[type="email"], input[autocomplete="username"]')
     if (email && !email.value && document.activeElement === document.body && !email.hasAttribute('data-splp-focused')) { email.setAttribute('data-splp-focused', '1'); try { email.focus({ preventScroll: true }) } catch (e) {} }
     if (email && window.PublicKeyCredential && !email.hasAttribute('data-splp-webauthn')) { email.setAttribute('data-splp-webauthn', '1'); if (!/webauthn/.test(email.getAttribute('autocomplete') || '')) email.setAttribute('autocomplete', (email.getAttribute('autocomplete') || 'username') + ' webauthn') }
-    if (f.parentElement && f.parentElement.getAttribute('data-splp-col') == null) f.parentElement.setAttribute('data-splp-col', '1')
     if (!existing && window.PublicKeyCredential) {
       var box = el('div'); box.setAttribute(MARK, '1')
       box.appendChild(el('p', 'splp-or', T('or', 'أو')))
@@ -108,7 +117,9 @@
       var note = el('p', 'splp-why'); note.setAttribute('data-splp-note', '1')
       btn.addEventListener('click', function () { passkeySignIn(btn, note) })
       box.appendChild(btn); box.appendChild(note)
-      f.insertAdjacentElement('afterend', box)
+      // INSIDE THE CARD, under Sign in (2026-10-15), not loose beneath it. type=button, so Enter in the
+      // form still submits the password and never presses this.
+      f.appendChild(box)
       style()
     }
   }
@@ -118,7 +129,7 @@
     var url = typeof input === 'string' ? input : (input && input.url) || ''
     var p = of.apply(this, arguments)
     if (/admin\.php\?r=(login|login_code|passcode_unlock|google_login|apple_login)(&|$)/.test(url)) {
-      p.then(function (r) { if (r.ok) return; r.clone().json().then(function (j) { var w = j && WHY[j.error]; var f = form(); if (!w || !f) return; var old = f.querySelector('[data-splp-why]'); if (old) old.remove(); var n = el('p', 'splp-why', w[document.documentElement.lang === 'ar' ? 1 : 0]); n.setAttribute('data-splp-why', '1'); f.appendChild(n) }).catch(function () {}) }).catch(function () {})
+      p.then(function (r) { if (r.ok) return; r.clone().json().then(function (j) { var w = j && WHY[j.error]; var f = form(); if (!w || !f) return; var old = f.querySelector('[data-splp-why]'); if (old) old.remove(); var n = el('p', 'splp-why', w[0]); n.setAttribute('data-splp-why', '1'); f.appendChild(n) }).catch(function () {}) }).catch(function () {})
     }
     return p
   }

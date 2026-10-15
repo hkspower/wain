@@ -12,7 +12,8 @@
 
   var API = '/api/admin.php?r='
   var MARK = 'data-sporta-reset'
-  var ar = function () { return document.documentElement.lang === 'ar' }
+  // English, like the panel it sits on (2026-10-15): document.lang is the storefront's 'ar'.
+  var ar = function () { return false }
   var T = function (en, a) { return ar() ? a : en }
 
   function onPanel() { return /^\/backends(\/|$)/.test(location.pathname) }
@@ -84,7 +85,7 @@
 
     var wrap = document.createElement('div')
     wrap.setAttribute(MARK, '1')
-    wrap.style.cssText = 'margin:10px auto 0;max-width:340px;text-align:center'
+    wrap.style.cssText = 'margin:10px auto 0;max-width:340px;text-align:center;direction:ltr'
     var link = button(T('Forgot password?', 'نسيت كلمة المرور؟'), false)
     var box = document.createElement('div')
     box.style.cssText = 'display:none;flex-direction:column;gap:10px;text-align:start;margin-top:8px'
@@ -94,7 +95,8 @@
     var msg = document.createElement('div')
     msg.setAttribute('role', 'status')
     msg.style.cssText = 'font-size:13px;min-height:1.3em;line-height:1.4'
-    function say(t, ok) { msg.style.color = ok ? '#4ade80' : '#ff6b6b'; msg.textContent = t }
+    // Inks for the LIGHT sign-in page (2026-10-15); the old pair was made for a dark one and read 1.9:1.
+    function say(t, ok) { msg.style.color = ok ? '#15803d' : '#b91c1c'; msg.textContent = t }
 
     var email = field('email', T('Admin email', 'بريد المسؤول'), 'username')
     var send = button(T('Email me a code', 'أرسل لي رمزًا'), true)
