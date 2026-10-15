@@ -53,24 +53,8 @@ while [ $# -gt 0 ]; do
 done
 
 # The editor: UNITY_EDITOR, else the project's own version from a default
-# Hub folder, else any 6000.0 there (another 6000.0 patch upgrades the
-# project quietly in batch mode).
-want="$(sed -n 's/^m_EditorVersion: *//p' "$PROJECT/ProjectSettings/ProjectVersion.txt")"
-find_unity() {
-  if [ -n "${UNITY_EDITOR:-}" ]; then echo "$UNITY_EDITOR"; return; fi
-  local c found=""
-  for v in "$want" "6000.0.*"; do
-    for c in \
-      /Applications/Unity/Hub/Editor/$v/Unity.app/Contents/MacOS/Unity \
-      "$HOME"/Applications/Unity/Hub/Editor/$v/Unity.app/Contents/MacOS/Unity \
-      "$HOME"/Unity/Hub/Editor/$v/Editor/Unity \
-      "/c/Program Files/Unity/Hub/Editor/"$v/Editor/Unity.exe \
-      "/mnt/c/Program Files/Unity/Hub/Editor/"$v/Editor/Unity.exe; do
-      [ -x "$c" ] && found="$c"
-    done
-    if [ -n "$found" ]; then echo "$found"; return; fi
-  done
-}
+# Hub folder, else any 6000.0 there (find-unity.sh, shared with bake-cars.sh).
+. "$ROOT/tools/unity/find-unity.sh"
 UNITY="$(find_unity)"
 if [ -z "$UNITY" ] || [ ! -x "$UNITY" ]; then
   echo "No Unity $want editor found. Install it with Unity Hub, or set UNITY_EDITOR=/path/to/Unity." >&2
@@ -121,7 +105,7 @@ echo "Log:   $LOG"
 # failed car (2 on bad arguments). No -nographics: it renders on the GPU.
 set +e
 "$UNITY" -batchmode -quit -projectPath "$PROJECT" -logFile "$LOG" \
-  -executeMethod NightRacer.Studio.CarStudio.Run "${pass[@]}"
+  -executeMethod NightRacer.Studio.CarStudio.Run ${pass[@]+"${pass[@]}"}
 status=$?
 set -e
 grep '\[render\]' "$LOG" || true

@@ -23,16 +23,10 @@ while [ $# -gt 0 ]; do
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-UNITY="${UNITY_EDITOR:-}"
-if [ -z "$UNITY" ]; then
-  for c in /Applications/Unity/Hub/Editor/6000.*/Unity.app/Contents/MacOS/Unity \
-           "$HOME"/Unity/Hub/Editor/6000.*/Editor/Unity \
-           "/c/Program Files/Unity/Hub/Editor/"6000.*/Editor/Unity.exe; do
-    [ -x "$c" ] && UNITY="$c"
-  done
-fi
-if [ -z "$UNITY" ]; then
-  echo "No Unity 6 editor found. Install 6000.0 LTS with Unity Hub, or set UNITY_EDITOR=/path/to/Unity." >&2
+. "$ROOT/tools/unity/find-unity.sh"
+UNITY="$(find_unity)"
+if [ -z "$UNITY" ] || [ ! -x "$UNITY" ]; then
+  echo "No Unity $want editor found. Install it with Unity Hub, or set UNITY_EDITOR=/path/to/Unity." >&2
   exit 1
 fi
 if ! ls "$ROOT"/press/renders/glb/*.glb >/dev/null 2>&1; then
@@ -44,9 +38,9 @@ echo "Unity: $UNITY"
 echo "Log:   $LOG"
 set +e
 "$UNITY" -batchmode -projectPath "$PROJECT" -logFile "$LOG" \
-  -executeMethod NightRacer.CarsEditor.CarAssetBaker.BakeBatch "${only[@]}"
+  -executeMethod NightRacer.CarsEditor.CarAssetBaker.BakeBatch ${only[@]+"${only[@]}"}
 status=$?
 set -e
 grep '\[bake\]' "$LOG" || true
-[ $status -ne 0 ] && echo "Unity exited with $status; see $LOG" >&2
+if [ $status -ne 0 ]; then echo "Unity exited with $status; see $LOG" >&2; fi
 exit $status
