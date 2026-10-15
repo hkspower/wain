@@ -1095,7 +1095,15 @@ const SITUATION_LOOKS: Record<Situation, Look> = {
   // grey at the same rate the desaturation removed it. The cast is
   // gentler now and the drain deeper, so the street's sodium actually
   // recedes instead of merely turning blue.
-  battle: { tint: balance(0.96, 0.99, 1.07), sat: 0.74, contrast: 1.13 },
+  //
+  // 0.74 -> 0.70 when the dipped beam became real light (lowbeam.ts).
+  // The painted pool it replaced was the most saturated thing in the
+  // night frame — warm yellow on blue tarmac — and the drain had been
+  // getting most of its measured pull from it: tests/grade.mjs read a
+  // battle at 0.946 of cruise's chroma with the pool and 0.965 without,
+  // against a bar of 0.95. The cast is unchanged; the drain is a step
+  // deeper so the street's own colour does the receding.
+  battle: { tint: balance(0.96, 0.99, 1.07), sat: 0.7, contrast: 1.13 },
   // Won. Warm and open, the one moment in the game that is allowed to
   // look generous.
   //
