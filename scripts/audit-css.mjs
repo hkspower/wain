@@ -96,8 +96,22 @@ say("note", "tokens outside a ramp that nothing reaches", orphans, "a one-off no
 const classes = [...new Set([...css.matchAll(/\.([a-zA-Z][\w-]*)(?=[\s,{:.[])/g)].map((m) => m[1]))]
   // `.tsx` and friends: a filename in a comment is not a selector.
   .filter((c) => !["tsx", "ts", "css", "mjs", "json"].includes(c));
+/* `leaflet-*` classes are added by Leaflet itself at runtime, inside the live
+   map's lazily-imported chunk, so no file in src/ ever names them — and the
+   Safari tile rule in globals.css read as dead code while doing real work.
+   Checked against Leaflet's own source rather than waved through by prefix,
+   so a class a future Leaflet stops setting is still caught. */
+const LEAFLET = (() => {
+  try {
+    return readFileSync(join(ROOT, "node_modules/leaflet/dist/leaflet-src.js"), "utf8");
+  } catch {
+    return "";
+  }
+})();
 const deadClasses = classes.filter(
-  (c) => !new RegExp(`[\\s"'\`{]${c}(?![\\w-])`).test(src)
+  (c) =>
+    !new RegExp(`[\\s"'\`{]${c}(?![\\w-])`).test(src) &&
+    !(c.startsWith("leaflet-") && new RegExp(`['" ]${c}(?![\\w-])`).test(LEAFLET))
 );
 say("note", "class selectors nothing uses", deadClasses);
 
