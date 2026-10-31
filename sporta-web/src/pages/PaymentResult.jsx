@@ -28,7 +28,7 @@ export default function PaymentResult() {
       // The attempt's track id is deliberately reused across retries so a
       // double tap cannot create two orders; once the order is placed, holding
       // on to it would hand the NEXT bag the same order number.
-      if (status === 'success' || status === 'cod') {
+      if (status === 'cod') {
         clear()
         clearAttempt()
       }
@@ -36,6 +36,12 @@ export default function PaymentResult() {
       try {
         const row = await phpOrderStatus(trackid)
         if (alive) setConfirmed(row?.payment_status ?? null)
+        // A card order empties the bag only once the SERVER says it is paid —
+        // the URL alone proves nothing (anyone can type ?status=success).
+        if (alive && row?.payment_status === 'paid') {
+          clear()
+          clearAttempt()
+        }
       } catch {
         /* ignore */
       }
@@ -50,9 +56,14 @@ export default function PaymentResult() {
   // A cash order is a completed checkout even though nothing has been paid yet,
   // so it must not read as a failure. It stays 'cod' until the driver collects
   // and the admin marks it paid — at which point the confirmed status wins.
+  // "success" in the URL is only a claim. The bank callback writes the order
+  // BEFORE it redirects here, so a success URL over an order that is not paid
+  // is forged or stale and must not read as a payment.
   const effective = confirmed === 'paid' ? 'success'
     : confirmed === 'failed' ? 'failed'
+    : confirmed === 'review' ? 'review'
     : status === 'cod' ? 'cod'
+    : status === 'success' && confirmed === 'pending' ? 'error'
     : status
   const r = t.result[effective] || t.result.error
 
