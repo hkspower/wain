@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node scripts/csp-hashes.mjs",
     "preview": "vite preview",
     "seo": "node scripts/generate-seo.mjs",
     "bundle:php": "node scripts/bundle-php.mjs",

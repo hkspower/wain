@@ -23,13 +23,22 @@ function nonBlockingCss() {
     name: 'sporta-non-blocking-css',
     enforce: 'post',
     transformIndexHtml(html) {
-      return html.replace(
+      // The promotion runs from ONE fixed inline script in <head>, not from an
+      // onload="" attribute on each link: a CSP with no 'unsafe-inline' blocks
+      // inline event handlers, but it can allow this exact script by hash
+      // (scripts/csp-hashes.mjs writes that hash into the deployed .htaccess).
+      // The listener is on document in the capture phase because load events
+      // from <link> do not bubble.
+      const promote =
+        "<script>document.addEventListener('load',function(e){var t=e.target;" +
+        "if(t&&t.tagName==='LINK'&&t.getAttribute('data-promote')!==null){t.rel='stylesheet';t.removeAttribute('data-promote')}},true)</script>"
+      const replaced = html.replace(
         /<link rel="stylesheet"([^>]*?)href="([^"]+)"([^>]*)>/g,
         (_m, before, href, after) =>
-          `<link rel="preload" as="style"${before}href="${href}"${after} ` +
-          `onload="this.onload=null;this.rel='stylesheet'">` +
+          `<link rel="preload" as="style"${before}href="${href}"${after} data-promote>` +
           `<noscript><link rel="stylesheet"${before}href="${href}"${after}></noscript>`,
       )
+      return replaced.replace(/<head([^>]*)>/, (m) => m + promote)
     },
   }
 }
