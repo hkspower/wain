@@ -40,7 +40,7 @@ if (branch !== BRANCH) {
 
 if (args.has("--plan")) {
   run("deploy:plan", "npm", ["run", "deploy:plan"]);
-  console.log("\nPlan printed. The deploy itself is a confirmed step: one cron job through the installed caller, read at its first firing, deleted, then deploy:verify.");
+  console.log("\nPlan printed — for the Hostinger shared-hosting docroot, which was not on the account on 31 October 2026, when www answered from a VPS and no deploy route for it existed (CLAUDE.md, «The 31 October scan, continued»). Do not run these commands as they stand. For the record, the old route was: one cron job through the installed caller, read at its first firing, deleted, then deploy:verify.");
   process.exit(0);
 }
 
@@ -64,6 +64,17 @@ if (!agent && !args.has("--free")) {
 console.log(agent ? "Build: AGENT (ids from the environment)." : "Build: FREE (--free).");
 
 run("npm run scan", "npm", ["run", "scan"]);
+// scan rewrites two tracked contact sheets (audit-icons.mjs and
+// audit-place-icons.mjs write them unconditionally) with THIS machine's fonts.
+// The tree was proven clean before scan, so a diff in exactly those two files
+// is scan's own, and restoring them cannot lose work. Left in place they make
+// the tree dirty, buildIdFromGit return null, and the release build a random
+// id — which deploy:plan refuses only after the whole build has run.
+run("restore the contact sheets scan rewrites", "git", ["checkout", "--", "docs/icons.png", "docs/place-icons.png"]);
+if (out("git", ["status", "--porcelain"])) {
+  console.error("ship stopped: scan left the working tree dirty, so the release would get a random build id:\n" + out("git", ["status", "--short"]));
+  process.exit(1);
+}
 run("npm run release", "npm", ["run", "release"]);
 if (agent) {
   run("npm run test:widget-csp", "npm", ["run", "test:widget-csp"], {
@@ -76,5 +87,7 @@ ship: green. The archive is built and gated; nothing has been uploaded or pushed
 Next, by hand:
   1. git add the archive and commit it, then git push origin ${BRANCH}
   2. npm run ship -- --plan
-  3. the deploy: one cron job per stage, read at its first firing, deleted, listed
-  4. npm run deploy:verify -- --observed <readings>.json, then the cache purge and the edge reads`);
+  3. the deploy — there is no route for the VPS yet (CLAUDE.md, «The 31 October scan, continued»).
+     The old shared-hosting route was one cron job per stage, read at its first firing, deleted, listed
+  4. npm run deploy:verify -- --observed <readings>.json, then the cache purge and the edge reads
+     (ppok reads the Hostinger account, not the VPS)`);

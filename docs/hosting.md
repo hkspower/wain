@@ -1,5 +1,11 @@
 # What is actually on wainkw.com
 
+> **Out of date since 31 October 2026.** wain's hosting website is no longer on
+> the Hostinger account, and `www.wainkw.com` was answering that day from the VPS
+> `srv2058651.hstgr.cloud` (CLAUDE.md, «The 31 October scan, continued»).
+> Everything below is a dated record of the shared host. Read it as history, not
+> as a description of where the site runs.
+
 Read through the Hostinger connector on 9 September 2026, after the deploy that
 landed this build. The previous version of this file was written on 2 September
 and its central claim — «the docroot holds nothing but our export» — is false.
@@ -616,8 +622,9 @@ run makes every order say «مو متاحة» — install first, deploy second.
 
 ## The `.htaccess`
 
-The export ships `public/.htaccess` and the live copy is byte-identical:
-15,672 bytes. `npm run audit:htaccess` applies every deny rule in it to every
+The export ships `public/.htaccess`. On 9 September 2026 the live copy was
+byte-identical to it at 15,672 bytes; the file has grown since, and by 31 October
+the live site no longer sent its CSP, so the live copy is no longer this file. `npm run audit:htaccess` applies every deny rule in it to every
 file in `out/` and fails if a rule would block anything shipped.
 
 Its deny rules for the old app's files — `wain.db`, `admin.token`,

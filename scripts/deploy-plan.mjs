@@ -95,6 +95,18 @@ const archive = join(ROOT, `wain-${version}.zip`);
 
 console.log(`\nwain ${version} — deploy plan\n`);
 
+/* The target below is the Hostinger shared-hosting docroot. On 31 October 2026
+   the account held no wainkw.com hosting website at all — www answered from a
+   VPS — so this prints a complete, plausible plan for a directory that is not
+   there. It is a note and not a refusal because whether the shared host comes
+   back is the owner's open question; the exit codes are unchanged. */
+note(
+  `Everything below targets ${DOCROOT}. On 31 October 2026 that directory was not on the Hostinger ` +
+    `account (wainkw.com had no hosting website there, and www.wainkw.com answered from the VPS srv2058651), ` +
+    `and no deploy route for the VPS exists yet — CLAUDE.md, «The 31 October scan, continued». ` +
+    `Do not run these commands as they stand; the plan is printed for the record and for the day the shared host returns.`
+);
+
 /* ── the tree has to be clean ────────────────────────────────────────────── */
 /**
  * `generateBuildId` is the commit sha when the tree is clean and a random id

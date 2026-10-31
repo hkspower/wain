@@ -8,7 +8,7 @@ A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopp
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, TypeScript)
 - [Tailwind CSS v4](https://tailwindcss.com)
-- Fully static — no database or API keys needed to run
+- Fully static — no API keys needed to run (the optional back end is `/api/wain.php`)
 
 ## Getting started
 
@@ -23,15 +23,18 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
 npm run build
-npm start
 ```
+
+The site is a static export in `out/`. `next start` refuses `output: "export"`,
+so there is no `npm start`: serve `out/` with any static server that maps
+`/x/` to `/x/index.html` (for example `npx serve out`).
 
 ## Project structure
 
 ```
 src/
 ├── app/
-│   ├── layout.tsx            # Root layout (navbar + footer)
+│   ├── layout.tsx            # Root layout
 │   ├── page.tsx              # Landing page
 │   ├── explore/              # Search + category filters
 │   ├── places/[slug]/        # Place detail pages (statically generated)
@@ -39,8 +42,6 @@ src/
 │   ├── not-found.tsx         # 404 page
 │   └── globals.css           # Tailwind theme (brand & sand palettes)
 ├── components/
-│   ├── Navbar.tsx
-│   ├── Footer.tsx
 │   └── PlaceCard.tsx
 └── lib/
     └── places.ts             # Place data, categories, and helpers

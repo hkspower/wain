@@ -6,17 +6,14 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * with no network for anything already in `out/`: every place page, /search,
  * /explore, the icons, the fonts.
  *
- * The one thing that changes shape here is صوت وين. `voice.ts` defaults
- * `TTS_URL` to the relative path `/api/tts.php`, correct on the web because
- * the page and the bridge share an origin. A bundled app has no origin to
- * share — the WebView's own scheme has nothing at that path, so a relative
- * fetch would 404. `voice.ts` already treats a 404 as "bridge not configured"
- * and falls back to the browser's own speech synthesis, so this would not
- * crash — it would just always take the fallback, in an app built specifically
- * to carry the feature. `.github/workflows/ios.yml` sets
- * NEXT_PUBLIC_WAIN_TTS_URL to the absolute wainkw.com URL for exactly this
- * build, which is the override voice.ts already reads first. Same mechanism
- * a staging build would use to point at a different bridge; nothing new.
+ * A bundle has no origin, so every same-origin default is wrong here: a relative
+ * `/api/...` would resolve against the WebView's own scheme and 404.
+ * `.github/workflows/ios.yml` therefore builds with NEXT_PUBLIC_WAIN_BACKEND
+ * set to the absolute https://www.wainkw.com/api/wain.php. The voice bridge is
+ * off by default now (tts-bridge.ts, closed 15 October 2026), so the app reads
+ * answers with the phone's own voice and needs no TTS URL. If the bridge is
+ * ever reinstalled, this build must be given an absolute NEXT_PUBLIC_WAIN_TTS_URL,
+ * because the relative path would 404 inside the WebView.
  *
  * appId is a placeholder and load-bearing the moment it ships: App Store
  * Connect fixes the bundle id to whatever the first TestFlight build declares.

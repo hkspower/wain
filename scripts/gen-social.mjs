@@ -378,7 +378,7 @@ const { base: BASE, stop: stopServer } = await serveOut();
 mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium",
+  executablePath: process.env.CHROMIUM_PATH || process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
 });
 const ctx = await browser.newContext({ viewport: { width: 1080, height: 1080 }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();

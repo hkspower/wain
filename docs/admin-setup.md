@@ -2,8 +2,10 @@
 
 The admin lives at `/admin`. It is a client-side page that talks to the site's
 own back end, `/api/wain.php` on the same host (`docs/backend.md`); the site
-itself stays a static export on Hostinger, so nothing about hosting, the
-domain, or the deploy pipeline changes.
+itself stays a static export, so nothing about the domain or the deploy
+pipeline changes. (It was served from Hostinger shared hosting when this was
+written; on 31 October 2026 `www` was answering from a VPS — CLAUDE.md, «The 31
+October scan, continued».)
 
 Until the two steps below are done, `/admin` says exactly what is missing and
 **the public site behaves as it does today**, serving its built-in copy of the
@@ -19,8 +21,11 @@ file on both stages, creates the database, seeds it from the export's
 
 ## 2. Set the password (once, by the owner)
 
-1. hPanel → **File Manager** → `domains/wainkw.com/storage/admin.secret`
-   (outside `public_html`).
+1. Open `storage/admin.secret`, the file `php …/api/wain.php version` names
+   (outside the web root). The hPanel path this step used to give,
+   `domains/wainkw.com/storage/admin.secret`, was not on the Hostinger account on
+   31 October 2026, and where the file sits on the VPS is not recorded yet; the
+   live `?a=ping` reported `admin: unset` that day.
 2. Paste a long random secret — 32 characters or more. Nothing else in the
    file.
 3. Save. Never paste it into a chat, a commit or an environment variable.

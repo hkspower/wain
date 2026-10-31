@@ -225,15 +225,18 @@ if (!backend.api) {
  * the reader is told to go and look, and the safe option is named first —
  * File Manager's Extract merges, which is what you want in a shared docroot.
  */
+console.log(`\n⚠  The route below is the Hostinger shared-hosting one. On 2026-10-31 that docroot`);
+console.log(`   was not on the account and www answered from a VPS; no deploy route for`);
+console.log(`   it exists yet (CLAUDE.md, «The 31 October scan, continued»).`);
 console.log(`\nDeploy, by hand: upload this zip to public_html and use File Manager's`);
 console.log(`"Extract". It merges — it leaves anything already there alone.`);
 console.log(`\nOr have the server fetch it itself, which is the same merge and needs`);
 console.log(`no upload:   npm run deploy:plan`);
 console.log(`\nhPanel's "deploy static archive" button is NOT the same thing:`);
 console.log(`it EMPTIES public_html first. Only use it once you have looked in`);
-console.log(`the folder and know that everything in it is this export. As of`);
-console.log(`2026-09-09 that was false — /api/, /pay/, /knet/ and /assets/ are`);
-console.log(`an older PHP app still sitting beside the site.`);
+console.log(`the folder and know that everything in it is this export. On`);
+console.log(`2026-09-09 it was not: /api/, /pay/, /knet/ and /assets/ held another`);
+console.log(`project's PHP app, removed on 17 September (docs/hosting.md).`);
 /**
  * This used to end by naming `curl -s .../build.json` as the confirmation.
  * That is a root file, and on 2026-09-09 the root landed while all 232 files

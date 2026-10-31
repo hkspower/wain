@@ -18,7 +18,10 @@
  * Nothing here can read the live site: www.wainkw.com resolves through the
  * same egress policy that refuses the upload host. The readings come from the
  * `ppok` connector, whose read tools reach Hostinger's API server-side, and
- * are handed in as JSON:
+ * are handed in as JSON. That is the Hostinger ACCOUNT: on 31 October 2026
+ * www.wainkw.com answered from a VPS instead, which ppok cannot read, so
+ * readings from the account describe nothing the visitor was served
+ * (CLAUDE.md, «The 31 October scan, continued»):
  *
  *   { "buildJson": "<the file's text>",
  *     "files": { "index.html": 139974, "_next/static/css/ab.css": 87269 } }

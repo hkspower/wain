@@ -12,9 +12,13 @@
  * Three things are checked, because a cookie can arrive three ways:
  *
  *   1. THE SERVER SENDS ONE. Set-Cookie on any response from our own origin.
- *      This build is static files on shared hosting with no PHP in the
- *      request path, so there is nothing to set one — but "nothing can" is an
- *      assumption about the host, and .htaccess is where it would change.
+ *      This build is static files plus the PHP endpoints under /api/
+ *      (wain.php above all), which never call setcookie or session_start —
+ *      so nothing in it sets one. But "nothing can" is an assumption about
+ *      the host and whatever sits in front of it, and .htaccess is where it
+ *      would change: it unsets Set-Cookie on every response. This audit's own
+ *      static server cannot see a header a web server adds, so that unset is
+ *      read by eye, not measured here.
  *
  *   2. OUR SCRIPT WRITES ONE. document.cookie = … anywhere in the shipped
  *      JavaScript. Checked in the built chunks, not the source, because the

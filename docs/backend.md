@@ -77,6 +77,13 @@ MySQL server; the API suite runs on SQLite.
 
 ## Installing it — the cron route
 
+> **Dated note, 31 October 2026.** The paths below are the Hostinger shared
+> account's, and `/home/u130124229/domains/wainkw.com/` was not on it that day:
+> `www.wainkw.com` answered from a VPS, and its `/api/wain.php?a=ping` was
+> reachable with the admin secret unset (CLAUDE.md, «The 31 October scan,
+> continued»). Where the VPS keeps `storage/` is not recorded. Do not run this
+> route as it stands.
+
 The same fetch-pin-run every write path on this account uses (`docs/hosting.md`):
 
 ```
@@ -103,7 +110,8 @@ One command per cron job, read at the first firing, delete, list.
 
 `storage/admin.secret` is created empty and never written by anything in the
 repository. The owner pastes a long random secret in it with the hPanel File
-Manager (outside `public_html`), never into a chat or a commit. Until then every
+Manager (outside `public_html`; the dated note above says why that path may no
+longer exist), never into a chat or a commit. Until then every
 admin action answers 503 `admin_unset` and `/admin` says which file to fill
 rather than offering a password form that would refuse every password.
 

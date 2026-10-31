@@ -124,3 +124,4 @@ public/.well-known/assetlinks.json
 # Untracked files dirty the tree, and a dirty tree costs the build its commit-named id.
 /shots/
 /orders-whatsapp.png
+/order-panel.png

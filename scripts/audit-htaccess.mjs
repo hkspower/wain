@@ -53,9 +53,13 @@ if (!existsSync(HTACCESS)) {
   console.error("audit-htaccess: public/.htaccess is missing");
   process.exit(1);
 }
+// A run with nothing to check against is not a pass: every rule below is held
+// against out/, and exiting 0 without it reported «0 problems» for a file that
+// had been read by nobody. audit:runtime, which runs before this in `scan`,
+// already exits 1 without out/, so nothing that passed before stops passing.
 if (!existsSync(OUT)) {
-  console.log("audit-htaccess: no out/ — run `npm run build` first");
-  process.exit(0);
+  console.error("audit-htaccess: no out/ — run `npm run build` first");
+  process.exit(1);
 }
 
 const rules = denyPatterns(readFileSync(HTACCESS, "utf8"));
@@ -147,11 +151,58 @@ for (const { pattern } of rules) {
   else notes.push(`allowed: every file type the export ships is typed (${[...exts].sort().join(", ")})`);
 }
 
+/* Compression has to name the type the HOST gives each file, and hosts disagree.
+   Apache 2.4.58 changed its mime.types so .js and .mjs are text/javascript;
+   2.4.57 and older, and LiteSpeed, say application/javascript. A filter list
+   naming only one stops compressing JavaScript — 62 files, about 3MB raw and
+   the biggest compressible class after HTML — the day the host upgrades, and
+   nothing fails. .xml is application/xml everywhere, not text/xml. So both
+   JavaScript spellings must be in BOTH lists, and application/xml whenever the
+   export ships an .xml file. Comments are stripped first: this reads the
+   directive, not the prose around it. */
+{
+  const code = readFileSync(HTACCESS, "utf8").replace(/^[ \t]*#.*$/gm, "");
+  const lists = [...code.matchAll(/AddOutputFilterByType[ \t]+(\w+)((?:[^\n]*\\\n)*[^\n]*)/g)].map((m) => ({
+    filter: m[1],
+    types: new Set(m[2].replace(/\\\n/g, " ").split(/\s+/).filter(Boolean)),
+  }));
+  const exts = new Set(shipped.map((f) => basename(f)).filter((b) => b.includes(".") && !b.startsWith(".")).map((b) => b.split(".").pop().toLowerCase()));
+  const need = [];
+  if (exts.has("js") || exts.has("mjs")) need.push("text/javascript", "application/javascript");
+  if (exts.has("xml")) need.push("application/xml");
+  if (!lists.length) errors.push("public/.htaccess has no AddOutputFilterByType — nothing is compressed");
+  for (const { filter, types } of lists) {
+    const gone = need.filter((t) => !types.has(t));
+    if (gone.length)
+      errors.push(
+        `${filter} does not list ${gone.join(", ")} in public/.htaccess. Apache 2.4.58+ types .js as ` +
+          `text/javascript and older Apache and LiteSpeed as application/javascript, so a list naming ` +
+          `one stops compressing JavaScript when the host upgrades — name both. .xml is application/xml.`
+      );
+  }
+  if (lists.length && !errors.some((e) => /does not list/.test(e)))
+    notes.push(`allowed: ${lists.map((l) => l.filter).join(" and ")} name both JavaScript types${exts.has("xml") ? " and application/xml" : ""}`);
+}
+
 /* The rules that matter most are the ones protecting live data. Losing one of
-   these to a careless edit is silent and expensive, so they are named. */
+   these to a careless edit is silent and expensive, so they are named.
+
+   wain.db is the OLD app's database (it is not the live one), and wain.sqlite
+   is the one /api/wain.php writes today, in WAL mode — so its -wal and -shm
+   files sit beside it holding the newest orders. They were not covered until
+   31 October: the rule written for SQLite ended at `.sqlite$`. The secrets
+   below are what wain.php keeps in storage/; that directory is meant to sit
+   OUTSIDE the docroot, but storageDir() tries <docroot>/storage first. */
 const MUST_DENY = [
-  ["wain.db", "the live SQLite database"],
-  ["wain.db-wal", "the database's write-ahead log — recent orders live here"],
+  ["wain.db", "the old app's SQLite database"],
+  ["wain.db-wal", "the old database's write-ahead log"],
+  ["wain.sqlite", "the back end's database"],
+  ["wain.sqlite-wal", "the back end's write-ahead log — recent orders live here"],
+  ["wain-staging.sqlite-shm", "the staging database's shared-memory file"],
+  ["admin.secret", "the board's password, if storage/ ever sits inside the docroot"],
+  ["deploy.secret", "the key that signs a publish, if storage/ ever sits inside the docroot"],
+  ["elevenlabs.key", "the voice account's key, if storage/ ever sits inside the docroot"],
+  ["db.json", "the MySQL connection settings, if storage/ ever sits inside the docroot"],
   ["admin.token", "the admin panel's bcrypt token hash"],
   ["upload-ftp.sh", "a shell script holding the FTP password in plaintext"],
   ["files.wain.zip", "a zipped copy of the whole site"],
@@ -246,8 +297,11 @@ if (!csp) {
       else if (e.name.endsWith(".js")) chunkText.push(readFileSync(p, "utf8"));
     }
   })(join(OUT, "_next/static/chunks"));
+  // wss:// too: the typed chat opens wss://api.elevenlabs.io from a chunk, and
+  // an https-only scan never asked whether connect-src names it — deleting that
+  // one source left this audit green while every typed chat was refused.
   const origins = [...new Set(
-    chunkText.join("\n").match(/https:\/\/[a-zA-Z0-9.*-]+\.[a-z]{2,}/g) ?? []
+    chunkText.join("\n").match(/(?:https|wss):\/\/[a-zA-Z0-9.*-]+\.[a-z]{2,}/g) ?? []
   )];
   const excused = new Set(NO_DIRECTIVE_NEEDED.map(([o]) => o));
   // Counted, not subtracted: the exception list names more hosts than any one
@@ -339,6 +393,6 @@ if (errors.length) {
 }
 console.log(
   `\n${errors.length ? "✗" : "✓"} ${errors.length} problem${errors.length === 1 ? "" : "s"}` +
-    (errors.length ? "" : " — every deny rule misses the export, and the live data stays covered")
+    (errors.length ? "" : " — every deny rule misses the export, and every name in MUST_DENY is still denied")
 );
 process.exit(errors.length ? 1 : 0);

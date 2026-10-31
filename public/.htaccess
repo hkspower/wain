@@ -1,4 +1,8 @@
-# Wain — static export on Apache / LiteSpeed (Hostinger)
+# Wain — static export on Apache. Written for Apache / LiteSpeed on Hostinger
+# shared hosting; on 31 October 2026 www.wainkw.com was answering from a VPS
+# instead, and nothing in this repository shows which web server reads this file
+# there (CLAUDE.md, «The 31 October scan, continued»). Where a comment below
+# says «the host», it means the host this was written for.
 #
 # Next.js `output: 'export'` with `trailingSlash: true` writes each route as a
 # directory containing index.html, so no rewrite-to-index catch-all is needed
@@ -28,6 +32,11 @@ DirectoryIndex index.html
 #    docroots and is the one place a rule reaches staging at all. Keyed on the
 #    Host so the very same bytes are correct in production, where it is inert.
 #
+# As of 31 October 2026 there is no staging.wainkw.com: it has no DNS record and
+# no hosting website, so these rules are inert everywhere. They stay so the same
+# bytes are correct if a staging host returns (CLAUDE.md, «The 31 October scan,
+# continued»).
+#
 # X-Robots-Tag rather than robots.txt: the export ships one robots.txt for both
 # and it allows crawling. A Disallow only asks a crawler not to FETCH — a url
 # it learns about elsewhere can still be indexed, listed without a description.
@@ -43,9 +52,10 @@ RedirectMatch 404 ^/staging(/|$)
 
 # ---- one site, one url -----------------------------------------------------
 #
-# wainkw.com and www.wainkw.com both resolve — the apex is an ALIAS and www a
-# CNAME, both to *.cdn.hstgr.net — and both land in THIS document root. So
-# every page of this site answered at two addresses, and the whole of the
+# wainkw.com and www.wainkw.com both resolve — until 31 October 2026 the apex
+# was an ALIAS and www a CNAME, both to *.cdn.hstgr.net, and by that date both
+# were plain A records to 187.7.78.123 — and both reach this site. So every
+# page of this site answered at two addresses, and the whole of the
 # source names only one: metadataBase, robots.ts's host, sitemap.ts's BASE and
 # wain-hub.ts's WAIN_ORIGIN are all `https://www.wainkw.com`.
 #
@@ -60,6 +70,12 @@ RedirectMatch 404 ^/staging(/|$)
 # it, so the apex served a second full copy of the site until 14 October, when
 # the owner asked for the redirect back. CLAUDE.md records the scan behind it.
 #
+# On 31 October 2026 the live apex answered 308, not this rule's 301: a proxy in
+# front of the web server redirected it before this file was read. So this block
+# is the fallback for a host where this file is the only redirect, and it was
+# not seen running on the host in front of the site that day (CLAUDE.md, «The 31
+# October scan, continued»).
+#
 # mod_rewrite, which this file otherwise avoids — see the header. That warning
 # is about a catch-all rewrite to index.html masking real 404s; this matches
 # one host and REDIRECTS rather than rewriting internally, so a missing page is
@@ -73,12 +89,14 @@ RedirectMatch 404 ^/staging(/|$)
 #     inside the export, so it lands in staging's docroot too — a rule written
 #     loosely here would bounce staging onto production and the stage would
 #     silently stop existing.
-#   - /api/ is exempt because `deploy.php` and `tts.php` are POSTed to, and a
-#     301 answers a POST by dropping its body. Both callers send
-#     `Host: www.wainkw.com` today and would never reach this, which is
-#     exactly why it is worth excluding: the day one does not, the failure is
-#     a deploy that reports success having written nothing. The back end's
-#     /api/wain.php is covered by the same exemption.
+#   - /api/ is exempt because the endpoints there are POSTed to — wain.php
+#     (orders, the queue, registration) above all — and a 301 answers a POST by
+#     dropping its body. Their callers send `Host: www.wainkw.com` today and
+#     would never reach this, which is exactly why it is worth excluding: the
+#     day one does not, the failure is a write that reports success having
+#     written nothing. deploy.php sat there too, and tts.php until the owner
+#     closed it on 15 October 2026; the exemption is by directory, so it covers
+#     whatever returns.
 #
 # `audit:htaccess` holds this block to that shape: it must be the file's only
 # rewrite, and both conditions must be present.
@@ -131,8 +149,18 @@ Options -Indexes
 #
 # RedirectMatch rather than mod_rewrite on purpose: it needs only mod_alias,
 # and it does not switch on the rewrite engine for a file whose opening
-# comment warns against catch-all rewrites masking real 404s. 404 rather than
-# 403 because a 403 confirms the path is there.
+# comment warns against catch-all rewrites masking real 404s.
+#
+# 404 is what a request INTO a dot-directory gets (/.git/config, /.git/HEAD):
+# mod_alias applies a redirect from this file in the fixups phase and never
+# looks at the disk, so a repository that is there and one that is not answer
+# alike. A dot-named FILE is different. The FilesMatch block above is checked in
+# the access phase, which comes first, against the name in the URL and not the
+# disk — so /.env, /.htaccess and /.git itself answer 403, and so does /.zzz,
+# which does not exist. That 403 therefore confirms nothing about the path.
+# (Read from Apache's source on 31 October 2026, not measured on a live server.
+# On the old shared host /.git/config was measured answering 403 as well, which
+# stock Apache does not do, so that came from a layer in front.)
 #
 # .well-known is exempt: it is the one dot-directory that is meant to be
 # fetched (ACME renewals, apple-app-site-association). The export ships none
@@ -143,19 +171,27 @@ Options -Indexes
 </IfModule>
 
 # ---------------------------------------------------------------------------
-# What the previous site left behind
+# What the previous site left behind — as first written, September 2026
 #
-# wainkw.com's document root is not empty. Before this export existed it ran a
-# single-file HTML app with a PHP back end, and that is still sitting there:
+# These rules were written for the old shared-hosting docroot. Before this
+# export existed that directory ran a single-file HTML app with a PHP back end:
 # api.php, admin.html, an admin token, ~28 index.bak-*.html copies, two zipped
-# archives of the whole site, and wain.db — a live SQLite database.
+# archives of the whole site, and wain.db, a SQLite database. docs/hosting.md
+# has the first reading and the later one that found those files gone from the
+# docroot's root, and CLAUDE.md records that on 31 October 2026 that docroot was
+# no longer on the account at all. Nothing here says any of those files exist on
+# whatever serves the site now, and every present-tense sentence in the blocks
+# below is as of the date it was written.
 #
-# The .htaccess it shipped denied wain.db. This file replaces that one, so
-# these rules have to come with it. Dropping a static-export .htaccess on top
-# of that server without them would put a 94KB database on the public web.
+# The rules stay anyway: they cost nothing, audit:htaccess proves each one
+# misses everything the export ships, and a restore from an old backup would
+# publish those files again. The .htaccess the old app shipped denied wain.db;
+# this file replaced it, so its rules had to come along — dropping a
+# static-export file on top of that server without them would have put a 94KB
+# database on the public web.
 #
-# These deny access; they do not delete anything. Removing the files is a
-# separate decision that belongs to whoever knows if the old app still runs.
+# These deny access; they do not delete anything. Removing the rules, like
+# removing the files, is a decision for whoever knows what is still served.
 
 <FilesMatch "^wain\.db">
   Require all denied
@@ -168,8 +204,11 @@ Options -Indexes
 </Files>
 
 # Backups and archives of the site, served under guessable names —
-# index.bak-300.html, index.bak-301.html, and two zips of everything.
-<FilesMatch "\.(bak|zip|db|sqlite|sqlite3)$|^index\.bak|\.broken-|\.bak-">
+# index.bak-300.html, index.bak-301.html, and two zips of everything. The
+# optional suffix is SQLite's own: with the write-ahead log on (wain.php turns
+# it on) the newest orders sit in wain.sqlite-wal before they reach the
+# database file, and the -shm and -journal files sit beside it.
+<FilesMatch "\.(bak|zip|db|sqlite|sqlite3)(-wal|-shm|-journal)?$|^index\.bak|\.broken-|\.bak-">
   Require all denied
 </FilesMatch>
 
@@ -186,11 +225,12 @@ Options -Indexes
 # been read file by file through the Hostinger connector — 147 files, 21.21MB,
 # of which 18.40MB is backups, scratch and zipped archives — and it turned up
 # several things the patterns above do not catch. Each block below exists
-# because of a specific file that is reachable today.
+# because of a specific file that was reachable when the docroot was read.
 #
-# NOTE: none of this is in force until the export is actually deployed. A deny
-# rule in this repository protects nothing while the server still runs its own
-# .htaccess. The credential below has to be rotated regardless.
+# NOTE, as of that reading (September 2026): none of this was in force until the
+# export was actually deployed, because a deny rule in this repository protects
+# nothing while the server still runs its own .htaccess. The credential below
+# had to be rotated regardless.
 # ---------------------------------------------------------------------------
 
 # Shell scripts. upload-ftp.sh sits in the web root with the FTP host, username
@@ -241,6 +281,17 @@ Options -Indexes
 <FilesMatch "\.md$">
   Require all denied
 </FilesMatch>
+
+# What /api/wain.php keeps in storage/ — the board's password, the deploy key,
+# the voice key, the MySQL settings and the allowed-hosts list — and the rotated
+# log. storage/ is meant to sit OUTSIDE the docroot, but wain.php's storageDir()
+# tries <docroot>/storage first, so one created inside it would be served. None
+# of these names has an extension a rule above knows, and nothing the export
+# ships matches any of them (audit:htaccess holds both).
+<FilesMatch "\.(secret|key)(\.off)?$|^(db\.json|deploy\.hosts)$|\.log\.1$">
+  Require all denied
+</FilesMatch>
+RedirectMatch 404 ^/storage(/|$)
 
 # ---------------------------------------------------------------------------
 # Caching
@@ -296,21 +347,34 @@ Options -Indexes
   Header append Vary Accept-Encoding
 </IfModule>
 
-# Fallback for hosts without mod_headers.
+# Fallback for hosts without mod_headers. Where both modules load, the
+# Cache-Control rules above win and this only adds an Expires header, which a
+# cache ignores when max-age is present (RFC 9111). So the table is for a host
+# with mod_expires alone, and has to name the same classes: a type missing from
+# it falls to the one-hour default. JavaScript is listed under both spellings
+# (see Compression below), and the service worker is carved out of the year the
+# same way rule 1b does it above.
 <IfModule mod_expires.c>
   ExpiresActive On
   ExpiresDefault                      "access plus 1 hour"
   ExpiresByType text/html             "access plus 0 seconds"
+  ExpiresByType text/plain            "access plus 0 seconds"
   ExpiresByType text/css              "access plus 1 year"
+  ExpiresByType text/javascript       "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
   ExpiresByType font/woff2            "access plus 1 year"
   ExpiresByType font/woff             "access plus 1 year"
   ExpiresByType image/png             "access plus 1 week"
+  ExpiresByType image/jpeg            "access plus 1 week"
   ExpiresByType image/webp            "access plus 1 week"
   ExpiresByType image/avif            "access plus 1 week"
   ExpiresByType image/svg+xml         "access plus 1 week"
   ExpiresByType image/x-icon          "access plus 1 week"
   ExpiresByType audio/mpeg            "access plus 1 week"
+  <Files "sw.js">
+    ExpiresByType text/javascript        "access plus 0 seconds"
+    ExpiresByType application/javascript "access plus 0 seconds"
+  </Files>
 </IfModule>
 
 # ---------------------------------------------------------------------------
@@ -318,14 +382,24 @@ Options -Indexes
 # ---------------------------------------------------------------------------
 
 # Brotli first where available — noticeably smaller than gzip for text.
+#
+# Both spellings of the JavaScript type are named on purpose. Apache 2.4.58
+# changed its mime.types so .js and .mjs are text/javascript; 2.4.57 and older,
+# and LiteSpeed, say application/javascript. A list naming one stops compressing
+# the site's JavaScript — about 3MB raw, the biggest compressible class after
+# HTML — the day the host upgrades, and nothing fails. application/xml is what
+# .xml (sitemap.xml) is everywhere; text/xml is kept for a host that says so.
+# audit:htaccess holds all three.
 <IfModule mod_brotli.c>
   AddOutputFilterByType BROTLI_COMPRESS text/html text/css text/plain text/xml \
-    application/javascript application/json application/manifest+json image/svg+xml
+    text/javascript application/javascript application/xml \
+    application/json application/manifest+json image/svg+xml
 </IfModule>
 
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
-    application/javascript application/json application/manifest+json image/svg+xml
+    text/javascript application/javascript application/xml \
+    application/json application/manifest+json image/svg+xml
 </IfModule>
 
 # woff2 is already compressed; re-compressing wastes CPU and can grow it.
@@ -370,7 +444,9 @@ Options -Indexes
   # the modern control; X-Frame-Options covers browsers that predate it.
   Header set X-Frame-Options "DENY"
 
-  # The site is HTTPS-only on Hostinger. Deliberately without includeSubDomains
+  # The site is HTTPS-only (the redirect from plain http belongs to whatever is
+  # in front of this file — the panel, on the shared host it was written for).
+  # Deliberately without includeSubDomains
   # and without preload: both are hard to walk back, and a subdomain that is
   # not yet on HTTPS would become unreachable for a year. Add them once every
   # subdomain is confirmed HTTPS.
@@ -378,14 +454,17 @@ Options -Indexes
 
   # No cookies leave this domain. Ever.
   #
-  # Nothing in the site sets one — the build is static files, there is no PHP
-  # in the request path, and audit:cookies loads ten pages in a real browser
-  # and asserts the jar comes back empty. So why strip a header nothing sends?
+  # Nothing in the site sets one — the pages are static files, the PHP endpoints
+  # under /api/ (wain.php, and deploy.php where installed) never call setcookie
+  # or session_start (grep scripts/publish/*.php), and audit:cookies loads ten
+  # pages in a real browser and asserts the jar comes back empty. So why strip a
+  # header nothing sends?
   #
-  # Because the thing that would send it is not ours. Shared hosting adds
-  # cookies on its own account: LiteSpeed's cache does it to vary responses,
-  # bot-protection and "under attack" layers do it to mark a browser as
-  # cleared, and both arrive by a control-panel toggle rather than a commit —
+  # Because the thing that would send it is not ours. A host adds cookies on its
+  # own account: LiteSpeed's cache did it to vary responses on the shared
+  # hosting this was written for, bot-protection and "under attack" layers do it
+  # to mark a browser as cleared, and a proxy in front can too. These arrive by
+  # a control-panel toggle rather than a commit —
   # nobody edits this repository, the site quietly gains a cookie, and the
   # promise on /privacy silently becomes false. This makes that impossible
   # instead of unlikely: whatever the host decides to attach, the visitor
@@ -393,12 +472,21 @@ Options -Indexes
   #
   # Safe precisely because the site has no session to lose. Orders and queue
   # tickets are held in the visitor's own localStorage and authenticated to
-  # Supabase by a token in the request body, never by a cookie — so there is
-  # no logged-in state for this to break. Anything added later that DOES need
-  # a cookie has to delete this line, which is the point: it cannot happen by
-  # accident, and whoever deletes it has to answer for /privacy too.
+  # /api/wain.php by a token in the request body (the admin board by an
+  # X-Wain-Admin header kept in sessionStorage), never by a cookie — so there is
+  # no logged-in state for this to break. That includes the PHP path: if a
+  # session were ever started there, its PHPSESSID would be dropped here.
+  # Anything added later that DOES need a cookie has to delete these lines,
+  # which is the point: it cannot happen by accident, and whoever deletes them
+  # has to answer for /privacy too.
+  #
+  # Two forms, because `always` acts on the error-response headers only and the
+  # plain form on the normal ones — a cookie written by PHP or a proxied backend
+  # lands in the second.
   Header always unset Set-Cookie
   Header always unset Set-Cookie2
+  Header unset Set-Cookie
+  Header unset Set-Cookie2
 
   # Content Security Policy.
   #

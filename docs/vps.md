@@ -1,8 +1,19 @@
 # The VPS builds staging
 
-The Hostinger VPS `srv2058651.hstgr.cloud` (IP `187.7.78.123`, Ubuntu 26.04)
-builds wain and sends it to **staging only**. Production (`www.wainkw.com`) is
-still promoted separately, by hand. Nothing here runs on its own.
+> **Read this as of 14 October 2026; corrected 31 October.** Since then the
+> `www.wainkw.com` and `wainkw.com` DNS records point at this same VPS (A records
+> to `187.7.78.123`), `staging.wainkw.com` has no DNS record, and the
+> `/home/u130124229/domains/wainkw.com/` paths below were not on the Hostinger
+> account (CLAUDE.md, «The 31 October scan, continued»). Steps 4 and 5 cannot be
+> followed as written, and nothing here has been checked against what the VPS
+> runs in front of its web server.
+
+The Hostinger VPS `srv2058651.hstgr.cloud` (IP `187.7.78.123`) builds wain and,
+when this was written, sent it to **staging only**, with production
+(`www.wainkw.com`) promoted separately by hand. The Hostinger API reports its
+template as «Ubuntu 24.04 with Docker and Traefik»; this file first said Ubuntu
+26.04, and neither was read from the machine — run `lsb_release -a` before
+relying on a version. Nothing here runs on its own.
 
 ## Steps (run as root in the Hostinger browser terminal)
 
@@ -12,8 +23,10 @@ still promoted separately, by hand. Nothing here runs on its own.
    CERT_EMAIL=you@example.com bash setup-vps.sh
    ```
 
-   It installs node 22, php and nginx, makes a deploy key, and prints the public
-   key.
+   It installs node 22, php, nginx and certbot, makes a deploy key, and prints
+   the public key. On a Docker and Traefik template, nginx and certbot may compete
+   with Traefik for ports 80 and 443 — unverified, and not yet checked on the host
+   (CLAUDE.md, «The 31 October scan, continued»).
 
 2. In GitHub, open `hkspower/wain` → Settings → Deploy keys → Add deploy key.
    Paste the printed key. Read-only is enough.
@@ -22,26 +35,18 @@ still promoted separately, by hand. Nothing here runs on its own.
    `/var/www/wain-releases` at `https://srv2058651.hstgr.cloud/releases/`, with
    a certificate.
 
-4. Let the staging server accept downloads from the VPS. This is one line on the
-   Hostinger side:
+4. **Not valid as written.** This step ran `php
+   /home/u130124229/domains/wainkw.com/storage/d.php allow srv2058651.hstgr.cloud`
+   to let the staging endpoint accept downloads from the VPS. That path was not on
+   the Hostinger account on 31 October 2026, and `staging.wainkw.com` has no DNS
+   record, so there is no staging endpoint to receive it.
 
-   ```
-   php /home/u130124229/domains/wainkw.com/storage/d.php allow srv2058651.hstgr.cloud
-   ```
-
-   I can run this for you as a one-time cron job through the Hostinger
-   connector, the way earlier installs were done, then delete the job. Tell me
-   to go ahead.
-
-5. Put the **staging deploy secret** on the VPS. It is the value of
+5. **Not valid as written.** This step copied the **staging deploy secret** from
    `/home/u130124229/domains/wainkw.com/storage/deploy.secret` on the Hostinger
-   server. Copy it into the VPS file by hand, and never paste it into a chat or
-   a commit:
-
-   ```
-   nano /root/wain-deploy/staging.secret
-   chmod 600 /root/wain-deploy/staging.secret
-   ```
+   server into `/root/wain-deploy/staging.secret` on the VPS (by hand, mode 600,
+   never into a chat or a commit). The deploy secret belongs to whichever
+   endpoint receives a deploy on the VPS, and that endpoint is not in this
+   repository yet.
 
 ## Deploying to staging
 
@@ -51,12 +56,15 @@ bash /root/wain-deploy/src/scripts/vps/deploy-staging.sh
 
 `--build` builds and prints the zip's URL and checksum without sending anything.
 
-A successful run ends with `"ok":true` and `staged <commit> on
-staging.wainkw.com`. Then check the site the way `docs/hosting.md` describes:
-read a file below the root, not only `build.json`.
+When it worked, a successful run ended with `"ok":true` and `staged <commit> on
+staging.wainkw.com`. That host has no DNS record now, so there is nothing for the
+script to send to as written. Whatever receives a deploy next, check it the way
+`docs/hosting.md` describes: read a file below the root, not only `build.json`.
 
 ## What this does not do
 
 - It does not touch production.
-- It does not change `deploy.yml.disabled` or the cron route. Those still exist.
+- It does not change `deploy.yml.disabled` or the cron route. Those files still
+  exist, but the cron route's target, `/home/u130124229/domains/wainkw.com/`, was
+  not on the Hostinger account on 31 October 2026.
 - It does not commit anything.

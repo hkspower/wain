@@ -102,7 +102,7 @@ await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
 const BASE = `http://127.0.0.1:${PORT}`;
 
 const browser = await chromium.launch({
-  executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? "/opt/pw-browsers/chromium",
+  executablePath: process.env.CHROMIUM_PATH || process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
 });
 const page = await (await browser.newContext({
   viewport: { width: WIDTH, height: 900 },
