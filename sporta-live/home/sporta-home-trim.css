@@ -1,0 +1,21 @@
+/* Sporta — home page trim (owner request, 2026-10-31).
+ *
+ * The storefront is a compiled bundle whose source is not in the repo, so the
+ * home page is trimmed from outside with CSS. External file on purpose (the
+ * live CSP forbids inline script and this needs none). Pure display:none keeps
+ * it correct across React re-renders, with no observer to maintain.
+ *
+ * Removed, both languages (the markup is the same, only the words differ):
+ *   - the "ready for your next step / your move, your way" spotlight band
+ *     (Arabic: جاهز لخطوتك الجاية — حركتك. على طريقتك.)
+ *   - the "Sporta picks / kit your day" heading above the category grid
+ *     (Arabic: اختيارات سبورتا — جهّز يومك بطريقتك.) — the grid itself stays.
+ *
+ * "مميزات سبورتا" belongs UNDER the categories, which is where the storefront's
+ * own features band (.home-features-wrap) already sits. The add-on band
+ * (#sporta-features) used to insert itself under the hero, so once the native
+ * one exists it is a duplicate in the wrong place and is hidden.
+ */
+.campaign-home .home-spotlight-wrap { display: none !important; }
+.campaign-home .home-category-intro { display: none !important; }
+.campaign-home:has(.home-features-wrap) > #sporta-features { display: none !important; }
