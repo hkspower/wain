@@ -1,0 +1,47 @@
+/* Sporta home category tiles: one treatment for all four photos.
+ * Design: https://claude.ai/artifact/7WpmPPykajNhozFk11siya (2026-10-31).
+ * Same images; only the layers over them change. Men and Women carry an
+ * orange backlight in the photo; Accessories and Outlet were flat grey, so
+ * they get a matching soft orange glow on the side away from the copy.
+ * External stylesheet: the live CSP forbids inline script. */
+
+.campaign-category { border-radius: 8px !important; }
+.campaign-category:focus-visible { outline: 2px solid #ff8f3d; outline-offset: 3px; }
+
+/* Scrim on the copy side: right in Arabic, left in English, bottom on phones. */
+:root[dir="rtl"] .campaign-category .cat-scrim {
+  background: linear-gradient(to left, rgba(17,17,19,.9) 0%, rgba(17,17,19,.72) 40%, rgba(17,17,19,0) 75%) !important;
+}
+:root[dir="ltr"] .campaign-category .cat-scrim {
+  background: linear-gradient(to right, rgba(17,17,19,.9) 0%, rgba(17,17,19,.72) 40%, rgba(17,17,19,0) 75%) !important;
+}
+@media (max-width: 767px) {
+  :root[dir] .campaign-category .cat-scrim {
+    background: linear-gradient(to top, rgba(17,17,19,.9) 0%, rgba(17,17,19,.63) 40%, rgba(17,17,19,0) 75%) !important;
+  }
+}
+
+/* Orange backlight for the two grey photos, between photo and scrim. */
+.tile-acc::before, .tile-outlet::before {
+  content: ""; position: absolute; inset: 0; z-index: -15; pointer-events: none; mix-blend-mode: screen;
+}
+:root[dir="rtl"] .tile-acc::before, :root[dir="rtl"] .tile-outlet::before {
+  background: radial-gradient(55% 95% at 20% 55%, rgba(255,123,23,.35) 0%, rgba(255,123,23,0) 70%);
+}
+:root[dir="ltr"] .tile-acc::before, :root[dir="ltr"] .tile-outlet::before {
+  background: radial-gradient(55% 95% at 80% 55%, rgba(255,123,23,.35) 0%, rgba(255,123,23,0) 70%);
+}
+
+/* Copy: orange kicker with the campaign rule under it, softer brief. */
+.campaign-category__kicker { color: #ff8f3d !important; font-weight: 600 !important; }
+.campaign-category__kicker::after {
+  content: ""; display: block; width: 40px; height: 2px; margin-top: 10px; background: #ff7b17;
+}
+.campaign-category__brief { color: #c9cacd !important; }
+
+/* Arrow chip becomes the orange button: black icon on orange, 44px target. */
+.campaign-category__arrow {
+  background: #ff7b17 !important; color: #000 !important;
+  width: 44px !important; height: 44px !important; border-radius: 8px !important;
+}
+.campaign-category__badge { border-radius: 4px !important; color: #000 !important; }
