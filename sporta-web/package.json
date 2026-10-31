@@ -19,6 +19,7 @@
     "package:backend": "node scripts/make-backend-package.mjs",
     "audit:files": "node scripts/file-audit.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",
+    "sandbox": "bash scripts/sandbox.sh",
     "test:brand": "node scripts/product-brand-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
     "test:grid": "node scripts/grid-card-test.mjs",
