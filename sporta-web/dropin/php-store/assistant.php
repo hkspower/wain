@@ -110,7 +110,7 @@ function assistant_intent(string $text): string
                            'return', 'refund', 'exchange', 'send back'])) {
         return 'returns';
     }
-    if (assistant_has($t, ['دفع', 'كي نت', 'كينت', 'knet', 'فيزا', 'ماستر', 'الدفع عند الاستلام',
+    if (assistant_has($t, ['دفع', 'كي نت', 'كينت', 'knet', 'visa', 'mastercard', 'master card', 'فيزا', 'ماستر', 'الدفع عند الاستلام',
                            'pay', 'payment', 'card', 'cash on delivery', 'cod', 'tpay', 't-pay'])) {
         return 'payment';
     }
