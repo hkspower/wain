@@ -518,6 +518,76 @@ function contactShadowTexture(
   return tex;
 }
 
+/**
+ * Vertex normals by POSITION, so a rounded edge shades as a rounded edge.
+ *
+ * ExtrudeGeometry ends with computeVertexNormals() on a geometry whose
+ * every triangle owns its vertices, so each triangle comes out with its
+ * face normal; mergeVertices then hashes position, normal AND uv, which
+ * keeps every facet's vertices apart, and a second computeVertexNormals
+ * on the result averages nothing. Measured on a 0.5 x 0.2 x 0.3 m
+ * roundedBox: 160 distinct positions in 608 vertices, with up to 38
+ * degrees between the normals meeting at one point. Every bevel, on
+ * every mirror, handle, skirt and traffic shell, was a row of flat
+ * facets, which is a stair of highlights instead of the one specular
+ * line the bevel exists to catch.
+ *
+ * Here each position gets the area-weighted mean of the triangles that
+ * meet at it (a cross product's length is twice the area), so the huge
+ * flat panel keeps its own normal almost to its edge and the little
+ * bevel facets blend into it and into each other: tangent-continuous,
+ * no pillowing.
+ *
+ * flatCaps keeps the two end caps of an extrusion exactly flat and out
+ * of the average (they are the faces a plate's texture is mapped on:
+ * faceUV finds them by a normal of z = +-1). That needs the caps' vertices
+ * to be their own, so call it on the raw, non-indexed extrusion, before
+ * mergeVertices. Crowning moves the caps off flat, so crownShell calls
+ * it without.
+ */
+function smoothNormals(geo: THREE.BufferGeometry, flatCaps = false, eps = 1e-4): void {
+  const pos = geo.attributes.position;
+  const index = geo.index;
+  const triCount = (index ? index.count : pos.count) / 3;
+  const vert = (t: number, k: number) => (index ? index.getX(t * 3 + k) : t * 3 + k);
+  const key = (i: number) =>
+    `${Math.round(pos.getX(i) / eps)},${Math.round(pos.getY(i) / eps)},${Math.round(pos.getZ(i) / eps)}`;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), fn = new THREE.Vector3();
+  const sum = new Map<string, THREE.Vector3>();
+  const cap = new Int8Array(triCount); // -1 / +1: a flat end cap facing -z / +z
+  for (let t = 0; t < triCount; t++) {
+    const i0 = vert(t, 0), i1 = vert(t, 1), i2 = vert(t, 2);
+    a.fromBufferAttribute(pos, i0);
+    b.fromBufferAttribute(pos, i1);
+    c.fromBufferAttribute(pos, i2);
+    fn.crossVectors(e1.subVectors(c, b), e2.subVectors(a, b));
+    const len = fn.length();
+    if (len < 1e-18) continue;
+    if (flatCaps && Math.abs(fn.z) / len > 0.99999) { cap[t] = fn.z > 0 ? 1 : -1; continue; }
+    for (const i of [i0, i1, i2]) {
+      const k = key(i);
+      const s = sum.get(k);
+      if (s) s.add(fn); else sum.set(k, fn.clone());
+    }
+  }
+  const nor = new Float32Array(pos.count * 3);
+  const n = new THREE.Vector3();
+  for (let t = 0; t < triCount; t++) {
+    for (let k = 0; k < 3; k++) {
+      const i = vert(t, k);
+      if (cap[t]) n.set(0, 0, cap[t]);
+      else {
+        const s = sum.get(key(i));
+        if (!s) continue;
+        n.copy(s).normalize();
+      }
+      nor[i * 3] = n.x; nor[i * 3 + 1] = n.y; nor[i * 3 + 2] = n.z;
+    }
+  }
+  geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+}
+
 /** Chamfered box. Real sheet metal never meets at a sharp 90 degrees —
  *  every panel edge carries a small radius that catches a bright
  *  specular line, and that highlight is most of what makes a car read as
@@ -549,8 +619,8 @@ function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 4): THREE.
     curveSegments: 3,
   });
   geo.translate(0, 0, -(d - r * 2) / 2);
+  smoothNormals(geo, true);
   geo = mergeVertices(geo, 1e-4);
-  geo.computeVertexNormals();
   return geo;
 }
 
@@ -966,7 +1036,7 @@ export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.Buffe
     }
   }
   pos.needsUpdate = true;
-  geo.computeVertexNormals();
+  smoothNormals(geo);
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return geo;
@@ -1034,11 +1104,11 @@ function extrudeProfile(
   // millimetres, and a 1e-3 weld applied afterwards would fuse pairs the
   // crown had just pushed apart — which shows up as a torn normal along
   // the shoulder line.
+  smoothNormals(geo, true, 1e-3);
   geo = mergeVertices(geo, 1e-3);
   // Profile length axis (x) onto the car's forward axis (+Z)
   geo.rotateY(-Math.PI / 2);
   if (crown) crownShell(geo, crown);
-  else geo.computeVertexNormals();
   /**
    * The forwardmost point of the roof, recorded on the geometry.
    *
