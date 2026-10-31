@@ -5,8 +5,8 @@
 > and men's activewear, hoodies and jackets, and gym accessories from brands
 > such as RHEO, Vanquish, ATE, Gymshark, Eyesportwear and its own SPORTA
 > label. The site is bilingual Arabic/English (RTL supported), prices are in
-> Kuwaiti Dinar (KWD), checkout is via KNET (Kuwait's debit network), Visa
-> and Mastercard, with same-day delivery inside Kuwait and free
+> Kuwaiti Dinar (KWD), checkout is via KNET (Kuwait's debit network),
+> with same-day delivery inside Kuwait and free
 > exchange/return.
 
 ## Business facts
@@ -22,7 +22,7 @@
 - Commercial licence: 30199/2023
 - Languages: Arabic (العربية), English
 - Currency: KWD (Kuwaiti Dinar, 3 decimal places)
-- Payment: KNET, Visa, Mastercard
+- Payment: KNET
 - Delivery: same-day inside Kuwait · free exchange & return
 - Returns & exchange requests: https://www.sporta.com.kw/returns (select items, sent via WhatsApp)
 

@@ -75,7 +75,7 @@ export default function Footer() {
 
         {/* Payment methods */}
         <div className="mt-8 flex items-center justify-center gap-2">
-          {['KNET', 'VISA', 'Mastercard'].map((p) => (
+          {['KNET'].map((p) => (
             <span
               key={p}
               className="rounded-lg border border-white/15 px-2.5 py-1 text-xs font-bold tracking-wide text-slate-300"

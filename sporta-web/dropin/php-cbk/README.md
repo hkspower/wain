@@ -1,7 +1,7 @@
 # CBK Hosted KNET & T-Pay — native PHP integration (Hostinger)
 
 Built to the **CBK Integration & Reference Manual v2.93** (REST-JSON + NVP
-hosted checkout). Handles KNET, Visa/Mastercard, and CBK T-Pay QR via CBK's
+hosted checkout). Handles KNET and CBK T-Pay via CBK's
 hosted page. No OpenCart.
 
 **Important:** CBK does the encryption. You do **not** AES-encrypt anything —

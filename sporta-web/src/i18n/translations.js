@@ -61,7 +61,7 @@ export const translations = {
     sort: { label: 'Sort', newest: 'Newest', priceAsc: 'Price: low → high', priceDesc: 'Price: high → low' },
     trust: {
       delivery: 'Delivery within 24 hours · 1 KWD',
-      pay: 'Secure checkout — KNET, Visa, Mastercard',
+      pay: 'Secure checkout — KNET',
       returns: 'Free 14-day returns',
       noExchange: 'This item cannot be exchanged',
     },
@@ -499,7 +499,7 @@ export const translations = {
     sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل إلى الأعلى', priceDesc: 'السعر: من الأعلى إلى الأقل' },
     trust: {
       delivery: 'التوصيل خلال ٢٤ ساعة · ١ د.ك',
-      pay: 'دفع آمن — كي نت، فيزا، ماستركارد',
+      pay: 'دفع آمن — كي نت',
       returns: 'إرجاع مجاني خلال ١٤ يومًا',
       noExchange: 'هذا المنتج غير قابل للاستبدال',
     },

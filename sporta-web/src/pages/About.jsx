@@ -15,8 +15,8 @@ const FAQ = [
   {
     q: { en: 'What payment methods do you accept?', ar: 'ما طرق الدفع المتوفرة؟' },
     a: {
-      en: 'KNET (Kuwait debit card), Visa and Mastercard, CBK T-Pay, or cash to the driver on delivery. All prices are in Kuwaiti Dinar (KWD).',
-      ar: 'كي نت وفيزا وماستركارد وتي-باي من البنك التجاري، أو نقدًا للمندوب عند الاستلام. وجميع الأسعار بالدينار الكويتي.',
+      en: 'KNET (Kuwait debit card), CBK T-Pay, or cash to the driver on delivery. All prices are in Kuwaiti Dinar (KWD).',
+      ar: 'كي نت وتي-باي من البنك التجاري، أو نقدًا للمندوب عند الاستلام. وجميع الأسعار بالدينار الكويتي.',
     },
   },
   {
@@ -60,8 +60,8 @@ const WHY = [
   },
   {
     t: { en: 'Pay the way Kuwait pays', ar: 'ادفع بالطريقة المعتادة في الكويت' },
-    d: { en: 'KNET, Visa and Mastercard, in Kuwaiti Dinar. Card details go to the bank, never to us.',
-         ar: 'كي نت وفيزا وماستركارد بالدينار الكويتي، وبيانات البطاقة تذهب للبنك لا إلينا.' },
+    d: { en: 'KNET, in Kuwaiti Dinar. Card details go to the bank, never to us.',
+         ar: 'كي نت بالدينار الكويتي، وبيانات البطاقة تذهب للبنك لا إلينا.' },
   },
   {
     t: { en: 'Brands worth training in', ar: 'ماركات تستحق التمرين بها' },
