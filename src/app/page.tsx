@@ -26,8 +26,8 @@ export default function HomePage() {
           is exactly the drawing's own rendered height at full width, so a
           value AT that floor means section height = drawing height, nothing
           spare. The hero reserves more than the drawing needs so the seam
-          reads as open sky rather than a blank band — `#ffffff`, the sky
-          gradient's own first stop. It was trimmed to `38vw` for a mobile fit
+          reads as open sky rather than a blank band — white, the first stop
+          of the skyline's `wain-sky` gradient. It was trimmed to `38vw` for a mobile fit
           (see the history above this line, still true of the reasoning: a
           38vw reserve is not cropping the drawing, it is choosing how much
           sky sits above it), then asked back up ~40% taller — `65vw` — with
