@@ -208,6 +208,11 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar): array
         $line = assistant_canned($cfg, 'stage_delivered', $ar);
     } elseif ($ful === 'shipped' || $ful === 'dispatched') {
         $line = assistant_canned($cfg, 'stage_shipped', $ar);
+    } elseif ($ful === '' || $ful === 'unfulfilled' || $ful === 'pending') {
+        // A cash-on-delivery order is placed but nobody has started on it yet.
+        // This used to fall through to "being prepared", which is a claim about
+        // work that has not begun and was shown for a month-old order.
+        $line = assistant_canned($cfg, 'stage_received', $ar);
     } else {
         $line = assistant_canned($cfg, 'stage_packing', $ar);
     }
@@ -404,6 +409,10 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'ar' => 'أرسل لي رقم الطلب (يبدأ بـ SP) وسأتحقق من حالته فورًا.',
             'en' => 'Send me your order number (it starts with SP) and I will check it right away.',
         ],
+        'stage_received' => [
+            'ar' => 'استلمنا طلبك وهو بانتظار التأكيد من فريقنا قبل التجهيز. إذا مرّ وقت طويل، أرسل لنا رقم الطلب على واتساب 22091914.',
+            'en' => 'We have received your order and it is waiting for our team to confirm it before preparation. If it has been a while, message us the order number on WhatsApp 22091914.',
+        ],
         'stage_packing' => [
             'ar' => 'تم استلام الطلب وهو قيد التجهيز. التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة.',
             'en' => 'We have your order and it is being prepared. Delivery inside Kuwait is within 24 hours for confirmed orders.',
@@ -448,7 +457,7 @@ function assistant_canned_lines(array $cfg): array
 {
     $keys = ['delivery', 'returns', 'payment', 'sizes', 'contact', 'cancel', 'location', 'thanks',
              'greeting', 'ask_track',
-             'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found',
+             'stage_received', 'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found',
              'recommend', 'in_cart'];
     $out = ['ar' => [], 'en' => []];
     foreach ($keys as $k) {
