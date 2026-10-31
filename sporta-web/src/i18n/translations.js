@@ -336,7 +336,8 @@ export const translations = {
       viewAll: 'View all',
     },
     cart: { title: 'Your bag', empty: 'Your bag is empty.', total: 'Total', checkout: 'Checkout',
-            subtotal: 'Subtotal', delivery: 'Delivery' },
+            subtotal: 'Subtotal', delivery: 'Delivery',
+            deliveryNote: 'Delivery and any discount are calculated at checkout.' },
     checkout: {
       summary: 'Order summary',
       coupon: 'Discount code',
