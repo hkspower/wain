@@ -1,0 +1,8 @@
+  # Policy addresses people type or old links use (added 2026-10-31).
+  # /shipping keeps ?lang=en and lands on the delivery section of /terms.
+  RewriteCond %{QUERY_STRING} ^(.+)$
+  RewriteRule ^(shipping|delivery|shipping-policy|delivery-policy)/?$ https://www.sporta.com.kw/terms?%1#delivery [NC,R=301,L,NE,QSD]
+  RewriteRule ^(shipping|delivery|shipping-policy|delivery-policy)/?$ https://www.sporta.com.kw/terms#delivery [NC,R=301,L,NE]
+  RewriteRule ^(refund|refunds|refund-policy|return)/?$ https://www.sporta.com.kw/returns [NC,R=301,L]
+  RewriteRule ^policy/?$ https://www.sporta.com.kw/privacy [NC,R=301,L]
+  RewriteRule ^policies/?$ https://www.sporta.com.kw/terms [NC,R=301,L]

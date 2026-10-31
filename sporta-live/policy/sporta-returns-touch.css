@@ -1,0 +1,9 @@
+/* /returns: the two links under the order lookup ("Read the full returns
+   terms" / "Need help? Contact Sporta on WhatsApp") measured 22-24px tall on
+   a phone - under the 24px minimum and well under the 44px comfortable tap.
+   Same look, bigger hit area. */
+.returns-system__policy-links a {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 44px;
+}
