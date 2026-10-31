@@ -337,7 +337,16 @@ export const GradeShader = {
         texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb +
         texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb +
         texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb);
-      c.rgb += max((c.rgb - blur) * 0.4, -0.5 * c.rgb);
+      //
+      // Asymmetric: 0.4 on the dark side of an edge, 0.22 on the bright
+      // side. A lamp, a glint or a lit sign is already above the clip
+      // when it arrives here, and a full-strength overshoot on its edge
+      // pixels pushes the partial-coverage ramp the multisample resolve
+      // just produced back toward a single step (and grows the highlight
+      // by most of a pixel). The dark side has no such ceiling, so it
+      // keeps the gain that gives silhouettes their bite.
+      vec3 hp = c.rgb - blur;
+      c.rgb += max(hp * mix(vec3(0.4), vec3(0.22), step(vec3(0.0), hp)), -0.5 * c.rgb);
 
       float d = distance(vUv, vec2(0.5));
       // Vignette. This was 0.38, then 0.26 — the corners delivered at

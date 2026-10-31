@@ -244,13 +244,15 @@ const out = await page.evaluate(async ([wantShots]) => {
   // samples, FXAA is deliberately OFF, so "FXAA on" was measuring a
   // configuration the game never ships.
   const fxaaWas = e.fxaaPass.enabled;
-  const samplesWas = e.msaaTarget.samples;
+  const samplesWas = e.scenePass.target.samples;
 
   const on = grab();
-  e.msaaTarget.samples = 0;
+  // setSamples, not an assignment: the renderbuffers are only
+  // reallocated when a target is disposed (scenepass.ts).
+  e.scenePass.setSamples(0);
   e.fxaaPass.enabled = false;
   const off = grab();
-  e.msaaTarget.samples = samplesWas;
+  e.scenePass.setSamples(samplesWas);
   e.fxaaPass.enabled = fxaaWas;
 
   // What the AA pass actually changed.
@@ -280,7 +282,7 @@ const out = await page.evaluate(async ([wantShots]) => {
   // stacked FXAA on top of the samples — softer than either alone, and
   // invisible to a probe that pins High.
   e.applyQualityTier("auto");
-  res.auto = { fxaa: e.fxaaPass.enabled, samples: e.msaaTarget.samples };
+  res.auto = { fxaa: e.fxaaPass.enabled, samples: e.scenePass.target.samples };
   e.applyQualityTier("high");
   e.setPaused(false);
   return res;

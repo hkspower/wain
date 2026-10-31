@@ -103,7 +103,7 @@ const result = await page.evaluate(async ([write]) => {
   const savedMoonCastShadow = e.world.moonLight.castShadow;
   e.world.moonLight.castShadow = false;
   e.headlight.castShadow = false;
-  e.msaaTarget.samples = 0;
+  e.scenePass.setSamples(0);
   e.fxaaPass.enabled = false;
 
   const cam = e.camera;

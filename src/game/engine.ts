@@ -4,7 +4,7 @@ import { pixelRatioFor, bufferFor, type Resolution } from "./render";
 import { DEFAULT_SETTINGS } from "./settings";
 import { HANDLING } from "./handling";
 import { nextView, viewSpec, type CameraView } from "./views";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { SceneMsaaPass } from "./scenepass";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
@@ -1703,9 +1703,10 @@ export class GameEngine {
   // Rendering quality
   private world: WorldHandle;
   private composer: EffectComposer;
-  /** The multisampled buffer the scene is rendered into. Kept so the
-   *  quality ladder can turn samples down without rebuilding the chain. */
-  private msaaTarget!: THREE.WebGLRenderTarget;
+  /** The scene pass, which owns the multisampled buffer the scene is
+   *  rendered into. Kept so the quality ladder can turn samples down
+   *  without rebuilding the chain. */
+  private scenePass!: SceneMsaaPass;
   private bloomPass: UnrealBloomPass;
   private grainPass: ShaderPass;
   private autoExp!: AutoExposure;
@@ -2081,13 +2082,26 @@ export class GameEngine {
     // on. If a GL stack somewhere still cannot do both, the tier below
     // drops back to no samples and FXAA alone.
     const drawing = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    //
+    // The samples live on a target of the scene pass's own (scenepass.ts),
+    // not on the composer's: EffectComposer clones its first target for
+    // the second and draws the scene into whichever is the read buffer,
+    // so a multisampled composer target gave the scene four samples on
+    // one frame and the tier's number on the next, and made every
+    // full-screen pass after it pay for a 4x buffer.
     const msaaTarget = new THREE.WebGLRenderTarget(drawing.x, drawing.y, {
       type: THREE.HalfFloatType,
       samples: 4,
     });
-    this.msaaTarget = msaaTarget;
-    this.composer = new EffectComposer(this.renderer, msaaTarget);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.scenePass = new SceneMsaaPass(this.scene, this.camera, msaaTarget);
+    this.composer = new EffectComposer(
+      this.renderer,
+      new THREE.WebGLRenderTarget(drawing.x, drawing.y, {
+        type: THREE.HalfFloatType,
+        depthBuffer: false,
+      })
+    );
+    this.composer.addPass(this.scenePass);
     // Exposure sits here on purpose: after the scene, before bloom and
     // tone mapping. It is the only point in the chain where the numbers
     // are still scene-referred light rather than picture, and putting it
@@ -2444,6 +2458,10 @@ export class GameEngine {
     // fov is the envelope's, which is also the cookie's frame)
     this.headlight.shadow.bias = -0.002;
     this.headlight.shadow.normalBias = 0.03;
+    // Soft by a texel and a half more than the default 1: the map covers
+    // the low beam's whole 76 degrees, so a texel is wide on the road and
+    // a one-texel filter left rail and post shadows as visible stairs.
+    this.headlight.shadow.radius = 1.75;
 
     // Rim light riding behind the roofline — the body edge reads against
     // dark asphalt instead of dissolving into it.
@@ -2494,6 +2512,7 @@ export class GameEngine {
       l.shadow.camera.far = 40;
       l.shadow.bias = -0.0005;
       l.shadow.normalBias = 0.02;
+      l.shadow.radius = 1.75; // as the headlight's: a 1-texel filter stair-steps
       this.scene.add(l, l.target);
       this.lampLights.push(l);
     }
@@ -3465,7 +3484,7 @@ export class GameEngine {
     this.world.moonLight.castShadow = on;
     this.headlight.castShadow = on;
     for (const l of this.lampLights) l.castShadow = on && this.lampShadowTier;
-    this.msaaTarget.samples = on ? 4 : 0;
+    this.scenePass.setSamples(on ? 4 : 0);
     this.fxaaPass.enabled = !on;
     this.liveReflections = on;
     // The probe at the gloss size whenever it is live. Auto is the one
@@ -3864,7 +3883,7 @@ export class GameEngine {
     // just resolved, then blurs what it did not. FXAA is the fallback
     // for a tier that cannot pay for samples, not a finishing pass on
     // top of one.
-    this.msaaTarget.samples = high ? 4 : balanced ? 2 : 0;
+    this.scenePass.setSamples(high ? 4 : balanced ? 2 : 0);
     this.fxaaPass.enabled = !high && !balanced;
     // The live paint probe is the most expensive single toy — high only
     this.liveReflections = high;
