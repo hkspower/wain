@@ -729,7 +729,8 @@ export const translations = {
       viewAll: 'عرض الكل',
     },
     cart: { title: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي', checkout: 'إتمام الشراء',
-            subtotal: 'المجموع الفرعي', delivery: 'التوصيل' },
+            subtotal: 'المجموع الفرعي', delivery: 'التوصيل',
+            deliveryNote: 'يُحتسب التوصيل وأي خصم عند إتمام الطلب.' },
     checkout: {
       summary: 'ملخص الطلب',
       coupon: 'كود الخصم',

@@ -79,8 +79,12 @@ export default function Cart() {
 
       <div className="mt-8 flex flex-col items-stretch gap-4 sm:items-end">
         <div className="text-end text-xl font-bold text-slate-800">
-          {t.cart.total}: <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
+          {/* "Subtotal", not "Total": checkout adds delivery (and any discount)
+              from the server's quote, so calling this figure the total made
+              the next page look like it had added a charge. */}
+          {t.cart.subtotal}: <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
         </div>
+        <p className="text-end text-xs text-slate-600">{t.cart.deliveryNote}</p>
         {/* Named for what it will actually do. /checkout opens collapsed when
             the saved details are complete, and a button that says "Checkout"
             and then asks for nothing is a pleasant surprise nobody planned
