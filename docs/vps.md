@@ -48,6 +48,15 @@ relying on a version. Nothing here runs on its own.
    endpoint receives a deploy on the VPS, and that endpoint is not in this
    repository yet.
 
+## If this VPS serves the site behind a reverse proxy
+
+The rate limits in `/api/wain.php`, `media.php` and `tts.php` count the
+connection's address, which behind Traefik is Traefik's. To count the visitor,
+put the proxy's Docker network in `storage/trusted-proxies.txt` (`docs/backend.md`,
+«Which address, behind a reverse proxy»). That is only safe if the PHP container's
+port is **not published on the host** and is reachable only through the proxy;
+nothing in this repository can check either, and neither was read from the VPS.
+
 ## Deploying to staging
 
 ```

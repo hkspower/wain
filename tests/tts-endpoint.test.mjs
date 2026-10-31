@@ -24,6 +24,7 @@
  * handling, the same rename-into-place.
  */
 import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -77,8 +78,8 @@ const ok = (n, c, d = "") => {
 };
 
 const BASE = `http://127.0.0.1:${PORT}/api/tts.php`;
-async function call(body, { method = "POST", origin = ORIGIN, raw = null } = {}) {
-  const headers = {};
+async function call(body, { method = "POST", origin = ORIGIN, raw = null, headers: extra = {} } = {}) {
+  const headers = { ...extra };
   if (origin) headers.Origin = origin;
   const init = { method, headers };
   if (method === "POST") {
@@ -422,6 +423,32 @@ try {
     ok("and neither is the address it came from",
       !read().includes("127.0.0.1") && /\bip=[0-9a-f]{8}\b/.test(read()), read().trim());
     ok("nor the key", !read().includes("test-key"));
+
+    /* Behind a reverse proxy REMOTE_ADDR is the proxy. This server's peer is
+       127.0.0.1, and the forwarded address is believed only once
+       storage/trusted-proxies.txt names that peer: a range-based first draft
+       believed every private address, and review showed that is easier to
+       step around than the shared bucket it replaced. */
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const limiter = (ip) => join(storage, "tts", `.rate-${sha(ip)}.json`);
+    const trusted = join(storage, "trusted-proxies.txt");
+    const fwd = (text, xff) => call({ text, persona: "shouq" }, { headers: { "X-Forwarded-For": xff } });
+
+    const off = await fwd("جملة من زائر خلف البروكسي", "203.0.113.7");
+    ok("with NO list the header is not believed (off by default)",
+      off.status === 200 && !existsSync(trusted) && !existsSync(limiter("203.0.113.7")));
+    writeFileSync(trusted, "172.18.0.0/16\n");
+    await fwd("جملة ثانية من زائر خلف البروكسي", "203.0.113.7");
+    ok("a list that does not name this peer: the header is still not believed", !existsSync(limiter("203.0.113.7")));
+
+    writeFileSync(trusted, "# the proxy\n127.0.0.1\n");
+    const proxied = await fwd("جملة ثالثة من زائر خلف البروكسي", "198.51.100.1, 203.0.113.7");
+    ok("once the peer is listed, a request behind it is served", proxied.status === 200, String(proxied.status));
+    ok("its limiter is named for the forwarded visitor, not the proxy or a client-typed prefix",
+      existsSync(limiter("203.0.113.7")) && !existsSync(limiter("198.51.100.1")));
+    ok("and the log carries that visitor's hash, not the raw address",
+      read().includes(`ip=${sha("203.0.113.7").slice(0, 8)}`) && !read().includes("203.0.113.7"), read().trim().split("\n").pop());
+    rmSync(trusted);
 
     // Every line has to be parseable by grep and by eye, for ever.
     const shape = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z tts \S+( \S+=\S*)*$/;

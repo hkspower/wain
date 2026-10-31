@@ -139,7 +139,9 @@ If the queue ever does get abused, the options in increasing order of effort:
 3. Require an email one-time-password before the form submits, at the cost
    of the "no account needed" promise.
 
-`/api/wain.php` already caps public writes at 20 a minute per address and
+`/api/wain.php` already caps public writes at 20 a minute per address (the
+visitor's, behind a proxy named in `storage/trusted-proxies.txt` —
+`docs/backend.md`, «Which address») and
 refuses a body over 64K, which bounds the rate but not the patience.
 Nothing here needs doing until it is actually a problem.
 

@@ -19,6 +19,7 @@ import { spawn, execFileSync } from "node:child_process";
 import {
   mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -82,8 +83,8 @@ const j = (x) => JSON.stringify(x);
 
 const BASE = `http://127.0.0.1:${PORT}/api/wain.php`;
 
-async function call(action, body = undefined, { admin = false, method, origin = ORIGIN, raw, token } = {}) {
-  const headers = {};
+async function call(action, body = undefined, { admin = false, method, origin = ORIGIN, raw, token, headers: extra = {} } = {}) {
+  const headers = { ...extra };
   if (origin) headers.Origin = origin;
   if (admin) headers["X-Wain-Admin"] = token ?? SECRET;
   let url = `${BASE}?a=${action}`;
@@ -595,6 +596,47 @@ try {
     ok("reads are not caught by the write cap", read.status === 200);
     const adminWrite = await call("order_set_status", { id: uuid(), status: "ready" }, { admin: true });
     ok("an authenticated admin is exempt (404 for the fake id, not 429)", adminWrite.status === 404, String(adminWrite.status));
+  }
+
+  console.log("\n── behind a proxy: the header is believed only from a proxy the operator listed ──");
+  {
+    /* This server sees every request from 127.0.0.1 — what a reverse proxy in
+       front looks like to PHP. The cap above has just tripped for it. Trust is
+       OFF until storage/trusted-proxies.txt names the proxy: a range-based
+       first draft believed every private address, and review showed that makes
+       the limit easier to step around than the shared bucket it replaced. */
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const writes = (ip) => {
+      const f = join(storage, "wain-rate", `write-${sha(ip)}.json`);
+      return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).n : 0;
+    };
+    const cancel = (xff) => call("order_cancel", { id: uuid(), token: tok() }, xff === undefined ? {} : { headers: { "X-Forwarded-For": xff } });
+    const trusted = join(storage, "trusted-proxies.txt");
+
+    ok("control: with no header the proxy's own bucket is still capped", (await cancel()).status === 429);
+    ok("with NO list the header is not believed (off by default)",
+      !existsSync(trusted) && (await cancel("203.0.113.7")).status === 429 && writes("203.0.113.7") === 0);
+    writeFileSync(trusted, "# Traefik, on the Docker network\n172.18.0.0/16\n");
+    ok("a list that does not name this peer: the header is still not believed",
+      (await cancel("203.0.113.7")).status === 429 && writes("203.0.113.7") === 0);
+
+    writeFileSync(trusted, "127.0.0.1\n");
+    const one = await cancel("203.0.113.7");
+    ok("once the peer is listed, a visitor behind it is not caught by the proxy's cap", one.status === 200, String(one.status));
+    const two = await cancel("198.51.100.1, 203.0.113.7");
+    ok("an address the client typed to the left buys no fresh bucket (same visitor, second write)",
+      two.status === 200 && writes("203.0.113.7") === 2 && writes("198.51.100.1") === 0,
+      `${two.status} 203.0.113.7=${writes("203.0.113.7")} 198.51.100.1=${writes("198.51.100.1")}`);
+    const other = await cancel("203.0.113.8");
+    ok("another visitor behind the same proxy has a bucket of their own", other.status === 200 && writes("203.0.113.8") === 1);
+    ok("a header that is not an address falls back to the proxy's bucket", (await cancel("not-an-address")).status === 429);
+    ok("so does one whose every hop is listed", (await cancel("127.0.0.1")).status === 429);
+
+    const log = readFileSync(join(storage, "logs", "wain.log"), "utf8");
+    ok("the log carries the forwarded visitor's hash, not the raw address",
+      log.includes(`ip=${sha("203.0.113.7").slice(0, 8)}`) && !log.includes("203.0.113.7"));
+    rmSync(trusted);
+    ok("with the list removed the proxy's bucket is the visitor again", (await cancel("203.0.113.9")).status === 429 && writes("203.0.113.9") === 0);
   }
 } finally {
   php.kill();

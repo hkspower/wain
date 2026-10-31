@@ -195,9 +195,52 @@ admin is exempt. The log keeps the action, the outcome, the first eight
 characters of a row id, the hashed address — never a name, a phone, a note or
 an email.
 
+### Which address, behind a reverse proxy
+
+«Address» is the connection's `REMOTE_ADDR` — and that is the proxy, if one sits
+in front, so every visitor would share one bucket and a handful could lock
+everyone else out of ordering. `wain.php`, `media.php` and `tts.php` therefore
+share one helper (`clientIp()`, byte-identical in the three files, held so by
+`npm run audit:client-ip`) that reads `X-Forwarded-For` **only from a proxy you
+have named**, in `storage/trusted-proxies.txt`:
+
+```
+# one address or CIDR per line; # starts a comment
+172.18.0.0/16        # the Docker network Traefik is on
+```
+
+- **No file, or an empty one: nothing is trusted**, and the visitor is
+  `REMOTE_ADDR` exactly as before. This is the default and it is safe.
+- From a listed peer, the visitor is the nearest hop **from the right** that is
+  not itself listed. A proxy appends the address it saw, so everything to the
+  left is the client's own claim and is never believed.
+- A header that does not read as addresses, an unreadable list line, and `/0`
+  are ignored, never guessed at.
+- Name the proxy's network, not «everything private». A range-based first draft
+  believed every private address, and an adversarial review showed why that is
+  wrong: Docker shows an externally published port as its gateway address, and
+  another container, a host process or an SSRF is private too — each could have
+  chosen its own bucket, which made the limit easier to evade than the shared
+  bucket it replaced.
+
+What a listed peer must also be true of, because the code cannot check it:
+the app's port is reachable **only** through that proxy (not published on the
+host); the web server in front of PHP drops request headers whose names contain
+underscores (`X_Forwarded_For` maps to the same PHP variable as
+`X-Forwarded-For`, and `php -S` does not drop it — measured; whether the host's
+Apache does was not checked); and the proxy appends to
+`X-Forwarded-For` rather than passing a client's value through untouched. If
+Apache runs `mod_remoteip`, `REMOTE_ADDR` is already the visitor and no list is
+needed. `php wain.php clientip <peer> [x-forwarded-for] [trusted]` prints which
+address would be counted, for the same three arguments.
+
+Known limits, unchanged by this: a visitor is one address (an IPv6 /64 is 2^64
+of them), the per-address bucket files are never pruned, and the wrong-admin-
+secret path answers before any limiter (finding 1 of the 14 October login scan).
+
 ## What the tests prove, and where
 
-- `npm run test:wain-api` — 144 assertions against a real `php -S` on SQLite:
+- `npm run test:wain-api` — 194 assertions against a real `php -S` on SQLite:
   every refusal by name, every write read back, the token answers, the queue
   under contention, the write cap, the log's promises.
 - `npm run test:net` — the client's reading of every answer, on a fake server

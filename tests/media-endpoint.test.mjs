@@ -20,6 +20,7 @@ import {
   mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readdirSync,
   readFileSync, utimesSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -81,14 +82,14 @@ function draftId() {
    to the PNG and the "no file" test would never test what it claims to. */
 async function upload({
   draftId: id, kind = "logo", index = 0, bytes = PNG_1PX, filename = "logo.png",
-  origin = ORIGIN, type = "image/png",
+  origin = ORIGIN, type = "image/png", headers: extra = {},
 } = {}) {
   const form = new FormData();
   if (id !== undefined) form.set("draftId", id);
   if (kind !== undefined) form.set("kind", kind);
   if (index !== undefined) form.set("index", String(index));
   if (bytes !== null) form.set("file", new Blob([bytes], { type }), filename);
-  const headers = {};
+  const headers = { ...extra };
   if (origin) headers.Origin = origin;
   const res = await fetch(BASE, { method: "POST", body: form, headers });
   const json = await res.json().catch(() => null);
@@ -329,6 +330,34 @@ try {
     }
     ok("enough requests in a minute eventually gets 429",
        last.status === 429 && last.json?.error === "rate_limited", JSON.stringify(last.json));
+  }
+
+  console.log("\n── behind a proxy: the header is believed only from a proxy the operator listed ──");
+  {
+    /* This server sees every request from 127.0.0.1 — what a reverse proxy in
+       front looks like to PHP. That address has just been rate-limited. */
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const limiter = (ip) => join(pendingDir, `.rate-${sha(ip)}.json`);
+    const trusted = join(storage, "trusted-proxies.txt");
+    const fwd = (xff) => upload({ draftId: draftId(), headers: { "X-Forwarded-For": xff } });
+
+    const again = await upload({ draftId: draftId() });
+    ok("control: with no header the proxy's own bucket is still capped", again.status === 429, String(again.status));
+    ok("with NO list the header is not believed (off by default)",
+      !existsSync(trusted) && (await fwd("203.0.113.7")).status === 429 && !existsSync(limiter("203.0.113.7")));
+    writeFileSync(trusted, "172.18.0.0/16\n");
+    ok("a list that does not name this peer: the header is still not believed",
+      (await fwd("203.0.113.7")).status === 429 && !existsSync(limiter("203.0.113.7")));
+
+    writeFileSync(trusted, "# the proxy\n127.0.0.1\n");
+    const via = await fwd("198.51.100.1, 203.0.113.7");
+    ok("once the peer is listed, a visitor behind it is not caught by the proxy's cap", via.status !== 429, JSON.stringify(via.json));
+    ok("their limiter is named for the forwarded address, not the proxy or a client-typed prefix",
+      existsSync(limiter("203.0.113.7")) && !existsSync(limiter("198.51.100.1")));
+    const log = readFileSync(join(storage, "logs", "media.log"), "utf8");
+    ok("the log carries the forwarded visitor's hash, not the raw address",
+      log.includes(`ip=${sha("203.0.113.7").slice(0, 8)}`) && !log.includes("203.0.113.7"));
+    rmSync(trusted);
   }
 
   console.log(`\n${pass} passed, ${fails.length} failed`);

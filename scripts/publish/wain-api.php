@@ -184,7 +184,104 @@ function logline(string $outcome, array $fields = []): void {
 }
 
 function logIp(): string {
-    return substr(hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '0')), 0, 8);
+    return substr(hash('sha256', clientIp()), 0, 8);
+}
+
+/** The proxies we run in front of this file, from storage/trusted-proxies.txt:
+ *  one address or CIDR per line, `#` starts a comment, anything unreadable is
+ *  skipped, and /0 is refused (a typo must not trust the world). Returns
+ *  [[binary address, prefix bits], …]. No file, or none readable, means NO proxy
+ *  is trusted, which is exactly how this file behaved before it knew proxies. */
+function parseNets(string $text): array {
+    $nets = [];
+    foreach (preg_split('/\R/', $text) ?: [] as $line) {
+        $line = trim((string) preg_replace('/#.*$/', '', $line));
+        if ($line === '') continue;
+        [$addr, $bits] = array_pad(explode('/', $line, 2), 2, null);
+        $addr = trim((string) $addr);
+        $bin = filter_var($addr, FILTER_VALIDATE_IP) === false ? false : @inet_pton($addr);
+        if ($bin === false) continue;
+        $max = strlen($bin) * 8;
+        if ($bits === null) $bits = $max;
+        else {
+            $bits = trim($bits);
+            if (!ctype_digit($bits) || (int) $bits < 1 || (int) $bits > $max) continue;
+        }
+        $nets[] = [$bin, (int) $bits];
+    }
+    return $nets;
+}
+
+function trustedProxies(): array {
+    static $nets = null;
+    if ($nets === null) {
+        $dir = storageDir();
+        $nets = parseNets($dir === null ? '' : (string) @file_get_contents("$dir/trusted-proxies.txt"));
+    }
+    return $nets;
+}
+
+/** Is `$ip` inside any of `$nets`? Compared as bytes, so the spelling of an
+ *  address (case, zeros, IPv4-mapped IPv6) cannot change the answer. */
+function inNets(string $ip, array $nets): bool {
+    $ip = unwrapMappedIp($ip);
+    if (filter_var($ip, FILTER_VALIDATE_IP) === false) return false;
+    $bin = @inet_pton($ip);
+    if ($bin === false) return false;
+    foreach ($nets as [$net, $bits]) {
+        if (strlen($net) !== strlen($bin)) continue;
+        $whole = intdiv($bits, 8);
+        $rest  = $bits % 8;
+        if (substr($bin, 0, $whole) !== substr($net, 0, $whole)) continue;
+        if ($rest === 0) return true;
+        $mask = (0xFF << (8 - $rest)) & 0xFF;
+        if ((ord($bin[$whole]) & $mask) === (ord($net[$whole]) & $mask)) return true;
+    }
+    return false;
+}
+
+/** An IPv4 address written as IPv6 (::ffff:172.18.0.2, ::ffff:ac12:2, or the
+ *  long form) is the IPv4 one. Done on the bytes, not the text. */
+function unwrapMappedIp(string $ip): string {
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) return $ip;
+    $bin = @inet_pton($ip);
+    if ($bin === false || strlen($bin) !== 16 || strncmp($bin, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) !== 0) return $ip;
+    return (string) inet_ntop(substr($bin, 12));
+}
+
+/** The visitor, for the rate limits and the log.
+ *
+ *  Behind a reverse proxy REMOTE_ADDR is the proxy, so every visitor shares one
+ *  bucket and a handful of people can lock everyone else out of ordering. When
+ *  the connection comes from a proxy LISTED in storage/trusted-proxies.txt, this
+ *  reads X-Forwarded-For and takes the nearest hop, counting from the right, that
+ *  is not itself listed: a proxy APPENDS the address it saw, so everything to the
+ *  left of that is the client's own claim and is never believed. A header it
+ *  cannot read as addresses is ignored, not guessed at.
+ *
+ *  Trust is the operator's decision and is OFF by default. It was range-based
+ *  (anything private is a proxy) in the first draft, and an adversarial review
+ *  showed why that is wrong: Docker shows an externally published port as its
+ *  gateway address, and another container, a host process or an SSRF is private
+ *  too — each would have been believed on a header it could type, which made the
+ *  limit easier to step around than the shared bucket it replaced.
+ *
+ *  A visitor who connects directly, or through a proxy that is not listed
+ *  (a CDN edge), is exactly REMOTE_ADDR: their bucket, and its file name, do not
+ *  change. The three arguments are for `php … clientip`, which
+ *  `npm run audit:client-ip` asks all three endpoints. */
+function clientIp(?string $peer = null, ?string $xff = null, ?string $trusted = null): string {
+    $peer ??= (string) ($_SERVER['REMOTE_ADDR'] ?? '0');
+    $xff  ??= (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    if ($xff === '') return $peer;
+    $nets = $trusted === null ? trustedProxies() : parseNets($trusted);
+    if ($nets === [] || !inNets($peer, $nets)) return $peer;
+    foreach (array_reverse(explode(',', $xff)) as $hop) {
+        $hop = unwrapMappedIp(trim($hop));
+        if (filter_var($hop, FILTER_VALIDATE_IP) === false) return $peer;
+        if (!inNets($hop, $nets)) return (string) inet_ntop((string) inet_pton($hop));
+    }
+    return $peer;
 }
 
 /* ── stage, time, ids ───────────────────────────────────────────────────────*/
@@ -1108,13 +1205,22 @@ if (PHP_SAPI === 'cli') {
         $out(['read' => READ_ACTIONS, 'publicWrites' => PUBLIC_WRITES, 'admin' => ADMIN_ACTIONS]);
     }
 
+    /* `clientip <peer> [x-forwarded-for] [trusted]` — which address the rate limits
+       and the log would count for that connection, given a trusted-proxy list as
+       text (omit it to read storage/trusted-proxies.txt). `npm run audit:client-ip`
+       asks all three endpoints the same questions and fails when they differ. */
+    if ($mode === 'clientip') {
+        $out(['ip' => clientIp((string) ($argv[2] ?? '0'), (string) ($argv[3] ?? ''),
+                               isset($argv[4]) ? (string) $argv[4] : null)]);
+    }
+
     if ($mode === 'logformat') {
         $out([
             'name' => LOG_NAME, 'maxBytes' => LOG_MAX_BYTES, 'keep' => LOG_KEEP,
             'dir' => 'logs', 'perms' => '0600',
             'line' => '<iso8601Z> <app> <outcome> k=v…',
             'never' => ['request text', 'raw ip', 'file names', 'api key'],
-            'ipField' => 'sha256(remote_addr) first 8 hex',
+            'ipField' => 'sha256(client address) first 8 hex',
         ]);
     }
 
@@ -1123,6 +1229,7 @@ if (PHP_SAPI === 'cli') {
               'usage' => ['php wain.php install', 'php wain.php version', 'php wain.php migrate',
                           'php wain.php seed [places.json]', 'php wain.php selftest [production|staging]',
                           'php wain.php log [n]', 'php wain.php logformat', 'php wain.php actions',
+                          'php wain.php clientip <peer> [x-forwarded-for] [trusted]',
                           'php wain.php order-email <slug> <email|none>', 'php wain.php sync-orders [places.json]',
                           'php wain.php mailtest <address>']]);
     }
@@ -1282,7 +1389,7 @@ $count = static function (string $file, int $window): int {
 if (!$isAdmin) {
     $rateDir = "$storage/wain-rate";
     if (!is_dir($rateDir)) @mkdir($rateDir, 0700, true);
-    $ipHash = hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '0'));
+    $ipHash = hash('sha256', clientIp());
     /* getenv() is a TEST SEAM, the shape WAIN_MEDIA_MAX_TOTAL_BYTES is on the
        other bridge: Apache never sets it, so production always sees the
        constants. A suite proving the cap trips should not need 120 requests. */
