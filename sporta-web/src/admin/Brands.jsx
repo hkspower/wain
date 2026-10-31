@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchBrands, saveBrand, setBrandActive, slugify } from './api'
+import { deleteBrand, fetchBrands, saveBrand, setBrandActive, slugify } from './api'
 import { Notice } from './Overview'
 import { IconClose, IconImage } from '../components/icons'
 import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
@@ -14,8 +14,10 @@ import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 //     would mean a PHP endpoint that writes into the web root, and the live
 //     server once carried exactly that — sporta-deploy.php, answering to
 //     anyone on the internet.
-//   * it never DELETES a brand. A brand with orders behind it is history, and
-//     "disabled" is the reversible answer. The switch is the whole feature.
+//   * it deletes a brand only when nothing uses it. The Remove button asks first,
+//     and the server refuses while any product still points at the brand (it
+//     says so, and "Hidden" is the reversible answer for those). The switch
+//     remains the everyday control; Remove is for a brand added by mistake.
 //
 // The downscale is not a nicety. A logo dragged off a phone is a 4 MB
 // photograph; at 320px and WebP it is a few kilobytes, and the server caps
@@ -55,6 +57,15 @@ export default function Brands() {
     if (r.error) load()
   }
 
+  async function remove(brand) {
+    const ok = window.confirm(`Remove "${brand.name_en}" permanently? This cannot be undone.`)
+    if (!ok) return
+    setState((s) => ({ ...s, error: undefined }))
+    const r = await deleteBrand(brand.id)
+    if (r.error) return setState((s) => ({ ...s, error: r.error }))
+    load()
+  }
+
   if (state.loading) return <p className="text-sm text-slate-500">Loading…</p>
   if (state.needsMigration) {
     return (
@@ -83,7 +94,7 @@ export default function Brands() {
         </button>
       </header>
 
-      {state.error && <Notice tone="error" title="Could not load">{state.error}</Notice>}
+      {state.error && <Notice tone="error" title="Could not complete that">{state.error}</Notice>}
 
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {state.brands.map((b) => (
@@ -113,12 +124,20 @@ export default function Brands() {
                 />
                 {b.active ? 'Shown' : 'Hidden'}
               </label>
-              <button
-                onClick={() => setEditing({ ...b })}
-                className="text-xs font-bold text-indigo-600 hover:underline"
-              >
-                Edit
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setEditing({ ...b })}
+                  className="text-xs font-bold text-indigo-600 hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => remove(b)}
+                  className="text-xs font-bold text-red-600 hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           </li>
         ))}

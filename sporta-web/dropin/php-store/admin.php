@@ -451,8 +451,34 @@ if ($r === 'brand_save' && $method === 'POST') {
     store_out($q->fetch());
 }
 
-// Show it, or stop showing it. Never a delete: a brand with orders behind it
-// is history, and disabling is the reversible answer.
+// Remove a brand for good. This used to not exist: "a brand with orders behind
+// it is history". The rule is kept, narrowed to what can actually be checked:
+// a brand that any product still points at (shown or hidden) is refused with
+// 409 brand_in_use, because deleting it would leave those products with a brand
+// that no longer exists and a storefront filter that shows nothing. Orders keep
+// their own copy of the item name, so an unused brand has nothing behind it.
+// Hiding stays the reversible answer for a brand that is in use.
+if ($r === 'brand_delete' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $q = $db->prepare('select id, slug from brands where id = ?');
+    $q->execute([$id]);
+    $row = $q->fetch();
+    if (!$row) store_fail('brand_not_found', 404);
+    try {
+        $n = $db->prepare('select count(*) from products where brand_slug = ?');
+        $n->execute([$row['slug']]);
+        $inUse = (int)$n->fetchColumn();
+    } catch (Throwable $e) {
+        $inUse = 0;   // products.brand_slug not installed: nothing can point at it
+    }
+    if ($inUse > 0) store_fail('brand_in_use', 409);
+    $db->prepare('delete from brands where id = ?')->execute([$id]);
+    store_out(['id' => $id, 'deleted' => true]);
+}
+
+// Show it, or stop showing it: the reversible alternative to brand_delete, and
+// the only option for a brand that products still use.
 if ($r === 'brand_active' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);

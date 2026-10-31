@@ -119,9 +119,22 @@ export async function setBrandActive(id, active) {
   return r.data ? { brand: r.data } : { ...r, error: r.error && brandError(r.error) }
 }
 
+// Remove a brand. The server refuses (brand_in_use) while any product still
+// uses it; hiding is the way to take a brand out of the shop in that case.
+export async function deleteBrand(id) {
+  const r = await php('brand_delete', { method: 'POST', body: { id } })
+  return r.data ? { deleted: true } : { ...r, error: r.error && brandError(r.error) }
+}
+
 // The route's machine tokens, turned into something an operator can act on.
 function brandError(m = '') {
   const s = String(m)
+  if (s.includes('brand_in_use')) {
+    return 'Products still use this brand. Move or remove them first, or hide the brand instead.'
+  }
+  if (s.includes('brand_not_found')) {
+    return 'That brand no longer exists. Refresh the list.'
+  }
   if (s.includes('logo_too_large') || s.includes('brands_logo_ck')) {
     return 'That logo is too large or not a PNG/JPEG/WebP. Try a smaller image.'
   }

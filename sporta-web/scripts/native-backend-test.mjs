@@ -302,6 +302,22 @@ const order = (track, items, extra = {}) =>
      'but the ADMIN still sees it, or it could never be turned back on')
   is(!JSON.stringify(after.body).includes('sort'),
      'the public endpoint sends only what a storefront needs')
+
+  // Remove. A brand any product still points at is refused; an unused one goes.
+  await run('mariadb', ['sporta', '-e',
+    "update products set brand_slug = 'test-brand' order by id limit 1;"])
+  const busy = await admin('brand_delete', { method: 'POST', body: JSON.stringify({ id }) })
+  is(busy.status === 409 && busy.body?.error === 'brand_in_use',
+     'a brand that a product still uses cannot be removed', `${busy.status} ${busy.body?.error}`)
+  await run('mariadb', ['sporta', '-e',
+    "update products set brand_slug = null where brand_slug = 'test-brand';"])
+  const gone = await admin('brand_delete', { method: 'POST', body: JSON.stringify({ id }) })
+  is(gone.body?.deleted === true, 'an unused brand is removed', JSON.stringify(gone.body))
+  const { body: listAfter } = await admin('brands')
+  is(!listAfter.some((b) => b.slug === 'test-brand'), 'and it is gone from the admin list too')
+  const again = await admin('brand_delete', { method: 'POST', body: JSON.stringify({ id }) })
+  is(again.status === 404 && again.body?.error === 'brand_not_found',
+     'removing it twice is a clean 404, not a 500', `${again.status} ${again.body?.error}`)
 }
 
 // -------------------------------------------------------------------- throttle
