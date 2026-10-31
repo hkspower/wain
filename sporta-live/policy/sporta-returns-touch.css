@@ -7,3 +7,15 @@
   align-items: center;
   min-height: 44px;
 }
+
+/* Desktop: put /returns on the same 858px reading column as /terms and
+   /privacy (measured: both start at 211px on a 1280px screen; /returns
+   started at 106px), so moving between the policy pages no longer shifts
+   the text sideways. The card itself keeps its full width; only its single
+   content column is centred. */
+@media (min-width: 900px) {
+  .returns-system {
+    grid-template-columns: minmax(0, 858px) !important;
+    justify-content: center !important;
+  }
+}
