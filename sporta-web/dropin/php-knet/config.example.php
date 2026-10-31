@@ -19,6 +19,15 @@ return [
     // but that is an inference — confirm it with the bank in the same email
     // that requests the RAW toolkit details, or the first thing that tells you
     // is a failed test transaction. See KNET.md §2a.
+    // Exactly as printed on the bank's nomination letter. Recorded for support
+    // calls and the self-test; the gateway itself authenticates with the
+    // Tranportal ID below, which is usually the terminal-level credential.
+    'merchant_id'         => '6261',
+    'terminal_id'         => '626101',
+
+    // Tranportal ID: the gateway login KNET issues with the terminal. This is
+    // the value the bank sends in the Tranportal welcome email. Never commit the
+    // real one; it lives only in knet/config.php on the server.
     'tranportal_id'       => 'YOUR_TRANPORTAL_ID',
     'tranportal_password' => 'YOUR_TRANPORTAL_PASSWORD',
     'resource_key'        => 'YOUR_TERMINAL_RESOURCE_KEY', // AES key (secret)

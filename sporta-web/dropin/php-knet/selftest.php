@@ -47,6 +47,8 @@ $set = fn ($v, $ph) => ($v && $v !== $ph) ? 'set  OK' : 'NOT set — fill it';
 echo "config.php  : present\n";
 echo "  env         : " . ($cfg['env'] ?? '?') . ($cfg['env'] === 'production' ? '  (LIVE)' : '  (test)') . "\n";
 echo "  gateway     : " . knet_gateway_url($cfg) . "\n";
+echo "  merchant_id        : " . (($cfg['merchant_id'] ?? '') !== '' ? $cfg['merchant_id'] : 'not recorded') . "\n";
+echo "  terminal_id        : " . (($cfg['terminal_id'] ?? '') !== '' ? $cfg['terminal_id'] : 'not recorded') . "\n";
 echo "  tranportal_id      : " . $set($cfg['tranportal_id'] ?? '', 'YOUR_TRANPORTAL_ID') . "\n";
 echo "  tranportal_password: " . $set($cfg['tranportal_password'] ?? '', 'YOUR_TRANPORTAL_PASSWORD') . "\n";
 echo "  resource_key       : " . $set($cfg['resource_key'] ?? '', 'YOUR_TERMINAL_RESOURCE_KEY') . "\n";
