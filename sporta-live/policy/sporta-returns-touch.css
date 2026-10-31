@@ -19,3 +19,13 @@
     justify-content: center !important;
   }
 }
+
+/* Centering: on /terms and /privacy the heading block (eyebrow, h1, "last
+   updated", intro) was capped at ~808px inside an 858px column and hugged
+   the start edge, so it sat 211px from one side and 261px from the other at
+   1280px. The /returns intro had the same cap (741px). Let both span the full
+   column: centred on the page and flush with the text below. */
+.legal-page__header,
+.returns-system__intro {
+  max-width: none !important;
+}
