@@ -22,6 +22,8 @@ Everything below is a thing that has already gone wrong at least once.
 
 ## What is live — read `build.json`, not this line
 
+**Out of date since late October: the host moved.** On 31 October `www.wainkw.com` was answering from the VPS `srv2058651.hstgr.cloud`, not from the shared hosting this file describes, and with a build this branch did not make. «The 31 October scan, continued» at the end of this file has the readings. Everything below about `public_html`, `storage/`, `d.php` and the cron deploy route is a record of the shared host, not a description of where the site runs now.
+
 Read at 06:56 UTC on 15 October: **production and staging are both `b75c9bca`** («The 15 October
 deploy» at the end): the job handover, سالم's replies, the `/shoug/` redirect and the voice bridge off by
 default. An agent build with both agent ids and the read-aloud bridge off. The back end (`api/wain.php`)
@@ -136,6 +138,8 @@ three fields travel through the row. «The staging back end reinstalled» at
 the end of this file has the readings.
 
 ## Deploying (see `docs/hosting.md` for the measured detail)
+
+**Read «The 31 October scan, continued» at the end before using any of this.** The route below writes into `/home/u130124229/domains/wainkw.com/`, and on 31 October that directory did not exist on the connected Hostinger account. `deploy:plan` would print commands for a docroot that is not there.
 
 - **This environment cannot upload.** `srv2231-files.hstgr.io` is refused at
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
@@ -6308,3 +6312,39 @@ Asked: «scan www.wainkw.com then save all». Read as: scan the site, then recor
   - The fresh container started on two local commits that are not on the remote (`0b43390`, `8b5d780`, the token-authenticated Hostinger MCP). The remote removed that server on purpose (see «Cloud session notes»). They are kept at the local-only ref `backup/local-hostinger-token-mcp`, not pushed, and the branch was moved to the remote tip with `checkout -B`. Nothing was force-pushed.
   - `npm run scan` regenerates `docs/icons.png` and `docs/place-icons.png`, and in a container with different fonts they come out different: `place-icons.png` is 54px taller and about 1% of `icons.png`'s bytes change. The drawings are unchanged (`audit:icons`, `figma:icons:check` and the Flutter art audit all report current). Restore them with `git checkout -- docs/icons.png docs/place-icons.png`; do not commit them.
 - **The 15 October copy review («scan all word then find better word») was not finished and is not saved.** 26 of its 34 agents died on the weekly limit before the Kuwaiti, accuracy and impact checks ran, and its output sat in a scratchpad that did not survive the container. The nine proposals visible in the notification (all in `places.ts` and `place-words.ts`, mostly the MSA «صيفاً» and «ويفضّل الحجز» style) carry no verdict: treat them as unverified, not as findings. It needs no live site, so it can be re-run from scratch.
+
+## The 31 October scan, continued — wain is not on the shared hosting any more; the site answers from a VPS
+
+Asked as «fix» after the first scan could not read the live site. `ppok` was signed in again, so the live site was read the only way this file allows: through the Hostinger API, and with one-shot cron `wget` jobs run on the server (headers and small bodies, created for one firing, read, deleted, and the crontab listed afterwards: sporta's `1mNk00yPZP` alone). Nothing was changed on the account, in DNS or on the site, and nothing was deployed.
+
+**Measured, 31 October, about 13:15 UTC.**
+- **The hosting website for wain is gone from this account.** `hosting_websites_list` holds `sporta.com.kw` (re-created as an addon on 28 October), `mawsoool.com`, `almuhallab-code.com` and `discs.almuhallab-code.com`. There is no `wainkw.com`, no `staging.wainkw.com` and no `hub.wainkw.com`. File reads for the first two answered `404 [Hosting:9999] Not found`, which here means the site is absent, not that a file is missing.
+- **`/home/u130124229/domains/` has no `wainkw.com`.** It was modified on 28 October. `domains/backups` holds sporta's daily dumps (4–13 October) and nothing of wain's. So `storage/` as this file describes it is not on this account's disk: `wain.sqlite`, `wain-staging.sqlite`, `admin.secret`, `deploy.secret`, `d.php`, `elevenlabs.key.off`, `agent-live/`, the `closed-tts-*.php` and `closed-shoug/` moves of 15 October. Whether any of it was copied to the VPS is not known.
+- **The domain is registered and active** (expires 2027-04-30). Its DNS `@` and `www` are plain **A records to `187.7.78.123`**; they were an ALIAS and a CNAME to the CDN. There is no `staging` record. The mail records (MX, SPF, DKIM, DMARC, CAA) are as before.
+- **`187.7.78.123` is the VPS `srv2058651.hstgr.cloud`**: id 2058651, KVM 4 (4 CPUs, 16GB, 200GB), running, created 13 October, template «Ubuntu 24.04 with Docker and Traefik». `docs/vps.md` says Ubuntu 26.04; the API says 24.04. This is the VPS that `docs/vps.md` and `scripts/vps/*` describe as the staging builder, now answering for `www`.
+- **What `www.wainkw.com` serves from there**, read from the server:
+  - `/` is 200, `Server: Apache`, `Last-Modified: Fri, 30 Oct 2026 10:52:08 GMT`, 27,224 bytes. `/explore/` is 200, last modified 10:52:07.
+  - `/build.json` is 404.
+  - `/sw.js` is `VERSION = "237a07fe90a7"`. Its precache names `/shoug/index.html`, `/hangout/index.html`, `/call-center/room/index.html`, `/_next/static/shoug/shoug-ai-v1.*.js` and `wain-call-center-bridge-v3.*.js`.
+  - **None of those exist in this branch's source** (`grep` of `src`, `public` and `scripts` for `call-center/room` and `shoug-ai-v1`: nothing), nor on `origin/main`, `origin/deploy`, `origin/claude/wain-app-template-kxc9of` or `origin/claude/remove-wain-repo-ultrathink-iisvqx` (the remaining remote branches belong to other projects and were not searched). So the live build was not made from anything this repository holds. Who built it, and from what, is not known from here.
+  - The page's CSP is `connect-src 'self'` with no ElevenLabs host and `script-src 'self' 'unsafe-inline'`: not the tip's CSP (`public/.htaccess` allows `blob:`, jsDelivr and the ElevenLabs hosts). Read with the missing `build.json`, the live site is probably a free build, so neither agent is reachable on it. That is an inference from the headers.
+  - `/api/wain.php?a=ping` answers `{"ok":true,"service":"wain-api","stage":"production","engine":"sqlite",…,"admin":"unset"}`. A wain back end is running on the VPS, with the admin secret unset. Whether its database holds the 52 seeded places, orders or queue data is not known.
+  - `/robots.txt` is the repository's (Allow `/`, Disallow `/admin/ /orders/ /queue/`, `Host`, `Sitemap`).
+  - `https://wainkw.com/explore/` answers **308** (`Content-Length: 18`) to `https://www.wainkw.com/explore/`. That is not `public/.htaccess`'s 301, so the apex rule comes from the proxy in front (Traefik), not from the export.
+- **Not tested:** the VPS by its own name, `staging.wainkw.com` (no DNS record, and it did not resolve when tried), the live pages in a browser, and whether the VPS is on the sandbox's refused list (it was not tried; `www` and `staging` are).
+
+**What this makes stale in this file, and what it does not.**
+- The «What is live» block, every deploy record, the `d.php` route, `deploy:plan` and `deploy:verify`, the cron lessons, the `storage/` audit, the `hosa`/`ppok` docroot reads, the PHP and SSL readings: all describe the shared host. They are kept as the record; each deploy section's date is the last day it was true.
+- `npm run ship -- --plan` and `deploy:plan` still print shared-host commands. Do not run the cron route they describe: its target directory is not there.
+- `scripts/vps/deploy-staging.sh` posts a signed deploy to `staging.wainkw.com/api/deploy.php`. That host does not resolve now, so the script has nothing to send to as written.
+- The repository's gates are unaffected: the tip `1d63f0a` still builds and passes `scan` and `test:widget-csp` (first 31 October section).
+- **The tip's last change, `1d63f0a` (the /salem phone work), is not live and cannot be deployed by any recorded route.**
+
+**Also seen in the account's home directory** (outside `public_html`, so not served, and not wain's to remove): about twenty one-letter PHP scripts and shell scripts (`b.php`, `c.php` … `v.php`, `c.sh`, `d.sh`, `h.sh`) dated 20 September to 15 October, a 610KB `error_log` last written 15 October, `.api_token` (40 bytes, dated 23 October; contents not read), `.env.deploy`, and `almuhallab` deploy markers. They look like leftovers of earlier probe and deploy sessions. Nothing was opened or deleted.
+
+**Decisions for the owner. Nothing below was started.**
+1. **Is the VPS the new home of `www.wainkw.com`?** The A records say it is, and the hosting website was removed from the account at some point after 15 October. If so, the deploy route for this repository has to be written for the VPS (Docker and Traefik, not Apache on shared hosting), and this file's deploy sections need to be rewritten from that route.
+2. **Who built the live site, and from which source?** Its build has routes and bridge scripts this repository does not contain. If it should be this branch's tip, it needs a deploy; if it is another branch's, that source needs to be named so this file can track it.
+3. **Did the data come across?** The `wain.php` on the VPS answers, but the places table, orders, `admin.secret`, the deploy secret and the ElevenLabs key file lived in `storage/` on the old account. Say where they are now, or whether the VPS started clean.
+4. **Should wain's hosting website be put back on the shared account?** That means creating `wainkw.com` and `staging.wainkw.com` there and re-pointing DNS, which would move traffic off the VPS. Not done and not proposed without a yes.
+5. **Staging.** There is no `staging.wainkw.com` now. Say whether a staging host should exist, and where.
