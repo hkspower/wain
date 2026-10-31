@@ -176,6 +176,15 @@
   --color-cat-family-tint: #d7f4f3;
   --color-cat-family-ink: #007879;
 
+  /* Translucent light for the seam effects. Named here so the components
+     spell the glow by role, not by a raw rgba that audit:css flags. The
+     values are the exact ones they used before — no visual change. */
+  --color-glow-coral: rgb(220 47 37 / 0.5);
+  --color-sheen-coral: rgb(220 47 37 / 0.22);
+  --color-glow-sun: rgb(251 183 36 / 0.5);
+  --color-sheen-light: rgb(255 255 255 / 0.5);
+  --color-shadow-sun: rgb(180 120 10 / 0.55);
+
   /* One family, two roles. font-display keeps working everywhere it is
      already used — it now selects weight, not a different typeface. */
   --font-display: var(--font-arabic), system-ui, sans-serif;

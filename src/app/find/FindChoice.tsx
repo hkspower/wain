@@ -133,13 +133,13 @@ export default function FindChoice() {
                   would force one of the two to look wrong. */}
               <span
                 aria-hidden="true"
-                className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(220,47,37,.5),transparent_75%)] blur-lg"
+                className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,var(--color-glow-coral),transparent_75%)] blur-lg"
               />
               <div className="relative isolate inline-flex overflow-hidden rounded-full">
                 <ShouqCallButton size="lg" onTapped={() => router.push("/search")} />
                 <span
                   aria-hidden="true"
-                  className="animate-shimmer pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(115deg,transparent_35%,rgba(220,47,37,.22)_50%,transparent_65%)] bg-[length:250%_100%]"
+                  className="animate-shimmer pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(115deg,transparent_35%,var(--color-sheen-coral)_50%,transparent_65%)] bg-[length:250%_100%]"
                 />
               </div>
             </div>
@@ -168,7 +168,7 @@ export default function FindChoice() {
         <span className="animate-badge-pop relative isolate grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 shadow-xs">
           <span
             aria-hidden="true"
-            className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(251,183,36,.5),transparent_75%)] blur-lg"
+            className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,var(--color-glow-sun),transparent_75%)] blur-lg"
           />
           أو
         </span>
@@ -234,7 +234,7 @@ export default function FindChoice() {
           >
             <span
               aria-hidden="true"
-              className="animate-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,rgba(255,255,255,.5)_50%,transparent_65%)] bg-[length:250%_100%]"
+              className="animate-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,var(--color-sheen-light)_50%,transparent_65%)] bg-[length:250%_100%]"
             />
             <span className="relative z-10">ابدأ الكتابة</span>
           </Link>

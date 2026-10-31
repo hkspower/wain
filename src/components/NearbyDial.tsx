@@ -49,10 +49,10 @@ export default function NearbyDial() {
           href="/find"
           // The ambient glow underneath is amber, not the @theme shadow
           // scale's ink tint — an ink-tinted shadow under a sun-200→400
-          // gradient button would read as dirt, not lift. Same deliberate
-          // exception as Navbar's inset highlight: audit:css flags both as
-          // raw colour, neither is an oversight.
-          className="relative grid size-72 place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
+          // gradient button would read as dirt, not lift. The amber lives in
+          // the --color-shadow-sun token (theme.css), so the component names
+          // a role rather than a raw rgba.
+          className="relative grid size-72 place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_var(--color-shadow-sun)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
         >
           <span className="flex flex-col items-center gap-1">
             <span className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
