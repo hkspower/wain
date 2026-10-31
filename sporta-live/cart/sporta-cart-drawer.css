@@ -1,0 +1,22 @@
+/* Sporta — quick cart (the slide-in bag drawer) touch targets.
+ *
+ * Measured live at 390px and 1280px (2026-10-31): the close button was 22x22,
+ * and "Back to shop" was a 21px-high text link — both well under the 44px
+ * minimum for a thumb. The storefront source is not in the repo, so this is an
+ * external stylesheet (live CSP forbids inline script; styles from 'self' are
+ * fine). It only grows hit areas; nothing about the drawer's layout moves.
+ */
+.campaign-cart-drawer button[aria-label="Close"],
+.campaign-cart-drawer button[aria-label="إغلاق"] {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.campaign-cart-drawer a[href="/shop"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
