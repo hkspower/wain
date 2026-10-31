@@ -29,3 +29,44 @@
 .returns-system__intro {
   max-width: none !important;
 }
+
+/* Padding: one rhythm for /terms, /privacy and /returns.
+   Measured before: page side padding 16px on phones; boxed panels 16px
+   inside on phones and 25px on desktop; space above/below the content
+   48/67px on the legal pages but only 40/42px on /returns. Now all three
+   pages share the same vertical space, phones get 20px from the screen
+   edge and inside panels, and desktop panels get 32px. Symmetric on both
+   sides, so the centring is unchanged. */
+.legal-page.editorial-page,
+.returns-system.editorial-page {
+  padding-block: clamp(48px, 5.25vw, 72px) !important;
+}
+@media (max-width: 639px) {
+  .legal-page.editorial-page,
+  .returns-system.editorial-page {
+    padding-inline: 20px !important;
+  }
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 20px !important;
+  }
+}
+@media (min-width: 900px) {
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 32px !important;
+  }
+}
+@media (min-width: 640px) and (max-width: 899px) {
+  .legal-page.editorial-page,
+  .returns-system.editorial-page {
+    padding-inline: 24px !important;
+  }
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 24px !important;
+  }
+}
