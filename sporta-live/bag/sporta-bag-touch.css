@@ -1,9 +1,12 @@
 /* Sporta bag page: touch targets.
  * Measured live 2026-10-31: quantity -/+ and remove were 40px (phone) and 42px (desktop);
- * "Back to shop" was 37-39px tall. Raised to the 44px minimum. Only hit areas change. */
-.purchase-cart__layout button {
-  min-width: 44px;
-  min-height: 44px;
+ * "Back to shop" was 37-39px tall. Raised to the 44px minimum. Only hit areas change.
+ * The remove button's own size rule outranked the broader selector, so the
+ * line-item buttons are matched directly and marked !important. */
+.purchase-cart__layout button,
+.purchase-cart__layout .cart-line button {
+  min-width: 44px !important;
+  min-height: 44px !important;
 }
 .purchase-cart__summary a[href="/shop"] {
   min-height: 44px;
