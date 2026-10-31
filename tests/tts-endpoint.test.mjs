@@ -546,6 +546,42 @@ header('Content-Type: audio/mpeg'); echo str_repeat('M', 4096); return true;`);
     }
   }
 
+  console.log("\n── behind a proxy: an IPv6 visitor is counted per /64, and the counters are swept ──");
+  {
+    /* The same two rules as the media suite. Every sentence is different,
+       because a cache hit returns before either counter is touched. */
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const tts = join(storage, "tts");
+    const trusted = join(storage, "trusted-proxies.txt");
+    const nOf = (f) => { try { return JSON.parse(readFileSync(f, "utf8")).n; } catch { return null; } };
+    const fwd = (text, xff) => call({ text, persona: "shouq" }, { headers: { "X-Forwarded-For": xff } });
+
+    writeFileSync(trusted, "127.0.0.1\n");
+    await fwd("جملة اختبار الشبكة الأولى للزائر", "2001:db8:1:2::5");
+    await fwd("جملة اختبار الشبكة الثانية للزائر", "2001:db8:1:2::9");
+    ok("both addresses in one /64 share one counter, filed under the /64",
+      nOf(join(tts, `.rate-${sha("2001:db8:1:2::/64")}.json`)) === 2);
+    ok("and neither address got a counter of its own",
+      !existsSync(join(tts, `.rate-${sha("2001:db8:1:2::5")}.json`)) &&
+      !existsSync(join(tts, `.rate-${sha("2001:db8:1:2::9")}.json`)));
+    await fwd("جملة اختبار شبكة أخرى للزائر", "2001:db8:1:3::5");
+    ok("another /64 is another visitor",
+      nOf(join(tts, `.rate-${sha("2001:db8:1:3::/64")}.json`)) === 1);
+    rmSync(trusted);
+
+    const stale = join(tts, `.rate-${sha("198.51.100.200")}.json`);
+    const live = join(tts, `.rate-${sha("198.51.100.201")}.json`);
+    writeFileSync(stale, JSON.stringify({ start: 1, n: 1 }));
+    writeFileSync(live, JSON.stringify({ start: 1, n: 1 }));
+    const old = new Date(Date.now() - 2 * 3600 * 1000);
+    utimesSync(stale, old, old);
+    rmSync(join(tts, ".swept"), { force: true });
+    await call({ text: "جملة اختبار للتنظيف بعد ساعتين", persona: "shouq" });
+    ok("a counter untouched for an hour is swept by the next request", !existsSync(stale));
+    ok("a counter written recently is kept", existsSync(live));
+    ok("and the sweep stamps its clock", existsSync(join(tts, ".swept")));
+  }
+
   console.log(`\n${pass} passed, ${fails.length} failed`);
   if (fails.length) process.exitCode = 1;
 } finally {

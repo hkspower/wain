@@ -284,6 +284,46 @@ function clientIp(?string $peer = null, ?string $xff = null, ?string $trusted = 
     return $peer;
 }
 
+/** The counter a visitor's requests are filed under.
+ *
+ *  An IPv6 visitor is a /64 of addresses, not one of them: a household or a
+ *  mobile network rotates through 2^64, so a per-address limit counts none of
+ *  it against them. An IPv6 address is therefore filed under its /64. IPv4 is
+ *  filed exactly as it always was, and so is an IPv4-mapped address (a
+ *  dual-stack server spells an IPv4 peer that way and it has always had its own
+ *  file), so only a direct IPv6 visitor's file name changes. */
+function rateKey(string $ip): string {
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) return $ip;
+    $bin = @inet_pton($ip);
+    if ($bin === false || strlen($bin) !== 16) return $ip;
+    if (strncmp($bin, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) === 0) return $ip;
+    return (string) inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) . '/64';
+}
+
+/** Counter files nobody has written for an hour are deleted.
+ *
+ *  A counter decides nothing once its window has passed: `$count` restarts a
+ *  stale window, and a missing file counts from zero too, so deleting one never
+ *  changes an answer — not even for a request that races the delete, because
+ *  that request's own window is already stale. Without this every visitor left
+ *  a file for ever, and behind a proxy one per visitor where there had been one
+ *  in all. Runs at most every ten minutes per directory: the stamp file is the
+ *  clock, so a busy site pays one listing per ten minutes and a quiet one none. */
+function sweepRateCounters(string $dir): void {
+    if (!is_dir($dir)) return;
+    $now = time();
+    $clock = "$dir/.swept";
+    if (is_file($clock) && (int) @filemtime($clock) > $now - 600) return;
+    @touch($clock);
+    foreach (@scandir($dir) ?: [] as $name) {
+        if (!preg_match('/^(?:all-|write-|\.rate-)[0-9a-f]+\.json$/', $name)) continue;
+        $path = "$dir/$name";
+        if (is_file($path) && (int) @filemtime($path) < $now - 3600) @unlink($path);
+    }
+}
+
+// END shared rate-counter helper
+
 /* ── stage, time, ids ───────────────────────────────────────────────────────*/
 
 /** Where this copy is installed decides which stage it serves. The repository
@@ -1331,6 +1371,34 @@ if ($storage === null) $fail(500, 'no_storage_dir');
 
 $stage = stageFromPath();
 
+/* ── the rate counter, and the visitor it counts, before anything else is decided ── */
+$count = static function (string $file, int $window): int {
+    $now = time();
+    $fh  = @fopen($file, 'c+');
+    if (!$fh) return 0;
+    @flock($fh, LOCK_EX);
+    $data = json_decode((string) stream_get_contents($fh), true);
+    $live = is_array($data) && ($data['start'] ?? 0) > $now - $window;
+    $n = $live ? (int) ($data['n'] ?? 0) : 0;
+    $start = $live ? (int) $data['start'] : $now;
+    $n++;
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, json_encode(['start' => $start, 'n' => $n]));
+    @flock($fh, LOCK_UN);
+    fclose($fh);
+    return $n;
+};
+$rateDir = "$storage/wain-rate";
+if (!is_dir($rateDir)) @mkdir($rateDir, 0700, true);
+sweepRateCounters($rateDir);
+$ipHash = hash('sha256', rateKey(clientIp()));
+/* getenv() is a TEST SEAM, the shape WAIN_MEDIA_MAX_TOTAL_BYTES is on the
+   other bridge: Apache never sets it, so production always sees the
+   constants. A suite proving the cap trips should not need 120 requests. */
+$perMin   = (int) (getenv('WAIN_API_RATE_PER_MIN') ?: RATE_PER_MIN);
+$writes   = (int) (getenv('WAIN_API_WRITES_PER_MIN') ?: WRITES_PER_MIN);
+
 /* ── the admin secret, read before anything else is decided ─────────────── */
 $secret = trim((string) @file_get_contents("$storage/admin.secret"));
 $givenAdmin = $_SERVER['HTTP_X_WAIN_ADMIN'] ?? null;
@@ -1338,6 +1406,13 @@ $isAdmin = false;
 if (is_string($givenAdmin) && $givenAdmin !== '') {
     if ($secret === '') $fail(503, 'admin_unset');
     if (!hash_equals($secret, $givenAdmin)) {
+        /* A wrong guess is counted against the visitor's own bucket BEFORE the
+           sleep, so guessing spends the allowance every other request spends and
+           stops at the limit. Before this it cost a quarter second of a PHP worker
+           and nothing else: 304 wrong guesses in a row all answered 403, and the
+           next public request from the same visitor still got 200 (the 14 October
+           login scan, finding 1). */
+        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) $fail(429, 'rate_limited');
         usleep(250000);   // a wrong guess costs a quarter second; a right one costs nothing
         $fail(403, 'admin_forbidden');
     }
@@ -1369,32 +1444,7 @@ if ($method === 'POST') {
 }
 
 /* ── rate limits — the admin, once authenticated, is exempt ─────────────── */
-$count = static function (string $file, int $window): int {
-    $now = time();
-    $fh  = @fopen($file, 'c+');
-    if (!$fh) return 0;
-    @flock($fh, LOCK_EX);
-    $data = json_decode((string) stream_get_contents($fh), true);
-    $live = is_array($data) && ($data['start'] ?? 0) > $now - $window;
-    $n = $live ? (int) ($data['n'] ?? 0) : 0;
-    $start = $live ? (int) $data['start'] : $now;
-    $n++;
-    ftruncate($fh, 0);
-    rewind($fh);
-    fwrite($fh, json_encode(['start' => $start, 'n' => $n]));
-    @flock($fh, LOCK_UN);
-    fclose($fh);
-    return $n;
-};
 if (!$isAdmin) {
-    $rateDir = "$storage/wain-rate";
-    if (!is_dir($rateDir)) @mkdir($rateDir, 0700, true);
-    $ipHash = hash('sha256', clientIp());
-    /* getenv() is a TEST SEAM, the shape WAIN_MEDIA_MAX_TOTAL_BYTES is on the
-       other bridge: Apache never sets it, so production always sees the
-       constants. A suite proving the cap trips should not need 120 requests. */
-    $perMin   = (int) (getenv('WAIN_API_RATE_PER_MIN') ?: RATE_PER_MIN);
-    $writes   = (int) (getenv('WAIN_API_WRITES_PER_MIN') ?: WRITES_PER_MIN);
     if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) $fail(429, 'rate_limited');
     if (in_array($action, PUBLIC_WRITES, true) && $count("$rateDir/write-$ipHash.json", 60) > $writes) {
         $fail(429, 'rate_limited');

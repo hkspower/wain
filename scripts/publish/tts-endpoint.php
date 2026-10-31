@@ -342,6 +342,46 @@ function clientIp(?string $peer = null, ?string $xff = null, ?string $trusted = 
     return $peer;
 }
 
+/** The counter a visitor's requests are filed under.
+ *
+ *  An IPv6 visitor is a /64 of addresses, not one of them: a household or a
+ *  mobile network rotates through 2^64, so a per-address limit counts none of
+ *  it against them. An IPv6 address is therefore filed under its /64. IPv4 is
+ *  filed exactly as it always was, and so is an IPv4-mapped address (a
+ *  dual-stack server spells an IPv4 peer that way and it has always had its own
+ *  file), so only a direct IPv6 visitor's file name changes. */
+function rateKey(string $ip): string {
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) return $ip;
+    $bin = @inet_pton($ip);
+    if ($bin === false || strlen($bin) !== 16) return $ip;
+    if (strncmp($bin, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) === 0) return $ip;
+    return (string) inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) . '/64';
+}
+
+/** Counter files nobody has written for an hour are deleted.
+ *
+ *  A counter decides nothing once its window has passed: `$count` restarts a
+ *  stale window, and a missing file counts from zero too, so deleting one never
+ *  changes an answer — not even for a request that races the delete, because
+ *  that request's own window is already stale. Without this every visitor left
+ *  a file for ever, and behind a proxy one per visitor where there had been one
+ *  in all. Runs at most every ten minutes per directory: the stamp file is the
+ *  clock, so a busy site pays one listing per ten minutes and a quiet one none. */
+function sweepRateCounters(string $dir): void {
+    if (!is_dir($dir)) return;
+    $now = time();
+    $clock = "$dir/.swept";
+    if (is_file($clock) && (int) @filemtime($clock) > $now - 600) return;
+    @touch($clock);
+    foreach (@scandir($dir) ?: [] as $name) {
+        if (!preg_match('/^(?:all-|write-|\.rate-)[0-9a-f]+\.json$/', $name)) continue;
+        $path = "$dir/$name";
+        if (is_file($path) && (int) @filemtime($path) < $now - 3600) @unlink($path);
+    }
+}
+
+// END shared rate-counter helper
+
 /* ── install (CLI only) ─────────────────────────────────────────────────────
    Under any web SAPI this branch is unreachable, so the served copy carries an
    installer it can never run. That is the same shape as storage/d.php and it is
@@ -833,10 +873,11 @@ $count = static function (string $file, int $window) : ?int {
 };
 
 $ip = clientIp();
+sweepRateCounters($cacheDir);
 /* The per-visitor limit still fails OPEN: it shapes traffic, and refusing
    everyone because one file will not open is a worse outage than the one it
    guards against — the budget below is what stops the spending. */
-$perIp = $count("$cacheDir/.rate-" . hash('sha256', $ip) . '.json', 60);
+$perIp = $count("$cacheDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60);
 if ($perIp !== null && $perIp > RATE_PER_MIN) {
     $fail(429, 'rate_limited');
 }

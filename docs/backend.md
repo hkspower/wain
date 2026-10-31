@@ -234,13 +234,33 @@ Apache runs `mod_remoteip`, `REMOTE_ADDR` is already the visitor and no list is
 needed. `php wain.php clientip <peer> [x-forwarded-for] [trusted]` prints which
 address would be counted, for the same three arguments.
 
-Known limits, unchanged by this: a visitor is one address (an IPv6 /64 is 2^64
-of them), the per-address bucket files are never pruned, and the wrong-admin-
-secret path answers before any limiter (finding 1 of the 14 October login scan).
+**One IPv6 /64 is one visitor.** A /64 holds 2^64 addresses, so a counter per
+address would be no limit at all. An IPv6 visitor's counter is filed under the
+/64 (`2001:db8:1:2::/64`, hashed like any other key), and every address in it
+shares that counter. IPv4 and IPv4-mapped addresses keep their old file names,
+so a direct IPv4 visitor's file does not move. A direct IPv6 visitor's file name
+does change once; the old per-address file is left for the sweep below.
+
+**Counters are swept.** Each endpoint deletes a counter file (`all-`, `write-`
+and `.rate-`) that nobody has written for an hour. This runs at most once every
+ten minutes per directory, and the clock is `.swept`. It decides nothing: a
+window that has passed already counts from zero, so deleting one never changes
+an answer, including for a request that races the delete.
+
+**A wrong admin secret is counted.** A request with a non-empty, wrong
+`X-Wain-Admin` is counted against its address's own bucket before the 250 ms
+sleep, and it hits the same per-minute cap as everything else, so guessing stops
+at that cap instead of running at the sleep's rate (finding 1 of the 14 October
+login scan). The length of `storage/admin.secret` is still not checked (finding
+2 of that scan), so a short secret is still short.
+
+Known limits: a visitor is one /64, not one person; and a proxy that forwards
+without appending can still be rotated around, because there is no coarse
+backstop bucket on the peer yet.
 
 ## What the tests prove, and where
 
-- `npm run test:wain-api` — 194 assertions against a real `php -S` on SQLite:
+- `npm run test:wain-api` — 205 assertions against a real `php -S` on SQLite:
   every refusal by name, every write read back, the token answers, the queue
   under contention, the write cap, the log's promises.
 - `npm run test:net` — the client's reading of every answer, on a fake server

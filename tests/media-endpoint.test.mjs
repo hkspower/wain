@@ -360,6 +360,43 @@ try {
     rmSync(trusted);
   }
 
+  console.log("\n── behind a proxy: an IPv6 visitor is counted per /64, and the counters are swept ──");
+  {
+    /* A visitor on one IPv6 /64 can use a new address for every request, so a
+       counter per address is no counter at all. Both addresses below must share
+       one file, filed under the /64 and under neither address. The sweep: a
+       counter nobody has written for an hour is deleted. The clock for it is
+       .swept, which is removed here so that this request runs one. */
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const trusted = join(storage, "trusted-proxies.txt");
+    const counterOf = (key) => join(pendingDir, `.rate-${sha(key)}.json`);
+    const nOf = (f) => { try { return JSON.parse(readFileSync(f, "utf8")).n; } catch { return null; } };
+    const fwd = (xff) => upload({ draftId: draftId(), headers: { "X-Forwarded-For": xff } });
+
+    writeFileSync(trusted, "127.0.0.1\n");
+    await fwd("2001:db8:1:2::5");
+    await fwd("2001:db8:1:2::9");
+    ok("both addresses in one /64 share one counter, filed under the /64",
+      nOf(counterOf("2001:db8:1:2::/64")) === 2, `n=${nOf(counterOf("2001:db8:1:2::/64"))}`);
+    ok("and neither address got a counter of its own",
+      !existsSync(counterOf("2001:db8:1:2::5")) && !existsSync(counterOf("2001:db8:1:2::9")));
+    await fwd("2001:db8:1:3::5");
+    ok("another /64 is another visitor", nOf(counterOf("2001:db8:1:3::/64")) === 1);
+    rmSync(trusted);
+
+    const stale = counterOf("198.51.100.200");
+    const live = counterOf("198.51.100.201");
+    writeFileSync(stale, JSON.stringify({ start: 1, n: 1 }));
+    writeFileSync(live, JSON.stringify({ start: 1, n: 1 }));
+    const old = new Date(Date.now() - 2 * 3600 * 1000);
+    utimesSync(stale, old, old);
+    rmSync(join(pendingDir, ".swept"), { force: true });
+    await upload({ draftId: draftId() });
+    ok("a counter untouched for an hour is swept by the next request", !existsSync(stale));
+    ok("a counter written recently is kept", existsSync(live));
+    ok("and the sweep stamps its clock", existsSync(join(pendingDir, ".swept")));
+  }
+
   console.log(`\n${pass} passed, ${fails.length} failed`);
   if (fails.length) process.exitCode = 1;
 } finally {

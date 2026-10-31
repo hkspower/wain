@@ -18,6 +18,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import {
   mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync,
+  statSync, utimesSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -635,8 +636,68 @@ try {
     const log = readFileSync(join(storage, "logs", "wain.log"), "utf8");
     ok("the log carries the forwarded visitor's hash, not the raw address",
       log.includes(`ip=${sha("203.0.113.7").slice(0, 8)}`) && !log.includes("203.0.113.7"));
+    /* IPv6: a visitor is a /64, so two addresses in one /64 are one bucket. Filed
+       under the /64 itself: the address's own file does not exist. */
+    await cancel("2001:db8:1:2::5");
+    await cancel("2001:db8:1:2::9");
+    ok("two IPv6 addresses in one /64 share one bucket, filed under the /64",
+      writes("2001:db8:1:2::/64") === 2 && writes("2001:db8:1:2::5") === 0 && writes("2001:db8:1:2::9") === 0,
+      `/64=${writes("2001:db8:1:2::/64")}`);
+    await cancel("2001:db8:1:3::5");
+    ok("another /64 is another visitor", writes("2001:db8:1:3::/64") === 1);
     rmSync(trusted);
     ok("with the list removed the proxy's bucket is the visitor again", (await cancel("203.0.113.9")).status === 429 && writes("203.0.113.9") === 0);
+  }
+
+  console.log("\n── an unused counter is removed after an hour, and a live one is not ──");
+  {
+    const rateDir = join(storage, "wain-rate");
+    const sha = (x) => createHash("sha256").update(x).digest("hex");
+    const hourAgo = new Date(Date.now() - 2 * 3600_000);
+    const now = Math.floor(Date.now() / 1000);
+    const stale = join(rateDir, `all-${sha("198.51.100.99")}.json`);
+    writeFileSync(stale, JSON.stringify({ start: now - 7200, n: 500 }));
+    utimesSync(stale, hourAgo, hourAgo);
+    const live = join(rateDir, `write-${sha("198.51.100.98")}.json`);
+    writeFileSync(live, JSON.stringify({ start: now, n: 3 }));
+    const clock = join(rateDir, ".swept");
+    writeFileSync(clock, "");
+    utimesSync(clock, hourAgo, hourAgo);
+    const r = await call("places");
+    ok("a request is served while the sweep runs", r.status === 200, String(r.status));
+    ok("the counter nobody has written for an hour is gone", !existsSync(stale));
+    ok("a counter written just now is kept", existsSync(live));
+    ok("the sweep stamps its clock, so the next one waits ten minutes",
+      statSync(clock).mtimeMs > Date.now() - 60_000);
+  }
+
+  console.log("\n── a wrong admin guess spends the visitor's allowance before the sleep ──");
+  {
+    /* The suite's cap is 5000 a minute (WAIN_API_RATE_PER_MIN, above). A dedicated
+       visitor behind a listed proxy is filled to three below it, so three wrong
+       guesses are answered 403 and the fourth is refused before any sleep. */
+    const sha = (x) => createHash("sha256").update(x).digest("hex");
+    const trusted = join(storage, "trusted-proxies.txt");
+    const visitor = "198.51.100.77";
+    writeFileSync(trusted, "127.0.0.1\n");
+    writeFileSync(join(storage, "wain-rate", `all-${sha(visitor)}.json`),
+      JSON.stringify({ start: Math.floor(Date.now() / 1000), n: 5000 - 3 }));
+    const via = { "X-Forwarded-For": visitor };
+    const guess = (headers) => call("whoami", undefined, { admin: true, token: "not-the-secret", headers });
+    const g = [await guess(via), await guess(via), await guess(via)];
+    ok("three wrong guesses are still answered 403, as before", g.every((x) => x.status === 403 && x.json?.error === "admin_forbidden"),
+      g.map((x) => x.status).join(","));
+    const fourth = await guess(via);
+    ok("the fourth is refused 429 before the sleep: the wrong guesses spent the allowance",
+      fourth.status === 429 && fourth.json?.error === "rate_limited", `${fourth.status} ${j(fourth.json)}`);
+    const pub = await call("places", undefined, { headers: via });
+    ok("and the same visitor's public requests are refused too (14 October login scan, finding 1)",
+      pub.status === 429, String(pub.status));
+    const neighbour = await call("places", undefined, { headers: { "X-Forwarded-For": "198.51.100.78" } });
+    ok("another visitor is not caught by it", neighbour.status === 200, String(neighbour.status));
+    const rightSecret = await call("whoami", undefined, { admin: true, headers: via });
+    ok("the right secret is exempt even from a visitor over the limit", rightSecret.status === 200, String(rightSecret.status));
+    rmSync(trusted);
   }
 } finally {
   php.kill();

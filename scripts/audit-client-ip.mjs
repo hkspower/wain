@@ -151,11 +151,11 @@ const sources = Object.fromEntries(
   Object.entries(ENDPOINTS).map(([app, f]) => [app, readFileSync(join(ROOT, f), "utf8")])
 );
 const START = "/** The proxies we run in front of this file";
-const END = "    return $peer;\n}\n";
+const END = "// END shared rate-counter helper\n";
 const block = (src) => {
   const a = src.indexOf(START);
   if (a < 0) return null;
-  const b = src.indexOf(END, src.indexOf("function clientIp(", a));
+  const b = src.indexOf(END, a);
   return b < 0 ? null : src.slice(a, b + END.length);
 };
 const blocks = Object.fromEntries(Object.entries(sources).map(([app, s]) => [app, block(s)]));
@@ -165,7 +165,7 @@ else {
   const [first, ...rest] = Object.keys(blocks);
   const differ = rest.filter((a) => blocks[a] !== blocks[first]);
   if (differ.length) fail(`${differ.join(", ")} carry a different copy of the helper than ${first}`);
-  else ok(`parseNets, trustedProxies, inNets, unwrapMappedIp and clientIp are byte-identical in ${Object.keys(blocks).join(", ")} (${blocks[first].length} bytes)`);
+  else ok(`parseNets, trustedProxies, inNets, unwrapMappedIp, clientIp, rateKey and sweepRateCounters are byte-identical in ${Object.keys(blocks).join(", ")} (${blocks[first].length} bytes)`);
 }
 
 console.log("\n── the address and the header are read in one place ──");
