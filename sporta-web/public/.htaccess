@@ -318,16 +318,20 @@ FileETag MTime Size
 # whole tree without depending on rewrite semantics or on remembering to repeat
 # it in every new folder.
 #
-# .well-known keeps working: it is a DIRECTORY, and the request that matters is
-# /.well-known/acme-challenge/<token>, whose filename does not begin with a dot.
-# Verified 200 with this rule in place — SSL renewal is untouched.
+# .well-known is exempt BY NAME. It used to be argued safe because it is a
+# directory — true only while it EXISTS. When it does not, Apache matches the
+# section against ".well-known" itself and answers 403; measured on the live
+# VPS 2026-10-31, where every Hostinger domain-verification request to
+# /.well-known/hostinger-challenge/<token> was refused. With the lookahead a
+# missing token is a plain 404 and a real one is served. Dotfiles INSIDE it
+# (/.well-known/.x) are still denied: their own name begins with a dot.
 # __MACOSX — the folder Finder puts inside a zip, one shadow file per real
 # file. It does NOT begin with a dot, so the rule below does not see it, and
 # it is browsable: a directory index of everything the site is made of. It
 # turns up whenever a folder is re-zipped on a Mac and re-uploaded.
 RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
 
-<FilesMatch "^\.">
+<FilesMatch "^\.(?!well-known$)">
   Require all denied
 </FilesMatch>
 
