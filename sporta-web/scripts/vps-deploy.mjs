@@ -38,6 +38,9 @@
 //             no container restart), index.html last, then re-probes. Anything
 //             that answered 200 before and does not now is rolled back at once.
 //   rollback  Restores a named backup made by apply.
+//   scan      Read-only. Runs scripts/live-scan.mjs on the VPS — the
+//             server-response checks of scan-server-response.sh plus the web
+//             root on disk. No build.
 //
 // SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
 // (or files). That is how the backend ships while the storefront's own source
@@ -112,6 +115,7 @@ function composeCommand(argv) {
     else if (a === '--confirm') opt.confirm = argv[++i] ?? ''
     else if (a === '--rollback') { opt.mode = 'rollback'; opt.backup = argv[++i] ?? '' }
     else if (a === '--only') opt.only = argv[++i] ?? ''
+    else if (a === '--scan') opt.mode = 'scan'
     else throw new Error(`unknown option ${a}`)
   }
   if (!opt.ref) opt.ref = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -164,7 +168,7 @@ function composeCommand(argv) {
         network_mode: 'host',
         environment,
         // Plan cannot write: the mount itself is read-only.
-        volumes: [opt.mode === 'plan' ? '/docker/sporta:/sporta:ro' : '/docker/sporta:/sporta'],
+        volumes: [['plan', 'scan'].includes(opt.mode) ? '/docker/sporta:/sporta:ro' : '/docker/sporta:/sporta'],
         entrypoint: ['/bin/sh', '-c'],
         // $ is Compose interpolation; $$ is a literal $ for the shell.
         command: [script.replaceAll('$', () => '$$')],
@@ -368,10 +372,16 @@ function restore(name) {
 async function run() {
   const mode = process.env.SPORTA_DEPLOY_MODE ?? 'plan'
   const ref = process.env.SPORTA_DEPLOY_REF ?? ''
-  if (!['plan', 'apply', 'rollback'].includes(mode)) fail(`unknown mode ${mode}`)
+  if (!['plan', 'apply', 'rollback', 'scan'].includes(mode)) fail(`unknown mode ${mode}`)
   if (!fs.existsSync(path.join(LIVE, 'index.html'))) fail(`${LIVE} is not the site (no index.html) — is /docker/sporta mounted at /sporta?`)
   say(`== VPS DEPLOY mode=${mode} ref=${ref}${ONLY.length ? ` only=${ONLY.join(',')}` : ''}`)
   if (ONLY.length && !ONLY_OK.test(ONLY.join(','))) fail('bad --only list')
+  if (mode === 'scan') {
+    process.env.SPORTA_SCAN_ROOT ??= LIVE
+    if (PROBE_BASE) process.env.SPORTA_SCAN_BASE ??= PROBE_BASE
+    await import('./live-scan.mjs')
+    return
+  }
 
   if (mode === 'rollback') {
     const name = process.env.SPORTA_DEPLOY_BACKUP ?? ''

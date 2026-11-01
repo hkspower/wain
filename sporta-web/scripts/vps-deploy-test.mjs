@@ -124,6 +124,9 @@ try {
     const a = JSON.parse(applyOk.out).services.deploy
     is(a.volumes[0] === '/docker/sporta:/sporta' && a.environment.SPORTA_DEPLOY_CONFIRM === SHA,
        'apply with the SHA named twice gets a writable mount')
+    const scan = JSON.parse((await c(['--scan', '--ref', 'main'])).out).services.deploy
+    is(scan.volumes[0] === '/docker/sporta:/sporta:ro' && scan.environment.SPORTA_DEPLOY_MODE === 'scan',
+       'a scan mounts the server read-only')
     const rb = await c(['--rollback', '../../etc'])
     is(rb.code !== 0, 'a rollback name that is not a deploy backup is refused')
   }
@@ -199,6 +202,19 @@ try {
     is(md5(join(LIVE, 'index.html')) === liveIndex && md5(join(LIVE, 'robots.txt')) !== md5(join(DIST, 'robots.txt')),
        'and the storefront and its root files are untouched')
     if (name) await deploy({ SPORTA_DEPLOY_MODE: 'rollback', SPORTA_DEPLOY_BACKUP: name })
+  }
+
+  head('the live scan')
+  {
+    // A secret that slipped into the web root: the scan must say so twice —
+    // once because it is served, once because it is on disk at all.
+    fs.writeFileSync(join(LIVE, '.env'), 'DB_PASS=leaked\n')
+    const s = await deploy({ SPORTA_DEPLOY_MODE: 'scan', SPORTA_DEPLOY_REF: 'main' })
+    is(/SCAN_DONE bad=\d+ warn=\d+/.test(s.out), 'the scan runs to its summary', /SCAN_DONE[^\n]*/.exec(s.out)?.[0] ?? s.out.slice(-200))
+    is(/BAD\s+\/\.env -> 200\s+\*\*\*EXPOSED/.test(s.out), 'a served .env is reported EXPOSED')
+    is(/BAD\s+secrets-shaped files in the web root: [^\n]*\.env/.test(s.out), 'and the file on disk is reported too')
+    is(/ok\s+products: \d+/.test(s.out) && /ok\s+\/shop -> 200/.test(s.out), 'the routes and the API are probed')
+    fs.rmSync(join(LIVE, '.env'))
   }
 
   head('a deploy that breaks the site undoes itself')
