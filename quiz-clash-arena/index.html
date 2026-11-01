@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quiz Clash Arena | ساحة تحدي الأسئلة</title>
+<style>
+:root{--bg:#0b1020;--card:#151b34;--ink:#f4f6ff;--mut:#9aa4cf;--you:#22d3a0;--foe:#ff5d73;--gold:#ffc83d;--blue:#4c8dff}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,#24306b,var(--bg));color:var(--ink);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;display:flex;justify-content:center}
+#app{width:100%;max-width:560px;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+h1{font-size:2rem;line-height:1.2}
+.screen{display:none;animation:in .3s ease}.screen.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.card{background:var(--card);border-radius:18px;padding:18px;margin-top:14px;box-shadow:0 8px 30px #0006}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:14px;font-size:1.05rem;font-weight:700;color:#07101f;background:var(--gold);cursor:pointer;margin-top:10px}
+.btn.alt{background:#222b52;color:var(--ink)}
+.btn:active{transform:scale(.98)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{background:#222b52;border-radius:99px;padding:6px 12px;font-size:.85rem;color:var(--mut);border:0}
+.hero{text-align:center;padding:30px 10px 6px}
+.hero .logo{font-size:3.6rem}
+.sub{color:var(--mut);margin-top:8px}
+.bars{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fighter{font-size:.85rem;color:var(--mut)}
+.fighter b{color:var(--ink);font-size:1rem}
+.hp{height:12px;background:#222b52;border-radius:9px;overflow:hidden;margin-top:6px}
+.hp i{display:block;height:100%;transition:width .5s}
+.hp.you i{background:var(--you)}.hp.foe i{background:var(--foe)}
+.timer{height:8px;background:#222b52;border-radius:9px;overflow:hidden;margin-top:14px}
+.timer i{display:block;height:100%;width:100%;background:var(--blue)}
+.q{font-size:1.25rem;font-weight:700;line-height:1.5;margin:16px 0 4px;min-height:3.4em}
+.meta{display:flex;justify-content:space-between;color:var(--mut);font-size:.85rem}
+.ans{display:block;width:100%;text-align:start;background:#1d2547;color:var(--ink);border:2px solid transparent;border-radius:14px;padding:14px;font-size:1.05rem;margin-top:10px;cursor:pointer}
+.ans:disabled{cursor:default}
+.ans.ok{border-color:var(--you);background:#0f3b31}
+.ans.no{border-color:var(--foe);background:#471b26}
+.ans.gone{opacity:.25}
+.life{display:flex;gap:10px;margin-top:12px}
+.life button{flex:1}
+.hit{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.big{font-size:3rem;text-align:center;margin-top:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-top:14px}
+.stats div{background:#1d2547;border-radius:12px;padding:10px}
+.stats b{display:block;font-size:1.3rem}
+.stats span{font-size:.75rem;color:var(--mut)}
+.toast{text-align:center;font-weight:700;min-height:1.4em;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<section class="screen on" id="home">
+  <div class="top"><button class="pill" id="lang"></button><button class="pill" id="snd"></button></div>
+  <div class="hero">
+    <div class="logo">🏆</div>
+    <h1 data-t="title"></h1>
+    <p class="sub" data-t="tag"></p>
+  </div>
+  <div class="card">
+    <p data-t="how"></p>
+    <p class="sub" id="best"></p>
+    <button class="btn" id="start" data-t="play"></button>
+  </div>
+</section>
+
+<section class="screen" id="game">
+  <div class="bars">
+    <div class="fighter"><b data-t="you"></b> <span id="youHp"></span><div class="hp you"><i id="youBar"></i></div></div>
+    <div class="fighter"><b data-t="foe"></b> <span id="foeHp"></span><div class="hp foe"><i id="foeBar"></i></div></div>
+  </div>
+  <div class="card" id="qcard">
+    <div class="meta"><span id="round"></span><span id="score"></span><span id="streak"></span></div>
+    <div class="timer"><i id="tbar"></i></div>
+    <div class="q" id="qtext"></div>
+    <div id="answers"></div>
+    <div class="toast" id="toast"></div>
+    <div class="life">
+      <button class="btn alt" id="l5050"></button>
+      <button class="btn alt" id="lTime"></button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="end">
+  <div class="big" id="endIcon"></div>
+  <h1 style="text-align:center" id="endTitle"></h1>
+  <p class="sub" style="text-align:center" id="endRank"></p>
+  <div class="stats" id="endStats"></div>
+  <button class="btn" id="again" data-t="again"></button>
+</section>
+
+</div>
+<script>
+"use strict";
+/* ---------- Text ---------- */
+const T={
+ar:{title:"ساحة تحدي الأسئلة",tag:"اختبر معلوماتك الرياضية وتغلّب على خصمك",
+how:"١٠ جولات. كل إجابة صحيحة تضرب خصمك، وكل ما كنت أسرع كانت الضربة أقوى. الإجابة الخاطئة أو انتهاء الوقت يضرّك. احتفظ بسلسلة إجابات صحيحة لضربات مضاعفة!",
+play:"ابدأ التحدي",you:"أنت",foe:"الخصم",again:"العب مرة ثانية",round:"الجولة",score:"النقاط",streak:"سلسلة",
+l5050:"٥٠/٥٠",lTime:"+٥ ثواني",right:"صح! 💥",wrong:"خطأ ✖",late:"انتهى الوقت ⏱",best:"أفضل نتيجة",
+win:"فزت!",lose:"خسرت",draw:"تعادل",correct:"صحيحة",maxs:"أطول سلسلة",pts:"نقاط",
+ranks:["مبتدئ","لاعب احتياط","لاعب أساسي","نجم الملعب","أسطورة"],mute:"🔊",unmute:"🔇",other:"English"},
+en:{title:"Quiz Clash Arena",tag:"Test your sports knowledge and beat your rival",
+how:"10 rounds. Every correct answer hits your rival, and the faster you answer the harder the hit. A wrong answer or running out of time hurts you. Keep a streak for double damage!",
+play:"Start the clash",you:"You",foe:"Rival",again:"Play again",round:"Round",score:"Score",streak:"Streak",
+l5050:"50/50",lTime:"+5 sec",right:"Correct! 💥",wrong:"Wrong ✖",late:"Time's up ⏱",best:"Best score",
+win:"Victory!",lose:"Defeated",draw:"Draw",correct:"Correct",maxs:"Best streak",pts:"pts",
+ranks:["Rookie","Substitute","Starter","Star Player","Legend"],mute:"🔊",unmute:"🔇",other:"العربية"}
+};
+
+/* ---------- Questions: first option is the correct one (shuffled at runtime) ---------- */
+const Q=[
+[["من فاز بكأس العالم 2022؟","Who won the 2022 FIFA World Cup?"],["الأرجنتين|فرنسا|البرازيل|كرواتيا","Argentina|France|Brazil|Croatia"]],
+[["كم لاعباً من كل فريق في ملعب كرة السلة؟","How many players per team are on court in basketball?"],["٥|٦|٧|١١","5|6|7|11"]],
+[["كم مسافة الماراثون؟","What is the marathon distance?"],["٤٢٫١٩٥ كم|٤٠ كم|٢١٫٠٩٧ كم|٤٥ كم","42.195 km|40 km|21.097 km|45 km"]],
+[["كم عدد الحلقات في شعار الأولمبياد؟","How many rings are in the Olympic logo?"],["٥|٤|٦|٧","5|4|6|7"]],
+[["ما نوع أرضية ملاعب ويمبلدون؟","What surface is used at Wimbledon?"],["عشب|ترابية|صلبة|سجاد","Grass|Clay|Hard court|Carpet"]],
+[["من أكثر لاعب فوزاً بالكرة الذهبية؟","Who has won the most Ballon d'Or awards?"],["ليونيل ميسي|كريستيانو رونالدو|ميشيل بلاتيني|يوهان كرويف","Lionel Messi|Cristiano Ronaldo|Michel Platini|Johan Cruyff"]],
+[["في أي عام فازت الكويت بكأس آسيا؟","In which year did Kuwait win the AFC Asian Cup?"],["١٩٨٠|١٩٨٤|١٩٩٦|٢٠٠٤","1980|1984|1996|2004"]],
+[["أي رياضة تُستخدم فيها الريشة الطائرة؟","Which sport uses a shuttlecock?"],["الريشة الطائرة|التنس|الاسكواش|الغولف","Badminton|Tennis|Squash|Golf"]],
+[["كم ميدالية أولمبية ذهبية فاز بها مايكل فيلبس؟","How many Olympic gold medals did Michael Phelps win?"],["٢٣|١٨|٢٨|١٥","23|18|28|15"]],
+[["في أي رياضة يُقام سباق «تور دو فرانس»؟","Which sport is the Tour de France?"],["سباق الدراجات|الجري|السباحة|الفروسية","Cycling|Running|Swimming|Equestrian"]],
+[["من أي بلد أتت رياضة الجودو؟","Which country is Judo from?"],["اليابان|الصين|كوريا|تايلاند","Japan|China|Korea|Thailand"]],
+[["كم عدد بطولات القرانداسلام في التنس كل سنة؟","How many tennis Grand Slams are held each year?"],["٤|٣|٥|٦","4|3|5|6"]],
+[["ماذا يُسمى تسجيل ضربة واحدة تحت المعدل في الغولف؟","In golf, one stroke under par is called a…"],["بيردي|إيغل|بوغي|ألباتروس","Birdie|Eagle|Bogey|Albatross"]],
+[["مع أي فريق فاز مايكل جوردان بستة ألقاب NBA؟","Michael Jordan won six NBA titles with which team?"],["شيكاغو بولز|ليكرز|سلتيكس|نيكس","Chicago Bulls|Lakers|Celtics|Knicks"]],
+[["أين أُقيمت أول دورة أولمبية حديثة عام ١٨٩٦؟","Where were the first modern Olympics held in 1896?"],["أثينا|باريس|لندن|روما","Athens|Paris|London|Rome"]],
+[["من يحمل الرقم القياسي العالمي لـ١٠٠ متر؟","Who holds the 100m world record?"],["يوسين بولت|تايسون غاي|جاستن غاتلين|كارل لويس","Usain Bolt|Tyson Gay|Justin Gatlin|Carl Lewis"]],
+[["في أي رياضة نال فهيد الديحاني ميدالية أولمبية للكويت؟","In which sport did Fehaid Al-Deehani win an Olympic medal for Kuwait?"],["الرماية|المبارزة|السباحة|رفع الأثقال","Shooting|Fencing|Swimming|Weightlifting"]],
+[["ما اسم ملعب ريال مدريد؟","What is Real Madrid's stadium called?"],["سانتياغو برنابيو|كامب نو|أنفيلد|أليانز أرينا","Santiago Bernabéu|Camp Nou|Anfield|Allianz Arena"]],
+[["أي منتخب عربي هزم الأرجنتين في مونديال 2022؟","Which Arab team beat Argentina at the 2022 World Cup?"],["السعودية|المغرب|تونس|قطر","Saudi Arabia|Morocco|Tunisia|Qatar"]],
+[["أي منتخب أفريقي بلغ نصف نهائي كأس العالم لأول مرة في 2022؟","Which African team first reached a World Cup semi-final in 2022?"],["المغرب|السنغال|غانا|الكاميرون","Morocco|Senegal|Ghana|Cameroon"]],
+[["كم مدة مباراة كرة القدم الأساسية؟","How long is a regular football match?"],["٩٠ دقيقة|٦٠ دقيقة|٧٥ دقيقة|١٢٠ دقيقة","90 minutes|60 minutes|75 minutes|120 minutes"]]
+];
+
+/* ---------- State ---------- */
+const $=s=>document.querySelector(s);
+let lang=localStorage.qcaLang||"ar", muted=localStorage.qcaMute==="1";
+let S; const ROUNDS=10, MAXHP=100, TIME=15;
+
+const t=k=>T[lang][k];
+function applyLang(){
+  document.documentElement.lang=lang; document.documentElement.dir=lang==="ar"?"rtl":"ltr";
+  document.title=T[lang].title;
+  document.querySelectorAll("[data-t]").forEach(e=>e.textContent=t(e.dataset.t));
+  $("#lang").textContent=t("other"); $("#snd").textContent=muted?t("unmute"):t("mute");
+  $("#l5050").textContent="🎯 "+t("l5050"); $("#lTime").textContent="⏳ "+t("lTime");
+  const b=+localStorage.qcaBest||0; $("#best").textContent=b?`${t("best")}: ${b} ${t("pts")}`:"";
+  if(S&&$("#game").classList.contains("on")) renderQ(true);
+}
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id))}
+const num=n=>lang==="ar"?String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]):String(n);
+
+/* ---------- Sound ---------- */
+let ac;
+function beep(f,d=.12,type="sine"){
+  if(muted)return;
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;
+  g.gain.setValueAtTime(.15,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);
+  o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d);}catch(e){}
+}
+
+/* ---------- Game ---------- */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+
+function newGame(){
+  S={qs:shuffle(Q).slice(0,ROUNDS),i:-1,you:MAXHP,foe:MAXHP,score:0,streak:0,best:0,correct:0,
+     used50:false,usedTime:false,left:TIME,locked:true,timer:null,opts:null};
+  show("game"); next();
+}
+function next(){
+  if(S.you<=0||S.foe<=0||S.i+1>=ROUNDS)return finish();
+  S.i++;
+  const [text,ans]=S.qs[S.i];
+  const ar=ans[0].split("|"),en=ans[1].split("|");
+  S.opts=shuffle([0,1,2,3]).map(k=>({ar:ar[k],en:en[k],ok:k===0,gone:false}));
+  S.left=TIME; S.start=performance.now(); S.limit=TIME*1000; S.locked=false;
+  $("#toast").textContent=""; renderQ(false); tick();
+}
+function renderQ(keepState){
+  const [text]=S.qs[S.i]||S.qs[0];
+  $("#qtext").textContent=text[lang==="ar"?0:1];
+  $("#round").textContent=`${t("round")} ${num(S.i+1)}/${num(ROUNDS)}`;
+  $("#score").textContent=`⭐ ${num(S.score)}`;
+  $("#streak").textContent=`🔥 ${num(S.streak)}`;
+  $("#youHp").textContent=num(Math.max(0,S.you)); $("#foeHp").textContent=num(Math.max(0,S.foe));
+  $("#youBar").style.width=Math.max(0,S.you)+"%"; $("#foeBar").style.width=Math.max(0,S.foe)+"%";
+  $("#l5050").disabled=S.used50||S.locked; $("#lTime").disabled=S.usedTime||S.locked;
+  const box=$("#answers"); box.innerHTML="";
+  S.opts.forEach((o,idx)=>{
+    const b=document.createElement("button");b.className="ans"+(o.gone?" gone":"");
+    b.textContent=o[lang]; b.disabled=S.locked||o.gone;
+    if(S.locked&&o.ok)b.classList.add("ok");
+    if(S.locked&&o.picked&&!o.ok)b.classList.add("no");
+    b.onclick=()=>answer(idx); box.appendChild(b);
+  });
+}
+function tick(){
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{
+    const left=Math.max(0,S.limit-(performance.now()-S.start));
+    $("#tbar").style.width=(left/(TIME*1000)*100)+"%"; S.left=left/1000;
+    if(left<=0){clearInterval(S.timer);answer(-1)}
+  },50);
+}
+function answer(idx){
+  if(S.locked)return; S.locked=true; clearInterval(S.timer);
+  const o=S.opts[idx]; if(o)o.picked=true;
+  let msg;
+  if(o&&o.ok){
+    S.correct++; S.streak++; S.best=Math.max(S.best,S.streak);
+    const speed=Math.max(0,S.left)/TIME;               // 0..1
+    const dmg=Math.round((14+speed*16)*(S.streak>=3?2:1));
+    const pts=Math.round(100+speed*100)+(S.streak>=3?50:0);
+    S.foe-=dmg; S.score+=pts; msg=`${t("right")}  −${num(dmg)} ${S.streak>=3?"🔥×"+num(2):""}`;
+    $("#toast").style.color="var(--you)"; beep(660);beep(880,.15);
+    hit("#foeBar");
+  }else{
+    S.streak=0; const dmg=idx<0?15:20; S.you-=dmg;
+    msg=`${idx<0?t("late"):t("wrong")}  −${num(dmg)}`;
+    $("#toast").style.color="var(--foe)"; beep(180,.3,"sawtooth"); hit("#youBar");
+  }
+  $("#toast").textContent=msg; renderQ(true);
+  setTimeout(next,1400);
+}
+function hit(sel){const e=$(sel).parentElement;e.classList.remove("hit");void e.offsetWidth;e.classList.add("hit")}
+
+/* Lifelines */
+$("#l5050").onclick=()=>{
+  if(S.used50||S.locked)return; S.used50=true;
+  shuffle(S.opts.filter(o=>!o.ok)).slice(0,2).forEach(o=>o.gone=true); beep(500); renderQ(true);
+};
+$("#lTime").onclick=()=>{
+  if(S.usedTime||S.locked)return; S.usedTime=true; S.limit+=5000; beep(500); renderQ(true);
+};
+
+function finish(){
+  clearInterval(S.timer);
+  const won=S.foe<S.you||(S.foe<=0&&S.you>0), lost=S.you<S.foe||S.you<=0;
+  const bonus=won?Math.max(0,S.you)*3:0, total=S.score+bonus;
+  const best=+localStorage.qcaBest||0; if(total>best)localStorage.qcaBest=total;
+  const rank=Math.min(4,Math.floor(total/450));
+  $("#endIcon").textContent=won?"🏆":lost?"💔":"🤝";
+  $("#endTitle").textContent=won?t("win"):lost?t("lose"):t("draw");
+  $("#endRank").textContent=`${T[lang].ranks[rank]} · ${num(total)} ${t("pts")}`;
+  $("#endStats").innerHTML=`<div><b>${num(S.correct)}/${num(ROUNDS)}</b><span>${t("correct")}</span></div>
+    <div><b>${num(S.best)}</b><span>${t("maxs")}</span></div><div><b>${num(total)}</b><span>${t("pts")}</span></div>`;
+  beep(won?880:220,.4); show("end"); applyLang();
+}
+
+$("#start").onclick=newGame; $("#again").onclick=newGame;
+$("#lang").onclick=()=>{lang=lang==="ar"?"en":"ar";localStorage.qcaLang=lang;applyLang()};
+$("#snd").onclick=()=>{muted=!muted;localStorage.qcaMute=muted?"1":"0";applyLang()};
+applyLang();
+</script>
+</body>
+</html>
