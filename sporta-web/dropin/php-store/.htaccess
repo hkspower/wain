@@ -34,6 +34,15 @@ Options -Indexes
   Header set Cache-Control "no-cache, stale-while-revalidate=60" "expr=%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304"
 </Files>
 
+# /sitemap.xml and /sitemap-products.xml are rewritten (root .htaccess) to these
+# two scripts, so they inherited the no-store above — and lost the hour's
+# freshness the static files had (measured by scripts/live-scan.mjs: no-store).
+# Crawlers fetch them repeatedly and they change only when the catalogue does:
+# the same tier as robots.txt. Errors stay no-store.
+<FilesMatch "^sitemap-(index|products)\.php$">
+  Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400" "expr=%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304"
+</FilesMatch>
+
 # birthday-lib.php is an include, never an endpoint.
 <Files "birthday-lib.php">
   Require all denied

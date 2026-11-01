@@ -204,8 +204,13 @@ head('6. Cookies')
 const sc = [].concat(H['set-cookie'] ?? [])
 if (!sc.length) ok('no cookies on / — nothing to consent to')
 for (const c of sc) /;\s*secure/i.test(c) && /samesite=/i.test(c) ? ok(c.slice(0, 90)) : b(`${c.slice(0, 90)} (missing Secure/SameSite)`)
+// Signed out, ?r=me answers 200 with a JSON null — that is how the admin
+// screen knows to show the password box. Anything else (an email, a 500) is
+// the finding.
 const me = await get('/api/admin.php?r=me', { headers: { 'X-Sporta-Admin': '1' } })
-;[401, 403].includes(me.status) ? ok(`/api/admin.php?r=me -> ${me.status} without a session`) : b(`/api/admin.php?r=me -> ${me.status} without a session`)
+;(me.status === 200 && me.body.trim() === 'null') || [401, 403].includes(me.status)
+  ? ok(`/api/admin.php?r=me without a session -> ${me.status} ${me.body.trim().slice(0, 20)}`)
+  : b(`/api/admin.php?r=me without a session -> ${me.status} ${me.body.slice(0, 60)}`)
 for (const c of [].concat(me.headers['set-cookie'] ?? [])) {
   /;\s*secure/i.test(c) && /httponly/i.test(c) && /samesite=strict/i.test(c) ? ok(`admin cookie: ${c.split(';').slice(1).join(';').trim()}`)
     : b(`admin cookie not hardened: ${c.slice(0, 120)}`)
