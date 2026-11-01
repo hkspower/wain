@@ -32,7 +32,7 @@ const TRANSITIONS = (el) => getComputedStyle(el).transitionProperty.split(',').m
 
 // A fresh touch page for each press: pressing a control and releasing it
 // navigates or starts a call, so a press is only ever measured while held.
-async function heldScale(path, selector, { inject = false } = {}) {
+async function heldScale(path, selector, { inject = false, before = null } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
   const p = await ctx.newPage();
   await p.goto(`${B}${path}`, { waitUntil: 'networkidle' });
@@ -43,6 +43,7 @@ async function heldScale(path, selector, { inject = false } = {}) {
       document.body.insertAdjacentHTML('beforeend', '<button id="press-probe" style="position:fixed;left:8px;top:420px;width:140px;height:48px;z-index:9999">p</button>');
     });
   }
+  if (before) await before(p);
   const el = p.locator(selector).first();
   await el.scrollIntoViewIfNeeded();
   await p.waitForTimeout(300);
@@ -77,6 +78,18 @@ console.log('\n── a finger presses each control to its own depth ──');
   ok('the typing link is pressed to 0.95', linkHeld.active && Math.abs(linkHeld.scale - 0.95) < 0.005, JSON.stringify(linkHeld));
   const plainHeld = await heldScale('/find/', '#press-probe', { inject: true });
   ok('a control with no press utility still gets the default 0.975', plainHeld.active && Math.abs(plainHeld.scale - 0.975) < 0.005, JSON.stringify(plainHeld));
+  // A pin's hover:scale-110 sticks after a tap, and it used to beat the base
+  // press, so a finger got no press at all on a pin (owner's yes, 1 November).
+  // heldScale moves the pointer over it first, so this is that sticky hover.
+  // On a phone the map opens from a bar under the result count (map-pin.test.mjs).
+  const MAP = 'section[aria-labelledby="search-map-heading"]';
+  const pinHeld = await heldScale(`/search/?q=${encodeURIComponent('قهوة')}`, `${MAP} a[href^="/places/"]`, {
+    before: async (p) => {
+      await p.getByRole('button', { name: /اعرض الخريطة/ }).tap();
+      await p.locator(MAP).waitFor({ timeout: 8000 });
+    },
+  });
+  ok('a map pin is pressed to 0.95 under a finger, over its own hover', pinHeld.active && Math.abs(pinHeld.scale - 0.95) < 0.005, JSON.stringify(pinHeld));
 }
 
 console.log('\n── a mouse keeps its transitions and its hover ──');

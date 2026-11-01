@@ -31,8 +31,7 @@ type Tab = "places" | "submissions" | "orders" | "queue";
  *
  *   checking    — asking the server about itself (`ping`)
  *   unreachable — nothing answered, or not with the API's JSON
- *   unset       — the server has no usable admin secret: none yet, or one shorter
- *                 than 32 bytes (`weak`); a password cannot work either way
+ *   unset       — the server has no admin secret yet; a password cannot work
  *   signin      — a secret exists and this tab has none, or a wrong one
  *   ready       — `whoami` answered with the stored token
  *
@@ -40,13 +39,11 @@ type Tab = "places" | "submissions" | "orders" | "queue";
  * would refuse every password is the kind of door this file keeps meeting
  * (a key file created empty, a variable nobody filled), and the honest answer
  * is to say which file to fill rather than to let the owner try passwords.
- * A short secret is the same door, so it takes the same gate with its own line.
  */
-type Gate = "checking" | "unreachable" | "unset" | "signin" | "ready";
+type Gate = "checking" | "unreachable" | "unset" | "weak" | "signin" | "ready";
 
 export default function AdminApp() {
   const [gate, setGate] = useState<Gate>("checking");
-  const [secretWeak, setSecretWeak] = useState(false);
   const [stage, setStage] = useState("");
   const [rows, setRows] = useState<EditablePlace[]>([]);
   const [view, setView] = useState<View>({ mode: "list" });
@@ -99,21 +96,18 @@ export default function AdminApp() {
         return;
       }
       setStage(ping.stage);
-      if (ping.admin === "unset" || ping.admin === "weak") {
-        setSecretWeak(ping.admin === "weak");
-        return setGate("unset");
-      }
+      if (ping.admin === "unset") return setGate("unset");
+      // Shorter than the server's minimum: refused like an empty file, so a
+      // sign-in form here would refuse every password with no reason given.
+      if (ping.admin === "weak") return setGate("weak");
       if (!adminToken()) return setGate("signin");
       // A token from an earlier visit in this tab: still good, or thrown away.
       const who = await callSafe("whoami", undefined, { admin: true });
       if (cancelled) return;
       if (who.ok) return setGate("ready");
       setAdminToken(null);
-      // The secret was shortened since the token was stored: no form, the fix.
-      if (who.error === "admin_weak") {
-        setSecretWeak(true);
-        return setGate("unset");
-      }
+      // The secret was shortened since the token was stored: a form would be refused.
+      if (who.error === "admin_weak") return setGate("weak");
       setGate("signin");
     })();
     return () => { cancelled = true; };
@@ -154,8 +148,7 @@ export default function AdminApp() {
     }
     setAdminToken(null);
     if (who.error === "admin_weak") {
-      setSecretWeak(true);
-      setGate("unset");
+      setGate("weak");
       return;
     }
     setError(describeApiFailure(who, "ما قدرنا ندخّلك."));
@@ -172,7 +165,8 @@ export default function AdminApp() {
   if (!backendEnabled) return <NotConfigured />;
   if (gate === "checking") return <Centered>نتحقق…</Centered>;
   if (gate === "unreachable") return <Unreachable message={error} />;
-  if (gate === "unset") return <SecretUnset weak={secretWeak} />;
+  if (gate === "unset") return <SecretUnset />;
+  if (gate === "weak") return <SecretUnset weak />;
   if (gate === "signin") return <SignIn onSubmit={signIn} error={error} />;
 
   // ---- actions ------------------------------------------------------------
@@ -456,7 +450,7 @@ export default function AdminApp() {
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="ابحث في الأماكن"
                 placeholder="ابحث…"
-                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none pointer-coarse:text-base focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none pointer-coarse:text-base focus:border-sea-400"
               />
             </div>
             <button
@@ -599,27 +593,18 @@ function NotConfigured() {
   );
 }
 
-/** The server answered, and said its admin secret cannot be used yet: there is
- *  none (`unset`), or the one there is has fewer than 32 bytes (`weak`). Either
- *  way a password would be refused, so there is no form here, only the file. */
+/** The server answered, and said its admin secret cannot be used yet: none
+ *  (`unset`), or one under 32 bytes (`weak`). Either way there is no form. */
 function SecretUnset({ weak = false }: { weak?: boolean }) {
   return (
     <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">
-        {weak ? "الخادم شغّال، بس كلمة السر قصيرة" : "الخادم شغّال، بس بدون كلمة سر"}
+        {weak ? "كلمة السر على السيرفر قصيرة" : "الخادم شغّال، بس بدون كلمة سر"}
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
-        {weak ? (
-          <>
-            الكلمة اللي في <code dir="ltr">storage/admin.secret</code> أقصر من ٣٢ حرف، لازم
-            تستبدلها، وإلا فأي كلمة تكتبها هني بتنرفض. الحل من مدير الملفات عند الاستضافة:
-          </>
-        ) : (
-          <>
-            ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
-            مرة واحدة، من مدير الملفات عند الاستضافة:
-          </>
-        )}
+        {weak
+          ? "كلمة السر اللي بالملف أقصر من ٣٢ حرف، فالسيرفر يرفض اللوحة كلها لين تتغيّر. الحل، من مدير الملفات عند الاستضافة:"
+          : "ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل مرة واحدة، من مدير الملفات عند الاستضافة:"}
       </p>
       <ol role="list" className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
         <li>
@@ -690,7 +675,7 @@ function SignIn({ error, onSubmit }: { error: string; onSubmit: (secret: string)
             autoComplete="current-password"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm pointer-coarse:text-base outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm pointer-coarse:text-base outline-none focus:border-sea-400"
           />
           <p className="mt-1.5 text-xs text-ink-500">
             هي نفس اللي في <code dir="ltr">storage/admin.secret</code> على السيرفر. تنحفظ في هذا التاب بس.

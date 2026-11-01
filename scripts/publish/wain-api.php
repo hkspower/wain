@@ -85,6 +85,16 @@ const RATE_PER_MIN = 120;
  *  an attempt too: the cap is on trying, not on succeeding. */
 const WRITES_PER_MIN = 20;
 
+/** The shortest admin secret the endpoint will accept. Below it every admin
+ *  action answers 503 `admin_weak`, the way an empty file answers
+ *  `admin_unset`: refused, never compared. The 14 October login scan found
+ *  that `1234` was accepted, and at the measured guessing rate a four-digit
+ *  secret fell in about 26 minutes. docs/admin-setup.md already asked for 32
+ *  characters; this is the check that makes the request a rule. The count is in
+ *  BYTES (strlen), so a non-ASCII secret takes two bytes a letter and 16 Arabic
+ *  letters pass while the docs ask for 32 characters: use ASCII. */
+const ADMIN_SECRET_MIN = 32;
+
 /** A request body larger than this is refused unread. The largest honest body
  *  is a place with a sixty-line menu and twelve image URLs — a few kilobytes. */
 const MAX_BODY = 65536;
@@ -133,14 +143,6 @@ const ADMIN_ACTIONS = ['whoami', 'places_all', 'place_save', 'place_delete', 'pl
                        'queue_set_status', 'submissions_list', 'submission_reject',
                        'submission_approve', 'media_sign', 'media_publish', 'media_discard', 'gaps_list'];
 
-/** The shortest admin secret the endpoint will compare against, in BYTES: the
- *  length of the trimmed file, as strlen() reads it. For an ASCII secret that is
- *  the 32 characters docs/admin-setup.md asks for. A non-ASCII secret takes two
- *  or more bytes a letter, so 16 Arabic letters pass here while the docs ask for
- *  32 characters: this reading is the looser one for those. A four-digit secret
- *  was accepted and guessable in minutes (14 October login scan, finding 2). */
-const ADMIN_SECRET_MIN = 32;
-
 /* ── the log ────────────────────────────────────────────────────────────────
    Identical in shape and promises to /api/tts.php's and /api/media.php's, and
    kept copied for the same reason they are: each file must install on its own
@@ -160,6 +162,13 @@ const LOG_NAME      = 'wain.log';
 function keyState(string $file): string {
     if (!is_file($file)) return 'ABSENT';
     return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
+}
+
+/** The admin secret as the gate reads it: 'unset' (empty or no file), 'weak'
+ *  (shorter than ADMIN_SECRET_MIN) or 'set'. Only 'set' opens /admin. */
+function adminState(string $secret): string {
+    if ($secret === '') return 'unset';
+    return strlen($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set';
 }
 
 /** Walks UP to the first `storage/` — correct at public_html/api and one level
@@ -955,7 +964,7 @@ function sendOrderMail(string $to, array $mail): bool {
 function adminSecretState(string $file): string {
     $state = keyState($file);
     if ($state !== 'present') return $state;
-    return strlen(trim((string) @file_get_contents($file))) < ADMIN_SECRET_MIN ? 'weak' : 'set';
+    return adminState(trim((string) @file_get_contents($file)));
 }
 
 /* ── CLI: install / version / selftest / seed / migrate / log ───────────────*/
@@ -1433,14 +1442,14 @@ $writes   = (int) (getenv('WAIN_API_WRITES_PER_MIN') ?: WRITES_PER_MIN);
 
 /* ── the admin secret, read before anything else is decided ─────────────── */
 $secret = trim((string) @file_get_contents("$storage/admin.secret"));
+$adminState = adminState($secret);
 $givenAdmin = $_SERVER['HTTP_X_WAIN_ADMIN'] ?? null;
 $isAdmin = false;
 if (is_string($givenAdmin) && $givenAdmin !== '') {
-    if ($secret === '') $fail(503, 'admin_unset');
     /* A short secret is refused before the comparison and before any wrong guess
        is counted, so it is never guessed at and no visitor's allowance is spent
        on one. The length is bytes (ADMIN_SECRET_MIN). */
-    if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
+    if ($adminState !== 'set') $fail(503, "admin_$adminState");
     if (!hash_equals($secret, $givenAdmin)) {
         /* A wrong guess is counted against the visitor's own bucket BEFORE the
            sleep, so guessing spends the allowance every other request spends and
@@ -1491,8 +1500,7 @@ if (!$isAdmin) {
 $needsAdmin = in_array($action, ADMIN_ACTIONS, true)
     || ($action === 'queue_join' && (($in['source'] ?? 'online') === 'walk_in'));
 if ($needsAdmin && !$isAdmin) {
-    if ($secret === '') $fail(503, 'admin_unset');
-    if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
+    if ($adminState !== 'set') $fail(503, "admin_$adminState");
     $fail(403, 'admin_required');
 }
 
@@ -1540,7 +1548,7 @@ try {
         /* The board reads this to choose its first screen: `unset` and `weak` both
            mean a password cannot work yet, so it shows the fix instead of a form. */
         $ok(['service' => 'wain-api', 'stage' => $stage, 'engine' => $db->driver, 'time' => nowIso(),
-             'admin' => $secret === '' ? 'unset' : (strlen($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set')]);
+             'admin' => $adminState]);
 
     case 'places':
         $rows = $db->all('SELECT * FROM places WHERE published = 1 ORDER BY sort_order ASC, created_at ASC');
@@ -1954,12 +1962,11 @@ try {
         $sig  = (string) ($in['sig'] ?? '');
         $file = $pendingFile($path);
         if ($file === null) $fail(400, 'bad_path');
-        if ($secret === '') $fail(503, 'admin_unset');
         /* The signature is an HMAC keyed on the secret, so a short key is a search an
            attacker can run offline: a four-character key was recovered from one signed
-           URL in 17 seconds. Refused before the signature is compared, as the admin
-           gate refuses it. */
-        if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
+           URL in 17 seconds. */
+        // The signatures are keyed on the secret, so a weak one signs nothing.
+        if ($adminState !== 'set') $fail(503, "admin_$adminState");
         if ($exp < time()) $fail(403, 'expired');
         if (!hash_equals($mediaSig($path, $exp), $sig)) $fail(403, 'bad_signature');
         if (!is_file($file)) $fail(404, 'not_found');

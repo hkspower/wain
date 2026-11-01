@@ -173,6 +173,21 @@ try {
     writeFileSync(join(storage, "admin.secret"), "");
     const c = await call("whoami", undefined, { admin: true });
     ok("an EMPTY secret file is still unset — trim(), not is_file", c.status === 503, String(c.status));
+    // A short secret is refused even with the matching token: `1234` was
+    // accepted before (the 14 October login scan, finding 2).
+    writeFileSync(join(storage, "admin.secret"), "1234\n");
+    const weak = await call("whoami", undefined, { admin: true, token: "1234" });
+    ok("a four-character secret refuses even its own token: 503 admin_weak", weak.status === 503 && weak.json?.error === "admin_weak", j(weak.json));
+    const weakPing = await call("ping");
+    ok("ping says the secret is weak, so the board can say why", weakPing.json?.admin === "weak", j(weakPing.json));
+    const weakNoHeader = await call("orders_list");
+    ok("an admin action with no header is 503 admin_weak too", weakNoHeader.status === 503 && weakNoHeader.json?.error === "admin_weak", j(weakNoHeader.json));
+    writeFileSync(join(storage, "admin.secret"), "y".repeat(31));
+    const short = await call("whoami", undefined, { admin: true, token: "y".repeat(31) });
+    ok("31 characters is still weak", short.status === 503 && short.json?.error === "admin_weak", j(short.json));
+    writeFileSync(join(storage, "admin.secret"), "y".repeat(32));
+    const edge = await call("whoami", undefined, { admin: true, token: "y".repeat(32) });
+    ok("32 characters is the floor and is accepted", edge.status === 200 && edge.json?.admin === true, j(edge.json));
     writeFileSync(join(storage, "admin.secret"), SECRET + "\n");
     const t0 = Date.now();
     const wrong = await call("whoami", undefined, { admin: true, token: "guess" });
