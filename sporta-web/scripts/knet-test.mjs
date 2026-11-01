@@ -25,7 +25,7 @@ const KNET = process.env.KNET_BASE ?? 'http://127.0.0.1:8098'
 const BANK = process.env.BANK_BASE ?? 'http://127.0.0.1:8097'
 const API = process.env.PHP_BASE ?? 'http://127.0.0.1:8095'
 const KEY = 'abcdef0123456789'
-const IV = 'PGKEYENCDECIVSPC'
+const IV = KEY // KNET's RAW PHP/JSP samples use the resource key as the IV too
 
 let fails = 0
 const ok = (n, d = '') => console.log(`ok   ${n}${d ? `  — ${d}` : ''}`)
@@ -143,6 +143,8 @@ head('a captured payment is recorded')
   is(bank.merchant_code === 200, 'the callback answered 200, not a bare redirect', `${bank.merchant_code}`)
   is(bank.used_token === true,
      'the callback speaks REDIRECT= — a server-to-server gateway can bring the customer home')
+  is(bank.strict_reply === true,
+     'and the reply is ONLY that line — no HTML, no 302 (K-064 §5: anything else risks auto-void)')
   is(bank.landing.includes('status=success') && bank.landing.includes('SPKNET0002'),
      'the customer lands on the success page', bank.landing.split('?')[1] ?? '')
 
@@ -166,23 +168,19 @@ head('a captured payment is recorded')
 // twice. So the second attempt handed the bank an id it had already seen, and
 // the bank is entitled to refuse it: a declined card became an unrecoverable
 // checkout for a reason that had nothing to do with the card.
-head('a declined card can be paid again')
+head('a second attempt gets its own reference; a declined order is closed')
 {
   await newOrder('SPKNET0RETRY')
 
-  // First attempt — declined by the bank.
+  // First attempt — the shopper reaches the bank page and backs out without
+  // paying, so no callback arrives and the order is still pending.
   const one = await get(`${KNET}/pay.php?trackid=SPKNET0RETRY`)
   const sentOne = parse(decrypt(new URL(one.headers.get('location')).searchParams.get('trandata')))
   is(sentOne.trackid === 'SPKNET0RETRY',
      'the FIRST attempt sends the order id unchanged — the common case is untouched',
      sentOne.trackid)
-  const declined = await fetch(
-    `${BANK}/fake-knet-bank.php?${new URL(one.headers.get('location')).searchParams}&outcome=notcaptured`)
-  await declined.json()
-  is(await sql("select payment_status from orders where track_id='SPKNET0RETRY'") !== 'paid',
-     'and the decline leaves the order unpaid')
 
-  // The shopper taps "try again" — same basket, so the SAME order and track id.
+  // They tap "pay" again — same basket, so the SAME order and track id.
   const two = await get(`${KNET}/pay.php?trackid=SPKNET0RETRY`)
   const sentTwo = parse(decrypt(new URL(two.headers.get('location')).searchParams.get('trandata')))
   is(sentTwo.trackid !== sentOne.trackid,
@@ -192,11 +190,10 @@ head('a declined card can be paid again')
      'and it still carries the order number, so a bank statement can be reconciled',
      sentTwo.trackid)
   is(sentTwo.trackid.length <= 30, 'within the field the gateway accepts', String(sentTwo.trackid.length))
+  is(sentTwo.udf5 === 'SPKNET0RETRY', 'udf5 carries the order id, set by the server', sentTwo.udf5)
 
   // THE PART THAT MUST NOT BREAK: the callback comes back carrying the RETRY
-  // reference, and has to settle the original order. cbk_update_order keys on
-  // track_id — an unresolved reference would mean the bank took the money and
-  // the order stayed pending, with nothing to say why.
+  // reference, and has to settle the original order.
   const captured = await (await fetch(
     `${BANK}/fake-knet-bank.php?${new URL(two.headers.get('location')).searchParams}&outcome=captured`)).json()
   is(captured.bank_result === 'CAPTURED', 'the retry is captured')
@@ -208,6 +205,19 @@ head('a declined card can be paid again')
      'THE ORIGINAL ORDER settles, even though the bank echoed the retry reference', row[0])
   is(row[1] === '1', 'with paid_at stamped')
   is(Number(row[2]) === 2, 'and the attempt counter says it took two', row[2])
+
+  // A DECLINED order is closed: the decline released its stock and queued a
+  // "do not ship" message, so charging it later would sell garments that may
+  // already be someone else's. The shopper starts a new checkout instead.
+  await newOrder('SPKNET0DECL')
+  const d1 = await get(`${KNET}/pay.php?trackid=SPKNET0DECL`)
+  await (await fetch(
+    `${BANK}/fake-knet-bank.php?${new URL(d1.headers.get('location')).searchParams}&outcome=notcaptured`)).json()
+  is(await sql("select payment_status from orders where track_id='SPKNET0DECL'") === 'failed',
+     'a decline marks the order failed')
+  const d2 = await get(`${KNET}/pay.php?trackid=SPKNET0DECL`)
+  is(d2.status === 409 && !d2.headers.get('location'),
+     'and it cannot be sent to the bank again', `${d2.status}`)
 }
 
 // ------------------------------------------------------------- replay safety
@@ -245,7 +255,11 @@ head('everything unverifiable fails closed')
   const pay = await get(`${KNET}/pay.php?trackid=SPKNET0003`)
   const url = new URL(pay.headers.get('location'))
   const bank = await (await fetch(`${BANK}/fake-knet-bank.php?${url.searchParams}&outcome=captured&amt=0.100`)).json()
-  is(bank.landing.includes('status=failed'), 'an underpayment is NOT treated as success', bank.landing.split('?')[1] ?? '')
+  // Money WAS captured, just the wrong amount, so the order goes to REVIEW (an
+  // operator refunds or collects the difference) — never to success, and not
+  // to "failed" either, which would release the stock and forget the money.
+  is(!bank.landing.includes('status=success') && bank.landing.includes('status=review'),
+     'an underpayment is NOT treated as success — it is held for review', bank.landing.split('?')[1] ?? '')
   const st = await sql("select payment_status, cbk_status from orders where track_id='SPKNET0003'")
   is(st.split('\t')[1] === 'AMOUNT_MISMATCH', 'and it is recorded as an amount mismatch', st)
 
@@ -316,6 +330,44 @@ head('a captured card whose callback never arrived')
 }
 
 // --------------------------------------------------------------- the audit log
+head('K-064: results, browsers and the error URL')
+{
+  // APPROVED is not a KNET purchase result; only CAPTURED means paid.
+  await newOrder('SPKNET0APPR')
+  const ap = await post(`${KNET}/callback.php`, {
+    trandata: encrypt('result=APPROVED&trackid=SPKNET0APPR&amt=21.000&paymentid=AP1&ref=R1&tranid=T1'),
+  })
+  const apBody = await ap.text()
+  is(!apBody.includes('status=success'), "'APPROVED' is not treated as paid", apBody.slice(0, 80))
+  is(await sql("select payment_status from orders where track_id='SPKNET0APPR'") !== 'paid',
+     'and the order is not marked paid')
+
+  // A browser landing on the callback gets a 302, not a plain-text page.
+  await newOrder('SPKNET0BROW')
+  const br = await fetch(`${KNET}/callback.php`, {
+    method: 'POST', redirect: 'manual',
+    headers: { ...HTTPS, 'Content-Type': 'application/x-www-form-urlencoded',
+      'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' },
+    body: new URLSearchParams({ trandata: encrypt('result=NOT CAPTURED&trackid=SPKNET0BROW&amt=21.000&paymentid=B1') }),
+  })
+  is(br.status === 302 && (br.headers.get('location') ?? '').includes('/payment/result'),
+     'a browser is sent on with a 302', `${br.status}`)
+
+  // The error URL: no trandata, Error/ErrorText in the query. Logged, and the
+  // order is NOT touched — the request is unauthenticated.
+  await newOrder('SPKNET0ERRU')
+  const er = await get(`${KNET}/callback.php?Error=IPAY0100048&ErrorText=Cancelled&trackid=SPKNET0ERRU&paymentid=E1`)
+  const erBody = await er.text()
+  is(erBody.includes('reason=bank_error'), 'the error URL reports a bank error to the shopper', erBody.slice(0, 90))
+  is(await sql("select payment_status from orders where track_id='SPKNET0ERRU'") === 'pending',
+     'and an unauthenticated error-URL hit cannot fail someone else\'s order')
+  const log = (await run('cat', ['/tmp/knet-test.log']).catch(() => ({ stdout: '' }))).stdout
+  is(log.includes('"event":"callback.error_url"') && log.includes('IPAY0100048'),
+     'the bank error code is logged (K-064 §13.1)')
+  is(/"event":"callback.received".*"raw":"[0-9A-F]+".*/.test(log) || /"event":"callback.received".*"fields":\{/.test(log),
+     'the encrypted and decrypted response are both kept (K-064 §5)')
+}
+
 head('the money leaves a trail')
 {
   const log = (await run('cat', ['/tmp/knet-test.log']).catch(() => ({ stdout: '' }))).stdout

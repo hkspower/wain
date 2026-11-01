@@ -8,208 +8,297 @@
 declare(strict_types=1);
 require __DIR__ . '/knet.php';
 knet_require_https();
-$cfg = require __DIR__ . '/config.php';
+$cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
 
 $return   = $cfg['result_page_url'];
 $in       = $_POST + $_GET;
 $trandata = (string)($in['trandata'] ?? '');
 
 if ($trandata === '') {
-    knet_send_customer_onward($cfg, $return . '?status=error&reason=missing_data');
+    // The errorURL leg: KNET sends the browser here with Error / ErrorText /
+    // paymentid / trackid and no trandata when it could not even start the
+    // payment (bad request, terminal problem, shopper closed the page). K-064
+    // §13.1 makes logging the response mandatory, so it is logged in full.
+    // It is NOT written to the order: this request is unauthenticated (anyone
+    // can open the URL with any trackid), and letting it fail an order would
+    // let a stranger cancel someone else's checkout and release its stock.
+    $clip = static fn($v): string => substr(preg_replace('/[^\x20-\x7E]/', '', (string) $v), 0, 200);
+    knet_log($cfg, 'callback.error_url', [
+        'trackid'   => $clip($in['trackid'] ?? ''),
+        'payid'     => $clip($in['paymentid'] ?? ($in['paymentId'] ?? '')),
+        'error'     => $clip($in['Error'] ?? ($in['error'] ?? '')),
+        'errortext' => $clip($in['ErrorText'] ?? ($in['errorText'] ?? '')),
+        'result'    => $clip($in['result'] ?? ''),
+    ]);
+    knet_send_customer_onward($cfg, $return . '?status=error&reason=' . (isset($in['Error']) || isset($in['ErrorText']) ? 'bank_error' : 'missing_data'));
     exit;
 }
 
 try {
-    $fields = knet_parse_response(knet_decrypt($trandata, $cfg['resource_key']));
+    $fields = knet_parse_response(knet_decrypt($trandata, (string)($cfg['resource_key'] ?? '')));
 } catch (Throwable $e) {
+    // Keep what arrived: a decrypt failure is either a key mismatch (support
+    // needs the payload to prove it) or a forged request.
+    knet_log($cfg, 'callback.decrypt_failed', [
+        'raw' => substr($trandata, 0, 4096), 'error' => $e->getMessage(),
+    ]);
     knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
     exit;
 }
 
-$result    = strtoupper((string)($fields['result'] ?? ''));
-$paid      = ($result === 'CAPTURED' || $result === 'APPROVED');
+$result    = strtoupper(trim((string)($fields['result'] ?? '')));
+// K-064: CAPTURED is the ONLY successful purchase result. 'APPROVED' used to
+// be accepted too; the manual has no such purchase result, and treating an
+// undocumented word as money received is how a shop ships unpaid orders.
+$bankPaid  = ($result === 'CAPTURED');
 // What the bank echoes back is the reference we SENT, which on a retry carries
 // an attempt suffix. Resolve it to the order's own track id immediately, before
 // anything else touches it: every lookup and the settling UPDATE below key on
 // `track_id`, and an unresolved reference would match no row at all — the bank
 // having captured the money while the order stayed pending.
-$trackid   = knet_resolve_track($cfg, (string)($fields['trackid'] ?? ''));
+$gatewayTrack = trim((string)($fields['trackid'] ?? ''));
+$trackid   = $gatewayTrack;
 $paymentid = (string)($fields['paymentid'] ?? '');
 $ref       = (string)($fields['ref'] ?? '');
-$paidAmt   = (string)($fields['amt'] ?? ($fields['Amt'] ?? ''));
+$paidAmt   = trim((string)($fields['amt'] ?? ($fields['Amt'] ?? '')));
 
-$haveDb = knet_db_configured($cfg) && $trackid !== '';
-
+// K-064 §5: the merchant MUST keep both the encrypted and the decrypted
+// response, and §9.6 lists the fields (date/time, result, amount, paymentid,
+// trackid, tranid, ref, auth). All of it is logged here — the response carries
+// no credentials, only the transaction — so postdate, avr and authRespCode,
+// which have no column in `orders`, are not lost. Errors are checked first, as
+// the manual asks: an Error/ErrorText inside the response is logged by name.
 knet_log($cfg, 'callback.received', [
-    'trackid' => $trackid, 'result' => $result, 'amt' => $paidAmt, 'payid' => $paymentid,
+    'trackid' => $gatewayTrack, 'result' => $result, 'amt' => $paidAmt, 'payid' => $paymentid,
+    'error'   => (string)($fields['Error'] ?? ($fields['error'] ?? '')),
+    'errortext' => (string)($fields['ErrorText'] ?? ($fields['errorText'] ?? '')),
+    'fields'  => $fields,
+    'raw'     => substr($trandata, 0, 8192),
 ]);
 
 // ---------------------------------------------------------------------------
-// Amount verification — FAIL CLOSED.
+// Settlement — FAIL CLOSED.
 //
-// Previously an unverifiable amount (database down, order missing, or KNET not
-// echoing 'amt') skipped the comparison entirely and the order was still
-// marked PAID. Now anything we cannot positively verify is held for review
-// instead of being trusted.
+// Success is derived from the result of one locked database transaction. The
+// transaction rechecks the resolved row, payment method, stored amount and
+// current state before it writes. A missing database, unknown order, amount
+// mismatch, or failed commit is REVIEW — never customer-visible success.
 // ---------------------------------------------------------------------------
-$review = false;
-if ($paid && $haveDb) {
-    $lookup = knet_order_lookup($cfg, $trackid);
-    if ($lookup['state'] !== 'found' || $paidAmt === '') {
-        $paid = false;
-        $review = true;
-        $result = 'UNVERIFIED_' . strtoupper($lookup['state']);
-        knet_log($cfg, 'callback.unverified', ['trackid' => $trackid, 'state' => $lookup['state']]);
-    } elseif (abs((float) $lookup['amount'] - (float) $paidAmt) >= 0.001) {
-        $paid = false;
-        $result = 'AMOUNT_MISMATCH';
-        knet_log($cfg, 'callback.amount_mismatch', [
-            'trackid' => $trackid, 'expected' => $lookup['amount'], 'paid' => $paidAmt,
-        ]);
-    }
+$settlement = ['state' => 'review', 'reason' => 'unverified_callback'];
+if (!knet_db_configured($cfg)) {
+    $settlement['reason'] = 'orders_database_not_configured';
+} elseif (!preg_match('/^[A-Za-z0-9]{1,30}$/', $gatewayTrack)) {
+    $settlement['reason'] = 'invalid_track_id';
+} else {
+    $trackid = knet_resolve_track($cfg, $gatewayTrack, trim((string)($fields['udf5'] ?? '')));
+    $settlement = knet_settle_order($cfg, $trackid, $bankPaid, $result, $paidAmt, $fields);
 }
 
-if ($haveDb) {
-    $ok = knet_update_order($cfg, $trackid, $paid, $result, $fields, $review);
-    if (!$ok) {
-        // The bank may well have taken the money; if we cannot record it the
-        // order must never be lost silently.
-        knet_log($cfg, 'callback.db_write_failed', [
-            'trackid' => $trackid, 'result' => $result, 'paid' => $paid, 'payid' => $paymentid,
-        ]);
-    }
+if ($settlement['state'] === 'review') {
+    knet_log($cfg, 'callback.review', [
+        'trackid' => $trackid,
+        'reason' => $settlement['reason'],
+        'result' => $result,
+        'payid' => $paymentid,
+    ]);
 }
 
-$status = $paid
+$status = $settlement['state'] === 'paid'
     ? 'success'
-    : ($review ? 'review' : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed'));
-$q = http_build_query(['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 'ref' => $ref]);
+    : ($settlement['state'] === 'review'
+        ? 'review'
+        : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed'));
+$query = ['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 'ref' => $ref];
+if ($status === 'review') $query['reason'] = $settlement['reason'];
+$q = http_build_query($query);
 knet_send_customer_onward($cfg, $return . '?' . $q);
 exit;
 
 // ---------------------------------------------------------------------------
-// Getting the customer back to the shop — the step KNET integrations lose
-// people on.
+// Getting the customer back to the shop.
 //
-// KPG has TWO deployment styles and they need opposite answers:
+// The same URL is reached two ways, and each needs a different answer:
 //
-//   * The gateway REDIRECTS THE BROWSER here. An HTTP 302 works; HTML works.
-//   * The gateway calls this URL SERVER TO SERVER and reads the reply looking
-//     for the token `REDIRECT=<url>`, then sends the browser there itself. A
-//     302 is useless in this mode: KNET's client does not render it, so the
-//     shopper is left on a blank bank page with their money taken.
+//   * KNET's server posts the result here (the notification). K-064 §5 and
+//     §10.2.1 #4-6 are explicit: the reply is ONE line, `REDIRECT=<url>`, with
+//     no HTML and no HTTP redirect, and a reply KNET cannot parse may make it
+//     void the payment — the customer is charged, then refunded, and the order
+//     is lost. The previous default printed that line AND an HTML page after it.
+//   * A browser lands here (the errorURL leg, or a bank that redirects the
+//     shopper instead of notifying). A plain-text REDIRECT line would strand
+//     them on a white page, so a browser gets a 302.
 //
-// Which one a given Tranportal ID gets is decided by the bank, not by us, and
-// the wrong guess is invisible in testing until a real customer is stranded.
-// So the default answers BOTH at once: HTTP 200, first line `REDIRECT=<url>`
-// for the server-to-server parser, then a meta refresh, a script and a plain
-// link for a browser. Set 'callback_response' => 'redirect' in config.php to
-// force the plain 302 if the bank confirms the browser-redirect style.
+// A browser is recognised by the Fetch Metadata header every current browser
+// sends on a top-level navigation (Sec-Fetch-Mode: navigate). KNET's server
+// client sends no such header, so it gets the exact reply the manual names.
+// 'callback_response' in config.php can force either answer:
+// 'redirect' (always 302) or 'plain' (always the REDIRECT= line).
 function knet_send_customer_onward(array $cfg, string $url): void
 {
-    if (($cfg['callback_response'] ?? 'both') === 'redirect') {
+    $mode = (string)($cfg['callback_response'] ?? 'auto');
+    $isBrowser = strtolower((string)($_SERVER['HTTP_SEC_FETCH_MODE'] ?? '')) === 'navigate'
+        || strtolower((string)($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '')) === 'document';
+    if ($mode === 'redirect' || ($mode !== 'plain' && $isBrowser)) {
         header('Location: ' . $url, true, 302);
         return;
     }
-    // Order matters: KNET scans from the start of the body, so REDIRECT= comes
-    // before any markup that might contain an '=' of its own.
-    header('Content-Type: text/html; charset=utf-8');
-    $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-    echo 'REDIRECT=' . $url . "\n";
-    echo '<!doctype html><html><head><meta charset="utf-8">',
-         '<meta http-equiv="refresh" content="0;url=', $safe, '">',
-         '<title>Redirecting…</title></head><body>',
-         '<script>location.replace("', $safe, '");</script>',
-         '<p><a href="', $safe, '">Continue</a></p>',
-         '</body></html>';
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo 'REDIRECT=' . $url;
 }
 
-// Returns true only if the order row was actually updated. The old version
-// discarded the curl result entirely, so a failed write left the customer on a
-// "success" page with no paid order recorded anywhere.
-function knet_update_order(array $cfg, string $trackid, bool $paid, string $result, array $fields, bool $review = false): bool
+// Return ['state' => 'paid'|'failed'|'review', 'reason' => string]. A new paid
+// result is returned only after commit. An already-paid KNET order also returns
+// paid, without rewriting it or queueing any success/failure side effect.
+function knet_settle_order(
+    array $cfg,
+    string $trackid,
+    bool $bankPaid,
+    string $result,
+    string $paidAmount,
+    array $fields
+): array
 {
-    // The bank's answer, written to the orders table on this same host. Every
-    // rule here was learned the hard way and none of them is decoration: never
-    // downgrade a paid order, never re-stamp or re-notify on a replay, and
-    // report a failed write honestly so the customer is not shown success over
-    // a payment nobody recorded.
     try {
         $pdo = knet_pdo($cfg);
         $pdo->beginTransaction();
 
-        // IDEMPOTENCE. A callback can arrive twice — the bank retries, the
-        // customer refreshes the return page, a proxy replays it. Without
-        // this an already-paid order was re-stamped with a new paid_at AND
-        // queued a SECOND "payment received" email to the warehouse, since
-        // the outbox's unique index only covers the 'new' message. It also
-        // untangles a PDO trap: rowCount() counts rows CHANGED, not matched,
-        // so rewriting identical values returns 0 and the old code read that
-        // as a failed write and logged a lost payment that was never lost.
-        $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+        // Lock first so amount/status/method verification and settlement see
+        // one state even when the bank retries concurrently.
+        $cur = $pdo->prepare(
+            'select id, amount, payment_status, payment_method, stock_released
+               from orders where track_id = ? for update'
+        );
         $cur->execute([$trackid]);
-        $before = $cur->fetchColumn();
-        if ($before === false) {           // no such order — nothing to write
+        $order = $cur->fetch(PDO::FETCH_ASSOC);
+        if (!$order) {
             $pdo->rollBack();
-            return false;
+            return ['state' => 'review', 'reason' => 'order_not_found'];
         }
-        if ($before === 'paid' && $paid) { // already settled: succeed, silently
+        $before = (string) $order['payment_status'];
+        $methodMatches = ((string) $order['payment_method'] === 'knet');
+
+        // Any replay or late failure after a durable payment is a no-op. This
+        // prevents both a downgrade and the old duplicate "do not ship" queue.
+        if ($before === 'paid' && $methodMatches) {
             $pdo->rollBack();
-            return true;
+            return ['state' => 'paid', 'reason' => 'already_paid'];
         }
-        $after = $paid ? 'paid' : ($review ? 'review' : 'failed');
+
+        $recordResult = $result;
+        $reason = $bankPaid ? 'captured' : 'bank_declined';
+        if (!$methodMatches) {
+            // A valid KNET callback for a T-Pay/COD order may mean money moved
+            // through the wrong rail. Hold an unpaid order and preserve the
+            // bank references for an operator; never mark it paid or trigger
+            // fulfilment. An order already paid elsewhere stays paid.
+            if ($before === 'paid') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'wrong_payment_method'];
+            }
+            if ($before === 'review') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'already_under_review'];
+            }
+            $after = 'review';
+            $recordResult = 'WRONG_PAYMENT_METHOD';
+            $reason = 'wrong_payment_method';
+        } elseif ($bankPaid) {
+            $expectedFils = knet_amount_fils((string) $order['amount']);
+            $paidFils = knet_amount_fils($paidAmount);
+            if (trim((string)($fields['paymentid'] ?? '')) === '') {
+                $after = 'review';
+                $recordResult = 'MISSING_PAYMENT_ID';
+                $reason = 'missing_payment_id';
+            } elseif ($expectedFils === null || $expectedFils <= 0) {
+                $after = 'review';
+                $recordResult = 'INVALID_ORDER_AMOUNT';
+                $reason = 'invalid_order_amount';
+            } elseif ($paidFils === null || $paidFils <= 0) {
+                $after = 'review';
+                $recordResult = 'INVALID_CAPTURED_AMOUNT';
+                $reason = 'invalid_captured_amount';
+            } elseif ($expectedFils !== $paidFils) {
+                $after = 'review';
+                $recordResult = 'AMOUNT_MISMATCH';
+                $reason = 'amount_mismatch';
+            } elseif ((int)$order['stock_released'] === 1) {
+                // Money may arrive after the reservation expired. Those
+                // garments are for sale again, so an operator must reconcile
+                // stock/refund before this payment may authorize fulfilment.
+                $after = 'review';
+                $recordResult = 'STOCK_RESERVATION_RELEASED';
+                $reason = 'stock_reservation_released';
+            } else {
+                $after = 'paid';
+            }
+        } else {
+            // Once an order is under review, a later failure must not release
+            // stock, overwrite reconciliation data, or queue a "do not ship"
+            // message. Only a verified capture or an operator may resolve it.
+            if ($before === 'review') {
+                $pdo->rollBack();
+                return ['state' => 'review', 'reason' => 'already_under_review'];
+            } elseif (!in_array($result, ['NOT CAPTURED', 'CANCELED', 'CANCELLED'], true)) {
+                $after = 'review';
+                $recordResult = 'UNRECOGNIZED_RESULT';
+                $reason = 'unrecognized_bank_result';
+            } else {
+                $after = 'failed';
+            }
+        }
+
         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
                   cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
                   cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
-                where track_id = ?';
-        if (!$paid) $sql .= " and payment_status <> 'paid'";
+                where id = ?';
         $st = $pdo->prepare($sql);
         $st->execute([
             $after,
-            $result,
+            $recordResult,
             (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
             (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
             (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
             (string)($fields['paytype'] ?? ''),
-            $paid ? gmdate('Y-m-d H:i:s') : null,
-            $trackid,
+            $after === 'paid' ? gmdate('Y-m-d H:i:s') : null,
+            (int) $order['id'],
         ]);
-        // Matched-not-changed: the guarded UPDATE above only skips rows
-        // that are already paid, and that case returned early, so reaching
-        // here means the row is ours to claim. rowCount() can still be 0
-        // when every column already holds these values (a replayed FAILURE
-        // callback), which is a successful write, not a lost one.
-        $updated = true;
-        // The warehouse hears about a TRANSITION, not about a delivery.
-        // Guarding on the status actually changing is what stops a replayed
-        // failure callback sending a second "do not ship" — the outbox's
-        // unique index only protects the 'new' message, so this guard is
-        // the only thing standing between a retry and a duplicate email.
-        if ($before !== $after && ($paid || !$review)) {
+
+        // rowCount() may be zero for an exact replay. Verify the state instead
+        // of treating "unchanged" as "not written".
+        $verify = $pdo->prepare('select payment_status, cbk_status from orders where id = ?');
+        $verify->execute([(int) $order['id']]);
+        $stored = $verify->fetch(PDO::FETCH_ASSOC);
+        if (!$stored || (string) $stored['payment_status'] !== $after
+            || (string) $stored['cbk_status'] !== $recordResult) {
+            throw new RuntimeException('KNET settlement did not persist');
+        }
+
+        // Queue only a real transition. Replays and review states have no
+        // fulfilment side effect.
+        if ($before !== $after && ($after === 'paid' || $after === 'failed')) {
             // The ship-it / do-not-ship follow-up, queued in the same
             // transaction as the status it reports.
-            $o = $pdo->prepare('select id from orders where track_id = ?');
-            $o->execute([$trackid]);
-            if ($orderId = $o->fetchColumn()) {
-                // public_html layout first (knet/ and api/ are
-                // siblings); repo layout second, for the test rig.
-                // A MISSING store.php is a deployment error, not a data
-                // one, and must never roll back the record that money was
-                // taken: require_once throws inside this try, and the catch
-                // below would put the order back to 'pending' with the cash
-                // already captured.
-                $storeLib = dirname(__DIR__) . '/api/store.php';
-                if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
-                if (is_file($storeLib)) {
-                    require_once $storeLib;
-                    store_queue_fulfilment($pdo, (int)$orderId, 'payment');
-                }
+            $storeLib = dirname(__DIR__) . '/api/store.php';
+            if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
+            if (is_file($storeLib)) {
+                require_once $storeLib;
+                store_queue_fulfilment($pdo, (int) $order['id'], 'payment');
             }
         }
-        $pdo->commit();
-        return $updated;
+
+        if (!$pdo->commit()) {
+            throw new RuntimeException('KNET settlement commit failed');
+        }
+        return ['state' => $after, 'reason' => $reason];
     } catch (Throwable $e) {
         if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-        return false;
+        knet_log($cfg, 'callback.db_write_failed', [
+            'trackid' => $trackid,
+            'result' => $result,
+            'payid' => (string)($fields['paymentid'] ?? ''),
+            'error' => $e->getMessage(),
+        ]);
+        return ['state' => 'review', 'reason' => 'database_write_failed'];
     }
 }

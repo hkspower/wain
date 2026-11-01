@@ -108,4 +108,8 @@ echo json_encode([
     'merchant_code' => $code,
     'landing'       => $landing,
     'used_token'    => $landing !== '' && str_contains($body, 'REDIRECT='),
+    // K-064 §5 / §10.2.1: the notification reply is ONE line, REDIRECT=<url>,
+    // with no HTML and no HTTP redirect — anything else may make KNET void the
+    // payment. A loose /REDIRECT=/ match hid a reply that also carried a page.
+    'strict_reply'  => $code === 200 && $loc === '' && preg_match('/\\AREDIRECT=\\S+\\s*\\z/', $body) === 1,
 ], JSON_UNESCAPED_SLASHES);

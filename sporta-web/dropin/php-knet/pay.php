@@ -1,39 +1,31 @@
 <?php
 // Start a KNET payment.
-//   GET/POST: amount=1.500 & trackid=ORDER123 (unique) [& udf1..5]
+//   GET/POST: trackid=ORDER123 (unique) [& lang=ar|en]
 // Builds the encrypted trandata and posts the customer to KNET's hosted page.
 
 declare(strict_types=1);
 require __DIR__ . '/knet.php';
 knet_require_https();
-$cfg = require __DIR__ . '/config.php';
+$cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
 
 // Read only GET/POST explicitly — $_REQUEST's contents depend on the
 // request_order ini setting and can include cookies on some configurations.
 $in      = $_POST + $_GET;
-$amount  = trim((string)($in['amount']  ?? ''));
 $trackid = trim((string)($in['trackid'] ?? ''));
 
 // The bank page has an Arabic face and the storefront already knows which one
 // the shopper is reading — checkout.js sends ?lang=. Ignoring it sent every
 // Arabic customer to an English card form on an Arabic-first shop. Only the
 // two values KNET accepts are honoured; anything else falls back to config.
-$langIn = strtoupper(trim((string)($in['lang'] ?? '')));
-$langid = in_array($langIn, ['AR', 'EN'], true) ? $langIn : (string) $cfg['language'];
+$langIn = strtolower(trim((string)($in['lang'] ?? '')));
+$configuredLang = strtoupper((string)($cfg['language'] ?? 'USA'));
+if ($configuredLang === 'EN') $configuredLang = 'USA'; // legacy config value
+$langid = $langIn === 'ar' ? 'AR' : ($langIn === 'en' ? 'USA' : $configuredLang);
 
 // Strict validation (also blocks injection into the trandata string).
 if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     http_response_code(400);
     exit('Invalid track id.');
-}
-// `amount` is OPTIONAL. The correct flow — api/?r=order and the Flutter app —
-// links to pay.php?trackid=... with no amount at all, because the price comes
-// from the order. Requiring it here rejected exactly the flow that is safe.
-// It is still validated when present, and it is only ever USED when there is
-// no orders database to price the order from.
-if ($amount !== '' && (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0)) {
-    http_response_code(400);
-    exit('Invalid amount.');
 }
 
 // ---------------------------------------------------------------------------
@@ -47,8 +39,13 @@ if ($amount !== '' && (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float
 // ---------------------------------------------------------------------------
 $lookup = knet_order_lookup($cfg, $trackid);
 
+if ($lookup['state'] === 'off') {
+    knet_log($cfg, 'pay.reject', ['reason' => 'orders_database_not_configured', 'trackid' => $trackid]);
+    http_response_code(503);
+    exit('Payment service is not configured.');
+}
 if ($lookup['state'] === 'missing') {
-    knet_log($cfg, 'pay.reject', ['reason' => 'order_not_found', 'trackid' => $trackid, 'asked' => $amount]);
+    knet_log($cfg, 'pay.reject', ['reason' => 'order_not_found', 'trackid' => $trackid]);
     http_response_code(404);
     exit('Unknown order.');
 }
@@ -58,45 +55,77 @@ if ($lookup['state'] === 'error') {
     exit('Could not verify the order right now. Please try again in a moment.');
 }
 if ($lookup['state'] === 'found') {
-    if ((string) $lookup['status'] === 'paid') {
+    if ((string) $lookup['method'] !== 'knet') {
+        knet_log($cfg, 'pay.reject', [
+            'reason' => 'wrong_payment_method', 'trackid' => $trackid,
+            'method' => (string) $lookup['method'],
+        ]);
+        http_response_code(409);
+        exit('This order is not payable by KNET.');
+    }
+    $paymentStatus = (string) $lookup['status'];
+    if ($paymentStatus === 'paid') {
         knet_log($cfg, 'pay.reject', ['reason' => 'already_paid', 'trackid' => $trackid]);
         http_response_code(409);
         exit('This order has already been paid.');
     }
-    if ((float) $lookup['amount'] <= 0) {
-        knet_log($cfg, 'pay.reject', ['reason' => 'zero_amount', 'trackid' => $trackid]);
-        http_response_code(400);
-        exit('Order has no payable amount.');
+    if ($paymentStatus === 'review') {
+        knet_log($cfg, 'pay.reject', ['reason' => 'payment_under_review', 'trackid' => $trackid]);
+        http_response_code(409);
+        exit('This payment is under review.');
     }
-    $amount = number_format((float) $lookup['amount'], 3, '.', '');
+    if ($paymentStatus !== 'pending') {
+        knet_log($cfg, 'pay.reject', [
+            'reason' => 'invalid_payment_status', 'trackid' => $trackid, 'status' => $paymentStatus,
+        ]);
+        http_response_code(409);
+        exit('This order is not payable right now.');
+    }
+    if ((int)$lookup['stock_released'] !== 0 || $lookup['fulfilment_status'] === 'cancelled') {
+        knet_log($cfg, 'pay.reject', ['reason' => 'stock_reservation_released', 'trackid' => $trackid]);
+        http_response_code(409);
+        exit('This order is no longer reserved. Please start a new checkout.');
+    }
+    $orderFils = knet_amount_fils((string) $lookup['amount']);
+    if ($orderFils === null || $orderFils <= 0) {
+        knet_log($cfg, 'pay.reject', [
+            'reason' => 'invalid_order_amount', 'trackid' => $trackid,
+        ]);
+        http_response_code(409);
+        exit('Order has no verifiable payable amount.');
+    }
+    $amount = knet_format_fils($orderFils);
 }
-if ($lookup['state'] === 'off') {
-    // No orders database: the browser's amount is the only figure available,
-    // so it must at least be present and well formed. See config.example.php —
-    // running a live storefront in this mode means the browser sets the price.
-    if ($amount === '') {
-        http_response_code(400);
-        exit('Invalid amount.');
-    }
+
+try {
+    // Validate all local prerequisites before consuming an attempt number.
+    knet_assert_payment_config($cfg);
+    $attemptTrack = knet_attempt_ref($cfg, $trackid);
+} catch (Throwable $e) {
+    knet_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+    http_response_code(503);
+    exit('Payment could not be prepared. Please try again.');
 }
 
 $trandata = knet_build_trandata([
     'id'           => $cfg['tranportal_id'],
     'password'     => $cfg['tranportal_password'],
-    'action'       => $cfg['action'],
+    'action'       => '1',
     'langid'       => $langid,
-    'currencycode' => $cfg['currency_code'],
+    'currencycode' => '414',
     'amt'          => $amount,
     'responseURL'  => $cfg['response_url'],
     'errorURL'     => $cfg['error_url'],
-    // A reference unique to this ATTEMPT, so a retry after a decline is not
-    // refused as a duplicate. Attempt one is the track id unchanged.
-    'trackid'      => knet_attempt_ref($cfg, $trackid),
-    'udf1'         => (string)($in['udf1'] ?? ''),
-    'udf2'         => (string)($in['udf2'] ?? ''),
-    'udf3'         => (string)($in['udf3'] ?? ''),
-    'udf4'         => (string)($in['udf4'] ?? ''),
-    'udf5'         => (string)($in['udf5'] ?? ''),
+    // A reference unique to this ATTEMPT. Repeated starts while pending must
+    // not be refused as duplicates. Attempt one is the track id unchanged.
+    'trackid'      => $attemptTrack,
+    'udf1'         => '',
+    'udf2'         => '',
+    'udf3'         => '',
+    'udf4'         => '',
+    // Reserved by the server so callbacks can resolve a retry for a maximum-
+    // length track id after the visible gateway reference is shortened.
+    'udf5'         => $trackid,
 ]);
 
 try {
@@ -107,13 +136,24 @@ try {
     exit('Payment init failed.');
 }
 
+// K-064 §13.1a: log the request sent to the gateway. Everything except the
+// Tranportal id and its password — the two values that would let someone
+// else start payments on this terminal.
 knet_log($cfg, 'pay.init', [
     'trackid' => $trackid,
+    'attempt' => $attemptTrack,
     'amount'  => $amount,
-    'source'  => $lookup['state'] === 'found' ? 'server' : 'client-no-db',
+    'source'  => 'server',
+    'request' => [
+        'action' => '1', 'langid' => $langid, 'currencycode' => '414', 'amt' => $amount,
+        'trackid' => $attemptTrack, 'udf5' => $trackid,
+        'responseURL' => $cfg['response_url'], 'errorURL' => $cfg['error_url'],
+        'gateway' => knet_gateway_url($cfg),
+    ],
 ]);
 
 $params = http_build_query([
+    'param'        => 'paymentInit',
     'trandata'     => $encrypted,
     'tranportalId' => $cfg['tranportal_id'],
     'responseURL'  => $cfg['response_url'],
