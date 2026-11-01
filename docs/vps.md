@@ -10,6 +10,32 @@
 > followed as written, and nothing here has been checked against what the VPS
 > runs in front of its web server.
 
+## Getting the PHP endpoints onto the running site — 1 November (not done)
+
+**What was read.** `vps_docker_get` (the Hostinger API, read-only; nothing on the VPS was changed) returns `/docker/apache/docker-compose.yml`: five services. `wain` is `build: ./sites/wainkw.com` with that folder's own `Dockerfile`, and **only `storage/` is mounted into it** (`./sites/wainkw.com/storage:/var/www/storage`). So the PHP files, `api/wain.php` among them, are baked into the image when it is built. **Copying a file into the folder changes nothing live until `wain` is rebuilt.**
+
+**What cannot do it.**
+- The Hostinger API has no file write on a VPS. Its only update, `vps_docker_update`, acts on the whole `apache` project, which also builds sporta, almuhallab and mawsoool, and `vps_docker_create` replaces a project of the same name. Neither should be used for one site's PHP files.
+- The sandbox cannot reach the VPS: DNS for `srv2058651.hstgr.cloud` gives no answer, TCP 22 to `187.7.78.123` does not connect, and no SSH client is installed (1 November). Network settings of the cloud environment apply to a new session, not to a running one.
+
+**Which files.** Only the ones that already exist on the VPS, under the names they have there: `wain-api.php` is `api/wain.php` and `media-endpoint.php` is `api/media.php` (it may not be installed at all; installing it is the owner's decision, `docs/backend.md`). **Do not push `tts-endpoint.php`**: the voice bridge was closed on 15 October and this would reopen it. **Do not push `deploy-call.php`**: it signs deploys to the shared host's endpoint, and nothing on the VPS receives it. These bytes are unchanged since `b037b860`:
+
+| file | bytes | sha256 |
+|---|---|---|
+| `scripts/publish/wain-api.php` | 113189 | `c7aa5fad3578a6e7b16b484cf1919cbe8e6b00b8ef98262abb55b30ed4710107` |
+| `scripts/publish/media-endpoint.php` | 36289 | `33ba98af3620b851ad01ccc17fe7ba38d16b7f2b0e327e77909f18ed991e204d` |
+
+**The route that needs nothing from the sandbox.** As root in the Hostinger browser terminal (hPanel, VPS, Browser terminal), from `/docker/apache/sites/wainkw.com`:
+
+1. **Read the layout.** `cat Dockerfile`, and `find . -path ./storage -prune -o -name 'wain.php' -print` (likewise `media.php`). The Dockerfile says where each file enters the image. The folder is the owner's own source, so nothing below is guessed at.
+2. **Look before overwriting.** Back up each file to be replaced (`cp -p f f.bak-<date>`) and `diff` it against the repository's copy, fetched from `https://raw.githubusercontent.com/hkspower/wain/b037b860/scripts/publish/<file>`. A difference nobody recognises is the owner's change: stop and ask.
+3. **Check the admin secret.** These endpoints refuse a secret under 32 characters (503 `admin_weak`). From the folder: `php -r 'echo preg_match_all("/./us", trim(file_get_contents("storage/admin.secret")));'`. Under 32 means the board locks after the push: replace the secret first (`docs/admin-setup.md`).
+4. **Put the files where step 1 found them** and check their sha256 against the table.
+5. **Rebuild only wain:** `docker compose -f /docker/apache/docker-compose.yml up -d --build wain`. Not the project-wide form, which would rebuild the other sites too.
+6. **Check:** `docker compose -f /docker/apache/docker-compose.yml exec wain php <path to wain.php> version`, then `migrate` (creates the `gaps` table that `gap_report` needs), then `selftest`, then a request to `https://www.wainkw.com/api/wain.php?a=ping`.
+
+A new session with SSH allowed could do the same steps. It would still have to read the layout first, and it would still stop at step 2 on any difference.
+
 The Hostinger VPS `srv2058651.hstgr.cloud` (IP `187.7.78.123`) builds wain and,
 when this was written, sent it to **staging only**, with production
 (`www.wainkw.com`) promoted separately by hand. The Hostinger API reports its
