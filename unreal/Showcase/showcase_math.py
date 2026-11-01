@@ -240,7 +240,7 @@ def mac_profile_from_args(args):
             return float(got[k]) if "." in got.get(k, "") else int(got[k])
         except (KeyError, ValueError):
             return None
-    return mac_profile(num("memory_gb"), num("gpu_cores"), num("perf_cores"), got.get("chip", ""))
+    return mac_profile(num("memory_gb"), num("gpu_cores"), num("perf_cores"), got.get("chip", "").replace("_", " "))  # run.sh passes "Apple_M2_Pro"
 
 
 # The night Gulf Road stations: the same two places the web build's 4K

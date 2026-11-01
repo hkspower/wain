@@ -82,12 +82,16 @@ say "project" "$PROJECT"
 # just succeeding.
 WANT_VER="$(sed -n 's/.*"EngineAssociation"[^"]*"\([^"]*\)".*/\1/p' "$PROJECT")"
 UE=""
-for candidate in \
-  "/Users/Shared/Epic Games/UE_${WANT_VER}" \
-  "/Applications/Epic Games/UE_${WANT_VER}" \
-  "$HOME/UnrealEngine" ; do
-  [ -d "$candidate" ] && UE="$candidate" && break
-done
+if [ -n "${UE_ROOT:-}" ] && [ -d "$UE_ROOT" ]; then
+  UE="$UE_ROOT"   # asked for by name, so it wins over whatever else is installed (run.sh does the same)
+else
+  for candidate in \
+    "/Users/Shared/Epic Games/UE_${WANT_VER}" \
+    "/Applications/Epic Games/UE_${WANT_VER}" \
+    "$HOME/UnrealEngine" ; do
+    [ -d "$candidate" ] && UE="$candidate" && break
+  done
+fi
 if [ -z "$UE" ]; then
   bad "engine" "no Unreal ${WANT_VER} found in the usual places — set UE_ROOT and re-run"
   [ -n "${UE_ROOT:-}" ] && UE="$UE_ROOT" && fail=$((fail - 1)) && say "engine" "using UE_ROOT=$UE"
@@ -188,7 +192,7 @@ if [ "$fail" -gt 0 ]; then
   exit 1
 fi
 echo "  The connector can reach $URL and agrees with it."
-echo "  Open GulfRoadNights.xcworkspace, or run the editor with:"
+echo "  Open the .xcworkspace GenerateProjectFiles made next to GulfRoadNights.uproject, or run the editor with:"
 echo "      -grnapi=$URL -grnhub=$HUB"
 echo
 # The paint is not built here: the commandlet lives in the editor module,

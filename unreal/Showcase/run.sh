@@ -77,7 +77,7 @@ find_engine() {
 # folder on it: that is how the night executor comes to exist.
 export UE_PYTHONPATH="$HERE${UE_PYTHONPATH:+:$UE_PYTHONPATH}"
 
-COMMON=(-stdout -FullStdOutLogOutput -unattended -nosplash -NoLoadingScreen)
+COMMON=(-stdout -FullStdOutLogOutput -unattended -nosplash -NoLoadingScreen -nosound)
 
 # ---- this machine ----------------------------------------------------
 # On an Apple-silicon Mac: the chip, the one pool of memory, the
@@ -99,16 +99,35 @@ read_machine() {
   MAC_ARGS=("--mac-memory-gb=$((mem / 1073741824))")
   [ -n "$gpu" ] && MAC_ARGS+=("--mac-gpu-cores=$gpu")
   [ -n "$perf" ] && MAC_ARGS+=("--mac-perf-cores=$perf")
-  [ -n "$chip" ] && MAC_ARGS+=("--mac-chip=$chip")
-  say machine "$(python3 "$HERE/showcase_math.py" "${MAC_ARGS[@]}")"
+  # The Python plugin splits -ExecutePythonScript's value on spaces, so a chip
+  # called "Apple M2 Pro" would arrive as three arguments and "M2" would be
+  # taken for the car. Underscores go in; showcase_math turns them back.
+  [ -n "$chip" ] && MAC_ARGS+=("--mac-chip=${chip// /_}")
+  say machine "$(python3 "$HERE/showcase_math.py" ${MAC_ARGS[@]+"${MAC_ARGS[@]}"})"
 }
 stamp() { date +%Y%m%d-%H%M%S; }
+
+# run_logged LOG PATTERN CMD...: the editor's output to LOG, the lines that
+# matter to the terminal. The pipeline used to end in `|| true`, so a crashed
+# editor looked the same as a finished one; its own exit status is kept now.
+run_logged() {
+  local log="$1" pat="$2" st; shift 2
+  set +e
+  "$@" 2>&1 | tee "$log" | grep -E "$pat"
+  st="${PIPESTATUS[0]}"
+  set -e
+  [ "$st" -eq 0 ] || say WARNING "the editor exited with status $st: read $log"
+  return 0
+}
 
 editor_py() {  # run grn_showcase.py <args> inside the editor, then quit
   local args="$*"; local log="$OUT/logs/${1}-$(stamp).log"
   say log "$log"
-  "$UE_CMD" "$PROJECT" -ExecutePythonScript="$HERE/grn_showcase.py $args" "${COMMON[@]}" 2>&1 | tee "$log" \
-    | grep -E "\[showcase\]|LogPython|Error|error:" || true
+  # The script's path is quoted inside the value: UE splits the script from its
+  # arguments at the first unquoted space, and a repository in a folder with a
+  # space in its name would otherwise lose everything after it.
+  run_logged "$log" "\[showcase\]|LogPython|Error|error:" \
+    "$UE_CMD" "$PROJECT" -ExecutePythonScript="\"$HERE/grn_showcase.py\" $args" "${COMMON[@]}"
   say done "$args (full log: $log)"
 }
 
@@ -116,10 +135,10 @@ mrq() {  # map sequence preset resx resy label
   local map="$1" seq="$2" preset="$3" rx="$4" ry="$5" label="$6"
   local log="$OUT/logs/$label-$(stamp).log"
   say log "$log"
-  "$UE_CMD" "$PROJECT" "$map" -game \
+  run_logged "$log" "LogMovieRenderPipeline|Finished|wrote|Error|Fatal" \
+    "$UE_CMD" "$PROJECT" "$map" -game \
     -MoviePipelineConfig="$preset" -LevelSequence="$seq" \
-    -windowed -ResX="$rx" -ResY="$ry" -log -notexturestreaming "${COMMON[@]}" 2>&1 | tee "$log" \
-    | grep -E "LogMovieRenderPipeline|Finished|wrote|Error|Fatal" || true
+    -windowed -ResX="$rx" -ResY="$ry" -log -notexturestreaming "${COMMON[@]}"
   say done "$label (full log: $log)"
 }
 
@@ -140,7 +159,8 @@ case "$cmd" in
     curl -s -o /dev/null --max-time 5 http://localhost:3000/race || \
       die "the web build is not running: in another terminal, from $REPO, run  npm run dev"
     missing=()
-    for id in $(ids_for "${1:-all}"); do
+    ids="$(ids_for "${1:-all}")" || exit 1   # die inside $(...) only ends the subshell
+    for id in $ids; do
       [ -f "$REPO/press/renders/glb/$id.glb" ] || missing+=("$id")
     done
     if [ ${#missing[@]} -eq 0 ]; then say export "every GLB is already in press/renders/glb/"; exit 0; fi
@@ -152,7 +172,7 @@ case "$cmd" in
     editor_py "$cmd" "$@" ;;
   build)
     find_engine; read_machine
-    editor_py "$cmd" "$@" "${MAC_ARGS[@]}" ;;
+    editor_py "$cmd" "$@" ${MAC_ARGS[@]+"${MAC_ARGS[@]}"} ;;
   preview)
     id="${1:?preview which car? e.g. run.sh preview black-demon hero}"; shot="${2:-hero}"
     ids_for "$id" >/dev/null; find_engine
@@ -168,10 +188,12 @@ case "$cmd" in
         *) target="$a" ;;
       esac
     done
-    for id in $(ids_for "$target"); do
+    ids="$(ids_for "$target")" || exit 1
+    for id in $ids; do
       if [ "$shot" = "all" ]; then
         for s in hero side rear; do render_one "$id" "$s" "$q"; done
-        [ "$id" = "black-demon" ] && render_one "$id" turntable "$q"
+        # an `[ ] && cmd` last in the loop leaves status 1 for every other car
+        if [ "$id" = "black-demon" ]; then render_one "$id" turntable "$q"; fi
       else
         render_one "$id" "$shot" "$q"
       fi
@@ -181,12 +203,12 @@ case "$cmd" in
     shot="${1:-city}"; car="${2:-black-demon}"; ids_for "$car" >/dev/null
     log="$OUT/logs/$car-night-$shot-$(stamp).log"
     say log "$log"
-    "$UE_CMD" "$PROJECT" /Engine/Maps/Entry -game \
+    run_logged "$log" "\[night\]|GRNShowcase|LogMovieRenderPipeline|Error|Fatal" \
+      "$UE_CMD" "$PROJECT" /Engine/Maps/Entry -game \
       -MoviePipelineLocalExecutorClass=/Script/MovieRenderPipelineCore.MoviePipelinePythonHostExecutor \
       -ExecutorPythonClass=/Engine/PythonTypes.GRNNightExecutor \
       -GRNNight="$shot" -GRNNightCar="$car" -ExecCmds="py import grn_night" \
-      -windowed -ResX=1920 -ResY=1080 -log -notexturestreaming "${COMMON[@]}" 2>&1 | tee "$log" \
-      | grep -E "\[night\]|GRNShowcase|LogMovieRenderPipeline|Error|Fatal" || true
+      -windowed -ResX=1920 -ResY=1080 -log -notexturestreaming "${COMMON[@]}"
     say done "night $shot, $car (full log: $log)" ;;
   sheet)
     command -v node >/dev/null || die "node is needed"
