@@ -14,7 +14,8 @@
 //   * a success is recorded with the bank's reference numbers, once;
 //   * a replay changes nothing and a late failure cannot un-pay an order;
 //   * an underpayment is held for review rather than banked;
-//   * a cancel leaves the order unpaid.
+//   * a cancel leaves the order unpaid;
+//   * a paid answer the shop cannot confirm is held for review, never success.
 //
 //   npm run test:tpay
 //   (needs MariaDB, php -S :8095 php-store, :8099 the gateway, :8100 php-cbk)
@@ -184,6 +185,23 @@ head('everything unverifiable fails closed')
   const ghost = await get(`${PAY}/callback.php?encrp=ENCdeadbeef`)
   is(!(ghost.headers.get('location') ?? '').includes('status=success'),
      'a made-up transaction handle cannot claim a payment')
+}
+
+// ------------------------------------ a paid answer the shop cannot confirm
+head('a paid answer the shop cannot confirm is held, not shown as success')
+{
+  // The bank says paid, but by the time it answers the order no longer matches
+  // our track id (renamed here to stand in for a vanished or unreachable row).
+  // Showing success would be a claim nothing in the database backs.
+  await newOrder('SPTPAY0005')
+  const html = await (await get(`${PAY}/pay.php?trackid=SPTPAY0005`)).text()
+  await sql("update orders set track_id='SPGONE0005' where track_id='SPTPAY0005'")
+  const { location } = await payThrough(html, 'outcome=success')
+  is(location.includes('status=review'),
+     'a paid answer the shop cannot match is held for REVIEW', location.split('?')[1] ?? '')
+  is(!location.includes('status=success'), 'and it is NOT shown as success')
+  is((await sql("select payment_status from orders where track_id='SPGONE0005'")) === 'pending',
+     'and nothing is marked paid')
 }
 
 // -------------------------------------------------------- paying twice over

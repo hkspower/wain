@@ -159,32 +159,59 @@ cbk_log($cfg, 'callback.received', [
     'trackid' => $trackid, 'status' => $statusCode, 'amt' => $paidAmount, 'payid' => $paymentId,
 ]);
 
-// SECURITY — amount verification. Confirm the amount CBK actually charged
-// matches the amount recorded for this order. If they differ, the amount was
-// tampered with: refuse to mark the order paid.
-if ($paid && $haveDb) {
-    $expected = cbk_order_expected_amount($cfg, $trackid);
-    if ($expected !== null && !amounts_equal($expected, $paidAmount)) {
-        $paid = false;
-        $statusCode = 'amount_mismatch';
-        cbk_log($cfg, 'callback.amount_mismatch', [
-            'trackid' => $trackid, 'expected' => $expected, 'paid' => $paidAmount,
-        ]);
+// SECURITY — settlement. A paid answer from the bank becomes "success" only once
+// the database has recorded it. Anything the shop cannot confirm is held for
+// REVIEW: the money may already have moved, and a success page for an order
+// nothing recorded is the exact failure this path exists to prevent. The KNET
+// dropin holds the same line.
+$review  = null;
+$written = null;
+if ($paid) {
+    if (!$haveDb) {
+        $review = 'database_unavailable';
+    } else {
+        $expected = cbk_order_expected_amount($cfg, $trackid);
+        if ($expected === null) {
+            // Not found, or the database is unreachable. Either way the amount
+            // cannot be proved, so the order cannot be claimed as paid.
+            $review = 'order_not_confirmed';
+        } elseif (!amounts_equal($expected, $paidAmount)) {
+            $review = 'amount_mismatch';
+            cbk_log($cfg, 'callback.amount_mismatch', [
+                'trackid' => $trackid, 'expected' => $expected, 'paid' => $paidAmount,
+            ]);
+        }
     }
+}
+if ($review !== null) {
+    // Never record a payment we could not verify as paid. A held order is
+    // stored as "review" so a person can reconcile it against the bank.
+    $paid = false;
+    cbk_log($cfg, 'callback.review', ['trackid' => $trackid, 'reason' => $review, 'payid' => $paymentId]);
 }
 
 // Persist the result (the manual requires merchants to save it).
 if ($haveDb) {
-    cbk_update_order($cfg, $trackid, $paid, $res);
+    $written = cbk_update_order($cfg, $trackid, $paid, $res, $review !== null ? 'review' : null);
 }
 
-$status = $paid ? 'success' : ($statusCode === '3' ? 'cancelled' : 'failed');
-$q = http_build_query([
-    'status'  => $status,
-    'trackid' => $trackid,
-    'payid'   => $paymentId,
-    'ref'     => $ref,
-]);
+// The bank said paid and we verified the amount, but the order was not written.
+// Showing success here would be a claim the database does not back.
+if ($paid && $review === null && !in_array($written, ['written', 'already_paid'], true)) {
+    $review = $written === 'no_order' ? 'order_not_confirmed' : 'database_write_failed';
+    cbk_log($cfg, 'callback.review', ['trackid' => $trackid, 'reason' => $review, 'payid' => $paymentId]);
+}
+
+if ($review !== null) {
+    $status = 'review';
+} elseif ($paid) {
+    $status = 'success';
+} else {
+    $status = $statusCode === '3' ? 'cancelled' : 'failed';
+}
+$params = ['status' => $status, 'trackid' => $trackid, 'payid' => $paymentId, 'ref' => $ref];
+if ($status === 'review') $params['reason'] = $review;
+$q = http_build_query($params);
 header('Location: ' . $return . '?' . $q, true, 302);
 exit;
 
@@ -202,9 +229,9 @@ function cbk_order_expected_amount(array $cfg, string $trackid): ?string
     return cbk_order_amount($cfg, $trackid);
 }
 
-function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): void
+function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res, ?string $forceStatus = null): string
 {
-    $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
+    $status = $forceStatus ?? ($paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed'));
 
     // Mirrors the KNET dropin exactly, including the parts it learned the hard
     // way: never downgrade a paid order, never re-stamp or re-notify on a
@@ -216,8 +243,8 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
         $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
         $cur->execute([$trackid]);
         $before = $cur->fetchColumn();
-        if ($before === false) { $pdo->rollBack(); return; }
-        if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
+        if ($before === false) { $pdo->rollBack(); return 'no_order'; }
+        if ($before === 'paid' && $paid) { $pdo->rollBack(); return 'already_paid'; }
 
         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
                   cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
@@ -252,7 +279,10 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             }
         }
         $pdo->commit();
+        return 'written';
     } catch (Throwable $e) {
         if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
+        return 'error';
     }
 }
