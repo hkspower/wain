@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+ios
+flutter_app
+brand-source
+design
+*.zip
