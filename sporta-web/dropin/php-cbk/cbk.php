@@ -5,6 +5,37 @@
 
 declare(strict_types=1);
 
+// The config locator FAILS CLOSED: a private-config server whose settings are
+// wrong throws rather than guess. That message and its stack trace name the
+// private mount, so they go to the error log, never to the shopper. store.php
+// does the same; both gateways must, or the one that does not is the leak.
+ini_set('display_errors', '0');
+
+// WHERE THE MERCHANT CONFIG LIVES is one rule, shared with the store and /knet:
+// api/config-path.php (source: dropin/php-store/config-path.php). On the VPS it
+// names the private mount (SPORTA_PRIVATE_CONFIG_DIR/pay-config.php); on shared
+// hosting it hands back pay/config.php, next to this file.
+//
+// This used to `require __DIR__ . '/config.php'` unconditionally. The VPS keeps
+// no config.php in the web root, so that line was a PHP fatal — a dead T-Pay —
+// the moment this code reached it. knet.php already carried the resolver; T-Pay
+// now carries the same one, line for line, so the two gateways cannot drift.
+$sportaConfigResolver = dirname(__DIR__) . '/api/config-path.php';
+if (is_file($sportaConfigResolver)) require_once $sportaConfigResolver;
+
+function cbk_config_path(string $kind, string $legacyPath): string
+{
+    if (function_exists('sporta_config_path')) return sporta_config_path($kind, $legacyPath);
+    // A standalone T-Pay drop-in remains supported on shared hosting. On a
+    // private-config deployment, absence of the resolver is an install error,
+    // never permission to use an old web-root credential file.
+    $privateDir = getenv('SPORTA_PRIVATE_CONFIG_DIR');
+    if ($privateDir !== false && $privateDir !== '') {
+        throw new RuntimeException('Private config resolver is missing');
+    }
+    return $legacyPath;
+}
+
 // Reject any non-HTTPS request outright. Honors Hostinger's proxy header
 // (X-Forwarded-Proto) as well as the standard HTTPS server var.
 function cbk_require_https(): void
@@ -20,9 +51,56 @@ function cbk_require_https(): void
     }
 }
 
+// The merchant configuration is deliberately excluded from releases. A new
+// hosting folder can therefore contain the payment code before the operator
+// has created config.php. `require` would turn that ordinary setup state into
+// a PHP fatal error and an opaque HTTP 500. Refuse safely instead, without
+// revealing a path or any configuration detail to the shopper.
+function cbk_load_config(string $path): array
+{
+    $path = cbk_config_path('tpay', $path);
+    if (!is_file($path) || !is_readable($path)) {
+        http_response_code(503);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Payment service is not configured.');
+    }
+
+    $config = require $path;
+    if (!is_array($config)) {
+        http_response_code(503);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Payment service is not configured.');
+    }
+
+    return $config;
+}
+
 function cbk_base(array $cfg): string
 {
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
+}
+
+// Fall back to the store API's database credentials when this payment config
+// does not duplicate them. All payment rails settle the same order rows, and a
+// single source prevents KNET/T-Pay silently pointing at no database or an old
+// one after credentials change. Explicit values still take precedence. The
+// twin of knet_with_store_db(), and it reads the API config through the same
+// resolver, so on the VPS it is the private mount, never a web-root file.
+function cbk_with_store_db(array $cfg): array
+{
+    if (($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '') {
+        return $cfg;
+    }
+    $path = cbk_config_path('api', dirname(__DIR__) . '/api/config.php');
+    if (!is_file($path)) return $cfg;
+    $store = require $path;
+    if (!is_array($store)) return $cfg;
+    foreach (['host' => 'mysql_host', 'name' => 'mysql_name', 'user' => 'mysql_user', 'pass' => 'mysql_pass'] as $from => $to) {
+        if (($cfg[$to] ?? '') === '' && array_key_exists('db_' . $from, $store)) {
+            $cfg[$to] = (string)$store['db_' . $from];
+        }
+    }
+    return $cfg;
 }
 
 // Is there an orders database at all? Without one there is no price authority:

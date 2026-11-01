@@ -21,6 +21,21 @@ committed, packaged, or overwritten by a deploy:
 `npm run publish` has all four in a hard-coded never-touch list, and
 `npm run package` refuses to build a zip that contains any of them.
 
+**On the VPS the three PHP files are not in the web root at all.** They are
+read-only mounts from `/docker/sporta/private/`, and the container's
+environment says where:
+
+| Shared hosting | VPS | Named by |
+|---|---|---|
+| `api/config.php` | `private/api-config.php` | `SPORTA_API_CONFIG_FILE` |
+| `knet/config.php` | `private/config/knet-config.php` | `SPORTA_PRIVATE_CONFIG_DIR` |
+| `pay/config.php` | `private/config/pay-config.php` | `SPORTA_PRIVATE_CONFIG_DIR` |
+
+`api/config-path.php` is the one rule the store and both gateways read. A
+server that sets the directory but not the file is refused outright — it never
+falls back to a `config.php` left in the web root. `npm run test:config` proves
+both layouts and that refusal.
+
 ---
 
 ## Step 0 — one database, named three times

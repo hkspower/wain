@@ -56,6 +56,18 @@
   checks). `api/config.php` lives ONLY on the server, same rule as
   `knet/config.php`. Any change to one backend's contract must be mirrored in
   the other and covered in native-backend-test.mjs.
+- **Where every config lives is ONE rule: `api/config-path.php`** (source
+  `dropin/php-store/config-path.php`), read by the store, KNET and T-Pay alike.
+  Shared hosting: each `config.php` sits next to its code. The VPS keeps none
+  in the web root — `SPORTA_API_CONFIG_FILE` names the store's config and
+  `SPORTA_PRIVATE_CONFIG_DIR` holds `knet-config.php` / `pay-config.php`,
+  read-only mounts from `/docker/sporta/private/`. It FAILS CLOSED: the
+  directory set without the file is refused, never a fallback to a web-root
+  `config.php`. The store and T-Pay used to `require` their own `config.php`
+  unconditionally, so a release onto the VPS would have killed the API and
+  T-Pay; KNET alone had the resolver. A gateway config with no `mysql_*` block
+  borrows the store's `db_*` (both gateways; explicit values win). Proven by
+  `npm run test:config` (32 checks: both layouts and the half-configured one).
 - **Payments — two products from the SAME bank (CBK), two separate setups**
   (saved by user request — apply always):
 

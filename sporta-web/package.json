@@ -46,6 +46,7 @@
     "scan": "node scripts/site-scan.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
+    "test:config": "node scripts/config-path-test.mjs",
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",
     "test:seo": "node scripts/seo-arabic-test.mjs",

@@ -141,8 +141,25 @@ check(is_dir($root . '/hero') ? 'ok' : 'warn', '/hero', is_dir($root . '/hero') 
       'Without it the home page falls back to drawn illustrations instead of the photographs.', 1);
 
 // ------------------------------------------------------------- the gate
-$cfgPath = $here . '/config.php';
-$configured = is_file($cfgPath);
+// Every config is found by the rule the store and both gateways use
+// (config-path.php): next to the code on shared hosting, the private mount on
+// the VPS. Asking for $here/config.php alone reported "missing" on a server
+// whose shop was configured and working — and "missing" is the state in which
+// this page answers without a key.
+require_once $here . '/config-path.php';
+$cfgAt = function (string $kind, string $legacy): string {
+    try {
+        return sporta_config_path($kind, $legacy);
+    } catch (Throwable $e) {
+        // A private-config server whose settings are malformed. Say so; never
+        // fall back to a web-root file the server itself refuses to read.
+        check('bad', "config location ($kind)", $e->getMessage(),
+              'SPORTA_API_CONFIG_FILE and SPORTA_PRIVATE_CONFIG_DIR must be absolute paths, and a server that sets one must set both.', 3);
+        return '';
+    }
+};
+$cfgPath = $cfgAt('api', $here . '/config.php');
+$configured = $cfgPath !== '' && is_file($cfgPath);
 $cfg = $configured ? (array) (require $cfgPath) : [];
 $key = (string) ($_POST['key'] ?? '');
 $unlocked = !$configured
@@ -224,7 +241,8 @@ if (!$configured) {
         'pay/config.php'  => [['client_id', 'client_secret', 'encrp_key'], 0, 'warn'],
     ];
     foreach ($pay as $rel => [$keys, $step, $sev]) {
-        $p = $root . '/' . $rel;
+        $p = $cfgAt($rel === 'knet/config.php' ? 'knet' : 'tpay', $root . '/' . $rel);
+        if ($p === '') continue;   // reported by $cfgAt
         if (!is_file($p)) {
             check($sev, $rel, 'missing — this payment method is off',
                   "In File Manager, copy $rel" . ".example to $rel, then fill in the values CBK gave you. CHECKOUT-SECRETS.md lists every one and what breaks without it.", $step);

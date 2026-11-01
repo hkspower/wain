@@ -27,13 +27,22 @@ try {
 echo "HTTPS       : " . ((!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'yes  OK' : 'NO — enable SSL') . "\n\n";
 
-// config.php
-$cfgPath = __DIR__ . '/config.php';
+// config.php — found by the same rule pay.php uses (knet_config_path): next to
+// this file on shared hosting, the private mount on the VPS. A self-test that
+// looked only here would call a working VPS install unconfigured.
+try {
+    $cfgPath = knet_config_path('knet', __DIR__ . '/config.php');
+} catch (Throwable $e) {
+    echo "config.php  : location invalid — " . $e->getMessage() . "\n";
+    exit;
+}
 if (!is_file($cfgPath)) {
     echo "config.php  : MISSING — copy config.example.php to config.php and fill it.\n";
     exit;
 }
-$cfg = require $cfgPath;
+// The same database fallback pay.php applies, so the database check below
+// reports what a payment would actually see.
+$cfg = knet_with_store_db((array) (require $cfgPath));
 
 // This page reveals which credentials are set and which gateway is in use.
 // Once the store is live it must not be reachable at all.

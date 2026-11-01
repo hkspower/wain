@@ -6,7 +6,7 @@
 declare(strict_types=1);
 require __DIR__ . '/cbk.php';
 cbk_require_https(); // reject non-HTTPS callbacks
-$cfg = require __DIR__ . '/config.php';
+$cfg = cbk_with_store_db(cbk_load_config(__DIR__ . '/config.php'));
 
 $return = $cfg['result_page_url'];
 $encrp  = (string)($_REQUEST['encrp'] ?? '');

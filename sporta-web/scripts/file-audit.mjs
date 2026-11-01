@@ -216,6 +216,10 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // .htaccess denies them by name so shipping is not serving.
                   '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
                   '/api/config.example.php', '/api/cron-fulfilment.php',
+                  // Where every config lives. store.php will not load without
+                  // it, and on the VPS both gateways refuse to start without it
+                  // rather than fall back to a web-root config.php.
+                  '/api/config-path.php',
                   // The install check. It is how the owner finds out WHY the
                   // shop is not working, so it going missing is the failure
                   // that hides every other failure.

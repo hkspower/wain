@@ -25,12 +25,19 @@
 
 declare(strict_types=1);
 
+// A stack trace on a misconfigured server prints the config path, and on the
+// VPS that names the private mount. Errors go to the log, never the response.
+ini_set('display_errors', '0');
+require_once __DIR__ . '/config-path.php';
+
 // ---------------------------------------------------------------- config + db
 
 function store_config(): array {
     static $cfg = null;
     if ($cfg === null) {
-        $path = __DIR__ . '/config.php';
+        // Shared hosting: api/config.php. VPS: the private mount named by
+        // SPORTA_API_CONFIG_FILE (config-path.php has the rule).
+        $path = sporta_config_path('api', __DIR__ . '/config.php');
         if (!is_file($path)) {
             store_out(['error' => 'not_configured',
                        'hint'  => 'copy config.example.php to config.php and fill in the MySQL details'], 500);

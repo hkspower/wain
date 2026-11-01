@@ -11,6 +11,12 @@
 
 declare(strict_types=1);
 
+// The config locator FAILS CLOSED: a private-config server whose settings are
+// wrong throws rather than guess. That message and its stack trace name the
+// private mount, so they go to the error log, never to the shopper. store.php
+// does the same; both gateways must, or the one that does not is the leak.
+ini_set('display_errors', '0');
+
 $sportaConfigResolver = dirname(__DIR__) . '/api/config-path.php';
 if (is_file($sportaConfigResolver)) require_once $sportaConfigResolver;
 
