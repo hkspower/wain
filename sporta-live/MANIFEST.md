@@ -51,3 +51,17 @@ Before each change: `site/backups/claude-<timestamp>-<name>/`.
   just above the `^backends(/.*)?$` rule. Backup: `site/backups/claude-20261101T0612Z-backends-slash/.htaccess`.
   Verified: `/backends/` → 404; `/backends`, `/backends?x=1`, `/backends/x`, `/shop`, `/` unchanged.
   The repo's `sporta-web/public/.htaccess` does not have this rule yet; add it when the repo is reconciled.
+
+## Storage scan — 2026-11-01
+
+**Fixed:** the live web root held ~60 backup folders (`site/backups/`), including PHP copies that
+ran on the public internet (`assistant.php` returned 200; `admin.php` ran and returned 500).
+Moved the whole folder, and the stray `.htaccess.bak-backends-20261031`, to `/docker/sporta/backups/`
+(above the web root, as SERVER-LAYOUT.md requires). Verified: `/backups/` and the PHP copies return 404;
+`/`, `/shop` and `/backends` unchanged. Nothing was deleted.
+
+**Checked and fine:** no world-writable files; no directory listings; `api/*.sql`, `api/config-path.php`,
+`api/config.example.php`, `pay/config.example.php` and `knet/config.example.php` all deny (403);
+no `config.php`, `.env`, `.git`, logs or `sporta-deploy.php` in the web root.
+
+**Open (not changed):** most files are `744` where SERVER-LAYOUT.md says `644`. Harmless, but tidy later.
