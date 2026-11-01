@@ -44,3 +44,10 @@ add-on link and swap in the older app. Reconcile first.
 ## Backups
 
 Before each change: `site/backups/claude-<timestamp>-<name>/`.
+
+## Live `.htaccess` edits made directly on the server
+
+- **2026-11-01, trailing slash on the admin:** added `RewriteRule ^backends/+$ - [R=404,L]`
+  just above the `^backends(/.*)?$` rule. Backup: `site/backups/claude-20261101T0612Z-backends-slash/.htaccess`.
+  Verified: `/backends/` → 404; `/backends`, `/backends?x=1`, `/backends/x`, `/shop`, `/` unchanged.
+  The repo's `sporta-web/public/.htaccess` does not have this rule yet; add it when the repo is reconciled.
