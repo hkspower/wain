@@ -1,0 +1,136 @@
+/* Components — framework-free, built only from tokens.css.
+   Every recipe below is the one the codebase repeats most (counted across
+   src/, not invented). RTL-first: logical properties only, no left/right.
+
+   Rules that came from things going wrong in the source:
+   - Tap targets are >= 24px (WCAG 2.5.8 AA); text fields are >= 16px or iOS
+     zooms into them; text never goes below 11px.
+   - Borders on form controls use --ds-border-control (3:1), not the card
+     hairline — a control's border IS the affordance.
+   - Hover lifts are for pointer devices; touch gets a press-scale instead.
+   - Colour is never the only signal (chips carry text; stars carry numbers). */
+
+.ds-root {
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-text-base);
+  line-height: 1.6; /* Arabic needs more than Latin's 1.5 for unclassed text */
+  color: var(--ds-text-body);
+  background: var(--ds-surface-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────── */
+.ds-display { font-size: var(--ds-text-5xl); line-height: var(--ds-leading-5xl); font-weight: 700; color: var(--ds-text-strong); }
+.ds-title   { font-size: var(--ds-text-3xl); line-height: var(--ds-leading-3xl); font-weight: 700; color: var(--ds-text-strong); }
+.ds-heading { font-size: var(--ds-text-lg);  line-height: var(--ds-leading-lg);  font-weight: 600; color: var(--ds-text-strong); }
+.ds-body    { font-size: var(--ds-text-sm);  line-height: var(--ds-leading-sm); }
+.ds-caption { font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); color: var(--ds-text-muted); }
+.ds-badge-text { font-size: var(--ds-text-2xs); line-height: var(--ds-leading-2xs); font-weight: 600; }
+
+/* ── Focus ────────────────────────────────────────────────────────────── */
+:where(.ds-btn, .ds-field, .ds-link, .ds-card--link):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-surface-canvas), 0 0 0 4px var(--ds-border-focus);
+}
+
+/* ── Button ───────────────────────────────────────────────────────────── */
+.ds-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+  min-height: var(--ds-a11y-target-min);
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-xl);
+  font: inherit; font-size: var(--ds-text-sm); font-weight: 600; line-height: 1.2;
+  cursor: pointer; text-decoration: none;
+  transition: background-color 150ms, border-color 150ms, color 150ms, transform var(--ds-motion-duration-tap) var(--ds-motion-ease-out);
+}
+.ds-btn:active { transform: scale(0.975); }
+.ds-btn:disabled, .ds-btn[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.ds-btn--primary { background: var(--ds-action-primary); color: var(--ds-text-inverse); }
+.ds-btn--primary:hover:not(:disabled) { background: var(--ds-action-primary-hover); }
+
+.ds-btn--accent  { background: var(--ds-action-accent); color: #fff; } /* 5.0:1 — sea-600, never sea-500 (3.3:1) */
+.ds-btn--accent:hover:not(:disabled) { background: var(--ds-action-accent-hover); }
+
+.ds-btn--outline { background: #fff; color: var(--ds-text-body); border-color: var(--ds-border-control); }
+.ds-btn--outline:hover:not(:disabled) { border-color: var(--ds-color-sea-300); color: var(--ds-text-link); }
+
+.ds-btn--danger  { background: var(--ds-feedback-danger-bg); color: var(--ds-feedback-danger-fg); border-color: var(--ds-feedback-danger-border); }
+.ds-btn--block   { display: flex; width: 100%; }
+
+/* ── Chip / badge — always pill, always carries text ──────────────────── */
+.ds-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--ds-radius-full);
+  font-size: var(--ds-text-xs); font-weight: 600; line-height: 1.5;
+  background: var(--ds-feedback-neutral-bg); color: var(--ds-feedback-neutral-fg);
+}
+.ds-chip--info    { background: var(--ds-feedback-info-bg);    color: var(--ds-feedback-info-fg); }
+.ds-chip--warning { background: var(--ds-feedback-warning-bg); color: var(--ds-feedback-warning-fg); }
+.ds-chip--success { background: color-mix(in srgb, var(--ds-color-palm-500) 12%, transparent); color: var(--ds-feedback-success-fg); }
+.ds-chip--solid   { background: var(--ds-action-accent); color: #fff; padding-inline: 0.625rem; padding-block: 0.25rem; }
+.ds-chip--sm      { font-size: var(--ds-text-2xs); }
+
+/* ── Field ────────────────────────────────────────────────────────────── */
+.ds-label { display: block; font-size: var(--ds-text-sm); font-weight: 600; color: var(--ds-text-strong); }
+.ds-hint  { font-size: var(--ds-text-xs); color: var(--ds-text-muted); margin-block-start: 0.25rem; }
+.ds-field {
+  display: block; width: 100%; margin-block-start: 0.375rem;
+  min-height: 2.5rem; padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ds-border-control);
+  border-radius: var(--ds-radius-xl);
+  background: #fff; color: var(--ds-text-strong);
+  font: inherit; font-size: var(--ds-a11y-field-text-min); /* 16px: below this iOS zooms in */
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.ds-field:focus { border-color: var(--ds-color-sea-400); box-shadow: 0 0 0 4px var(--ds-color-sea-100); }
+.ds-field[aria-invalid="true"] { border-color: var(--ds-feedback-danger-solid); }
+.ds-error { font-size: var(--ds-text-xs); color: var(--ds-feedback-danger-fg); margin-block-start: 0.25rem; }
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.ds-card {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--ds-radius-2xl);
+  box-shadow: var(--ds-shadow-sm);
+}
+.ds-card__band {            /* the category cue — a tint, not a picture */
+  display: flex; align-items: center; justify-content: center;
+  height: 3.5rem; border-block-end: 1px solid var(--ds-border-subtle);
+}
+.ds-card__body { display: flex; flex: 1; flex-direction: column; gap: 0.125rem; padding: var(--ds-space-card-pad); }
+.ds-card--link { text-decoration: none; color: inherit; transition: transform 300ms var(--ds-motion-ease-out), box-shadow 300ms, border-color 300ms; }
+@media (hover: hover) {
+  .ds-card--link:hover { transform: translateY(-0.25rem); border-color: var(--ds-border-strong); box-shadow: var(--ds-shadow-xl); }
+}
+.ds-card--panel { border-radius: var(--ds-radius-3xl); padding: 0.75rem; }
+
+/* ── Notice ───────────────────────────────────────────────────────────── */
+.ds-notice { padding: 0.75rem; border-radius: var(--ds-radius-xl); font-size: var(--ds-text-sm); border: 1px solid transparent; }
+.ds-notice--info    { background: var(--ds-feedback-info-bg);    color: var(--ds-feedback-info-fg);    border-color: var(--ds-color-sea-200); }
+.ds-notice--warning { background: var(--ds-feedback-warning-bg); color: var(--ds-feedback-warning-fg); border-color: var(--ds-color-sun-200); }
+.ds-notice--danger  { background: var(--ds-feedback-danger-bg);  color: var(--ds-feedback-danger-fg);  border-color: var(--ds-feedback-danger-border); }
+
+/* ── Page shell ───────────────────────────────────────────────────────── */
+.ds-page { max-width: var(--ds-layout-measure-page); margin-inline: auto; padding-inline: var(--ds-space-gutter-sm); }
+.ds-stack > * + * { margin-block-start: var(--ds-space-rhythm-sm); }
+@media (min-width: 640px) {
+  .ds-page { padding-inline: var(--ds-space-gutter-md); }
+  .ds-stack > * + * { margin-block-start: var(--ds-space-rhythm-md); }
+}
+
+.ds-link { color: var(--ds-text-link); text-decoration: underline; text-underline-offset: 0.2em; }
+::selection { background: var(--ds-selection-bg); color: var(--ds-selection-fg); }
+
+.ds-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-root *, .ds-root *::before, .ds-root *::after {
+    animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
+  }
+}

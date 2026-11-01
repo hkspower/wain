@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sea &amp; Sand — design system</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  /* Preview chrome only — not part of the system. */
+  body{margin:0}
+  section{padding-block:1.5rem;border-block-end:1px solid var(--ds-border-subtle)}
+  h2{margin:0 0 .75rem}
+  .row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .ramp{display:grid;grid-template-columns:repeat(auto-fill,minmax(4.5rem,1fr));gap:.375rem}
+  .sw{border-radius:var(--ds-radius-lg);border:1px solid var(--ds-border-subtle);overflow:hidden;font-size:var(--ds-text-2xs);direction:ltr}
+  .sw i{display:block;height:2.25rem}.sw span{display:block;padding:.25rem .375rem;background:#fff}
+  .ramp-name{font-weight:600;margin:.75rem 0 .25rem;font-size:var(--ds-text-sm)}
+  .shadow-box{width:5.5rem;height:3.5rem;background:#fff;border-radius:var(--ds-radius-2xl);display:grid;place-items:center;font-size:var(--ds-text-xs);direction:ltr}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;max-width:26rem}
+</style>
+</head>
+<body class="ds-root">
+<main class="ds-page">
+  <section>
+    <h1 class="ds-display">Sea &amp; Sand</h1>
+    <p class="ds-body" style="color:var(--ds-text-muted)">نظام تصميم مستخرج من كود وين — رموز، مكوّنات، وقواعد وصول. عربي أولاً، RTL، خفيف على الجوال.</p>
+  </section>
+
+  <section><h2 class="ds-heading">الألوان / Colour</h2><div id="colors"></div></section>
+
+  <section><h2 class="ds-heading">الخط / Type</h2>
+    <div id="type" class="ds-stack"></div></section>
+
+  <section><h2 class="ds-heading">الأزرار / Buttons</h2>
+    <div class="row">
+      <button class="ds-btn ds-btn--primary">احجز</button>
+      <button class="ds-btn ds-btn--accent">افتح الخريطة</button>
+      <button class="ds-btn ds-btn--outline">شارك</button>
+      <button class="ds-btn ds-btn--danger">احذف</button>
+      <button class="ds-btn ds-btn--primary" disabled>معطّل</button>
+    </div></section>
+
+  <section><h2 class="ds-heading">الشارات / Chips</h2>
+    <div class="row">
+      <span class="ds-chip">عادي</span><span class="ds-chip ds-chip--info">معلومة</span>
+      <span class="ds-chip ds-chip--warning">تنبيه</span><span class="ds-chip ds-chip--success">مفتوح</span>
+      <span class="ds-chip ds-chip--solid">مختار</span><span class="ds-chip ds-chip--info ds-chip--sm">٤٫٧ ★</span>
+    </div></section>
+
+  <section><h2 class="ds-heading">الحقول / Fields</h2>
+    <div style="max-width:22rem">
+      <label class="ds-label" for="a">اسم المكان</label>
+      <input id="a" class="ds-field" placeholder="مثال: أبراج الكويت">
+      <p class="ds-hint">١٦px كحد أدنى حتى لا يكبّر iOS الصفحة.</p>
+      <label class="ds-label" for="b" style="margin-block-start:.75rem">رقم الهاتف</label>
+      <input id="b" class="ds-field" aria-invalid="true" value="١٢٣">
+      <p class="ds-error">رقم الهاتف مو مضبوط.</p>
+    </div></section>
+
+  <section><h2 class="ds-heading">البطاقات / Cards</h2>
+    <div class="grid2">
+      <a href="#" class="ds-card ds-card--link">
+        <div class="ds-card__band" style="background:var(--ds-color-cat-landmarks-tint);color:var(--ds-color-cat-landmarks-ink)">▲</div>
+        <div class="ds-card__body"><h3 class="ds-heading" style="margin:0;font-size:var(--ds-text-sm)">أبراج الكويت</h3>
+          <p class="ds-caption" style="margin:0">معلم على الواجهة البحرية</p></div></a>
+      <a href="#" class="ds-card ds-card--link">
+        <div class="ds-card__band" style="background:var(--ds-color-cat-coffee-tint);color:var(--ds-color-cat-coffee-ink)">●</div>
+        <div class="ds-card__body"><h3 class="ds-heading" style="margin:0;font-size:var(--ds-text-sm)">كافيه الخليج</h3>
+          <p class="ds-caption" style="margin:0">قهوة مختصة</p></div></a>
+    </div></section>
+
+  <section><h2 class="ds-heading">التنبيهات / Notices</h2>
+    <div class="ds-stack" style="max-width:26rem">
+      <div class="ds-notice ds-notice--info">معلومة للمستخدم.</div>
+      <div class="ds-notice ds-notice--warning">انتبه — الأمر ما ينرجع.</div>
+      <div class="ds-notice ds-notice--danger">صار خطأ، جرّب مرة ثانية.</div>
+    </div></section>
+
+  <section><h2 class="ds-heading">الزوايا والظلال / Radius &amp; elevation</h2>
+    <div id="radii" class="row" style="margin-block-end:1rem"></div><div id="shadows" class="row" style="gap:1rem"></div></section>
+</main>
+<script src="tokens.js"></script>
+<script>
+  // Everything below is read from the live custom properties, so the preview
+  // cannot disagree with tokens.css.
+  const cs = getComputedStyle(document.documentElement);
+  const names = window.DS_TOKEN_NAMES;
+  const val = n => cs.getPropertyValue(n).trim();
+  const el = (t, c, h) => Object.assign(document.createElement(t), { className: c || '', innerHTML: h || '' });
+
+  const ramps = {};
+  names.filter(n => n.startsWith('--ds-color-') && !/-(tint|ink)$/.test(n) && /-\d+$|-line/.test(n)).forEach(n => {
+    const m = n.match(/^--ds-color-(.+?)(?:-(\d+))?$/); (ramps[m[1]] ??= []).push([m[2] ?? '', n]);
+  });
+  const colors = document.getElementById('colors');
+  for (const [ramp, steps] of Object.entries(ramps)) {
+    colors.append(el('div', 'ramp-name', ramp));
+    const g = el('div', 'ramp');
+    steps.forEach(([s, n]) => g.append(el('div', 'sw', `<i style="background:var(${n})"></i><span>${s || ramp}<br>${val(n)}</span>`)));
+    colors.append(g);
+  }
+  const type = document.getElementById('type');
+  ['6xl','5xl','4xl','3xl','2xl','xl','lg','base','sm','xs','2xs'].forEach(s => type.append(
+    el('div', '', `<span style="font-size:var(--ds-text-${s});line-height:var(--ds-leading-${s});color:var(--ds-text-strong)">وين نروح اليوم؟</span>
+    <span class="ds-caption" style="direction:ltr;display:inline-block;margin-inline-start:.5rem">${s} · ${val('--ds-text-'+s)} / ${val('--ds-leading-'+s)}</span>`)));
+  names.filter(n => n.startsWith('--ds-radius-')).forEach(n => {
+    const b = el('div', 'shadow-box', n.slice(5) + '<br>' + val(n));
+    b.style.border = '1px solid var(--ds-border-control)'; b.style.borderRadius = `var(${n})`;
+    document.getElementById('radii').append(b);
+  });
+  names.filter(n => n.startsWith('--ds-shadow-')).forEach(n => {
+    const b = el('div', 'shadow-box', n.slice(12)); b.style.boxShadow = `var(${n})`; document.getElementById('shadows').append(b);
+  });
+</script>
+</body>
+</html>

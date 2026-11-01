@@ -13,6 +13,8 @@
     "og": "node scripts/gen-og.mjs",
     "social": "node scripts/gen-social.mjs",
     "design": "node scripts/gen-design-system.mjs",
+    "design:portable": "node scripts/gen-portable-design-system.mjs",
+    "design:portable:check": "node scripts/gen-portable-design-system.mjs --check",
     "design:check": "node scripts/gen-design-system.mjs --check",
     "figma:icons": "node scripts/export-figma-icons.mjs",
     "figma:icons:check": "node scripts/export-figma-icons.mjs --check",
