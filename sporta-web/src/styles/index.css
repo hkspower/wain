@@ -1,12 +1,11 @@
 /* Tailwind v4 entry. @config loads our legacy JS config (brand colors, font).
- * Token/admin styles imported after Tailwind so their rules win.
+ * Token styles imported after Tailwind so their rules win. Admin styles load
+ * with the lazy /backends chunk (see admin/AdminApp.jsx), not here.
  * (Paths are relative to this file at src/styles/. In the real project where
  * index.css sits at src/, use "./styles/theme.css" etc.) */
 @import 'tailwindcss';
 @import './fonts.css';
 @import './theme.css';
-@import './admin.css';
-@import './admin-mobile.css';
 @config '../../tailwind.config.js';
 
 html {

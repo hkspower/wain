@@ -10,6 +10,10 @@ import Promotions from './Promotions'
 import Discounts from './Discounts'
 import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage, IconHeart, IconPlus } from '../components/icons'
 import { phpAdmin } from '../lib/backend'
+// Admin-only styles. Imported here so they ship with the /backends chunk and
+// never reach a storefront visitor (they were global before).
+import '../styles/admin.css'
+import '../styles/admin-mobile.css'
 
 // The three ways the backends screen can be unreachable that are NOT a wrong
 // password. Each names the one file or action that fixes it, because "check
