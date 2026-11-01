@@ -203,37 +203,49 @@ try {
     ok("an empty key file is still 503 not_configured",
        empty.status === 503 && empty.json?.error === "not_configured", JSON.stringify(empty));
 
-    writeFileSync(adminKeyFile, "0123456789abcdef");   // 16 bytes
+    writeFileSync(adminKeyFile, "0123456789abcdef");   // 16 characters
     const short = await viewAs({ "X-Media-Key": "0123456789abcdef" });
-    ok("a 16-byte key is 503 weak, even when the right key is sent",
+    ok("a 16-character key is 503 weak, even when the right key is sent",
        short.status === 503 && short.json?.error === "weak", JSON.stringify(short));
     const shortWrong = await viewAs({ "X-Media-Key": "not-the-key" });
     ok("and 503 weak for a wrong key too: the length is checked before any comparison",
        shortWrong.status === 503 && shortWrong.json?.error === "weak", JSON.stringify(shortWrong));
 
-    const k31 = "0123456789abcdef0123456789abcde";   // 31 bytes
+    const k31 = "0123456789abcdef0123456789abcde";   // 31 characters
     writeFileSync(adminKeyFile, k31);
     const thirtyOne = await viewAs({ "X-Media-Key": k31 });
-    ok("a 31-byte key is still refused as weak",
+    ok("a 31-character key is still refused as weak",
        thirtyOne.status === 503 && thirtyOne.json?.error === "weak", JSON.stringify(thirtyOne));
 
-    const k32 = "0123456789abcdef0123456789abcdef";   // 32 bytes: the floor itself
+    const k32 = "0123456789abcdef0123456789abcdef";   // 32 characters: the floor itself
     writeFileSync(adminKeyFile, k32);
     const thirtyTwo = await viewAs({ "X-Media-Key": "not-the-key" });
-    ok("a 32-byte key reaches the comparison: a wrong key is 403 bad_key",
+    ok("a 32-character key reaches the comparison: a wrong key is 403 bad_key",
        thirtyTwo.status === 403 && thirtyTwo.json?.error === "bad_key", JSON.stringify(thirtyTwo));
     const thirtyTwoRight = await viewAs({ "X-Media-Key": k32 });
     ok("and the same key, sent right, is served", thirtyTwoRight.status === 200, String(thirtyTwoRight.status));
+
+    /* Sixteen Arabic letters are 32 bytes and 16 characters, so the floor refuses
+       them; thirty-two letters are 32 characters and reach the comparison. */
+    writeFileSync(adminKeyFile, "ب".repeat(16));
+    const arShort = await viewAs({ "X-Media-Key": "not-the-key" });
+    ok("16 Arabic letters (32 bytes) are 16 characters: refused as weak",
+       arShort.status === 503 && arShort.json?.error === "weak", JSON.stringify(arShort));
+    writeFileSync(adminKeyFile, "ب".repeat(32));
+    const arLong = await viewAs({ "X-Media-Key": "not-the-key" });
+    ok("32 Arabic letters are 32 characters: a wrong key reaches the comparison",
+       arLong.status === 403 && arLong.json?.error === "bad_key", JSON.stringify(arLong));
+    writeFileSync(adminKeyFile, k32);
 
     /* `version` is the report an owner reads, so it must say what the view will do:
        a key the view answers 503 weak to is reported as weak, not as present. */
     const reportedKey = () => JSON.parse(
       execFileSync("php", [join(api, "media.php"), "version"], { encoding: "utf8" })).adminKey;
     writeFileSync(adminKeyFile, "0123456789abcdef");
-    ok("version reports a 16-byte key as weak, the state the view refuses",
+    ok("version reports a 16-character key as weak, the state the view refuses",
        reportedKey() === "weak", String(reportedKey()));
     writeFileSync(adminKeyFile, k32);
-    ok("version reports a 32-byte key as present", reportedKey() === "present", String(reportedKey()));
+    ok("version reports a 32-character key as present", reportedKey() === "present", String(reportedKey()));
     writeFileSync(adminKeyFile, "");
     ok("and an empty file is still EMPTY, the installer's own state", reportedKey() === "EMPTY", String(reportedKey()));
   }

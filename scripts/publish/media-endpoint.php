@@ -66,15 +66,23 @@ function keyState(string $file): string {
     return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
 }
 
+/** The number of characters in a key, counted in UTF-8 code points, as
+ *  wain-api.php's secretChars() counts a secret. Kept as a separate copy, not
+ *  shared, because each endpoint installs on its own. */
+function secretChars(string $s): int {
+    $n = preg_match_all('/./us', $s);
+    return $n === false ? 0 : $n;
+}
+
 /** The view key's state as `version` and `install` report it: keyState()'s own
  *  words for a missing or blank file, then whether the trimmed key reaches
- *  ADMIN_KEY_MIN bytes. A separate function, not a change to keyState(), because
+ *  ADMIN_KEY_MIN characters. A separate function, not a change to keyState(), because
  *  tts-endpoint.php mirrors keyState() and has no length rule. Before this,
  *  `version` said «present» for a 16-byte key that the view answers 503 weak to. */
 function adminKeyState(string $file): string {
     $state = keyState($file);
     if ($state !== 'present') return $state;
-    return strlen(trim((string) @file_get_contents($file))) < ADMIN_KEY_MIN ? 'weak' : 'present';
+    return secretChars(trim((string) @file_get_contents($file))) < ADMIN_KEY_MIN ? 'weak' : 'present';
 }
 
 /** Matches src/lib/media.ts's MAX_BYTES. `npm run audit:media` fails when
@@ -109,8 +117,8 @@ const ALLOWED_HOSTS = [
  *  this is headroom over that, not a throttle on normal use. */
 const RATE_PER_MIN = 40;
 
-/** The shortest media-admin.key the view will compare against, in BYTES (strlen,
- *  not characters). Matches ADMIN_SECRET_MIN in wain-api.php. A shorter key is
+/** The shortest media-admin.key the view will compare against, in CHARACTERS
+ *  (secretChars, not bytes). Matches ADMIN_SECRET_MIN in wain-api.php. A shorter key is
  *  answered 503 weak before any comparison, so no guess is ever made against it. */
 const ADMIN_KEY_MIN = 32;
 
@@ -498,7 +506,7 @@ if (PHP_SAPI === 'cli') {
         'ok'     => true,
         'stages' => $report,
         'adminKey' => ['path' => $adminKeyFile, 'status' => $keyNote,
-                       'note' => 'paste a random secret of at least 32 bytes into this file to enable ?action=view; a shorter one is refused as weak, and an empty one stays refused'],
+                       'note' => 'paste a random secret of at least 32 characters into this file to enable ?action=view; a shorter one is refused as weak, and an empty one stays refused'],
         'pendingDir' => $pendingDir,
     ]);
 }
@@ -570,12 +578,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
     $key = is_file("$storage/media-admin.key") ? trim((string) @file_get_contents("$storage/media-admin.key")) : '';
     if ($key === '') $fail(503, 'not_configured');
 
-    /* strlen() counts BYTES, and hash_equals() compares bytes, so the length that
-       decides this is the byte length: 32 Arabic letters (64 bytes) pass, 16 ASCII
-       characters (16 bytes) do not. Refused before any comparison. The 14 October
-       login scan found no minimum on either admin secret, and a 4-digit one was
-       accepted by the probe. */
-    if (strlen($key) < ADMIN_KEY_MIN) $fail(503, 'weak');
+    /* The floor counts characters, as the admin secret's does: 32 Arabic letters
+       pass, 16 do not, because a byte count would let 16 Arabic letters (32 bytes)
+       through. Refused before any comparison. The 14 October login scan found no
+       minimum on either admin secret, and a 4-digit one was accepted by the probe. */
+    if (secretChars($key) < ADMIN_KEY_MIN) $fail(503, 'weak');
 
     /* A right key is never counted: the owner must not be locked out of the pending
        files by a visitor's bucket, and that bucket is also filled by uploads from the
@@ -586,9 +593,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
        Within the cap a wrong key costs a quarter second, as wain-api's admin path
        does (the 14 October login scan, finding 1). Before this a wrong key was answered
        in microseconds, so the cap changed only the status code of a guess. Past the
-       cap the answer comes at once, and a right key is still served, so the cap does
-       not limit how fast the key can be guessed. What makes the search infeasible is
-       the 32-byte floor above. */
+       cap the answer also waits a quarter second (the owner's answer on 1 November),
+       so one address is slowed to a few guesses a second. A right key is still
+       served from a capped visitor. Against a guesser who rotates addresses the cap
+       does not apply, and what makes the search infeasible is the 32-character floor
+       above. */
     $given = $_SERVER['HTTP_X_MEDIA_KEY'] ?? '';
     if (!is_string($given) || !hash_equals($key, $given)) {
         sweepRateCounters($pendingDir);
@@ -597,7 +606,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
            key is refused rather than guessed at for nothing, which is the answer
            /api/tts.php gives when its budget cannot be read (budget_unavailable). */
         if ($n === null) $fail(503, 'limiter_unavailable');
-        if ($n > RATE_PER_MIN) $fail(429, 'rate_limited');
+        if ($n > RATE_PER_MIN) { usleep(250000); $fail(429, 'rate_limited'); }
         usleep(250000);   // a wrong guess costs a quarter second; a right one costs nothing
         $fail(403, 'bad_key');
     }

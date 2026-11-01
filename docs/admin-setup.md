@@ -26,11 +26,10 @@ file on both stages, creates the database, seeds it from the export's
    give, `domains/wainkw.com/storage/admin.secret`, was not on the Hostinger
    account on 31 October 2026, and where the file sits on the VPS is not recorded
    yet; the live `?a=ping` reported `admin: unset` that day.
-2. Paste a long random secret — 32 bytes or more, which is 32 ASCII characters.
-   Nothing else in the file. The server refuses anything shorter with
-   `admin_weak`, and the board says so instead of offering a password form. Use
-   ASCII: an Arabic letter is two bytes, so 16 Arabic letters pass the server's
-   check while this step asks for 32 characters.
+2. Paste a long random secret of 32 characters or more. Nothing else in the
+   file. The server refuses anything shorter with `admin_weak`, and the board
+   says so instead of offering a password form. The length is counted in
+   characters, so an Arabic letter counts as one, the same as an ASCII one.
    `storage/media-admin.key`, which opens the pending business-photo view, takes
    the same floor and the same refusal.
 3. Save. Never paste it into a chat, a commit or an environment variable.
@@ -103,8 +102,9 @@ catalogue place the table lacks, never overwriting a live edit.
 
 - Reads of `places` answer published rows only; everything else needs the
   secret.
-- The secret is compared in constant time and a wrong guess costs a quarter
-  second; the file is 0600 in a directory outside the document root.
+- The secret is compared in constant time. A wrong guess costs a quarter
+  second, and past the per-address cap it is answered 429 after that wait; the
+  file is 0600 in a directory outside the document root.
 - The `/admin` page is `noindex, nofollow` and disallowed in `robots.txt`.
   That keeps it out of search results; it is not a security boundary — the
   secret is.

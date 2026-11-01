@@ -717,7 +717,7 @@ try {
 
   console.log("\n── a short admin secret is admin_weak, before any guess is compared or counted ──");
   {
-    /* The length is measured in BYTES after trim(), the way the endpoint reads
+    /* The length is measured in CHARACTERS after trim(), the way the endpoint reads
        the file. The 4-character and 31-byte secrets exist only to be refused:
        the suite's shared SECRET stays 42 bytes, so every section above still
        reaches the comparison. Each wrong guess below comes from a visitor of its
@@ -736,7 +736,8 @@ try {
     const wrong = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v1) });
     ok("a wrong header against a 4-character secret is 503 admin_weak, not 403 admin_forbidden",
       wrong.status === 503 && wrong.json?.error === "admin_weak", `${wrong.status} ${j(wrong.json)}`);
-    ok("and that wrong guess created no counter for the visitor", !existsSync(counter(v1)));
+    ok("and that refused guess is counted against the visitor's own bucket",
+      existsSync(counter(v1)) && JSON.parse(readFileSync(counter(v1), "utf8")).n === 1);
     const right = await call("whoami", undefined, { admin: true, token: "Zq9-", headers: from(v1) });
     ok("the right 4-character header is refused too: a short secret never becomes a login",
       right.status === 503 && right.json?.error === "admin_weak", `${right.status} ${j(right.json)}`);
@@ -748,21 +749,41 @@ try {
     writeFileSync(counter(v2), JSON.stringify({ start: Math.floor(Date.now() / 1000), n: 5 }));
     await call("whoami", undefined, { admin: true, token: "guess", headers: from(v2) });
     const n2 = JSON.parse(readFileSync(counter(v2), "utf8")).n;
-    ok("a wrong guess does not raise a live counter that is already running (still 5)", n2 === 5, String(n2));
+    ok("a refused guess raises a live counter that is already running (5 becomes 6)", n2 === 6, String(n2));
+
+    const v5 = "192.0.2.65";
+    writeFileSync(counter(v5), JSON.stringify({ start: Math.floor(Date.now() / 1000), n: 5000 }));
+    const past = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v5) });
+    ok("past the cap, a refused guess is 429 rate_limited", past.status === 429 && past.json?.error === "rate_limited", `${past.status} ${j(past.json)}`);
 
     setSecret("x".repeat(31) + "\n");
     const v3 = "192.0.2.63";
     const w31 = await call("whoami", undefined, { admin: true, token: "y".repeat(31), headers: from(v3) });
-    ok("31 bytes is still short: a wrong header is 503 admin_weak", w31.status === 503 && w31.json?.error === "admin_weak", `${w31.status} ${j(w31.json)}`);
+    ok("31 characters is still short: a wrong header is 503 admin_weak", w31.status === 503 && w31.json?.error === "admin_weak", `${w31.status} ${j(w31.json)}`);
     const r31 = await call("whoami", undefined, { admin: true, token: "x".repeat(31), headers: from(v3) });
-    ok("and the right 31-byte header is refused the same way", r31.status === 503 && r31.json?.error === "admin_weak", `${r31.status} ${j(r31.json)}`);
+    ok("and the right 31-character header is refused the same way", r31.status === 503 && r31.json?.error === "admin_weak", `${r31.status} ${j(r31.json)}`);
 
     setSecret("x".repeat(32) + "\n");
     const v4 = "192.0.2.64";
     const w32 = await call("whoami", undefined, { admin: true, token: "y".repeat(32), headers: from(v4) });
-    ok("32 bytes reaches the comparison: a wrong header is 403 admin_forbidden", w32.status === 403 && w32.json?.error === "admin_forbidden", `${w32.status} ${j(w32.json)}`);
+    ok("32 characters reaches the comparison: a wrong header is 403 admin_forbidden", w32.status === 403 && w32.json?.error === "admin_forbidden", `${w32.status} ${j(w32.json)}`);
     const r32 = await call("whoami", undefined, { admin: true, token: "x".repeat(32), headers: from(v4) });
-    ok("and the right 32-byte header is admin", r32.status === 200 && r32.json?.admin === true, `${r32.status} ${j(r32.json)}`);
+    ok("and the right 32-character header is admin", r32.status === 200 && r32.json?.admin === true, `${r32.status} ${j(r32.json)}`);
+
+    /* Sixteen Arabic letters are 32 bytes but 16 characters, so the floor refuses
+       them; thirty-two letters are 32 characters, so they reach the comparison. The
+       header carries the UTF-8 bytes as a latin1 string, the only form fetch sends. */
+    const hdr = (x) => Buffer.from(x, "utf8").toString("latin1");
+    const ar16 = "ب".repeat(16);
+    setSecret(ar16 + "\n");
+    const arShort = await call("whoami", undefined, { admin: true, token: hdr(ar16), headers: from("192.0.2.66") });
+    ok("16 Arabic letters (32 bytes) are 16 characters: refused as weak", arShort.status === 503 && arShort.json?.error === "admin_weak", `${arShort.status} ${j(arShort.json)}`);
+    const ar32 = "ب".repeat(32);
+    setSecret(ar32 + "\n");
+    const arWrong = await call("whoami", undefined, { admin: true, token: "guess", headers: from("192.0.2.67") });
+    ok("32 Arabic letters are 32 characters: a wrong header reaches the comparison", arWrong.status === 403 && arWrong.json?.error === "admin_forbidden", `${arWrong.status} ${j(arWrong.json)}`);
+    const arRight = await call("whoami", undefined, { admin: true, token: hdr(ar32), headers: from("192.0.2.67") });
+    ok("and the right 32-character Arabic secret is admin", arRight.status === 200 && arRight.json?.admin === true, `${arRight.status} ${j(arRight.json)}`);
 
     const cliText = (...args) => execFileSync("php", [PHP_FILE, ...args], { encoding: "utf8", env: { ...process.env, HOME: dir } });
     setSecret("Zq9-\n");
@@ -772,10 +793,10 @@ try {
     ok("version reports the file's mode as octal, 0600 here", short.adminSecretMode === "0600", j(short.adminSecretMode));
     ok("version never prints the secret", !shortRaw.includes("Zq9-"));
     setSecret("x".repeat(31) + "\n");
-    ok("version reports weak at 31 bytes", JSON.parse(cliText("version")).adminSecret === "weak");
+    ok("version reports weak at 31 characters", JSON.parse(cliText("version")).adminSecret === "weak");
     setSecret("x".repeat(32) + "\n");
     const long = JSON.parse(cliText("version"));
-    ok("version reports set for a 32-byte file", long.adminSecret === "set", j(long.adminSecret));
+    ok("version reports set for a 32-character file", long.adminSecret === "set", j(long.adminSecret));
     chmodSync(secretPath, 0o640);
     ok("the mode is read from the file, not assumed: 0640 is reported as 0640",
       JSON.parse(cliText("version")).adminSecretMode === "0640", j(JSON.parse(cliText("version")).adminSecretMode));
@@ -793,7 +814,7 @@ try {
     ok("a public read is unaffected by a short secret", pubWeak.status === 200 && Array.isArray(pubWeak.json?.places), `${pubWeak.status}`);
     setSecret("x".repeat(32) + "\n");
     const pSet = await call("ping");
-    ok("ping reads set for a 32-byte secret", pSet.json?.admin === "set", j(pSet.json));
+    ok("ping reads set for a 32-character secret", pSet.json?.admin === "set", j(pSet.json));
     setSecret("");
     const pUnset = await call("ping");
     ok("ping still reads unset for a blank file", pUnset.json?.admin === "unset", j(pUnset.json));
@@ -822,7 +843,7 @@ try {
     setSecret("x".repeat(32) + "\n");
     const strong = await fetch(signedRead("x".repeat(32)));
     const strongBytes = Buffer.from(await strong.arrayBuffer());
-    ok("a signed read made with a 32-byte key still serves the file as image/png",
+    ok("a signed read made with a 32-character key still serves the file as image/png",
       strong.status === 200 && strong.headers.get("content-type") === "image/png" && strongBytes.equals(PNG), String(strong.status));
     rmSync(join(storage, "business-pending", "weak-abc123"), { recursive: true, force: true });
 

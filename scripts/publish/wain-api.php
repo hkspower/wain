@@ -39,8 +39,9 @@
  *  • Admin by one shared secret in `storage/admin.secret`, sent as
  *    `X-Wain-Admin`. The installer creates the file EMPTY and never fills it;
  *    while it is empty every admin action answers 503 `admin_unset`, and while
- *    it is shorter than ADMIN_SECRET_MIN bytes 503 `admin_weak`, before any
- *    guess is compared or counted. A signed media read is keyed on the same
+ *    it is shorter than ADMIN_SECRET_MIN characters 503 `admin_weak`, before any
+ *    guess is compared. A refused request spends the visitor's allowance, like
+ *    every other request. A signed media read is keyed on the same
  *    secret, so it gets the same refusal. Fail closed, same as `elevenlabs.key`
  *    and `media-admin.key`. No cookies, so no CSRF surface; the secret lives in
  *    the admin's sessionStorage.
@@ -91,8 +92,9 @@ const WRITES_PER_MIN = 20;
  *  that `1234` was accepted, and at the measured guessing rate a four-digit
  *  secret fell in about 26 minutes. docs/admin-setup.md already asked for 32
  *  characters; this is the check that makes the request a rule. The count is in
- *  BYTES (strlen), so a non-ASCII secret takes two bytes a letter and 16 Arabic
- *  letters pass while the docs ask for 32 characters: use ASCII. */
+ *  CHARACTERS (UTF-8 code points, secretChars()), so 32 Arabic letters are
+ *  needed, as the docs ask. A secret that is not valid UTF-8 counts as nothing,
+ *  so it is refused as weak. */
 const ADMIN_SECRET_MIN = 32;
 
 /** A request body larger than this is refused unread. The largest honest body
@@ -164,11 +166,19 @@ function keyState(string $file): string {
     return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
 }
 
+/** The number of characters in a secret, counted in UTF-8 code points. A byte
+ *  count let sixteen Arabic letters pass a 32-character floor, because each
+ *  letter takes two bytes, and the owner's rule is characters. */
+function secretChars(string $s): int {
+    $n = preg_match_all('/./us', $s);
+    return $n === false ? 0 : $n;
+}
+
 /** The admin secret as the gate reads it: 'unset' (empty or no file), 'weak'
- *  (shorter than ADMIN_SECRET_MIN) or 'set'. Only 'set' opens /admin. */
+ *  (fewer than ADMIN_SECRET_MIN characters) or 'set'. Only 'set' opens /admin. */
 function adminState(string $secret): string {
     if ($secret === '') return 'unset';
-    return strlen($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set';
+    return secretChars($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set';
 }
 
 /** Walks UP to the first `storage/` — correct at public_html/api and one level
@@ -1446,18 +1456,24 @@ $adminState = adminState($secret);
 $givenAdmin = $_SERVER['HTTP_X_WAIN_ADMIN'] ?? null;
 $isAdmin = false;
 if (is_string($givenAdmin) && $givenAdmin !== '') {
-    /* A short secret is refused before the comparison and before any wrong guess
-       is counted, so it is never guessed at and no visitor's allowance is spent
-       on one. The length is bytes (ADMIN_SECRET_MIN). */
-    if ($adminState !== 'set') $fail(503, "admin_$adminState");
+    /* A request the server will not compare (no secret, or one under the floor) is
+       never compared, and it is counted: a flood of them spends the visitor's
+       allowance like any other request and stops at the same cap. Past the cap it
+       waits a quarter second, as a wrong guess does (the owner's answer on 1
+       November). Within the cap it answers at once, as before. */
+    if ($adminState !== 'set') {
+        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
+        $fail(503, "admin_$adminState");
+    }
     if (!hash_equals($secret, $givenAdmin)) {
         /* A wrong guess is counted against the visitor's own bucket BEFORE the
            sleep, so guessing spends the allowance every other request spends and
            stops at the limit. Before this it cost a quarter second of a PHP worker
            and nothing else: 304 wrong guesses in a row all answered 403, and the
            next public request from the same visitor still got 200 (the 14 October
-           login scan, finding 1). */
-        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) $fail(429, 'rate_limited');
+           login scan, finding 1). Past the cap the refusal also waits a quarter
+           second, so one address cannot guess at the server's full speed. */
+        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
         usleep(250000);   // a wrong guess costs a quarter second; a right one costs nothing
         $fail(403, 'admin_forbidden');
     }

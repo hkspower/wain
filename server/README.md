@@ -1,5 +1,11 @@
 # server/ — what runs on Hostinger, not in the Next build
 
+> **`api.php` was removed from this repository on 1 November 2026, with its test
+> (`npm run test:api`).** The description below is the record of that file. Its own
+> notes say the live copy hands over key enumeration, so the owner must delete the
+> copy on the host; nothing in this repository can reach the host. `deploy-endpoint.patch`
+> is a separate patch for `deploy.php` and stays.
+
 `api.php` is the legacy site's back end: a key-value store over `wain.db`
 (SQLite), still sitting in wainkw.com's `public_html`. The Next site does not
 use it — that uses Supabase — but the old app does, and the database holds

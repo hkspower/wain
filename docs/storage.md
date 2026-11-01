@@ -45,7 +45,7 @@ queue:lagassa · stock:… · menu:… · salonidx · bizidx · ad:main
 `api.php?a=get&k=` takes no authentication. So the chain is complete and needs
 no cleverness: read the file, pick a key, fetch it. Including `admin-pin`.
 
-This also matters for `server/api.php` v3. That design closes `list` and keeps
+This also matters for `server/api.php` v3 (removed from the repository on 1 November 2026; see `server/README.md`). That design closes `list` and keeps
 `get` public, on the reasoning that a key you cannot enumerate is a key you
 cannot fetch. **This file hands over the enumeration**, so the hardening is
 already defeated on the live server until it is deleted.

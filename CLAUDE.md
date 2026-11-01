@@ -6478,3 +6478,16 @@ Open, for the owner, not built:
 - **`server/api.php` is still open, and deleting it is the owner's call.** It is the legacy back end and keys its limiter on `REMOTE_ADDR`. Its own README and `docs/storage.md` say the live copy hands over key enumeration, so the hardening is defeated until the file is removed. Nothing here touched it.
 - **The weak board screen is rendered by `test:backend`:** a short secret is written for one part of the board suite and put back exactly, and a sabotaged heading turned exactly that check red.
 - **Not done:** a coarse backstop bucket on the peer, deploys, and any change on the VPS. The VPS runs the older `wain.php` and `media.php` until they are reinstalled, and no recorded route does that yet.
+
+## The four answers, built — 1 November (in the repository; not deployed, nothing on the VPS touched)
+
+The owner answered four questions after the short-secret record above, each with the recommended option.
+
+- **Past the cap, a wrong admin secret waits.** `wain-api.php` and `media-endpoint.php` answer 429 `rate_limited` after a 250 ms wait once a visitor is past their per-minute cap; within the cap a wrong guess costs the same quarter second as before, and a right key is never counted. The trade-off is one PHP worker held per refused guess during a flood. Revisit it first if the host runs few workers.
+- **The floor counts characters, not bytes.** `secretChars()` (UTF-8 code points) replaces `strlen` for the admin secret and the media view key, so 16 Arabic letters are refused as well as 16 ASCII ones. The docs say 32 characters; the code now agrees.
+- **Refused admin requests are counted.** A request refused because the admin secret is unset or under 32 characters is counted against its address's own bucket, as a wrong guess is. Previously a short-secret state was refused before any count.
+- **`server/api.php` is deleted from the repository**, with `tests/api.test.mjs` and the `test:api` script. `server/README.md` and `docs/storage.md` record the removal. The **host copy is untouched**: `server/` is not part of the export, so no deploy removes it. The owner deletes it on the host. Before that, check `admin.html`: `docs/backend.md`, the last section, says the old panel's order screen reads and writes through it.
+
+Tests: `test:wain-api` 239 of 239, `test:media` 82 of 82 (the Arabic-floor sabotage made exactly the boundary check fail; the endpoint was restored byte for byte and `cmp`-verified). Three comments that named `test:api` as the PHP-dependent suite now name `test:tts`, `test:media` and `test:wain-api`.
+
+Still open, not changed: the upload path fails open when its counter cannot open; `media.ts`'s `newDraftId` uses `Math.random` for a photo folder id (not a credential, the owner's call); `/search` sits at 176.0K against its 176K budget on the agent build; `version`'s casing (`ABSENT`/`EMPTY` against `weak`/`set`); no coarse backstop bucket on the peer; the VPS still runs the older `wain.php` and `media.php` until they are reinstalled.

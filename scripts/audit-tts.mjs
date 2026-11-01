@@ -67,7 +67,7 @@ if (clips.__error) {
 const bridge = read("php", [ENDPOINT, "table"]);
 if (bridge.__error) {
   /* PHP is not a build dependency of this site — it is the host's, and
-     `test:api` already needs it. A machine without it must not be able to turn
+     `test:tts` already needs it. A machine without it must not be able to turn
      this check red, because a red check people cannot run is a check people
      stop reading. It says loudly that it did not run. */
   note(`php is not available here, so the bridge's table was NOT compared (${ENDPOINT})`);

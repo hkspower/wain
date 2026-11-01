@@ -72,7 +72,7 @@ try {
     cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000,
   }));
 } catch (e) {
-  /* PHP is not a build dependency of this site — the host's, and test:api
+  /* PHP is not a build dependency of this site — the host's, and test:media
      already needs it. A machine without it must not be able to turn this
      check red, because a red check people cannot run is a check people stop
      reading. It says loudly that it did not run instead. */

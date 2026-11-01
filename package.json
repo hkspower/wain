@@ -41,7 +41,6 @@
     "audit:js": "node scripts/audit-js.mjs",
     "test:journey": "node tests/run-journey.mjs",
     "test:hangout": "node tests/run-hangout.mjs",
-    "test:api": "node tests/api.test.mjs",
     "test:tts": "node tests/tts-endpoint.test.mjs",
     "test:media": "node tests/media-endpoint.test.mjs",
     "test:wain-api": "node tests/wain-api.test.mjs",

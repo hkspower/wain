@@ -6,7 +6,7 @@
  * and reads the result back with a plist parser — not a regex over the text
  * that wrote it, which would only prove the script agrees with itself.
  *
- * NOT in `npm run scan`, for the same reason test:api and test:tts are not: it
+ * NOT in `npm run scan`, for the same reason test:tts and test:wain-api are not: it
  * shells out to `npx cap add ios`, which is slow and needs the network.
  *
  * Runs on Linux, which is the point. The obvious way to edit an Info.plist is
