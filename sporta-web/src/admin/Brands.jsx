@@ -110,7 +110,7 @@ export default function Brands() {
                 {b.name_en}
               </p>
               <p className="truncate text-sm text-slate-500" dir="rtl">{b.name_ar}</p>
-              <p className="truncate font-mono text-[0.7rem] text-slate-400">{b.slug}</p>
+              <p className="truncate font-mono text-[0.7rem] text-slate-500">{b.slug}</p>
             </div>
             <div className="flex flex-col items-end gap-2">
               {/* A real checkbox: it is a switch, and a switch has to be
@@ -166,7 +166,7 @@ function BrandMark({ brand, size = 'h-12 w-12' }) {
   }
   // No logo yet: initials, not a broken image.
   return (
-    <span className={`${size} grid shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-extrabold text-slate-400`}>
+    <span className={`${size} grid shrink-0 place-items-center rounded-xl bg-slate-100 text-sm font-extrabold text-slate-500`}>
       {(brand.name_en || '?').slice(0, 2).toUpperCase()}
     </span>
   )
@@ -225,7 +225,7 @@ function BrandEditor({ brand, onClose, onSaved }) {
           <h3 className="text-lg font-bold text-slate-800">
             {form.id ? 'Edit brand' : 'Add a brand'}
           </h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>

@@ -87,7 +87,7 @@ export default function Products() {
             {state.rows.map((r) => (
               <tr key={r.id} className="border-b border-slate-50 last:border-0">
                 <td className="p-3">
-                  <span className={Number(r.active) ? 'font-semibold text-slate-800' : 'text-slate-400'}>
+                  <span className={Number(r.active) ? 'font-semibold text-slate-800' : 'text-slate-500'}>
                     {r.name_en}
                   </span>
                   <span className="block text-xs text-slate-500" dir="rtl">{r.name_ar}</span>
@@ -209,7 +209,7 @@ function Editor({ product, onClose, onSaved }) {
           <h3 className="text-lg font-bold text-slate-800">
             {form.id ? 'Edit product' : 'Add a product'}
           </h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>
@@ -234,7 +234,7 @@ function Editor({ product, onClose, onSaved }) {
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-slate-600">
-              Sale price (KWD) <span className="font-normal text-slate-400">— optional, must be below the price</span>
+              Sale price (KWD) <span className="font-normal text-slate-500">— optional, must be below the price</span>
             </span>
             <input
               value={form.sale_price} onChange={set('sale_price')} inputMode="decimal"
@@ -287,7 +287,7 @@ function Editor({ product, onClose, onSaved }) {
               One per product is the normal case and stays free of it. */}
           <label className="block sm:col-span-2">
             <span className="mb-1.5 block text-xs font-bold text-slate-600">
-              More photos <span className="font-normal text-slate-400">— comma separated, in order. The main image comes first.</span>
+              More photos <span className="font-normal text-slate-500">— comma separated, in order. The main image comes first.</span>
             </span>
             <input
               value={form.images ?? ''}

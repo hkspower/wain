@@ -22,7 +22,7 @@ const FUL_TONE = {
   packed: 'bg-sky-100 text-sky-700',
   shipped: 'bg-violet-100 text-violet-700',
   delivered: 'bg-emerald-100 text-emerald-800',
-  cancelled: 'bg-slate-100 text-slate-500',
+  cancelled: 'bg-slate-100 text-slate-600',
 }
 
 export default function Orders({ initialPayment = 'all' }) {
@@ -94,7 +94,7 @@ export default function Orders({ initialPayment = 'all' }) {
         ))}
         <label className="relative ms-auto">
           <span className="sr-only">Search by track ID</span>
-          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
+          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-500">
             <IconSearch size={16} />
           </span>
           <input
@@ -153,7 +153,7 @@ export default function Orders({ initialPayment = 'all' }) {
                 >
                   <td className="py-3 font-mono text-xs">{o.track_id}</td>
                   <td className="py-3 text-slate-500">{when(o.created_at)}</td>
-                  <td className="py-3">{o.customer_name || <span className="text-slate-400">—</span>}</td>
+                  <td className="py-3">{o.customer_name || <span className="text-slate-500">—</span>}</td>
                   <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
                   <td className="py-3"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
                   <td className="py-3 text-xs font-semibold text-slate-500">
@@ -209,12 +209,12 @@ function SourceCell({ o }) {
     return (
       <span title={[o.utm_source, o.utm_medium, o.utm_campaign].filter(Boolean).join(' · ')}>
         <span className="font-semibold text-slate-700">{o.utm_source}</span>
-        {o.utm_campaign && <span className="block text-[11px] text-slate-400">{o.utm_campaign}</span>}
+        {o.utm_campaign && <span className="block text-[11px] text-slate-500">{o.utm_campaign}</span>}
       </span>
     )
   }
   if (o.referrer_host) return <span className="text-slate-500">{o.referrer_host}</span>
-  return <span className="text-slate-400">Direct</span>
+  return <span className="text-slate-500">Direct</span>
 }
 
 function OrderDrawer({ order, onClose, onChanged }) {
@@ -333,7 +333,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <p className="font-mono text-sm font-bold text-slate-800">{order.track_id}</p>
             <p className="text-xs text-slate-500">{when(order.created_at)}</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </header>
@@ -360,7 +360,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
           <section>
             <h3 className="mb-2 text-sm font-bold text-slate-700">Items</h3>
             {items === null ? (
-              <p className="text-sm text-slate-400">Loading…</p>
+              <p className="text-sm text-slate-500">Loading…</p>
             ) : items.length === 0 ? (
               <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
                 No line items. The order was created but its products were never matched — usually
@@ -371,7 +371,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
                 {items.map((it) => (
                   <li key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
                     <span className="text-slate-700">
-                      {it.products?.name_en ?? 'Unknown'} <span className="text-slate-400">× {it.qty}</span>
+                      {it.products?.name_en ?? 'Unknown'} <span className="text-slate-500">× {it.qty}</span>
                     </span>
                     <span className="font-semibold tabular-nums">{kwd(it.unit_price * it.qty)}</span>
                   </li>
@@ -420,9 +420,9 @@ function OrderDrawer({ order, onClose, onChanged }) {
                   WhatsApp
                 </a>
               )}
-              {saved && <span className="text-sm font-semibold text-emerald-600">Saved</span>}
+              {saved && <span className="text-sm font-semibold text-emerald-700">Saved</span>}
             </div>
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-500">
               Captured at checkout. Blank on orders placed before checkout started asking.
             </p>
 
@@ -560,7 +560,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
 function Field({ label, value, mono, strong }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`${mono ? 'font-mono text-xs' : 'text-sm'} ${strong ? 'text-base font-bold' : ''} capitalize text-slate-800`}>
         {value}
       </p>

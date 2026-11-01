@@ -31,7 +31,7 @@ export default function Catalog() {
     if (!r.error) load()
   }
 
-  if (state.loading) return <p className="text-slate-400">Loading catalogue…</p>
+  if (state.loading) return <p className="text-slate-500">Loading catalogue…</p>
 
   const rows = state.rows ?? []
   const missing = rows.filter((r) => r.state === 'missing')
@@ -89,12 +89,12 @@ export default function Catalog() {
           </button>
         </div>
         {result?.ok && (
-          <p className="mt-3 text-sm font-semibold text-emerald-600">
+          <p className="mt-3 text-sm font-semibold text-emerald-700">
             Synced {result.ok} products. Checkout can price orders now.
           </p>
         )}
         {result?.error && <p className="mt-3 text-sm font-semibold text-rose-600">{result.error}</p>}
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-slate-500">
           Product images are not pushed: the built-in artwork is a placeholder embedded in the
           page, not a URL. Add real photo URLs per product below once you have them.
         </p>
@@ -124,7 +124,7 @@ export default function Catalog() {
                 <td className="py-2.5 font-mono text-xs text-slate-500">{r.slug}</td>
                 <td className="py-2.5 text-end tabular-nums">{kwd(r.price)}</td>
                 <td className="py-2.5 text-end tabular-nums">
-                  {r.remotePrice == null ? <span className="text-slate-300">—</span> : kwd(r.remotePrice)}
+                  {r.remotePrice == null ? <span className="text-slate-500">—</span> : kwd(r.remotePrice)}
                 </td>
                 <td className="py-2.5">
                   <span

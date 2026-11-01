@@ -288,13 +288,13 @@ function SaleRow({ p, onPatch }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-slate-800">{p.name_en}</p>
         <p className="mt-0.5 text-sm">
-          <span className="text-slate-400 line-through">{kwd(p.price)}</span>
+          <span className="text-slate-500 line-through">{kwd(p.price)}</span>
           <span className="ms-2 font-bold text-emerald-700">{kwd(p.sale_price)}</span>
           <span className="ms-2 text-xs text-slate-500">
             {Math.round((1 - Number(p.sale_price) / Number(p.price)) * 100)}% off
           </span>
         </p>
-        <p className="mt-0.5 text-xs text-slate-400">
+        <p className="mt-0.5 text-xs text-slate-500">
           {p.sale_starts_at ? `from ${toInput(p.sale_starts_at).replace('T', ' ')}` : 'live now'}
           {' · '}
           {p.sale_ends_at ? `until ${toInput(p.sale_ends_at).replace('T', ' ')} UTC` : 'no end date'}

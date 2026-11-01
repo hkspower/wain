@@ -174,7 +174,7 @@ function Chart({ series }) {
                 style={{ height: `${Math.max(pct, 2)}%` }}
                 title={`${day}: ${kwd(v)} · ${d.orders} order(s)`}
               />
-              <span className="text-[10px] tabular-nums text-slate-400">{day.slice(3)}</span>
+              <span className="text-[10px] tabular-nums text-slate-500">{day.slice(3)}</span>
             </div>
           )
         })}

@@ -217,17 +217,17 @@ export default function Slides() {
 
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold text-slate-800">
-                  {slide.title_en || <span className="text-slate-400">Untitled</span>}
+                  {slide.title_en || <span className="text-slate-500">Untitled</span>}
                 </p>
                 <p className="truncate text-sm text-slate-500" dir="auto">{slide.title_ar || '—'}</p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-500">
                   {slide.width ? `${slide.width}×${slide.height}` : 'size unknown'}
                   {slide.cta_href ? ` · button → ${slide.cta_href}` : ''}
                 </p>
               </div>
 
               {!slide.active && (
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
                   Hidden
                 </span>
               )}
@@ -312,7 +312,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
       <form onSubmit={submit} className="w-full max-w-2xl space-y-5 rounded-2xl bg-white p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">{form.id ? 'Edit slide' : 'New slide'}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose className="h-5 w-5" />
           </button>
         </div>
@@ -330,7 +330,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
                        backgroundPosition: `${form.focal_x}% ${form.focal_y}%` }}
             >
               {!preview && (
-                <span className="flex h-full items-center justify-center text-slate-400">
+                <span className="flex h-full items-center justify-center text-slate-500">
                   <IconImage className="h-7 w-7" />
                 </span>
               )}
@@ -358,7 +358,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
                 is fine. PNG, JPEG or WebP — never SVG.
               </p>
               {form.width && (
-                <p className="text-xs text-slate-400">Stored at {form.width}×{form.height}</p>
+                <p className="text-xs text-slate-500">Stored at {form.width}×{form.height}</p>
               )}
             </div>
           </div>
@@ -416,7 +416,7 @@ function Slider({ label, value, onChange }) {
   return (
     <label className="block">
       <span className="flex items-center justify-between text-xs font-semibold text-slate-600">
-        {label} <span className="font-mono text-slate-400">{value}%</span>
+        {label} <span className="font-mono text-slate-500">{value}%</span>
       </span>
       <input
         type="range" min="0" max="100" value={value}

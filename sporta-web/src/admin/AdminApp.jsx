@@ -116,7 +116,7 @@ function SetupNeeded({ title, lead, steps, note }) {
         >
           Check again
         </button>
-        <p className="mt-3 text-center text-xs text-slate-400">
+        <p className="mt-3 text-center text-xs text-slate-500">
           GO-LIVE.md walks through all of this in order.
         </p>
       </div>
@@ -189,7 +189,7 @@ export default function AdminApp() {
   }
 
   if (session === undefined) {
-    return <div className="flex min-h-screen items-center justify-center text-slate-400">Loading…</div>
+    return <div className="flex min-h-screen items-center justify-center text-slate-500">Loading…</div>
   }
 
   if (blocked) return <SetupNeeded {...blocked} />
@@ -287,8 +287,8 @@ function Dashboard({ email, onSignOut }) {
           ))}
         </nav>
         <div className="mt-6 border-t border-slate-100 pt-4">
-          {email && <p className="truncate px-3 text-xs text-slate-400" title={email}>{email}</p>}
-          <button onClick={onSignOut} className="mt-1 rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-400 hover:text-rose-600">
+          {email && <p className="truncate px-3 text-xs text-slate-500" title={email}>{email}</p>}
+          <button onClick={onSignOut} className="mt-1 rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-500 hover:text-rose-600">
             Sign out
           </button>
         </div>
@@ -298,7 +298,7 @@ function Dashboard({ email, onSignOut }) {
       <header className="m-header">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">S</span>
         <span className="m-header__title">{ADMIN_TABS.find((t) => t.id === tab)?.label}</span>
-        <button onClick={onSignOut} className="text-sm font-semibold text-slate-400">Sign out</button>
+        <button onClick={onSignOut} className="text-sm font-semibold text-slate-500">Sign out</button>
       </header>
 
       <main className="admin-content flex-1 px-4 py-6 md:px-8 md:py-10">

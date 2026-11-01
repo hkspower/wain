@@ -143,7 +143,7 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
                   {d.usage_limit === 0 && d.used_count > 0 && ` · used ${d.used_count}×`}
                 </p>
                 {(d.starts_at || d.ends_at) && (
-                  <p className="mt-0.5 text-xs text-slate-400">
+                  <p className="mt-0.5 text-xs text-slate-500">
                     {d.starts_at ? `from ${toInput(d.starts_at).replace('T', ' ')}` : 'from now'}
                     {' · '}
                     {d.ends_at ? `until ${toInput(d.ends_at).replace('T', ' ')} UTC` : 'no end date'}
@@ -155,7 +155,7 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
                   expired discount that the admin renders as active is exactly
                   the disagreement that gets support calls. */}
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                d.live ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                d.live ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
               }`}>
                 {d.live ? 'Live' : d.active ? 'Not live' : 'Off'}
               </span>
@@ -201,7 +201,7 @@ function Editor({ value, onClose, onSaved }) {
       <form onSubmit={submit} className="w-full max-w-lg space-y-5 rounded-2xl bg-white p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900">{form.id ? 'Edit discount' : 'New discount'}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <IconClose className="h-5 w-5" />
           </button>
         </div>

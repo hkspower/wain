@@ -204,7 +204,7 @@ export default function Inventory() {
             <tr key={r.sku} className={r.stock === 0 ? 'bg-slate-50/70' : undefined}>
               <td className="py-2 pe-3 font-semibold text-slate-800">
                 {r.name_en}
-                <span className="ms-2 text-xs font-normal text-slate-400">
+                <span className="ms-2 text-xs font-normal text-slate-500">
                   {AHED_COLLECTIONS[r.collection]?.name.en ?? r.collection}
                 </span>
               </td>
@@ -219,7 +219,7 @@ export default function Inventory() {
               <td className="py-2 pe-3 text-end tabular-nums text-slate-700">{kwd(r.price)}</td>
               <td className="py-2 text-end tabular-nums">
                 {r.profit == null ? (
-                  <span className="text-slate-400">—</span>
+                  <span className="text-slate-500">—</span>
                 ) : (
                   <span className={r.profit <= 0 ? 'font-bold text-rose-600' : 'font-semibold text-emerald-700'}>
                     {kwd(r.profit)}
