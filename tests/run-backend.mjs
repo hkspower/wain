@@ -136,6 +136,7 @@ const env = {
   WAIN_API: "/api/wain.php",
   WAIN_REAL_BACKEND: "1",
   WAIN_ADMIN_SECRET: SECRET,
+  WAIN_ADMIN_SECRET_FILE: join(storage, "admin.secret"),
   WAIN_FIXTURE_SLUG: FIXTURE_SLUG,
 };
 

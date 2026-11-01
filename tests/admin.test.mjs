@@ -118,6 +118,29 @@ await p.locator('button:has-text("خروج")').click();
 await p.waitForTimeout(400);
 ok('the sign-in form is back and the token is gone', await p.locator('#a-secret').isVisible() && (await p.evaluate(() => sessionStorage.getItem('wain:admin'))) === null);
 
+// The short-secret screen. The server refuses a secret under 32 bytes, so the
+// board must say so and offer no password form. The file is shortened for this
+// part only and put back exactly as it was, even if an assertion throws.
+const SECRET_FILE = process.env.WAIN_ADMIN_SECRET_FILE || '';
+if (SECRET_FILE) {
+  console.log('\n── a secret the server refuses ──');
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const original = readFileSync(SECRET_FILE, 'utf8');
+  try {
+    writeFileSync(SECRET_FILE, 'short-secret\n');
+    const fresh = await ctx.newPage(); // a new tab: no token in its sessionStorage
+    await fresh.goto(`${B}/admin/`, { waitUntil: 'networkidle' });
+    const weakHeading = fresh.locator('h1:has-text("كلمة السر على السيرفر قصيرة")');
+    await weakHeading.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    ok('a secret under 32 bytes gets the short-secret screen', await weakHeading.isVisible());
+    ok('and no password box is offered for it', (await fresh.locator('#a-secret').count()) === 0);
+    ok('the screen names the file to replace', (await fresh.locator('code:has-text("storage/admin.secret")').count()) > 0);
+    await fresh.close();
+  } finally {
+    writeFileSync(SECRET_FILE, original);
+  }
+}
+
 ok('no page errors on the board', errors.length === 0, errors.join(' | '));
 
 console.log(`\n${pass} passed, ${fails.length} failed`);
