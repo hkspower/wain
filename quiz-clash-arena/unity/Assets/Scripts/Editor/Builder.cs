@@ -17,6 +17,8 @@ public static class Builder
                 UnityEditor.SceneManagement.EditorSceneManager.NewScene(
                     UnityEditor.SceneManagement.NewSceneSetup.EmptyScene), scene);
         }
+        // Plain files: nginx serves them with no Content-Encoding headers to get right.
+        PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         Directory.CreateDirectory(Path.GetDirectoryName(outPath));
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {

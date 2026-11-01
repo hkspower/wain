@@ -1,0 +1,66 @@
+# Builds the Unity WebGL version of Quiz Clash Arena on the VPS and serves it.
+# Two modes, chosen by environment variables (set in hPanel > VPS > Docker):
+#   ACTIVATE=1            print a Unity licence request (.alf) in the logs, then stop
+#   UNITY_LICENSE_B64=... base64 of the .ulf licence: build, then serve
+# SRC_SHA pins the repo commit that supplies the scripts.
+services:
+  build:
+    image: unityci/editor:ubuntu-6000.0.32f1-webgl-3
+    restart: "no"
+    cpus: 2
+    mem_limit: 8g
+    shm_size: 1g
+    environment:
+      - ACTIVATE=${ACTIVATE:-}
+      - UNITY_LICENSE_B64=${UNITY_LICENSE_B64:-}
+      - SRC_SHA=${SRC_SHA:-}
+    volumes:
+      - qa-out:/out
+      - qa-www:/www
+      - qa-work:/work
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -u
+        say() { echo "[quiz-unity] $$*"; }
+        U="$${UNITY_PATH:-/opt/unity}/Editor/Unity"
+        [ -x "$$U" ] || { say "no Unity at $$U"; exit 0; }
+        mkdir -p /out /work /www /root/.local/share/unity3d/Unity
+        if [ "$${ACTIVATE:-}" = "1" ]; then
+          cd /out && rm -f Unity_v*.alf
+          "$$U" -batchmode -nographics -quit -createManualActivationFile -logFile /out/activate.log || true
+          f=$$(ls /out/Unity_v*.alf 2>/dev/null | head -1)
+          [ -n "$$f" ] || { say "no .alf written"; tail -n 20 /out/activate.log; exit 0; }
+          say "ALF_B64 $$(base64 -w0 "$$f")"
+          exit 0
+        fi
+        [ -n "$${UNITY_LICENSE_B64:-}" ] || { say "set UNITY_LICENSE_B64 (or ACTIVATE=1) and start the project again"; exit 0; }
+        [ -n "$${SRC_SHA:-}" ] || { say "set SRC_SHA"; exit 0; }
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null
+        printf '%s' "$$UNITY_LICENSE_B64" | base64 -d > /root/.local/share/unity3d/Unity/Unity_lic.ulf
+        cd /work && rm -rf src && git init -q src && cd src
+        git fetch -q --depth 1 https://github.com/hkspower/wain.git "$$SRC_SHA" && git checkout -q FETCH_HEAD
+        say "source at $$(git rev-parse --short HEAD)"
+        rm -rf /work/proj
+        "$$U" -batchmode -nographics -quit -createProject /work/proj -logFile /out/create.log
+        cp -r /work/src/quiz-clash-arena/unity/Assets/Scripts /work/proj/Assets/
+        "$$U" -batchmode -nographics -quit -projectPath /work/proj -buildTarget WebGL -executeMethod Builder.BuildWebGL -logFile /out/build.log
+        rm -rf /www/* && cp -r /work/proj/Builds/WebGL/. /www/
+        say "built: $$(du -sh /www | cut -f1)"
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - qa-www:/usr/share/nginx/html:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.quiz3d.rule=Host(`quiz3d.almuhallab-code.com`)
+      - traefik.http.routers.quiz3d.entrypoints=websecure
+      - traefik.http.routers.quiz3d.tls.certresolver=letsencrypt
+      - traefik.http.services.quiz3d.loadbalancer.server.port=80
+volumes:
+  qa-out:
+  qa-www:
+  qa-work:
