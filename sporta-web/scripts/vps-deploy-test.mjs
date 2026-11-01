@@ -129,6 +129,11 @@ try {
        'a scan mounts the server read-only')
     const jscan = JSON.parse((await c(['--scan', 'json', '--ref', 'main'])).out).services.deploy
     is(jscan.environment.SPORTA_SCAN_WHICH === 'json' && jscan.volumes[0].endsWith(':ro'), '--scan json selects the JSON scan, read-only')
+    const pscan = JSON.parse((await c(['--scan', 'ports', '--edge', 'tcp/80@any,tcp/22@178.61.10.104', '--ref', 'main'])).out).services.deploy
+    is(pscan.environment.SPORTA_SCAN_WHICH === 'ports' && pscan.environment.SPORTA_PORTS_EDGE === 'tcp/80@any,tcp/22@178.61.10.104'
+       && pscan.volumes.every((v) => v.endsWith(':ro')) && !pscan.volumes.some((v) => v.startsWith('/etc/ssh:')),
+       '--scan ports: read-only mounts, the two sshd config paths only (never the host keys)', pscan.volumes.join(' '))
+    is((await c(['--scan', 'ports', '--edge', 'tcp/80@any;reboot', '--ref', 'main'])).code !== 0, 'a malformed --edge is refused')
     const rb = await c(['--rollback', '../../etc'])
     is(rb.code !== 0, 'a rollback name that is not a deploy backup is refused')
   }
@@ -228,6 +233,32 @@ try {
        'it reads the real catalogue through the store API')
     is(/BAD\s+\/assets\/app\.js\.map is SERVED/.test(j.out), 'a served source map is reported')
     fs.rmSync(join(LIVE, 'assets', 'app.js.map'))
+
+    // The port scan, on a planted socket table: MariaDB on every interface,
+    // the stand-in site on loopback, QUIC bound, and a cloud-init drop-in
+    // that turns passwords back on beneath a main file that says no.
+    const PN = join(T, 'proc-net'), SSH = join(T, 'ssh')
+    fs.mkdirSync(PN, { recursive: true }); fs.mkdirSync(join(SSH, 'sshd_config.d'), { recursive: true })
+    const row = (i, local, st) => `   ${i}: ${local} 00000000:0000 ${st} 00000000:00000000 00:00000000 00000000     0        0 ${100 + i} 1 0 100 0 0 10 0`
+    const hdr = '  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode'
+    fs.writeFileSync(join(PN, 'tcp'), [hdr, row(0, '00000000:0016', '0A'), row(1, '00000000:0CEA', '0A'),
+      row(2, `0100007F:${PORT.toString(16).toUpperCase().padStart(4, '0')}`, '0A'), row(3, '0100007F:9C40', '01')].join('\n') + '\n')
+    fs.writeFileSync(join(PN, 'tcp6'), [hdr, row(0, '00000000000000000000000000000000:01BB', '0A')].join('\n') + '\n')
+    fs.writeFileSync(join(PN, 'udp'), [hdr, row(0, '00000000:01BB', '07')].join('\n') + '\n')
+    fs.writeFileSync(join(SSH, 'sshd_config'), 'Include /etc/ssh/sshd_config.d/*.conf\nPasswordAuthentication no\nPermitRootLogin prohibit-password\n')
+    fs.writeFileSync(join(SSH, 'sshd_config.d', '50-cloud-init.conf'), 'PasswordAuthentication yes\n')
+    const ports = async (edge) => deploy({ SPORTA_DEPLOY_MODE: 'scan', SPORTA_DEPLOY_REF: 'main', SPORTA_SCAN_WHICH: 'ports',
+      SPORTA_PORTS_PROC: PN, SPORTA_PORTS_SSHD: SSH, ...(edge ? { SPORTA_PORTS_EDGE: edge } : {}) })
+    const p1 = await ports()
+    is(/SCAN_DONE bad=0 /.test(p1.out), 'the port scan runs; the default edge rules are not a finding', /SCAN_DONE[^\n]*/.exec(p1.out)?.[0] ?? p1.out.slice(-300))
+    is(new RegExp(`ok\\s+tcp ${PORT}\\s+127\\.0\\.0\\.1 · HTTP \\d{3}.*loopback only`).test(p1.out), 'a loopback listener is asked who it is (HTTP) and passes')
+    is(/WARN tcp 3306\s+0\.0\.0\.0 .*MySQL\/MariaDB on every interface/.test(p1.out), 'a database on every interface is flagged even behind the firewall')
+    is(!/tcp 40000/.test(p1.out), 'an established connection is not a listener')
+    is(/ok\s+tcp 443\s+\[::\]/.test(p1.out) && /WARN udp 443 \(HTTP\/3\)/.test(p1.out), 'IPv6 any is decoded; QUIC bound while the edge drops UDP is flagged')
+    is(/WARN PasswordAuthentication yes/.test(p1.out), 'a cloud-init drop-in outranks the main sshd_config (first value wins)')
+    const p2 = await ports('tcp/80@any,tcp/443@any,tcp/22@any,tcp/3306@any')
+    is(/BAD\s+tcp 22 is open to the whole internet/.test(p2.out) && /BAD\s+tcp 3306 .*AND the firewall lets it in/.test(p2.out),
+       'SSH or a database open to anyone at the edge is BAD')
   }
 
   head('a deploy that breaks the site undoes itself')

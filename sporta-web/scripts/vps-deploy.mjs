@@ -42,6 +42,8 @@
 //             server-response checks of scan-server-response.sh plus the web
 //             root on disk. No build. `--scan json` runs json-scan.mjs instead:
 //             every JSON answer, the manifests, JSON-LD and stray .json/.map.
+//             `--scan ports [--edge RULES]` runs port-scan.mjs: every listener
+//             on the host, its bind, who answers, the edge firewall, sshd.
 //
 // SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
 // (or files). That is how the backend ships while the storefront's own source
@@ -119,8 +121,11 @@ function composeCommand(argv) {
     else if (a === '--scan') {
       opt.mode = 'scan'
       // --scan json → scripts/json-scan.mjs; bare --scan → live-scan.mjs.
-      if (argv[i + 1] === 'json' || argv[i + 1] === 'site') opt.scan = argv[++i]
+      if (['json', 'site', 'ports'].includes(argv[i + 1])) opt.scan = argv[++i]
     }
+    // --edge tcp/80@any,tcp/22@1.2.3.4 — the Hostinger firewall rules, read
+    // from the API by whoever starts the job (the container cannot).
+    else if (a === '--edge') opt.edge = argv[++i]
     else throw new Error(`unknown option ${a}`)
   }
   if (!opt.ref) opt.ref = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -163,7 +168,15 @@ function composeCommand(argv) {
   }
   if (opt.mode === 'rollback') environment.SPORTA_DEPLOY_BACKUP = opt.backup
   if (opt.only) environment.SPORTA_DEPLOY_ONLY = opt.only
-  if (opt.mode === 'scan' && opt.scan === 'json') environment.SPORTA_SCAN_WHICH = 'json'
+  if (opt.mode === 'scan' && ['json', 'ports'].includes(opt.scan)) environment.SPORTA_SCAN_WHICH = opt.scan
+  if (opt.edge) {
+    if (!/^((tcp|udp)\/\d+(:\d+)?@[\w.:/]+,?)+$/i.test(opt.edge)) fail('bad --edge list')
+    environment.SPORTA_PORTS_EDGE = opt.edge
+  }
+  const volumes = [['plan', 'scan'].includes(opt.mode) ? '/docker/sporta:/sporta:ro' : '/docker/sporta:/sporta']
+  // The port scan reads sshd's settings — the two config paths only, never
+  // /etc/ssh itself (the host keys live there), and read-only.
+  if (opt.scan === 'ports') volumes.push('/etc/ssh/sshd_config:/host/ssh/sshd_config:ro', '/etc/ssh/sshd_config.d:/host/ssh/sshd_config.d:ro')
   const doc = {
     services: {
       deploy: {
@@ -174,7 +187,7 @@ function composeCommand(argv) {
         network_mode: 'host',
         environment,
         // Plan cannot write: the mount itself is read-only.
-        volumes: [['plan', 'scan'].includes(opt.mode) ? '/docker/sporta:/sporta:ro' : '/docker/sporta:/sporta'],
+        volumes,
         entrypoint: ['/bin/sh', '-c'],
         // $ is Compose interpolation; $$ is a literal $ for the shell.
         command: [script.replaceAll('$', () => '$$')],
@@ -385,7 +398,7 @@ async function run() {
   if (mode === 'scan') {
     process.env.SPORTA_SCAN_ROOT ??= LIVE
     if (PROBE_BASE) process.env.SPORTA_SCAN_BASE ??= PROBE_BASE
-    await import(process.env.SPORTA_SCAN_WHICH === 'json' ? './json-scan.mjs' : './live-scan.mjs')
+    await import({ json: './json-scan.mjs', ports: './port-scan.mjs' }[process.env.SPORTA_SCAN_WHICH] ?? './live-scan.mjs')
     return
   }
 
