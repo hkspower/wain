@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchVariants, setStock } from './api'
 import { AHED_FX, ahedCostKwd, AHED_COLLECTIONS } from '../lib/ahed'
 import { formatKWD } from '../lib/format'
@@ -17,15 +17,39 @@ export default function Inventory() {
   const [busy, setBusy] = useState(null)
   const [msg, setMsg] = useState('')
   const [onlyProblems, setOnlyProblems] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState(null)
+  // Mirrors `busy` for the poll, which runs on a timer and must not read a
+  // stale value from the render it was created in.
+  const busyRef = useRef(false)
 
-  const load = useCallback(async () => {
+  // A silent refresh (the timer, or the tab coming back) keeps the table the
+  // shopkeeper already sees when it fails, instead of blanking it to an error.
+  const refresh = useCallback(async ({ silent = false } = {}) => {
     const r = await fetchVariants()
+    if (silent && r.error) return
     setState({ loading: false, ...r })
+    if (!r.error) setUpdatedAt(new Date())
   }, [])
 
+  const load = useCallback(() => refresh(), [refresh])
+
+  // Stock changes come from the storefront and from other staff, so the screen
+  // polls. Polling is paused while the tab is hidden and while a save is in
+  // flight, so an optimistic update is never overwritten by a stale read.
   useEffect(() => {
-    load()
-  }, [load])
+    refresh()
+    const tick = () => {
+      if (document.visibilityState === 'visible' && !busyRef.current) {
+        refresh({ silent: true })
+      }
+    }
+    const id = setInterval(tick, 15000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [refresh])
 
   const rows = useMemo(() => {
     const withMargin = (state.rows ?? []).map((r) => {
@@ -66,10 +90,12 @@ export default function Inventory() {
       setMsg('Stock must be a whole number, zero or more.')
       return
     }
+    busyRef.current = true
     setBusy(sku)
     setMsg('')
     const r = await setStock(sku, n)
     setBusy(null)
+    busyRef.current = false
     if (r.error) {
       setMsg(r.error)
       return
@@ -151,6 +177,11 @@ export default function Inventory() {
           />
           Only sold out or losing money
         </label>
+        {updatedAt && (
+          <span className="text-xs text-slate-500" aria-live="off">
+            Live · updated {updatedAt.toLocaleTimeString('en-GB')}
+          </span>
+        )}
         <button onClick={load} className="text-sm font-semibold text-indigo-600 underline">
           Refresh
         </button>
@@ -252,7 +283,11 @@ export default function Inventory() {
 // the row rather than a modal. Commits on blur or Enter; Escape puts it back.
 function StockCell({ row, busy, onSave }) {
   const [value, setValue] = useState(String(row.stock))
-  useEffect(() => setValue(String(row.stock)), [row.stock])
+  // While the field has focus, a live update must not replace what is typed.
+  const editing = useRef(false)
+  useEffect(() => {
+    if (!editing.current) setValue(String(row.stock))
+  }, [row.stock])
 
   const commit = () => {
     if (String(row.stock) !== value.trim()) onSave(value.trim())
@@ -263,7 +298,8 @@ function StockCell({ row, busy, onSave }) {
       <input
         value={value}
         onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))}
-        onBlur={commit}
+        onFocus={() => { editing.current = true }}
+        onBlur={() => { editing.current = false; commit() }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur()
           if (e.key === 'Escape') setValue(String(row.stock))
