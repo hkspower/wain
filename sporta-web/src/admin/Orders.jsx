@@ -65,7 +65,7 @@ export default function Orders({ initialPayment = 'all' }) {
         <div className="flex gap-2">
           <button
             onClick={load}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            className="rounded-lg border border-[#7d8799] bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
           >
             Refresh
           </button>
@@ -101,7 +101,7 @@ export default function Orders({ initialPayment = 'all' }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Track ID…"
-            className="w-48 rounded-lg border border-slate-300 bg-white py-2 pe-3 ps-9 text-sm text-slate-800 outline-none focus:border-indigo-500"
+            className="w-48 rounded-lg border border-[#7d8799] bg-white py-2 pe-3 ps-9 text-sm text-slate-800 outline-none focus:border-indigo-500"
           />
         </label>
       </div>
@@ -397,7 +397,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
                   <input
                     value={cust[k]}
                     onChange={(e) => { setCust({ ...cust, [k]: e.target.value }); setSaved(false) }}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                    className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-500"
                   />
                 </label>
               ))}
@@ -469,7 +469,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
                   key={s}
                   onClick={() => move(s)}
                   disabled={busy}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold capitalize text-slate-700 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-40"
+                  className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold capitalize text-slate-700 hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-40"
                 >
                   {s}
                 </button>

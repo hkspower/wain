@@ -161,11 +161,11 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
               </span>
 
               <button onClick={() => onToggle(d)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300">
+                className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500">
                 {d.active ? 'Switch off' : 'Switch on'}
               </button>
               <button onClick={() => onEdit({ ...d, starts_at: toInput(d.starts_at), ends_at: toInput(d.ends_at), category: d.category ?? '' })}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300">
+                className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500">
                 Edit
               </button>
               <button onClick={() => onRemove(d)}
@@ -227,7 +227,7 @@ function Editor({ value, onClose, onSaved }) {
               value={form.code}
               onChange={(e) => set('code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
               placeholder="SAVE10" required
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm uppercase outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 font-mono text-sm uppercase outline-none focus:border-indigo-400"
             />
             <span className="mt-1 block text-xs text-slate-500">
               Letters and numbers only. Case does not matter to the customer — it is stored uppercase.
@@ -240,7 +240,7 @@ function Editor({ value, onClose, onSaved }) {
           <input
             value={form.label} onChange={(e) => set('label', e.target.value)} required
             placeholder="10% welcome offer"
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+            className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
           />
           <span className="mt-1 block text-xs text-slate-500">
             The customer sees this at checkout and on the invoice.
@@ -252,7 +252,7 @@ function Editor({ value, onClose, onSaved }) {
             <span className="text-xs font-semibold text-slate-600">Kind of discount</span>
             <select
               value={form.type} onChange={(e) => set('type', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             >
               <option value="percent">Percentage off</option>
               <option value="fixed">Fixed amount off (KWD)</option>
@@ -266,7 +266,7 @@ function Editor({ value, onClose, onSaved }) {
               type="number" step={form.type === 'percent' ? '1' : '0.001'}
               min={form.type === 'percent' ? '1' : '0.001'} max={form.type === 'percent' ? '90' : undefined}
               value={form.value} onChange={(e) => set('value', e.target.value)} required
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
           </label>
         </div>
@@ -277,7 +277,7 @@ function Editor({ value, onClose, onSaved }) {
             <input
               type="number" step="0.001" min="0" value={form.min_order}
               onChange={(e) => set('min_order', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
             <span className="mt-1 block text-xs text-slate-500">0 means no minimum.</span>
           </label>
@@ -286,7 +286,7 @@ function Editor({ value, onClose, onSaved }) {
             <input
               type="number" step="1" min="0" value={form.usage_limit}
               onChange={(e) => set('usage_limit', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
             <span className="mt-1 block text-xs text-slate-500">0 means unlimited.</span>
           </label>
@@ -297,7 +297,7 @@ function Editor({ value, onClose, onSaved }) {
           <input
             value={form.category} onChange={(e) => set('category', e.target.value)}
             placeholder="men"
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+            className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
           />
           <span className="mt-1 block text-xs text-slate-500">
             Leave empty for the whole shop. When set, the discount is worked out on that
@@ -310,14 +310,14 @@ function Editor({ value, onClose, onSaved }) {
             <span className="text-xs font-semibold text-slate-600">Starts (UTC, optional)</span>
             <input
               type="datetime-local" value={form.starts_at} onChange={(e) => set('starts_at', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-slate-600">Ends (UTC, optional)</span>
             <input
               type="datetime-local" value={form.ends_at} onChange={(e) => set('ends_at', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
           </label>
         </div>

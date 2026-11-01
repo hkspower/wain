@@ -233,7 +233,7 @@ export default function Slides() {
               )}
               <button
                 onClick={() => setEditing(slide)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"
+                className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
               >Edit</button>
               <button
                 onClick={() => remove(slide)}
@@ -348,7 +348,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
               <input ref={fileRef} type="file" accept={ACCEPTED_ATTR} onChange={choose} className="hidden" />
               <button
                 type="button" onClick={() => fileRef.current?.click()}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"
+                className="w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
               >
                 {preview ? 'Choose a different photo' : 'Choose a photo'}
               </button>
@@ -433,7 +433,7 @@ function Field({ label, hint, dir, ...props }) {
       <span className="text-xs font-semibold text-slate-600">{label}</span>
       <input
         {...props} dir={dir}
-        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+        className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>

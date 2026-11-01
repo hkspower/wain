@@ -307,7 +307,7 @@ function StockCell({ row, busy, onSave }) {
         disabled={busy}
         inputMode="numeric"
         aria-label={`Stock for ${row.name_en} size ${row.size}`}
-        className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-end font-bold tabular-nums outline-none focus:border-indigo-500 disabled:opacity-50"
+        className="w-16 rounded-lg border border-[#7d8799] px-2 py-1 text-end font-bold tabular-nums outline-none focus:border-indigo-500 disabled:opacity-50"
       />
     </span>
   )

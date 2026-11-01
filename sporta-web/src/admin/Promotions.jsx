@@ -107,14 +107,14 @@ export default function Promotions() {
               <span className="text-xs font-semibold text-slate-600">English</span>
               <input
                 value={bar.text_en ?? ''} onChange={(e) => setBar({ ...bar, text_en: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
               />
             </label>
             <label className="block">
               <span className="text-xs font-semibold text-slate-600">Arabic</span>
               <input
                 dir="rtl" value={bar.text_ar ?? ''} onChange={(e) => setBar({ ...bar, text_ar: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
               />
             </label>
           </div>
@@ -124,7 +124,7 @@ export default function Promotions() {
             <input
               value={bar.href ?? ''} onChange={(e) => setBar({ ...bar, href: e.target.value })}
               placeholder="/shop"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              className="mt-1 w-full rounded-lg border border-[#7d8799] px-3 py-2 text-sm outline-none focus:border-indigo-400"
             />
             <span className="mt-1 block text-xs text-slate-500">
               A path on this site. Links to other sites are refused.
@@ -192,12 +192,12 @@ export default function Promotions() {
                         const v = Number(e.target.value)
                         if (v !== (p.featured_sort ?? 0)) patchProduct(p, { featured_sort: v })
                       }}
-                      className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                      className="w-16 rounded-lg border border-[#7d8799] px-2 py-1.5 text-sm"
                     />
                   </label>
                   <button
                     onClick={() => patchProduct(p, { featured: false })}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"
+                    className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
                   >
                     Remove
                   </button>
@@ -213,7 +213,7 @@ export default function Promotions() {
         <input
           value={q} onChange={(e) => setQ(e.target.value)}
           placeholder="Search the catalogue…"
-          className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+          className="mt-3 w-full rounded-lg border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
         />
         {search && !matches.length && (
           <p className="mt-3 text-sm text-slate-500">Nothing matches “{q}”.</p>
@@ -260,7 +260,7 @@ function SaleButton({ p, onPatch }) {
   if (!open) {
     return (
       <button onClick={() => setOpen(true)}
-        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">
+        className="rounded-lg border border-[#7d8799] px-3 py-1.5 text-xs font-bold text-slate-700">
         Put on sale
       </button>
     )
@@ -271,7 +271,7 @@ function SaleButton({ p, onPatch }) {
         type="number" step="0.001" autoFocus value={price}
         onChange={(e) => setPrice(e.target.value)}
         placeholder={`< ${p.price}`}
-        className="w-24 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+        className="w-24 rounded-lg border border-[#7d8799] px-2 py-1.5 text-xs"
       />
       <button
         onClick={async () => { if (await onPatch(p, { sale_price: price })) setOpen(false) }}
@@ -307,12 +307,12 @@ function SaleRow({ p, onPatch }) {
           onBlur={(e) => {
             if (e.target.value !== toInput(p.sale_ends_at)) onPatch(p, { sale_ends_at: e.target.value })
           }}
-          className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+          className="rounded-lg border border-[#7d8799] px-2 py-1.5 text-xs"
         />
       </label>
       <button
         onClick={() => onPatch(p, { sale_price: '' })}
-        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"
+        className="rounded-lg border border-[#7d8799] px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-500"
       >
         End sale
       </button>
