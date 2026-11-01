@@ -130,8 +130,27 @@ export default function Products() {
   )
 }
 
+// The server sends sale dates as 'YYYY-MM-DD HH:MM:SS'; a datetime-local input
+// wants 'YYYY-MM-DDTHH:MM'.
+const toLocalInput = (v) => (v ? String(v).slice(0, 16).replace(' ', 'T') : '')
+
+// Everything the server stores for a product, in the shape the form edits.
+// The sale and featured fields are part of this on purpose: a save that leaves
+// them out is read by the server as "clear them", so editing a product's name
+// used to end its sale and take it off the featured row.
+function toForm(p) {
+  return {
+    ...p,
+    sale_price: p.sale_price == null || p.sale_price === '' ? '' : String(p.sale_price),
+    sale_starts_at: toLocalInput(p.sale_starts_at),
+    sale_ends_at: toLocalInput(p.sale_ends_at),
+    featured: !!Number(p.featured),
+    featured_sort: String(p.featured_sort ?? 0),
+  }
+}
+
 function Editor({ product, onClose, onSaved }) {
-  const [form, setForm] = useState(product)
+  const [form, setForm] = useState(() => toForm(product))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   // The brand list, for the selector. A failure leaves it empty, which shows
@@ -149,6 +168,12 @@ function Editor({ product, onClose, onSaved }) {
 
   async function submit(e) {
     e.preventDefault()
+    // A sale price that is not a positive number must not be sent: Number()
+    // turns it into null, which the server reads as "no sale".
+    if (form.sale_price !== '' && !(Number(form.sale_price) > 0)) {
+      setErr('The sale price must be a number above zero, or left empty.')
+      return
+    }
     setBusy(true); setErr('')
     const r = await saveProduct({
       id: form.id || 0,
@@ -163,6 +188,11 @@ function Editor({ product, onClose, onSaved }) {
       brand_slug: form.brand_slug || '',
       images: form.images || '',
       image: form.image || null,
+      sale_price: form.sale_price === '' ? null : Number(form.sale_price),
+      sale_starts_at: form.sale_starts_at || null,
+      sale_ends_at: form.sale_ends_at || null,
+      featured: !!form.featured,
+      featured_sort: Number(form.featured_sort) || 0,
       active: form.active,
     })
     setBusy(false)
@@ -202,6 +232,25 @@ function Editor({ product, onClose, onSaved }) {
               placeholder="10.000" className={`${field} tabular-nums`}
             />
           </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">
+              Sale price (KWD) <span className="font-normal text-slate-400">— optional, must be below the price</span>
+            </span>
+            <input
+              value={form.sale_price} onChange={set('sale_price')} inputMode="decimal"
+              placeholder="leave empty for no sale" className={`${field} tabular-nums`}
+            />
+          </label>
+          <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold text-slate-600">Sale starts</span>
+              <input type="datetime-local" value={form.sale_starts_at} onChange={set('sale_starts_at')} className={field} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold text-slate-600">Sale ends</span>
+              <input type="datetime-local" value={form.sale_ends_at} onChange={set('sale_ends_at')} className={field} />
+            </label>
+          </div>
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-slate-600">Web name</span>
             <input
@@ -256,8 +305,28 @@ function Editor({ product, onClose, onSaved }) {
             onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
             className="h-4 w-4 accent-indigo-600"
           />
-          On sale
+          Shown on the shop
         </label>
+        {/* active = 0 hides the product from the storefront entirely. It is not
+            the sale: the sale is the price above and its dates. */}
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox" checked={!!form.featured}
+              onChange={(e) => setForm((f) => ({ ...f, featured: e.target.checked }))}
+              className="h-4 w-4 accent-indigo-600"
+            />
+            In the featured row
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            Featured order
+            <input
+              type="number" min="0" step="1" value={form.featured_sort} onChange={set('featured_sort')}
+              className="w-20 rounded-lg border border-[#7d8799] px-2 py-1.5 text-sm tabular-nums"
+            />
+          </label>
+        </div>
 
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">

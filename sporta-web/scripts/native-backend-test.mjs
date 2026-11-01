@@ -323,6 +323,50 @@ const order = (track, items, extra = {}) =>
 // -------------------------------------------------------------------- throttle
 {
   cookie = '' // fresh, signed-out client
+  // ------------------------------------------ editing a product keeps its sale
+  // The product editor saves the whole product. product_save treats an ABSENT
+  // sale or featured field as "clear it", so an editor that did not send them
+  // ended a product's sale and took it off the featured row on every save.
+{
+  await run('mariadb', ['sporta', '-e',
+    "update products set sale_price = 7.500, sale_starts_at = '2099-01-01 00:00:00', " +
+    "sale_ends_at = null, featured = 1, featured_sort = 3 where slug = 'cloudsoft-jacket-army-green'"])
+  // Sign in here: earlier checks in this suite change the session cookie.
+  const signedIn = await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+  is(signedIn.status === 200, 'the admin can sign in for the product save', `${signedIn.status}`)
+  // Read the row the way the editor would receive it. Straight from MariaDB:
+  // the admin session is not what this check is about.
+  const { stdout: rowJson } = await run('mariadb', ['sporta', '-N', '-B', '-e',
+    "select json_object('id', id, 'slug', slug, 'name_en', name_en, 'name_ar', name_ar, " +
+    "'desc_en', desc_en, 'desc_ar', desc_ar, 'price', price, 'category', category, " +
+    "'brand_slug', brand_slug, 'image', image, 'images', images, 'active', active, " +
+    "'sale_price', sale_price, 'sale_starts_at', date_format(sale_starts_at, '%Y-%m-%d %H:%i:%s'), " +
+    "'sale_ends_at', date_format(sale_ends_at, '%Y-%m-%d %H:%i:%s'), 'featured', featured, " +
+    "'featured_sort', featured_sort) from products where slug = 'cloudsoft-jacket-army-green'"])
+  const listed = JSON.parse(rowJson.trim())
+  // The payload the editor builds: the listed row, sale and featured included.
+  const saved = await admin('product_save', { method: 'POST', body: JSON.stringify({
+    id: listed.id, slug: listed.slug, name_en: listed.name_en, name_ar: listed.name_ar,
+    desc_en: listed.desc_en, desc_ar: listed.desc_ar, price: Number(listed.price),
+    category: listed.category, brand_slug: listed.brand_slug ?? '', image: listed.image,
+    images: listed.images ?? '', active: !!Number(listed.active),
+    sale_price: listed.sale_price == null ? null : Number(listed.sale_price),
+    sale_starts_at: listed.sale_starts_at ? listed.sale_starts_at.slice(0, 16).replace(' ', 'T') : null,
+    sale_ends_at: listed.sale_ends_at ? listed.sale_ends_at.slice(0, 16).replace(' ', 'T') : null,
+    featured: !!Number(listed.featured), featured_sort: Number(listed.featured_sort) || 0,
+  }) })
+  is(saved.status === 200, 'an editor-shaped save is accepted', `${saved.status}`)
+  const { stdout: afterRow } = await run('mariadb', ['sporta', '-N', '-B', '-e',
+    "select sale_price, sale_starts_at, featured, featured_sort from products where slug = 'cloudsoft-jacket-army-green'"])
+  const after = afterRow.trim()
+  is(saved.status === 200 && after === '7.500\t2099-01-01 00:00:00\t1\t3',
+     'and it keeps the sale, its start date, the featured row and its order', after)
+  await run('mariadb', ['sporta', '-e',
+    "update products set sale_price = null, sale_starts_at = null, sale_ends_at = null, " +
+    "featured = 0, featured_sort = 0 where slug = 'cloudsoft-jacket-army-green'"])
+}
+
   for (let i = 0; i < 5; i++) {
     await admin('login', { method: 'POST',
       body: JSON.stringify({ email: 'brute@example.com', password: `guess-${i}` }) })
