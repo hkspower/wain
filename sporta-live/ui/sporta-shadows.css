@@ -1,0 +1,30 @@
+/* Softer shadows. Measured on the live site 2026-11-01 before the change —
+   the heaviest were the category tiles (65% charcoal) and the round
+   add-to-bag buttons on every product card (38%). Same shapes, roughly half
+   the weight, so the cards still lift off the beige without looking dirty. */
+
+/* Home category tiles: 0 12px 28px -24px / .65 */
+.campaign-category {
+  box-shadow: 0 10px 24px -22px rgba(23, 26, 30, 0.35) !important;
+}
+.campaign-category:hover {
+  box-shadow: 0 14px 28px -22px rgba(23, 26, 30, 0.42) !important;
+}
+
+/* Round "+" add-to-bag button on product cards: 0 6px 14px -6px / .38 */
+.catalog-card-add {
+  box-shadow: 0 3px 8px -4px rgba(23, 26, 30, 0.22) !important;
+}
+.catalog-card-add:hover {
+  box-shadow: 0 4px 10px -4px rgba(23, 26, 30, 0.28) !important;
+}
+
+/* Home feature row (delivery / returns / ...): 0 6px 18px -18px / .55 */
+.home-feature-item {
+  box-shadow: 0 6px 16px -16px rgba(23, 26, 30, 0.3) !important;
+}
+
+/* Sticky brand strip: 0 6px 22px / .06 */
+.campaign-brand-bar--sticky {
+  box-shadow: 0 4px 14px rgba(23, 26, 30, 0.04) !important;
+}

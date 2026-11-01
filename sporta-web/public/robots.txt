@@ -5,13 +5,19 @@
 # as well. So the Disallow lines have to be repeated in EVERY group. They were
 # previously only in the wildcard group, which meant every named AI bot below
 # was told "Allow: /" and nothing else, and was free to crawl /backends and the
-# payment endpoints. Add a bot, add its three Disallow lines with it.
+# payment endpoints. Add a bot, add its Disallow/Allow lines with it.
+#
+# /api/ is closed except api.php itself: Googlebot renders the shop with
+# JavaScript and must be able to fetch the product JSON and the slide/brand
+# images it serves, or every product page renders empty for the crawler.
 
 User-agent: *
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 # --- Search + AI answer engines, named explicitly ---------------------------
 
@@ -20,95 +26,127 @@ Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Bingbot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: GPTBot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: OAI-SearchBot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: ChatGPT-User
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Claude-Web
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: anthropic-ai
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Applebot-Extended
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Amazonbot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: CCBot
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Bytespider
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: cohere-ai
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 User-agent: Meta-ExternalAgent
 Allow: /
 Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
+Disallow: /api/
+Allow: /api/api.php
 
 Sitemap: https://www.sporta.com.kw/sitemap.xml
