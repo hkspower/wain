@@ -192,10 +192,27 @@ for (const route of ROUTES) {
       // swap and images still decode after it, and a pixel sampled mid-decode
       // measured a size chip against a half-painted gallery — a 1-in-3 flake
       // that looked like a real AA failure. Wait for fonts and every image.
-      await page.evaluate(() => Promise.all([
-        document.fonts.ready,
-        ...[...document.images].map((i) =>
-          i.complete ? null : new Promise((res) => { i.onload = i.onerror = res })),
+      // Only images that will actually load: a loading="lazy" image below the
+      // fold never starts until it is scrolled to, and this script never
+      // scrolls, so waiting on it hung the run until the 400s timeout (3 of 4
+      // scheduled runs on 2026-11-01). And a hard 5s cap on the whole wait, so
+      // one stalled request can make a sample early but never hangs the suite.
+      await page.evaluate(() => Promise.race([
+        Promise.all([
+          document.fonts.ready,
+          ...[...document.images]
+            .filter((i) => {
+              if (i.complete) return false
+              if (i.loading !== 'lazy') return true
+              const r = i.getBoundingClientRect()
+              return r.bottom > 0 && r.top < innerHeight
+            })
+            .map((i) => new Promise((res) => {
+              i.addEventListener('load', res, { once: true })
+              i.addEventListener('error', res, { once: true })
+            })),
+        ]),
+        new Promise((res) => setTimeout(res, 5000)),
       ]))
       await page.waitForTimeout(250)
       // Pick a size AND a fit so the selected-chip colours are actually on
