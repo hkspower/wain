@@ -1,0 +1,39 @@
+# wain on the VPS (srv2058651.hstgr.cloud). Lives at /docker/wain-web there.
+#
+# Build and start it ON THE HOST, over SSH:
+#   cd /docker/wain-web && WAIN_REF=<full commit sha> docker compose up -d --build
+# Hostinger's docker_compose_up API action CANNOT build: it answers "success" in
+# ~11 s and then fails with "No such image" when the compose uses `build:`.
+# Check `docker compose ps` and the container's age, never the action's reply.
+#
+# WAIN_REF is required and must be a full sha — a branch name would let a push
+# silently change what the next rebuild serves.
+services:
+  web:
+    build:
+      context: https://github.com/hkspower/wain.git#${WAIN_REF:?set WAIN_REF to the full commit sha}
+      dockerfile: Dockerfile
+    image: wain-web-web:latest
+    restart: unless-stopped
+    volumes:
+      - wain-storage:/var/www/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null --max-time 3 http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=wain-web_default"
+      - "traefik.http.routers.wain-web.rule=Host(`staging.wainkw.com`)"
+      - "traefik.http.routers.wain-web.entrypoints=websecure"
+      - "traefik.http.routers.wain-web.tls.certresolver=letsencrypt"
+      # Staging is reachable from one address only. If that address changes,
+      # change it here AND in the VM firewall's SSH rule.
+      - "traefik.http.routers.wain-web.middlewares=wain-staging-ip"
+      - "traefik.http.middlewares.wain-staging-ip.ipallowlist.sourcerange=178.61.10.104"
+      - "traefik.http.services.wain-web.loadbalancer.server.port=80"
+
+volumes:
+  wain-storage:

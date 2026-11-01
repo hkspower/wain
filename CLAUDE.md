@@ -73,6 +73,19 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
 ## Deploying (see `docs/hosting.md` for the measured detail)
 
+**Read this before the rest of the section — 1 November: the DNS no longer
+points at the shared host.** Read through the Hostinger API, not assumed: the
+authoritative zone (`ns1/ns2.dns-parking.com`) has `@`, `www` and `staging` as
+A records to **187.7.78.123**, the VPS, and the shared account's site list holds
+only sporta, almuhallab, discs and mawsoool — no `wainkw.com`, no `staging.`,
+no `hub.`. So everything below about `public_html`, `d.php`, `deploy.php`, the
+cron loopback and the two shared-host stages describes the era before the move,
+and **a session that follows it will run cron jobs and listings against
+docroots that are no longer served.** It is left in place, not rewritten,
+because a rewrite is its own task and these paragraphs are still the record of
+*why* things are the way they are. Treat «The VPS image» section just below as
+the current deploy path, and re-verify any shared-host claim before acting on it.
+
 - **This environment cannot upload.** `srv2231-files.hstgr.io` is refused at
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
   route around it, and never disable TLS or unset `HTTPS_PROXY`. The `hosa`
@@ -486,6 +499,74 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
   With the secret set, a push to this branch deploys and **nobody uploads
   anything by hand**. Without it the run stops at the first step and says so.
+
+## The VPS image — `Dockerfile` at the repo root
+
+The current serving path: `srv2058651.hstgr.cloud` (187.7.78.123, Ubuntu +
+Docker + Traefik, Hostinger virtualMachineId 2058651). Two Docker projects on
+it matter. **`wain-web`** (compose at `/docker/wain-web`, committed here as
+`deploy/vps/docker-compose.yml`) builds *this repository* at a pinned commit
+and answers `Host(staging.wainkw.com)` behind a Traefik `ipallowlist` of one
+address. **`apache`** is a shared project whose `wain` service serves
+`www.wainkw.com` (and 301s the apex) from a build directory, `./sites/wainkw.com`
+on the VPS, **that this repository cannot see** — it is a legacy build, not
+this export. Do not touch `apache` from here: it also carries sporta, mawsoool
+and almuhallab, and re-creating it restarts all of them.
+
+- **The image.** Stage 1 `node:22-slim`, `npm ci`, `npm run build`. Stage 2
+  `php:8.3-apache` with `rewrite headers expires deflate mime setenvif remoteip`
+  and `AllowOverride All`, so the export's own `.htaccess` applies. `.dockerignore`
+  keeps `node_modules .next out ios flutter_app brand-source design *.zip .git`
+  out of the context — checked by building a pruned copy, nothing the build
+  reads is excluded.
+- **The bridges are copied in byte for byte.** `scripts/publish/tts-endpoint.php`
+  → `/var/www/html/api/tts.php`, `media-endpoint.php` → `api/media.php`, so
+  `audit:tts`, `audit:media`, `audit:logs`, `test:tts` and `test:media` cover
+  what runs. Both walk UP from `api/` to the first sibling `storage/`, which is
+  `/var/www/storage`, a named volume. An empty `elevenlabs.key` there means
+  tts answers 503 and the site uses the browser voice. **`media.php` is an
+  anonymous public write endpoint, and the section on it says installing it is
+  a decision, not a chore.** It is live on staging because the image ships it
+  and staging is allowlisted to one address; **before the image serves the
+  public, decide it** — or delete the `COPY` line.
+- **Three gaps were found in the first image and fixed in the second.** No
+  `php.ini` (uploads over 2 MB failed as `file_too_large` against media.php's
+  12 MB, and `display_errors` was on); no `remoteip` (behind Traefik
+  `REMOTE_ADDR` is the docker gateway, so both bridges' per-visitor limits were
+  ONE shared bucket and every log line had the same `ip=`); and `storage/`
+  ownership left to a first-mount copy-up, so a key made by `docker exec` as
+  root read as «no key». `php.ini-production` plus 16M/20M limits,
+  `RemoteIPHeader X-Forwarded-For` trusted from private ranges only, and an
+  entrypoint that re-chowns the volume on every start. **None of this has been
+  built or run:** this sandbox has no Docker daemon, so what is verified is the
+  compose (`docker compose config`), the entrypoint's syntax, lint and
+  `content:check`. The first real build is the test.
+- **Build it on the host, over SSH — the API cannot.** Hostinger's
+  `docker_compose_up` answers «success» in about 11 s and then, for a compose
+  that uses `build:`, fails with `No such image` in the project log; the
+  action's state still says success. The running container exists only because
+  somebody built the image by hand. `cd /docker/wain-web && WAIN_REF=<full sha>
+  docker compose up -d --build`, then read `docker compose ps` and the
+  container's age. That is the `createAccountCronJobV1` lesson on a third
+  connector: **the reply is not the state.**
+- **The build id is random here**, not the commit — the image has no git — so
+  `_next/static/<commit>/` and `npm run deploy:verify` do not apply. Verify with
+  content-hashed chunk names, and `curl -sI -H 'Host: staging.wainkw.com'
+  http://127.0.0.1/` inside the container for the `X-Robots-Tag: noindex` rule.
+- **What the sandbox could not see, so do not state it as fact:** whether the
+  staging certificate was issued (Traefik's ACME needs the A record, which now
+  exists, and the allowlist hides the site from every other address), whether
+  JavaScript is compressed in the container (`mod_brotli` is not enabled and
+  nothing measured `mod_deflate` on `text/javascript`), and the Traefik
+  `aliasHeadersStrategy` warning, which is a shared-Traefik change touching every
+  site and so a deliberate one.
+- **This session's tooling cannot SSH or resolve the VPS's DNS.** It has the
+  Hostinger API (`ppok` search/execute) — read-only unless asked — and that is
+  how every statement above was checked. The API also showed heavy out-of-band
+  activity on the VM on 1 November (a dozen root-password resets, SSH and
+  firewall resets, many compose up/down actions). It was not this repo's work;
+  record it so the next reader is not surprised, and agree on one actor per
+  change window.
 
 ## The docroot, file by file — 28 September
 
