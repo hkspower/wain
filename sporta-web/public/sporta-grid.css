@@ -1,0 +1,11 @@
+/* Sporta product grid gutters (shop, category, search).
+ * Measured live 2026-10-31: phone column gap 10px, tablet 12px, desktop 19px, row gaps 20-31px.
+ * One rhythm per breakpoint. Only gutters change; card size and 4:5 image are untouched.
+ * External stylesheet: the live CSP forbids inline script. */
+.product-grid { column-gap: 12px !important; row-gap: 24px !important; }
+@media (min-width: 640px) and (max-width: 1023px) {
+  .product-grid { column-gap: 16px !important; row-gap: 28px !important; }
+}
+@media (min-width: 1024px) {
+  .product-grid { column-gap: 20px !important; row-gap: 32px !important; }
+}

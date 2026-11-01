@@ -3,17 +3,46 @@
 # <FilesMatch> because it is inherited into subdirectories and RewriteRule is
 # not — the measured lesson in SERVER-LAYOUT.md. Deny by NAME.
 
-# The credentials. config.php holds the MySQL password; store.php,
-# config-path.php (which says where config.php lives) and the .sql files are
-# includes and import fixtures, not endpoints — nothing loses by denying them,
-# and seed.mysql.sql names every product and cost price.
-<FilesMatch "^(config\.php|config-path\.php|config\.example\.php|store\.php|.*\.sql)$">
+# The credentials. config.php holds the MySQL password; store.php and the .sql
+# files are includes and import fixtures, not endpoints — nothing loses by
+# denying them, and seed.mysql.sql names every product and cost price.
+<FilesMatch "^(config\.php|config\.example\.php|store\.php|seo-config\.php|seo-runtime\.php|crm\.php|returns\.php|cron-auth\.php|customer-auth\.php|preflight\.php|setup-admin\.php|.*\.sql)$">
   Require all denied
 </FilesMatch>
 
 # JSON answers are per-request state. Never cache an order status.
 <IfModule mod_headers.c>
   Header set Cache-Control "no-store"
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "no-referrer"
+  Header set Cross-Origin-Resource-Policy "same-origin"
 </IfModule>
 
 Options -Indexes
+
+# config-path.php is an include, never an endpoint (answered 200 empty).
+<Files "config-path.php">
+  Require all denied
+</Files>
+
+# The storefront HTML (/, /shop, /product/…) is rendered by seo-page.php, so the
+# no-store above swallowed its own "no-cache" and the homepage was re-downloaded
+# on every visit. A successful page may be kept and revalidated (seo-page.php
+# sends an ETag, so an unchanged page is a 304); its 304 must carry the same header (a 304 updates the stored copy's
+# headers, so no-store there would evict it); a 503/404 stays no-store.
+<Files "seo-page.php">
+  Header set Cache-Control "no-cache, stale-while-revalidate=60" "expr=%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304"
+</Files>
+
+# birthday-lib.php is an include, never an endpoint.
+<Files "birthday-lib.php">
+  Require all denied
+</Files>
+
+# config.example.php is a template for private/api-config.php. It holds no secrets,
+# but it is a map of every configuration key and what each controls, so the web
+# has no reason to read it. Denied by NAME (a FilesMatch survives where a
+# RewriteRule would not). Added 2026-10-31.
+<Files "config.example.php">
+    Require all denied
+</Files>

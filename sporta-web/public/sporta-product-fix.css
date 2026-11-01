@@ -1,0 +1,13 @@
+/* Sporta — product page tap-target fix (add-on for the compiled live bundle).
+ *
+ * The quantity stepper (.catalog-product-quantity) is 48px tall, but its −/+
+ * buttons are only as tall as their 16px icon because the row centres them
+ * (items-center). Measured live at 390px: 48×16 — under the 44px minimum, so
+ * a thumb aimed at "+" often hits nothing. Stretching the buttons to the row
+ * height makes the whole visible box tappable: 48×48. No layout change.
+ */
+.catalog-product-quantity > button {
+  align-self: stretch;
+  min-width: 44px;
+  min-height: 44px;
+}

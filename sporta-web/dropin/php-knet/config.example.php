@@ -42,15 +42,14 @@ return [
     // but a payment system with no trail cannot be reconciled or disputed.
     'log_file' => __DIR__ . '/../../knet-payments.log',
 
-    // How the customer gets back to the shop after paying. See the note in
-    // callback.php.
-    //   'auto'     (default) KNET's server notification gets the one-line
-    //              `REDIRECT=<url>` reply K-064 requires (no HTML — HTML can
-    //              make KNET void the payment); a browser gets an HTTP 302.
-    //   'plain'    always the REDIRECT= line.
-    //   'redirect' always an HTTP 302.
-    //   ('both', the old default, now behaves as 'auto'.)
-    'callback_response' => 'auto',
+    // How the customer gets back to the shop after paying. See the long note
+    // in callback.php: KPG either redirects the browser here, or calls this URL
+    // server-to-server and reads `REDIRECT=<url>` out of the reply. Which one
+    // your Tranportal ID gets is the bank's choice.
+    //   'both'     (default) answers correctly in EITHER style — leave it here
+    //              unless the bank tells you otherwise.
+    //   'redirect' plain HTTP 302, browser-redirect deployments only.
+    'callback_response' => 'both',
 
     // --- ORDERS DATABASE. REQUIRED for a live shop ---
     //

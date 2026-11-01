@@ -66,7 +66,10 @@ try {
 
 // Same rate-limit reset the other suites do: ?r=order allows 20 per ten
 // minutes per IP, and they all share 127.0.0.1.
-await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+// The live store claims stock inside the order (out_of_stock_<slug>_<size>_<left>),
+// and test:native's inventory checks leave sizes at 0 — so restock the test
+// shelf too. Test database only.
+await run('mariadb', ['sporta', '-e', 'delete from rate_limit; update product_variants set stock = 1000'])
 const TRACKS = ['SPCFGVPSKNET', 'SPCFGVPSTPAY', 'SPCFGLEGKNET', 'SPCFGLEGTPAY', 'SPCFGBADTPAY']
 const inList = TRACKS.map((t) => `'${t}'`).join(',')
 const forget = () => sql(

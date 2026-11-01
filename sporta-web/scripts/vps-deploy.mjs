@@ -39,6 +39,12 @@
 //             that answered 200 before and does not now is rolled back at once.
 //   rollback  Restores a named backup made by apply.
 //
+// SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
+// (or files). That is how the backend ships while the storefront's own source
+// is still missing from this repo: the live index.html and its bundle are a
+// different build from this one, so a whole-site apply would replace the live
+// storefront with this repo's. Scoped, the storefront is not even compared.
+//
 // NEVER TOUCHED, in any mode: config.js, every config.php, .cbk_token.json,
 // logs (all live-only configuration or secrets); the setup tools the owner was
 // told to delete (go-live.html, knet/selftest.php, knet/setup-config.php,
@@ -52,6 +58,7 @@
 //   node scripts/vps-deploy.mjs compose --ref <sha|branch>    plan, that ref
 //   node scripts/vps-deploy.mjs compose --apply --ref <sha> --confirm <sha> [--allow-shrink]
 //   node scripts/vps-deploy.mjs compose --rollback <backup-name>
+//   … add --only api,knet,pay to either of the first two to deploy part of the site
 //   node scripts/vps-deploy.mjs run                           (on the VPS only)
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -76,6 +83,11 @@ const PREBUILT = process.env.SPORTA_DEPLOY_DIST ?? ''          // test only: ski
 const SHA = /^[0-9a-f]{40}$/
 const REF_OK = /^[A-Za-z0-9._/-]{1,120}$/
 const BACKUP_NAME = /^deploy-\d{8}T\d{6}Z-[0-9a-f]{7}$/
+const ONLY_OK = /^[A-Za-z0-9_.-]+(,[A-Za-z0-9_.-]+)*$/
+// --only api,knet,pay → a path is in scope when its first segment is listed
+// (a folder) or it IS a listed name (a top-level file).
+const ONLY = (process.env.SPORTA_DEPLOY_ONLY ?? '').split(',').filter(Boolean)
+const inScope = (p) => ONLY.length === 0 || ONLY.includes(p.split('/')[0])
 
 // ------------------------------------------------------------------ rules
 const MEDIA = ['cats/', 'hero/', 'images/products/']
@@ -91,7 +103,7 @@ const guarded = (p) => /\.(php|html)$/.test(p) || path.basename(p) === '.htacces
 
 // ================================================================ compose
 function composeCommand(argv) {
-  const opt = { mode: 'plan', ref: '', confirm: '', allowShrink: false, backup: '' }
+  const opt = { mode: 'plan', ref: '', confirm: '', allowShrink: false, backup: '', only: '' }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--apply') opt.mode = 'apply'
@@ -99,6 +111,7 @@ function composeCommand(argv) {
     else if (a === '--ref') opt.ref = argv[++i] ?? ''
     else if (a === '--confirm') opt.confirm = argv[++i] ?? ''
     else if (a === '--rollback') { opt.mode = 'rollback'; opt.backup = argv[++i] ?? '' }
+    else if (a === '--only') opt.only = argv[++i] ?? ''
     else throw new Error(`unknown option ${a}`)
   }
   if (!opt.ref) opt.ref = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -108,6 +121,7 @@ function composeCommand(argv) {
     if (opt.confirm !== opt.ref) throw new Error('apply needs --confirm <the same SHA> — a deploy is always of a commit someone named twice')
   }
   if (opt.mode === 'rollback' && !BACKUP_NAME.test(opt.backup)) throw new Error('rollback needs a backup name like deploy-20261101T180000Z-abc1234')
+  if (opt.only && !ONLY_OK.test(opt.only)) throw new Error('--only takes top-level names separated by commas, e.g. api,knet,pay')
   if (SHA.test(opt.ref)) {
     // The VPS downloads from GitHub, so a commit that was never pushed is a
     // 404 there. Say so here, where it is cheap.
@@ -139,6 +153,7 @@ function composeCommand(argv) {
     if (opt.allowShrink) environment.SPORTA_DEPLOY_ALLOW_SHRINK = '1'
   }
   if (opt.mode === 'rollback') environment.SPORTA_DEPLOY_BACKUP = opt.backup
+  if (opt.only) environment.SPORTA_DEPLOY_ONLY = opt.only
   const doc = {
     services: {
       deploy: {
@@ -202,6 +217,7 @@ function plan(dist) {
   const held = { setup: [], never: [], media: 0 }
   const release = new Map()
   for (const p of walk(dist)) {
+    if (!inScope(p)) continue
     if (isMedia(p)) { held.media++; continue }
     if (neverTouch(p)) { held.never.push(p); continue }
     if (SETUP_TOOLS.has(p)) { held.setup.push(p); continue }
@@ -211,7 +227,7 @@ function plan(dist) {
   // folders that are not deploy targets; configuration is listed separately.
   const live = new Map()
   for (const p of walk(LIVE, (r) => isMedia(r) || r.startsWith('backups/'))) {
-    if (neverTouch(p)) continue
+    if (neverTouch(p) || !inScope(p)) continue
     live.set(p, { sha: sha256(path.join(LIVE, p)), size: fs.statSync(path.join(LIVE, p)).size })
   }
   const same = [], changed = [], added = [], liveOnly = []
@@ -354,7 +370,8 @@ async function run() {
   const ref = process.env.SPORTA_DEPLOY_REF ?? ''
   if (!['plan', 'apply', 'rollback'].includes(mode)) fail(`unknown mode ${mode}`)
   if (!fs.existsSync(path.join(LIVE, 'index.html'))) fail(`${LIVE} is not the site (no index.html) — is /docker/sporta mounted at /sporta?`)
-  say(`== VPS DEPLOY mode=${mode} ref=${ref}`)
+  say(`== VPS DEPLOY mode=${mode} ref=${ref}${ONLY.length ? ` only=${ONLY.join(',')}` : ''}`)
+  if (ONLY.length && !ONLY_OK.test(ONLY.join(','))) fail('bad --only list')
 
   if (mode === 'rollback') {
     const name = process.env.SPORTA_DEPLOY_BACKUP ?? ''

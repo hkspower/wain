@@ -41,7 +41,10 @@ const sql = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q]))
 // native suite, which shares the bucket — that limit turns into an order whose
 // amount is `undefined` and a cascade of failures pointing at the gateway,
 // which is not where the problem is. Clear the counter first.
-await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+// The live store claims stock inside the order (out_of_stock_<slug>_<size>_<left>),
+// and test:native's inventory checks leave sizes at 0 — so restock the test
+// shelf too. Test database only.
+await run('mariadb', ['sporta', '-e', 'delete from rate_limit; update product_variants set stock = 1000'])
 
 // The endpoints refuse plain HTTP exactly as they will on Hostinger; the proxy
 // header is how the edge says TLS was terminated upstream.
@@ -211,47 +214,64 @@ head('an order cannot be paid twice')
   is(res.status === 409, 'pay.php refuses an order that is already paid', `${res.status}`)
 }
 
-// ------------------------------------------------------- retrying a decline
-head('a declined card can be paid again')
+// ---------------------------------------- a second attempt; a declined order
+head('a second attempt gets its own reference; a declined order is closed')
 {
   // CBK's manual (p.10) requires the Merchant Track to be unique for EVERY
   // attempt, and its own sample calls uniqid(). The shop sent orders.track_id,
-  // which is unique per ORDER — so the second attempt handed the gateway a
+  // which is unique per ORDER — so a second attempt handed the gateway a
   // reference it had already seen, and it is entitled to refuse it (TIJ0004).
-  // Every declined card was therefore an unrecoverable checkout, for a reason
-  // that had nothing to do with the card.
+  //
+  // The SAME rule KNET follows (test:knet, "a declined order is closed"): a
+  // shopper who backs out of the bank page leaves the order PENDING and may
+  // try again under a fresh reference; a DECLINED order is closed, and the
+  // checkout starts a new one. The two gateways must not disagree about which
+  // orders can still be charged.
   await newOrder('SPTPAY0RETRY')
 
+  // First attempt — the shopper reaches the CBK page and backs out, so no
+  // callback arrives and the order is still pending.
   const first = await (await get(`${PAY}/pay.php?trackid=SPTPAY0RETRY`)).text()
   is(formFields(first).tij_MerchantPaymentTrack === 'SPTPAY0RETRY',
      'the FIRST attempt sends the order id unchanged — the common case is untouched',
      formFields(first).tij_MerchantPaymentTrack)
-  const declined = await payThrough(first, 'outcome=failed')
-  is(!declined.location.includes('status=success'), 'the card is declined')
 
+  // They tap "pay" again.
   const second = await (await get(`${PAY}/pay.php?trackid=SPTPAY0RETRY`)).text()
-  const ref = formFields(second).tij_MerchantPaymentTrack
-  is(ref !== 'SPTPAY0RETRY',
-     'the RETRY sends a different reference, so the gateway cannot refuse it as a duplicate',
-     `SPTPAY0RETRY -> ${ref}`)
+  const ref = formFields(second).tij_MerchantPaymentTrack ?? ''
+  is(ref !== '' && ref !== 'SPTPAY0RETRY',
+     'the second attempt sends a different reference, so the gateway cannot refuse it as a duplicate',
+     `SPTPAY0RETRY -> ${ref || '(no form)'}`)
   is(ref.startsWith('SPTPAY0RETRY'),
      'and it still carries the order number, so a bank statement can be reconciled', ref)
   is(ref.length <= 30, 'within the field the manual allows', `${ref.length}`)
 
-  const retry = await payThrough(second, 'outcome=success')
-  is(retry.location.includes('status=success'), 'the retry is captured',
-     retry.location.split('?')[1] ?? '')
+  const paid = await payThrough(second, 'outcome=success')
+  is(paid.location.includes('status=success'), 'the second attempt is captured',
+     paid.location.split('?')[1] ?? '')
 
-  // THE PART THAT MUST NOT BREAK. The gateway echoes back the RETRY reference,
-  // and cbk_update_order keys on track_id — an unresolved reference would mean
-  // CBK took the money while the order stayed pending, with nothing to say why.
+  // THE PART THAT MUST NOT BREAK. The gateway echoes back the SECOND
+  // reference, and the order is keyed on track_id — an unresolved reference
+  // would mean CBK took the money while the order stayed pending.
   const row = (await sql(
     "select payment_status, pay_attempt from orders where track_id='SPTPAY0RETRY'")).split('\t')
   is(row[0] === 'paid',
-     'THE ORIGINAL ORDER settles, even though the gateway echoed the retry reference', row[0])
+     'THE ORIGINAL ORDER settles, even though the gateway echoed the second reference', row[0])
   is(row[1] === '2', 'and the attempt counter says it took two', row[1])
   is((await sql("select count(*) from orders where track_id like 'SPTPAY0RETRYA%'")) === '0',
-     'no phantom order is created for the retry reference')
+     'no phantom order is created for the second reference')
+
+  // A DECLINE closes the order.
+  await newOrder('SPTPAY0DECL')
+  const d1 = await (await get(`${PAY}/pay.php?trackid=SPTPAY0DECL`)).text()
+  const declined = await payThrough(d1, 'outcome=failed')
+  is(declined.location.includes('status=failed'), 'a declined card lands on the failure page',
+     declined.location.split('?')[1] ?? '')
+  is((await sql("select payment_status from orders where track_id='SPTPAY0DECL'")) === 'failed',
+     'and the order is FAILED')
+  const again = await get(`${PAY}/pay.php?trackid=SPTPAY0DECL`)
+  is(again.status === 409, 'a declined order cannot be charged again — the checkout starts a new one',
+     `${again.status} ${(await again.text()).slice(0, 60)}`)
 }
 
 // --------------------------------------------------------------- the audit log
@@ -313,7 +333,12 @@ head('a gateway ERROR return is recorded, not silently dropped')
      'and the code travels to the result page', r.headers.get('location') ?? '')
 
   const row = await sql(`select payment_status, cbk_message from orders where track_id = '${track}'`)
-  is(row.startsWith('failed'), 'the order is marked FAILED rather than left pending for ever', row)
+  // RECORDED, NOT ACTED ON. The error return carries no signature, so it may
+  // not change the order's state — a stranger holding a track id could
+  // otherwise fail someone's checkout and have cron-stock release its sizes.
+  // What it must do is keep the code and its meaning on the row and in the log.
+  is(row.startsWith('pending') && row.includes('TIJ0002') && /invalid merchant amount/i.test(row),
+     'the code and its meaning are kept on the order, and the unsigned return changes no status', row)
   is(/TIJ0002/.test(row) && /amount/i.test(row),
      'and it records the code AND what the code means, so the log is readable', row)
 

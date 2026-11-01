@@ -22,6 +22,7 @@ what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
 | Plan | `node scripts/vps-deploy.mjs compose --ref <commit>` | **Nothing** — the server is mounted read-only. Prints same / changed / new / live-only, the live health probes, headers and redirect hops. |
 | Apply | `… compose --apply --ref <sha> --confirm <sha>` | Copies changed and new files in place, `index.html` last. Backs up everything it overwrites to `/docker/sporta/backups/`. |
 | Undo | `… compose --rollback deploy-<stamp>-<sha7>` | Restores that backup and removes the files that deploy added. |
+| Scope | add `--only api,knet,pay` to plan or apply | Compares and deploys only those folders. **Use it for now:** the live storefront (`index.html` + its bundle) is a different build whose source is not in this repo, and a whole-site apply would replace it. |
 
 What apply will not do, ever: touch `config.js`, any `config.php`,
 `.cbk_token.json` or a log; bring back the setup tools; write into the photo

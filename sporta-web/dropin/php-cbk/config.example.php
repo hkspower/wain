@@ -23,6 +23,8 @@ return [
     // --- Merchant API credentials (server-side only, never to the browser) ---
     'client_id'     => 'YOUR_CLIENT_ID',      // ClientId  (Merchant API ID)
     'client_secret' => 'YOUR_CLIENT_SECRET',  // ClientSecret (Merchant API Password)
+    // Opaque value from CBK. Do not trim, decode, AES-encrypt, or force this
+    // to 16 bytes; the 16-byte rule belongs to classic KNET's resource key.
     'encrp_key'     => 'YOUR_ENCRP_KEY',      // ENCRP_KEY (Merchant Encrypted account key)
 
     // --- Your URLs ---
@@ -31,11 +33,12 @@ return [
     // Final page in your React app the customer lands on after we verify:
     'result_page_url' => 'https://www.sporta.com.kw/payment/result',
 
+    // Merchant Server IP 1 / IP 2 are CBK onboarding allowlist values, not
+    // runtime form fields. Register the hosting server's stable outbound IP(s)
+    // with CBK; never place them in the browser or payment POST.
+
     // Default language for the hosted page: 'en' or 'ar'
     'lang' => 'en',
-
-    // Payment mode: '' = let customer choose, '1' = KNET only, '2' = T-Pay QR only
-    'pay_type' => '',
 
     // Where to cache the AccessToken. This file IS a bearer credential: whoever
     // holds it can call CBK as this merchant until it expires.
@@ -67,7 +70,7 @@ return [
     // Use the SAME four values as knet/config.php and api/config.php: both
     // gateways settle rows in the one orders table the shop writes.
     'mysql_host' => 'localhost',
-    'mysql_name' => '',
-    'mysql_user' => '',
+    'mysql_name' => 'u130124229_sporta_kw',
+    'mysql_user' => 'u130124229_sporta_user',
     'mysql_pass' => '',
 ];

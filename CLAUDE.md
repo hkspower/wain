@@ -33,6 +33,14 @@
    (`46.202.158.211`, hPanel FTPS / File Manager) no longer serves the domain;
    `npm run publish` refuses while DNS says so (`--any-server` overrides). SSH
    on the shared account is off for good. Not SFTP.
+   **The backend in this repo IS the live backend** (copied from the VPS
+   2026-11-01, every file md5-verified against the server: `dropin/php-store`,
+   `php-cbk`, the add-ons in `public/`). The live STOREFRONT is not: its
+   `index.html` and bundle are a different build whose source is missing, so
+   deploy with **`--only api,knet,pay`** until it is recovered. The live store
+   claims stock inside the order (`out_of_stock_<slug>_<size>_<left>`), a
+   declined card closes the order on both gateways, and an unsigned CBK error
+   return is recorded but changes no status — the suites assert all three.
 
 ## Brand identity (saved by user request — apply always)
 

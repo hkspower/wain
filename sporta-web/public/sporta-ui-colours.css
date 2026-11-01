@@ -1,0 +1,67 @@
+/* Icon colours brought onto the brand palette (charcoal #171a1e, burnt
+   orange #b8430f, warm beige #e2dbce), plus a wider hero title column on
+   big screens. Measured on the live site 2026-10-31 before the change. */
+
+/* Bag drawer close (X): slate-400 #90a1b9 on white = 2.63:1, under the 3:1
+   minimum for controls. Charcoal = 17:1. */
+.cart-drawer header button.text-slate-400 {
+  color: #171a1e !important;
+}
+.cart-drawer header button.text-slate-400:hover {
+  color: #b8430f !important;
+}
+
+/* Empty-bag illustration: cool slate-300 on white (1.49:1, decorative).
+   Warm brand neutral instead. */
+.cart-drawer svg.text-slate-300 {
+  color: #b9ae9c !important;
+}
+
+/* Selected colour swatch tick: navy #0f172b on army green measured 2.17:1.
+   A white tick with a dark halo reads on light and dark swatches alike. */
+.catalog-colour-swatch__dot svg {
+  color: #ffffff !important;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.45));
+}
+
+/* Footer social icons: cool slate-300 #cad5e2 on charcoal -> warm beige. */
+footer a.rounded-full.border {
+  color: #e2dbce;
+}
+
+/* Product page: quantity -/+ (slate-700) and the wishlist button (slate-600
+   icon, slate-300 ring) -> charcoal with the site's hairline ring. */
+button[aria-label="إنقاص الكمية"],
+button[aria-label="زيادة الكمية"],
+button[aria-label="Decrease quantity"],
+button[aria-label="Increase quantity"] {
+  color: #171a1e !important;
+}
+button[aria-label="إنقاص الكمية"]:hover:not(:disabled),
+button[aria-label="زيادة الكمية"]:hover:not(:disabled),
+button[aria-label="Decrease quantity"]:hover:not(:disabled),
+button[aria-label="Increase quantity"]:hover:not(:disabled) {
+  color: #b8430f !important;
+}
+button.border-slate-300.text-slate-600[aria-pressed="false"] {
+  color: #171a1e !important;
+  border-color: rgba(23, 26, 30, 0.2) !important;
+}
+button.border-slate-300.text-slate-600[aria-pressed="false"]:hover {
+  color: #b8430f !important;
+  border-color: #b8430f !important;
+}
+
+/* The one amber-700 (#bb4d00) product-page line vs burnt orange everywhere
+   else. */
+li.text-amber-700 {
+  color: #b8430f !important;
+}
+
+/* Hero title column: capped at 45% (574px at 1920), which wrapped the
+   Arabic headline onto three lines at 76px. 56% fits it on two. */
+@media (min-width: 1440px) {
+  .campaign-hero-copy {
+    max-width: 56% !important;
+  }
+}

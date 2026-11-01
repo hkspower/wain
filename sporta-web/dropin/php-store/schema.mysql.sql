@@ -93,15 +93,111 @@ create table if not exists product_variants (
 
 create index if not exists idx_variants_slug on product_variants (slug);
 
+-- Inventory accounting is additive so an existing catalogue keeps every SKU
+-- and count. `inventory_version` is the optimistic-lock token returned to the
+-- admin; every audited write increments it while holding the variant row lock.
+alter table product_variants
+  add column if not exists low_stock_threshold int unsigned not null default 2 after stock,
+  add column if not exists unit_cost_kwd decimal(10,3) null after cost_aed,
+  add column if not exists inventory_version bigint unsigned not null default 0 after unit_cost_kwd,
+  add column if not exists updated_at timestamp not null default current_timestamp
+    on update current_timestamp after inventory_version;
+
+-- The original AHED costs were stored in AED. Preserve any KWD cost already
+-- entered and initialise only missing values using the shipment's recorded FX.
+update product_variants
+   set unit_cost_kwd = round(cost_aed / 11.95, 3)
+ where unit_cost_kwd is null and cost_aed is not null;
+
 create table if not exists admin_users (
   id            int unsigned auto_increment primary key,
   email         varchar(120) not null unique,
+  google_sub    varchar(255) null unique,
   password_hash varchar(255) not null,
+  must_change_password tinyint(1) not null default 0,
+  temporary_password_expires_at timestamp null,
+  temporary_password_used_at timestamp null,
   failed_attempts int not null default 0,
   locked_until  timestamp null,
   last_login_at timestamp null,
+  totp_secret  varchar(64) null,
+  totp_enabled tinyint(1) not null default 0,
+  totp_last_step bigint null,
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists admin_activity_log (
+  id bigint unsigned auto_increment primary key,
+  actor_admin_id int unsigned null,
+  actor_email varchar(120) not null,
+  action_key varchar(80) not null,
+  created_at timestamp not null default current_timestamp,
+  index idx_admin_activity_created (created_at, id),
+  index idx_admin_activity_actor (actor_admin_id, created_at),
+  constraint fk_admin_activity_actor foreign key (actor_admin_id)
+    references admin_users(id) on delete set null
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- One-time backup codes for the administrator's authenticator passcode.
+-- Only SHA-256 hashes are stored; each code is shown once at enrollment.
+create table if not exists admin_recovery_codes (
+  admin_id   int unsigned not null,
+  code_hash  char(64) not null,
+  used_at    timestamp null,
+  created_at timestamp not null default current_timestamp,
+  primary key (admin_id, code_hash),
+  constraint admin_recovery_owner_fk foreign key (admin_id) references admin_users(id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- One-time password-reset links for admin accounts.  Only the SHA-256 token
+-- is stored; the value sent by email cannot be recovered from this table.
+create table if not exists admin_password_resets (
+  id          bigint unsigned auto_increment primary key,
+  admin_id    int unsigned not null,
+  token_hash  char(64) not null unique,
+  expires_at  datetime not null,
+  used_at     datetime null,
+  request_ip  char(64) null,
+  created_at  timestamp not null default current_timestamp,
+  constraint fk_admin_reset_user foreign key (admin_id) references admin_users(id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_admin_reset_account on admin_password_resets (admin_id, used_at, expires_at);
+
+-- Immutable inventory audit history. Stock counts, cost and low-stock settings
+-- are snapshotted before and after each change so the current balance can be
+-- explained without trusting a mutable product row or a browser calculation.
+create table if not exists inventory_movements (
+  id bigint unsigned auto_increment primary key,
+  sku varchar(30) not null,
+  type varchar(20) not null,
+  before_stock int unsigned not null,
+  after_stock int unsigned not null,
+  delta int not null,
+  before_unit_cost_kwd decimal(10,3) null,
+  after_unit_cost_kwd decimal(10,3) null,
+  before_low_stock_threshold int unsigned not null,
+  after_low_stock_threshold int unsigned not null,
+  inventory_version bigint unsigned not null,
+  note varchar(500) not null,
+  actor_admin_id int unsigned null,
+  actor_email varchar(120) not null,
+  created_at timestamp not null default current_timestamp,
+  constraint inventory_movement_variant_fk
+    foreign key (sku) references product_variants(sku),
+  constraint inventory_movement_admin_fk
+    foreign key (actor_admin_id) references admin_users(id) on delete set null,
+  constraint inventory_movement_type_ck check (type in
+    ('receive','return','damage','count','variant_update','legacy_set_stock')),
+  constraint inventory_movement_stock_ck check
+    (before_stock <= 999999 and after_stock <= 999999
+     and cast(after_stock as signed) = cast(before_stock as signed) + delta)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_inventory_movements_sku_id
+  on inventory_movements (sku, id);
+create index if not exists idx_inventory_movements_created_id
+  on inventory_movements (created_at, id);
 
 -- The transactional outbox — see FULFILMENT.md for the design,
 -- same reasoning: the message row is written in the order's own transaction so
@@ -238,7 +334,7 @@ create table if not exists settings (
 -- with; 'tall' is its current height.
 insert into settings (name, value) values
   ('hero', '{"speed_ms":6500,"shuffle":false,"size":"tall","autoplay":true}'),
-  ('promo_bar', '{"enabled": true, "text_en": "Same-day delivery in Kuwait · KNET, cards & cash on delivery", "text_ar": "توصيل في نفس اليوم داخل الكويت · كي نت والبطاقات والدفع عند الاستلام", "href": "", "starts_at": null, "ends_at": null}')
+  ('promo_bar', '{"enabled": true, "text_en": "Delivery within 24 hours in Kuwait · KNET, cards & cash on delivery", "text_ar": "التوصيل خلال ٢٤ ساعة داخل الكويت · كي نت والبطاقات والدفع عند الاستلام", "href": "", "starts_at": null, "ends_at": null, "tone": "brand", "show_dot": true, "alignment": "center"}')
 on duplicate key update name = name;   -- never clobber a value already set
 
 -- ------------------------------------------------- promotions on the products
@@ -260,9 +356,11 @@ create index if not exists idx_products_featured on products (featured, featured
 
 -- --------------------------------------------------------------- rate limiting
 --
--- A fixed-window counter, keyed by a HASH of bucket + client IP. It exists for
--- `?r=discount`, which is a public endpoint that answers "is this code real?"
--- — an oracle, and an unthrottled oracle is a code generator.
+-- A fixed-window counter keyed by a keyed HASH of bucket + abuse identity.
+-- Public routes normally use the client IP. Admin authentication also uses a
+-- separate normalised-email identity so rotating IPs cannot bypass account
+-- limits, while the database never stores raw email or IP values here. It was
+-- originally added for `?r=discount`, an oracle that must not be unlimited.
 --
 -- In MySQL rather than a cache server or a file, because this runs on shared
 -- hosting where neither exists and the request is already holding a database
@@ -541,3 +639,39 @@ create index if not exists idx_products_brand on products (brand_slug);
 -- first. Paths to files the owner puts on the server by hand — this shop has no
 -- image upload by design.
 alter table products add column if not exists images text null after image;
+
+-- ===========================================================================
+-- Stock reservation.
+--
+-- Byte-for-byte the same statements as stock.mysql.sql, which exists so a shop
+-- set up before this fix can add them without re-importing.
+--
+-- Two flags, not one: every order placed before this existed took no stock, so
+-- a sweeper looking only at `released = 0` would restock garments that were
+-- never claimed. `stock_claimed` keeps those rows out of the release path
+-- permanently; `stock_released` is the idempotence guard against a retried
+-- callback and the sweeper both putting the same order back.
+-- ===========================================================================
+alter table orders
+  add column if not exists stock_claimed  tinyint(1) not null default 0,
+  add column if not exists stock_released tinyint(1) not null default 0;
+
+create index if not exists idx_orders_stock_sweep
+  on orders (payment_status, stock_claimed, stock_released, created_at);
+
+-- ===========================================================================
+-- The product's name AS IT WAS SOLD, on the order line.
+--
+-- Byte-for-byte the same statement as itemname.mysql.sql, which exists so a
+-- shop set up before this fix can add it without re-importing.
+--
+-- order_items already snapshots the unit price, the size and the fit, and
+-- orders snapshots discount_label for exactly this reason. The product name was
+-- the last field still read live through a join, so renaming a product rewrote
+-- the wording on invoices for orders already placed. NULL on older rows; the
+-- readers fall back to the join rather than back-filling today's names into
+-- history and calling them the originals.
+-- ===========================================================================
+alter table order_items
+  add column if not exists name_en varchar(120) null after product_id,
+  add column if not exists name_ar varchar(120) null after name_en;

@@ -1,0 +1,34 @@
+/* Sporta — brand orange theme (add-on for the compiled live bundle).
+ *
+ * The live stylesheet hard-codes a terracotta palette
+ * (--brand #c76a42, --brand-bright #d28a69, --brand-deep #99452b) and never
+ * reads settings.theme. This overrides the tokens with the brand two-tone
+ * orange from CLAUDE.md: burnt orange #E0561C for surfaces/buttons, hover
+ * #B8430F, bright logo orange #FF7B17 for accents.
+ *
+ * Why !important: the bundle's theme applier writes these tokens as INLINE
+ * style on <html> (style="--brand:#c76a42;…"), from its built-in default
+ * `Sporta Terracotta` — it never picks up settings.theme, although
+ * /api/api.php?r=theme returns #e0561c. Inline style beats every normal
+ * stylesheet rule; only an !important declaration outranks it. Side effect:
+ * the admin Theme editor cannot change these seven tokens while this file is
+ * linked — delete the <link> in index.html to hand control back.
+ *
+ * Contrast: near-black #171a1e on #E0561C = 4.59:1 (buttons keep dark text).
+ * The hover fill #B8430F is too dark for black text (3.2:1), so hover text
+ * switches to white (5.46:1). Accent TEXT on light backgrounds uses #B8430F
+ * (#E0561C as text is only 3.81:1 on white).
+ */
+html:root:root {
+  --brand: #e0561c !important;
+  --brand-bright: #ff7b17 !important;
+  --brand-deep: #b8430f !important;
+  --primary: 17.8 77.8% 49.4% !important;
+  --accent: 18.5 84.9% 39% !important;
+  --accent-text-light: 18.5 84.9% 39% !important;
+  --accent-text-dark: 25.9 100% 54.5% !important;
+}
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  color: #fff;
+}

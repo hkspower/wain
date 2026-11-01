@@ -56,6 +56,13 @@ for f in "$SQL"/*.mysql.sql; do
   case "$(basename "$f")" in install.mysql.sql|schema.mysql.sql|seed.mysql.sql|brands.mysql.sql|promo.mysql.sql) continue;; esac
   mariadb sporta < "$f" || say "!! $(basename "$f") failed"
 done
+# Test stock. The live store claims garments inside the order transaction and
+# refuses a size that has none (out_of_stock_<slug>_<size>_<left>), and the
+# seed carries the shop's real counts — the army-green jacket the suites order
+# is genuinely sold out. Every variant gets a deep test shelf instead, reset on
+# each run, so a suite never fails because an earlier one bought the last one.
+# Test database only; production stock is never touched by this script.
+mariadb sporta -e "update product_variants set stock = 1000" || say '!! could not set test stock'
 # The admin the suites sign in as. Only inserted when missing, so a re-run
 # does not reset anything a suite is in the middle of proving.
 HASH=$(php -r 'echo password_hash("correct-horse-battery-kw", PASSWORD_DEFAULT);')

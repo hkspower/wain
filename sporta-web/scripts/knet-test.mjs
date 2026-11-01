@@ -40,7 +40,10 @@ const sql = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q]))
 // native suite, which shares the bucket — that limit turns into an order whose
 // amount is `undefined` and a cascade of failures pointing at the gateway,
 // which is not where the problem is. Clear the counter first.
-await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+// The live store claims stock inside the order (out_of_stock_<slug>_<size>_<left>),
+// and test:native's inventory checks leave sizes at 0 — so restock the test
+// shelf too. Test database only.
+await run('mariadb', ['sporta', '-e', 'delete from rate_limit; update product_variants set stock = 1000'])
 
 // An INDEPENDENT implementation of KNET's crypto. Deliberately written from
 // the spec rather than by calling the PHP — two implementations that agree is

@@ -2,13 +2,13 @@
 // Drains fulfilment_outbox and emails the logistics company. The native twin
 // of the notify-warehouse Edge Function.
 //
-// Wire it in hPanel -> Advanced -> Cron Jobs, every 5 minutes:
-//   wget -qO- "https://www.sporta.com.kw/api/cron-fulfilment.php?key=<cron_key>"
+// On the VPS, run with PHP CLI and --run from a host scheduler every 5 minutes.
+// Shared-hosting HTTP schedules can still use the configured cron_key.
 //
-// Safe to call at any moment from any of the schedule's overlapping runs: the
-// claim marks attempts inside a transaction with FOR UPDATE SKIP LOCKED, so
-// two runs racing cannot double-send, and a message that fails five times
-// stops retrying and sits visibly in the table with its error.
+// One run holds a MariaDB advisory lock through the external send. Row locks
+// alone are insufficient: after the claim transaction commits, another cron
+// could otherwise claim the still-unsent row before the first email finishes.
+// A message that fails five times stops retrying and remains visible.
 //
 // The email follows the same rules as render.mjs, because the reader is the
 // same picker on the same warehouse floor: the SUBJECT carries the whole
@@ -18,9 +18,10 @@
 
 declare(strict_types=1);
 require __DIR__ . '/store.php';
+require_once __DIR__ . '/cron-auth.php';
 
 $cfg = store_config();
-if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], (string)($_GET['key'] ?? ''))) {
+if (!sporta_cron_authorized($cfg, PHP_SAPI, $_GET, $GLOBALS['argv'] ?? [], ['--run'])) {
     store_fail('forbidden', 403);
 }
 if (($cfg['warehouse_email'] ?? '') === '') {
@@ -30,6 +31,15 @@ if (($cfg['warehouse_email'] ?? '') === '') {
 }
 
 $db = store_db();
+
+// Keep the lock on this PDO connection until after every send result is saved.
+// MariaDB releases it automatically if PHP exits unexpectedly.
+$lockName = 'sporta_fulfilment_outbox_cron';
+$lock = $db->prepare('select get_lock(?, 0)');
+$lock->execute([$lockName]);
+$acquired = $lock->fetchColumn();
+if ((string)$acquired === '0') store_out(['claimed' => 0, 'sent' => 0, 'failed' => [], 'busy' => true]);
+if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 
 // ---- claim ----
 $db->beginTransaction();
@@ -55,6 +65,9 @@ foreach ($rows as $row) {
        ->execute([$ok ? date('Y-m-d H:i:s') : null, $ok ? null : 'mail() returned false', (int)$row['id']]);
     $ok ? $sent++ : $failed[] = (int)$row['id'];
 }
+
+$unlock = $db->prepare('select release_lock(?)');
+$unlock->execute([$lockName]);
 
 store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed]);
 
@@ -132,10 +145,23 @@ function sporta_render_warehouse(string $kind, array $p): array {
 }
 
 function sporta_send_mail(array $cfg, string $subject, string $text, string $html): bool {
+    // DMARC checks the visible From domain against SPF and/or DKIM.  Keep the
+    // SMTP envelope sender on the same sporta.com.kw address so Hostinger's SPF
+    // result is aligned as well as the header From address.  Reject control
+    // characters here because these values come from a server config file and
+    // are inserted into mail headers.
+    $from = trim((string)($cfg['mail_from'] ?? ''));
+    $replyTo = trim((string)($cfg['mail_reply_to'] ?? ''));
+    if (!filter_var($from, FILTER_VALIDATE_EMAIL)
+        || !filter_var($replyTo, FILTER_VALIDATE_EMAIL)
+        || !preg_match('/@(?:www\.)?sporta\.com\.kw$/i', $from)
+        || preg_match('/[\r\n]/', $from . $replyTo)) {
+        return false;
+    }
     $boundary = 'sp' . bin2hex(random_bytes(12));
     $headers = implode("\r\n", [
-        'From: Sporta Orders <' . $cfg['mail_from'] . '>',
-        'Reply-To: ' . $cfg['mail_reply_to'],
+        'From: Sporta Orders <' . $from . '>',
+        'Reply-To: ' . $replyTo,
         'MIME-Version: 1.0',
         "Content-Type: multipart/alternative; boundary=\"{$boundary}\"",
     ]);
@@ -145,5 +171,5 @@ function sporta_send_mail(array $cfg, string $subject, string $text, string $htm
           . "--{$boundary}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n{$html}\r\n--{$boundary}--";
     // =?UTF-8?B?...?= so the Arabic in a subject survives every relay.
     $encSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-    return mail($cfg['warehouse_email'], $encSubject, $body, $headers);
+    return mail($cfg['warehouse_email'], $encSubject, $body, $headers, '-f' . $from);
 }

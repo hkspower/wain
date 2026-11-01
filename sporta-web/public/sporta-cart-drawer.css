@@ -1,0 +1,15 @@
+/* Sporta quick cart (slide-in bag drawer): touch targets. Measured live: close button 22x22 and the Back to shop link 21px high, both under the 44px minimum. Only grows hit areas. */
+.campaign-cart-drawer button[aria-label="Close"],
+.campaign-cart-drawer button[aria-label="\0625\063a\0644\0627\0642"] {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.campaign-cart-drawer a[href="/shop"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}

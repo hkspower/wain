@@ -233,7 +233,9 @@ const order = (track, items, extra = {}) =>
   is(set.body?.stock === 7, 'stock moves through the admin')
   const neg = await admin('set_stock', { method: 'POST',
     body: JSON.stringify({ sku: 'A-CSJ-AR-L', stock: -1 }) })
-  is(neg.body?.error === 'stock_cannot_be_negative', 'negative stock is refused with the familiar token')
+  // stock_out_of_range covers below 0 and above 999999 (the live admin's token;
+  // src/admin/api.js turns it into words).
+  is(neg.body?.error === 'stock_out_of_range', 'negative stock is refused with the familiar token', neg.body?.error)
   const ghost = await admin('set_stock', { method: 'POST',
     body: JSON.stringify({ sku: 'A-NOPE-1', stock: 1 }) })
   is(ghost.body?.error === 'sku_not_found', 'an unknown SKU is named, not silently ignored')
@@ -382,9 +384,13 @@ const order = (track, items, extra = {}) =>
     return admin('login', { method: 'POST',
       body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
   })()
-  is(realLock.status === 429 && realLock.body?.error === 'locked',
+  // The sixth attempt is refused by the per-identity window BEFORE the
+  // password is hashed — 429 too_many_attempts, the same answer whether or not
+  // the account exists, so the lock cannot be used to discover accounts. The
+  // row lock (locked_until) stands behind it for when the window resets.
+  is(realLock.status === 429 && ['locked', 'too_many_attempts'].includes(realLock.body?.error),
      'five failures lock the account — even the RIGHT password waits out the lock',
-     `${realLock.status}`)
+     `${realLock.status} ${realLock.body?.error}`)
   void sixth
 }
 
@@ -513,7 +519,10 @@ const order = (track, items, extra = {}) =>
 
   // ---- single use, under concurrency ----
   await run('mariadb', ['sporta', '-e',
-    "delete from orders; " +
+    "delete from orders; delete from rate_limit; " +
+    // Eight carts of four jackets each: stock must not be what decides the
+    // race — the store claims garments inside the order now.
+    "update product_variants set stock = 1000; " +
     "update discounts set usage_limit = 1, used_count = 0 where code = 'TENOFF'; " +
     // The automatic rule is switched off for this section so the only thing
     // being raced is the single-use code.
@@ -528,7 +537,12 @@ const order = (track, items, extra = {}) =>
       }),
     }).then((r) => r.json())))
   const granted = races.filter((r) => r.discount === 10).length
-  is(granted === 1, 'eight simultaneous checkouts, one single-use code, exactly ONE gets it', `${granted} granted`)
+  // The other seven are REFUSED, not placed at full price: the claim runs
+  // inside the order's transaction and a lost claim rolls the whole order back
+  // with discount_used_up, so nobody is charged a total they were not quoted.
+  const lost = races.filter((r) => r.error === 'discount_used_up').length
+  is(granted === 1 && lost === 7, 'eight simultaneous checkouts, one single-use code, exactly ONE gets it',
+     `${granted} granted, ${lost} told discount_used_up${races.find((r) => r.error && r.error !== 'discount_used_up') ? `, other: ${races.find((r) => r.error && r.error !== 'discount_used_up').error}` : ''}`)
   const used = (await run('mariadb', ['sporta', '-N', '-B', '-e',
     "select used_count from discounts where code = 'TENOFF'"])).stdout.trim()
   is(used === '1', 'and used_count says 1, not 8', used)
@@ -554,8 +568,11 @@ const order = (track, items, extra = {}) =>
 // ---------------------------------------------------------------------------
 // ------------------------------------------- the session cookie behind a proxy
 {
+  // The lockout check above leaves the identity window full; without clearing
+  // it the RIGHT password is refused here, no cookie is set, and the plain-HTTP
+  // check below would pass on an empty header.
   await run('mariadb', ['sporta', '-e',
-    'update admin_users set failed_attempts = 0, locked_until = null'])
+    'delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null'])
 
   // Hostinger terminates TLS at a proxy, so PHP sees plain HTTP on a request
   // the browser made over https://. Reading $_SERVER['HTTPS'] alone left the
@@ -576,10 +593,11 @@ const order = (track, items, extra = {}) =>
      'and still HttpOnly + SameSite=Strict')
 
   await run('mariadb', ['sporta', '-e',
-    'update admin_users set failed_attempts = 0, locked_until = null'])
+    'delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null'])
   const plain = await login({})
-  is(!/;\s*secure/i.test(plain),
-     'on genuinely plain HTTP it is not, or local development cannot sign in at all')
+  is(/sporta/i.test(plain) && !/;\s*secure/i.test(plain),
+     'on genuinely plain HTTP it is not, or local development cannot sign in at all',
+     plain ? plain.split(';').slice(1).join(';').trim() : 'no cookie was set')
 }
 
 // --------------------------------------------- the discount-code guessing wall
@@ -830,7 +848,11 @@ const order = (track, items, extra = {}) =>
 {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(new URL('../dropin/php-store/api.php', import.meta.url), 'utf8')
-  const routes = [...src.matchAll(/\$r === '(\w+)'/g)].map((m) => m[1])
+  // Routes are dispatched two ways: `$r === 'x'` and `in_array($r, ['x', 'y'], …)`.
+  const routes = [
+    ...[...src.matchAll(/\$r === '(\w+)'/g)].map((m) => m[1]),
+    ...[...src.matchAll(/in_array\(\$r, \[([^\]]+)\]/g)].flatMap((m) => [...m[1].matchAll(/'(\w+)'/g)].map((x) => x[1])),
+  ]
   const table = src.slice(src.indexOf('$STORE_LIMITS = ['), src.indexOf('];', src.indexOf('$STORE_LIMITS = [')))
   const listed = [...table.matchAll(/'(\w+)'\s*=>/g)].map((m) => m[1])
 

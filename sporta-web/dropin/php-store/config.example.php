@@ -12,8 +12,8 @@
 return [
     // ---- MySQL (from hPanel -> Databases) ----
     'db_host' => 'localhost',
-    'db_name' => '',
-    'db_user' => '',
+    'db_name' => 'u130124229_sporta_kw',
+    'db_user' => 'u130124229_sporta_user',
     'db_pass' => '',
 
     // ---- Fulfilment emails (cron-fulfilment.php) ----
@@ -21,8 +21,32 @@ return [
     'warehouse_email' => '',
     // Must be an address on a domain with SPF/DKIM set (DNS-EMAIL-RECORDS.txt)
     // or the mail lands in spam and nobody is told.
-    'mail_from'       => 'orders@sporta.com.kw',
+    'mail_from'       => 'cs@sporta.com.kw',
     'mail_reply_to'   => 'cs@sporta.com.kw',
+    'admin_mail_from' => 'cs@sporta.com.kw',
+    // Customer password recovery uses this verified mailbox, independently
+    // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
+    'customer_mail_from' => 'cs@sporta.com.kw',
+    // HTTPS page used in admin password-reset emails. Keep this on Sporta's
+    // own origin; the API validates it before creating a link.
+    'admin_reset_url' => 'https://www.sporta.com.kw/backends',
+
+    // ---- Optional Google sign-in for an already linked administrator ----
+    // Create a Google OAuth Web client with this exact redirect URI:
+    // https://www.sporta.com.kw/api/admin-google.php
+    // Keep both values in the private server config, never in the web root.
+    'google_oauth_client_id' => '',
+    'google_oauth_client_secret' => '',
+
+    // ---- Abuse controls (optional, server-only) ----
+    // Used to HMAC IP/account rate-limit keys. Generate a long random value.
+    // Existing installs safely derive a private fallback from their DB config,
+    // but setting this keeps the limiter independent of future DB rotation.
+    'rate_limit_secret' => '',
+    // Trust X-Forwarded-For only when the direct REMOTE_ADDR is one of these
+    // exact IPs or CIDRs. Leave empty on ordinary/shared hosting. On a reverse
+    // proxy deployment, list only the proxy network you administer.
+    'trusted_proxy_ips' => [],
 
     // ---- Cron shared secret ----
     // hPanel -> Advanced -> Cron Jobs calls cron-fulfilment.php with this in
@@ -84,6 +108,18 @@ return [
     // the bytes of the API's 128 kbps default with nothing a listener can hear
     // for it, and these play on Kuwaiti mobile data. Part of the cache key —
     // change it and the cache is cold, so re-run the warmer.
+    //
+    // OTHER FORMATS WORK, and what changes with them is not only the bitrate:
+    //   mp3_44100_192  high-quality mp3, roughly six times the bytes
+    //   pcm_44100      LOSSLESS. The API returns HEADERLESS 16-bit samples,
+    //                  which no browser will play, so the shop wraps them in a
+    //                  WAV header and serves audio/wav. About 1.4 MB per eight
+    //                  seconds — fine for the fixed sentences if you bake and
+    //                  upload them (scripts/voice-bake.mjs), painful if a
+    //                  customer's own order-status line is synthesised live on
+    //                  Kuwaiti mobile data.
+    // The extension and the Content-Type follow this setting; nothing else
+    // needs changing.
     'tts_format' => 'mp3_22050_32',
     // Voice character. Stability low-ish keeps some life in the read; push it
     // up and a shop greeting starts to sound like a station announcement.

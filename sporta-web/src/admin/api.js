@@ -278,7 +278,8 @@ export async function setStock(sku, stock) {
   const r = await php('set_stock', { method: 'POST', body: { sku, stock } })
   if (r.data) return { variant: r.data }
   const m = r.error ?? ''
-  if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
+  if (m.includes('stock_cannot_be_negative') || m.includes('stock_out_of_range')) return { error: 'Stock must be between 0 and 999,999.' }
+  if (m.includes('stock_must_be_whole_number')) return { error: 'Stock must be a whole number.' }
   if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
   return r
 }

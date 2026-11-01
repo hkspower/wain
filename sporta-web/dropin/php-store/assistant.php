@@ -313,6 +313,8 @@ function assistant_products_payload(PDO $db, array $rows, bool $ar): array
             return [
                 'slug'      => $p['slug'],
                 'name'      => $ar ? $p['name_ar'] : $p['name_en'],
+                'name_en'   => $p['name_en'],
+                'name_ar'   => $p['name_ar'],
                 'price'     => number_format($effFils / 1000, 3, '.', ''),
                 'price_kwd' => $effFils / 1000,
                 'sale'      => $p['sale_price'] !== null && $p['sale_price'] !== '',
@@ -353,18 +355,14 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         ],
         'returns' => [
             // 14 days must match /returns and the Product structured data.
-            // It must also say the words FREE and مجانيان: /returns, /terms,
-            // /about and the footer badge all promise free returns, and this
-            // answer did not — a customer who asked the assistant instead of
-            // reading the page was told returns exist, not that they cost
-            // nothing. And «الإرجاع والاستبدال» is two nouns, so the adjective
-            // is dual (مجانيان), not singular (مجاني).
-            'ar' => 'الاستبدال مجاني وسريع خلال ١٤ يومًا من الاستلام، في حال كان المنتج تالفًا أو المقاس غير مناسب. والاسترجاع في حال التلف أو إذا كانت الجودة غير متوقعة. الملابس النسائية غير قابلة للاستبدال نهائيًا.',
-            'en' => 'Exchange is free and fast within 14 days of delivery, for a damaged item or the wrong size. Return applies if the item is damaged or the quality is not as expected. Women\'s clothing cannot be exchanged.',
+            // State that eligible requests are free, as /returns, /terms and
+            // /about do, while leaving individual eligibility for review.
+            'ar' => 'يمكنك طلب الإرجاع أو الاستبدال مجانًا خلال ١٤ يومًا من الاستلام. قد تحتاج بعض المنتجات إلى مراجعة فردية وفق سياسة الإرجاع وحقوق المستهلك المعمول بها. تواصل معنا مع رقم طلبك لترتيب الطلب.',
+            'en' => 'You can request a free return or exchange within 14 days of delivery. Some items may need individual review under the Returns policy and applicable consumer rights. Contact us with your order number to arrange a request.',
         ],
         'payment' => [
-            'ar' => 'نقبل كي نت، والدفع أونلاين عبر T-Pay، والدفع عند الاستلام.',
-            'en' => 'We accept KNET, paying online with T-Pay, and cash on delivery.',
+            'ar' => 'تظهر طرق الدفع المتاحة لطلبك في صفحة إتمام الشراء قبل تأكيده. اختر إحدى الطرق المعروضة هناك.',
+            'en' => 'The payment methods currently available for your order are shown at checkout before you confirm it. Choose one of the options shown there.',
         ],
         'sizes' => [
             'ar' => 'كل منتج فيه جدول مقاسات في صفحته. إذا كنت بين مقاسين ننصح بالأكبر للقصّات الواسعة.',
@@ -709,6 +707,48 @@ function assistant_tts_body(array $cfg, string $model, string $text, string $lan
     return $body;
 }
 
+// ----------------------------------------------------- what the format IS
+//
+// `tts_format` was allowed to be anything ElevenLabs accepts, and everything
+// downstream assumed mp3 anyway: the cache file ended in `.mp3`, the response
+// said `audio/mpeg`, and the "is this really audio" guard looked for an MPEG
+// frame. Set `pcm_44100` for lossless and every one of those three was wrong —
+// the shop cached a file it mislabelled and the browser was handed samples it
+// could not decode.
+//
+// One place decides now, and everything reads it from here.
+//
+// RAW PCM IS NOT A PLAYABLE FILE, and this is the part that surprises people:
+// `pcm_*` returns headerless little-endian 16-bit samples. There is no format
+// marker, no sample rate, nothing for a decoder to work from — <audio> refuses
+// it. So PCM is wrapped in a 44-byte WAV header on the way to disk, and what
+// is cached and served is a real .wav. That is still lossless; it is the same
+// samples with the sample rate written down in front of them.
+function assistant_voice_kind(array $cfg): array
+{
+    $f = (string) ($cfg['tts_format'] ?? 'mp3_22050_32');
+    if (str_starts_with($f, 'pcm_')) {
+        return ['ext' => 'wav', 'mime' => 'audio/wav', 'wrap' => 'wav',
+                'rate' => (int) (explode('_', $f)[1] ?? 44100)];
+    }
+    if (str_starts_with($f, 'ulaw_')) return ['ext' => 'wav', 'mime' => 'audio/wav', 'wrap' => 'raw', 'rate' => 0];
+    if (str_starts_with($f, 'opus_')) return ['ext' => 'ogg', 'mime' => 'audio/ogg', 'wrap' => 'raw', 'rate' => 0];
+    return ['ext' => 'mp3', 'mime' => 'audio/mpeg', 'wrap' => 'raw', 'rate' => 0];
+}
+
+// The 44 bytes that turn samples into a file. Mono, 16-bit — what ElevenLabs
+// returns for every pcm_* format.
+function assistant_wav_header(int $bytes, int $rate): string
+{
+    $ch = 1; $bits = 16;
+    $byteRate = $rate * $ch * $bits / 8;
+    return 'RIFF' . pack('V', 36 + $bytes) . 'WAVE'
+         . 'fmt ' . pack('V', 16) . pack('v', 1) . pack('v', $ch)
+         . pack('V', $rate) . pack('V', (int) $byteRate)
+         . pack('v', (int) ($ch * $bits / 8)) . pack('v', $bits)
+         . 'data' . pack('V', $bytes);
+}
+
 function assistant_voice_dir(array $cfg): string
 {
     return (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
@@ -740,7 +780,7 @@ function assistant_voice_path(array $cfg, string $text, string $lang): string
         (string) ($cfg['tts_language_code'] ?? ''),
         $text,
     ]));
-    return assistant_voice_dir($cfg) . '/' . $hash . '.mp3';
+    return assistant_voice_dir($cfg) . '/' . $hash . '.' . assistant_voice_kind($cfg)['ext'];
 }
 
 // Returns the mp3 bytes, from cache when possible.
@@ -823,12 +863,26 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
         $release();
         return null;
     }
-    // A JSON error body served with a 200 is not audio. Check the bytes are
-    // actually an MPEG frame or an ID3 tag before caching them for ever.
-    if (!str_starts_with($body, 'ID3') && ($body[0] !== "\xFF")) {
-        assistant_voice_log($cfg, 'tts 200 but body is not mp3: ' . substr($body, 0, 200));
+    // A JSON error body served with a 200 is not audio, and must not be cached
+    // as though it were — a cached error plays as silence for ever and never
+    // retries. The test differs by format: an mp3 announces itself with an ID3
+    // tag or a frame sync, while PCM is raw samples with no marker at all, so
+    // for those the only honest check is that it does not look like the JSON
+    // error it would otherwise be.
+    $kind = assistant_voice_kind($cfg);
+    $looksAudio = $kind['ext'] === 'mp3'
+        ? (str_starts_with($body, 'ID3') || $body[0] === "\xFF")
+        : ($body[0] !== '{' && $body[0] !== '<' && strlen($body) > 256);
+    if (!$looksAudio) {
+        assistant_voice_log($cfg, 'tts 200 but body is not ' . $kind['ext'] . ': ' . substr($body, 0, 200));
         $release();
         return null;
+    }
+
+    // Samples become a file. Done before the write, so what is cached is what
+    // is served and nothing has to remember to wrap it again later.
+    if ($kind['wrap'] === 'wav') {
+        $body = assistant_wav_header(strlen($body), $kind['rate']) . $body;
     }
 
     // ATOMIC. Write to a temp file in the same directory and rename it into
@@ -872,7 +926,11 @@ function assistant_voice_prune(array $cfg, int $maxAgeDays = 90): int
     if (!is_dir($dir)) return 0;
     $cut = time() - ($maxAgeDays * 86400);
     $gone = 0;
-    foreach ((glob($dir . '/*.mp3') ?: []) as $f) {
+    // EVERY audio extension, not just mp3. Pruning only .mp3 while the shop is
+    // configured for lossless would let the cache grow without limit and report
+    // "0 deleted" while doing it — and lossless files are the ones that make a
+    // disk quota matter.
+    foreach ((glob($dir . '/*.{mp3,wav,ogg}', GLOB_BRACE) ?: []) as $f) {
         // atime, falling back to mtime: shared hosts often mount noatime, and
         // in that case atime IS mtime, which is the conservative answer.
         $seen = max((int) @fileatime($f), (int) @filemtime($f));

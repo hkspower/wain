@@ -43,6 +43,8 @@ const is = (c, n, d) => (c ? ok(n, d) : bad(n, d))
 await sql('delete from fulfilment_outbox; delete from order_items; delete from orders; ' +
   'update admin_users set failed_attempts = 0, locked_until = null; ' +
   'update products set sale_price = null, sale_starts_at = null, sale_ends_at = null; ' +
+  // Stock is claimed by the live store, and test:native leaves sizes at 0.
+  'update product_variants set stock = 1000; ' +
   'delete from discounts;')
 
 const browser = await chromium.launch({

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sporta Admin">
+  <rect width="512" height="512" rx="112" fill="#171a1e"/>
+  <path d="M334 121c-24-15-54-23-87-23-69 0-117 35-117 88 0 43 27 66 97 84l32 8c28 7 37 16 37 30 0 20-22 32-54 32-34 0-68-11-99-32l-21 55c34 24 76 37 119 37 74 0 127-36 127-95 0-44-27-69-95-87l-33-9c-29-8-39-16-39-30 0-17 19-29 49-29 27 0 53 7 76 21z" fill="#d28a69"/>
+  <circle cx="381" cy="381" r="83" fill="#f8fafc"/>
+  <path d="M354 371v-18c0-21 12-35 28-35s28 14 28 35v18" fill="none" stroke="#171a1e" stroke-width="16" stroke-linecap="round"/>
+  <rect x="342" y="365" width="80" height="62" rx="14" fill="#171a1e"/>
+  <circle cx="382" cy="393" r="7" fill="#d28a69"/>
+  <path d="M382 397v12" stroke="#d28a69" stroke-width="6" stroke-linecap="round"/>
+</svg>

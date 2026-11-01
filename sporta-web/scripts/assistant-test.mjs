@@ -295,8 +295,14 @@ head('the guardrails')
   const empty = await ask('')
   is(empty.status === 400, 'an empty message is refused', String(empty.status))
 
+  // Refused, cleanly: the API caps a message at 500 characters, the same cap
+  // the chat box enforces (AssistantPanel maxLength={500}). A 400 with a named
+  // token is the right answer to 5,000 characters; a 500 would be a crash.
   const long = await ask('x'.repeat(5000))
-  is(long.status === 200, 'an enormous message does not error', String(long.status))
+  is(long.status === 400 && long.body?.error === 'too_long_message', 'an enormous message does not error',
+     `${long.status} ${long.body?.error ?? ''}`)
+  const atCap = await ask('x'.repeat(500))
+  is(atCap.status === 200, 'and exactly 500 characters, the chat box limit, is answered', String(atCap.status))
   is((long.body?.reply ?? '').length < 600, 'and does not produce an enormous answer')
 
   // It answers from the shop, not from a model, unless one is configured — and

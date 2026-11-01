@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <defs>
+    <linearGradient id="stage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3f5f7"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="42%" r="54%">
+      <stop offset="0" stop-color="#d28a69" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#d28a69" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="750" fill="url(#stage)"/>
+  <rect width="600" height="750" fill="url(#glow)"/>
+  <circle cx="300" cy="337" r="88" fill="#fff" stroke="#e1e5e9" stroke-width="2"/>
+  <g fill="none" stroke="#6f7882" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M255 315h24l12-17h35l12 17h24v78H255z"/>
+    <circle cx="308" cy="352" r="21"/>
+  </g>
+  <rect x="255" y="434" width="90" height="4" rx="2" fill="#d28a69"/>
+  <text x="300" y="486" text-anchor="middle" fill="#20252b" font-family="Arial,sans-serif" font-size="24" font-weight="700" letter-spacing="3">SPORTA</text>
+  <text x="300" y="526" text-anchor="middle" fill="#606a74" font-family="Arial,sans-serif" font-size="20" direction="rtl">صورة المنتج قريبًا</text>
+  <text x="300" y="558" text-anchor="middle" fill="#737d87" font-family="Arial,sans-serif" font-size="16">Product image coming soon</text>
+</svg>

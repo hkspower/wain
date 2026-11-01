@@ -8,7 +8,7 @@
 //   POST ?r=discount            check a coupon code against a cart
 //   GET  ?r=stock               per-size availability (never the cost column)
 //   POST ?r=order               create an order — the port of create_order
-//   GET  ?r=status&id=TRACK     payment status for the result/track pages
+//   GET  ?r=status&id=TRACK     payment and fulfilment timeline for result/track pages
 //   GET  ?r=invoice&id=TRACK    the printable invoice document
 //
 // No authentication on these, deliberately, and the same reasoning as the
@@ -19,6 +19,7 @@
 
 declare(strict_types=1);
 require __DIR__ . '/store.php';
+require __DIR__ . '/customer-auth.php';
 
 $r = $_GET['r'] ?? '';
 $db = store_db();
@@ -51,11 +52,22 @@ $STORE_LIMITS = [
     'products'    => [120, 60],
     'slides'      => [120, 60],
     'brands'      => [120, 60],
+    // The storefront's theme and checkout settings: read on every page and
+    // every checkout, a single small settings row each, the same tier as
+    // slides. Listed so the table really is complete — unlisted, they were
+    // throttled only by the fallback below.
+    'theme'           => [120, 60],
+    'checkout_config' => [120, 60],
     'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [120, 60],
     'status'      => [60, 60],
     'invoice'     => [60, 60],
+    'return_lookup' => [12, 60], // order + checkout phone are verified before details are returned
+    'return_submit' => [8, 600], // creates an operator case; bound retries and abuse
+    'support_create' => [6, 600], // creates a customer-service case
+    'support_lookup' => [12, 60], // reference + email are required before messages are returned
+    'support_reply'  => [8, 600], // a customer response to an existing case
     'assistant'   => [30, 60],
     'order'       => [20, 600],   // queues mail to the warehouse — see ?r=order
     // A review link is signed, so this is not guessable — but a valid link
@@ -171,12 +183,16 @@ if ($r === 'slides') {
     }
     unset($row);
 
-    $bar = store_setting($db, 'promo_bar');
+    $bar = store_topbar_setting($db);
     // The schedule is resolved here for the same reason the sale window is.
     $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
     unset($bar['starts_at'], $bar['ends_at']);
 
     store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
+}
+
+if ($r === 'theme') {
+    store_out(store_theme_with_fonts($db));
 }
 
 // One slide's bytes.
@@ -241,6 +257,18 @@ if ($r === 'brand_logo') {
 }
 
 // -------------------------------------------------------------- discount check
+if ($r === 'checkout_config') {
+    $c = store_public_checkout_setting($db);
+    store_out([
+        'delivery_fee' => (float)store_kwd($c['delivery_fee_fils']),
+        'methods' => $c['methods'],
+        'default_method' => $c['default_method'],
+        'notice_en' => $c['notice_en'],
+        'notice_ar' => $c['notice_ar'],
+    ]);
+}
+
+// -------------------------------------------------------------- discount check
 // Check a code against a cart BEFORE the customer commits to paying.
 //
 // This deliberately re-prices the cart from the products table rather than
@@ -249,13 +277,14 @@ if ($r === 'brand_logo') {
 // answer would be a preview the checkout could not honour. The number this
 // returns is the number create_order will compute, because it is the same code.
 if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $b = store_body();
+    $b = store_body(32768);
     $items = is_array($b['items'] ?? null) ? $b['items'] : [];
     if (count($items) === 0 || count($items) > 50) store_fail('empty_cart');
+    if (!array_is_list($items)) store_fail('invalid_item');
 
     $priced = store_price_lines($db, $items);
     $sub = array_sum(array_column($priced, 'line_fils'));
-    $res = store_discounts_for($db, $priced, $sub, (string)($b['code'] ?? ''));
+    $res = store_discounts_for($db, $priced, $sub, store_input_string($b['code'] ?? null, 'discount_code', 80));
     if ($res['error'] !== null) {
         // Only a FAILED lookup is counted, and it is counted before the answer
         // is given. A shopper re-checking a basket with a code that works is
@@ -270,12 +299,13 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // the same code that will charge it; leaving the fee out here would put a
     // total on screen that is 1.000 KWD lower than the one the bank asks for,
     // which is the exact drift the shared-code rule was written to prevent.
-    $previewDelivery = STORE_DELIVERY_FEE_FILS;
+    $previewDelivery = store_checkout_setting($db)['delivery_fee_fils'];
     store_out([
         'subtotal' => (float)store_kwd($sub),
         'discount' => (float)store_kwd($res['total_fils']),
         'delivery' => (float)store_kwd($previewDelivery),
         'total'    => (float)store_kwd($sub - $res['total_fils'] + $previewDelivery),
+        'total_fils' => $sub - $res['total_fils'] + $previewDelivery,
         'applied'  => array_map(fn ($a) => ['label' => $a['label'], 'code' => $a['code'],
                                             'amount' => (float)store_kwd($a['fils'])], $res['applied']),
     ]);
@@ -315,12 +345,59 @@ if ($r === 'stock') {
 
 // ------------------------------------------------------------------- status
 if ($r === 'status') {
-    $q = $db->prepare('select payment_status, payment_method, amount from orders where track_id = ?');
+    $q = $db->prepare('select id, payment_status, payment_method, fulfilment_status, amount,
+                              created_at, fulfilled_at from orders where track_id = ?');
     $q->execute([trim((string)($_GET['id'] ?? ''))]);
     $row = $q->fetch();
     if (!$row) store_out(null);
     $row['amount'] = (float)$row['amount'];
+    $row['events'] = store_tracking_events($db, $row);
+    unset($row['id'], $row['created_at'], $row['fulfilled_at']);
     store_out($row);
+}
+
+// -------------------------------------------------------- returns/exchanges
+// A track ID alone cannot reveal purchased items or create an operator case.
+// Both routes verify the phone captured at checkout and return the same 404
+// for an unknown order and a mismatched number.
+if (in_array($r, ['return_lookup', 'return_submit'], true)) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') store_fail('method_not_allowed', 405);
+    if (($_SERVER['HTTP_X_SPORTA_CUSTOMER'] ?? '') !== '1'
+        || strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json'
+        || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') store_fail('bad_request', 403);
+    require_once __DIR__ . '/returns.php';
+    $body = returns_request_body();
+    if ($r === 'return_lookup') {
+        $result = returns_lookup($db, $body);
+        if ($result === null) store_fail('order_not_found', 404);
+        store_out($result);
+    }
+    try { store_out(returns_submit($db, $body), 201); }
+    catch (InvalidArgumentException $e) {
+        $token = $e->getMessage();
+        store_fail($token, $token === 'order_not_found' ? 404 :
+            ($token === 'quantity_exceeded' || $token === 'duplicate_request' ? 409 : 400));
+    }
+}
+
+// --------------------------------------------------------- customer support
+// A support reference is not enough to read a conversation: lookup and reply
+// require the email recorded on the ticket as well. Staff-only notes never
+// travel through these public routes.
+if (in_array($r, ['support_create', 'support_lookup', 'support_reply'], true)) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST'
+        || ($_SERVER['HTTP_X_SPORTA_CUSTOMER'] ?? '') !== '1'
+        || strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json'
+        || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') store_fail('bad_request', 403);
+    require_once __DIR__ . '/support.php';
+    $body = support_body();
+    try {
+        if ($r === 'support_create') store_out(['ticket' => support_create($db, $body)], 201);
+        if ($r === 'support_lookup') { $ticket = support_ticket_public($db, $body); if ($ticket === null) store_fail('not_found', 404); store_out($ticket); }
+        store_out(support_customer_reply($db, $body));
+    } catch (InvalidArgumentException $e) {
+        $token = $e->getMessage(); store_fail($token, $token === 'not_found' ? 404 : ($token === 'ticket_closed' ? 409 : 400));
+    }
 }
 
 // -------------------------------------------------------------- سبورتا AI
@@ -330,10 +407,11 @@ if ($r === 'status') {
 // unauthenticated endpoint that runs database queries, so the same guard the
 // discount oracle has applies here.
 if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $in = json_decode((string) file_get_contents('php://input'), true) ?: [];
+    $in = store_body(8192);
     // Capped hard. Anything longer than this is not a customer question, and
     // an unbounded string reaching a paid model is somebody else's bill.
-    $msg = mb_substr(trim((string) ($in['message'] ?? '')), 0, 500);
+    $msg = trim(store_input_string($in['message'] ?? null, 'message', 2048));
+    if (mb_strlen($msg) > 500) store_fail('too_long_message');
     $lang = ($in['lang'] ?? 'en') === 'ar' ? 'ar' : 'en';
     if ($msg === '') store_out(['error' => 'empty'], 400);
     require_once __DIR__ . '/assistant.php';
@@ -366,15 +444,18 @@ if ($r === 'say') {
     // Throttled only AFTER the signature verifies: a valid speaker press must
     // not be rationed because someone else spent the budget on forgeries.
     store_throttle($db, 'say', 30, 60);
-    $mp3 = assistant_speak($cfg, $text, $lang);
-    if ($mp3 === null) store_out(['error' => 'tts_failed'], 502);
-    header('Content-Type: audio/mpeg');
-    header('Content-Length: ' . strlen($mp3));
+    $audio = assistant_speak($cfg, $text, $lang);
+    if ($audio === null) store_out(['error' => 'tts_failed'], 502);
+    // The content type FOLLOWS THE FORMAT. It was hard-coded audio/mpeg, so
+    // configuring lossless produced a WAV announced as an mp3 — which Safari
+    // refuses outright and Chrome only plays by sniffing past the label.
+    header('Content-Type: ' . assistant_voice_kind($cfg)['mime']);
+    header('Content-Length: ' . strlen($audio));
     // Signed, immutable, and identical for every visitor who asks the same
     // question — exactly the thing a cache is for. Private: it may quote an
     // order number back, and that is not for a shared proxy to keep.
     header('Cache-Control: private, max-age=31536000, immutable');
-    echo $mp3;
+    echo $audio;
     exit;
 }
 
@@ -413,7 +494,7 @@ if ($r === 'review_invite') {
 }
 
 if ($r === 'review') {
-    $in = store_body();
+    $in = store_body(8192);
     $order = store_review_order(
         $db,
         trim((string)($in['track_id'] ?? '')),
@@ -424,14 +505,14 @@ if ($r === 'review') {
     // ANY rating is accepted and any rating is paid. Rewarding only the good
     // ones is review gating — see reviews.mysql.sql. What is refused here is a
     // number that is not a rating at all, because it would be averaged in.
-    $rating = (int)($in['rating'] ?? 0);
-    if ($rating < 1 || $rating > 5) store_fail('invalid_rating');
+    $rating = $in['rating'] ?? null;
+    if (!is_int($rating) || $rating < 1 || $rating > 5) store_fail('invalid_rating');
 
-    $comment = trim((string)($in['comment'] ?? ''));
+    $comment = trim(store_input_string($in['comment'] ?? null, 'comment', 4096));
     // Cut to the column, in CHARACTERS not bytes: an Arabic comment is two to
     // three bytes a letter, and slicing on bytes would both truncate it early
     // and cut a character in half.
-    if ($comment !== '') $comment = mb_substr($comment, 0, 1000);
+    if (mb_strlen($comment) > 1000) store_fail('too_long_comment');
     $lang = ($in['lang'] ?? '') === 'en' ? 'en' : 'ar';
 
     $res = store_review_submit($db, $order, $rating, $comment === '' ? null : $comment, $lang);
@@ -450,10 +531,17 @@ if ($r === 'invoice') {
     $o = $q->fetch();
     if (!$o) store_out(null);
     $it = $db->prepare(
-        'select p.name_en, p.name_ar, oi.qty, oi.size, oi.fit, oi.unit_price,
+        // COALESCE, not a plain join. The snapshot is what the customer was
+        // sold; the join is the fallback for every order placed before the
+        // snapshot existed, whose lines are NULL. Back-filling those from the
+        // catalogue would write today's names into history and present them as
+        // the originals, which is a worse lie than an old name being current.
+        'select coalesce(oi.name_en, p.name_en) as name_en,
+                coalesce(oi.name_ar, p.name_ar) as name_ar,
+                oi.qty, oi.size, oi.fit, oi.unit_price,
                 (oi.unit_price * oi.qty) as line_total
            from order_items oi join products p on p.id = oi.product_id
-          where oi.order_id = ? order by p.name_en, oi.size'
+          where oi.order_id = ? order by 1, oi.size'
     );
     $it->execute([$o['id']]);
     $items = $it->fetchAll();
@@ -501,6 +589,8 @@ if ($r === 'invoice') {
 // The port of create_order — same validation, same tokens, same idempotency,
 // same server-side pricing. The browser never sends a price and never will.
 if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    if (strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0])) !== 'application/json'
+        || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') store_fail('bad_request', 403);
     // THE TIGHTEST LIMIT IN $STORE_LIMITS IS THIS ROUTE'S, and this is the
     // one route where the reason is not the database.
     //
@@ -520,48 +610,102 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // file, before the body is even parsed — a throttle that runs after
     // validation is not a throttle, because the flood is exactly the traffic
     // that fails validation.
-    $b = store_body();
+    $b = store_body(65536);
 
-    $track = trim((string)($b['track_id'] ?? ''));
+    if (!is_string($b['track_id'] ?? null)) store_fail('invalid_track_id');
+    $track = trim($b['track_id']);
     if (!preg_match('/^[A-Za-z0-9]{6,30}$/', $track)) store_fail('invalid_track_id');
 
-    $method = strtolower(trim((string)($b['payment_method'] ?? 'knet')));
+    // A quote is an assertion about what the shopper saw, never a price source.
+    // Older clients omit it; new clients can refuse a changed total before an
+    // order reserves stock or sends the shopper to a bank.
+    $expectedTotalFils = $b['expected_total_fils'] ?? null;
+    if (array_key_exists('expected_total_fils', $b)
+        && (!is_int($expectedTotalFils) || $expectedTotalFils < 0)) {
+        store_fail('invalid_expected_total');
+    }
+    $assertQuote = static function (int $actualFils) use ($expectedTotalFils): void {
+        if ($expectedTotalFils !== null && $expectedTotalFils !== $actualFils) {
+            store_out(['error' => 'quote_changed', 'amount' => (float)store_kwd($actualFils),
+                       'total_fils' => $actualFils], 409);
+        }
+    };
+
+    $method = strtolower(trim(store_input_string($b['payment_method'] ?? 'knet', 'payment_method', 20)));
     if (!in_array($method, STORE_PAY_METHODS, true)) store_fail('invalid_payment_method');
+    $checkoutSetting = store_public_checkout_setting($db);
+    if (!in_array($method, $checkoutSetting['methods'], true)) store_fail('payment_method_unavailable');
 
     // Idempotency FIRST: a double tap or a bank-page retry returns the pending
     // order it already created instead of a second one. The storefront's
     // attemptTrackId() keeps the id stable per attempt; this is the other half.
-    $q = $db->prepare('select id, amount, payment_status from orders where track_id = ?');
+    // The method is part of the idempotency key's meaning. A caller must not
+    // be able to create a KNET order, repeat the same track id as T-Pay/COD,
+    // and have the browser redirect that one order to a different settlement
+    // path. Return only the method persisted with the order, and reject a
+    // retry whose requested method disagrees with it.
+    $q = $db->prepare(
+        'select id, amount, payment_status, payment_method from orders where track_id = ?'
+    );
+    $returnExisting = static function (array $row, string $track, string $requestedMethod) use ($assertQuote): void {
+        if ($row['payment_status'] !== 'pending') store_fail('order_not_pending');
+
+        $storedMethod = strtolower(trim((string)($row['payment_method'] ?? '')));
+        if (!in_array($storedMethod, STORE_PAY_METHODS, true)
+            || $storedMethod !== $requestedMethod) {
+            // Reuse an existing client token so current storefronts show a
+            // translated checkout error instead of leaking a new raw token.
+            store_fail('invalid_payment_method', 409);
+        }
+
+        $assertQuote(store_fils((string)$row['amount']));
+
+        store_out([
+            'order_id'      => (int)$row['id'],
+            'track_id'      => $track,
+            'amount'        => (float)$row['amount'],
+            'payment_method' => $storedMethod,
+        ]);
+    };
     $q->execute([$track]);
     if ($existing = $q->fetch()) {
-        if ($existing['payment_status'] !== 'pending') store_fail('order_not_pending');
-        store_out(['order_id' => (int)$existing['id'], 'track_id' => $track,
-                   'amount' => (float)$existing['amount'], 'payment_method' => $method]);
+        $returnExisting($existing, $track, $method);
     }
 
     $items = $b['items'] ?? null;
     if (!is_array($items) || count($items) === 0) store_fail('empty_cart');
     if (count($items) > 50) store_fail('cart_too_large');
+    if (!array_is_list($items)) store_fail('invalid_item');
 
-    $customer = is_array($b['customer'] ?? null) ? $b['customer'] : [];
+    $customer = $b['customer'] ?? null;
+    if (!is_array($customer) || array_is_list($customer)) store_fail('invalid_customer');
     $phone = store_phone($customer['phone'] ?? null);
     if ($phone === null) store_fail('invalid_phone');
-    $gov = trim((string)($customer['governorate'] ?? ''));
+    $gov = trim(store_input_string($customer['governorate'] ?? null, 'governorate', 64));
     if (!in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
-
-    // IS THIS CUSTOMER ALLOWED TO ORDER THIS WAY? Checked here — after the
-    // phone is canonical, before anything is written or any mail is queued.
-    //
-    // Cash on delivery is the only method that spends the shop's money before
-    // anyone has paid: the courier goes out either way. One phone placed twelve
-    // COD orders in seconds before this existed. See store_order_guard().
-    store_order_guard($db, $phone, $method);
 
     $name     = store_text($customer['name'] ?? null,     'name',     2, 80);
     $area     = store_text($customer['area'] ?? null,     'area',     2, 60);
     $block    = store_text($customer['block'] ?? null,    'block',    1, 12);
     $street   = store_text($customer['street'] ?? null,   'street',   1, 40);
     $building = store_text($customer['building'] ?? null, 'building', 1, 24);
+    $floor    = store_checkout_optional($customer['floor'] ?? null, 'floor', 16);
+    $flat     = store_checkout_optional($customer['flat'] ?? null, 'flat', 16);
+    $note     = store_checkout_optional($customer['note'] ?? null, 'note', 280);
+
+    // Ownership is derived only from a verified HttpOnly customer session.
+    // The checkout body has no customer ID; old clients and guests remain
+    // guests. A browser from another origin cannot set this custom header
+    // with cookies because this API offers no CORS preflight permission.
+    $customerAccountId = null;
+    $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
+    if (($_SERVER['HTTP_X_SPORTA_CUSTOMER'] ?? '') === '1'
+        && $contentType === 'application/json'
+        && ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') !== 'cross-site') {
+        $sessionUser = customer_current_user($db);
+        $customerAccountId = $sessionUser === null ? null : (int)$sessionUser['id'];
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    }
 
     // Validate and price every line BEFORE the transaction opens, so a bad
     // cart rejects cleanly with the token naming the problem, not a
@@ -577,7 +721,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // actively wants to be larger.
     $subtotalFils = array_sum(array_column($lines, 'line_fils'));
     if ($subtotalFils <= 0) store_fail('zero_amount');
-    $disc = store_discounts_for($db, $lines, $subtotalFils, (string)($b['discount_code'] ?? ''));
+    $disc = store_discounts_for($db, $lines, $subtotalFils, store_input_string($b['discount_code'] ?? null, 'discount_code', 80));
     if ($disc['error'] !== null) store_fail($disc['error']);
     $discountFils = $disc['total_fils'];
     // Goods after the discount, BEFORE delivery. Checked on its own because a
@@ -589,23 +733,42 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $goodsFils = $subtotalFils - $discountFils;
     if ($goodsFils <= 0) store_fail('zero_amount');
     // Delivery last, so no discount can eat into it. See STORE_DELIVERY_FEE_FILS.
-    $deliveryFils = STORE_DELIVERY_FEE_FILS;
+    $deliveryFils = $checkoutSetting['delivery_fee_fils'];
     $amountFils   = $goodsFils + $deliveryFils;
+    $assertQuote($amountFils);
 
-    $db->beginTransaction();
+    $codLock = null;
+    $rejectOrder = static function (string $token, int $status) use ($db, &$codLock): void {
+        if ($db->inTransaction()) $db->rollBack();
+        if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+        store_fail($token, $status);
+    };
     try {
+        // Hold this phone's COD lock through commit. Concurrent submissions
+        // must see the order inserted by the previous holder before checking
+        // the cap. The transaction begins AFTER the lock to avoid a stale
+        // repeatable-read snapshot taken while waiting.
+        if ($method === 'cod') $codLock = store_cod_lock($db, $phone);
+        $db->beginTransaction();
+        $q->execute([$track]);
+        if ($existing = $q->fetch()) {
+            $db->rollBack();
+            if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+            $returnExisting($existing, $track, $method);
+        }
+        if ($refusal = store_order_guard($db, $phone, $method)) {
+            $rejectOrder($refusal[0], $refusal[1]);
+        }
         $db->prepare(
-            'insert into orders (track_id, payment_status, payment_method,
+            'insert into orders (track_id, customer_account_id, payment_status, payment_method,
                customer_name, customer_phone, customer_governorate, customer_area,
                customer_block, customer_street, customer_building,
                customer_floor, customer_flat, customer_note, customer_lang,
                utm_source, utm_medium, utm_campaign, referrer_host)
-             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             values (?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            $track, $method, $name, $phone, $gov, $area, $block, $street, $building,
-            store_opt($customer['floor'] ?? null),
-            store_opt($customer['flat'] ?? null),
-            store_opt($customer['note'] ?? null),
+            $track, $customerAccountId, $method, $name, $phone, $gov, $area, $block, $street, $building,
+            $floor, $flat, $note,
             // The language the checkout was RENDERED in, not a guess from the
             // phone number or the address. It decides which WhatsApp template
             // the customer gets, and it is the only chance to know: by the time
@@ -632,11 +795,12 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // extension this must not depend on — shared hosting decides what PHP
         // has, not this file.
         $ins = $db->prepare(
-            'insert into order_items (order_id, product_id, qty, unit_price, size, fit)
-             values (?, ?, ?, ?, ?, ?)'
+            'insert into order_items (order_id, product_id, name_en, name_ar, qty, unit_price, size, fit)
+             values (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($lines as $l) {
-            $ins->execute([$orderId, $l['product_id'], $l['qty'], $l['unit_price'], $l['size'], $l['fit']]);
+            $ins->execute([$orderId, $l['product_id'], $l['name_en'], $l['name_ar'],
+                           $l['qty'], $l['unit_price'], $l['size'], $l['fit']]);
         }
 
         // Claim the usage slots inside THIS transaction. The guarded update
@@ -644,7 +808,43 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // one-per-shop code; if the claim does not land the whole order rolls
         // back, because honouring a discount that is gone is how a code meant
         // for one customer ends up used a thousand times.
-        if (!store_discounts_claim($db, $disc['applied'])) store_fail('discount_used_up', 409);
+        if (!store_discounts_claim($db, $disc['applied'])) {
+            $rejectOrder('discount_used_up', 409);
+        }
+
+        // AND CLAIM THE GARMENTS THEMSELVES, in the same transaction and for
+        // exactly the same reason. Until this existed the shop would sell a
+        // size it had none of — measured: stock 0, an order for fifty,
+        // answered 200 — because the stock number was only ever consulted by
+        // the browser drawing the size ladder.
+        //
+        // AFTER order_items, because the release path reads the sizes back out
+        // of it, and BEFORE the commit, so a failure anywhere below puts every
+        // garment back by rolling back rather than by remembering to.
+        $claim = store_stock_claim($db, $lines);
+        if ($short = $claim['short']) {
+            // ROLLED BACK EXPLICITLY. store_fail() exits, and an exit inside an
+            // open transaction is rolled back only when the connection closes —
+            // true today, and far too quiet a thing to rest a stock ledger on.
+            // The earlier lines of a mixed cart have already been decremented
+            // by the time a later one comes up short, so leaking this
+            // transaction would take garments off the shelf for an order that
+            // was never placed.
+            // The token names the item, the size AND what is left, because
+            // "out of stock" on a page showing eight things is not something
+            // a shopper can act on. 409, not 400: nothing they typed is wrong.
+            $rejectOrder(sprintf('out_of_stock_%s_%s_%d', $short['slug'], $short['size'], $short['have']), 409);
+        }
+        // FLAGGED ONLY IF IT ACTUALLY TOOK SOMETHING — counted by the claim
+        // itself, not guessed from the cart. A bag of accessories has no
+        // variant rows to decrement, and a cart may even carry a size for an
+        // untracked product, so "the order named a size" is not the same
+        // question. Marking such an order claimed would be a lie the sweeper
+        // later acts on: it would pick the row up, stamp it released, and the
+        // two flags would stop describing what happened.
+        if ($claim['claimed'] > 0) {
+            $db->prepare('update orders set stock_claimed = 1 where id = ?')->execute([$orderId]);
+        }
 
         $amount = store_kwd($amountFils);
         // discount_label is a SNAPSHOT. Renaming or deleting a discount later
@@ -667,15 +867,19 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         $db->commit();
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) $db->rollBack();
+        if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
         // A duplicate track id racing itself lands here via the unique index;
         // re-read and answer idempotently rather than failing the second tap.
+        // Apply the exact same status and method checks as the fast path: the
+        // race must not become a bypass for the gateway-binding rule above.
         $q->execute([$track]);
         if ($row = $q->fetch()) {
-            store_out(['order_id' => (int)$row['id'], 'track_id' => $track,
-                       'amount' => (float)$row['amount'], 'payment_method' => $method]);
+            $returnExisting($row, $track, $method);
         }
         store_fail('failed', 500);
+    } finally {
+        if ($codLock !== null) store_cod_unlock($db, $codLock);
     }
 
     store_out(['order_id' => $orderId, 'track_id' => $track,

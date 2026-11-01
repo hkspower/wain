@@ -9,10 +9,10 @@
 // this account — SSH is off permanently, and a cron that needs one is a cron
 // that never runs. Same gate as cron-fulfilment.php and cron-voice.php.
 //
-// Safe under overlapping runs: the claim marks attempts inside a transaction
-// with FOR UPDATE SKIP LOCKED, so two runs racing cannot double-send, and a
-// message that fails five times stops retrying and sits visibly in the table
-// with its error.
+// Safe under overlapping runs: a MariaDB advisory lock stays held through
+// each external send and status update. Row locks alone would end at the claim
+// commit and let another run send the same still-pending row. A message that
+// fails five times stops retrying and remains visible with its last error.
 //
 // ---------------------------------------------------------------------------
 // WHY EVERY MESSAGE IS A TEMPLATE
@@ -53,6 +53,16 @@ if ($token === '' || $phoneId === '') {
 
 $db = store_db();
 
+// Hold a connection-scoped lock through the Meta API calls. The claim's row
+// locks end at commit, so without this a second cron could send a row whose
+// first API call is still in flight. A crashed process releases the lock.
+$lockName = 'sporta_whatsapp_outbox_cron';
+$lock = $db->prepare('select get_lock(?, 0)');
+$lock->execute([$lockName]);
+$acquired = $lock->fetchColumn();
+if ((string)$acquired === '0') store_out(['claimed' => 0, 'sent' => 0, 'failed' => [], 'busy' => true]);
+if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
+
 // ---- claim ----
 $db->beginTransaction();
 $rows = $db->query(
@@ -80,6 +90,9 @@ foreach ($rows as $row) {
        ]);
     $ok ? $sent++ : $failed[] = (int)$row['id'];
 }
+
+$unlock = $db->prepare('select release_lock(?)');
+$unlock->execute([$lockName]);
 
 store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed]);
 

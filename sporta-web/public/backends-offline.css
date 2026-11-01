@@ -1,0 +1,9 @@
+:root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+* { box-sizing: border-box; }
+body { display: grid; min-height: 100dvh; margin: 0; place-items: center; background: #f3f5f6; color: #171a1e; padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left)); }
+.offline-card { width: min(100%, 28rem); border: 1px solid #d9dee2; border-radius: 1.5rem; background: #fff; padding: clamp(1.5rem, 6vw, 2.5rem); box-shadow: 0 18px 48px #171a1e12; }
+.offline-mark { display: grid; width: 3.25rem; height: 3.25rem; place-items: center; border-radius: .9rem; background: #171a1e; color: #d28a69; font-size: 2rem; font-weight: 800; }
+h1 { margin: 1.5rem 0 .75rem; font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.2; }
+p { line-height: 1.55; color: #48515a; }
+a { display: inline-flex; min-height: 2.75rem; align-items: center; margin-top: .65rem; border-radius: .75rem; background: #171a1e; padding: .65rem 1rem; color: #fff; font-weight: 700; text-decoration: none; }
+a:focus-visible { outline: 3px solid #d28a69; outline-offset: 3px; }

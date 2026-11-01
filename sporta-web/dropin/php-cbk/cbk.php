@@ -8,27 +8,17 @@ declare(strict_types=1);
 // The config locator FAILS CLOSED: a private-config server whose settings are
 // wrong throws rather than guess. That message and its stack trace name the
 // private mount, so they go to the error log, never to the shopper. store.php
-// does the same; both gateways must, or the one that does not is the leak.
+// and knet.php do the same; both gateways must, or the one that does not is
+// the leak. (The VPS image also sets it in 92-sporta-errors.ini; this keeps
+// it true on any host.)
 ini_set('display_errors', '0');
 
-// WHERE THE MERCHANT CONFIG LIVES is one rule, shared with the store and /knet:
-// api/config-path.php (source: dropin/php-store/config-path.php). On the VPS it
-// names the private mount (SPORTA_PRIVATE_CONFIG_DIR/pay-config.php); on shared
-// hosting it hands back pay/config.php, next to this file.
-//
-// This used to `require __DIR__ . '/config.php'` unconditionally. The VPS keeps
-// no config.php in the web root, so that line was a PHP fatal — a dead T-Pay —
-// the moment this code reached it. knet.php already carried the resolver; T-Pay
-// now carries the same one, line for line, so the two gateways cannot drift.
 $sportaConfigResolver = dirname(__DIR__) . '/api/config-path.php';
 if (is_file($sportaConfigResolver)) require_once $sportaConfigResolver;
 
 function cbk_config_path(string $kind, string $legacyPath): string
 {
     if (function_exists('sporta_config_path')) return sporta_config_path($kind, $legacyPath);
-    // A standalone T-Pay drop-in remains supported on shared hosting. On a
-    // private-config deployment, absence of the resolver is an install error,
-    // never permission to use an old web-root credential file.
     $privateDir = getenv('SPORTA_PRIVATE_CONFIG_DIR');
     if ($privateDir !== false && $privateDir !== '') {
         throw new RuntimeException('Private config resolver is missing');
@@ -80,12 +70,44 @@ function cbk_base(array $cfg): string
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
 }
 
+function cbk_assert_payment_config(array $cfg): void
+{
+    foreach (['client_id', 'client_secret', 'encrp_key', 'return_url', 'result_page_url'] as $field) {
+        $raw = (string) ($cfg[$field] ?? '');
+        $value = trim($raw);
+        if ($value === '' || str_starts_with($value, 'YOUR_')) {
+            throw new RuntimeException($field . ' is not configured');
+        }
+        if ($raw !== $value) {
+            throw new RuntimeException($field . ' has leading or trailing whitespace');
+        }
+    }
+    $env = (string) ($cfg['env'] ?? '');
+    if (!in_array($env, ['test', 'production'], true)) {
+        throw new RuntimeException('env must be test or production');
+    }
+    foreach (['test_base', 'production_base', 'return_url', 'result_page_url'] as $field) {
+        $url = (string) ($cfg[$field] ?? '');
+        $parts = parse_url($url);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $localTest = $env === 'test' && in_array($host, ['127.0.0.1', 'localhost'], true);
+        if (!$parts || $host === '' || ($scheme !== 'https' && !$localTest)) {
+            throw new RuntimeException($field . ' must be an HTTPS URL');
+        }
+    }
+    if (!in_array((string) ($cfg['lang'] ?? ''), ['en', 'ar'], true)) {
+        throw new RuntimeException('lang must be en or ar');
+    }
+}
+
+// Is there an orders database at all? Without one there is no price authority:
+// nothing to charge and nothing to settle. The same question the KNET dropin
+// asks, with the same answer, so the two gateways cannot drift.
 // Fall back to the store API's database credentials when this payment config
 // does not duplicate them. All payment rails settle the same order rows, and a
 // single source prevents KNET/T-Pay silently pointing at no database or an old
-// one after credentials change. Explicit values still take precedence. The
-// twin of knet_with_store_db(), and it reads the API config through the same
-// resolver, so on the VPS it is the private mount, never a web-root file.
+// one after credentials change. Explicit values still take precedence.
 function cbk_with_store_db(array $cfg): array
 {
     if (($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '') {
@@ -103,9 +125,6 @@ function cbk_with_store_db(array $cfg): array
     return $cfg;
 }
 
-// Is there an orders database at all? Without one there is no price authority:
-// nothing to charge and nothing to settle. The same question the KNET dropin
-// asks, with the same answer, so the two gateways cannot drift.
 function cbk_db_configured(array $cfg): bool
 {
     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
@@ -134,28 +153,30 @@ function cbk_pdo(array $cfg): PDO
 //
 // The manual (p.10) says the Merchant Track/Order ID "must be always unique for
 // each transaction attempts", and CBK's own sample calls uniqid() every time.
-// The shop sent orders.track_id, which is unique per ORDER — so a shopper
-// retrying a declined card sent the same value twice and the gateway is
-// entitled to refuse it with TIJ0004, making a failed payment unretryable.
+// The shop sends orders.track_id, which is unique per ORDER. Repeated starts
+// while an order is pending therefore need distinct gateway references. A
+// failed order cannot be reused because its stock may be released immediately.
 //
 // THE FIRST ATTEMPT SENDS THE TRACK ID UNCHANGED, so the common case is exactly
 // as it was and a bank statement still carries the order number. Only a retry —
-// which could not work at all before — carries a suffix.
+// while the order is still pending carries a suffix.
 function cbk_attempt_ref(array $cfg, string $trackid): string
 {
-    if (!cbk_db_configured($cfg)) return $trackid;
-    try {
-        $pdo = cbk_pdo($cfg);
-        $pdo->prepare('update orders set pay_attempt = pay_attempt + 1 where track_id = ?')
-            ->execute([$trackid]);
-        $q = $pdo->prepare('select pay_attempt from orders where track_id = ?');
-        $q->execute([$trackid]);
-        $n = (int) $q->fetchColumn();
-    } catch (Throwable $e) {
-        // The counter is a convenience; the sale is not. A customer must never
-        // be stopped at the payment page because a column is missing.
-        return $trackid;
+    if (!cbk_db_configured($cfg)) {
+        throw new RuntimeException('orders database is not configured');
     }
+    $pdo = cbk_pdo($cfg);
+    $st = $pdo->prepare(
+        "update orders set pay_attempt = last_insert_id(pay_attempt + 1)
+          where track_id = ? and payment_method = 'tpay'
+            and payment_status = 'pending'
+            and stock_released = 0
+            and fulfilment_status <> 'cancelled'"
+    );
+    $st->execute([$trackid]);
+    if ($st->rowCount() !== 1) throw new RuntimeException('order is no longer payable by T-Pay');
+    $n = (int) $pdo->query('select last_insert_id()')->fetchColumn();
+    if ($n < 1) throw new RuntimeException('could not allocate a T-Pay attempt reference');
     if ($n <= 1) return $trackid;
     $suffix = 'A' . $n;
     // The manual caps this field at 30. Trim the ORDER part, never the suffix —
@@ -172,13 +193,18 @@ function cbk_attempt_ref(array $cfg, string $trackid): string
 // Getting this wrong is the worst failure available: cbk_update_order keys on
 // track_id, so an unresolved reference settles no row while the gateway has
 // taken the money.
-function cbk_resolve_track(array $cfg, string $ref): string
+function cbk_resolve_track(array $cfg, string $ref, string $orderHint = ''): string
 {
     if ($ref === '' || !cbk_db_configured($cfg)) return $ref;
     try {
         $q = cbk_pdo($cfg)->prepare('select 1 from orders where track_id = ?');
         $q->execute([$ref]);
         if ($q->fetchColumn()) return $ref;
+        if (preg_match('/^[A-Za-z0-9]{1,30}$/', $orderHint)
+            && cbk_attempt_ref_matches_order($ref, $orderHint)) {
+            $q->execute([$orderHint]);
+            if ($q->fetchColumn()) return $orderHint;
+        }
         if (preg_match('/^(.+)A\d+$/', $ref, $m)) {
             $q->execute([$m[1]]);
             if ($q->fetchColumn()) return $m[1];
@@ -190,18 +216,47 @@ function cbk_resolve_track(array $cfg, string $ref): string
     return $ref;
 }
 
+function cbk_attempt_ref_matches_order(string $ref, string $trackid): bool
+{
+    if (hash_equals($trackid, $ref)) return true;
+    if (!preg_match('/A[1-9]\d*$/', $ref, $m)) return false;
+    $suffix = $m[0];
+    return hash_equals(substr($trackid, 0, max(1, 30 - strlen($suffix))) . $suffix, $ref);
+}
+
 function cbk_order_lookup(array $cfg, string $trackid): array
 {
+    if (!cbk_db_configured($cfg)) {
+        return ['state' => 'off', 'amount' => null, 'status' => null, 'method' => null];
+    }
     try {
-        $q = cbk_pdo($cfg)->prepare('select amount, payment_status from orders where track_id = ?');
+        $q = cbk_pdo($cfg)->prepare(
+            'select amount, payment_status, payment_method, stock_released,
+                    fulfilment_status from orders where track_id = ?'
+        );
         $q->execute([$trackid]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
-        return ['amount' => null, 'status' => null];
+        return ['state' => 'error', 'amount' => null, 'status' => null, 'method' => null];
     }
     return $row
-        ? ['amount' => (string) $row['amount'], 'status' => (string) $row['payment_status']]
-        : ['amount' => null, 'status' => null];
+        ? ['state' => 'found', 'amount' => (string) $row['amount'], 'status' => (string) $row['payment_status'],
+           'method' => (string) $row['payment_method'],
+           'stock_released' => (int) $row['stock_released'],
+           'fulfilment_status' => (string) $row['fulfilment_status']]
+        : ['state' => 'missing', 'amount' => null, 'status' => null, 'method' => null];
+}
+
+function cbk_amount_fils(string $amount): ?int
+{
+    $amount = trim($amount);
+    if (!preg_match('/^(0|[1-9]\d{0,6})(?:\.(\d{1,3}))?$/D', $amount, $m)) return null;
+    return ((int) $m[1] * 1000) + (int) str_pad((string) ($m[2] ?? ''), 3, '0');
+}
+
+function cbk_format_fils(int $fils): string
+{
+    return intdiv($fils, 1000) . '.' . str_pad((string) ($fils % 1000), 3, '0', STR_PAD_LEFT);
 }
 
 // Append-only audit log, the twin of knet_log(). A payment system with no

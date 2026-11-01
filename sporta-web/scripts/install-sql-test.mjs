@@ -47,10 +47,17 @@ for (const db of ['sqlinst_one', 'sqlinst_four']) {
   await mysql('', `drop database if exists ${db}; create database ${db}`)
 }
 
-head('one import does what four imports do')
+head('one import does what the parts do, by hand, in order')
 {
+  // The by-hand order is READ from the generator, not retyped here: a second
+  // copy of the part list is the drift this test exists to catch. (It was four
+  // parts; the live install is nine.)
+  const gen = readFileSync(new URL('./make-install-sql.mjs', import.meta.url), 'utf8')
+  const partsSrc = gen.slice(gen.indexOf('const PARTS = ['), gen.indexOf(']\n', gen.indexOf('const PARTS = [')))
+  const parts = [...partsSrc.matchAll(/\['([\w-]+\.mysql\.sql)'/g)].map((m) => m[1])
+  is(parts.length >= 4 && parts[0] === 'schema.mysql.sql', 'the part list is read from the generator', parts.join(' '))
   importFile('sqlinst_one', 'install.mysql.sql')
-  for (const f of ['schema.mysql.sql', 'seed.mysql.sql', 'brands.mysql.sql', 'promo.mysql.sql']) {
+  for (const f of parts) {
     importFile('sqlinst_four', f)
   }
   const [s1, s4] = [await shape('sqlinst_one'), await shape('sqlinst_four')]

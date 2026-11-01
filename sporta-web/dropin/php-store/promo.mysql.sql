@@ -78,7 +78,8 @@ create table if not exists settings (
 -- with; 'tall' is its current height.
 insert into settings (name, value) values
   ('hero', '{"speed_ms":6500,"shuffle":false,"size":"tall","autoplay":true}'),
-  ('promo_bar', '{"enabled": true, "text_en": "Same-day delivery in Kuwait · KNET, cards & cash on delivery", "text_ar": "توصيل في نفس اليوم داخل الكويت · كي نت والبطاقات والدفع عند الاستلام", "href": "", "starts_at": null, "ends_at": null}')
+  ('promo_bar', '{"enabled": true, "text_en": "Same-day delivery in Kuwait · KNET, cards & cash on delivery", "text_ar": "توصيل في نفس اليوم داخل الكويت · كي نت والبطاقات والدفع عند الاستلام", "href": "", "starts_at": null, "ends_at": null, "tone": "brand", "show_dot": true, "alignment": "center"}'),
+  ('checkout', '{"delivery_fee_fils":1000,"knet":true,"tpay":true,"cod":true,"default_method":"knet","notice_en":"","notice_ar":""}')
 on duplicate key update name = name;   -- never clobber a value already set
 
 -- ------------------------------------------------- promotions on the products

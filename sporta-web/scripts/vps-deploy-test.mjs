@@ -54,7 +54,8 @@ fs.cpSync(DIST, LIVE, { recursive: true })
 fs.writeFileSync(join(LIVE, 'config.js'), 'window.SPORTA_CONFIG={"live":true}\n')
 // Live's store.php is far bigger than the repo's (measured: 112 kB vs 60 kB).
 fs.appendFileSync(join(LIVE, 'api', 'store.php'), `\n// ${'live-only code '.repeat(5000)}\n`)
-fs.writeFileSync(join(LIVE, 'boot.js'), '// live-only add-on\n')
+// A name the release cannot contain — boot.js and the add-ons ship from public/ now.
+fs.writeFileSync(join(LIVE, 'server-only-addon.js'), '// live-only add-on\n')
 fs.writeFileSync(join(LIVE, 'robots.txt'), 'User-agent: *\nDisallow: /old\n')
 fs.rmSync(join(LIVE, 'sitemap.xml'))
 for (const tool of ['knet/selftest.php', 'knet/setup-config.php', 'go-live.html', 'api/setup-admin.php', 'api/preflight.php']) {
@@ -134,7 +135,7 @@ try {
     is(p.code === 0 && p.out.includes('PLAN_OK'), 'the plan runs', p.out.split('\n').find((l) => l.startsWith('compare:')) ?? p.out.slice(-200))
     is(sameTree(before, tree(LIVE)), 'the live tree is byte-for-byte unchanged')
     is(/api\/store\.php \d+ -> \d+\s+SHRINKS/.test(p.out), 'older store.php over newer is flagged SHRINKS')
-    is(/\(root\): [^\n]*boot\.js/.test(p.out), 'a file only the server has is listed as live-only')
+    is(/\(root\): [^\n]*server-only-addon\.js/.test(p.out), 'a file only the server has is listed as live-only')
     is(/held back: 5 setup tools/.test(p.out), 'the five setup tools are held back', /held back: [^\n]*/.exec(p.out)?.[0])
     is(/HEALTH live now\n\s+\/ 200 · \/shop 200 · \/checkout 200 · \/backends 200 · \/api\/api\.php\?r=products 200/.test(p.out),
        'the probes reach the site and its API')
@@ -160,7 +161,7 @@ try {
     is(md5(join(LIVE, 'api', 'store.php')) === md5(join(DIST, 'api', 'store.php')), 'a changed file is replaced')
     is(md5(join(LIVE, 'sitemap.xml')) === md5(join(DIST, 'sitemap.xml')), 'a missing file is added')
     is(md5(join(LIVE, 'config.js')) === liveConfig, 'config.js is untouched')
-    is(fs.existsSync(join(LIVE, 'boot.js')), 'the live-only file is still there — nothing is deleted')
+    is(fs.existsSync(join(LIVE, 'server-only-addon.js')), 'the live-only file is still there — nothing is deleted')
     is(!fs.existsSync(join(LIVE, 'knet', 'selftest.php')) && !fs.existsSync(join(LIVE, 'go-live.html')),
        'the setup tools did not come back')
     const mode = fs.statSync(join(LIVE, 'api', 'store.php')).mode & 0o777
@@ -177,6 +178,27 @@ try {
        'store.php is the live one again')
     is(fs.readFileSync(join(LIVE, 'robots.txt'), 'utf8').includes('/old'), 'robots.txt is the live one again')
     is(!fs.existsSync(join(LIVE, 'sitemap.xml')), 'the file the deploy added is gone again')
+  }
+
+  head('--only deploys part of the site')
+  {
+    // The live storefront is a different build from this repo's: a scoped
+    // deploy must not compare it, let alone replace it.
+    fs.writeFileSync(join(LIVE, 'index.html'), '<!-- the live storefront, another build -->\n'
+      + fs.readFileSync(join(DIST, 'index.html'), 'utf8'))
+    const liveIndex = md5(join(LIVE, 'index.html'))
+    const p = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: 'main', SPORTA_DEPLOY_ONLY: 'api' })
+    const planPart = p.out.split('== HEALTH')[0]
+    is(p.code === 0 && /only=api/.test(p.out) && !/^\s+index\.html /m.test(planPart) && /api\/store\.php/.test(planPart),
+       'a scoped plan compares only that folder', /compare: [^\n]*/.exec(p.out)?.[0])
+    const a = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA,
+      SPORTA_DEPLOY_ALLOW_SHRINK: '1', SPORTA_DEPLOY_ONLY: 'api,knet,pay' })
+    const name = /DEPLOY_OK (deploy-\d{8}T\d{6}Z-a{7})/.exec(a.out)?.[1]
+    is(a.code === 0 && Boolean(name), 'a backend-only deploy goes through', /DEPLOY_OK[^\n]*|DEPLOY_FAIL[^\n]*/.exec(a.out)?.[0])
+    is(md5(join(LIVE, 'api', 'store.php')) === md5(join(DIST, 'api', 'store.php')), 'the backend is replaced')
+    is(md5(join(LIVE, 'index.html')) === liveIndex && md5(join(LIVE, 'robots.txt')) !== md5(join(DIST, 'robots.txt')),
+       'and the storefront and its root files are untouched')
+    if (name) await deploy({ SPORTA_DEPLOY_MODE: 'rollback', SPORTA_DEPLOY_BACKUP: name })
   }
 
   head('a deploy that breaks the site undoes itself')

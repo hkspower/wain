@@ -1,0 +1,72 @@
+/* /returns: the two links under the order lookup ("Read the full returns
+   terms" / "Need help? Contact Sporta on WhatsApp") measured 22-24px tall on
+   a phone - under the 24px minimum and well under the 44px comfortable tap.
+   Same look, bigger hit area. */
+.returns-system__policy-links a {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Desktop: put /returns on the same 858px reading column as /terms and
+   /privacy (measured: both start at 211px on a 1280px screen; /returns
+   started at 106px), so moving between the policy pages no longer shifts
+   the text sideways. The card itself keeps its full width; only its single
+   content column is centred. */
+@media (min-width: 900px) {
+  .returns-system {
+    grid-template-columns: minmax(0, 858px) !important;
+    justify-content: center !important;
+  }
+}
+
+/* Centering: on /terms and /privacy the heading block (eyebrow, h1, "last
+   updated", intro) was capped at ~808px inside an 858px column and hugged
+   the start edge, so it sat 211px from one side and 261px from the other at
+   1280px. The /returns intro had the same cap (741px). Let both span the full
+   column: centred on the page and flush with the text below. */
+.legal-page__header,
+.returns-system__intro {
+  max-width: none !important;
+}
+
+/* Padding: one rhythm for /terms, /privacy and /returns.
+   Measured before: page side padding 16px on phones; boxed panels 16px
+   inside on phones and 25px on desktop; space above/below the content
+   48/67px on the legal pages but only 40/42px on /returns. Now all three
+   pages share the same vertical space, phones get 20px from the screen
+   edge and inside panels, and desktop panels get 32px. Symmetric on both
+   sides, so the centring is unchanged. */
+.legal-page.editorial-page,
+.returns-system.editorial-page {
+  padding-block: clamp(48px, 5.25vw, 72px) !important;
+}
+@media (max-width: 639px) {
+  .legal-page.editorial-page,
+  .returns-system.editorial-page {
+    padding-inline: 20px !important;
+  }
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 20px !important;
+  }
+}
+@media (min-width: 900px) {
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 32px !important;
+  }
+}
+@media (min-width: 640px) and (max-width: 899px) {
+  .legal-page.editorial-page,
+  .returns-system.editorial-page {
+    padding-inline: 24px !important;
+  }
+  .legal-page__contents,
+  .returns-system__lookup,
+  .returns-system__policy {
+    padding: 24px !important;
+  }
+}
