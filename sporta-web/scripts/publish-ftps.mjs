@@ -76,6 +76,32 @@ if (!host || !user) {
 }
 if (!password && !DRY) fail('Set FTP_PASSWORD in .env.deploy. It is git-ignored; never commit it.')
 
+// ------------------------------------------------ 0. is this the live server?
+// www.sporta.com.kw moved to the VPS (187.7.78.123). The FTPS account is the old
+// shared hosting, which still answers and still accepts uploads — so a publish
+// "succeeded", verified byte for byte, and changed nothing a visitor sees.
+// Compare where the site is served from with where this is about to upload,
+// and refuse a mismatch. --any-server uploads anyway (to refresh the old copy
+// on purpose). A loopback host is the test harness and is not checked; a name
+// that will not resolve is reported, not guessed at.
+const SITE_HOST = 'www.sporta.com.kw'
+if (!/^(localhost$|127\.|::1$)/.test(host) && !argv.includes('--any-server')) {
+  const { lookup } = await import('node:dns/promises')
+  const v4 = async (h) => {
+    try { return (await lookup(h, { all: true, family: 4 })).map((a) => a.address) } catch { return [] }
+  }
+  const [site, ftp] = await Promise.all([v4(SITE_HOST), v4(host)])
+  if (site.length && ftp.length && !ftp.some((a) => site.includes(a))) {
+    fail(`${SITE_HOST} is served from ${site.join(', ')}, but FTP_HOST ${host} is ${ftp.join(', ')}.\n` +
+         '  Uploading there changes nothing a visitor sees: the live site is the VPS.\n' +
+         '  Deploy through scripts/vps-deploy.mjs (GO-LIVE.md, "Deploying to the VPS").\n' +
+         '  Pass --any-server to upload to this server anyway.')
+  }
+  if (!site.length || !ftp.length) {
+    log(c(33, `! could not resolve ${site.length ? host : SITE_HOST} — cannot confirm this is the server visitors reach`))
+  }
+}
+
 // ---------------------------------------------------------------- 1. build
 const outputDir = join(web, cfg.build?.outputDir ?? 'dist')
 if (!NO_BUILD) {

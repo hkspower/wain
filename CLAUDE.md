@@ -8,8 +8,9 @@
    prompts as the deliverable. Deliver actual files that build and run.
 
 2. **Nothing deploys from CI, and the owner never touches one.**
-   Site updates go out by direct deploy to Hostinger — `npm run publish` over
-   FTPS, or the zip in hPanel File Manager. There is no GitHub Actions workflow
+   Site updates go out by direct deploy to the VPS that serves the site —
+   `scripts/vps-deploy.mjs`, a one-shot job a person starts through the
+   Hostinger API (see item 4). There is no GitHub Actions workflow
    and there is not meant to be: the one that existed was deleted at the
    owner's request, along with every trace of the Lovable era it was written
    alongside. Do not reintroduce either.
@@ -21,10 +22,17 @@
    when something genuinely needs a warning. Code comments stay thorough —
    this is about chat replies, not the codebase.
 
-4. **Deployment target: Hostinger** (`www.sporta.com.kw`), a PHP host serving a
-   React (Vite) app. The owner works in **hPanel**, and **SSH is off for good**.
-   Publish with **`npm run publish`** (FTPS — see Working notes), or drop
-   `SPORTA-GO-LIVE.zip` into hPanel File Manager. Not SFTP.
+4. **Deployment target: the Hostinger VPS `187.7.78.123`** (saved by owner
+   request 2026-11-01). `www.sporta.com.kw` resolves there: Traefik →
+   `apache-sporta` (php:8.4-apache) → `/docker/sporta/site`, with every config
+   in `/docker/sporta/private/` (see "Where every config lives"). Deploy with
+   **`scripts/vps-deploy.mjs`** (GO-LIVE.md, "Deploying to the VPS"): plan
+   first, which is read-only; apply needs the commit SHA twice, backs up what
+   it overwrites, refuses older-code-over-newer, and rolls itself back if a
+   page that worked stops working. The old shared-hosting account
+   (`46.202.158.211`, hPanel FTPS / File Manager) no longer serves the domain;
+   `npm run publish` refuses while DNS says so (`--any-server` overrides). SSH
+   on the shared account is off for good. Not SFTP.
 
 ## Brand identity (saved by user request — apply always)
 
@@ -233,6 +241,9 @@
 - **What goes live:** `sporta-web` (React/Vite). Its `dist/` is the site root
   (`/public_html`), and `npm run release` also bundles the KNET PHP endpoints
   into `dist/knet/`. `sporta-html5` is a no-build fallback, not the live site.
+- **The live server is the VPS; deploy with `scripts/vps-deploy.mjs`** (item 4
+  above). The two routes below reach only the old shared-hosting account and
+  are kept for the day it serves the site again:
 - **Two publish routes**, both documented in `GO-LIVE.md`:
   1. `cd sporta-web && npm run publish` — SEO regen → build → file audit →
      **FTPS** upload → byte-for-byte verify. Works with SSH off, which is the
@@ -325,10 +336,13 @@
   for when the owner is not at a machine with the repo and Node.
 
 - Claude's environment cannot reach the user's FTP/SFTP, the live site, or
-  databases — SSH `46.202.158.211:65002` and `https://www.sporta.com.kw` are
-  both blocked by the sandbox egress policy. Claude therefore **cannot deploy
-  or fetch the live site**; it ships verified artifacts and the user uploads.
-  Say this plainly rather than implying a deploy happened.
+  databases directly — SSH, FTPS and `https://www.sporta.com.kw` are all
+  outside the sandbox's network policy. It reaches the VPS ONLY through the
+  Hostinger API connector: one-shot Docker Compose projects on VM `2058651`
+  (read-only containers for scans, the `sporta-deploy` job for deploys). HTTP
+  checks of the site therefore run ON the VPS, in Node — the API refuses a
+  compose file containing the words `curl` or `wget` (measured: 403). A deploy
+  has happened only when the job's log says `DEPLOY_OK`; say so plainly.
 - Adding a route to `sporta-web/src/App.jsx` also requires adding it to the
   known-route list in `sporta-web/public/.htaccess`, or it will 404 in
   production.

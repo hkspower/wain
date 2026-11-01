@@ -1,12 +1,50 @@
 # Sporta — Go Live on www.sporta.com.kw
 
-Everything here has been built and verified. Pick **one** of the two routes
-below. Route A is one command; Route B needs no tools at all.
+> **The live site is the VPS now — `187.7.78.123`.** `www.sporta.com.kw`
+> resolves there: Traefik in front, the `apache-sporta` container behind it,
+> serving `/docker/sporta/site`. Routes A and B below upload to the old
+> shared-hosting account (`46.202.158.211`), which no visitor reaches any more,
+> and `npm run publish` now refuses to run while that is true. Deploy with
+> **Deploying to the VPS**, directly below.
 
-> **Claude cannot deploy for you.** This sandbox has no network route to your
-> host — SFTP/SSH (`46.202.158.211:65002`) and `https://www.sporta.com.kw` are
-> both blocked by the environment's egress policy. Every file is ready; the
-> upload is the one step that must happen from your machine.
+## Deploying to the VPS
+
+`scripts/vps-deploy.mjs` prints a one-shot Docker Compose job. It is started
+on the VPS through the Hostinger API (project `sporta-deploy`); Claude runs it
+from a session with the Hostinger connector. On the VPS the job downloads this
+repository **at a pinned commit** from GitHub, builds it exactly as
+`npm run release` does, runs the file audit, and compares every file with
+what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
+(the Hostinger API refuses a job containing either word; the job uses Node).
+
+| Step | Command | What it changes |
+|---|---|---|
+| Plan | `node scripts/vps-deploy.mjs compose --ref <commit>` | **Nothing** — the server is mounted read-only. Prints same / changed / new / live-only, the live health probes, headers and redirect hops. |
+| Apply | `… compose --apply --ref <sha> --confirm <sha>` | Copies changed and new files in place, `index.html` last. Backs up everything it overwrites to `/docker/sporta/backups/`. |
+| Undo | `… compose --rollback deploy-<stamp>-<sha7>` | Restores that backup and removes the files that deploy added. |
+
+What apply will not do, ever: touch `config.js`, any `config.php`,
+`.cbk_token.json` or a log; bring back the setup tools; write into the photo
+folders (served from `/docker/sporta/private/media`); delete a live-only file.
+It **refuses** when a PHP, HTML or `.htaccess` file would shrink below 70% of
+its live size — older code over newer, which is how this repo breaks the live
+site today — unless `--allow-shrink`. After copying it re-probes `/`, `/shop`,
+`/checkout`, `/backends`, the products API and the entry chunk; anything that
+answered 200 before and does not now is **rolled back automatically**.
+
+Proven by `npm run test:vps-deploy` (30 checks: real plan/apply/rollback code
+against a throwaway live tree served by PHP with the VPS config layout,
+including a deploy that breaks the page and undoes itself).
+
+---
+
+Everything below was written for the shared-hosting account and is kept for
+reference. Pick **one** of the two routes only if that account serves the site
+again.
+
+> **Claude cannot reach your machine's network.** This sandbox has no route to
+> SFTP/SSH (`46.202.158.211:65002`) or `https://www.sporta.com.kw`; it reaches
+> the VPS only through the Hostinger API.
 
 ---
 
