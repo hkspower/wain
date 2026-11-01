@@ -71,7 +71,7 @@ export default function Catalog() {
         </Notice>
       )}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="rounded-xl border border-slate-300 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-bold text-slate-800">Push the site catalogue to the database</p>
@@ -109,7 +109,7 @@ export default function Catalog() {
         </div>
         <table className="admin-table w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-slate-500">
+            <tr className="border-b border-slate-300 text-slate-500">
               <th className="py-2 text-start font-semibold">Product</th>
               <th className="py-2 text-start font-semibold">Slug</th>
               <th className="py-2 text-end font-semibold">Site price</th>
@@ -171,7 +171,7 @@ export default function Catalog() {
         )}
       </section>
 
-      <section className="border-t border-slate-200 pt-6">
+      <section className="border-t border-slate-300 pt-6">
         <Products />
       </section>
     </div>

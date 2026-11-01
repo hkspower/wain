@@ -22,7 +22,7 @@
     height: 56px;
     padding: 0 1rem;
     background: #fff;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid #cbd5e1;
   }
   .m-header__title { font-weight: 700; color: #1e293b; }
 
@@ -35,7 +35,7 @@
     z-index: 40;
     height: 60px;
     background: #fff;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid #cbd5e1;
     padding-bottom: env(safe-area-inset-bottom, 0);
     /* The bar SCROLLS. With flex:1 and nine tabs a 390px phone gave each one
        43px — narrower than a fingertip and too narrow to print "Promotions".
@@ -86,7 +86,7 @@
     gap: 0.35rem;
     padding: 0.9rem 1rem;
     background: #fff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
     border-radius: 0.9rem;
   }
   .m-row__top {

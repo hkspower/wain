@@ -130,7 +130,7 @@ export default function Orders({ initialPayment = 'all' }) {
         <>
           <table className="admin-table w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500">
+              <tr className="border-b border-slate-300 text-slate-500">
                 <th className="py-2 text-start font-semibold">Track ID</th>
                 <th className="py-2 text-start font-semibold">Placed</th>
                 <th className="py-2 text-start font-semibold">Customer</th>
@@ -328,7 +328,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
         aria-modal="true"
         aria-label={`Order ${order.track_id}`}
       >
-        <header className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+        <header className="sticky top-0 flex items-center justify-between border-b border-slate-300 bg-white px-5 py-4">
           <div>
             <p className="font-mono text-sm font-bold text-slate-800">{order.track_id}</p>
             <p className="text-xs text-slate-500">{when(order.created_at)}</p>
@@ -367,7 +367,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
                 because the catalogue was not in the database at the time.
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-300">
                 {items.map((it) => (
                   <li key={it.id} className="flex items-center justify-between px-3 py-2 text-sm">
                     <span className="text-slate-700">
@@ -530,7 +530,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
               </div>
             )}
             {order.payment_method === 'cod' && order.payment_status === 'paid' && (
-              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mt-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
                 <p className="text-xs text-slate-600">
                   Cash recorded as collected{order.paid_at ? ` on ${when(order.paid_at)}` : ''}.
                 </p>

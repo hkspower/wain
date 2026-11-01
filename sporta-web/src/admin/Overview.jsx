@@ -123,7 +123,7 @@ function Kpi({ label, value, sub, accent, warn }) {
   return (
     <div
       className={`rounded-xl border p-4 ${
-        accent ? 'border-indigo-200 bg-indigo-50' : warn ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
+        accent ? 'border-indigo-200 bg-indigo-50' : warn ? 'border-amber-200 bg-amber-50' : 'border-slate-300 bg-white'
       }`}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
@@ -142,7 +142,7 @@ function Kpi({ label, value, sub, accent, warn }) {
 function Mini({ label, value, sub, warn }) {
   const n = Number(value ?? 0)
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+    <div className="rounded-lg border border-slate-300 bg-white px-3 py-2">
       <p className="text-xs text-slate-500">{label}</p>
       <p className={`text-lg font-bold tabular-nums ${warn && n > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{n}</p>
       {sub && <p className="text-xs tabular-nums text-slate-500">{sub}</p>}
@@ -157,7 +157,7 @@ function Chart({ series }) {
   const max = Math.max(...series.map((d) => Number(d.revenue) || 0), 1)
   const total = series.reduce((t, d) => t + Number(d.revenue || 0), 0)
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
+    <section className="rounded-xl border border-slate-300 bg-white p-4">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="text-sm font-bold text-slate-700">Paid revenue · last 14 days</h2>
         <span className="text-sm font-semibold tabular-nums text-slate-500">{kwd(total)}</span>

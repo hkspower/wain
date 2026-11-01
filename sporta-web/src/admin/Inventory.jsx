@@ -325,7 +325,7 @@ function Tile({ label, value, sub, accent, warn }) {
           ? 'border-indigo-200 bg-indigo-50'
           : warn
             ? 'border-amber-200 bg-amber-50'
-            : 'border-slate-200 bg-white'
+            : 'border-slate-300 bg-white'
       }`}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>

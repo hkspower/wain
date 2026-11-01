@@ -72,7 +72,7 @@ export default function Products() {
 
       {state.error && <Notice tone="error" title="Could not load">{state.error}</Notice>}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white">
         <table className="admin-table w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 text-start text-xs font-bold uppercase text-slate-500">
@@ -200,7 +200,7 @@ function Editor({ product, onClose, onSaved }) {
     onSaved()
   }
 
-  const field = 'w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400'
+  const field = 'w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400'
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center sm:p-6">

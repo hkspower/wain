@@ -129,7 +129,7 @@ function Group({ title, note, rows, onEdit, onToggle, onRemove }) {
       ) : (
         <ul className="space-y-2">
           {rows.map((d) => (
-            <li key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+            <li key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-white p-3">
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-slate-800">
                   {d.code && <code className="me-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-sm">{d.code}</code>}
@@ -214,7 +214,7 @@ function Editor({ value, onClose, onSaved }) {
               key={k} type="button" onClick={() => set('kind', k)}
               aria-pressed={form.kind === k}
               className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${
-                form.kind === k ? 'border-indigo-500 bg-indigo-50 text-indigo-900' : 'border-slate-200 text-slate-700'
+                form.kind === k ? 'border-indigo-500 bg-indigo-50 text-indigo-900' : 'border-slate-300 text-slate-700'
               }`}
             >{label}</button>
           ))}

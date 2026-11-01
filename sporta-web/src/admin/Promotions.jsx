@@ -96,7 +96,7 @@ export default function Promotions() {
 
       {/* ------------------------------------------------------- the promo bar */}
       {bar && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <section className="rounded-xl border border-slate-300 bg-white p-5">
           <h2 className="font-bold text-slate-800">The bar across the top</h2>
           <p className="mt-0.5 text-sm text-slate-500">
             Seen on every page, in both languages. Leave a line empty and that language shows nothing.
@@ -182,7 +182,7 @@ export default function Promotions() {
             {featured
               .sort((a, b) => (a.featured_sort ?? 0) - (b.featured_sort ?? 0))
               .map((p) => (
-                <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-white p-3">
                   <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{p.name_en}</span>
                   <label className="flex items-center gap-2 text-xs text-slate-500">
                     Order
@@ -208,7 +208,7 @@ export default function Promotions() {
       </section>
 
       {/* ------------------------------------------------------------- picker */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
+      <section className="rounded-xl border border-slate-300 bg-white p-5">
         <h2 className="font-bold text-slate-800">Put a product on sale, or feature it</h2>
         <input
           value={q} onChange={(e) => setQ(e.target.value)}
@@ -229,7 +229,7 @@ export default function Promotions() {
                   className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
                     Number(p.featured)
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-800'
-                      : 'border-slate-200 text-slate-700'
+                      : 'border-slate-300 text-slate-700'
                   }`}
                 >
                   {Number(p.featured) ? 'Featured' : 'Feature'}
@@ -284,7 +284,7 @@ function SaleButton({ p, onPatch }) {
 
 function SaleRow({ p, onPatch }) {
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+    <li className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-300 bg-white p-3">
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-slate-800">{p.name_en}</p>
         <p className="mt-0.5 text-sm">

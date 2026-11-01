@@ -90,7 +90,7 @@ function setupReason(status, data) {
 function SetupNeeded({ title, lead, steps, note }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-8">
+      <div className="w-full max-w-xl rounded-2xl border border-slate-300 bg-white p-8">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">S</div>
           <span className="font-bold text-slate-800">Sporta Backends</span>
@@ -197,7 +197,7 @@ export default function AdminApp() {
   if (!session) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <form onSubmit={login} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-200 bg-white p-8">
+        <form onSubmit={login} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-300 bg-white p-8">
           <div className="text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">S</div>
             <h1 className="text-xl font-bold text-slate-800">Sporta Backends</h1>
@@ -207,12 +207,12 @@ export default function AdminApp() {
           <input
             type="email" required autoComplete="username" placeholder="Email"
             value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+            className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
           />
           <input
             type="password" required autoComplete="current-password" placeholder="Password"
             value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+            className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
           />
           <button disabled={busy} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white disabled:opacity-50">
             {busy ? '…' : 'Sign in'}
@@ -265,7 +265,7 @@ function Dashboard({ email, onSignOut }) {
   return (
     <div className="admin-shell min-h-screen bg-slate-50 md:flex">
       {/* Desktop sidebar — hidden on mobile via .admin-sidebar */}
-      <aside className="admin-sidebar w-60 shrink-0 border-e border-slate-200 bg-white p-4 md:min-h-screen">
+      <aside className="admin-sidebar w-60 shrink-0 border-e border-slate-300 bg-white p-4 md:min-h-screen">
         <div className="mb-6 flex items-center gap-3 px-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 font-bold text-white">S</span>
           <span className="font-bold text-slate-800">Sporta Backends</span>
@@ -323,7 +323,7 @@ function Dashboard({ email, onSignOut }) {
           <div className="space-y-6">
             <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-600">
+            <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
               <p className="font-semibold text-slate-800">Your sign-in</p>
               <p className="mt-2">
                 Email and password, created on the server. To change the password, clear the{' '}
@@ -335,7 +335,7 @@ function Dashboard({ email, onSignOut }) {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-600">
+            <div className="rounded-2xl border border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
               <p className="font-semibold text-slate-800">Product photos</p>
               <p className="mt-2">
                 Photos ship with the site. Upload new ones into{' '}

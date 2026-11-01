@@ -101,7 +101,7 @@ export default function Brands() {
           <li
             key={b.id}
             className={`flex items-center gap-3 rounded-2xl border p-3 ${
-              b.active ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50'
+              b.active ? 'border-slate-300 bg-white' : 'border-slate-300 bg-slate-50'
             }`}
           >
             <BrandMark brand={b} />
@@ -160,7 +160,7 @@ function BrandMark({ brand, size = 'h-12 w-12' }) {
       <img
         src={brand.logo}
         alt=""
-        className={`${size} shrink-0 rounded-xl border border-slate-200 bg-white object-contain p-1`}
+        className={`${size} shrink-0 rounded-xl border border-slate-300 bg-white object-contain p-1`}
       />
     )
   }
@@ -245,7 +245,7 @@ function BrandEditor({ brand, onClose, onSaved }) {
             <button
               type="button"
               onClick={() => file.current?.click()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:border-indigo-400"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#7d8799] px-3 py-2 text-sm font-bold text-slate-700 hover:border-indigo-400"
             >
               <IconImage size={16} /> {form.logo ? 'Replace logo' : 'Choose logo'}
             </button>
@@ -269,26 +269,26 @@ function BrandEditor({ brand, onClose, onSaved }) {
           <Field label="Name (English)">
             <input
               value={form.name_en} onChange={set('name_en')} required maxLength={80}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+              className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
             />
           </Field>
           <Field label="Name (Arabic)">
             <input
               value={form.name_ar} onChange={set('name_ar')} required maxLength={80} dir="rtl"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+              className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
             />
           </Field>
           <Field label="Web name" hint="Used in links and filters. Letters, numbers and dashes.">
             <input
               value={form.slug} onChange={set('slug')} maxLength={80}
               placeholder={slugify(form.name_en) || 'brand-name'}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-sm outline-none focus:border-indigo-400"
+              className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 font-mono text-sm outline-none focus:border-indigo-400"
             />
           </Field>
           <Field label="Order" hint="Lower shows first.">
             <input
               type="number" value={form.sort} onChange={set('sort')}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+              className="w-full rounded-xl border border-[#7d8799] px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
             />
           </Field>
         </div>

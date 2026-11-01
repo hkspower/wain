@@ -115,7 +115,7 @@ export default function Slides() {
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
       {/* ---------------------------------------------------------- playback */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
+      <section className="rounded-xl border border-slate-300 bg-white p-5">
         <h2 className="font-bold text-slate-800">How it plays</h2>
 
         <div className="mt-4 grid gap-6 md:grid-cols-2">
@@ -164,7 +164,7 @@ export default function Slides() {
                 className={`rounded-xl border p-3 text-start text-sm ${
                   (hero.size ?? 'tall') === s.id
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-900'
-                    : 'border-slate-200 text-slate-700 hover:border-slate-300'
+                    : 'border-slate-300 text-slate-700 hover:border-slate-300'
                 }`}
               >
                 <span className="font-bold">{s.label}</span>
@@ -193,17 +193,17 @@ export default function Slides() {
       ) : (
         <ul className="space-y-3">
           {state.slides.map((slide, i) => (
-            <li key={slide.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-3">
+            <li key={slide.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-300 bg-white p-3">
               <div className="flex flex-col gap-1">
                 <button
                   onClick={() => move(i, -1)} disabled={i === 0}
                   aria-label="Move up"
-                  className="rounded-md border border-slate-200 px-2 text-slate-600 disabled:opacity-30"
+                  className="rounded-md border border-slate-300 px-2 text-slate-600 disabled:opacity-30"
                 >↑</button>
                 <button
                   onClick={() => move(i, 1)} disabled={i === state.slides.length - 1}
                   aria-label="Move down"
-                  className="rounded-md border border-slate-200 px-2 text-slate-600 disabled:opacity-30"
+                  className="rounded-md border border-slate-300 px-2 text-slate-600 disabled:opacity-30"
                 >↓</button>
               </div>
 
