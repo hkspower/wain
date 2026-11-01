@@ -12,7 +12,11 @@
 
 const FIELD_BASE =
   "w-full rounded-xl border border-line-control bg-white text-ink-800 shadow-sm outline-none " +
-  "transition placeholder:text-ink-500/50 focus:border-sea-400 focus:ring-4 focus:ring-sea-100";
+  "transition placeholder:text-ink-500/50 focus:border-sea-400";
+// No focus halo here: a text field matches :focus-visible on a click too, so
+// globals.css's sea-600 ring always showed instead. The pale sea-100 halo that
+// sat here was hidden by it, and at ~1.1:1 on white would have failed contrast
+// had it ever shown (the 14 October CSS scan; the owner kept the ring, 1 Nov).
 
 /** Public forms: roomy enough to fill in on a phone. */
 export const fieldClass = `${FIELD_BASE} px-3 py-2.5`;

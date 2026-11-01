@@ -73,7 +73,7 @@ export default function ExploreClient() {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="ابحث عن مكان أو منطقة"
           placeholder="دوّر على مكان أو منطقة…"
-          className="w-full rounded-2xl border border-line-control bg-white py-2.5 pe-3 ps-11 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          className="w-full rounded-2xl border border-line-control bg-white py-2.5 pe-3 ps-11 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400"
         />
       </div>
 

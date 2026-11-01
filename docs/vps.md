@@ -1,5 +1,7 @@
 # The VPS builds staging
 
+> **Retired, 1 November 2026.** The owner chose no staging host. `scripts/vps/setup-vps.sh` and `scripts/vps/deploy-staging.sh` are deleted, and so are `scripts/publish/setup-staging-endpoint.php` and `restore-production-endpoint.php`. `www.wainkw.com` runs the owner's own source from `/docker/apache/sites/wainkw.com` on this VPS (CLAUDE.md, «How the VPS builds www.wainkw.com»). What follows is the record of the plan, kept as history.
+
 > **Read this as of 14 October 2026; corrected 31 October.** Since then the
 > `www.wainkw.com` and `wainkw.com` DNS records point at this same VPS (A records
 > to `187.7.78.123`), `staging.wainkw.com` has no DNS record, and the

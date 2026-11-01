@@ -283,7 +283,7 @@ export default function MapPin({
           // is most of a city block at the zoom a place page opens at.
           marginBottom: approx ? 0 : nose * Math.SQRT1_2,
         }}
-        className={`relative grid place-items-center rounded-full border-2 border-white text-white shadow-md ring-1 ring-ink-900/10 transition duration-200 hover:scale-110 focus-visible:scale-110 ${
+        className={`relative grid place-items-center rounded-full border-2 border-white text-white shadow-md ring-1 ring-ink-900/10 transition duration-200 hover:scale-110 focus-visible:scale-110 active:scale-95 ${
           approx ? "border-dashed" : ""
         } ${TONE[place.category]} ${active ? "scale-110 shadow-xl" : dim ? "opacity-80" : ""}`}
       >

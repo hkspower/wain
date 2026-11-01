@@ -444,7 +444,7 @@ export default function AdminApp() {
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="ابحث في الأماكن"
                 placeholder="ابحث…"
-                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none pointer-coarse:text-base focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none pointer-coarse:text-base focus:border-sea-400"
               />
             </div>
             <button
@@ -668,7 +668,7 @@ function SignIn({ error, onSubmit }: { error: string; onSubmit: (secret: string)
             autoComplete="current-password"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm pointer-coarse:text-base outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm pointer-coarse:text-base outline-none focus:border-sea-400"
           />
           <p className="mt-1.5 text-xs text-ink-500">
             هي نفس اللي في <code dir="ltr">storage/admin.secret</code> على السيرفر. تنحفظ في هذا التاب بس.

@@ -394,7 +394,7 @@ export default function SearchClient() {
             aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
             aria-label="ابحث في كل محتوى وين"
             placeholder="اكتب اسم مكان، منطقة، أو جو…"
-            className="w-full rounded-2xl border border-line-control bg-white py-4 pe-12 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="w-full rounded-2xl border border-line-control bg-white py-4 pe-12 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400"
           />
           {q && (
             <button

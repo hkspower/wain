@@ -32,7 +32,7 @@ export default function ClusterPin({
         // with a dual, a plural and a singular-after-eleven in turn.
         aria-label={`${countAr(count, PLACES_COUNT)} بهالمنطقة — قرّب الخريطة`}
         style={{ width: size, height: size }}
-        className="grid place-items-center rounded-full border-2 border-white bg-ink-900/85 font-display text-sm font-bold text-white shadow-md ring-4 ring-ink-900/15 transition duration-200 hover:scale-110 focus-visible:scale-110"
+        className="grid place-items-center rounded-full border-2 border-white bg-ink-900/85 font-display text-sm font-bold text-white shadow-md ring-4 ring-ink-900/15 transition duration-200 hover:scale-110 focus-visible:scale-110 active:scale-95"
       >
         {toArabicDigits(count)}
       </button>
