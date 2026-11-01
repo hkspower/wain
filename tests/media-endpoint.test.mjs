@@ -186,7 +186,7 @@ try {
        r.status === 503, String(r.status));
   }
 
-  /* The key the view tests send, 39 bytes. A key shorter than 32 bytes is refused
+  /* The key the view tests send, 39 characters. A key under 32 characters is refused
      as weak before it is ever compared (the weak section below), so this fixture
      has to be longer than that: the 14-byte "test-admin-key" the view tests used
      before would now answer 503 weak to every assertion in this section. */
@@ -198,18 +198,38 @@ try {
 
   console.log("\n── the admin view, with a key too short to trust ──");
   {
+    const WEAK_COUNTER = join(pendingDir, `.rate-${createHash("sha256").update("127.0.0.1").digest("hex")}.json`);
+    const weakN = () => { try { return JSON.parse(readFileSync(WEAK_COUNTER, "utf8")).n; } catch { return 0; } };
+
     writeFileSync(adminKeyFile, "");
     const empty = await viewAs({ "X-Media-Key": "" });
     ok("an empty key file is still 503 not_configured",
        empty.status === 503 && empty.json?.error === "not_configured", JSON.stringify(empty));
+    const beforeUnset = weakN();
+    const unsetWrong = await viewAs({ "X-Media-Key": "not-the-key" });
+    ok("with no key on the server a wrong key is 503 not_configured, and counted like any guess",
+       unsetWrong.status === 503 && unsetWrong.json?.error === "not_configured" && weakN() === beforeUnset + 1,
+       `${JSON.stringify(unsetWrong)} ${beforeUnset} -> ${weakN()}`);
 
     writeFileSync(adminKeyFile, "0123456789abcdef");   // 16 characters
     const short = await viewAs({ "X-Media-Key": "0123456789abcdef" });
     ok("a 16-character key is 503 weak, even when the right key is sent",
        short.status === 503 && short.json?.error === "weak", JSON.stringify(short));
+    const beforeShort = weakN();
     const shortWrong = await viewAs({ "X-Media-Key": "not-the-key" });
     ok("and 503 weak for a wrong key too: the length is checked before any comparison",
        shortWrong.status === 503 && shortWrong.json?.error === "weak", JSON.stringify(shortWrong));
+    ok("and that wrong key is counted while the key is weak, as wain-api counts one under a weak secret",
+       weakN() === beforeShort + 1, `${beforeShort} -> ${weakN()}`);
+    const CAP = Number((readFileSync(new URL("../scripts/publish/media-endpoint.php", import.meta.url), "utf8")
+      .match(/const RATE_PER_MIN = (\d+);/) ?? [])[1]);
+    writeFileSync(WEAK_COUNTER, JSON.stringify({ start: Math.floor(Date.now() / 1000), n: CAP }));
+    const tw = Date.now();
+    const over = await viewAs({ "X-Media-Key": "not-the-key" });
+    const overMs = Date.now() - tw;
+    ok("past the cap, a wrong key under a weak key is 429 rate_limited after the quarter-second wait",
+       over.status === 429 && over.json?.error === "rate_limited" && overMs >= 200, `${JSON.stringify(over)} ${overMs} ms`);
+    rmSync(WEAK_COUNTER, { force: true });
 
     const k31 = "0123456789abcdef0123456789abcde";   // 31 characters
     writeFileSync(adminKeyFile, k31);
@@ -359,7 +379,7 @@ try {
     ok("a wrong key whose counter cannot be opened is 503 limiter_unavailable, not a free guess",
        broken.status === 503 && broken.json?.error === "limiter_unavailable", JSON.stringify(broken));
     const brokenRight = await viewAs(rightFor(BROKEN));
-    ok("the right key is still served from that visitor: it is never counted",
+    ok("the right key is still served from that visitor: a right key does not use its counter",
        brokenRight.status === 200, String(brokenRight.status));
     rmSync(bucketOf(BROKEN), { recursive: true, force: true });
     rmSync(trusted);

@@ -267,7 +267,14 @@ under 32 characters is counted too. Past the cap the answer is 429 `rate_limited
 after a 250 ms wait, so guessing stops at that cap (finding 1 of the 14 October
 login scan). Within the cap a wrong guess costs a quarter second and a right one
 costs nothing. The signed media key has the same rule on the view path
-(`media-endpoint.php`), counted against the upload bucket.
+(`media-endpoint.php`), counted against the upload bucket, and it is counted
+while the key is unset or under the floor too; a request that sends no key is not
+counted, in either endpoint.
+
+If the counter file cannot be opened, an admin request is refused with 503
+`limiter_unavailable`: a guess is never free because its counter is broken. The
+public caps still read an unopenable counter as under the cap, as the media upload
+path does. That is an open item, not a decision.
 
 Known limits: a visitor is one /64, not one person; and a proxy that forwards
 without appending can still be rotated around, because there is no coarse

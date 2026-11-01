@@ -702,20 +702,31 @@ try {
     const g = [await guess(via), await guess(via), await guess(via)];
     ok("three wrong guesses are still answered 403, as before", g.every((x) => x.status === 403 && x.json?.error === "admin_forbidden"),
       g.map((x) => x.status).join(","));
+    const t4 = Date.now();
     const fourth = await guess(via);
-    ok("the fourth is refused 429 before the sleep: the wrong guesses spent the allowance",
+    const waited4 = Date.now() - t4;
+    ok("the fourth is refused 429 after the 250 ms wait: the wrong guesses spent the allowance",
       fourth.status === 429 && fourth.json?.error === "rate_limited", `${fourth.status} ${j(fourth.json)}`);
+    ok("and the refusal waited a quarter second first, so one address cannot guess at full speed",
+      waited4 >= 200, `${waited4} ms`);
     const pub = await call("places", undefined, { headers: via });
     ok("and the same visitor's public requests are refused too (14 October login scan, finding 1)",
       pub.status === 429, String(pub.status));
     const neighbour = await call("places", undefined, { headers: { "X-Forwarded-For": "198.51.100.78" } });
     ok("another visitor is not caught by it", neighbour.status === 200, String(neighbour.status));
+    const counterVia = join(storage, "wain-rate", `all-${sha(visitor)}.json`);
+    const nBeforeRight = JSON.parse(readFileSync(counterVia, "utf8")).n;
+    const tr = Date.now();
     const rightSecret = await call("whoami", undefined, { admin: true, headers: via });
+    const rightMs = Date.now() - tr;
     ok("the right secret is exempt even from a visitor over the limit", rightSecret.status === 200, String(rightSecret.status));
+    ok("a right key is never counted: the visitor's bucket is unchanged",
+      JSON.parse(readFileSync(counterVia, "utf8")).n === nBeforeRight, `${nBeforeRight} -> ${JSON.parse(readFileSync(counterVia, "utf8")).n}`);
+    ok("and a right key is never delayed", rightMs < 200, `${rightMs} ms`);
     rmSync(trusted);
   }
 
-  console.log("\n── a short admin secret is admin_weak, before any guess is compared or counted ──");
+  console.log("\n── a short admin secret is admin_weak; a refused guess is counted, never compared ──");
   {
     /* The length is measured in CHARACTERS after trim(), the way the endpoint reads
        the file. The 4-character and 31-byte secrets exist only to be refused:
@@ -751,10 +762,28 @@ try {
     const n2 = JSON.parse(readFileSync(counter(v2), "utf8")).n;
     ok("a refused guess raises a live counter that is already running (5 becomes 6)", n2 === 6, String(n2));
 
+    const v7 = "192.0.2.66";
+    mkdirSync(counter(v7));
+    const broken = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v7) });
+    ok("a counter that cannot be opened refuses the guess: 503 limiter_unavailable, not a free one",
+      broken.status === 503 && broken.json?.error === "limiter_unavailable", `${broken.status} ${j(broken.json)}`);
+    rmSync(counter(v7), { recursive: true, force: true });
+
+    setSecret("");
+    const v6 = "192.0.2.67";
+    const unset = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v6) });
+    ok("with no secret on the server a wrong header is 503 admin_unset", unset.status === 503 && unset.json?.error === "admin_unset", `${unset.status} ${j(unset.json)}`);
+    ok("and that refused guess is counted too, in the bucket a weak secret uses",
+      existsSync(counter(v6)) && JSON.parse(readFileSync(counter(v6), "utf8")).n === 1);
+    setSecret("Zq9-\n");
+
     const v5 = "192.0.2.65";
     writeFileSync(counter(v5), JSON.stringify({ start: Math.floor(Date.now() / 1000), n: 5000 }));
+    const t5 = Date.now();
     const past = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v5) });
+    const waited5 = Date.now() - t5;
     ok("past the cap, a refused guess is 429 rate_limited", past.status === 429 && past.json?.error === "rate_limited", `${past.status} ${j(past.json)}`);
+    ok("after the quarter-second wait", waited5 >= 200, `${waited5} ms`);
 
     setSecret("x".repeat(31) + "\n");
     const v3 = "192.0.2.63";

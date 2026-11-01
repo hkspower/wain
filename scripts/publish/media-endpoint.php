@@ -576,13 +576,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
     if (($_GET['action'] ?? '') !== 'view') $fail(400, 'unknown_action');
 
     $key = is_file("$storage/media-admin.key") ? trim((string) @file_get_contents("$storage/media-admin.key")) : '';
-    if ($key === '') $fail(503, 'not_configured');
+    $given = $_SERVER['HTTP_X_MEDIA_KEY'] ?? '';
+    if (!is_string($given)) $given = '';
 
     /* The floor counts characters, as the admin secret's does: 32 Arabic letters
        pass, 16 do not, because a byte count would let 16 Arabic letters (32 bytes)
        through. Refused before any comparison. The 14 October login scan found no
        minimum on either admin secret, and a 4-digit one was accepted by the probe. */
-    if (secretChars($key) < ADMIN_KEY_MIN) $fail(503, 'weak');
+    if ($key === '' || secretChars($key) < ADMIN_KEY_MIN) {
+        /* Nothing is compared while the key is unset or under the floor, but a request
+           that sends a key is still a guess. It is counted against the requester's own
+           bucket and waits past the cap, exactly as wain-api's admin path counts one
+           while its secret is unset or weak (the owner's answer, 1 November). A request
+           that sends no key is refused without a count, as before. */
+        if ($given !== '') {
+            sweepRateCounters($pendingDir);
+            $n = $count("$pendingDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60);
+            if ($n === null) $fail(503, 'limiter_unavailable');
+            if ($n > RATE_PER_MIN) { usleep(250000); $fail(429, 'rate_limited'); }
+        }
+        $fail(503, $key === '' ? 'not_configured' : 'weak');
+    }
 
     /* A right key is never counted: the owner must not be locked out of the pending
        files by a visitor's bucket, and that bucket is also filled by uploads from the
@@ -598,8 +612,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
        served from a capped visitor. Against a guesser who rotates addresses the cap
        does not apply, and what makes the search infeasible is the 32-character floor
        above. */
-    $given = $_SERVER['HTTP_X_MEDIA_KEY'] ?? '';
-    if (!is_string($given) || !hash_equals($key, $given)) {
+    if (!hash_equals($key, $given)) {
         sweepRateCounters($pendingDir);
         $n = $count("$pendingDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60);
         /* null: the counter would not open, so the allowance cannot be read. The wrong

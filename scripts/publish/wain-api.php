@@ -171,7 +171,10 @@ function keyState(string $file): string {
  *  letter takes two bytes, and the owner's rule is characters. */
 function secretChars(string $s): int {
     $n = preg_match_all('/./us', $s);
-    return $n === false ? 0 : $n;
+    /* Bytes that are not UTF-8 have no code-point count, so they are counted one per
+       byte: each still spends one byte of the secret's entropy, and the floor holds.
+       Returning 0 here reported a 35-character secret with one stray byte as weak. */
+    return $n === false ? strlen($s) : $n;
 }
 
 /** The admin secret as the gate reads it: 'unset' (empty or no file), 'weak'
@@ -1423,10 +1426,14 @@ if ($storage === null) $fail(500, 'no_storage_dir');
 $stage = stageFromPath();
 
 /* ── the rate counter, and the visitor it counts, before anything else is decided ── */
-$count = static function (string $file, int $window): int {
+/* null when the bucket file cannot be opened. The admin path refuses on that (503
+   limiter_unavailable), so a wrong guess is never a free one. The public caps read
+   null as under the cap, as they always did: that is the same fail-open the media
+   upload path has, and it is an open item, not a choice made here. */
+$count = static function (string $file, int $window): ?int {
     $now = time();
     $fh  = @fopen($file, 'c+');
-    if (!$fh) return 0;
+    if (!$fh) return null;
     @flock($fh, LOCK_EX);
     $data = json_decode((string) stream_get_contents($fh), true);
     $live = is_array($data) && ($data['start'] ?? 0) > $now - $window;
@@ -1462,7 +1469,9 @@ if (is_string($givenAdmin) && $givenAdmin !== '') {
        waits a quarter second, as a wrong guess does (the owner's answer on 1
        November). Within the cap it answers at once, as before. */
     if ($adminState !== 'set') {
-        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
+        $n = $count("$rateDir/all-$ipHash.json", 60);
+        if ($n === null) $fail(503, 'limiter_unavailable');
+        if ($n > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
         $fail(503, "admin_$adminState");
     }
     if (!hash_equals($secret, $givenAdmin)) {
@@ -1473,7 +1482,9 @@ if (is_string($givenAdmin) && $givenAdmin !== '') {
            next public request from the same visitor still got 200 (the 14 October
            login scan, finding 1). Past the cap the refusal also waits a quarter
            second, so one address cannot guess at the server's full speed. */
-        if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
+        $n = $count("$rateDir/all-$ipHash.json", 60);
+        if ($n === null) $fail(503, 'limiter_unavailable');
+        if ($n > $perMin) { usleep(250000); $fail(429, 'rate_limited'); }
         usleep(250000);   // a wrong guess costs a quarter second; a right one costs nothing
         $fail(403, 'admin_forbidden');
     }
@@ -1506,8 +1517,8 @@ if ($method === 'POST') {
 
 /* ── rate limits — the admin, once authenticated, is exempt ─────────────── */
 if (!$isAdmin) {
-    if ($count("$rateDir/all-$ipHash.json", 60) > $perMin) $fail(429, 'rate_limited');
-    if (in_array($action, PUBLIC_WRITES, true) && $count("$rateDir/write-$ipHash.json", 60) > $writes) {
+    if ((int) $count("$rateDir/all-$ipHash.json", 60) > $perMin) $fail(429, 'rate_limited');
+    if (in_array($action, PUBLIC_WRITES, true) && (int) $count("$rateDir/write-$ipHash.json", 60) > $writes) {
         $fail(429, 'rate_limited');
     }
 }
