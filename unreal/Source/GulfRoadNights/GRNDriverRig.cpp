@@ -10,25 +10,25 @@ namespace
 {
 	constexpr float K = 100.f; // metres -> UE units
 
-	UStaticMesh* Cube()
+	UStaticMesh* DrvCube()
 	{
 		static UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 		return M;
 	}
-	UStaticMesh* Cyl()
+	UStaticMesh* DrvCyl()
 	{
 		static UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 		return M;
 	}
-	UStaticMesh* Sph()
+	UStaticMesh* DrvSph()
 	{
 		static UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 		return M;
 	}
 
-	UMaterialInstanceDynamic* Mid(AActor* Owner, FLinearColor Color)
+	UMaterialInstanceDynamic* DrvMid(AActor* Owner, FLinearColor Color)
 	{
-		UMaterialInterface* Base = Cube() ? Cube()->GetMaterial(0) : nullptr;
+		UMaterialInterface* Base = DrvCube() ? DrvCube()->GetMaterial(0) : nullptr;
 		if (!Base) return nullptr;
 		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Owner);
 		M->SetVectorParameterValue(TEXT("Color"), Color);
@@ -76,13 +76,13 @@ namespace
 		L.Root = Joint(Owner, Parent, RootPosM * K, RootRot);
 		// The engine cylinder is 100 uu tall about its own Z, so a scale
 		// of (r, r, length) in metres is the bone directly.
-		Shape(Owner, L.Root, Cyl(), FVector(0, 0, -Upper * 0.5f * K),
+		Shape(Owner, L.Root, DrvCyl(), FVector(0, 0, -Upper * 0.5f * K),
 			FVector(RadiusM * 2.f, RadiusM * 2.f, Upper), Cloth);
 		L.Mid = Joint(Owner, L.Root, FVector(0, 0, -Upper * K));
-		Shape(Owner, L.Mid, Cyl(), FVector(0, 0, -Lower * 0.5f * K),
+		Shape(Owner, L.Mid, DrvCyl(), FVector(0, 0, -Lower * 0.5f * K),
 			FVector(RadiusM * 1.8f, RadiusM * 1.8f, Lower), Cloth);
 		L.End = Joint(Owner, L.Mid, FVector(0, 0, -Lower * K));
-		Shape(Owner, L.End, Sph(), FVector::ZeroVector,
+		Shape(Owner, L.End, DrvSph(), FVector::ZeroVector,
 			FVector(ExtremityR * 2.f), Extremity);
 		return L;
 	}
@@ -248,9 +248,9 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	FGRNDriverRig Rig;
 	if (!Owner || !AttachTo) return Rig;
 
-	UMaterialInstanceDynamic* Suit = Mid(Owner, FLinearColor(0.06f, 0.07f, 0.09f));
-	UMaterialInstanceDynamic* Skin = Mid(Owner, FLinearColor(0.45f, 0.30f, 0.18f));
-	UMaterialInstanceDynamic* Dark = Mid(Owner, FLinearColor(0.02f, 0.02f, 0.03f));
+	UMaterialInstanceDynamic* Suit = DrvMid(Owner, FLinearColor(0.06f, 0.07f, 0.09f));
+	UMaterialInstanceDynamic* Skin = DrvMid(Owner, FLinearColor(0.45f, 0.30f, 0.18f));
+	UMaterialInstanceDynamic* Dark = DrvMid(Owner, FLinearColor(0.02f, 0.02f, 0.03f));
 
 	Rig.Root = Joint(Owner, AttachTo, SeatOffset);
 
@@ -268,21 +268,21 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	Rig.Lean = Joint(Owner, Rig.Root, FVector::ZeroVector);
 
 	// Torso, leaned back into the seat the way a driver sits
-	Shape(Owner, Rig.Lean, Cyl(), FVector(-0.02f, 0, 0.23f) * K,
+	Shape(Owner, Rig.Lean, DrvCyl(), FVector(-0.02f, 0, 0.23f) * K,
 		FVector(0.34f, 0.34f, 0.46f), Suit, FRotator(9.f, 0.f, 0.f));
 
 	// Head joint — the aim target for looking into a corner
 	Rig.Head = Joint(Owner, Rig.Lean,
 		FVector(GRNRig::DriverHeadZ, 0.f, GRNRig::DriverHeadY) * K);
-	Shape(Owner, Rig.Head, Sph(), FVector::ZeroVector, FVector(0.224f), Skin);
-	Shape(Owner, Rig.Head, Sph(), FVector::ZeroVector, FVector(0.27f), Suit); // helmet
+	Shape(Owner, Rig.Head, DrvSph(), FVector::ZeroVector, FVector(0.224f), Skin);
+	Shape(Owner, Rig.Head, DrvSph(), FVector::ZeroVector, FVector(0.27f), Suit); // helmet
 
 	// Steering wheel, raked toward the driver like a real column. The
 	// rake is about the width axis, which is Pitch in UE.
 	Rig.Wheel = Joint(Owner, Rig.Root,
 		FVector(GRNRig::DriverWheelZ, 0.f, GRNRig::DriverWheelY) * K,
 		FRotator(FMath::RadiansToDegrees(GRNRig::DriverWheelRake), 0.f, 0.f));
-	Shape(Owner, Rig.Wheel, Cyl(), FVector::ZeroVector,
+	Shape(Owner, Rig.Wheel, DrvCyl(), FVector::ZeroVector,
 		FVector(GRNRig::DriverWheelRadius * 2.f, GRNRig::DriverWheelRadius * 2.f, 0.04f),
 		Dark, FRotator(90.f, 0.f, 0.f));
 
@@ -327,7 +327,7 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 		USceneComponent* P = Joint(Owner, Rig.Root,
 			FVector(GRNRig::DriverPedalZ, -XM, GRNRig::DriverPedalY) * K,
 			FRotator(FMath::RadiansToDegrees(GRNRig::DriverPedalPitch), 0.f, 0.f));
-		Shape(Owner, P, Cube(), FVector::ZeroVector, FVector(0.02f, 0.07f, 0.11f), Dark);
+		Shape(Owner, P, DrvCube(), FVector::ZeroVector, FVector(0.02f, 0.07f, 0.11f), Dark);
 		return P;
 	};
 	Rig.PedalThrottle = MakePedal(GRNRig::DriverPedalThrottleX);
@@ -605,8 +605,8 @@ FGRNWatcher GRNDriverRig::BuildWatcher(AActor* Owner, USceneComponent* AttachTo,
 	if (!Owner || !AttachTo) return W;
 
 	UMaterialInstanceDynamic* Cloth =
-		Mid(Owner, bRacer ? FLinearColor(0.5f, 0.09f, 0.08f) : FLinearColor(0.85f, 0.83f, 0.76f));
-	UMaterialInstanceDynamic* Skin = Mid(Owner, FLinearColor(0.45f, 0.30f, 0.18f));
+		DrvMid(Owner, bRacer ? FLinearColor(0.5f, 0.09f, 0.08f) : FLinearColor(0.85f, 0.83f, 0.76f));
+	UMaterialInstanceDynamic* Skin = DrvMid(Owner, FLinearColor(0.45f, 0.30f, 0.18f));
 
 	W.Body = AttachTo;
 	W.BaseYaw = AttachTo->GetRelativeRotation().Yaw;
@@ -618,12 +618,12 @@ FGRNWatcher GRNDriverRig::BuildWatcher(AActor* Owner, USceneComponent* AttachTo,
 	const float HeadY = bRacer ? GRNRig::RacerHeadY : GRNRig::SpectatorHeadY;
 	// Robe, or a race suit's legs and torso — silhouette only; these are
 	// read at twenty metres through a windscreen at night.
-	Shape(Owner, AttachTo, Cyl(), FVector(0, 0, 0.65f) * K,
+	Shape(Owner, AttachTo, DrvCyl(), FVector(0, 0, 0.65f) * K,
 		FVector(bRacer ? 0.36f : 0.5f, bRacer ? 0.36f : 0.5f, 1.3f), Cloth);
 
 	// The head is a joint, not a ball glued on: the crowd turns to watch.
 	W.Head = Joint(Owner, AttachTo, FVector(0, 0, HeadY) * K);
-	Shape(Owner, W.Head, Sph(), FVector::ZeroVector, FVector(0.23f), Skin);
+	Shape(Owner, W.Head, DrvSph(), FVector::ZeroVector, FVector(0.23f), Skin);
 
 	for (int32 i = 0; i < 2; i++)
 	{
