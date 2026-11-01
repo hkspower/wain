@@ -96,10 +96,27 @@ say("note", "tokens outside a ramp that nothing reaches", orphans, "a one-off no
 const classes = [...new Set([...css.matchAll(/\.([a-zA-Z][\w-]*)(?=[\s,{:.[])/g)].map((m) => m[1]))]
   // `.tsx` and friends: a filename in a comment is not a selector.
   .filter((c) => !["tsx", "ts", "css", "mjs", "json"].includes(c));
+/* Classes Leaflet adds to the DOM while the map runs, so no stylesheet or component
+   text contains them. Named one by one, with the line of Leaflet's source that adds
+   each, so any other unused class is still reported. */
+const LEAFLET_RUNTIME = {
+  "leaflet-container": "L.Map adds it to the map's container (src/map/Map.js)",
+  "leaflet-safari": "L.Map adds it on Safari (src/map/Map.js)",
+  "leaflet-tile": "GridLayer adds it to every tile (src/layer/tile/GridLayer.js)",
+};
 const deadClasses = classes.filter(
-  (c) => !new RegExp(`[\\s"'\`{]${c}(?![\\w-])`).test(src)
+  (c) => !LEAFLET_RUNTIME[c] && !new RegExp(`[\\s"'\`{]${c}(?![\\w-])`).test(src)
 );
 say("note", "class selectors nothing uses", deadClasses);
+
+/* The `standalone:` variant must mean the installed app however it is reached: the
+   display-mode media query, and iOS's attribute fallback, which the media query
+   never matches. A variant with one branch silently does nothing in the other. */
+const variant = (css.match(/@custom-variant\s+standalone\s*\{[\s\S]*?\n\}/) ?? [""])[0];
+const missingBranch = [];
+if (!/@media\s*\(display-mode:\s*standalone\)/.test(variant)) missingBranch.push("@media (display-mode: standalone)");
+if (!/html\[data-standalone="true"\]\s*&/.test(variant)) missingBranch.push('html[data-standalone="true"] & (iOS fallback)');
+say("error", "standalone: variant is missing a branch", missingBranch, "a variant with one branch does nothing in the other way the app is reached");
 
 console.log("\n── right to left ──");
 
