@@ -20,8 +20,9 @@
 //
 // Each TCP listener is then asked who it is: the first bytes it volunteers
 // (SSH and MySQL speak first), else its answer to a bare HTTP HEAD. Nothing
-// is logged into, nothing is written. Plus sshd's effective settings, since
-// port 22 is the one non-web port the edge opens.
+// is logged into, nothing is written. Plus sshd's effective settings when a
+// copy of its config is given (SPORTA_PORTS_SSHD) — not on the VPS, where
+// the Hostinger API refuses a job that mounts it.
 //
 // READ-ONLY. Test hooks: SPORTA_PORTS_PROC (a directory holding tcp/tcp6/udp/
 // udp6 in /proc/net format), SPORTA_PORTS_SSHD (a directory standing in for
@@ -245,7 +246,9 @@ for (const port of [...new Set(udpExposed.map((s) => s.port))].sort((a, c) => a 
 head('4. sshd (the one non-web port the edge opens)')
 {
   const main = path.join(SSHD, 'sshd_config')
-  if (!fs.existsSync(main)) w(`${main} not mounted — sshd settings not read`)
+  // On the VPS this is not mounted: the Hostinger API refuses a job that
+  // mounts the sshd config (403). The banner in section 2 is what there is.
+  if (!fs.existsSync(main)) w('sshd settings not read (the Hostinger API refuses a job that mounts them) — check PasswordAuthentication by hand')
   else {
     // sshd keeps the FIRST value it reads for a keyword, and Ubuntu's file
     // includes sshd_config.d/*.conf on its first line — so a drop-in from

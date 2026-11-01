@@ -131,8 +131,8 @@ try {
     is(jscan.environment.SPORTA_SCAN_WHICH === 'json' && jscan.volumes[0].endsWith(':ro'), '--scan json selects the JSON scan, read-only')
     const pscan = JSON.parse((await c(['--scan', 'ports', '--edge', 'tcp/80@any,tcp/22@178.61.10.104', '--ref', 'main'])).out).services.deploy
     is(pscan.environment.SPORTA_SCAN_WHICH === 'ports' && pscan.environment.SPORTA_PORTS_EDGE === 'tcp/80@any,tcp/22@178.61.10.104'
-       && pscan.volumes.every((v) => v.endsWith(':ro')) && !pscan.volumes.some((v) => v.startsWith('/etc/ssh:')),
-       '--scan ports: read-only mounts, the two sshd config paths only (never the host keys)', pscan.volumes.join(' '))
+       && pscan.volumes.length === 1 && pscan.volumes[0].endsWith(':ro') && !/\/etc\//.test(JSON.stringify(pscan)),
+       '--scan ports: one read-only mount, nothing under /etc (the API refuses it)', pscan.volumes.join(' '))
     is((await c(['--scan', 'ports', '--edge', 'tcp/80@any;reboot', '--ref', 'main'])).code !== 0, 'a malformed --edge is refused')
     const rb = await c(['--rollback', '../../etc'])
     is(rb.code !== 0, 'a rollback name that is not a deploy backup is refused')

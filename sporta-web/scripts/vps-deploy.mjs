@@ -43,7 +43,7 @@
 //             root on disk. No build. `--scan json` runs json-scan.mjs instead:
 //             every JSON answer, the manifests, JSON-LD and stray .json/.map.
 //             `--scan ports [--edge RULES]` runs port-scan.mjs: every listener
-//             on the host, its bind, who answers, the edge firewall, sshd.
+//             on the host, its bind, who answers, the edge firewall.
 //
 // SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
 // (or files). That is how the backend ships while the storefront's own source
@@ -174,9 +174,9 @@ function composeCommand(argv) {
     environment.SPORTA_PORTS_EDGE = opt.edge
   }
   const volumes = [['plan', 'scan'].includes(opt.mode) ? '/docker/sporta:/sporta:ro' : '/docker/sporta:/sporta']
-  // The port scan reads sshd's settings — the two config paths only, never
-  // /etc/ssh itself (the host keys live there), and read-only.
-  if (opt.scan === 'ports') volumes.push('/etc/ssh/sshd_config:/host/ssh/sshd_config:ro', '/etc/ssh/sshd_config.d:/host/ssh/sshd_config.d:ro')
+  // No sshd config mount: the Hostinger API refuses a job that mounts it
+  // (403, measured 2026-11-01), and that filter is not ours to get round.
+  // port-scan.mjs reports the SSH banner and says the settings were not read.
   const doc = {
     services: {
       deploy: {
