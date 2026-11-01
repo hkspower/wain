@@ -6,6 +6,10 @@
  * Keep the markup backwards-compatible while making the rendered UI consistent
  * across lazy-loaded pages too. Neutral slate colours are intentionally left
  * alone: they are the readable grey surface/text system, not accent colours.
+ *
+ * The admin is EXCLUDED. It keeps its own indigo accent (CLAUDE.md), so every
+ * generic rule below skips .admin-shell and everything inside it, and there
+ * are no admin-specific orange overrides here.
  */
 :root {
   --sporta-accent-soft: #fff6f0;
@@ -19,89 +23,89 @@
 /* Legacy utility classes in the storefront and admin. Attribute selectors
  * cover Tailwind classes generated in lazy chunks without duplicating every
  * shade in this file. */
-:where(body) [class*="bg-green-"],
-:where(body) [class*="bg-emerald-"],
-:where(body) [class*="bg-teal-"],
-:where(body) [class*="bg-lime-"],
-:where(body) [class*="bg-blue-"],
-:where(body) [class*="bg-sky-"],
-:where(body) [class*="bg-cyan-"],
-:where(body) [class*="bg-indigo-"],
-:where(body) [class*="bg-violet-"],
-:where(body) [class*="bg-purple-"],
-:where(body) [class*="bg-pink-"] {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-green-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-emerald-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-teal-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-lime-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-blue-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-sky-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-cyan-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-indigo-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-violet-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-purple-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="bg-pink-"] {
   background-color: var(--sporta-accent-soft) !important;
 }
 
-:where(body) [class*="text-green-"],
-:where(body) [class*="text-emerald-"],
-:where(body) [class*="text-teal-"],
-:where(body) [class*="text-lime-"],
-:where(body) [class*="text-blue-"],
-:where(body) [class*="text-sky-"],
-:where(body) [class*="text-cyan-"],
-:where(body) [class*="text-indigo-"],
-:where(body) [class*="text-violet-"],
-:where(body) [class*="text-purple-"],
-:where(body) [class*="text-pink-"] {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-green-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-emerald-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-teal-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-lime-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-blue-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-sky-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-cyan-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-indigo-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-violet-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-purple-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="text-pink-"] {
   color: var(--sporta-accent-deep) !important;
 }
 
-:where(body) [class*="border-green-"],
-:where(body) [class*="border-emerald-"],
-:where(body) [class*="border-teal-"],
-:where(body) [class*="border-lime-"],
-:where(body) [class*="border-blue-"],
-:where(body) [class*="border-sky-"],
-:where(body) [class*="border-cyan-"],
-:where(body) [class*="border-indigo-"],
-:where(body) [class*="border-violet-"],
-:where(body) [class*="border-purple-"],
-:where(body) [class*="border-pink-"] {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-green-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-emerald-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-teal-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-lime-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-blue-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-sky-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-cyan-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-indigo-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-violet-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-purple-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="border-pink-"] {
   border-color: var(--sporta-accent-border) !important;
 }
 
-:where(body) [class*="accent-green-"],
-:where(body) [class*="accent-emerald-"],
-:where(body) [class*="accent-blue-"],
-:where(body) [class*="accent-sky-"],
-:where(body) [class*="accent-cyan-"],
-:where(body) [class*="accent-indigo-"],
-:where(body) [class*="accent-violet-"],
-:where(body) [class*="accent-purple-"],
-:where(body) [class*="accent-pink-"] {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-green-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-emerald-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-blue-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-sky-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-cyan-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-indigo-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-violet-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-purple-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="accent-pink-"] {
   accent-color: var(--sporta-accent) !important;
 }
 
-:where(body) [class*="caret-green-"],
-:where(body) [class*="caret-blue-"],
-:where(body) [class*="caret-sky-"],
-:where(body) [class*="caret-indigo-"] {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="caret-green-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="caret-blue-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="caret-sky-"],
+:where(body) :not(.admin-shell, .admin-shell *)[class*="caret-indigo-"] {
   caret-color: var(--sporta-accent) !important;
 }
 
 /* Hover variants use escaped class characters in CSS attribute values. */
-:where(body) [class*="hover:bg-green-"]:hover,
-:where(body) [class*="hover:bg-emerald-"]:hover,
-:where(body) [class*="hover:bg-teal-"]:hover,
-:where(body) [class*="hover:bg-blue-"]:hover,
-:where(body) [class*="hover:bg-sky-"]:hover,
-:where(body) [class*="hover:bg-cyan-"]:hover,
-:where(body) [class*="hover:bg-indigo-"]:hover,
-:where(body) [class*="hover:bg-violet-"]:hover,
-:where(body) [class*="hover:bg-purple-"]:hover,
-:where(body) [class*="hover:bg-pink-"]:hover {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-green-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-emerald-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-teal-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-blue-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-sky-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-cyan-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-indigo-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-violet-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-purple-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:bg-pink-"]:hover {
   background-color: var(--sporta-accent-hover) !important;
   color: #fff !important;
 }
 
-:where(body) [class*="hover:text-green-"]:hover,
-:where(body) [class*="hover:text-blue-"]:hover,
-:where(body) [class*="hover:text-sky-"]:hover,
-:where(body) [class*="hover:text-indigo-"]:hover,
-:where(body) [class*="hover:text-violet-"]:hover,
-:where(body) [class*="hover:text-purple-"]:hover,
-:where(body) [class*="hover:text-pink-"]:hover {
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-green-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-blue-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-sky-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-indigo-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-violet-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-purple-"]:hover,
+:where(body) :not(.admin-shell, .admin-shell *)[class*="hover:text-pink-"]:hover {
   color: var(--sporta-accent-deep) !important;
 }
 
@@ -140,19 +144,9 @@
   color: var(--sporta-accent-deep) !important;
 }
 
-.admin-shell .admin-notice--info,
-.admin-shell .admin-product-upload-info,
-.admin-shell .admin-kpi--info {
-  border-color: var(--sporta-accent-border) !important;
-  background: var(--sporta-accent-soft) !important;
-  color: var(--sporta-accent-deep) !important;
-}
-
 /* Dark-mode success/info surfaces remain orange-toned rather than green/blue. */
 :is(html.dark, html[data-theme='dark']) .returns-system__progress li[data-complete='true'] > span,
-:is(html.dark, html[data-theme='dark']) .returns-system__success,
-:is(html.dark, html[data-theme='dark']) .admin-shell .admin-notice--info,
-:is(html.dark, html[data-theme='dark']) .admin-shell .admin-product-upload-info {
+:is(html.dark, html[data-theme='dark']) .returns-system__success {
   border-color: #b1725e !important;
   background: #3d2923 !important;
   color: #f1c7b3 !important;
