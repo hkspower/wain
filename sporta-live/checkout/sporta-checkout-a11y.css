@@ -1,0 +1,33 @@
+/* Checkout tap targets brought up to 44px (Apple HIG / WCAG 2.5.5).
+   Measured on the live /checkout 2026-11-01 before the change:
+   "Track an order" 21-22px tall, the in-field helper button 32px,
+   the "✓ Bag" / "✓ Delivery" step links 29px (English). */
+
+/* "Track an order" sits inside a sentence, so it is grown with padding on
+   the inline box: the hit area becomes 44px tall without moving the text
+   or changing the line height around it. */
+.guest-note__body a[href="/track"] {
+  padding-block: 12px;
+  margin-block: -12px;
+  display: inline;
+}
+
+/* Done-step links in the purchase-steps bar. */
+a:has(> .purchase-steps__body),
+button:has(> .purchase-steps__body) {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* The small button inside a text field (h-8 w-8 = 32px). 44px still fits a
+   48px field with 2px to spare; the field gets matching end padding so typed
+   text never runs under it. */
+.relative > button.absolute.h-8.w-8[tabindex="-1"] {
+  width: 44px !important;
+  height: 44px !important;
+  inset-inline-end: 2px !important;
+}
+.relative:has(> button.absolute.h-8.w-8[tabindex="-1"]) > input {
+  padding-inline-end: 52px !important;
+}
