@@ -1,14 +1,24 @@
-/* admin.css — admin-panel base styling and its own accent tokens.
- * Scoped to .admin-shell so admin theming never leaks into the storefront. */
+/* admin.css — admin-panel base styling and its own colour tokens.
+ * Scoped to .admin-shell so admin theming never leaks into the storefront.
+ *
+ * admin-mobile.css reads these tokens. Every use repeats the value as a
+ * fallback, so a rule that ever ends up outside the shell still renders the
+ * same colour instead of falling back to the browser default.
+ *
+ * The accent is indigo on purpose: the admin keeps its own accent, distinct
+ * from the storefront's orange (see CLAUDE.md, "Keep the indigo accent for
+ * admin UI"). */
 .admin-shell {
-  /* Admin uses the indigo accent. */
-  --admin-accent: 243 75% 59%;
-  --admin-accent-foreground: 0 0% 100%;
+  --admin-surface: #fff;
+  --admin-line: #cbd5e1;   /* slate-300: panel, card and bar edges */
+  --admin-text: #1e293b;   /* slate-800 */
+  --admin-muted: #64748b;  /* slate-500: 4.76:1 on white, the floor for meta text */
+  --admin-accent: #4f46e5; /* indigo-600: 6.29:1 on white */
 }
 
 /* Desktop sidebar + table wrappers (mobile overrides live in admin-mobile.css). */
 .admin-sidebar {
-  background: #fff;
+  background: var(--admin-surface, #fff);
 }
 .admin-table th,
 .admin-table td {
