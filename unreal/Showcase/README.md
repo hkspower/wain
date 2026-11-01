@@ -72,6 +72,54 @@ faults. The car whose gap is far from the others, or whose nose points
 the wrong way, or whose paint reads as the wrong finish, is the one to
 open first, and its `build.json` says what the import found.
 
+### Read against Unreal 5.8's API, not run
+
+The kit was reviewed three ways on 1 November (the Python, the Mac scripts,
+the C++ module), from the sources and from knowledge of the 5.x API; no
+engine was available. What that found and fixed is in the history
+(`run.sh` and `mac/connect.sh`; the unity-build clash between
+`GRNCarFactory.cpp` and `GRNDriverRig.cpp`; the dome, the camera aperture,
+the night executor's start-up order). What it could NOT settle, and what
+the first run will show, in the order it is most likely to matter:
+
+1. **The Interchange hand-off** (`grn_showcase.py`, `import_static_mesh`).
+   `InterchangePipelineStackOverride` with `add_python_pipeline` /
+   `add_pipeline` may not be the documented route. The documented one is
+   `InterchangeManager.get_interchange_manager_scripted()`, a source from
+   `create_source_data(path)`, an `ImportAssetParameters` with
+   `is_automated = True` and the pipeline appended to `override_pipelines`,
+   then `import_asset(dest_path, src, params)`. If `build` warns "could not
+   hand the pipeline to the import task", the car arrives as one fragment
+   (the default pipeline does not combine meshes): switch to that route.
+2. **The yaw and the combine option.** `import_offset_rotation` may live on
+   the pipeline's `common_meshes_properties` struct, and `combine_static_meshes`
+   and `import_materials` (possibly `material_import`) are unconfirmed names.
+   A miss is only a warning, and `build.json` says the studio actor was
+   turned instead; the night scene then needs the yaw baked in.
+3. **Sequencer ranges.** `section.set_range(0, frames)` may be read as ticks
+   (24000 per second at the default), not frames. If the shots come out a
+   thousandth of their length, check `section.get_end_frame()`.
+4. **Movie Render Queue's tiles and cvars.** `MoviePipelineHighResSetting`'s
+   overlap field may be renamed (tiles then stitch with seams), and
+   `MoviePipelineConsoleVariableSetting.add_or_update_console_variable`
+   may differ (the Lumen quality cvars would be dropped with a warning).
+5. **The paint parameter names** on `M_GRNCarPaint_v1` (`Color`, `Metalness`,
+   `BaseRoughness`, `ClearCoat`, `ClearCoatRoughness`): a wrong name makes the
+   setter return False, which the build does not yet check.
+6. **C++ API names the compiler will judge:** `FPlatformMisc::GetMaxRefreshRate`
+   and `GMaxRHIFeatureLevel` in `GRNGraphics.cpp`, and the `BuildSettingsVersion.V7`
+   and `EngineIncludeOrderVersion.Unreal5_8` values in the two `.Target.cs`
+   files. If the build stops there, those are the lines.
+7. **Ray tracing on Metal.** `DefaultEngine.ini` turns `r.RayTracing` and
+   hardware-ray-traced Lumen on for every platform and the Mac profile turns
+   them off at run time; a Mac-only override file (`Config/Mac/MacEngine.ini`)
+   is the safer shape if the editor compiles ray-tracing shaders for no
+   reason. `r.Streaming.PoolSize` and `r.Shadow.Virtual.MaxPhysicalPages` are
+   also fixed at sizes that suit a big GPU, not a 16 GB Mac.
+
+Unreal does not run on this repository's machines, nor on the VPS (no GPU,
+and Epic's licence needs a signed-in account); the Mac is where this kit runs.
+
 ### What to send back after the first run
 
 The log `run.sh` names, `fleet.json` and, for a car that looks wrong,
@@ -145,7 +193,7 @@ lives on the render board.
 | `grn_showcase.py` | Runs inside the editor: `probe`, `build [id\|all]`, `report`. |
 | `grn_night.py`, `init_unreal.py` | The night shot's Movie Render Queue executor; it runs the game, not a map. |
 | `run.sh` | The Mac wrapper: finds the engine, runs each step, keeps the logs. |
-| `black-demon.glb` | The one car carried in git, 9 MB, as the game builds it today; the other 16 come from `run.sh export`. |
+| `black-demon.glb` | The one car carried in git, 8 MB, exported again on 31 October from the game as it builds now (bevel normals welded: same triangles, bounds and nose as the 8 October file); the other 16 come from `run.sh export` and are git-ignored. |
 | `test_showcase_math.py`, `test_dry_run.py` | `npm run test:showcase`: the arithmetic, every exported GLB, and `build all` against a stand-in engine. |
 | `../../tools/shots/ue-compare.mjs` | The Blender-against-Unreal sheet; `npm run cars:ue-compare:rules` checks the tool. |
 | `../Source/GulfRoadNights/GRNShowcase.*` | The game's handle for the night shot: select the car, dress it, park it, clear the road. |

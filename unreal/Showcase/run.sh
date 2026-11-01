@@ -128,6 +128,8 @@ editor_py() {  # run grn_showcase.py <args> inside the editor, then quit
   # space in its name would otherwise lose everything after it.
   run_logged "$log" "\[showcase\]|LogPython|Error|error:" \
     "$UE_CMD" "$PROJECT" -ExecutePythonScript="\"$HERE/grn_showcase.py\" $args" "${COMMON[@]}"
+  # grn_showcase.py always quits the editor with status 0; its own failure line is the signal.
+  if grep -q '\[showcase\] .* failed' "$log" 2>/dev/null; then say WARNING "the script reported a failure: read $log"; fi
   say done "$args (full log: $log)"
 }
 

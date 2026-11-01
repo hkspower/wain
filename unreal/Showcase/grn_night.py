@@ -62,7 +62,10 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
         self.frames = 0
         self.staged_at = 0
         self.staged = False
-        self.shot = "city"
+        # Empty until execute_delayed has read the command line: on_begin_frame
+        # can run first, and it used to stage the defaults (city, black-demon)
+        # whatever had been asked for.
+        self.shot = ""
         self.car = sm.DEFAULT_CAR
 
     @unreal.ufunction(override=True)
@@ -80,6 +83,8 @@ class GRNNightExecutor(unreal.MoviePipelinePythonHostExecutor):
     def on_begin_frame(self):
         super(GRNNightExecutor, self).on_begin_frame()
         if self.pipeline is not None:
+            return
+        if not self.shot:
             return
         self.frames += 1
         world = self.get_last_loaded_world()

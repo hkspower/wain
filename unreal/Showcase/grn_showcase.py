@@ -244,7 +244,10 @@ def import_static_mesh(glb_path, dest_path, name, yaw_deg=0.0, combine=True, nan
                 meshes.append(a)
     if not meshes:
         raise RuntimeError(f"importing {glb_path} produced no static mesh (imported: {paths})")
-    meshes.sort(key=lambda m: -m.get_bounds().box_extent.length())
+    def _size(m):  # Vector.size() is the one the Python API is sure to have
+        e = m.get_bounds().box_extent
+        return math.sqrt(e.x * e.x + e.y * e.y + e.z * e.z)
+    meshes.sort(key=lambda m: -_size(m))
     log(f"imported {glb_path} -> {meshes[0].get_path_name()} ({len(paths)} objects)")
     return meshes[0]
 
@@ -374,6 +377,9 @@ def make_material(name, base=None, roughness=None, specular=None, emissive=None,
     mel = unreal.MaterialEditingLibrary
     if unlit:
         set_prop(mat, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+        # The dome is a sphere seen from inside: with back faces culled it
+        # draws nothing, and Lumen's reflections would see no sky.
+        set_prop(mat, "two_sided", True)
     y = -300
 
     def const3(value, prop):
@@ -476,7 +482,10 @@ def build_studio(mesh, actor_yaw, st, P):
     dome.set_actor_scale3d(unreal.Vector(r, r, r))
     dc.set_material(0, dome_mat)
     set_prop(dc, "cast_shadow", False)
-    set_prop(dome, "hidden", True)                      # editor
+    try:
+        dome.set_is_temporarily_hidden_in_editor(True)  # editor (an Actor's bHidden is not settable)
+    except Exception as e:  # noqa: BLE001
+        warn(f"hiding the dome in the editor: {e}")
     set_prop(dc, "hidden_in_game", True)                # camera
     set_prop(dc, "affect_indirect_lighting_while_hidden", True)  # Lumen still sees it
     set_prop(dc, "lighting_channels", channels(False, False))
@@ -530,6 +539,9 @@ def build_studio(mesh, actor_yaw, st, P):
         a = spawn(unreal.CineCameraActor, C["loc"], C["rot"], label=f"Cam_{name}")
         comp = a.get_cine_camera_component()
         set_prop(comp, "current_focal_length", float(C["focal_mm"]))
+        # The cine camera writes its own aperture (f/2.8 by default) over the
+        # post-process volume's, and manual exposure reads that one: a stop off.
+        set_prop(comp, "current_aperture", float(sm.CAMERA_FSTOP))
         try:
             fb = comp.get_editor_property("filmback")
             set_prop(fb, "sensor_width", float(C["sensor_w_mm"]))
