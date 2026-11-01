@@ -40,7 +40,7 @@ type Tab = "places" | "submissions" | "orders" | "queue";
  * (a key file created empty, a variable nobody filled), and the honest answer
  * is to say which file to fill rather than to let the owner try passwords.
  */
-type Gate = "checking" | "unreachable" | "unset" | "signin" | "ready";
+type Gate = "checking" | "unreachable" | "unset" | "weak" | "signin" | "ready";
 
 export default function AdminApp() {
   const [gate, setGate] = useState<Gate>("checking");
@@ -88,7 +88,7 @@ export default function AdminApp() {
     if (!backendEnabled) return;
     let cancelled = false;
     void (async () => {
-      const ping = await callSafe<{ stage: string; admin: "set" | "unset" }>("ping");
+      const ping = await callSafe<{ stage: string; admin: "set" | "unset" | "weak" }>("ping");
       if (cancelled) return;
       if (!ping.ok) {
         setError(describeApiFailure(ping, "ما قدرنا نوصل للسيرفر."));
@@ -97,6 +97,9 @@ export default function AdminApp() {
       }
       setStage(ping.stage);
       if (ping.admin === "unset") return setGate("unset");
+      // Shorter than the server's minimum: refused like an empty file, so a
+      // sign-in form here would refuse every password with no reason given.
+      if (ping.admin === "weak") return setGate("weak");
       if (!adminToken()) return setGate("signin");
       // A token from an earlier visit in this tab: still good, or thrown away.
       const who = await callSafe("whoami", undefined, { admin: true });
@@ -157,6 +160,7 @@ export default function AdminApp() {
   if (gate === "checking") return <Centered>نتحقق…</Centered>;
   if (gate === "unreachable") return <Unreachable message={error} />;
   if (gate === "unset") return <SecretUnset />;
+  if (gate === "weak") return <SecretUnset weak />;
   if (gate === "signin") return <SignIn onSubmit={signIn} error={error} />;
 
   // ---- actions ------------------------------------------------------------
@@ -584,13 +588,16 @@ function NotConfigured() {
 }
 
 /** The server answered, and said it has no admin secret yet. */
-function SecretUnset() {
+function SecretUnset({ weak = false }: { weak?: boolean }) {
   return (
     <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
-      <h1 className="font-display text-2xl font-bold text-ink-900">الخادم شغّال، بس بدون كلمة سر</h1>
+      <h1 className="font-display text-2xl font-bold text-ink-900">
+        {weak ? "كلمة السر على السيرفر قصيرة" : "الخادم شغّال، بس بدون كلمة سر"}
+      </h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
-        ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
-        مرة واحدة، من مدير الملفات في hPanel:
+        {weak
+          ? "كلمة السر اللي بالملف أقصر من ٣٢ حرف، فالسيرفر يرفض اللوحة كلها لين تتغيّر. الحل، من مدير الملفات في hPanel:"
+          : "ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل مرة واحدة، من مدير الملفات في hPanel:"}
       </p>
       <ol role="list" className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
         <li>

@@ -211,8 +211,11 @@ export function describeApiFailure(r: ApiFailure, fallback: string): string {
       return "الخدمة مو متاحة حالياً. جرّب بعد شوي.";
     case "rate_limited":
       return "طلبات كثيرة بسرعة. استنى شوي وجرّب مرة ثانية.";
+    // One sentence for both: this module ships on /search, which sits at its
+    // byte budget, and /admin draws its own screen for each case anyway.
     case "admin_unset":
-      return "لوحة التحكّم مو مفعّلة على السيرفر بعد — ما فيه كلمة سر في storage/admin.secret.";
+    case "admin_weak":
+      return "لوحة التحكّم مقفولة — كلمة السر في storage/admin.secret ناقصة أو أقصر من ٣٢ حرف.";
     case "admin_required":
     case "admin_forbidden":
       return "كلمة السر مو مضبوطة.";

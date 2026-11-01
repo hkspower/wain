@@ -82,6 +82,14 @@ const RATE_PER_MIN = 120;
  *  an attempt too: the cap is on trying, not on succeeding. */
 const WRITES_PER_MIN = 20;
 
+/** The shortest admin secret the endpoint will accept. Below it every admin
+ *  action answers 503 `admin_weak`, the way an empty file answers
+ *  `admin_unset`: refused, never compared. The 14 October login scan found
+ *  that `1234` was accepted, and at the measured guessing rate a four-digit
+ *  secret fell in about 26 minutes. docs/admin-setup.md already asked for 32
+ *  characters; this is the check that makes the request a rule. */
+const ADMIN_SECRET_MIN = 32;
+
 /** A request body larger than this is refused unread. The largest honest body
  *  is a place with a sixty-line menu and twelve image URLs — a few kilobytes. */
 const MAX_BODY = 65536;
@@ -149,6 +157,13 @@ const LOG_NAME      = 'wain.log';
 function keyState(string $file): string {
     if (!is_file($file)) return 'ABSENT';
     return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
+}
+
+/** The admin secret as the gate reads it: 'unset' (empty or no file), 'weak'
+ *  (shorter than ADMIN_SECRET_MIN) or 'set'. Only 'set' opens /admin. */
+function adminState(string $secret): string {
+    if ($secret === '') return 'unset';
+    return strlen($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set';
 }
 
 /** Walks UP to the first `storage/` — correct at public_html/api and one level
@@ -1020,7 +1035,9 @@ if (PHP_SAPI === 'cli') {
             /* The runtime's own predicate (trim()), never is_file — the
                installer creates the file EMPTY on purpose, and «it exists» is
                true in exactly the state where every admin action is refused. */
-            'adminSecret' => keyState($secretFile),
+            'adminSecret' => keyState($secretFile) === 'present'
+                && adminState(trim((string) @file_get_contents($secretFile))) === 'weak'
+                ? 'WEAK' : keyState($secretFile),
             'engine'    => $cfg['driver'] === 'mysql'
                 ? ['driver' => 'mysql', 'dsn' => preg_replace('/password=[^;]*/i', 'password=…', $cfg['dsn'])]
                 : ['driver' => 'sqlite', 'file' => $cfg['file'], 'exists' => is_file($cfg['file']),
@@ -1401,10 +1418,11 @@ $writes   = (int) (getenv('WAIN_API_WRITES_PER_MIN') ?: WRITES_PER_MIN);
 
 /* ── the admin secret, read before anything else is decided ─────────────── */
 $secret = trim((string) @file_get_contents("$storage/admin.secret"));
+$adminState = adminState($secret);
 $givenAdmin = $_SERVER['HTTP_X_WAIN_ADMIN'] ?? null;
 $isAdmin = false;
 if (is_string($givenAdmin) && $givenAdmin !== '') {
-    if ($secret === '') $fail(503, 'admin_unset');
+    if ($adminState !== 'set') $fail(503, "admin_$adminState");
     if (!hash_equals($secret, $givenAdmin)) {
         /* A wrong guess is counted against the visitor's own bucket BEFORE the
            sleep, so guessing spends the allowance every other request spends and
@@ -1455,7 +1473,7 @@ if (!$isAdmin) {
 $needsAdmin = in_array($action, ADMIN_ACTIONS, true)
     || ($action === 'queue_join' && (($in['source'] ?? 'online') === 'walk_in'));
 if ($needsAdmin && !$isAdmin) {
-    if ($secret === '') $fail(503, 'admin_unset');
+    if ($adminState !== 'set') $fail(503, "admin_$adminState");
     $fail(403, 'admin_required');
 }
 
@@ -1501,7 +1519,7 @@ try {
 
     case 'ping':
         $ok(['service' => 'wain-api', 'stage' => $stage, 'engine' => $db->driver, 'time' => nowIso(),
-             'admin' => $secret === '' ? 'unset' : 'set']);
+             'admin' => $adminState]);
 
     case 'places':
         $rows = $db->all('SELECT * FROM places WHERE published = 1 ORDER BY sort_order ASC, created_at ASC');
@@ -1915,7 +1933,8 @@ try {
         $sig  = (string) ($in['sig'] ?? '');
         $file = $pendingFile($path);
         if ($file === null) $fail(400, 'bad_path');
-        if ($secret === '') $fail(503, 'admin_unset');
+        // The signatures are keyed on the secret, so a weak one signs nothing.
+        if ($adminState !== 'set') $fail(503, "admin_$adminState");
         if ($exp < time()) $fail(403, 'expired');
         if (!hash_equals($mediaSig($path, $exp), $sig)) $fail(403, 'bad_signature');
         if (!is_file($file)) $fail(404, 'not_found');
