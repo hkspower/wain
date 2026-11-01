@@ -1,0 +1,159 @@
+/* Sporta accent guard
+ *
+ * The storefront uses orange, charcoal and silver as its brand palette. A few
+ * older admin screens still carry Tailwind utility names from the prototype
+ * (indigo/blue/green), and a few status components used those hues directly.
+ * Keep the markup backwards-compatible while making the rendered UI consistent
+ * across lazy-loaded pages too. Neutral slate colours are intentionally left
+ * alone: they are the readable grey surface/text system, not accent colours.
+ */
+:root {
+  --sporta-accent-soft: #fff6f0;
+  --sporta-accent-soft-strong: #f9e8de;
+  --sporta-accent-border: #bd7c5b;
+  --sporta-accent: var(--brand, #ff7b17);
+  --sporta-accent-deep: var(--brand-deep, #99452b);
+  --sporta-accent-hover: #8f391b;
+}
+
+/* Legacy utility classes in the storefront and admin. Attribute selectors
+ * cover Tailwind classes generated in lazy chunks without duplicating every
+ * shade in this file. */
+:where(body) [class*="bg-green-"],
+:where(body) [class*="bg-emerald-"],
+:where(body) [class*="bg-teal-"],
+:where(body) [class*="bg-lime-"],
+:where(body) [class*="bg-blue-"],
+:where(body) [class*="bg-sky-"],
+:where(body) [class*="bg-cyan-"],
+:where(body) [class*="bg-indigo-"],
+:where(body) [class*="bg-violet-"],
+:where(body) [class*="bg-purple-"],
+:where(body) [class*="bg-pink-"] {
+  background-color: var(--sporta-accent-soft) !important;
+}
+
+:where(body) [class*="text-green-"],
+:where(body) [class*="text-emerald-"],
+:where(body) [class*="text-teal-"],
+:where(body) [class*="text-lime-"],
+:where(body) [class*="text-blue-"],
+:where(body) [class*="text-sky-"],
+:where(body) [class*="text-cyan-"],
+:where(body) [class*="text-indigo-"],
+:where(body) [class*="text-violet-"],
+:where(body) [class*="text-purple-"],
+:where(body) [class*="text-pink-"] {
+  color: var(--sporta-accent-deep) !important;
+}
+
+:where(body) [class*="border-green-"],
+:where(body) [class*="border-emerald-"],
+:where(body) [class*="border-teal-"],
+:where(body) [class*="border-lime-"],
+:where(body) [class*="border-blue-"],
+:where(body) [class*="border-sky-"],
+:where(body) [class*="border-cyan-"],
+:where(body) [class*="border-indigo-"],
+:where(body) [class*="border-violet-"],
+:where(body) [class*="border-purple-"],
+:where(body) [class*="border-pink-"] {
+  border-color: var(--sporta-accent-border) !important;
+}
+
+:where(body) [class*="accent-green-"],
+:where(body) [class*="accent-emerald-"],
+:where(body) [class*="accent-blue-"],
+:where(body) [class*="accent-sky-"],
+:where(body) [class*="accent-cyan-"],
+:where(body) [class*="accent-indigo-"],
+:where(body) [class*="accent-violet-"],
+:where(body) [class*="accent-purple-"],
+:where(body) [class*="accent-pink-"] {
+  accent-color: var(--sporta-accent) !important;
+}
+
+:where(body) [class*="caret-green-"],
+:where(body) [class*="caret-blue-"],
+:where(body) [class*="caret-sky-"],
+:where(body) [class*="caret-indigo-"] {
+  caret-color: var(--sporta-accent) !important;
+}
+
+/* Hover variants use escaped class characters in CSS attribute values. */
+:where(body) [class*="hover:bg-green-"]:hover,
+:where(body) [class*="hover:bg-emerald-"]:hover,
+:where(body) [class*="hover:bg-teal-"]:hover,
+:where(body) [class*="hover:bg-blue-"]:hover,
+:where(body) [class*="hover:bg-sky-"]:hover,
+:where(body) [class*="hover:bg-cyan-"]:hover,
+:where(body) [class*="hover:bg-indigo-"]:hover,
+:where(body) [class*="hover:bg-violet-"]:hover,
+:where(body) [class*="hover:bg-purple-"]:hover,
+:where(body) [class*="hover:bg-pink-"]:hover {
+  background-color: var(--sporta-accent-hover) !important;
+  color: #fff !important;
+}
+
+:where(body) [class*="hover:text-green-"]:hover,
+:where(body) [class*="hover:text-blue-"]:hover,
+:where(body) [class*="hover:text-sky-"]:hover,
+:where(body) [class*="hover:text-indigo-"]:hover,
+:where(body) [class*="hover:text-violet-"]:hover,
+:where(body) [class*="hover:text-purple-"]:hover,
+:where(body) [class*="hover:text-pink-"]:hover {
+  color: var(--sporta-accent-deep) !important;
+}
+
+/* Direct status colours left by the older support/returns screens. */
+.support-admin__status[data-status='resolved'],
+.support-admin__status[data-status='closed'],
+.support-page__ticket header > span[data-status='resolved'],
+.support-page__ticket header > span[data-status='closed'] {
+  background: #fff1d6 !important;
+  color: #9a5600 !important;
+}
+
+.support-admin__status[data-status='in_progress'] {
+  background: var(--sporta-accent-soft) !important;
+  color: var(--sporta-accent-deep) !important;
+}
+
+.support-page__success,
+.returns-system__success,
+.returns-system__badge[data-status='approved'],
+.returns-system__badge[data-status='completed'] {
+  background: var(--sporta-accent-soft) !important;
+  border-color: var(--sporta-accent-border) !important;
+  color: var(--sporta-accent-deep) !important;
+}
+
+.support-admin__customer a,
+.profiles-admin__identity a,
+.admin-returns__saved {
+  color: var(--sporta-accent-deep) !important;
+}
+
+.returns-system__badge[data-status='approved'],
+.returns-system__badge[data-status='completed'] {
+  background: var(--sporta-accent-soft) !important;
+  color: var(--sporta-accent-deep) !important;
+}
+
+.admin-shell .admin-notice--info,
+.admin-shell .admin-product-upload-info,
+.admin-shell .admin-kpi--info {
+  border-color: var(--sporta-accent-border) !important;
+  background: var(--sporta-accent-soft) !important;
+  color: var(--sporta-accent-deep) !important;
+}
+
+/* Dark-mode success/info surfaces remain orange-toned rather than green/blue. */
+:is(html.dark, html[data-theme='dark']) .returns-system__progress li[data-complete='true'] > span,
+:is(html.dark, html[data-theme='dark']) .returns-system__success,
+:is(html.dark, html[data-theme='dark']) .admin-shell .admin-notice--info,
+:is(html.dark, html[data-theme='dark']) .admin-shell .admin-product-upload-info {
+  border-color: #b1725e !important;
+  background: #3d2923 !important;
+  color: #f1c7b3 !important;
+}
