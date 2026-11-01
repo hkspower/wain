@@ -23,6 +23,8 @@ what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
 | Apply | `… compose --apply --ref <sha> --confirm <sha>` | Copies changed and new files in place, `index.html` last. Backs up everything it overwrites to `/docker/sporta/backups/`. |
 | Undo | `… compose --rollback deploy-<stamp>-<sha7>` | Restores that backup and removes the files that deploy added. |
 | Scope | add `--only api,knet,pay` to plan or apply | Compares and deploys only those folders. **Use it for now:** the live storefront (`index.html` + its bundle) is a different build whose source is not in this repo, and a whole-site apply would replace it. |
+| Scan | `… compose --scan` | **Nothing.** `scripts/live-scan.mjs`: TLS, redirects, routes, headers, cache tiers, cookies, exposed files, SEO, the web root on disk. |
+| Scan JSON | `… compose --scan json` | **Nothing.** `scripts/json-scan.mjs`: every API answer is JSON, labelled JSON, `nosniff` + `no-store`, carries no private field or trace, refuses bad input with a JSON 4xx; Arabic intact; no JSONP/CORS; both manifests and their icons; JSON-LD; no `.json`/`.map` in the web root. Its only POSTs are bodies refused at validation. |
 
 What apply will not do, ever: touch `config.js`, any `config.php`,
 `.cbk_token.json` or a log; bring back the setup tools; write into the photo
@@ -33,9 +35,9 @@ site today — unless `--allow-shrink`. After copying it re-probes `/`, `/shop`,
 `/checkout`, `/backends`, the products API and the entry chunk; anything that
 answered 200 before and does not now is **rolled back automatically**.
 
-Proven by `npm run test:vps-deploy` (30 checks: real plan/apply/rollback code
+Proven by `npm run test:vps-deploy` (45 checks: real plan/apply/rollback code
 against a throwaway live tree served by PHP with the VPS config layout,
-including a deploy that breaks the page and undoes itself).
+including a deploy that breaks the page and undoes itself, and both scans).
 
 ---
 

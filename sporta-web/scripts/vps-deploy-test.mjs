@@ -127,6 +127,8 @@ try {
     const scan = JSON.parse((await c(['--scan', '--ref', 'main'])).out).services.deploy
     is(scan.volumes[0] === '/docker/sporta:/sporta:ro' && scan.environment.SPORTA_DEPLOY_MODE === 'scan',
        'a scan mounts the server read-only')
+    const jscan = JSON.parse((await c(['--scan', 'json', '--ref', 'main'])).out).services.deploy
+    is(jscan.environment.SPORTA_SCAN_WHICH === 'json' && jscan.volumes[0].endsWith(':ro'), '--scan json selects the JSON scan, read-only')
     const rb = await c(['--rollback', '../../etc'])
     is(rb.code !== 0, 'a rollback name that is not a deploy backup is refused')
   }
@@ -215,6 +217,17 @@ try {
     is(/BAD\s+secrets-shaped files in the web root: [^\n]*\.env/.test(s.out), 'and the file on disk is reported too')
     is(/ok\s+products: \d+/.test(s.out) && /ok\s+\/shop -> 200/.test(s.out), 'the routes and the API are probed')
     fs.rmSync(join(LIVE, '.env'))
+
+    // The JSON scan, against the same stand-in: a stray source map must be
+    // reported as served.
+    fs.writeFileSync(join(LIVE, 'assets', 'app.js.map'), '{"version":3,"sources":["src/App.jsx"]}')
+    const j = await deploy({ SPORTA_DEPLOY_MODE: 'scan', SPORTA_DEPLOY_REF: 'main', SPORTA_SCAN_WHICH: 'json' })
+    is(/SCAN_DONE bad=\d+ warn=\d+/.test(j.out) && /== 3\. Refusals/.test(j.out), 'the JSON scan runs to its summary',
+       /SCAN_DONE[^\n]*/.exec(j.out)?.[0] ?? j.out.slice(-200))
+    is(/ok\s+\?r=products -> 200/.test(j.out) && /every name_ar is real Arabic text/.test(j.out),
+       'it reads the real catalogue through the store API')
+    is(/BAD\s+\/assets\/app\.js\.map is SERVED/.test(j.out), 'a served source map is reported')
+    fs.rmSync(join(LIVE, 'assets', 'app.js.map'))
   }
 
   head('a deploy that breaks the site undoes itself')

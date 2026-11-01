@@ -40,7 +40,8 @@
 //   rollback  Restores a named backup made by apply.
 //   scan      Read-only. Runs scripts/live-scan.mjs on the VPS — the
 //             server-response checks of scan-server-response.sh plus the web
-//             root on disk. No build.
+//             root on disk. No build. `--scan json` runs json-scan.mjs instead:
+//             every JSON answer, the manifests, JSON-LD and stray .json/.map.
 //
 // SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
 // (or files). That is how the backend ships while the storefront's own source
@@ -115,7 +116,11 @@ function composeCommand(argv) {
     else if (a === '--confirm') opt.confirm = argv[++i] ?? ''
     else if (a === '--rollback') { opt.mode = 'rollback'; opt.backup = argv[++i] ?? '' }
     else if (a === '--only') opt.only = argv[++i] ?? ''
-    else if (a === '--scan') opt.mode = 'scan'
+    else if (a === '--scan') {
+      opt.mode = 'scan'
+      // --scan json → scripts/json-scan.mjs; bare --scan → live-scan.mjs.
+      if (argv[i + 1] === 'json' || argv[i + 1] === 'site') opt.scan = argv[++i]
+    }
     else throw new Error(`unknown option ${a}`)
   }
   if (!opt.ref) opt.ref = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -158,6 +163,7 @@ function composeCommand(argv) {
   }
   if (opt.mode === 'rollback') environment.SPORTA_DEPLOY_BACKUP = opt.backup
   if (opt.only) environment.SPORTA_DEPLOY_ONLY = opt.only
+  if (opt.mode === 'scan' && opt.scan === 'json') environment.SPORTA_SCAN_WHICH = 'json'
   const doc = {
     services: {
       deploy: {
@@ -379,7 +385,7 @@ async function run() {
   if (mode === 'scan') {
     process.env.SPORTA_SCAN_ROOT ??= LIVE
     if (PROBE_BASE) process.env.SPORTA_SCAN_BASE ??= PROBE_BASE
-    await import('./live-scan.mjs')
+    await import(process.env.SPORTA_SCAN_WHICH === 'json' ? './json-scan.mjs' : './live-scan.mjs')
     return
   }
 
