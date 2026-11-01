@@ -333,8 +333,18 @@ if ($r === 'brands') {
 if ($r === 'stock') {
     // Same columns as the product_stock view — and NOT cost_aed, which is the
     // one commercially sensitive number in the schema.
+    //
+    // Only variants of products the shop LISTS. A product the owner switched
+    // off (active = 0), or whose row is gone while its variants remain (there
+    // is no foreign key from variants to products), used to be served here all
+    // the same — SKU, sizes and counts of lines not on sale, to anyone who
+    // asked. The storefront can never show such a product, so no visitor loses
+    // anything; the admin's inventory reads its own route (admin.php?r=variants).
+    // Found by scripts/json-scan.mjs: five live stock rows with no catalogue entry.
     $rows = $db->query(
-        'select slug, size, sku, stock, (stock > 0) as in_stock from product_variants'
+        'select v.slug, v.size, v.sku, v.stock, (v.stock > 0) as in_stock
+           from product_variants v
+           join products p on p.slug = v.slug and p.active = 1'
     )->fetchAll();
     foreach ($rows as &$row) {
         $row['stock'] = (int)$row['stock'];

@@ -73,6 +73,22 @@ const order = (track, items, extra = {}) =>
   const { body: stock } = await api('stock')
   is(stock.length === 42 && 'in_stock' in stock[0], 'stock has the product_stock view shape', `${stock.length} rows`)
   is(!JSON.stringify(stock).includes('cost'), 'the public stock endpoint never leaks the wholesale cost')
+
+  // Only LISTED products. A switched-off product's sizes and counts, and the
+  // variants of a product whose row is gone, are not shop-window data — the
+  // live feed carried five such rows until the JSON scan counted them.
+  const hidden = stock[0].slug
+  const hiddenRows = stock.filter((r) => r.slug === hidden).length
+  await run('mariadb', ['sporta', '-e',
+    `update products set active = 0 where slug = '${hidden}'; ` +
+    "insert into product_variants (sku, slug, size, stock) values ('ORPHAN-TEST', 'no-such-product', 'm', 5)"])
+  const { body: listed } = await api('stock')
+  is(!listed.some((r) => r.slug === hidden) && listed.length === 42 - hiddenRows,
+     'a product switched off in the admin takes its stock rows out of the public feed', `${listed.length} rows`)
+  is(!listed.some((r) => r.sku === 'ORPHAN-TEST'), 'variants with no product row are not served either')
+  await run('mariadb', ['sporta', '-e',
+    `update products set active = 1 where slug = '${hidden}'; delete from product_variants where sku = 'ORPHAN-TEST'`])
+  is((await api('stock')).body.length === 42, 'and switching it back on restores them')
 }
 
 // ---------------------------------------------------------------- create order
