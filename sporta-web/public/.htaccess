@@ -13,7 +13,7 @@
   RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
 </IfModule>
 
-# ---- index.html is the homepage, never index.php ----
+# ---- index.html is the fallback homepage, never index.php ----
 # The live server still has an index.php from the previous PHP site sitting
 # beside index.html. Hostinger's default DirectoryIndex lists index.php first,
 # so "/" would serve the OLD site while every deep route served the new one —
@@ -25,12 +25,48 @@ DirectoryIndex index.html
 # old site (images/, fonts/, private/) with no index file of their own.
 Options -Indexes
 
+# The previous PHP deployment may leave a physical /backends directory beside
+# the SPA.  Apache's mod_dir can issue DirectorySlash before that directory
+# reaches the SPA rewrite, which creates a /backends <-> /backends/ loop when
+# an old redirect is still present.  No directory in the storefront needs a
+# slash-only index, so disable that automatic redirect; the explicit route
+# rules below own /backends and /backends/ instead.
+<IfModule mod_dir.c>
+  DirectorySlash Off
+</IfModule>
+
 # ---- Canonicalise host + scheme in a SINGLE 301 (never chain redirects) ----
 # Everything on the site declares https://www.sporta.com.kw as canonical, so any
 # other spelling of the URL jumps straight there in one hop. Rule 1 fixes host
 # AND scheme together, so http://sporta.com.kw/x is ONE redirect, not two.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Aliases sit ABOVE the host rule so sporta.com.kw/x also lands in ONE hop.
+  # ---- Old-site URLs Google still requests -> the page that replaced them ----
+  # Seen in the live access log 2026-10-31 (/women, /privacy-policy?lang=en, an
+  # /image/cache/catalog/... photo), each answering 404 and wasting the link
+  # equity the old shop had built. ONE 301 straight to the canonical https://www
+  # address (never a path-only target: behind the TLS proxy that would expand to
+  # http:// and add a hop). No "?" in the targets, so ?lang=en rides along;
+  # QSA merges it with the category query.
+  RewriteRule ^(women|men|accessories)/?$ https://www.sporta.com.kw/shop?category=$1 [NC,R=301,L,QSA]
+  RewriteRule ^privacy-policy/?$ https://www.sporta.com.kw/privacy [NC,R=301,L]
+  RewriteRule ^(terms-and-conditions|terms-conditions)/?$ https://www.sporta.com.kw/terms [NC,R=301,L]
+  RewriteRule ^(return-policy|returns-policy)/?$ https://www.sporta.com.kw/returns [NC,R=301,L]
+  RewriteRule ^about-us/?$ https://www.sporta.com.kw/about [NC,R=301,L]
+  RewriteRule ^contact-us/?$ https://www.sporta.com.kw/contact [NC,R=301,L]
+  # Policy addresses people type or old links use (added 2026-10-31).
+  # /shipping keeps ?lang=en and lands on the delivery section of /terms.
+  RewriteCond %{QUERY_STRING} ^(.+)$
+  RewriteRule ^(shipping|delivery|shipping-policy|delivery-policy)/?$ https://www.sporta.com.kw/terms?%1#delivery [NC,R=301,L,NE,QSD]
+  RewriteRule ^(shipping|delivery|shipping-policy|delivery-policy)/?$ https://www.sporta.com.kw/terms#delivery [NC,R=301,L,NE]
+  RewriteRule ^(refund|refunds|refund-policy|return)/?$ https://www.sporta.com.kw/returns [NC,R=301,L]
+  RewriteRule ^policy/?$ https://www.sporta.com.kw/privacy [NC,R=301,L]
+  RewriteRule ^policies/?$ https://www.sporta.com.kw/terms [NC,R=301,L]
+  # The old catalogue's image cache is gone for good. 410 Gone makes Google drop
+  # those URLs sooner than a 404 does; today's photos live under /images/.
+  RewriteRule ^image/(cache|catalog)/ - [NC,G,L]
 
   # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
   # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
@@ -78,12 +114,17 @@ Options -Indexes
   # subfolder and 301 any nested index.php a dropin might add.
   RewriteCond %{REQUEST_URI} ^/index\.php$
   RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
+  
 
-  # /shop/ -> /shop . Canonicals and internal links never use a trailing slash;
-  # this stops the slashed spelling becoming a second indexable URL.
-  # !-d keeps real directories (/assets/) working.
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^(.+?)/+$ https://www.sporta.com.kw/$1 [R=301,L]
+  # Keep the owner's saved panel link working without executing a legacy PHP file.
+  # The query also bypasses an old cached /backends <-> /backends/ redirect
+  # pair in browsers that visited the previous deployment.
+  RewriteRule ^panel\.php$ https://www.sporta.com.kw/backends?via=panel-20261026 [R=302,L,NE]
+
+  # Do not canonicalise trailing slashes globally. SPA product links may be
+  # opened with either spelling, and a proxy/browser can replay the redirect
+  # while the client router restores its canonical product URL. Both spellings
+  # are accepted by the explicit SPA rules below, avoiding redirect loops.
 </IfModule>
 
 # ---- SPA routing: only KNOWN routes become 200 ----
@@ -102,40 +143,59 @@ Options -Indexes
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
 
-  # THE PRODUCT SITEMAP IS GENERATED, NOT STORED, and this rule has to sit
-  # ABOVE the "real files win" block below or the stale static copy is served
-  # and the PHP is never reached.
-  #
-  # The static file is built from the fallback site's catalogue at build time;
-  # the real catalogue is MySQL, edited in /backends. They drift the first time
-  # a product is added there, and the drift is invisible — a new product simply
-  # never gets crawled, and a removed one becomes a soft-404 that answers 200.
-  #
-  # Conditional on the PHP existing, so a deployment without api/ falls back to
-  # the static copy rather than 500ing on the one URL Google fetches most.
+  # Resolve the XML endpoints before the real-file guard: generated static XML
+  # files are kept beside these routes as safe fallbacks when the PHP drop-in
+  # or database is unavailable. The live product map reads active DB products.
+  RewriteCond %{DOCUMENT_ROOT}/api/sitemap-index.php -f
+  RewriteRule ^sitemap\.xml$ /api/sitemap-index.php [END]
   RewriteCond %{DOCUMENT_ROOT}/api/sitemap-products.php -f
-  RewriteRule ^sitemap-products\.xml$ /api/sitemap-products.php [L]
+  RewriteRule ^sitemap-products\.xml$ /api/sitemap-products.php [END]
+
+  # Initial HTML metadata must describe the requested route even for crawlers
+  # that do not run React. A missing PHP drop-in still leaves the static shell.
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^$ /api/seo-page.php [END]
+
+  # The old deployment may leave a physical /backends directory beside the
+  # new SPA. Route this admin URL before the real-directory guard; otherwise
+  # Apache's DirectorySlash handling wins and /backends and /backends/ can
+  # redirect forever without ever reaching React Router.
+  # A trailing slash on the admin address is not a page: 404 it, as any unknown path is.
+  RewriteRule ^backends/+$ - [R=404,L]
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^backends(/.*)?$ /api/seo-page.php [END]
+  RewriteRule ^backends/?$ /index.html [END]
+  RewriteRule ^backends/.*$ /index.html [END]
 
   # Real files and directories always win (assets, sitemap.xml, robots.txt…).
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /index.html [L]
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^(shop|cart|checkout|account|about|contact|support|wishlist|track|returns|exchange|terms|privacy|review)/?$ /api/seo-page.php [END]
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^product/[^/]+/?$ /api/seo-page.php [END]
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^payment/result/?$ /api/seo-page.php [END]
+  RewriteCond %{DOCUMENT_ROOT}/api/seo-page.php -f
+  RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /api/seo-page.php [END]
+
+  RewriteRule ^(shop|cart|checkout|account|about|contact|support|wishlist|track|returns|exchange|terms|privacy|review)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
   # /invoice/<order number>. A parameterised route, so it needs its own rule —
   # the alternation list above only matches fixed paths.
   RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
-  RewriteRule ^backends(/.*)?$         /index.html [L]
 </IfModule>
 
 # Unknown URL -> SPA shell rendered with a real 404 status (not a soft 404).
 # React Router still sees the original path and renders the NotFound page.
 ErrorDocument 404 /index.html
 
-# Unknown product slugs stay 200 by design: the server cannot know the
-# catalogue, and ProductDetail already sends robots "noindex, follow" for them.
+# A live database now distinguishes active products from missing/inactive
+# slugs, returning a real 404 and noindex. On database outage the static shell
+# still loads, with X-Robots-Tag noindex until the catalogue can be checked.
 
 # ---- HSTS: tell browsers to always use HTTPS for this domain ----
 <IfModule mod_headers.c>
@@ -185,7 +245,7 @@ FileETag MTime Size
   # be stuck in browser caches for a year. 30 days, and for the week after that
   # the old copy is drawn immediately while the new one is fetched behind it, so
   # the visit after a month is not slower than the ones before it.
-  <FilesMatch "\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+  <FilesMatch "\.(woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
     Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=604800"
   </FilesMatch>
 
@@ -240,6 +300,13 @@ FileETag MTime Size
   <Files "config.js">
     Header set Cache-Control "no-cache, must-revalidate"
   </Files>
+
+# boot.js and backends-offline.css have fixed names (not hashed), so like sw.js
+# and config.js they must revalidate — they had NO Cache-Control and every cache
+# guessed (found by the 2026-10-31 CSS scan).
+<FilesMatch "^(boot\.js|birthday\.js|sporta-footer-call\.js|sporta-admin-brands\.js|sporta-features\.js|sporta-brand-theme\.css|sporta-home-trim\.css|sporta-cart-drawer\.css|sporta-grid\.css|sporta-bag-touch\.css|sporta-cat-tiles\.css|sporta-gov-autopick\.js|sporta-admin-knet\.css|sporta-returns-touch\.css|sporta-clock\.css|sporta-clock\.js|sporta-ui-colours\.css|sporta-checkout-a11y\.(css|js)|sporta-shadows\.css|sporta-images\.css|sporta-product-fix\.css|backends-offline\.css)$">
+  Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
 
   # HTML always revalidates, so a deploy is picked up on the next visit.
   #
@@ -300,21 +367,36 @@ FileETag MTime Size
   # and wrong for one a script is meant to read, and silently breaking a future
   # feature is worse than this rule not covering it. The payment endpoints, where
   # no script reads anything, do force it — see dropin/php-*/.htaccess.
-  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
-  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+  # LiteSpeed does not implement Header edit and otherwise emits a literal
+  # "edit" response header. PHP sets Strict/HttpOnly on the admin session;
+  # retain the Apache fallback only where that operation is supported.
+  <IfModule !LiteSpeed>
+    Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+    Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+  </IfModule>
 
   # Turn off browser features the storefront never uses.
   Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
 
   # Content-Security-Policy.
-  # 'unsafe-inline' is required for script-src because index.html carries
-  # inline JSON-LD (and the static build of this site carries inline page
-  # scripts). Even so the policy still blocks third-party script hosts,
-  # <object>/<embed>, <base> hijacking and cross-origin framing.
+  # No 'unsafe-inline' in script-src. The live site keeps its boot code in
+  # /boot.js and ships plain script-src 'self'; this repo's index.html still
+  # inlines two boot scripts, so the build writes their sha256 hashes into the
+  # placeholder below (scripts/csp-hashes.mjs, run as postbuild) and the
+  # policy allows those exact bytes and nothing else. JSON-LD is inert
+  # structured data, and page metadata is written with textContent, not
+  # executable code. This turns reflected HTML into text rather than a script
+  # execution path.
   # connect-src is same-origin only now that /api is the whole backend;
-  # fonts.* cover Google Fonts;
+  # use.typekit.net serves the licensed Adobe font CSS and font files;
+  # p.typekit.net is the empty CSS import Adobe includes in each published kit;
   # form-action lists the KNET gateway in case pay.php ever posts a form.
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://use.typekit.net; style-src 'self' 'unsafe-inline' https://use.typekit.net https://p.typekit.net; script-src 'self' __SCRIPT_HASHES__; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  Header set Cross-Origin-Resource-Policy "same-origin"
+</IfModule>
+
+<IfModule LiteSpeed>
+  ForceSecureCookie secure
 </IfModule>
 
 # ---- Dotfiles, everywhere, by NAME ----
@@ -341,7 +423,7 @@ FileETag MTime Size
 # turns up whenever a folder is re-zipped on a Mac and re-uploaded.
 RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
 
-<FilesMatch "^\.">
+<FilesMatch "^\.(?!well-known$)">
   Require all denied
 </FilesMatch>
 
@@ -391,4 +473,15 @@ ServerSignature Off
 
 <IfModule mod_mime.c>
   AddType application/manifest+json .webmanifest
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType font/otf .otf
+</IfModule>
+
+# sporta-session
+<IfModule mod_php.c>
+php_value session.gc_maxlifetime 7200
+php_flag session.cookie_httponly on
+php_value session.cookie_samesite Lax
 </IfModule>
