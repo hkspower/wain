@@ -111,7 +111,7 @@ try {
     const doc = JSON.parse(plan.out)
     const svc = doc.services.deploy
     is(svc.volumes[0] === '/docker/sporta:/sporta:ro', 'a plan mounts the server READ-ONLY', svc.volumes[0])
-    is(!/curl|wget/.test(plan.out), 'no curl or wget anywhere (the API refuses either word)')
+    is(!/curl|wget|require\(/.test(plan.out), 'no curl, wget or require( anywhere (the API firewall refuses each)')
     is(svc.command[0].includes('$$p') && !/[^$]\$p\b/.test(svc.command[0]), 'shell variables are escaped for Compose ($$)')
     is(svc.environment.SPORTA_DEPLOY_TARBALL === 'https://codeload.github.com/hkspower/wain/tar.gz/refs/heads/main',
        'a branch ref downloads that branch from GitHub', svc.environment.SPORTA_DEPLOY_TARBALL)

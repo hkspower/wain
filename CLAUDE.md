@@ -341,7 +341,7 @@
   Hostinger API connector: one-shot Docker Compose projects on VM `2058651`
   (read-only containers for scans, the `sporta-deploy` job for deploys). HTTP
   checks of the site therefore run ON the VPS, in Node — the API refuses a
-  compose file containing the words `curl` or `wget` (measured: 403). A deploy
+  compose file containing `curl`, `wget` or `require('fs')` (each measured: 403). A deploy
   has happened only when the job's log says `DEPLOY_OK`; say so plainly.
 - Adding a route to `sporta-web/src/App.jsx` also requires adding it to the
   known-route list in `sporta-web/public/.htaccess`, or it will 404 in

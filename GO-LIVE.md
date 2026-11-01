@@ -15,7 +15,7 @@ from a session with the Hostinger connector. On the VPS the job downloads this
 repository **at a pinned commit** from GitHub, builds it exactly as
 `npm run release` does, runs the file audit, and compares every file with
 what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
-(the Hostinger API refuses a job containing either word; the job uses Node).
+(the Hostinger API firewall refuses a job containing either word, or `require('fs')`; the job uses Node and an ES-module import).
 
 | Step | Command | What it changes |
 |---|---|---|

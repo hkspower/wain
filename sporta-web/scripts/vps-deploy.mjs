@@ -19,9 +19,11 @@
 //      from the downloaded tree — so the deploy logic is always the version
 //      that ships with the code being deployed.
 //
-// No `curl` and no `wget` anywhere in the job, on purpose: the Hostinger API
-// refuses a request whose compose file contains either word (measured: 403),
-// so every HTTP call here is Node's own. That includes the health checks.
+// No `curl`, no `wget` and no `require('fs')` anywhere in the job, on
+// purpose: the Hostinger API's firewall refuses a compose file containing any
+// of them (each measured: 403 before the request reaches the VPS). Every HTTP
+// call here is Node's own fetch/https, including the health checks, and the
+// download line imports node:fs as an ES module instead of require()-ing it.
 //
 // THREE MODES.
 //   plan      (default) Read-only. /docker/sporta is mounted read-only. Builds,
@@ -123,7 +125,7 @@ function composeCommand(argv) {
     'for p in php84 php83; do if [ -x /usr/bin/$p ]; then ln -sf /usr/bin/$p /usr/local/bin/php; break; fi; done',
     'command -v php >/dev/null || { echo "DEPLOY_FAIL no php for the file audit"; exit 1; }',
     'mkdir -p /work && cd /work',
-    'node -e "fetch(process.env.SPORTA_DEPLOY_TARBALL).then(async r => { if (!r.ok) { console.error(\'DEPLOY_FAIL download \' + r.status); process.exit(1) } require(\'fs\').writeFileSync(\'src.tgz\', Buffer.from(await r.arrayBuffer())) })"',
+    'node --input-type=module -e "import { writeFileSync } from \'node:fs\'; const r = await fetch(process.env.SPORTA_DEPLOY_TARBALL); if (!r.ok) { console.error(\'DEPLOY_FAIL download \' + r.status); process.exit(1) } writeFileSync(\'src.tgz\', Buffer.from(await r.arrayBuffer()))"',
     'tar xzf src.tgz --strip-components=1',
     'exec node sporta-web/scripts/vps-deploy.mjs run',
   ].join('\n')
@@ -155,8 +157,8 @@ function composeCommand(argv) {
     },
   }
   const out = JSON.stringify(doc)   // JSON is YAML; Compose accepts it as is.
-  for (const word of ['curl', 'wget']) {
-    if (out.includes(word)) throw new Error(`compose contains "${word}" — the Hostinger API refuses that`)
+  for (const word of ['curl', 'wget', 'require(']) {
+    if (out.includes(word)) throw new Error(`compose contains "${word}" — the Hostinger API's firewall refuses that`)
   }
   process.stdout.write(out + '\n')
   console.error(`project: sporta-deploy · mode: ${opt.mode} · ref: ${opt.ref}`)
