@@ -45,8 +45,9 @@ import { classifyError, deadlineFetch, describeNetError } from "@/lib/net";
  * One shared secret, `storage/admin.secret` on the server, sent as
  * `X-Wain-Admin`. It lives in sessionStorage here — gone when the tab closes,
  * never in a cookie (so no CSRF surface), never in the URL. Until the owner
- * fills the file in, every admin action answers 503 `admin_unset` and the
- * board says so instead of pretending a password would work.
+ * fills the file in, every admin action answers 503 `admin_unset`; and while
+ * the file holds fewer than 32 bytes, 503 `admin_weak`. The board says so in
+ * both cases instead of pretending a password would work.
  */
 
 const RAW = process.env.NEXT_PUBLIC_WAIN_BACKEND || "/api/wain.php";
@@ -71,7 +72,7 @@ export function backendOrigin(): string {
 export interface ApiFailure {
   ok: false;
   /** The server's own word (`invalid`, `duplicate`, `closed`, `rate_limited`,
-   *  `admin_unset`…), or one of three this module adds: `disabled` (the build
+   *  `admin_unset`, `admin_weak`…), or one of three this module adds: `disabled` (the build
    *  has no back end), `not_installed` (the host answered with its 404 page —
    *  the file is not there), `bad_reply` (something that was not JSON). */
   error: string;
@@ -213,6 +214,8 @@ export function describeApiFailure(r: ApiFailure, fallback: string): string {
       return "طلبات كثيرة بسرعة. استنى شوي وجرّب مرة ثانية.";
     case "admin_unset":
       return "لوحة التحكّم مو مفعّلة على السيرفر بعد — ما فيه كلمة سر في storage/admin.secret.";
+    case "admin_weak":
+      return "لوحة التحكّم مو مفعّلة — كلمة السر في storage/admin.secret أقصر من ٣٢ حرف، لازم تستبدلها.";
     case "admin_required":
     case "admin_forbidden":
       return "كلمة السر مو مضبوطة.";

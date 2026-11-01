@@ -38,9 +38,12 @@
  *    MySQL this repository can have: the sandbox has no MySQL server.
  *  • Admin by one shared secret in `storage/admin.secret`, sent as
  *    `X-Wain-Admin`. The installer creates the file EMPTY and never fills it;
- *    while it is empty every admin action answers 503 `admin_unset`. Fail
- *    closed, same as `elevenlabs.key` and `media-admin.key`. No cookies, so no
- *    CSRF surface; the secret lives in the admin's sessionStorage.
+ *    while it is empty every admin action answers 503 `admin_unset`, and while
+ *    it is shorter than ADMIN_SECRET_MIN bytes 503 `admin_weak`, before any
+ *    guess is compared or counted. A signed media read is keyed on the same
+ *    secret, so it gets the same refusal. Fail closed, same as `elevenlabs.key`
+ *    and `media-admin.key`. No cookies, so no CSRF surface; the secret lives in
+ *    the admin's sessionStorage.
  *  • Pending photos are read through signed URLs (HMAC on the secret, ten
  *    minutes), published by copying into `public_html/images/business/`, a
  *    directory `deploy.php`'s PROTECTED_PATHS already keeps a deploy's prune out
@@ -129,6 +132,14 @@ const ADMIN_ACTIONS = ['whoami', 'places_all', 'place_save', 'place_delete', 'pl
                        'place_location', 'orders_list', 'order_set_status', 'queue_list',
                        'queue_set_status', 'submissions_list', 'submission_reject',
                        'submission_approve', 'media_sign', 'media_publish', 'media_discard', 'gaps_list'];
+
+/** The shortest admin secret the endpoint will compare against, in BYTES: the
+ *  length of the trimmed file, as strlen() reads it. For an ASCII secret that is
+ *  the 32 characters docs/admin-setup.md asks for. A non-ASCII secret takes two
+ *  or more bytes a letter, so 16 Arabic letters pass here while the docs ask for
+ *  32 characters: this reading is the looser one for those. A four-digit secret
+ *  was accepted and guessable in minutes (14 October login scan, finding 2). */
+const ADMIN_SECRET_MIN = 32;
 
 /* ── the log ────────────────────────────────────────────────────────────────
    Identical in shape and promises to /api/tts.php's and /api/media.php's, and
@@ -935,6 +946,18 @@ function sendOrderMail(string $to, array $mail): bool {
     return @mail($to, $subject, chunk_split(base64_encode($mail['body'])), $headers, '-f' . MAIL_FROM);
 }
 
+/** The admin secret's state as `version` reports it: keyState()'s own words for
+ *  a missing or blank file (ABSENT, EMPTY), then whether the trimmed secret
+ *  reaches ADMIN_SECRET_MIN bytes. The contents, and their length, never leave
+ *  this function. Kept out of the shared helper block above, which the three
+ *  bridges keep byte-alike, because only admin.secret has a length rule: the
+ *  other keys are reported by keyState() alone. */
+function adminSecretState(string $file): string {
+    $state = keyState($file);
+    if ($state !== 'present') return $state;
+    return strlen(trim((string) @file_get_contents($file))) < ADMIN_SECRET_MIN ? 'weak' : 'set';
+}
+
 /* ── CLI: install / version / selftest / seed / migrate / log ───────────────*/
 if (PHP_SAPI === 'cli') {
     $home   = getenv('HOME') ?: __DIR__;
@@ -1019,8 +1042,17 @@ if (PHP_SAPI === 'cli') {
             'installed' => array_map(static fn($p) => ['path' => $p, 'fingerprint' => $print($p)], $targets),
             /* The runtime's own predicate (trim()), never is_file — the
                installer creates the file EMPTY on purpose, and «it exists» is
-               true in exactly the state where every admin action is refused. */
-            'adminSecret' => keyState($secretFile),
+               true in exactly the state where every admin action is refused.
+               ABSENT and EMPTY are keyState()'s words; weak and set are the two
+               states a non-empty file can be in (adminSecretState). */
+            'adminSecret' => adminSecretState($secretFile),
+            /* The mode as the file has it now, so a paste that widened it shows.
+               Octal, four digits: "0600" is the installer's. Null without a file. */
+            'adminSecretMode' => (static function (string $f): ?string {
+                if (!is_file($f)) return null;
+                $perms = @fileperms($f);
+                return $perms === false ? null : substr(sprintf('%o', $perms), -4);
+            })($secretFile),
             'engine'    => $cfg['driver'] === 'mysql'
                 ? ['driver' => 'mysql', 'dsn' => preg_replace('/password=[^;]*/i', 'password=…', $cfg['dsn'])]
                 : ['driver' => 'sqlite', 'file' => $cfg['file'], 'exists' => is_file($cfg['file']),
@@ -1405,6 +1437,10 @@ $givenAdmin = $_SERVER['HTTP_X_WAIN_ADMIN'] ?? null;
 $isAdmin = false;
 if (is_string($givenAdmin) && $givenAdmin !== '') {
     if ($secret === '') $fail(503, 'admin_unset');
+    /* A short secret is refused before the comparison and before any wrong guess
+       is counted, so it is never guessed at and no visitor's allowance is spent
+       on one. The length is bytes (ADMIN_SECRET_MIN). */
+    if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
     if (!hash_equals($secret, $givenAdmin)) {
         /* A wrong guess is counted against the visitor's own bucket BEFORE the
            sleep, so guessing spends the allowance every other request spends and
@@ -1456,6 +1492,7 @@ $needsAdmin = in_array($action, ADMIN_ACTIONS, true)
     || ($action === 'queue_join' && (($in['source'] ?? 'online') === 'walk_in'));
 if ($needsAdmin && !$isAdmin) {
     if ($secret === '') $fail(503, 'admin_unset');
+    if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
     $fail(403, 'admin_required');
 }
 
@@ -1500,8 +1537,10 @@ try {
     /* ── public ──────────────────────────────────────────────────────────── */
 
     case 'ping':
+        /* The board reads this to choose its first screen: `unset` and `weak` both
+           mean a password cannot work yet, so it shows the fix instead of a form. */
         $ok(['service' => 'wain-api', 'stage' => $stage, 'engine' => $db->driver, 'time' => nowIso(),
-             'admin' => $secret === '' ? 'unset' : 'set']);
+             'admin' => $secret === '' ? 'unset' : (strlen($secret) < ADMIN_SECRET_MIN ? 'weak' : 'set')]);
 
     case 'places':
         $rows = $db->all('SELECT * FROM places WHERE published = 1 ORDER BY sort_order ASC, created_at ASC');
@@ -1916,6 +1955,11 @@ try {
         $file = $pendingFile($path);
         if ($file === null) $fail(400, 'bad_path');
         if ($secret === '') $fail(503, 'admin_unset');
+        /* The signature is an HMAC keyed on the secret, so a short key is a search an
+           attacker can run offline: a four-character key was recovered from one signed
+           URL in 17 seconds. Refused before the signature is compared, as the admin
+           gate refuses it. */
+        if (strlen($secret) < ADMIN_SECRET_MIN) $fail(503, 'admin_weak');
         if ($exp < time()) $fail(403, 'expired');
         if (!hash_equals($mediaSig($path, $exp), $sig)) $fail(403, 'bad_signature');
         if (!is_file($file)) $fail(404, 'not_found');

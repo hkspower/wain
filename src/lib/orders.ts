@@ -61,6 +61,37 @@ export function orderChannel(place: Place): OrderChannel | null {
 }
 
 /**
+ * Raised where the browser has no random source. The name is the reason, so a
+ * caller can tell this apart from a network failure without reading a message.
+ */
+class NoCryptoError extends Error {
+  constructor() {
+    super("no_crypto");
+    this.name = "no_crypto";
+  }
+}
+
+/**
+ * The browser's cryptographic random bytes, or NoCryptoError. There is no
+ * Math.random fallback, and that is the rule this module keeps: the token is
+ * the customer's only proof of an order, and Math.random is not built to
+ * resist prediction. The fallback was here until the 14 October login scan
+ * found it. Every browser in scope has getRandomValues, so the branch never
+ * ran; a dead fallback with a weak generator behind it is still a weak
+ * credential the day a browser lacks the API.
+ */
+function randomBytes(length: number): Uint8Array {
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new NoCryptoError();
+  }
+  return crypto.getRandomValues(new Uint8Array(length));
+}
+
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * The order's id and the secret that proves it is yours.
  *
  * Both are made here, on the customer's device, and that is not a stylistic
@@ -75,18 +106,19 @@ export function orderChannel(place: Place): OrderChannel | null {
  */
 export function newOrderId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  // Older Safari. Only needs to be unique, not unguessable — that is the
-  // token's job.
-  const h = () => Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
-  return `${h()}${h()}-${h()}-4${h().slice(1)}-a${h().slice(1)}-${h()}${h()}${h()}`;
+  // Older Safari has getRandomValues but not randomUUID. The id only needs to
+  // be unique, not unguessable — that is the token's job — but it is still
+  // drawn from the same source as the token.
+  const b = randomBytes(16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = hex(b);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 /** 32 hex characters of real randomness. The database requires 20 to 64. */
 export function newTrackToken(): string {
-  const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(bytes);
-  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return hex(randomBytes(16));
 }
 
 /**
@@ -106,9 +138,22 @@ export interface OrderAttempt {
   token: string;
 }
 
+/**
+ * Mints the attempt a panel holds. Called while the panel renders, so it must
+ * not throw: where the browser has no random source the attempt comes back with
+ * no id and no token, and submitOrder refuses that before anything leaves the
+ * device, with the same kind of message a failed save gets.
+ */
 export function newOrderAttempt(): OrderAttempt {
-  return { id: newOrderId(), token: newTrackToken() };
+  try {
+    return { id: newOrderId(), token: newTrackToken() };
+  } catch (err) {
+    if (err instanceof NoCryptoError) return { id: "", token: "" };
+    throw err;
+  }
 }
+
+const NO_CRYPTO_AR = "ما قدرنا نجهّز الطلب على هذا المتصفح. جرّب من متصفح ثاني، أو اتصل بالمكان مباشرة.";
 
 export type OrderStatus = "placed" | "ready" | "collected" | "cancelled";
 
@@ -330,7 +375,7 @@ export async function cancelOrder(
 
 export type OrderResult =
   | { ok: true; reference: string; tracked: TrackedOrder }
-  | { ok: false; reason: "disabled" | "invalid" | "network"; message: string };
+  | { ok: false; reason: "disabled" | "invalid" | "network" | "unsupported"; message: string };
 
 export type WhatsAppOrderResult =
   | {
@@ -343,7 +388,7 @@ export type WhatsAppOrderResult =
       text: string;
       url: string;
     }
-  | { ok: false; reason: "invalid"; message: string };
+  | { ok: false; reason: "invalid" | "unsupported"; message: string };
 
 /**
  * Send one basket to the shop's WhatsApp.
@@ -366,6 +411,7 @@ export function sendWhatsAppOrder(
 ): WhatsAppOrderResult {
   const problems = validateOrder(input, { phoneRequired: false });
   if (problems.length) return { ok: false, reason: "invalid", message: problems[0] };
+  if (!attempt.id || !attempt.token) return { ok: false, reason: "unsupported", message: NO_CRYPTO_AR };
 
   const reference = orderReference(attempt.id);
   const text = buildOrderMessage({
@@ -431,6 +477,7 @@ export async function submitOrder(
       message: "الطلب المسبق مو متاح حالياً. اتصل بالمكان مباشرة.",
     };
   }
+  if (!attempt.id || !attempt.token) return { ok: false, reason: "unsupported", message: NO_CRYPTO_AR };
 
   const phone = normalisePhone(input.customerPhone);
   const { id, token } = attempt;

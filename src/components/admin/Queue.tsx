@@ -138,6 +138,12 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
     if (phone === null) { setError("رقم الهاتف مو مضبوط. خلّه فاضي إذا ما عندك."); return; }
 
     const attempt = newQueueAttempt();
+    // Without a random source the attempt has no id or token, and the server would
+    // answer invalid. Say what is wrong on this browser instead (the tracking-token rule).
+    if (!attempt.id || !attempt.token) {
+      setError("ما قدرنا نضيف الزبون من هذا المتصفح. جرّب من متصفح ثاني.");
+      return;
+    }
     const placeName = rows.find((r) => r.place_slug === chosen)?.place_name_ar ?? chosen;
     setAdding(true);
     // The same action the app uses, with `walk_in` — which the server accepts

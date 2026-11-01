@@ -18,9 +18,9 @@
 import { spawn, execFileSync } from "node:child_process";
 import {
   mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync,
-  statSync, utimesSync,
+  statSync, utimesSync, chmodSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -697,6 +697,121 @@ try {
     ok("another visitor is not caught by it", neighbour.status === 200, String(neighbour.status));
     const rightSecret = await call("whoami", undefined, { admin: true, headers: via });
     ok("the right secret is exempt even from a visitor over the limit", rightSecret.status === 200, String(rightSecret.status));
+    rmSync(trusted);
+  }
+
+  console.log("\n── a short admin secret is admin_weak, before any guess is compared or counted ──");
+  {
+    /* The length is measured in BYTES after trim(), the way the endpoint reads
+       the file. The 4-character and 31-byte secrets exist only to be refused:
+       the suite's shared SECRET stays 42 bytes, so every section above still
+       reaches the comparison. Each wrong guess below comes from a visitor of its
+       own, so no two guesses share a counter. */
+    const sha = (x) => createHash("sha256").update(x).digest("hex");
+    const secretPath = join(storage, "admin.secret");
+    const counter = (ip) => join(storage, "wain-rate", `all-${sha(ip)}.json`);
+    const trusted = join(storage, "trusted-proxies.txt");
+    const setSecret = (text) => { writeFileSync(secretPath, text); chmodSync(secretPath, 0o600); };
+    const from = (ip) => ({ "X-Forwarded-For": ip });
+    writeFileSync(trusted, "127.0.0.1\n");
+
+    setSecret("Zq9-\n");
+    const v1 = "192.0.2.61";
+    ok("no counter exists for the visitor before the guess", !existsSync(counter(v1)));
+    const wrong = await call("whoami", undefined, { admin: true, token: "guess", headers: from(v1) });
+    ok("a wrong header against a 4-character secret is 503 admin_weak, not 403 admin_forbidden",
+      wrong.status === 503 && wrong.json?.error === "admin_weak", `${wrong.status} ${j(wrong.json)}`);
+    ok("and that wrong guess created no counter for the visitor", !existsSync(counter(v1)));
+    const right = await call("whoami", undefined, { admin: true, token: "Zq9-", headers: from(v1) });
+    ok("the right 4-character header is refused too: a short secret never becomes a login",
+      right.status === 503 && right.json?.error === "admin_weak", `${right.status} ${j(right.json)}`);
+    const bare = await call("orders_list");
+    ok("an admin action with no header is 503 admin_weak as well, as admin_unset is",
+      bare.status === 503 && bare.json?.error === "admin_weak", `${bare.status} ${j(bare.json)}`);
+
+    const v2 = "192.0.2.62";
+    writeFileSync(counter(v2), JSON.stringify({ start: Math.floor(Date.now() / 1000), n: 5 }));
+    await call("whoami", undefined, { admin: true, token: "guess", headers: from(v2) });
+    const n2 = JSON.parse(readFileSync(counter(v2), "utf8")).n;
+    ok("a wrong guess does not raise a live counter that is already running (still 5)", n2 === 5, String(n2));
+
+    setSecret("x".repeat(31) + "\n");
+    const v3 = "192.0.2.63";
+    const w31 = await call("whoami", undefined, { admin: true, token: "y".repeat(31), headers: from(v3) });
+    ok("31 bytes is still short: a wrong header is 503 admin_weak", w31.status === 503 && w31.json?.error === "admin_weak", `${w31.status} ${j(w31.json)}`);
+    const r31 = await call("whoami", undefined, { admin: true, token: "x".repeat(31), headers: from(v3) });
+    ok("and the right 31-byte header is refused the same way", r31.status === 503 && r31.json?.error === "admin_weak", `${r31.status} ${j(r31.json)}`);
+
+    setSecret("x".repeat(32) + "\n");
+    const v4 = "192.0.2.64";
+    const w32 = await call("whoami", undefined, { admin: true, token: "y".repeat(32), headers: from(v4) });
+    ok("32 bytes reaches the comparison: a wrong header is 403 admin_forbidden", w32.status === 403 && w32.json?.error === "admin_forbidden", `${w32.status} ${j(w32.json)}`);
+    const r32 = await call("whoami", undefined, { admin: true, token: "x".repeat(32), headers: from(v4) });
+    ok("and the right 32-byte header is admin", r32.status === 200 && r32.json?.admin === true, `${r32.status} ${j(r32.json)}`);
+
+    const cliText = (...args) => execFileSync("php", [PHP_FILE, ...args], { encoding: "utf8", env: { ...process.env, HOME: dir } });
+    setSecret("Zq9-\n");
+    const shortRaw = cliText("version");
+    const short = JSON.parse(shortRaw);
+    ok("version reports weak for a 4-character file", short.adminSecret === "weak", j(short.adminSecret));
+    ok("version reports the file's mode as octal, 0600 here", short.adminSecretMode === "0600", j(short.adminSecretMode));
+    ok("version never prints the secret", !shortRaw.includes("Zq9-"));
+    setSecret("x".repeat(31) + "\n");
+    ok("version reports weak at 31 bytes", JSON.parse(cliText("version")).adminSecret === "weak");
+    setSecret("x".repeat(32) + "\n");
+    const long = JSON.parse(cliText("version"));
+    ok("version reports set for a 32-byte file", long.adminSecret === "set", j(long.adminSecret));
+    chmodSync(secretPath, 0o640);
+    ok("the mode is read from the file, not assumed: 0640 is reported as 0640",
+      JSON.parse(cliText("version")).adminSecretMode === "0640", j(JSON.parse(cliText("version")).adminSecretMode));
+    setSecret("");
+    const blank = JSON.parse(cliText("version"));
+    ok("a blank file is EMPTY, never present and never set (keyState's word)", blank.adminSecret === "EMPTY", j(blank.adminSecret));
+
+    setSecret("Zq9-\n");
+    const pWeak = await call("ping");
+    ok("ping's admin field reads weak for a short secret", pWeak.json?.ok === true && pWeak.json.admin === "weak", j(pWeak.json));
+    ok("and ping keeps every other field it has",
+      pWeak.json?.service === "wain-api" && pWeak.json.stage === "production" && pWeak.json.engine === "sqlite" && typeof pWeak.json.time === "string",
+      j(pWeak.json));
+    const pubWeak = await call("places");
+    ok("a public read is unaffected by a short secret", pubWeak.status === 200 && Array.isArray(pubWeak.json?.places), `${pubWeak.status}`);
+    setSecret("x".repeat(32) + "\n");
+    const pSet = await call("ping");
+    ok("ping reads set for a 32-byte secret", pSet.json?.admin === "set", j(pSet.json));
+    setSecret("");
+    const pUnset = await call("ping");
+    ok("ping still reads unset for a blank file", pUnset.json?.admin === "unset", j(pUnset.json));
+
+    /* The signed media reads are keyed on the same secret, so a short one is a
+       search an attacker can run offline: a four-character key was recovered from
+       one signed URL in 17 seconds. The signed read is refused under the same rule
+       as the admin gate. The signatures below are made by hand with the key a
+       visitor would have to guess, which is the attack being tested. */
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const pendingPath = "weak-abc123/logo-0.png";
+    mkdirSync(join(storage, "business-pending", "weak-abc123"), { recursive: true });
+    writeFileSync(join(storage, "business-pending", "weak-abc123", "logo-0.png"), PNG);
+    const signedRead = (key) => {
+      const exp = Math.floor(Date.now() / 1000) + 600;
+      const sig = createHmac("sha256", key).update(`${pendingPath}|${exp}`).digest("hex");
+      return `${BASE}?a=media_get&p=${encodeURIComponent(pendingPath)}&exp=${exp}&sig=${sig}`;
+    };
+    setSecret("Zq9-\n");
+    const forged = await fetch(signedRead("Zq9-"));
+    const forgedBytes = Buffer.from(await forged.arrayBuffer());
+    const forgedJson = (() => { try { return JSON.parse(forgedBytes.toString("utf8")); } catch { return null; } })();
+    ok("a signed read made with a 4-character key is 503 admin_weak, not the file",
+      forged.status === 503 && forgedJson?.error === "admin_weak", `${forged.status} ${forged.headers.get("content-type")}`);
+    ok("and none of the pending photo's bytes are sent", !forgedBytes.equals(PNG), `${forgedBytes.length} bytes`);
+    setSecret("x".repeat(32) + "\n");
+    const strong = await fetch(signedRead("x".repeat(32)));
+    const strongBytes = Buffer.from(await strong.arrayBuffer());
+    ok("a signed read made with a 32-byte key still serves the file as image/png",
+      strong.status === 200 && strong.headers.get("content-type") === "image/png" && strongBytes.equals(PNG), String(strong.status));
+    rmSync(join(storage, "business-pending", "weak-abc123"), { recursive: true, force: true });
+
+    setSecret(SECRET + "\n");
     rmSync(trusted);
   }
 } finally {

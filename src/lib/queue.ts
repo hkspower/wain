@@ -152,17 +152,42 @@ export function isFromToday(ticket: HeldTicket, now: Date = new Date()): boolean
 
 /* ── talking to the back end ──────────────────────────────────────────── */
 
+/**
+ * Raised where the browser has no random source. The same rule as orders.ts:
+ * no Math.random fallback, because the ticket's token is the only proof of the
+ * ticket and Math.random is not built to resist prediction.
+ */
+class NoCryptoError extends Error {
+  constructor() {
+    super("no_crypto");
+    this.name = "no_crypto";
+  }
+}
+
+function randomBytes(length: number): Uint8Array {
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new NoCryptoError();
+  }
+  return crypto.getRandomValues(new Uint8Array(length));
+}
+
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  const h = () => Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
-  return `${h()}${h()}-${h()}-4${h().slice(1)}-a${h().slice(1)}-${h()}${h()}${h()}`;
+  // Older Safari has getRandomValues but not randomUUID: the same id shape as
+  // orders.ts, drawn from the same source.
+  const b = randomBytes(16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = hex(b);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 function newToken(): string {
-  const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(bytes);
-  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return hex(randomBytes(16));
 }
 
 export interface QueueAttempt {
@@ -170,9 +195,21 @@ export interface QueueAttempt {
   token: string;
 }
 
+/**
+ * Called while QueuePanel renders, so it must not throw. Without a random
+ * source the attempt has no id and no token, and joinQueue refuses it before
+ * anything is sent.
+ */
 export function newQueueAttempt(): QueueAttempt {
-  return { id: newId(), token: newToken() };
+  try {
+    return { id: newId(), token: newToken() };
+  } catch (err) {
+    if (err instanceof NoCryptoError) return { id: "", token: "" };
+    throw err;
+  }
 }
+
+const NO_CRYPTO_AR = "ما قدرنا ناخذ لك دور من هذا المتصفح. جرّب من متصفح ثاني، أو اتصل بالصالون.";
 
 /** Kuwaiti mobile: eight digits starting 5, 6 or 9. */
 export function normalisePhone(value: string): string | null {
@@ -201,7 +238,7 @@ export function validateJoin(input: JoinInput): string[] {
 
 export type JoinResult =
   | { ok: true; number: number; ticket: HeldTicket }
-  | { ok: false; reason: "disabled" | "invalid" | "closed" | "duplicate" | "network"; message: string };
+  | { ok: false; reason: "disabled" | "invalid" | "closed" | "duplicate" | "network" | "unsupported"; message: string };
 
 /**
  * Take a number.
@@ -224,6 +261,7 @@ export async function joinQueue(
   if (!backendEnabled) {
     return { ok: false, reason: "disabled", message: "الطابور مو متاح حالياً. اتصل بالصالون." };
   }
+  if (!attempt.id || !attempt.token) return { ok: false, reason: "unsupported", message: NO_CRYPTO_AR };
 
   let result;
   try {

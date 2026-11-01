@@ -186,7 +186,59 @@ try {
        r.status === 503, String(r.status));
   }
 
-  writeFileSync(adminKeyFile, "test-admin-key");
+  /* The key the view tests send, 39 bytes. A key shorter than 32 bytes is refused
+     as weak before it is ever compared (the weak section below), so this fixture
+     has to be longer than that: the 14-byte "test-admin-key" the view tests used
+     before would now answer 503 weak to every assertion in this section. */
+  const ADMIN_KEY = "test-admin-key-0123456789abcdefghijklmn";
+  const viewAs = async (headers, draft = id1) => {
+    const r = await fetch(`${BASE}?action=view&draftId=${draft}&kind=logo&index=0`, { headers });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  };
+
+  console.log("\n── the admin view, with a key too short to trust ──");
+  {
+    writeFileSync(adminKeyFile, "");
+    const empty = await viewAs({ "X-Media-Key": "" });
+    ok("an empty key file is still 503 not_configured",
+       empty.status === 503 && empty.json?.error === "not_configured", JSON.stringify(empty));
+
+    writeFileSync(adminKeyFile, "0123456789abcdef");   // 16 bytes
+    const short = await viewAs({ "X-Media-Key": "0123456789abcdef" });
+    ok("a 16-byte key is 503 weak, even when the right key is sent",
+       short.status === 503 && short.json?.error === "weak", JSON.stringify(short));
+    const shortWrong = await viewAs({ "X-Media-Key": "not-the-key" });
+    ok("and 503 weak for a wrong key too: the length is checked before any comparison",
+       shortWrong.status === 503 && shortWrong.json?.error === "weak", JSON.stringify(shortWrong));
+
+    const k31 = "0123456789abcdef0123456789abcde";   // 31 bytes
+    writeFileSync(adminKeyFile, k31);
+    const thirtyOne = await viewAs({ "X-Media-Key": k31 });
+    ok("a 31-byte key is still refused as weak",
+       thirtyOne.status === 503 && thirtyOne.json?.error === "weak", JSON.stringify(thirtyOne));
+
+    const k32 = "0123456789abcdef0123456789abcdef";   // 32 bytes: the floor itself
+    writeFileSync(adminKeyFile, k32);
+    const thirtyTwo = await viewAs({ "X-Media-Key": "not-the-key" });
+    ok("a 32-byte key reaches the comparison: a wrong key is 403 bad_key",
+       thirtyTwo.status === 403 && thirtyTwo.json?.error === "bad_key", JSON.stringify(thirtyTwo));
+    const thirtyTwoRight = await viewAs({ "X-Media-Key": k32 });
+    ok("and the same key, sent right, is served", thirtyTwoRight.status === 200, String(thirtyTwoRight.status));
+
+    /* `version` is the report an owner reads, so it must say what the view will do:
+       a key the view answers 503 weak to is reported as weak, not as present. */
+    const reportedKey = () => JSON.parse(
+      execFileSync("php", [join(api, "media.php"), "version"], { encoding: "utf8" })).adminKey;
+    writeFileSync(adminKeyFile, "0123456789abcdef");
+    ok("version reports a 16-byte key as weak, the state the view refuses",
+       reportedKey() === "weak", String(reportedKey()));
+    writeFileSync(adminKeyFile, k32);
+    ok("version reports a 32-byte key as present", reportedKey() === "present", String(reportedKey()));
+    writeFileSync(adminKeyFile, "");
+    ok("and an empty file is still EMPTY, the installer's own state", reportedKey() === "EMPTY", String(reportedKey()));
+  }
+
+  writeFileSync(adminKeyFile, ADMIN_KEY);
 
   console.log("\n── the admin view, configured ──");
   {
@@ -195,7 +247,7 @@ try {
     ok("the wrong key is 403 bad_key", wrong.status === 403, String(wrong.status));
 
     const right = await fetch(`${BASE}?action=view&draftId=${id1}&kind=logo&index=0`,
-      { headers: { "X-Media-Key": "test-admin-key" } });
+      { headers: { "X-Media-Key": ADMIN_KEY } });
     ok("the right key serves the file", right.status === 200, String(right.status));
     ok("with the same bytes that were uploaded",
        Buffer.from(await right.arrayBuffer()).equals(PNG_1PX));
@@ -203,13 +255,102 @@ try {
        right.headers.get("content-type"));
 
     const missing = await fetch(`${BASE}?action=view&draftId=${draftId()}&kind=logo&index=0`,
-      { headers: { "X-Media-Key": "test-admin-key" } });
+      { headers: { "X-Media-Key": ADMIN_KEY } });
     ok("a draft id nobody uploaded to is 404, not an error", missing.status === 404, String(missing.status));
 
     const traversalView = await fetch(`${BASE}?action=view&draftId=..%2F..%2Fetc&kind=logo&index=0`,
-      { headers: { "X-Media-Key": "test-admin-key" } });
+      { headers: { "X-Media-Key": ADMIN_KEY } });
     ok("the view endpoint refuses a traversal draft id the same way the upload does",
        traversalView.status === 400, String(traversalView.status));
+  }
+
+  console.log("\n── the admin view, throttled per visitor ──");
+  {
+    const sha = (s) => createHash("sha256").update(s).digest("hex");
+    const trusted = join(storage, "trusted-proxies.txt");
+    const bucketOf = (ip) => join(pendingDir, `.rate-${sha(ip)}.json`);
+    const nOf = (f) => { try { return JSON.parse(readFileSync(f, "utf8")).n; } catch { return null; } };
+    /* The cap is read from the endpoint's own source, so this section cannot pass
+       against a number the endpoint no longer uses. */
+    const cap = Number((readFileSync(new URL("../scripts/publish/media-endpoint.php", import.meta.url), "utf8")
+      .match(/const RATE_PER_MIN = (\d+);/) ?? [])[1]);
+    const VISITOR = "192.0.2.10";
+    const wrongFor = (ip) => ({ "X-Media-Key": "not-the-key", "X-Forwarded-For": ip });
+    const rightFor = (ip) => ({ "X-Media-Key": ADMIN_KEY, "X-Forwarded-For": ip });
+
+    /* Every connection in this file comes from 127.0.0.1. Listing that address as a
+       proxy lets the X-Forwarded-For header name a different visitor for each
+       group of requests below, so each visitor gets a bucket of their own. The
+       list is removed again before the no-list check at the end of this section. */
+    writeFileSync(trusted, "127.0.0.1\n");
+
+    ok("the cap is readable from the endpoint's source (RATE_PER_MIN)",
+       Number.isInteger(cap) && cap > 0, String(cap));
+    const codes = [];
+    let firstMs = 0;
+    for (let i = 0; i < cap; i++) {
+      const t = Date.now();
+      codes.push((await viewAs(wrongFor(VISITOR))).status);
+      if (i === 0) firstMs = Date.now() - t;
+    }
+    ok(`the first ${cap} wrong keys from one visitor are 403 bad_key`,
+       codes.length === cap && codes.every((c) => c === 403), JSON.stringify(codes));
+    /* A guess that costs nothing is a guess the cap does not slow down: before this
+       the answer came back in milliseconds, and the cap changed only its status code. */
+    ok("a wrong key within the cap costs a quarter second, as the admin path's does",
+       firstMs >= 200, `${firstMs} ms`);
+
+    const past = await viewAs(wrongFor(VISITOR));
+    ok("the wrong key one past the cap is 429 rate_limited",
+       past.status === 429 && past.json?.error === "rate_limited", JSON.stringify(past));
+    ok("every wrong key is counted in the visitor's own bucket: the cap plus one",
+       nOf(bucketOf(VISITOR)) === cap + 1, `n=${nOf(bucketOf(VISITOR))}`);
+
+    const right = await viewAs(rightFor(VISITOR));
+    ok("once capped, the right key is still served to the same visitor",
+       past.status === 429 && right.status === 200, `past=${past.status} right=${right.status}`);
+    ok("and a right key is never counted against that bucket",
+       nOf(bucketOf(VISITOR)) === cap + 1, `n=${nOf(bucketOf(VISITOR))}`);
+
+    /* Past the cap the request ends at the key: a draft id that would be a 400
+       is not looked at, so the answer is the 429 and nothing else. */
+    const pastBadDraft = await viewAs(wrongFor(VISITOR), "..%2F..%2Fetc");
+    ok("past the cap nothing beyond the key is looked at: a bad draft id still gets 429",
+       pastBadDraft.status === 429, String(pastBadDraft.status));
+
+    const uploadCapped = await upload({ draftId: draftId(), headers: { "X-Forwarded-For": VISITOR } });
+    ok("the same visitor's uploads are refused too: one allowance a minute, shared with the view",
+       uploadCapped.status === 429 && uploadCapped.json?.error === "rate_limited", JSON.stringify(uploadCapped.json));
+
+    const other = await viewAs(wrongFor("192.0.2.11"));
+    ok("another visitor is not capped by this one",
+       other.status === 403 && other.json?.error === "bad_key", JSON.stringify(other));
+
+    const bare = await viewAs({ "X-Forwarded-For": "192.0.2.12" });
+    ok("a request with no key header at all is a wrong key, and is counted",
+       bare.status === 403 && nOf(bucketOf("192.0.2.12")) === 1, `${bare.status} n=${nOf(bucketOf("192.0.2.12"))}`);
+
+    rmSync(trusted);
+    const before = nOf(bucketOf("127.0.0.1")) ?? 0;
+    const spoof = await viewAs(wrongFor("192.0.2.13"));
+    ok("with no list the header is ignored here too: the connecting address is the one counted",
+       spoof.status === 403 && (nOf(bucketOf("127.0.0.1")) ?? 0) === before + 1 && nOf(bucketOf("192.0.2.13")) === null,
+       `${spoof.status} before=${before} after=${nOf(bucketOf("127.0.0.1"))}`);
+
+    /* A directory at a visitor's counter path makes the counter unopenable. The limit
+       must not switch off with it: a wrong key from that visitor is refused, while the
+       right key, which is never counted, is still served. */
+    writeFileSync(trusted, "127.0.0.1\n");
+    const BROKEN = "192.0.2.50";
+    mkdirSync(bucketOf(BROKEN));
+    const broken = await viewAs(wrongFor(BROKEN));
+    ok("a wrong key whose counter cannot be opened is 503 limiter_unavailable, not a free guess",
+       broken.status === 503 && broken.json?.error === "limiter_unavailable", JSON.stringify(broken));
+    const brokenRight = await viewAs(rightFor(BROKEN));
+    ok("the right key is still served from that visitor: it is never counted",
+       brokenRight.status === 200, String(brokenRight.status));
+    rmSync(bucketOf(BROKEN), { recursive: true, force: true });
+    rmSync(trusted);
   }
 
   console.log("\n── prune ──");

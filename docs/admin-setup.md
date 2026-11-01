@@ -22,12 +22,17 @@ file on both stages, creates the database, seeds it from the export's
 ## 2. Set the password (once, by the owner)
 
 1. Open `storage/admin.secret`, the file `php …/api/wain.php version` names
-   (outside the web root). The hPanel path this step used to give,
-   `domains/wainkw.com/storage/admin.secret`, was not on the Hostinger account on
-   31 October 2026, and where the file sits on the VPS is not recorded yet; the
-   live `?a=ping` reported `admin: unset` that day.
-2. Paste a long random secret — 32 characters or more. Nothing else in the
-   file.
+   (beside the public folder, not inside it). The hPanel path this step used to
+   give, `domains/wainkw.com/storage/admin.secret`, was not on the Hostinger
+   account on 31 October 2026, and where the file sits on the VPS is not recorded
+   yet; the live `?a=ping` reported `admin: unset` that day.
+2. Paste a long random secret — 32 bytes or more, which is 32 ASCII characters.
+   Nothing else in the file. The server refuses anything shorter with
+   `admin_weak`, and the board says so instead of offering a password form. Use
+   ASCII: an Arabic letter is two bytes, so 16 Arabic letters pass the server's
+   check while this step asks for 32 characters.
+   `storage/media-admin.key`, which opens the pending business-photo view, takes
+   the same floor and the same refusal.
 3. Save. Never paste it into a chat, a commit or an environment variable.
 
 That is the whole login: `/admin` asks for it once per tab and keeps it in

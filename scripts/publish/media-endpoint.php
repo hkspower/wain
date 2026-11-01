@@ -66,6 +66,17 @@ function keyState(string $file): string {
     return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
 }
 
+/** The view key's state as `version` and `install` report it: keyState()'s own
+ *  words for a missing or blank file, then whether the trimmed key reaches
+ *  ADMIN_KEY_MIN bytes. A separate function, not a change to keyState(), because
+ *  tts-endpoint.php mirrors keyState() and has no length rule. Before this,
+ *  `version` said «present» for a 16-byte key that the view answers 503 weak to. */
+function adminKeyState(string $file): string {
+    $state = keyState($file);
+    if ($state !== 'present') return $state;
+    return strlen(trim((string) @file_get_contents($file))) < ADMIN_KEY_MIN ? 'weak' : 'present';
+}
+
 /** Matches src/lib/media.ts's MAX_BYTES. `npm run audit:media` fails when
  *  they disagree, by asking each side for its own number — see
  *  scripts/audit-media.mjs for why a regex over either file is not enough. */
@@ -97,6 +108,11 @@ const ALLOWED_HOSTS = [
  *  (one logo, twelve photos) in the seconds after the form is validated;
  *  this is headroom over that, not a throttle on normal use. */
 const RATE_PER_MIN = 40;
+
+/** The shortest media-admin.key the view will compare against, in BYTES (strlen,
+ *  not characters). Matches ADMIN_SECRET_MIN in wain-api.php. A shorter key is
+ *  answered 503 weak before any comparison, so no guess is ever made against it. */
+const ADMIN_KEY_MIN = 32;
 
 /** Total bytes storage/business-pending/ may hold before new uploads are
  *  refused. Nothing prunes automatically — see `prune` below — so this is
@@ -367,8 +383,9 @@ if (PHP_SAPI === 'cli') {
                `is_file`. The installer creates this file empty on purpose, so
                «it exists» is true in exactly the state where ?action=view is
                refused — and this line said «present» for it. Same defect was
-               found live in tts.php's copy on 20 September. */
-            'adminKey' => keyState($adminKeyFile),
+               found live in tts.php's copy on 20 September. `weak` is the view's
+               32-byte floor, read the same way (adminKeyState). */
+            'adminKey' => adminKeyState($adminKeyFile),
             'phpIni'  => [
                 'post_max_size' => $postMax,
                 'upload_max_filesize' => $uploadMax,
@@ -468,7 +485,7 @@ if (PHP_SAPI === 'cli') {
     /* The admin key is never written here, same reasoning as elevenlabs.key:
        this file is fetched from a public URL to be run, so anything it
        carried at that moment would be public. */
-    $keyNote = keyState($adminKeyFile);   // not 'present' — see keyState().
+    $keyNote = adminKeyState($adminKeyFile);   // not 'present' — see adminKeyState().
     if (!is_file($adminKeyFile)) {
         @mkdir(dirname($adminKeyFile), 0700, true);
         @file_put_contents($adminKeyFile, '');
@@ -481,7 +498,7 @@ if (PHP_SAPI === 'cli') {
         'ok'     => true,
         'stages' => $report,
         'adminKey' => ['path' => $adminKeyFile, 'status' => $keyNote,
-                       'note' => 'paste a random secret into this file to enable ?action=view; leave empty to leave it refused'],
+                       'note' => 'paste a random secret of at least 32 bytes into this file to enable ?action=view; a shorter one is refused as weak, and an empty one stays refused'],
         'pendingDir' => $pendingDir,
     ]);
 }
@@ -515,14 +532,24 @@ if ($storage === null) $fail(500, 'no_storage_dir');
 $pendingDir = "$storage/business-pending";
 if (!is_dir($pendingDir)) @mkdir($pendingDir, 0700, true);
 
+/* The visitor, for both limiters. Defined here, above the method branches: the
+   view branch counts wrong keys against the same bucket the upload path fills. */
+$ip = clientIp();
+
 /** A window counter in one file — identical shape to /api/tts.php's, kept
  *  duplicated rather than shared: the two endpoints have no other reason to
  *  import from each other, and one file each is what stays copy-installable
- *  by itself. */
-$count = static function (string $file, int $window): int {
+ *  by itself.
+ *
+ *  Returns null when the file will not open, as tts's counter does. It used to
+ *  return 0, which is «nothing counted», so a visitor whose counter could not be
+ *  opened was never limited and the view's wrong-key limit switched itself off
+ *  silently. The view refuses on null. The upload path compares null as 0 did
+ *  (not over the cap), so its behaviour is unchanged here. */
+$count = static function (string $file, int $window): ?int {
     $now = time();
     $fh  = @fopen($file, 'c+');
-    if (!$fh) return 0;
+    if (!$fh) return null;
     @flock($fh, LOCK_EX);
     $data = json_decode((string) stream_get_contents($fh), true);
     $n = (is_array($data) && ($data['start'] ?? 0) > $now - $window) ? (int) ($data['n'] ?? 0) : 0;
@@ -542,8 +569,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 
     $key = is_file("$storage/media-admin.key") ? trim((string) @file_get_contents("$storage/media-admin.key")) : '';
     if ($key === '') $fail(503, 'not_configured');
+
+    /* strlen() counts BYTES, and hash_equals() compares bytes, so the length that
+       decides this is the byte length: 32 Arabic letters (64 bytes) pass, 16 ASCII
+       characters (16 bytes) do not. Refused before any comparison. The 14 October
+       login scan found no minimum on either admin secret, and a 4-digit one was
+       accepted by the probe. */
+    if (strlen($key) < ADMIN_KEY_MIN) $fail(503, 'weak');
+
+    /* A right key is never counted: the owner must not be locked out of the pending
+       files by a visitor's bucket, and that bucket is also filled by uploads from the
+       same address. A wrong key, or none at all, is counted against the requester's
+       own bucket, the file the upload path uses. Past the cap the answer is 429 and
+       nothing beyond the key is read.
+
+       Within the cap a wrong key costs a quarter second, as wain-api's admin path
+       does (the 14 October login scan, finding 1). Before this a wrong key was answered
+       in microseconds, so the cap changed only the status code of a guess. Past the
+       cap the answer comes at once, and a right key is still served, so the cap does
+       not limit how fast the key can be guessed. What makes the search infeasible is
+       the 32-byte floor above. */
     $given = $_SERVER['HTTP_X_MEDIA_KEY'] ?? '';
-    if (!is_string($given) || !hash_equals($key, $given)) $fail(403, 'bad_key');
+    if (!is_string($given) || !hash_equals($key, $given)) {
+        sweepRateCounters($pendingDir);
+        $n = $count("$pendingDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60);
+        /* null: the counter would not open, so the allowance cannot be read. The wrong
+           key is refused rather than guessed at for nothing, which is the answer
+           /api/tts.php gives when its budget cannot be read (budget_unavailable). */
+        if ($n === null) $fail(503, 'limiter_unavailable');
+        if ($n > RATE_PER_MIN) $fail(429, 'rate_limited');
+        usleep(250000);   // a wrong guess costs a quarter second; a right one costs nothing
+        $fail(403, 'bad_key');
+    }
 
     $draftId = (string) ($_GET['draftId'] ?? '');
     $kind    = (string) ($_GET['kind'] ?? '');
@@ -590,7 +647,6 @@ if (empty($_POST) && empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) >
     $fail(413, 'file_too_large');
 }
 
-$ip = clientIp();
 sweepRateCounters($pendingDir);
 if ($count("$pendingDir/.rate-" . hash('sha256', rateKey($ip)) . '.json', 60) > RATE_PER_MIN) {
     $fail(429, 'rate_limited');

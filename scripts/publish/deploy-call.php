@@ -68,6 +68,16 @@
 
 declare(strict_types=1);
 
+/* CLI only. The mode is read from $argv below, and a web SAPI with
+   register_argc_argv on can fill $argv from the request, so a web request must
+   never reach the mode switch. Without this the committed copy answered a GET
+   or a POST with 200 and the server's secret path. A refusal before anything
+   else runs is the same empty 404 agent-archive.php gives. */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 $home   = getenv('HOME') ?: __DIR__;
 $domain = 'wainkw.com';
 

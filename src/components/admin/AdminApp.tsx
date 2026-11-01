@@ -31,7 +31,8 @@ type Tab = "places" | "submissions" | "orders" | "queue";
  *
  *   checking    — asking the server about itself (`ping`)
  *   unreachable — nothing answered, or not with the API's JSON
- *   unset       — the server has no admin secret yet; a password cannot work
+ *   unset       — the server has no usable admin secret: none yet, or one shorter
+ *                 than 32 bytes (`weak`); a password cannot work either way
  *   signin      — a secret exists and this tab has none, or a wrong one
  *   ready       — `whoami` answered with the stored token
  *
@@ -39,11 +40,13 @@ type Tab = "places" | "submissions" | "orders" | "queue";
  * would refuse every password is the kind of door this file keeps meeting
  * (a key file created empty, a variable nobody filled), and the honest answer
  * is to say which file to fill rather than to let the owner try passwords.
+ * A short secret is the same door, so it takes the same gate with its own line.
  */
 type Gate = "checking" | "unreachable" | "unset" | "signin" | "ready";
 
 export default function AdminApp() {
   const [gate, setGate] = useState<Gate>("checking");
+  const [secretWeak, setSecretWeak] = useState(false);
   const [stage, setStage] = useState("");
   const [rows, setRows] = useState<EditablePlace[]>([]);
   const [view, setView] = useState<View>({ mode: "list" });
@@ -88,7 +91,7 @@ export default function AdminApp() {
     if (!backendEnabled) return;
     let cancelled = false;
     void (async () => {
-      const ping = await callSafe<{ stage: string; admin: "set" | "unset" }>("ping");
+      const ping = await callSafe<{ stage: string; admin: "set" | "unset" | "weak" }>("ping");
       if (cancelled) return;
       if (!ping.ok) {
         setError(describeApiFailure(ping, "ما قدرنا نوصل للسيرفر."));
@@ -96,13 +99,21 @@ export default function AdminApp() {
         return;
       }
       setStage(ping.stage);
-      if (ping.admin === "unset") return setGate("unset");
+      if (ping.admin === "unset" || ping.admin === "weak") {
+        setSecretWeak(ping.admin === "weak");
+        return setGate("unset");
+      }
       if (!adminToken()) return setGate("signin");
       // A token from an earlier visit in this tab: still good, or thrown away.
       const who = await callSafe("whoami", undefined, { admin: true });
       if (cancelled) return;
       if (who.ok) return setGate("ready");
       setAdminToken(null);
+      // The secret was shortened since the token was stored: no form, the fix.
+      if (who.error === "admin_weak") {
+        setSecretWeak(true);
+        return setGate("unset");
+      }
       setGate("signin");
     })();
     return () => { cancelled = true; };
@@ -142,6 +153,11 @@ export default function AdminApp() {
       return;
     }
     setAdminToken(null);
+    if (who.error === "admin_weak") {
+      setSecretWeak(true);
+      setGate("unset");
+      return;
+    }
     setError(describeApiFailure(who, "ما قدرنا ندخّلك."));
   }
 
@@ -156,7 +172,7 @@ export default function AdminApp() {
   if (!backendEnabled) return <NotConfigured />;
   if (gate === "checking") return <Centered>نتحقق…</Centered>;
   if (gate === "unreachable") return <Unreachable message={error} />;
-  if (gate === "unset") return <SecretUnset />;
+  if (gate === "unset") return <SecretUnset weak={secretWeak} />;
   if (gate === "signin") return <SignIn onSubmit={signIn} error={error} />;
 
   // ---- actions ------------------------------------------------------------
@@ -583,20 +599,33 @@ function NotConfigured() {
   );
 }
 
-/** The server answered, and said it has no admin secret yet. */
-function SecretUnset() {
+/** The server answered, and said its admin secret cannot be used yet: there is
+ *  none (`unset`), or the one there is has fewer than 32 bytes (`weak`). Either
+ *  way a password would be refused, so there is no form here, only the file. */
+function SecretUnset({ weak = false }: { weak?: boolean }) {
   return (
     <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">
-      <h1 className="font-display text-2xl font-bold text-ink-900">الخادم شغّال، بس بدون كلمة سر</h1>
+      <h1 className="font-display text-2xl font-bold text-ink-900">
+        {weak ? "الخادم شغّال، بس كلمة السر قصيرة" : "الخادم شغّال، بس بدون كلمة سر"}
+      </h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
-        ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
-        مرة واحدة، من مدير الملفات في hPanel:
+        {weak ? (
+          <>
+            الكلمة اللي في <code dir="ltr">storage/admin.secret</code> أقصر من ٣٢ حرف، لازم
+            تستبدلها، وإلا فأي كلمة تكتبها هني بتنرفض. الحل من مدير الملفات عند الاستضافة:
+          </>
+        ) : (
+          <>
+            ما فيه كلمة سر للوحة على السيرفر بعد، فأي كلمة تكتبها هني بتنرفض. الحل
+            مرة واحدة، من مدير الملفات عند الاستضافة:
+          </>
+        )}
       </p>
       <ol role="list" className="mt-5 space-y-2 text-sm leading-relaxed text-ink-600">
         <li>
           ١. افتح{" "}
-          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">domains/wainkw.com/storage/admin.secret</code>
-          {" "}(خارج <span dir="ltr">public_html</span>).
+          <code className="rounded bg-sand-100 px-1.5 py-0.5" dir="ltr">storage/admin.secret</code>
+          {" "}(في مجلد storage جنب المجلد العام للموقع، مو جوّاه).
         </li>
         <li>٢. الصق فيه كلمة سر طويلة وعشوائية (٣٢ حرف أو أكثر) واحفظ.</li>
         <li>٣. حدّث هذي الصفحة وادخل بها.</li>

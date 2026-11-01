@@ -115,6 +115,18 @@ longer exist), never into a chat or a commit. Until then every
 admin action answers 503 `admin_unset` and `/admin` says which file to fill
 rather than offering a password form that would refuse every password.
 
+**A secret under 32 bytes answers 503 `admin_weak`**, before any guess is
+compared or counted (14 October login scan, finding 2). `ping` reports
+`admin: "weak"`, `version` reports `adminSecret: "weak"` and the file's mode
+(`adminSecretMode`, octal), and the board says the file has to be replaced. The
+count is bytes, because `strlen` counts bytes: 32 ASCII characters pass, but 16
+Arabic letters (two bytes each) also pass although the owner's rule says 32
+characters. Use ASCII. `version` never prints the secret or its length.
+
+The signed media read (`?a=media_get`) is keyed on the same secret, so it gets
+the same refusal: a four-character key was recovered offline from one signed URL
+in 17 seconds, so that read answers `admin_weak` too.
+
 The board sends it as `X-Wain-Admin`; it lives in the tab's sessionStorage, not
 a cookie (no CSRF surface) and not the URL. A wrong token costs a quarter
 second. `docs/admin-setup.md` has the owner's steps.
@@ -182,7 +194,8 @@ without it a menu added to `places.ts` after the first seed would never reach
 the database.
 
 Errors are `{ ok: false, error, status, field? }`: `invalid` 422 (with the
-field), `duplicate` 409, `closed` 409, `rate_limited` 429, `admin_unset` 503.
+field), `duplicate` 409, `closed` 409, `rate_limited` 429, `admin_unset` 503,
+`admin_weak` 503 (the secret is under 32 bytes).
 A wrong token on `order_status`/`queue_status` answers `null`, the same as «no
 such order» — the token is the whole authorisation, and the answer must not
 say whether the id exists.
@@ -251,16 +264,19 @@ an answer, including for a request that races the delete.
 `X-Wain-Admin` is counted against its address's own bucket before the 250 ms
 sleep, and it hits the same per-minute cap as everything else, so guessing stops
 at that cap instead of running at the sleep's rate (finding 1 of the 14 October
-login scan). The length of `storage/admin.secret` is still not checked (finding
-2 of that scan), so a short secret is still short.
+login scan). A secret under 32 bytes is refused before that count (above), so no
+allowance is spent on one.
 
 Known limits: a visitor is one /64, not one person; and a proxy that forwards
 without appending can still be rotated around, because there is no coarse
-backstop bucket on the peer yet.
+backstop bucket on the peer yet. Past the cap, a wrong admin secret or media key
+is still answered at once, with no delay: the 32-byte floor is what makes a
+search infeasible, and a per-attempt delay past the cap is the owner's decision
+(it holds PHP workers during a flood).
 
 ## What the tests prove, and where
 
-- `npm run test:wain-api` — 205 assertions against a real `php -S` on SQLite:
+- `npm run test:wain-api` — 230 assertions against a real `php -S` on SQLite:
   every refusal by name, every write read back, the token answers, the queue
   under contention, the write cap, the log's promises.
 - `npm run test:net` — the client's reading of every answer, on a fake server
