@@ -155,8 +155,8 @@ return [
     'error_url'       => 'https://www.sporta.com.kw/knet/callback.php',
     'result_page_url' => 'https://www.sporta.com.kw/payment/result',
 
-    'action'        => '1',
-    'currency_code' => '414',
+    // 'action' (always 1) and 'currency_code' (414, KWD) are not read from config:
+    // pay.php sends both as constants. Keeping them here implied they were settings.
     'language'      => 'EN',
 
     'log_file' => __DIR__ . '/../../knet-payments.log',
