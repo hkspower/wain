@@ -53,16 +53,62 @@ if ($errorCode !== '') {
     // TIJ0009 is the one worth acting on rather than only recording: the token
     // is stale, and the next payment should mint a fresh one instead of
     // reusing the cached copy for the rest of its two hours.
+    // ...but at most once every ten minutes, because this request is
+    // unauthenticated and the file is a CACHE OF A CREDENTIAL.
+    //
+    // Measured: `GET /pay/callback.php?ErrorCode=TIJ0009` — no track id, no
+    // encrp, nothing to know — deleted the cached access token. In a loop it
+    // means every real payment mints a fresh token from CBK instead of reusing
+    // one for its two hours, which is latency on the checkout path and a
+    // request rate against the merchant auth endpoint that nobody chose.
+    //
+    // Ten minutes is the whole fix: a genuinely stale token is purged on the
+    // first TIJ0009 and the next payment mints a good one, while a flood
+    // collapses to one purge per window. The marker sits beside the cache and
+    // is not a secret — it holds a timestamp and nothing else.
     if ($errorCode === 'TIJ0009' && !empty($cfg['token_cache_file'])) {
-        @unlink($cfg['token_cache_file']);
+        $stamp = $cfg['token_cache_file'] . '.purged';
+        $last  = is_file($stamp) ? (int) @file_get_contents($stamp) : 0;
+        if (time() - $last > 600) {
+            @file_put_contents($stamp, (string) time());
+            @unlink($cfg['token_cache_file']);
+        } else {
+            cbk_log($cfg, 'callback.purge_throttled', ['since' => time() - $last]);
+        }
     }
 
+    // THIS BRANCH IS UNAUTHENTICATED, AND IT MUST NOT WRITE payment_status.
+    //
+    // Everything above comes from the query string. Unlike the encrp path
+    // below — where the transaction is read back from CBK over the merchant
+    // API before a single column moves — there is nothing here to verify:
+    // CBK's error return carries no signature, no encrp and no shared secret.
+    // It is a claim by whoever sent the request.
+    //
+    // Measured, against a real order on a real database:
+    //     GET /pay/callback.php?ErrorCode=TIJ0020&PayTrackID=<track>
+    // flipped a pending order to `failed`. One request, no bank, no session.
+    // Track ids are 64 bits of CSPRNG so they cannot be enumerated, but they
+    // are not secrets either — they sit in the customer's own URL, on the
+    // result page, in the warehouse email. Anyone who has seen one could
+    // sabotage that order, and `failed` is a state the shop ACTS on: cron-
+    // stock.php releases the claimed stock, so a shopper part-way through
+    // paying loses the size they had reserved and the real payment lands on
+    // an order whose stock is gone.
+    //
+    // So it records, and records everything — the code, the meaning, the
+    // track id, in the log and on the row — and it changes no status. This is
+    // the rule the same file states forty lines below and is worth repeating
+    // here because this branch was the exception to it:
+    //
+    //     Pending is honest. Failed is a claim, and this code is not in a
+    //     position to make it.
+    //
+    // Nothing diagnostic is lost. The point of the branch was that a code
+    // from the manual's table was "thrown away at the door"; it still is not.
     if ($errorTrack !== '') {
-        cbk_update_order($cfg, cbk_resolve_track($cfg, $errorTrack), false, [
-            'Status'  => '2',
-            'Message' => $errorCode . ' ' . $meaning,
-            'PayType' => 'CBK',
-        ]);
+        cbk_note_gateway_error($cfg, cbk_resolve_track($cfg, $errorTrack),
+                               $errorCode . ' ' . $meaning);
     }
     header('Location: ' . $return . '?status=failed&reason=' . rawurlencode($errorCode), true, 302);
     exit;
@@ -159,59 +205,32 @@ cbk_log($cfg, 'callback.received', [
     'trackid' => $trackid, 'status' => $statusCode, 'amt' => $paidAmount, 'payid' => $paymentId,
 ]);
 
-// SECURITY — settlement. A paid answer from the bank becomes "success" only once
-// the database has recorded it. Anything the shop cannot confirm is held for
-// REVIEW: the money may already have moved, and a success page for an order
-// nothing recorded is the exact failure this path exists to prevent. The KNET
-// dropin holds the same line.
-$review  = null;
-$written = null;
-if ($paid) {
-    if (!$haveDb) {
-        $review = 'database_unavailable';
-    } else {
-        $expected = cbk_order_expected_amount($cfg, $trackid);
-        if ($expected === null) {
-            // Not found, or the database is unreachable. Either way the amount
-            // cannot be proved, so the order cannot be claimed as paid.
-            $review = 'order_not_confirmed';
-        } elseif (!amounts_equal($expected, $paidAmount)) {
-            $review = 'amount_mismatch';
-            cbk_log($cfg, 'callback.amount_mismatch', [
-                'trackid' => $trackid, 'expected' => $expected, 'paid' => $paidAmount,
-            ]);
-        }
+// SECURITY — amount verification. Confirm the amount CBK actually charged
+// matches the amount recorded for this order. If they differ, the amount was
+// tampered with: refuse to mark the order paid.
+if ($paid && $haveDb) {
+    $expected = cbk_order_expected_amount($cfg, $trackid);
+    if ($expected !== null && !amounts_equal($expected, $paidAmount)) {
+        $paid = false;
+        $statusCode = 'amount_mismatch';
+        cbk_log($cfg, 'callback.amount_mismatch', [
+            'trackid' => $trackid, 'expected' => $expected, 'paid' => $paidAmount,
+        ]);
     }
-}
-if ($review !== null) {
-    // Never record a payment we could not verify as paid. A held order is
-    // stored as "review" so a person can reconcile it against the bank.
-    $paid = false;
-    cbk_log($cfg, 'callback.review', ['trackid' => $trackid, 'reason' => $review, 'payid' => $paymentId]);
 }
 
 // Persist the result (the manual requires merchants to save it).
 if ($haveDb) {
-    $written = cbk_update_order($cfg, $trackid, $paid, $res, $review !== null ? 'review' : null);
+    cbk_update_order($cfg, $trackid, $paid, $res);
 }
 
-// The bank said paid and we verified the amount, but the order was not written.
-// Showing success here would be a claim the database does not back.
-if ($paid && $review === null && !in_array($written, ['written', 'already_paid'], true)) {
-    $review = $written === 'no_order' ? 'order_not_confirmed' : 'database_write_failed';
-    cbk_log($cfg, 'callback.review', ['trackid' => $trackid, 'reason' => $review, 'payid' => $paymentId]);
-}
-
-if ($review !== null) {
-    $status = 'review';
-} elseif ($paid) {
-    $status = 'success';
-} else {
-    $status = $statusCode === '3' ? 'cancelled' : 'failed';
-}
-$params = ['status' => $status, 'trackid' => $trackid, 'payid' => $paymentId, 'ref' => $ref];
-if ($status === 'review') $params['reason'] = $review;
-$q = http_build_query($params);
+$status = $paid ? 'success' : ($statusCode === '3' ? 'cancelled' : 'failed');
+$q = http_build_query([
+    'status'  => $status,
+    'trackid' => $trackid,
+    'payid'   => $paymentId,
+    'ref'     => $ref,
+]);
 header('Location: ' . $return . '?' . $q, true, 302);
 exit;
 
@@ -229,9 +248,35 @@ function cbk_order_expected_amount(array $cfg, string $trackid): ?string
     return cbk_order_amount($cfg, $trackid);
 }
 
-function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res, ?string $forceStatus = null): string
+// Records what the gateway said about an order WITHOUT claiming an outcome.
+//
+// Its whole value is what it does not touch: not payment_status, not paid_at,
+// and nothing that queues a warehouse message. An unauthenticated caller can
+// therefore reach it and the worst it can do is write a note on a row it
+// already knew the track id of.
+//
+// The note is only written over a PENDING order, so a replayed or malicious
+// request cannot scribble over the record of a payment that has already
+// settled — the message on a paid order is the bank's, and it stays that way.
+function cbk_note_gateway_error(array $cfg, string $trackid, string $message): void
 {
-    $status = $forceStatus ?? ($paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed'));
+    if ($trackid === '') return;
+    try {
+        $pdo = cbk_pdo($cfg);
+        $pdo->prepare(
+            "update orders set cbk_message = ?
+              where track_id = ? and payment_status = 'pending'"
+        )->execute([$message, $trackid]);
+    } catch (Throwable $e) {
+        // The log above already has it; a note is not worth a 500 to a
+        // customer who is being redirected to the failure page regardless.
+        cbk_log($cfg, 'callback.note_failed', ['error' => $e->getMessage()]);
+    }
+}
+
+function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): void
+{
+    $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
 
     // Mirrors the KNET dropin exactly, including the parts it learned the hard
     // way: never downgrade a paid order, never re-stamp or re-notify on a
@@ -243,8 +288,8 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res, ?
         $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
         $cur->execute([$trackid]);
         $before = $cur->fetchColumn();
-        if ($before === false) { $pdo->rollBack(); return 'no_order'; }
-        if ($before === 'paid' && $paid) { $pdo->rollBack(); return 'already_paid'; }
+        if ($before === false) { $pdo->rollBack(); return; }
+        if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
 
         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
                   cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
@@ -279,10 +324,7 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res, ?
             }
         }
         $pdo->commit();
-        return 'written';
     } catch (Throwable $e) {
         if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-        cbk_log($cfg, 'callback.db_write_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
-        return 'error';
     }
 }
