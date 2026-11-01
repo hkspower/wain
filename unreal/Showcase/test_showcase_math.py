@@ -110,39 +110,47 @@ print(f"glbs        {seen} of {len(cat)} cars read here  " + ("ok" if len(fail) 
 # --- the studio -----------------------------------------------------------
 n0 = len(fail)
 pack = os.path.join(sm.REPO, "press", "max", "render", "black-demon", "studio.json")
-pj = json.load(open(pack))
-bounds = (tuple(pj["bounds"]["min"]), tuple(pj["bounds"]["max"]))
-st = sm.studio_ue(bounds)
-check(len(st["lights"]) == 5, f"{len(st['lights'])} lights, the studio has 5")
-by = {L["name"]: L for L in st["lights"]}
-for PL in pj["lights"]:
-    U = by.get(PL["name"])
-    if not check(U is not None, f"light {PL['name']} missing"):
-        continue
-    check(close(U["loc"], sm.b2u(PL["loc"]), 1e-6), f"{PL['name']} is not where the pack puts it")
-    check(abs(U["lumens"] - PL["energy"] * 683.0) < 1e-6, f"{PL['name']} lumens are not watts x 683")
-check(by["Rim"]["lights_floor"] is False, "the Rim must stay off the floor (studio.rig: floor False)")
-check(by["Key"]["lights_floor"] is True, "the Key lights the floor")
-check(by["Strip"]["rot"] == (-90.0, 0.0, 0.0), "the Strip hangs level pointing straight down")
-check(by["Strip"]["source_height_cm"] > by["Strip"]["source_width_cm"] * 5, "the Strip's long side must be SourceHeight (along the car)")
-# the key stands high and ahead of the nose on the car's left: +X, -Y, well up
-k = by["Key"]["loc"]
-check(k[0] > 0 and k[1] < 0 and k[2] > 300, f"the Key is at {k}: expected ahead (+X), left (-Y), high")
-# cameras: the hero sees the nose and the left flank from a little above the beltline
-h = st["cameras"]["hero"]
-check(h["loc"][0] > 0 and h["loc"][1] < 0, f"the hero camera at {h['loc']} is not on the front-left quarter")
-check(-20 < h["rot"][0] < 0, f"the hero camera pitch {h['rot'][0]:.1f} should look slightly down")
-check(abs(h["sensor_w_mm"] - 36) < 1e-9 and abs(h["sensor_h_mm"] - 20.25) < 1e-9, "a 36 mm filmback at 16:9 is 36 x 20.25")
-s = st["cameras"]["side"]
-check(abs(s["loc"][0] - st["pivot"][0]) < 50 and s["loc"][1] < -500, f"the side camera at {s['loc']} should sit square on the left flank")
-t = st["cameras"]["turntable"]
-dh = math.hypot(h["loc"][0] - h["aim"][0], h["loc"][1] - h["aim"][1])
-dt = math.hypot(t["loc"][0] - t["aim"][0], t["loc"][1] - t["aim"][1])
-check(dt > dh, "the turntable camera must stand further back than the hero's to keep the swept box in frame")
-# exposure arithmetic: EV100 9.3 at ISO 100 f/4 is a 1/39 s shutter
-check(abs(sm.shutter_for(9.3, 100, 4.0) - 2 ** 9.3 / 16) < 1e-9, "shutter_for is not EV100 arithmetic")
-check(abs(sm.turntable_yaw(240) - 360) < 1e-9 and sm.turntable_yaw(0) == 0, "the turntable is one full turn")
-print("studio      " + ("ok" if len(fail) == n0 else "FAIL"))
+# press/max is git-ignored output of the 3ds Max pack (npm run max:render-pack).
+# Without it there is nothing to compare the UE studio against, so say so and
+# skip that section; with it, every check below runs as before.
+if not os.path.exists(pack):
+    print("studio      SKIPPED: " + os.path.relpath(pack, sm.REPO) + " is not here (npm run max:render-pack makes it)")
+    pj = None
+else:
+    pj = json.load(open(pack))
+if pj is not None:
+    bounds = (tuple(pj["bounds"]["min"]), tuple(pj["bounds"]["max"]))
+    st = sm.studio_ue(bounds)
+    check(len(st["lights"]) == 5, f"{len(st['lights'])} lights, the studio has 5")
+    by = {L["name"]: L for L in st["lights"]}
+    for PL in pj["lights"]:
+        U = by.get(PL["name"])
+        if not check(U is not None, f"light {PL['name']} missing"):
+            continue
+        check(close(U["loc"], sm.b2u(PL["loc"]), 1e-6), f"{PL['name']} is not where the pack puts it")
+        check(abs(U["lumens"] - PL["energy"] * 683.0) < 1e-6, f"{PL['name']} lumens are not watts x 683")
+    check(by["Rim"]["lights_floor"] is False, "the Rim must stay off the floor (studio.rig: floor False)")
+    check(by["Key"]["lights_floor"] is True, "the Key lights the floor")
+    check(by["Strip"]["rot"] == (-90.0, 0.0, 0.0), "the Strip hangs level pointing straight down")
+    check(by["Strip"]["source_height_cm"] > by["Strip"]["source_width_cm"] * 5, "the Strip's long side must be SourceHeight (along the car)")
+    # the key stands high and ahead of the nose on the car's left: +X, -Y, well up
+    k = by["Key"]["loc"]
+    check(k[0] > 0 and k[1] < 0 and k[2] > 300, f"the Key is at {k}: expected ahead (+X), left (-Y), high")
+    # cameras: the hero sees the nose and the left flank from a little above the beltline
+    h = st["cameras"]["hero"]
+    check(h["loc"][0] > 0 and h["loc"][1] < 0, f"the hero camera at {h['loc']} is not on the front-left quarter")
+    check(-20 < h["rot"][0] < 0, f"the hero camera pitch {h['rot'][0]:.1f} should look slightly down")
+    check(abs(h["sensor_w_mm"] - 36) < 1e-9 and abs(h["sensor_h_mm"] - 20.25) < 1e-9, "a 36 mm filmback at 16:9 is 36 x 20.25")
+    s = st["cameras"]["side"]
+    check(abs(s["loc"][0] - st["pivot"][0]) < 50 and s["loc"][1] < -500, f"the side camera at {s['loc']} should sit square on the left flank")
+    t = st["cameras"]["turntable"]
+    dh = math.hypot(h["loc"][0] - h["aim"][0], h["loc"][1] - h["aim"][1])
+    dt = math.hypot(t["loc"][0] - t["aim"][0], t["loc"][1] - t["aim"][1])
+    check(dt > dh, "the turntable camera must stand further back than the hero's to keep the swept box in frame")
+    # exposure arithmetic: EV100 9.3 at ISO 100 f/4 is a 1/39 s shutter
+    check(abs(sm.shutter_for(9.3, 100, 4.0) - 2 ** 9.3 / 16) < 1e-9, "shutter_for is not EV100 arithmetic")
+    check(abs(sm.turntable_yaw(240) - 360) < 1e-9 and sm.turntable_yaw(0) == 0, "the turntable is one full turn")
+    print("studio      " + ("ok" if len(fail) == n0 else "FAIL"))
 
 # --- the axis probe --------------------------------------------------------
 n0 = len(fail)
