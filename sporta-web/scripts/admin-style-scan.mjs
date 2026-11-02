@@ -259,8 +259,12 @@ function collect() {
     const ox = b.c.overflowX, wide = el.scrollWidth - el.clientWidth
     if (wide > 2) {
       if (ox === 'auto' || ox === 'scroll') { if (b.kind !== 'table' && !el.querySelector('table')) issue('SCROLLS', el, `${wide}px wider, scrolls sideways`) }
-      else if (ox === 'hidden' || ox === 'clip') issue('CLIPPED', el, `${wide}px of content cut off`)
-      else issue('SPILL', el, `content ${wide}px wider than the box`)
+      // Name the culprit: the descendant reaching furthest past the inner edge.
+      let worst = null, over = 0
+      for (const d of el.querySelectorAll('*')) { const dr = d.getBoundingClientRect(); if (dr.width < 1) continue; const o = Math.max(dr.right - (r.right - (parseFloat(b.c.paddingRight) || 0)), (r.left + (parseFloat(b.c.paddingLeft) || 0)) - dr.left); if (o > over + 0.5) { over = o; worst = d } }
+      const who = worst ? ` · culprit ${cls(worst)} "${(worst.textContent || '').trim().slice(0, 24)}" ${Math.round(worst.getBoundingClientRect().width)}px ws ${getComputedStyle(worst).whiteSpace}` : ''
+      if (ox === 'hidden' || ox === 'clip') issue('CLIPPED', el, `${wide}px of content cut off${who}`)
+      else issue('SPILL', el, `content ${wide}px wider than the box${who}`)
     }
     // Off the screen (phone), unless a scrolling ancestor owns it.
     let scroller = false; for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o === 'auto' || o === 'scroll') { scroller = true; break } }
@@ -276,9 +280,9 @@ function collect() {
         const pe = t.parentElement; if (!pe || parentBox(pe) !== el && pe !== el && boxSet.has(parentBox(pe)) && parentBox(pe) !== el) continue
         if (pe.closest('button, input, select, textarea, a, table') && !el.matches('table')) continue
         const rg = document.createRange(); rg.selectNodeContents(t); const rr = rg.getBoundingClientRect(); if (rr.width < 1) continue
-        n++; minX = Math.min(minX, rr.left - (r.left + bl), (r.right - br) - rr.right)
+        n++; const m = Math.min(rr.left - (r.left + bl), (r.right - br) - rr.right); if (m < minX) { minX = m; var tight = pe }
       }
-      if (n && minX < 6) issue('CRAMPED', el, `text ${Math.round(minX)}px from the edge (padding ${b.pad})`)
+      if (n && minX < 6) issue('CRAMPED', el, `text ${Math.round(minX)}px from the edge (padding ${b.pad}) · at ${tight ? cls(tight) + ' "' + (tight.textContent || '').trim().slice(0, 24) + '"' : '?'}`)
     }
     // A box inside an identical box draws the same edge twice.
     if (pb && boxSet.get(pb).look === b.look && b.kind === 'card') issue('NESTED-SAME', el, `inside an identical ${boxSet.get(pb).look}`)
@@ -352,7 +356,8 @@ function collect() {
         num: txt ? num / txt : 0, tab: num ? tab / num : 1, wrap: txt ? wrap / txt : 0, wrap3: txt ? wrap3 / txt : 0, cut, empty: cells.length ? empty / cells.length : 0, ctl: txt ? ctl / txt : 0,
         w: Math.round(w), hlines: th ? lines(th) : 0, nowrap: thc ? thc.whiteSpace : '' })
     }
-    out.tables.push({ at: cls(t), cl: klass(t), dir, cols, rows: rows.length, ncol, w: Math.round(tr.width), cw: Math.round(cr.width), vw: innerWidth,
+    const chain = []; for (let e = t.parentElement; e && e !== root && chain.length < 5; e = e.parentElement) chain.push(cls(e))
+    out.tables.push({ at: cls(t), cl: klass(t), chain, thcl: head.map((h) => klass(h).slice(0, 60)), dir, cols, rows: rows.length, ncol, w: Math.round(tr.width), cw: Math.round(cr.width), vw: innerWidth,
       scrolls: !!scroller && t.scrollWidth > (scroller.clientWidth + 1), scroller: !!scroller, layout: tc.tableLayout, collapse: tc.borderCollapse,
       head: hc ? `fs ${hc.fontSize} fw ${hc.fontWeight} col ${hex(blend(fg(hc.color), bgOf(head[0])))} bg ${hex(bgOf(head[0]))} tt ${hc.textTransform} ls ${hc.letterSpacing} pad ${hc.paddingTop}/${hc.paddingLeft} h ${Math.round(head[0].getBoundingClientRect().height)}${hc.position === 'sticky' ? ' STICKY' : ''}` : 'none',
       cell: cell0 ? `fs ${cell0.fontSize} lh ${cell0.lineHeight} col ${hex(blend(fg(cell0.color), bgOf(rows[0].children[0])))}` : '-',
@@ -544,6 +549,7 @@ for (const [vn] of VIEWS) {
   for (const t of tables) {
     console.log(`tbl  [${t.screen}] ${t.at} ${t.ncol} cols × ${t.rows} rows · ${t.w}px in ${t.cw}px${t.scroller ? (t.scrolls ? ' (scrolls sideways)' : ' (scroll box, fits)') : ''} · layout ${t.layout} · ${t.dir}`)
     console.log(`       head ${t.head} · cell ${t.cell} · pad ${t.pads.slice(0, 3).join(' | ')}${t.pads.length > 3 ? ` +${t.pads.length - 3}` : ''} · rows h ${t.rh.join('/')} · valign ${t.valigns.join(',')} · divider ${t.divs.join(',')}${t.zebra ? ' · zebra' : ''}`)
+    if (process.env.SCAN_CLASSES) console.log(`       wrappers: ${t.chain.join(' < ')} · th classes: ${t.thcl.map((c, i) => `${i + 1}:${c || '-'}`).join(' ')}`)
     console.log('       ' + t.cols.map((c, i) => `${i + 1}"${c.h}" ${c.w}px th:${c.thAl} td:${c.tdAl}${c.mixed ? '~' : ''}${c.num >= 0.6 ? ` NUM${Math.round(c.num * 100)}%${c.tab < 0.9 ? '(prop)' : ''}` : ''}${c.wrap > 0 ? ` wrap${Math.round(c.wrap * 100)}%` : ''}${c.cut ? ` cut${c.cut}` : ''}${c.empty >= 0.5 ? ` empty${Math.round(c.empty * 100)}%` : ''}${c.hlines > 1 ? ` head${c.hlines}lines` : ''}`).join(' · '))
     const I = (sev, type, d) => tIssues.push({ sev, type, d, at: t.at, screen: t.screen })
     if (!t.scroller && t.w > t.cw + 1) I('WARN', 'SPILL', `${t.w}px table in a ${t.cw}px box with no scroll`)
