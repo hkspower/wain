@@ -53,6 +53,18 @@ const DIALECT = new Map([
   ['نحلها', 'we will sort it out'],
   ['الجاي', 'colloquial "the next (one)"'],
   ['المايك', 'the mic — borrowed, and what people actually say'],
+  // The shop assistant (dropin/php-store/assistant.php). The first is in
+  // its copy; the rest are words it RECOGNISES because customers type them.
+  // Only words this dictionary rejects are listed: «لقيت», «كنسل», «تمارا»
+  // and «هني» are accepted as they are, and declaring them would make the
+  // redundancy check below fail.
+  ['ينحسب', 'is counted / taken off — offers_auto «وينحسب لك عند إتمام الطلب»; the formal يُحتسب reads as a notice'],
+  ['شلونك', 'how are you (شلون + ك) — answered as a greeting, not searched'],
+  ['شخبارك', 'Kuwaiti "how are you" — answered as a greeting'],
+  ['انخصم', '"was debited", the Kuwaiti banking verb — a payment complaint, sent to a person, never to the discount shelf'],
+  ['ينخصم', 'is debited — as انخصم'],
+  ['تنخصم', 'is debited (feminine, of الفلوس) — as انخصم'],
+  ['كاشخ', 'Kuwaiti "stylish" — listed so «كاش» (cash) is matched as a whole word and كاشخ is not a payment question'],
 ])
 
 
@@ -84,6 +96,17 @@ const LOANWORDS = new Map([
   ['إكسسوارات', 'accessories'],
   ['كابات', 'caps'],
   ['شنط', 'bags — Egyptian/Gulf, universal in Arabic retail'],
+  // Typed by customers and recognised by the shop assistant.
+  ['ثانكس', 'thanks — written in Arabic letters, as Kuwait types it'],
+  ['تابي', 'Tabby, the instalment service — matched as a whole word, since كتابي contains it'],
+  ['واتس', 'WhatsApp, shortened the way it is typed («رقم الواتس»)'],
+  ['لارج', 'large, the size'],
+  ['ميديم', 'medium, the size'],
+  ['ميديوم', 'medium, the size — the other common spelling'],
+  ['سمول', 'small, the size'],
+  ['اوكي', 'okay — an acknowledgement, answered with the thanks line'],
+  ['اوكيه', 'okay — the other common spelling'],
+  ['كوبون', 'coupon — answered with where a discount code goes'],
   // Brands the shop stocks, and the company that runs it. Names are not
   // spelled by dictionaries.
   ['فانكويش', 'Vanquish'],
