@@ -59,8 +59,8 @@ export interface Faq {
  * one does not move a save, it abandons it. See tests/name.mjs.
  */
 export const NAME: Bi = {
-  en: "Night Racer",
-  ar: "متسابق الليل",
+  en: "Night Racers",
+  ar: "متسابقو الليل",
 };
 
 export const TAGLINE: Bi = {

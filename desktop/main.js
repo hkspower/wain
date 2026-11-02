@@ -1,4 +1,4 @@
-// Electron shell for the Steam PC build of Night Racer.
+// Electron shell for the Steam PC build of Night Racers.
 //
 // The Next.js static export (out/) uses absolute /_next/... asset paths,
 // which break under file://, so we serve it from a tiny local HTTP server
@@ -104,7 +104,7 @@ app.whenReady().then(async () => {
     fullscreen: true,
     autoHideMenuBar: true,
     backgroundColor: "#05070f",
-    title: "Night Racer — متسابق الليل",
+    title: "Night Racers — متسابقو الليل",
     webPreferences: {
       // A race must not stutter when the window loses focus
       backgroundThrottling: false,

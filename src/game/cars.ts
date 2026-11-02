@@ -4808,10 +4808,10 @@ function hoodDecalTexture(): THREE.CanvasTexture {
     ctx.textAlign = "center";
     ctx.direction = "rtl";
     ctx.font = `700 32px ${arabicUI()}`;
-    ctx.fillText("ليالي الخليج", 128, 206);
+    ctx.fillText("متسابقو الليل", 128, 206);
     ctx.direction = "ltr";
     ctx.font = `600 17px ${latinDisplay()}`;
-    ctx.fillText("GULF ROAD NIGHTS", 128, 230);
+    ctx.fillText("NIGHT RACERS", 128, 230);
   });
   hoodDecalTex.anisotropy = 16;
   return hoodDecalTex;

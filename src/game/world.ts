@@ -7296,7 +7296,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       ["ليالي السالمية", "SALMIYA NIGHTS — open until fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 2643, 24],
       ["قهوة GAHWA", "first cup free for racers", "#3a2510", "#ffeeda", "#c98a3d", 3157, 22],
       ["دروازة مول", "DARWAZA MALL · 200 shops", "#0d3a1e", "#dcffe9", "#16a34a", 4400, 28],
-      ["NIGHT RACER", "متسابق الليل · from midnight", "#101728", "#dceaff", "#38e8ff", 5500, 26],
+      ["NIGHT RACERS", "متسابقو الليل · from midnight", "#101728", "#dceaff", "#38e8ff", 5500, 26],
       ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 6900, 25],
     ];
     for (const [l1, l2, bg, fg, accent, s, off] of ads) {

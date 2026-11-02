@@ -3929,11 +3929,11 @@ function raceCut(): { w: number; h: number } | null {
                   className="wm-lit"
                   style={{ ["--d" as string]: `${MENU_TITLE_AT + 260}ms` }}
                 >
-                  RACER
+                  RACERS
                 </span>
               </h1>
               <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
-                متسابق الليل
+                متسابقو الليل
               </div>
               {/* Whether racing is open, on the screen where you decide
                   to press START. The window is the rule the whole night
@@ -4196,10 +4196,10 @@ function raceCut(): { w: number; h: number } | null {
 
             <div className="grn-dialog mt-5 p-4 sm:p-5">
               <div className="grn-display text-2xl italic">
-                NIGHT <span className="text-sodium-400">RACER</span>
+                NIGHT <span className="text-sodium-400">RACERS</span>
               </div>
               <div className="grn-ar mt-1 text-base text-white/70" dir="rtl" lang="ar">
-                متسابق الليل
+                متسابقو الليل
               </div>
               <p className="mt-3 text-sm leading-relaxed text-white/60">
                 A midnight racer set on the Gulf Road — the corniche from

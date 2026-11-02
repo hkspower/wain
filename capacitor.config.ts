@@ -1,11 +1,11 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// Night Racer — native iOS/Android shell. The game is the exported
+// Night Racers — native iOS/Android shell. The game is the exported
 // static web build (`NEXT_OUTPUT=export npm run build` → `out/`), loaded
 // from the app bundle, so it runs fully offline.
 const config: CapacitorConfig = {
   appId: "com.wain.gulfroadnights",
-  appName: "Night Racer",
+  appName: "Night Racers",
   webDir: "out",
   // The online hub needs cleartext only if you point it at a plain ws://
   // host during development; ship wss:// in production.

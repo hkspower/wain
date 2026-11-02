@@ -349,8 +349,8 @@ export const CHANNELS: MusicChannel[] = [
     // The game's own score, unchanged: A minor, four on the floor, the
     // synthwave the rest of the soundtrack is written in.
     id: "house",
-    name: "Night Racer",
-    ar: "متسابق الليل",
+    name: "Night Racers",
+    ar: "متسابقو الليل",
     root: 55,
     bpm: 118,
     scale: [0, 3, 7, 12, 15, 12, 7, 3],
