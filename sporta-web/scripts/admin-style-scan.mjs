@@ -450,7 +450,28 @@ for (const [vn, w, h, mob] of VIEWS) {
       const parts = b64.match(/.{1,3800}/g) || []
       parts.forEach((p, i) => console.log(`SHOT ${vn} ${screen} ${i + 1}/${parts.length} ${p}`))
     }
-    const grab = async (screen) => { report.push({ vn, screen, data: await pg.evaluate(collect) }); done.push(screen); await explain(pg, vn, screen, false); await shot(screen) }
+    // SCAN_DUMP: print the login card's element tree — tag, classes, type,
+    // disabled, size and own text — so CSS for a compiled build whose source
+    // is missing targets class names that exist rather than guesses.
+    const dump = async (screen) => {
+      if (!process.env.SCAN_DUMP) return
+      const lines = await pg.evaluate(() => {
+        const out = [], root = document.querySelector('.admin-login') || document.querySelector('main') || document.body
+        const walk = (el, d) => {
+          if (d > 14 || out.length > 160) return
+          const r = el.getBoundingClientRect(), cs = getComputedStyle(el)
+          if (cs.display === 'none' || (r.width === 0 && r.height === 0)) return
+          const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').slice(0, 40)
+          const attrs = ['type', 'disabled', 'aria-pressed', 'autocomplete'].filter((a) => el.hasAttribute(a)).map((a) => a + '=' + (el.getAttribute(a) || '1')).join(' ')
+          out.push(`${'  '.repeat(d)}${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''}${attrs ? ' [' + attrs + ']' : ''} ${Math.round(r.width)}x${Math.round(r.height)}${own ? ' "' + own + '"' : ''}`)
+          for (const c of el.children) walk(c, d + 1)
+        }
+        walk(root, 0)
+        return out
+      })
+      for (const l of lines) console.log(`DUMP ${vn} ${screen} ${l}`)
+    }
+    const grab = async (screen) => { report.push({ vn, screen, data: await pg.evaluate(collect) }); done.push(screen); await explain(pg, vn, screen, false); await shot(screen); await dump(screen) }
     await grab('Login')
     const email = pg.locator('input[type="email"]:visible, input[name*="email" i]:visible, input[autocomplete="username"]:visible').first()
     const pass = pg.locator('input[type="password"]:visible').first()
