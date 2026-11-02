@@ -369,7 +369,11 @@ html[data-standalone="true"] body {
    tap that navigates is still seen), it sinks: an inner shadow from the top,
    a light shade over the painted sun, the rim dimmed, the label pressed in — and
    springs back on release. In cqw, like everything on the picture. Under
-   reduced motion it still darkens; it only stops moving. */
+   reduced motion it still darkens; it only stops moving.
+
+   In @layer components, so a utility on one of these elements can still win.
+   Unlayered, every rule here beat every utility whatever its specificity. */
+@layer components {
 .hero-sun-face {
   box-shadow:
     inset 0 0 0 0.5cqw color-mix(in oklab, var(--color-sand-50) 55%, transparent),
@@ -399,6 +403,7 @@ html[data-standalone="true"] body {
   .hero-sun[data-pressed] .hero-sun-label {
     scale: none;
   }
+}
 }
 
 /* ---------------------------------------------------------------------------
@@ -543,6 +548,7 @@ h1, h2, h3 {
     transform: scaleX(1);
   }
 }
+@layer components {
 .landmark-slide {
   opacity: 0;
   visibility: hidden;
@@ -593,6 +599,7 @@ h1, h2, h3 {
   .landmark-slide.is-on {
     transition: none !important;
   }
+}
 }
 
 /* Text laid straight on /find's photographs. The scrims under it were
@@ -832,7 +839,9 @@ h1, h2, h3 {
    A transform makes this box the containing block for fixed descendants —
    shadow DOM included, since that follows the flat tree — so the widget
    lands inside the box, and `overflow: hidden` keeps it there. */
+@layer components {
 .wain-ai-slot {
   transform: translateZ(0);
   overflow: hidden;
+}
 }
