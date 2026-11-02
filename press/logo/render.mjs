@@ -20,9 +20,10 @@ if (!exe) { console.error("no chromium"); process.exit(2); }
 const LONG_EDGE = 3840;
 
 // NAMING, and the trap in it. The game's marks are `night-racer-*` and
-// the crew's are `night-racers-*` — one letter apart, because the game
-// was renamed to Night Racer while the crew kept the name Night Racers.
-// Read the file you are about to ship twice.
+// the crew's are `night-racers-*` — one letter apart, a leftover from the
+// time the game was called Night Racer. The game is Night Racers now too,
+// so both sets carry the same name; the file names are kept so nothing
+// that links to them breaks. Read the file you are about to ship twice.
 const jobs = [
   { file: "plate.html", out: "night-racer-plate.png", w: 1200, h: 1600 },
   { file: "lockup.html", out: "night-racer-logo.png", w: 1600, h: 900 },
