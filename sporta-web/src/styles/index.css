@@ -721,3 +721,119 @@ p, li, dd, figcaption {
     margin: 14mm;
   }
 }
+
+/* ---- Contact, legal and policy pages (/contact, /terms, /privacy, /returns) ----
+ * Plain rules, not @layer components, on purpose: the global :focus-visible ring
+ * above is unlayered, and an unlayered rule beats a layered one whatever its
+ * specificity, so a focus ring placed in a layer would never show. Every rule
+ * here is scoped to a page wrapper (.contact-page, .legal-page, .policy-page) or
+ * to a class only these pages use, so it beats the global ring by specificity
+ * and touches nothing else.
+ *
+ * Colour is written here rather than as utilities, for three reasons:
+ *   1. Headings are charcoal #171A1E. The dark-mode remaps above cover
+ *      text-slate-* but not text-ink, and charcoal on the charcoal dark canvas
+ *      would vanish, so each heading carries its own dark value.
+ *   2. The global ring is bright orange: 2.6:1 on white and under 2:1 on the
+ *      beige canvas, below the 3:1 a focus indicator needs. Here it is charcoal
+ *      (bright orange in dark mode).
+ *   3. A callout's accent rule is a logical border, so it sits on the reading
+ *      edge in Arabic without a second rule. */
+.legal-title,
+.legal-h2,
+.contact-title,
+.policy-title,
+.policy-h2 {
+  color: #171a1e;
+  [data-theme='dark'] & {
+    color: #e8eaed;
+  }
+}
+
+.legal-page :focus-visible,
+.contact-page :focus-visible,
+.policy-page :focus-visible {
+  outline: 3px solid #171a1e;
+  outline-offset: 3px;
+  [data-theme='dark'] & {
+    outline-color: #ff7b17;
+  }
+}
+
+/* The global ring also sets border-radius: 6px, which would turn a 24px card
+   square the moment it is focused. Keep the card's own radius. */
+.contact-card:focus-visible {
+  border-radius: 1.5rem;
+}
+
+/* Links inside legal text (the contact details, the Returns page). Orange as
+   text uses the --accent-text role, which flips for dark mode. */
+.legal-link {
+  color: hsl(var(--accent-text));
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+
+/* A key fact: a white box with a hairline border, a generous radius and an
+   orange rule on the reading edge (left in LTR, right in RTL). */
+.policy-callout {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-inline-start: 4px solid #e0561c;
+  border-radius: 1.5rem;
+  background: #fff;
+  [data-theme='dark'] & {
+    background: #1b2026;
+    border-color: rgba(255, 255, 255, 0.12);
+    border-inline-start-color: #e0561c;
+  }
+}
+
+/* A channel card on /contact. The whole card is the link, so the target is the
+   full block, well above the 44px minimum. */
+.contact-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 5.5rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 1.5rem;
+  background: #fff;
+  text-decoration: none;
+  transition: border-color 0.2s ease;
+  [data-theme='dark'] & {
+    background: #1b2026;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+.contact-card:hover {
+  border-color: #e0561c;
+}
+
+/* The icon tile: charcoal with the bright logo orange on it, which clears
+   contrast on both canvases. */
+.contact-card__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  background: #171a1e;
+  color: #ff7b17;
+}
+
+/* The call to action under each value. Orange as text, so the accent-text role. */
+.contact-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: hsl(var(--accent-text));
+}

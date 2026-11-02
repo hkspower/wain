@@ -27,6 +27,7 @@ const SECTIONS = [
   {
     h: { en: '2. What we never collect', ar: '٢. ما لا نجمعه إطلاقًا' },
     p: [{
+      callout: true,
       en: 'We never see or store your card number, KNET PIN, CVV or expiry date. Those are entered on the Commercial Bank of Kuwait’s own payment page. What comes back to us is a payment reference and whether the payment succeeded — nothing that could be used to charge your card again.',
       ar: 'لا نطّلع على رقم بطاقتك أو الرقم السري لكي نت أو رمز CVV أو تاريخ الانتهاء، ولا نخزّنها. فهذه تُدخل في صفحة الدفع لدى البنك التجاري الكويتي، وكل ما يصلنا هو رقم مرجعي ونتيجة العملية — ولا شيء يمكن استخدامه لخصم مبلغ آخر من بطاقتك.',
     }, {

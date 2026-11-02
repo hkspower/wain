@@ -45,6 +45,7 @@ const SECTIONS = [
     id: 'delivery',
     h: { en: '4. Delivery', ar: '٤. التوصيل' },
     p: [{
+      callout: true,
       en: 'Orders inside Kuwait are delivered the same day, with updates sent on WhatsApp. Delivery depends on the address details you give us — governorate, area, block, street and building — so please check them before paying.',
       ar: 'الطلبات داخل الكويت تُوصَّل خلال ٢٤ ساعة، ورسوم التوصيل ١ د.ك لجميع مناطق الكويت، مع إرسال التحديثات عبر واتساب. ويعتمد التوصيل على بيانات العنوان التي تزوّدنا بها — المحافظة والمنطقة وقطعة وشارع وبناية — لذا تأكد منها قبل الدفع.',
     }, {
@@ -56,6 +57,7 @@ const SECTIONS = [
     id: 'returns',
     h: { en: '5. Returns and exchange', ar: '٥. الإرجاع والاستبدال' },
     p: [{
+      callout: true,
       en: 'Exchange and return are free within 14 days of delivery. Items should be unworn, unwashed and in their original condition with tags attached. Start a request on our Returns page or message us on WhatsApp.',
       ar: 'الاستبدال والإرجاع مجانيان خلال ١٤ يومًا من الاستلام. ويجب أن تكون القطعة غير ملبوسة وغير مغسولة وبحالتها الأصلية مع بقاء البطاقات. ابدأ الطلب من صفحة الإرجاع أو راسلنا على واتساب.',
     }, {

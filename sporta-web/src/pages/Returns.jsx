@@ -1,117 +1,23 @@
-import { arabicCount } from '../i18n/translations'
 import { useMemo, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS, SIZES_FOR } from '../lib/products'
 import { formatKWD } from '../lib/format'
 import { usePageMeta, breadcrumbJsonLd, graph } from '../lib/seo'
-import { IconReturn, IconClose, IconPlus, IconMinus } from '../components/icons'
+import { IconReturn, IconClose, IconPlus, IconMinus, IconCheck } from '../components/icons'
 
 const WHATSAPP = '96522091914'
 
-// Page copy lives here (like the About FAQ) — bilingual, keyed by lang.
-const C = {
-  en: {
-    title: 'Returns & Exchange',
-    sub: 'Free exchange within 14 days of delivery — damaged items or the wrong size. Women\u2019s clothing cannot be exchanged. Pick your items below, choose return or exchange, and send the request on WhatsApp — we arrange pickup in Kuwait.',
-    orderInfo: 'Order details',
-    orderNo: 'Order / track number',
-    orderNoPh: 'e.g. SP1A2B3C4D (optional)',
-    phone: 'Phone (for pickup)',
-    phonePh: 'e.g. 9XXXXXXX (optional)',
-    pickItems: 'Select your items',
-    search: 'Search products…',
-    add: 'Add',
-    added: 'Added',
-    yourRequest: 'Your request',
-    emptyReq: 'No items selected yet — tap a product above to add it.',
-    action: 'Action',
-    aReturn: 'Return',
-    aExchange: 'Exchange',
-    noExchangeNote: 'This item cannot be exchanged — return only.',
-    newSize: 'New size',
-    reason: 'Reason',
-    reasons: {
-      size: 'Wrong size',
-      damaged: 'Damaged / defective',
-      notAsDescribed: 'Not as described',
-      changedMind: 'Changed my mind',
-      other: 'Other',
-    },
-    qty: 'Qty',
-    remove: 'Remove',
-    itemsCount: (n) => `${n} item${n === 1 ? '' : 's'}`,
-    send: 'Send request on WhatsApp',
-    sendNote: 'Opens WhatsApp with your request pre-filled — nothing is sent until you press Send there.',
-    policyT: 'Policy',
-    policy: [
-      'Exchange is free and fast, within 14 days of delivery.',
-      'Exchange applies to a damaged item or the wrong size.',
-      'Return applies if the item is damaged or the quality is not as expected.',
-      "Women's clothing cannot be exchanged.",
-      'Items must be unworn, unwashed, with original tags attached.',
-      'Refunds go back to the original payment method (KNET / card).',
-      'Exchanges ship within 24 hours of the pickup being received.',
-    ],
-    waIntro: 'Return/Exchange request — Sporta',
-    waOrder: 'Order',
-    waPhone: 'Phone',
-    waNone: 'not provided',
-  },
-  ar: {
-    title: 'الاستبدال والإرجاع',
-    sub: 'استبدال مجاني خلال ١٤ يومًا من الاستلام — للمنتج التالف أو المقاس غير المناسب. الملابس النسائية غير قابلة للاستبدال. اختر منتجاتك بالأسفل، حدّد إرجاع أو استبدال، وأرسل الطلب عبر واتساب — وننسّق الاستلام داخل الكويت.',
-    orderInfo: 'بيانات الطلب',
-    orderNo: 'رقم الطلب / التتبع',
-    orderNoPh: 'مثال: SP1A2B3C4D (اختياري)',
-    phone: 'رقم الهاتف (للاستلام)',
-    phonePh: 'مثال: 9XXXXXXX (اختياري)',
-    pickItems: 'اختر منتجاتك',
-    search: 'ابحث عن منتج…',
-    add: 'أضف',
-    added: 'أُضيف',
-    yourRequest: 'طلبك',
-    emptyReq: 'لم تختر أي منتج بعد — اضغط على منتج بالأعلى لإضافته.',
-    action: 'الإجراء',
-    aReturn: 'إرجاع',
-    aExchange: 'استبدال',
-    noExchangeNote: 'هذا المنتج غير قابل للاستبدال — الإرجاع فقط.',
-    newSize: 'المقاس الجديد',
-    reason: 'السبب',
-    reasons: {
-      size: 'المقاس غير مناسب',
-      damaged: 'تالف / به عيب',
-      notAsDescribed: 'مختلف عن الوصف',
-      changedMind: 'غيّرت رأيي',
-      other: 'سبب آخر',
-    },
-    qty: 'الكمية',
-    remove: 'إزالة',
-    // Same five-case rule as the checkout summary — see arabicCount().
-    itemsCount: (n) => arabicCount(n, ['منتج واحد', 'منتجان', 'منتجات', 'منتجًا']),
-    send: 'أرسل الطلب عبر واتساب',
-    sendNote: 'يفتح واتساب مع تفاصيل طلبك جاهزة — لا يُرسل شيء حتى تضغط إرسال هناك.',
-    policyT: 'السياسة',
-    policy: [
-      'الاستبدال مجاني وسريع خلال ١٤ يومًا من الاستلام.',
-      'الاستبدال في حال كان المنتج تالفًا أو المقاس غير مناسب.',
-      'الاسترجاع في حال التلف أو إذا كانت الجودة غير متوقعة.',
-      'الملابس النسائية غير قابلة للاستبدال نهائيًا.',
-      'يجب أن تكون القطع غير ملبوسة وغير مغسولة مع البطاقات الأصلية.',
-      'يُعاد المبلغ إلى وسيلة الدفع الأصلية (كي نت / بطاقة).',
-      'شحنة الاستبدال تخرج خلال ٢٤ ساعة من استلام القطعة.',
-    ],
-    waIntro: 'طلب إرجاع/استبدال — سبورتا',
-    waOrder: 'رقم الطلب',
-    waPhone: 'الهاتف',
-    waNone: 'غير مذكور',
-  },
-}
-
+// Every string on this page lives in translations.js under `returns`, in both
+// languages. The request builder and the WhatsApp message read the same keys.
 const REASON_KEYS = ['size', 'damaged', 'notAsDescribed', 'changedMind', 'other']
+
+// Touch targets. A control on this page is a finger target on a phone, so the
+// segmented buttons, the quantity steppers and the remove button are all 44px.
+const SEG_BASE = 'inline-flex min-h-11 items-center rounded-full px-4 text-sm font-semibold transition-colors'
 
 export default function Returns() {
   const { lang, t } = useLang()
-  const c = C[lang]
+  const c = t.returns
   const [order, setOrder] = useState('')
   const [phone, setPhone] = useState('')
   const [q, setQ] = useState('')
@@ -183,52 +89,52 @@ export default function Returns() {
   }, [items, order, phone, lang, c])
 
   const seg = (active) =>
-    `rounded-full px-3 py-1 text-sm font-semibold transition-colors ${
-      active ? 'bg-brand text-ink' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+    `${SEG_BASE} ${
+      active ? 'bg-brand text-ink' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
     }`
 
   return (
-    <section className="mx-auto max-w-4xl px-4 py-12">
-      <div className="mb-2 flex items-center gap-3 text-brand">
-        <IconReturn size={28} />
-        <h1 className="text-3xl font-extrabold text-brand-dark">{c.title}</h1>
+    <section className="policy-page mx-auto max-w-4xl px-4 py-12 sm:py-16">
+      <div className="mb-3 flex items-center gap-3 text-brand">
+        <IconReturn size={28} className="shrink-0 rtl:-scale-x-100" />
+        <h1 className="policy-title text-3xl font-extrabold">{c.title}</h1>
       </div>
-      <p className="mb-8 max-w-2xl text-slate-600">{c.sub}</p>
+      <p className="mb-10 max-w-[68ch] text-lg leading-[1.7] text-slate-700">{c.sub}</p>
 
       {/* Order details */}
-      <h2 className="mb-3 text-lg font-extrabold text-slate-900">{c.orderInfo}</h2>
-      <div className="mb-8 grid gap-3 sm:grid-cols-2">
+      <h2 className="policy-h2 mb-4 text-xl font-extrabold">{c.orderInfo}</h2>
+      <div className="mb-10 grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-slate-600">{c.orderNo}</span>
+          <span className="mb-1.5 block text-sm font-semibold text-slate-700">{c.orderNo}</span>
           <input
             value={order}
             onChange={(e) => setOrder(e.target.value)}
             placeholder={c.orderNoPh}
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
+            className="min-h-11 w-full rounded-xl border border-slate-500 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-slate-600">{c.phone}</span>
+          <span className="mb-1.5 block text-sm font-semibold text-slate-700">{c.phone}</span>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder={c.phonePh}
             inputMode="tel"
             dir="ltr"
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
+            className="min-h-11 w-full rounded-xl border border-slate-500 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
           />
         </label>
       </div>
 
       {/* Item picker */}
-      <h2 className="mb-3 text-lg font-extrabold text-slate-900">{c.pickItems}</h2>
+      <h2 className="policy-h2 mb-4 text-xl font-extrabold">{c.pickItems}</h2>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={c.search}
         type="search"
         aria-label={c.search}
-        className="mb-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
+        className="mb-4 min-h-11 w-full rounded-xl border border-slate-500 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
       />
       <div className="mb-10 grid max-h-80 grid-cols-1 gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
         {results.map((p) => {
@@ -238,18 +144,18 @@ export default function Returns() {
               key={p.slug}
               onClick={() => addItem(p)}
               disabled={picked}
-              className={`flex items-center gap-3 rounded-xl border p-2 text-start transition-colors ${
+              className={`flex min-h-16 items-center gap-3 rounded-2xl border p-2 text-start transition-colors ${
                 picked
                   ? 'border-brand/40 bg-brand/5'
-                  : 'border-slate-200 bg-white hover:border-brand'
+                  : 'border-black/10 bg-white hover:border-brand'
               }`}
             >
               <img src={p.image} alt={p.name[lang]} width="48" height="48" className="h-12 w-12 rounded-lg object-cover" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-slate-900">{p.name[lang]}</span>
-                <span className="block text-sm text-slate-500">{formatKWD(p.price, lang)}</span>
+                <span className="block text-sm text-slate-600">{formatKWD(p.price, lang)}</span>
               </span>
-              <span className={`shrink-0 text-sm font-bold ${picked ? 'text-brand' : 'text-slate-400'}`}>
+              <span className={`shrink-0 text-sm font-bold ${picked ? 'text-accent' : 'text-slate-600'}`}>
                 {picked ? c.added : `+ ${c.add}`}
               </span>
             </button>
@@ -258,28 +164,28 @@ export default function Returns() {
       </div>
 
       {/* Selected items */}
-      <h2 className="mb-3 text-lg font-extrabold text-slate-900">
-        {c.yourRequest} <span className="font-semibold text-slate-400">— {c.itemsCount(items.length)}</span>
+      <h2 className="policy-h2 mb-4 text-xl font-extrabold">
+        {c.yourRequest} <span className="font-semibold text-slate-600">— {c.itemsCount(items.length)}</span>
       </h2>
       {items.length === 0 ? (
-        <p className="mb-10 rounded-xl bg-slate-50 p-6 text-center text-slate-500">{c.emptyReq}</p>
+        <p className="mb-10 rounded-3xl border border-black/10 bg-white p-6 text-center text-slate-700">{c.emptyReq}</p>
       ) : (
         <ul className="mb-6 space-y-3">
           {items.map((i) => {
             const p = productOf(i.slug)
             const sizes = SIZES_FOR(p.category)
             return (
-              <li key={i.slug} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <li key={i.slug} className="rounded-3xl border border-black/10 bg-white p-4 sm:p-5">
                 <div className="flex items-center gap-3">
                   <img src={p.image} alt={p.name[lang]} width="56" height="56" className="h-14 w-14 rounded-xl object-cover" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold text-slate-900">{p.name[lang]}</p>
-                    <p className="text-sm text-slate-500">{formatKWD(p.price, lang)}</p>
+                    <p className="text-sm text-slate-600">{formatKWD(p.price, lang)}</p>
                   </div>
                   <button
                     onClick={() => removeItem(i.slug)}
                     aria-label={t.a11y.remove}
-                    className="text-slate-400 hover:text-red-600"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 hover:text-red-700"
                   >
                     <IconClose size={18} />
                   </button>
@@ -287,7 +193,7 @@ export default function Returns() {
 
                 <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
                   {/* action */}
-                  <div className="flex items-center gap-2" role="group" aria-label={c.action}>
+                  <div className="flex flex-wrap items-center gap-2" role="group" aria-label={c.action}>
                     <button className={seg(i.action === 'return')} onClick={() => patch(i.slug, { action: 'return' })}>
                       {c.aReturn}
                     </button>
@@ -303,12 +209,12 @@ export default function Returns() {
                     )}
                   </div>
                   {p.noExchange && (
-                    <p className="w-full text-xs font-semibold text-amber-700">{c.noExchangeNote}</p>
+                    <p className="w-full text-sm font-semibold text-accent">{c.noExchangeNote}</p>
                   )}
                   {/* qty */}
-                  <div className="flex items-center gap-1 rounded-full border border-slate-300">
+                  <div className="flex items-center rounded-full border border-slate-500">
                     <button
-                      className="px-2.5 py-1 text-slate-600"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-700"
                       aria-label={t.a11y.decrease}
                       onClick={() => patch(i.slug, { qty: Math.max(1, i.qty - 1) })}
                     >
@@ -316,7 +222,7 @@ export default function Returns() {
                     </button>
                     <span className="min-w-6 text-center text-sm font-bold tabular-nums">{i.qty}</span>
                     <button
-                      className="px-2.5 py-1 text-slate-600"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-700"
                       aria-label={t.a11y.increase}
                       onClick={() => patch(i.slug, { qty: i.qty + 1 })}
                     >
@@ -325,12 +231,12 @@ export default function Returns() {
                   </div>
                   {/* sizes */}
                   {sizes && (
-                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                       {t.size?.label ?? 'Size'}
                       <select
                         value={i.size ?? ''}
                         onChange={(e) => patch(i.slug, { size: e.target.value })}
-                        className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-slate-900"
+                        className="min-h-11 rounded-xl border border-slate-500 bg-white px-3 text-slate-900"
                       >
                         {sizes.map((s) => (
                           <option key={s}>{s}</option>
@@ -339,12 +245,12 @@ export default function Returns() {
                     </label>
                   )}
                   {sizes && i.action === 'exchange' && (
-                    <label className="flex items-center gap-2 text-sm font-semibold text-brand">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-accent">
                       {c.newSize}
                       <select
                         value={i.newSize ?? ''}
                         onChange={(e) => patch(i.slug, { newSize: e.target.value })}
-                        className="rounded-lg border border-brand/50 bg-white px-2 py-1 text-slate-900"
+                        className="min-h-11 rounded-xl border border-brand bg-white px-3 text-slate-900"
                       >
                         {sizes.map((s) => (
                           <option key={s}>{s}</option>
@@ -353,12 +259,12 @@ export default function Returns() {
                     </label>
                   )}
                   {/* reason */}
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     {c.reason}
                     <select
                       value={i.reason}
                       onChange={(e) => patch(i.slug, { reason: e.target.value })}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-slate-900"
+                      className="min-h-11 rounded-xl border border-slate-500 bg-white px-3 text-slate-900"
                     >
                       {REASON_KEYS.map((r) => (
                         <option key={r} value={r}>
@@ -375,24 +281,27 @@ export default function Returns() {
       )}
 
       {items.length > 0 && (
-        <div className="mb-10">
+        <div className="mb-12">
           <a
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center rounded-full bg-brand px-8 py-3.5 font-bold text-ink transition-colors hover:bg-brand-dark sm:w-auto"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-brand px-8 py-3.5 font-bold text-ink transition-colors hover:bg-brand-dark sm:w-auto"
           >
             {c.send}
           </a>
-          <p className="mt-2 text-sm text-slate-500">{c.sendNote}</p>
+          <p className="mt-3 max-w-[68ch] text-sm leading-[1.7] text-slate-700">{c.sendNote}</p>
         </div>
       )}
 
-      {/* Policy */}
-      <h2 className="mb-3 text-lg font-extrabold text-slate-900">{c.policyT}</h2>
-      <ul className="list-disc space-y-1 ps-5 text-slate-600">
+      {/* Policy — the key facts, as a list in a callout. Same wording as before. */}
+      <h2 className="policy-h2 mb-4 text-xl font-extrabold">{c.policyT}</h2>
+      <ul className="policy-callout space-y-3">
         {c.policy.map((line) => (
-          <li key={line}>{line}</li>
+          <li key={line} className="flex items-start gap-3 leading-[1.7] text-slate-800">
+            <IconCheck size={18} className="mt-1 shrink-0 text-accent" />
+            <span>{line}</span>
+          </li>
         ))}
       </ul>
     </section>

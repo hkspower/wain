@@ -392,7 +392,10 @@ function Slide({ item, copy, size, active, first, label }) {
             <img
               src={photoM}
               alt=""
+              // The first slide is the LCP element of the home page; the other
+              // two are fetched when shown (see `reached` above).
               loading={first ? 'eager' : 'lazy'}
+              fetchPriority={first ? 'high' : undefined}
               decoding="async"
               onError={() => (variant ? setRtlFailed(true) : setPhotoOk(false))}
               className="absolute inset-0 h-full w-full select-none object-cover object-center"
@@ -414,7 +417,7 @@ function Slide({ item, copy, size, active, first, label }) {
           <span className="flex items-center gap-3">
             {/* 36 CSS px, so the 192px file: enough for a DPR3 phone (108px) and
                 a fifth of the 512px one's bytes. */}
-            <img src="/favicon-192.png" alt="" width="192" height="192" className="h-9 w-9 select-none" />
+            <img src="/favicon-192.png" alt="" width="192" height="192" decoding="async" className="h-9 w-9 select-none" />
             <span className="on-brand rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
               {copy.kicker}
             </span>
@@ -675,6 +678,14 @@ function PhotoSlide({ slide, size, active, first, label, lang, t }) {
   // so the page keeps one h1 — but only when there IS a title to be one.
   const Title = first && title ? 'h1' : 'p'
 
+  // Same rule as the drawn scenes, and for the same measured reason: the track
+  // is in the viewport and only a transform moves the other slides away, so
+  // `loading="lazy"` alone fetched every photograph on first paint. A slide's
+  // photograph is requested the first time it is shown and kept after that.
+  // The first slide starts reached, so the LCP image is never deferred.
+  const [reached, setReached] = useState(first)
+  useEffect(() => { if (active) setReached(true) }, [active])
+
   return (
     <div
       role="group"
@@ -684,19 +695,25 @@ function PhotoSlide({ slide, size, active, first, label, lang, t }) {
       className="relative w-full shrink-0 bg-ink"
     >
       <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-        <img
-          src={slide.image}
-          alt=""
-          width={slide.width ?? undefined}
-          height={slide.height ?? undefined}
-          // The first slide is the largest thing above the fold and is what
-          // LCP measures; the rest can wait until they are swiped to.
-          loading={first ? 'eager' : 'lazy'}
-          fetchPriority={first ? 'high' : undefined}
-          decoding="async"
-          style={{ objectPosition: `${slide.focal_x ?? 50}% ${slide.focal_y ?? 50}%` }}
-          className="absolute inset-0 h-full w-full select-none object-cover"
-        />
+        {reached && (
+          <img
+            src={slide.image}
+            alt=""
+            width={slide.width ?? undefined}
+            height={slide.height ?? undefined}
+            // The first slide is the largest thing above the fold and is what
+            // LCP measures; the rest can wait until they are swiped to.
+            loading={first ? 'eager' : 'lazy'}
+            fetchPriority={first ? 'high' : undefined}
+            decoding="async"
+            // The owner's focal point, applied at EVERY width. The photograph
+            // is landscape (2400x952) and a phone shows about 29% of its width,
+            // so this single object-position is what decides which part of the
+            // picture a phone sees. It is set in the admin, not guessed here.
+            style={{ objectPosition: `${slide.focal_x ?? 50}% ${slide.focal_y ?? 50}%` }}
+            className="absolute inset-0 h-full w-full select-none object-cover"
+          />
+        )}
         {/* The same start-edge scrim the drawn slides use. A photograph the
             shop did not art-direct can be bright anywhere, and white text over
             an unknown photo is the most common way a hero becomes unreadable. */}
