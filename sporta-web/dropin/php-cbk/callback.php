@@ -318,7 +318,7 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
     try {
         $pdo = cbk_pdo($cfg);
         $pdo->beginTransaction();
-        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released from orders where track_id = ? for update');
+        $cur = $pdo->prepare('select id, payment_status, payment_method, stock_released, fulfilment_status from orders where track_id = ? for update');
         $cur->execute([$trackid]);
         $order = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$order) { $pdo->rollBack(); return ['state' => 'review', 'reason' => 'order_not_found']; }
@@ -331,14 +331,20 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             $paid = false;
             $status = 'review';
         }
-        $releasedCapture = $paid && (int)$order['stock_released'] === 1;
-        if ($releasedCapture) {
+        // A capture on an order the shop CANCELLED by hand is held for review,
+        // exactly like one whose stock was released: the warehouse was told "do
+        // not ship", and a paid mark would queue "ship it" after it. The money is
+        // real and stays recorded; the operator reinstates or settles it.
+        $cancelledCapture = $paid && (string)$order['fulfilment_status'] === 'cancelled';
+        $releasedCapture = $paid && !$cancelledCapture && (int)$order['stock_released'] === 1;
+        if ($cancelledCapture || $releasedCapture) {
             $paid = false;
             $status = 'review';
         }
         // A late decline cannot clear an operator hold (including a capture
-        // after reservation expiry) or overwrite its reconciliation evidence.
-        if ($before === 'review' && !$paid && !$releasedCapture) {
+        // after reservation expiry or after cancellation) or overwrite its
+        // reconciliation evidence.
+        if ($before === 'review' && !$paid && !$releasedCapture && !$cancelledCapture) {
             $pdo->rollBack();
             return ['state' => 'review', 'reason' => 'already_under_review'];
         }
@@ -350,7 +356,9 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
         if (!$paid) $sql .= " and payment_status <> 'paid'";
         $pdo->prepare($sql)->execute([
             $status,
-            (string)($res['Status'] ?? ''), $releasedCapture ? 'STOCK_RESERVATION_RELEASED' : (string)($res['Message'] ?? ''),
+            (string)($res['Status'] ?? ''),
+            $cancelledCapture ? 'ORDER_CANCELLED'
+                : ($releasedCapture ? 'STOCK_RESERVATION_RELEASED' : (string)($res['Message'] ?? '')),
             (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
             (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
             (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
@@ -394,7 +402,8 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             'state' => $status,
             'reason' => $status === 'review'
                 ? (!cbk_method_ok($cfg, (string) $order['payment_method']) ? 'wrong_payment_method'
-                    : ($releasedCapture ? 'stock_reservation_released' : 'amount_mismatch'))
+                    : ($cancelledCapture ? 'order_cancelled'
+                    : ($releasedCapture ? 'stock_reservation_released' : 'amount_mismatch')))
                 : ($status === 'paid' ? 'captured' : 'bank_declined'),
         ];
     } catch (Throwable $e) {
