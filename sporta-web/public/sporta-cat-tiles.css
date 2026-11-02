@@ -45,3 +45,14 @@
   width: 44px !important; height: 44px !important; border-radius: 8px !important;
 }
 .campaign-category__badge { border-radius: 4px !important; color: #000 !important; }
+
+/* All four tiles the same height on tablet/desktop (owner request
+ * 2026-11-02). Men and Women are "--tall"; Accessories and Outlet were ~50px
+ * shorter, so the 2x2 read as two different-sized pairs. Equal row tracks
+ * take the TALL height (measured live with this rule injected: 1366 ->
+ * 355/355, 1024 -> 348/348, 820 -> 327/327, 1920 -> 357/357, both languages);
+ * nothing shrinks. Phones are one column and already equal: untouched. */
+@media (min-width: 768px) {
+  .home-category-grid { grid-auto-rows: 1fr !important; }
+  .home-category-grid > .campaign-category { align-self: stretch !important; }
+}
