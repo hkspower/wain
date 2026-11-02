@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
 import { formatKWD } from '../lib/format'
+import { photoFit } from '../lib/productImage'
 import { IconSearch, IconClose } from './icons'
 
 // Instant product search overlay. Bilingual (matches en + ar names),
@@ -71,7 +72,16 @@ export default function SearchOverlay({ open, onClose }) {
                 onClick={onClose}
                 className="flex items-center gap-4 rounded-xl px-3 py-2.5 transition hover:bg-sand-light"
               >
-                <img src={p.image} alt={p.name[lang]} width="48" height="48" className="h-12 w-12 rounded-lg object-cover" />
+                {/* Decorative: the product's name is the link's text. */}
+                <img
+                  src={p.image}
+                  alt=""
+                  width="48"
+                  height="48"
+                  loading="lazy"
+                  decoding="async"
+                  className={`h-12 w-12 shrink-0 rounded-lg bg-sand-light ${photoFit(p.image)}`}
+                />
                 <div className="flex-1">
                   <p className="font-semibold text-slate-900">{p.name[lang]}</p>
                   <p className="text-xs text-slate-500">{p.desc[lang]}</p>

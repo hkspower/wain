@@ -4,6 +4,7 @@ import PaymentMethods from './PaymentMethods'
 import { addressLines } from '../lib/delivery'
 import { optionLine } from '../lib/options'
 import { formatKWD } from '../lib/format'
+import { LINE_ART, photoFit } from '../lib/productImage'
 import { IconTruck, IconLock } from './icons'
 
 // QUICK CHECKOUT — the whole order on one screen, for a shopper who has bought
@@ -94,13 +95,13 @@ export default function QuickCheckout({
           {items.map((i) => (
             <li key={i.key} className="flex items-center gap-3 py-3">
               <img
-                src={i.image}
+                src={i.image || LINE_ART}
                 alt=""
                 width="48"
                 height="48"
                 loading="lazy"
                 decoding="async"
-                className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                className={`h-12 w-12 shrink-0 rounded-lg bg-sand-light ${photoFit(i.image)}`}
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-800">{i.name[lang]}</p>

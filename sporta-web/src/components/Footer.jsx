@@ -7,12 +7,17 @@ export default function Footer() {
   const L = t.footer.links
   return (
     <footer className="app-footer mt-16 bg-ink text-slate-300">
-      <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
+      {/* The side gutter is on the inner block, not on this direct child of the
+          footer: index.css gives every direct child of .app-footer the device's
+          safe-area inset as its horizontal padding, which overrides px-6 and left
+          the footer's copy and the club panel flush with the screen edges. */}
+      <div className="mx-auto max-w-7xl">
+      <div className="px-6 py-12 md:py-16">
         {/* Brand + tagline + socials */}
         <div className="flex flex-col items-center gap-5 text-center">
           <picture>
             <source type="image/webp" srcSet="/logo-white.webp" />
-            <img src="/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy" className="h-12 w-auto" />
+            <img src="/logo-white.png" alt="Sporta Sports Wear" width="600" height="184" loading="lazy" decoding="async" className="h-12 w-auto" />
           </picture>
           <p className="max-w-md text-sm text-slate-400">{t.footer.tagline}</p>
           <div className="flex items-center gap-3">
@@ -92,6 +97,7 @@ export default function Footer() {
             the bank behind KNET, both need the legal entity named — the card
             statement says Al-Muhallab, not Sporta. */}
         <p className="mt-1 text-center text-xs text-slate-400">{t.footer.operator}</p>
+      </div>
       </div>
     </footer>
   )

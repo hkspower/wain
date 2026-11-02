@@ -150,7 +150,7 @@ export default function Returns() {
                   : 'border-black/10 bg-white hover:border-brand'
               }`}
             >
-              <img src={p.image} alt={p.name[lang]} width="48" height="48" className="h-12 w-12 rounded-lg object-cover" />
+              <img src={p.image} alt="" width="48" height="48" loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-cover" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold text-slate-900">{p.name[lang]}</span>
                 <span className="block text-sm text-slate-600">{formatKWD(p.price, lang)}</span>
@@ -177,7 +177,7 @@ export default function Returns() {
             return (
               <li key={i.slug} className="rounded-3xl border border-black/10 bg-white p-4 sm:p-5">
                 <div className="flex items-center gap-3">
-                  <img src={p.image} alt={p.name[lang]} width="56" height="56" className="h-14 w-14 rounded-xl object-cover" />
+                  <img src={p.image} alt="" width="56" height="56" decoding="async" className="h-14 w-14 rounded-xl object-cover" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold text-slate-900">{p.name[lang]}</p>
                     <p className="text-sm text-slate-600">{formatKWD(p.price, lang)}</p>
@@ -185,7 +185,7 @@ export default function Returns() {
                   <button
                     onClick={() => removeItem(i.slug)}
                     aria-label={t.a11y.remove}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 hover:text-red-700"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-black/5 hover:text-red-700"
                   >
                     <IconClose size={18} />
                   </button>
@@ -232,7 +232,7 @@ export default function Returns() {
                   {/* sizes */}
                   {sizes && (
                     <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                      {t.size?.label ?? 'Size'}
+                      {t.size?.label}
                       <select
                         value={i.size ?? ''}
                         onChange={(e) => patch(i.slug, { size: e.target.value })}

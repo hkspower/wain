@@ -4,22 +4,14 @@ import { optionLine } from '../lib/options'
 import { canQuickCheckout, loadDelivery } from '../lib/delivery'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
+import { LINE_ART, photoFit } from '../lib/productImage'
 import { IconPlus, IconMinus, IconClose } from '../components/icons'
 import { usePageMeta } from '../lib/seo'
 import CheckoutSteps from '../components/CheckoutSteps'
 
-// A cart line keeps whatever the product had WHEN IT WAS ADDED, and the cart
-// lives in localStorage — so a bag saved before a product had artwork, or
-// before the placeholder fallback existed, still holds an empty image. The
-// browser draws that as a broken-image glyph next to the price, which reads as
-// a shop that has lost the item.
-const LINE_ART =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">' +
-    '<rect width="80" height="80" fill="#E2DBCE"/></svg>',
-  )
-
+// The empty-line artwork (a bag saved before a product had a photograph) and
+// the photograph fit rule are defined once in lib/productImage.js, with the
+// reason, so the cart page, the bag drawer and the checkout agree.
 export default function Cart() {
   const { lang, t } = useLang()
   const { items, setQty, remove, total } = useCart()
@@ -60,7 +52,17 @@ export default function Cart() {
             // price and remove button sat off the edge of the screen.
             <li key={i.key} className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-2xl border border-slate-100 bg-white p-4 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:items-center">
               <Link to={`/product/${encodeURIComponent(i.slug)}`} className="block h-20 w-20 shrink-0 sm:h-24 sm:w-24" tabIndex={-1} aria-hidden="true">
-                <img src={i.image || LINE_ART} alt="" width="96" height="96" className="h-full w-full rounded-lg object-cover" />
+                {/* Decorative: the product's name is the link text beside it, and
+                    the whole thumbnail is hidden from assistive tech already. */}
+                <img
+                  src={i.image || LINE_ART}
+                  alt=""
+                  width="96"
+                  height="96"
+                  loading="lazy"
+                  decoding="async"
+                  className={`h-full w-full rounded-lg bg-sand-light ${photoFit(i.image)}`}
+                />
               </Link>
               <div className="min-w-0 self-center">
                 <h3 className="break-words font-bold leading-snug text-slate-800">

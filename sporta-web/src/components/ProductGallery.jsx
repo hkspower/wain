@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
+import { photoFit } from '../lib/productImage'
 
 // The product-page image viewer: a swipeable slider with a zoom.
 //
@@ -9,10 +10,19 @@ import { useLang } from '../i18n/LanguageContext'
 // one photograph to look at. The shop's catalogue is mostly single-image today,
 // so the common path must not pay for the rich one.
 //
-// LAYOUT SHIFT: the frame is aspect-square and every <img> carries width and
-// height, so the box is the right size before a byte has arrived. This is the
-// LCP element of the page; a gallery that reflows when the photo loads would
+// LAYOUT SHIFT: the frame has a fixed aspect ratio and every <img> carries width
+// and height, so the box is the right size before a byte has arrived. This is
+// the LCP element of the page; a gallery that reflows when the photo loads would
 // undo the CLS work done everywhere else.
+//
+// THE FRAME IS 4:5, THE SAME AS THE GRID CARD. It used to be square, which
+// cropped a portrait photograph top and bottom, and it gave the "photo
+// unavailable" picture (public/product-photo-unavailable.svg, 600x750) a box of
+// the wrong shape. One ratio on the grid and on the product page means a
+// photograph is framed the same way wherever a shopper meets it.
+//
+// THE PHOTOGRAPH FITS WITH object-contain (lib/productImage.js), so nothing is
+// cropped off a model; a gap is the beige token behind it.
 //
 // LOADING: the first image is eager with fetchpriority="high" because it is
 // above the fold and the LCP candidate. Every other image is lazy — a shoot of
@@ -149,7 +159,7 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
         onMouseMove={(e) => window.matchMedia('(hover: hover)').matches && hover(e)}
         onMouseLeave={() => setLens(null)}
         onClick={() => { if (!moved.current) onZoom(); moved.current = false }}
-        className="group relative aspect-square cursor-zoom-in touch-pan-y overflow-hidden rounded-2xl bg-slate-50"
+        className="group relative aspect-[4/5] cursor-zoom-in touch-pan-y overflow-hidden rounded-2xl bg-sand-light"
       >
         <div
           className="flex h-full w-full"
@@ -163,14 +173,19 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
             <img
               key={src}
               src={src}
-              alt={n === 0 ? alt : ''}
+              // Every photograph is a real view of the product, so every one has
+              // a description. Only the one on screen is announced, though: the
+              // rest sit in the same track, off to the side, and a screen reader
+              // reading the whole track would recite the photographs in turn.
+              alt={n === 0 ? alt : `${alt} · ${t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}`}
+              aria-hidden={n === at ? undefined : true}
               width="600"
-              height="600"
+              height="750"
               fetchPriority={n === 0 ? 'high' : undefined}
               loading={n === 0 ? 'eager' : 'lazy'}
               decoding="async"
               draggable="false"
-              className="h-full w-full shrink-0 object-cover"
+              className={`h-full w-full shrink-0 ${photoFit(src)} bg-sand-light`}
               style={
                 lens && n === at
                   ? { transform: 'scale(2.5)', transformOrigin: `${lens.x}% ${lens.y}%` }
@@ -275,12 +290,13 @@ function Thumbs({ images, at, setI, go, total, t }) {
             onClick={() => setI(n)}
             aria-current={n === at}
             aria-label={t.a11y.imageN.replace('{n}', n + 1).replace('{total}', total)}
-            className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition ${
+            className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 bg-sand-light transition ${
               n === at ? 'border-brand' : 'border-transparent opacity-70 hover:opacity-100'
             }`}
           >
+            {/* Decorative: the button's aria-label already names the photograph. */}
             <img src={src} alt="" width="64" height="64" loading="lazy" decoding="async"
-                 className="h-full w-full object-cover" />
+                 className={`h-full w-full ${photoFit(src)}`} />
           </button>
         ))}
       </div>

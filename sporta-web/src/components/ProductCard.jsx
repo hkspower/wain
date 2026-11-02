@@ -6,6 +6,7 @@ import { useWishlist } from '../lib/wishlist'
 import { IconHeart, IconCheck, IconPlus } from './icons'
 import { formatKWD } from '../lib/format'
 import { fetchStockTable } from '../lib/stock'
+import { photoFit } from '../lib/productImage'
 
 // Modern retail grid card (Gymshark-style): the photo IS the card — portrait
 // 4:5, no border, no shadow, no white box. Everything interactive lives as an
@@ -72,9 +73,13 @@ export default function ProductCard({ product }) {
     <article className="group flex flex-col">
       <Link
         to={`/product/${product.slug}`}
-        className="relative block aspect-[4/5] overflow-hidden rounded-xl bg-slate-100"
+        className="relative block aspect-[4/5] overflow-hidden rounded-xl bg-sand-light"
         aria-label={product.name[lang]}
       >
+        {/* The photograph fits its 4:5 box with object-contain (see
+            lib/productImage.js), so the whole garment is in frame and any gap
+            is the beige token behind it. The alt is the product's own name: the
+            picture is the product, and the link beside it carries the same name. */}
         <img
           src={product.image}
           alt={product.name[lang]}
@@ -88,7 +93,7 @@ export default function ProductCard({ product }) {
           // container reserves the space, and wrong the moment it does not.
           width="600"
           height="750"
-          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
+          className={`h-full w-full ${photoFit(product.image)} transition-transform duration-700 ease-out group-hover:scale-[1.06]`}
         />
 
         {/* SOLD OUT — a veil on the photo, never a change in the card's box,

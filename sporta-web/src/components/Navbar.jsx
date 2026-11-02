@@ -84,7 +84,13 @@ export default function Navbar() {
       <PromoBar bar={bar} fallback={t.ann} lang={lang} />
       {/* Tighter on phones: at the old padding the three header rows ate 138px,
           21% of an iPhone SE viewport, before any content appeared. */}
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+      {/* The side gutter lives on the inner row, not on this <nav>. Index.css
+          gives every direct child of .app-header the device's safe-area inset
+          as its horizontal padding, and that rule outranks px-3 on the nav
+          itself: at 390px the language toggle sat flush against the left edge
+          and the search icon against the right, with no 16px gutter at all. */}
+      <nav className="mx-auto flex max-w-7xl items-center py-2 sm:py-3">
+      <div className="flex w-full items-center justify-between px-4">
         {/* language toggle (left).
             aria-label, because the visible text is the TARGET language ("AR")
             and on its own that is the button's whole accessible name — a
@@ -100,11 +106,15 @@ export default function Navbar() {
           <IconGlobe size={14} /> {lang === 'en' ? 'AR' : 'EN'}
         </button>
 
-        {/* logo (center) — official mark, white variant for dark header */}
+        {/* logo (center) — official mark, white variant for dark header.
+            Dark surface, so the white logo; the WebP is the same mark (600x184,
+            the real size of the file, so the declared ratio is the true one).
+            alt is empty on purpose: the link itself is labelled "Sporta — home"
+            (t.a11y.homeLink), so the picture adds nothing a screen reader needs. */}
         <NavLink to="/" aria-label={t.a11y.homeLink} className="flex min-h-11 items-center">
           <picture>
             <source type="image/webp" srcSet="/logo-white.webp" />
-            <img src="/logo-white.png" alt="Sporta Sports Wear" width="132" height="41" className="h-8 w-auto md:h-9" />
+            <img src="/logo-white.png" alt="" width="600" height="184" decoding="async" className="h-8 w-auto md:h-9" />
           </picture>
         </NavLink>
 
@@ -144,6 +154,7 @@ export default function Navbar() {
             <IconSearch size={22} />
           </button>
         </div>
+      </div>
       </nav>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
@@ -188,11 +199,16 @@ function PromoBar({ bar, fallback, lang }) {
   const shown = text ?? (bar && !bar.live ? '' : fallback)
   if (bar && !bar.live && !text) return null
 
+  // The gutter is on the text, not on the strip. The strip is a direct child of
+  // .app-header, and index.css overrides the horizontal padding of those
+  // children, so px-4 on the strip itself did nothing and a two-line sentence
+  // ran edge to edge at 390px.
   const className =
-    'on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-xs font-semibold leading-none sm:text-xs'
+    'on-brand flex h-7 items-center justify-center overflow-hidden bg-brand text-center text-xs font-semibold leading-none sm:text-xs'
+  const copy = <span className="px-4">{shown}</span>
   return bar?.href ? (
-    <Link to={bar.href} className={`${className} underline-offset-2 hover:underline`}>{shown}</Link>
+    <Link to={bar.href} className={`${className} underline-offset-2 hover:underline`}>{copy}</Link>
   ) : (
-    <p className={className}>{shown}</p>
+    <p className={className}>{copy}</p>
   )
 }
