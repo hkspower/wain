@@ -1842,6 +1842,7 @@ const order = (track, items, extra = {}) =>
                    update orders set created_at = now() - interval 25 hour, fulfilment_status = 'packed'
                     where track_id = '${track(3)}'`)
         const out = await cron(CFG)
+        console.log('PROBE after-cron', JSON.stringify(await sql(`select track_id, payment_method, payment_status, fulfilment_status, stock_claimed, stock_released from orders where track_id like '${track(1).slice(0,6)}%' order by track_id`)), 'stock', await stock(), 's0', s0, 'events', await sql(`select count(*) from order_tracking_events`), 'cancelRows', await sql(`select count(*) from fulfilment_outbox f join orders o on o.id=f.order_id where o.track_id like '%${tag}'`), 'released-all', await sql(`select group_concat(track_id) from orders where stock_released=1 and created_at > now() - interval 1 hour`))
         // Only this block's orders are judged: the sandbox database is shared.
         const mine = (out.cod_cancelled ?? []).filter((t) => t.endsWith(tag))
         is(out.cod_hold_hours === 24 && mine.length === 1 && mine[0] === track(1),

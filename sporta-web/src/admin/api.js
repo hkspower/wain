@@ -70,6 +70,15 @@ export async function setFulfilment(orderId, status) {
   const oos = m.match(/^out_of_stock_(.+)_([^_]+)_(\d+)$/)
   if (oos) return { error: `That size is sold out (${oos[2]}, ${oos[3]} left). Restock it, then put the order back.` }
   if (m.includes('discount_used_up')) return { error: 'The discount code on this order has no uses left, so it cannot be put back as it was.' }
+  // A delivered or shipped order is with the customer; a cancel would tell the
+  // warehouse a parcel that has left is not to ship. Returns settles those.
+  if (m.includes('order_already_shipped')) return { error: 'This order has already left the shop, so it cannot be cancelled. Handle it through Returns.' }
+  // A paid order keeps its garment claimed; cancelling it here would hold that
+  // garment for ever. The refund and the return are handled by hand.
+  if (m.includes('order_paid')) return { error: 'This order is paid, so it cannot be cancelled here. Refund it and handle it through Returns.' }
+  // A cash order past its hold is cancelled again by the sweeper if it goes
+  // back as unfulfilled. Packed keeps it.
+  if (m.includes('cod_hold_expired')) return { error: 'This cash order is past its hold, so it cannot go back as unfulfilled: the sweeper would cancel it again. Mark it packed instead.' }
   return r
 }
 
@@ -106,6 +115,8 @@ export async function settleCard(orderId, bankReference) {
   if (m.includes('not_a_card_order')) return { error: 'That is a cash order — use "Cash collected" instead.' }
   if (m.includes('order_already_paid')) return { error: 'That order is already paid.' }
   if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+  // Cancelled by hand or by the sweeper: put it back first, then settle it.
+  if (m.includes('order_cancelled')) return { error: 'This order is cancelled, so the payment cannot be recorded here. Put the order back on first, then settle it.' }
   return r
 }
 
