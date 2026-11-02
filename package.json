@@ -45,8 +45,6 @@
     "fleet:scan": "python3 tools/fleet_scan.py",
     "max:import": "node tools/max/import.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
-    "check:themes": "node scripts/check-ui-themes.mjs",
-    "check:themes:rules": "node scripts/check-ui-themes.mjs --self-test",
     "check:unity": "node scripts/check-unity-sync.mjs",
     "check:unity-compile": "node scripts/check-unity-monobehaviours.mjs && node scripts/run-dotnet.mjs build tools/unity/typecheck -nologo -v q",
     "check:unreal": "node scripts/check-unreal-sync.mjs",

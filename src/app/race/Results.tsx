@@ -144,7 +144,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             }`}
             style={{
               textShadow: won
-                ? "0 0 40px rgb(var(--accent-rgb)/0.55), 0 4px 20px rgba(0,0,0,0.9)"
+                ? "0 0 40px rgba(245,165,36,0.55), 0 4px 20px rgba(0,0,0,0.9)"
                 : "0 0 40px rgba(244,63,94,0.4), 0 4px 20px rgba(0,0,0,0.9)",
             }}
           >
@@ -170,7 +170,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           </div>
           <div className="grn-meter relative mt-1.5 h-3.5">
             <div
-              className={`xp-fill h-full bg-gradient-to-r from-gulf-500 via-gulf-400 to-gulf-300 shadow-[0_0_18px_rgb(var(--info-rgb)/0.7)] ${
+              className={`xp-fill h-full bg-gradient-to-r from-gulf-500 via-gulf-400 to-gulf-300 shadow-[0_0_18px_rgba(56,201,238,0.7)] ${
                 beat >= 1 ? "bar-sheen" : ""
               }`}
               style={{ width: `${Math.round(barPct * 100)}%` }}
