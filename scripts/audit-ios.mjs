@@ -151,6 +151,39 @@ for (const { probe, type, what } of SENDS) {
   else if (used) good(`${what} → ${type}`);
 }
 
+/* ── 6. the Flutter app's own manifest declares what its code sends ──────── */
+
+/* The same check for the second iOS build, which shares the App Store listing.
+   Its source is Dart, so the probes are read from flutter_app/lib. The types
+   are the ones that build's manifest must declare; the wrapper's photo and
+   location entries do not apply to it (it has no registration and no location
+   permission). */
+console.log("\n── the Flutter app's privacy manifest declares what its code sends ──");
+const FLUTTER_MANIFEST = join(ROOT, "flutter_app/ios/Runner/PrivacyInfo.xcprivacy");
+const dartSources = [];
+(function walkDart(dir) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walkDart(p);
+    else if (extname(p) === ".dart") dartSources.push(readFileSync(p, "utf8"));
+  }
+})(join(ROOT, "flutter_app/lib"));
+const dart = dartSources.join("\n");
+const flutterManifest = existsSync(FLUTTER_MANIFEST) ? readFileSync(FLUTTER_MANIFEST, "utf8") : "";
+const FLUTTER_SENDS = [
+  { probe: /customer_name/, type: "NSPrivacyCollectedDataTypeName", what: "the customer's name (an order)" },
+  { probe: /customer_phone/, type: "NSPrivacyCollectedDataTypePhoneNumber", what: "the customer's phone (an order)" },
+  { probe: /note_ar/, type: "NSPrivacyCollectedDataTypeOtherUserContent", what: "an order's note" },
+  { probe: /'user_message'/, type: "NSPrivacyCollectedDataTypeOtherUserContent", what: "what the visitor types to سالم" },
+  { probe: /elevenlabs|speech_to_text/i, type: "NSPrivacyCollectedDataTypeAudioData", what: "the microphone (a call with شوق)" },
+];
+for (const { probe, type, what } of FLUTTER_SENDS) {
+  const used = probe.test(dart);
+  const declared = flutterManifest.includes(`<string>${type}</string>`);
+  if (used && !declared) bad(`flutter_app/lib sends ${what} but its privacy manifest does not declare ${type}`);
+  else if (used) good(`${what} → ${type}`);
+}
+
 console.log(
   problems
     ? `\n${problems} error(s).`

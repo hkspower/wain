@@ -28,7 +28,10 @@ and the owner can read them in the dashboard; the privacy pages say so.
 ## Google Play — Data safety (draft)
 
 - **Data collected:** Audio → *Voice or sound recordings*; Messages → *Other in-app
-  messages* (the typed chat).
+  messages* (the typed chat, and an order's note); Personal info → *Name* and *Phone
+  number* (an order sends both, so the business's board can reach the customer).
+  An order's name and phone reach the shop, which may count as sharing. Confirm
+  against Play's definitions before filing.
 - **Shared with third parties?** ElevenLabs processes it on wain's behalf (a service
   provider); Play does not count that as "sharing". Confirm against Play's current
   definitions before filing.
@@ -63,9 +66,12 @@ is behind on the name and phone (open, item 4).
   carries a phone number. *App Functionality*.
 - **Tracking:** none, for any of these.
 
-The older draft listed *Analytics* as a purpose for audio and other content. The
-manifest declares *App Functionality* only, and nothing in the code sends data for
-analytics, so the purpose is not declared anywhere.
+*Analytics*: ElevenLabs runs topic and sentiment analysis on conversations (see
+above). The Flutter manifest declares *Analytics* for audio and other user content,
+and so does the Play section. The wrapper's manifest declares *App Functionality*
+only. Whether the wrapper build runs the agent is for the owner to confirm (its
+build settings are in `.github/workflows/ios.yml`). If it does, the wrapper's audio
+and other-content entries need *Analytics* too, and the audit does not check that yet.
 
 ## Open, for the owner
 

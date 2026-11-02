@@ -4,6 +4,11 @@
   Apple's privacy manifest for the Flutter app. "Collect" means transmit off the
   device, which is narrower than it sounds and is why the list is short:
 
+  · Name and phone number — an order you place sends your name and phone to the
+    business's board (order_api.dart: customer_name, customer_phone), and the
+    tracker keeps the order against them. Linked to you, not used for tracking.
+    Purpose: app functionality. The queue and registration are not in this app.
+
   · Audio — a شوق call streams the microphone to ElevenLabs to be transcribed,
     and the agent RECORDS it: record_voice on, retention_days -1 (no expiry),
     read off its settings on 1 October and disclosed in the app's privacy
@@ -11,12 +16,17 @@
     tracking. Purposes: app functionality, and analytics — the service runs
     topic and sentiment analysis on conversations and we read them to find
     where شوق goes wrong.
+
   · Other user content — what you TYPE to سالم goes to the same service to be
-    answered, and is kept the same way. Same terms.
+    answered, and is kept the same way. Same terms. An order's note (note_ar)
+    is sent with the order, so it is linked to the name and phone above.
+
   · Location is neither read nor collected: this app has no location permission
     at all (unlike the Capacitor wrapper, whose registration form used it).
+
   · No tracking and no tracking domains: no analytics SDK, no advertising
     identifier, no third-party measurement anywhere in the bundle.
+
   · UserDefaults is shared_preferences: three preferences (voice on/off, which
     voice, whether you agreed to the conversation notice), read and written
     only by the app itself — reason CA92.1.
@@ -29,6 +39,30 @@
 	<array/>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhoneNumber</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeAudioData</string>
@@ -46,7 +80,7 @@
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
+			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>
