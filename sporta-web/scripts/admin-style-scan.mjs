@@ -20,7 +20,11 @@
 //   COLOUR  every non-neutral colour still in use (the owner asked for slate +
 //           indigo only, rose for errors), with where it comes from;
 //   LOW     text whose contrast against its real background is under WCAG AA;
-//   NAME    how product names render in Catalogue (size, weight, truncation).
+//   NAME    how product names render in Catalogue (size, weight, truncation);
+//   BOX     every card, panel, notice, table frame and modal: radius, border,
+//           shadow, fill, padding, nesting — and what is wrong with them
+//           (content spilling or clipped, off the phone screen, text touching
+//           the edge, near-miss left edges, uneven rows, uneven gaps).
 //
 // --css (or SCAN_CSS_GZ, gzip+base64) injects a stylesheet (bypassCSP) before scanning, so a fix can be
 // measured on the live admin before it is deployed. Lines start with == / ok /
@@ -114,7 +118,7 @@ const MOCK = {
 // ---------------------------------------------------------------- collector
 // Runs in the page. Returns raw per-element records; Node groups them.
 function collect() {
-  const out = { inputs: [], buttons: [], text: [], colours: [], names: [], radii: [] }
+  const out = { inputs: [], buttons: [], text: [], colours: [], names: [], radii: [], boxes: [], boxIssues: [] }
   const vis = (el) => { const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const c = getComputedStyle(el); return c.visibility !== 'hidden' && c.display !== 'none' && +c.opacity > 0.05 }
   // Colours come back as oklch()/oklab() from Tailwind v4, so parse nothing
   // by hand: paint the colour into a 1x1 canvas and read the pixel back.
@@ -192,6 +196,96 @@ function collect() {
     const t = el.textContent.trim(); if (!names.has(t)) continue
     const c = getComputedStyle(el), r = el.getBoundingClientRect()
     out.names.push({ sig: `${el.tagName.toLowerCase()} fs ${c.fontSize} fw ${c.fontWeight} lh ${c.lineHeight} col ${hex(blend(fg(c.color), bgOf(el)))} ws ${c.whiteSpace} ov ${c.textOverflow}${c.webkitLineClamp && c.webkitLineClamp !== 'none' ? ' clamp ' + c.webkitLineClamp : ''} ls ${c.letterSpacing}`, cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2, w: Math.round(r.width), t: t.slice(0, 30), at: cls(el), cl: klass(el), pcl: el.parentElement ? el.parentElement.tagName.toLowerCase() + ' ' + klass(el.parentElement) : '' })
+  }
+  // BOXES — cards, panels, notices, table frames and modals: anything that
+  // draws its own edge. An edge is a FULL border (all four sides; a one-sided
+  // border is a divider, not a box), a box-shadow, or an opaque background
+  // that differs from what the element sits on. Controls are not boxes (the
+  // BUTTON and INPUT sections cover them), and nothing under 80×32 px is
+  // (that is a chip or a badge).
+  const W = innerWidth
+  const ctl = 'button, input, select, textarea, option, label, svg, img, canvas, video, [role="button"], td, th, tr, thead, tbody, tfoot, span, b, strong, small, code'
+  const dif = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])
+  const shadowOf = (v) => (v === 'none' ? '-' : v.replace(/rgba?\([^)]*\)|oklch\([^)]*\)|oklab\([^)]*\)/g, (m) => hex(rgba(m))).replace(/\s+/g, ' ').slice(0, 46))
+  const boxSet = new Map()
+  // List items and link tiles are cards too when they draw an edge; a link
+  // under 120×48 is a button-like control and is left to BUTTON.
+  const cands = [...root.querySelectorAll('div, section, article, aside, form, fieldset, header, footer, details, dialog, table, ul, ol, li, a, [role="dialog"]')]
+    .filter((el) => el.tagName !== 'A' || (el.getBoundingClientRect().width >= 120 && el.getBoundingClientRect().height >= 48))
+  for (const el of shell.querySelectorAll('[role="dialog"], dialog, .fixed')) if (!cands.includes(el)) cands.push(el)
+  for (const el of cands) {
+    if (el.matches(ctl) || !vis(el) || el.closest('.admin-sidebar, aside.admin-sidebar, nav')) continue
+    const r = el.getBoundingClientRect(); if (r.width < 80 || r.height < 32) continue
+    const c = getComputedStyle(el)
+    const bws = [c.borderTopWidth, c.borderRightWidth, c.borderBottomWidth, c.borderLeftWidth].map(parseFloat)
+    const bcol = rgba(c.borderTopColor)
+    const border = bws.every((w) => w > 0) && c.borderTopStyle !== 'none' && bcol[3] > 0.1
+    const shadow = c.boxShadow && c.boxShadow !== 'none'
+    const own = rgba(c.backgroundColor), under = el.parentElement ? bgOf(el.parentElement) : [255, 255, 255]
+    const fill = own[3] > 0.85 && dif(own, under) > 6
+    const modal = (c.position === 'fixed' || el.matches('[role="dialog"], dialog')) && r.width > 200 && r.height > 100
+    const table = el.tagName === 'TABLE'
+    if (!border && !shadow && !fill && !modal && !table) continue
+    const kind = modal ? 'modal' : table ? 'table' : 'card'
+    const bg = own[3] > 0.85 ? own.slice(0, 3) : bgOf(el)
+    const rad = parseFloat(c.borderTopLeftRadius) > 9999 ? 'full' : c.borderTopLeftRadius
+    const bd = border ? `${c.borderTopWidth} ${hex(bcol)}` : '-'
+    const look = `rad ${rad} bd ${bd} sh ${shadowOf(c.boxShadow)} bg ${hex(bg)}`
+    const pad = `${c.paddingTop} ${c.paddingRight} ${c.paddingBottom} ${c.paddingLeft}`
+    boxSet.set(el, { kind, look, pad, r, c, bg, under, border, bcol })
+  }
+  const parentBox = (el) => { for (let e = el.parentElement; e; e = e.parentElement) if (boxSet.has(e)) return e; return null }
+  const issue = (type, el, detail) => out.boxIssues.push({ type, at: cls(el), cl: klass(el), detail })
+  for (const [el, b] of boxSet) {
+    const pb = parentBox(el), r = b.r
+    let depth = 0; for (let e = pb; e; e = parentBox(e)) depth++
+    // Contrast of the edge against what it sits on (3:1 makes the edge itself
+    // readable as a boundary — WCAG 1.4.11 asks it of fields, not of cards, so
+    // this is information, not a warning).
+    const edge = b.border ? ratio(blend(b.bcol, b.under), b.under).toFixed(2) : '-'
+    out.boxes.push({ kind: b.kind, sig: `${b.kind} ${b.look} pad ${b.pad}`, look: b.look, pad: b.pad, rad: b.look.split(' ')[1], bd: b.look.split(' bd ')[1].split(' sh ')[0], sh: b.look.split(' sh ')[1].split(' bg ')[0], depth, edge, w: Math.round(r.width), cl: cls(el) })
+    // Content wider than the box: scrolls (fine for a table frame), clipped,
+    // or spilling out over its edge.
+    const ox = b.c.overflowX, wide = el.scrollWidth - el.clientWidth
+    if (wide > 2) {
+      if (ox === 'auto' || ox === 'scroll') { if (b.kind !== 'table' && !el.querySelector('table')) issue('SCROLLS', el, `${wide}px wider, scrolls sideways`) }
+      else if (ox === 'hidden' || ox === 'clip') issue('CLIPPED', el, `${wide}px of content cut off`)
+      else issue('SPILL', el, `content ${wide}px wider than the box`)
+    }
+    // Off the screen (phone), unless a scrolling ancestor owns it.
+    let scroller = false; for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o === 'auto' || o === 'scroll') { scroller = true; break } }
+    if (!scroller && b.kind !== 'modal' && (r.right > W + 1 || r.left < -1)) issue('OFFSCREEN', el, `x ${Math.round(r.left)}..${Math.round(r.right)} of ${W}`)
+    // Text touching the edge: the nearest text to the box's inner edge, for
+    // boxes that draw a visible edge (a border or a fill).
+    if ((b.border || b.kind === 'modal' || boxSet.get(el).look.includes('bg ') && b.c.backgroundColor !== 'rgba(0, 0, 0, 0)') && b.kind !== 'table') {
+      const bl = parseFloat(b.c.borderLeftWidth) || 0, br = parseFloat(b.c.borderRightWidth) || 0
+      let minX = Infinity, n = 0
+      const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      for (let t = tw.nextNode(); t && n < 60; t = tw.nextNode()) {
+        if (!t.textContent.trim()) continue
+        const pe = t.parentElement; if (!pe || parentBox(pe) !== el && pe !== el && boxSet.has(parentBox(pe)) && parentBox(pe) !== el) continue
+        if (pe.closest('button, input, select, textarea, a, table') && !el.matches('table')) continue
+        const rg = document.createRange(); rg.selectNodeContents(t); const rr = rg.getBoundingClientRect(); if (rr.width < 1) continue
+        n++; minX = Math.min(minX, rr.left - (r.left + bl), (r.right - br) - rr.right)
+      }
+      if (n && minX < 6) issue('CRAMPED', el, `text ${Math.round(minX)}px from the edge (padding ${b.pad})`)
+    }
+    // A box inside an identical box draws the same edge twice.
+    if (pb && boxSet.get(pb).look === b.look && b.kind === 'card') issue('NESTED-SAME', el, `inside an identical ${boxSet.get(pb).look}`)
+  }
+  // Siblings: near-miss left edges, uneven heights in one row, and the gaps
+  // between stacked boxes — grouped per parent box (or the page).
+  const fam = new Map()
+  for (const [el, b] of boxSet) { if (b.kind === 'modal') continue; const k = parentBox(el) || root; if (!fam.has(k)) fam.set(k, []); fam.get(k).push([el, b.r]) }
+  for (const [p, kids] of fam) {
+    if (kids.length < 2) continue
+    const rows = new Map(); for (const [el, r] of kids) { const k = Math.round(r.top / 3); (rows.get(k) || rows.set(k, []).get(k)).push([el, r]) }
+    for (const row of rows.values()) { if (row.length < 2) continue; const hs = row.map(([, r]) => Math.round(r.height)); if (Math.max(...hs) - Math.min(...hs) > 6) issue('UNEVEN-ROW', row[0][0], `${row.length} boxes side by side, heights ${hs.join('/')}`) }
+    const col = kids.filter(([, a]) => kids.some(([, b]) => b !== a && b.left < a.right && a.left < b.right && Math.abs(a.top - b.top) > 3)).sort((a, b) => a[1].top - b[1].top)
+    const lefts = [...new Set(col.map(([, r]) => Math.round(r.left)))].sort((a, b) => a - b)
+    for (let i = 1; i < lefts.length; i++) if (lefts[i] - lefts[i - 1] >= 1 && lefts[i] - lefts[i - 1] <= 8) issue('MISALIGNED', col[0][0], `stacked boxes start at x=${lefts.join('/')} (off by ${lefts[i] - lefts[i - 1]}px)`)
+    const gaps = []; for (let i = 1; i < col.length; i++) { const g = Math.round(col[i][1].top - col[i - 1][1].bottom); if (g >= 0 && g < 120) gaps.push(g) }
+    const gs = [...new Set(gaps)]; if (gs.length > 1 && Math.max(...gs) - Math.min(...gs) > 4) issue('GAPS', col[0][0], `gaps between stacked boxes: ${gaps.join('/')}px`)
   }
   const side = document.querySelector('.admin-sidebar, aside, nav')
   if (side) { const c = getComputedStyle(side); out.side = `${side.tagName.toLowerCase()}.${klass(side).slice(0, 60)} bg-color ${c.backgroundColor} bg-image ${c.backgroundImage.slice(0, 120)} -> effective ${hex(bgOf(side))}` }
@@ -338,6 +432,24 @@ for (const [vn] of VIEWS) {
   for (const [k, g] of group(col.map((c) => ({ ...c, ex: c.at })), (c) => `${c.f} ${c.k} ${c.c}`, () => ({})).slice(0, 16)) console.log(`${/OTHER/.test(k) ? 'WARN ' : 'ok   '}×${g.n} ${k} [${scr(g.screens)}] at ${[...new Set(g.ex)].join(' | ')}`)
   const rad = {}; for (const r of flat('radii')) rad[r.rad] = (rad[r.rad] || 0) + 1
   console.log(`-- RADII: ${Object.entries(rad).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`).join(' ')}`)
+  const boxes = flat('boxes')
+  const kinds = {}; for (const b of boxes) kinds[b.kind] = (kinds[b.kind] || 0) + 1
+  console.log(`-- BOX ${boxes.length} boxes (${Object.entries(kinds).map(([k, v]) => `${k} ${v}`).join(', ')}), ${new Set(boxes.map((b) => b.look)).size} looks, ${new Set(boxes.map((b) => b.sig)).size} look+padding styles, nesting up to ${Math.max(0, ...boxes.map((b) => b.depth))}`)
+  for (const [k, g] of group(boxes.map((b) => ({ ...b, ex: b.cl })), (b) => `${b.kind} ${b.look}`, () => ({})).slice(0, 22)) {
+    const pads = {}; for (const b of boxes.filter((x) => `${x.kind} ${x.look}` === k)) pads[b.pad] = (pads[b.pad] || 0) + 1
+    console.log(`box  ×${g.n} ${k} · edge ${g.last.edge}:1 · pad ${Object.entries(pads).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([p, n]) => `${p}×${n}`).join(' | ')} [${scr(g.screens)}] e.g. ${[...new Set(g.ex)].slice(0, 2).join(' | ')}`)
+  }
+  const tally = (f) => { const m = {}; for (const b of boxes) m[f(b)] = (m[f(b)] || 0) + 1; return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`).join(' ') }
+  console.log(`-- BOX radii: ${tally((b) => b.rad)}`)
+  console.log(`-- BOX borders: ${tally((b) => b.bd)}`)
+  console.log(`-- BOX shadows: ${tally((b) => b.sh)}`)
+  console.log(`-- BOX paddings: ${tally((b) => b.pad).split(' ').slice(0, 40).join(' ')}`)
+  const bi = flat('boxIssues')
+  console.log(`-- BOX issues: ${bi.length} (${Object.entries(bi.reduce((m, i) => (m[i.type] = (m[i.type] || 0) + 1, m), {})).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'})`)
+  for (const [k, g] of group(bi.map((i) => ({ ...i, ex: i.detail })), (i) => `${i.type} at ${i.at}`, () => ({})).slice(0, 40)) {
+    console.log(`${/SCROLLS|GAPS|UNEVEN/.test(k) ? 'info ' : 'WARN '}×${g.n} ${k} [${scr(g.screens)}] ${[...new Set(g.ex)].slice(0, 2).join(' | ')}`)
+    if (process.env.SCAN_CLASSES) console.log(`       class="${g.last.cl}"`)
+  }
   const names = flat('names')
   console.log(`-- NAME product names: ${names.length}, cut off ${names.filter((n) => n.cut).length}`)
   for (const [k, g] of group(names.map((n) => ({ ...n, ex: n.t })), (n) => `${n.sig} at ${n.at}`, () => ({})).slice(0, 8)) {
