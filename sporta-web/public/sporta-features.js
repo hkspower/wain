@@ -246,3 +246,358 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
 })()
+
+/* Brands on the storefront (2026-11-02): a brand header on /shop?brand=<slug>,
+ * a link from the product page's maker mark to that page, and a fit guard for
+ * the home strip's text-only tiles. One block because all three read the same
+ * public list, fetched once per page load: /api/api.php?r=brands (slug,
+ * name_en, name_ar, has_logo, logo_v, products = how many LISTED products
+ * carry the brand). It is no-store and tiny — the logo bytes are never in it.
+ *
+ * 1. /shop?brand=<slug> already filters the grid, but said nothing about WHICH
+ *    brand, had no way back, and for a brand with nothing tagged showed only
+ *    "No matching products". One banner goes in just before .catalog-filters
+ *    (else after .catalog-heading-copy): the logo on a white box (the logos
+ *    are black on transparent) or the name as a wordmark, the name, the count,
+ *    and a link to /shop ("All brands": it drops the brand, where the
+ *    compiled "All" chip next to it drops the category). document.title follows while the banner is up and
+ *    the compiled title comes back when the URL loses ?brand. An unknown or
+ *    hidden slug gets nothing — the public list only carries shown brands.
+ * 2. /product/<slug>: the maker in .campaign-brand-plate becomes a link to its
+ *    brand page — an empty <a> laid OVER the mark, so React's own nodes are
+ *    never moved (moving a node React owns is how a later re-render throws).
+ *    Not added while the brand has no listed products: a link to an empty
+ *    page is worse than no link.
+ * 3. sporta-images.css sets the strip's text tiles in capitals in English; a
+ *    long name ("EYESPORTWEAR") would then be wider than its 132px tile, so
+ *    any tile that overflows gets a smaller font-size, measured, never guessed.
+ *
+ * DOM is built with createElement/textContent only: brand names come from the
+ * database and are never parsed as HTML. Every step is wrapped so a failure
+ * here can never take the shop page down with it.
+ */
+;(function () {
+  'use strict'
+  var BANNER = 'sporta-brand-banner'
+  var PLATE = 'data-sporta-plate-link'
+  var FIT = 'data-sporta-fit'
+  var AR_DIGITS = '٠١٢٣٤٥٦٧٨٩'
+  var T = {
+    en: { eyebrow: 'Brand', all: 'All brands', browse: 'Browse the full collection', site: 'Sporta', shop: 'Shop ' },
+    ar: { eyebrow: 'الماركة', all: 'كل الماركات', browse: 'تصفّح كل المنتجات', site: 'سبورتا', shop: 'تسوّق ' }
+  }
+  var rows = null          // the public brand list once loaded ([] if it could not be read)
+  var pending = null       // the one request per page load
+  var titleSet = null      // the title this script last wrote
+  var titleWas = null      // the compiled app's title it replaced
+
+  function lang() { return (document.documentElement.lang || 'ar').slice(0, 2).toLowerCase() === 'en' ? 'en' : 'ar' }
+  function digits(n, L) { var s = String(n); return L === 'ar' ? s.replace(/[0-9]/g, function (d) { return AR_DIGITS.charAt(+d) }) : s }
+
+  /* "{n} products" in the visitor's language. Arabic has five cases, and the
+   * noun's form follows the last two digits, so the cases restart every
+   * hundred: 103 takes the plural like 3, 111 the accusative singular like 11.
+   * A round hundred and 101/102 take the genitive singular — "١٠٠ منتج",
+   * "١٠١ منتج" — because "منتج واحد" / "منتجان" only stand for 1 and 2 alone. */
+  function countLabel(n, L) {
+    n = Math.max(0, Math.floor(Number(n) || 0))
+    if (L === 'ar') {
+      if (n === 0) return 'لا توجد منتجات'
+      if (n === 1) return 'منتج واحد'
+      if (n === 2) return 'منتجان'
+      var h = n % 100
+      if (h >= 3 && h <= 10) return digits(n, L) + ' منتجات'
+      if (h >= 11) return digits(n, L) + ' منتجًا'
+      return digits(n, L) + ' منتج'
+    }
+    if (n === 0) return 'No products'
+    return n + (n === 1 ? ' product' : ' products')
+  }
+  // Read by scripts/addons-brands-test.mjs (and handy in the console).
+  try { (window.SportaAddons = window.SportaAddons || {}).brandCount = countLabel } catch (e) {}
+
+  function load() {
+    if (pending) return pending
+    pending = fetch('/api/api.php?r=brands', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : [] })
+      .then(function (j) { rows = Array.isArray(j) ? j : (j && Array.isArray(j.data) ? j.data : []) })
+      .catch(function () { rows = [] })
+      .then(function () { schedule() })
+    return pending
+  }
+  function low(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase() }
+  function bySlug(s) {
+    s = low(s)
+    for (var i = 0; s && i < rows.length; i++) if (rows[i] && low(rows[i].slug) === s) return rows[i]
+    return null
+  }
+  function byName(s) {
+    s = low(s)
+    for (var i = 0; s && i < rows.length; i++) {
+      var b = rows[i]
+      if (b && (low(b.name_en) === s || low(b.name_ar) === s)) return b
+    }
+    return null
+  }
+  /** null when the server did not say (an older api.php): then nothing is claimed. */
+  function productCount(b) {
+    var n = b ? b.products : null
+    if (n === undefined || n === null || n === '') return null
+    n = Number(n)
+    return isFinite(n) ? Math.max(0, Math.floor(n)) : null
+  }
+  function hasLogo(b) { return b.has_logo === true || b.has_logo === 1 || b.has_logo === '1' }
+  function nameOf(b, L) { return String((L === 'ar' ? b.name_ar : b.name_en) || b.name_en || b.name_ar || b.slug) }
+  function langQuery() {
+    try { var v = new URLSearchParams(location.search).get('lang'); return v === 'en' || v === 'ar' ? v : '' } catch (e) { return '' }
+  }
+  function shopHref(slug) {
+    var q = []
+    if (slug) q.push('brand=' + encodeURIComponent(slug))
+    var l = langQuery()
+    if (l) q.push('lang=' + l)
+    return '/shop' + (q.length ? '?' + q.join('&') : '')
+  }
+  function el(tag, css, text) {
+    var n = document.createElement(tag)
+    if (css) n.style.cssText = css
+    if (text != null) n.textContent = text
+    return n
+  }
+
+  // ------------------------------------------------------------ 1. the banner
+  function wordmark(b) {
+    var text = String(b.name_en || b.name_ar || b.slug)
+    var latin = /^[\x20-\x7e]+$/.test(text)
+    var w = el('span', 'display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+      'font-size:' + (text.length > 9 ? 13 : 16) + 'px;line-height:1.2;font-weight:800;color:#171a1e' +
+      (latin ? ';text-transform:uppercase;letter-spacing:.06em' : ''), text)
+    w.setAttribute('dir', 'auto')
+    return w
+  }
+  function buildBanner(b, L, key) {
+    var t = T[L], n = productCount(b), ar = L === 'ar'
+    var sec = el('section', 'box-sizing:border-box;width:100%;flex:1 1 100%;grid-column:1/-1;display:flex;flex-wrap:wrap;' +
+      'align-items:center;gap:12px 16px;margin:16px 0;padding:16px;border-radius:16px;background:#171a1e;color:#fff')
+    sec.id = BANNER
+    sec.setAttribute('data-key', key)
+    sec.setAttribute('dir', ar ? 'rtl' : 'ltr')
+    sec.setAttribute('lang', L)
+    sec.setAttribute('aria-labelledby', BANNER + '-title')
+
+    // The mark. A logo box has a fixed size, so the image arriving moves
+    // nothing; a wordmark box is sized once, at build time, by its text.
+    var logo = hasLogo(b)
+    var mark = el('div', 'flex:none;box-sizing:border-box;height:56px;border-radius:12px;background:#fff;display:flex;' +
+      'align-items:center;justify-content:center;overflow:hidden;' +
+      (logo ? 'width:112px;padding:6px' : 'min-width:112px;max-width:220px;padding:6px 14px'))
+    mark.setAttribute('aria-hidden', 'true')
+    if (logo) {
+      var img = el('img', 'display:block;width:100%;height:100%;object-fit:contain')
+      img.alt = ''
+      img.width = 100
+      img.height = 44
+      img.decoding = 'async'
+      img.addEventListener('error', function () {
+        if (img.parentNode !== mark) return
+        mark.removeChild(img)
+        mark.style.width = ''
+        mark.style.minWidth = '112px'
+        mark.style.padding = '6px 14px'
+        mark.appendChild(wordmark(b))
+      })
+      img.src = '/api/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) + '&v=' + encodeURIComponent(b.logo_v || '')
+      mark.appendChild(img)
+    } else {
+      mark.appendChild(wordmark(b))
+    }
+    sec.appendChild(mark)
+
+    var copy = el('div', 'flex:1 1 160px;min-width:0')
+    copy.appendChild(el('p', 'margin:0 0 2px;font-size:12px;line-height:16px;font-weight:700;color:#ff7b17' +
+      (ar ? '' : ';text-transform:uppercase;letter-spacing:.12em'), t.eyebrow))
+    var h = el('h2', 'margin:0;font-size:22px;line-height:1.3;font-weight:800;color:#fff;overflow-wrap:anywhere')
+    h.id = BANNER + '-title'
+    var hn = document.createElement('bdi')
+    hn.textContent = nameOf(b, L)
+    h.appendChild(hn)
+    copy.appendChild(h)
+    if (n !== null) {
+      var p = el('p', 'margin:4px 0 0;font-size:14px;line-height:20px;color:#e2dbce')
+      p.setAttribute('data-sporta-brand-count', '')
+      if (n === 0) {
+        // About THIS PAGE, not the stock: a brand with nothing tagged yet may
+        // well be on sale in the shop ("Gymshark phone strap"), and "no Sporta
+        // pieces" on Sporta's own shop would be false. The tag is what is missing.
+        var bn = document.createElement('bdi')
+        bn.textContent = nameOf(b, L)
+        p.appendChild(document.createTextNode(ar ? 'لم نُضف قطع ' : 'We haven’t added '))
+        p.appendChild(bn)
+        p.appendChild(document.createTextNode(ar ? ' إلى هذه الصفحة بعد.' : ' pieces to this page yet.'))
+      } else {
+        p.textContent = countLabel(n, L)
+      }
+      copy.appendChild(p)
+    }
+    sec.appendChild(copy)
+
+    var a = el('a', 'flex:none;margin-inline-start:auto;box-sizing:border-box;display:inline-flex;align-items:center;' +
+      'justify-content:center;min-height:44px;padding:10px 20px;border-radius:999px;background:#e0561c;color:#171a1e;' +
+      'font-size:14px;line-height:20px;font-weight:800;text-decoration:none;white-space:nowrap',
+      n === 0 ? t.browse : t.all)
+    a.href = shopHref('')
+    a.setAttribute('data-sporta-brand-clear', '')
+    sec.appendChild(a)
+    return sec
+  }
+
+  function onShop() { return /^\/shop\/?$/.test(location.pathname) }
+  function wantedSlug() {
+    if (!onShop()) return ''
+    try { return (new URLSearchParams(location.search).get('brand') || '').trim() } catch (e) { return '' }
+  }
+  function setTitle(want) {
+    if (document.title === want) { if (titleSet === null) titleSet = want; return }
+    if (document.title !== titleSet) titleWas = document.title   // the compiled app's own, or a newer one
+    titleSet = want
+    document.title = want
+  }
+  function restoreTitle() {
+    // Only if the title is still ours: a page the visitor moved on to may
+    // already have written its own, and that one stays.
+    if (titleSet !== null && document.title === titleSet && titleWas !== null) document.title = titleWas
+    titleSet = null
+    titleWas = null
+  }
+  function dropBanner() {
+    var cur = document.getElementById(BANNER)
+    if (cur && cur.parentNode) cur.parentNode.removeChild(cur)
+    restoreTitle()
+  }
+  function mountBanner() {
+    var slug = wantedSlug()
+    if (!slug) { dropBanner(); return }
+    if (!rows) { load(); return }
+    var b = bySlug(slug)
+    if (!b) { dropBanner(); return }
+    var filters = document.querySelector('.catalog-filters')
+    var head = filters ? null : document.querySelector('.catalog-heading-copy')
+    if (!filters && !head) return                          // the page has not rendered yet
+    var L = lang()
+    var key = [b.slug, L, productCount(b), hasLogo(b) ? b.logo_v : '-', nameOf(b, 'en'), nameOf(b, 'ar'), langQuery()].join('|')
+    var cur = document.getElementById(BANNER)
+    if (cur && cur.getAttribute('data-key') !== key) { cur.parentNode.removeChild(cur); cur = null }
+    if (!cur) cur = buildBanner(b, L, key)
+    if (filters) {
+      if (cur.nextElementSibling !== filters) filters.parentNode.insertBefore(cur, filters)
+    } else if (cur.previousElementSibling !== head) {
+      head.parentNode.insertBefore(cur, head.nextSibling)
+    }
+    setTitle(nameOf(b, L) + ' — ' + T[L].site)
+  }
+
+  // ------------------------------------------------- 2. the product plate link
+  function plateBrand(m) {
+    var img = m.querySelector('img')
+    if (img) {
+      var src = img.getAttribute('src') || ''
+      var s = /[?&]slug=([^&#]*)/.exec(src)
+      if (s && /[?&]r=brand_logo(&|#|$)/.test(src)) {
+        var bs = null
+        try { bs = bySlug(decodeURIComponent(s[1].replace(/\+/g, ' '))) } catch (e) {}
+        if (bs) return bs
+      }
+      var ba = byName(img.getAttribute('alt'))
+      if (ba) return ba
+    }
+    return byName(m.textContent)
+  }
+  function mountPlates() {
+    if (location.pathname.indexOf('/product/') !== 0) return
+    var makers = document.querySelectorAll('.campaign-brand-plate__maker')
+    if (!makers.length) return
+    if (!rows) { load(); return }
+    var L = lang()
+    for (var i = 0; i < makers.length; i++) {
+      var m = makers[i], a = null
+      for (var c = m.firstElementChild; c; c = c.nextElementSibling) if (c.hasAttribute(PLATE)) a = c
+      var b = plateBrand(m)
+      if (!b || productCount(b) === 0) { if (a) m.removeChild(a); continue }
+      var href = shopHref(b.slug), label = T[L].shop + nameOf(b, L)
+      if (!a) {
+        // Laid over the mark (and 8px past it, for a 44px-tall target) — it
+        // takes no room, so the plate's flex row is exactly what it was.
+        a = el('a', 'position:absolute;top:-8px;bottom:-8px;left:-4px;right:-4px;z-index:1;border-radius:8px')
+        a.setAttribute(PLATE, '')
+        if (getComputedStyle(m).position === 'static') m.style.position = 'relative'
+        m.appendChild(a)
+      }
+      if (a.getAttribute('href') !== href) a.setAttribute('href', href)
+      if (a.getAttribute('aria-label') !== label) { a.setAttribute('aria-label', label); a.title = label }
+    }
+  }
+
+  // ---------------------------------------------- 3. home strip: fit the text
+  function fitStrip() {
+    var spans = document.querySelectorAll('.brand-bar__item > span')
+    var en = lang() === 'en'
+    for (var i = 0; i < spans.length; i++) {
+      var s = spans[i]
+      if (!en) { if (s.hasAttribute(FIT)) { s.style.fontSize = ''; s.removeAttribute(FIT) } continue }
+      var item = s.parentNode
+      var key = s.textContent + '|' + item.clientWidth
+      if (s.getAttribute(FIT) === key) continue
+      s.style.fontSize = ''
+      var cs = getComputedStyle(item)
+      var room = item.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) - 4
+      var r = document.createRange()
+      r.selectNodeContents(s)
+      var w = r.getBoundingClientRect().width
+      if (room > 0 && w > room) {
+        var fs = parseFloat(getComputedStyle(s).fontSize) || 15
+        s.style.fontSize = Math.max(10, Math.floor(fs * room / w * 2) / 2) + 'px'
+      }
+      s.setAttribute(FIT, key)
+    }
+  }
+
+  function run() {
+    try { mountBanner() } catch (e) {}
+    try { mountPlates() } catch (e) {}
+    try { fitStrip() } catch (e) {}
+  }
+  var queued = false
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; run() })
+  }
+  function watch(target, opts) { try { if (target) new MutationObserver(schedule).observe(target, opts) } catch (e) {} }
+  function start() {
+    run()
+    // React re-renders (and SPA navigation, which re-renders) → body; the
+    // language toggle → <html lang>; the compiled app writing its own title
+    // over ours → <head>. Each only schedules: one run per frame at most.
+    // React also updates IN PLACE: product → product can change nothing but
+    // the maker logo's src (or alt) and text nodes, which childList alone does
+    // not see — so those are watched too. Nothing run() writes is one of them
+    // (it sets href/aria-label/title/style and adds nodes), so this cannot loop.
+    watch(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'alt'] })
+    watch(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+    watch(document.head, { childList: true, subtree: true, characterData: true })
+    window.addEventListener('popstate', schedule)
+    window.addEventListener('resize', schedule)
+    try {
+      // A web font arriving changes every width the fit guard measured.
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () {
+        var s = document.querySelectorAll('[' + FIT + ']')
+        for (var i = 0; i < s.length; i++) s[i].removeAttribute(FIT)
+        schedule()
+      })
+    } catch (e) {}
+  }
+  try {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()

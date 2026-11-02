@@ -313,8 +313,17 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 // ------------------------------------------------------------------ brands
 // The brands the storefront may show. ACTIVE ONLY — "disabled" has to mean
-// invisible to a shopper or the switch means nothing. The logo travels as the
-// data URL it is stored as, so a brand needs no second request and no file.
+// invisible to a shopper or the switch means nothing. The logo itself is
+// served by ?r=brand_logo (see below), never inlined here.
+//
+// `products` is how many LISTED products carry the brand. It exists because a
+// brand with nothing behind it is a dead end: the home strip linked every
+// brand to /shop?brand=<slug>, and with one product tagged out of 46, six of
+// seven tiles opened "No matching products". The storefront cannot know that
+// without downloading the whole catalogue first, so the count travels with
+// the brand and the strip can treat an empty brand differently (or not at
+// all). Only ACTIVE products count, for the same reason only active brands
+// are listed: a hidden product is not something a shopper can be sent to.
 if ($r === 'brands') {
     $rows = $db->query(
         // `logo` is deliberately NOT selected. It is a data: URI up to 160 kB
@@ -322,10 +331,35 @@ if ($r === 'brands') {
         // endpoint that a product page now calls. `has_logo` says whether to
         // ask for the bytes; ?r=brand_logo serves them, cached for a year.
         // `logo_v` is the content hash that makes that cache safe.
-        'select slug, name_en, name_ar, logo is not null and logo <> \'\' as has_logo,
-                substr(sha2(coalesce(logo, \'\'), 256), 1, 12) as logo_v
-           from brands where active = 1 order by sort, name_en'
+        //
+        // The count is ONE grouped pass over products (idx_products_brand),
+        // not a count(*) per brand, which would be a query per row on an
+        // endpoint the home page calls on every visit.
+        //
+        // A BRAND WITH NO LISTED PRODUCT IS LEFT OUT (owner's choice,
+        // 2026-11-02: "hide it until tagged"). The home strip and the brand
+        // pages read this list, and a tile that opens "No matching products"
+        // is a dead end in the shop's front window. The admin's own r=brands
+        // still lists every brand with both counts, so tagging a product is
+        // what brings a brand onto the storefront — nothing else to switch.
+        // Hidden products do not count: a hidden product is nowhere to send a
+        // shopper. The inner join is the filter; `products` is therefore ≥ 1.
+        'select b.slug, b.name_en, b.name_ar,
+                b.logo is not null and b.logo <> \'\' as has_logo,
+                substr(sha2(coalesce(b.logo, \'\'), 256), 1, 12) as logo_v,
+                c.n as products
+           from brands b
+           join (select brand_slug, count(*) as n
+                   from products
+                  where active = 1 and brand_slug is not null
+                  group by brand_slug) c on c.brand_slug = b.slug
+          where b.active = 1
+          order by b.sort, b.name_en'
     )->fetchAll();
+    // An integer, always: a JSON "3" next to a 3 is how a `=== 0` check in a
+    // storefront add-on quietly never fires.
+    foreach ($rows as &$row) $row['products'] = (int)$row['products'];
+    unset($row);
     store_out($rows);
 }
 

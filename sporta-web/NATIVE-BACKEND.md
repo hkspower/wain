@@ -20,7 +20,7 @@ but it now holds only endpoints, all of which have working defaults:
 window.SPORTA_CONFIG = {}   // correct as-is: /api, /knet and /pay are the defaults
 ```
 
-`npm run test:native` (152 checks) and `npm run test:native-e2e` (20 browser
+`npm run test:native` (194 checks) and `npm run test:native-e2e` (20 browser
 checks) prove the contract against a real MariaDB and a real browser.
 
 ## What ships where
@@ -179,8 +179,23 @@ number charged cannot disagree.
 
 The admin's **Brands** tab manages the brands the shop carries: English and
 Arabic name, a logo, the order they appear in, and a switch for whether the
-storefront shows them. There is no delete — a brand with orders behind it is
-history, and hiding it is the reversible answer.
+storefront shows them. Hiding is the reversible answer; removing for good
+(`brand_delete`) is refused with 409 `brand_in_use` while any product, shown or
+hidden, still carries the brand.
+
+**Which products a brand has** travels with the brand, because a brand with
+nothing behind it sends a shopper to an empty `/shop?brand=<slug>`:
+
+| Route | Adds / does |
+|---|---|
+| `api.php?r=brands` (public) | Active brands **with at least one listed product** only — an empty brand stays off the storefront until a product is tagged ("hide it until tagged", owner, 2026-11-02). `products` — integer count (≥ 1) of **active** products tagged with the brand. Still no `logo` (that is `?r=brand_logo`). |
+| `admin.php?r=brands` | `products` (every tagged product, shown or hidden — what `brand_in_use` counts) and `products_active` (the public figure). |
+| `admin.php?r=brand_products` | `[{slug, name_en, name_ar, brand_slug, active, category}]` for every product, ordered by `name_en`. No prices, costs or images. |
+| `POST admin.php?r=brand_assign` | Body `{brand_slug: "<slug>" \| null, products: ["<slug>", …]}` → `{updated, skipped}`. Tags (or, with `null` or exactly `""`, untags) up to 200 products in one `UPDATE`. The brand may be hidden but must exist (`unknown_brand` — whitespace alone is one, never a clear); the `brand_slug` key must be present and `products` must be a 1–200 array of strings (`bad_request`); unknown product slugs are skipped and counted — "unknown" as the database compares slugs (case and trailing spaces ignored), so a known product in another spelling is tagged, not skipped. `updated` counts rows whose brand actually changed. A slug over 64 characters — the width of `products.brand_slug` — is `brand_slug_too_long`. Logged in the activity log. |
+
+Both counts are one grouped pass over `products` (indexed on `brand_slug`), not
+a query per brand. Proven in `npm run test:native` ("brands: counts and bulk
+tagging").
 
 **If your shop was set up before this feature**, import
 `api/brands.mysql.sql` once in phpMyAdmin. Fresh installs already have the

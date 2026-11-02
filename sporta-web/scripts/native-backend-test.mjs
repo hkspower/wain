@@ -50,8 +50,11 @@ await run('mariadb', ['sporta', '-e',
   'delete from fulfilment_outbox; delete from order_items; delete from orders; ' +
   'update admin_users set failed_attempts = 0, locked_until = null; ' +
   "delete from admin_users where email <> 'cs@sporta.com.kw'; " +
-  // the brand this suite creates, so a second run starts from the seed again
-  "delete from brands where slug in ('test-brand','renamed');"])
+  // the brands (and the hidden product) this suite creates, so a second run
+  // starts from the seed again even if a previous one was killed mid-way
+  "update products set brand_slug = null where brand_slug like 'test-assign%'; " +
+  "delete from products where slug = 'test-assign-hidden-product'; " +
+  "delete from brands where slug in ('test-brand','renamed') or slug like 'test-assign%';"])
 
 const CUSTOMER = {
   name: 'Fatima Al-Sabah', phone: '٩٩٨٨٧٧٦٦', governorate: 'hawalli', area: 'Salmiya',
@@ -307,9 +310,18 @@ const order = (track, items, extra = {}) =>
     body: JSON.stringify({ name_en: '', name_ar: '' }) })
   is(noName.body?.error === 'missing_name_en', 'a brand needs a name', noName.body?.error)
 
-  // The switch, and what the PUBLIC endpoint does about it.
+  // The switch, and what the PUBLIC endpoint does about it. A brand reaches
+  // the storefront only once a LISTED product carries it (owner's choice,
+  // "hide it until tagged"), so one is tagged for these checks and untagged
+  // again below, before the remove test needs it gone.
+  const untagged = await api('brands')
+  is(!untagged.body.some((b) => b.slug === 'test-brand'),
+     'an active brand with no listed product is NOT public — hidden until tagged')
+  await run('mariadb', ['sporta', '-e',
+    "update products set brand_slug = 'test-brand' where active = 1 order by id limit 1;"])
   const before = await api('brands')
-  is(before.body.some((b) => b.slug === 'test-brand'), 'an active brand is public')
+  is(before.body.some((b) => b.slug === 'test-brand' && b.products === 1),
+     'tag one listed product and the brand is public, with its count')
   const off = await admin('brand_active', { method: 'POST', body: JSON.stringify({ id, active: false }) })
   is(Number(off.body?.active) === 0, 'a brand can be hidden')
   const after = await api('brands')
@@ -336,6 +348,183 @@ const order = (track, items, extra = {}) =>
   const again = await admin('brand_delete', { method: 'POST', body: JSON.stringify({ id }) })
   is(again.status === 404 && again.body?.error === 'brand_not_found',
      'removing it twice is a clean 404, not a 500', `${again.status} ${again.body?.error}`)
+}
+
+// -------------------------------------------- brands: counts and bulk tagging
+// The live catalogue had ONE of 46 products tagged with a brand, so six of the
+// seven tiles on the home strip led to "No matching products", and the only
+// way to tag the rest was the product editor, one product at a time. These
+// checks hold the two answers to that: every brand row says how many products
+// it has (public: listed ones; admin: all, and listed), and brand_assign tags
+// or untags a whole list in one statement. A hidden PRODUCT is inserted for
+// the occasion rather than switching a real one off, so nothing else reading
+// this database sees the catalogue shrink while it runs.
+{
+  const SLUG = 'test-assign-brand'
+  const LONG = 'test-assign-' + 'x'.repeat(60)          // 72 > products.brand_slug's 64
+  const SHOWN = ['tekno-shorts-black', 'tekno-shorts-royal']
+  const EXTRA = 'street-pants-navy'
+  const HIDDEN = 'test-assign-hidden-product'
+  const sql = (q) => run('mariadb', ['--default-character-set=utf8mb4', 'sporta', '-N', '-B', '-e', q]).then((r) => r.stdout.trim())
+  const tagOf = (slug) => sql(`select coalesce(brand_slug, 'NULL') from products where slug = '${slug}'`)
+  const assign = (body) => admin('brand_assign', { method: 'POST', body: JSON.stringify(body) })
+  const pub = async () => (await api('brands')).body.find((b) => b.slug === SLUG)
+  const adm = async () => (await admin('brands')).body.find((b) => b.slug === SLUG)
+  const logged = () => sql("select count(*) from admin_activity_log where action_key = 'brand_assign'").then(Number)
+  const firstLog = Number(await sql('select coalesce(max(id), 0) from admin_activity_log'))
+
+  await sql(`delete from products where slug = '${HIDDEN}';` +
+    `insert into products (slug, name_en, name_ar, price, active, category) ` +
+    `values ('${HIDDEN}', 'Test Hidden Product', 'منتج مخفي', 1.000, 0, 'men')`)
+  try {
+    const made = await admin('brand_save', { method: 'POST',
+      body: JSON.stringify({ name_en: 'Test Assign Brand', name_ar: 'علامة الاختبار', sort: 98 }) })
+    const id = made.body?.id
+    is(made.body?.slug === SLUG, 'a brand to tag products with', made.body?.slug)
+
+    // The fields, as built: integers, and 0 for a brand with nothing yet.
+    const p0 = await pub()
+    is(p0 === undefined, 'a brand with nothing listed is left out of the PUBLIC list (hidden until tagged)', JSON.stringify(p0))
+    const a0 = await adm()
+    is(a0?.products === 0 && a0?.products_active === 0,
+       'the ADMIN brand row carries both counts, as integers', JSON.stringify({ p: a0?.products, a: a0?.products_active }))
+
+    // The product list the brand screen tags from: every product, hidden ones
+    // too, exactly the agreed fields, and nothing commercial.
+    const list = await admin('brand_products')
+    const total = Number(await sql('select count(*) from products'))
+    is(Array.isArray(list.body) && list.body.length === total,
+       'brand_products lists EVERY product, shown and hidden', `${list.body?.length} of ${total}`)
+    const keys = Object.keys(list.body?.[0] ?? {}).sort().join(',')
+    is(keys === 'active,brand_slug,category,name_ar,name_en,slug',
+       'with exactly slug, names, brand, shown/hidden and category', keys)
+    is(!/price|cost|image|desc/.test(JSON.stringify(list.body)),
+       'and no prices, costs, images or descriptions')
+    const hid = list.body?.find((p) => p.slug === HIDDEN)
+    is(hid?.active === 0, 'a hidden product is on it, marked active 0', JSON.stringify(hid))
+    const byName = (await sql('select slug from products order by name_en, slug')).split('\n').join(',')
+    is(list.body?.map((p) => p.slug).join(',') === byName, 'ordered by English name')
+
+    // Tag two listed products, one hidden one and one that does not exist.
+    const before = await logged()
+    const tagged = await assign({ brand_slug: SLUG, products: [...SHOWN, HIDDEN, 'no-such-product'] })
+    is(tagged.status === 200 && tagged.body?.updated === 3 && tagged.body?.skipped === 1,
+       'brand_assign tags a list in one call and counts the unknown slug as skipped', JSON.stringify(tagged.body))
+    is((await tagOf(SHOWN[0])) === SLUG && (await tagOf(HIDDEN)) === SLUG,
+       'and the products really carry the brand')
+    is((await logged()) === before + 1, 'a bulk tag is written to the activity log like every admin write')
+
+    const a1 = await adm()
+    is(a1?.products === 3 && a1?.products_active === 2,
+       'the admin counts every tagged product, and separately the listed ones',
+       `${a1?.products} / ${a1?.products_active}`)
+    const p1 = await pub()
+    is(p1?.products === 2, 'the public count is LISTED products only — a hidden one is nowhere to send a shopper',
+       `${p1?.products}`)
+    is(!JSON.stringify((await api('brands')).body).includes('"logo"'),
+       'and the public endpoint still never inlines a logo')
+    const ahed = (await api('brands')).body.find((b) => b.slug === 'ahed')
+    is(ahed === undefined, 'another brand with nothing listed stays off the public list', JSON.stringify(ahed))
+
+    const again = await assign({ brand_slug: SLUG, products: [SHOWN[0], SHOWN[0]] })
+    is(again.body?.updated === 0 && again.body?.skipped === 0,
+       're-tagging with the same brand changes nothing and says so; a duplicate is not "skipped"',
+       JSON.stringify(again.body))
+    // "Skipped" means UNKNOWN, decided the way the database compares slugs:
+    // the column ignores case and trailing spaces, so these all name a real
+    // product (and the UPDATE reaches it) — only the last one is unknown.
+    const spelt = await assign({ brand_slug: SLUG,
+      products: [SHOWN[0], SHOWN[0].toUpperCase(), SHOWN[0] + ' ', 'no-such-product'] })
+    is(spelt.body?.updated === 0 && spelt.body?.skipped === 1,
+       'a known product in another spelling is not counted as skipped', JSON.stringify(spelt.body))
+
+    // A HIDDEN brand can be tagged (any state), and is still not public.
+    await admin('brand_active', { method: 'POST', body: JSON.stringify({ id, active: false }) })
+    is((await pub()) === undefined, 'a hidden brand is still left out of the public list, counts or not')
+    const a2 = await adm()
+    is(a2?.products === 3, 'while the admin keeps its counts', `${a2?.products}`)
+    const hiddenTag = await assign({ brand_slug: SLUG.toUpperCase(), products: [EXTRA] })
+    is(hiddenTag.status === 200 && hiddenTag.body?.updated === 1,
+       'a hidden brand can still be assigned — tag first, switch on later',
+       `${hiddenTag.status} ${JSON.stringify(hiddenTag.body)}`)
+    is((await tagOf(EXTRA)) === SLUG, 'stored in the brand row’s own spelling, not the request’s', await tagOf(EXTRA))
+    await admin('brand_active', { method: 'POST', body: JSON.stringify({ id, active: true }) })
+    is((await pub())?.products === 3, 'switched back on, it is public again with the new count', `${(await pub())?.products}`)
+
+    // Clearing: null, and "" the way a "No brand" <select> option sends it.
+    const cleared = await assign({ brand_slug: null, products: [EXTRA] })
+    is(cleared.body?.updated === 1 && (await tagOf(EXTRA)) === 'NULL',
+       'brand_slug null clears the brand', JSON.stringify(cleared.body))
+    is((await pub())?.products === 2, 'and the public count follows', `${(await pub())?.products}`)
+    const blank = await assign({ brand_slug: '', products: SHOWN })
+    is(blank.body?.updated === 2 && (await tagOf(SHOWN[0])) === 'NULL' && (await tagOf(SHOWN[1])) === 'NULL',
+       'an empty brand clears it too', JSON.stringify(blank.body))
+    const p3 = await pub()
+    is(p3 === undefined, 'untag its last LISTED product and the brand leaves the public list — a hidden one does not keep it there',
+       JSON.stringify(p3))
+    const a3 = await adm()
+    is(a3?.products === 1 && a3?.products_active === 0, 'the hidden product is still counted in the admin',
+       `${a3?.products} / ${a3?.products_active}`)
+
+    // Refusals. Each must change NOTHING — checked on a product left untagged.
+    const loggedBefore = await logged()
+    const unknown = await assign({ brand_slug: 'no-such-brand', products: [SHOWN[0]] })
+    is(unknown.status === 400 && unknown.body?.error === 'unknown_brand',
+       'an unknown brand is refused, not stored as a tag that matches nothing', `${unknown.status} ${unknown.body?.error}`)
+    await sql(`update products set brand_slug = '${SLUG}' where slug = '${SHOWN[1]}'`)
+    const spaces = await assign({ brand_slug: '   ', products: [SHOWN[1]] })
+    is(spaces.status === 400 && spaces.body?.error === 'unknown_brand' && (await tagOf(SHOWN[1])) === SLUG,
+       'a brand of only spaces is refused, not taken as "no brand" — a padded field must not untag anything',
+       `${spaces.status} ${spaces.body?.error} ${await tagOf(SHOWN[1])}`)
+    await sql(`update products set brand_slug = null where slug = '${SHOWN[1]}'`)
+    const tooMany = await assign({ brand_slug: SLUG,
+      products: [SHOWN[0], ...Array.from({ length: 200 }, (_, i) => `nope-${i}`)] })
+    is(tooMany.status === 400 && tooMany.body?.error === 'bad_request',
+       'more than 200 products in one call is refused', `${tooMany.status} ${tooMany.body?.error}`)
+    for (const [products, what] of [
+      [[], 'an empty list'], ['tekno-shorts-black', 'a string instead of a list'],
+      [{ a: 'tekno-shorts-black' }, 'an object instead of a list'], [[SHOWN[0], 7], 'a non-string slug'],
+      [undefined, 'no list at all'],
+    ]) {
+      const res = await assign({ brand_slug: SLUG, products })
+      is(res.status === 400 && res.body?.error === 'bad_request', `${what} is refused`, `${res.status} ${res.body?.error}`)
+    }
+    const noKey = await assign({ products: [HIDDEN] })
+    is(noKey.status === 400 && noKey.body?.error === 'bad_request' && (await tagOf(HIDDEN)) === SLUG,
+       'a body with no brand_slug key is refused — a forgotten field must not untag anything',
+       `${noKey.status} ${noKey.body?.error}`)
+    const long = await admin('brand_save', { method: 'POST',
+      body: JSON.stringify({ name_en: LONG, name_ar: 'طويل' }) })
+    const longTag = await assign({ brand_slug: LONG, products: [SHOWN[0]] })
+    is(long.body?.slug === LONG && longTag.status === 400 && longTag.body?.error === 'brand_slug_too_long',
+       'a brand slug longer than the products column holds is refused, not a 500 or a truncated tag',
+       `${longTag.status} ${longTag.body?.error}`)
+    if (long.body?.id) await admin('brand_delete', { method: 'POST', body: JSON.stringify({ id: long.body.id }) })
+
+    // The gate every admin write sits behind: a session, and the CSRF header.
+    const bare = (headers) => fetch(`${BASE}/admin.php?r=brand_assign`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ brand_slug: SLUG, products: [SHOWN[0]] }),
+    }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+    const anon = await bare({ 'X-Sporta-Admin': '1' })
+    is(anon.status === 401 && anon.body?.error === 'not_signed_in',
+       'brand_assign requires sign-in', `${anon.status} ${anon.body?.error}`)
+    const noHeader = await bare({ Cookie: cookie })
+    is(noHeader.status === 400 && noHeader.body?.error === 'bad_request',
+       'and the X-Sporta-Admin header, even with a valid session cookie', `${noHeader.status} ${noHeader.body?.error}`)
+    const viaGet = await admin('brand_assign')
+    is(viaGet.status === 404, 'a GET does not assign anything', `${viaGet.status}`)
+
+    is((await tagOf(SHOWN[0])) === 'NULL', 'none of those refusals touched the product')
+    is((await logged()) === loggedBefore, 'and none of them reached the activity log')
+  } finally {
+    // Whatever happened above: no tag, no test product, no test brands, and
+    // none of this block's own audit rows.
+    await sql(`update products set brand_slug = null where brand_slug in ('${SLUG}', '${LONG}');` +
+      `delete from products where slug = '${HIDDEN}';` +
+      `delete from brands where slug in ('${SLUG}', '${LONG}');` +
+      `delete from admin_activity_log where id > ${firstLog} and action_key like 'brand\\_%'`)
+  }
 }
 
 // -------------------------------------------------------------------- throttle

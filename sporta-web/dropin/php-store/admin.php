@@ -329,7 +329,9 @@ $activityActions = [
     'support_update', 'support_reply', 'return_status', 'clear_cache',
     'payment_config', 'fulfilment', 'cod_paid', 'card_settled',
     'product_image_upload', 'product_save', 'product_active', 'brand_save',
-    'brand_active', 'customer', 'sync', 'inventory_adjust',
+    // brand_delete was missing, so removing a brand for good — the one brand
+    // write that cannot be undone — was the one that left no trace.
+    'brand_active', 'brand_delete', 'brand_assign', 'customer', 'sync', 'inventory_adjust',
     'inventory_variant_save', 'set_stock', 'slide_save', 'slide_delete',
     'slide_reorder', 'font_upload', 'font_delete', 'checkout_settings',
     'inventory_finance', 'theme_settings', 'topbar_settings', 'seo_save',
@@ -1458,10 +1460,138 @@ if ($r === 'product_active' && $method === 'POST') {
 // ------------------------------------------------------------------ brands
 // The admin sees EVERY brand, disabled ones included — a switch you cannot
 // see is a switch you cannot turn back on.
+//
+// Each row also says how many products carry it: `products` counts every one
+// (shown or hidden — the number brand_delete's 409 brand_in_use is about) and
+// `products_active` only the listed ones (the number a shopper will find at
+// /shop?brand=<slug>, which is the same figure the public ?r=brands sends).
+// Without them a brand with nothing behind it looks exactly like one with
+// forty products, and the home strip was sending shoppers to six empty pages.
+// One grouped pass over products, LEFT-joined so an unused brand reads 0.
 if ($r === 'brands') {
-    store_out($db->query(
-        'select id, slug, name_en, name_ar, logo, active, sort from brands order by sort, name_en'
-    )->fetchAll());
+    $rows = $db->query(
+        'select b.id, b.slug, b.name_en, b.name_ar, b.logo, b.active, b.sort,
+                coalesce(c.n, 0) as products, coalesce(c.n_active, 0) as products_active
+           from brands b
+           left join (select brand_slug, count(*) as n,
+                             sum(case when active = 1 then 1 else 0 end) as n_active
+                        from products
+                       where brand_slug is not null
+                       group by brand_slug) c on c.brand_slug = b.slug
+          order by b.sort, b.name_en'
+    )->fetchAll();
+    // sum() comes back as a DECIMAL, i.e. a string through PDO; the admin
+    // compares these to 0, and "0" is truthy in JavaScript.
+    foreach ($rows as &$row) {
+        $row['products'] = (int)$row['products'];
+        $row['products_active'] = (int)$row['products_active'];
+    }
+    unset($row);
+    store_out($rows);
+}
+
+// Every product, as the brand screen needs it to tag them: who makes it, and
+// enough to recognise it by (names, category, shown or hidden). Not
+// products_all — that carries both descriptions, every image path and the sale
+// fields for all 46 rows, none of which a "which brand is this?" list uses —
+// and not products_state, which has no names. No prices and no costs: this
+// screen has no business with either.
+if ($r === 'brand_products') {
+    $rows = $db->query(
+        'select slug, name_en, name_ar, brand_slug, active, category
+           from products order by name_en, slug'
+    )->fetchAll();
+    foreach ($rows as &$row) $row['active'] = (int)$row['active'];
+    unset($row);
+    store_out($rows);
+}
+
+// Tag many products with one brand at once — or untag them (brand_slug null).
+//
+// This exists because the only other way is the product editor, one product
+// at a time: the live catalogue had ONE of 46 products tagged, so every brand
+// but one led to an empty shop page, and fixing that meant 45 trips through a
+// form that also re-saves the price, the sale and the photos of each product.
+// This route touches the brand column and nothing else.
+//
+// Body: {brand_slug: "<slug>" | null, products: ["<product slug>", …]}
+//   - brand_slug must name a row in brands, shown or hidden (tagging ahead of
+//     switching a brand on is a reasonable order of work) → else unknown_brand.
+//     null clears. "" clears too, the same as product_save, because "" is what
+//     a "No brand" option in a <select> sends. Whitespace only ("   ") is
+//     NOT a clear: it names no brand → unknown_brand. The key itself must be
+//     present: a client that forgot it must not untag 200 products by accident.
+//   - products: a JSON array of 1–200 strings → else bad_request. Unknown
+//     slugs are SKIPPED and counted, not refused: the list is typically built
+//     from a screen that can be a few minutes stale, and one product deleted
+//     meanwhile should not throw away the other 30 ticks.
+//     "Unknown" is decided by the database's own comparison (the column's
+//     collation), so a known product in another case is not counted skipped.
+// Reply: {updated: <rows whose brand actually changed>, skipped: <unknown>}.
+// `updated` is MySQL's affected-rows, so re-tagging a product with the brand
+// it already has counts 0 — the honest number for "what did this change".
+//
+// Logged to admin_activity_log by the shutdown hook above ($activityActions).
+if ($r === 'brand_assign' && $method === 'POST') {
+    // 200 slugs of at most 80 characters is ~17 kB of JSON; 64 KiB is room
+    // for that and nothing like the 16 MiB default meant for photo uploads.
+    $b = store_body(64 * 1024);
+
+    if (!array_key_exists('brand_slug', $b)) store_fail('bad_request');
+    $want = $b['brand_slug'];
+    if ($want !== null && !is_string($want)) store_fail('bad_request');
+    $brandSlug = null;
+    // Only null and exactly "" clear. "   " is not a "No brand" option, it is
+    // a padded field, and it must not untag 200 products: it names no brand.
+    if ($want !== null && $want !== '') {
+        if (trim($want) === '') store_fail('unknown_brand');
+        $q = $db->prepare('select slug from brands where slug = ?');
+        $q->execute([trim($want)]);
+        $found = $q->fetchColumn();
+        if ($found === false) store_fail('unknown_brand');
+        // The brand's own spelling, not the request's: the column is compared
+        // case-insensitively, and the stored tag should match the brand row.
+        $brandSlug = (string)$found;
+        // brands.slug is varchar(80) but products.brand_slug is varchar(64).
+        // A longer slug cannot be stored on a product at all (strict mode
+        // refuses it, a lax server would truncate it into a tag that matches
+        // no brand), so say so rather than 500.
+        if (strlen($brandSlug) > 64) store_fail('brand_slug_too_long');
+    }
+
+    $list = $b['products'] ?? null;
+    if (!is_array($list) || !array_is_list($list) || count($list) < 1 || count($list) > 200) {
+        store_fail('bad_request');
+    }
+    foreach ($list as $s) {
+        if (!is_string($s)) store_fail('bad_request');
+    }
+    // Exact duplicates would otherwise be counted twice.
+    $slugs = array_values(array_unique($list));
+
+    // Which product each requested slug names, as the DATABASE compares them.
+    // products.slug is utf8mb4_unicode_ci: case, accents and trailing spaces
+    // do not count, so "VANQUISH-TANK-NAVY" and "vanquish-tank-navy " both
+    // name vanquish-tank-navy and the UPDATE below tags it. Comparing in PHP
+    // would call them unknown and report them as skipped. One statement, one
+    // unique-index lookup per slug: a row per request, the stored slug or NULL.
+    $q = $db->prepare(implode(' union all ',
+        array_fill(0, count($slugs), 'select (select slug from products where slug = ? limit 1) as m')));
+    $q->execute($slugs);
+    $matched = $q->fetchAll(PDO::FETCH_COLUMN);
+    $known = array_values(array_unique(array_filter($matched, fn($m) => $m !== null)));
+    $skipped = count(array_filter($matched, fn($m) => $m === null));
+
+    $updated = 0;
+    if ($known) {
+        // ONE statement, every value bound: the slugs are the stored ones just
+        // read back, so the update cannot reach a row the select did not see.
+        $marks = implode(',', array_fill(0, count($known), '?'));
+        $u = $db->prepare("update products set brand_slug = ? where slug in ($marks)");
+        $u->execute(array_merge([$brandSlug], $known));
+        $updated = $u->rowCount();
+    }
+    store_out(['updated' => $updated, 'skipped' => $skipped]);
 }
 
 // Create or rename a brand. One route for both: the admin screen has one form

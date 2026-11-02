@@ -84,3 +84,21 @@
   font-weight: 700 !important;
 }
 .admin-shell { font-synthesis-weight: none; }
+
+/* /backends > Brands: the count line, "View on site" link and the "Tag
+   products with a brand" panel added by sporta-admin-brands.js (block 1).
+   Inline styles there cover the look; this is only what they cannot say —
+   hover and keyboard focus — in the admin's own accent (--admin-action, the
+   terracotta the live admin paints every "indigo" class with), never a new
+   colour. */
+[data-sporta-brand-stats] a:hover { text-decoration: underline; }
+[data-sporta-brand-stats] a:focus-visible,
+[data-sporta-brand-tagger] button:focus-visible,
+[data-sporta-brand-tagger] input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--admin-action, #9a452c);
+  outline-offset: 2px;
+}
+[data-sporta-brand-tagger] [data-sporta-tag-products] > label:hover,
+[data-sporta-brand-tagger] [data-sporta-tag-suggestions] > label:hover {
+  background-color: #f8fafc;
+}

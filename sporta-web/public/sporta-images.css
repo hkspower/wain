@@ -19,3 +19,30 @@
     max-width: none !important;
   }
 }
+
+/* Brand strip, text-only tiles (no logo yet): in English the name reads as a
+   wordmark — capitals, a little tracking — the way the logo tiles beside it
+   read. Only the <span> tiles: a logo tile is an <img> and is left alone.
+   Arabic is never letter-spaced (it breaks the joins between letters) and has
+   no capitals, so the second rule takes both back for any tile whose text
+   resolves right-to-left (the span is dir="auto"), even on an English page.
+   A long name that no longer fits its tile is shrunk to fit by
+   sporta-features.js, which measures it. */
+html:lang(en) .brand-bar__item > span {
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+html:lang(en) .brand-bar__item > span:dir(rtl) {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* /shop?brand=<slug> banner and the product page's maker link, both built by
+   sporta-features.js with inline styles; only what inline styles cannot say
+   (hover, keyboard focus) lives here. The hover goes to the bright logo
+   orange: near-black text keeps 6.7:1 on it, where the darker #B8430F would
+   drop to 3.2:1. */
+#sporta-brand-banner [data-sporta-brand-clear]:hover { background: #ff7b17 !important; }
+#sporta-brand-banner [data-sporta-brand-clear]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+[data-sporta-plate-link]:focus-visible { outline: 2px solid #e0561c; outline-offset: 2px; }
+.campaign-brand-plate__maker:has(> [data-sporta-plate-link]:hover) { opacity: .72; }
