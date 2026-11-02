@@ -24,7 +24,10 @@
 //   BOX     every card, panel, notice, table frame and modal: radius, border,
 //           shadow, fill, padding, nesting — and what is wrong with them
 //           (content spilling or clipped, off the phone screen, text touching
-//           the edge, near-miss left edges, uneven rows, uneven gaps).
+//           the edge, near-miss left edges, uneven rows, uneven gaps);
+//   TABLE   every table: frame vs its box (scrolls? spills?), header and cell
+//           styles, row heights, and per column the header/cell alignment,
+//           numeric share (and tabular figures), wrapping, cut-off cells, width.
 //
 // --css (or SCAN_CSS_GZ, gzip+base64) injects a stylesheet (bypassCSP) before scanning, so a fix can be
 // measured on the live admin before it is deployed. Lines start with == / ok /
@@ -118,7 +121,7 @@ const MOCK = {
 // ---------------------------------------------------------------- collector
 // Runs in the page. Returns raw per-element records; Node groups them.
 function collect() {
-  const out = { inputs: [], buttons: [], text: [], colours: [], names: [], radii: [], boxes: [], boxIssues: [] }
+  const out = { inputs: [], buttons: [], text: [], colours: [], names: [], radii: [], boxes: [], boxIssues: [], tables: [] }
   const vis = (el) => { const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const c = getComputedStyle(el); return c.visibility !== 'hidden' && c.display !== 'none' && +c.opacity > 0.05 }
   // Colours come back as oklch()/oklab() from Tailwind v4, so parse nothing
   // by hand: paint the colour into a 1x1 canvas and read the pixel back.
@@ -286,6 +289,56 @@ function collect() {
     for (let i = 1; i < lefts.length; i++) if (lefts[i] - lefts[i - 1] >= 1 && lefts[i] - lefts[i - 1] <= 8) issue('MISALIGNED', col[0][0], `stacked boxes start at x=${lefts.join('/')} (off by ${lefts[i] - lefts[i - 1]}px)`)
     const gaps = []; for (let i = 1; i < col.length; i++) { const g = Math.round(col[i][1].top - col[i - 1][1].bottom); if (g >= 0 && g < 120) gaps.push(g) }
     const gs = [...new Set(gaps)]; if (gs.length > 1 && Math.max(...gs) - Math.min(...gs) > 4) issue('GAPS', col[0][0], `gaps between stacked boxes: ${gaps.join('/')}px`)
+  }
+  // TABLES — one record per visible table: its frame (width against the box
+  // it sits in, whether that box scrolls), header and cell styles, row
+  // heights, and per column the alignment of header and cells, how numeric the
+  // column is, how often its cells wrap or get cut, and how wide it is.
+  const side2 = (a, dir) => a === 'start' ? (dir === 'rtl' ? 'right' : 'left') : a === 'end' ? (dir === 'rtl' ? 'left' : 'right') : a === 'justify' || a === '-webkit-auto' ? 'left' : a.replace('-webkit-', '')
+  const NUM = /^[\s(+\-−]*(?:KWD|KD|د\.ك\.?|SP)?\s*[\d٠-٩][\d٠-٩.,٫٬:\/\s×x%-]*(?:KWD|KD|د\.ك\.?|%|×|pcs|units?)?\s*\)?$/i
+  const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); const tops = new Set([...rg.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top))); return tops.size }
+  for (const t of root.querySelectorAll('table')) {
+    if (!vis(t)) continue
+    const tc = getComputedStyle(t), tr = t.getBoundingClientRect(), dir = tc.direction
+    let scroller = null; for (let e = t.parentElement; e && e !== document.body; e = e.parentElement) { const ox = getComputedStyle(e).overflowX; if (ox === 'auto' || ox === 'scroll') { scroller = e; break } }
+    const cont = scroller || t.parentElement, cr = cont.getBoundingClientRect()
+    const rows = [...t.querySelectorAll('tbody > tr, :scope > tr')].filter(vis)
+    let head = [...t.querySelectorAll('thead th, thead td')].filter(vis)
+    if (!head.length && rows[0] && rows[0].querySelector('th')) head = [...rows.shift().children]
+    const ncol = Math.max(head.length, ...rows.map((r) => r.children.length), 0)
+    const hc = head[0] ? getComputedStyle(head[0]) : null
+    const cell0 = rows[0] && rows[0].children[0] ? getComputedStyle(rows[0].children[0]) : null
+    const rh = rows.map((r) => Math.round(r.getBoundingClientRect().height)).sort((a, b) => a - b)
+    const pads = new Set(), valigns = new Set(), divs = new Set()
+    const cols = []
+    for (let i = 0; i < ncol; i++) {
+      const th = head[i], cells = rows.map((r) => r.children[i]).filter((c) => c && vis(c))
+      const thc = th ? getComputedStyle(th) : null
+      const al = {}; let num = 0, txt = 0, wrap = 0, wrap3 = 0, cut = 0, empty = 0, tab = 0, ctl = 0
+      for (const c of cells) {
+        const cc = getComputedStyle(c)
+        pads.add(`${cc.paddingTop} ${cc.paddingRight} ${cc.paddingBottom} ${cc.paddingLeft}`); valigns.add(cc.verticalAlign); divs.add(parseFloat(cc.borderBottomWidth) > 0 ? hex(rgba(cc.borderBottomColor)) : (parseFloat(getComputedStyle(c.parentElement).borderBottomWidth) > 0 ? hex(rgba(getComputedStyle(c.parentElement).borderBottomColor)) : '-'))
+        const tx = (c.innerText || '').trim()
+        if (!tx || tx === '—' || tx === '-') { if (!c.querySelector('button, a, input, select, img')) { empty++; continue } }
+        if (c.querySelector('button, a[class*="rounded"], input, select')) ctl++
+        txt++
+        const a = side2(cc.textAlign, cc.direction); al[a] = (al[a] || 0) + 1
+        if (NUM.test(tx)) { num++; if (/tabular-nums/.test(cc.fontVariantNumeric) || /tabular-nums/.test(getComputedStyle(c.querySelector('*') || c).fontVariantNumeric)) tab++ }
+        const n = lines(c); if (n >= 2) wrap++; if (n >= 3) wrap3++
+        for (const e of [c, ...c.querySelectorAll('*')]) { if (e.scrollWidth > e.clientWidth + 1 && /hidden|clip/.test(getComputedStyle(e).overflowX) && !e.title && !c.title) { cut++; break } }
+      }
+      const tdAl = Object.entries(al).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
+      const w = th ? th.getBoundingClientRect().width : (cells[0] ? cells[0].getBoundingClientRect().width : 0)
+      cols.push({ h: th ? (th.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 18) : '', thAl: thc ? side2(thc.textAlign, thc.direction) : '-', tdAl, mixed: Object.keys(al).length > 1,
+        num: txt ? num / txt : 0, tab: num ? tab / num : 1, wrap: txt ? wrap / txt : 0, wrap3: txt ? wrap3 / txt : 0, cut, empty: cells.length ? empty / cells.length : 0, ctl: txt ? ctl / txt : 0,
+        w: Math.round(w), hlines: th ? lines(th) : 0, nowrap: thc ? thc.whiteSpace : '' })
+    }
+    out.tables.push({ at: cls(t), cl: klass(t), dir, cols, rows: rows.length, ncol, w: Math.round(tr.width), cw: Math.round(cr.width), vw: innerWidth,
+      scrolls: !!scroller && t.scrollWidth > (scroller.clientWidth + 1), scroller: !!scroller, layout: tc.tableLayout, collapse: tc.borderCollapse,
+      head: hc ? `fs ${hc.fontSize} fw ${hc.fontWeight} col ${hex(blend(fg(hc.color), bgOf(head[0])))} bg ${hex(bgOf(head[0]))} tt ${hc.textTransform} ls ${hc.letterSpacing} pad ${hc.paddingTop}/${hc.paddingLeft} h ${Math.round(head[0].getBoundingClientRect().height)}${hc.position === 'sticky' ? ' STICKY' : ''}` : 'none',
+      cell: cell0 ? `fs ${cell0.fontSize} lh ${cell0.lineHeight} col ${hex(blend(fg(cell0.color), bgOf(rows[0].children[0])))}` : '-',
+      pads: [...pads], valigns: [...valigns], divs: [...divs], rh: rh.length ? [rh[0], rh[Math.floor(rh.length / 2)], rh[rh.length - 1]] : [],
+      zebra: rows.length > 3 && hex(bgOf(rows[0].children[0] || rows[0])) !== hex(bgOf(rows[1].children[0] || rows[1])) })
   }
   const side = document.querySelector('.admin-sidebar, aside, nav')
   if (side) { const c = getComputedStyle(side); out.side = `${side.tagName.toLowerCase()}.${klass(side).slice(0, 60)} bg-color ${c.backgroundColor} bg-image ${c.backgroundImage.slice(0, 120)} -> effective ${hex(bgOf(side))}` }
@@ -466,6 +519,40 @@ for (const [vn] of VIEWS) {
     console.log(`${/SCROLLS|GAPS|UNEVEN/.test(k) ? 'info ' : 'WARN '}×${g.n} ${k} [${scr(g.screens)}] ${[...new Set(g.ex)].slice(0, 2).join(' | ')}`)
     if (process.env.SCAN_CLASSES) console.log(`       class="${g.last.cl}"`)
   }
+  const tables = flat('tables')
+  console.log(`-- TABLE ${tables.length} tables on ${new Set(tables.map((t) => t.screen)).size} screens`)
+  const tIssues = []
+  for (const t of tables) {
+    console.log(`tbl  [${t.screen}] ${t.at} ${t.ncol} cols × ${t.rows} rows · ${t.w}px in ${t.cw}px${t.scroller ? (t.scrolls ? ' (scrolls sideways)' : ' (scroll box, fits)') : ''} · layout ${t.layout} · ${t.dir}`)
+    console.log(`       head ${t.head} · cell ${t.cell} · pad ${t.pads.slice(0, 3).join(' | ')}${t.pads.length > 3 ? ` +${t.pads.length - 3}` : ''} · rows h ${t.rh.join('/')} · valign ${t.valigns.join(',')} · divider ${t.divs.join(',')}${t.zebra ? ' · zebra' : ''}`)
+    console.log('       ' + t.cols.map((c, i) => `${i + 1}"${c.h}" ${c.w}px th:${c.thAl} td:${c.tdAl}${c.mixed ? '~' : ''}${c.num >= 0.6 ? ` NUM${Math.round(c.num * 100)}%${c.tab < 0.9 ? '(prop)' : ''}` : ''}${c.wrap > 0 ? ` wrap${Math.round(c.wrap * 100)}%` : ''}${c.cut ? ` cut${c.cut}` : ''}${c.empty >= 0.5 ? ` empty${Math.round(c.empty * 100)}%` : ''}${c.hlines > 1 ? ` head${c.hlines}lines` : ''}`).join(' · '))
+    const I = (sev, type, d) => tIssues.push({ sev, type, d, at: t.at, screen: t.screen })
+    if (!t.scroller && t.w > t.cw + 1) I('WARN', 'SPILL', `${t.w}px table in a ${t.cw}px box with no scroll`)
+    if (t.w > t.vw + 1 && !t.scroller) I('WARN', 'OFFSCREEN', `${t.w}px on a ${t.vw}px screen`)
+    if (t.scrolls && t.vw >= 1000) I('info', 'SCROLLS', `scrolls sideways on desktop (${t.w}px in ${t.cw}px)`)
+    if (t.rows > 15 && !/STICKY/.test(t.head)) I('info', 'NO-STICKY-HEAD', `${t.rows} rows, header scrolls away`)
+    if (t.pads.length > 2) I('info', 'PADDING', `${t.pads.length} different cell paddings: ${t.pads.slice(0, 4).join(' | ')}`)
+    if (t.valigns.length > 1) I('info', 'VALIGN', `cells mix vertical-align ${t.valigns.join('/')}`)
+    if (t.rh.length && t.rh[2] > 2.5 * t.rh[0] && t.rh[0] > 0) I('info', 'ROW-HEIGHT', `rows ${t.rh[0]}…${t.rh[2]}px`)
+    t.cols.forEach((c, i) => {
+      const nm = `col ${i + 1} "${c.h}"`
+      // Digits run left-to-right inside Arabic too, so the units digit is at
+      // a number's RIGHT edge in both directions: a figures column lines up
+      // only when it is physically right-aligned, whatever the page's dir.
+      if (c.num >= 0.6 && c.tdAl !== 'right' && c.ctl < 0.5) I('WARN', 'NUM-ALIGN', `${nm} is ${Math.round(c.num * 100)}% numbers but aligned ${c.tdAl} (figures line up only on the right)`)
+      if (c.num >= 0.6 && c.tab < 0.9) I('info', 'NUM-FIGURES', `${nm}: numbers in proportional figures (no tabular-nums), digits do not line up`)
+      if (c.thAl !== '-' && c.tdAl !== '-' && c.thAl !== c.tdAl) I('WARN', 'HEAD-ALIGN', `${nm}: header ${c.thAl}, cells ${c.tdAl}`)
+      if (c.mixed) I('info', 'MIXED-ALIGN', `${nm}: cells aligned differently from row to row`)
+      if (c.wrap3 >= 0.3) I('WARN', 'TOO-NARROW', `${nm} ${c.w}px: ${Math.round(c.wrap3 * 100)}% of cells wrap to 3+ lines`)
+      else if (c.wrap >= 0.5 && c.num >= 0.6) I('WARN', 'NUM-WRAPS', `${nm}: a number column wraps (${Math.round(c.wrap * 100)}%)`)
+      if (c.hlines > 1) I('info', 'HEAD-WRAPS', `${nm}: header on ${c.hlines} lines at ${c.w}px`)
+      if (c.cut) I('WARN', 'CUT', `${nm}: ${c.cut} cells cut off with no title to read them`)
+      if (c.empty >= 0.8 && t.rows >= 5) I('info', 'EMPTY-COL', `${nm}: ${Math.round(c.empty * 100)}% empty`)
+      if (c.w > 0.45 * t.w && t.ncol > 3) I('info', 'WIDE-COL', `${nm} takes ${Math.round((c.w / t.w) * 100)}% of the table`)
+    })
+  }
+  console.log(`-- TABLE issues: ${tIssues.length} (${Object.entries(tIssues.reduce((m, i) => (m[i.type] = (m[i.type] || 0) + 1, m), {})).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'})`)
+  for (const i of tIssues) console.log(`${i.sev === 'WARN' ? 'WARN' : 'info'} ${i.type} [${i.screen}] ${i.at}: ${i.d}`)
   const names = flat('names')
   console.log(`-- NAME product names: ${names.length}, cut off ${names.filter((n) => n.cut).length}`)
   for (const [k, g] of group(names.map((n) => ({ ...n, ex: n.t })), (n) => `${n.sig} at ${n.at}`, () => ({})).slice(0, 8)) {
