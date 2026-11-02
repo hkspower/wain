@@ -219,6 +219,17 @@ try {
       const { cache } = head(p)
       ok(/no-store/.test(cache), `${p} is no-store`, cache || 'NO Cache-Control')
     }
+    // ...except the two routes that answer with an IMAGE whose URL carries
+    // its content hash. The blanket no-store used to replace api.php's own
+    // year-long header, so every visit re-downloaded every hero photo.
+    for (const p of ['/api/api.php?r=slide_image&id=1&v=abc', '/api/api.php?r=brand_logo&slug=x&v=abc']) {
+      const { cache } = head(p)
+      ok(/immutable/.test(cache) && !/no-store/.test(cache), `${p} is cached for a year`, cache || 'NO Cache-Control')
+    }
+    for (const p of ['/api/api.php?r=products', '/api/api.php?r=slides', '/api/api.php?r=slide_imagex&id=1', '/api/api.php?x=1&r=order']) {
+      const { cache } = head(p)
+      ok(/no-store/.test(cache), `${p} stays no-store`, cache || 'NO Cache-Control')
+    }
   }
 
   console.log('\n## What must keep working')
