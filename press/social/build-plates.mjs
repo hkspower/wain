@@ -143,8 +143,8 @@ function footer({ y, W, h = 104, label }) {
 const DESIGNS = [
   {
     id: "cover", n: 1,
-    en: "Night<br>Racer", enFlat: "Night Racer", ar: "متسابق<br>الليل", arFlat: "متسابق الليل",
-    kicker: "Gulf Road Nights",
+    en: "Night<br>Racers", enFlat: "Night Racers", ar: "متسابقو<br>الليل", arFlat: "متسابقو الليل",
+    kicker: "Kuwait Xtreme Racer",
     img: "menu.jpg", pos: "50% 62%",
     burst: { x: "52%", y: "78%", r: "28%", o: "70%" },
     sfxEn: "Vroooom", sfxAr: "زوووم",
@@ -152,7 +152,7 @@ const DESIGNS = [
     en_line: "Yalla &mdash; let's see what you've got",
     who: `Abu Shanab &middot; <span class="ar" lang="ar" style="letter-spacing:normal;">أبو شنب</span>`,
     facts: [["7.3 km", "one lap of Gulf Road"], ["8", "street legends to beat"], ["00:00", "to 05:50, every night"]],
-    label: "Night Racer &middot; Kuwait",
+    label: "Night Racers &middot; Kuwait",
   },
   {
     id: "road", n: 2,
@@ -202,7 +202,7 @@ const DESIGNS = [
  *  matters stays inside the 810px centre column (x 135..945). */
 function portrait(d) {
   const W = 1080, H = 1350;
-  return `${HEAD(`Night Racer — ${d.enFlat} — portrait`)}
+  return `${HEAD(`Night Racers — ${d.enFlat} — portrait`)}
 <div class="plate" style="width:${W}px; height:${H}px;">
   ${railTop(d.n, W)}
   <div style="position:absolute; left:135px; top:84px; font-size:30px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase;">${d.kicker}</div>
@@ -230,7 +230,7 @@ ${FOOT}`;
  *  loudest single idea rather than a paragraph. */
 function square(d) {
   const W = 1080, H = 1080;
-  return `${HEAD(`Night Racer — ${d.enFlat} — square`)}
+  return `${HEAD(`Night Racers — ${d.enFlat} — square`)}
 <div class="plate" style="width:${W}px; height:${H}px;">
   ${panel({ x: 0, y: 0, w: W, h: 700, img: d.img, pos: d.pos, burst: d.burst, pitch: 11, clip: "polygon(0% 0%, 100% 0%, 100% 97%, 0% 100%)" })}
   ${railTop(d.n, W)}
@@ -249,7 +249,7 @@ ${FOOT}`;
  *  its real use is a link or ad preview, so it says one thing. */
 function wide(d) {
   const W = 1080, H = 566;
-  return `${HEAD(`Night Racer — ${d.enFlat} — landscape`)}
+  return `${HEAD(`Night Racers — ${d.enFlat} — landscape`)}
 <div class="plate" style="width:${W}px; height:${H}px;">
   ${panel({ x: 0, y: 0, w: W, h: H, img: d.img, pos: d.pos, burst: d.burst, pitch: 9, clip: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)" })}
   <div style="position:absolute; left:0; top:0; width:${W}px; height:${H}px;
@@ -277,7 +277,7 @@ function story(d) {
   // two depending on the design — at 150px on a 0.82 leading that is
   // 123px a line, so a two-line title runs 246px down from its top.
   const sfxTop = d.en.includes("<br>") ? 600 : 500;
-  return `${HEAD(`Night Racer — ${d.enFlat} — story`)}
+  return `${HEAD(`Night Racers — ${d.enFlat} — story`)}
 <div class="plate" style="width:${W}px; height:${H}px;">
   <div style="position:absolute; left:0; top:0; width:${W}px; height:18px; background:${SODIUM};"></div>
 
