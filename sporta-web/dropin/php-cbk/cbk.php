@@ -373,10 +373,15 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
 }
 
 // Get a valid AccessToken, reusing the cached one until it nears its 2h expiry.
-function cbk_get_access_token(array $cfg): string
+// $fresh = true skips the cache: CBK's manual says to "get updated
+// {AccessToken} from gateway server before checkout to payment gateway", so
+// pay.php asks for a new key on every handoff. The new key is still cached,
+// so the callback that follows reuses it (manual: "save the key locally and
+// re-use till expiry").
+function cbk_get_access_token(array $cfg, bool $fresh = false): string
 {
     $file = $cfg['token_cache_file'];
-    if (is_readable($file)) {
+    if (!$fresh && is_readable($file)) {
         $cached = json_decode((string) file_get_contents($file), true);
         // CBK's manual gives the key a 6-hour life; refreshing after 100 min
         // stays far inside it. The key is also bound to the gateway and the

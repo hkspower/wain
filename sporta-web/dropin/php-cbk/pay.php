@@ -83,7 +83,8 @@ $amount = cbk_format_fils($fils);
 
 try {
     cbk_assert_payment_config($cfg);
-    $token = cbk_get_access_token($cfg);
+    // Fresh key for every checkout, per CBK's manual (see cbk_get_access_token).
+    $token = cbk_get_access_token($cfg, true);
     $attemptTrack = cbk_attempt_ref($cfg, $trackid);
 } catch (Throwable $e) {
     cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);

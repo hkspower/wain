@@ -9,4 +9,4 @@ require dirname(__DIR__) . '/dropin/php-cbk/cbk.php';
 $base = $argv[4] ?? 'http://127.0.0.1:1';
 $cfg = ['env' => $env, 'test_base' => $base, 'production_base' => 'http://127.0.0.2:1',
         'client_id' => $clientId, 'client_secret' => 's', 'encrp_key' => 'k', 'token_cache_file' => $file];
-try { echo cbk_get_access_token($cfg); } catch (Throwable $e) { echo isset($argv[4]) ? 'ERR ' . $e->getMessage() : 'NEW'; }
+try { echo cbk_get_access_token($cfg, ($argv[5] ?? '') === 'fresh'); } catch (Throwable $e) { echo isset($argv[4]) ? 'ERR ' . $e->getMessage() : 'NEW'; }
