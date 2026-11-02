@@ -1349,6 +1349,16 @@ if ($r === 'card_settled' && $method === 'POST') {
             if ($o['payment_method'] === 'cod') store_fail('not_a_card_order');
             store_fail('order_already_paid');
         }
+        // A CANCELLED card order cannot be settled by hand, for the reason
+        // cod_paid gives: cancelling put its garment back on the shelf, and a
+        // paid mark would sell a garment the shop no longer holds. The bank's
+        // money is not lost — the order stays pending and the owner puts it back
+        // (which claims the stock again, or refuses with out_of_stock), then
+        // settles it. 409, the request is right and the order's state is not.
+        if ($o['fulfilment_status'] === 'cancelled') {
+            $db->rollBack();
+            store_fail('order_cancelled', 409);
+        }
         $db->prepare(
             "update orders set payment_status = 'paid', paid_at = ?,
                     cbk_status = 'MANUAL_BANK_CONFIRMED',

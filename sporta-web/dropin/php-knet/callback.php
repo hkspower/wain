@@ -166,7 +166,7 @@ function knet_settle_order(
         // Lock first so amount/status/method verification and settlement see
         // one state even when the bank retries concurrently.
         $cur = $pdo->prepare(
-            'select id, amount, payment_status, payment_method, stock_released
+            'select id, amount, payment_status, payment_method, stock_released, fulfilment_status
                from orders where track_id = ? for update'
         );
         $cur->execute([$trackid]);
@@ -222,6 +222,15 @@ function knet_settle_order(
                 $after = 'review';
                 $recordResult = 'AMOUNT_MISMATCH';
                 $reason = 'amount_mismatch';
+            } elseif ((string)$order['fulfilment_status'] === 'cancelled') {
+                // The shop cancelled this order by hand and the warehouse was
+                // told "do not ship". The bank's capture is real money, but a
+                // paid mark here would queue "PAYMENT CONFIRMED - ship it" after
+                // that do-not-ship. The payment is held for the operator: the
+                // order is reinstated (or not) and then settled by hand.
+                $after = 'review';
+                $recordResult = 'ORDER_CANCELLED';
+                $reason = 'order_cancelled';
             } elseif ((int)$order['stock_released'] === 1) {
                 // Money may arrive after the reservation expired. Those
                 // garments are for sale again, so an operator must reconcile
