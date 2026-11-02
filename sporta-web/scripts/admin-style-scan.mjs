@@ -199,6 +199,37 @@ function collect() {
 }
 
 // ---------------------------------------------------------------- the walk
+// SCAN_EXPLAIN='[{"screen":"Catalogue","form":false,"sel":"td.py-2.5"}]' prints, for the
+// first element matching each selector, every CSS rule that sets the box's
+// font, colour and size properties — in cascade order, with !important and the
+// @layer it sits in — straight from Chrome's own matched-styles data. That is
+// the answer to "why does my rule not win".
+const EXPLAIN = process.env.SCAN_EXPLAIN ? JSON.parse(process.env.SCAN_EXPLAIN) : []
+const PROPS = ['font-size', 'font-weight', 'color', 'background-color', 'border-color', 'border-top-color', 'padding-top', 'padding-left', 'padding-inline', 'margin-top', 'min-height', 'display', 'border-radius']
+async function explain(pg, vn, screen, form) {
+  for (const t of EXPLAIN.filter((t) => t.screen === screen && !!t.form === form)) {
+    const cdp = await pg.context().newCDPSession(pg)
+    try {
+      await cdp.send('DOM.enable'); await cdp.send('CSS.enable')
+      const { root } = await cdp.send('DOM.getDocument', { depth: -1 })
+      const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: t.sel })
+      if (!nodeId) { console.log(`EXPLAIN ${vn} ${screen}${form ? '/form' : ''} ${t.sel}: no element`); continue }
+      const m = await cdp.send('CSS.getMatchedStylesForNode', { nodeId })
+      const { computedStyle } = await cdp.send('CSS.getComputedStyleForNode', { nodeId })
+      const comp = Object.fromEntries(computedStyle.filter((c) => PROPS.includes(c.name)).map((c) => [c.name, c.value]))
+      console.log(`EXPLAIN ${vn} ${screen}${form ? '/form' : ''} ${t.sel} computed: ${PROPS.filter((p) => comp[p]).map((p) => p + '=' + comp[p]).join(' ')}`)
+      for (const r of m.matchedCSSRules || []) {
+        const decl = (r.rule.style.cssProperties || []).filter((c) => PROPS.includes(c.name) && c.value && !c.disabled && c.parsedOk !== false)
+        if (!decl.length) continue
+        const layer = (r.rule.layers || []).map((l) => l.text).join('.') || '-'
+        console.log(`   ${r.rule.origin} layer=${layer} ${r.rule.selectorList.text.slice(0, 110)} { ${decl.map((c) => c.name + ':' + c.value + (c.important ? ' !' : '')).join('; ').slice(0, 200)} }`)
+      }
+      const inl = (m.inlineStyle && m.inlineStyle.cssProperties || []).filter((c) => PROPS.includes(c.name) && c.value)
+      if (inl.length) console.log(`   INLINE ${inl.map((c) => c.name + ':' + c.value).join('; ')}`)
+    } catch (e) { console.log(`EXPLAIN ${t.sel} failed: ${e.message.slice(0, 90)}`) } finally { await cdp.detach().catch(() => {}) }
+  }
+}
+
 const SCREENS = ['Overview', 'Orders', 'Returns', 'CRM', 'Support', 'Profiles', 'Catalogue', 'Brands', 'Slides', 'Topbar', 'Promotions', 'Discounts', 'Inventory', 'Payments', 'Checkout', 'Theme', 'SEO', 'Activity', 'Settings']
 // CHROMIUM_PATH: run it elsewhere than the Playwright image (e.g. the sandbox).
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] } : {})
@@ -242,12 +273,14 @@ for (const [vn, w, h, mob] of VIEWS) {
     const t0 = Date.now()
     report.push({ vn, screen: name, data: await pg.evaluate(collect) })
     if (process.env.SCAN_DEBUG) console.log(`.. ${vn} ${name} collected in ${Date.now() - t0}ms`)
+    await explain(pg, vn, name, false)
     done.push(name)
     // Open the screen's first form (Edit / Add / New) to reach its inputs.
     const opener = pg.locator('.admin-content button:visible, main button:visible').filter({ hasText: /^\s*(Edit|Add[^\n]{0,24}|New[^\n]{0,20})\s*$/ }).first()
     if (await opener.count()) {
       await opener.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(900)
       report.push({ vn, screen: name + '/form', data: await pg.evaluate(collect) })
+      await explain(pg, vn, name, true)
       // A form can stay open (a modal or an inline editor): start the next
       // screen from a fresh load so nothing leaks into its inventory.
       await pg.goto(BASE + '/backends', { waitUntil: 'networkidle' })
