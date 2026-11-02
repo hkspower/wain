@@ -137,9 +137,11 @@
    rgb(var(--accent-rgb) / .4) so they follow the scheme too. The red and
    green of the rival and player channels are NOT part of any scheme: they
    mean something, and data-cvd already swaps them for colour-blind
-   players. The instrument cluster keeps its own choice (clusterTheme).
+   players. In the four schemes after sodium the information accent is a
+   quiet tint of the scheme's own hue, not a second colour: Neon is green
+   with a pale mint, not green with magenta. The instrument cluster keeps its own choice (clusterTheme).
    Set from Settings as <html data-ui-theme="...">; no attribute is the
-   sodium scheme. scripts/audit-ui-themes.mjs holds every scheme to the
+   sodium scheme. scripts/check-ui-themes.mjs holds every scheme to the
    contrast floor. These live outside @theme for the same reason the
    font stacks do: nothing in a stylesheet refers to them by utility. */
 :root {
@@ -151,46 +153,46 @@
 html[data-ui-theme="ice"] {
   --color-sodium-400: #8fdcff;
   --color-sodium-500: #5cc8ff;
-  --color-gulf-300: #d6c9ff;
-  --color-gulf-400: #b7a4ff;
-  --color-gulf-500: #9a82f0;
+  --color-gulf-300: #dbe9f7;
+  --color-gulf-400: #b4cde6;
+  --color-gulf-500: #8fb0d0;
   --accent-rgb: 92 200 255;
   --accent-hi-rgb: 143 220 255;
-  --info-rgb: 183 164 255;
-  --info-hi-rgb: 214 201 255;
+  --info-rgb: 180 205 230;
+  --info-hi-rgb: 219 233 247;
 }
 html[data-ui-theme="neon"] {
   --color-sodium-400: #5dffb0;
   --color-sodium-500: #3dff9e;
-  --color-gulf-300: #ff9be5;
-  --color-gulf-400: #ff5fd0;
-  --color-gulf-500: #e03ab8;
+  --color-gulf-300: #d5ffe9;
+  --color-gulf-400: #a2efc8;
+  --color-gulf-500: #6fc9a0;
   --accent-rgb: 61 255 158;
   --accent-hi-rgb: 93 255 176;
-  --info-rgb: 255 95 208;
-  --info-hi-rgb: 255 155 229;
+  --info-rgb: 162 239 200;
+  --info-hi-rgb: 213 255 233;
 }
 html[data-ui-theme="crimson"] {
   --color-sodium-400: #ff8f8f;
   --color-sodium-500: #ff4f55;
-  --color-gulf-300: #bcd0f0;
-  --color-gulf-400: #8fb0e3;
-  --color-gulf-500: #6f94cf;
+  --color-gulf-300: #ead6d6;
+  --color-gulf-400: #c9a9a9;
+  --color-gulf-500: #a88585;
   --accent-rgb: 255 79 85;
   --accent-hi-rgb: 255 143 143;
-  --info-rgb: 143 176 227;
-  --info-hi-rgb: 188 208 240;
+  --info-rgb: 201 169 169;
+  --info-hi-rgb: 234 214 214;
 }
 html[data-ui-theme="violet"] {
   --color-sodium-400: #d8b0ff;
   --color-sodium-500: #b57cff;
-  --color-gulf-300: #9ff0d8;
-  --color-gulf-400: #4fe0bd;
-  --color-gulf-500: #2dbd9d;
+  --color-gulf-300: #e6dcff;
+  --color-gulf-400: #c3b3ee;
+  --color-gulf-500: #9d8bd0;
   --accent-rgb: 181 124 255;
   --accent-hi-rgb: 216 176 255;
-  --info-rgb: 79 224 189;
-  --info-hi-rgb: 159 240 216;
+  --info-rgb: 195 179 238;
+  --info-hi-rgb: 230 220 255;
 }
 
 /* Font stacks, emitted unconditionally. These live outside @theme on
