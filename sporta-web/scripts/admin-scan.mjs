@@ -30,10 +30,12 @@ import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import tls from 'node:tls'
+import { fileURLToPath } from 'node:url'
 
 const HOST = 'www.sporta.com.kw'
 const BASE = process.env.SPORTA_SCAN_BASE ?? ''
 const ROOT = process.env.SPORTA_SCAN_ROOT ?? '/sporta/site'
+const HERE = path.dirname(fileURLToPath(import.meta.url))
 
 let bad = 0, warn = 0
 const ok = (s) => console.log(`ok   ${s}`)
@@ -200,8 +202,19 @@ head('4. The screens and the server agree')
   const quoted = (r) => new RegExp(`["'\`]${r}(["'\`&]|$)`).test(bundle) || bundle.includes(`r=${r}`)
   const unused = routes.filter((r) => !quoted(r))
   const used = routes.length - unused.length
-  unused.length ? w(`${used} of ${routes.length} admin routes have a screen; no screen calls: ${unused.slice(0, 12).join(', ')}${unused.length > 12 ? ' …' : ''}`)
-    : ok(`every one of the ${routes.length} admin routes is called by a screen`)
+  // A route the LIVE screens never call may still be this repo's admin's
+  // (src/admin, shipped with the scan): not dead code, a screen the live
+  // build lacks. Only a route neither admin calls is worth a warning.
+  const repoSrc = path.join(HERE, '..', 'src')
+  const repoText = fs.existsSync(repoSrc)
+    ? fs.readdirSync(repoSrc, { recursive: true }).filter((f) => /\.(jsx?|tsx?)$/.test(f)).map((f) => fs.readFileSync(path.join(repoSrc, f), 'utf8')).join('\n')
+    : ''
+  const repoOnly = unused.filter((r) => new RegExp(`["'\`]${r}["'\`&]`).test(repoText))
+  const dead = unused.filter((r) => !repoOnly.includes(r))
+  ok(`${used} of ${routes.length} admin routes are called by the live screens`)
+  if (repoOnly.length) ok(`  ${repoOnly.length} more are this repo's admin's only — the live build has no screen for: ${repoOnly.join(', ')}`)
+  dead.length ? w(`no admin calls ${dead.length} route(s): ${dead.slice(0, 12).join(', ')}${dead.length > 12 ? ' …' : ''}`)
+    : ok('no admin route is dead code')
   // Sign-in steps the server can ask for, and whether the screens answer them.
   for (const [step, word] of [['MFA code', 'need_code'], ['forced password change', 'need_password_change']]) {
     if (!adminPhp.includes(word)) continue
