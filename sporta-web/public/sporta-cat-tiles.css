@@ -56,3 +56,12 @@
   .home-category-grid { grid-auto-rows: 1fr !important; }
   .home-category-grid > .campaign-category { align-self: stretch !important; }
 }
+
+/* "Photo unavailable" placeholder (2026-11-02): it is a 600x750 portrait
+ * picture, and the product page shows it in a SQUARE box with object-fit:
+ * cover, which cut off its top and bottom. Show it whole instead, on the
+ * same light grey the picture fades to. Real product photos are untouched. */
+img[src$="/product-photo-unavailable.svg"] {
+  object-fit: contain !important;
+  background-color: #f3f5f7 !important;
+}

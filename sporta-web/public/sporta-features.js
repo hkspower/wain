@@ -163,3 +163,86 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()
 })()
+
+/* Product page: show only the sizes the product actually has (2026-11-02).
+ *
+ * The compiled product page renders its WHOLE ladder — S M L XL 2XL 3XL 4XL
+ * 5XL ONE — for every product and greys out what is not in stock. So a
+ * backpack (one variant, "ONE") showed nine dead clothing sizes, and shorts
+ * stocked S–5XL also offered "ONE". The variants are already public
+ * (/api/api.php?r=stock: slug, size, in_stock); this hides every size button
+ * the product has NO variant for. A size that exists but is sold out stays,
+ * greyed, exactly as before. If the stock list cannot be read, or names no
+ * variant for this product, nothing is hidden — the page behaves as it did.
+ * "ONE" is relabelled "One size" / "مقاس واحد" through a CSS ::after on the
+ * button, so React's own text node is never touched. Leading ";" because this
+ * file is two IIFEs back to back.
+ */
+;(function () {
+  'use strict'
+  var SIZE = /^(XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL|ONE)$/
+  var stock = null, loading = false, stamp = 0
+
+  function slug() {
+    var m = /^\/product\/([^/?#]+)/.exec(location.pathname)
+    return m ? decodeURIComponent(m[1]) : ''
+  }
+  function load() {
+    if (loading || (stock && Date.now() - stamp < 60000)) return
+    loading = true
+    fetch('/api/api.php?r=stock', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (j) {
+        var rows = Array.isArray(j) ? j : (j && j.stock) || []
+        var map = {}
+        rows.forEach(function (r) {
+          if (!r || !r.slug || !r.size) return
+          ;(map[r.slug] = map[r.slug] || {})[String(r.size).toUpperCase()] = true
+        })
+        stock = map; stamp = Date.now()
+      })
+      .catch(function () {})
+      .then(function () { loading = false; schedule() })
+  }
+  function css() {
+    if (document.getElementById('sporta-size-css')) return
+    var s = document.createElement('style')
+    s.id = 'sporta-size-css'
+    s.textContent =
+      '.catalog-product-options button[data-sporta-one] > span{font-size:0}' +
+      '.catalog-product-options button[data-sporta-one] > span::after{content:"One size";font-size:.875rem}' +
+      ':root[dir="rtl"] .catalog-product-options button[data-sporta-one] > span::after{content:"مقاس واحد"}' +
+      '.catalog-product-options button[data-sporta-one]{padding-inline:16px;min-width:auto}'
+    document.head.appendChild(s)
+  }
+  function apply() {
+    var s = slug()
+    if (!s) return
+    if (!stock) { load(); return }
+    var have = stock[s]
+    if (!have) return
+    var btns = document.querySelectorAll('.catalog-product-options button')
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i]
+      var t = (b.textContent || '').trim().toUpperCase()
+      if (!SIZE.test(t)) continue
+      var hide = !have[t]
+      if (hide && b.style.display !== 'none') { b.style.display = 'none'; b.setAttribute('data-sporta-nosize', '') }
+      if (!hide && b.hasAttribute('data-sporta-nosize')) { b.style.display = ''; b.removeAttribute('data-sporta-nosize') }
+      if (t === 'ONE' && !hide) { css(); b.setAttribute('data-sporta-one', '') }
+    }
+  }
+  var queued = false
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; apply() })
+  }
+  function start() {
+    apply()
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    window.addEventListener('popstate', schedule)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
+})()
