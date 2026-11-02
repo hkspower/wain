@@ -22,20 +22,23 @@
 //   LOW     text whose contrast against its real background is under WCAG AA;
 //   NAME    how product names render in Catalogue (size, weight, truncation).
 //
-// --css injects a stylesheet (bypassCSP) before scanning, so a fix can be
+// --css (or SCAN_CSS_GZ, gzip+base64) injects a stylesheet (bypassCSP) before scanning, so a fix can be
 // measured on the live admin before it is deployed. Lines start with == / ok /
 // WARN so the output greps cleanly.
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
+import { gunzipSync } from 'node:zlib'
 
 const args = process.argv.slice(2)
 const cssAt = args.indexOf('--css')
-const CSS = cssAt >= 0 ? readFileSync(args[cssAt + 1], 'utf8') : (process.env.SCAN_CSS_B64 ? Buffer.from(process.env.SCAN_CSS_B64, 'base64').toString() : '')
+const CSS = cssAt >= 0 ? readFileSync(args[cssAt + 1], 'utf8')
+  : process.env.SCAN_CSS_GZ ? gunzipSync(Buffer.from(process.env.SCAN_CSS_GZ, 'base64')).toString()
+  : process.env.SCAN_CSS_B64 ? Buffer.from(process.env.SCAN_CSS_B64, 'base64').toString() : ''
 const BASE = (args.find((a, i) => !a.startsWith('--') && !(cssAt >= 0 && i === cssAt + 1)) || 'https://www.sporta.com.kw').replace(/\/$/, '')
 const ONLY = process.env.SCAN_ONLY ? process.env.SCAN_ONLY.split(',') : null
 
 const pub = async (r) => { try { return await (await fetch(`${BASE}/api/api.php?r=${r}`)).json() } catch { return [] } }
-const [products, brands, stock] = await Promise.all([pub('products'), pub('brands'), pub('stock')])
+const [products, brands, stock, theme] = await Promise.all([pub('products'), pub('brands'), pub('stock'), pub('theme')])
 const P = Array.isArray(products) ? products : []
 
 // ---------------------------------------------------------------- mock data
@@ -87,7 +90,8 @@ const MOCK = {
   ],
   slides: { slides: [], hero: { speed_ms: 6500, shuffle: false, size: 'tall', autoplay: true } },
   checkout_settings: { delivery_fee: 1, methods: ['knet', 'tpay', 'cod'], default_method: 'knet', notice_en: '', notice_ar: '' },
-  theme_settings: { brand: '#e0561c', accent: '#b8430f', canvas: '#ffffff', radius: '16', dark: false, fonts: { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' } },
+  // The live theme is public (api.php?r=theme), so the Theme screen shows the real one.
+  theme_settings: theme && !Array.isArray(theme) && theme.brand ? theme : { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false, fonts: { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' } },
   topbar_settings: { enabled: true, text_en: 'Delivery within 24 hours in Kuwait', text_ar: 'التوصيل خلال ٢٤ ساعة داخل الكويت', href: '/shop', starts_at: null, ends_at: null, tone: 'brand', show_dot: true, alignment: 'center' },
   seo_settings: { pages: Object.fromEntries(['/', '/shop', '/about', '/contact', '/returns', '/terms', '/privacy'].map((p) => [p, { title_en: '', title_ar: '', description_en: '', description_ar: '', image: '' }])) },
   return_requests: { requests: [], page: 1, has_more: false, total: 0 },
@@ -286,6 +290,9 @@ for (const [vn] of VIEWS) {
   const text = flat('text')
   const hist = {}; for (const t of text) hist[t.fs] = (hist[t.fs] || 0) + 1
   console.log(`-- FONT sizes: ${Object.entries(hist).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])).map(([k, v]) => `${k}×${v}`).join(' ')}`)
+  const tiny = text.filter((t) => parseFloat(t.fs) < 12)
+  console.log(`-- FONT under 12px: ${tiny.length} runs`)
+  for (const [k, g] of group(tiny.map((t) => ({ ...t, ex: t.t })), (t) => `${t.fs}/${t.fw} at ${t.at}`, () => ({})).slice(0, 12)) console.log(`WARN ×${g.n} ${k} [${scr(g.screens)}] "${[...new Set(g.ex)].slice(0, 3).join('" "')}"`)
   const wh = {}; for (const t of text) wh[t.fw] = (wh[t.fw] || 0) + 1
   console.log(`-- FONT weights: ${Object.entries(wh).map(([k, v]) => `${k}×${v}`).join(' ')}`)
   const tc = {}; for (const t of text) tc[t.col] = (tc[t.col] || 0) + 1
@@ -300,7 +307,9 @@ for (const [vn] of VIEWS) {
   console.log(`-- RADII: ${Object.entries(rad).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`).join(' ')}`)
   const names = flat('names')
   console.log(`-- NAME product names: ${names.length}, cut off ${names.filter((n) => n.cut).length}`)
-  for (const [k, g] of group(names.map((n) => ({ ...n, ex: n.t })), (n) => `${n.sig} at ${n.at}`, () => ({})).slice(0, 8)) console.log(`${g.last.cut ? 'WARN ' : 'ok   '}×${g.n} ${k} w~${g.last.w}px [${scr(g.screens)}] "${g.ex.join('" "')}"`)
+  for (const [k, g] of group(names.map((n) => ({ ...n, ex: n.t })), (n) => `${n.sig} at ${n.at}`, () => ({})).slice(0, 8)) {
+    console.log(`${g.last.cut ? 'WARN ' : 'ok   '}×${g.n} ${k} w~${g.last.w}px [${scr(g.screens)}] "${g.ex.join('" "')}"`)
     if (process.env.SCAN_CLASSES) console.log(`       class="${g.last.cl}" parent="${g.last.pcl}"`)
+  }
 }
 console.log('\nADMIN_STYLE_SCAN_DONE')
