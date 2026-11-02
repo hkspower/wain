@@ -97,3 +97,62 @@ li.text-amber-700 {
    as an empty white box in a screenshot. Define the variable here as well:
    the admin's own accent, white text on it is 6.4:1. */
 .admin-login { --admin-action: #9a452c; }
+
+/* /backends sign-in screen, part 2 (2026-11-02): the rest of the shell's
+   variables, and the sign-in controls brought up to the signed-in admin's
+   own rules. Measured live with admin-style-scan in SCAN_LOGIN mode (every
+   admin.php call answered in the browser; no sign-in attempt reaches the
+   server, so no lock is touched):
+   - "Email reset link" was STILL white on white on a phone. A tap leaves the
+     button :hover, and `.admin-login .hover\:bg-orange-600:hover` paints
+     var(--admin-action-hover), the second variable only .admin-shell
+     defines. The spinner's ring reads --admin-accent-border, the soft tint
+     --admin-accent-soft. The values below are the shell's own (AdminApp
+     stylesheet, the polish block that sets --admin-action: #9a452c).
+   - "Forgot password?" was 32px tall on a phone and "Use a recovery code"
+     36px: under the 44px tap target every other admin control has.
+   - The fields' edge #b4bec8 on white is 1.9:1, under the 3:1 WCAG 1.4.11
+     asks of a field's boundary; the signed-in admin's fields use #7d8799
+     (3.62:1). "Back to sign in" was edged #e2e8f0, 1.2:1: a box you could
+     not see on the white card.
+   - Focus went to the shop's #e0561c and the links to #b8430f: two more
+     oranges beside #9a452c buttons. One accent, as in the shell.
+   Colours are LIGHT THEME ONLY: the admin's dark mode is a class on <html>
+   (html.dark / [data-theme=dark]) with its own login rules, and #9a452c on
+   its #151b22 card would be 2.6:1. Sizes apply in both. */
+.admin-login {
+  --admin-action-hover: #803820;
+  --admin-accent-soft: #f8ece6;
+  --admin-accent-border: #d8a38b;
+}
+.admin-login .admin-login__forgot,
+.admin-login .admin-login__form-panel > button.w-full.py-2 {
+  min-height: 2.75rem !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+.admin-login .admin-login__forgot { justify-content: flex-end; }
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :is(.text-indigo-600, .text-indigo-700, .admin-login__reveal, .admin-login__forgot) {
+  color: var(--admin-action) !important;
+}
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__input {
+  border-color: #7d8799 !important;
+  caret-color: var(--admin-action);
+}
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__input:hover { border-color: #5d6b79 !important; }
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__input:focus {
+  border-color: var(--admin-action) !important;
+  --tw-ring-color: rgb(154 69 44 / 0.18) !important;
+  box-shadow: 0 0 0 3px rgb(154 69 44 / 0.18) !important;
+}
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__input[aria-invalid="true"] { border-color: #be123c !important; }
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel button.border-slate-200 {
+  border-color: #7d8799 !important;
+  color: #334155 !important;
+}
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel button.border-slate-200:hover { background-color: #f1f5f9 !important; }
+html:not(.dark):not([data-theme="dark"]) .admin-login .admin-login__form-panel :is(button, a):focus-visible {
+  outline: 3px solid var(--admin-action) !important;
+  outline-offset: 2px;
+}
