@@ -2794,6 +2794,10 @@ function raceCut(): { w: number; h: number } | null {
       }
       // Escape closes the credits the same way it closes everything else
       if (creditsOpen && e.key === "Escape") setCreditsOpen(false);
+      // ...and Settings, which only had its DONE button. Opened from the
+      // pause menu it goes back there: pauseOpen is left as it was, and
+      // the pause toggle above ignores Escape while Settings is open.
+      if (settingsOpen && e.key === "Escape" && !e.repeat) setSettingsOpen(false);
       if (result && result.outcome === "loss" && e.key.toLowerCase() === "r") {
         setResult(null);
         engineRef.current?.setPaused(false);

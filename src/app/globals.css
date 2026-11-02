@@ -1331,7 +1331,11 @@ html[data-cluster-theme="neon"] .tach-cluster {
     margin-top: 0.75rem;
   }
 }
-@media (max-height: 620px) and (min-width: 700px) {
+/* The two columns also take over on a short desktop window. A single
+   column needs about 860px of height for all six menu rows, so at 1280x720
+   and 1366x768 (the commonest laptop panels) HOW TO PLAY and CREDITS sat
+   below the fold, reachable only by scrolling a menu nobody knew scrolled. */
+@media (max-height: 620px) and (min-width: 700px), (max-height: 860px) and (min-width: 1000px) {
   .menu-grid {
     display: grid;
     grid-template-columns: 1fr 1.1fr;
@@ -1341,6 +1345,16 @@ html[data-cluster-theme="neon"] .tach-cluster {
   }
   .menu-col > *:first-child {
     margin-top: 0;
+  }
+}
+/* On a short DESKTOP window the menu column is also the left third of the
+   screen (.menu-shell, 33rem), and two columns inside that wrapped the
+   wordmark onto two lines and stacked the clock pill one word per line.
+   Give the pair of columns the room they need; the attract scene still
+   shows to the right of them. */
+@media (max-height: 860px) and (min-width: 1000px) {
+  .menu-shell:has(.menu-grid) {
+    max-width: 54rem;
   }
 }
 
