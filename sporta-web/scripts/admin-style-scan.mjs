@@ -101,10 +101,17 @@ const MOCK = {
   theme_settings: theme && !Array.isArray(theme) && theme.brand ? theme : { brand: '#c76a42', accent: '#99452b', canvas: '#ffffff', radius: '16', dark: false, fonts: { body_en: 'plex', display_en: 'alexandria', body_ar: 'plex', display_ar: 'alexandria' } },
   topbar_settings: { enabled: true, text_en: 'Delivery within 24 hours in Kuwait', text_ar: 'التوصيل خلال ٢٤ ساعة داخل الكويت', href: '/shop', starts_at: null, ends_at: null, tone: 'brand', show_dot: true, alignment: 'center' },
   seo_settings: { pages: Object.fromEntries(['/', '/shop', '/about', '/contact', '/returns', '/terms', '/privacy'].map((p) => [p, { title_en: '', title_ar: '', description_en: '', description_ar: '', image: '' }])) },
-  return_requests: { requests: [], page: 1, has_more: false, total: 0 },
-  support_list: { tickets: [] },
+  // Returns, Support and Profiles get rows too, in the shapes returns.php,
+  // support.php and profiles.php return — an empty table measures nothing.
+  return_requests: { requests: Array.from({ length: 6 }, (_, i) => ({ id: 70 + i, reference: 'RR' + String(260000 + i), status: ['requested', 'approved', 'pickup_scheduled', 'received', 'completed', 'declined'][i], eligibility: i % 3 ? 'eligible' : 'review',
+    created_at: day(i), updated_at: day(i), track_id: 'SPTEST' + (1000 + i), customer_name: NAMES[i % 6], customer_phone: '9650000' + (1000 + i), payment_method: PAY[i % 6][1], fulfilment_status: 'delivered' })), page: 1, has_more: false, total: 6 },
+  support_list: { tickets: Array.from({ length: 6 }, (_, i) => ({ id: 40 + i, reference: 'ST' + String(510000 + i), customer_name: NAMES[i % 6], customer_email: `customer${i}@example.com`, customer_phone: '9650000' + (1000 + i),
+    order_track_id: i % 2 ? 'SPTEST' + (1000 + i) : null, subject: ['Where is my order?', 'Size exchange for the black tee', 'Payment question', 'Wrong colour delivered — can I swap it?', 'استفسار عن الطلب', 'Invoice copy'][i],
+    status: ['open', 'pending', 'resolved', 'open', 'closed', 'pending'][i], priority: ['urgent', 'high', 'normal', 'normal', 'low', 'normal'][i], assigned_to: i % 3 ? null : 'owner@example.com',
+    last_customer_at: day(i), last_staff_at: i % 2 ? day(i) : null, created_at: day(i), updated_at: day(i) })) },
   crm_list: { contacts: NAMES.map((n, i) => ({ key: 'phone:9650000' + (1000 + i), source: 'phone', name: n, display_name: '', phone: '9650000' + (1000 + i), email: '', order_count: 1 + i, order_total: 9 * (1 + i), paid_total: 9 * i, open_cod_count: i % 2, open_cod_total: (i % 2) * 9, last_order_at: day(i), last_area: AREAS[i], last_track_id: 'SPTEST' + (1000 + i), status: ['new', 'contacted', 'vip'][i % 3], tags: i % 2 ? ['vip'] : [], follow_up_at: null, note_count: i % 3, updated_at: null, updated_by: null })) },
-  profiles_list: { profiles: [] },
+  profiles_list: { profiles: Array.from({ length: 6 }, (_, i) => ({ id: 300 + i, name: NAMES[i % 6], email: `customer${i}@example.com`, phone: '9650000' + (1000 + i), created_at: day(i + 3), last_login_at: day(i),
+    order_count: i, paid_total: 9.5 * i, last_order_at: i ? day(i) : null })), page: 1, has_more: false },
   activity_log: { events: Array.from({ length: 12 }, (_, i) => ({ id: 500 - i, actor_email: 'owner@example.com', action_key: ['login', 'product_save', 'brand_save', 'settings_save'][i % 4], created_at: day(i) })), page: 1, has_more: false },
   inventory_movements: variants.slice(0, 8).map((v, i) => ({ id: 20 - i, sku: v.sku, type: ['receive', 'sale', 'adjust'][i % 3], before_stock: 10, after_stock: 9, delta: -1, before_unit_cost_kwd: 3.35, after_unit_cost_kwd: 3.35, before_low_stock_threshold: 2, after_low_stock_threshold: 2, inventory_version: 5, note: 'Scan sample', actor_admin_id: null, actor_email: 'owner@example.com', created_at: day(i) })),
   inventory_finance: { delivery_expense: 0, ads_expense: 0, fixed_expense: 0, variable_expense: 0, returns_expense: 0, damage_expense: 0 },
@@ -296,7 +303,19 @@ function collect() {
   // column is, how often its cells wrap or get cut, and how wide it is.
   const side2 = (a, dir) => a === 'start' ? (dir === 'rtl' ? 'right' : 'left') : a === 'end' ? (dir === 'rtl' ? 'left' : 'right') : a === 'justify' || a === '-webkit-auto' ? 'left' : a.replace('-webkit-', '')
   const NUM = /^[\s(+\-−]*(?:KWD|KD|د\.ك\.?|SP)?\s*[\d٠-٩][\d٠-٩.,٫٬:\/\s×x%-]*(?:KWD|KD|د\.ك\.?|%|×|pcs|units?)?\s*\)?$/i
-  const lines = (el) => { const rg = document.createRange(); rg.selectNodeContents(el); const tops = new Set([...rg.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top))); return tops.size }
+  // Lines of the most-wrapped single text run inside el. Counting the whole
+  // cell would call a name stacked over its Arabic line "wrapped", which is
+  // layout, not a column that is too narrow.
+  const lines = (el) => {
+    let most = 0; const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let n = tw.nextNode(), k = 0; n && k < 40; n = tw.nextNode(), k++) {
+      if (!n.textContent.trim()) continue
+      const rg = document.createRange(); rg.selectNodeContents(n)
+      const tops = new Set([...rg.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top)))
+      most = Math.max(most, tops.size)
+    }
+    return most
+  }
   for (const t of root.querySelectorAll('table')) {
     if (!vis(t)) continue
     const tc = getComputedStyle(t), tr = t.getBoundingClientRect(), dir = tc.direction
@@ -541,7 +560,7 @@ for (const [vn] of VIEWS) {
       // only when it is physically right-aligned, whatever the page's dir.
       if (c.num >= 0.6 && c.tdAl !== 'right' && c.ctl < 0.5) I('WARN', 'NUM-ALIGN', `${nm} is ${Math.round(c.num * 100)}% numbers but aligned ${c.tdAl} (figures line up only on the right)`)
       if (c.num >= 0.6 && c.tab < 0.9) I('info', 'NUM-FIGURES', `${nm}: numbers in proportional figures (no tabular-nums), digits do not line up`)
-      if (c.thAl !== '-' && c.tdAl !== '-' && c.thAl !== c.tdAl) I('WARN', 'HEAD-ALIGN', `${nm}: header ${c.thAl}, cells ${c.tdAl}`)
+      if (c.h && c.thAl !== '-' && c.tdAl !== '-' && c.thAl !== c.tdAl) I('WARN', 'HEAD-ALIGN', `${nm}: header ${c.thAl}, cells ${c.tdAl}`)
       if (c.mixed) I('info', 'MIXED-ALIGN', `${nm}: cells aligned differently from row to row`)
       if (c.wrap3 >= 0.3) I('WARN', 'TOO-NARROW', `${nm} ${c.w}px: ${Math.round(c.wrap3 * 100)}% of cells wrap to 3+ lines`)
       else if (c.wrap >= 0.5 && c.num >= 0.6) I('WARN', 'NUM-WRAPS', `${nm}: a number column wraps (${Math.round(c.wrap * 100)}%)`)
