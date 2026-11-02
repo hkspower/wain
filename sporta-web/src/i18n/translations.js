@@ -403,6 +403,14 @@ export const translations = {
         // the shopper has to go back to the product to resolve it.
         sizeRequired: 'Please choose a size for this item — open it from your bag and pick one',
         cart_too_large: 'That is too many items for one order. Please split it.',
+        // api.php store_order_size_guard(): at most 20 pieces in one order and
+        // at most 10 of one item in one size. The numbers are the server's
+        // (STORE_ORDER_MAX_UNITS / STORE_ORDER_MAX_PER_VARIANT) — change both.
+        order_too_large: 'One order can hold up to 20 pieces, and up to 10 of the same item in one size. Please split it into two orders.',
+        // Shared by every limiter the checkout can meet: the order limit, and
+        // the coupon limiter, which now refuses even a RIGHT code once a
+        // connection has used up its wrong guesses.
+        too_many_attempts: 'Too many attempts from this connection. Please wait a few minutes and try again.',
         invalid_qty: 'One of the quantities is not valid.',
         zero_amount: 'This order has no payable total. Please contact us.',
         order_not_pending: 'This order has already been processed. Start a new one.',
@@ -787,6 +795,8 @@ export const translations = {
         empty_cart: 'حقيبتك فارغة.',
         sizeRequired: 'يرجى اختيار مقاس لهذه القطعة — افتحها من الحقيبة واختر المقاس',
         cart_too_large: 'عدد القطع كبير على طلب واحد. يرجى تقسيمه.',
+        order_too_large: 'يتسع الطلب الواحد لـ ٢٠ قطعة كحد أقصى، و١٠ قطع كحد أقصى من الصنف نفسه بالمقاس نفسه. يرجى تقسيمه على طلبين.',
+        too_many_attempts: 'محاولات كثيرة من هذا الاتصال. يرجى الانتظار بضع دقائق ثم المحاولة مرة أخرى.',
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
         order_not_pending: 'تمت معالجة هذا الطلب سابقًا. ابدأ طلبًا جديدًا.',

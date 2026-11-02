@@ -119,6 +119,22 @@ set_exception_handler(function (Throwable $e): void {
     store_out(['error' => $isMissingSchema ? 'no_table' : 'failed'], $isMissingSchema ? 503 : 500);
 });
 
+// Does this database have the column yet? For code that ships ahead of an
+// additive migration and must keep working until the SQL is imported, instead
+// of turning every request into "unknown column". Asked once per request per
+// column, from information_schema, never by trying the query and catching it.
+function store_column_exists(PDO $db, string $table, string $column): bool {
+    static $known = [];
+    $k = $table . '.' . $column;
+    if (!array_key_exists($k, $known)) {
+        $q = $db->prepare('select count(*) from information_schema.columns
+                            where table_schema = database() and table_name = ? and column_name = ?');
+        $q->execute([$table, $column]);
+        $known[$k] = (int)$q->fetchColumn() > 0;
+    }
+    return $known[$k];
+}
+
 // ------------------------------------------------------------------ responses
 
 function store_out($data, int $code = 200): void {
@@ -133,6 +149,36 @@ function store_out($data, int $code = 200): void {
     // future integration accidentally treats a response as an HTML fragment.
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     exit;
+}
+
+// ANSWER NOW, KEEP WORKING. For a request whose answer must not depend on what
+// happens next — "if that address has an account, a link is on its way" —
+// but whose work does: looking the address up, writing a token, handing a
+// message to the mail relay. Done before answering, that work happens only for
+// a REAL account, and the response time says which kind the address was.
+//
+// The complete response goes out first, with its length, so the browser (and
+// any proxy in front) has the whole answer and stops waiting; PHP carries on
+// after it. ignore_user_abort keeps a closed tab from cutting the work short.
+// Compression is turned off for this response because a compressed body would
+// not be the length announced. Under PHP-FPM, fastcgi_finish_request() is the
+// same thing done properly.
+//
+// After this returns the response is gone: the caller must not send another,
+// and anything that fails must go to the error log, not the browser.
+function store_out_early($data, int $code = 200): void {
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ignore_user_abort(true);
+    if (function_exists('apache_setenv')) @apache_setenv('no-gzip', '1');
+    @ini_set('zlib.output_compression', '0');
+    http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Length: ' . strlen((string)$json));
+    header('Connection: close');
+    echo $json;
+    while (ob_get_level() > 0) @ob_end_flush();
+    flush();
+    if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
 }
 
 // The same stable machine tokens create_order raises, so the storefront's
@@ -552,6 +598,118 @@ function store_order_guard(PDO $db, string $phone, string $method): ?array {
     return null;
 }
 
+// ------------------------------------------------------ one order a minute
+//
+// The owner, 2026-11-02: "make submit order one hit, then close for one minute
+// after the hit". Once an order is ACCEPTED, the same client — its address,
+// an IPv6 client by its /64 (store_client_identity) — and the same phone
+// number are refused a NEW order for order_cooldown_seconds (default 60).
+//
+// Why: every accepted order reserves stock, claims discount uses and queues a
+// message to the warehouse BEFORE payment (FULFILMENT.md). The route limit
+// (20 in ten minutes) bounds a flood; this bounds the next order after a real
+// one, which is where a double submit with a fresh attempt, a script, and a
+// shopper tapping "place order" on two devices all land.
+//
+// What it is NOT:
+//   * a block on a retry of the SAME attempt. The track id is the idempotency
+//     key and is answered before this runs (and again under the lock below),
+//     so a double tap or a bank-page retry gets its own order back, never 429.
+//   * a block after a DECLINED card. A cooldown row remembers which order
+//     started it, and an order the bank failed (payment_status 'failed') or
+//     the shop cancelled does not hold the door shut: the shopper who tries a
+//     second card straight away must not be told to wait.
+//
+// The refusal is 429 + Retry-After with the token previous_order_pending —
+// the one the LIVE storefront already words, in both languages, as "An earlier
+// attempt may already have created an order. Track it before starting
+// another, so we do not reserve the same items twice." (measured in its
+// bundle, 2026-11-02). too_many_attempts would have fallen through to its
+// generic "We could not start the payment. Please try again."
+//
+// SLIDING, not a fixed window. Every other rate_limit user counts in aligned
+// windows, where an order at :59 and the next at :01 are two windows. This
+// row instead stores the accepted order's own second as window_start and the
+// order's id as hits — no new table, no migration, and the two-day sweep in
+// sporta_rate_limit_hit() clears it like any other row.
+//
+// 'order_cooldown_seconds' => 0 switches it off. The test sandbox does: the
+// suites place orders back to back from one address. test:order-cooldown
+// proves it on a store of its own.
+const STORE_ORDER_COOLDOWN_SECONDS = 60;
+
+function store_order_cooldown_seconds(): int {
+    $v = store_config()['order_cooldown_seconds'] ?? null;
+    if ($v === null || $v === '') return STORE_ORDER_COOLDOWN_SECONDS;
+    return max(0, min(3600, (int)$v));
+}
+
+function store_order_cooldown_key(string $identity): string {
+    return store_rate_limit_key('order_cooldown', $identity === '' ? 'unknown' : $identity);
+}
+
+// Serialises ONE client's order submissions, so two new orders sent at the
+// same moment cannot both read "nothing recent" and both be accepted. Held
+// through the commit; MySQL frees it when the connection closes at the latest,
+// and the shutdown hook releases it explicitly. False when another submission
+// from the same client held it for ten seconds — which is itself an order in
+// flight, and the caller refuses.
+function store_order_cooldown_lock(PDO $db, string $identity): bool {
+    $database = (string)$db->query('select database()')->fetchColumn();
+    $name = 'sporta:ocd:' . substr(hash('sha256', $database . ':' . $identity), 0, 50);
+    $q = $db->prepare('select get_lock(?, 10)');
+    $q->execute([$name]);
+    if ((int)$q->fetchColumn() !== 1) return false;
+    register_shutdown_function(static function () use ($db, $name): void {
+        store_cod_unlock($db, $name);
+    });
+    return true;
+}
+
+// Seconds before this client or this phone may place a NEW order; 0 = now.
+function store_order_cooldown_left(PDO $db, string $identity, string $phone, int $cooldown): int {
+    if ($cooldown <= 0) return 0;
+    $now = time();
+    $left = 0;
+    // The client: its last accepted order, remembered in rate_limit.
+    $q = $db->prepare('select window_start, hits from rate_limit
+                        where bucket_key = ? and window_start > ?
+                        order by window_start desc limit 1');
+    $q->execute([store_order_cooldown_key($identity), $now - $cooldown]);
+    if ($row = $q->fetch()) {
+        $o = $db->prepare('select payment_status, fulfilment_status from orders where id = ?');
+        $o->execute([(int)$row['hits']]);
+        $order = $o->fetch();
+        // No row: the order was never committed. Failed / cancelled: see above.
+        if ($order && $order['payment_status'] !== 'failed' && $order['fulfilment_status'] !== 'cancelled') {
+            $left = max($left, (int)$row['window_start'] + $cooldown - $now);
+        }
+    }
+    // The phone: straight from orders, so it holds across addresses (two
+    // devices, a phone on Wi-Fi then on 4G) and for orders placed before this
+    // existed. Age is computed by the database against its own clock, the
+    // clock that wrote created_at.
+    $q = $db->prepare("select timestampdiff(second, created_at, now()) from orders
+                        where customer_phone = ?
+                          and created_at > now() - interval ? second
+                          and payment_status <> 'failed'
+                          and fulfilment_status <> 'cancelled'
+                        order by created_at desc limit 1");
+    $q->execute([$phone, $cooldown]);
+    $age = $q->fetchColumn();
+    if ($age !== false && $age !== null) $left = max($left, $cooldown - max(0, (int)$age));
+    return min($cooldown, max(0, $left));
+}
+
+// Remember the accepted order. Called INSIDE the order's transaction, so a
+// rolled-back order starts no cooldown.
+function store_order_cooldown_start(PDO $db, string $identity, int $orderId, int $cooldown): void {
+    if ($cooldown <= 0) return;
+    $db->prepare('insert into rate_limit (bucket_key, window_start, hits) values (?, ?, ?)
+                  on duplicate key update hits = ?')
+       ->execute([store_order_cooldown_key($identity), time(), $orderId, $orderId]);
+}
+
 // One attribution field off the order payload: trimmed, capped, or null.
 //
 // Never rejects. Attribution is REPORTING — it decides nothing about what is
@@ -668,148 +826,59 @@ function store_slug(string $s): string {
 // The throttle is deliberately cheap and stateless-ish: a hashed counter in
 // the same MySQL the request is already talking to, in a fixed window. No new
 // table, no cache server, no per-request file writes — this runs on shared
-// hosting where none of those exist. Most callers use the client IP; admin
-// authentication also uses a separately hashed, normalised account identity
-// so rotating IP addresses cannot turn one account into an email target.
+// hosting where none of those exist. Most callers use the client (an IPv4
+// address, or an IPv6 /64); sign-in, reset mail and phone codes also count a
+// separately hashed, normalised ACCOUNT identity, so rotating addresses cannot
+// turn one account into a target.
 //
 // It counts only FAILED lookups. A customer with a real code who re-checks
 // their basket four times is not attacking anything, and throttling them would
 // break the feature to protect it.
+//
+// The client, and how a counter keys on it, are ONE implementation shared with
+// both payment gateways: see config-path.php. These names stay because the
+// rest of the store calls them.
 function store_normalize_ip(mixed $value): string {
-    if (!is_string($value)) return '';
-    $value = trim($value);
-    if (filter_var($value, FILTER_VALIDATE_IP) === false) return '';
-    $packed = @inet_pton($value);
-    return $packed === false ? '' : (string)inet_ntop($packed);
-}
-
-function store_ip_matches_rule(string $ip, mixed $rule): bool {
-    if (!is_string($rule) || $rule === '') return false;
-    $rule = trim($rule);
-    if (!str_contains($rule, '/')) return hash_equals(store_normalize_ip($rule), $ip);
-    [$network, $rawBits] = array_pad(explode('/', $rule, 2), 2, '');
-    $network = store_normalize_ip($network);
-    if ($network === '' || !preg_match('/^(?:0|[1-9][0-9]{0,2})$/D', $rawBits)) return false;
-    $packedIp = @inet_pton($ip);
-    $packedNetwork = @inet_pton($network);
-    if ($packedIp === false || $packedNetwork === false || strlen($packedIp) !== strlen($packedNetwork)) return false;
-    $bits = (int)$rawBits;
-    $maxBits = strlen($packedIp) * 8;
-    if ($bits < 0 || $bits > $maxBits) return false;
-    $whole = intdiv($bits, 8);
-    $partial = $bits % 8;
-    if ($whole > 0 && substr($packedIp, 0, $whole) !== substr($packedNetwork, 0, $whole)) return false;
-    if ($partial === 0) return true;
-    $mask = (0xff << (8 - $partial)) & 0xff;
-    return (ord($packedIp[$whole]) & $mask) === (ord($packedNetwork[$whole]) & $mask);
+    return sporta_normalize_ip($value);
 }
 
 function store_trusted_proxy_rules(): array {
-    $raw = store_config()['trusted_proxy_ips'] ?? [];
-    if (is_string($raw)) $raw = preg_split('/\s*,\s*/', trim($raw), -1, PREG_SPLIT_NO_EMPTY);
-    return is_array($raw) ? array_values(array_filter($raw, 'is_string')) : [];
+    return sporta_trusted_proxy_rules(store_config()['trusted_proxy_ips'] ?? []);
 }
 
-function store_ip_is_trusted_proxy(string $ip, array $rules): bool {
-    if ($ip === '') return false;
-    foreach ($rules as $rule) {
-        if (store_ip_matches_rule($ip, $rule)) return true;
-    }
-    return false;
-}
-
-// Never trust X-Forwarded-For merely because it exists: a browser can send
-// that header too. Only a REMOTE_ADDR explicitly listed in the server-only
-// config may introduce a forwarded chain. Walk from the trusted ingress back
-// towards the client and take the first untrusted hop; prepended spoof values
-// therefore never win. With no usable address we deliberately return one
-// shared sentinel instead of disabling the limiter.
+// The client's own address (see sporta_client_ip for how a forwarded chain is
+// walked). Use it for what is RECORDED; per-client counters key on
+// store_rate_identity(store_client_ip()) instead.
 function store_client_ip(): string {
-    $remote = store_normalize_ip($_SERVER['REMOTE_ADDR'] ?? '');
-    if ($remote === '') return 'unknown';
-    $trusted = store_trusted_proxy_rules();
-    if (!store_ip_is_trusted_proxy($remote, $trusted)) return $remote;
+    return sporta_client_ip(store_trusted_proxy_rules());
+}
 
-    $raw = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-    if (!is_string($raw) || $raw === '' || strlen($raw) > 2048) return $remote;
-    $chain = [];
-    foreach (explode(',', $raw) as $part) {
-        $ip = store_normalize_ip($part);
-        if ($ip !== '') $chain[] = $ip;
-    }
-    $chain[] = $remote;
-    for ($i = count($chain) - 1; $i >= 0; $i--) {
-        if (!store_ip_is_trusted_proxy($chain[$i], $trusted)) return $chain[$i];
-    }
-    return $remote;
+// What a per-client counter is keyed on: an IPv4 address as it is, an IPv6
+// client by its /64. See sporta_rate_identity.
+function store_rate_identity(string $ip): string {
+    return sporta_rate_identity($ip);
+}
+
+function store_client_identity(): string {
+    return store_rate_identity(store_client_ip());
 }
 
 function store_rate_limit_key(string $bucket, string $identity): string {
     $cfg = store_config();
-    $secret = (string)($cfg['rate_limit_secret'] ?? '');
-    if ($secret === '') {
-        // Existing installations need no emergency config change. Their DB
-        // credential material is already server-only and gives the HMAC a
-        // non-public fallback; the actual value is never stored or returned.
-        $secret = hash('sha256', implode('|', [
-            (string)($cfg['db_name'] ?? ''),
-            (string)($cfg['db_user'] ?? ''),
-            (string)($cfg['db_pass'] ?? ''),
-        ]));
-    }
-    return substr(hash_hmac('sha256', $bucket . '|' . $identity, $secret), 0, 32);
+    // Without rate_limit_secret the key derives from the server-only DB
+    // credentials, so existing installations need no emergency config change;
+    // the actual value is never stored or returned.
+    return sporta_rate_limit_key($bucket, $identity, (string)($cfg['rate_limit_secret'] ?? ''), [
+        (string)($cfg['db_name'] ?? ''),
+        (string)($cfg['db_user'] ?? ''),
+        (string)($cfg['db_pass'] ?? ''),
+    ]);
 }
 
 /** @return array{allowed:bool,hits:int,retry_after:int,key:string,window_start:int} */
 function store_rate_limit_hit(PDO $db, string $bucket, string $identity, int $max, int $windowSec): array {
-    $max = max(1, $max);
-    $windowSec = max(1, $windowSec);
-    $key = store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity);
-    $now = time();
-    $windowStart = $now - ($now % $windowSec);
-
-    $db->prepare(
-        'insert into rate_limit (bucket_key, window_start, hits) values (?, ?, 1)
-         on duplicate key update hits = hits + 1'
-    )->execute([$key, $windowStart]);
-
-    $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
-    $q->execute([$key, $windowStart]);
-    $hits = (int)$q->fetchColumn();
-
-    // Opportunistic sweep, ~1 request in 50, so the table cannot grow without
-    // bound on a shop that never runs a cron for it.
-    //
-    // SCOPED TO THIS BUCKET, and that is the whole point. It used to be
-    // `where window_start < ?` with no bucket at all, while the cutoff was
-    // computed from the CALLING bucket's window — so a short-window counter
-    // swept away long-window ones that were still live. Measured: the 60-second
-    // admin bucket deletes anything older than four minutes, which is exactly
-    // what a 900-second login_fail window looks like fifteen minutes in. Half a
-    // sixty-attempt password spray vanished from the table mid-run, and the
-    // throttle that should have stopped it never fired.
-    //
-    // A rate limiter that quietly forgets is worse than none: it reports
-    // success while the counter it is defending resets under it, and nothing
-    // logs the difference.
-    if (random_int(1, 50) === 1) {
-        $db->prepare('delete from rate_limit where bucket_key = ? and window_start < ?')
-           ->execute([$key, $windowStart - ($windowSec * 4)]);
-        // And a global sweep for buckets nobody visits any more — scoped
-        // sweeping alone would leave those forever. A day is far longer than
-        // the longest window in $STORE_LIMITS, so this can never reach a live
-        // counter no matter which bucket triggers it.
-        $db->prepare('delete from rate_limit where window_start < ?')
-           ->execute([$now - 86400]);
-    }
-
-    return [
-        'allowed' => $hits <= $max,
-        'hits' => $hits,
-        'retry_after' => max(1, ($windowStart + $windowSec) - $now),
-        'key' => $key,
-        'window_start' => $windowStart,
-    ];
+    return sporta_rate_limit_hit($db, store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity),
+        $max, $windowSec);
 }
 
 function store_rate_limit_clear(PDO $db, string $bucket, string $identity): void {
@@ -824,8 +893,50 @@ function store_rate_limit_fail(int $retryAfter, string $token = 'too_many_attemp
 }
 
 function store_throttle(PDO $db, string $bucket, int $max, int $windowSec): void {
-    $state = store_rate_limit_hit($db, $bucket, store_client_ip(), $max, $windowSec);
+    $state = store_rate_limit_hit($db, $bucket, store_client_identity(), $max, $windowSec);
     if (!$state['allowed']) store_rate_limit_fail($state['retry_after']);
+}
+
+// READ a bucket without counting. Same key and the same window expression as
+// store_rate_limit_hit(), so a peek and a hit always look at one row: if the
+// two ever computed the window differently, the peek would read a row that
+// was already over and let the next request through.
+/** @return array{hits:int,retry_after:int} */
+function store_rate_limit_peek(PDO $db, string $bucket, string $identity, int $windowSec): array {
+    $windowSec = max(1, $windowSec);
+    $key = store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity);
+    $now = time();
+    $windowStart = $now - ($now % $windowSec);
+    $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
+    $q->execute([$key, $windowStart]);
+    return [
+        'hits' => (int)$q->fetchColumn(),
+        'retry_after' => max(1, ($windowStart + $windowSec) - $now),
+    ];
+}
+
+// The peek half of store_throttle(): the SAME client identity, refused once the
+// bucket is already full, and nothing counted. For buckets that count only
+// failures, where the request being judged may well succeed — see the
+// discount routes in api.php for why that matters.
+function store_throttle_peek(PDO $db, string $bucket, int $max, int $windowSec): void {
+    $state = store_rate_limit_peek($db, $bucket, store_client_identity(), $windowSec);
+    if ($state['hits'] >= max(1, $max)) store_rate_limit_fail($state['retry_after']);
+}
+
+// TRUE FOR EXACTLY ONE CALLER per bucket, identity and window — the claim is
+// one INSERT IGNORE, so two simultaneous requests cannot both win it. Used for
+// "say this once" side effects (an alert mail), where reading a counter back
+// after incrementing it is not enough: two concurrent requests can both read
+// the value AFTER the other's increment, and the one value that was supposed
+// to trigger the mail is then seen by nobody.
+function store_rate_limit_once(PDO $db, string $bucket, string $identity, int $windowSec): bool {
+    $windowSec = max(1, $windowSec);
+    $now = time();
+    $q = $db->prepare('insert ignore into rate_limit (bucket_key, window_start, hits) values (?, ?, 1)');
+    $q->execute([store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity),
+                 $now - ($now % $windowSec)]);
+    return $q->rowCount() === 1;
 }
 
 // ------------------------------------------------------------------ admin auth
@@ -849,14 +960,62 @@ function store_is_https(): bool {
 
 // How long a signed-in admin stays signed in, enforced on the SERVER.
 //
-// The cookie itself is a session cookie, so closing the browser ends it — but
-// a desktop browser is not closed for weeks, and until now nothing else ended
-// it either. These two are the ordinary pair: idle expiry for a machine walked
-// away from, absolute expiry so a session cannot live indefinitely by being
-// touched. Generous on purpose; this is a shop, not a bank, and a re-login
-// every hour would only teach the owner to leave the password in a browser.
-const STORE_ADMIN_IDLE_SECONDS     = 8 * 3600;
-const STORE_ADMIN_ABSOLUTE_SECONDS = 7 * 86400;
+// The owner, 2026-11-02: "make long time backends login" — and of the
+// lengths offered, "30 days". So a browser that signed in stays signed in
+// for 30 days (absolute), and 7 days without use signs it out (idle): long
+// enough that the owner is not asked for a password and a code every
+// morning, short enough that a laptop left in a drawer does not hold the shop
+// open for a month. Sign-out, a password reset and a change to the
+// authenticator still end every session at once (the fingerprint below).
+//
+// Until now the coded 8 hours idle was not what anyone got. The live PHP
+// keeps session FILES for session.gc_maxlifetime = 1440 s (24 minutes, the
+// php.ini default — the image loads no php.ini) and sweeps on 1 request in
+// 100, in a save path every PHP session on the server shares. So an admin
+// idle for half an hour was signed out by a sweep somebody else's request
+// ran, whatever these constants said. store_session_start() now gives the
+// admin session its own directory and a garbage-collection lifetime as long
+// as the absolute one — see store_admin_session_dir().
+const STORE_ADMIN_IDLE_SECONDS     = 7 * 86400;
+const STORE_ADMIN_ABSOLUTE_SECONDS = 30 * 86400;
+
+// Where admin session files live: a directory of their OWN, above the web
+// root, that no other session shares — because PHP's sweep deletes every file
+// in its save path older than the lifetime of whichever request ran it, and a
+// customer's or a scanner's 24-minute lifetime would otherwise delete a
+// 30-day admin session. In order:
+//   1. 'admin_session_dir' in api/config.php, when set;
+//   2. /var/lib/sporta/admin-sessions — the VPS's persistent private mount
+//      (/docker/sporta/private/voice), already www-data's and already where
+//      the payment logs live, and it survives the container being rebuilt;
+//   3. sporta-admin-sessions in the account home, above public_html — the
+//      shared-hosting layout (api/ is public_html/api, so two levels up);
+//   4. sporta-admin-sessions in the system temp directory.
+// Each is created 0700 when missing and used only if it is a writable
+// directory that is not inside the web root. None usable: PHP's default,
+// i.e. what it did before.
+function store_admin_session_dir(): ?string {
+    static $dir = false;
+    if ($dir !== false) return $dir;
+    $cfg = trim((string)(store_config()['admin_session_dir'] ?? ''));
+    $docroot = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? '')) ?: null;
+    $candidates = array_values(array_filter([
+        $cfg !== '' ? $cfg : null,
+        is_dir('/var/lib/sporta') ? '/var/lib/sporta/admin-sessions' : null,
+        dirname(__DIR__, 2) . '/sporta-admin-sessions',
+        rtrim(sys_get_temp_dir(), '/') . '/sporta-admin-sessions',
+    ]));
+    foreach ($candidates as $c) {
+        if (!is_dir($c)) @mkdir($c, 0700, true);
+        $real = realpath($c);
+        if ($real === false || !is_dir($real) || !is_writable($real)) continue;
+        // Never a directory the web server would SERVE: a session file is a
+        // bearer credential.
+        if ($docroot !== null && ($real === $docroot || str_starts_with($real . '/', rtrim($docroot, '/') . '/'))) continue;
+        return $dir = $real;
+    }
+    return $dir = null;
+}
 
 function store_session_start(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
@@ -866,6 +1025,13 @@ function store_session_start(): void {
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_trans_sid', '0');
+    // Its own directory, and a sweep that cannot end it early: see
+    // STORE_ADMIN_ABSOLUTE_SECONDS and store_admin_session_dir(). The sweep in
+    // THIS directory only ever runs with this lifetime, so a file is deleted
+    // only once it is older than any session it could still hold.
+    $sessionDir = store_admin_session_dir();
+    if ($sessionDir !== null) ini_set('session.save_path', $sessionDir);
+    ini_set('session.gc_maxlifetime', (string)STORE_ADMIN_ABSOLUTE_SECONDS);
     // See store_is_https(): reading $_SERVER['HTTPS'] alone left this false on
     // the live server, behind Hostinger's TLS proxy.
     $secure = store_is_https();
@@ -882,7 +1048,12 @@ function store_session_start(): void {
     // local or half-configured server entirely.
     session_name($secure ? '__Host-sporta_admin' : 'sporta_admin');
     session_set_cookie_params([
-        'lifetime' => 0,            // session cookie: closes with the browser
+        // A PERSISTENT cookie, for as long as the session may live: a session
+        // cookie closed with the browser, which on a phone is every time the
+        // tab is swept away. It is set when the session is created and again
+        // when sign-in regenerates the id, so it runs out 30 days after
+        // signing in — the same moment the server's absolute expiry does.
+        'lifetime' => STORE_ADMIN_ABSOLUTE_SECONDS,
         'path'     => '/',
         'secure'   => $secure,
         'httponly' => true,         // no script access — this cookie IS the admin
@@ -921,7 +1092,9 @@ function store_session_end(): void {
 // Expiry is ours rather than PHP's garbage collector's, because that collector
 // is shared hosting's to configure: its lifetime is whatever the host set, it
 // only runs probabilistically, and it cannot tell an idle session from an old
-// one. Two clocks, both ours — idle, and absolute.
+// one. Two clocks, both ours — idle, and absolute. (The collector is now
+// pointed at a directory of our own with a lifetime of our own, so it can no
+// longer end a session before these do — see store_session_start().)
 function store_admin_fingerprint(array $user): string {
     return hash('sha256', (string)$user['password_hash'] . "\0"
         . (int)($user['totp_enabled'] ?? 0) . "\0"
@@ -1116,8 +1289,36 @@ function store_admin_password_algorithm(): string|int {
     return defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
 }
 
+// THE COST OF ONE GUESS, written down instead of left to PHP's defaults.
+//
+// PHP's Argon2id default is 64 MiB and four passes, and the sign-in form is
+// public: the per-client window lets twenty verifications run at once from one
+// address, each holding its 64 MiB, and every window resets together. Across a
+// worker pool that is about 9.4 GiB of memory a stranger can ask for without
+// knowing anything. 19 MiB and two passes is OWASP's minimum recommendation for
+// Argon2id, and it is still a slow hash for an offline attacker; the same pool
+// now peaks near 2.8 GiB.
+//
+// A fail-fast cap on concurrent sign-ins was rejected: it would be a lever to
+// refuse the OWNER's sign-in while the cap is held.
+//
+// The bcrypt branch (a PHP built without Argon2) names its cost for the same
+// reason: PHP 8.4 raised the default from 10 to 12, so the cost an account was
+// hashed at depended on which PHP happened to hash it.
+//
+// THE DUMMY HASH BELOW MUST USE THESE SAME PARAMETERS. An unknown email is
+// verified against it so it costs exactly what a real account costs; if the two
+// ever differ, the response time says whether the account exists. An existing
+// hash with older parameters is upgraded at its next successful sign-in.
+const STORE_ADMIN_ARGON_OPTS  = ['memory_cost' => 19456, 'time_cost' => 2, 'threads' => 1];
+const STORE_ADMIN_BCRYPT_OPTS = ['cost' => 12];
+
+function store_admin_password_options(): array {
+    return defined('PASSWORD_ARGON2ID') ? STORE_ADMIN_ARGON_OPTS : STORE_ADMIN_BCRYPT_OPTS;
+}
+
 function store_admin_hash_password(string $password): string {
-    $hash = password_hash(hash('sha256', $password), store_admin_password_algorithm());
+    $hash = password_hash(hash('sha256', $password), store_admin_password_algorithm(), store_admin_password_options());
     if (!is_string($hash) || $hash === '') throw new RuntimeException('password_hash_failed');
     return STORE_ADMIN_PASSWORD_PREFIX . $hash;
 }
@@ -1136,17 +1337,21 @@ function store_admin_password_needs_rehash(string $stored): bool {
     if (!str_starts_with($stored, STORE_ADMIN_PASSWORD_PREFIX)) return true;
     return password_needs_rehash(
         substr($stored, strlen(STORE_ADMIN_PASSWORD_PREFIX)),
-        store_admin_password_algorithm()
+        store_admin_password_algorithm(),
+        store_admin_password_options()
     );
 }
 
+// A fixed, valid hash of a random value nobody knows, at EXACTLY the
+// parameters above (m=19456,t=2,p=1 / bcrypt cost 12). Never built at runtime:
+// generating it per request would double the work for unknown emails.
 function store_admin_dummy_hash(): string {
     if (defined('PASSWORD_ARGON2ID')) {
         return STORE_ADMIN_PASSWORD_PREFIX
-            . '$argon2id$v=19$m=65536,t=4,p=1$WkhQeUVUSTR2WVFUeGx6VA$jmcHEnrjp/hGzLDs77Byt//mDuZD8/UaO2PUQvAclWw';
+            . '$argon2id$v=19$m=19456,t=2,p=1$SS5tVkxzUVptVG1VRURWaA$MOaBRmF5njo/sY86L9j9II5QveUlQKPUBecVCorGmkg';
     }
     return STORE_ADMIN_PASSWORD_PREFIX
-        . '$2y$10$vNk3QOHYO.g/y1k6SJzYL.YjGRlwOp9P1TIeCDX.K6s9gFgNI8Bpe';
+        . '$2y$12$zacB8f/PUwkqfx0v.580qeaG8p2x1besmdNyypmLfbmjgDqIzznUO';
 }
 
 // A merchant or terminal identifier as stored in a gateway config: trimmed,
@@ -1181,7 +1386,78 @@ function store_admin_grant(PDO $db, array $user): void {
     $_SESSION['admin_auth_fingerprint'] = store_admin_fingerprint($user);
     $_SESSION['started_at'] = time();
     $_SESSION['seen_at'] = time();
+    // AFTER session_regenerate_id(), so the session cookie is the first
+    // Set-Cookie of the response and this one the second. Order is not a
+    // browser concern, but a simple client that keeps "the" cookie of a login
+    // response keeps the first one, and that has to be the session.
+    store_admin_device_issue(store_login_identity((string)$user['email']));
     store_admin_event($db, $user, 'login');
+}
+
+// ------------------------------------------------- a browser the owner uses
+//
+// THE PASSWORD STEP USED TO LOCK THE ACCOUNT, and that was a lever anyone
+// could pull. Five wrong passwords set admin_users.locked_until for fifteen
+// minutes, and the per-address bucket refused the sixth attempt from any
+// browser in the world — so a stranger who knew the shop's admin address
+// (it is the shop's contact address) could keep the only owner out with
+// about five requests every fifteen minutes, without ever knowing the
+// password. Measured in the sandbox before this existed.
+//
+// So a browser that has signed in successfully keeps a long-lived cookie
+// naming a random device id and an HMAC that binds it to this account. Login
+// attempts from that browser are counted in THEIR OWN bucket (five per
+// fifteen minutes, per account and device) instead of the account's shared
+// one. A stranger can still fill the shared bucket, and that still stops
+// every browser the owner has never signed in from — the accepted trade-off —
+// but it no longer reaches the browsers the owner actually uses.
+//
+// The cookie GRANTS NOTHING. It does not skip the password or the phone
+// code; it only chooses which failure counter an attempt is charged to. A
+// stolen copy is therefore worth five guesses per fifteen minutes at one
+// account, which is what an unknown browser already gets. The MAC is keyed
+// with store_rate_limit_key(), i.e. rate_limit_secret when one is set and a
+// key derived from the server-only DB credentials when it is not — stable
+// either way, so cookies survive a deploy. Setting or rotating
+// rate_limit_secret later only turns existing cookies back into unknown
+// browsers until their next sign-in; nothing is locked out by it.
+const STORE_ADMIN_DEVICE_MAX_AGE = 180 * 86400;
+
+function store_admin_device_cookie_name(): string {
+    // Same rule as the session cookie: __Host- only where Secure is possible,
+    // because a browser must refuse a __Host- cookie that is not Secure.
+    return store_is_https() ? '__Host-sporta_dev' : 'sporta_dev';
+}
+
+function store_admin_device_mac(string $identity, string $device): string {
+    return store_rate_limit_key('admin_device', $identity . '|' . $device);
+}
+
+// The device id this browser proves for $identity, or null for "unknown
+// browser". A cookie minted for one account is not valid for another, and a
+// value whose MAC does not verify is treated exactly like no cookie at all.
+function store_admin_device_for(string $identity): ?string {
+    if ($identity === '__invalid_email__') return null;
+    $raw = $_COOKIE[store_admin_device_cookie_name()] ?? null;
+    if (!is_string($raw) || !preg_match('/^([a-f0-9]{32})\.([a-f0-9]{32})$/D', $raw, $m)) return null;
+    return hash_equals(store_admin_device_mac($identity, $m[1]), $m[2]) ? $m[1] : null;
+}
+
+// Issued after a successful sign-in, and only when the browser does not
+// already hold a valid one for this account — so a known browser keeps its
+// id (and its bucket) for the whole 180 days. Signing out does not clear it:
+// it says nothing about being signed in.
+function store_admin_device_issue(string $identity): void {
+    if ($identity === '__invalid_email__' || headers_sent()) return;
+    if (store_admin_device_for($identity) !== null) return;
+    $device = bin2hex(random_bytes(16));
+    setcookie(store_admin_device_cookie_name(), $device . '.' . store_admin_device_mac($identity, $device), [
+        'expires'  => time() + STORE_ADMIN_DEVICE_MAX_AGE,
+        'path'     => '/',
+        'secure'   => store_is_https(),
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
 }
 
 function store_login_identity(string $email): string {
@@ -1193,18 +1469,28 @@ function store_login_identity(string $email): string {
         ? $normal : '__invalid_email__';
 }
 
-/** @return array{ip:array,identity:array,identity_value:string} */
+/** @return array{ip:array,identity:array,identity_value:string,bucket:string,bucket_identity:string} */
 function store_login_rate_start(PDO $db, string $email): array {
     // Both counters are incremented before either can reject the request. A
     // blocked client therefore cannot freeze one bucket while continuing to
     // rotate identities through the other one.
+    //
+    // The client bucket is ALWAYS hit. The account bucket is the account's
+    // shared one for an unknown browser, and this browser's own one when it
+    // carries a valid device cookie for this account (see
+    // store_admin_device_for). Same five per fifteen minutes either way —
+    // a known browser gets a separate counter, not a larger one.
     $identity = store_login_identity($email);
-    $ip = store_rate_limit_hit($db, 'admin_login_ip', store_client_ip(), 20, 900);
-    $account = store_rate_limit_hit($db, 'admin_login_identity', $identity, 5, 900);
+    $ip = store_rate_limit_hit($db, 'admin_login_ip', store_client_identity(), 20, 900);
+    $device = store_admin_device_for($identity);
+    $bucket = $device === null ? 'admin_login_identity' : 'admin_login_device';
+    $bucketIdentity = $device === null ? $identity : $identity . '|' . $device;
+    $account = store_rate_limit_hit($db, $bucket, $bucketIdentity, 5, 900);
     if (!$ip['allowed'] || !$account['allowed']) {
         store_rate_limit_fail(max($ip['retry_after'], $account['retry_after']));
     }
-    return ['ip' => $ip, 'identity' => $account, 'identity_value' => $identity];
+    return ['ip' => $ip, 'identity' => $account, 'identity_value' => $identity,
+            'bucket' => $bucket, 'bucket_identity' => $bucketIdentity];
 }
 
 /** @return array{locked:bool,retry_after:int} */
@@ -1224,9 +1510,17 @@ function store_admin_lock_state(PDO $db, int $adminId): array {
 
 // Login limiting lives in the database, not the session — an attacker does
 // not keep your session for you. Every attempt hits both a 20-per-client and a
-// 5-per-identity window before password hashing. Five failures also lock a
-// real account for fifteen minutes; a correct password clears only the
-// identity window and the account lock releases itself.
+// 5-per-account window before password hashing; the account window is this
+// browser's own when it carries a valid device cookie (store_login_rate_start).
+// A correct password clears only the account window it was charged to.
+//
+// A WRONG PASSWORD NO LONGER TOUCHES THE ACCOUNT ROW. It used to count
+// failed_attempts and set locked_until at five, which let anyone who knew the
+// admin address lock the owner out of every browser. The windows above cap
+// password guessing on their own. failed_attempts / locked_until now belong
+// to the phone-code step alone (store_login_code), which only somebody
+// holding the password can reach — so the lock is still there, but pulling it
+// requires the password.
 function store_login(string $email, string $password): array {
     $db = store_db();
 
@@ -1268,23 +1562,12 @@ function store_login(string $email, string $password): array {
     $hash = (string)($u['password_hash'] ?? store_admin_dummy_hash());
     $passwordMatches = store_admin_verify_password($password, $hash);
     if (!$u || !$passwordMatches) {
-        if ($u && (int)$u['is_locked'] !== 1) {
-            // Let MySQL set and compare the lock clock. Mixing PHP's timezone
-            // with the database session timezone can turn fifteen minutes into
-            // an already-expired lock or one that lasts hours on another host.
-            // Both changes happen in one statement, so concurrent attempts
-            // cannot overwrite one another with the same stale counter value.
-            $db->prepare(
-                'update admin_users
-                    set locked_until = if(failed_attempts + 1 >= 5, date_add(now(), interval 15 minute), null),
-                        failed_attempts = failed_attempts + 1
-                  where id = ?'
-            )->execute([$u['id']]);
-        }
-
+        // Nothing is written to the account row here — see the comment above
+        // this function. The windows already counted this attempt.
+        //
         // The threshold response is deliberately identical for a real and an
-        // unknown email. The known row is locked at the same point, but that
-        // fact is not an account-existence oracle for somebody guessing.
+        // unknown email, so it is not an account-existence oracle for
+        // somebody guessing.
         if ($rate['identity']['hits'] >= 5 || $rate['ip']['hits'] >= 20) {
             store_rate_limit_fail(max(
                 $rate['identity']['retry_after'],
@@ -1297,15 +1580,19 @@ function store_login(string $email, string $password): array {
     // Only somebody who proved possession of the password may learn that this
     // particular account is locked. A wrong password receives the same answer
     // and password-hash work whether the email exists, is open, or is locked.
+    // Only phone-code failures set this lock now.
     if ((int)$u['is_locked'] === 1) {
         $lock = store_admin_lock_state($db, (int)$u['id']);
         store_rate_limit_fail($lock['retry_after'], 'locked');
     }
 
-    // A correct password clears only this identity's failure window. Never
-    // clear the client bucket: otherwise one known password could be used to
-    // reset an IP spray limiter between guesses at other accounts.
-    store_rate_limit_clear($db, 'admin_login_identity', $rate['identity_value']);
+    // A correct password clears only the account window this attempt was
+    // charged to — the shared one, or this browser's own. Never clear the
+    // client bucket: otherwise one known password could be used to reset an
+    // IP spray limiter between guesses at other accounts. And a known
+    // browser's success does NOT clear the shared window, or the owner
+    // signing in would hand a stranger a fresh five guesses.
+    store_rate_limit_clear($db, $rate['bucket'], $rate['bucket_identity']);
 
     // Upgrade an older hash after a successful login, when the plaintext is
     // legitimately available. This keeps existing accounts current without a
@@ -1388,16 +1675,59 @@ function store_login_code(string $code): array {
         $lock = store_admin_lock_state($db, $id);
         store_rate_limit_fail($lock['retry_after'], 'locked');
     }
+
+    // A DAILY CEILING ON PHONE-CODE GUESSES, per account. The row lock below
+    // allows five wrong codes per fifteen minutes, which is still ~480 a day —
+    // and only somebody who already has the password gets here, so every one
+    // of those is an attacker one code away from the shop. Counted BEFORE the
+    // code is checked, so concurrent requests cannot all slip in under it the
+    // way they can race the row lock.
+    //
+    // Six-digit codes only. A recovery code is an 80-bit secret, not
+    // guessable, and it is how the owner gets in on the day this has tripped
+    // — so it must not be blocked by it.
+    if (preg_match('/^[0-9]{6}$/D', $code)) {
+        $day = store_rate_limit_hit($db, 'admin_totp_account_day', (string)$id, STORE_ADMIN_TOTP_DAY_MAX, 86400);
+        if (!$day['allowed']) {
+            // Once per trip: exactly one request wins this claim per day.
+            if (store_rate_limit_once($db, 'admin_totp_alert_day', (string)$id, 86400)) {
+                store_admin_code_alert($user, 'day');
+            }
+            store_rate_limit_fail($day['retry_after'], 'locked');
+        }
+    }
+
     if (!store_totp_claim($db, $id, (string)$user['totp_secret'], $code)
         && !store_recovery_claim($db, $id, $code)) {
+        // COUNTER FIRST, then the lock, in one statement. MariaDB and MySQL
+        // evaluate a single-table SET left to right, so the second assignment
+        // reads the counter the first one just wrote.
+        //
+        // A lock that has EXPIRED starts the count again at one. Without that,
+        // the counter stayed at five after the first lock and every later
+        // wrong code — including the owner's own typo the next morning —
+        // re-locked the account on the spot. The expired timestamp is cleared
+        // in the same step, or the "expired" test would fire again on the next
+        // failure and the account could never be locked a second time.
         $db->prepare(
             'update admin_users
-                set locked_until = if(failed_attempts + 1 >= 5, date_add(now(), interval 15 minute), null),
-                    failed_attempts = failed_attempts + 1
+                set failed_attempts = if(locked_until is not null and locked_until <= now(),
+                                         1, failed_attempts + 1),
+                    locked_until = if(failed_attempts >= 5,
+                                      date_add(now(), interval 15 minute),
+                                      if(locked_until is not null and locked_until <= now(),
+                                         null, locked_until))
               where id = ?'
         )->execute([$id]);
         $lock = store_admin_lock_state($db, $id);
         if ($lock['locked']) {
+            // This request reached the UPDATE, and the UPDATE is only reached
+            // while the account is unlocked — so the lock was set just now.
+            // One mail per lock: two simultaneous fifth guesses both get here,
+            // and the claim lets only one of them send it.
+            if (store_rate_limit_once($db, 'admin_totp_alert_lock', (string)$id, 900)) {
+                store_admin_code_alert($user, 'lock');
+            }
             unset($_SESSION['pending_admin_id'], $_SESSION['pending_at'], $_SESSION['pending_auth_fingerprint']);
             store_rate_limit_fail($lock['retry_after'], 'locked');
         }
@@ -1406,6 +1736,43 @@ function store_login_code(string $code): array {
 
     store_admin_grant($db, $user);
     return ['id' => (int)$user['id'], 'email' => $user['email']];
+}
+
+// Six-digit code evaluations per account per day (UTC). Generous for a person
+// — the owner signing in a few times a day uses a handful — and about a
+// twenty-fourth of the ~480 a day the fifteen-minute lock alone allowed.
+const STORE_ADMIN_TOTP_DAY_MAX = 20;
+
+// "Somebody has your password." The phone-code step is reached only after the
+// correct password, so wrong codes there are the one signal this system has
+// that the password is known to somebody else. Sent to the account itself,
+// from the same verified sender as a password reset. Never carries an IP
+// address, a code, or anything that would help the person who triggered it.
+function store_admin_code_alert(array $user, string $why): void {
+    try {
+        $cfg = store_config();
+        $mailCfg = $cfg;
+        $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
+        $what = $why === 'day'
+            ? 'Too many phone codes were tried today, so phone-code sign-in to this account is paused until 00:00 UTC (03:00 Kuwait time). A recovery code still works.'
+            : 'Five wrong phone codes were entered in a row, so this account is locked for 15 minutes.';
+        $subject = 'Sporta Backends: wrong sign-in codes on your account';
+        $text = "Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.\n\n"
+              . $what . "\n\n"
+              . "If this was not you, somebody knows your password. Reset it now: open the sign-in page and choose \"Forgot password\".\n";
+        $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+              . '<h2>Wrong sign-in codes on your account</h2>'
+              . '<p>Your Sporta Backends password was entered correctly, and then wrong phone codes were entered.</p>'
+              . '<p>' . htmlspecialchars($what, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+              . '<p><strong>If this was not you, somebody knows your password.</strong> Reset it now: open the sign-in page and choose &ldquo;Forgot password&rdquo;.</p>'
+              . '</div>';
+        if (!store_send_admin_mail($mailCfg, (string)$user['email'], $subject, $text, $html)) {
+            error_log('Sporta admin code alert mail failed');
+        }
+    } catch (Throwable $e) {
+        // An alert that cannot be sent must never turn a refusal into a 500.
+        error_log('Sporta admin code alert unavailable');
+    }
 }
 
 // ---------------------------------------------------------------- settings
@@ -1762,6 +2129,32 @@ function store_effective_price(array $product, ?string $now = null): array {
 // The cap is the backstop against a stacking mistake being a free order.
 const STORE_DISCOUNT_MAX_PCT = 60;
 
+// ------------------------------------------------- guessing codes
+//
+// Only a FAILED code lookup is counted — a shopper re-checking a basket with a
+// code that works is not guessing, and on a carrier address forty phones may
+// share one bucket. But counting failures alone used to leave the limiter
+// answering the question it was protecting: once a client was over the limit,
+// a WRONG code got 429 and a RIGHT code still got 200, so the 429 itself told
+// a script "that one was wrong" and the guessing simply continued, one
+// request per guess, at full speed.
+//
+// So the bucket is PEEKED before any code is looked at, and a full bucket
+// refuses every lookup from that client whatever the code is. Nothing is
+// counted by the peek, so successes still cost nothing. One budget for both
+// routes that take a code (the preview and the order itself), so a script
+// cannot alternate between them for twice the guesses.
+const STORE_DISCOUNT_FAIL_MAX    = 30;
+const STORE_DISCOUNT_FAIL_WINDOW = 600;
+
+function store_discount_gate(PDO $db): void {
+    store_throttle_peek($db, 'discount', STORE_DISCOUNT_FAIL_MAX, STORE_DISCOUNT_FAIL_WINDOW);
+}
+
+function store_discount_failed(PDO $db): void {
+    store_throttle($db, 'discount', STORE_DISCOUNT_FAIL_MAX, STORE_DISCOUNT_FAIL_WINDOW);
+}
+
 // What one rule takes off, in fils. `$eligibleFils` is the part of the order
 // the rule may act on — the whole subtotal, or just one category's lines.
 function store_discount_amount(array $d, int $eligibleFils): int {
@@ -1877,6 +2270,45 @@ function store_discounts_claim(PDO $db, array $applied): bool {
     return true;
 }
 
+// GIVE THE USES BACK — the other half of store_discounts_claim().
+//
+// A limited code is claimed inside the order's transaction, and until this
+// existed nothing ever returned the use: an order that never happened (a
+// declined card, an abandoned bank page, an expired cash order, a bot's fake
+// order) spent it for good, and a few fake orders could finish a launch code
+// before a real customer had it.
+//
+// orders.discount_ids holds every rule the order claimed — codes and automatic
+// rules alike, since the claim counts a use against each. The flag
+// discount_released is set FIRST, guarded, under the caller's row lock and in
+// the caller's transaction, so the sweeper and a retry cannot both give the
+// same use back; `used_count > 0` keeps a counter that was reset by hand from
+// going negative. The caller decides WHEN (store_stock_release: failed,
+// cancelled, or a card reservation released) — this only does it once.
+//
+// Returns how many uses were given back. Until discount-release.mysql.sql is
+// imported there is nothing recorded to give back, and it returns 0.
+function store_discount_release(PDO $db, int $orderId): int {
+    if (!store_column_exists($db, 'orders', 'discount_ids')) return 0;
+    $q = $db->prepare('select discount_ids from orders
+                        where id = ? and discount_released = 0 and discount_ids is not null');
+    $q->execute([$orderId]);
+    $raw = $q->fetchColumn();
+    if ($raw === false || $raw === null) return 0;
+    $ids = json_decode((string)$raw, true);
+    $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
+    $flag = $db->prepare('update orders set discount_released = 1 where id = ? and discount_released = 0');
+    $flag->execute([$orderId]);
+    if ($flag->rowCount() !== 1) return 0;
+    $back = $db->prepare('update discounts set used_count = used_count - 1 where id = ? and used_count > 0');
+    $n = 0;
+    foreach ($ids as $id) {
+        $back->execute([$id]);
+        $n += $back->rowCount();
+    }
+    return $n;
+}
+
 // ------------------------------------------------------- claiming the garment
 //
 // THE SHOP COULD SELL WHAT IT DID NOT HAVE, and it was not close. Measured: a
@@ -1944,6 +2376,20 @@ function store_stock_claim(PDO $db, array $lines): array {
     return ['short' => null, 'claimed' => $claimed];
 }
 
+// How long an unconfirmed cash-on-delivery order may hold its stock, in hours.
+// Config `cod_hold_hours`: ABSENT (or null, or '' — this config's spelling of
+// "not set") means the default, 24, the owner's choice; an explicit 0 switches
+// the expiry off, which is how this behaved before. Capped at 30 days so a
+// typo cannot quietly mean "never". One reader for the setting, so the
+// sweeper's candidate query and the release itself cannot disagree.
+const STORE_COD_HOLD_HOURS_DEFAULT = 24;
+
+function store_cod_hold_hours(): int {
+    $raw = store_config()['cod_hold_hours'] ?? null;
+    if ($raw === null || $raw === '') return STORE_COD_HOLD_HOURS_DEFAULT;
+    return max(0, min(720, (int)$raw));
+}
+
 // Put it back. Called when an order is abandoned or its payment fails.
 //
 // STOCK IS RESERVED AT CHECKOUT, BEFORE THE BANK IS EVEN CONTACTED, because
@@ -1955,7 +2401,27 @@ function store_stock_claim(PDO $db, array $lines): array {
 // Idempotent by the caller's contract: it is guarded by orders.stock_released
 // so a double call (a failed callback retried, then the sweeper) cannot restock
 // the same order twice, which would be inventing garments.
+//
+// AN UNCONFIRMED CASH ORDER EXPIRES TOO (owner's decision, 2026-11-02). A COD
+// order is free to place and claims real stock, so until this existed a few
+// requests could hold the whole shop indefinitely: every one of them stayed
+// 'pending' and 'unfulfilled' for ever, and the sweeper deliberately never
+// looked at COD. Now a COD order that is STILL pending AND STILL unfulfilled
+// store_cod_hold_hours() after it was placed is CANCELLED here, and its stock
+// put back, in this one transaction — cancelled first, so the order can never
+// be shipped from a shelf it no longer holds, and so it stops counting
+// against the phone's STORE_COD_OPEN_MAX. Anything the shop has touched is
+// left alone: packed, shipped or delivered, and anything paid. A COD order
+// that claimed no stock (accessories only) is cancelled all the same; there
+// is simply nothing to put back.
+//
+// An order that is not happening also gives its DISCOUNT USES back here, once
+// (store_discount_release) — whether or not it held stock.
+//
+// Returns true when it changed anything (cancelled, restocked, gave discount
+// uses back, or any of those together).
 function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): bool {
+    $codHours = store_cod_hold_hours();
     $ownsTransaction = !$db->inTransaction();
     if ($ownsTransaction) $db->beginTransaction();
     try {
@@ -1965,11 +2431,30 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         $q = $db->prepare(
             'select stock_claimed, stock_released, payment_status, payment_method,
                     fulfilment_status,
-                    (created_at < (now() - interval ? minute)) as hold_expired
+                    (created_at < (now() - interval ? minute)) as hold_expired,
+                    (created_at < (now() - interval ? hour)) as cod_hold_expired
                from orders where id = ? for update'
         );
-        $q->execute([max(15, $holdMinutes), $orderId]);
+        $q->execute([max(15, $holdMinutes), max(1, $codHours), $orderId]);
         $order = $q->fetch();
+
+        $codExpired = $order && $codHours > 0
+            && $order['payment_method'] === 'cod'
+            && $order['payment_status'] === 'pending'
+            && $order['fulfilment_status'] === 'unfulfilled'
+            && (int)$order['cod_hold_expired'] === 1;
+        if ($codExpired) {
+            // Guarded by the same three conditions, under the row lock taken
+            // above, so a status change that committed first wins.
+            $db->prepare(
+                "update orders set fulfilment_status = 'cancelled'
+                  where id = ? and payment_method = 'cod' and payment_status = 'pending'
+                    and fulfilment_status = 'unfulfilled'"
+            )->execute([$orderId]);
+            store_tracking_event($db, $orderId, 'cancelled');
+            $order['fulfilment_status'] = 'cancelled';
+        }
+
         $eligible = $order && (int)$order['stock_claimed'] === 1
             && (int)$order['stock_released'] === 0
             && !in_array($order['payment_status'], ['paid', 'review'], true)
@@ -1978,9 +2463,22 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
                 || ($order['payment_status'] === 'pending'
                     && in_array($order['payment_method'], ['knet', 'tpay'], true)
                     && (int)$order['hold_expired'] === 1));
+
+        // The discount uses go back for the orders that can no longer be paid:
+        // failed, cancelled (which includes an expired cash order, above), and
+        // a card order whose reservation is being released right now — pay.php
+        // refuses an order once its stock is gone. A card order that claimed
+        // NO stock is still payable however old it is, so it keeps its uses.
+        // Never a paid order, never one under review.
+        $dead = $order && !in_array($order['payment_status'], ['paid', 'review'], true)
+            && ($order['payment_status'] === 'failed'
+                || $order['fulfilment_status'] === 'cancelled'
+                || $eligible);
+        $gaveBack = $dead && store_discount_release($db, $orderId) > 0;
+
         if (!$eligible) {
             if ($ownsTransaction && !$db->commit()) throw new RuntimeException('Stock release commit failed');
-            return false;
+            return $codExpired || $gaveBack;
         }
 
         // Aggregate sizes: two fits of one garment can be separate order
@@ -2003,6 +2501,42 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         if ($ownsTransaction && $db->inTransaction()) $db->rollBack();
         throw $e;
     }
+}
+
+// ------------------------------------------------------- how big an order is
+//
+// ONE ORDER COULD RESERVE THE WHOLE SHOP. Stock is claimed at checkout, before
+// anyone pays (see store_stock_claim), and a cash-on-delivery order is free
+// to place — so the request limit was the only bound, and it counts requests,
+// not garments. Measured on a live-shaped sandbox: four COD orders from one
+// address, built from the public ?r=stock feed, held all 1,236 units.
+//
+// The cap is on what one ORDER can claim, and it involves no IP at all, so
+// shoppers who share a carrier address are untouched. 10 is the most the live
+// shop stocks of any one size; 20 pieces is a very large order for a shop
+// that takes about one a week. Every payment method, not only COD: a card
+// order holds its stock for two hours before the sweeper gives it back,
+// which is the same lever on a shorter handle.
+const STORE_ORDER_MAX_UNITS       = 20;
+const STORE_ORDER_MAX_PER_VARIANT = 10;
+
+// Applied to PRICED lines (store_price_lines has already validated slugs,
+// sizes and quantities). Lines are summed per product and size first, so the
+// same jacket in the same size split across two lines — or across two fits —
+// is one variant, which is how the stock is counted. A product with no sizes
+// is its own single variant. Untracked products count towards the total too:
+// the cap is on the order, not on the inventory.
+function store_order_size_guard(array $lines, int $maxUnits = STORE_ORDER_MAX_UNITS): void {
+    $total = 0;
+    $perVariant = [];
+    foreach ($lines as $l) {
+        $qty = (int)$l['qty'];
+        $total += $qty;
+        $key = $l['slug'] . '|' . ($l['size'] ?? '');
+        $perVariant[$key] = ($perVariant[$key] ?? 0) + $qty;
+        if ($perVariant[$key] > STORE_ORDER_MAX_PER_VARIANT) store_fail('order_too_large');
+    }
+    if ($total > max(1, $maxUnits)) store_fail('order_too_large');
 }
 
 // ------------------------------------------------------------- pricing a cart

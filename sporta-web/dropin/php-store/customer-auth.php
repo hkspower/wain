@@ -17,8 +17,17 @@ function customer_registration_input(array $body): array {
 
 // Prehash the complete UTF-8 password so bcrypt's 72-byte limit cannot silently
 // truncate a long password. The database stores only the salted password hash.
+//
+// The cost is NAMED, not PHP's default. customer_authenticate() verifies an
+// unknown address against a fixed $2y$12$ dummy so it costs what a real account
+// costs; with the default, that held only on PHP 8.4 (default 12) and a host on
+// 8.3 (default 10) hashed real accounts at a quarter of the dummy's work —
+// which made the response time say whether an address had an account. Keep the
+// two in step: change this and the dummy together.
+const CUSTOMER_BCRYPT_COST = 12;
+
 function customer_hash_password(string $password): string {
-    return password_hash(hash('sha256', $password), PASSWORD_DEFAULT);
+    return password_hash(hash('sha256', $password), PASSWORD_BCRYPT, ['cost' => CUSTOMER_BCRYPT_COST]);
 }
 function customer_verify_password(string $password, string $hash): bool {
     return password_verify(hash('sha256', $password), $hash);
@@ -134,8 +143,9 @@ function customer_authenticate(PDO $db, string $email, string $password): ?array
     $query = $db->prepare('select id, name, email, phone, password_hash from customer_accounts where email = ? limit 1');
     $query->execute([mb_strtolower(trim($email))]);
     $user = $query->fetch(PDO::FETCH_ASSOC);
-    // Fixed valid bcrypt shape, at the current default cost. Unknown addresses
+    // Fixed valid bcrypt shape at CUSTOMER_BCRYPT_COST (12). Unknown addresses
     // do password work too, without generating an extra hash on every failure.
+    // Never build this at runtime.
     $dummy = '$2y$12$vNk3QOHYO.g/y1k6SJzYL.YjGRlwOp9P1TIeCDX.K6s9gFgNI8Bpe';
     $valid = customer_verify_password($password, $user['password_hash'] ?? $dummy);
     return $user && $valid ? $user : null;

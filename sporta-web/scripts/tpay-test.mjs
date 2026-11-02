@@ -88,7 +88,10 @@ const payThrough = async (html, query = '') => {
   return { gw, fields, location: back.headers.get('location') ?? '', status: back.status }
 }
 
-await run('rm', ['-f', '/tmp/.cbk_token_test.json', '/tmp/fake-cbk-txns.json'])
+// The .purged marker too: a Status-0 retry is allowed once per ten minutes,
+// and a marker left by a previous run would make the stale-key check below
+// read the throttle rather than the retry.
+await run('rm', ['-f', '/tmp/.cbk_token_test.json', '/tmp/.cbk_token_test.json.purged', '/tmp/fake-cbk-txns.json'])
 await sql('delete from fulfilment_outbox; delete from order_items; delete from orders;')
 
 // ------------------------------------------------- the handoff to the gateway
@@ -286,7 +289,10 @@ head('a second attempt gets its own reference; a declined order is closed')
 
   // ...and a database that has not had the column added yet must still
   // SETTLE: the reference is a nice-to-have, the payment is not.
-  await sql('alter table orders drop column cbk_trackid')
+  // ALGORITHM=COPY: an instant drop keeps the column in every row as a hidden
+  // field, and repeated runs pile those up until the orders table cannot take
+  // a new column at all (error 1118). See native-backend-test.mjs.
+  await sql('alter table orders drop column cbk_trackid, algorithm=copy')
   try {
     await newOrder('SPTPAY0NOCOL')
     const nc = await payThrough(await (await get(`${PAY}/pay.php?trackid=SPTPAY0NOCOL`)).text(), 'outcome=success')
@@ -516,6 +522,126 @@ head('the Authenticate key is reused only where it was issued')
     try { process.kill(-stub.pid) } catch {}
   }
   await run('rm', ['-f', file])
+}
+
+// ------------------------------------------- what a stranger can make CBK do
+//
+// callback.php and pay.php are unauthenticated by design — the bank sends the
+// shopper to one, the storefront to the other — and each call costs requests
+// to CBK's merchant API under the shop's own credentials. A junk callback used
+// to cost three (GetTransactions, Authenticate, GetTransactions) and wipe the
+// cached key each time; pay.php minted a fresh key on every start, with no
+// limit per client and none per order.
+//
+// The sandbox's :8100 serves dropin/php-cbk with no api/ beside it, so it has
+// no shared resolver and no proxy to trust — every request is one client. This
+// block serves a copy in the live layout (T/api, T/pay) whose store config
+// trusts 127.0.0.1 as its proxy, so X-Forwarded-For names the client exactly
+// as Traefik does on the VPS.
+head('a stranger cannot make this server hammer CBK')
+{
+  const fs = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const net = await import('node:net')
+  const WEB = new URL('..', import.meta.url).pathname
+  const T = fs.mkdtempSync(join(tmpdir(), 'sporta-tpay-rl-'))
+  fs.cpSync(join(WEB, 'dropin/php-store'), join(T, 'api'), { recursive: true })
+  fs.cpSync(join(WEB, 'dropin/php-cbk'), join(T, 'pay'), { recursive: true })
+  const isFree = (p) => new Promise((res) => {
+    const s = net.createServer().once('error', () => res(false))
+      .once('listening', () => s.close(() => res(true))).listen(p, '127.0.0.1')
+  })
+  let port = 8211
+  while (!(await isFree(port))) port++
+  const B = `http://127.0.0.1:${port}`
+  const TOKEN = join(T, 'cbk-token.json')
+  const LOG = join(T, 'cbk.log')
+  fs.writeFileSync(join(T, 'api', 'config.php'),
+    `<?php return ['trusted_proxy_ips' => ['127.0.0.1']] + (require '${join(WEB, 'dropin/php-store/config.php')}');\n`)
+  await run('php', ['-r', `$c = require '${join(WEB, 'dropin/php-cbk/config.php')}';`
+    + ` $c['return_url'] = '${B}/pay/callback.php'; $c['token_cache_file'] = '${TOKEN}'; $c['log_file'] = '${LOG}';`
+    + ` file_put_contents('${join(T, 'pay', 'config.php')}', '<?php return ' . var_export($c, true) . ';');`])
+  const srv = spawn('php', ['-S', `127.0.0.1:${port}`, '-t', T], { stdio: 'ignore' })
+  for (let i = 0; i < 50; i++) {
+    try { await fetch(`${B}/api/api.php?r=checkout_config`); break } catch { await new Promise((r) => setTimeout(r, 100)) }
+  }
+  const from = (ip, path) => fetch(`${B}/${path}`, { headers: { ...HTTPS, 'X-Forwarded-For': ip }, redirect: 'manual' })
+  const calls = async () => (await fetch(`${GW}/__calls`)).json()
+  const resetCalls = () => fetch(`${GW}/__calls?reset=1`)
+  const pending = async (track) => sql(`insert into orders (track_id, amount, subtotal, payment_method, payment_status)
+                                        values ('${track}', 9.000, 9.000, 'tpay', 'pending')`)
+  const tag = Date.now().toString(36).toUpperCase()
+  try {
+    await sql('delete from rate_limit')
+
+    // -1, "Error/Invalid encrp": logged and answered. No new key can fix it.
+    await resetCalls()
+    const junk = []
+    for (let i = 1; i <= 20; i++) junk.push(await from(`203.0.113.${i}`, `pay/callback.php?encrp=JUNK${i}`))
+    const c1 = await calls()
+    is(junk.every((r) => r.status === 302 && (r.headers.get('location') ?? '').includes('reason=unresolved')),
+       'twenty junk callbacks are each answered and sent to the result page', [...new Set(junk.map((r) => r.status))].join(','))
+    is((c1.GetTransactions ?? 0) === 20 && (c1.Authenticate ?? 0) <= 1,
+       'and cost CBK one question each — no re-authentication for a bad encrp',
+       `GetTransactions=${c1.GetTransactions ?? 0} Authenticate=${c1.Authenticate ?? 0}`)
+    is(fs.existsSync(TOKEN), 'and the cached key survives them', TOKEN)
+
+    // 0, "re-generate new API key": one purge-and-retry per ten minutes.
+    await resetCalls()
+    const s1 = await from('203.0.113.30', 'pay/callback.php?encrp=STALE1')
+    const s2 = await from('203.0.113.31', 'pay/callback.php?encrp=STALE2')
+    const c2 = await calls()
+    is([s1, s2].every((r) => (r.headers.get('location') ?? '').includes('reason=unresolved'))
+       && (c2.Authenticate ?? 0) === 1 && (c2.GetTransactions ?? 0) === 3,
+       'two "invalid access" answers in ten minutes: ONE fresh key, and the second is not retried',
+       `Authenticate=${c2.Authenticate ?? 0} GetTransactions=${c2.GetTransactions ?? 0}`)
+
+    // Ten starts per ORDER, and the eleventh costs CBK nothing.
+    const ONE = `SPRLA${tag}`
+    await pending(ONE)
+    await resetCalls()
+    const starts = []
+    for (let i = 1; i <= 11; i++) starts.push(await from(`198.51.100.${i}`, `pay/pay.php?trackid=${ONE}`))
+    const c3 = await calls()
+    const lastText = await starts[10].text()
+    is(starts.slice(0, 10).every((r) => r.status === 200) && starts[10].status === 429
+       && /new checkout/i.test(lastText) && (c3.Authenticate ?? 0) === 10,
+       'one order can be sent to the bank ten times; the eleventh is refused before any call to CBK',
+       `${starts.map((r) => r.status).join(',')} Authenticate=${c3.Authenticate ?? 0}`)
+
+    // Ten starts a minute per CLIENT.
+    const [TWO, THREE] = [`SPRLB${tag}`, `SPRLC${tag}`]
+    await pending(TWO)
+    await pending(THREE)
+    const mine = []
+    for (let i = 0; i < 10; i++) mine.push((await from('192.0.2.77', `pay/pay.php?trackid=${TWO}`)).status)
+    const over = await from('192.0.2.77', `pay/pay.php?trackid=${THREE}`)
+    const overText = await over.text()
+    const other = await from('192.0.2.78', `pay/pay.php?trackid=${THREE}`)
+    is(mine.every((st) => st === 200) && over.status === 429 && /wait a minute/i.test(overText) && other.status === 200,
+       'one client gets ten starts a minute, whichever orders they are for; another client is unaffected',
+       `${mine.join(',')} then ${over.status}, other ${other.status}`)
+    const logLine = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)
+      .map((l) => JSON.parse(l)).find((e) => e.event === 'pay.init' && e.trackid === TWO)
+    is(logLine?.ip === '192.0.2.77', 'and the payment log records the SHOPPER, not the proxy in front', logLine?.ip ?? '(none)')
+
+    // Thirty returns a minute per client, refused before CBK is asked.
+    await sql('delete from rate_limit')
+    await resetCalls()
+    const back = []
+    for (let i = 1; i <= 31; i++) back.push((await from('192.0.2.90', `pay/callback.php?encrp=JUNKR${i}`)).status)
+    const c4 = await calls()
+    const elsewhere = await from('192.0.2.91', 'pay/callback.php?encrp=JUNKR99')
+    is(back.slice(0, 30).every((st) => st === 302) && back[30] === 429 && (c4.GetTransactions ?? 0) === 30
+       && elsewhere.status === 302,
+       'thirty callbacks a minute from one client; the 31st is 429 with no call to CBK, and another client is answered',
+       `${back[30]} GetTransactions=${c4.GetTransactions ?? 0} other=${elsewhere.status}`)
+  } finally {
+    srv.kill()
+    await sql(`delete from orders where track_id like 'SPRL_${tag}'; delete from rate_limit`)
+    fs.rmSync(T, { recursive: true, force: true })
+  }
 }
 
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')

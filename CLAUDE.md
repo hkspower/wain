@@ -182,7 +182,13 @@
   the old path, the route is listed in `public/.htaccess` (or it 404s in
   production), and `public/robots.txt` disallows it. Sign-in is a PHP session:
   HttpOnly + SameSite=Strict cookie plus an `X-Sporta-Admin: 1` header for
-  CSRF, with a five-failure fifteen-minute lock. The device-passcode
+  CSRF, with a five-failure fifteen-minute lock. **A browser stays signed in
+  30 days, 7 days unused signs it out** (owner, 2026-11-02) — persistent
+  cookie, session files in their own directory above the web root
+  (`/var/lib/sporta/admin-sessions` on the VPS) because PHP's default 24-minute
+  sweep was signing idle admins out; `npm run test:admin-session`. Orders: **one
+  a minute per client and per phone** (`order_cooldown_seconds`, 429
+  `previous_order_pending`); `npm run test:order-cooldown`. The device-passcode
   quick-unlock went with Supabase and is not coming back.
 - **Language:** site is bilingual Arabic/English (RTL/LTR). **ARABIC IS THE
   DEFAULT** (saved by user request — apply always). The rule is short on

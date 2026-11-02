@@ -594,12 +594,18 @@ const order = (track, items, extra = {}) =>
     return admin('login', { method: 'POST',
       body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
   })()
-  // The sixth attempt is refused by the per-identity window BEFORE the
+  // The sixth attempt is refused by the per-account window BEFORE the
   // password is hashed — 429 too_many_attempts, the same answer whether or not
-  // the account exists, so the lock cannot be used to discover accounts. The
-  // row lock (locked_until) stands behind it for when the window resets.
-  is(realLock.status === 429 && ['locked', 'too_many_attempts'].includes(realLock.body?.error),
-     'five failures lock the account — even the RIGHT password waits out the lock',
+  // the account exists, so the window cannot be used to discover accounts.
+  //
+  // RELABELLED. This used to say "five failures lock the account", and a row
+  // lock (locked_until) stood behind the window. Wrong PASSWORDS no longer
+  // touch the row — that lock was a lever anyone could pull against the owner
+  // — so what is proved here is the window, for a browser this account has
+  // never signed in from (this jar keeps no device cookie). A browser the
+  // owner HAS used gets its own window: see the proxied section below.
+  is(realLock.status === 429 && realLock.body?.error === 'too_many_attempts',
+     'five failures fill the account window for an unknown browser — even the RIGHT password waits',
      `${realLock.status} ${realLock.body?.error}`)
   void sixth
 }
@@ -836,12 +842,18 @@ const order = (track, items, extra = {}) =>
   is(blockedAt > 0 && blockedAt <= 35, 'guessing discount codes is cut off', `blocked on attempt ${blockedAt}`)
   is((await check('NOPE99')).status === 429, 'and stays cut off, with 429')
 
-  // The whole point of counting only FAILURES: a customer whose code works is
-  // not attacking anything, and throttling them breaks the feature to protect it.
+  // THIS USED TO ASSERT THE HOLE. It checked that a REAL code still got 200
+  // from the blocked address — and that is exactly what made the limiter an
+  // oracle: wrong codes got 429, right codes got 200, so the 429 itself said
+  // "wrong" and a script kept guessing at full speed. A full bucket now
+  // refuses every lookup from that client, right codes included. Only
+  // FAILURES are still counted, so successes from a client that is not over
+  // the limit cost nothing (proved from separate addresses in the proxied
+  // section below, where one sandbox server can tell clients apart).
   const real = await check('REALCODE')
-  is(real.body?.discount === 1,
-     'but a REAL code still works from the same address — only failures are counted',
-     JSON.stringify(real.body?.applied?.[0]?.code))
+  is(real.status === 429 && real.body?.error === 'too_many_attempts',
+     'and a REAL code from the blocked address is refused too — the 429 no longer means "wrong"',
+     `${real.status} ${real.body?.error ?? JSON.stringify(real.body?.applied?.[0]?.code)}`)
 
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit; delete from discounts'])
 }
@@ -926,13 +938,16 @@ const order = (track, items, extra = {}) =>
 
 // --------------------------------------------- and how long it stays valid
 //
-// The cookie dies when the browser closes — but a desktop browser is not
-// closed for weeks, so the server keeps its own two clocks. They are tested by
-// winding the session file back, which is the only way to test a timeout
-// without waiting eight hours for it.
+// The server keeps its own two clocks — 7 days idle, 30 days absolute (the
+// owner's 30-day sign-in, 2026-11-02; test:admin-session proves the cookie,
+// the session directory and the sweep). They are tested by winding the
+// session file back, which is the only way to test a timeout without waiting
+// a week for it. The file lives in admin_session_dir (store_admin_session_dir),
+// which the sandbox config names.
 {
   const { readFileSync, writeFileSync, existsSync } = await import('node:fs')
-  const dir = (await run('php', ['-r', 'echo ini_get("session.save_path") ?: sys_get_temp_dir();'])).stdout
+  const storeConfig = new URL('../dropin/php-store/config.php', import.meta.url).pathname
+  const dir = (await run('php', ['-r', `$c = require ${JSON.stringify(storeConfig)}; echo $c['admin_session_dir'] ?? (ini_get('session.save_path') ?: sys_get_temp_dir());`])).stdout
   const sign = async () => {
     const r = await fetch(`${BASE}/admin.php?r=login`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
@@ -956,18 +971,25 @@ const order = (track, items, extra = {}) =>
   // ?r=me does not call — so an expired session still answered "signed in", the
   // dashboard rendered, and every panel on it then 401'd. An expiry that
   // reports itself as eight broken screens is worse than none.
+  const workday = await sign()
+  if (rewind(workday, 'seen_at', 9 * 3600)) {
+    const r = await me(workday)
+    is(r.status === 200 && (await r.json())?.email === 'cs@sporta.com.kw',
+       'nine hours idle is still signed in (the 30-day sign-in; it was 8 hours)')
+  } else { bad('could not locate the session file to age it') }
+
   const idle = await sign()
-  if (rewind(idle, 'seen_at', 9 * 3600)) {
+  if (rewind(idle, 'seen_at', 8 * 86400)) {
     const r = await me(idle)
     is(r.status === 200 && (await r.json()) === null,
-       'nine hours idle reads as signed OUT, on ?r=me and not only on the data routes')
+       'eight days idle reads as signed OUT, on ?r=me and not only on the data routes')
   } else { bad('could not locate the session file to age it') }
 
   const oldSession = await sign()
-  if (rewind(oldSession, 'started_at', 8 * 86400)) {
+  if (rewind(oldSession, 'started_at', 31 * 86400)) {
     const r = await me(oldSession)
     is(r.status === 200 && (await r.json()) === null,
-       'and eight days old expires even if it was used a moment ago')
+       'and thirty-one days old expires even if it was used a moment ago')
   } else { bad('could not locate the session file to age it') }
 
   // Signing out has to take the cookie with it. Emptying $_SESSION alone left
@@ -1138,7 +1160,13 @@ const order = (track, items, extra = {}) =>
   await admin('login', { method: 'POST',
     body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
 
-  await run('mariadb', ['sporta', '-e', 'alter table orders drop column utm_source'])
+  // ALGORITHM=COPY, a real rebuild. MariaDB drops a column INSTANTLY by
+  // default, which keeps it in every row as a hidden field — and this runs on
+  // every pass of the suite, so the hidden copies pile up until the orders
+  // table is at InnoDB's row-size limit and ANY new column is refused with
+  // error 1118 (measured on the sandbox: even a tinyint). A rebuild drops it
+  // for real.
+  await run('mariadb', ['sporta', '-e', 'alter table orders drop column utm_source, algorithm=copy'])
   const broken = await admin('orders')
   is(broken.status === 503 && broken.body?.error === 'no_table',
      'a column the SQL has not added yet reads as "import the SQL", not as an outage',
@@ -1288,6 +1316,936 @@ const order = (track, items, extra = {}) =>
   const inject = await buy({ utm_source: "insta'; drop table orders; --" })
   is(inject.status === 200, 'a SQL-shaped campaign label is just a label', String(inject.status))
   is(Number(await q('select count(*) from orders')) > 0, 'and the orders table is still there')
+}
+
+// ---------------------------------------------------------------------------
+// ONE ORDER CANNOT HOLD THE WHOLE SHOP
+//
+// Stock is claimed at checkout, before anyone pays, and the order limit
+// counts REQUESTS, not garments. Measured on a live-shaped sandbox: four cash
+// orders built from the public ?r=stock feed held all 1,236 units.
+// store_order_size_guard() caps what one order may claim — 20 pieces in all,
+// 10 of one item in one size — with no IP involved, so shoppers sharing a
+// carrier address are untouched. Every payment method.
+{
+  const q = async (s) => (await run('mariadb', ['sporta', '-N', '-B', '-e', s])).stdout.trim()
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  const SKUS = ['A-CSL-GR-L', 'A-CSL-NA-L', 'A-CST-GR-L']
+  const inList = SKUS.map((s) => `'${s}'`).join(',')
+  const saved = await q(`select group_concat(concat(sku, '=', stock)) from product_variants where sku in (${inList})`)
+  await run('mariadb', ['sporta', '-e', `update product_variants set stock = 10 where sku in (${inList})`])
+  const stockSum = async () => Number(await q(`select sum(stock) from product_variants where sku in (${inList})`))
+  const rows = async (track) => Number(await q(`select count(*) from orders where track_id = '${track}'`))
+  const G = { slug: 'cloudsoft-leggings-grey', size: 'L' }
+  const N = { slug: 'cloudsoft-leggings-navy', size: 'L' }
+  const T = { slug: 'cloudsoft-top-grey', size: 'L' }
+  try {
+    const big = await order('SPBIG0001', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }])
+    is(big.status === 400 && big.body?.error === 'order_too_large',
+       '21 pieces in one order are refused with order_too_large', `${big.status} ${big.body?.error}`)
+    is(await rows('SPBIG0001') === 0, 'and no order row is written for it')
+    const left = await stockSum()
+    is(left === 30, 'and not one garment was claimed by it', `${left} of 30 left`)
+
+    const bigCod = await order('SPBIG0002', [{ ...G, qty: 10 }, { ...N, qty: 10 }, { ...T, qty: 1 }],
+      { payment_method: 'cod', customer: { ...CUSTOMER, phone: '95550201' } })
+    is(bigCod.status === 400 && bigCod.body?.error === 'order_too_large',
+       'the same cap holds for cash on delivery — every payment method', `${bigCod.status} ${bigCod.body?.error}`)
+
+    // Stock is counted per item and size, so that is how the cap counts too:
+    // two lines (here, two fits) of one size are one variant.
+    const split = await order('SPBIG0003', [{ ...G, qty: 6 }, { ...G, qty: 5, fit: 'oversize' }])
+    is(split.status === 400 && split.body?.error === 'order_too_large',
+       'one size split across two lines is still one size: 6 + 5 of it is refused',
+       `${split.status} ${split.body?.error}`)
+
+    const most = await order('SPBIG0004', [{ ...G, qty: 10 }, { ...N, qty: 10 }])
+    is(most.status === 200 && !most.body?.error,
+       'exactly 20 pieces, 10 of each of two sizes, is accepted', `${most.status} ${most.body?.error ?? ''}`)
+    const after = await stockSum()
+    is(after === 10, 'and claims exactly those twenty', `${after} of 30 left`)
+
+    const bags = await order('SPBIG0005', [{ slug: 'cagliari-calcio-backpack', qty: 21 }])
+    is(bags.status === 400 && bags.body?.error === 'order_too_large',
+       'an untracked accessory counts towards the total too — 21 backpacks are refused',
+       `${bags.status} ${bags.body?.error}`)
+  } finally {
+    for (const pair of saved.split(',')) {
+      const [sku, n] = pair.split('=')
+      await run('mariadb', ['sporta', '-e', `update product_variants set stock = ${Number(n)} where sku = '${sku}'`])
+    }
+    await run('mariadb', ['sporta', '-e', "delete from orders where track_id like 'SPBIG%'; delete from rate_limit"])
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TELLING CLIENTS APART — a second store, behind a "proxy"
+//
+// The store on :8095 trusts no proxy, so every request reaches it from
+// 127.0.0.1 and no per-client or per-account rule can be tested there: every
+// "other client" is the same client. So a second store is started here on
+// the same code and the same database, whose config trusts 127.0.0.1 as its
+// proxy — the VPS shape, Traefik in front — so X-Forwarded-For names the
+// client. It has a known rate_limit_secret, so a test can find one bucket's
+// row and move its window, and its mail goes to a fake MTA on disk
+// (scripts/fake-mta.sh). A third, with a slow MTA, is there for checks that
+// compare response times. Both run several workers, so requests sent at once
+// really are handled at once. Both are killed when this block ends.
+{
+  const { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { spawn } = await import('node:child_process')
+  const { createHmac, createHash } = await import('node:crypto')
+  const net = await import('node:net')
+
+  const ROOT = new URL('..', import.meta.url).pathname
+  const STORE_DIR = join(ROOT, 'dropin/php-store')
+  const MTA = join(ROOT, 'scripts/fake-mta.sh')
+  const tmp = mkdtempSync(join(tmpdir(), 'sporta-proxied-'))
+  const maildir = join(tmp, 'mail')
+  const slowMaildir = join(tmp, 'mail-slow')
+  mkdirSync(maildir)
+  mkdirSync(slowMaildir)
+
+  // A PHP config that is the sandbox's own config.php plus a few keys. The
+  // extra keys come FIRST in the union, so they win even if config.php ever
+  // grows the same ones.
+  const RL_SECRET = 'test-rl'
+  const phpStr = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+  const phpVal = (v) => (typeof v === 'number' ? String(v)
+    : Array.isArray(v) ? `[${v.map(phpStr).join(', ')}]` : phpStr(v))
+  const writeConfig = (file, extra) => writeFileSync(file,
+    `<?php\nreturn [\n${Object.entries(extra).map(([k, v]) => `  ${phpStr(k)} => ${phpVal(v)},`).join('\n')}\n]` +
+    ` + (require ${phpStr(join(STORE_DIR, 'config.php'))});\n`)
+  const CFG = join(tmp, 'api-config.php')
+  writeConfig(CFG, {
+    trusted_proxy_ips: ['127.0.0.1'],
+    rate_limit_secret: RL_SECRET,
+    cron_key: 'test-cron-key-0123456789',
+    cod_hold_hours: 24,
+    admin_mail_from: 'cs@sporta.com.kw',
+    customer_mail_from: 'noreply@sporta.com.kw',
+  })
+
+  // Free ports, never assumed: the sandbox already runs the KNET rig on
+  // :8097/:8098, and another suite may be holding anything else.
+  const isFree = (p) => new Promise((res) => {
+    const s = net.createServer().once('error', () => res(false))
+      .once('listening', () => s.close(() => res(true))).listen(p, '127.0.0.1')
+  })
+  const freePort = async (from) => {
+    for (let p = from; p < from + 100; p++) if (await isFree(p)) return p
+    throw new Error(`no free port from ${from}`)
+  }
+  const servers = []
+  const killAll = () => { for (const s of servers) { try { s.kill() } catch { /* gone */ } } }
+  process.on('exit', killAll)
+  const startStore = async (port, dir, env = {}) => {
+    const srv = spawn('php', ['-d', `sendmail_path=sh ${MTA} ${dir}`, '-S', `127.0.0.1:${port}`, '-t', STORE_DIR], {
+      stdio: 'ignore',
+      env: { ...process.env, SPORTA_API_CONFIG_FILE: CFG, PHP_CLI_SERVER_WORKERS: '4', ...env },
+    })
+    servers.push(srv)
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 100))
+      try {
+        const r = await fetch(`http://127.0.0.1:${port}/api.php?r=checkout_config`)
+        if (r.status === 200) return true
+      } catch { /* still starting */ }
+    }
+    return false
+  }
+  const PORT = await freePort(Number(process.env.PROXIED_PORT ?? 8197))
+  is(await startStore(PORT, maildir), `a second store, behind a trusted "proxy", is up on :${PORT}`)
+  const SLOW_PORT = await freePort(Math.max(PORT + 1, Number(process.env.PROXIED_SLOW_PORT ?? 8198)))
+  is(await startStore(SLOW_PORT, slowMaildir, { MTA_DELAY: '0.4' }),
+     `and a third with a slow mail relay, on :${SLOW_PORT}`)
+
+  const PBASE = `http://127.0.0.1:${PORT}`
+  const sql = async (s) =>
+    (await run('mariadb', ['--default-character-set=utf8mb4', 'sporta', '-N', '-B', '-e', s])).stdout.trim()
+  // The bucket key store_rate_limit_key() computes, with this config's secret.
+  const rlKey = (bucket, id) => createHmac('sha256', RL_SECRET).update(`${bucket}|${id}`).digest('hex').slice(0, 32)
+  // One request "from" a client. A jar, when given, is a Map of every cookie
+  // the server set — all of them: the one-line jar at the top of this file
+  // keeps only the first, and would lose the device cookie.
+  const at = async (ip, path, { method = 'GET', body, jar, headers = {}, base = PBASE } = {}) => {
+    const res = await fetch(`${base}/${path}`, {
+      method,
+      redirect: 'manual',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': ip,
+        'X-Sporta-Admin': '1',
+        'Sec-Fetch-Site': 'same-origin',
+        ...(jar && jar.size ? { Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') } : {}),
+        ...headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const set = res.headers.getSetCookie?.() ?? []
+    if (jar) {
+      for (const c of set) {
+        const pair = c.split(';')[0]
+        const i = pair.indexOf('=')
+        const name = pair.slice(0, i).trim()
+        const value = pair.slice(i + 1).trim()
+        if (value === '' || value === 'deleted' || /max-age=0(;|$)/i.test(c)) jar.delete(name)
+        else jar.set(name, value)
+      }
+    }
+    return { status: res.status, body: await res.json().catch(() => null), set }
+  }
+  const mails = (dir = maildir) =>
+    readdirSync(dir).filter((f) => f.endsWith('.eml')).sort().map((f) => readFileSync(join(dir, f), 'utf8'))
+  const mailsTo = (addr, dir = maildir) =>
+    mails(dir).filter((m) => m.split(/\r?\n/).some((l) => /^To:/i.test(l) && l.includes(addr)))
+  // RFC 6238, the same six digits a phone shows: HMAC-SHA1 over the 30-second
+  // step, dynamic truncation, mod 10^6.
+  const base32 = (s) => {
+    const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+    let bits = ''
+    for (const ch of s) bits += A.indexOf(ch).toString(2).padStart(5, '0')
+    const out = []
+    for (let i = 0; i + 8 <= bits.length; i += 8) out.push(parseInt(bits.slice(i, i + 8), 2))
+    return Buffer.from(out)
+  }
+  const totp = (secret, t = Date.now() / 1000) => {
+    const step = Buffer.alloc(8)
+    step.writeBigUInt64BE(BigInt(Math.floor(t / 30)))
+    const h = createHmac('sha1', base32(secret)).update(step).digest()
+    const o = h[19] & 15
+    return String((h.readUInt32BE(o) & 0x7fffffff) % 1e6).padStart(6, '0')
+  }
+  // Six digits that are certainly WRONG right now (the server accepts the
+  // step either side of the current one; two either side are avoided here).
+  const wrongCode = (secret) => {
+    const now = Date.now() / 1000
+    const valid = new Set([-60, -30, 0, 30, 60].map((d) => totp(secret, now + d)))
+    for (let i = 0; ; i++) {
+      const c = String((123457 + i * 7919) % 1e6).padStart(6, '0')
+      if (!valid.has(c)) return c
+    }
+  }
+  // Poll for something written after a response has already been sent.
+  const waitFor = async (fn, ms = 3000) => {
+    for (let t = 0; t < ms; t += 50) {
+      const v = fn()
+      if (v) return v
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    return fn()
+  }
+  const hashOf = async (pw) => (await run('php', ['-r',
+    `require ${phpStr(join(STORE_DIR, 'store.php'))}; echo store_admin_hash_password(${phpStr(pw)});`])).stdout
+
+  // Accounts of the suite's own, so nothing here changes the password, the
+  // phone code or the lock of the sandbox admin other suites sign in as. The
+  // top of this file deletes every admin but cs@ on the next run anyway.
+  const OWNER = 'rl-owner@example.test'
+  const OWNER_PW = 'rl-owner-password-0001'
+  const MFA = 'rl-mfa@example.test'
+  const MFA_PW = 'rl-mfa-password-0001'
+  const OTHER = 'rl-other@example.test'
+  const SECRET = 'JBSWY3DPEHPK3PXP'
+  const RECOVERY = 'ABCDEF0123ABCDEF0123'
+  for (const f of ['admin-totp.mysql.sql', 'admin-recovery-codes.mysql.sql', 'customers.mysql.sql']) {
+    await run('mariadb', ['sporta', '-e', `source ${join(STORE_DIR, f)}`])
+  }
+  await sql(`delete from admin_users where email in ('${OWNER}', '${MFA}', '${OTHER}')`)
+  await sql(`insert into admin_users (email, password_hash) values
+             ('${OWNER}', '${await hashOf(OWNER_PW)}'), ('${MFA}', '${await hashOf(MFA_PW)}')`)
+  const MFA_ID = await sql(`select id from admin_users where email = '${MFA}'`)
+  await sql(`update admin_users set totp_enabled = 1, totp_secret = '${SECRET}', totp_last_step = null where id = ${MFA_ID}`)
+  await sql(`insert into admin_recovery_codes (admin_id, code_hash)
+             values (${MFA_ID}, '${createHash('sha256').update(RECOVERY).digest('hex')}')`)
+  await sql('delete from rate_limit')
+
+  const login = (ip, email, password, jar, headers) =>
+    at(ip, 'admin.php?r=login', { method: 'POST', body: { email, password }, jar, headers })
+
+  try {
+    // ------------------------------------------- admin: a browser the owner uses
+    //
+    // Five wrong passwords used to set the account's locked_until, and the
+    // per-address window refused the sixth attempt from ANY browser — so a
+    // stranger who knew the admin address kept the only owner out for about
+    // five requests every fifteen minutes. Wrong passwords now lock no row,
+    // and a browser that has signed in before is counted in a window of its
+    // own.
+    {
+      const DEV = 'sporta_dev'
+      const b1 = new Map()
+      const b2 = new Map()
+      const first = await login('203.0.113.10', OWNER, OWNER_PW, b1)
+      const devSet = first.set.find((c) => c.startsWith(`${DEV}=`)) ?? ''
+      is(first.status === 200 && /^[a-f0-9]{32}\.[a-f0-9]{32}$/.test(b1.get(DEV) ?? ''),
+         'a successful sign-in gives the browser a device cookie', b1.get(DEV) ?? first.set.join(' | '))
+      is(/HttpOnly/i.test(devSet) && /SameSite=Strict/i.test(devSet) && /path=\/(;|$)/i.test(devSet)
+         && /Max-Age=15552000/i.test(devSet) && !/domain=/i.test(devSet),
+         'HttpOnly, SameSite=Strict, Path=/, no Domain, kept for 180 days', devSet)
+      is(/^sporta_admin=/.test(first.set[0] ?? ''),
+         'and the SESSION cookie is still the first one a sign-in sets', first.set[0] ?? '(none)')
+
+      const second = await login('203.0.113.11', OWNER, OWNER_PW, b2)
+      is(second.status === 200 && b2.get(DEV) && b2.get(DEV) !== b1.get(DEV),
+         'a second browser gets a device id of its own')
+      const again = await login('203.0.113.10', OWNER, OWNER_PW, b1)
+      is(again.status === 200 && !again.set.some((c) => c.startsWith(`${DEV}=`)),
+         'and a browser already holding a valid one keeps it — it is not re-issued on every sign-in')
+      const secure = await login('203.0.113.12', OWNER, OWNER_PW, new Map(), { 'X-Forwarded-Proto': 'https' })
+      const secureSet = secure.set.find((c) => c.startsWith('__Host-sporta_dev=')) ?? ''
+      is(secure.status === 200 && /;\s*secure/i.test(secureSet),
+         'over HTTPS it is __Host-sporta_dev and Secure, like the session cookie', secureSet || secure.set.join(' | '))
+
+      const stranger = []
+      for (let i = 0; i < 6; i++) stranger.push((await login('198.51.100.66', OWNER, `wrong-${i}`)).status)
+      is(stranger.join(',') === '401,401,401,401,429,429',
+         'six wrong passwords from a stranger: 401 four times, then 429', stranger.join(','))
+      const row = await sql(`select failed_attempts, coalesce(locked_until, 'NULL') from admin_users where email = '${OWNER}'`)
+      is(row === '0\tNULL', 'and the account ROW is untouched — a wrong password locks nothing', row)
+
+      const devOnly = (jar) => new Map(jar.has(DEV) ? [[DEV, jar.get(DEV)]] : [])
+      const known = await login('192.0.2.10', OWNER, OWNER_PW, devOnly(b1))
+      is(known.status === 200, 'the owner, on a browser they have used, still signs in — from a new address too',
+         `${known.status} ${known.body?.error ?? ''}`)
+      const unknown = await login('192.0.2.11', OWNER, OWNER_PW)
+      is(unknown.status === 429 && unknown.body?.error === 'too_many_attempts',
+         'a browser never used before waits the window out — the accepted trade-off',
+         `${unknown.status} ${unknown.body?.error ?? ''}`)
+
+      const [devId = '', mac = ''] = (b1.get(DEV) ?? '').split('.')
+      const flipped = mac.slice(0, -1) + (mac.endsWith('0') ? '1' : '0')
+      const tampered = await login('192.0.2.12', OWNER, OWNER_PW, new Map([[DEV, `${devId}.${flipped}`]]))
+      is(tampered.status === 429, 'a device cookie whose MAC does not verify counts as an unknown browser',
+         `${tampered.status} ${tampered.body?.error ?? ''}`)
+      for (let i = 0; i < 5; i++) await login('198.51.100.67', OTHER, `wrong-${i}`)
+      const borrowed = await login('192.0.2.13', OTHER, 'any-password-at-all', devOnly(b1))
+      is(borrowed.status === 429, "and one account's device cookie is no good for another account",
+         `${borrowed.status} ${borrowed.body?.error ?? ''}`)
+
+      const own = []
+      for (let i = 0; i < 6; i++) own.push((await login(`192.0.2.${20 + i}`, OWNER, `typo-${i}`, devOnly(b1))).status)
+      is(own.join(',') === '401,401,401,401,429,429',
+         'a known browser has a window of its own, the same size — five, not more', own.join(','))
+      const otherBrowser = await login('192.0.2.30', OWNER, OWNER_PW, devOnly(b2))
+      is(otherBrowser.status === 200, 'and filling it does not reach the owner’s other browser',
+         `${otherBrowser.status} ${otherBrowser.body?.error ?? ''}`)
+
+      // A reset is proof of the mailbox, and how a NEW browser gets in.
+      const mailedBefore = mailsTo(OWNER).length
+      const forgot = await at('192.0.2.31', 'admin.php?r=forgot_password', { method: 'POST', body: { email: OWNER } })
+      // The answer now goes out BEFORE the mail is written (see the timing
+      // check further down), so wait for the mail rather than expecting it.
+      const token = (await waitFor(() => mailsTo(OWNER).slice(mailedBefore)
+        .map((m) => m.match(/#reset=([a-f0-9]{64})/)?.[1]).find(Boolean)))
+      is(forgot.status === 200 && !!token, 'forgot password mails the owner a reset link', `${forgot.status} ${token ? 'token' : 'no mail'}`)
+      const NEW_PW = 'rl-owner-password-0002'
+      const reset = await at('192.0.2.32', 'admin.php?r=reset_password', { method: 'POST', body: { token, password: NEW_PW } })
+      is(reset.status === 200, 'the link resets the password', `${reset.status} ${reset.body?.error ?? ''}`)
+      const fresh = await login('192.0.2.33', OWNER, NEW_PW)
+      is(fresh.status === 200,
+         'and the NEW password works at once from a browser never used before — the reset empties the shared window',
+         `${fresh.status} ${fresh.body?.error ?? ''}`)
+    }
+
+    // ------------------------------------------------------ coupon guessing
+    //
+    // Only failures are counted, so a 429 used to mean "wrong" and a 200 still
+    // came back for a right code from the same client. Now a full bucket
+    // refuses every lookup from that client, and both routes that take a code
+    // share one budget.
+    {
+      await sql('delete from rate_limit; delete from discounts')
+      await sql("insert into discounts (kind, code, label, type, value, min_order, active) values ('code','REALCODE','1 off','fixed',1,0,1)")
+      const cart = [{ slug: 'cloudsoft-jacket-army-green', qty: 1, size: 'L' }]
+      const check = (ip, code) => at(ip, 'api.php?r=discount', { method: 'POST', body: { items: cart, code } })
+      const orderAt = (ip, track, code) => at(ip, 'api.php?r=order', { method: 'POST',
+        body: { track_id: track, items: cart, customer: CUSTOMER, payment_method: 'knet', discount_code: code } })
+      const [A, B, C, D, E] = ['198.18.0.1', '198.18.0.2', '198.18.0.3', '198.18.0.4', '198.18.0.5']
+
+      const a = []
+      for (let i = 0; i < 30; i++) a.push((await check(A, `WRONG${i}`)).status)
+      is(a.every((s) => s === 400), 'thirty wrong codes from one client are each answered 400', [...new Set(a)].join(','))
+      const aReal = await check(A, 'REALCODE')
+      is(aReal.status === 429 && aReal.body?.error === 'too_many_attempts',
+         'then the next lookup is refused EVEN WITH A REAL CODE — a 429 says nothing about the code',
+         `${aReal.status} ${aReal.body?.error ?? aReal.body?.discount}`)
+      const bReal = await check(B, 'REALCODE')
+      is(bReal.status === 200 && bReal.body?.discount === 1, 'the same real code from another client works',
+         `${bReal.status} ${bReal.body?.discount ?? bReal.body?.error}`)
+      const c = []
+      for (let i = 0; i < 40; i++) c.push((await check(C, 'REALCODE')).status)
+      is(c.every((s) => s === 200), 'forty successful checks from one client are never counted — only failures are',
+         [...new Set(c)].join(','))
+
+      const d = []
+      for (let i = 0; i < 30; i++) {
+        // The ORDER route has its own arrival limit (20 per ten minutes); move
+        // that one bucket out of the way, or it would answer first.
+        if (i === 15) await sql(`delete from rate_limit where bucket_key = '${rlKey('order', D)}'`)
+        d.push((await orderAt(D, `SPGUESS${i}`, `WRONG${i}`)).body?.error)
+      }
+      is(d.every((e) => e === 'discount_unknown'), 'thirty wrong codes through the ORDER route are each refused as unknown',
+         [...new Set(d)].join(','))
+      const dReal = await orderAt(D, 'SPGUESSREAL', 'REALCODE')
+      is(dReal.status === 429 && dReal.body?.error === 'too_many_attempts',
+         'and they use up the same budget: a real code is then refused there too',
+         `${dReal.status} ${dReal.body?.error ?? ''}`)
+      is(await sql("select count(*) from orders where track_id like 'SPGUESS%'") === '0',
+         'and none of it wrote an order')
+
+      const e = []
+      for (let i = 0; i < 15; i++) e.push((await orderAt(E, `SPMIX${i}`, `WRONGO${i}`)).status)
+      for (let i = 0; i < 15; i++) e.push((await check(E, `WRONGD${i}`)).status)
+      const eNext = await check(E, 'REALCODE')
+      is(e.every((s) => s === 400) && eNext.status === 429,
+         'one budget across both routes: 15 wrong orders + 15 wrong previews, then 429',
+         `${[...new Set(e)].join(',')} then ${eNext.status}`)
+
+      const noCode = await orderAt(A, 'SPNOCODE1', '')
+      is(noCode.status === 200, 'but an order WITHOUT a code is not a guess, and is served even from a client over the limit',
+         `${noCode.status} ${noCode.body?.error ?? ''}`)
+      await sql("delete from rate_limit; delete from discounts; delete from orders where track_id like 'SPNOCODE%'")
+    }
+
+    // ------------------------------------------------ the phone-code step
+    //
+    // Only somebody holding the password gets here, and the row lock alone
+    // still let them try ~480 codes a day. Now: 20 code checks per account
+    // per day, counted before the code is looked at; the lock count restarts
+    // once a lock has expired; and the account is mailed once per lock and
+    // once per day — never once per guess.
+    {
+      await sql('delete from rate_limit')
+      await sql(`update admin_users set failed_attempts = 0, locked_until = null, totp_last_step = null where id = ${MFA_ID}`)
+      let n = 0
+      const ip = () => { n++; return `100.64.${Math.floor(n / 250)}.${(n % 250) + 1}` }
+      // One pending sign-in, and one address for its codes (the 'totp' bucket
+      // is ten per client per five minutes; no session here sends more than five).
+      const signIn = async () => {
+        const jar = new Map()
+        const r = await login(ip(), MFA, MFA_PW, jar)
+        return { jar, status: r.status, ip: ip() }
+      }
+      const code = (s, value) => at(s.ip, 'admin.php?r=login_code', { method: 'POST', body: { code: value }, jar: s.jar })
+      const expire = () => sql(`update admin_users set locked_until = now() - interval 1 second
+                                 where id = ${MFA_ID} and locked_until is not null`)
+      const alerts = () => mailsTo(MFA).length
+
+      const m0 = alerts()
+      const s1 = await signIn()
+      is(s1.status === 202, 'the password is right, so a phone code is asked for (202)', String(s1.status))
+      const five = []
+      for (let i = 0; i < 5; i++) five.push(await code(s1, wrongCode(SECRET)))
+      is(five.slice(0, 4).every((r) => r.status === 401 && r.body?.error === 'bad_code')
+         && five[4].status === 429 && five[4].body?.error === 'locked',
+         'four wrong codes are 401 bad_code; the fifth locks the account (429 locked)',
+         five.map((r) => `${r.status} ${r.body?.error}`).join(', '))
+      is(alerts() - m0 === 1,
+         'and the account is mailed ONCE that somebody has its password — one mail per lock, not one per code',
+         `${alerts() - m0} mail(s)`)
+
+      await expire()
+      const s2 = await signIn()
+      const sixth = await code(s2, wrongCode(SECRET))
+      is(sixth.status === 401 && sixth.body?.error === 'bad_code',
+         'once a lock has expired the count starts again — the next wrong code is 401, not an instant re-lock',
+         `${sixth.status} ${sixth.body?.error}`)
+      const counter = await sql(`select failed_attempts from admin_users where id = ${MFA_ID}`)
+      is(counter === '1', 'the counter restarted at one', counter)
+
+      // Code checks 7 to 20 of the day, letting each lock run out as it trips.
+      let s = s2
+      for (let evals = 6; evals < 20;) {
+        const r = await code(s, wrongCode(SECRET))
+        evals++
+        if (r.status === 429) { await expire(); if (evals < 20) s = await signIn() }
+      }
+      await expire()
+      const s5 = await signIn()
+      const before = alerts()
+      const right = await code(s5, totp(SECRET))
+      const rowLocked = await sql(`select coalesce(locked_until > now(), 0) from admin_users where id = ${MFA_ID}`)
+      is(right.status === 429 && right.body?.error === 'locked' && rowLocked === '0',
+         'after twenty code checks in a day even the RIGHT code is refused — by the daily ceiling, not the row lock',
+         `${right.status} ${right.body?.error} row locked=${rowLocked}`)
+      await code(s5, totp(SECRET))
+      await code(s5, wrongCode(SECRET))
+      is(alerts() - before === 1, 'and the account is told once for the day, not once per attempt',
+         `${alerts() - before} mail(s)`)
+      const alert = mailsTo(MFA).at(-1) ?? ''
+      is(/wrong sign-in codes/i.test(alert) && /Forgot password/.test(alert) && !/\b\d{1,3}(\.\d{1,3}){3}\b/.test(alert),
+         'the mail says what happened and what to do, and carries no address', alert.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? '')
+      const rec = await code(s5, RECOVERY)
+      is(rec.status === 200 && rec.body?.email === MFA,
+         'a recovery code still gets the owner in — it is not six guessable digits', `${rec.status} ${rec.body?.error ?? ''}`)
+
+      // Many at once. The row lock is checked, then the code: requests that
+      // arrive together all see "not locked". The daily ceiling is counted
+      // BEFORE the check, so however many arrive, at most twenty are tried.
+      await sql(`delete from rate_limit; update admin_users set failed_attempts = 0, locked_until = null where id = ${MFA_ID}`)
+      const pending = []
+      for (let i = 0; i < 48; i++) pending.push(await signIn())
+      is(pending.every((p) => p.status === 202), 'forty-eight sign-ins are each waiting for a code',
+         [...new Set(pending.map((p) => p.status))].join(','))
+      const burstBefore = alerts()
+      const burst = await Promise.all(pending.map((p) => code(p, wrongCode(SECRET))))
+      const tried = burst.filter((r) => r.body?.error === 'bad_code').length
+      is(tried <= 20, 'forty-eight wrong codes sent at once: at most twenty are ever checked',
+         `${tried} bad_code, ${burst.length - tried} refused`)
+      const burstMail = alerts() - burstBefore
+      is(burstMail >= 1 && burstMail <= 2, 'and the burst cannot flood the inbox — one lock mail, at most one daily one',
+         `${burstMail} mail(s)`)
+    }
+
+    // --------------------------------------- unconfirmed cash orders expire
+    //
+    // Owner's decision, 2026-11-02: a COD order still pending and unfulfilled
+    // 24 hours after it was placed is cancelled and its stock put back, by the
+    // same sweeper the VPS runs every fifteen minutes. Anything packed or paid
+    // is never touched.
+    {
+      const PHONE = '95550101'
+      const CANON = '96595550101'
+      const SKU = 'A-CST-NA-L'
+      await sql(`delete from orders where customer_phone = '${CANON}'; delete from rate_limit`)
+      const s0 = Number(await sql(`select stock from product_variants where sku = '${SKU}'`))
+      const stock = async () => Number(await sql(`select stock from product_variants where sku = '${SKU}'`))
+      const tag = Date.now().toString(36).toUpperCase()
+      const track = (i) => `SPHOLD${i}${tag}`
+      const codOrder = (t) => at('203.0.113.50', 'api.php?r=order', { method: 'POST', body: {
+        track_id: t, items: [{ slug: 'cloudsoft-top-navy', size: 'L', qty: 1 }],
+        customer: { ...CUSTOMER, phone: PHONE }, payment_method: 'cod' } })
+      const state = (t) => sql(`select fulfilment_status, stock_released from orders where track_id = '${t}'`)
+      const cron = async (configFile) => {
+        const env = { ...process.env }
+        delete env.SPORTA_API_CONFIG_FILE
+        if (configFile) env.SPORTA_API_CONFIG_FILE = configFile
+        const { stdout } = await run('php', [join(STORE_DIR, 'cron-stock.php'), '--release'], { env })
+        return JSON.parse(stdout)
+      }
+      try {
+        const placed = []
+        for (let i = 1; i <= 3; i++) placed.push((await codOrder(track(i))).status)
+        is(placed.every((st) => st === 200) && await stock() === s0 - 3,
+           'three cash orders from one phone are accepted, each holding its garment', placed.join(','))
+        const full = await codOrder(track(4))
+        is(full.status === 409 && full.body?.error === 'too_many_open_cod',
+           'and a fourth is refused while those three are open', `${full.status} ${full.body?.error}`)
+
+        await sql(`update orders set created_at = now() - interval 25 hour where track_id = '${track(1)}';
+                   update orders set created_at = now() - interval 23 hour where track_id = '${track(2)}';
+                   update orders set created_at = now() - interval 25 hour, fulfilment_status = 'packed'
+                    where track_id = '${track(3)}'`)
+        const out = await cron(CFG)
+        // Only this block's orders are judged: the sandbox database is shared.
+        const mine = (out.cod_cancelled ?? []).filter((t) => t.endsWith(tag))
+        is(out.cod_hold_hours === 24 && mine.length === 1 && mine[0] === track(1),
+           'the sweeper cancels the unconfirmed cash order older than 24 hours — and only that one',
+           JSON.stringify(mine))
+        is(await state(track(1)) === 'cancelled\t1', 'it is CANCELLED and its stock released, together', await state(track(1)))
+        is(await state(track(2)) === 'unfulfilled\t0', 'a cash order 23 hours old is left alone', await state(track(2)))
+        is(await state(track(3)) === 'packed\t0', 'and one the shop has PACKED is never touched, however old',
+           await state(track(3)))
+        is(await stock() === s0 - 2, 'the cancelled order’s garment is back on the shelf', `${s0 - await stock()} held`)
+        const hasEvents = await sql("select count(*) from information_schema.tables where table_schema = 'sporta' and table_name = 'order_tracking_events'")
+        if (hasEvents === '1') {
+          const ev = await sql(`select count(*) from order_tracking_events e join orders o on o.id = e.order_id
+                                 where o.track_id = '${track(1)}' and e.status = 'cancelled'`)
+          is(ev === '1', 'and the customer’s tracking timeline says cancelled', ev)
+        }
+        const freed = await codOrder(track(5))
+        is(freed.status === 200, "the phone's cash slot is free again — a new order is accepted",
+           `${freed.status} ${freed.body?.error ?? ''}`)
+        const rerun = await cron(CFG)
+        is(!rerun.track_ids.includes(track(1)) && await stock() === s0 - 3,
+           'and a second run puts nothing back twice', JSON.stringify(rerun.track_ids))
+
+        await sql(`update orders set created_at = now() - interval 25 hour where track_id = '${track(2)}'`)
+        const CFG0 = join(tmp, 'api-config-hold-off.php')
+        writeConfig(CFG0, { cod_hold_hours: 0 })
+        const off = await cron(CFG0)
+        is(off.cod_hold_hours === 0 && await state(track(2)) === 'unfulfilled\t0',
+           'cod_hold_hours = 0 switches the expiry off', `${off.cod_hold_hours} ${await state(track(2))}`)
+        const dflt = await cron(null)
+        is(dflt.cod_hold_hours === 24 && await state(track(2)) === 'cancelled\t1',
+           'and a config that does not mention it gets the default, 24 hours',
+           `${dflt.cod_hold_hours} ${await state(track(2))}`)
+      } finally {
+        await sql(`delete from orders where customer_phone = '${CANON}';
+                   update product_variants set stock = ${s0} where sku = '${SKU}'; delete from rate_limit`)
+      }
+    }
+
+    // ---------------------------------------------------- customer accounts
+    //
+    // Every "per-email" customer limit used store_throttle, which keys on the
+    // CLIENT, so each was really per (email, address): rotate addresses and
+    // there was no limit at all. Reset mail, sign-in and change_password are
+    // now counted per account.
+    {
+      const C = { 'X-Sporta-Customer': '1' }
+      const cust = (ip, route, body, jar) => at(ip, `customer.php?r=${route}`,
+        { method: body === undefined ? 'GET' : 'POST', body, jar, headers: C })
+      const resetMails = (addr) => mailsTo(addr).filter((m) => /#token=[a-f0-9]{64}/.test(m))
+      const tokenOf = (m) => m.match(/#token=([a-f0-9]{64})/)?.[1]
+      const tag = Date.now().toString(36)
+      const FLOOD = `rl-flood-${tag}@example.test`
+      const DAILY = `rl-daily-${tag}@example.test`
+      const VICTIM = `rl-victim-${tag}@example.test`
+      const VICTIM_ACCENT = VICTIM.replace('victim', 'víctim')
+      const PW = 'customer-password-0001'
+      let n = 0
+      const ip = () => `198.19.${Math.floor(++n / 250)}.${(n % 250) + 1}`
+      await sql("delete from rate_limit")
+      for (const email of [FLOOD, DAILY, VICTIM]) {
+        const r = await cust(ip(), 'register', { name: 'Rate Test', email, password: PW })
+        if (r.status !== 201) bad(`register ${email}`, `${r.status} ${r.body?.error}`)
+      }
+      try {
+        // The cost is NAMED, so an unknown address (checked against a fixed
+        // $2y$12$ dummy) costs exactly what a real account costs on every PHP.
+        const hash = await sql(`select password_hash from customer_accounts where email = '${VICTIM}'`)
+        is(hash.startsWith('$2y$12$'), 'a customer password is hashed at bcrypt cost 12, the dummy’s cost', hash.slice(0, 7))
+
+        // --- reset mail: three an hour, ten a day, per ADDRESS
+        const before = resetMails(FLOOD).length
+        const flood = []
+        for (let i = 0; i < 12; i++) flood.push(await cust(ip(), 'forgot_password', { email: FLOOD }))
+        is(flood.every((r) => r.status === 200 && r.body?.ok === true),
+           'twelve reset requests for one address from twelve clients are all answered {ok:true}',
+           [...new Set(flood.map((r) => r.status))].join(','))
+        is(resetMails(FLOOD).length - before === 3,
+           'but the inbox gets three mails, not twelve — the hourly window is per address now',
+           `${resetMails(FLOOD).length - before} mail(s)`)
+        const ghost = []
+        const ghostBefore = mails().length
+        for (let i = 0; i < 12; i++) ghost.push((await cust(ip(), 'forgot_password', { email: `nobody-${tag}@example.test` })).status)
+        is(ghost.every((st) => st === 200) && mails().length === ghostBefore,
+           'an address with no account gets the same answer, and no mail', ghost.join(','))
+
+        const dailyBefore = resetMails(DAILY).length
+        for (let round = 0; round < 4; round++) {
+          for (let i = 0; i < 3; i++) await cust(ip(), 'forgot_password', { email: DAILY })
+          await sql(`update rate_limit set window_start = window_start - 3600
+                      where bucket_key = '${rlKey('customer_reset_email', DAILY)}'`)
+        }
+        is(resetMails(DAILY).length - dailyBefore === 10,
+           'with the hour moved on each time, one address still gets at most ten in a day',
+           `${resetMails(DAILY).length - dailyBefore} mail(s)`)
+
+        // Two resets from two clients: the row records each CLIENT, as an HMAC.
+        const rows = (await sql(`select r.request_ip from customer_password_resets r
+                                   join customer_accounts a on a.id = r.customer_id
+                                  where a.email = '${FLOOD}' order by r.id limit 2`)).split('\n')
+        const sha127 = createHash('sha256').update('127.0.0.1').digest('hex')
+        is(rows.length === 2 && rows[0] !== rows[1] && !rows.includes(sha127),
+           'each reset row records its own client, not the proxy', rows.join(' '))
+        is(rows[0] === rlKey('customer_reset_ip', '198.19.0.5'),
+           'and records it as an HMAC, which a list of every IPv4 address cannot reverse', rows[0])
+
+        // --- sign-in: ten tries per ACCOUNT, from anywhere
+        const wrong = []
+        for (let i = 0; i < 10; i++) wrong.push((await cust(ip(), 'login', { email: VICTIM, password: `wrong-${i}-xxxxxx` })).status)
+        is(wrong.every((st) => st === 401), 'ten wrong passwords for one customer from ten clients: 401 each', wrong.join(','))
+        const eleventh = await cust(ip(), 'login', { email: VICTIM, password: 'wrong-again-xxxxx' })
+        is(eleventh.status === 429, 'the eleventh, from yet another client, is refused — the window is the account’s',
+           `${eleventh.status} ${eleventh.body?.error}`)
+        const rightButLocked = await cust(ip(), 'login', { email: VICTIM, password: PW })
+        is(rightButLocked.status === 429,
+           'and so is the right password while it lasts (the accepted trade-off: fifteen minutes)',
+           `${rightButLocked.status}`)
+
+        const vBefore = resetMails(VICTIM).length
+        await cust(ip(), 'forgot_password', { email: VICTIM })
+        const token = tokenOf(resetMails(VICTIM).slice(vBefore)[0] ?? '')
+        const NEW_PW = 'customer-password-0002'
+        const reset = await cust(ip(), 'reset_password', { token, password: NEW_PW })
+        const afterReset = await cust(ip(), 'login', { email: VICTIM, password: NEW_PW })
+        is(reset.status === 200 && afterReset.status === 200,
+           'a password reset empties the account window: the new password works at once',
+           `${reset.status} ${afterReset.status} ${afterReset.body?.error ?? ''}`)
+
+        const accent = []
+        for (let i = 0; i < 12; i++) accent.push((await cust(ip(), 'login', { email: VICTIM_ACCENT, password: `guess-${i}-xxxxxxx` })).status)
+        const stillOpen = await cust(ip(), 'login', { email: VICTIM, password: NEW_PW })
+        is(accent.every((st) => st === 401) && stillOpen.status === 200,
+           'a look-alike spelling (víctim@) is refused before the database is asked, and costs the real account nothing',
+           `${[...new Set(accent)].join(',')} then ${stillOpen.status}`)
+
+        const sprayIp = '198.19.200.1'
+        const spray = []
+        for (let i = 0; i < 21; i++) spray.push((await cust(sprayIp, 'login', { email: `spray-${i}-${tag}@example.test`, password: 'x-guess-0000000' })).status)
+        is(spray.slice(0, 20).every((st) => st === 401) && spray[20] === 429,
+           'one client trying twenty different accounts is stopped on the twenty-first', spray.join(','))
+
+        // --- change_password: five tries per account, then the session ends
+        const jar = new Map()
+        await cust(ip(), 'login', { email: VICTIM, password: NEW_PW }, jar)
+        const cp = []
+        for (let i = 0; i < 6; i++) {
+          cp.push(await cust(ip(), 'change_password', { current_password: `not-it-${i}-xxxxxx`, new_password: 'customer-password-0003' }, jar))
+        }
+        is(cp.slice(0, 5).every((r) => r.status === 401 && r.body?.error === 'invalid_credentials')
+           && cp[5].status === 401 && cp[5].body?.error === 'not_authenticated',
+           'five wrong current passwords (from five clients) are 401; the sixth ends the session',
+           cp.map((r) => r.body?.error).join(','))
+        const me = await cust(ip(), 'me', undefined, jar)
+        is(me.status === 200 && me.body === null, 'and that browser is signed out', JSON.stringify(me.body))
+
+        // --- the admin's Profiles screen
+        //
+        // It selected customer_accounts.last_login_at, a column no migration
+        // ever created, so it answered no_table on every database.
+        const adminJar = new Map()
+        await sql(`delete from rate_limit where bucket_key = '${rlKey('admin_login_identity', OWNER)}'`)
+        const signedIn = await login('198.19.250.1', OWNER, 'rl-owner-password-0002', adminJar)
+        const list = await at('198.19.250.1', 'admin.php?r=profiles_list', { jar: adminJar })
+        const row = list.body?.profiles?.find((p) => p.email === VICTIM)
+        is(signedIn.status === 200 && list.status === 200 && !!row && 'last_login_at' in row,
+           'the Profiles list answers 200 with its rows, last_login_at included',
+           `${signedIn.status} ${list.status} ${list.body?.error ?? ''} ${row ? 'row' : 'no row'}`)
+        const detail = await at('198.19.250.1', `admin.php?r=profile_detail&id=${row?.id}`, { jar: adminJar })
+        is(detail.status === 200 && detail.body?.profile?.email === VICTIM && 'last_login_at' in (detail.body?.profile ?? {}),
+           'and a profile opens', `${detail.status} ${detail.body?.error ?? ''}`)
+      } finally {
+        await sql(`delete r from customer_password_resets r join customer_accounts a on a.id = r.customer_id
+                    where a.email like 'rl-%@example.test';
+                   delete from customer_accounts where email like 'rl-%@example.test'; delete from rate_limit`)
+      }
+    }
+
+    // ----------------------------------------------- IPv6: one client, one /64
+    //
+    // A phone on IPv6 has a /64 and can use any address in it. Keyed on the
+    // full address, each was a fresh bucket.
+    {
+      await sql("delete from rate_limit; delete from discounts")
+      const cart = [{ slug: 'cloudsoft-jacket-army-green', qty: 1, size: 'L' }]
+      const check = (ip, code) => at(ip, 'api.php?r=discount', { method: 'POST', body: { items: cart, code } })
+      const v6 = []
+      for (let i = 1; i <= 31; i++) v6.push((await check(`2001:db8:1:2::${i.toString(16)}`, `WRONG${i}`)).status)
+      is(v6.slice(0, 30).every((st) => st === 400) && v6[30] === 429,
+         'thirty-one wrong codes from thirty-one addresses in ONE /64 are one client: the 31st is 429',
+         `${v6.slice(0, 30).every((st) => st === 400) ? '400×30' : v6.join(',')}, then ${v6[30]}`)
+      const next64 = await check('2001:db8:1:3::1', 'WRONG')
+      is(next64.status === 400, 'the next /64 is somebody else', String(next64.status))
+      const mixed = []
+      for (let i = 0; i < 30; i++) mixed.push((await check(i % 2 ? '::ffff:203.0.113.5' : '203.0.113.5', `WRONG${i}`)).status)
+      const plain = await check('203.0.113.5', 'WRONG')
+      const neighbour = await check('203.0.113.6', 'WRONG')
+      is(mixed.every((st) => st === 400) && plain.status === 429 && neighbour.status === 400,
+         'an IPv4-mapped address is the IPv4 it carries — one bucket — and the next IPv4 is not',
+         `${plain.status} ${neighbour.status}`)
+      await sql('delete from rate_limit')
+      // The payment gateways use the SAME rule (api/config-path.php), with the
+      // proxy list they borrow from this config: KNET's log used to record
+      // REMOTE_ADDR, i.e. the proxy, on every line.
+      const knetIp = (await run('php', ['-r', `
+        $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '9.9.9.9, 203.0.113.9';
+        require ${phpStr(join(STORE_DIR, 'config-path.php'))};
+        require ${phpStr(join(ROOT, 'dropin/php-knet/knet.php'))};
+        echo knet_client_ip(['trusted_proxy_ips' => ['127.0.0.1']]), ' ', knet_client_ip([]);`])
+        .catch((e) => ({ stdout: `(php failed) ${e.stderr ?? e.message}`.slice(0, 200) }))).stdout
+      is(knetIp === '203.0.113.9 127.0.0.1',
+         'KNET names the client by the same rule — and trusts no forwarded address without a proxy list', knetIp)
+    }
+
+    // ------------------------------------- a cancelled order is not mailed
+    {
+      const WAREHOUSE = 'warehouse@example.test'
+      const CFG_F = join(tmp, 'api-config-fulfilment.php')
+      writeConfig(CFG_F, { warehouse_email: WAREHOUSE, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw' })
+      const subjectOf = (m) => {
+        const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
+        const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
+        return b ? Buffer.from(b, 'base64').toString('utf8') : raw
+      }
+      const sentFor = (track) => mailsTo(WAREHOUSE).filter((m) => subjectOf(m).includes(track)).length
+      // Until nothing is left to claim: the sandbox outbox holds the rest of
+      // this suite's orders too, twenty are claimed per run, and only these
+      // track ids are judged.
+      const cronF = async () => {
+        let suppressed = 0
+        for (let i = 0; i < 30; i++) {
+          const env = { ...process.env, SPORTA_API_CONFIG_FILE: CFG_F }
+          const out = JSON.parse((await run('php', ['-d', `sendmail_path=sh ${MTA} ${maildir}`,
+            join(STORE_DIR, 'cron-fulfilment.php'), '--run'], { env })).stdout)
+          suppressed += out.suppressed ?? 0
+          if (!out.claimed) break
+        }
+        return { suppressed }
+      }
+      const tag = Date.now().toString(36).toUpperCase()
+      const place = (track, phone) => at(`198.20.0.${Number(phone.slice(-2))}`, 'api.php?r=order', { method: 'POST', body: {
+        track_id: track, items: [{ slug: 'cloudsoft-top-navy', size: 'L', qty: 1 }],
+        customer: { ...CUSTOMER, phone }, payment_method: 'cod' } })
+      const [GONE, KEPT, LATE] = [`SPCAN1${tag}`, `SPCAN2${tag}`, `SPCAN3${tag}`]
+      try {
+        const placed = [await place(GONE, '95550301'), await place(KEPT, '95550302'), await place(LATE, '95550303')]
+        is(placed.every((r) => r.status === 200), 'three cash orders, each with a picking list queued',
+           placed.map((r) => r.status).join(','))
+        // LATE's picking list goes out first, THEN it is cancelled.
+        await sql(`update fulfilment_outbox set attempts = 5 where order_id in
+                    (select id from orders where track_id in ('${GONE}', '${KEPT}'))`)
+        await cronF()
+        await sql(`update fulfilment_outbox set attempts = 0 where order_id in
+                    (select id from orders where track_id in ('${GONE}', '${KEPT}'))`)
+        is(sentFor(LATE) === 1, 'one picking list has really gone to the warehouse', String(sentFor(LATE)))
+        await sql(`update orders set fulfilment_status = 'cancelled' where track_id in ('${GONE}', '${LATE}');
+                   insert into fulfilment_outbox (order_id, kind, payload)
+                   select id, 'payment', json_object('track_id', track_id, 'payment_status', 'failed')
+                     from orders where track_id = '${LATE}'`)
+        const out = await cronF()
+        is(sentFor(GONE) === 0, 'a cancelled order the warehouse never heard of is NOT mailed', String(sentFor(GONE)))
+        const gone = await sql(`select f.sent_at is not null, f.last_error from fulfilment_outbox f
+                                 join orders o on o.id = f.order_id where o.track_id = '${GONE}'`)
+        is(gone === '1\torder cancelled', 'its row is closed and says why', gone)
+        is(sentFor(KEPT) === 1, 'an order that is still on is mailed as before', String(sentFor(KEPT)))
+        is(sentFor(LATE) === 2,
+           'and once a picking list HAS gone, the follow-up for a cancelled order still goes — it is the "do not ship"',
+           `${sentFor(LATE)} mail(s), suppressed=${out?.suppressed}`)
+      } finally {
+        await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SPCAN%';
+                   delete i from order_items i join orders o on o.id = i.order_id where o.track_id like 'SPCAN%';
+                   delete from orders where track_id like 'SPCAN%'; delete from rate_limit`)
+      }
+    }
+
+    // ---------------------------- a cancelled order gives its discount back
+    {
+      const tag = Date.now().toString(36).toUpperCase()
+      const cronS = async () => {
+        const env = { ...process.env, SPORTA_API_CONFIG_FILE: CFG }
+        return JSON.parse((await run('php', [join(STORE_DIR, 'cron-stock.php'), '--release'], { env })).stdout)
+      }
+      await sql(`delete from rate_limit; delete from discounts;
+                 insert into discounts (kind, code, label, type, value, min_order, active, usage_limit)
+                 values ('code', 'LAUNCH3', 'launch', 'fixed', 1, 0, 1, 3)`)
+      const used = async () => Number(await sql("select used_count from discounts where code = 'LAUNCH3'"))
+      const place = (track, phone, items, method = 'cod') => at(`198.21.0.${Number(phone.slice(-2))}`, 'api.php?r=order', {
+        method: 'POST', body: { track_id: track, items, customer: { ...CUSTOMER, phone }, payment_method: method,
+          discount_code: 'LAUNCH3' } })
+      const TOP = [{ slug: 'cloudsoft-top-navy', size: 'L', qty: 1 }]
+      const BAG = [{ slug: 'cagliari-calcio-backpack', qty: 1 }]
+      try {
+        const three = []
+        for (let i = 1; i <= 3; i++) three.push((await place(`SPLA${i}${tag}`, `9555040${i}`, TOP)).status)
+        const ids = await sql(`select discount_ids from orders where track_id = 'SPLA1${tag}'`)
+        const discountId = await sql("select id from discounts where code = 'LAUNCH3'")
+        const recorded = /^\[/.test(ids) ? JSON.parse(ids) : []
+        is(three.every((st) => st === 200) && await used() === 3 && recorded.includes(Number(discountId)),
+           'three orders use a three-use code up, and each order records which rules it used',
+           `${three.join(',')} used=${await used()} ids=${ids}`)
+        const fourth = await place(`SPLA4${tag}`, '95550404', TOP)
+        is(fourth.status === 400, 'a fourth is refused: the code is used up', `${fourth.status} ${fourth.body?.error}`)
+
+        await sql(`update orders set fulfilment_status = 'cancelled' where track_id like 'SPLA_${tag}'`)
+        await cronS()
+        is(await used() === 0, 'cancel all three and the sweeper gives every use back', `used=${await used()}`)
+        await cronS()
+        is(await used() === 0, 'and a second run gives nothing back twice', `used=${await used()}`)
+
+        const paid = await place(`SPLP${tag}`, '95550405', TOP, 'knet')
+        await sql(`update orders set payment_status = 'paid' where track_id = 'SPLP${tag}'`)
+        await cronS()
+        is(paid.status === 200 && await used() === 1, 'a PAID order keeps its use', `used=${await used()}`)
+
+        const bag = await place(`SPLB${tag}`, '95550406', BAG)
+        is(bag.status === 200 && await used() === 2, 'an accessories-only order (it holds no stock) uses one too',
+           `${bag.status} used=${await used()}`)
+        await sql(`update orders set fulfilment_status = 'cancelled' where track_id = 'SPLB${tag}'`)
+        await cronS()
+        is(await used() === 1, 'and gives it back when cancelled — though it had no stock to release',
+           `used=${await used()}`)
+      } finally {
+        await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SPL%${tag}';
+                   delete i from order_items i join orders o on o.id = i.order_id where o.track_id like 'SPL%${tag}';
+                   delete from orders where track_id like 'SPL%${tag}'; delete from discounts; delete from rate_limit`)
+      }
+    }
+
+    // ------------------------------------------- what one password guess costs
+    {
+      const ARGON = 'rl-argon@example.test'
+      const ARGON_PW = 'rl-argon-password-0001'
+      // An account hashed with PHP's old defaults (64 MiB, four passes).
+      const old = (await run('php', ['-r',
+        `echo '$sporta-admin-v1$' . password_hash(hash('sha256', ${phpStr(ARGON_PW)}), PASSWORD_ARGON2ID);`])).stdout
+      await sql(`delete from admin_users where email = '${ARGON}';
+                 insert into admin_users (email, password_hash) values ('${ARGON}', '${old}')`)
+      try {
+        const r = await login('198.22.0.1', ARGON, ARGON_PW)
+        const now = await sql(`select password_hash from admin_users where email = '${ARGON}'`)
+        is(old.includes('m=65536,t=4,p=1') && r.status === 200 && now.includes('$argon2id$v=19$m=19456,t=2,p=1$'),
+           'a sign-in upgrades an older hash to 19 MiB and two passes', now.slice(0, 48))
+        const src = readFileSync(join(STORE_DIR, 'store.php'), 'utf8')
+        const opts = src.match(/STORE_ADMIN_ARGON_OPTS\s*=\s*\['memory_cost'\s*=>\s*(\d+),\s*'time_cost'\s*=>\s*(\d+),\s*'threads'\s*=>\s*(\d+)\]/)
+        const dummy = src.match(/\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$/)
+        is(opts && dummy && opts.slice(1).join() === dummy.slice(1).join(),
+           'and the unknown-email dummy hash uses the very same parameters, so timing says nothing',
+           `${opts?.slice(1).join()} vs ${dummy?.slice(1).join()}`)
+      } finally {
+        await sql(`delete from admin_users where email = '${ARGON}'; delete from rate_limit`)
+      }
+    }
+
+    // ------------------------- admin forgot_password: the answer comes first
+    //
+    // The mail relay here takes 0.4 s per message, the way a real one can.
+    // Before, a real admin address waited for it and an unknown one did not.
+    {
+      const RESET = 'rl-reset@example.test'
+      await sql(`delete from admin_users where email = '${RESET}';
+                 insert into admin_users (email, password_hash) values ('${RESET}', '${await hashOf('rl-reset-password-0001')}')`)
+      const SBASE = `http://127.0.0.1:${SLOW_PORT}`
+      let k = 0
+      const timed = async (email) => {
+        await sql(`delete from rate_limit where bucket_key = '${rlKey('admin_password_reset_identity', email)}'`)
+        const t0 = performance.now()
+        const r = await at(`198.23.0.${++k}`, 'admin.php?r=forgot_password', { method: 'POST', body: { email }, base: SBASE })
+        return { ms: performance.now() - t0, r }
+      }
+      const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+      try {
+        const real = []
+        const none = []
+        for (let i = 0; i < 7; i++) {
+          real.push(await timed(RESET))
+          // Let that request's mail land before the next request, so a worker
+          // still busy with the relay is never what a later one waits behind.
+          await waitFor(() => mailsTo(RESET, slowMaildir).length > i || null, 4000)
+          none.push(await timed('rl-nobody@example.test'))
+        }
+        const dReal = median(real.map((x) => x.ms))
+        const dNone = median(none.map((x) => x.ms))
+        is(real.concat(none).every((x) => x.r.status === 200 && x.r.body?.ok === true) && Math.abs(dReal - dNone) < 150,
+           'a real admin address and an unknown one answer in the same time (median of seven)',
+           `${Math.round(dReal)} ms vs ${Math.round(dNone)} ms`)
+        const arrived = await waitFor(() => mailsTo(RESET, slowMaildir).length >= 7 || null, 8000)
+        is(!!arrived, 'and the mails are still sent — after the answer', `${mailsTo(RESET, slowMaildir).length} of 7`)
+        const tokens = mailsTo(RESET, slowMaildir).map((m) => m.match(/#reset=([a-f0-9]{64})/)?.[1])
+        const older = await at('198.23.1.1', 'admin.php?r=reset_password',
+          { method: 'POST', body: { token: tokens[0], password: 'rl-reset-password-0002' }, base: SBASE })
+        is(older.status === 400 && older.body?.error === 'invalid_reset_token',
+           'and a newer mail still retires the older link', `${older.status} ${older.body?.error}`)
+        const rowIp = await sql(`select request_ip from admin_password_resets r join admin_users u on u.id = r.admin_id
+                                  where u.email = '${RESET}' order by r.id limit 1`)
+        is(rowIp === rlKey('admin_reset_ip', '198.23.0.1'),
+           'the admin reset row records the client as an HMAC, not a reversible SHA-256', rowIp)
+      } finally {
+        await sql(`delete r from admin_password_resets r join admin_users u on u.id = r.admin_id where u.email = '${RESET}';
+                   delete from admin_users where email = '${RESET}'; delete from rate_limit`)
+      }
+    }
+  } finally {
+    killAll()
+    await sql(`delete from admin_users where email in ('${OWNER}', '${MFA}', '${OTHER}'); delete from rate_limit`)
+    rmSync(tmp, { recursive: true, force: true })
+  }
 }
 
 // ---------------------------------------------------------------------------

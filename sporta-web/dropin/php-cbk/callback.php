@@ -8,6 +8,17 @@ require __DIR__ . '/cbk.php';
 cbk_require_https(); // reject non-HTTPS callbacks
 $cfg = cbk_with_store_db(cbk_load_config(__DIR__ . '/config.php'));
 
+// Thirty returns a minute per client, before anything else. This URL is
+// unauthenticated by design (the bank sends the shopper here), and every call
+// costs a GetTransactions request to CBK — so without a limit it was a way to
+// make this server hammer the bank's API. A shopper behind a carrier's shared
+// address would need thirty card payments finishing in the same minute to
+// meet it.
+if (($rate = cbk_rate_hit($cfg, 'tpay_callback', 30, 60)) !== null && !$rate['allowed']) {
+    cbk_log($cfg, 'callback.reject', ['reason' => 'rate_limited']);
+    cbk_rate_refuse($rate, 'Too many requests. Please wait a minute and reload this page.');
+}
+
 $return = $cfg['result_page_url'];
 $in     = $_POST + $_GET;
 $encrp  = (string)($in['encrp'] ?? '');
@@ -146,16 +157,36 @@ if (!is_array($res)) {
 // failed orders — and 'failed' is a state a shop acts on. Refunds get issued
 // for money that was taken and kept.
 //
-// So: throw the cached token away, mint a fresh one, ask exactly once more,
-// and if it still will not answer, LEAVE THE ORDER ALONE. Pending is honest.
-// Failed is a claim, and this code is not in a position to make it.
-if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {
-    cbk_log($cfg, 'callback.stale_token', ['status' => $res['Status'] ?? '']);
-    if (!empty($cfg['token_cache_file'])) @unlink($cfg['token_cache_file']);
-    try {
-        $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg)) ?? $res;
-    } catch (Throwable $e) {
-        // fall through to the check below
+// So the order is LEFT ALONE: pending is honest, failed is a claim, and this
+// code is not in a position to make it.
+//
+// ONLY STATUS 0 IS RETRIED, and at most once per ten minutes. It used to be
+// both, every time: purge the cached key, Authenticate afresh, ask again. But
+// -1 means the ENCRP value is wrong, and a new key cannot fix a wrong value —
+// while this URL is unauthenticated, so `?encrp=<junk>` in a loop cost three
+// calls to CBK each (GetTransactions, Authenticate, GetTransactions), wiped the
+// cached credential every time, and had this server hammering the bank's
+// merchant API on a stranger's behalf. Now -1 is logged and answered at once,
+// and a 0 earns one purge-and-retry per window, behind the same marker the
+// TIJ0009 branch above uses. Inside the window, the one answer already given
+// with the current key stands.
+$apiStatus = (string)($res['Status'] ?? '');
+if (in_array($apiStatus, ['0', '-1'], true)) {
+    if ($apiStatus === '0') {
+        cbk_log($cfg, 'callback.stale_token', ['status' => $apiStatus]);
+        $stamp = !empty($cfg['token_cache_file']) ? $cfg['token_cache_file'] . '.purged' : '';
+        $last  = ($stamp !== '' && is_file($stamp)) ? (int) @file_get_contents($stamp) : 0;
+        if ($stamp !== '' && time() - $last > 600) {
+            @file_put_contents($stamp, (string) time());
+            @unlink($cfg['token_cache_file']);
+            try {
+                $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg)) ?? $res;
+            } catch (Throwable $e) {
+                // fall through to the check below
+            }
+        } else {
+            cbk_log($cfg, 'callback.purge_throttled', ['since' => time() - $last]);
+        }
     }
     if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {
         cbk_log($cfg, 'callback.unresolved', ['status' => $res['Status'] ?? '', 'encrp' => substr($encrp, 0, 8)]);

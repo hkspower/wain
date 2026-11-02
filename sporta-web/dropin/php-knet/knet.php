@@ -193,7 +193,9 @@ function knet_log(array $cfg, string $event, array $data = []): void
     $line = json_encode([
         'ts'    => gmdate('c'),
         'event' => $event,
-        'ip'    => $_SERVER['REMOTE_ADDR'] ?? '',
+        // The shopper, not the proxy in front of the server — which made every
+        // line of the log name the same address.
+        'ip'    => knet_client_ip($cfg),
     ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $new = !file_exists($path);
     if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {
@@ -216,19 +218,43 @@ function knet_log(array $cfg, string $event, array $data = []): void
 // unusual deployments.
 function knet_with_store_db(array $cfg): array
 {
-    if (($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '') {
+    $hasDb = ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+    // One more key comes from the store's config: which proxies may name the
+    // client (trusted_proxy_ips), so the payment log records the shopper and
+    // not Traefik. A value in this config wins, as with the database.
+    $wantProxies = !array_key_exists('trusted_proxy_ips', $cfg);
+    if ($hasDb && !$wantProxies) return $cfg;
+    try {
+        $path = knet_config_path('api', dirname(__DIR__) . '/api/config.php');
+    } catch (Throwable $e) {
+        // The DATABASE borrow fails closed, exactly as before; a proxy list for
+        // the log is not worth refusing a payment over.
+        if (!$hasDb) throw $e;
         return $cfg;
     }
-    $path = knet_config_path('api', dirname(__DIR__) . '/api/config.php');
     if (!is_file($path)) return $cfg;
     $store = require $path;
     if (!is_array($store)) return $cfg;
-    foreach (['host' => 'mysql_host', 'name' => 'mysql_name', 'user' => 'mysql_user', 'pass' => 'mysql_pass'] as $from => $to) {
-        if (($cfg[$to] ?? '') === '' && array_key_exists('db_' . $from, $store)) {
-            $cfg[$to] = (string)$store['db_' . $from];
+    if (!$hasDb) {
+        foreach (['host' => 'mysql_host', 'name' => 'mysql_name', 'user' => 'mysql_user', 'pass' => 'mysql_pass'] as $from => $to) {
+            if (($cfg[$to] ?? '') === '' && array_key_exists('db_' . $from, $store)) {
+                $cfg[$to] = (string)$store['db_' . $from];
+            }
         }
     }
+    if ($wantProxies && array_key_exists('trusted_proxy_ips', $store)) {
+        $cfg['trusted_proxy_ips'] = $store['trusted_proxy_ips'];
+    }
     return $cfg;
+}
+
+// The shopper's address, by the one rule the store and T-Pay use
+// (sporta_client_ip in api/config-path.php). A standalone drop-in with no
+// resolver has no proxy list to trust, so the direct peer is the answer.
+function knet_client_ip(array $cfg): string
+{
+    if (!function_exists('sporta_client_ip')) return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    return sporta_client_ip(sporta_trusted_proxy_rules($cfg['trusted_proxy_ips'] ?? []));
 }
 
 function knet_db_configured(array $cfg): bool

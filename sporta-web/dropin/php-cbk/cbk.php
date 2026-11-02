@@ -110,19 +110,82 @@ function cbk_assert_payment_config(array $cfg): void
 // one after credentials change. Explicit values still take precedence.
 function cbk_with_store_db(array $cfg): array
 {
-    if (($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '') {
+    $hasDb = ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+    // Two more keys come from the store's config, and only from there: which
+    // proxies may name the client (trusted_proxy_ips), so the log and the
+    // limiter see the shopper rather than Traefik; and rate_limit_secret, so a
+    // T-Pay bucket key is the same HMAC the store computes. A value in this
+    // config wins, as with the database.
+    $wantShared = !array_key_exists('trusted_proxy_ips', $cfg) || !array_key_exists('rate_limit_secret', $cfg);
+    if ($hasDb && !$wantShared) return $cfg;
+    try {
+        $path = cbk_config_path('api', dirname(__DIR__) . '/api/config.php');
+    } catch (Throwable $e) {
+        // The DATABASE borrow fails closed, exactly as before. The other two
+        // keys are not worth refusing a payment over when this config already
+        // names its own database.
+        if (!$hasDb) throw $e;
         return $cfg;
     }
-    $path = cbk_config_path('api', dirname(__DIR__) . '/api/config.php');
     if (!is_file($path)) return $cfg;
     $store = require $path;
     if (!is_array($store)) return $cfg;
-    foreach (['host' => 'mysql_host', 'name' => 'mysql_name', 'user' => 'mysql_user', 'pass' => 'mysql_pass'] as $from => $to) {
-        if (($cfg[$to] ?? '') === '' && array_key_exists('db_' . $from, $store)) {
-            $cfg[$to] = (string)$store['db_' . $from];
+    if (!$hasDb) {
+        foreach (['host' => 'mysql_host', 'name' => 'mysql_name', 'user' => 'mysql_user', 'pass' => 'mysql_pass'] as $from => $to) {
+            if (($cfg[$to] ?? '') === '' && array_key_exists('db_' . $from, $store)) {
+                $cfg[$to] = (string)$store['db_' . $from];
+            }
         }
     }
+    foreach (['trusted_proxy_ips', 'rate_limit_secret'] as $key) {
+        if (!array_key_exists($key, $cfg) && array_key_exists($key, $store)) $cfg[$key] = $store[$key];
+    }
     return $cfg;
+}
+
+// The shopper's address, by the one rule the store and KNET use
+// (sporta_client_ip in api/config-path.php). Without the resolver — a
+// standalone drop-in with no api/ beside it — there is no proxy list to trust,
+// so the direct peer is the answer.
+function cbk_client_ip(array $cfg): string
+{
+    if (!function_exists('sporta_client_ip')) return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    return sporta_client_ip(sporta_trusted_proxy_rules($cfg['trusted_proxy_ips'] ?? []));
+}
+
+// A per-client limit on the two T-Pay endpoints a stranger can call, in the
+// store's own rate_limit table, through the store's own counter
+// (sporta_rate_limit_hit) and key (sporta_rate_limit_key) — the same HMAC the
+// store derives when the two configs name the same database. Keyed on the
+// client's /64 for IPv6 (sporta_rate_identity).
+//
+// Returns null when there is nothing to count with (no resolver, no
+// database): the endpoints keep working, which is what they did before the
+// limit existed.
+/** @return array{allowed:bool,hits:int,retry_after:int}|null */
+function cbk_rate_hit(array $cfg, string $bucket, int $max, int $windowSec): ?array
+{
+    if (!function_exists('sporta_rate_limit_hit') || !cbk_db_configured($cfg)) return null;
+    try {
+        $key = sporta_rate_limit_key($bucket, sporta_rate_identity(cbk_client_ip($cfg)),
+            (string) ($cfg['rate_limit_secret'] ?? ''),
+            [(string) $cfg['mysql_name'], (string) $cfg['mysql_user'], (string) ($cfg['mysql_pass'] ?? '')]);
+        return sporta_rate_limit_hit(cbk_pdo($cfg), $key, $max, $windowSec);
+    } catch (Throwable $e) {
+        // A database that is down (or a store without the rate_limit table)
+        // must not stop a shopper coming back from the bank.
+        return null;
+    }
+}
+
+// Refuse with 429 and no gateway call. Plain text: these are pages a shopper's
+// browser lands on, not API responses.
+function cbk_rate_refuse(array $state, string $message): never
+{
+    http_response_code(429);
+    header('Retry-After: ' . max(1, (int) $state['retry_after']));
+    header('Content-Type: text/plain; charset=utf-8');
+    exit($message);
 }
 
 function cbk_db_configured(array $cfg): bool
@@ -160,6 +223,17 @@ function cbk_pdo(array $cfg): PDO
 // THE FIRST ATTEMPT SENDS THE TRACK ID UNCHANGED, so the common case is exactly
 // as it was and a bank statement still carries the order number. Only a retry —
 // while the order is still pending carries a suffix.
+// HOW MANY TIMES ONE ORDER MAY BE SENT TO THE BANK. Every start of pay.php is
+// one Authenticate call to CBK (the manual asks for a fresh key per checkout)
+// and one attempt number, and pay.php needs only a pending track id — so
+// without a ceiling, a loop over one order's link turned this server into a
+// way to hammer CBK's merchant API under the shop's own credentials. Ten is far
+// past a shopper retrying a declined card; past it the order is refused BEFORE
+// any call to CBK, and the shopper starts a new checkout.
+const CBK_MAX_ATTEMPTS = 10;
+
+final class CbkTooManyAttempts extends RuntimeException {}
+
 function cbk_attempt_ref(array $cfg, string $trackid): string
 {
     if (!cbk_db_configured($cfg)) {
@@ -182,6 +256,7 @@ function cbk_attempt_ref(array $cfg, string $trackid): string
     if ($st->rowCount() !== 1) throw new RuntimeException('order is no longer payable through this gateway');
     $n = (int) $pdo->query('select last_insert_id()')->fetchColumn();
     if ($n < 1) throw new RuntimeException('could not allocate a T-Pay attempt reference');
+    if ($n > CBK_MAX_ATTEMPTS) throw new CbkTooManyAttempts('too many payment attempts for this order');
     if ($n <= 1) return $trackid;
     $suffix = 'A' . $n;
     // The manual caps this field at 30. Trim the ORDER part, never the suffix —
@@ -294,7 +369,9 @@ function cbk_log(array $cfg, string $event, array $data = []): void
     $line = json_encode([
         'ts'    => gmdate('c'),
         'event' => $event,
-        'ip'    => $_SERVER['REMOTE_ADDR'] ?? '',
+        // The shopper, not the proxy in front of the server — which made every
+        // line of the log name the same address.
+        'ip'    => cbk_client_ip($cfg),
     ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $new = !file_exists($path);
     if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {

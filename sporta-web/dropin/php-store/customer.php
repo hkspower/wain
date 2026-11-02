@@ -22,10 +22,17 @@ if ($method === 'POST') {
     if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) store_fail('request_too_large', 413);
 }
 $db = store_db();
+// Per CLIENT (an IPv4 address, or an IPv6 /64 — see store_rate_identity).
+//
+// Login has its own, larger row. It counts every attempt, successes included,
+// and it is the limit a real shopper on a carrier's shared address is most
+// likely to meet; the per-ACCOUNT window below is what actually stops somebody
+// guessing one customer's password, so this one can afford to be generous.
 $limit = match ($route) {
     'me' => [120, 60],
     'orders' => [60, 60],
-    'login', 'register', 'forgot_password', 'reset_password', 'change_password' => [10, 900],
+    'login' => [20, 900],
+    'register', 'forgot_password', 'reset_password', 'change_password' => [10, 900],
     default => [30, 900],
 };
 store_throttle($db, 'customer_' . $route, ...$limit);
@@ -63,10 +70,31 @@ if ($route === 'register') {
 if ($route === 'login') {
     if (!is_string($body['email'] ?? null) || !is_string($body['password'] ?? null) ||
         strlen($body['email']) > 254 || strlen($body['password']) > 1024) store_fail('invalid_credentials', 401);
-    $email = mb_strtolower(trim($body['email']));
-    store_throttle($db, 'customer_login_email_' . hash('sha256', $email), 10, 900);
+    // PER ACCOUNT, and really per account this time.
+    //
+    // This used to be store_throttle('customer_login_email_<hash>'), and
+    // store_throttle keys on the CLIENT — so the bucket was per (email,
+    // address), and anybody rotating addresses had unlimited guesses at one
+    // customer's password. Now the bucket is the normalised email alone, ten
+    // attempts per fifteen minutes from anywhere.
+    //
+    // Keyed on the EMAIL, not the customer id, and hit before the account is
+    // looked up, so a 429 says nothing about whether the address has an
+    // account. An address that is not a valid email is refused here, before
+    // the database is asked: MySQL's collation would otherwise match
+    // 'víctim@' to 'victim@', and every spelling of that kind was a fresh
+    // window onto the same account.
+    //
+    // Accepted trade-off: anyone can keep a known address out of PASSWORD
+    // sign-in for fifteen minutes at a time. A reset (which empties the window,
+    // below) and guest checkout still work.
+    $email = store_login_identity($body['email']);
+    if ($email === '__invalid_email__') store_fail('invalid_credentials', 401);
+    $account = store_rate_limit_hit($db, 'customer_login_identity', $email, 10, 900);
+    if (!$account['allowed']) store_rate_limit_fail($account['retry_after']);
     $user = customer_authenticate($db, $email, $body['password']);
     if ($user === null) store_fail('invalid_credentials', 401);
+    store_rate_limit_clear($db, 'customer_login_identity', $email);
     customer_sign_in($user);
     store_out(customer_public($user));
 }
@@ -74,11 +102,30 @@ if ($route === 'login') {
 if ($route === 'forgot_password') {
     // Known, unknown and malformed addresses receive the same response.
     $email = is_string($body['email'] ?? null) ? mb_strtolower(trim($body['email'])) : '';
+    // HOW MANY RESET MAILS ONE INBOX GETS, whoever asks and from wherever.
+    //
+    // This was store_throttle('customer_reset_email_<hash>', 5, 900), and
+    // store_throttle keys on the CLIENT, so it was per (email, address): a
+    // script spreading requests over many addresses could mail one customer
+    // without end — and the mail goes out from the shop's own mailbox, whose
+    // sending quota the warehouse's order mail shares.
+    //
+    // Two windows on the address alone, no client in the key: three an hour,
+    // ten a day. Both are counted on every request, and over either one the
+    // request is answered exactly like any other — {ok:true} — with no
+    // database work and no mail, so the limit cannot be used to learn whether
+    // the address has an account. The worst a stranger can do is use up one
+    // address's resets for a day; its password and guest checkout still work.
+    // The per-client window above (10 per 15 minutes) still applies.
     if (strlen($email) <= 254 && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        store_throttle($db, 'customer_reset_email_' . hash('sha256', $email), 5, 900);
-        $q = $db->prepare('select id, email from customer_accounts where email = ? limit 1');
-        $q->execute([$email]);
-        $user = $q->fetch(PDO::FETCH_ASSOC);
+        $hour = store_rate_limit_hit($db, 'customer_reset_email', $email, 3, 3600);
+        $day = store_rate_limit_hit($db, 'customer_reset_email_day', $email, 10, 86400);
+        $user = false;
+        if ($hour['allowed'] && $day['allowed']) {
+            $q = $db->prepare('select id, email from customer_accounts where email = ? limit 1');
+            $q->execute([$email]);
+            $user = $q->fetch(PDO::FETCH_ASSOC);
+        }
         if ($user) {
             $token = bin2hex(random_bytes(32));
             $db->beginTransaction();
@@ -87,8 +134,11 @@ if ($route === 'forgot_password') {
                     ->execute([(int)$user['id']]);
                 $db->prepare('insert into customer_password_resets (customer_id, token_hash, expires_at, request_ip)
                               values (?, ?, date_add(now(), interval 30 minute), ?)')
+                    // The CLIENT, not the proxy in front of the server (which
+                    // made every row the same value), and as an HMAC: a plain
+                    // SHA-256 of an IPv4 address is reversed by trying all 2^32.
                     ->execute([(int)$user['id'], hash('sha256', $token),
-                        hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? ''))]);
+                        store_rate_limit_key('customer_reset_ip', store_client_ip())]);
                 $db->commit();
             } catch (Throwable $e) {
                 if ($db->inTransaction()) $db->rollBack();
@@ -126,8 +176,10 @@ if ($route === 'reset_password') {
     if (!customer_password_valid($password)) store_fail('invalid_password');
     $db->beginTransaction();
     try {
-        $q = $db->prepare('select id, customer_id from customer_password_resets
-                            where token_hash = ? and used_at is null and expires_at > now()
+        $q = $db->prepare('select r.id, r.customer_id, a.email
+                             from customer_password_resets r
+                             join customer_accounts a on a.id = r.customer_id
+                            where r.token_hash = ? and r.used_at is null and r.expires_at > now()
                             limit 1 for update');
         $q->execute([hash('sha256', $token)]);
         $row = $q->fetch(PDO::FETCH_ASSOC);
@@ -144,6 +196,10 @@ if ($route === 'reset_password') {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+    // A reset is proof of the mailbox, so it empties the account's sign-in
+    // window: otherwise somebody keeping that window full would leave the
+    // customer holding a new password they cannot use for fifteen minutes.
+    store_rate_limit_clear($db, 'customer_login_identity', store_login_identity((string)$row['email']));
     // A reset can be opened while another customer is signed in on this
     // browser. Clear that session too so the UI and server agree afterward.
     customer_clear_session_if_present();
@@ -163,6 +219,15 @@ if ($route === 'change_password') {
     $current = is_string($body['current_password'] ?? null) ? $body['current_password'] : '';
     $next = is_string($body['new_password'] ?? null) ? $body['new_password'] : '';
     if (!customer_password_valid($next)) store_fail('invalid_password');
+    // PER ACCOUNT. The per-client window alone let somebody holding a stolen
+    // customer session rotate addresses and guess the current password without
+    // end. Five tries per fifteen minutes for the account, counted before the
+    // check; past that the session itself is ended, so whoever is guessing has
+    // to sign in again — with the password they are trying to find.
+    if (!store_rate_limit_hit($db, 'customer_change_password_account', (string)$user['id'], 5, 900)['allowed']) {
+        store_session_end();
+        store_fail('not_authenticated', 401);
+    }
     if (!customer_verify_password($current, (string)$user['password_hash'])) store_fail('invalid_credentials', 401);
     $db->beginTransaction();
     try {

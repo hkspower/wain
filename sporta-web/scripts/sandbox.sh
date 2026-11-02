@@ -81,8 +81,25 @@ return [
     'db_user'  => 'sporta',
     'db_pass'  => 'test-pass',
     'cron_key' => 'sandbox-cron-key-0123456789',
+    // The suites place orders back to back from one address; the one-order-
+    // a-minute cooldown is proven on its own store by test:order-cooldown.
+    'order_cooldown_seconds' => 0,
+    // Admin sessions in a scratch directory, never inside the repo.
+    'admin_session_dir' => '/tmp/sporta-sandbox-admin-sessions',
 ];
 PHP
+fi
+# A sandbox whose config.php predates the order cooldown gets the key added,
+# or every suite that places two orders in a minute would meet the 429.
+if ! grep -q "order_cooldown_seconds" "$SQL/config.php"; then
+  php -r '$f = $argv[1]; $s = file_get_contents($f);
+    $s = preg_replace("/\];\s*$/", "    \x27order_cooldown_seconds\x27 => 0,\n];\n", $s, 1);
+    file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add order_cooldown_seconds to the test config'
+fi
+if ! grep -q "admin_session_dir" "$SQL/config.php"; then
+  php -r '$f = $argv[1]; $s = file_get_contents($f);
+    $s = preg_replace("/\];\s*$/", "    \x27admin_session_dir\x27 => \x27/tmp/sporta-sandbox-admin-sessions\x27,\n];\n", $s, 1);
+    file_put_contents($f, $s);' "$SQL/config.php" || say '!! could not add admin_session_dir to the test config'
 fi
 if [ ! -f dropin/php-knet/config.php ]; then
   php -r '

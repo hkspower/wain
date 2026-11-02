@@ -41,6 +41,39 @@ $acquired = $lock->fetchColumn();
 if ((string)$acquired === '0') store_out(['claimed' => 0, 'sent' => 0, 'failed' => [], 'busy' => true]);
 if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 
+// ---- an order that is not happening is not mailed ----
+//
+// A cancelled order's UNSENT messages are closed without sending: marked sent,
+// with last_error 'order cancelled' so the row says why it never went. The
+// orders that matter here are the ones nobody meant — a bot's fake cash
+// orders, or cash orders cancelled because nobody confirmed them (see
+// store_stock_release) — which would otherwise queue up picking lists and go
+// out in one burst the day mail starts working.
+//
+// ONLY WHILE THE WAREHOUSE HAS HEARD NOTHING ABOUT THE ORDER. Once anything
+// for it has really been sent (a picking list, typically), a follow-up is the
+// one message that must not be dropped: it is the "do not ship". So an order
+// with any delivered message keeps every remaining one.
+//
+// Under the advisory lock above, so a second cron cannot claim these first.
+$db->beginTransaction();
+$suppress = $db->query(
+    "select f.id from fulfilment_outbox f
+       join orders o on o.id = f.order_id
+      where f.sent_at is null and f.attempts < 5
+        and o.fulfilment_status = 'cancelled'
+        and not exists (select 1 from fulfilment_outbox s
+                         where s.order_id = f.order_id and s.sent_at is not null
+                           and coalesce(s.last_error, '') <> 'order cancelled')
+      order by f.id limit 500"
+)->fetchAll(PDO::FETCH_COLUMN);
+if ($suppress) {
+    $ids = implode(',', array_map('intval', $suppress));
+    $db->exec("update fulfilment_outbox set sent_at = now(), last_error = 'order cancelled'
+                where id in ($ids) and sent_at is null");
+}
+$db->commit();
+
 // ---- claim ----
 $db->beginTransaction();
 $rows = $db->query(
@@ -69,7 +102,8 @@ foreach ($rows as $row) {
 $unlock = $db->prepare('select release_lock(?)');
 $unlock->execute([$lockName]);
 
-store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed]);
+store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed,
+           'suppressed' => count($suppress)]);
 
 // ---------------------------------------------------------------------------
 

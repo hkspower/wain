@@ -38,6 +38,27 @@ $path = parse_url((string) $_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '';
 $body = json_decode((string) file_get_contents('php://input'), true) ?: [];
 $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
 
+// HOW OFTEN EACH CBK ENDPOINT WAS CALLED, so a test can prove what one request
+// to the shop costs the bank (an unauthenticated callback must not fan out
+// into several CBK calls). GET /__calls reads the counts; /__calls?reset=1
+// zeroes them. A file, like the transactions, and locked, because the shop's
+// server runs several workers.
+$CALLS = sys_get_temp_dir() . '/fake-cbk-calls.json';
+$count = function (string $what) use ($CALLS) {
+    $fh = fopen($CALLS, 'c+');
+    if (!$fh) return;
+    flock($fh, LOCK_EX);
+    $n = json_decode((string) stream_get_contents($fh), true) ?: [];
+    $n[$what] = ($n[$what] ?? 0) + 1;
+    ftruncate($fh, 0); rewind($fh); fwrite($fh, json_encode($n));
+    flock($fh, LOCK_UN); fclose($fh);
+};
+if ($path === '/__calls') {
+    header('Content-Type: application/json');
+    if (isset($_GET['reset'])) { @unlink($CALLS); exit('{}'); }
+    exit(is_file($CALLS) ? (string) file_get_contents($CALLS) : '{}');
+}
+
 $fail = function (int $code, string $msg) {
     http_response_code($code);
     header('Content-Type: application/json');
@@ -52,6 +73,7 @@ if (str_contains($path, '/api/cbk/')) {
 
 // ------------------------------------------------------------- Authenticate
 if (str_ends_with($path, '/merchant/Authenticate')) {
+    $count('Authenticate');
     if (($body['ENCRP_KEY'] ?? '') !== $cfg['encrp_key']) $fail(400, 'bad ENCRP_KEY');
     header('Content-Type: application/json');
     exit(json_encode(['Status' => '1', 'Message' => 'Success', 'AccessToken' => 'FAKETOKEN-' . bin2hex(random_bytes(6))]));
@@ -126,6 +148,7 @@ if ($path === '/stale-once') {
 if (str_contains($path, '/GetTransactions/')) {
     $parts = array_values(array_filter(explode('/', $path)));
     $encrp = rawurldecode((string) ($parts[count($parts) - 2] ?? ''));
+    $count('GetTransactions');
     $txns = $load();
     header('Content-Type: application/json');
     if (!empty($txns['_stale_once'])) {
@@ -133,7 +156,14 @@ if (str_contains($path, '/GetTransactions/')) {
         $save($txns);
         exit(json_encode(['Status' => '0', 'Message' => 'Invalid']));
     }
-    if (!isset($txns[$encrp])) exit(json_encode(['Status' => '0', 'Message' => 'unknown transaction']));
+    // A handle starting STALE always gets Status 0, "Invalid Access.
+    // Re-generate new API key" — however fresh the key — so a test can send
+    // several in a row.
+    if (str_starts_with($encrp, 'STALE')) exit(json_encode(['Status' => '0', 'Message' => 'Invalid Access']));
+    // An encrp the gateway never issued is -1, "Error/Invalid {encrp}"
+    // (manual, p.14). It used to answer 0 here, which is the stale-KEY answer,
+    // and that hid the difference the callback now acts on.
+    if (!isset($txns[$encrp])) exit(json_encode(['Status' => '-1', 'Message' => 'Error/Invalid encrp']));
     $t = $txns[$encrp];
     unset($t['_sent']);
     exit(json_encode($t));

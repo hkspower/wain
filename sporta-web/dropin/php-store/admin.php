@@ -21,13 +21,14 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $db = store_db();
 
 // ---------------------------------------------------------------- throttling
-// This file had NONE, and the login lockout is not a substitute for it.
+// This file had NONE, and the login windows are not a substitute for it.
 //
-// That lockout is PER ACCOUNT — five failures freeze one email for fifteen
-// minutes. It says nothing about an attacker who sprays one guess across a
-// hundred addresses, or who simply hammers ?r=me (unauthenticated, and it runs
-// a count over admin_users on every call). Neither is slowed by an account
-// lock, and both are free database load on shared hosting.
+// Those windows are PER ACCOUNT (and, for a browser the owner has signed in
+// from, per account and browser) — five failures per fifteen minutes. They
+// say nothing about an attacker who sprays one guess across a hundred
+// addresses, or who simply hammers ?r=me (unauthenticated, and it runs a count
+// over admin_users on every call). Neither is slowed by an account window,
+// and both are free database load on shared hosting.
 //
 // The ceiling is deliberately high. An admin opening the dashboard fires a
 // dozen requests before they have touched anything — stats, revenue, orders,
@@ -35,9 +36,11 @@ $db = store_db();
 // removed. This is a bound on machines, not on people.
 //
 // LOGIN ATTEMPTS are counted separately inside store_login() before password
-// hashing: one bucket follows the client and one the normalised email. A valid
-// password clears only its email bucket; it never clears the client spray
-// bucket. Signed-in dashboard requests never touch either login bucket.
+// hashing: one bucket follows the client and one the normalised email (or the
+// email plus this browser's device cookie). A wrong password locks no account
+// row — only wrong phone codes do. A valid password clears only the account
+// bucket it was charged to; it never clears the client spray bucket.
+// Signed-in dashboard requests never touch either login bucket.
 store_throttle($db, 'admin', 240, 60);
 
 if ($r === 'google_available' && $method === 'GET') {
@@ -179,7 +182,7 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
         // The address counter is used for delivery suppression only: known and
         // unknown addresses still receive the same generic 200 response.
         $clientRate = store_rate_limit_hit(
-            $db, 'admin_password_reset_ip', store_client_ip(), 8, 900
+            $db, 'admin_password_reset_ip', store_client_identity(), 8, 900
         );
         $emailRate = $validEmail
             ? store_rate_limit_hit($db, 'admin_password_reset_identity', $email, 3, 1800)
@@ -188,81 +191,98 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
             store_rate_limit_fail($clientRate['retry_after']);
         }
 
-        // Keep reset credentials and used rows bounded without a cron. The
-        // account index serves normal lookups; this small capped sweep removes
-        // only credentials that have been unusable for at least a day.
-        if (random_int(1, 20) === 1) {
-            $db->exec(
-                'delete from admin_password_resets
-                  where (expires_at < date_sub(now(), interval 1 day))
-                     or (used_at is not null and used_at < date_sub(now(), interval 1 day))
-                  limit 200'
-            );
-        }
+        // THE ANSWER GOES OUT BEFORE THE WORK. Everything below — the lookup,
+        // the token, the mail relay — happens only for a real account, and
+        // done first it made a real address answer measurably slower than an
+        // unknown one: the response time said which addresses were admins.
+        // Now every address gets the same {ok:true} at the same moment, and
+        // the work happens after it (see store_out_early). The per-address
+        // window above still caps mail to one admin at three per half hour.
+        store_out_early(['ok' => true]);
+        try {
+            // Keep reset credentials and used rows bounded without a cron. The
+            // account index serves normal lookups; this small capped sweep
+            // removes only credentials that have been unusable for a day.
+            if (random_int(1, 20) === 1) {
+                $db->exec(
+                    'delete from admin_password_resets
+                      where (expires_at < date_sub(now(), interval 1 day))
+                         or (used_at is not null and used_at < date_sub(now(), interval 1 day))
+                      limit 200'
+                );
+            }
 
-        if ($validEmail && $emailRate['allowed']) {
-            $q = $db->prepare('select id, email from admin_users where email = ? limit 1');
-            $q->execute([$email]);
-            $user = $q->fetch();
-            if ($user) {
-                $raw = bin2hex(random_bytes(32));
-                $hash = hash('sha256', $raw);
-                $db->prepare(
-                    'insert into admin_password_resets (admin_id, token_hash, expires_at, request_ip)
-                     values (?, ?, date_add(now(), interval 30 minute), ?)'
-                )->execute([
-                    (int)$user['id'],
-                    $hash,
-                    hash('sha256', store_client_ip()),
-                ]);
-                $newResetId = (int)$db->lastInsertId();
-
-                $cfg = store_config();
-                $base = trim((string)($cfg['admin_reset_url'] ?? 'https://www.sporta.com.kw/backends'));
-                // This is a configured origin/path, never a request Host
-                // header.  A malformed setting is ignored rather than creating
-                // a link to an attacker-controlled host.
-                $parts = parse_url($base);
-                if (($parts['scheme'] ?? '') !== 'https'
-                    || !in_array(strtolower((string)($parts['host'] ?? '')), ['sporta.com.kw', 'www.sporta.com.kw'], true)) {
-                    $base = 'https://www.sporta.com.kw/backends';
-                }
-                // Fragments are not sent to the web server, proxy access log
-                // or HTTP referrer. AdminApp consumes and removes this token
-                // immediately. Query-string links from older emails continue
-                // to work in the client for backwards compatibility.
-                $base = explode('#', $base, 2)[0];
-                $link = $base . '#reset=' . rawurlencode($raw);
-                $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $subject = 'Sporta Backends password reset';
-                $text = "A password reset was requested for your Sporta Backends account.\n\n"
-                      . "Open this link within 30 minutes to choose a new password:\n{$link}\n\n"
-                      . "If you did not request this, you can ignore this email. Your password will not change.\n";
-                $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
-                      . '<h2>Reset your Sporta Backends password</h2>'
-                      . '<p>This link expires in 30 minutes and can be used once.</p>'
-                      . '<p><a href="' . $safeLink . '" style="display:inline-block;background:#99452b;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Choose a new password</a></p>'
-                      . '<p style="font-size:13px;color:#64748b">If you did not request this, ignore this email. Your password will not change.</p>'
-                      . '</div>';
-                $mailCfg = $cfg;
-                $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
-                if (store_send_admin_mail($mailCfg, (string)$user['email'], $subject, $text, $html)) {
-                    // Only invalidate older links after the replacement was
-                    // actually delivered. A mail outage must not destroy the
-                    // last usable recovery email.
+            if ($validEmail && $emailRate['allowed']) {
+                $q = $db->prepare('select id, email from admin_users where email = ? limit 1');
+                $q->execute([$email]);
+                $user = $q->fetch();
+                if ($user) {
+                    $raw = bin2hex(random_bytes(32));
+                    $hash = hash('sha256', $raw);
                     $db->prepare(
-                        'update admin_password_resets set used_at = now()
-                          where admin_id = ? and id <> ? and used_at is null'
-                    )->execute([(int)$user['id'], $newResetId]);
-                } else {
-                    // Keep the generic browser response to prevent account
-                    // enumeration, but remove the undelivered credential.
-                    $db->prepare('delete from admin_password_resets where id = ?')->execute([$newResetId]);
-                    error_log('Sporta admin password reset mail failed');
+                        'insert into admin_password_resets (admin_id, token_hash, expires_at, request_ip)
+                         values (?, ?, date_add(now(), interval 30 minute), ?)'
+                    )->execute([
+                        (int)$user['id'],
+                        $hash,
+                        // An HMAC of the client, not a plain SHA-256: every
+                        // IPv4 address hashed plainly is recovered by trying
+                        // all 2^32 of them.
+                        store_rate_limit_key('admin_reset_ip', store_client_ip()),
+                    ]);
+                    $newResetId = (int)$db->lastInsertId();
+
+                    $cfg = store_config();
+                    $base = trim((string)($cfg['admin_reset_url'] ?? 'https://www.sporta.com.kw/backends'));
+                    // This is a configured origin/path, never a request Host
+                    // header.  A malformed setting is ignored rather than
+                    // creating a link to an attacker-controlled host.
+                    $parts = parse_url($base);
+                    if (($parts['scheme'] ?? '') !== 'https'
+                        || !in_array(strtolower((string)($parts['host'] ?? '')), ['sporta.com.kw', 'www.sporta.com.kw'], true)) {
+                        $base = 'https://www.sporta.com.kw/backends';
+                    }
+                    // Fragments are not sent to the web server, proxy access
+                    // log or HTTP referrer. AdminApp consumes and removes this
+                    // token immediately. Query-string links from older emails
+                    // continue to work in the client for backwards compatibility.
+                    $base = explode('#', $base, 2)[0];
+                    $link = $base . '#reset=' . rawurlencode($raw);
+                    $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    $subject = 'Sporta Backends password reset';
+                    $text = "A password reset was requested for your Sporta Backends account.\n\n"
+                          . "Open this link within 30 minutes to choose a new password:\n{$link}\n\n"
+                          . "If you did not request this, you can ignore this email. Your password will not change.\n";
+                    $html = '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033">'
+                          . '<h2>Reset your Sporta Backends password</h2>'
+                          . '<p>This link expires in 30 minutes and can be used once.</p>'
+                          . '<p><a href="' . $safeLink . '" style="display:inline-block;background:#99452b;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700">Choose a new password</a></p>'
+                          . '<p style="font-size:13px;color:#64748b">If you did not request this, ignore this email. Your password will not change.</p>'
+                          . '</div>';
+                    $mailCfg = $cfg;
+                    $mailCfg['mail_from'] = store_admin_recovery_sender($cfg);
+                    if (store_send_admin_mail($mailCfg, (string)$user['email'], $subject, $text, $html)) {
+                        // Only invalidate older links after the replacement was
+                        // actually delivered. A mail outage must not destroy
+                        // the last usable recovery email.
+                        $db->prepare(
+                            'update admin_password_resets set used_at = now()
+                              where admin_id = ? and id <> ? and used_at is null'
+                        )->execute([(int)$user['id'], $newResetId]);
+                    } else {
+                        // The browser already has its generic answer; remove
+                        // the undelivered credential.
+                        $db->prepare('delete from admin_password_resets where id = ?')->execute([$newResetId]);
+                        error_log('Sporta admin password reset mail failed');
+                    }
                 }
             }
+        } catch (Throwable $e) {
+            // The response has been sent. Nothing may follow it, and the
+            // reason belongs in the server log only.
+            error_log('Sporta admin password reset failed after response: ' . get_class($e));
         }
-        store_out(['ok' => true]);
+        exit;
     }
 
     // Reset requests are throttled separately above.  Token submissions need
@@ -301,6 +321,13 @@ if (($r === 'forgot_password' || $r === 'reset_password') && $method === 'POST')
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+    // A reset is proof of the mailbox, so it also empties the account's
+    // SHARED sign-in window. Otherwise a stranger who keeps that window full
+    // (five wrong passwords every fifteen minutes) would leave the owner, on
+    // a browser they have never signed in from, holding a brand-new password
+    // they cannot use. Browsers with a device cookie never needed this; a
+    // reset is how a new browser gets in. The client window is left alone.
+    store_rate_limit_clear($db, 'admin_login_identity', store_login_identity((string)$row['email']));
     store_out(['ok' => true]);
 }
 

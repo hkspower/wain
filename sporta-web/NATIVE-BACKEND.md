@@ -20,7 +20,7 @@ but it now holds only endpoints, all of which have working defaults:
 window.SPORTA_CONFIG = {}   // correct as-is: /api, /knet and /pay are the defaults
 ```
 
-`npm run test:native` (194 checks) and `npm run test:native-e2e` (20 browser
+`npm run test:native` (295 checks) and `npm run test:native-e2e` (26 browser
 checks) prove the contract against a real MariaDB and a real browser.
 
 ## What ships where
@@ -155,11 +155,23 @@ be a discount off nothing.
 **The discount endpoint is throttled.** `?r=discount` answers "is this code
 real?" to anyone, which makes it an oracle — and an unthrottled oracle is a
 code generator: a script walks SAVE10, SAVE15, SAVE20 and finds every live
-discount in seconds. Thirty FAILED lookups from one address in ten minutes is
-the wall. Only failures are counted, so a customer re-checking a basket with a
-code that works is never affected. The counter lives in the `rate_limit` table,
-keyed by a hash of the IP (this is abuse control, not a visitor log) and swept
-opportunistically, so it needs no cron.
+discount in seconds. Thirty FAILED lookups from one client in ten minutes is
+the wall, and the order route shares the same budget when a code is typed.
+Only failures are counted, so a customer re-checking a basket with a code that
+works costs nothing — but once a client is at the wall, EVERY lookup from it is
+refused, right codes included, because a 429 that only wrong codes get would
+itself say "wrong". The counter lives in the `rate_limit` table, keyed by an
+HMAC of the client (this is abuse control, not a visitor log) and swept
+opportunistically, so it needs no cron. See "Rate limits" below for the rest.
+
+**A cancelled order gives its discount uses back.** A limited code is claimed
+inside the order's transaction; an order that never happens (declined,
+abandoned at the bank, an expired cash order, cancelled) now returns its uses
+when `cron-stock.php --release` sweeps it, once, guarded by
+`orders.discount_released`. Paid orders keep theirs. Needs
+`api/discount-release.mysql.sql` imported (already in `schema.mysql.sql` and
+`install.mysql.sql`); until it is, nothing is recorded and nothing is given
+back.
 
 **The admin session cookie is Secure behind the proxy.** Hostinger terminates
 TLS at a proxy, so PHP sees plain HTTP on a request the browser made over
@@ -209,11 +221,55 @@ downscales the image to 320px in the browser before sending it, so a photo
 straight off a phone is fine. PNG, JPEG and WebP only — never SVG, which is a
 document that can carry script and would be served from our own origin.
 
+## Rate limits
+
+Every counter is a row in `rate_limit`, keyed by an HMAC (`rate_limit_secret`,
+or a key derived from the DB credentials when it is unset), in a fixed window.
+**Per client** means the address `trusted_proxy_ips` lets the server see — an
+IPv4 address as it is, an IPv6 client by its **/64** (a phone can use any
+address in its /64; an IPv4-mapped address counts as the IPv4 it carries).
+**Per account** means the normalised email or the account id, from any
+address — the limits that used to say "per email" were really per (email,
+address), and rotating addresses walked straight past them. One
+implementation, in `api/config-path.php`, shared by the store, KNET and T-Pay.
+
+| Where | Limit | Over it |
+|---|---|---|
+| `api.php` every route | per route (`$STORE_LIMITS`); unlisted routes 60/min | 429 `too_many_attempts` |
+| `api.php?r=order` | 20 / 10 min per client; **20 units per order, 10 per size**, every payment method | 400 `order_too_large` |
+| `api.php?r=order`, the next order | **one order a minute** (`order_cooldown_seconds`, default 60, 0 = off): after an ACCEPTED order, the same client and the same phone get no NEW order for 60 s, sliding from the order's own second. A retry of the same attempt (same `track_id`) still gets its order back; an order the bank declined or the shop cancelled holds nothing. Proven by `npm run test:order-cooldown` | 429 `previous_order_pending` + `retry_after` (the live checkout words it "an earlier attempt may already have created an order") |
+| `api.php?r=discount`, and `?r=order` with a code | 30 FAILED codes / 10 min per client, one budget for both; once full, every lookup is refused | 429 |
+| cash on delivery | 3 open orders per phone; an order still pending + unfulfilled after `cod_hold_hours` (default 24, 0 = off) is cancelled and its stock put back | 409 `too_many_open_cod` |
+| admin sign-in, password | 20 / 15 min per client; 5 / 15 min per account — or, on a browser that has signed in before (`sporta_dev` cookie, 180 days), 5 / 15 min for that browser. A wrong password locks no account. A reset empties the account window. | 429 `too_many_attempts` |
+| admin sign-in, phone code | 10 / 5 min per client; 5 wrong codes lock the account 15 min; at most 20 code checks per account per day (recovery codes exempt); the account is emailed once per lock and once per day | 429 `locked` |
+| admin `forgot_password` | 8 / 15 min per client; 3 mails / 30 min per address; answered before any lookup, so timing says nothing | 429 (client) / silent (address) |
+| customer `login` | 20 / 15 min per client; 10 / 15 min per account; a reset empties the account window | 429 |
+| customer `forgot_password` | 10 / 15 min per client; 3 mails an hour and 10 a day per address | silent: `{ok:true}` either way |
+| customer `change_password` | 10 / 15 min per client; 5 / 15 min per account, then the session is ended | 401 `not_authenticated` |
+| `/pay/pay.php` (T-Pay) | 10 starts / min per client; 10 attempts per order (`CBK_MAX_ATTEMPTS`), refused before any call to CBK | 429 text |
+| `/pay/callback.php` (T-Pay) | 30 / min per client; a bad `encrp` (Status −1) is never retried; a stale key (Status 0) earns one fresh key per 10 minutes | 429 text |
+
+**Behind a proxy, `trusted_proxy_ips` must name it** (on the VPS, Traefik's
+network). With it empty every shopper is one client, and every per-client
+limit above is shared by the whole shop. KNET and T-Pay read it from the
+store's config. Reset rows (`request_ip`) and the payment logs record the
+client the same way.
+
 ## Day to day
 
 - **Admin:** `https://www.sporta.com.kw/backends` — email + password (session
-  cookie, HttpOnly, SameSite=Strict; 5 wrong passwords lock the account for
-  15 minutes). Orders, inventory, stats, COD settlement all read MySQL.
+  cookie, HttpOnly, SameSite=Strict; password attempts are limited per
+  account and per browser — see "Rate limits"; five wrong phone codes lock the
+  account for 15 minutes). **A browser stays signed in 30 days; 7 days without
+  use signs it out** (`STORE_ADMIN_ABSOLUTE_SECONDS` / `_IDLE_SECONDS`);
+  sign-out, a password reset or a change to the authenticator ends every
+  session at once. The cookie is persistent, and the session files live in a
+  directory of their own above the web root (`admin_session_dir`, else
+  `/var/lib/sporta/admin-sessions` on the VPS, else the account home, else the
+  temp dir) with PHP's sweep set to the same 30 days: PHP's default sweep
+  (24 minutes, in a path every session shares) used to sign an idle admin out
+  long before the coded expiry. Proven by `npm run test:admin-session`.
+  Orders, inventory, stats, COD settlement all read MySQL.
 - **Stock:** edit in the admin's Inventory tab, or directly in phpMyAdmin
   (`product_variants.stock`).
 - **New products:** edit the catalogue
@@ -224,7 +280,8 @@ document that can carry script and would be served from our own origin.
 ## What went with the old backend
 
 - **Device passcode quick-unlock.** It was built on hosted RPCs. The admin
-  login is email + password, with a five-failure fifteen-minute lock.
+  login is email + password (plus a phone code where MFA is on), limited as
+  described under "Rate limits".
 - **Image uploads.** Product images ship with the site in `dist/` and category
   photos are uploaded in File Manager; brand logos are `data:` URIs in the
   database row. Nothing writes to the web root at runtime, by design.

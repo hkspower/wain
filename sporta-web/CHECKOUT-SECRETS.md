@@ -69,6 +69,9 @@ Copy `api/config.example.php` → `api/config.php`.
 | `mail_from` | an address on `sporta.com.kw` | mail is sent as the server's default and lands in spam |
 | `mail_reply_to` | `cs@sporta.com.kw` | the warehouse cannot reply to a human |
 | `cron_key` | invent one — 32+ random characters | the fulfilment cron is either open to the internet or refuses to run |
+| `trusted_proxy_ips` | the proxy in front of PHP — on the VPS, Traefik's network; empty on shared hosting | behind a proxy, **every shopper counts as one client**: one shopper's typos fill the discount, order and T-Pay limits for everybody, and the KNET/T-Pay logs name the proxy instead of the payer. KNET and T-Pay read this key from here |
+| `rate_limit_secret` | optional — 32+ random characters | nothing breaks: limiter keys derive from the DB credentials instead. Setting it later restarts every counter and makes each admin browser "new" until its next sign-in. T-Pay reads it from here |
+| `cod_hold_hours` | optional — default 24, `0` = off | a cash order nobody marks packed within the hold is **cancelled** and its stock put back by `cron-stock.php --release` |
 
 **Verify:** `https://www.sporta.com.kw/backends` signs in and Orders loads.
 
@@ -124,6 +127,11 @@ not work here and T-Pay credentials do not work in `/knet`.
 | **the four `mysql_*`** | same values as `api/config.php`, renamed | **every T-Pay payment refused** and nothing recorded |
 | `token_cache_file` | leave as-is — **above** `public_html` | a live bearer token becomes fetchable over HTTP |
 | `log_file` | leave as-is (above `public_html`) | no audit trail — disputes cannot be settled |
+
+T-Pay's limits (10 starts a minute and 30 returns a minute per client, 10
+attempts per order) are counted in the store's `rate_limit` table through
+`api/config-path.php`, keyed with the store's `rate_limit_secret` and seeing
+clients through the store's `trusted_proxy_ips` — neither goes in this file.
 
 **Verify:** place a 0.100 KWD test order, choose T-Pay, and confirm the order
 turns `paid` in the admin.

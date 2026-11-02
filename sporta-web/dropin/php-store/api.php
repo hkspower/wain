@@ -277,6 +277,12 @@ if ($r === 'checkout_config') {
 // answer would be a preview the checkout could not honour. The number this
 // returns is the number create_order will compute, because it is the same code.
 if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    // FIRST, before the body is read or a code is looked at: a client that has
+    // already used up its wrong guesses is refused whatever it sends now, RIGHT
+    // codes included. Otherwise the 429 is itself the answer — wrong codes get
+    // 429, right codes get 200 — and the limiter becomes the oracle it was
+    // meant to close. See store_discount_gate().
+    store_discount_gate($db);
     $b = store_body(32768);
     $items = is_array($b['items'] ?? null) ? $b['items'] : [];
     if (count($items) === 0 || count($items) > 50) store_fail('empty_cart');
@@ -290,7 +296,7 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // is given. A shopper re-checking a basket with a code that works is
         // not guessing; a script walking SAVE10, SAVE15, SAVE20 is, and thirty
         // wrong answers in ten minutes is far past anyone typing by hand.
-        store_throttle($db, 'discount', 30, 600);
+        store_discount_failed($db);
         store_fail($res['error']);
     }
 
@@ -737,6 +743,27 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $flat     = store_checkout_optional($customer['flat'] ?? null, 'flat', 16);
     $note     = store_checkout_optional($customer['note'] ?? null, 'note', 280);
 
+    // ONE ORDER A MINUTE, per client and per phone: see
+    // store_order_cooldown_left() in store.php for what it covers and what it
+    // deliberately does not (a retry of this same attempt; a declined card).
+    // After every field is validated, so a typo is reported as a typo; before
+    // pricing, so a refused order costs no stock or discount reads.
+    $cooldown   = store_order_cooldown_seconds();
+    $cooldownId = store_client_identity();
+    if ($cooldown > 0) {
+        if (!store_order_cooldown_lock($db, $cooldownId)) {
+            store_rate_limit_fail($cooldown, 'previous_order_pending');
+        }
+        // Under the lock, ask the idempotency question again: a second tap of
+        // THIS attempt that waited here while the first one committed must get
+        // that order back, not a cooldown.
+        $q->execute([$track]);
+        if ($existing = $q->fetch()) $returnExisting($existing, $track, $method);
+        if ($left = store_order_cooldown_left($db, $cooldownId, $phone, $cooldown)) {
+            store_rate_limit_fail($left, 'previous_order_pending');
+        }
+    }
+
     // Ownership is derived only from a verified HttpOnly customer session.
     // The checkout body has no customer ID; old clients and guests remain
     // guests. A browser from another origin cannot set this custom header
@@ -756,6 +783,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // rolled-back mystery. Prices come from the table; the browser named only
     // slugs, sizes and quantities.
     $lines = store_price_lines($db, $items);
+    // AND HOW MUCH OF THE SHOP ONE ORDER MAY HOLD — every payment method, see
+    // store_order_size_guard(). Before the transaction, so an oversized cart
+    // is refused before a single garment is claimed.
+    store_order_size_guard($lines);
 
     // The discount, decided here and nowhere else. The browser may send a
     // CODE; it may never send an amount. orders.amount is what /knet/pay.php
@@ -765,8 +796,18 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // actively wants to be larger.
     $subtotalFils = array_sum(array_column($lines, 'line_fils'));
     if ($subtotalFils <= 0) store_fail('zero_amount');
-    $disc = store_discounts_for($db, $lines, $subtotalFils, store_input_string($b['discount_code'] ?? null, 'discount_code', 80));
-    if ($disc['error'] !== null) store_fail($disc['error']);
+    $discountCode = store_input_string($b['discount_code'] ?? null, 'discount_code', 80);
+    // The order takes a code too, so it is a second way to ask "is this code
+    // real?" — and it shares ?r=discount's ONE failure budget, or a script
+    // could alternate between the two routes for twice the guesses. Peeked
+    // only when a code was actually typed: an order without one is not a
+    // guess, and must never be refused because of somebody else's guessing.
+    if (trim($discountCode) !== '') store_discount_gate($db);
+    $disc = store_discounts_for($db, $lines, $subtotalFils, $discountCode);
+    if ($disc['error'] !== null) {
+        store_discount_failed($db);
+        store_fail($disc['error']);
+    }
     $discountFils = $disc['total_fils'];
     // Goods after the discount, BEFORE delivery. Checked on its own because a
     // 100%-off order would otherwise still look healthy — the delivery fee
@@ -802,6 +843,14 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         if ($refusal = store_order_guard($db, $phone, $method)) {
             $rejectOrder($refusal[0], $refusal[1]);
+        }
+        // The phone again, inside the transaction: two devices on two
+        // addresses are two different client locks. (A COD order holds the
+        // phone's lock here too, so for cash this read is exact.)
+        if ($cooldown > 0 && ($left = store_order_cooldown_left($db, $cooldownId, $phone, $cooldown))) {
+            $db->rollBack();
+            if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+            store_rate_limit_fail($left, 'previous_order_pending');
         }
         $db->prepare(
             'insert into orders (track_id, customer_account_id, payment_status, payment_method,
@@ -904,6 +953,21 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             store_kwd($deliveryFils),
             $code, $label === '' ? null : mb_substr($label, 0, 200), $orderId,
         ]);
+        // WHICH RULES THIS ORDER USED, so an order that never happens can give
+        // the uses back (store_discount_release). Every applied rule, the
+        // automatic ones too: store_discounts_claim() counted a use against
+        // each. Skipped, not failed, on a database that has not had
+        // discount-release.mysql.sql imported yet.
+        if ($disc['applied'] && store_column_exists($db, 'orders', 'discount_ids')) {
+            $db->prepare('update orders set discount_ids = ? where id = ?')->execute([
+                json_encode(array_values(array_map('intval', array_column($disc['applied'], 'id')))),
+                $orderId,
+            ]);
+        }
+
+        // The cooldown starts with the order, in its transaction: a rolled
+        // back order starts none.
+        store_order_cooldown_start($db, $cooldownId, $orderId, $cooldown);
 
         // The warehouse message, in the SAME transaction as the order — the
         // whole point of the outbox. If the order exists, its message exists.

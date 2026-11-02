@@ -8,6 +8,16 @@ require __DIR__ . '/cbk.php';
 cbk_require_https(); // payments must never run over plain HTTP
 $cfg = cbk_with_store_db(cbk_load_config(__DIR__ . '/config.php'));
 
+// Ten starts a minute per client, before anything else is read. Every start
+// that gets through costs one Authenticate call to CBK under the shop's own
+// credentials, and none of this needs more than a track id, so with no limit a
+// loop here was a way to hammer the bank's merchant API from this server.
+// See also CBK_MAX_ATTEMPTS, the ceiling per ORDER.
+if (($rate = cbk_rate_hit($cfg, 'tpay_pay', 10, 60)) !== null && !$rate['allowed']) {
+    cbk_log($cfg, 'pay.reject', ['reason' => 'rate_limited']);
+    cbk_rate_refuse($rate, 'Too many payment attempts. Please wait a minute and try again.');
+}
+
 // Read only GET/POST explicitly. $_REQUEST can include cookies depending on
 // the host's request_order setting; a cookie must never choose an order or the
 // language sent to a payment gateway.
@@ -83,9 +93,18 @@ $amount = cbk_format_fils($fils);
 
 try {
     cbk_assert_payment_config($cfg);
+    // The attempt FIRST, then the key: the attempt is where the per-order
+    // ceiling is enforced (CBK_MAX_ATTEMPTS), and a refused attempt must cost
+    // the bank nothing. The other way round, every refused start still minted
+    // a fresh AccessToken.
+    $attemptTrack = cbk_attempt_ref($cfg, $trackid);
     // Fresh key for every checkout, per CBK's manual (see cbk_get_access_token).
     $token = cbk_get_access_token($cfg, true);
-    $attemptTrack = cbk_attempt_ref($cfg, $trackid);
+} catch (CbkTooManyAttempts $e) {
+    cbk_log($cfg, 'pay.reject', ['reason' => 'too_many_attempts', 'trackid' => $trackid]);
+    http_response_code(429);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('Too many payment attempts. Start a new checkout.');
 } catch (Throwable $e) {
     cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
     http_response_code(502);

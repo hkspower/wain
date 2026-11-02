@@ -26,6 +26,9 @@ return [
     'admin_mail_from' => 'cs@sporta.com.kw',
     // Customer password recovery uses this verified mailbox, independently
     // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
+    // Better a mailbox of its own (noreply@): anyone can ask for a reset, and
+    // although one address gets at most 3 an hour and 10 a day, reset mail
+    // sent from cs@ uses up the same sending quota the warehouse mail needs.
     'customer_mail_from' => 'cs@sporta.com.kw',
     // HTTPS page used in admin password-reset emails. Keep this on Sporta's
     // own origin; the API validates it before creating a link.
@@ -39,13 +42,19 @@ return [
     'google_oauth_client_secret' => '',
 
     // ---- Abuse controls (optional, server-only) ----
-    // Used to HMAC IP/account rate-limit keys. Generate a long random value.
+    // Used to HMAC IP/account rate-limit keys, reset-request addresses and the
+    // admin's sporta_dev browser cookie. Generate a long random value.
     // Existing installs safely derive a private fallback from their DB config,
     // but setting this keeps the limiter independent of future DB rotation.
+    // Setting or changing it later is safe: counters start again, and each
+    // admin browser is treated as new until its next sign-in. T-Pay (pay/)
+    // reads this value from here; do not copy it into pay-config.php.
     'rate_limit_secret' => '',
     // Trust X-Forwarded-For only when the direct REMOTE_ADDR is one of these
     // exact IPs or CIDRs. Leave empty on ordinary/shared hosting. On a reverse
-    // proxy deployment, list only the proxy network you administer.
+    // proxy deployment, list only the proxy network you administer. KNET and
+    // T-Pay read this list from here too (payment logs, T-Pay's limits), so
+    // with it empty behind a proxy every shopper counts as one client.
     'trusted_proxy_ips' => [],
 
     // ---- Cron shared secret ----
@@ -54,6 +63,36 @@ return [
     //   wget -qO- "https://www.sporta.com.kw/api/cron-fulfilment.php?key=PASTE_THE_SAME_VALUE"
     // Any long random string. Change it here and in the cron line together.
     'cron_key' => '',
+
+    // ---- Stock holds (cron-stock.php --release, every 15 minutes) ----
+    // Stock is reserved when the order is placed. These say how long an
+    // order that never completes may keep it.
+    //   stock_hold_minutes  a KNET / T-Pay order whose customer never came
+    //                       back from the bank. Default 120, minimum 15.
+    //   cod_hold_hours      a CASH ON DELIVERY order still 'pending' and still
+    //                       'unfulfilled' this many hours after it was placed
+    //                       is CANCELLED and its stock put back. Default 24
+    //                       when this line is absent or ''; 0 switches it
+    //                       off. Mark a real cash order 'packed' in /backends
+    //                       within the hold and it is never touched — nor is
+    //                       anything packed, shipped, delivered or paid.
+    'stock_hold_minutes' => 120,
+    'cod_hold_hours'     => 24,
+
+    // ---- One order a minute ----
+    // After an order is ACCEPTED, the same client (address; IPv6 by /64) and
+    // the same phone get no NEW order for this many seconds: 429
+    // previous_order_pending. A retry of the same attempt is never refused,
+    // and a declined or cancelled order holds nothing. Default 60 when absent
+    // or ''; 0 switches it off; at most 3600.
+    'order_cooldown_seconds' => 60,
+
+    // ---- Where admin sessions live (optional) ----
+    // A directory of their own, ABOVE the web root, so PHP's sweep for other
+    // sessions (24 minutes by default) cannot sign the admin out. Leave ''
+    // for the automatic choice: /var/lib/sporta/admin-sessions on the VPS,
+    // else sporta-admin-sessions in the account home, else the temp dir.
+    'admin_session_dir' => '',
 
     // ---------------------------------------------------- سبورتا AI (optional)
     //
@@ -70,7 +109,11 @@ return [
     // effort, which keeps a rewording inside the 6-second budget; any other
     // model is sent the plain request, because some reject those two fields.
     // A reply that adds a number, an order number, a link or an email the
-    // shop did not say, or is cut off, is thrown away for the shop's own.
+    // shop did not say — or DROPS one it did, drops a condition (women's
+    // clothing, unworn with tags, confirmed orders), runs past 1.3x the shop's
+    // own sentence, or writes Arabic in Western digits — or is cut off, is
+    // thrown away for the shop's own. Arabic is asked for in a Kuwaiti/Gulf
+    // register, as the shop's own sentences are written.
     'ai_key'   => '',
     'ai_url'   => 'https://api.anthropic.com/v1/messages',
     'ai_model' => 'claude-haiku-5-5',

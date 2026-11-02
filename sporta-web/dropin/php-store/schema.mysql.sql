@@ -683,3 +683,14 @@ create index if not exists idx_orders_stock_sweep
 alter table order_items
   add column if not exists name_en varchar(120) null after product_id,
   add column if not exists name_ar varchar(120) null after name_en;
+
+-- ===========================================================================
+-- A cancelled order gives its discount uses back.
+--
+-- Byte-for-byte the same statement as discount-release.mysql.sql, which exists
+-- so a shop set up before this fix can add it without re-importing. See that
+-- file for what the two columns mean; store_discount_release() is the reader.
+-- ===========================================================================
+alter table orders
+  add column if not exists discount_ids      json       null after discount_label,
+  add column if not exists discount_released tinyint(1) not null default 0 after discount_ids;
