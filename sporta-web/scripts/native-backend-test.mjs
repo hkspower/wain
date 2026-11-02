@@ -544,7 +544,12 @@ const order = (track, items, extra = {}) =>
   is(signedIn.status === 200, 'the admin can sign in for the product save', `${signedIn.status}`)
   // Read the row the way the editor would receive it. Straight from MariaDB:
   // the admin session is not what this check is about.
-  const { stdout: rowJson } = await run('mariadb', ['sporta', '-N', '-B', '-e',
+  //
+  // utf8mb4 ON THE CLIENT, or the Arabic name comes back as «?????» — the
+  // CLI's default here is latin1 — and the save below writes those question
+  // marks into the row for real, corrupting the sandbox for every suite that
+  // runs after this one (the assistant's Arabic search among them).
+  const { stdout: rowJson } = await run('mariadb', ['--default-character-set=utf8mb4', 'sporta', '-N', '-B', '-e',
     "select json_object('id', id, 'slug', slug, 'name_en', name_en, 'name_ar', name_ar, " +
     "'desc_en', desc_en, 'desc_ar', desc_ar, 'price', price, 'category', category, " +
     "'brand_slug', brand_slug, 'image', image, 'images', images, 'active', active, " +

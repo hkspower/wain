@@ -11,24 +11,35 @@
 //
 // WHY WARMING IS WORTH A SCRIPT
 //
-// The shop's answers repeat. "Delivery is same-day", "returns within 14 days",
-// the greeting — the same words for every customer who ever asks, in both
-// languages. They are synthesised once and served from disk for ever after,
-// which is what makes the voice affordable at all.
+// The shop's answers repeat. "Delivery within 24 hours", "returns within 14
+// days", the greeting — the same words for every customer who ever asks, in
+// both languages. They are synthesised once and served from disk for ever
+// after, which is what makes the voice affordable at all.
 //
 // But "once" has to happen to somebody, and without this it happens to a
 // CUSTOMER: the first person to press the speaker on each sentence waits out a
 // live synthesis call — a second or two, on a Kuwaiti mobile connection, on
-// the one interaction where the shop was trying to seem responsive. Twenty-four
-// sentences means twenty-four unlucky customers.
+// the one interaction where the shop was trying to seem responsive. Every
+// fixed sentence (assistant_canned_lines, both languages) is one unlucky
+// customer.
 //
 // So the shop buys them all at once, in one deliberate run, before anyone is
-// waiting. After this runs, the only thing a customer can ever trigger a live
-// call for is a sentence with their own order number in it.
+// waiting. After this runs, a customer can never trigger a live call at all:
+// ONLY these fixed sentences are ever signed for speech (assistant_answer).
+// An order answer is one of the stage_* lines and never quotes the number,
+// and a model's rewording is never signed — so the set is closed.
+//
+// THE TWO LINES BUILT FROM SETTINGS — the delivery fee and the payment methods
+// — are read from the database by assistant_canned_lines, the same row the
+// API reads, so the warmer buys the sentence the API will say. Change either
+// setting and run warm again. The database is NOT required: with it down,
+// those two lines warm in their default wording and the rest as usual
+// (assistant_db_or_null, never store_db(), whose failure is an exit).
 //
 // RUN IT: after setting tts_voice_id for the first time, and again after
 // changing the voice, the model or the audio format — each of those is part of
-// the cache key, so a change means the whole cache is cold again.
+// the cache key, so a change means the whole cache is cold again — and after
+// changing the delivery fee or the payment methods, which change two sentences.
 //
 // HOW TO RUN IT, AND WHY IT IS NOT CLI-ONLY
 //
@@ -170,5 +181,6 @@ foreach ($lines as $lang => $set) {
 [$n, $bytes] = $stat();
 echo "\nwarmed: $bought new, $cached already cached, $failed failed\n";
 echo "cache:  $n files, " . $human($bytes) . " in $dir\n";
-echo "\nEvery canned answer now plays from disk. The only sentence that can\n";
-echo "still cost anything is one with a customer's own order number in it.\n";
+echo "\nEvery canned answer now plays from disk, and only canned answers are\n";
+echo "ever signed for speech. Run warm again after changing the voice, the model,\n";
+echo "the format, the delivery fee or the payment methods.\n";

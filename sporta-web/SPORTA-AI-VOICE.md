@@ -17,7 +17,7 @@ pick, so this is a listening job, not a configuration one:
 2. Filter **Language: Arabic**, **Gender: Male**, **Age: Middle-aged**.
 3. Audition them with a real Sporta sentence, not the sample text — paste:
 
-   > التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة، والتوصيل مجاني.
+   > التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ورسوم التوصيل ١ د.ك لجميع مناطق الكويت.
 
    A Levantine or Egyptian voice will read it perfectly and still sound
    foreign to a Kuwaiti customer. Listen for Gulf vowels; if none of the
@@ -73,17 +73,23 @@ play on mobile data. Everything else (`tts_stability`, `tts_style`,
 https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
-Paste that in a browser after setting the voice. It buys all thirty-six fixed
-sentences — eighteen in each language — in one run, so **no customer is ever
-the one who waits for a synthesis call** on "delivery is same-day". Without it
-those thirty-six waits happen to thirty-six real people, one each.
+Paste that in a browser after setting the voice. It buys every fixed sentence
+the assistant can say — `assistant_canned_lines()`, twenty-eight in each
+language — in one run, so **no customer is ever the one who waits for a
+synthesis call** on "delivery within 24 hours". Without it those waits happen
+to real people, one each.
 
 Re-run it after changing the voice, the model or the format: each is part of
-the cache key, so changing one makes the whole cache cold.
+the cache key, so changing one makes the whole cache cold. Re-run it too after
+changing the **delivery fee or the payment methods** in the checkout settings:
+those two sentences are built from the settings row, and a new fee is a new
+sentence. The warmer reads the same row the API does; if the database is down
+it still warms, with those two lines in their default wording.
 
 `&do=prune` deletes audio nobody has played in 90 days, and is worth a monthly
-hPanel cron — every order-status answer names an order number, so each is a
-sentence said once and never again. `&do=` on its own reports what is cached.
+hPanel cron — every settings change, and every change of voice, model or format,
+leaves the old audio on disk under keys nobody will ask for again. `&do=` on
+its own reports what is cached.
 
 It answers over **HTTP** rather than being a command-line script because this
 server has no shell and never will. `cron_key` is the authorisation, and a
@@ -93,8 +99,11 @@ missing or wrong key is refused before a single upstream call is made.
 
 Almost nothing, because **the shop's answers repeat**. Delivery, returns,
 payment methods and the greeting are the same words every time; each is
-synthesised once and served from `sporta-voice/` on disk for ever after. Only
-a genuinely new sentence — an order card, a product list — is ever bought.
+synthesised once and served from `sporta-voice/` on disk for ever after. And
+**only those fixed sentences are ever signed for speech**: an order answer is
+one of the fixed status lines and never quotes the number, a not-found answer
+is one fixed sentence however many numbers are tried, and a model's rewording
+is never signed. So nobody can mint a new paid sentence by typing one.
 
 Two customers pressing the speaker on the same new sentence at the same moment
 buy it **once**: the second waits on a lock and gets what the first wrote. That
@@ -157,9 +166,11 @@ language, so the same words cannot be replayed as the other one.
 
 ## 2. n8n (the handoff)
 
-Fired at exactly three moments: the customer **asked for a person**, the
-customer **asked to cancel an order**, or the question **fell through and found
-nothing**. Not on every message — n8n is not a transcript log.
+Fired at exactly three moments: the customer **asked for a person** (which
+includes **money taken wrongly** — «انخصم المبلغ مرتين», "charged twice" — a
+payment somebody has to look at), the customer **asked to cancel an order**, or
+the question **fell through and found nothing** the shop sells. Not on every
+message — n8n is not a transcript log.
 
 Cancelling is on that list because it is the one intent whose fixed answer is
 not the end of the matter: something is already moving, the shop can only stop
@@ -172,7 +183,9 @@ that is advice nobody followed up.
 ```
 
 Import `dropin/n8n/sporta-ai-handoff.json` and set an n8n environment variable
-`SPORTA_N8N_SECRET` to the same string. The first node in that workflow
+`SPORTA_N8N_SECRET` to the same string. Its **Needs a person?** node sends both
+`contact` and `cancel` to the email step (the subject says which — a
+cancellation is marked as one), and everything else to **Log the gap**. The first node in that workflow
 verifies `X-Sporta-Signature` and throws if it does not match — keep it there.
 A webhook URL stops being a secret the moment it is in a browser history, and
 a workflow that messages a human on an unverified payload is a way to make
@@ -185,9 +198,18 @@ the signature check passed and protected nothing. That is worse than having no
 check, because the design says the handoff is authenticated. If you configure
 `n8n_webhook`, configure `n8n_secret` too, or the shop simply will not send.
 
-The POST is **fire-and-forget with a 4-second timeout**. The customer already
-has their answer on screen; whether an automation platform acknowledged the
-handoff is not their problem and must never delay or fail their request.
+The POST is **bounded hard: half a second to connect, a second and a half in
+all**. The customer already has their answer on screen; whether an automation
+platform acknowledged the handoff is not their problem and must never delay or
+fail their request. (It was four seconds, and a slow webhook cost every
+"phone strap" question the full four.)
+
+**It is rationed, in two buckets per IP**, because every handoff is an email in
+the shop's inbox: a person or a cancellation at most **6 per 10 minutes** (the
+same limit as a support ticket), and unanswered questions at most **10 per 10
+minutes** in a bucket of their own — so a burst of nonsense cannot use up the
+allowance a real cancellation needs. Only a handoff that would actually be sent
+is counted.
 
 Payload: `source`, `intent`, `lang`, `message`, `reply`, `at`.
 
@@ -195,11 +217,13 @@ Payload: `source`, `intent`, `lang`, `message`, `reply`, `at`.
 
 ## Proving it
 
-`npm run test:assistant` (126 checks) covers both against a fake gateway
+`npm run test:assistant` covers both against a fake gateway
 (`scripts/fake-voice.php`) — forged and unsigned text refused without a single
 upstream call, a signed sentence spoken, the same sentence bought only once, a
 cross-language replay refused, and the handoff arriving correctly signed and
-*not* arriving for an ordinary answered question.
+*not* arriving for an ordinary answered question, the two handoff buckets
+holding at ten and six, and a cancellation still getting through after a
+burst of failed searches.
 
 It also proves the parts you cannot hear from here: an order number goes
 upstream **spelled out**, a phone number **digit by digit**, an email address

@@ -64,9 +64,16 @@ return [
     // A language model. It may only ever REWORD facts the shop already looked
     // up — it is never asked what an order's status is. Leave blank and every
     // answer is the shop's own wording.
+    //
+    // ai_model is the same default assistant.php uses when this is unset. On
+    // a claude-haiku-5 model the shop also turns thinking off and asks for low
+    // effort, which keeps a rewording inside the 6-second budget; any other
+    // model is sent the plain request, because some reject those two fields.
+    // A reply that adds a number, an order number, a link or an email the
+    // shop did not say, or is cut off, is thrown away for the shop's own.
     'ai_key'   => '',
     'ai_url'   => 'https://api.anthropic.com/v1/messages',
-    'ai_model' => 'claude-haiku-4-5-20251001',
+    'ai_model' => 'claude-haiku-5-5',
 
     // ElevenLabs, for reading answers aloud in Arabic.
     //
