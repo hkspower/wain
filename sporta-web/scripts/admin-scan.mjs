@@ -186,7 +186,13 @@ else {
 // ==================================================================== 4
 head('4. The screens and the server agree')
 {
-  const bundle = reachable.filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(ASSETS, f), 'utf8')).join('\n')
+  // The compiled screens plus the add-on scripts the page loads from the web
+  // root (sporta-*.js): some admin routes are only called from an add-on.
+  const addOns = fs.existsSync(ROOT) ? fs.readdirSync(ROOT).filter((f) => /^sporta-.*\.js$/.test(f)) : []
+  const bundle = [
+    ...reachable.filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(ASSETS, f), 'utf8')),
+    ...addOns.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')),
+  ].join('\n')
   const served = new Set()
   for (const f of fs.existsSync(apiDir) ? fs.readdirSync(apiDir).filter((x) => x.endsWith('.php')) : []) {
     for (const m of fs.readFileSync(path.join(apiDir, f), 'utf8').matchAll(/\$r\s*===\s*'([a-z_]+)'|case '([a-z_]+)'/g)) served.add(m[1] ?? m[2])

@@ -1149,6 +1149,13 @@ function store_admin_dummy_hash(): string {
         . '$2y$10$vNk3QOHYO.g/y1k6SJzYL.YjGRlwOp9P1TIeCDX.K6s9gFgNI8Bpe';
 }
 
+// A merchant or terminal identifier as stored in a gateway config: trimmed,
+// and the example placeholder ("YOUR_...") reads as empty.
+function store_clean_identifier(mixed $value): string {
+    $v = trim((string)$value);
+    return str_starts_with($v, 'YOUR_') ? '' : $v;
+}
+
 function store_admin_event(PDO $db, array $admin, string $action): void {
     // Keep the audit row small and non-sensitive. In particular, never persist
     // POST bodies, passwords, gateway settings, reset tokens or IP addresses.

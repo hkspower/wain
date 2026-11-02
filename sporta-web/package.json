@@ -44,6 +44,7 @@
     "test:native": "node scripts/native-backend-test.mjs",
     "test:native-e2e": "node scripts/native-e2e-test.mjs",
     "scan": "node scripts/site-scan.mjs",
+    "test:knet-ids": "node scripts/knet-identifiers-test.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
     "test:config": "node scripts/config-path-test.mjs",

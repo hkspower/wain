@@ -739,6 +739,22 @@ if ($r === 'payment_config') {
         $next['tranportal_id'] = (string)$next[$env . '_tranportal_id'];
         $next['tranportal_password'] = (string)$next[$env . '_tranportal_password'];
         $next['resource_key'] = (string)$next[$env . '_resource_key'];
+        // Merchant ID and Terminal ID are identifiers, not secrets, and the
+        // classic KPG request does not carry them (only the Tranportal ID
+        // does) — they are kept for the operator and the bank's paperwork.
+        // They are edited through `payment_identifiers` below; here the
+        // active pair simply follows the environment, the same way the
+        // Tranportal credentials do, so switching Test/Production never
+        // leaves the live pair pointing at the test values.
+        foreach (['merchant_id', 'terminal_id'] as $idName) {
+            foreach (['test', 'production'] as $slot) {
+                $slotKey = $slot . '_' . $idName;
+                if (!array_key_exists($slotKey, $next)) {
+                    $next[$slotKey] = $slot === $previousEnv ? store_clean_identifier($current[$idName] ?? '') : '';
+                }
+            }
+            $next[$idName] = (string)$next[$env . '_' . $idName];
+        }
         $next['language'] = 'USA';
         if (!$isConfigured($next['tranportal_id']) || !$isConfigured($next['tranportal_password'])) store_fail('merchant_credentials_required');
         if (strlen($next['resource_key']) !== 16 || trim($next['resource_key']) !== $next['resource_key']) store_fail('resource_key_must_be_16_bytes');
@@ -767,6 +783,65 @@ if ($r === 'payment_config') {
     clearstatcache(true, $path);
     if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
     store_out(['gateway' => $gateway, 'config' => $publicShape($next, $gateway)]);
+}
+
+// ----------------------------------------------- KNET merchant / terminal IDs
+// Two plain identifiers per environment, edited on their own so the secret
+// form (which re-sends everything it holds) is never involved. Unlike the
+// Tranportal password and the resource key they are not secrets and ARE
+// returned, so the operator can see which pair is on file. Blank clears one.
+// The Tranportal ID stays with the credentials in `payment_config`.
+if ($r === 'payment_identifiers') {
+    $path = sporta_config_path('knet', dirname(__DIR__) . '/knet/config.php');
+    $cfg = is_file($path) ? require $path : null;
+    if (!is_array($cfg)) store_fail('config_missing', 409);
+
+    $active = in_array(($cfg['env'] ?? ''), ['test', 'production'], true) ? (string)$cfg['env'] : 'test';
+    $shape = static function (array $c) use ($active): array {
+        $out = ['env' => $active];
+        foreach (['test', 'production'] as $slot) {
+            foreach (['merchant_id', 'terminal_id'] as $name) {
+                $out[$slot][$name] = store_clean_identifier(
+                    $c[$slot . '_' . $name] ?? ($slot === $active ? ($c[$name] ?? '') : '')
+                );
+            }
+        }
+        return $out;
+    };
+
+    if ($method === 'GET') store_out($shape($cfg));
+    if ($method !== 'POST') store_fail('method_not_allowed', 405);
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 4096) store_fail('request_too_large', 413);
+
+    $body = store_body(4096);
+    $next = $cfg;
+    foreach (['test', 'production'] as $slot) {
+        foreach (['merchant_id', 'terminal_id'] as $name) {
+            $key = $slot . '_' . $name;
+            // All four must be sent: a missing one is a client bug, and
+            // treating it as "clear" would silently wipe a saved identifier.
+            if (!array_key_exists($key, $body) || !is_string($body[$key])) store_fail('invalid_identifier');
+            $value = trim($body[$key]);
+            if (!preg_match('/^[A-Za-z0-9._-]{0,40}$/D', $value)) store_fail('invalid_identifier');
+            $next[$key] = $value;
+        }
+    }
+    foreach (['merchant_id', 'terminal_id'] as $name) $next[$name] = (string)$next[$active . '_' . $name];
+
+    $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+    $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
+        . var_export($next, true) . ";\n";
+    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    @chmod($tmp, 0600);
+    if (!@rename($tmp, $path)) {
+        @unlink($tmp);
+        store_fail('config_not_writable', 500);
+    }
+    clearstatcache(true, $path);
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+    store_admin_event($db, $admin, 'payment_identifiers_save');
+    store_out($shape($next));
 }
 
 // A signed-in operator needs to know whether KNET and T-Pay are actually
