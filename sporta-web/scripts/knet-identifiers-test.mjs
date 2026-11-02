@@ -165,6 +165,22 @@ try {
   const t2 = await admin('payment_server_ips', { method: 'POST', body: { server_ip_1: '', server_ip_2: '' } })
   is(t2.status === 200 && (await readTpay()).server_ip_1 === '', 'blank clears the addresses')
 
+  head('KNET through the CBK setup: the switch')
+  const v0 = (await admin('payment_knet_via_cbk')).body
+  is(v0?.enabled === false && v0?.tpay_ready === true, 'off by default; T-Pay credentials count as ready', JSON.stringify(v0))
+  is((await admin('payment_knet_via_cbk', { method: 'POST', csrf: false, body: { enabled: true } })).status === 400, 'switching without the X-Sporta-Admin header is refused')
+  is((await admin('payment_knet_via_cbk', { method: 'POST', body: { enabled: 'yes' } })).status === 400, 'only a real boolean is accepted')
+  const von = await admin('payment_knet_via_cbk', { method: 'POST', body: { enabled: true } })
+  tc = await readTpay()
+  is(von.status === 200 && von.body?.enabled === true && tc.knet_via_cbk === true, 'switching ON is saved in the T-Pay config')
+  is(tc.client_id === TPAY.id && tc.encrp_key === TPAY.key && tc.client_secret === TPAY.secret, 'and the credentials are untouched')
+  const voff = await admin('payment_knet_via_cbk', { method: 'POST', body: { enabled: false } })
+  is(voff.status === 200 && (await readTpay()).knet_via_cbk === false, 'switching OFF is saved')
+  await run('php', ['-r', `$c = require '${tpayPath}'; $c['client_id'] = 'YOUR_CLIENT_ID'; file_put_contents('${tpayPath}', '<?php return ' . var_export($c, true) . ';');`])
+  const noCreds = await admin('payment_knet_via_cbk', { method: 'POST', body: { enabled: true } })
+  is(noCreds.status === 409 && noCreds.body?.error === 'tpay_credentials_required' && (await readTpay()).knet_via_cbk === false, 'it cannot be switched ON while the T-Pay credentials are placeholders')
+  await run('php', ['-r', `$c = require '${tpayPath}'; $c['client_id'] = '${TPAY.id}'; file_put_contents('${tpayPath}', '<?php return ' . var_export($c, true) . ';');`])
+
   head('the card in the live admin (real browser)')
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
@@ -210,8 +226,17 @@ try {
     // T-Pay's editor gets its own card with the two address boxes.
     await page.waitForSelector('#tpay [data-sporta-tpay-ips]', { timeout: 5000 })
     is(await page.locator('#knet [data-sporta-tpay-ips]').count() === 0, "the IP card is not put in KNET's editor")
-    const ip = page.locator('[data-sporta-tpay-ips] input')
+    const ip = page.locator('[data-sporta-tpay-ips] input[type=text]')
     is(await ip.count() === 2, 'two boxes: Merchant Server IP 1 and 2')
+    const viaBox = page.locator('[data-sporta-tpay-ips] input[type=checkbox]')
+    await page.waitForFunction(() => !document.querySelector('[data-sporta-tpay-ips] input[type=checkbox]').disabled)
+    is(await viaBox.isChecked() === false, 'the KNET-through-CBK box starts unchecked')
+    await viaBox.check()
+    await page.waitForSelector('[data-sporta-tpay-ips] >> text=On: KNET orders now pay through CBK', { timeout: 5000 })
+    is((await readTpay()).knet_via_cbk === true && await page.evaluate(() => window.__submitted) === 0, 'ticking it saves the switch on the server without submitting the editor form')
+    await viaBox.uncheck()
+    await page.waitForSelector('[data-sporta-tpay-ips] >> text=Off: KNET uses its own Tranportal setup', { timeout: 5000 })
+    is((await readTpay()).knet_via_cbk === false, 'unticking switches it off again')
     await ip.nth(0).fill('187.7.78.123'); await ip.nth(1).press('Enter')
     await page.waitForSelector('[data-sporta-tpay-ips] >> text=Saved.', { timeout: 5000 })
     is((await readTpay()).server_ip_1 === '187.7.78.123' && await page.evaluate(() => window.__submitted) === 0, 'saved from the page, and Enter did not submit the editor form')

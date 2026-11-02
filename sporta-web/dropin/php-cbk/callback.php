@@ -287,11 +287,11 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
         $order = $cur->fetch(PDO::FETCH_ASSOC);
         if (!$order) { $pdo->rollBack(); return ['state' => 'review', 'reason' => 'order_not_found']; }
         $before = (string) $order['payment_status'];
-        if ($before === 'paid' && (string) $order['payment_method'] === 'tpay') {
+        if ($before === 'paid' && cbk_method_ok($cfg, (string) $order['payment_method'])) {
             $pdo->rollBack();
             return ['state' => 'paid', 'reason' => 'already_paid'];
         }
-        if ((string) $order['payment_method'] !== 'tpay') {
+        if (!cbk_method_ok($cfg, (string) $order['payment_method'])) {
             $paid = false;
             $status = 'review';
         }
@@ -343,7 +343,7 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
         return [
             'state' => $status,
             'reason' => $status === 'review'
-                ? ((string) $order['payment_method'] !== 'tpay' ? 'wrong_payment_method'
+                ? (!cbk_method_ok($cfg, (string) $order['payment_method']) ? 'wrong_payment_method'
                     : ($releasedCapture ? 'stock_reservation_released' : 'amount_mismatch'))
                 : ($status === 'paid' ? 'captured' : 'bank_declined'),
         ];

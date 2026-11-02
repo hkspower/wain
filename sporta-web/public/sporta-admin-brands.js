@@ -256,6 +256,7 @@
   var MARK = 'data-sporta-tpay-ips'
   var MSG = {
     invalid_server_ip: 'That is not a valid IP address. Use an IPv4 like 203.0.113.10 or an IPv6 address, or leave the box empty.',
+    tpay_credentials_required: 'Save the T-Pay Client ID, Client Secret and Encrypted Account Key first.',
     config_missing: 'The T-Pay configuration file is missing on the server.',
     not_signed_in: 'Your session ended. Sign in again.',
     config_not_writable: 'The server could not write the configuration file.'
@@ -301,6 +302,40 @@
       grid.appendChild(label)
     })
     card.appendChild(grid)
+
+    var via = el('label', 'display:flex;align-items:flex-start;gap:.6rem;margin-top:1rem;padding-top:.9rem;border-top:1px solid #e2e8f0;cursor:pointer')
+    var viaBox = el('input', 'margin-top:.2rem;width:1.1rem;height:1.1rem;flex:none')
+    viaBox.type = 'checkbox'
+    viaBox.disabled = true
+    var viaText = el('span', 'display:block;min-width:0')
+    viaText.appendChild(el('span', 'display:block;font-size:.8rem;font-weight:700;color:#0f172a', 'Take KNET payments through this CBK setup'))
+    viaText.appendChild(el('span', 'display:block;font-size:.72rem;color:#64748b;margin-top:.15rem', 'One setup for both: KNET and T-Pay use the same Client ID, Client Secret and Encrypted Account Key, and KNET orders are sent to CBK\u2019s page as KNET only. The separate Tranportal ID, password and resource key are not used while this is on. Needs the T-Pay credentials above to be saved first.'))
+    var viaStatus = el('span', 'display:block;font-size:.72rem;margin-top:.3rem;color:#64748b', '')
+    viaText.appendChild(viaStatus)
+    via.appendChild(viaBox)
+    via.appendChild(viaText)
+    card.appendChild(via)
+    call('payment_knet_via_cbk').then(function (r) {
+      if (r.ok && r.body && 'enabled' in r.body) { viaBox.checked = !!r.body.enabled; viaBox.disabled = false } else { viaStatus.textContent = MSG[r.body && r.body.error] || 'Could not read this setting.' }
+    })
+    viaBox.addEventListener('change', function () {
+      var want = viaBox.checked
+      viaBox.disabled = true
+      viaStatus.style.color = '#64748b'
+      viaStatus.textContent = 'Saving\u2026'
+      call('payment_knet_via_cbk', { enabled: want }).then(function (r) {
+        viaBox.disabled = false
+        if (r.ok && r.body && 'enabled' in r.body) {
+          viaBox.checked = !!r.body.enabled
+          viaStatus.style.color = '#c2410c'
+          viaStatus.textContent = r.body.enabled ? 'On: KNET orders now pay through CBK.' : 'Off: KNET uses its own Tranportal setup.'
+        } else {
+          viaBox.checked = !want
+          viaStatus.style.color = '#be123c'
+          viaStatus.textContent = MSG[r.body && r.body.error] || 'Could not save.'
+        }
+      })
+    })
 
     var row = el('div', 'display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:.75rem')
     var save = el('button', 'min-height:2.75rem;border:0;border-radius:.75rem;background:#4f46e5;color:#fff;font-weight:700;font-size:.8rem;padding:.5rem 1rem;cursor:pointer', 'Save IPs')

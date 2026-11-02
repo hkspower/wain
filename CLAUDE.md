@@ -125,6 +125,19 @@
   live price-authority hole on its first run. Both are selectable at checkout; `orders.payment_method` records
   which was used (`knet` / `tpay` / `cod`).
 
+  **One-setup option (`knet_via_cbk`, default OFF):** KNET can instead be
+  taken through the CBK hosted gateway with the T-Pay credentials —
+  `tij_MerchPayType = 1`, switched in /backends → Payments → T-Pay card
+  (refused until ClientId/Secret/ENCRP_KEY are real). When on, `/knet/pay.php`
+  302s to `/pay/pay.php`; the order stays `payment_method='knet'`. Proven by
+  `npm run test:knet-via-cbk`. The CBK Authenticate key is cached ≤100 min
+  (CBK allows 6 h) and bound to gateway+ClientId, so a Test→Production switch
+  never reuses a test key. Register the VPS IP `187.7.78.123` as CBK Merchant
+  Server IP 1. Admin UI for the live (compiled) admin is added as blocks in
+  `public/sporta-admin-brands.js`; admin styling overrides in
+  `public/sporta-admin-knet.css` — a NEW add-on file would not be loaded by the
+  live `index.html`.
+
   CBK's manual describes the T-Pay selector as `tij_MerchPayType = 2`; the owner
   describes the product as an online payment link. Customer-facing copy therefore
   says "pay online with T-Pay" and does NOT promise a QR code — see the note in

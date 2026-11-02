@@ -6,6 +6,29 @@
 declare(strict_types=1);
 require __DIR__ . '/knet.php';
 knet_require_https();
+// ONE SETUP FOR BOTH: if the T-Pay (CBK hosted) config has `knet_via_cbk` on,
+// KNET is taken there with PayType 1 — same ClientId/Secret/ENCRP_KEY, no
+// Tranportal credentials. The customer is handed to /pay/pay.php with the same
+// track id (the storefront only knows this URL); the order stays a KNET order.
+// Off, missing or unreadable all mean "carry on with classic KNET below".
+$cbkSwitch = (static function (): bool {
+    try {
+        $p = knet_config_path('tpay', dirname(__DIR__) . '/pay/config.php');
+        if (!is_file($p)) return false;
+        $c = require $p;
+        return is_array($c) && !empty($c['knet_via_cbk']);
+    } catch (Throwable $e) {
+        return false;
+    }
+})();
+if ($cbkSwitch) {
+    $handoffTrack = trim((string) (($_POST + $_GET)['trackid'] ?? ''));
+    $handoffLang = strtolower(trim((string) (($_POST + $_GET)['lang'] ?? '')));
+    $to = '/pay/pay.php?trackid=' . rawurlencode($handoffTrack)
+        . ($handoffLang === 'ar' || $handoffLang === 'en' ? '&lang=' . $handoffLang : '');
+    header('Location: ' . $to, true, 302);
+    exit;
+}
 $cfg = knet_with_store_db(knet_load_config(__DIR__ . '/config.php'));
 
 // Read only GET/POST explicitly — $_REQUEST's contents depend on the

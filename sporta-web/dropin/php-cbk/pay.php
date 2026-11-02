@@ -54,10 +54,10 @@ if ($lookup['state'] === 'missing') {
         http_response_code(404);
         exit('Unknown order.');
 }
-if ($lookup['method'] !== 'tpay') {
+if (!cbk_method_ok($cfg, (string) $lookup['method'])) {
     cbk_log($cfg, 'pay.reject', ['reason' => 'wrong_payment_method', 'trackid' => $trackid, 'method' => $lookup['method']]);
     http_response_code(409);
-    exit('This order is not payable by T-Pay.');
+    exit($lookup['method'] === 'knet' ? 'This order is not payable through this gateway.' : 'This order is not payable by T-Pay.');
 }
 if ($lookup['status'] === 'paid') {
         // Charging a settled order again is a refund and an apology.
@@ -95,6 +95,7 @@ cbk_log($cfg, 'pay.init', [
     'trackid' => $trackid,
     'amount'  => $amount,
     'source'  => 'server',
+    'paytype' => cbk_pay_type((string) $lookup['method']),
 ]);
 
 $checkoutUrl = cbk_base($cfg) . '/ePay/pg/epay?_v=' . rawurlencode($token);
@@ -120,7 +121,8 @@ $fields = [
     // Reserved for the original order id so a shortened 30-character retry
     // can always be resolved when CBK returns it.
     'tij_MerchantUdf5'         => $trackid,
-    'tij_MerchPayType'         => '2', // T-Pay QR only; classic KNET has its own endpoint.
+    // From the order's own method (see cbk_pay_type): '2' T-Pay, '1' KNET.
+    'tij_MerchPayType'         => cbk_pay_type((string) $lookup['method']),
     'tij_MerchReturnUrl'       => $cfg['return_url'],
 ];
 

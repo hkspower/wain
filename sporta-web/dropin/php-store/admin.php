@@ -768,6 +768,11 @@ if ($r === 'payment_config') {
         $next['encrp_key'] = $secret($body, $current, 'encrp_key', false);
         if (!$isConfigured($next['client_id']) || !$isConfigured($next['client_secret'])) store_fail('merchant_credentials_required');
         if (!$isConfigured($next['encrp_key'])) store_fail('encrypted_account_key_required');
+        // CBK's Authorization entity: ClientId (Merchant API ID) max 50,
+        // ClientSecret (Merchant API Password) max 100. Longer is a paste
+        // error the bank would only report as a failed Authenticate.
+        if (strlen($next['client_id']) > 50) store_fail('client_id_too_long');
+        if (strlen($next['client_secret']) > 100) store_fail('client_secret_too_long');
     }
 
     $path = $paths[$gateway];
@@ -887,6 +892,48 @@ if ($r === 'payment_server_ips') {
     clearstatcache(true, $path);
     if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
     store_admin_event($db, $admin, 'payment_server_ips_save');
+    store_out($shape($next));
+}
+
+// ------------------------------------------- KNET through the CBK (T-Pay) setup
+// CBK's hosted page takes KNET (tij_MerchPayType 1) and T-Pay (2) with the SAME
+// ClientId / ClientSecret / ENCRP_KEY. `knet_via_cbk` in the T-Pay config makes
+// a KNET order be paid there instead of through the classic Tranportal
+// endpoint, so one set of credentials covers both. Off by default. It can only
+// be switched ON while the T-Pay credentials are really filled in; switching it
+// off is always allowed, and it takes effect on the next payment.
+if ($r === 'payment_knet_via_cbk') {
+    $path = sporta_config_path('tpay', dirname(__DIR__) . '/pay/config.php');
+    $cfg = is_file($path) ? require $path : null;
+    if (!is_array($cfg)) store_fail('config_missing', 409);
+    $ready = static fn (array $c): bool => store_clean_identifier($c['client_id'] ?? '') !== ''
+        && store_clean_identifier($c['client_secret'] ?? '') !== ''
+        && store_clean_identifier($c['encrp_key'] ?? '') !== '';
+    $shape = static fn (array $c): array => ['enabled' => !empty($c['knet_via_cbk']), 'tpay_ready' => $ready($c)];
+
+    if ($method === 'GET') store_out($shape($cfg));
+    if ($method !== 'POST') store_fail('method_not_allowed', 405);
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 1024) store_fail('request_too_large', 413);
+
+    $body = store_body(1024);
+    if (!array_key_exists('enabled', $body) || !is_bool($body['enabled'])) store_fail('invalid_value');
+    if ($body['enabled'] && !$ready($cfg)) store_fail('tpay_credentials_required', 409);
+    $next = $cfg;
+    $next['knet_via_cbk'] = $body['enabled'];
+
+    $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+    $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
+        . var_export($next, true) . ";\n";
+    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    @chmod($tmp, 0600);
+    if (!@rename($tmp, $path)) {
+        @unlink($tmp);
+        store_fail('config_not_writable', 500);
+    }
+    clearstatcache(true, $path);
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+    store_admin_event($db, $admin, $body['enabled'] ? 'knet_via_cbk_on' : 'knet_via_cbk_off');
     store_out($shape($next));
 }
 

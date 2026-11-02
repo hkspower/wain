@@ -436,5 +436,46 @@ s.serve_forever()`
   }
 }
 
+head('the Authenticate key is reused only where it was issued')
+{
+  const probe = new URL('cbk-token-probe.php', import.meta.url).pathname
+  const file = `/tmp/sporta-cbk-token-${process.pid}.json`
+  const { createHash } = await import('node:crypto')
+  const owner = createHash('sha256').update('http://127.0.0.1:1\0' + 'CID').digest('hex')
+  const ts = Math.floor(Date.now() / 1000)
+  const tryWith = async (cache, env, cid) => {
+    await writeFile(file, JSON.stringify(cache))
+    return (await run('php', [probe, file, env, cid])).stdout.trim()
+  }
+  is(await tryWith({ token: 'CACHED', ts, owner }, 'test', 'CID') === 'CACHED',
+     'same gateway + ClientId, inside its life: cached key reused')
+  is(await tryWith({ token: 'CACHED', ts, owner }, 'production', 'CID') === 'NEW',
+     'after Test -> Production: the test key is NOT reused')
+  is(await tryWith({ token: 'CACHED', ts, owner }, 'test', 'OTHER') === 'NEW',
+     'after a new ClientId: the old key is NOT reused')
+  is(await tryWith({ token: 'CACHED', ts }, 'test', 'CID') === 'NEW',
+     'a key cached before this rule (no owner) is NOT reused')
+  is(await tryWith({ token: 'CACHED', ts: ts - 101 * 60, owner }, 'test', 'CID') === 'NEW',
+     'past 100 minutes (CBK allows 6h): refreshed')
+  // CBK's manual: Status 1 = key returned, 0 = failed; HTTP 401 = bad
+  // ClientId/Secret or an IP not registered. Neither the JSON type of Status
+  // nor the 401 wording is pinned down by the fake gateway, so a stub does it.
+  const stub = spawn('php', ['-S', '127.0.0.1:8103', new URL('cbk-auth-stub.php', import.meta.url).pathname],
+                     { stdio: 'ignore', detached: true })
+  try {
+    await new Promise((r) => setTimeout(r, 400))
+    await run('rm', ['-f', file])
+    const num = (await run('php', [probe, file, 'test', 'CID', 'http://127.0.0.1:8103/num'])).stdout.trim()
+    is(num === 'NUMTOKEN', 'Authenticate answering Status as a JSON number 1 is accepted', num)
+    await run('rm', ['-f', file])
+    const deny = (await run('php', [probe, file, 'test', 'CID', 'http://127.0.0.1:8103/deny'])).stdout.trim()
+    is(deny.startsWith('ERR ') && deny.includes('(401)') && deny.includes('IP is registered'),
+       'HTTP 401 is reported as credentials-or-server-IP, not "unknown"', deny)
+  } finally {
+    try { process.kill(-stub.pid) } catch {}
+  }
+  await run('rm', ['-f', file])
+}
+
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')
 process.exit(fails ? 1 : 0)

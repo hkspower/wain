@@ -166,15 +166,20 @@ function cbk_attempt_ref(array $cfg, string $trackid): string
         throw new RuntimeException('orders database is not configured');
     }
     $pdo = cbk_pdo($cfg);
+    // The methods this setup may take: T-Pay always, KNET only when
+    // `knet_via_cbk` is on (see cbk_method_ok). A fixed list, never input.
+    $methods = ['tpay'];
+    if (!empty($cfg['knet_via_cbk'])) $methods[] = 'knet';
+    $in = implode(',', array_fill(0, count($methods), '?'));
     $st = $pdo->prepare(
         "update orders set pay_attempt = last_insert_id(pay_attempt + 1)
-          where track_id = ? and payment_method = 'tpay'
+          where track_id = ? and payment_method in ($in)
             and payment_status = 'pending'
             and stock_released = 0
             and fulfilment_status <> 'cancelled'"
     );
-    $st->execute([$trackid]);
-    if ($st->rowCount() !== 1) throw new RuntimeException('order is no longer payable by T-Pay');
+    $st->execute([$trackid, ...$methods]);
+    if ($st->rowCount() !== 1) throw new RuntimeException('order is no longer payable through this gateway');
     $n = (int) $pdo->query('select last_insert_id()')->fetchColumn();
     if ($n < 1) throw new RuntimeException('could not allocate a T-Pay attempt reference');
     if ($n <= 1) return $trackid;
@@ -222,6 +227,26 @@ function cbk_attempt_ref_matches_order(string $ref, string $trackid): bool
     if (!preg_match('/A[1-9]\d*$/', $ref, $m)) return false;
     $suffix = $m[0];
     return hash_equals(substr($trackid, 0, max(1, 30 - strlen($suffix))) . $suffix, $ref);
+}
+
+// ONE SETUP FOR BOTH. CBK's hosted page takes KNET and T-Pay with the same
+// ClientId / ClientSecret / ENCRP_KEY; only tij_MerchPayType differs (manual:
+// '1' = KNET only, '2' = T-Pay only, '' = the customer chooses). With
+// `knet_via_cbk` on in THIS config, an order paid "by KNET" is taken here with
+// PayType 1 instead of through the classic Tranportal endpoint (/knet), so no
+// separate Tranportal ID / password / resource key is needed. Off by default.
+//
+// The pay type follows the ORDER's own payment method, read from the database;
+// the browser never names it, so a T-Pay order cannot be paid as KNET or the
+// reverse by editing a URL.
+function cbk_method_ok(array $cfg, string $method): bool
+{
+    return $method === 'tpay' || ($method === 'knet' && !empty($cfg['knet_via_cbk']));
+}
+
+function cbk_pay_type(string $method): string
+{
+    return $method === 'knet' ? '1' : '2';
 }
 
 function cbk_order_lookup(array $cfg, string $trackid): array
@@ -353,8 +378,13 @@ function cbk_get_access_token(array $cfg): string
     $file = $cfg['token_cache_file'];
     if (is_readable($file)) {
         $cached = json_decode((string) file_get_contents($file), true);
-        // Refresh a little early (100 min) to stay well within the 2h window.
-        if (isset($cached['token'], $cached['ts']) && (time() - $cached['ts']) < 100 * 60) {
+        // CBK's manual gives the key a 6-hour life; refreshing after 100 min
+        // stays far inside it. The key is also bound to the gateway and the
+        // merchant it was issued for: after a Test -> Production switch (or a
+        // new ClientId) a cached key from the other side is never reused.
+        $owner = hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id']);
+        if (isset($cached['token'], $cached['ts']) && (time() - $cached['ts']) < 100 * 60
+            && hash_equals($owner, (string) ($cached['owner'] ?? ''))) {
             return (string) $cached['token'];
         }
     }
@@ -366,13 +396,20 @@ function cbk_get_access_token(array $cfg): string
         'ENCRP_KEY'    => $cfg['encrp_key'],
     ]);
 
-    if ($status !== 200 || !is_array($res) || ($res['Status'] ?? '') !== '1' || empty($res['AccessToken'])) {
-        $msg = is_array($res) ? ($res['Message'] ?? 'unknown') : 'no response';
+    // CBK: Status 1 = key returned, 0 = authentication failed. Compared as a
+    // string so a JSON number 1 and a string "1" both count (the manual does
+    // not say which it sends). HTTP 401 is CBK's "invalid ClientId or
+    // ClientSecret, or a call from an IP not registered as Merchant Server IP".
+    if ($status !== 200 || !is_array($res) || (string) ($res['Status'] ?? '') !== '1' || empty($res['AccessToken'])) {
+        $msg = $status === 401
+            ? 'not authorized: check Merchant API ID / Password, and that this server\'s IP is registered with CBK'
+            : (is_array($res) ? (string) ($res['Message'] ?? 'unknown') : 'no response');
         throw new RuntimeException('CBK auth failed (' . $status . '): ' . $msg);
     }
 
     $token = (string) $res['AccessToken'];
-    @file_put_contents($file, json_encode(['token' => $token, 'ts' => time()]));
+    @file_put_contents($file, json_encode(['token' => $token, 'ts' => time(),
+        'owner' => hash('sha256', cbk_base($cfg) . "\0" . (string) $cfg['client_id'])]));
     @chmod($file, 0600);
     return $token;
 }
