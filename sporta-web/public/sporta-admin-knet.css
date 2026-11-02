@@ -507,3 +507,179 @@
    meta colour, so the sub-line is never the stronger of the two. */
 .admin-shell .m-row__title.text-slate-500,
 .admin-shell .m-row__title.text-slate-500 + p.text-xs { color: #556274 !important; }
+
+/* ==========================================================================
+   /backends boxes and tables (owner request 2026-11-02: "check tables
+   layout"). Measured with the BOX and TABLE sections of
+   scripts/admin-style-scan.mjs on the live admin, as-is and with the polish
+   above:
+     - 155 boxes (cards, panels, notices, table frames, modals) in 40 looks:
+       eleven radii from 8.5 to 19.5px, twelve edge colours, eight shadows
+       (40 of them a heavy double one), paddings from 0 to 42px, and stacked
+       boxes 8 to 103px apart;
+     - 7 tables: header text in #5d6975, row dividers #f1f5f9 on two tables
+       (1.1:1, invisible), partial on one, none on four; Profiles' figures
+       left-aligned; and Inventory, once the polish raised its text to 12px,
+       1039px wide in a 1018px frame, so it scrolled sideways at 1366px.
+   Asserted by scripts/admin-polish-test.mjs on a fixture of those class
+   strings and wrapper chains. The rules:
+     - Three radii by role: .5rem chips and controls; .875rem cards, tiles,
+       notices, table frames, fieldsets; 1rem panels, forms and modals.
+     - One neutral edge, #d9dfe5 (76 of the 155 boxes already had it).
+       Notices keep the colours that say what they are; the accent KPI keeps
+       its tint.
+     - Two elevations: flat, or one soft raise for a top-level card, panel
+       or table frame. Modals keep their own deep shadow.
+     - Never the sidebar (everything is under .admin-content), never inside a
+       storefront preview ([class*="__preview"] *), never the overlays
+       (div.fixed.inset-0, radius 0) or a rounded-full badge.
+   The live build draws these boxes with its own unlayered component rules
+   (.crm-tile, .seo-editor__panel, …) whose specificity was not measured, so
+   every declaration that overrides one is !important.
+   ======================================================================== */
+
+/* ---- 6. Boxes ----------------------------------------------------------- */
+/* Radius 1rem: panels, forms, editors, modals (live 14.8 / 16.9 / 19.5px). */
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
+  border-radius: 1rem !important;
+}
+/* Radius .875rem: cards, tiles, KPIs, notices, table frames, fieldsets
+   (live 11.8 / 12.7 / 14.4 / 14.8 / 15.2 / 16.9px). */
+.admin-shell .admin-content :is(li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, .admin-notice, div.rounded-xl.border.p-3.text-sm.font-semibold, div.rounded-xl.border.border-dashed.p-10, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not([class*="__preview"] *) {
+  border-radius: .875rem !important;
+}
+/* Radius .5rem: chips and controls (Overview's stat chips already were;
+   Theme's colour control was 14.8px around a 47px field). */
+.admin-shell .admin-content :is(div.rounded-lg.border.border-slate-200.bg-white, .theme-editor__color-control):not([class*="__preview"] *) {
+  border-radius: .5rem !important;
+}
+
+/* One neutral edge, 1px #d9dfe5, for every neutral panel, card, tile and
+   frame (was also #e2e8f0, #cbd5e1, #cad5e2, #dbe2ea, orange #ffd7a8). It
+   must out-specify the orange and no-rainbow rules above, which set #e2e8f0
+   at 0,2,0 (.admin-shell [class*="border-…"]); this is 0,7,1. Not the
+   accent KPI (border-indigo-200, the one tinted card), not the notices. */
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, div.rounded-lg.border.border-slate-200.bg-white, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not([class*="border-indigo-"]):not([class*="__preview"] *) {
+  border: 1px solid #d9dfe5 !important;
+}
+/* Field edges drawn by a box: Theme's colour control (#aeb8c2, 2.0:1) and
+   Inventory's six expense fields, a borderless input in an unclassed
+   #cbd5e1 wrapper (1.48:1; radius 11.8px like every live field, so it
+   keeps it). The fields' #7d8799 edge (3.62:1) and their accent focus. */
+.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):not([class*="__preview"] *) { border: 1px solid #7d8799 !important; }
+.admin-shell .admin-content :is(.theme-editor__color-control, .inventory-money div:has(> input)):focus-within {
+  border-color: var(--admin-action, #9a452c) !important;
+  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+}
+
+/* Elevation. One soft raise for a top-level panel, card or table frame — the
+   live double "0 1px 2px + 0 8px 24px" on 40 boxes and the SEO panels'
+   0 10px 28px are gone. A modal keeps its 0 28px 80px. */
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not(.admin-editor-modal):not([class*="__preview"] *) {
+  box-shadow: 0 1px 2px rgb(16 24 40 / .06), 0 1px 3px rgb(16 24 40 / .04) !important;
+}
+/* Flat: tiles, KPIs, chips, notices and the Slides empty state always (the
+   KPIs and chips had a hairline); any card or frame inside a panel, card or modal. */
+.admin-shell .admin-content :is(.crm-tile, .admin-kpi, .inventory-tile, div.rounded-lg.border.border-slate-200.bg-white, .admin-notice, div.rounded-xl.border.p-3.text-sm.font-semibold, div.rounded-xl.border.border-dashed.p-10):not([class*="__preview"] *),
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal, li.admin-brand-card, section.rounded-xl.border, .admin-product-section) :is(section.rounded-2xl.border, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, div.rounded-2xl.border, fieldset, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not([class*="__preview"] *) {
+  box-shadow: none !important;
+}
+
+/* Padding. 1rem for tiles, KPIs, notices and cards (live 12.7–19.1px);
+   1.25rem for panels, forms, editors and modals (live 16.9–25.4px; 1rem on
+   a phone); 0 for a table frame, so its rows reach the edge (the Catalogue
+   list frame shared the cards' 19.1px). */
+.admin-shell .admin-content :is(li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, .admin-notice, div.rounded-xl.border.p-3.text-sm.font-semibold):not([class*="__preview"] *) {
+  padding: 1rem !important;
+}
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
+  padding: 1.25rem !important;
+}
+.admin-shell .admin-content :is(.admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):not([class*="__preview"] *) {
+  padding: 0 !important;
+}
+/* The Slides empty state: 42.3px (p-10) of padding around one line. */
+.admin-shell .admin-content div.rounded-xl.border.border-dashed.p-10:not([class*="__preview"] *) { padding: 2rem !important; }
+@media (max-width: 767px) {
+  .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
+    padding: 1rem !important;
+  }
+}
+
+/* Rhythm: two boxes stacked in a space-y column sit 1rem apart (the
+   Catalogue notices, the Theme sections and the CRM form were 21px apart,
+   the Top bar's 8 and 21). Tailwind's space-y puts margin-block-end on
+   every child but the last, so the first box of a pair carries the 1rem; a
+   grid or flex gap (tiles, KPIs) is left alone, and a heading between two
+   boxes is a section break that keeps the page's own spacing. The page
+   column itself (.admin-page-layout, space-y-6) is not one of these: its
+   1.5rem is the gap between sections, not between boxes. */
+.admin-shell .admin-content :is([class~="space-y-2"], [class~="space-y-3"], [class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]:not(.admin-page-layout)) > :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, form.crm-create, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .admin-notice, div.rounded-xl.border.border-dashed, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border):has(+ :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, form.crm-create, .theme-editor__panel, .seo-editor__panel, li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .admin-notice, div.rounded-xl.border.border-dashed, .admin-table-surface, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table, .inventory-table-wrap, div.overflow-x-auto.rounded-2xl.border)):not([class*="__preview"] *) {
+  margin-block-end: 1rem !important;
+}
+
+/* Phone Inventory: "KWD 1,654.350" (a no-break space, text-xl) was 8px past
+   the edge of its 173px tile. The tile may shrink in its grid track, and the
+   figure scales with the screen as two tiles a row do: 18.2px at 390, 16.3
+   at 360, 14px at 320, never above text-xl; a longer figure breaks rather
+   than spill. */
+.admin-shell .admin-content .inventory-tile { min-width: 0 !important; }
+@media (max-width: 767px) {
+  .admin-shell .admin-content .inventory-tile p.text-xl.tabular-nums {
+    font-size: clamp(.875rem, 6.6vw - 7.5px, 1.25rem) !important;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Payments: "Required" sat 0px from the form's edge, in its 19.1px padding:
+   the label line ran past its column (the cause was not in the scan; the
+   fixture models a line that cannot wrap). The line may wrap and shrink
+   now, the state keeps to its end, and it takes the palette: required in
+   the accent, an error in rose (saved is already slate, by the no-rainbow
+   rule, whose 0,2,0 these 0,4,0 rules beat). */
+.admin-shell .admin-content .payment-gateway-editor .grid > * { min-width: 0; }
+.admin-shell .admin-content .payment-secret-field__label { flex-wrap: wrap; row-gap: .125rem; white-space: normal !important; }
+.admin-shell .admin-content .payment-secret-field__state { margin-inline-start: auto; white-space: nowrap; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-amber-"], [class*=" text-amber-"]) { color: var(--admin-action, #9a452c) !important; }
+.admin-shell .admin-content .payment-secret-field__state:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) { color: #be123c !important; }
+
+/* Phone Catalogue form: the photo gallery started 2px in from the sections
+   above and below it (the cause was not in the scan; modelled as its own
+   margin). */
+.admin-shell .admin-content .admin-image-gallery { margin-inline: 0 !important; }
+
+/* ---- 7. Tables ---------------------------------------------------------- */
+/* One header style on every .admin-table: section 4's 12px / 700 floor,
+   uppercase at .04em, in the meta colour #556274 (6.20:1; the live #5d6975
+   is 5.61:1, a second grey), over the same hairline as the rows. */
+.admin-shell .admin-content .admin-table > thead > tr > th {
+  color: #556274 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+/* One row divider: 1px #e2e8f0 under every row but the last (the frame's
+   edge closes the table). Measured: #f1f5f9 on Orders and the site-vs-
+   database table (1.1:1), #f8fafc on part of the Catalogue list, none on
+   Returns, Support, Profiles and Inventory. Rows' own borders go: a row
+   border draws only in the collapsed model, so the cells carry it. */
+.admin-shell .admin-content .admin-table > tbody > tr { border-top-width: 0 !important; border-bottom-width: 0 !important; }
+.admin-shell .admin-content .admin-table > tbody > tr > :is(td, th) {
+  border-top-width: 0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+.admin-shell .admin-content .admin-table > tbody > tr:last-child > :is(td, th) { border-bottom-width: 0 !important; }
+.admin-shell .admin-content .admin-table > tbody > tr:is(.cursor-pointer, [role="button"], [tabindex]:not([tabindex="-1"])):hover { background-color: #f8fafc !important; }
+
+/* Figures read down a column: Profiles' ORDERS and PAYMENTS RECEIVED go to
+   the end with tabular figures, as Orders' AMOUNT already does; PHONE is an
+   identifier and stays at the start, in tabular figures. An empty header
+   (the Catalogue list's actions column) lines up with its end-aligned
+   cells. */
+.admin-shell .admin-content .profiles-admin__table .admin-table tr > :is(:nth-child(2), :nth-child(3), :nth-child(4)) { font-variant-numeric: tabular-nums; }
+.admin-shell .admin-content .profiles-admin__table .admin-table tr > :is(:nth-child(3), :nth-child(4)) { text-align: end !important; }
+.admin-shell .admin-content .admin-table > thead > tr > th:last-child:empty { text-align: end !important; }
+
+/* Inventory fits its frame at 1366px again: seven columns at .75rem a side
+   instead of 1rem give back 59px, and the table needed 21 (1039px in 1018). */
+.admin-shell .admin-content .inventory-table > :is(thead, tbody) > tr > :is(th, td) { padding-inline: .75rem !important; }
