@@ -27,6 +27,7 @@ what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
 | Scan JSON | `… compose --scan json` | **Nothing.** `scripts/json-scan.mjs`: every API answer is JSON, labelled JSON, `nosniff` + `no-store`, carries no private field or trace, refuses bad input with a JSON 4xx; Arabic intact; no JSONP/CORS; both manifests and their icons; JSON-LD; no `.json`/`.map` in the web root. Its only POSTs are bodies refused at validation. |
 | Scan ports | `… compose --scan ports --edge tcp/80@any,tcp/443@any,tcp/22@<ip>` | **Nothing.** `scripts/port-scan.mjs`: every TCP/UDP listener on the host from its own socket table, what it is bound to, who answers (SSH/MySQL/HTTP/TLS), the Hostinger firewall rules passed in `--edge` (read them from the API first), and the SSH banner. It cannot read sshd's settings: the Hostinger API refuses (403) a job that mounts them. |
 | Scan KNET | `… compose --scan knet` | **Nothing — not even a log line.** `scripts/knet-scan.mjs`: `knet/` on disk (what must and must not be there, PHP syntax), what the internet can ask (`pay.php` refuses bad input; library, config and tools 403/404; HTTP→HTTPS), the private config run through the live `knet.php` and `pay.php`'s own validator (`scripts/knet-config-check.php` prints verdicts, never values), the bank host's DNS and TLS certificate, and the payment log summarised by counts. `callback.php` and a well-formed track id are never sent: both write to the payment log. |
+| Scan backends | `… compose --scan backends` | **Nothing — and no sign-in attempt** (five failures lock the account). `scripts/admin-scan.mjs`: `/backends` and every script and chunk reachable from `index.html` exist; every protected `admin.php` route answers a signed-out request with 401 JSON; the sign-in steps refuse a request without `X-Sporta-Admin` before reading it; no-store, noindex, not frameable, robots.txt, no `/admin` alias; every `?r=` route the screens build is served, which admin routes have no screen, and whether the screens answer the MFA and forced-password-change steps the server can ask for. |
 
 What apply will not do, ever: touch `config.js`, any `config.php`,
 `.cbk_token.json` or a log; bring back the setup tools; write into the photo
@@ -37,9 +38,9 @@ site today — unless `--allow-shrink`. After copying it re-probes `/`, `/shop`,
 `/checkout`, `/backends`, the products API and the entry chunk; anything that
 answered 200 before and does not now is **rolled back automatically**.
 
-Proven by `npm run test:vps-deploy` (68 checks: real plan/apply/rollback code
+Proven by `npm run test:vps-deploy` (76 checks: real plan/apply/rollback code
 against a throwaway live tree served by PHP with the VPS config layout,
-including a deploy that breaks the page and undoes itself, and all four scans).
+including a deploy that breaks the page and undoes itself, and all five scans).
 
 ---
 

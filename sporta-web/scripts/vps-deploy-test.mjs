@@ -134,6 +134,8 @@ try {
        && pscan.volumes.length === 1 && pscan.volumes[0].endsWith(':ro') && !/\/etc\//.test(JSON.stringify(pscan)),
        '--scan ports: one read-only mount, nothing under /etc (the API refuses it)', pscan.volumes.join(' '))
     is((await c(['--scan', 'ports', '--edge', 'tcp/80@any;reboot', '--ref', 'main'])).code !== 0, 'a malformed --edge is refused')
+    const bscan = JSON.parse((await c(['--scan', 'backends', '--ref', 'main'])).out).services.deploy
+    is(bscan.environment.SPORTA_SCAN_WHICH === 'backends' && bscan.volumes[0].endsWith(':ro'), '--scan backends selects the admin scan, read-only')
     const kscan = JSON.parse((await c(['--scan', 'knet', '--ref', 'main'])).out).services.deploy
     is(kscan.environment.SPORTA_SCAN_WHICH === 'knet' && kscan.volumes.length === 1 && kscan.volumes[0].endsWith(':ro'), '--scan knet selects the KNET scan, read-only')
     const rs = JSON.parse((await c(['--apply', '--ref', SHA, '--confirm', SHA, '--replace-storefront'])).out).services.deploy
@@ -321,6 +323,29 @@ try {
     is(/BAD\s+pay\.php would refuse every payment: resource_key must be exactly 16 bytes/.test(k2.out), 'a 15-byte resource key is BAD, named by the validator')
     is(/BAD\s+knet\/selftest\.php is on the server/.test(k2.out), 'a self-test left on the server is BAD')
     fs.rmSync(join(LIVE, 'knet', 'selftest.php'))
+  }
+
+  head('the admin scan')
+  {
+    const adm = (extra = {}) => deploy({ SPORTA_DEPLOY_MODE: 'scan', SPORTA_DEPLOY_REF: 'main', SPORTA_SCAN_WHICH: 'backends', ...extra })
+    await run('mariadb', ['sporta', '-e', 'delete from rate_limit']).catch(() => {})
+    const a1 = await adm()
+    is(/SCAN_DONE bad=\d+ warn=\d+/.test(a1.out) && /== 4\. The screens and the server agree/.test(a1.out), 'the admin scan runs to its summary',
+       /SCAN_DONE[^\n]*/.exec(a1.out)?.[0] ?? a1.out.slice(-300))
+    is(/ok\s+\/backends -> 200/.test(a1.out) && /reachable from index\.html, all on disk/.test(a1.out), 'the admin page and every chunk it can reach are found')
+    is(/ok\s+signed out, all \d+ protected routes answer 401 not_signed_in/.test(a1.out), 'every protected admin route refuses a stranger')
+    is(/POST login without X-Sporta-Admin -> 400 bad_request/.test(a1.out), 'sign-in without the CSRF header is refused (no attempt counted)')
+    is(/all \d+ \?r= routes written into the bundle are served/.test(a1.out), 'every route the screens build is served')
+    // This repo's admin cannot answer the MFA step the server can ask for —
+    // the scan must say so (it is why the old build stays live).
+    is(/BAD\s+the server can ask for a MFA code \(need_code\) and no screen handles it/.test(a1.out), "a sign-in step the screens cannot answer is BAD")
+    // A chunk deleted from the server is a screen that breaks when opened.
+    const chunk = fs.readdirSync(join(LIVE, 'assets')).find((f) => /^AdminApp-.*\.js$/.test(f))
+    const moved = join(T, 'moved-chunk.js')
+    fs.renameSync(join(LIVE, 'assets', chunk), moved)
+    const a2 = await adm()
+    is(new RegExp(`BAD\\s+\\d+ referenced file\\(s\\) missing from assets/: [^\\n]*${chunk.replace('.', '\\.')}`).test(a2.out), 'a missing admin chunk is BAD, by name')
+    fs.renameSync(moved, join(LIVE, 'assets', chunk))
   }
 
   head('a deploy that breaks the site undoes itself')

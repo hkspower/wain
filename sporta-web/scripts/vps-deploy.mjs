@@ -46,6 +46,8 @@
 //             on the host, its bind, who answers, the edge firewall.
 //             `--scan knet` runs knet-scan.mjs: the card path's files, doors,
 //             private config (verdicts, never values), the bank's TLS, the log.
+//             `--scan backends` runs admin-scan.mjs: /backends loads, every
+//             admin route refuses a stranger, and screens and server agree.
 //
 // SCOPE. --only api,knet,pay limits plan and apply to those top-level folders
 // (or files). That is how the backend ships while the storefront's own source
@@ -139,7 +141,7 @@ function composeCommand(argv) {
     else if (a === '--scan') {
       opt.mode = 'scan'
       // --scan json → scripts/json-scan.mjs; bare --scan → live-scan.mjs.
-      if (['json', 'site', 'ports', 'knet'].includes(argv[i + 1])) opt.scan = argv[++i]
+      if (['json', 'site', 'ports', 'knet', 'backends'].includes(argv[i + 1])) opt.scan = argv[++i]
     }
     // --edge tcp/80@any,tcp/22@1.2.3.4 — the Hostinger firewall rules, read
     // from the API by whoever starts the job (the container cannot).
@@ -187,7 +189,7 @@ function composeCommand(argv) {
   }
   if (opt.mode === 'rollback') environment.SPORTA_DEPLOY_BACKUP = opt.backup
   if (opt.only) environment.SPORTA_DEPLOY_ONLY = opt.only
-  if (opt.mode === 'scan' && ['json', 'ports', 'knet'].includes(opt.scan)) environment.SPORTA_SCAN_WHICH = opt.scan
+  if (opt.mode === 'scan' && ['json', 'ports', 'knet', 'backends'].includes(opt.scan)) environment.SPORTA_SCAN_WHICH = opt.scan
   if (opt.edge) {
     if (!/^((tcp|udp)\/\d+(:\d+)?@[\w.:/]+,?)+$/i.test(opt.edge)) fail('bad --edge list')
     environment.SPORTA_PORTS_EDGE = opt.edge
@@ -417,7 +419,7 @@ async function run() {
   if (mode === 'scan') {
     process.env.SPORTA_SCAN_ROOT ??= LIVE
     if (PROBE_BASE) process.env.SPORTA_SCAN_BASE ??= PROBE_BASE
-    await import({ json: './json-scan.mjs', ports: './port-scan.mjs', knet: './knet-scan.mjs' }[process.env.SPORTA_SCAN_WHICH] ?? './live-scan.mjs')
+    await import({ json: './json-scan.mjs', ports: './port-scan.mjs', knet: './knet-scan.mjs', backends: './admin-scan.mjs' }[process.env.SPORTA_SCAN_WHICH] ?? './live-scan.mjs')
     return
   }
 
