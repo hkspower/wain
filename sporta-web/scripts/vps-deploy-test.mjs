@@ -134,6 +134,8 @@ try {
        && pscan.volumes.length === 1 && pscan.volumes[0].endsWith(':ro') && !/\/etc\//.test(JSON.stringify(pscan)),
        '--scan ports: one read-only mount, nothing under /etc (the API refuses it)', pscan.volumes.join(' '))
     is((await c(['--scan', 'ports', '--edge', 'tcp/80@any;reboot', '--ref', 'main'])).code !== 0, 'a malformed --edge is refused')
+    const kscan = JSON.parse((await c(['--scan', 'knet', '--ref', 'main'])).out).services.deploy
+    is(kscan.environment.SPORTA_SCAN_WHICH === 'knet' && kscan.volumes.length === 1 && kscan.volumes[0].endsWith(':ro'), '--scan knet selects the KNET scan, read-only')
     const rs = JSON.parse((await c(['--apply', '--ref', SHA, '--confirm', SHA, '--replace-storefront'])).out).services.deploy
     is(rs.environment.SPORTA_DEPLOY_STOREFRONT === '1', '--replace-storefront is passed to the job')
     is(!('SPORTA_DEPLOY_STOREFRONT' in a.environment), 'and is off unless asked for')
@@ -275,6 +277,50 @@ try {
     const p2 = await ports('tcp/80@any,tcp/443@any,tcp/22@any,tcp/3306@any')
     is(/BAD\s+tcp 22 is open to the whole internet/.test(p2.out) && /BAD\s+tcp 3306 .*AND the firewall lets it in/.test(p2.out),
        'SSH or a database open to anyone at the edge is BAD')
+  }
+
+  head('the KNET scan')
+  {
+    // A payment log with a week of events and one older line.
+    const LOG = join(T, 'knet-payments.log')
+    const now = Date.now(), at = (h) => new Date(now - h * 3600000).toISOString()
+    fs.writeFileSync(LOG, [
+      { ts: at(2), event: 'pay.init', trackid: 'X1' }, { ts: at(3), event: 'pay.init', trackid: 'X2' },
+      { ts: at(5), event: 'pay.init', trackid: 'X3' }, { ts: at(4), event: 'callback.received', result: 'CAPTURED' },
+      { ts: at(6), event: 'pay.reject', reason: 'order_not_found' }, { ts: at(24 * 30), event: 'pay.init', trackid: 'OLD' },
+    ].map((j) => JSON.stringify(j)).join('\n') + '\n', { mode: 0o600 })
+    const knet = (extra = {}) => deploy({ SPORTA_DEPLOY_MODE: 'scan', SPORTA_DEPLOY_REF: 'main', SPORTA_SCAN_WHICH: 'knet',
+      SPORTA_KNET_PRIVATE: PRIV, SPORTA_KNET_LOG: LOG, ...extra })
+    const k = await knet()
+    is(/SCAN_DONE bad=0 warn=\d+/.test(k.out), 'the KNET scan runs clean on a working card path', /SCAN_DONE[^\n]*/.exec(k.out)?.[0] ?? k.out.slice(-400))
+    is(/ok\s+\/knet\/pay\.php with no track id -> 400/.test(k.out) && /ok\s+pay\.php, injection in a POST body -> 400/.test(k.out),
+       'pay.php is asked only what it refuses before the log')
+    is(/passes knet_assert_payment_config/.test(k.out) && /AES-128 trandata round trip with the live key/.test(k.out)
+       && /orders database configured/.test(k.out), "the live knet.php loads the private config and runs pay.php's own checks")
+    is(/last 7 days: 5 entries — pay\.init 3/.test(k.out) && /refusals: order_not_found 1/.test(k.out),
+       'the payment log is summarised by counts, older lines left out')
+    // Not one secret in the output: the credentials and the database login.
+    const { stdout: vals } = await run('php', ['-r', `$c = require '${join(PRIV, 'config', 'knet-config.php')}';`
+      + ` echo json_encode(array_map(fn ($k) => (string) ($c[$k] ?? ''), ['tranportal_id', 'tranportal_password', 'resource_key', 'mysql_user', 'mysql_pass']));`])
+    const secrets = JSON.parse(vals).filter((v) => v.length >= 4)
+    // The domain and the paths are not secrets, and a test database user
+    // called "sporta" is a substring of both; take them out before looking.
+    const shown = k.out.replaceAll('www.sporta.com.kw', '').replaceAll(T, '').replaceAll(/\/sporta\b/g, '').replaceAll(/sporta-[a-z-]+/g, '')
+    const leaked = secrets.filter((v) => shown.includes(v))
+    is(secrets.length >= 2 && leaked.length === 0, 'no config value appears in the output', `${secrets.length} values checked, ${leaked.length} leaked`)
+    is(!/X1|X2|X3|CAPTURED/.test(k.out.split('== 5.')[1] ?? ''), 'and no log content either')
+
+    // A key that is one byte short, and a tool left in the web root.
+    const PRIV2 = join(T, 'private-badkey')
+    fs.mkdirSync(join(PRIV2, 'config'), { recursive: true })
+    fs.copyFileSync(join(PRIV, 'api-config.php'), join(PRIV2, 'api-config.php'))
+    await run('php', ['-r', `$c = require '${join(PRIV, 'config', 'knet-config.php')}'; $c['resource_key'] = substr($c['resource_key'], 0, 15);`
+      + ` file_put_contents('${join(PRIV2, 'config', 'knet-config.php')}', '<?php return ' . var_export($c, true) . ';');`])
+    fs.writeFileSync(join(LIVE, 'knet', 'selftest.php'), '<?php echo "x";')
+    const k2 = await knet({ SPORTA_KNET_PRIVATE: PRIV2 })
+    is(/BAD\s+pay\.php would refuse every payment: resource_key must be exactly 16 bytes/.test(k2.out), 'a 15-byte resource key is BAD, named by the validator')
+    is(/BAD\s+knet\/selftest\.php is on the server/.test(k2.out), 'a self-test left on the server is BAD')
+    fs.rmSync(join(LIVE, 'knet', 'selftest.php'))
   }
 
   head('a deploy that breaks the site undoes itself')

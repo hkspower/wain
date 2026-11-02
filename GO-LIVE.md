@@ -26,6 +26,7 @@ what is live. No SSH, no deploy endpoint on the server, and no `curl`/`wget`
 | Scan | `… compose --scan` | **Nothing.** `scripts/live-scan.mjs`: TLS, redirects, routes, headers, cache tiers, cookies, exposed files, SEO, the web root on disk. |
 | Scan JSON | `… compose --scan json` | **Nothing.** `scripts/json-scan.mjs`: every API answer is JSON, labelled JSON, `nosniff` + `no-store`, carries no private field or trace, refuses bad input with a JSON 4xx; Arabic intact; no JSONP/CORS; both manifests and their icons; JSON-LD; no `.json`/`.map` in the web root. Its only POSTs are bodies refused at validation. |
 | Scan ports | `… compose --scan ports --edge tcp/80@any,tcp/443@any,tcp/22@<ip>` | **Nothing.** `scripts/port-scan.mjs`: every TCP/UDP listener on the host from its own socket table, what it is bound to, who answers (SSH/MySQL/HTTP/TLS), the Hostinger firewall rules passed in `--edge` (read them from the API first), and the SSH banner. It cannot read sshd's settings: the Hostinger API refuses (403) a job that mounts them. |
+| Scan KNET | `… compose --scan knet` | **Nothing — not even a log line.** `scripts/knet-scan.mjs`: `knet/` on disk (what must and must not be there, PHP syntax), what the internet can ask (`pay.php` refuses bad input; library, config and tools 403/404; HTTP→HTTPS), the private config run through the live `knet.php` and `pay.php`'s own validator (`scripts/knet-config-check.php` prints verdicts, never values), the bank host's DNS and TLS certificate, and the payment log summarised by counts. `callback.php` and a well-formed track id are never sent: both write to the payment log. |
 
 What apply will not do, ever: touch `config.js`, any `config.php`,
 `.cbk_token.json` or a log; bring back the setup tools; write into the photo
@@ -36,9 +37,9 @@ site today — unless `--allow-shrink`. After copying it re-probes `/`, `/shop`,
 `/checkout`, `/backends`, the products API and the entry chunk; anything that
 answered 200 before and does not now is **rolled back automatically**.
 
-Proven by `npm run test:vps-deploy` (59 checks: real plan/apply/rollback code
+Proven by `npm run test:vps-deploy` (68 checks: real plan/apply/rollback code
 against a throwaway live tree served by PHP with the VPS config layout,
-including a deploy that breaks the page and undoes itself, and all three scans).
+including a deploy that breaks the page and undoes itself, and all four scans).
 
 ---
 
