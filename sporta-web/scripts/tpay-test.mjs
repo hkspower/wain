@@ -261,6 +261,23 @@ head('a second attempt gets its own reference; a declined order is closed')
   is((await sql("select count(*) from orders where track_id like 'SPTPAY0RETRYA%'")) === '0',
      'no phantom order is created for the second reference')
 
+  // A 30-character order id has no room for the retry suffix, so the second
+  // attempt's reference is SHORTENED — and then only MerchUdf5 (the original
+  // order id, echoed back by CBK) can find the order. It was read under the
+  // wrong key ("Udf5"), so this payment would have been taken and the order
+  // left pending.
+  const LONG = 'SPTPAYLONG' + 'X'.repeat(18) + '30'
+  await newOrder(LONG)
+  await get(`${PAY}/pay.php?trackid=${LONG}`)
+  const longAgain = await (await get(`${PAY}/pay.php?trackid=${LONG}`)).text()
+  const shortRef = formFields(longAgain).tij_MerchantPaymentTrack ?? ''
+  is(shortRef.length === 30 && shortRef !== LONG && !shortRef.startsWith(LONG),
+     'a 30-character order id is SHORTENED for its second attempt', shortRef)
+  const longPaid = await payThrough(longAgain, 'outcome=success')
+  is((await sql(`select payment_status from orders where track_id='${LONG}'`)) === 'paid',
+     'and THAT is how the shortened reference settles the right order',
+     longPaid.location.split('?')[1] ?? '')
+
   // A DECLINE closes the order.
   await newOrder('SPTPAY0DECL')
   const d1 = await (await get(`${PAY}/pay.php?trackid=SPTPAY0DECL`)).text()

@@ -193,7 +193,12 @@ if ($trackid === '') $trackid = (string)($res['TrackId'] ?? '');
 // suffix. Resolve it to the order's own track id before anything keys on it:
 // cbk_update_order() matches `where track_id = ?`, so an unresolved reference
 // settles no row while the gateway has taken the money.
-$trackid    = cbk_resolve_track($cfg, $trackid, trim((string)($res['Udf5'] ?? $res['udf5'] ?? '')));
+// CBK's result names the echo of tij_MerchantUdf5 "MerchUdf5" (manual,
+// Payment Details Entity Reference). It was read as "Udf5", a key CBK never
+// sends, so a retry whose track id had been shortened to fit 30 characters
+// could not be traced back to its order. The old spellings stay as fallbacks.
+$udf5       = $res['MerchUdf5'] ?? $res['Udf5'] ?? $res['udf5'] ?? '';
+$trackid    = cbk_resolve_track($cfg, $trackid, trim(is_scalar($udf5) ? (string) $udf5 : ''));
 // CBK's own reference, kept for reconciliation against the bank statement.
 $gatewayTrack = (string)($res['TrackId'] ?? '');
 $paymentId  = (string)($res['PaymentId'] ?? '');

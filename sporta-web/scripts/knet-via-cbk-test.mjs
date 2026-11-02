@@ -105,7 +105,7 @@ try {
   is(done.location.includes('status=success') && done.location.includes('SPKC0001'), 'the customer lands on the success page', done.location.split('?')[1] ?? '')
   const row = (await sql("select payment_status, payment_method, paid_at is not null, cbk_paytype from orders where track_id='SPKC0001'")).split('\t')
   is(row[0] === 'paid' && row[1] === 'knet' && row[2] === '1', 'the order is PAID and is still recorded as a KNET order', row.join(' | '))
-  is(row[3] === '1', "the bank's own pay type (1) is stored for reconciliation", row[3])
+  is(row[3] === 'KNET', "the bank's own pay type (KNET) is stored for reconciliation", row[3])
   const outbox = await sql("select count(*) from fulfilment_outbox where kind='payment' and order_id=(select id from orders where track_id='SPKC0001')")
   is(outbox === '1', 'one "payment received" message is queued', outbox)
   const again = await get(`${BASE}/pay/pay.php?trackid=SPKC0001`)

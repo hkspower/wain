@@ -88,7 +88,15 @@ if (str_contains($path, '/ePay/pg/epay')) {
         'AuthCode'      => $status === '1' ? 'B' . random_int(10000, 99999) : '',
         'ReferenceId'   => (string) random_int(100000000000, 999999999999),
         'ReceiptNo'     => (string) random_int(100000, 999999),
-        'PayType'       => (string) ($_POST['tij_MerchPayType'] ?? ''),
+        // The manual's example answers PayType "KNET" (a channel name, not
+        // the 1/2 that was sent), so the fake does the same for KNET.
+        'PayType'       => ($_POST['tij_MerchPayType'] ?? '') === '1' ? 'KNET' : (string) ($_POST['tij_MerchPayType'] ?? ''),
+        // The five merchant variables come back as MerchUdf1..5 — NOT Udf1..5.
+        'MerchUdf1'     => (string) ($_POST['tij_MerchantUdf1'] ?? ''),
+        'MerchUdf2'     => (string) ($_POST['tij_MerchantUdf2'] ?? ''),
+        'MerchUdf3'     => (string) ($_POST['tij_MerchantUdf3'] ?? ''),
+        'MerchUdf4'     => (string) ($_POST['tij_MerchantUdf4'] ?? ''),
+        'MerchUdf5'     => (string) ($_POST['tij_MerchantUdf5'] ?? ''),
         // What the gateway says it charged. ?amt= lets the test under/overpay
         // so the callback's amount check can be proven.
         'Amount'        => (string) ($_GET['amt'] ?? ($_POST['tij_MerchantPaymentAmount'] ?? '')),
