@@ -102,3 +102,408 @@
 [data-sporta-brand-tagger] [data-sporta-tag-suggestions] > label:hover {
   background-color: #f8fafc;
 }
+
+/* ==========================================================================
+   /backends polish (owner requests 2026-11-02: "improve input text", "scan
+   sizes and colours backends", "improve names product style", "full improve
+   buttons"). Measured first with scripts/admin-style-scan.mjs on the live
+   admin, every API call mocked:
+     - 100 form fields in 40 different styles: four font sizes (12.7–16.9px),
+       weights 400/700/750, placeholder #8b96a1 at 3.0:1, borders in three
+       colours including a muddy terracotta #bd7c5b;
+     - 330 buttons in 45 styles, most at weight 400 whatever their classes
+       say, so "Save product" reads like body text; Edit / Remove /
+       order-number actions are 18–21px tall; the ✕ Close button is #90a1b9
+       on white (2.6:1);
+     - 242 text runs under WCAG AA (slate-400 meta text at 2.6:1), text
+       down to 9.5px, and amber left on stock badges and warning notices;
+     - product names in Catalogue at plain weight 400, Arabic names 650.
+   Then reviewed twice against a fixture of the live cascade; every number
+   below is asserted by scripts/admin-polish-test.mjs (npm run
+   test:admin-polish). Four rules hold the section together:
+     - ONE accent: the live admin's own --admin-action (terracotta #9a452c
+       today; its build paints the indigo utility classes with it), so it
+       follows the theme. No indigo, no new hue. Rose #be123c is delete /
+       error text only.
+     - Tailwind's utilities sit in @layer and everything here is unlayered,
+       so ANY plain declaration here beats them: a min-height undercuts
+       min-h-11, a display shows a .hidden element. Sizes here are floors,
+       and nothing here sets display.
+     - Classes are matched as whole tokens ([class^="x"], [class*=" x"],
+       [class~="x"]): a bare [class*="bg-orange-5"] also hits bg-orange-500
+       and [class*="text-orange-"] hits dark:text-orange-300.
+     - Why buttons looked like body text: the live stylesheet has
+       `.admin-shell button { font-weight: inherit; font-size: inherit }`,
+       which beats every text-sm / font-bold.
+   Everything is scoped to .admin-shell, so the storefront is untouched.
+   ======================================================================== */
+
+/* ---- 1. Fields: one readable text style -------------------------------- */
+/* :where() keeps this rule's specificity at one class, so the select rule
+   and the disabled rule below can still give their weight and grey. */
+.admin-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="hidden"]), select, textarea) {
+  font-size: max(16px, .9375rem) !important;  /* 16px everywhere: iOS never zooms */
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
+  color: #18212a !important;                  /* 16.3:1 */
+  letter-spacing: normal !important;
+  caret-color: var(--admin-action, #9a452c);
+}
+.admin-shell select { font-weight: 500 !important; }
+.admin-shell input[type="number"] { font-variant-numeric: tabular-nums; }
+.admin-shell :is(input, textarea)::placeholder { color: #64748b !important; opacity: 1 !important; } /* 4.76:1, was 3.0:1 */
+
+/* Bordered fields: one edge, #7d8799 — 3.62:1 on white, the WCAG 1.4.11
+   figure commit efea155c chose on purpose (#cbd5e1 is 1.48:1, and an empty
+   field all but vanishes on the white admin). Hover #64748b (4.76:1). The
+   class-less fields — the CRM and Inventory filter selects, the SEO editor —
+   were #aeb8c2 (2.0:1) with a focus of their own: same edge, same focus. */
+.admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
+.admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)) {
+  border-color: #7d8799 !important;
+  background-color: #fff;
+}
+.admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.5rem; }
+.admin-shell textarea:is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 5rem; }
+/* A read-only field does not darken on hover: it would look editable. */
+.admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):hover:not(:focus):not(:disabled):not([readonly]),
+.admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):hover:not(:focus):not(:disabled):not([readonly]) {
+  border-color: #64748b !important;
+}
+/* Focus: the accent edge plus a 1px accent ring (so it reads 2px) and a 4px
+   18% halo. A 1px colour change and a 1.31:1 halo was all a keyboard user
+   had to go on. */
+.admin-shell :is(input, select, textarea):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):focus,
+.admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):focus {
+  border-color: var(--admin-action, #9a452c) !important;
+  box-shadow: 0 0 0 1px var(--admin-action, #9a452c), 0 0 0 4px color-mix(in srgb, var(--admin-action, #9a452c) 18%, transparent) !important;
+  outline: none !important;
+}
+/* Read-only and disabled: #f1f5f9, so the box still shows on white (#f8fafc
+   was 1.04:1), text #475569 at 6.9:1 on it. */
+.admin-shell :is(input, select, textarea):is(:disabled, [readonly]):is(.border, [class^="border-slate-"], [class*=" border-slate-"]),
+.admin-shell .admin-content :is(select:not([class]), select[class=""], .seo-editor__field :is(input:not([type="checkbox"]):not([type="radio"]), textarea)):is(:disabled, [readonly]) {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+.admin-shell :is(input, select, textarea):disabled { cursor: not-allowed; }
+@media (max-width: 767px) {
+  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]) { min-height: 2.75rem; }
+}
+
+/* Field labels: one size, one weight, one colour — 13px / 600 / #334155
+   (10.35:1). The class-less label spans were four more styles (Inventory
+   money 750/#475569, CRM filter 700/#64748b, Theme 750/#65717d). The SEO
+   editor's labels belong to its own component and keep their 13.5px. */
+.admin-shell .admin-content label > :is(span, p).text-xs:is(.font-bold, .font-semibold),
+.admin-shell .admin-content label > .payment-secret-field__label,
+.admin-shell .admin-content label:not(.seo-editor__field) > span:first-child:not([class]) {
+  font-size: .8125rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  letter-spacing: normal !important;
+}
+
+/* ---- 2. Buttons: four kinds, each one way ------------------------------ */
+/* Give back the weight and size the classes ask for. */
+.admin-shell button.font-bold { font-weight: 700 !important; }
+.admin-shell button.font-semibold { font-weight: 600 !important; }
+.admin-shell .admin-content button.text-sm { font-size: .875rem !important; }
+.admin-shell .admin-content button.text-xs { font-size: .8125rem !important; }
+.admin-shell .admin-content button:is(.crm-primary, .crm-refresh, .inventory-refresh, .inventory-adjust-button, .topbar-editor__save, .inventory-primary-button) {
+  font-size: .875rem !important;
+  font-weight: 600 !important;
+}
+.admin-shell button {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+/* a. Primary — solid accent, white text: 6.44:1, hover #813a25 8.19:1.
+      The build's emerald and amber solids (Orders: "Cash collected — mark
+      paid", "Confirm paid") were repainted raw #4f46e5 by the no-rainbow
+      rule above — a second accent — so they join the list. The CRM and
+      top-bar saves were #b8430f / #e0561c; #e0561c with white text is 3.8:1.
+      Every primary is 700 (they came out at 600 and 700). The filter pills
+      keep their own radius, padding and 600: a weight that changed when a
+      pill is picked would shift the row. */
+.admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button) {
+  background-color: var(--admin-action, #9a452c) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  min-height: 2.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .1);
+}
+.admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button):not(.rounded-full) {
+  font-weight: 700 !important;
+  border-radius: .75rem !important;
+  padding-inline: 1.125rem !important;
+}
+.admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button):hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+.admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button):disabled {
+  opacity: .45 !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+/* "Push 46 products" asks for disabled:cursor-wait while it pushes: busy,
+   not forbidden. */
+.admin-shell .admin-content button[class~="disabled:cursor-wait"]:disabled { cursor: wait !important; }
+/* The same two fills on anything else (a badge, a chip): the accent too, so
+   the #4f46e5 of the rule above is gone from the whole shell. */
+.admin-shell :is(.bg-emerald-600, .bg-amber-600) { background-color: var(--admin-action, #9a452c) !important; }
+.admin-shell :is(.hover\:bg-emerald-700, .hover\:bg-amber-700):hover {
+  background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
+}
+/* Not done here: CRM's header toggle reads "Cancel" while the add-contact
+   form is open but keeps class crm-primary, so it stays a solid primary
+   beside "Create contact". Nothing in its markup as measured (no <form>
+   around the fields, no aria-expanded seen) lets CSS tell the two apart;
+   it needs a hook from JS. */
+
+/* b. Secondary — white, the fields' #7d8799 edge (3.62:1), hover #f1f5f9 +
+      #64748b (the old #f8fafc hover was 1.04:1: invisible). Not the picker
+      cards (.text-start / .theme-editor__scheme hold a title and a
+      description), not a selected bg-indigo-* chip (whole tokens, so
+      hover:bg-indigo-50 does not count), not a primary, and not a
+      bordered destructive button (b2). */
+.admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]),
+.admin-shell .admin-content label.admin-product-upload-button {
+  background-color: #fff !important;
+  border: 1px solid #7d8799 !important;
+  color: #1e293b !important;
+  border-radius: .75rem !important;
+  min-height: 2.5rem;
+}
+.admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]):hover:not(:disabled),
+.admin-shell .admin-content label.admin-product-upload-button:hover {
+  background-color: #f1f5f9 !important;
+  border-color: #64748b !important;
+}
+
+/* b2. Bordered destructive ("Block entirely" beside "Block cash on
+       delivery"): the secondary box, but rose text #be123c (6.29:1) — red
+       is what says delete, and in slate the two read the same. */
+.admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]) {
+  background-color: #fff !important;
+  border: 1px solid #7d8799 !important;
+  color: #be123c !important;
+  border-radius: .75rem !important;
+  min-height: 2.5rem;
+}
+.admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]):hover:not(:disabled) {
+  background-color: #f1f5f9 !important;   /* rose text 5.74:1 on it */
+  border-color: #be123c !important;
+}
+
+/* c. Quiet — text-only Cancel, 600 in both of its live spellings (one was
+      700, as heavy as the Save beside it). */
+.admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full) {
+  color: #334155 !important;
+  font-weight: 600 !important;
+  border-radius: .75rem !important;
+  min-height: 2.5rem;
+}
+.admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):hover:not(:disabled) {
+  background-color: #f1f5f9 !important;
+}
+.admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full):disabled:hover {
+  background-color: transparent !important;
+}
+
+/* d. Row actions — Edit, Remove, an order number. They stay text links but
+      get a 32px target. Padding and negative margin are .375rem on every
+      side: Edit and Remove sit .75rem apart (side by side in Brands' "flex
+      items-center gap-3", stacked elsewhere), and 2 × .375rem is exactly
+      that gap, so the targets touch and never overlap. At .5rem they
+      overlapped by 4.2px and Remove, later in the DOM, took the click meant
+      for Edit. No display change: a plain button already centres its text,
+      and an unlayered display would show a .hidden / md:hidden one. */
+.admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full),
+.admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
+  min-height: 2rem;
+  padding: .375rem !important;
+  margin: -.375rem !important;
+  border-radius: .5rem !important;
+}
+.admin-shell .admin-content button.text-indigo-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: var(--admin-action, #9a452c) !important; }
+.admin-shell .admin-content button.text-red-600:not([class^="bg-"]):not([class*=" bg-"]):not(.border) { color: #be123c !important; }
+/* Hover adds a chip AND keeps the underline: for the order number (plain
+   #1d293d mono text) the underline is the only sign it can be clicked, and
+   the #f1f5f9 chip alone is 1.1:1. A disabled action shows neither. */
+.admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full):hover:not(:disabled),
+.admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border):hover:not(:disabled) {
+  background-color: #f1f5f9 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+}
+.admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full):disabled:hover,
+.admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border):disabled:hover {
+  background-color: transparent !important;
+}
+
+/* e. Close (✕): #90a1b9 on white (2.6:1) and 20px — now a 36px target in
+      the meta colour of section 3 (6.20:1) that darkens on hover. Scoped to
+      the content, so the dark sidebar is left alone; no display change, so
+      a .hidden one stays hidden. */
+.admin-shell .admin-content button.text-slate-400 {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: .625rem;
+}
+/* :not(:disabled) is one step more specific than the meta-colour rule,
+   which would otherwise keep it grey on hover. */
+.admin-shell .admin-content button.text-slate-400:hover:not(:disabled) {
+  background-color: #f1f5f9 !important;
+  color: #18212a !important;
+}
+
+/* f. Never undercut min-h-11. Everything above is unlayered, so its plain
+      min-height beat the layered utility: the Orders filter select fell
+      from 46.5 to 42.3px beside 46.5px pills, and the phone Catalogue
+      "Edit product" (92 of them) from 44 to 40px. */
+.admin-shell .admin-content .min-h-11,
+.admin-shell :is(input, select, textarea).min-h-11 { min-height: 2.75rem !important; }
+/* Phones: the live admin floors every button at 44px, and the targets above
+   must not come in under it (measured: Cancel and Refresh 40px, Close 36,
+   Edit and Remove 32). Row actions drop their negative block margin, as on
+   the live phone layout; the inline one stays, so they still never overlap.
+   (Not inside the storefront previews: those keep the storefront's sizes.) */
+@media (max-width: 767px) {
+  .admin-shell .admin-content button:not([class*="__preview"] *) { min-height: 2.75rem !important; }
+  .admin-shell .admin-content button.text-slate-400 { min-width: 2.75rem !important; }
+  .admin-shell .admin-content button:is(.text-indigo-600, .text-red-600):not([class^="bg-"]):not([class*=" bg-"]):not(.border):not(.rounded-full),
+  .admin-shell .admin-content button.font-mono.text-start:not([class^="bg-"]):not([class*=" bg-"]):not(.border) {
+    margin-block: 0 !important;
+  }
+}
+
+/* Keyboard focus, visible on white and on the dark sidebar. The sidebar's
+   #ff7b17 is 6.88:1 on the dark desktop sidebar but 2.59:1 on the white
+   phone drawer, so a 4px #10151a ring sits under it: it passes on both. */
+.admin-shell :is(button, a, [role="button"]):focus-visible {
+  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline-offset: 2px !important;
+}
+.admin-shell .admin-sidebar :is(button, a):focus-visible {
+  outline-color: #ff7b17 !important;
+  box-shadow: 0 0 0 4px #10151a !important;
+}
+/* The photo-upload label wraps a hidden file input: ring the label. */
+.admin-shell .admin-content label.admin-product-upload-button:focus-within {
+  outline: 2px solid var(--admin-action, #9a452c) !important;
+  outline-offset: 2px !important;
+}
+@media (prefers-reduced-motion: reduce) { .admin-shell button { transition: none; } }
+
+/* ---- 3. Colour and contrast -------------------------------------------- */
+/* Meta text: ONE colour, #556274 — 6.20:1 on white, 5.66 on #f1f5f9, 5.36
+   on #f8ece6, 5.03 on #e2e8f0. slate-400 (#90a1b9) was 2.6:1; slate-500
+   (#64748b) is 4.76:1 on white only and failed on every tint still in the
+   admin (the selected theme card #fdf5f1 4.42, the gallery panel #f7f8fa
+   4.48, #f1f5f9 4.34). Not inside the Theme / Top bar previews: those show
+   the storefront in its own colours. */
+.admin-shell .admin-content :is(.text-slate-400:not(svg), .text-slate-500, small, .inventory-product-meta, .inventory-card__collection):not([class*="__preview"] *) {
+  color: #556274 !important;
+}
+/* The top bar's "Visible now" status: #65717d on #f8ece6 was 4.31:1. */
+.admin-shell .topbar-editor__status { color: #475569 !important; }
+
+/* Low stock: the rows the owner must act on (45 of 120 in the scan) stand
+   out again — the accent on white with a hairline in the same colour
+   (6.44:1), not amber and not the neutral chip every other badge wears.
+   "Out" keeps its rose. */
+.admin-shell .inventory-stock-badge--low {
+  color: var(--admin-action, #9a452c) !important;
+  background-color: #fff !important;
+  border: 1px solid currentColor !important;
+}
+/* Warning notice: #f8fafc with a #e2e8f0 edge was barely a box on the white
+   admin (1.04:1 / 1.23:1) and read quieter than an info note. Now a #7d8799
+   edge and a 4px #334155 bar (10.35:1) on the inline-start side — logical,
+   so it flips in Arabic — with #334155 text (not inside a button: that text
+   sits on the accent). The info note's terracotta #bd7c5b edge goes
+   neutral #cbd5e1, a step quieter than a warning. */
+.admin-shell .admin-notice--warn,
+.admin-shell .admin-notice--warn :is(p, div, span, strong):not(button *) {
+  color: #334155 !important;
+}
+.admin-shell .admin-notice--warn {
+  background-color: #f8fafc !important;
+  border-color: #7d8799 !important;
+  border-inline-start: 4px solid #334155 !important;
+}
+.admin-shell .admin-notice--info { border-color: #cbd5e1 !important; }
+/* Orange that survived the no-rainbow rules, matched as whole class tokens
+   (a bare [class*="bg-orange-5"] also hit bg-orange-500, whose white text
+   then sat on #f8fafc at 1.04:1). */
+.admin-shell :is([class^="border-orange-"], [class*=" border-orange-"]) { border-color: #e2e8f0 !important; }
+.admin-shell :is([class~="bg-orange-50"], [class~="bg-orange-100"]) { background-color: #f8fafc !important; }
+.admin-shell :is([class^="text-orange-"], [class*=" text-orange-"]) { color: #334155 !important; }
+
+/* ---- 4. Sizes: nothing under 12px --------------------------------------
+   Measured under 12px: Inventory's ledger figures (11.3px, 480 of them), SKUs
+   and categories (11.5–11.8px), its filter labels (10.5px), table headers
+   (11.7px / 800), the sidebar's subtitle and account line, small hints; on
+   phones the Catalogue badges (11.5px, 184), Inventory size chips (11.5px,
+   120) and the header's "Sporta Operations" (9.8px). */
+.admin-shell .admin-content :is([class^="text-[10px]"], [class*=" text-[10px]"], [class^="text-[11px]"], [class*=" text-[11px]"], [class^="text-[0.6"], [class*=" text-[0.6"], [class~="text-[0.7rem]"]),
+.admin-shell :is(.inventory-ledger-mini, .inventory-sku, .inventory-product-meta, .inventory-card__collection, .admin-sidebar__subtitle, .admin-sidebar__account, .topbar-editor__status, .m-row__badge, .inventory-size-chip, .m-header small),
+/* (Not inside the Theme / Top bar previews: those show the storefront at
+   its own sizes.) */
+.admin-shell .admin-content :is(th, small):not([class*="__preview"] *),
+.admin-shell :is(.inventory-stock-badge, .inventory-stock-badge *, .crm-kicker) {
+  font-size: max(12px, .75rem) !important;
+}
+/* A <b> has no size of its own, so this is only a floor: as a setting it
+   shrank a bold word in a 14.8px sentence to 12.7px. */
+.admin-shell .admin-content b:not([class*="__preview"] *) { font-size: max(12px, 1em) !important; }
+.admin-shell .admin-content th { font-weight: 700 !important; }
+
+/* ---- 5. Product names --------------------------------------------------- */
+/* Catalogue table: the English name is the row title, the Arabic one its
+   quieter second line. */
+.admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) {
+  font-weight: 600 !important;
+  color: #18212a !important;
+  line-height: 1.35 !important;
+}
+.admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
+  margin-top: .125rem;
+  font-size: .8125rem !important;
+  font-weight: 400 !important;
+  line-height: 1.5;
+  color: #475569 !important;
+}
+/* A hidden product reads as hidden: its name (span.text-slate-400) drops to
+   400 in the meta colour, and its Arabic line goes to the same colour —
+   at #475569 (7.6:1) under a #64748b name it read stronger than the name. */
+.admin-shell .admin-content td:has(> span.block.text-xs.text-slate-500) > span.text-slate-400 { font-weight: 400 !important; }
+.admin-shell .admin-content td:has(> span.text-slate-400):has(> span.block.text-xs.text-slate-500) > span.block.text-xs.text-slate-500 {
+  color: #556274 !important;
+}
+/* The site-vs-database comparison table: its name cell holds only the name. */
+.admin-shell .admin-content td.py-2\.5:first-child:not(:has(*)) {
+  font-weight: 600 !important;
+  color: #18212a !important;
+}
+/* Inventory and the phone rows: English 600, Arabic 400, same two colours. */
+.admin-shell strong:has(+ .inventory-product-arabic),
+.admin-shell .m-row__title {
+  font-weight: 600 !important;
+  color: #18212a !important;
+  line-height: 1.35 !important;
+  overflow-wrap: anywhere;
+}
+.admin-shell .inventory-product-arabic,
+.admin-shell .inventory-card__arabic,
+.admin-shell .m-row__title + p.text-xs {
+  font-size: .8125rem !important;
+  font-weight: 400 !important;
+  line-height: 1.5 !important;
+  color: #475569 !important;
+}
+/* A hidden product on the phone list: title and its Arabic line both in the
+   meta colour, so the sub-line is never the stronger of the two. */
+.admin-shell .m-row__title.text-slate-500,
+.admin-shell .m-row__title.text-slate-500 + p.text-xs { color: #556274 !important; }
