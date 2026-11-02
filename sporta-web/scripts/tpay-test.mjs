@@ -278,6 +278,25 @@ head('a second attempt gets its own reference; a declined order is closed')
      'and THAT is how the shortened reference settles the right order',
      longPaid.location.split('?')[1] ?? '')
 
+  // CBK's OWN Track ID (TrackId — the gateway's reference; PayId is ours) is
+  // one of the returned values the manual says the merchant MUST save. It
+  // was read and thrown away.
+  const gwTrack = await sql(`select cbk_trackid from orders where track_id='${LONG}'`)
+  is(/^CBK\d{9}$/.test(gwTrack), "CBK's own Track ID is saved on the order (cbk_trackid)", gwTrack)
+
+  // ...and a database that has not had the column added yet must still
+  // SETTLE: the reference is a nice-to-have, the payment is not.
+  await sql('alter table orders drop column cbk_trackid')
+  try {
+    await newOrder('SPTPAY0NOCOL')
+    const nc = await payThrough(await (await get(`${PAY}/pay.php?trackid=SPTPAY0NOCOL`)).text(), 'outcome=success')
+    is((await sql("select payment_status from orders where track_id='SPTPAY0NOCOL'")) === 'paid',
+       'without the cbk_trackid column (migration not run) the payment still settles',
+       nc.location.split('?')[1] ?? '')
+  } finally {
+    await sql('alter table orders add column if not exists cbk_trackid varchar(40) null after cbk_paytype')
+  }
+
   // A DECLINE closes the order.
   await newOrder('SPTPAY0DECL')
   const d1 = await (await get(`${PAY}/pay.php?trackid=SPTPAY0DECL`)).text()

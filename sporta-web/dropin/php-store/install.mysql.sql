@@ -623,6 +623,14 @@ alter table orders add column if not exists pay_attempt int unsigned not null de
   after cbk_status;
 
 -- ===========================================================================
+-- CBK's own Track ID (the gateway's reference, not ours), which the manual
+-- says the merchant must save. Byte-for-byte the same statement as
+-- cbktrack.mysql.sql, for a shop set up before this column existed.
+-- ===========================================================================
+alter table orders add column if not exists cbk_trackid varchar(40) null
+  after cbk_paytype;
+
+-- ===========================================================================
 -- Customer reviews, and the thank-you discount.
 --
 -- Byte-for-byte the same statement as reviews.mysql.sql, which exists so a

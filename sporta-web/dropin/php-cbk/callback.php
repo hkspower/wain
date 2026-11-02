@@ -326,6 +326,20 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): 
             $paid ? gmdate('Y-m-d H:i:s') : null,
             $trackid,
         ]);
+        // CBK's own Track ID, in its own statement on purpose: on a database
+        // that has not run cbktrack.mysql.sql yet the column is missing, and
+        // that must cost the reference, never the settlement above. A
+        // savepoint keeps a failed statement from poisoning the transaction.
+        $gwTrack = substr(trim((string)($res['TrackId'] ?? '')), 0, 40);
+        if ($gwTrack !== '') {
+            $pdo->exec('savepoint cbk_trackid');
+            try {
+                $pdo->prepare('update orders set cbk_trackid = ? where track_id = ?')->execute([$gwTrack, $trackid]);
+            } catch (PDOException $e) {
+                $pdo->exec('rollback to savepoint cbk_trackid');
+                cbk_log($cfg, 'callback.trackid_not_saved', ['trackid' => $trackid, 'error' => $e->getCode()]);
+            }
+        }
         if ($before !== $status && $status !== 'review') {
             $o = $pdo->prepare('select id from orders where track_id = ?');
             $o->execute([$trackid]);
