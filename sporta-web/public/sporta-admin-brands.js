@@ -3,7 +3,8 @@
  * be loaded without editing that page, whose source is not in the repo):
  *   1. "Remove" button on each brand (below);
  *   2. Merchant ID / Terminal ID card in Payments > KNET editor (second block,
- *      after the brands one).
+ *      after the brands one);
+ *   3. Merchant Server IP 1 / 2 card in Payments > T-Pay editor (third block).
  *
  * Sporta — "Remove" button on each brand in the admin (add-on for the compiled
  * live admin bundle, whose source is not in the repo; the same button exists
@@ -224,6 +225,119 @@
     for (var i = 0; i < forms.length; i++) {
       var form = forms[i]
       if (!form.querySelector('.payment-knet-toggle-row')) continue       // T-Pay's editor
+      if (form.querySelector('[' + MARK + ']')) continue
+      var grid = form.querySelector(':scope > .grid')
+      if (!grid) continue
+      grid.parentNode.insertBefore(build(), grid.nextSibling)
+    }
+  }
+
+  var queued = false
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+
+
+/* ---------------------------------------------------------------------------
+ * 3. Payments > T-Pay editor: Merchant Server IP 1 and 2.
+ *
+ * CBK registers two server addresses per merchant and checks the caller
+ * against them; no request carries them, so the compiled editor says they are
+ * "intentionally not stored here". This adds a card after its field grid that
+ * stores them (admin.php?r=payment_server_ips) so the operator can see what is
+ * registered. Same rules as the KNET card above: textContent only, inline
+ * styles, saved on its own, Enter does not submit the editor's own form.
+ * ------------------------------------------------------------------------ */
+;(function () {
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  var API = '/api/admin.php'
+  var MARK = 'data-sporta-tpay-ips'
+  var MSG = {
+    invalid_server_ip: 'That is not a valid IP address. Use an IPv4 like 203.0.113.10 or an IPv6 address, or leave the box empty.',
+    config_missing: 'The T-Pay configuration file is missing on the server.',
+    not_signed_in: 'Your session ended. Sign in again.',
+    config_not_writable: 'The server could not write the configuration file.'
+  }
+
+  function call(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json().catch(function () { return null }).then(function (j) { return { ok: r.ok, body: j } }) })
+  }
+  function el(tag, css, text) {
+    var n = document.createElement(tag)
+    if (css) n.style.cssText = css
+    if (text != null) n.textContent = text
+    return n
+  }
+
+  function build() {
+    var card = el('div', 'margin-top:1.25rem;border:1px solid #cbd5e1;border-radius:1rem;padding:1rem 1.1rem;background:#f8fafc')
+    card.setAttribute(MARK, '1')
+    card.appendChild(el('p', 'font-size:.875rem;font-weight:700;color:#0f172a;margin:0', 'Merchant Server IP 1 and 2'))
+    card.appendChild(el('p', 'font-size:.75rem;color:#64748b;margin:.25rem 0 .75rem', 'The server addresses registered with CBK during onboarding. They are an allowlist on CBK’s side and are not sent in payment requests; they are kept here as a record.'))
+
+    var inputs = {}
+    var grid = el('div', 'display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem')
+    ;[['server_ip_1', 'Merchant Server IP 1'], ['server_ip_2', 'Merchant Server IP 2']].forEach(function (f) {
+      var label = el('label', 'display:block')
+      label.appendChild(el('span', 'display:block;font-size:.7rem;font-weight:700;color:#475569;margin-bottom:.2rem', f[1]))
+      var input = el('input', 'width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:.75rem;background:#fff;padding:.6rem .75rem;font-family:ui-monospace,monospace;font-size:.8rem')
+      input.type = 'text'
+      input.maxLength = 45
+      input.autocomplete = 'off'
+      input.spellcheck = false
+      input.setAttribute('inputmode', 'decimal')
+      input.placeholder = 'Not set'
+      input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save.click() } })
+      input.addEventListener('input', function () { status.textContent = ''; status.style.color = '#64748b' })
+      inputs[f[0]] = input
+      label.appendChild(input)
+      grid.appendChild(label)
+    })
+    card.appendChild(grid)
+
+    var row = el('div', 'display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:.75rem')
+    var save = el('button', 'min-height:2.75rem;border:0;border-radius:.75rem;background:#4f46e5;color:#fff;font-weight:700;font-size:.8rem;padding:.5rem 1rem;cursor:pointer', 'Save IPs')
+    save.type = 'button'
+    var status = el('span', 'font-size:.75rem;color:#64748b', 'Loading…')
+    row.appendChild(save)
+    row.appendChild(status)
+    card.appendChild(row)
+
+    function show(b) { Object.keys(inputs).forEach(function (k) { inputs[k].value = b[k] || '' }) }
+    function fail(r) {
+      var err = r.body && r.body.error
+      status.style.color = '#be123c'
+      status.textContent = MSG[err] || ('Could not save' + (err ? ' (' + err + ')' : '') + '.')
+    }
+    call('payment_server_ips').then(function (r) {
+      if (r.ok && r.body && 'server_ip_1' in r.body) { show(r.body); status.textContent = '' } else { fail(r) }
+    })
+    save.addEventListener('click', function () {
+      var body = {}
+      Object.keys(inputs).forEach(function (k) { body[k] = inputs[k].value.trim() })
+      save.disabled = true
+      status.style.color = '#64748b'
+      status.textContent = 'Saving…'
+      call('payment_server_ips', body).then(function (r) {
+        save.disabled = false
+        if (r.ok && r.body && 'server_ip_1' in r.body) { show(r.body); status.style.color = '#c2410c'; status.textContent = 'Saved.' } else { fail(r) }
+      })
+    })
+    return card
+  }
+
+  function scan() {
+    var forms = document.querySelectorAll('form.payment-gateway-editor')
+    for (var i = 0; i < forms.length; i++) {
+      var form = forms[i]
+      if (form.querySelector('.payment-knet-toggle-row')) continue        // KNET's editor
       if (form.querySelector('[' + MARK + ']')) continue
       var grid = form.querySelector(':scope > .grid')
       if (!grid) continue

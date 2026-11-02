@@ -51,6 +51,15 @@ if ($u === '/backends') { header('Content-Type: text/html; charset=utf-8'); read
 return false;
 `)
 fs.mkdirSync(join(T, 'knet'), { recursive: true })
+fs.mkdirSync(join(T, 'pay'), { recursive: true })
+const TPAY = { id: 'tpay-client-SECRET', secret: 'tpay-secret-SECRET', key: 'ENCRP-SECRET-KEY' }
+await run('php', ['-r', `file_put_contents('${join(T, 'pay', 'config.php')}', '<?php return ' . var_export([
+  'env' => 'test', 'test_base' => 'https://pgtest.cbk.com', 'production_base' => 'https://pg.cbk.com',
+  'client_id' => '${TPAY.id}', 'client_secret' => '${TPAY.secret}', 'encrp_key' => '${TPAY.key}',
+  'return_url' => 'https://www.sporta.com.kw/pay/callback.php', 'result_page_url' => 'https://www.sporta.com.kw/payment/result', 'lang' => 'en',
+], true) . ';');`])
+const tpayPath = join(T, 'pay', 'config.php')
+const readTpay = async () => JSON.parse((await run('php', ['-r', `echo json_encode(require '${tpayPath}');`])).stdout)
 const SECRETS = { id: 'TP-900-SECRET', pass: 'pw-SECRET-123', key: 'KEY16SECRET12345' }
 fs.writeFileSync(join(T, 'knet', 'config.php'), '<?php return ' + JSON.stringify({}) + ';')
 await run('php', ['-r', `file_put_contents('${join(T, 'knet', 'config.php')}', '<?php return ' . var_export([
@@ -137,6 +146,25 @@ try {
   const clear = await admin('payment_identifiers', { method: 'POST', body: ids() })
   is(clear.status === 200 && clear.body?.test?.merchant_id === '' && (await readCfg()).merchant_id === '', 'blank values clear the identifiers')
 
+  head('T-Pay Merchant Server IPs')
+  const t0 = (await admin('payment_server_ips')).body
+  is(t0?.server_ip_1 === '' && t0?.server_ip_2 === '', 'no IPs on file at first', JSON.stringify(t0))
+  is((await admin('payment_server_ips', { method: 'POST', csrf: false, body: { server_ip_1: '', server_ip_2: '' } })).status === 400, 'saving without the X-Sporta-Admin header is refused')
+  const t1 = await admin('payment_server_ips', { method: 'POST', body: { server_ip_1: '187.7.78.123', server_ip_2: '2a02:4780:7e:cca0::1' } })
+  is(t1.status === 200 && t1.body?.server_ip_1 === '187.7.78.123' && t1.body?.server_ip_2 === '2a02:4780:7e:cca0::1', 'an IPv4 and an IPv6 address are saved and returned', JSON.stringify(t1.body))
+  let tc = await readTpay()
+  is(tc.client_id === TPAY.id && tc.client_secret === TPAY.secret && tc.encrp_key === TPAY.key, 'the ClientId, ClientSecret and ENCRP_KEY are untouched')
+  is(tc.return_url === 'https://www.sporta.com.kw/pay/callback.php' && ((await fs.promises.stat(tpayPath)).mode & 0o777) === 0o600, 'the return URL is kept and the file is owner-only')
+  is(!JSON.stringify(t1.body).includes(TPAY.secret) && !JSON.stringify(t1.body).includes(TPAY.key), 'no secret is returned')
+  for (const [label, value] of [['a hostname', 'example.com'], ['a range', '10.0.0.0/8'], ['a number out of range', '999.1.1.1'], ['text with a space', '1.2.3.4 5.6.7.8']]) {
+    const r = await admin('payment_server_ips', { method: 'POST', body: { server_ip_1: value, server_ip_2: '' } })
+    is(r.status === 400 && r.body?.error === 'invalid_server_ip', `${label} is refused`)
+  }
+  is((await admin('payment_server_ips', { method: 'POST', body: { server_ip_1: '1.2.3.4' } })).status === 400, 'a request that omits an address is refused, not read as "clear"')
+  is((await readTpay()).server_ip_1 === '187.7.78.123', 'and refused saves change nothing')
+  const t2 = await admin('payment_server_ips', { method: 'POST', body: { server_ip_1: '', server_ip_2: '' } })
+  is(t2.status === 200 && (await readTpay()).server_ip_1 === '', 'blank clears the addresses')
+
   head('the card in the live admin (real browser)')
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
@@ -179,6 +207,17 @@ try {
     await page.waitForSelector('[data-sporta-knet-ids] >> text=letters, digits', { timeout: 5000 })
     is(true, 'a bad value shows the reason in plain words')
     is((await readCfg()).test_merchant_id === 'BM-11', 'and nothing was saved')
+    // T-Pay's editor gets its own card with the two address boxes.
+    await page.waitForSelector('#tpay [data-sporta-tpay-ips]', { timeout: 5000 })
+    is(await page.locator('#knet [data-sporta-tpay-ips]').count() === 0, "the IP card is not put in KNET's editor")
+    const ip = page.locator('[data-sporta-tpay-ips] input')
+    is(await ip.count() === 2, 'two boxes: Merchant Server IP 1 and 2')
+    await ip.nth(0).fill('187.7.78.123'); await ip.nth(1).press('Enter')
+    await page.waitForSelector('[data-sporta-tpay-ips] >> text=Saved.', { timeout: 5000 })
+    is((await readTpay()).server_ip_1 === '187.7.78.123' && await page.evaluate(() => window.__submitted) === 0, 'saved from the page, and Enter did not submit the editor form')
+    await ip.nth(1).fill('not an ip'); await page.click('[data-sporta-tpay-ips] button')
+    await page.waitForSelector('[data-sporta-tpay-ips] >> text=not a valid IP', { timeout: 5000 })
+    is(true, 'a bad address shows the reason in plain words')
     is(errors.length === 0, 'no script errors on the page', errors.join(' | '))
   } finally { await browser.close() }
 } finally {

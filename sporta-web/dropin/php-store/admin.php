@@ -844,6 +844,52 @@ if ($r === 'payment_identifiers') {
     store_out($shape($next));
 }
 
+// ------------------------------------------------ T-Pay Merchant Server IPs
+// CBK asks for two "Merchant Server IP" values during onboarding and checks
+// the caller's address against them. They are allowlist values on CBK's side:
+// no request carries them, so nothing in the payment path reads them. They are
+// kept here so the operator can see what was registered. Not secrets, and
+// returned. Blank clears one; anything else must be a valid IPv4/IPv6 address.
+// The ClientId, ClientSecret, ENCRP_KEY and return URL stay in `payment_config`.
+if ($r === 'payment_server_ips') {
+    $path = sporta_config_path('tpay', dirname(__DIR__) . '/pay/config.php');
+    $cfg = is_file($path) ? require $path : null;
+    if (!is_array($cfg)) store_fail('config_missing', 409);
+    $shape = static fn (array $c): array => [
+        'server_ip_1' => store_clean_identifier($c['server_ip_1'] ?? ''),
+        'server_ip_2' => store_clean_identifier($c['server_ip_2'] ?? ''),
+    ];
+
+    if ($method === 'GET') store_out($shape($cfg));
+    if ($method !== 'POST') store_fail('method_not_allowed', 405);
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 2048) store_fail('request_too_large', 413);
+
+    $body = store_body(2048);
+    $next = $cfg;
+    foreach (['server_ip_1', 'server_ip_2'] as $key) {
+        // Both must be sent; a missing one is a client bug, not "clear".
+        if (!array_key_exists($key, $body) || !is_string($body[$key])) store_fail('invalid_server_ip');
+        $value = trim($body[$key]);
+        if ($value !== '' && filter_var($value, FILTER_VALIDATE_IP) === false) store_fail('invalid_server_ip');
+        $next[$key] = $value;
+    }
+
+    $tmp = $path . '.tmp.' . bin2hex(random_bytes(6));
+    $php = "<?php\n// Managed by Sporta Backends. Secrets are never returned to the browser.\nreturn "
+        . var_export($next, true) . ";\n";
+    if (file_put_contents($tmp, $php, LOCK_EX) === false) store_fail('config_not_writable', 500);
+    @chmod($tmp, 0600);
+    if (!@rename($tmp, $path)) {
+        @unlink($tmp);
+        store_fail('config_not_writable', 500);
+    }
+    clearstatcache(true, $path);
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+    store_admin_event($db, $admin, 'payment_server_ips_save');
+    store_out($shape($next));
+}
+
 // A signed-in operator needs to know whether KNET and T-Pay are actually
 // ready, but merchant credentials must never cross the server boundary. This
 // route therefore returns checks and host names only: no IDs, passwords,
