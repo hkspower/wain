@@ -86,3 +86,14 @@ li.text-amber-700 {
   transform: none !important;
   will-change: auto !important;
 }
+
+/* /backends sign-in screen (2026-11-02). The live admin bundle paints its
+   primary buttons — "Sign in securely", "Verify code", "Email reset link" —
+   with `.admin-login .bg-orange-500 { background-color: var(--admin-action)
+   !important; color: #fff !important }`. --admin-action is defined only inside
+   the signed-in shell (.admin-shell), so on the login screen the var() had no
+   value, the background fell back to transparent, and each primary button was
+   white text on a white card: measured 1.00:1 on desktop and phone, and seen
+   as an empty white box in a screenshot. Define the variable here as well:
+   the admin's own accent, white text on it is 6.4:1. */
+.admin-login { --admin-action: #9a452c; }
