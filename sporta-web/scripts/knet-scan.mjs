@@ -92,7 +92,11 @@ for (const f of ['pay.php', 'callback.php', 'knet.php', '.htaccess']) {
 }
 if (!fs.existsSync(path.join(ROOT, 'api', 'config-path.php'))) b('api/config-path.php missing — knet.php cannot find the private config')
 for (const f of ['selftest.php', 'setup-config.php', 'config.php', 'config.example.php', 'README.md']) {
-  if (fs.existsSync(path.join(KNET, f))) (f === 'config.example.php' || f === 'README.md' ? w : b)(`knet/${f} is on the server`)
+  if (!fs.existsSync(path.join(KNET, f))) continue
+  // The example config and the README ship with every release on purpose and
+  // hold placeholders only; section 2 proves the internet gets 403 for both.
+  if (f === 'config.example.php' || f === 'README.md') ok(`knet/${f} present (placeholders only; denied over HTTP, see section 2)`)
+  else b(`knet/${f} is on the server`)
 }
 if (php) {
   const broken = fs.readdirSync(KNET).filter((f) => f.endsWith('.php'))
