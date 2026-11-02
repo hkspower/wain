@@ -43,6 +43,7 @@ const CSS = cssAt >= 0 ? readFileSync(args[cssAt + 1], 'utf8')
   : process.env.SCAN_CSS_B64 ? Buffer.from(process.env.SCAN_CSS_B64, 'base64').toString() : ''
 const BASE = (args.find((a, i) => !a.startsWith('--') && !(cssAt >= 0 && i === cssAt + 1)) || 'https://www.sporta.com.kw').replace(/\/$/, '')
 const ONLY = process.env.SCAN_ONLY ? process.env.SCAN_ONLY.split(',') : null
+const LOGIN = !!process.env.SCAN_LOGIN
 
 const pub = async (r) => { try { return await (await fetch(`${BASE}/api/api.php?r=${r}`)).json() } catch { return [] } }
 const [products, brands, stock, theme] = await Promise.all([pub('products'), pub('brands'), pub('stock'), pub('theme')])
@@ -418,6 +419,15 @@ for (const [vn, w, h, mob] of VIEWS) {
     if (u.origin !== BASE) return route.continue()
     if (u.pathname.endsWith('/api/admin.php') || u.pathname.includes('/api/admin')) {
       const r = u.searchParams.get('r') || ''
+      // SCAN_LOGIN: the signed-out admin. me → null (the login form), a
+      // password → 202 need_code (the 2FA step), a code → 401 bad_code (stays
+      // on that step). Still answered HERE, in the browser: no sign-in attempt
+      // ever reaches the server, so no live lock or rate limit is touched.
+      if (LOGIN) {
+        if (r === 'me') return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
+        if (r === 'login') return route.fulfill({ status: 202, contentType: 'application/json', body: '{"need_code":true}' })
+        if (r === 'login_code') return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"bad_code"}' })
+      }
       if (req.method() !== 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
       if (!(r in MOCK)) unknown.add(r)
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK[r] ?? []) })
@@ -430,7 +440,22 @@ for (const [vn, w, h, mob] of VIEWS) {
   if (CSS) await pg.addStyleTag({ content: CSS })
   await pg.waitForTimeout(800)
   const done = []
-  for (const name of SCREENS) {
+  if (LOGIN) {
+    const grab = async (screen) => { report.push({ vn, screen, data: await pg.evaluate(collect) }); done.push(screen) }
+    await grab('Login')
+    const email = pg.locator('input[type="email"]:visible, input[name*="email" i]:visible, input[autocomplete="username"]:visible').first()
+    const pass = pg.locator('input[type="password"]:visible').first()
+    if (await email.count()) await email.fill('scan@example.com').catch(() => {})
+    if (await pass.count()) await pass.fill('not-a-real-password').catch(() => {})
+    const submit = pg.locator('form button[type="submit"]:visible, button:visible').filter({ hasText: /sign in|log in|continue|دخول|تسجيل/i }).first()
+    if (await submit.count()) { await submit.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(1200); await grab('Login/code') }
+    const code = pg.locator('input[autocomplete="one-time-code"]:visible, input[inputmode="numeric"]:visible').first()
+    if (await code.count()) { await code.fill('123456').catch(() => {}); const v = pg.locator('button:visible').filter({ hasText: /verify|confirm|continue|sign in|تحقق|تأكيد/i }).first(); if (await v.count()) { await v.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(900); await grab('Login/code-error') } }
+    await pg.goto(BASE + '/backends', { waitUntil: 'networkidle' }); if (CSS) await pg.addStyleTag({ content: CSS }); await pg.waitForTimeout(600)
+    const forgot = pg.locator('button:visible, a:visible').filter({ hasText: /forgot|reset|نسيت/i }).first()
+    if (await forgot.count()) { await forgot.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(900); await grab('Login/forgot') }
+  }
+  for (const name of LOGIN ? [] : SCREENS) {
     if (ONLY && !ONLY.includes(name)) continue
     const go = async () => {
       let b = pg.locator('button:visible, a:visible').filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }).first()
