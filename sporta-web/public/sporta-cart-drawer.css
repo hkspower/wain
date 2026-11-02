@@ -13,3 +13,65 @@
   justify-content: center;
   min-height: 44px;
 }
+
+/* Bag drawer layout, 2026-11-02. Measured on the live site at 390px BEFORE this
+   change: the header held a 40px brand tile, the title and a 28px count pill in
+   one cluster at the start edge; the empty state put a 122px-wide button and
+   16px copy in a 759px column, so the content floated in white space. Only
+   layout, size and spacing change here. Colours and copy stay as the live
+   build has them. */
+
+/* Header. The brand tile repeated the bag icon the empty state already shows,
+   so it steps back. The count sits beside the title as a pill: it reads as the
+   bag's count, not as a separate control. */
+.campaign-cart-drawer > header > div:first-child {
+  gap: 0.5rem;
+}
+.campaign-cart-drawer > header .cart-drawer__mark {
+  display: none;
+}
+.campaign-cart-drawer > header .purchase-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border-radius: 9999px;
+  background: #f6e7de;
+  color: #b8430f;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty state. Lifted a little above the middle, where the eye rests, rather
+   than centred in the full height. The icon sits in a warm tile; the copy is
+   larger and darker; the button is a real target, not a 122px sliver. */
+.campaign-cart-drawer > div.flex-1 {
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 0 1.5rem 14vh;
+}
+.campaign-cart-drawer > div.flex-1 > svg {
+  width: 6.5rem;
+  height: 6.5rem;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: #f5f0e8;
+}
+.campaign-cart-drawer > div.flex-1 > p {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #4a5160;
+}
+.campaign-cart-drawer > div.flex-1 > a.btn {
+  min-width: 14rem;
+  min-height: 3.25rem;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+}
