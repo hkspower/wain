@@ -70,7 +70,15 @@ const page = await request('/backends')
 if (page.status !== 200 || !/<script/i.test(page.text)) b(`/backends -> ${page.status}`)
 else ok(`/backends -> 200 (${page.text.length} B of HTML)`)
 const indexHtml = fs.existsSync(path.join(ROOT, 'index.html')) ? fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8') : ''
-if (page.status === 200 && indexHtml && page.text !== indexHtml) w('/backends is not the index.html on disk (another rewrite serves it)')
+// /backends may be served through api/seo-page.php, which puts the page's own
+// title and meta into index.html — so the HTML differs by design. What must
+// match is the app it starts: the entry script.
+const entryOf = (h) => /<script[^>]+type="module"[^>]+src="(\/assets\/[^"]+\.js)"/.exec(h)?.[1] ?? /src="(\/assets\/index-[^"]+\.js)"/.exec(h)?.[1] ?? ''
+if (page.status === 200 && indexHtml && page.text !== indexHtml) {
+  const served = entryOf(page.text), disk = entryOf(indexHtml)
+  served && served === disk ? ok(`/backends starts the same app as index.html (${served}), with its own meta`)
+    : b(`/backends starts ${served || 'no script'}, index.html starts ${disk || 'no script'} — the admin page is a different app`)
+}
 
 // Every asset reachable from index.html, through every chunk import, on disk.
 const ASSETS = path.join(ROOT, 'assets')
@@ -80,7 +88,7 @@ const refsIn = (text) => [...new Set([
   ...[...text.matchAll(/["'`]\.\/([\w.-]+\.(?:js|css))["'`]/g)].map((m) => m[1]),
   ...[...text.matchAll(/["'`]assets\/([\w.-]+\.(?:js|css))["'`]/g)].map((m) => m[1]),
 ])]
-const queue = refsIn(indexHtml)
+const queue = [...new Set([...refsIn(indexHtml), ...refsIn(page.text ?? '')])]
 while (queue.length && seen.size < 600) {
   const f = queue.shift()
   if (seen.has(f)) continue
