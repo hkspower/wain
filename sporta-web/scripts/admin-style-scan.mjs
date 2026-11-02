@@ -358,7 +358,23 @@ for (const [vn, w, h, mob] of VIEWS) {
     const go = async () => {
       let b = pg.locator('button:visible, a:visible').filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }).first()
       if (!(await b.count())) { const m = pg.locator('button:visible').filter({ hasText: /Open menu|☰/ }).first(); if (await m.count()) { await m.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(400) } b = pg.locator('button:visible, a:visible').filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }).first() }
-      if (!(await b.count())) return false
+      if (!(await b.count())) {
+        // Why a screen could not be reached: what the menu button is, what
+        // sits on top of it, and what the open menu offers. Printed always —
+        // a missing screen is exactly when this is needed.
+        const why = await pg.evaluate((want) => {
+          const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && c.visibility !== 'hidden' && c.display !== 'none' }
+          const tag = (e) => e ? `${e.tagName.toLowerCase()}.${String(e.className && e.className.baseVal !== undefined ? e.className.baseVal : e.className).trim().split(/\s+/).slice(0, 4).join('.')}` : 'none'
+          const all = [...document.querySelectorAll('button, a')]
+          const menu = all.filter((e) => /Open menu|☰|Close menu|✕|More|المزيد/.test(e.textContent || e.getAttribute('aria-label') || ''))
+          const m = menu.map((e) => { const r = e.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return `${tag(e)} "${(e.textContent || '').trim().slice(0, 14)}" vis ${vis(e)} @${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} top=${top === e || e.contains(top) ? 'itself' : tag(top)}` })
+          const hit = all.filter((e) => (e.textContent || '').trim() === want).map((e) => { const r = e.getBoundingClientRect(); return `${tag(e)} vis ${vis(e)} @${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} disp ${getComputedStyle(e).display} parent ${tag(e.parentElement)} pdisp ${getComputedStyle(e.parentElement).display}` })
+          const fixed = [...document.querySelectorAll('body *')].filter((e) => { const c = getComputedStyle(e); return (c.position === 'fixed' || c.position === 'sticky') && vis(e) }).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return `${tag(e)} z ${getComputedStyle(e).zIndex} @${Math.round(r.top)} h${Math.round(r.height)}` })
+          return { menu: m, target: hit, fixed, scrollY: Math.round(scrollY), docH: document.documentElement.scrollHeight }
+        }, name)
+        console.log(`.. UNREACHABLE ${vn} ${name}: ${JSON.stringify(why)}`)
+        return false
+      }
       await b.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(1300)
       if (mob) { const close = pg.locator('button:visible').filter({ hasText: /Close menu|✕/ }).first(); if (await close.count()) await close.click({ timeout: 3000 }).catch(() => {}) }
       return true
