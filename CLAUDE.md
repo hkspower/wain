@@ -54,6 +54,13 @@
    claims stock inside the order (`out_of_stock_<slug>_<size>_<left>`), a
    declined card closes the order on both gateways, and an unsigned CBK error
    return is recorded but changes no status — the suites assert all three.
+   **The live database must carry every repo migration.** On 2026-11-02 it
+   lacked `inventory.mysql.sql`, and the live stock claim writes
+   `inventory_version`: every order 500'd for 33 days (last order 2026-09-30)
+   and the admin Stock screen with it. Applied that day (backup
+   `backups/manual-20261102T1506Z-inventory-migration`); see
+   `DATA-SCAN-2026-11-02.md`. Before deploying code that touches a new column,
+   diff the live schema (read-only job) against the migrations.
 
 ## Brand identity (saved by user request — apply always)
 
@@ -81,7 +88,7 @@
   existed twice while there were two, and a fix applied to one was a bug
   waiting in the other (the KNET dropin was hardened against a browser-supplied
   price and T-Pay was not, and it stayed that way until a test went looking).
-  Proven by `npm run test:native` (152 checks) and `test:native-e2e` (26 browser
+  Proven by `npm run test:native` (195 checks) and `test:native-e2e` (26 browser
   checks). `api/config.php` lives ONLY on the server, same rule as
   `knet/config.php`. Any change to one backend's contract must be mirrored in
   the other and covered in native-backend-test.mjs.
