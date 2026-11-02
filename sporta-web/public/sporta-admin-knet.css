@@ -11,3 +11,27 @@
 .payment-gateway-editor:has(.payment-knet-toggle-row) .md\:col-span-2:has(> label > input[type="url"]) {
   display: none !important;
 }
+
+/* /backends: whiter admin (owner request 2026-11-02).
+   The live admin is a compiled build whose source is missing, so the theme is
+   adjusted here by overriding its Tailwind utilities, scoped to the admin
+   shell (and its sign-in screens) so the storefront is untouched.
+   slate-50 page/panel tint -> white; slate-100 chips -> the lightest slate;
+   cards keep their slate-200 borders, plus a hairline shadow so white cards
+   still read as cards on a white page. */
+.admin-shell,
+.admin-shell .bg-slate-50,
+.admin-shell .bg-slate-50\/70,
+.admin-content,
+.flex.min-h-screen.items-center.justify-center.bg-slate-50 {
+  background-color: #fff !important;
+}
+.admin-shell .bg-slate-100 { background-color: #f8fafc !important; }
+.admin-shell .hover\:bg-slate-50:hover { background-color: #f8fafc !important; }
+.admin-shell .admin-content .bg-white.border,
+.admin-shell .admin-content .bg-white.rounded-xl,
+.admin-shell .admin-content .bg-white.rounded-2xl {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+.admin-shell .admin-table thead,
+.admin-shell .admin-table th { background-color: #fff !important; }
