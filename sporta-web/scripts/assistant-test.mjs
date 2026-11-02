@@ -79,6 +79,12 @@ const answersIn = (sql, msgs, cfg = {}) => php(`require ${JSON.stringify(SP)}; r
 const slugs = (a) => (a?.data?.items ?? []).map((p) => p.slug)
 const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true);
   echo json_encode(assistant_canned($in['cfg'], $in['key'], $in['ar']), JSON_UNESCAPED_UNICODE);`, { key, ar, cfg })
+// How many fixed sentences the warmer buys per language. Read from the PHP,
+// asserted against the number written here, so adding a line is a decision
+// this file notices (and the warmer's "N of 2N warm" moves with it).
+const CANNED = 33
+const routes = (msgs) => php(`require ${JSON.stringify(AP)};
+  echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
 // ---------------------------------------------------------------- the intents
 await unthrottle()
@@ -565,7 +571,10 @@ head('search reads the catalogue the way a shopper means it')
 
   // "Here is what I found" is a claim, and is only made when it is true.
   const F = await answersIn([], [['جاكيت سماوي', 'ar'], ['leggings in XL', 'en'], ['navy leggings', 'en']])
-  is(/أقرب القطع/.test(F[0].reply), '«جاكيت سماوي» (no sky-blue jacket) is told these are the closest', F[0].reply)
+  // Not "the closest": army green is not close to sky blue. The colour is
+  // said to be missing, over the same kind in the colours there are.
+  is(/^ما عندنا هذا اللون حاليًا/.test(F[0].reply) && !/أقرب/.test(F[0].reply) && slugs(F[0]).every((x) => x.includes('jacket')),
+     '«جاكيت سماوي» (no sky-blue jacket) is told that colour is not in, over jackets in other colours', F[0].reply)
   is(/closest pieces/.test(F[1].reply), '"leggings in XL" (none in XL) is told the same', F[1].reply)
   is(F[2].reply === 'Here is what I found:', 'and a real match is still "Here is what I found:"')
 
@@ -762,15 +771,42 @@ head('the copy: one register for search, digits that never mix, the full returns
   }
   is(mixed.length === 0, 'no Arabic sentence the assistant says mixes Arabic-Indic and Western digits', mixed.join(' | ') || 'none')
   const c = async (k, ar) => canned(k, ar)
-  // The found / found_near / not_carried family speaks one (Kuwaiti) register.
-  const [found, near, notc] = [await c('found', true), await c('found_near', true), await c('not_carried', true)]
-  is(found === 'لقيت لك هذي القطع:' && /^ما لقيت/.test(near) && /^للأسف ما عندنا/.test(notc) && !/وجدت|هذه/.test(found + near + notc),
-     'found, found_near and not_carried are all Kuwaiti, like no_idea beside them', `${found} / ${near} / ${notc}`)
-  is(!/نفس اللون/.test(near) && /اللي طلبته بالضبط/.test(near), 'found_near says "exactly what you asked for", not "the same colour"', near)
+  // The found / found_near / found_colour / found_other / not_carried family
+  // speaks one (Kuwaiti) register: لقيت، هذي، ما عندنا، اللي، بس — never the
+  // formal وجدت / هذه / لا يوجد / لدينا.
+  const [found, near, colour, other, notc] = [await c('found', true), await c('found_near', true),
+    await c('found_colour', true), await c('found_other', true), await c('not_carried', true)]
+  const family = found + near + colour + other + notc
+  is(found === 'لقيت لك هذي القطع:' && /^ما لقيت/.test(near) && /^ما عندنا/.test(colour) && /^ما عندنا/.test(other)
+     && /^للأسف ما عندنا/.test(notc) && !/وجدت|هذه|لا يوجد|لدينا|لكن/.test(family) && /هذي/.test(colour + other),
+     'the whole search family is Kuwaiti, like no_idea beside it', `${found} / ${near} / ${colour} / ${other} / ${notc}`)
+  // Each near-miss says WHICH part is missing, and only "closest" for a size.
+  is(/المقاس/.test(near) && !/اللون/.test(near) && /closest/.test(await c('found_near', false)),
+     'found_near is about the size only, and keeps "the closest pieces"', near)
+  is(/اللون/.test(colour) && !/أقرب/.test(colour) && /^We do not have that colour right now/.test(await c('found_colour', false)),
+     'found_colour says the colour is not in, and never "closest"', colour)
+  is(!/أقرب|closest/.test(other + await c('found_other', false)) && /نفس النوع/.test(other),
+     'found_other says "the same kind", not "the closest"', other)
   // Returns: the exception beside the promise, saying what is still allowed.
   const [ret, retAr] = [await c('returns', false), await c('returns', true)]
-  is(/^Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women's clothing is return only\./.test(ret),
-     'returns (en): free, 14 days, the condition and the exception in one sentence', ret)
+  is(/^Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women's clothing can be returned but not exchanged\./.test(ret),
+     'returns (en): free, 14 days, the condition and the exception in one sentence, in full words', ret)
+  is(/the phone number on the order/.test(ret) && !/the phone on the order/.test(ret), 'and "the phone NUMBER on the order", not the handset', ret)
+  // THE SIBLING THAT FORGOT THEM: stage_delivered promised an exchange for
+  // every delivered order, women's leggings included, with no condition.
+  const [del, delAr] = [await c('stage_delivered', false), await c('stage_delivered', true)]
+  is(/unworn item with its tags/.test(del) && /women's clothing can be returned but not exchanged/.test(del) && /14 days from delivery/.test(del),
+     'stage_delivered (en) carries the condition and the women\'s-clothing exception', del)
+  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /إلا للملابس النسائية/.test(delAr) && /١٤ يومًا/.test(delAr),
+     'stage_delivered (ar) too', delAr)
+  // The other two siblings: cancel's return carries its condition, location
+  // its "for confirmed orders".
+  const [can, canAr, loc, locAr] = [await c('cancel', false), await c('cancel', true), await c('location', false), await c('location', true)]
+  is(/unworn with its tags/.test(can) && /غير الملبوسة وبطاقاتها عليها/.test(canAr), 'cancel: the return it points to is "if unworn with its tags"', can.slice(-70))
+  is(/within 24 hours for confirmed orders/.test(loc) && /٢٤ ساعة للطلبات المؤكدة/.test(locAr), 'location: "within 24 hours for confirmed orders", as delivery says', loc.slice(60, 140))
+  // Checkout is «إتمام الطلب» everywhere, including the no-settings payment line.
+  const payNull = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_payment_line(null, true, '+965 1'), JSON_UNESCAPED_UNICODE);`)
+  is(/عند إتمام الطلب/.test(payNull) && !/إتمام الشراء/.test(payNull), 'the payment fallback calls checkout «إتمام الطلب», like every other line', payNull)
   is(/^الإرجاع والاستبدال مجانيان خلال ١٤ يومًا/.test(retAr) && /غير ملبوسة وبطاقاتها عليها/.test(retAr) && /الملابس النسائية فإرجاع فقط/.test(retAr),
      'returns (ar): the dual, the condition and the exception', retAr)
   is(!/ومعها البطاقات/.test(retAr), 'and not the stiff «ومعها البطاقات»')
@@ -792,7 +828,7 @@ head('the warmer survives a database that is down')
     $l = assistant_canned_lines(['db_name' => 'sporta', 'db_host' => '127.0.0.1', 'db_user' => 'no_such_user', 'db_pass' => 'wrong']);
     echo json_encode([count($l['ar']), count($l['en']), in_array('The payment methods currently available for your order are shown at checkout before you confirm it. Choose one of the options shown there.', $l['en'], true),
                       (bool) array_filter($l['en'], fn ($s) => str_contains($s, 'costs 1 KWD'))]);`)
-  is(out[0] === 28 && out[1] === 28, 'every line is still there with the database unreachable', `${out[0]}/${out[1]}`)
+  is(out[0] === CANNED && out[1] === CANNED, 'every line is still there with the database unreachable', `${out[0]}/${out[1]}`)
   is(out[2] && out[3], 'the two settings lines fall back to their default wording (the 1 KWD fee, "shown at checkout")')
   is(Date.now() - t0 < 8000, 'and it does not hang on the dead connection', `${Date.now() - t0} ms`)
 
@@ -804,7 +840,7 @@ head('the warmer survives a database that is down')
     'cron_key' => 'k', 'tts_key' => 'fake', 'tts_voice_id' => 'v', 'tts_cache_dir' => '${tmpdir()}/sporta-dead-db-voice'];\n`)
   const st = await run('php', [new URL('../dropin/php-store/cron-voice.php', import.meta.url).pathname, 'status'],
                        { env: { ...process.env, SPORTA_API_CONFIG_FILE: bad } }).catch((e) => ({ stdout: e.stdout ?? '', code: e.code }))
-  is(/canned\s+\d+ of 56 warm/.test(st.stdout) && !/db_unreachable/.test(st.stdout),
+  is(new RegExp(`canned\\s+\\d+ of ${2 * CANNED} warm`).test(st.stdout) && !/db_unreachable/.test(st.stdout),
      'cron-voice.php status still reports the cache with the database down', st.stdout.trim().split('\n').pop())
 }
 
@@ -833,13 +869,285 @@ head('the shelf reads the question, and claims only what it shows')
 
   // The sandbox has no sale prices: nothing may be called popular or on offer.
   const C = await answersIn([], [['what do you recommend', 'en'], ['شنو تنصح', 'ar'], ['on sale', 'en'], ['عروض', 'ar'], ['White Friday?', 'en']])
-  is(C[0].reply === 'Here are a few picks from our range. Add what you like to the bag and I will take you through checkout.',
+  is(C[0].reply === 'Here are a few picks from our range. Add what you like to your bag and check out from there.',
      'the shelf is "picks", not "our most popular pieces, a few on offer"', C[0].reply)
+  // And it promises no control the assistant does not have: "I will take you
+  // through checkout" was answered «ما لقيت شي» the moment it was taken up.
+  is(!/I will take you|أكمل معك/.test(C[0].reply + C[1].reply) && /كمّل الطلب من صفحة السلة/.test(C[1].reply),
+     'no first-person promise to check the customer out — the bag is where checkout starts', C[1].reply)
   is(!/أكثر القطع طلبًا|عليه عرض/.test(C[1].reply), 'and the Arabic says no more than the English', C[1].reply)
   for (const a of C.slice(2)) {
     is(/Nothing is marked down|ما فيه قطع عليها تخفيض/.test(a.reply) && slugs(a).length > 0,
        'asking for offers when none are live says so, and still shows the shelf', a.reply.slice(0, 50))
   }
+}
+
+// ------------------------------------------------- the review of round two
+// Every sentence below was measured landing wrong after round one, quoted as
+// the reviewers wrote them. One block per finding.
+
+// Sentences a person must hear about because money moved. Shared with the n8n
+// check in the voice section, which proves each one reaches the shop's inbox
+// with a subject that says so.
+const MONEY_R2 = [
+  ['my card was charged but the order failed', 'en'], ['my card got charged but no order', 'en'],
+  ['they charged my card twice', 'en'], ['card charged, order failed', 'en'], ['payment went through twice', 'en'],
+  ['my bank shows two payments', 'en'], ['the payment was taken but the site said error', 'en'],
+  ['paid with card but order says unpaid', 'en'], ['my payment went through but no confirmation', 'en'],
+  ['knet took the money but the order is pending', 'en'], ['you took money twice from my account', 'en'],
+  ['the money left my account but the order failed', 'en'], ['charged but order not placed', 'en'],
+  ['تم الدفع مرتين', 'ar'], ['دفعت والطلب يقول غير مدفوع', 'ar'], ['تم سحب المبلغ من حسابي مرتين', 'ar'],
+  ['سحب مني المبلغ', 'ar'], ['انسحب مني المبلغ مرتين', 'ar'], ['المبلغ نزل من حسابي والطلب ما انعمل', 'ar'],
+  ['الفلوس طلعت من حسابي', 'ar'], ['انحسب علي مرتين', 'ar'],
+]
+// A wrong or damaged item: a person's job as well.
+const COMPLAINT_R2 = [
+  ['wrong item delivered', 'en'], ['wrong order delivered to me', 'en'], ['I got the wrong size', 'en'],
+  ['وصلني مقاس غلط', 'ar'], ['I received a damaged item', 'en'], ['the item is damaged', 'en'],
+  ['القطعة فيها عيب', 'ar'], ['وصلتني القطعة خربانة', 'ar'], ['القطعة مشقوقة', 'ar'], ['وصلني غلط', 'ar'],
+  ['الطلب وصل ناقص', 'ar'], ['you sent me the wrong colour', 'en'], ['missing item in my order', 'en'],
+]
+
+head('money taken, said the way people say it, reaches a person')
+{
+  const R = await routes(MONEY_R2.map(([q]) => q))
+  MONEY_R2.forEach(([q], i) => is(R[i][0] === 'contact' && R[i][1] === 'money', `"${q}" -> contact (money)`, R[i].join('/')))
+  // The four that round one's bare-"card" rule turned into the payment list.
+  const ASKED = MONEY_R2.slice(0, 4).concat([['تم سحب المبلغ من حسابي مرتين', 'ar']])
+  const A = await answersIn([], ASKED)
+  A.forEach((a, i) => is(a.intent === 'contact' && !a.data && /check the payment|ونراجع الدفع/.test(a.reply) && !/At checkout you can pay/.test(a.reply),
+    `"${ASKED[i][0]}" hears "we will check the payment", not the payment methods`, a.reply.slice(0, 50)))
+  // Not opened with "we are happy to help".
+  const money = await canned('money', true)
+  is(/^نعتذر عن هذا/.test(money) && !/يسعدنا/.test(money) && money.includes('‎+965'), 'the money line opens with an apology, not «يسعدنا خدمتك»', money)
+  is(/^Sorry about that\. WhatsApp us on \+965 22091914 with your order number and we will check the payment\.$/.test(await canned('money', false)),
+     'and in English')
+  // A DISCOUNT TAKEN OFF IS NOT MONEY TAKEN. These were emailed to staff.
+  const D = await routes(['is the discount deducted automatically?', 'تم خصم ١٠٪ من السعر؟', 'تقبلون كي نت بس؟'])
+  is(D[0][0] === 'recommend' && D[1][0] === 'recommend', 'a discount coming off is an offers question, not a complaint', `${D[0]} / ${D[1]}`)
+  is(D[2][0] === 'payment', '«تقبلون كي نت بس؟» ("KNET only?") is a payment question — «بس» alone is not a complaint', D[2].join('/'))
+  // And a code that will not apply is a person's job, with its own line.
+  const CP = await answersIn([], [['الكود ما اشتغل', 'ar'], ['my promo code is not working', 'en'], ['the coupon is invalid', 'en']])
+  CP.forEach((a, i) => is(a.intent === 'contact' && /expired|منتهي/.test(a.reply) && /minimum order|حد أدنى/.test(a.reply) && /\+965/.test(a.reply),
+    `"${['الكود ما اشتغل', 'my promo code is not working', 'the coupon is invalid'][i]}" -> contact, with the usual reasons and the number`, a.reply.slice(0, 50)))
+}
+
+head('timing words are the parcel\'s, not the shop\'s or the stock\'s')
+{
+  const C = [
+    ['when will they contact me', 'contact'], ['when will they call me back', 'contact'], ['when will they answer my email', 'contact'],
+    ['reach me on whatsapp', 'contact'], ['can someone reach me', 'contact'], ['reach me at this number', 'contact'],
+    ['please have someone reach me', 'contact'], ['when will they reply', 'contact'],
+    ['when will it be on sale', 'recommend'], ['when will it go on sale', 'recommend'], ['when will they have a sale', 'recommend'],
+    ['when will it be cheaper', 'recommend'],
+    // The parcel still is.
+    ['when will it be delivered', 'delivery'], ['when will it reach me', 'delivery'], ['is delivery available to Jahra?', 'delivery'],
+  ]
+  const got = await intents(C.map(([q]) => q))
+  C.forEach(([q, want], i) => is(got[i] === want, `"${q}" -> ${want}`, got[i]))
+  // Stock questions are about stock: never the courier's timetable.
+  const S = [['when will it be available in XL', 'sizes'], ['when will they have size xl', 'sizes'], ['when will it be in stock', 'search'],
+             ['when will it be available', 'search'], ['when will they get new stock', 'search'], ['when will they have hoodies', 'search']]
+  const sg = await intents(S.map(([q]) => q))
+  S.forEach(([q, want], i) => is(sg[i] === want, `"${q}" -> ${want}, not delivery`, sg[i]))
+  const [hood] = await answersIn([], [['when will they have hoodies', 'en']])
+  is(slugs(hood).length > 0 && !/24 hours/.test(hood.reply), '"when will they have hoodies" shows the hoodies, not the 24 hours', hood.reply.slice(0, 40))
+}
+
+head('Arabic payment questions are payment questions')
+{
+  const P = ['تقبلون البطاقات؟', 'تقبلون بطاقة؟', 'بطاقة ائتمان', 'البطاقة الائتمانية مقبولة؟', 'ابل باي', 'آبل باي', 'عندكم ابل باي',
+             'نقدا عند الاستلام', 'do you take amex', 'ادفع للمندوب؟', 'ينفع ادفع للمندوب كاش']
+  const got = await intents(P)
+  P.forEach((q, i) => is(got[i] === 'payment', `"${q}" -> payment`, got[i]))
+  const [a] = await answersIn([], [['ادفع للمندوب؟', 'ar']])
+  is(/^عند إتمام الطلب تقدر تدفع/.test(a.reply), '«ادفع للمندوب؟» hears the methods, not the courier\'s timetable', a.reply.slice(0, 40))
+  // Still: a card holder is a thing to buy, «المندوب» alone is delivery.
+  const N = await intents(['card holder', 'متى يوصل المندوب', 'حامل بطاقات'])
+  is(N[0] === 'search' && N[1] === 'delivery' && N[2] !== 'payment', 'a card holder is still a product, and the courier alone still delivery', N.join(','))
+  // A gift card is a product the shop does not sell — not a way to pay.
+  const [gc, gcAr] = await answersIn([], [['do you sell gift cards', 'en'], ['عندكم بطاقات هدايا؟', 'ar']])
+  is(gc.intent === 'search' && /^Sorry, we do not carry that/.test(gc.reply), '"do you sell gift cards" is "not carried", not the payment methods', gc.reply.slice(0, 40))
+  is(gcAr.intent === 'search' && /^للأسف ما عندنا/.test(gcAr.reply), 'and «عندكم بطاقات هدايا؟» too', gcAr.reply.slice(0, 40))
+}
+
+head('the openers and closers Kuwait types')
+{
+  const G = [['اهلين', 'greeting'], ['اهلين وسهلين', 'greeting'], ['هلو', 'greeting'], ['هلوو', 'greeting'], ['مساء الورد', 'greeting'],
+             ['helo', 'greeting'], ['heyy', 'greeting'], ['morning', 'greeting'], ['evening', 'greeting'], ['anyone there?', 'greeting'],
+             ['shlonak', 'greeting'], ['shlonkom', 'greeting'],
+             ['الله يسلمك', 'thanks'], ['جزاك الله خير', 'thanks'], ['الله يجزاك خير', 'thanks'], ['ثانكيو', 'thanks'], ['tnx', 'thanks'],
+             ['خلاص تمام', 'thanks'], ['فهمت', 'thanks'], ['اوكي حبيبي', 'thanks'], ['👍', 'thanks'], ['🙏🏻', 'thanks'], ['bye', 'thanks'],
+             ['مع السلامة', 'thanks'], ['ارجع لكم بعدين', 'thanks'], ['تمام يا اخوي', 'thanks'], ['ok bro', 'thanks']]
+  const GA = await answersIn([], G.map(([q]) => [q, /[a-z]/i.test(q) ? 'en' : 'ar']))
+  G.forEach(([q, want], i) => is(GA[i].intent === want && !GA[i].data && !/could not find|ما لقيت/.test(GA[i].reply),
+    `"${q}" -> ${want}, not a failed search`, `${GA[i].intent} ${GA[i].reply.slice(0, 30)}`))
+  is(!/أهلًا بك/.test(GA[G.findIndex(([q]) => q === 'مع السلامة')].reply), '«مع السلامة» is goodbye — never the welcome line')
+  // Still a return, and still a hello with a question.
+  const N = await intents(['ابي ارجع لكم القطعة', 'ابل باي', 'السلام عليكم'])
+  is(N[0] === 'returns' && N[1] === 'payment' && N[2] === 'greeting', '«ارجع لكم القطعة» is still a return, «ابل باي» still payment', N.join(','))
+}
+
+head('"what do you have" is answered with the shelf, not "nothing matches"')
+{
+  const W = [['شنو عندكم', 'ar'], ['وش عندكم', 'ar'], ['شعندكم', 'ar'], ['عندكم شنو؟', 'ar'], ['شنو تبيعون', 'ar'], ['وش تبيعون', 'ar'],
+             ['ورني منتجاتكم', 'ar'], ['شنو المتوفر', 'ar'], ['what do you have', 'en'], ['what do you sell', 'en'],
+             ['what products do you have', 'en'], ['show me your products', 'en'], ['show me everything', 'en'], ['catalog', 'en'],
+             ['هلا، شنو عندكم؟', 'ar']]
+  const WA = await answersIn([], W)
+  W.forEach(([q], i) => is(WA[i].intent === 'recommend' && slugs(WA[i]).length > 0 && !/could not find|ما لقيت/.test(WA[i].reply),
+    `"${q}" -> recommend, with the shelf`, `${WA[i].intent} ${WA[i].reply.slice(0, 30)}`))
+  // "I have a question" is not a request for the shelf.
+  const [q] = await answersIn([], [['I have a question', 'en']])
+  is(q.intent !== 'recommend', '"I have a question" is not a request for the shelf', q.intent)
+}
+
+head('the shop\'s own category words find the shop\'s own categories')
+{
+  // Every category name products.js shows on the storefront, in both
+  // languages, and every product noun the SEO copy advertises. Each must come
+  // back with cards: the shop telling a customer it has nothing under its own
+  // category name is the worst search result there is.
+  const { CATEGORIES } = await import('../src/lib/products.js')
+  const names = CATEGORIES.filter((c) => c.id !== 'all').flatMap((c) => [[c.name.en, 'en', c.id], [c.name.ar, 'ar', c.id]])
+  const tr = readFileSync(new URL('../src/i18n/translations.js', import.meta.url), 'utf8')
+  const SEO = [['activewear', 'en'], ['gym clothing', 'en'], ['hoodies', 'en'], ['caps', 'en'], ['sports accessories', 'en'],
+               ['leggings', 'en'], ['sportswear', 'en'], ['ملابس رياضية', 'ar'], ['ملابس تمارين', 'ar'], ['هوديز', 'ar'],
+               ['ليقنز', 'ar'], ['كابات', 'ar'], ['إكسسوارات رياضية', 'ar']]
+  for (const [w] of SEO) is(tr.includes(w), `the SEO copy really says «${w}»`)
+  const all = [...names.map(([q, l]) => [q, l]), ...SEO]
+  const A = await answersIn([], all)
+  all.forEach(([q], i) => is(slugs(A[i]).length > 0 && !/do not carry|ما عندنا|could not find|ما لقيت/.test(A[i].reply),
+    `"${q}" comes back with cards`, `${A[i].intent} ${A[i].reply.slice(0, 30)}`))
+  // And a category name shows that category, not just anything.
+  names.forEach(([q, , id], i) => {
+    const cats = (A[i].data?.items ?? []).map((p) => p.category)
+    is(cats.length > 0 && cats.every((c) => c === id), `"${q}" is the ${id} category`, cats.join(','))
+  })
+  // The broken plurals, and the words the site's own copy uses for bags.
+  const BP = [['جواكيت', 'jacket'], ['عندكم جواكيت؟', 'jacket'], ['جواكت', 'jacket'], ['اكسسوارات', ''], ['شنط', 'backpack'],
+              ['حقائب', 'backpack'], ['بناطيل', 'pants'], ['سراويل', 'pants'], ['sweatpants', 'pants'], ['trackpants', 'pants'],
+              ['track pants', 'pants'], ['فنايل', 't-shirt'], ['بلايز', '-top-']]
+  const BA = await answersIn([], BP.map(([q]) => [q, /[a-z]/i.test(q) ? 'en' : 'ar']))
+  BP.forEach(([q, frag], i) => is(slugs(BA[i]).length > 0 && slugs(BA[i]).every((s) => s.includes(frag)) && !/ما لقيت|could not find/.test(BA[i].reply),
+    `"${q}" finds ${frag || 'the accessories'}`, slugs(BA[i]).join(',') || BA[i].reply.slice(0, 30)))
+}
+
+head('a wrong or damaged item reaches a person')
+{
+  const R = await routes(COMPLAINT_R2.map(([q]) => q))
+  COMPLAINT_R2.forEach(([q], i) => is(R[i][0] === 'contact' && R[i][1] === 'complaint', `"${q}" -> contact (complaint)`, R[i].join('/')))
+  const [a, b] = await answersIn([], [['wrong item delivered', 'en'], ['القطعة فيها عيب', 'ar']])
+  is(/^Sorry about that/.test(a.reply) && /photo/.test(a.reply) && !/24 hours/.test(a.reply), 'it is answered with an apology and what to send — not the delivery line', a.reply)
+  is(/^نعتذر عن هذا/.test(b.reply) && /صورة/.test(b.reply), 'in Arabic too', b.reply)
+  // Not the customer's own slip, a hypothetical, or the policy question.
+  const N = await routes(['I ordered the wrong size', 'طلبت مقاس غلط', 'if it arrives damaged can I return it', 'how do you deal with damaged items',
+                          'بدّل لي المقاس', 'ابي استرد فلوسي', 'بدلة رياضية', 'المقاس مقطوع؟'])
+  is(N[0][0] === 'returns' && N[1][0] === 'returns' && N[2][0] === 'returns', 'an order the customer got wrong, or a hypothetical, is a returns question', N.slice(0, 3).map((x) => x[0]).join(','))
+  is(N[3][1] !== 'complaint', 'and the policy question is not a complaint', N[3].join('/'))
+  is(N[4][0] === 'returns' && N[5][0] === 'returns', '«بدّل لي» and «استرد» are returns words', `${N[4][0]} ${N[5][0]}`)
+  is(N[6][0] !== 'returns' && N[7][1] !== 'complaint', '«بدلة» (a tracksuit) is not «بدل», and «مقطوع» (sold out) is not a complaint', `${N[6][0]} ${N[7].join('/')}`)
+}
+
+head('late orders, where we are, and the small routes')
+{
+  const C = [
+    ['الطلب متأخر', 'order_status'], ['ليش تأخر الطلب', 'order_status'], ['order is late', 'order_status'],
+    ['صار لي يومين انتظر الطلب', 'order_status'], ['still waiting for my package', 'order_status'], ['مو واصل للحين', 'order_status'],
+    ['where is my stuff', 'order_status'], ['track', 'order_status'], ['track pants', 'search'],
+    ['وينكم', 'location'], ['وينكم بالضبط', 'location'], ['وين مكانكم', 'location'], ['وين اقدر القاكم', 'location'],
+    ['are you in kuwait', 'location'], ['do you have a store', 'location'],
+    ['كلمني', 'contact'], ['حد يرد علي', 'contact'], ['ابي اغير العنوان', 'contact'], ['لا ترسلون الطلب', 'cancel'],
+    ['في عرض؟', 'recommend'], ['phone holder for running', 'search'], ['phone case', 'search'],
+    ['كمل الطلب', 'checkout'], ['نكمل', 'checkout'], ['اي نكمل الطلب', 'checkout'], ['check out', 'checkout'],
+    ['ok take me to checkout', 'checkout'], ['can I pay by knet at checkout', 'payment'], ['check out the define jacket', 'search'],
+  ]
+  const got = await intents(C.map(([q]) => q))
+  C.forEach(([q, want], i) => is(got[i] === want, `"${q}" -> ${want}`, got[i]))
+  const [ph, co, coAr] = await answersIn([], [['phone holder for running', 'en'], ['ok take me to checkout', 'en'], ['كمل الطلب', 'ar']])
+  is(slugs(ph).includes('gymshark-phone-strap'), '"phone holder for running" finds the phone strap, and nobody is paged', slugs(ph).join(','))
+  is(/from your bag/.test(co.reply) && /صفحة السلة/.test(coAr.reply) && !co.data, '"take me to checkout" is told where checkout starts', co.reply)
+  // in_cart is gone: nothing said it, and it invited a reply with no answer.
+  const keys = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_canned_keys());`)
+  is(!keys.includes('in_cart') && keys.length === CANNED && new Set(keys).size === keys.length, 'in_cart is not warmed, and every warmed key is listed once', String(keys.length))
+}
+
+head('offers asked in the singular are offers')
+{
+  const O = await answersIn([], [['في تخفيض؟', 'ar'], ['عندكم تخفيض', 'ar'], ['في عرض؟', 'ar'], ['العرض', 'ar']])
+  O.forEach((a, i) => is(a.intent === 'recommend' && /^ما فيه قطع عليها تخفيض الحين/.test(a.reply) && slugs(a).length > 0,
+    `"${['في تخفيض؟', 'عندكم تخفيض', 'في عرض؟', 'العرض'][i]}" -> no_offers, with the shelf — not «ما لقيت شي»`, a.reply.slice(0, 40)))
+  // «عرض» stays a whole word: a showroom is not a sale.
+  is((await intents(['عندكم معرض؟']))[0] === 'location', '«معرض» is still a showroom')
+  // The coupon line keeps the code route open even if the live checkout has no box.
+  const [cp, cpAr] = [await canned('coupon', false), await canned('coupon', true)]
+  is(/at checkout/.test(cp) && /WhatsApp us on \+965/.test(cp) && /عند إتمام الطلب/.test(cpAr) && cpAr.includes('‎+965'),
+     'the coupon line says "at checkout" and gives WhatsApp if the code does not go through', cp)
+}
+
+head('a near miss says which part was missing — and staff hear of it')
+{
+  // Straight into assistant_search, for `missed`: it decides the handoff.
+  const Q = [['nike shorts', 'en', 'found_other'], ['adidas leggings', 'en', 'found_other'], ['puma jacket', 'en', 'found_other'],
+             ['ليقنز نايكي', 'ar', 'found_other'], ['تيشيرت برشلونة', 'ar', 'found_other'], ['تيشيرت الهلال', 'ar', 'found_other'],
+             ['real madrid shirt', 'en', 'found_other'], ['yellow shorts', 'en', 'found_colour'], ['orange top', 'en', 'found_colour'],
+             ['beige leggings', 'en', 'found_colour'], ['ليقنز اصفر', 'ar', 'found_colour'], ['جاكيت برتقالي', 'ar', 'found_colour'],
+             ['جاكيت سماوي', 'ar', 'found_colour'], ['leggings in XL', 'en', 'found_near'], ['navy leggings', 'en', 'found'],
+             ['sculpt jacket', 'en', 'found'], ['comfy leggings', 'en', 'found'], ['red shorts', 'en', 'found']]
+  const out = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db(); $cfg = store_config();
+    $o = []; foreach (json_decode($argv[1], true) as [$m, $l, $k]) {
+      [$r, $d, $missed] = assistant_search($db, $cfg, $m, $l === 'ar');
+      $o[] = [$r === assistant_canned($cfg, $k, $l === 'ar'), $missed, count($d['items'] ?? [])];
+    } echo json_encode($o);`, Q)
+  Q.forEach(([q, , k], i) => is(out[i][0] && out[i][2] > 0 && out[i][1] === (k === 'found_other' || k === 'found_colour'),
+    `"${q}" -> ${k}${k === 'found_other' || k === 'found_colour' ? ', and the miss is handed off' : ''}`, JSON.stringify(out[i])))
+}
+
+head('a greeting with a question gets the question answered')
+{
+  const Y = [['مرحبا، عندكم احذية؟', 'ar', /^للأسف ما عندنا/], ['hi, do you have shoes?', 'en', /^Sorry, we do not carry/],
+             ['hello do you sell socks', 'en', /^Sorry, we do not carry/], ['السلام عليكم عندكم بروتين', 'ar', /^للأسف ما عندنا/],
+             ['هلا، عندكم نايكي؟', 'ar', /^ما لقيت شي/], ['hi do you have anything for my wife', 'en', /found/],
+             ['السلام عليكم، عندكم شي للبنات؟', 'ar', /^لقيت لك/]]
+  const YA = await answersIn([], Y.map(([q, l]) => [q, l]))
+  Y.forEach(([q, , re], i) => is(YA[i].intent === 'search' && re.test(YA[i].reply), `"${q}" -> search, answered`, `${YA[i].intent} ${YA[i].reply.slice(0, 30)}`))
+  is((YA[5].data?.items ?? []).every((p) => p.category !== 'men') && (YA[6].data?.items ?? []).every((p) => p.category !== 'men'),
+     'and "for my wife" / «للبنات» are the women\'s shelf', slugs(YA[6]).join(','))
+  // While a hello made only of courtesies stays a hello.
+  const H = [['مرحبا، شلون الحال؟', 'ar'], ['hello sir', 'en'], ['hi man', 'en'], ['هلا والله يا رجال', 'ar'], ['اهلين وسهلين، حياك', 'ar'],
+             ['hi there, how are you doing today?', 'en']]
+  const HA = await answersIn([], H)
+  H.forEach(([q], i) => is(HA[i].intent === 'greeting' && !HA[i].data, `"${q}" is still a hello`, `${HA[i].intent} ${HA[i].reply.slice(0, 30)}`))
+}
+
+head('a model may not drop what the shop said')
+{
+  const acc = await php(`require ${JSON.stringify(AP)};
+    $t = fn ($s) => ['stop_reason' => 'end_turn', 'content' => [['type' => 'text', 'text' => $s]]];
+    $contact = assistant_canned([], 'contact', true); $ret = assistant_canned([], 'returns', true); $retEn = assistant_canned([], 'returns', false);
+    echo json_encode([
+      // The contact answer reworded with the direction mark dropped.
+      assistant_llm_accept($t('تقدر تتواصل معنا عبر واتساب أو الاتصال على +965 22091914، أو عبر البريد cs@sporta.com.kw'), $contact, null, true),
+      // The returns answer with the condition and the exception gone, in Western digits.
+      assistant_llm_accept($t('الإرجاع مجاني خلال 14 يومًا من الاستلام. راسلنا على واتساب ‎+965 22091914.'), $ret, null, true),
+      // English, the exception dropped.
+      assistant_llm_accept($t('Returns and exchanges are free within 14 days of delivery if unworn with tags. Use our Returns page with your order number, or WhatsApp +965 22091914.'), $retEn, null, false),
+      // The phone dropped entirely.
+      assistant_llm_accept($t('We are happy to help on WhatsApp, or by email at cs@sporta.com.kw'), assistant_canned([], 'contact', false), null, false),
+      // Far longer than the shop's own sentence.
+      assistant_llm_accept($t('Here is what I found for you today, in our shop, after a careful look:'), 'Here is what I found:', null, false),
+      // A faithful rewording still passes.
+      assistant_llm_accept($t('Sure. ' . assistant_canned([], 'contact', false)), assistant_canned([], 'contact', false), null, false),
+      $req = assistant_llm_request([], 'x', 'y', null, true)['system'],
+    ], JSON_UNESCAPED_UNICODE);`)
+  is(typeof acc[0] === 'string' && acc[0].includes('‎+965') && !/(?<!‎)\+965/.test(acc[0]),
+     'a dropped direction mark is put back before the Arabic phone, so it does not read «22091914 965+»', acc[0])
+  is(acc[1] === null, 'the returns answer without its conditions, in Western digits, is thrown away')
+  is(acc[2] === null, 'and in English, the women\'s-clothing exception dropped is thrown away')
+  is(acc[3] === null, 'a rewording that drops the phone number is thrown away')
+  is(acc[4] === null, 'and one far longer than the shop\'s own sentence')
+  is(typeof acc[5] === 'string', 'while a faithful rewording still passes', acc[5]?.slice(0, 30))
+  is(/Kuwaiti\/Gulf register/.test(acc[6]), 'and the model is told the register, not just "Arabic"', acc[6].slice(0, 90))
 }
 
 // ------------------------------------------ the number on the card is the number charged
@@ -963,7 +1271,7 @@ head('delivery and payment answers follow the checkout settings')
 head('the fixed sentences say only what is true')
 {
   const lines = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_canned_lines([]), JSON_UNESCAPED_UNICODE);`)
-  is(lines.ar.length === 28 && lines.en.length === 28 && [...lines.ar, ...lines.en].every((l) => typeof l === 'string' && l !== ''),
+  is(lines.ar.length === CANNED && lines.en.length === CANNED && [...lines.ar, ...lines.en].every((l) => typeof l === 'string' && l !== ''),
      'every key the warmer buys has both languages', `${lines.ar.length}/${lines.en.length}`)
   const every = [...lines.ar, ...lines.en].join('\n')
   for (const [re, why] of [[/colleague|أحد الزملاء/, 'no promise that "a colleague will follow up"'],
@@ -1235,6 +1543,49 @@ head('the voice, and who is allowed to ask for it')
     is(money.body?.intent === 'contact' && recM.length === rec.length + 1 && recM[recM.length - 1]?.body?.intent === 'contact'
        && recM[recM.length - 1]?.body?.message === 'المبلغ انخصم مرتين',
        'a "the money was taken twice" complaint is handed to a person', `${money.body?.intent} — ${recM.length - rec.length} handoff(s)`)
+
+    // EVERY MONEY AND COMPLAINT SENTENCE OF ROUND TWO REACHES THE INBOX, with a
+    // subject that says what it is. A search gap only reaches "Log the gap",
+    // which emails nobody — so a complaint routed as a gap is a complaint no
+    // person ever reads. Straight into PHP, the per-IP ration (six in ten
+    // minutes) reset between messages inside the rolled-back transaction;
+    // then each payload the fake n8n received is run through the workflow's
+    // OWN IF node and subject template, read from the JSON that gets imported.
+    {
+      await fetch(`${VOICE}/reset`)
+      const sent = [...MONEY_R2, ...COMPLAINT_R2, ['do you sell live goldfish', 'en']]
+      await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true); $db = store_db();
+        $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
+        $db->beginTransaction();
+        try { foreach ($in as [$m, $l]) { $db->exec('delete from rate_limit'); assistant_answer($db, $cfg, $m, $l); } }
+        finally { $db->rollBack(); }
+        echo '[]';`, sent)
+      const got = (await calls()).n8n ?? []
+      const wf = JSON.parse(readFileSync(new URL('../dropin/n8n/sporta-ai-handoff.json', import.meta.url), 'utf8'))
+      const ifNode = wf.nodes.find((n) => n.type === 'n8n-nodes-base.if')
+      // n8n's {{ }} expressions are JavaScript over $json: evaluated as such.
+      const tpl = (t, $json) => String(t).replace(/^=/, '').replace(/\{\{(.*?)\}\}/gs, (_, e) => String(new Function('$json', `return (${e})`)($json)))
+      const conds = ifNode.parameters.conditions
+      const needsPerson = ($json) => {
+        const r = conds.conditions.map((k) => k.operator.operation === 'equals' && tpl(k.leftValue, $json) === k.rightValue)
+        return conds.combinator === 'or' ? r.some(Boolean) : r.every(Boolean)
+      }
+      const [yes, no] = wf.connections[ifNode.name].main.map((out) => out.map((x) => x.node))
+      const mail = wf.nodes.find((n) => n.type === 'n8n-nodes-base.gmail')
+      is(yes.includes(mail.name) && !no.includes(mail.name), 'the workflow\'s "yes" branch is the one that emails the shop', `${yes} / ${no}`)
+      for (const [m, , kind] of [...MONEY_R2.map(([q, l]) => [q, l, 'money']), ...COMPLAINT_R2.map(([q, l]) => [q, l, 'complaint'])]) {
+        const p = got.find((x) => x.body?.message === m)?.body
+        const subject = p ? tpl(mail.parameters.subject, p) : ''
+        is(p?.intent === 'contact' && p?.topic === kind && needsPerson(p)
+           && (kind === 'money' ? /PAYMENT PROBLEM/ : /WRONG OR DAMAGED/).test(subject),
+           `"${m}" is emailed to the shop as ${kind === 'money' ? 'a payment problem' : 'a wrong or damaged item'}`,
+           p ? `${p.intent}/${p.topic} — ${subject}` : 'nothing arrived')
+      }
+      const gap = got.find((x) => x.body?.message === 'do you sell live goldfish')?.body
+      is(gap && !needsPerson(gap) && /unanswered question/.test(tpl(mail.parameters.subject, gap)), 'while a failed search still goes only to "Log the gap"',
+         gap ? `${gap.intent}/${gap.topic}` : 'nothing arrived')
+      await unthrottle()
+    }
 
     await unthrottle()
     const before = (await calls()).n8n.length

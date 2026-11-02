@@ -26,8 +26,10 @@
 // So the shop buys them all at once, in one deliberate run, before anyone is
 // waiting. After this runs, a customer can never trigger a live call at all:
 // ONLY these fixed sentences are ever signed for speech (assistant_answer).
-// An order answer is one of the stage_* lines and never quotes the number,
-// and a model's rewording is never signed — so the set is closed.
+// An order answer is one of the stage_* lines and never quotes the number
+// (an unknown number is the fixed no_order line, not an echo of what was
+// typed), and a model's rewording is never signed — so the set is closed.
+// The list is assistant_canned_keys(); a line added there is warmed here.
 //
 // THE TWO LINES BUILT FROM SETTINGS — the delivery fee and the payment methods
 // — are read from the database by assistant_canned_lines, the same row the
@@ -80,8 +82,9 @@ if ($cli) {
     }
     $cmd = (string) ($_GET['do'] ?? 'status');
     header('Content-Type: text/plain; charset=utf-8');
-    // Warming two dozen sentences is two dozen upstream calls; the default
-    // 30s would cut it off halfway and leave the cache half warm.
+    // Warming every fixed sentence in both languages is one upstream call
+    // each (assistant_canned_keys: 33 per language today, 66 in all); the
+    // default 30s would cut it off partway and leave the cache half warm.
     @set_time_limit(300);
 }
 
@@ -163,10 +166,10 @@ foreach ($lines as $lang => $set) {
         if ($mp3 === null) {
             $failed++;
             echo "FAIL  [$lang] $short\n";
-            // Stop on the first failure rather than looping through two dozen
+            // Stop on the first failure rather than looping through sixty-odd
             // of them: if the key is wrong or the quota is gone, every call
             // after this one fails the same way, and the useful thing is the
-            // reason, not twenty-four copies of it.
+            // reason, not sixty copies of it.
             $msg = "\nStopped. The reason is in " . dirname($dir) .
                    "/sporta-voice.log — usually a wrong tts_key,\n" .
                    "an unknown tts_voice_id, or an exhausted quota.\n";

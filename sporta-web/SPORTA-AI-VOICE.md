@@ -74,8 +74,8 @@ https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
 Paste that in a browser after setting the voice. It buys every fixed sentence
-the assistant can say — `assistant_canned_lines()`, twenty-eight in each
-language — in one run, so **no customer is ever the one who waits for a
+the assistant can say — `assistant_canned_lines()`, thirty-three in each
+language (the list is `assistant_canned_keys()`) — in one run, so **no customer is ever the one who waits for a
 synthesis call** on "delivery within 24 hours". Without it those waits happen
 to real people, one each.
 
@@ -166,11 +166,27 @@ language, so the same words cannot be replayed as the other one.
 
 ## 2. n8n (the handoff)
 
-Fired at exactly three moments: the customer **asked for a person** (which
-includes **money taken wrongly** — «انخصم المبلغ مرتين», "charged twice" — a
-payment somebody has to look at), the customer **asked to cancel an order**, or
-the question **fell through and found nothing** the shop sells. Not on every
-message — n8n is not a transcript log.
+Fired at exactly three moments: the customer **asked for a person**, the
+customer **asked to cancel an order**, or the question **fell through and found
+nothing** the shop sells (or found the kind of thing but not the colour or the
+brand asked for — "yellow shorts", "nike shorts" — which is demand the shop
+wants to hear about). Not on every message — n8n is not a transcript log.
+
+"Asked for a person" (`intent: contact`) includes three things the customer
+did not phrase as a request for one, each with its own `topic`, its own reply
+and its own email subject:
+
+| `topic` | what it is | examples |
+|---|---|---|
+| `money` | paid, and it went wrong | «انخصم المبلغ مرتين», «المبلغ نزل من حسابي والطلب ما انعمل», "my card was charged but the order failed", "knet took the money but the order is pending" |
+| `complaint` | a wrong or damaged item | «وصلني مقاس غلط», «القطعة فيها عيب», "wrong item delivered", "missing item in my order" |
+| `coupon_problem` | a code that will not apply | «الكود ما اشتغل», "my promo code is not working" |
+
+These used to be answered as something else — the payment methods, the
+delivery timetable, the size guide, or «ما لقيت شي» — and a failed search goes
+only to **Log the gap**, which emails nobody. So nobody heard about them. A
+discount coming OFF ("is the discount deducted automatically?", «تم خصم ١٠٪
+من السعر؟») is not one of them: it is an offers question.
 
 Cancelling is on that list because it is the one intent whose fixed answer is
 not the end of the matter: something is already moving, the shop can only stop
@@ -184,8 +200,12 @@ that is advice nobody followed up.
 
 Import `dropin/n8n/sporta-ai-handoff.json` and set an n8n environment variable
 `SPORTA_N8N_SECRET` to the same string. Its **Needs a person?** node sends both
-`contact` and `cancel` to the email step (the subject says which — a
-cancellation is marked as one), and everything else to **Log the gap**. The first node in that workflow
+`contact` and `cancel` to the email step, and everything else to **Log the
+gap**. The subject says which: a cancellation, a **PAYMENT PROBLEM**, a **WRONG
+OR DAMAGED ITEM**, a code that would not apply, or a plain request for a
+person. `npm run test:assistant` runs every money and complaint sentence above
+through the workflow's own IF node and subject template, read from the JSON
+you import. The first node in that workflow
 verifies `X-Sporta-Signature` and throws if it does not match — keep it there.
 A webhook URL stops being a secret the moment it is in a browser history, and
 a workflow that messages a human on an unverified payload is a way to make
@@ -211,7 +231,31 @@ minutes** in a bucket of their own — so a burst of nonsense cannot use up the
 allowance a real cancellation needs. Only a handoff that would actually be sent
 is counted.
 
-Payload: `source`, `intent`, `lang`, `message`, `reply`, `at`.
+Payload: `source`, `intent`, `topic` (null unless one of the three above),
+`lang`, `message`, `reply`, `at`.
+
+### Before this ships: one thing only the owner can check
+
+The `coupon` answer tells a customer with a code to enter it **at checkout**,
+and to WhatsApp the shop if it does not work. The live storefront is a build
+whose source is not in this repo, so whether its checkout has a code box cannot
+be confirmed from here (the live API does accept `discount_code` with the
+order, so it very probably does). Open the live checkout and look. If there is
+no box, change the `coupon` and `no_offers` lines in `assistant.php` to "send
+us the code on WhatsApp" before deploying.
+
+### If a model is configured
+
+`ai_key` lets a model reword the shop's answer. It is told the facts, the
+register (Kuwaiti/Gulf Arabic, as the shop writes), and to keep every
+condition — and what it sends back is CHECKED, not trusted
+(`assistant_llm_accept`). It is thrown away for the shop's own sentence if it
+adds a number, order number, link or email the shop did not say; drops one the
+shop did say (the phone, the email, the 14 days); drops a condition (women's
+clothing, unworn with tags, confirmed orders); runs past 1.3× the shop's
+sentence; writes Arabic numbers in Western digits other than the phone; or was
+cut off. A dropped left-to-right mark before `+965` is put back, or the number
+reads «22091914 965+» in the Arabic bubble.
 
 ---
 

@@ -65,6 +65,16 @@ const DIALECT = new Map([
   ['ينخصم', 'is debited — as انخصم'],
   ['تنخصم', 'is debited (feminine, of الفلوس) — as انخصم'],
   ['كاشخ', 'Kuwaiti "stylish" — listed so «كاش» (cash) is matched as a whole word and كاشخ is not a payment question'],
+  // Round two of the assistant review: words it RECOGNISES because customers
+  // type them, each checked against ar_KW and rejected by it. (Its new copy —
+  // «ونشيّك», «ونراجع», «وصلتك» — and «وسهلين», «يجزاك», «وينكم», «ابل» are
+  // accepted as they are, so they are not declared.)
+  ['اهلين', 'Gulf "hello" (اهلين وسهلين) — answered as a greeting, not searched'],
+  ['هلو', 'Gulf "hello", from the English — a greeting'],
+  ['شعندكم', '"what have you got" (شنو + عندكم, run together) — answered with the shelf'],
+  ['خربانة', 'Kuwaiti "broken / faulty" — a wrong or damaged item, handed to a person'],
+  ['فنايل', 'Gulf plural of فانيلة (T-shirts) — a broken plural the search knows'],
+  ['جواكت', 'jackets, the short spelling of جواكيت'],
 ])
 
 
@@ -107,6 +117,11 @@ const LOANWORDS = new Map([
   ['اوكي', 'okay — an acknowledgement, answered with the thanks line'],
   ['اوكيه', 'okay — the other common spelling'],
   ['كوبون', 'coupon — answered with where a discount code goes'],
+  ['جواكيت', 'jackets — the broken plural in the shop\'s own category name «هوديز وجواكيت» (src/lib/products.js)'],
+  ['بلايز', 'blouses/tops — the Gulf broken plural of بلوزة'],
+  ['ثانكيو', 'thank you — written in Arabic letters'],
+  ['اميكس', 'Amex — a payment question'],
+  ['جفتكارد', 'gift card — the one word assistant.php folds «بطاقة هدية» into, so search can say it is not carried'],
   // Brands the shop stocks, and the company that runs it. Names are not
   // spelled by dictionaries.
   ['فانكويش', 'Vanquish'],
