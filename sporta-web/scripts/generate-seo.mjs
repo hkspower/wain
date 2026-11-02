@@ -122,7 +122,7 @@ writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 // ---------- llms.txt (GEO — AI answer engines) ----------
 const kwd = (n) => `KWD ${Number(n).toFixed(3)}`
 // Third-party brands carried by the store; anything else is the house label.
-const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
+const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'AHED', 'Gymshark', 'Eyesportwear', 'NBA']
 const brandOf = (p) =>
   KNOWN_BRANDS.find((b) => p.name.en.toLowerCase().includes(b.toLowerCase())) ?? 'SPORTA'
 const catName = { women: 'Women', men: 'Men', outerwear: 'Hoodies & Jackets', accessories: 'Accessories' }
@@ -141,7 +141,7 @@ function llms(productUrl, shopUrl) {
 > Sporta (سبورتا) is a Kuwaiti sportswear and activewear store at
 > www.sporta.com.kw serving Kuwait and Middle East shoppers. It sells women's
 > and men's activewear, hoodies and jackets, and gym accessories from brands
-> such as RHEO, Vanquish, ATE, Gymshark, Eyesportwear and its own SPORTA
+> such as AHED, RHEO, Vanquish, Gymshark, Eyesportwear, NBA and its own SPORTA
 > label. The site is bilingual Arabic/English (RTL supported), prices are in
 > Kuwaiti Dinar (KWD), checkout is via KNET (Kuwait's debit network),
 > with same-day delivery inside Kuwait and free

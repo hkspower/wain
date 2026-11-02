@@ -11,7 +11,7 @@ const OG_IMAGE = `${SITE}/og-image.png`
 // the translations, in the language of the page.
 
 // Third-party brands carried by the store; anything else is the house label.
-const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
+const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'AHED', 'Gymshark', 'Eyesportwear', 'NBA']
 function brandOf(product) {
   const en = product.name?.en || ''
   return KNOWN_BRANDS.find((b) => en.toLowerCase().includes(b.toLowerCase())) || 'SPORTA'

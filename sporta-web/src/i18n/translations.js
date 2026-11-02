@@ -167,7 +167,7 @@ export const translations = {
       baseDesc: 'Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps and sports accessories from Gymshark, RHEO, Vanquish and more. Same-day delivery in Kuwait, 14-day returns, KNET and cash on delivery.',
       home: 'Premium sportswear in Kuwait. Activewear, gym clothing, hoodies and accessories — same-day delivery for 1 KWD, KNET, cards and cash on delivery.',
       shop: 'Shop sportswear in Kuwait — activewear, hoodies, leggings, caps and accessories. Prices in Kuwaiti Dinar, KNET checkout, same-day delivery.',
-      about: 'Sporta is a Kuwaiti sportswear store carrying Gymshark, RHEO, Vanquish, ATE and our own SPORTA label.',
+      about: 'Sporta is a Kuwaiti sportswear store carrying Gymshark, RHEO, Vanquish, AHED and our own SPORTA label.',
       contact: 'Contact Sporta Kuwait about an order, a size, delivery or a return. WhatsApp, phone and email.',
       returns: 'Sporta returns and exchanges in Kuwait — 14 days from delivery, free collection.',
       track: 'Track a Sporta order with your order number. Payment and delivery status in real time.',
@@ -436,7 +436,7 @@ export const translations = {
     },
     about: {
       title: 'About Sporta — sportswear in Kuwait',
-      body: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label.',
+      body: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — AHED, RHEO, Vanquish, Gymshark, Eyesportwear, NBA and our own SPORTA label.',
     },
     contact: {
       title: 'Contact Sporta Kuwait',
@@ -587,7 +587,7 @@ export const translations = {
       baseDesc: 'سبورتا متجر ملابس رياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات رياضية من جيمشارك وريو وفانكويش وغيرها. توصيل في نفس اليوم داخل الكويت، إرجاع خلال ١٤ يومًا، دفع بكي نت أو عند الاستلام.',
       home: 'ملابس رياضية فاخرة في الكويت. ملابس تمارين وهوديز وإكسسوارات — توصيل في نفس اليوم بدينار واحد، كي نت وبطاقات ودفع عند الاستلام.',
       shop: 'تسوّق الملابس الرياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات. الأسعار بالدينار الكويتي، الدفع بكي نت، وتوصيل في نفس اليوم.',
-      about: 'سبورتا متجر كويتي للملابس الرياضية يقدّم جيمشارك وريو وفانكويش وATE وعلامتنا الخاصة سبورتا.',
+      about: 'سبورتا متجر كويتي للملابس الرياضية يقدّم جيمشارك وريو وفانكويش وAHED وعلامتنا الخاصة سبورتا.',
       contact: 'تواصل مع سبورتا الكويت بخصوص طلبك أو المقاس أو التوصيل أو الإرجاع. واتساب وهاتف وبريد إلكتروني.',
       returns: 'الإرجاع والاستبدال في سبورتا الكويت — خلال ١٤ يومًا من الاستلام، مع استلام مجاني.',
       track: 'تتبّع طلبك من سبورتا برقم الطلب. حالة الدفع والتوصيل لحظة بلحظة.',
@@ -817,7 +817,7 @@ export const translations = {
     },
     about: {
       title: 'عن سبورتا — ملابس رياضية في الكويت',
-      body: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — ريو، فانكويش، ATE، جيمشارك، آي سبورت وعلامتنا الخاصة سبورتا.',
+      body: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — AHED، ريو، فانكويش، جيمشارك، آي سبورت، إن بي إيه وعلامتنا الخاصة سبورتا.',
     },
     contact: {
       title: 'تواصل مع سبورتا الكويت',
