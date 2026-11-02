@@ -62,7 +62,7 @@
 // Usage:
 //   node scripts/vps-deploy.mjs compose                       plan, current HEAD
 //   node scripts/vps-deploy.mjs compose --ref <sha|branch>    plan, that ref
-//   node scripts/vps-deploy.mjs compose --apply --ref <sha> --confirm <sha> [--allow-shrink]
+//   node scripts/vps-deploy.mjs compose --apply --ref <sha> --confirm <sha> [--allow-shrink] [--replace-storefront]
 //   node scripts/vps-deploy.mjs compose --rollback <backup-name>
 //   … add --only api,knet,pay to either of the first two to deploy part of the site
 //   node scripts/vps-deploy.mjs run                           (on the VPS only)
@@ -107,6 +107,21 @@ const isMedia = (p) => MEDIA.some((m) => p.startsWith(m))
 // Files whose shrinking means "older code over newer", not "smaller asset".
 const guarded = (p) => /\.(php|html)$/.test(p) || path.basename(p) === '.htaccess'
 
+// STOREFRONT GUARD. This repo's index.html carries <meta name="sporta-build"
+// content="sporta-web">. A live index.html without it is a build from some
+// other source, and replacing it replaces everything that build does: on
+// 2026-11-02 a whole-site apply swapped the live storefront for this repo's
+// and took away customer accounts, support tickets, return requests and
+// exchange (shoppers), and CRM, support, returns, activity log, SEO, theme,
+// fonts, payment settings, MFA and Google sign-in (admin) — none of which
+// this repo has a screen for. It was rolled back 13 minutes later.
+// So an apply that would change a FOREIGN index.html refuses unless
+// --replace-storefront is given. Once this repo's page is live, its own
+// marker is there and ordinary deploys go through.
+const BUILD_MARK = /<meta\s+name="sporta-build"\s+content="sporta-web"/
+const foreignStorefront = (r) => r.changed.some((c) => c.p === 'index.html')
+  && !BUILD_MARK.test(fs.readFileSync(path.join(LIVE, 'index.html'), 'utf8'))
+
 // ================================================================ compose
 function composeCommand(argv) {
   const opt = { mode: 'plan', ref: '', confirm: '', allowShrink: false, backup: '', only: '' }
@@ -114,6 +129,7 @@ function composeCommand(argv) {
     const a = argv[i]
     if (a === '--apply') opt.mode = 'apply'
     else if (a === '--allow-shrink') opt.allowShrink = true
+    else if (a === '--replace-storefront') opt.replaceStorefront = true
     else if (a === '--ref') opt.ref = argv[++i] ?? ''
     else if (a === '--confirm') opt.confirm = argv[++i] ?? ''
     else if (a === '--rollback') { opt.mode = 'rollback'; opt.backup = argv[++i] ?? '' }
@@ -165,6 +181,7 @@ function composeCommand(argv) {
   if (opt.mode === 'apply') {
     environment.SPORTA_DEPLOY_CONFIRM = opt.confirm
     if (opt.allowShrink) environment.SPORTA_DEPLOY_ALLOW_SHRINK = '1'
+    if (opt.replaceStorefront) environment.SPORTA_DEPLOY_STOREFRONT = '1'
   }
   if (opt.mode === 'rollback') environment.SPORTA_DEPLOY_BACKUP = opt.backup
   if (opt.only) environment.SPORTA_DEPLOY_ONLY = opt.only
@@ -435,9 +452,17 @@ async function run() {
   printHealth(before, 'live now')
   await headers()
 
+  if (foreignStorefront(r)) {
+    say('STOREFRONT the live index.html is a different build (no sporta-build marker) — a whole-site')
+    say('           apply would remove what that build has and this one lacks; it refuses without --replace-storefront')
+  }
   if (mode === 'plan') { say('PLAN_OK nothing was changed'); return }
 
   // ---------------------------------------------------------------- apply
+  if (foreignStorefront(r) && process.env.SPORTA_DEPLOY_STOREFRONT !== '1') {
+    fail('storefront guard: this would replace a live storefront built from other source — '
+      + 'deploy with --only api,knet,pay, or pass --replace-storefront if that is really meant')
+  }
   if (r.shrinks.length && process.env.SPORTA_DEPLOY_ALLOW_SHRINK !== '1') {
     fail(`shrink guard: ${r.shrinks.map((c) => c.p).join(' ')} — rerun with --allow-shrink only if live really is older`)
   }

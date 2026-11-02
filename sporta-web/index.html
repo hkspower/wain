@@ -21,6 +21,12 @@
          out of those zones with env(safe-area-inset-*). Without cover, the
          insets all report 0 and none of that CSS does anything. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Says which source this page was built from. scripts/vps-deploy.mjs
+         refuses a whole-site apply over a live index.html WITHOUT it: that page
+         is a different build (the storefront whose source is missing, with
+         customer accounts, support, returns and the full admin), and replacing
+         it removed those features for 13 minutes on 2026-11-02. -->
+    <meta name="sporta-build" content="sporta-web" />
 
     <!-- Primary meta -->
     <title>Sporta — Sports &amp; Fitness Store in Kuwait | سبورتا</title>

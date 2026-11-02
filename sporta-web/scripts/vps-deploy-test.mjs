@@ -134,6 +134,9 @@ try {
        && pscan.volumes.length === 1 && pscan.volumes[0].endsWith(':ro') && !/\/etc\//.test(JSON.stringify(pscan)),
        '--scan ports: one read-only mount, nothing under /etc (the API refuses it)', pscan.volumes.join(' '))
     is((await c(['--scan', 'ports', '--edge', 'tcp/80@any;reboot', '--ref', 'main'])).code !== 0, 'a malformed --edge is refused')
+    const rs = JSON.parse((await c(['--apply', '--ref', SHA, '--confirm', SHA, '--replace-storefront'])).out).services.deploy
+    is(rs.environment.SPORTA_DEPLOY_STOREFRONT === '1', '--replace-storefront is passed to the job')
+    is(!('SPORTA_DEPLOY_STOREFRONT' in a.environment), 'and is off unless asked for')
     const rb = await c(['--rollback', '../../etc'])
     is(rb.code !== 0, 'a rollback name that is not a deploy backup is refused')
   }
@@ -159,6 +162,19 @@ try {
     const shrink = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA })
     is(shrink.code !== 0 && shrink.out.includes('shrink guard'), 'older code over newer stops the deploy', /DEPLOY_FAIL[^\n]*/.exec(shrink.out)?.[0])
     is(sameTree(before, tree(LIVE)), 'and nothing was written')
+
+    // A live page from another build (no sporta-build marker): the storefront
+    // guard stops a whole-site apply before anything is written, and --only
+    // still goes through untouched by it.
+    const page = fs.readFileSync(join(LIVE, 'index.html'), 'utf8')
+    fs.writeFileSync(join(LIVE, 'index.html'), page.replace(/<meta\s+name="sporta-build"[^>]*>/, '').replace('</head>', '<!-- other build --></head>'))
+    const foreign = tree(LIVE)
+    const plan2 = await deploy({ SPORTA_DEPLOY_MODE: 'plan', SPORTA_DEPLOY_REF: SHA })
+    is(/STOREFRONT the live index\.html is a different build/.test(plan2.out), 'a plan says when the live storefront is a different build')
+    const sf = await deploy({ SPORTA_DEPLOY_MODE: 'apply', SPORTA_DEPLOY_REF: SHA, SPORTA_DEPLOY_CONFIRM: SHA, SPORTA_DEPLOY_ALLOW_SHRINK: '1' })
+    is(sf.code !== 0 && /storefront guard/.test(sf.out), 'a whole-site apply over a foreign storefront is refused', /DEPLOY_FAIL[^\n]*/.exec(sf.out)?.[0])
+    is(sameTree(foreign, tree(LIVE)), 'and nothing was written')
+    fs.writeFileSync(join(LIVE, 'index.html'), page)
   }
 
   let backup = ''

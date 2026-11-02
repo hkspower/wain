@@ -37,7 +37,18 @@
    2026-11-01, every file md5-verified against the server: `dropin/php-store`,
    `php-cbk`, the add-ons in `public/`). The live STOREFRONT is not: its
    `index.html` and bundle are a different build whose source is missing, so
-   deploy with **`--only api,knet,pay`** until it is recovered. The live store
+   deploy with **`--only api,knet,pay`** until it is recovered. That build has
+   what this repo has NO screen for — shoppers: customer accounts (`/account`,
+   forgot password), support tickets (`/support`), return requests and
+   exchange; admin: MFA code and forced-password-change sign-in steps, Google
+   sign-in, CRM, Support, Return requests, Activity log, Profiles, inventory
+   movements/finance, SEO, theme, top bar, fonts, payment/checkout settings,
+   product photo upload, cache clear. A whole-site apply on 2026-11-02 swapped
+   it out and all of that vanished (an MFA admin could not even sign in) until
+   it was rolled back 13 minutes later. `vps-deploy.mjs` now refuses that
+   apply: a live `index.html` without `<meta name="sporta-build"
+   content="sporta-web">` is foreign, and replacing it needs
+   `--replace-storefront` — do not pass it until this repo has every screen above. The live store
    claims stock inside the order (`out_of_stock_<slug>_<size>_<left>`), a
    declined card closes the order on both gateways, and an unsigned CBK error
    return is recorded but changes no status — the suites assert all three.
