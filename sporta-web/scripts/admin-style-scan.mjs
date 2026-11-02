@@ -377,7 +377,7 @@ function collect() {
 // @layer it sits in — straight from Chrome's own matched-styles data. That is
 // the answer to "why does my rule not win".
 const EXPLAIN = process.env.SCAN_EXPLAIN ? JSON.parse(process.env.SCAN_EXPLAIN) : []
-const PROPS = ['font-size', 'font-weight', 'color', 'background-color', 'border-color', 'border-top-color', 'padding-top', 'padding-left', 'padding-inline', 'margin-top', 'min-height', 'display', 'border-radius']
+const PROPS = ['font-size', 'font-weight', 'color', 'background-color', 'background-image', 'opacity', 'filter', 'mix-blend-mode', 'border-color', 'border-top-color', 'padding-top', 'padding-left', 'padding-inline', 'margin-top', 'min-height', 'display', 'border-radius']
 async function explain(pg, vn, screen, form) {
   for (const t of EXPLAIN.filter((t) => t.screen === screen && !!t.form === form)) {
     const cdp = await pg.context().newCDPSession(pg)
@@ -441,7 +441,16 @@ for (const [vn, w, h, mob] of VIEWS) {
   await pg.waitForTimeout(800)
   const done = []
   if (LOGIN) {
-    const grab = async (screen) => { report.push({ vn, screen, data: await pg.evaluate(collect) }); done.push(screen) }
+    // SCAN_SHOT: also print a cropped JPEG of the login card (base64, in
+    // chunks) so a reading of "white on white" can be checked by eye.
+    const shot = async (screen) => {
+      if (!process.env.SCAN_SHOT) return
+      const box = await pg.evaluate(() => { const f = document.querySelector('form') || document.querySelector('main') || document.body; const r = f.getBoundingClientRect(); return { x: Math.max(0, r.left - 24), y: Math.max(0, r.top - 24), width: Math.min(innerWidth, r.width + 48), height: Math.min(1400, r.height + 48) } })
+      const b64 = (await pg.screenshot({ type: 'jpeg', quality: 62, clip: box })).toString('base64')
+      const parts = b64.match(/.{1,3800}/g) || []
+      parts.forEach((p, i) => console.log(`SHOT ${vn} ${screen} ${i + 1}/${parts.length} ${p}`))
+    }
+    const grab = async (screen) => { report.push({ vn, screen, data: await pg.evaluate(collect) }); done.push(screen); await explain(pg, vn, screen, false); await shot(screen) }
     await grab('Login')
     const email = pg.locator('input[type="email"]:visible, input[name*="email" i]:visible, input[autocomplete="username"]:visible').first()
     const pass = pg.locator('input[type="password"]:visible').first()
