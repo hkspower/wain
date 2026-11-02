@@ -52,8 +52,11 @@ if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 //
 // ONLY WHILE THE WAREHOUSE HAS HEARD NOTHING ABOUT THE ORDER. Once anything
 // for it has really been sent (a picking list, typically), a follow-up is the
-// one message that must not be dropped: it is the "do not ship". So an order
-// with any delivered message keeps every remaining one.
+// one message that must not be dropped: it is the "do not ship" (a 'cancel'
+// row, queued by every cancel — see store_fulfilment_cancelled). So an order
+// with any delivered message keeps every remaining one. A row closed unsent
+// ('order cancelled' here, 'order reinstated' by store_fulfilment_reinstate)
+// is not a delivered message.
 //
 // Under the advisory lock above, so a second cron cannot claim these first.
 $db->beginTransaction();
@@ -64,7 +67,7 @@ $suppress = $db->query(
         and o.fulfilment_status = 'cancelled'
         and not exists (select 1 from fulfilment_outbox s
                          where s.order_id = f.order_id and s.sent_at is not null
-                           and coalesce(s.last_error, '') <> 'order cancelled')
+                           and coalesce(s.last_error, '') not in ('order cancelled', 'order reinstated'))
       order by f.id limit 500"
 )->fetchAll(PDO::FETCH_COLUMN);
 if ($suppress) {
@@ -131,10 +134,29 @@ function sporta_render_warehouse(string $kind, array $p): array {
         return [$subject, $text, $html];
     }
 
+    // THE ORDER WAS CANCELLED after the warehouse heard about it — by the
+    // owner in /backends, or by the sweeper for a cash order nobody confirmed
+    // within cod_hold_hours. The picking list for a cash order said COLLECT
+    // CASH, which means ship; this is the message that takes that back. Red,
+    // like a failed payment, and the subject carries the whole answer.
+    if ($kind === 'cancel') {
+        $subject = "[SPORTA] {$track} · CANCELLED — do not ship";
+        $line = 'This order has been CANCELLED. Do NOT ship it. If it has already left, contact the shop.';
+        $lineAr = 'تم إلغاء هذا الطلب. لا تشحنه. إذا كان قد خرج للتوصيل فتواصل مع المتجر.';
+        $text = "{$subject}\n\n{$line}\n{$lineAr}\n\nOrder: {$track}\nTotal: {$amount}\n";
+        $html = '<div style="font-family:sans-serif"><div style="background:#7f1d1d;color:#fff;padding:16px;border-radius:10px"><b>'
+              . htmlspecialchars("{$track} — {$line}") . '</b><div dir="rtl">' . htmlspecialchars($lineAr)
+              . '</div></div></div>';
+        return [$subject, $text, $html];
+    }
+
+    // 'reinstate': the owner put a cancelled order back after a "do not ship"
+    // had really gone out. The full picking list again, saying so first.
+    $again = $kind === 'reinstate' ? 'REINSTATED — ignore the cancellation · ' : '';
     $state = $cash ? 'COLLECT CASH' : ($paid ? 'PAID' : 'AWAITING PAYMENT — hold');
-    $subject = "[SPORTA] {$track} · {$state} · {$count} item(s)" . ($area ? " · {$area}" : '');
-    $banner = $cash ? "COLLECT {$amount} IN CASH ON DELIVERY"
-            : ($paid ? 'PAID — ready to ship' : 'AWAITING PAYMENT — do not ship yet');
+    $subject = "[SPORTA] {$track} · {$again}{$state} · {$count} item(s)" . ($area ? " · {$area}" : '');
+    $banner = $again . ($cash ? "COLLECT {$amount} IN CASH ON DELIVERY"
+            : ($paid ? 'PAID — ready to ship' : 'AWAITING PAYMENT — do not ship yet'));
 
     $a = $p['address'] ?? [];
     $addr = implode(', ', array_filter([

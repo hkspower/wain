@@ -277,28 +277,34 @@ if ($r === 'checkout_config') {
 // answer would be a preview the checkout could not honour. The number this
 // returns is the number create_order will compute, because it is the same code.
 if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    // FIRST, before the body is read or a code is looked at: a client that has
-    // already used up its wrong guesses is refused whatever it sends now, RIGHT
+    $b = store_body(32768);
+    $code = store_input_string($b['code'] ?? null, 'discount_code', 80);
+    // A TYPED code is counted FIRST, before it is looked at, and a client that
+    // has used up its wrong guesses is refused whatever it sends now, RIGHT
     // codes included. Otherwise the 429 is itself the answer — wrong codes get
     // 429, right codes get 200 — and the limiter becomes the oracle it was
-    // meant to close. See store_discount_gate().
-    store_discount_gate($db);
-    $b = store_body(32768);
+    // meant to close. A code that works gives its hit back below, so only
+    // failures stay counted. See store_discount_attempt().
+    //
+    // NO CODE, NO COUNT. The checkout asks this route for its price quote with
+    // an empty code, and the live storefront will not place ANY order until
+    // that quote answers — so gating it would turn somebody else's guessing on
+    // a shared carrier address into "checkout is temporarily unavailable" for
+    // every shopper behind it. An empty code asks nothing about codes.
+    $attempt = trim($code) !== '' ? store_discount_attempt($db) : null;
     $items = is_array($b['items'] ?? null) ? $b['items'] : [];
     if (count($items) === 0 || count($items) > 50) store_fail('empty_cart');
     if (!array_is_list($items)) store_fail('invalid_item');
 
     $priced = store_price_lines($db, $items);
     $sub = array_sum(array_column($priced, 'line_fils'));
-    $res = store_discounts_for($db, $priced, $sub, store_input_string($b['code'] ?? null, 'discount_code', 80));
-    if ($res['error'] !== null) {
-        // Only a FAILED lookup is counted, and it is counted before the answer
-        // is given. A shopper re-checking a basket with a code that works is
-        // not guessing; a script walking SAVE10, SAVE15, SAVE20 is, and thirty
-        // wrong answers in ten minutes is far past anyone typing by hand.
-        store_discount_failed($db);
-        store_fail($res['error']);
-    }
+    $res = store_discounts_for($db, $priced, $sub, $code);
+    // Only a FAILED lookup stays counted. A shopper re-checking a basket with
+    // a code that works is not guessing; a script walking SAVE10, SAVE15,
+    // SAVE20 is, and thirty wrong answers in ten minutes is far past anyone
+    // typing by hand.
+    if ($res['error'] !== null) store_fail($res['error']);
+    if ($attempt !== null) store_discount_succeeded($db, $attempt);
 
     // DELIVERY IS PART OF THE QUOTE, or the quote is not what the customer
     // pays. This endpoint exists so the checkout can show a number computed by
@@ -799,15 +805,14 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $discountCode = store_input_string($b['discount_code'] ?? null, 'discount_code', 80);
     // The order takes a code too, so it is a second way to ask "is this code
     // real?" — and it shares ?r=discount's ONE failure budget, or a script
-    // could alternate between the two routes for twice the guesses. Peeked
-    // only when a code was actually typed: an order without one is not a
-    // guess, and must never be refused because of somebody else's guessing.
-    if (trim($discountCode) !== '') store_discount_gate($db);
+    // could alternate between the two routes for twice the guesses. Counted
+    // first, and only when a code was actually typed: an order without one is
+    // not a guess, and must never be refused because of somebody else's
+    // guessing. A code that works gives its hit back.
+    $discountAttempt = trim($discountCode) !== '' ? store_discount_attempt($db) : null;
     $disc = store_discounts_for($db, $lines, $subtotalFils, $discountCode);
-    if ($disc['error'] !== null) {
-        store_discount_failed($db);
-        store_fail($disc['error']);
-    }
+    if ($disc['error'] !== null) store_fail($disc['error']);
+    if ($discountAttempt !== null) store_discount_succeeded($db, $discountAttempt);
     $discountFils = $disc['total_fils'];
     // Goods after the discount, BEFORE delivery. Checked on its own because a
     // 100%-off order would otherwise still look healthy — the delivery fee
@@ -937,6 +942,15 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // two flags would stop describing what happened.
         if ($claim['claimed'] > 0) {
             $db->prepare('update orders set stock_claimed = 1 where id = ?')->execute([$orderId]);
+        }
+        // AND HOW MUCH UNPAID STOCK THIS CLIENT NOW HOLDS — see
+        // store_order_units_take(). In this transaction, so the refusal below
+        // rolls the claim, the pieces and the order back together.
+        $units = store_order_units_take($db, $cooldownId, (int)$claim['units']);
+        if (!$units['allowed']) {
+            $db->rollBack();
+            if ($codLock !== null) { store_cod_unlock($db, $codLock); $codLock = null; }
+            store_rate_limit_fail($units['retry_after'], 'previous_order_pending');
         }
 
         $amount = store_kwd($amountFils);

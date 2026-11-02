@@ -886,6 +886,24 @@ function store_rate_limit_clear(PDO $db, string $bucket, string $identity): void
        ->execute([store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity)]);
 }
 
+// GIVE ONE HIT BACK, for a counter that must COUNT FIRST but should only keep
+// failures (a coupon lookup, a phone code, a password check).
+//
+// Peeking first and counting only after a failure is check-then-act: every
+// request of a burst reads "under the limit" before any failure is written,
+// so the bound grows with the server's worker count (measured: 40 wrong
+// coupon codes evaluated against a limit of 30, with 16 workers). Counting
+// first makes the bound exact; taking the hit back once the request turns out
+// to have succeeded keeps successes free. Same row the hit wrote (its key and
+// its window), guarded so it can never go below zero — and a window that has
+// rolled over in between simply has nothing to give back.
+function store_rate_limit_refund(PDO $db, array $state): void {
+    if (!is_string($state['key'] ?? null) || $state['key'] === '') return;
+    $db->prepare('update rate_limit set hits = hits - 1
+                   where bucket_key = ? and window_start = ? and hits > 0')
+       ->execute([$state['key'], (int)($state['window_start'] ?? 0)]);
+}
+
 function store_rate_limit_fail(int $retryAfter, string $token = 'too_many_attempts'): never {
     $retryAfter = max(1, $retryAfter);
     header('Retry-After: ' . $retryAfter);
@@ -895,33 +913,6 @@ function store_rate_limit_fail(int $retryAfter, string $token = 'too_many_attemp
 function store_throttle(PDO $db, string $bucket, int $max, int $windowSec): void {
     $state = store_rate_limit_hit($db, $bucket, store_client_identity(), $max, $windowSec);
     if (!$state['allowed']) store_rate_limit_fail($state['retry_after']);
-}
-
-// READ a bucket without counting. Same key and the same window expression as
-// store_rate_limit_hit(), so a peek and a hit always look at one row: if the
-// two ever computed the window differently, the peek would read a row that
-// was already over and let the next request through.
-/** @return array{hits:int,retry_after:int} */
-function store_rate_limit_peek(PDO $db, string $bucket, string $identity, int $windowSec): array {
-    $windowSec = max(1, $windowSec);
-    $key = store_rate_limit_key($bucket, $identity === '' ? 'unknown' : $identity);
-    $now = time();
-    $windowStart = $now - ($now % $windowSec);
-    $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
-    $q->execute([$key, $windowStart]);
-    return [
-        'hits' => (int)$q->fetchColumn(),
-        'retry_after' => max(1, ($windowStart + $windowSec) - $now),
-    ];
-}
-
-// The peek half of store_throttle(): the SAME client identity, refused once the
-// bucket is already full, and nothing counted. For buckets that count only
-// failures, where the request being judged may well succeed — see the
-// discount routes in api.php for why that matters.
-function store_throttle_peek(PDO $db, string $bucket, int $max, int $windowSec): void {
-    $state = store_rate_limit_peek($db, $bucket, store_client_identity(), $windowSec);
-    if ($state['hits'] >= max(1, $max)) store_rate_limit_fail($state['retry_after']);
 }
 
 // TRUE FOR EXACTLY ONE CALLER per bucket, identity and window — the claim is
@@ -2139,20 +2130,34 @@ const STORE_DISCOUNT_MAX_PCT = 60;
 // a script "that one was wrong" and the guessing simply continued, one
 // request per guess, at full speed.
 //
-// So the bucket is PEEKED before any code is looked at, and a full bucket
-// refuses every lookup from that client whatever the code is. Nothing is
-// counted by the peek, so successes still cost nothing. One budget for both
-// routes that take a code (the preview and the order itself), so a script
-// cannot alternate between them for twice the guesses.
+// So every lookup of a TYPED code is COUNTED FIRST, before the code is looked
+// at, and a full bucket refuses it whatever the code is. A code that turns out
+// to be good gives its hit back (store_discount_succeeded), so successes still
+// cost nothing. It used to peek first and count only after a failure, and a
+// burst got through that: every request read "under the limit" before any
+// failure was written (measured with 16 workers: 40 wrong codes evaluated
+// against a limit of 30, the overshoot growing with the server's worker
+// count). Counting first, the thirty-first lookup in a window is refused
+// however many arrive at once.
+//
+// One budget for both routes that take a code (the preview and the order
+// itself), so a script cannot alternate between them for twice the guesses.
+// A request WITHOUT a code is never counted and never refused here: it asks
+// nothing about codes, and the live checkout cannot place any order until its
+// empty-code price quote has answered.
 const STORE_DISCOUNT_FAIL_MAX    = 30;
 const STORE_DISCOUNT_FAIL_WINDOW = 600;
 
-function store_discount_gate(PDO $db): void {
-    store_throttle_peek($db, 'discount', STORE_DISCOUNT_FAIL_MAX, STORE_DISCOUNT_FAIL_WINDOW);
+/** @return array the counter state, for store_discount_succeeded() */
+function store_discount_attempt(PDO $db): array {
+    $state = store_rate_limit_hit($db, 'discount', store_client_identity(),
+        STORE_DISCOUNT_FAIL_MAX, STORE_DISCOUNT_FAIL_WINDOW);
+    if (!$state['allowed']) store_rate_limit_fail($state['retry_after']);
+    return $state;
 }
 
-function store_discount_failed(PDO $db): void {
-    store_throttle($db, 'discount', STORE_DISCOUNT_FAIL_MAX, STORE_DISCOUNT_FAIL_WINDOW);
+function store_discount_succeeded(PDO $db, array $state): void {
+    store_rate_limit_refund($db, $state);
 }
 
 // What one rule takes off, in fils. `$eligibleFils` is the part of the order
@@ -2330,7 +2335,8 @@ function store_discount_release(PDO $db, int $orderId): int {
 // through. Inventing a count for them would mean refusing orders on the
 // strength of a number nobody has ever set.
 //
-// Returns ['short' => null, 'claimed' => n] when every tracked line was taken,
+// Returns ['short' => null, 'claimed' => n, 'units' => u] — lines and pieces
+// taken — when every tracked line was taken,
 // or ['short' => [...]] naming the line that could not be — with what is
 // actually left, because "out of stock" on a page showing eight items is not
 // something a shopper can act on.
@@ -2355,6 +2361,7 @@ function store_stock_claim(PDO $db, array $lines): array {
     $tracked = $db->prepare('select 1 from product_variants where slug = ? limit 1');
     $known = [];
     $claimed = 0;
+    $units = 0;
     foreach ($lines as $l) {
         if ($l['size'] === null) continue;
         if (!array_key_exists($l['slug'], $known)) {
@@ -2363,7 +2370,7 @@ function store_stock_claim(PDO $db, array $lines): array {
         }
         if (!$known[$l['slug']]) continue;
         $take->execute([$l['qty'], $l['slug'], $l['size'], $l['qty']]);
-        if ($take->rowCount() === 1) { $claimed++; continue; }
+        if ($take->rowCount() === 1) { $claimed++; $units += (int)$l['qty']; continue; }
         // Either the shelf is short or there is no such variant at all. Both
         // are "you cannot have this", and both are reported with the number
         // the shopper needs — zero in the second case.
@@ -2371,9 +2378,9 @@ function store_stock_claim(PDO $db, array $lines): array {
         $have = $left->fetchColumn();
         return ['short' => ['slug' => $l['slug'], 'size' => $l['size'],
                             'want' => $l['qty'], 'have' => $have === false ? 0 : (int)$have],
-                'claimed' => $claimed];
+                'claimed' => $claimed, 'units' => $units];
     }
-    return ['short' => null, 'claimed' => $claimed];
+    return ['short' => null, 'claimed' => $claimed, 'units' => $units];
 }
 
 // How long an unconfirmed cash-on-delivery order may hold its stock, in hours.
@@ -2408,12 +2415,31 @@ function store_cod_hold_hours(): int {
 // 'pending' and 'unfulfilled' for ever, and the sweeper deliberately never
 // looked at COD. Now a COD order that is STILL pending AND STILL unfulfilled
 // store_cod_hold_hours() after it was placed is CANCELLED here, and its stock
-// put back, in this one transaction — cancelled first, so the order can never
-// be shipped from a shelf it no longer holds, and so it stops counting
-// against the phone's STORE_COD_OPEN_MAX. Anything the shop has touched is
-// left alone: packed, shipped or delivered, and anything paid. A COD order
-// that claimed no stock (accessories only) is cancelled all the same; there
-// is simply nothing to put back.
+// put back, in this one transaction, so it stops counting against the phone's
+// STORE_COD_OPEN_MAX. Anything the shop has touched is left alone: packed,
+// shipped or delivered, and anything paid. A COD order that claimed no stock
+// (accessories only) is cancelled all the same; there is simply nothing to
+// put back.
+//
+// THE WAREHOUSE MAY ALREADY HAVE BEEN TOLD TO SHIP IT. A cash order's picking
+// list goes out on INSERT and says COLLECT CASH — that means ship — so being
+// cancelled in the database does not stop a van. The same transaction
+// therefore queues a 'cancel' message ("CANCELLED — do not ship", both
+// languages); cron-fulfilment.php drops it unsent if the warehouse never heard
+// of the order. cron-stock.php mails the owner the list of what it cancelled,
+// so the customers can be called. And if the owner puts the order back in
+// /backends (it was real after all), store_order_reinstate() claims its stock
+// and its discount uses again, or refuses — a reinstated order is never
+// shipped from a shelf it gave back.
+//
+// A CARD ORDER THAT HOLDS ONLY DISCOUNT USES EXPIRES WITH ITS HOLD. An order
+// that claimed no stock (accessories only) used to stay payable for ever, and
+// so kept its uses of a limited code for ever: one such order a minute, never
+// paid, used up a launch code at no cost. Once its hold has passed, a pending
+// KNET / T-Pay order that still holds uses is cancelled here like one whose
+// stock is released (pay.php refuses both, and a late capture of either is
+// parked for review), and the uses go back. One that holds nothing is left
+// alone: there is nothing to give back and no reason to make it unpayable.
 //
 // An order that is not happening also gives its DISCOUNT USES back here, once
 // (store_discount_release) — whether or not it held stock.
@@ -2422,6 +2448,10 @@ function store_cod_hold_hours(): int {
 // uses back, or any of those together).
 function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): bool {
     $codHours = store_cod_hold_hours();
+    // Before discount-release.mysql.sql there is no record of what an order
+    // claimed, so nothing can be known to hold a use.
+    $holdsDiscount = store_column_exists($db, 'orders', 'discount_ids')
+        ? '(discount_ids is not null and discount_released = 0)' : '0';
     $ownsTransaction = !$db->inTransaction();
     if ($ownsTransaction) $db->beginTransaction();
     try {
@@ -2429,11 +2459,11 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         // callbacks lock this same row, so whichever commits first determines
         // whether the order can still release stock.
         $q = $db->prepare(
-            'select stock_claimed, stock_released, payment_status, payment_method,
-                    fulfilment_status,
+            "select stock_claimed, stock_released, payment_status, payment_method,
+                    fulfilment_status, {$holdsDiscount} as holds_discount,
                     (created_at < (now() - interval ? minute)) as hold_expired,
                     (created_at < (now() - interval ? hour)) as cod_hold_expired
-               from orders where id = ? for update'
+               from orders where id = ? for update"
         );
         $q->execute([max(15, $holdMinutes), max(1, $codHours), $orderId]);
         $order = $q->fetch();
@@ -2443,15 +2473,26 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
             && $order['payment_status'] === 'pending'
             && $order['fulfilment_status'] === 'unfulfilled'
             && (int)$order['cod_hold_expired'] === 1;
-        if ($codExpired) {
-            // Guarded by the same three conditions, under the row lock taken
-            // above, so a status change that committed first wins.
+        $cardExpired = $order && !$codExpired
+            && in_array($order['payment_method'], ['knet', 'tpay'], true)
+            && $order['payment_status'] === 'pending'
+            && $order['fulfilment_status'] === 'unfulfilled'
+            && (int)$order['stock_claimed'] === 0
+            && (int)$order['holds_discount'] === 1
+            && (int)$order['hold_expired'] === 1;
+        if ($codExpired || $cardExpired) {
+            // Guarded by the same conditions, under the row lock taken above,
+            // so a status change that committed first wins.
             $db->prepare(
                 "update orders set fulfilment_status = 'cancelled'
-                  where id = ? and payment_method = 'cod' and payment_status = 'pending'
+                  where id = ? and payment_method = ? and payment_status = 'pending'
                     and fulfilment_status = 'unfulfilled'"
-            )->execute([$orderId]);
+            )->execute([$orderId, $order['payment_method']]);
             store_tracking_event($db, $orderId, 'cancelled');
+            // The "do not ship", for a picking list that said COLLECT CASH. A
+            // card order's said AWAITING PAYMENT — hold, which already means
+            // do not ship, and its expiry has never sent a follow-up.
+            if ($codExpired) store_fulfilment_cancelled($db, $orderId);
             $order['fulfilment_status'] = 'cancelled';
         }
 
@@ -2467,9 +2508,9 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         // The discount uses go back for the orders that can no longer be paid:
         // failed, cancelled (which includes an expired cash order, above), and
         // a card order whose reservation is being released right now — pay.php
-        // refuses an order once its stock is gone. A card order that claimed
-        // NO stock is still payable however old it is, so it keeps its uses.
-        // Never a paid order, never one under review.
+        // refuses an order once its stock is gone, or once it is cancelled
+        // (which a card order holding only uses now is, above). Never a paid
+        // order, never one under review.
         $dead = $order && !in_array($order['payment_status'], ['paid', 'review'], true)
             && ($order['payment_status'] === 'failed'
                 || $order['fulfilment_status'] === 'cancelled'
@@ -2478,7 +2519,7 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
 
         if (!$eligible) {
             if ($ownsTransaction && !$db->commit()) throw new RuntimeException('Stock release commit failed');
-            return $codExpired || $gaveBack;
+            return $codExpired || $cardExpired || $gaveBack;
         }
 
         // Aggregate sizes: two fits of one garment can be separate order
@@ -2501,6 +2542,105 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         if ($ownsTransaction && $db->inTransaction()) $db->rollBack();
         throw $e;
     }
+}
+
+// ------------------------------------------- bringing a cancelled order back
+//
+// A CANCELLED ORDER COULD BE PUT BACK WITHOUT ITS STOCK. Cancelling releases
+// what an order held — its garments go back on the shelf (stock_released) and
+// its discount uses back to the code (discount_released) — and /backends let
+// the owner move the order on to packed or shipped afterwards with neither
+// taken again. Measured: a cash order for 2 jackets, auto-cancelled at 24 h
+// (stock 998 → 1000), re-marked packed → 200, and stock stayed 1000 — two
+// jackets on the van and on sale again, and a single-use code free for a
+// second customer. The 24-hour auto-cancel makes this the obvious next step
+// for a real order the owner simply did not mark in time.
+//
+// So an order leaving 'cancelled' takes back what it gave: every stock-tracked
+// line is claimed again by store_stock_claim() — the same guarded UPDATE as
+// checkout, so a size that has sold since is refused with the checkout's own
+// out_of_stock_<slug>_<size>_<left>, 409 — and every discount use it gave back
+// is claimed again by store_discounts_claim(), refused with discount_used_up,
+// 409, if the code has been used up since. Nothing half-done: the caller holds
+// the order's row lock and its transaction, and rolls back on a refusal.
+//
+// Returns null when the order may go on, or [token, http status].
+function store_order_reinstate(PDO $db, int $orderId): ?array {
+    $hasDiscount = store_column_exists($db, 'orders', 'discount_ids');
+    $q = $db->prepare('select stock_claimed, stock_released'
+        . ($hasDiscount ? ', discount_ids, discount_released' : '') . ' from orders where id = ?');
+    $q->execute([$orderId]);
+    $o = $q->fetch();
+    if (!$o) return ['order_not_found', 404];
+
+    if ((int)$o['stock_claimed'] === 1 && (int)$o['stock_released'] === 1) {
+        // Summed per garment and size, exactly as store_stock_release() put
+        // them back, so two lines of one size are claimed as the one shelf.
+        $it = $db->prepare(
+            'select p.slug, oi.size, sum(oi.qty) as qty
+               from order_items oi join products p on p.id = oi.product_id
+              where oi.order_id = ? and oi.size is not null
+              group by p.slug, oi.size'
+        );
+        $it->execute([$orderId]);
+        $lines = array_map(static fn (array $r): array => [
+            'slug' => (string)$r['slug'], 'size' => (string)$r['size'], 'qty' => (int)$r['qty'],
+        ], $it->fetchAll());
+        $claim = store_stock_claim($db, $lines);
+        if ($short = $claim['short']) {
+            return [sprintf('out_of_stock_%s_%s_%d', $short['slug'], $short['size'], $short['have']), 409];
+        }
+        $db->prepare('update orders set stock_released = 0 where id = ?')->execute([$orderId]);
+    }
+
+    if ($hasDiscount && (int)$o['discount_released'] === 1) {
+        $ids = json_decode((string)($o['discount_ids'] ?? ''), true);
+        $ids = is_array($ids) ? array_values(array_unique(array_filter(array_map('intval', $ids), fn ($i) => $i > 0))) : [];
+        // A rule the owner has since DELETED has no use to take; one that
+        // still exists must have one free, or the order is refused.
+        if ($ids) {
+            $marks = implode(',', array_fill(0, count($ids), '?'));
+            $live = $db->prepare("select id from discounts where id in ({$marks})");
+            $live->execute($ids);
+            $ids = array_map('intval', $live->fetchAll(PDO::FETCH_COLUMN));
+        }
+        if (!store_discounts_claim($db, array_map(static fn (int $id): array => ['id' => $id], $ids))) {
+            return ['discount_used_up', 409];
+        }
+        $db->prepare('update orders set discount_released = 0 where id = ?')->execute([$orderId]);
+    }
+
+    store_fulfilment_reinstate($db, $orderId);
+    return null;
+}
+
+// The warehouse's side of a cancel and a reinstate. A row closed WITHOUT being
+// sent carries last_error 'order cancelled' or 'order reinstated', so
+// cron-fulfilment.php can tell "the warehouse heard about this order" from "a
+// row was closed" — keep the two spellings in step with its query.
+// A cancel the owner (or the sweeper) made, told to the warehouse: one 'cancel'
+// message — "CANCELLED — do not ship". cron-fulfilment.php drops it unsent when
+// nothing about the order ever reached the warehouse.
+function store_fulfilment_cancelled(PDO $db, int $orderId): void {
+    store_queue_fulfilment($db, $orderId, 'cancel');
+}
+
+// The order is on again. Whatever the warehouse was last told must be undone:
+//   * a "do not ship" still waiting to go is withdrawn, unsent;
+//   * a picking list that was closed unsent BECAUSE the order was cancelled is
+//     reopened, so it goes out after all;
+//   * and a "do not ship" that really went out is answered with the picking
+//     list again, marked REINSTATED ('reinstate').
+function store_fulfilment_reinstate(PDO $db, int $orderId): void {
+    $db->prepare("update fulfilment_outbox set sent_at = now(), last_error = 'order reinstated'
+                   where order_id = ? and kind = 'cancel' and sent_at is null")->execute([$orderId]);
+    $db->prepare("update fulfilment_outbox set sent_at = null, last_error = null, attempts = 0
+                   where order_id = ? and kind = 'new' and last_error = 'order cancelled'")->execute([$orderId]);
+    $q = $db->prepare("select count(*) from fulfilment_outbox
+                        where order_id = ? and kind = 'cancel' and sent_at is not null
+                          and coalesce(last_error, '') not in ('order cancelled', 'order reinstated')");
+    $q->execute([$orderId]);
+    if ((int)$q->fetchColumn() > 0) store_queue_fulfilment($db, $orderId, 'reinstate');
 }
 
 // ------------------------------------------------------- how big an order is
@@ -2526,6 +2666,13 @@ const STORE_ORDER_MAX_PER_VARIANT = 10;
 // is one variant, which is how the stock is counted. A product with no sizes
 // is its own single variant. Untracked products count towards the total too:
 // the cap is on the order, not on the inventory.
+//
+// The refusal is cart_too_large, the token api.php already gives a cart of
+// more than 50 lines, and on purpose: the LIVE storefront words it in both
+// languages ("That is too many items for one order. Please split it.") and
+// treats it as final, while a new token would fall through to its generic
+// "We could not start the payment. Please try again." — wrong for cash on
+// delivery, and an invitation to resend the same refused order.
 function store_order_size_guard(array $lines, int $maxUnits = STORE_ORDER_MAX_UNITS): void {
     $total = 0;
     $perVariant = [];
@@ -2534,9 +2681,72 @@ function store_order_size_guard(array $lines, int $maxUnits = STORE_ORDER_MAX_UN
         $total += $qty;
         $key = $l['slug'] . '|' . ($l['size'] ?? '');
         $perVariant[$key] = ($perVariant[$key] ?? 0) + $qty;
-        if ($perVariant[$key] > STORE_ORDER_MAX_PER_VARIANT) store_fail('order_too_large');
+        if ($perVariant[$key] > STORE_ORDER_MAX_PER_VARIANT) store_fail('cart_too_large');
     }
-    if ($total > max(1, $maxUnits)) store_fail('order_too_large');
+    if ($total > max(1, $maxUnits)) store_fail('cart_too_large');
+}
+
+// ------------------------------------------ what one client may hold unpaid
+//
+// THE SIZE CAP BOUNDS ONE ORDER, NOT ONE CLIENT. Every order claims its stock
+// before anybody pays, a KNET / T-Pay order keeps it for stock_hold_minutes
+// (120 by default, plus up to a sweeper interval), and a cash order for
+// cod_hold_hours. Measured after the size cap: one client placed six KNET
+// orders of 20 pieces back to back, each with a different made-up phone, and
+// held 120 units — at one order a minute (the cooldown) that is about 2,400
+// units held at any moment, and the live catalogue (~1,236) is empty within an
+// hour and stays empty while the script runs. The per-phone cash cap does not
+// help: phone numbers cost nothing to invent.
+//
+// So the CLIENT (store_client_identity: an IPv4 address, an IPv6 /64) has a
+// budget counted in PIECES, not requests: at most order_client_units (default
+// 40) stock-tracked pieces claimed by its orders per two hours, whatever the
+// payment method. Counted inside the order's own transaction, after the claim,
+// so an order that rolls back (out of stock, a used-up code) gives its pieces
+// back by rolling back, and a refused order counts nothing. Accessories, which
+// claim no stock, are not counted.
+//
+// What it costs a real shopper: two 20-piece orders in two hours from one
+// carrier address are still accepted, and a shop that takes about one order a
+// week does not see two shoppers on one CGNAT address place forty pieces in
+// two hours. What it does NOT do: stop a script that rotates addresses — the
+// per-address limits never could. It bounds what one address can hold.
+//
+// The refusal is 429 previous_order_pending + Retry-After, the token the LIVE
+// storefront already words as "an earlier attempt may already have created an
+// order … so we do not reserve the same items twice" — the honest reading of
+// "this connection already holds a lot of unpaid stock".
+//
+// 'order_client_units' => 0 switches it off. The test sandbox does: its suites
+// place hundreds of pieces from one address. test:native proves it on a store
+// of its own.
+const STORE_ORDER_CLIENT_UNITS        = 40;
+const STORE_ORDER_CLIENT_UNITS_WINDOW = 7200;
+
+function store_order_client_units(): int {
+    $v = store_config()['order_client_units'] ?? null;
+    if ($v === null || $v === '') return STORE_ORDER_CLIENT_UNITS;
+    return max(0, min(1000, (int)$v));
+}
+
+// Add this order's pieces to the client's window and say whether they still
+// fit. MUST run inside the order's transaction: the row lock it takes on the
+// window serialises two orders from one client, and the rollback of a refused
+// or failed order is what takes its pieces back out.
+/** @return array{allowed:bool,retry_after:int} */
+function store_order_units_take(PDO $db, string $identity, int $units): array {
+    $max = store_order_client_units();
+    if ($max <= 0 || $units <= 0) return ['allowed' => true, 'retry_after' => 0];
+    $window = STORE_ORDER_CLIENT_UNITS_WINDOW;
+    $now = time();
+    $start = $now - ($now % $window);
+    $key = store_rate_limit_key('order_units', $identity === '' ? 'unknown' : $identity);
+    $db->prepare('insert into rate_limit (bucket_key, window_start, hits) values (?, ?, ?)
+                  on duplicate key update hits = hits + ?')
+       ->execute([$key, $start, $units, $units]);
+    $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
+    $q->execute([$key, $start]);
+    return ['allowed' => (int)$q->fetchColumn() <= $max, 'retry_after' => max(1, $start + $window - $now)];
 }
 
 // ------------------------------------------------------------- pricing a cart
