@@ -1,4 +1,4 @@
-/* THREE add-ons for the compiled live admin live in this file, because this is
+/* FOUR add-ons for the compiled live admin live in this file, because this is
  * the only admin script the live index.html loads (a new file name would not
  * be loaded without editing that page, whose source is not in the repo):
  *   1. the Brands screen: a "Remove" button, a product count and a "View on
@@ -6,7 +6,8 @@
  *      (below);
  *   2. Merchant ID / Terminal ID card in Payments > KNET editor (second block,
  *      after the brands one);
- *   3. Merchant Server IP 1 / 2 card in Payments > T-Pay editor (third block).
+ *   3. Merchant Server IP 1 / 2 card in Payments > T-Pay editor (third block);
+ *   4. the sign-in screen's session line, which still says 8 hours (last block).
  *
  * 1. Brands (add-on for the compiled live admin bundle, whose source is not in
  * the repo; the Remove button also exists in src/admin/Brands.jsx for the next
@@ -1000,5 +1001,38 @@
   var queued = false
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true }) }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+
+/* 4. The sign-in screen's session line (2026-11-02).
+ *
+ * The compiled login says "Sessions expire after 8 hours idle." The owner
+ * asked for a long sign-in, and the server now keeps an admin signed in on a
+ * browser for 30 days and signs them out after 7 days without use
+ * (STORE_ADMIN_ABSOLUTE_SECONDS / STORE_ADMIN_IDLE_SECONDS in store.php) — so
+ * the line is reworded in place to say what is true.
+ *
+ * The TEXT NODE React rendered is edited, never replaced or moved: React
+ * compares the next render against its own props, not against the DOM, so it
+ * leaves the new words alone, and the node it owns is still the node it owns.
+ * Exact match only: if a later build words the line differently, nothing here
+ * touches it.
+ */
+;(function () {   // leading ; — the block above ends in `)()` with no semicolon
+  if (location.pathname.indexOf('/backends') !== 0) return
+  var OLD = 'Sessions expire after 8 hours idle.'
+  var NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
+  function scan() {
+    var ps = document.querySelectorAll('.admin-login p')
+    for (var i = 0; i < ps.length; i++) {
+      var n = ps[i].firstChild
+      if (n && n.nodeType === 3 && ps[i].childNodes.length === 1 && n.nodeValue.trim() === OLD) n.nodeValue = NEW
+    }
+  }
+  var queued = false
+  function schedule() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; scan() }) }
+  // characterData too: a re-render that only resets the text is a change to
+  // the text node, not to the child list.
+  function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()

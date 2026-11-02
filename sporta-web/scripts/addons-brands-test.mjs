@@ -213,6 +213,16 @@ const FIXTURE_JS = `
       '<input id="fxprobe" type="text" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">' +
       '<ul class="mt-4 grid gap-3">' + BRANDS.map(card).join('') + '</ul></section></form></main></div>'
   }
+  // The signed-out /backends, as the compiled login renders it (class names
+  // from the live DOM, 2026-11-02). Only the session line matters here.
+  function login() {
+    return '<div class="admin-login text-left text-slate-950"><main class="admin-login__shell admin-login__shell--split">' +
+      '<section class="admin-login__form-panel"><form class="mx-auto w-full max-w-sm space-y-5">' +
+      '<button class="flex w-full items-center justify-center rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white" disabled>Sign in securely</button>' +
+      '<p class="text-center text-xs leading-5 text-slate-600">Sessions expire after 8 hours idle.</p>' +
+      '<p class="fx-other text-xs">Sessions expire after 8 hours idle. Ask the owner.</p>' +
+      '</form></section></main></div>'
+  }
   function titleFor(p) {
     if (p === '/shop') return en() ? 'Shop — Sporta' : 'المتجر — سبورتا'
     if (p.indexOf('/product/') === 0) return 'Product — Sporta'
@@ -221,9 +231,11 @@ const FIXTURE_JS = `
   }
   function render() {
     var p = location.pathname
-    var html = p === '/' ? home() : p === '/shop' ? shop() : p.indexOf('/product/') === 0 ? product() : p === '/backends' ? admin() :
+    var html = p === '/' ? home() : p === '/shop' ? shop() : p.indexOf('/product/') === 0 ? product() : p === '/backends' ? (fx('login') ? login() : admin()) :
       p === '/backends/catalogue' ? '<div class="admin-shell"><main class="admin-content"><h2>Catalogue</h2></main></div>' : '<p>404</p>'
     document.getElementById('root').innerHTML = html
+    var sl = document.querySelector('.admin-login p.text-center')
+    window.fxLoginNode = sl ? sl.firstChild : null
     if (p !== lastPath) { lastPath = p; document.title = titleFor(p) }
     window.fxRenders = (window.fxRenders || 0) + 1
   }
@@ -891,6 +903,26 @@ head('/backends Brands: re-read on entry and on a new brand')
   for (let i = 0; i < 3; i++) { await pg.evaluate(() => window.fxRerender()); await settle(pg) }
   is(hits() === h2 + 1, 'an unknown slug is asked about once, never in a loop', `${h2} → ${hits()}`)
   await pg.close()
+}
+
+head('sign-in screen: the session line says what the server does')
+{
+  const NEW = 'You stay signed in on this browser for 30 days. 7 days without use signs you out.'
+  const pg = await open('/backends?fx=login&lang=en')
+  await settle(pg)
+  const line = () => pg.evaluate(() => document.querySelector('.admin-login p.text-center').textContent)
+  is((await line()) === NEW, 'the 8-hour line now says 30 days / 7 days unused', await line())
+  is(await pg.evaluate(() => document.querySelector('.admin-login p.text-center').firstChild === window.fxLoginNode),
+    'the text node React rendered is edited in place, not replaced')
+  await pg.evaluate(() => window.fxRerender()); await settle(pg)
+  is((await line()) === NEW, 'and again after the app re-renders the login wholesale', await line())
+  const other = await pg.evaluate(() => document.querySelector('.admin-login p.fx-other').textContent)
+  is(other === 'Sessions expire after 8 hours idle. Ask the owner.', 'a line worded differently is left alone (exact match only)', other)
+  await pg.close()
+  const pa = await open('/backends')
+  await settle(pa)
+  is(await pa.evaluate(() => !document.querySelector('.admin-login')), 'the signed-in admin fixture is untouched by it')
+  await pa.close()
 }
 
 head('no page errors, nothing unmocked')
