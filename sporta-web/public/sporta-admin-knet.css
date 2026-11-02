@@ -35,3 +35,38 @@
 }
 .admin-shell .admin-table thead,
 .admin-shell .admin-table th { background-color: #fff !important; }
+
+/* /backends: no rainbow (owner request 2026-11-02). The compiled admin tints
+   badges, notes and a few buttons amber, emerald, sky and violet. Everything
+   becomes neutral slate, with indigo (the admin accent) for solid buttons.
+   Rose is kept for TEXT only, because red is what says "error" or "delete";
+   its pale backgrounds go neutral like the rest. Scoped to .admin-shell. */
+.admin-shell [class*="bg-amber-5"], .admin-shell [class*="bg-amber-1"],
+.admin-shell [class*="bg-emerald-5"], .admin-shell [class*="bg-emerald-1"],
+.admin-shell [class*="bg-sky-"], .admin-shell [class*="bg-violet-"],
+.admin-shell [class*="bg-rose-5"], .admin-shell [class*="bg-rose-1"] {
+  background-color: #f1f5f9 !important;
+}
+.admin-shell .hover\:bg-amber-50:hover, .admin-shell .hover\:bg-emerald-50:hover,
+.admin-shell .hover\:bg-rose-50:hover {
+  background-color: #e2e8f0 !important;
+}
+.admin-shell .bg-emerald-600, .admin-shell .bg-amber-600 {
+  background-color: #4f46e5 !important; color: #fff !important;
+}
+.admin-shell .hover\:bg-emerald-700:hover, .admin-shell .hover\:bg-amber-700:hover {
+  background-color: #4338ca !important;
+}
+.admin-shell [class*="text-amber-"], .admin-shell [class*="text-emerald-"],
+.admin-shell [class*="text-sky-"], .admin-shell [class*="text-violet-"] {
+  color: #334155 !important;
+}
+.admin-shell [class*="border-amber-"], .admin-shell [class*="border-emerald-"],
+.admin-shell [class*="border-sky-"], .admin-shell [class*="border-violet-"],
+.admin-shell [class*="border-rose-"] {
+  border-color: #e2e8f0 !important;
+}
+.admin-shell [class*="ring-amber-"], .admin-shell [class*="ring-emerald-"],
+.admin-shell [class*="ring-sky-"], .admin-shell [class*="ring-violet-"] {
+  --tw-ring-color: #e2e8f0 !important;
+}
