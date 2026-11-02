@@ -34,6 +34,7 @@ import {
   MPH_PER_KMH,
   type SpeedUnit,
   type ClusterTheme,
+  UI_THEMES,
 } from "@/game/settings";
 import { storageHealth, onStorageTrouble, type StorageHealth } from "@/game/storage";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
@@ -635,7 +636,7 @@ function RevCounter({
       <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ paddingTop: "7cqw" }}>
         <span
           ref={speedRef}
-          className="grn-display block italic leading-[0.78] tabular-nums text-[#e9edf1] [text-shadow:0_0_14px_rgba(56,201,238,0.25),0_3px_12px_rgba(0,0,0,0.9)]"
+          className="grn-display block italic leading-[0.78] tabular-nums text-[#e9edf1] [text-shadow:0_0_14px_rgb(var(--info-rgb)/0.25),0_3px_12px_rgba(0,0,0,0.9)]"
           style={{ fontSize: "18.5cqw" }}
         >
           0
@@ -3059,7 +3060,7 @@ function raceCut(): { w: number; h: number } | null {
           />
           <div
             ref={flashRef}
-            className="grn-display invisible mt-1.5 flex animate-pulse items-center justify-center gap-2.5 text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_11px_rgba(56,201,238,0.4),0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-display invisible mt-1.5 flex animate-pulse items-center justify-center gap-2.5 text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_11px_rgb(var(--info-rgb)/0.4),0_2px_10px_rgba(0,0,0,0.9)]"
           >
             <IconFlash size={20} />
             <span>FLASH 3&times; TO CHALLENGE</span>
@@ -3075,7 +3076,7 @@ function raceCut(): { w: number; h: number } | null {
         <div className="pointer-events-none absolute left-1/2 top-[66%] -translate-x-1/2">
           <div
             ref={driftRef}
-            className="grn-display flex flex-col items-center gap-1.5 text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_12px_rgba(56,201,238,0.32),0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-display flex flex-col items-center gap-1.5 text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_12px_rgb(var(--info-rgb)/0.32),0_2px_10px_rgba(0,0,0,0.9)]"
           >
             <span ref={driftTextRef} />
             <span className="drift-meter">
@@ -3146,7 +3147,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="grn-meter h-2 flex-1 -skew-x-12">
               <div
                 ref={towRef}
-                className="h-full bg-gradient-to-r from-sodium-600 to-sodium-300 shadow-[0_0_12px_rgba(245,165,36,0.75)]"
+                className="h-full bg-gradient-to-r from-sodium-600 to-sodium-300 shadow-[0_0_12px_rgb(var(--accent-rgb)/0.75)]"
                 style={{ width: "0%" }}
               />
             </div>
@@ -3156,7 +3157,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="grn-meter h-2 flex-1 -skew-x-12">
               <div
                 ref={boostRef}
-                className="h-full bg-gradient-to-r from-gulf-500 to-gulf-300 shadow-[0_0_12px_rgba(56,201,238,0.8)]"
+                className="h-full bg-gradient-to-r from-gulf-500 to-gulf-300 shadow-[0_0_12px_rgb(var(--info-rgb)/0.8)]"
                 style={{ width: "0%" }}
               />
             </div>
@@ -3441,7 +3442,7 @@ function raceCut(): { w: number; h: number } | null {
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
-          <div className="grn-label text-xs tracking-[0.42em] text-gulf-300 [text-shadow:0_0_12px_rgba(56,201,238,0.36)]">
+          <div className="grn-label text-xs tracking-[0.42em] text-gulf-300 [text-shadow:0_0_12px_rgb(var(--info-rgb)/0.36)]">
             Headlights flashed ×3 — <span className="grn-ar" lang="ar">التحدي</span>
           </div>
           <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
@@ -3666,7 +3667,7 @@ function raceCut(): { w: number; h: number } | null {
               أنت
             </div>
           </div>
-          <div className="vs-pop grn-poster mx-8 text-7xl text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.9)] sm:text-8xl">
+          <div className="vs-pop grn-poster mx-8 text-7xl text-sodium-400 [text-shadow:0_0_34px_rgb(var(--accent-rgb)/0.9)] sm:text-8xl">
             VS
           </div>
           <div className="vs-slide-right w-[38%]">
@@ -4323,6 +4324,28 @@ function raceCut(): { w: number; h: number } | null {
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               HUD · <span className="grn-ar" lang="ar">لوحة العدادات</span>
             </h3>
+            <div className="grn-label mt-3 text-2xs text-white/66">Colour scheme</div>
+            <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {UI_THEMES.map(({ id, label, swatch }) => (
+                <button
+                  key={id}
+                  data-ui-theme-option={id}
+                  onClick={() => updateSetting("uiTheme", id)}
+                  aria-pressed={settings.uiTheme === id}
+                  className={`tap grn-panel flex items-center justify-center gap-2 px-3 py-3 transition ${
+                    settings.uiTheme === id
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-white"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span
+                    className="size-3 shrink-0 rounded-full"
+                    style={{ background: swatch, boxShadow: `0 0 8px ${swatch}` }}
+                  />
+                  <span className="grn-display text-base">{label}</span>
+                </button>
+              ))}
+            </div>
             <div className="grn-label mt-3 text-2xs text-white/66">Cluster</div>
             <div className="mt-1.5 grid grid-cols-3 gap-2">
               {(
@@ -4728,7 +4751,7 @@ function raceCut(): { w: number; h: number } | null {
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
           <div className="grn-dialog w-full max-w-xl px-10 py-10 text-center">
             <div className="text-sodium-400"><IconCrown size={64} /></div>
-            <div className="grn-poster mt-4 text-4xl text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-5xl">
+            <div className="grn-poster mt-4 text-4xl text-sodium-400 [text-shadow:0_0_34px_rgb(var(--accent-rgb)/0.75)] sm:text-5xl">
               KING OF GULF ROAD
             </div>
             <div className="grn-ar-poster mt-3 text-3xl text-white/90" dir="rtl" lang="ar">

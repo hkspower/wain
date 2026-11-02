@@ -129,6 +129,70 @@
   --color-gulf-500: #1aa7cc;
 }
 
+/* COLOUR SCHEMES. Two accents carry the whole interface: the primary one
+   (sodium: actions, prices, the selected row) and the information one
+   (gulf: meters, labels, the XP bar). Each scheme below swaps both, as
+   tokens for the utilities (bg-sodium-500, text-gulf-300, ...) and as
+   space-separated rgb triplets for the glows, which are written
+   rgb(var(--accent-rgb) / .4) so they follow the scheme too. The red and
+   green of the rival and player channels are NOT part of any scheme: they
+   mean something, and data-cvd already swaps them for colour-blind
+   players. The instrument cluster keeps its own choice (clusterTheme).
+   Set from Settings as <html data-ui-theme="...">; no attribute is the
+   sodium scheme. scripts/audit-ui-themes.mjs holds every scheme to the
+   contrast floor. These live outside @theme for the same reason the
+   font stacks do: nothing in a stylesheet refers to them by utility. */
+:root {
+  --accent-rgb: 245 165 36;
+  --accent-hi-rgb: 255 196 92;
+  --info-rgb: 56 201 238;
+  --info-hi-rgb: 127 227 255;
+}
+html[data-ui-theme="ice"] {
+  --color-sodium-400: #8fdcff;
+  --color-sodium-500: #5cc8ff;
+  --color-gulf-300: #d6c9ff;
+  --color-gulf-400: #b7a4ff;
+  --color-gulf-500: #9a82f0;
+  --accent-rgb: 92 200 255;
+  --accent-hi-rgb: 143 220 255;
+  --info-rgb: 183 164 255;
+  --info-hi-rgb: 214 201 255;
+}
+html[data-ui-theme="neon"] {
+  --color-sodium-400: #5dffb0;
+  --color-sodium-500: #3dff9e;
+  --color-gulf-300: #ff9be5;
+  --color-gulf-400: #ff5fd0;
+  --color-gulf-500: #e03ab8;
+  --accent-rgb: 61 255 158;
+  --accent-hi-rgb: 93 255 176;
+  --info-rgb: 255 95 208;
+  --info-hi-rgb: 255 155 229;
+}
+html[data-ui-theme="crimson"] {
+  --color-sodium-400: #ff8f8f;
+  --color-sodium-500: #ff4f55;
+  --color-gulf-300: #bcd0f0;
+  --color-gulf-400: #8fb0e3;
+  --color-gulf-500: #6f94cf;
+  --accent-rgb: 255 79 85;
+  --accent-hi-rgb: 255 143 143;
+  --info-rgb: 143 176 227;
+  --info-hi-rgb: 188 208 240;
+}
+html[data-ui-theme="violet"] {
+  --color-sodium-400: #d8b0ff;
+  --color-sodium-500: #b57cff;
+  --color-gulf-300: #9ff0d8;
+  --color-gulf-400: #4fe0bd;
+  --color-gulf-500: #2dbd9d;
+  --accent-rgb: 181 124 255;
+  --accent-hi-rgb: 216 176 255;
+  --info-rgb: 79 224 189;
+  --info-hi-rgb: 159 240 216;
+}
+
 /* Font stacks, emitted unconditionally. These live outside @theme on
    purpose: Tailwind v4 tree-shakes theme tokens that no utility class
    references, and the Arabic faces are used by hand-written rules and
@@ -622,7 +686,7 @@ body {
   background:
     /* A hint of cyan at the crown, not a wash of it: at 0.12 the whole
        dialog took a blue cast, which is the thing being moved away from. */
-    radial-gradient(120% 90% at 50% 0%, rgba(56, 201, 238, 0.05), transparent 62%),
+    radial-gradient(120% 90% at 50% 0%, rgb(var(--info-rgb) / 0.05), transparent 62%),
     linear-gradient(
       180deg,
       color-mix(in srgb, var(--color-steel-600) 96.5%, transparent),
@@ -669,18 +733,18 @@ body {
 .grn-btn-primary {
   background: linear-gradient(180deg, var(--color-sodium-400), var(--color-sodium-500));
   color: #140d02;
-  box-shadow: 0 12px 30px -12px rgba(245, 165, 36, 0.85);
+  box-shadow: 0 12px 30px -12px rgb(var(--accent-rgb) / 0.85);
 }
 .grn-btn-primary:hover {
-  box-shadow: 0 16px 36px -12px rgba(245, 165, 36, 0.95);
+  box-shadow: 0 16px 36px -12px rgb(var(--accent-rgb) / 0.95);
 }
 .grn-btn-ghost {
-  border: 1px solid rgba(127, 227, 255, 0.5);
+  border: 1px solid rgb(var(--info-hi-rgb) / 0.5);
   color: var(--color-gulf-300);
-  background: rgba(56, 201, 238, 0.07);
+  background: rgb(var(--info-rgb) / 0.07);
 }
 .grn-btn-ghost:hover {
-  background: rgba(56, 201, 238, 0.15);
+  background: rgb(var(--info-rgb) / 0.15);
 }
 
 /* ==========================================================
@@ -1159,7 +1223,7 @@ html[data-cluster-theme="neon"] .tach-cluster {
   /* Wide and soft under the tight dark one, in that order: the glow is
      the lamp behind the letter and the drop is the letter's own edge, so
      the edge has to win. */
-  text-shadow: 0 0 38px rgba(245, 165, 36, 0.42), 0 2px 16px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 0 38px rgb(var(--accent-rgb) / 0.42), 0 2px 16px rgba(0, 0, 0, 0.9);
 }
 
 /* The lit word strikes rather than fades.
@@ -1178,11 +1242,11 @@ html[data-cluster-theme="neon"] .tach-cluster {
  * Ends exactly on the rule above, so nothing moves when it finishes. */
 @keyframes wm-strike {
   0% { opacity: 0.22; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9); }
-  14% { opacity: 1; text-shadow: 0 0 12px rgba(245, 165, 36, 0.22), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  14% { opacity: 1; text-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.22), 0 2px 16px rgba(0, 0, 0, 0.9); }
   22% { opacity: 0.38; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9); }
-  34% { opacity: 1; text-shadow: 0 0 26px rgba(245, 165, 36, 0.34), 0 2px 16px rgba(0, 0, 0, 0.9); }
-  42% { opacity: 0.66; text-shadow: 0 0 10px rgba(245, 165, 36, 0.18), 0 2px 16px rgba(0, 0, 0, 0.9); }
-  100% { opacity: 1; text-shadow: 0 0 38px rgba(245, 165, 36, 0.42), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  34% { opacity: 1; text-shadow: 0 0 26px rgb(var(--accent-rgb) / 0.34), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  42% { opacity: 0.66; text-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.18), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  100% { opacity: 1; text-shadow: 0 0 38px rgb(var(--accent-rgb) / 0.42), 0 2px 16px rgba(0, 0, 0, 0.9); }
 }
 .menu-wordmark .wm-lit {
   animation: wm-strike 1.05s var(--ease-out) both;
@@ -1247,11 +1311,11 @@ html[data-cluster-theme="neon"] .tach-cluster {
 }
 
 .menu-item.is-sel {
-  border-color: rgba(56, 201, 238, 0.55);
-  background: linear-gradient(90deg, rgba(56, 201, 238, 0.2), rgba(56, 201, 238, 0.02));
+  border-color: rgb(var(--info-rgb) / 0.55);
+  background: linear-gradient(90deg, rgb(var(--info-rgb) / 0.2), rgb(var(--info-rgb) / 0.02));
   color: #fff;
   transform: translateX(4px);
-  box-shadow: 0 0 24px -6px rgba(56, 201, 238, 0.55);
+  box-shadow: 0 0 24px -6px rgb(var(--info-rgb) / 0.55);
 }
 .menu-item.is-minor.is-sel {
   color: #fff;
@@ -1408,8 +1472,8 @@ html[data-cluster-theme="neon"] .tach-cluster {
 
 /* Coach marks in onboarding pulse gently until they are used. */
 @keyframes coach-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 92, 0.55); }
-  50% { box-shadow: 0 0 0 12px rgba(255, 196, 92, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent-hi-rgb) / 0.55); }
+  50% { box-shadow: 0 0 0 12px rgb(var(--accent-hi-rgb) / 0); }
 }
 .coach-ring {
   animation: coach-ring 1.8s var(--ease-in-out) infinite;

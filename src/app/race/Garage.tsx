@@ -330,7 +330,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
         disabled={!owned && !affordable}
         className={`grn-panel tap p-3.5 text-left transition ${
           equipped
-            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
+            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgb(var(--accent-rgb)/0.7)]"
             : owned
               ? "border-emerald-400/45 hover:border-emerald-400/70"
               : affordable
@@ -390,7 +390,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
           <div className="flex shrink-0 items-center gap-3">
             <div className="text-right">
               <div className="grn-label text-2xs">Balance</div>
-              <div className="grn-display tnum text-xl italic leading-tight text-sodium-400 [text-shadow:0_0_18px_rgba(245,165,36,0.5)]">
+              <div className="grn-display tnum text-xl italic leading-tight text-sodium-400 [text-shadow:0_0_18px_rgb(var(--accent-rgb)/0.5)]">
                 {num(garage.kd)} KD
               </div>
             </div>
@@ -527,7 +527,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                           disabled={!owned && (!affordable || shut)}
                           className={`grn-panel tap p-3.5 text-left transition ${
                             driving
-                              ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
+                              ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgb(var(--accent-rgb)/0.7)]"
                               : owned
                                 ? "border-emerald-400/45 hover:border-emerald-400/70"
                                 : shut

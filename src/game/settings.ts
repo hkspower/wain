@@ -9,6 +9,23 @@ import type { CameraView } from "./views";
 import { writeJSON } from "./storage";
 
 export type ClusterTheme = "sodium" | "ice" | "neon";
+/**
+ * The colour scheme of the whole interface — menu, garage, HUD chrome,
+ * results — as opposed to clusterTheme, which is only the tachometer's
+ * backlight. Each swaps the two accents the interface is built on (see
+ * "COLOUR SCHEMES" in globals.css); the rival/player red and green are
+ * never part of it. The values are the data-ui-theme attribute.
+ */
+export type UITheme = "sodium" | "ice" | "neon" | "crimson" | "violet";
+/** Every scheme, in the order Settings lists them, with the swatch it is
+ *  drawn with (the scheme's primary accent, as in globals.css). */
+export const UI_THEMES: readonly { id: UITheme; label: string; swatch: string }[] = [
+  { id: "sodium", label: "Sodium", swatch: "#f5a524" },
+  { id: "ice", label: "Ice", swatch: "#5cc8ff" },
+  { id: "neon", label: "Neon", swatch: "#3dff9e" },
+  { id: "crimson", label: "Crimson", swatch: "#ff4f55" },
+  { id: "violet", label: "Violet", swatch: "#b57cff" },
+];
 export type SpeedUnit = "kmh" | "mph";
 /** km/h to mph, for the one readout that offers both. */
 export const MPH_PER_KMH = 0.621371;
@@ -42,6 +59,8 @@ export interface Settings {
    *  green. A race cluster stays red whatever this says — that face is
    *  telling the driver something. */
   clusterTheme: ClusterTheme;
+  /** The colour scheme of the whole interface (see UITheme). */
+  uiTheme: UITheme;
   /** What the HUD speed reads in. The game itself stays in km/h. */
   speedUnit: SpeedUnit;
   /** Where the camera sits. Chase is road-mounted and shows what the car
@@ -100,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.75,
   largeHud: false,
   clusterTheme: "sodium",
+  uiTheme: "sodium",
   speedUnit: "kmh",
   cameraView: "chase",
   // Dry, because that is what Kuwait is for most of the year — and
@@ -162,7 +182,13 @@ export function loadSettings(): Settings {
   if (typeof window === "undefined") return { ...DEFAULT_SETTINGS };
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) {
+      const s = { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+      // A scheme that no longer exists (or a hand-edited value) is the
+      // default, not an attribute no stylesheet rule answers.
+      if (!UI_THEMES.some((t) => t.id === s.uiTheme)) s.uiTheme = DEFAULT_SETTINGS.uiTheme;
+      return s;
+    }
   } catch {}
   return { ...DEFAULT_SETTINGS };
 }
@@ -182,6 +208,7 @@ export function applySettings(s: Settings): void {
   root.dataset.cvd = s.colorBlindSafe ? "1" : "0";
   root.dataset.largeHud = s.largeHud ? "1" : "0";
   root.dataset.clusterTheme = s.clusterTheme;
+  root.dataset.uiTheme = s.uiTheme;
 }
 
 /**
