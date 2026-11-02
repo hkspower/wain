@@ -47,6 +47,7 @@ const PARTS = [
   ['seed.mysql.sql', 'the catalogue and its sizes'],
   ['brands.mysql.sql', 'the brands list'],
   ['promo.mysql.sql', 'hero slides, settings, promotions and discounts'],
+  ['outbox-kinds.mysql.sql', 'the warehouse message kinds: cancel and reinstate'],
 ]
 
 const FORBIDDEN = [

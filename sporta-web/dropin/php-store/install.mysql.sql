@@ -24,6 +24,7 @@
 --   7. seed.mysql.sql     the catalogue and its sizes
 --   8. brands.mysql.sql   the brands list
 --   9. promo.mysql.sql    hero slides, settings, promotions and discounts
+--   10. outbox-kinds.mysql.sql the warehouse message kinds: cancel and reinstate
 
 
 -- ========================================================================
@@ -251,10 +252,19 @@ create table if not exists fulfilment_outbox (
   -- only for 'new' rows, and the unique index ignores the NULLs on the rest.
   new_once   int unsigned generated always as (case when kind = 'new' then order_id else null end) stored,
   constraint fk_outbox_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint outbox_kind_ck check (kind in ('new','payment'))
+  -- The four kinds the warehouse hears about: the picking list ('new'), the
+  -- payment outcome ('payment'), the "do not ship" for an order cancelled
+  -- after the picking list went out ('cancel'), and the order put back on
+  -- ('reinstate'). An existing database gets the wider list from
+  -- outbox-kinds.mysql.sql — this line only shapes a fresh install. Until
+  -- that is imported, every 'cancel' is refused by this CHECK and the cash
+  -- sweeper cancels nothing (native-backend-test: "the sweeper cancels ...").
+  constraint outbox_kind_ck check (kind in ('new','payment','cancel','reinstate'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- One picking list per order, guaranteed by the index rather than by memory.
+-- Only kind 'new' has a non-null new_once, so a 'cancel' or 'reinstate' row
+-- for the same order never collides with the picking list.
 create unique index if not exists uq_outbox_new on fulfilment_outbox (new_once);
 
 -- ---------------------------------------------------------------- brands
@@ -1312,3 +1322,39 @@ create index if not exists idx_orders_payment    on orders (payment_status, crea
 create index if not exists idx_orders_fulfilment on orders (fulfilment_status, created_at);
 create index if not exists idx_orders_discount   on orders (discount_code);
 create index if not exists idx_outbox_pending    on fulfilment_outbox (sent_at, attempts, created_at);
+
+
+-- ========================================================================
+-- outbox-kinds.mysql.sql — the warehouse message kinds: cancel and reinstate
+-- ========================================================================
+
+-- ===========================================================================
+-- Sporta — the warehouse outbox learns two more kinds: 'cancel' and 'reinstate'.
+--
+-- Additive, and idempotent: importing it twice changes nothing. Import it
+-- BEFORE the PHP that queues these kinds goes live (store_fulfilment_cancelled
+-- and store_fulfilment_reinstate in store.php). Until then the cash sweeper
+-- cannot cancel anything: its release is one transaction, the insert of the
+-- "do not ship" row is refused, and the whole release rolls back.
+--
+-- WHY THIS EXISTS. fulfilment_outbox was created with
+--     constraint outbox_kind_ck check (kind in ('new','payment'))
+-- The code learned to queue a 'cancel' (CANCELLED — do not ship, for a
+-- picking list that said COLLECT CASH) and a 'reinstate', but the CHECK still
+-- refused them. The live database, installed from the older list, would
+-- raise error 4025 on every auto-cancel of an unconfirmed cash order, so the
+-- order would be left holding its garments with no do-not-ship sent to the
+-- warehouse — the failure this change exists to prevent.
+--
+-- The column itself (kind varchar(10)) already fits both words, and the
+-- generated new_once column is null for every kind but 'new', so the one
+-- picking list per order is still the only unique rule.
+--
+-- DROP ... IF EXISTS then ADD: MariaDB has no ALTER ... ADD CONSTRAINT IF NOT
+-- EXISTS, so the constraint is replaced in place each time. The table holds
+-- only the outbox's own rows; re-checking them is cheap.
+-- ===========================================================================
+
+alter table fulfilment_outbox drop constraint if exists outbox_kind_ck;
+alter table fulfilment_outbox
+  add constraint outbox_kind_ck check (kind in ('new','payment','cancel','reinstate'));

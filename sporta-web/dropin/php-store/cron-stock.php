@@ -38,6 +38,13 @@
 //   * Anything already released. stock_released is the idempotence guard, so a
 //     retried run and a callback cannot both restock one order.
 //
+// WHAT A CANCELLED COD ORDER ALSO GETS. The cancel is one transaction with a
+// 'cancel' row for the warehouse ("CANCELLED — do not ship"), which
+// cron-fulfilment.php mails once the picking list has gone. If that row cannot
+// be written, the whole release is refused and rolled back, the order is left
+// as it was, and it is listed under `failed` in this run's JSON. One failing
+// order never stops the others: they are released in the same run.
+//
 // ?do= on its own reports what WOULD be released and changes nothing.
 
 declare(strict_types=1);
@@ -106,14 +113,33 @@ $rows = $q->fetchAll();
 
 $done = [];
 $codCancelled = [];
+// Orders whose release threw. Reported, never silent: a failure here is the
+// sweeper not doing its job for that order, and the owner must see it.
+$failed = [];
 foreach ($rows as $r) {
+    if ($dry) continue;
     // store_stock_release() is guarded and transactional; it returns false if
     // something else got there first, which is the answer this loop wants.
-    if (!$dry && store_stock_release($db, (int)$r['id'], $minutes)) {
-        $done[] = $r['track_id'];
-        if ($r['payment_method'] === 'cod' && $r['fulfilment_status'] === 'unfulfilled') {
-            $codCancelled[] = $r['track_id'];
+    //
+    // A THROW IS CONTAINED TO ITS ORDER. The release is one transaction and
+    // store_stock_release() rolls it back before rethrowing, so the order is
+    // untouched. Without this catch, the first order that cannot be released
+    // (a constraint, a lock timeout) would end the run, and the run after it
+    // would stop at the same order, so no order behind it was ever released
+    // again. The candidate list is ordered by id, so that is the oldest order
+    // in the shop, every run, for ever.
+    try {
+        if (store_stock_release($db, (int)$r['id'], $minutes)) {
+            $done[] = $r['track_id'];
+            if ($r['payment_method'] === 'cod' && $r['fulfilment_status'] === 'unfulfilled') {
+                $codCancelled[] = $r['track_id'];
+            }
         }
+    } catch (Throwable $e) {
+        // The order id and the exception class only: never a customer's name,
+        // phone or address, which an exception message can carry.
+        $failed[] = $r['track_id'];
+        error_log('Sporta stock release failed for order #' . (int)$r['id'] . ' (' . get_class($e) . ')');
     }
 }
 
@@ -126,7 +152,10 @@ store_out([
     // their own because cancelling is more than putting stock back: the
     // owner may want to call those customers.
     'cod_cancelled'    => $dry ? [] : $codCancelled,
+    // The orders this run released (or, in a dry run, would release).
     'track_ids'        => $dry ? array_column($rows, 'track_id') : $done,
+    // Orders that could not be released this run. Empty when all is well.
+    'failed'           => $failed,
     'dry_run'          => $dry,
     'note'             => $dry ? 'add &do=release to actually put the stock back' : null,
 ]);

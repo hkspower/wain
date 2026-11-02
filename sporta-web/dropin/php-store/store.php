@@ -745,10 +745,26 @@ function store_wa_e164(?string $raw): ?string {
     return null;
 }
 
-// Called wherever payment_status reaches a settled state — the callback and
-// the admin's mark-cash-paid. Mirrors trg_queue_fulfilment_payment.
-function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
-    if (in_array($newStatus, ['paid', 'failed'], true)) {
+// Called wherever payment_status reaches a settled state — the admin's
+// mark-cash-paid and its card-settled twin. Mirrors trg_queue_fulfilment_payment.
+//
+// $fulfilment is the order's fulfilment_status AS IT STANDS when the money is
+// marked in. The warehouse's 'payment' row for a paid order reads "PAYMENT
+// CONFIRMED — ship it", which is an instruction to dispatch. That instruction
+// is wrong once the order has left the shop (shipped or delivered: the cash
+// was collected on the doorstep and a second van would be a second delivery)
+// and wrong for a cancelled order (its garment is back on the shelf and the
+// warehouse has been told do not ship). For those the paid MARK is still kept
+// — the money was collected and the books must say so — but no ship message
+// is queued. Anything else (unfulfilled, packed) gets the message as before.
+//
+// The customer's WhatsApp "confirmed" is skipped for a cancelled order for the
+// same reason: it would tell someone their cancelled order is confirmed.
+function store_payment_settled(PDO $db, int $orderId, string $newStatus, string $fulfilment = 'unfulfilled'): void {
+    $noShip = in_array($fulfilment, ['shipped', 'delivered', 'cancelled'], true);
+    // 'failed' keeps its message whatever the state: a "PAYMENT FAILED — do
+    // not ship" is never wrong, and no caller passes it today.
+    if ($newStatus === 'failed' || ($newStatus === 'paid' && !$noShip)) {
         store_queue_fulfilment($db, $orderId, 'payment');
     }
     // The customer hears from us only when the money is actually in. 'failed'
@@ -756,7 +772,7 @@ function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
     // looking at the failure on screen, and a WhatsApp message about it would
     // arrive minutes later, out of context, about an order they may have
     // already re-placed successfully.
-    if ($newStatus === 'paid') {
+    if ($newStatus === 'paid' && $fulfilment !== 'cancelled') {
         store_queue_whatsapp($db, $orderId, 'confirmed');
     }
 }
@@ -2426,8 +2442,9 @@ function store_cod_hold_hours(): int {
 // cancelled in the database does not stop a van. The same transaction
 // therefore queues a 'cancel' message ("CANCELLED — do not ship", both
 // languages); cron-fulfilment.php drops it unsent if the warehouse never heard
-// of the order. cron-stock.php mails the owner the list of what it cancelled,
-// so the customers can be called. And if the owner puts the order back in
+// of the order. cron-stock.php's JSON names what it cancelled (cod_cancelled),
+// so the owner can call those customers — the run does not mail it anywhere.
+// And if the owner puts the order back in
 // /backends (it was real after all), store_order_reinstate() claims its stock
 // and its discount uses again, or refuses — a reinstated order is never
 // shipped from a shelf it gave back.
@@ -2614,10 +2631,23 @@ function store_order_reinstate(PDO $db, int $orderId): ?array {
     return null;
 }
 
-// The warehouse's side of a cancel and a reinstate. A row closed WITHOUT being
-// sent carries last_error 'order cancelled' or 'order reinstated', so
-// cron-fulfilment.php can tell "the warehouse heard about this order" from "a
-// row was closed" — keep the two spellings in step with its query.
+// The warehouse's side of a cancel and a reinstate: what fulfilment_outbox
+// holds, and which of it may still be mailed.
+//
+// A row the drain does NOT mail is CLOSED: sent_at is set, with last_error
+// saying why it never went. Three spellings, one definition — a closed row is
+// not a message the warehouse holds:
+//   'order cancelled'   the order was no longer happening when the row came up
+//   'order reinstated'  the order was put back before the row went out
+//   'order shipped'     the order had left the shop (shipped or delivered)
+// store_outbox_heard() ignores all three, and cron-fulfilment.php closes rows
+// by the same spellings. Keep them in step with that file.
+const STORE_OUTBOX_CLOSED_CANCELLED  = 'order cancelled';
+const STORE_OUTBOX_CLOSED_REINSTATED = 'order reinstated';
+const STORE_OUTBOX_CLOSED_SHIPPED    = 'order shipped';
+// The same three, as an SQL list. The constants are fixed strings, never input.
+const STORE_OUTBOX_CLOSED_SPELLINGS  = "'order cancelled', 'order reinstated', 'order shipped'";
+
 // A cancel the owner (or the sweeper) made, told to the warehouse: one 'cancel'
 // message — "CANCELLED — do not ship". cron-fulfilment.php drops it unsent when
 // nothing about the order ever reached the warehouse.
@@ -2625,22 +2655,102 @@ function store_fulfilment_cancelled(PDO $db, int $orderId): void {
     store_queue_fulfilment($db, $orderId, 'cancel');
 }
 
-// The order is on again. Whatever the warehouse was last told must be undone:
-//   * a "do not ship" still waiting to go is withdrawn, unsent;
-//   * a picking list that was closed unsent BECAUSE the order was cancelled is
-//     reopened, so it goes out after all;
-//   * and a "do not ship" that really went out is answered with the picking
-//     list again, marked REINSTATED ('reinstate').
-function store_fulfilment_reinstate(PDO $db, int $orderId): void {
-    $db->prepare("update fulfilment_outbox set sent_at = now(), last_error = 'order reinstated'
-                   where order_id = ? and kind = 'cancel' and sent_at is null")->execute([$orderId]);
-    $db->prepare("update fulfilment_outbox set sent_at = null, last_error = null, attempts = 0
-                   where order_id = ? and kind = 'new' and last_error = 'order cancelled'")->execute([$orderId]);
+// Has the warehouse been sent anything about this order? A row counts once it
+// really went out: sent_at set, and not one closed unsent (see above).
+function store_outbox_heard(PDO $db, int $orderId): bool {
     $q = $db->prepare("select count(*) from fulfilment_outbox
-                        where order_id = ? and kind = 'cancel' and sent_at is not null
-                          and coalesce(last_error, '') not in ('order cancelled', 'order reinstated')");
+                        where order_id = ? and sent_at is not null
+                          and coalesce(last_error, '') not in (" . STORE_OUTBOX_CLOSED_SPELLINGS . ")");
     $q->execute([$orderId]);
-    if ((int)$q->fetchColumn() > 0) store_queue_fulfilment($db, $orderId, 'reinstate');
+    return (int)$q->fetchColumn() > 0;
+}
+
+// Why an unsent row must NOT be mailed, or null when it may go. The drain asks
+// this for every row under the order's row lock, so the decision and the mail
+// see the same order state.
+//
+//   * A CANCELLED order. Its picking list and its reinstate are closed: a
+//     picking list after a "do not ship" is a van sent for an order the shop
+//     has given up. A 'payment' or 'cancel' goes out ONLY when the warehouse has
+//     already heard about the order — then it is the follow-up that corrects
+//     what they hold, and dropping it would leave them with a picking list and
+//     no do-not-ship. Nothing heard: the row is closed, and nothing is mailed.
+//   * A SHIPPED or DELIVERED order. Nothing that tells the warehouse to dispatch
+//     may go: a picking list ('new') or a payment ('payment'). The parcel has
+//     left the shop, and a second van is a second delivery. 'cancel' and
+//     'reinstate' are not dispatch messages and are left alone.
+function store_outbox_closed_reason(string $kind, string $orderStatus, bool $warehouseHeard): ?string {
+    if ($orderStatus === 'cancelled') {
+        if (in_array($kind, ['new', 'reinstate'], true)) return STORE_OUTBOX_CLOSED_CANCELLED;
+        return $warehouseHeard ? null : STORE_OUTBOX_CLOSED_CANCELLED;
+    }
+    if (in_array($orderStatus, ['shipped', 'delivered'], true) && in_array($kind, ['new', 'payment'], true)) {
+        return STORE_OUTBOX_CLOSED_SHIPPED;
+    }
+    return null;
+}
+
+// The order is on again. The warehouse has been told one of two things, and
+// each has its own answer:
+//   1. a "do not ship" still waiting to go is withdrawn, unsent;
+//   2. a REINSTATED picking list that is still waiting already answers
+//      everything, and a second one would be the same list twice: nothing more;
+//   3. a "do not ship" that really went out is answered once, with the picking
+//      list again, marked REINSTATED. A picking list still waiting is closed
+//      as superseded by it, so the warehouse never holds two.
+//      "Really went out" means a cancel sent AFTER the last REINSTATED row:
+//      a cancel answered by an earlier reinstate is not owed a second one;
+//   4. nothing was said to the warehouse: a picking list closed unsent BECAUSE
+//      the order was cancelled, or one that failed to send five times, goes
+//      out after all, with its attempts counted from zero.
+function store_fulfilment_reinstate(PDO $db, int $orderId): void {
+    // 1.
+    $db->prepare("update fulfilment_outbox set sent_at = now(), last_error = ?
+                   where order_id = ? and kind = 'cancel' and sent_at is null")
+       ->execute([STORE_OUTBOX_CLOSED_REINSTATED, $orderId]);
+    // 2.
+    $q = $db->prepare("select count(*) from fulfilment_outbox
+                        where order_id = ? and kind = 'reinstate' and sent_at is null");
+    $q->execute([$orderId]);
+    if ((int)$q->fetchColumn() > 0) return;
+    // 3. A row's id is its place in the queue, so "after the last reinstate"
+    // is "id greater than the last reinstate's id". Every reinstate row counts,
+    // closed or not: a closed one still answered the cancels before it.
+    $last = $db->prepare("select coalesce(max(id), 0) from fulfilment_outbox
+                           where order_id = ? and kind = 'reinstate'");
+    $last->execute([$orderId]);
+    $lastId = (int)$last->fetchColumn();
+    $q = $db->prepare("select count(*) from fulfilment_outbox
+                        where order_id = ? and kind = 'cancel' and sent_at is not null and id > ?
+                          and coalesce(last_error, '') not in (" . STORE_OUTBOX_CLOSED_SPELLINGS . ")");
+    $q->execute([$orderId, $lastId]);
+    if ((int)$q->fetchColumn() > 0) {
+        $db->prepare("update fulfilment_outbox set sent_at = now(), last_error = ?
+                       where order_id = ? and kind = 'new' and sent_at is null")
+           ->execute([STORE_OUTBOX_CLOSED_REINSTATED, $orderId]);
+        store_queue_fulfilment($db, $orderId, 'reinstate');
+        return;
+    }
+    // 4. A picking list that failed five times is included: the owner's
+    // reinstate is the one moment it is certain the order is wanted again.
+    $db->prepare("update fulfilment_outbox set sent_at = null, last_error = null, attempts = 0
+                   where order_id = ? and kind = 'new' and sent_at is null
+                     and (last_error = ? or attempts >= 5)")
+       ->execute([$orderId, STORE_OUTBOX_CLOSED_CANCELLED]);
+}
+
+// A fact about the shop's own machinery, for the Activity page. Written by a
+// cron, so there is no administrator to name: the actor is 'system'. Logging
+// is best-effort and never costs the caller its own write — the same rule as
+// store_admin_event(), which needs an admin row and so cannot be reused here.
+function store_system_event(PDO $db, string $action): void {
+    if (!preg_match('/^[a-z][a-z0-9_]{0,79}$/D', $action)) return;
+    try {
+        $db->prepare("insert into admin_activity_log (actor_admin_id, actor_email, action_key)
+                      values (null, 'system', ?)")->execute([$action]);
+    } catch (Throwable $e) {
+        error_log('Sporta system activity logging unavailable');
+    }
 }
 
 // ------------------------------------------------------- how big an order is

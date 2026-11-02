@@ -41,48 +41,57 @@ $acquired = $lock->fetchColumn();
 if ((string)$acquired === '0') store_out(['claimed' => 0, 'sent' => 0, 'failed' => [], 'busy' => true]);
 if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 
-// ---- an order that is not happening is not mailed ----
+// ---- what the warehouse is told, and only what is still true ----
 //
-// A cancelled order's UNSENT messages are closed without sending: marked sent,
-// with last_error 'order cancelled' so the row says why it never went. The
-// orders that matter here are the ones nobody meant — a bot's fake cash
-// orders, or cash orders cancelled because nobody confirmed them (see
-// store_stock_release) — which would otherwise queue up picking lists and go
-// out in one burst the day mail starts working.
+// Every message here is decided TWICE, and the second decision is the one that
+// counts. The first is a batch pass that closes what can no longer go; the
+// second happens for each row immediately before it is mailed, under the
+// order's row lock, and the mail is sent while that lock is held. So a
+// decision the shop makes while this run is in progress — an admin cancel, a
+// reinstate, a delivery — is seen by the next message for that order, and a
+// message that is already on its way cannot be overtaken by one of the shop's
+// decisions. (Before this, a row was claimed and committed, and then mailed
+// without anyone looking at the order again: a reinstate that landed during
+// the run was overwritten, and the warehouse was told not to ship a live order.)
 //
-// ONLY WHILE THE WAREHOUSE HAS HEARD NOTHING ABOUT THE ORDER. Once anything
-// for it has really been sent (a picking list, typically), a follow-up is the
-// one message that must not be dropped: it is the "do not ship" (a 'cancel'
-// row, queued by every cancel — see store_fulfilment_cancelled). So an order
-// with any delivered message keeps every remaining one. A row closed unsent
-// ('order cancelled' here, 'order reinstated' by store_fulfilment_reinstate)
-// is not a delivered message.
+// The rules themselves are in store_outbox_closed_reason() (store.php), one
+// place for both passes. A row closed that way is marked sent with last_error
+// saying why it never went: 'order cancelled', 'order shipped'. In short: a
+// cancelled order's picking list and reinstate are never mailed; its payment
+// and cancel are mailed only if the warehouse already holds a picking list for
+// it; and an order that has shipped or been delivered gets no dispatch message.
+//
+// LOCK ORDER. Every writer of an order's warehouse rows takes the order's row
+// lock first (the admin route, the sweeper, the callbacks), and this drain
+// does the same, so the two cannot wait on each other in opposite orders.
 //
 // Under the advisory lock above, so a second cron cannot claim these first.
-$db->beginTransaction();
-$suppress = $db->query(
-    "select f.id from fulfilment_outbox f
+
+// Pass 1: every order that has an unsent row which may now be closed.
+$candidates = $db->query(
+    "select distinct f.order_id from fulfilment_outbox f
        join orders o on o.id = f.order_id
       where f.sent_at is null and f.attempts < 5
-        and o.fulfilment_status = 'cancelled'
-        and not exists (select 1 from fulfilment_outbox s
-                         where s.order_id = f.order_id and s.sent_at is not null
-                           and coalesce(s.last_error, '') not in ('order cancelled', 'order reinstated'))
-      order by f.id limit 500"
+        and o.fulfilment_status in ('cancelled', 'shipped', 'delivered')
+      order by f.order_id limit 500"
 )->fetchAll(PDO::FETCH_COLUMN);
-if ($suppress) {
-    $ids = implode(',', array_map('intval', $suppress));
-    $db->exec("update fulfilment_outbox set sent_at = now(), last_error = 'order cancelled'
-                where id in ($ids) and sent_at is null");
+$suppressed = 0;
+foreach ($candidates as $orderId) {
+    $suppressed += sporta_close_unsent($db, (int)$orderId);
 }
-$db->commit();
 
 // ---- claim ----
+//
+// ORDER OF SENDING. A picking list must go before the "do not ship" that
+// follows it for the same order. created_at is only whole seconds, so two
+// rows queued in one second tie on it; the id tie-break is the order the
+// shop queued them in, and the picking list is always queued first (it is
+// written with the order, the cancel later).
 $db->beginTransaction();
 $rows = $db->query(
-    'select id, kind, payload from fulfilment_outbox
+    'select id, order_id, kind, payload, attempts from fulfilment_outbox
       where sent_at is null and attempts < 5
-      order by created_at limit 20
+      order by created_at, id limit 20
         for update skip locked'
 )->fetchAll();
 if ($rows) {
@@ -91,22 +100,107 @@ if ($rows) {
 }
 $db->commit();
 
-// ---- render + send ----
+// Pass 2: each claimed row is decided and, if it may go, mailed, under its
+// order's lock (sporta_send_row). A row the shop overtook is closed, not mailed.
 $sent = 0; $failed = [];
 foreach ($rows as $row) {
-    $p = json_decode($row['payload'], true) ?: [];
-    [$subject, $text, $html] = sporta_render_warehouse($row['kind'], $p);
-    $ok = sporta_send_mail($cfg, $subject, $text, $html);
-    $db->prepare('update fulfilment_outbox set sent_at = ?, last_error = ? where id = ?')
-       ->execute([$ok ? date('Y-m-d H:i:s') : null, $ok ? null : 'mail() returned false', (int)$row['id']]);
-    $ok ? $sent++ : $failed[] = (int)$row['id'];
+    $outcome = sporta_send_row($db, $cfg, $row, (int)$row['attempts'] + 1);
+    if ($outcome === 'sent') $sent++;
+    elseif ($outcome === 'failed') $failed[] = (int)$row['id'];
+    elseif ($outcome === 'closed') $suppressed++;
 }
 
 $unlock = $db->prepare('select release_lock(?)');
 $unlock->execute([$lockName]);
 
 store_out(['claimed' => count($rows), 'sent' => $sent, 'failed' => $failed,
-           'suppressed' => count($suppress)]);
+           'suppressed' => $suppressed]);
+
+// ---------------------------------------------------------------------------
+
+// The order's fulfilment status, read under its row lock. Null when the order
+// is gone (its rows go with it, by the foreign key).
+function sporta_lock_order(PDO $db, int $orderId): ?string {
+    $q = $db->prepare('select fulfilment_status from orders where id = ? for update');
+    $q->execute([$orderId]);
+    $status = $q->fetchColumn();
+    return $status === false ? null : (string)$status;
+}
+
+// Pass 1 for one order: close every unsent row that must not go. One
+// transaction under the order's lock, so no shop decision lands between the
+// reading of the status and the closing of the rows. Returns how many closed.
+function sporta_close_unsent(PDO $db, int $orderId): int {
+    $db->beginTransaction();
+    try {
+        $status = sporta_lock_order($db, $orderId);
+        $closed = 0;
+        if ($status !== null) {
+            $q = $db->prepare('select id, kind from fulfilment_outbox
+                                where order_id = ? and sent_at is null and attempts < 5 for update');
+            $q->execute([$orderId]);
+            foreach ($q->fetchAll() as $r) {
+                $why = store_outbox_closed_reason((string)$r['kind'], $status, store_outbox_heard($db, $orderId));
+                if ($why === null) continue;
+                $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
+                   ->execute([$why, (int)$r['id']]);
+                $closed++;
+            }
+        }
+        $db->commit();
+        return $closed;
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+// Pass 2 for one claimed row. The decision and the mail happen in ONE
+// transaction under the order's lock, and the lock is held through the mail:
+// an admin cancel or reinstate of this order waits for the send to finish and
+// then sees the row as sent, so its do-not-ship or its REINSTATED list is
+// decided on what the warehouse really holds. A mail is one sendmail call, so
+// the wait is short.
+//
+// Returns 'sent', 'failed' (mail refused; the row stays unsent and is retried
+// until its fifth attempt), 'closed' (the shop overtook it; nothing mailed) or
+// 'skipped' (the order is gone, or the row was already settled).
+//
+// A row that fails its fifth attempt is reported to the owner on the Activity
+// page: from then on it is never retried by the drain, so nothing else would
+// say that the warehouse was never told.
+function sporta_send_row(PDO $db, array $cfg, array $row, int $attempts): string {
+    $orderId = (int)$row['order_id'];
+    $db->beginTransaction();
+    try {
+        $status = sporta_lock_order($db, $orderId);
+        $cur = $db->prepare('select sent_at from fulfilment_outbox where id = ? for update');
+        $cur->execute([(int)$row['id']]);
+        $state = $cur->fetch(PDO::FETCH_ASSOC);
+        if ($status === null || !$state || $state['sent_at'] !== null) {
+            $db->commit();
+            return 'skipped';
+        }
+        $why = store_outbox_closed_reason((string)$row['kind'], $status, store_outbox_heard($db, $orderId));
+        if ($why !== null) {
+            $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
+               ->execute([$why, (int)$row['id']]);
+            $db->commit();
+            return 'closed';
+        }
+        $p = json_decode($row['payload'], true) ?: [];
+        [$subject, $text, $html] = sporta_render_warehouse((string)$row['kind'], $p);
+        $ok = sporta_send_mail($cfg, $subject, $text, $html);
+        $db->prepare('update fulfilment_outbox set sent_at = ?, last_error = ? where id = ?')
+           ->execute([$ok ? date('Y-m-d H:i:s') : null, $ok ? null : 'mail() returned false', (int)$row['id']]);
+        if (!$ok && $attempts >= 5) store_system_event($db, 'warehouse_mail_failed');
+        $db->commit();
+        return $ok ? 'sent' : 'failed';
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
 
 // ---------------------------------------------------------------------------
 

@@ -219,10 +219,19 @@ create table if not exists fulfilment_outbox (
   -- only for 'new' rows, and the unique index ignores the NULLs on the rest.
   new_once   int unsigned generated always as (case when kind = 'new' then order_id else null end) stored,
   constraint fk_outbox_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint outbox_kind_ck check (kind in ('new','payment'))
+  -- The four kinds the warehouse hears about: the picking list ('new'), the
+  -- payment outcome ('payment'), the "do not ship" for an order cancelled
+  -- after the picking list went out ('cancel'), and the order put back on
+  -- ('reinstate'). An existing database gets the wider list from
+  -- outbox-kinds.mysql.sql — this line only shapes a fresh install. Until
+  -- that is imported, every 'cancel' is refused by this CHECK and the cash
+  -- sweeper cancels nothing (native-backend-test: "the sweeper cancels ...").
+  constraint outbox_kind_ck check (kind in ('new','payment','cancel','reinstate'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- One picking list per order, guaranteed by the index rather than by memory.
+-- Only kind 'new' has a non-null new_once, so a 'cancel' or 'reinstate' row
+-- for the same order never collides with the picking list.
 create unique index if not exists uq_outbox_new on fulfilment_outbox (new_once);
 
 -- ---------------------------------------------------------------- brands

@@ -1165,35 +1165,103 @@ if ($r === 'fulfilment' && $method === 'POST') {
         store_fail('invalid_status');
     }
     $orderId = (int)($b['order_id'] ?? 0);
-    $check = $db->prepare('select payment_status, payment_method, fulfilment_status from orders where id = ?');
-    $check->execute([$orderId]);
-    $order = $check->fetch();
-    if (!$order) store_fail('order_not_found', 404);
-    // Prepaid orders must be confirmed by their gateway before they leave the
-    // warehouse. COD is intentionally allowed while pending: collection is
-    // part of delivery, not a prerequisite for dispatch.
-    if (in_array($status, ['shipped', 'delivered'], true)
-        && $order['payment_method'] !== 'cod'
-        && $order['payment_status'] !== 'paid') {
-        store_fail('payment_required_before_dispatch', 409);
+    // ONE TRANSACTION for the status, its tracking event, the warehouse
+    // message and the stock. Before this the status was written on its own,
+    // so a cancel could land without its "do not ship", and a reinstate
+    // could land without its stock.
+    $db->beginTransaction();
+    try {
+        // FOR UPDATE: the sweeper and a payment callback take the same row
+        // lock (store_stock_release), so a cancel and a release cannot both
+        // act on one order.
+        // cod_hold_expired: a cash order past its hold (cod_hold_hours, 0 = off),
+        // still pending, is one the sweeper cancels. Computed here, from the same
+        // setting and the same clock, so the refusal below matches the sweeper.
+        $codHours = store_cod_hold_hours();
+        $check = $db->prepare('select payment_status, payment_method, fulfilment_status,
+                                      (created_at < (now() - interval ? hour)) as cod_hold_expired
+                                 from orders where id = ? for update');
+        $check->execute([max(1, $codHours), $orderId]);
+        $order = $check->fetch();
+        if (!$order) { $db->rollBack(); store_fail('order_not_found', 404); }
+        // Prepaid orders must be confirmed by their gateway before they leave the
+        // warehouse. COD is intentionally allowed while pending: collection is
+        // part of delivery, not a prerequisite for dispatch.
+        if (in_array($status, ['shipped', 'delivered'], true)
+            && $order['payment_method'] !== 'cod'
+            && $order['payment_status'] !== 'paid') {
+            $db->rollBack();
+            store_fail('payment_required_before_dispatch', 409);
+        }
+        // CANCELLING IS FOR AN ORDER THAT IS STILL HERE AND STILL UNPAID. A
+        // delivered or shipped order is with the customer: a do-not-ship is a
+        // lie, and the sweeper would put back a garment that is not on the
+        // shelf. A paid order is money the shop holds: cancelling it would keep
+        // its garment claimed for ever, because the sweeper never releases a
+        // paid order. Both are refused, before anything is written. The returns
+        // flow (returns.php) is where those are settled by a person.
+        if ($status === 'cancelled' && $order['fulfilment_status'] !== 'cancelled') {
+            if (in_array($order['fulfilment_status'], ['shipped', 'delivered'], true)) {
+                $db->rollBack();
+                store_fail('order_already_shipped', 409);
+            }
+            if ($order['payment_status'] === 'paid') {
+                $db->rollBack();
+                store_fail('order_paid', 409);
+            }
+        }
+        // A cash order past its hold cannot be put back as UNFULFILLED: the
+        // sweeper would cancel it again within fifteen minutes, and the owner
+        // would see CANCEL, REINSTATE, CANCEL go out. Put back as packed (or
+        // anything else), the sweeper never touches it, so that is allowed.
+        if ($status === 'unfulfilled' && $order['fulfilment_status'] === 'cancelled'
+            && $codHours > 0 && $order['payment_method'] === 'cod'
+            && $order['payment_status'] === 'pending' && (int)$order['cod_hold_expired'] === 1) {
+            $db->rollBack();
+            store_fail('cod_hold_expired', 409);
+        }
+        $wasCancelled = $order['fulfilment_status'] === 'cancelled';
+        // An order LEAVING 'cancelled' takes back what cancelling gave: its
+        // garments are claimed again and its discount uses too
+        // (store_order_reinstate), or the move is refused with the checkout's
+        // own token. Without this, a re-marked order shipped from a shelf it
+        // no longer held, and the warehouse that had been told "do not ship"
+        // was never told otherwise.
+        if ($wasCancelled && $status !== 'cancelled') {
+            $refused = store_order_reinstate($db, $orderId);
+            if ($refused !== null) {
+                $db->rollBack();
+                store_fail($refused[0], $refused[1]);
+            }
+        }
+        $db->prepare('update orders set fulfilment_status = ?,
+                        fulfilled_at = case when ? = \'delivered\' and fulfilled_at is null then now() else fulfilled_at end
+                      where id = ?')
+           ->execute([$status, $status, $orderId]);
+        if ($order['fulfilment_status'] !== $status) store_tracking_event($db, $orderId, $status);
+        // An order cancelled by hand gets the same "do not ship" as one the
+        // sweeper cancels. Its picking list may already be with the warehouse
+        // (a cash order's said COLLECT CASH), and the cancellation is only
+        // real there if the warehouse hears it. Queued only on the change, so
+        // re-saving a cancelled order does not mail it again.
+        if ($status === 'cancelled' && !$wasCancelled) store_fulfilment_cancelled($db, $orderId);
+        // Tell the customer it is on its way. Only on 'shipped': 'packed' is an
+        // internal state that means nothing to a shopper, and 'delivered' arrives
+        // after they are holding the bag. The unique index makes this safe to call
+        // again when an order is re-marked, which the admin screen allows.
+        if ($status === 'shipped') store_queue_whatsapp($db, $orderId, 'shipped');
+        // And ask what they thought, once it is actually in their hands. 'delivered'
+        // is the only honest moment for this: a review invitation that arrives
+        // while the order is still with the courier is asking someone to rate a
+        // parcel they have not opened. The unique index on (order_id, kind) makes
+        // re-marking an order safe — the admin screen allows it, and it must not
+        // send a second invitation.
+        if ($status === 'delivered') store_queue_whatsapp($db, $orderId, 'review');
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
     }
-    $db->prepare('update orders set fulfilment_status = ?,
-                    fulfilled_at = case when ? = \'delivered\' and fulfilled_at is null then now() else fulfilled_at end
-                  where id = ?')
-       ->execute([$status, $status, $orderId]);
-    if ($order['fulfilment_status'] !== $status) store_tracking_event($db, $orderId, $status);
-    // Tell the customer it is on its way. Only on 'shipped': 'packed' is an
-    // internal state that means nothing to a shopper, and 'delivered' arrives
-    // after they are holding the bag. The unique index makes this safe to call
-    // again when an order is re-marked, which the admin screen allows.
-    if ($status === 'shipped') store_queue_whatsapp($db, $orderId, 'shipped');
-    // And ask what they thought, once it is actually in their hands. 'delivered'
-    // is the only honest moment for this: a review invitation that arrives
-    // while the order is still with the courier is asking someone to rate a
-    // parcel they have not opened. The unique index on (order_id, kind) makes
-    // re-marking an order safe — the admin screen allows it, and it must not
-    // send a second invitation.
-    if ($status === 'delivered') store_queue_whatsapp($db, $orderId, 'review');
     store_out(['ok' => true]);
 }
 
@@ -1206,25 +1274,37 @@ if ($r === 'cod_paid' && $method === 'POST') {
     $paid = (bool)($b['paid'] ?? true);
     $db->beginTransaction();
     try {
-        $q = $db->prepare('select payment_method, payment_status from orders where id = ? for update');
+        $q = $db->prepare('select payment_method, payment_status, fulfilment_status from orders where id = ? for update');
         $q->execute([$id]);
         $o = $q->fetch();
-        if (!$o || $o['payment_method'] !== 'cod'
-            || ($paid && $o['payment_status'] !== 'pending')
+        if (!$o) { $db->rollBack(); store_fail('order_not_found'); }
+        if ($o['payment_method'] !== 'cod') { $db->rollBack(); store_fail('not_a_cash_order'); }
+        // A CANCELLED order cannot be settled. Cancelling put its garments back
+        // on the shelf and told the warehouse "do not ship"; marking the cash
+        // paid would count a unit that is no longer held, and the books would
+        // say the shop was paid for an order it has given up. The owner puts
+        // the order back first (cancelled -> any other status reinstates its
+        // stock), then settles it. 409, not 400: the request is right, the
+        // order's state is not.
+        if ($paid && $o['fulfilment_status'] === 'cancelled') {
+            $db->rollBack();
+            store_fail('order_cancelled', 409);
+        }
+        if (($paid && $o['payment_status'] !== 'pending')
             || (!$paid && $o['payment_status'] !== 'paid')) {
             $db->rollBack();
-            if (!$o) store_fail('order_not_found');
-            if ($o['payment_method'] !== 'cod') store_fail('not_a_cash_order');
             store_fail($paid ? 'order_not_pending' : 'order_not_paid');
         }
         $db->prepare('update orders set payment_status = ?, paid_at = ? where id = ?')
            ->execute([$paid ? 'paid' : 'pending', $paid ? date('Y-m-d H:i:s') : null, $id]);
         // Cash collected is a settled outcome: the warehouse follow-up fires
-        // exactly as it does when the bank confirms a card.
-        if ($paid) store_payment_settled($db, $id, 'paid');
+        // exactly as it does when the bank confirms a card — except that an
+        // order already shipped or delivered gets no "ship it" (COD-04). The
+        // paid MARK is kept in every case: the money was collected.
+        if ($paid) store_payment_settled($db, $id, 'paid', (string)$o['fulfilment_status']);
         $db->commit();
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) $db->rollBack();
         store_fail('failed', 500);
     }
     $q2 = $db->prepare('select id, track_id, payment_status, paid_at from orders where id = ?');
@@ -1260,7 +1340,7 @@ if ($r === 'card_settled' && $method === 'POST') {
 
     $db->beginTransaction();
     try {
-        $q = $db->prepare('select payment_method, payment_status from orders where id = ? for update');
+        $q = $db->prepare('select payment_method, payment_status, fulfilment_status from orders where id = ? for update');
         $q->execute([$id]);
         $o = $q->fetch();
         if (!$o || $o['payment_method'] === 'cod' || $o['payment_status'] === 'paid') {
@@ -1280,10 +1360,12 @@ if ($r === 'card_settled' && $method === 'POST') {
             'settled in admin by ' . (string)($_SESSION['admin_email'] ?? '?'),
             $id,
         ]);
-        store_payment_settled($db, $id, 'paid');
+        // Same rule as cod_paid: no "ship it" for an order already out of the
+        // shop or cancelled. The bank's money is still recorded above.
+        store_payment_settled($db, $id, 'paid', (string)$o['fulfilment_status']);
         $db->commit();
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) $db->rollBack();
         store_fail('failed', 500);
     }
     $q2 = $db->prepare('select id, track_id, payment_status, paid_at, cbk_status, cbk_paymentid from orders where id = ?');

@@ -62,7 +62,15 @@ export async function fetchOrderItems(orderId) {
 
 export async function setFulfilment(orderId, status) {
   const r = await php('fulfilment', { method: 'POST', body: { order_id: orderId, status } })
-  return r.data ? {} : r
+  if (r.data) return {}
+  // Putting a cancelled order back claims its garments again (store.php
+  // store_order_reinstate). When a size has sold out since, the server names it
+  // as out_of_stock_<slug>_<size>_<left>; say so in words the operator can act on.
+  const m = r.error ?? ''
+  const oos = m.match(/^out_of_stock_(.+)_([^_]+)_(\d+)$/)
+  if (oos) return { error: `That size is sold out (${oos[2]}, ${oos[3]} left). Restock it, then put the order back.` }
+  if (m.includes('discount_used_up')) return { error: 'The discount code on this order has no uses left, so it cannot be put back as it was.' }
+  return r
 }
 
 // Settle (or un-settle) a cash-on-delivery order — the one narrow path that
@@ -78,6 +86,8 @@ export async function setCodPaid(orderId, paid = true) {
   if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
   if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
   if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+  // A cancelled order holds no garment, so it cannot be paid for as a sale.
+  if (m.includes('order_cancelled')) return { error: 'This order is cancelled, so it cannot be marked paid. Put it back on first.' }
   return r
 }
 

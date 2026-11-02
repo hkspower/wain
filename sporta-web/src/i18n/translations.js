@@ -402,11 +402,13 @@ export const translations = {
         // Names the item and the fix, because the checkout has no size picker:
         // the shopper has to go back to the product to resolve it.
         sizeRequired: 'Please choose a size for this item — open it from your bag and pick one',
-        cart_too_large: 'That is too many items for one order. Please split it.',
-        // api.php store_order_size_guard(): at most 20 pieces in one order and
-        // at most 10 of one item in one size. The numbers are the server's
-        // (STORE_ORDER_MAX_UNITS / STORE_ORDER_MAX_PER_VARIANT) — change both.
-        order_too_large: 'One order can hold up to 20 pieces, and up to 10 of the same item in one size. Please split it into two orders.',
+        // store.php store_order_size_guard() refuses an order over 20 pieces, or
+        // over 10 of one item in one size, with THIS token. The numbers are the
+        // server's (STORE_ORDER_MAX_UNITS / STORE_ORDER_MAX_PER_VARIANT) — change
+        // both. The token is cart_too_large, not a separate one: the checkout
+        // maps cart_too_large to this text, and any other token would fall
+        // through to the generic "could not start the payment" line.
+        cart_too_large: 'One order can hold up to 20 pieces, and up to 10 of the same item in one size. Please split it into two orders.',
         // Shared by every limiter the checkout can meet: the order limit, and
         // the coupon limiter, which now refuses even a RIGHT code once a
         // connection has used up its wrong guesses.
@@ -794,8 +796,7 @@ export const translations = {
         invalid_governorate: 'يرجى اختيار المحافظة.',
         empty_cart: 'حقيبتك فارغة.',
         sizeRequired: 'يرجى اختيار مقاس لهذه القطعة — افتحها من الحقيبة واختر المقاس',
-        cart_too_large: 'عدد القطع كبير على طلب واحد. يرجى تقسيمه.',
-        order_too_large: 'يتسع الطلب الواحد لـ ٢٠ قطعة كحد أقصى، و١٠ قطع كحد أقصى من الصنف نفسه بالمقاس نفسه. يرجى تقسيمه على طلبين.',
+        cart_too_large: 'يتسع الطلب الواحد لـ ٢٠ قطعة كحد أقصى، و١٠ قطع كحد أقصى من الصنف نفسه بالمقاس نفسه. يرجى تقسيمه على طلبين.',
         too_many_attempts: 'محاولات كثيرة من هذا الاتصال. يرجى الانتظار بضع دقائق ثم المحاولة مرة أخرى.',
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
