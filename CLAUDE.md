@@ -35,24 +35,22 @@
    on the shared account is off for good. Not SFTP.
    **The backend in this repo IS the live backend** (copied from the VPS
    2026-11-01, every file md5-verified against the server: `dropin/php-store`,
-   `php-cbk`, the add-ons in `public/`). **Since 2026-11-02 03:40 UTC the live
-   STOREFRONT is this repo's build too** — the owner chose it ("Deploy newer
-   now") knowing what it drops, so whole-site deploys are normal again and
-   `--only` is no longer required. The previous storefront was a different
-   build whose source is missing; it is restorable with `compose --rollback
-   deploy-20261102T034031Z-c0e8a78` (its 81 assets are still on disk). It had
-   what this repo has NO screen for, which is now the backlog to rebuild —
+   `php-cbk`, the add-ons in `public/`). The live STOREFRONT is not: its
+   `index.html` and bundle are a different build whose source is missing, so
+   deploy with **`--only api,knet,pay`** until this repo has every screen it
+   has. (The owner tried this repo's storefront live twice on 2026-11-02,
+   03:22–03:35 and 03:40–03:44 UTC, and chose the old build both times.) It
+   has what this repo has NO screen for — the backlog to rebuild —
    shoppers: customer accounts (`/account`,
    forgot password), support tickets (`/support`), return requests and
    exchange; admin: MFA code and forced-password-change sign-in steps, Google
    sign-in, CRM, Support, Return requests, Activity log, Profiles, inventory
    movements/finance, SEO, theme, top bar, fonts, payment/checkout settings,
-   product photo upload, cache clear. Until the admin sign-in steps are
-   rebuilt, an admin account with MFA on, or one with a temporary password,
-   cannot sign in to `/backends`. `vps-deploy.mjs` refuses to replace a live
-   `index.html` without `<meta name="sporta-build" content="sporta-web">`
-   (a foreign build) unless `--replace-storefront`; this repo's page carries
-   the marker, so the guard only fires if the old build is ever rolled back. The live store
+   product photo upload, cache clear. In this repo's admin an account with MFA
+   on, or one with a temporary password, cannot sign in at all. `vps-deploy.mjs`
+   refuses to replace a live `index.html` without `<meta name="sporta-build"
+   content="sporta-web">` (a foreign build) unless `--replace-storefront` — do
+   not pass it unless the owner asks for this repo's storefront again. The live store
    claims stock inside the order (`out_of_stock_<slug>_<size>_<left>`), a
    declined card closes the order on both gateways, and an unsigned CBK error
    return is recorded but changes no status — the suites assert all three.
