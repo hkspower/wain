@@ -70,3 +70,17 @@
 .admin-shell [class*="ring-sky-"], .admin-shell [class*="ring-violet-"] {
   --tw-ring-color: #e2e8f0 !important;
 }
+
+/* /backends: real bold only (owner request 2026-11-02). The admin font, IBM
+   Plex Sans Arabic, ships as 400/600/700 (public/fonts/plex-*.woff2). The
+   compiled admin asks for 800 (font-extrabold) and 900 (font-black), which
+   the browser fakes by smearing the 700 — muddy on Arabic headings and the
+   big numbers. Capped at the real 700. 500 (font-medium) is left alone: the
+   browser picks the 400 or 600 file for it, so nothing is synthesized. */
+.admin-shell .font-extrabold,
+.admin-shell .font-black,
+.flex.min-h-screen.items-center.justify-center.bg-slate-50 .font-extrabold,
+.flex.min-h-screen.items-center.justify-center.bg-slate-50 .font-black {
+  font-weight: 700 !important;
+}
+.admin-shell { font-synthesis-weight: none; }
