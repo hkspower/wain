@@ -371,6 +371,46 @@ head('K-064: results, browsers and the error URL')
      'the encrypted and decrypted response are both kept (K-064 §5)')
 }
 
+// ------------------------------------ a capture after the shop cancelled it
+//
+// The shopper is at the bank; the owner cancels the order by hand (the
+// warehouse is told "do not ship"; the stock is not yet released, because the
+// sweeper has not run). The bank then captures the money. The callback must
+// hold that payment for review: a "PAYMENT CONFIRMED — ship it" queued after a
+// "CANCELLED — do not ship" would be an instruction the shop has withdrawn.
+head('a capture after the shop cancelled the order is held for review, not paid')
+{
+  let cookie = ''
+  const admin = async (route, body) => {
+    const res = await fetch(`${API}/admin.php?r=${route}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify(body),
+    })
+    const set = res.headers.get('set-cookie')
+    if (set) cookie = set.split(';')[0]
+    return { status: res.status, body: await res.json().catch(() => null) }
+  }
+  await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+  await newOrder('SPKNET0030')
+  const id = Number(await sql("select id from orders where track_id='SPKNET0030'"))
+  const pay = await get(`${KNET}/pay.php?trackid=SPKNET0030`)
+  const url = new URL(pay.headers.get('location'))
+  const cancel = await admin('fulfilment', { order_id: id, status: 'cancelled' })
+  is(cancel.status === 200 && cancel.body?.ok === true, 'the owner cancels the order while the customer is at the bank',
+     `${cancel.status} ${cancel.body?.error ?? ''}`)
+  await (await fetch(`${BANK}/fake-knet-bank.php?${url.searchParams}&outcome=captured`)).json()
+
+  const row = (await sql(
+    "select payment_status, cbk_status, stock_released from orders where track_id='SPKNET0030'",
+  )).split('\t')
+  is(row[0] === 'review' && row[1] === 'ORDER_CANCELLED',
+     'the captured payment is held for review, with the reason recorded', row.join(' / '))
+  is(row[0] !== 'paid', 'and it is not marked paid')
+  const shipIt = await sql(`select count(*) from fulfilment_outbox where kind = 'payment' and order_id = ${id}`)
+  is(shipIt === '0', 'and no "payment received — ship it" is queued for it', shipIt)
+}
+
 head('the money leaves a trail')
 {
   const log = (await run('cat', ['/tmp/knet-test.log']).catch(() => ({ stdout: '' }))).stdout

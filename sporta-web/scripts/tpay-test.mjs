@@ -644,5 +644,45 @@ head('a stranger cannot make this server hammer CBK')
   }
 }
 
+// ------------------------------------ a capture after the shop cancelled it
+//
+// The same case as test:knet, on the T-Pay rail: the customer is at CBK, the
+// owner cancels the order by hand, and CBK then reports the payment captured.
+// The callback holds it for review (cbk_status ORDER_CANCELLED) and queues no
+// "ship it" after the warehouse's "do not ship".
+head('a capture after the shop cancelled the order is held for review, not paid')
+{
+  let cookie = ''
+  const admin = async (route, body) => {
+    const res = await fetch(`${API}/admin.php?r=${route}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify(body),
+    })
+    const set = res.headers.get('set-cookie')
+    if (set) cookie = set.split(';')[0]
+    return { status: res.status, body: await res.json().catch(() => null) }
+  }
+  await admin('login', { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' })
+  await newOrder('SPTPAY0030')
+  const id = Number(await sql("select id from orders where track_id='SPTPAY0030'"))
+  const html = await (await get(`${PAY}/pay.php?trackid=SPTPAY0030`)).text()
+  const cancel = await admin('fulfilment', { order_id: id, status: 'cancelled' })
+  is(cancel.status === 200 && cancel.body?.ok === true, 'the owner cancels the order while the customer is at CBK',
+     `${cancel.status} ${cancel.body?.error ?? ''}`)
+  await payThrough(html, 'outcome=success')
+
+  // T-Pay keeps CBK's own status in cbk_status and the merchant's reason in
+  // cbk_message (the same place the amount and release reasons go).
+  const row = (await sql(
+    "select payment_status, cbk_message from orders where track_id='SPTPAY0030'",
+  )).split('\t')
+  is(row[0] === 'review' && row[1] === 'ORDER_CANCELLED',
+     'the captured payment is held for review, with the reason recorded', row.join(' / '))
+  is(row[0] !== 'paid', 'and it is not marked paid')
+  const shipIt = await sql(`select count(*) from fulfilment_outbox where kind = 'payment' and order_id = ${id}`)
+  is(shipIt === '0', 'and no "payment received — ship it" is queued for it', shipIt)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')
 process.exit(fails ? 1 : 0)

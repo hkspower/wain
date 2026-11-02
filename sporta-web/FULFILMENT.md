@@ -153,3 +153,36 @@ never empties would otherwise hide.
 that the items are in it, that a re-written status does not spam the warehouse,
 that a sent message is never claimed twice, that COD says collect cash with the
 amount, and that a delivery note cannot inject markup into the email.
+
+---
+
+## Cancelled, reinstated and shipped orders (MySQL, `php-store`)
+
+Every warehouse message is queued in the same transaction as the change it
+reports, and the drain decides again, under the order's row lock, immediately
+before it mails. The rules are in `store_outbox_closed_reason()` (store.php):
+
+| The order is | Unsent `new` (picking list) | Unsent `reinstate` | Unsent `payment` | Unsent `cancel` |
+|---|---|---|---|---|
+| cancelled, warehouse heard nothing | closed | closed | closed | closed |
+| cancelled, warehouse heard something | closed | closed | sent | sent |
+| shipped or delivered | closed | sent | closed | sent |
+
+A closed row is never mailed; its `last_error` says why (`order cancelled`,
+`order reinstated`, `order shipped`).
+
+- **Cancelling** is refused with 409 for an order that has left the shop
+  (`order_already_shipped`) or is paid (`order_paid`). Both are settled through
+  Returns and a refund, by hand.
+- **A cash order past `cod_hold_hours`** cannot go back as `unfulfilled`
+  (`cod_hold_expired`): the sweeper would cancel it again. Put it back as packed.
+- **A cancelled card order** cannot be settled by hand (`order_cancelled`): put
+  it back first. A bank capture that arrives after a cancel is held for review
+  (`ORDER_CANCELLED`), not marked paid.
+- **Five failed sends** of a cancel, payment or picking list write one
+  `warehouse_mail_failed` row to the Activity page (actor `system`). The drain
+  never retries a row past five, so this row is how the owner learns of it.
+
+**Before deploying** on a database created before this change, import
+`dropin/php-store/outbox-kinds.mysql.sql`. Until it is in, the outbox refuses
+the `cancel` and `reinstate` kinds, and the cash sweeper cancels nothing.

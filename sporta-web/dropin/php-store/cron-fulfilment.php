@@ -61,9 +61,11 @@ if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 // and cancel are mailed only if the warehouse already holds a picking list for
 // it; and an order that has shipped or been delivered gets no dispatch message.
 //
-// LOCK ORDER. Every writer of an order's warehouse rows takes the order's row
-// lock first (the admin route, the sweeper, the callbacks), and this drain
-// does the same, so the two cannot wait on each other in opposite orders.
+// LOCK ORDER. Every change to what the warehouse is told takes the order's row
+// lock first (the admin route, the sweeper, the callbacks, and the checkout
+// that writes the picking list), and this drain does the same, so no two
+// writers can wait on each other in opposite orders. The claim below moves
+// only the attempts counter and decides nothing, so it takes no order lock.
 //
 // Under the advisory lock above, so a second cron cannot claim these first.
 
