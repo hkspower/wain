@@ -405,7 +405,7 @@ export default function OrderPanel({ place }: { place: Place }) {
 
       {errors.length > 0 && (
         // The alert is the box, and the list sits inside it. role="alert" on the
-        // <ul> itself took the list role away, and each item was then a listitem
+        // list itself took the list role away, and each item was then a listitem
         // with no list to belong to.
         <div role="alert" className="mt-4 rounded-2xl bg-coral-50 p-3 text-sm font-semibold text-coral-700">
           <ul role="list" className="space-y-1">
