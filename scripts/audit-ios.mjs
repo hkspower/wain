@@ -123,6 +123,34 @@ for (const { api, key, what } of NEEDS) {
   }
 }
 
+/* ── 5. every field the app sends off the device is declared ─────────────── */
+
+console.log("\n── every field the app sends is declared in the privacy manifest ──");
+
+/* Apple's «collect» is «transmit off the device». The probe is the field name
+   the source sends to the back end (or the API that reads the microphone), and
+   the type is the one the manifest must declare for it. The manifest said
+   «audio is the only thing collected» for months after the back end took
+   names, phones, notes, photos and coordinates (4 October onward); this is the
+   check that would have caught it. */
+const manifest = existsSync(MANIFEST) ? readFileSync(MANIFEST, "utf8") : "";
+const SENDS = [
+  { probe: /customer_name/, type: "NSPrivacyCollectedDataTypeName", what: "the customer's name (orders, queue)" },
+  { probe: /customer_phone|contact_phone/, type: "NSPrivacyCollectedDataTypePhoneNumber", what: "a phone number (orders, queue, registration)" },
+  { probe: /note_ar/, type: "NSPrivacyCollectedDataTypeOtherUserContent", what: "an order's note" },
+  { probe: /logo_path/, type: "NSPrivacyCollectedDataTypePhotosorVideos", what: "registration photos" },
+  { probe: /lat: input\.lat/, type: "NSPrivacyCollectedDataTypePreciseLocation", what: "the registration's coordinates" },
+  { probe: /SpeechRecognition|convai/, type: "NSPrivacyCollectedDataTypeAudioData", what: "the microphone (the free call and شوق)" },
+];
+for (const { probe, type, what } of SENDS) {
+  const used = probe.test(src);
+  // The exact value of a <string> element. A substring match passed a type
+  // renamed to ...NameX, which is the drift this check exists to catch.
+  const declared = manifest.includes(`<string>${type}</string>`);
+  if (used && !declared) bad(`src/ sends ${what} but the privacy manifest does not declare ${type}`);
+  else if (used) good(`${what} → ${type}`);
+}
+
 console.log(
   problems
     ? `\n${problems} error(s).`

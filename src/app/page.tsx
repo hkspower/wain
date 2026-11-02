@@ -133,7 +133,7 @@ export default function HomePage() {
                 // The dial used to rank the nearest five live against a GPS
                 // fix taken in the same tap; it opens /find now, which asks
                 // to type or call شوق instead of assuming "nearest" is
-                // always the question — see NearbyDial and FindChoice.
+                // always the question — see FindChoice.
                 // "أقرب الأماكن" stopped being true when that panel left.
                 text: "اضغط على «إلى وين؟» واختر: تكتب اسم المكان أو تكلّم شوق.",
               },

@@ -43,10 +43,29 @@ and the owner can read them in the dashboard; the privacy pages say so.
 
 ## Apple — App Privacy (draft)
 
-- **Audio Data** and **Other User Content**: collected, **not linked** to the user
-  (no accounts, no identifiers), **not used for tracking**; purposes *App
-  Functionality* and *Analytics*. `ios/Runner/PrivacyInfo.xcprivacy` declares the same.
-- **Location:** not collected.
+One store listing covers both iOS builds (`com.wainkw.app`: the Capacitor wrapper and
+the Flutter app), so these answers have to match both manifests. The wrapper's
+`ios-config/PrivacyInfo.xcprivacy` declares the list below. The Flutter app's
+`flutter_app/ios/Runner/PrivacyInfo.xcprivacy` declares only the first two rows and
+is behind on the name and phone (open, item 4).
+
+- **Name** and **Phone Number**: collected and **linked** to the user (an order or a
+  queue ticket is kept against them). Not used for tracking. Purpose: *App
+  Functionality*. The Flutter app's order sends both.
+- **Other User Content**: an order's note and the text of a registration. Linked, not
+  for tracking, *App Functionality*.
+- **Audio Data**: collected, **not linked** (no accounts, no identifiers), not for
+  tracking, *App Functionality*.
+- **Photos or Videos**: shop photos sent with a registration (wrapper only). Linked,
+  *App Functionality*.
+- **Precise Location**: a registration's coordinates, read from the device only when
+  the owner taps «موقعي» (wrapper only). Declared linked, because the same submission
+  carries a phone number. *App Functionality*.
+- **Tracking:** none, for any of these.
+
+The older draft listed *Analytics* as a purpose for audio and other content. The
+manifest declares *App Functionality* only, and nothing in the code sends data for
+analytics, so the purpose is not declared anywhere.
 
 ## Open, for the owner
 
@@ -59,3 +78,9 @@ and the owner can read them in the dashboard; the privacy pages say so.
 3. **A public privacy URL for the app** — the site's `/privacy/` describes the site;
    the app's screen is in the binary. Either publish the app's text or make the site's
    page cover both.
+4. **The Flutter app's privacy manifest and the Play data-safety answers.** Both omit
+   the name and phone an order sends (`flutter_app/lib/orders/order_api.dart`), and the
+   Play section above lists only audio and messages. The wrapper's manifest was
+   corrected on 2 November; the Flutter manifest and the Play answers need the same
+   correction before the listing is filed. Not changed here: the Flutter app and Play
+   were not in the scope of this fix.
