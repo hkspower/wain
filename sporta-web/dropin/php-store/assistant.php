@@ -1971,7 +1971,7 @@ function assistant_voice_path(array $cfg, string $text, string $lang): string
 // Returns the mp3 bytes, from cache when possible.
 //
 // CACHING IS NOT AN OPTIMISATION HERE, it is most of the design. The shop's
-// answers repeat: "delivery is same-day", "returns within 14 days", the
+// answers repeat: "delivery within 24 hours", "returns within 14 days", the
 // greeting. Those are the same bytes every time, so they are synthesised once
 // and served from disk for ever after. Only the shop's fixed sentences are
 // ever signed (assistant_answer), so after the warmer has run, a customer's
