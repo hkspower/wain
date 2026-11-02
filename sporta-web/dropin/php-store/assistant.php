@@ -140,7 +140,14 @@ function assistant_delivery_words(): array
             'when will it come', 'when will they come', 'when does it come', 'will it reach', 'will they reach',
             'it reach me', 'when will i get it', 'when will i get my', 'when will i receive', 'when will i have it',
             'when will i have my', 'when do i get it', 'when do i get my', 'receive it', 'get here', 'get to me',
-            'expect it', 'expect my', 'expect the parcel', 'expect the package', 'expect the order'];
+            'expect it', 'expect my', 'expect the parcel', 'expect the package', 'expect the order',
+            // The courier is the delivery: "can the courier come in the
+            // evening" was a greeting (by "evening"), "can the driver leave it
+            // at the door" «ما لقيت شي».
+            'courier', 'driver', 'delivery guy', 'delivery man',
+            'get it today', 'get it tomorrow', 'have it today', 'have it tomorrow', 'come today', 'come tomorrow',
+            'arrive today', 'arrive tomorrow', 'send it today', 'send it tomorrow', 'deliver today', 'deliver tomorrow',
+            'it today', 'it tomorrow', 'by tomorrow', 'before friday', 'before the weekend'];
 }
 
 // "When will it be back" is about STOCK, not the courier. English only: the
@@ -338,7 +345,9 @@ function assistant_is_presence(string $t): bool
     return preg_match('/^(?:(?:هل|يا)\s+)?(?:(?:فيه|في|اكو)\s+)?(?:(?:احد|حد|احدن)\s*)?(?:موجود|موجودين|موجوده|هني|هنا)?[\s\p{P}]*$/u', $t) === 1
             && preg_match('/احد|حد|موجود/u', $t) === 1
         || preg_match('/^(?:i have|i got|i\'ve got|got) (?:a |an )?(?:quick |small |little )?(?:question|inquiry|enquiry|query)[\s\p{P}]*$/u', $t) === 1
-        || preg_match('/^(?:(?:انا|ابي|ممكن)\s+)?(?:عندي\s+)?(?:سوال|استفسار|اسال|استفسر)(?:\s+(?:بسيط|صغير|لو سمحت|لو سمحتو))?[\s\p{P}]*$/u', $t) === 1;
+        || preg_match('/^(?:(?:انا|ابي|ممكن)\s+)?(?:عندي\s+)?(?:سوال|استفسار|اسال|استفسر)(?:\s+(?:بسيط|صغير|لو سمحت|لو سمحتو))?[\s\p{P}]*$/u', $t) === 1
+        // "help", "who are you", «انت روبوت؟»: the welcome says what it can do.
+        || preg_match('/^(?:help|help me|help please|please help|i need help|need help|can you help(?: me)?|who are you|are you a bot|are you a robot|what can you do|مساعده|ساعدني|ابي مساعده|احتاج مساعده|ممكن مساعده|مين انت|من انت|انت روبوت|انت بوت|شنو تقدر تسوي)[\s\p{P}]*$/u', $t) === 1;
 }
 
 // GOODBYE IS THANKS, NOT HELLO. «مع السلامه» matched «^السلام» and was answered
@@ -562,7 +571,10 @@ function assistant_route(string $text): array
                                   'item', 'items', 'piece', 'parcel', 'package', 'my order', 'the order', 'in my order',
                                   'وصل', 'وصلني', 'وصلت', 'وصلتني', 'استلمت', 'جاني', 'جاتني', 'القطعه', 'قطعه',
                                   'الطلب', 'طلبي', 'الطلبيه', 'الشحنه', 'الكرتون']);
-    if (!$hypothetical && !$ownSlip && !$notComplaint
+    // A QUESTION about the garment ("do the leggings have a hole for the
+    // phone?", «هل القطعة مستعملة؟») is not a complaint unless something arrived.
+    $asking = preg_match('/^(?:do|does|is|are|can|could|will|would|should|هل)\s/u', $t) === 1;
+    if (!$hypothetical && !$ownSlip && !$notComplaint && (!$asking || $arrived)
         && (assistant_has($t, $itemOnly)
             || (assistant_has($t, $needsArrival) && ($arrived || ($c['type'] && assistant_has($t, $physical)))))) {
         return ['contact', 'complaint'];
@@ -659,6 +671,17 @@ function assistant_route(string $text): array
         return ['checkout', null];
     }
 
+    // CHANGING AN ORDER is a person's job: "can I add another item to my
+    // order", «ابي اعدل الطلب» named the order and were asked for its number.
+    // And "I have a problem", said and nothing else, is somebody who wants one.
+    if (assistant_has($t, ['change my order', 'change the order', 'edit my order', 'modify my order', 'add to my order',
+                           'add another item to my order', 'add something to my order', 'to my order',
+                           'اعدل الطلب', 'اعدل طلبي', 'تعديل الطلب', 'اضيف للطلب', 'اضيف على الطلب', 'اضيف قطعه للطلب',
+                           'اغير الطلب', 'اغير طلبي'])
+        || preg_match('/^(?:i have|i\'ve got|i got|there is|there\'s|we have|got)\s+(?:a\s+|an\s+)?(?:small\s+|big\s+)?(?:problem|issue)(?:\s+with\s+(?:my|the)\s+order)?[\s\p{P}]*$|^(?:(?:انا\s+)?عندي|في|فيه)\s+مشكله(?:\s+(?:في|ب|بال)\s*(?:الطلب|طلبي))?[\s\p{P}]*$|^مشكله[\s\p{P}]*$|^(?:a\s+)?problem[\s\p{P}]*$/u', $t)) {
+        return ['contact', null];
+    }
+
     // COLLECTING IT IN PERSON is a location question: "can I pick up my order"
     // named "my order" and was asked for the order number.
     if (assistant_has($t, ['pick up my order', 'pickup my order', 'pick up the order', 'collect my order',
@@ -698,8 +721,10 @@ function assistant_route(string $text): array
     // with the timetable. Not when a fee is asked about — that IS delivery.
     if (assistant_has($t, ['cash on delivery', 'pay on delivery', 'payment on delivery', 'pay the courier',
                            'pay the driver', 'pay at the door', 'payment upon delivery', 'pay upon delivery'])
-        || (assistant_has($t, ['دفع', '^ادفع', '^تدفع', '^ندفع', 'كاش', '^نقدا$', '^نقدي$', '^نقد$', '^النقد$', 'cash'])
-            && assistant_has($t, ['مندوب', 'المندوب', 'الاستلام', 'استلام', 'الباب', 'عند التوصيل']))
+        || (assistant_has($t, ['دفع', '^ادفع', '^تدفع', '^ندفع', 'كاش', '^نقدا$', '^نقدي$', '^نقد$', '^النقد$', 'cash',
+                               'كي نت', 'بطاقه', 'knet', 'card', 'visa'])
+            && assistant_has($t, ['مندوب', 'المندوب', 'الاستلام', 'استلام', 'الباب', 'عند التوصيل', 'courier', 'driver',
+                                  'delivery guy', 'delivery man']))
         || (assistant_has($t, ['pay', 'payment', 'paying', 'money', 'cash'])
             && assistant_has($t, ['at delivery', 'on delivery', 'upon delivery', 'when it arrives', 'when it comes',
                                   'when i receive', 'when i get it', 'when i order', 'until delivery', 'before delivery',
@@ -1446,7 +1471,44 @@ function assistant_catalogue(PDO $db): array
         $p['_gender'] = in_array($p['category'], ['men', 'women'], true) ? $p['category'] : null;
     }
     unset($p);
-    return $cache[$id] = ['rows' => $rows, 'brands' => $brands, 'brand_tokens' => $brandToks];
+    return $cache[$id] = ['rows' => $rows, 'brands' => $brands, 'brand_tokens' => $brandToks,
+                          'lines' => assistant_line_names($db, $rows)];
+}
+
+// THE NAMES OF THE SHOP'S LINES AND BRANDS — the words that, missing from the
+// top card, prove "we do not have exactly that" (found_other): "sculpt
+// shorts" names a line that has no shorts. Not every word of every name:
+// "Gymshark PHONE Strap" made "is there a phone pocket in the leggings" a
+// claim that the leggings have none, which nothing here knows.
+//
+//   * the first word of each English name (Sculpt, Cloudsoft, Vanquish …);
+//   * its Arabic spelling: the word every Arabic name of that line shares
+//     (كلاودسوفت, not «ظهر» — "back", in only the two backpacks);
+//   * every active brand's name, in both languages.
+function assistant_line_names(PDO $db, array $rows): array
+{
+    $v = assistant_vocab();
+    $plain = fn (string $t) => mb_strlen($t) >= 3 && !isset($v['stop'][$t]) && !isset($v['generic'][$t])
+                               && !assistant_concepts_of($t);
+    $lines = [];
+    $arabic = [];
+    foreach ($rows as $p) {
+        $first = assistant_tokens((string) $p['name_en'])[0] ?? '';
+        if ($first === '' || !$plain($first)) continue;
+        $lines[$first] = true;
+        $arabic[$first][] = array_values(array_unique(array_filter(assistant_tokens((string) $p['name_ar']), $plain)));
+    }
+    foreach ($arabic as $sets) {
+        if (count($sets) >= 2) foreach (array_intersect(...$sets) as $t) $lines[$t] = true;
+    }
+    try {
+        foreach ($db->query('select name_en, name_ar from brands where active = 1')->fetchAll() as $b) {
+            foreach (assistant_tokens($b['name_en'] . ' ' . $b['name_ar']) as $t) if ($plain($t)) $lines[$t] = true;
+        }
+    } catch (Throwable $e) {
+        // A shop without the brands table has no brand names to know.
+    }
+    return $lines;
 }
 
 // A free word against a product's words: equal, or the start of one when the
@@ -1627,11 +1689,12 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
     //                 colour, and the sentence says exactly that.
     //   found_near    "leggings in XL" with no XL left: the closest pieces.
     //   found_other   "nike shorts", «تيشيرت الهلال»: a brand or team the shop
-    //                 does not carry (assistant_other_brand_words), or a word of
-    //                 ANOTHER product's name that the top card lacks ("black
-    //                 naples jacket": Naples is a line, and not a jacket). Both
-    //                 are provable. Any other leftover word is not — the names
-    //                 record type and colour only — so it stays 'found'.
+    //                 does not carry (assistant_other_brand_words), or the name
+    //                 of one of the shop's own lines or brands that the top
+    //                 card lacks ("sculpt shorts": Sculpt has no shorts) —
+    //                 assistant_line_names. Both are provable. Any other
+    //                 leftover word is not — the names record type and colour
+    //                 only — so it stays 'found'.
     //
     // The colour and the other-word misses are MISSES: the demand ("Nike",
     // "yellow") is something the shop wants to hear about, and `missed` is
@@ -1640,9 +1703,7 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
     $colourMiss = $q['colour'] && !array_intersect_key($rows[0]['_colour'], $q['colour']);
     $otherMiss = assistant_has($q['t'], assistant_other_brand_words());
     foreach ($realFree as $w) {
-        if ($otherMiss) break;
-        if (assistant_word_hit($rows[0]['_tok'], $w)) continue;
-        foreach ($cat['rows'] as $p) if (in_array($w, $p['_tok'], true)) { $otherMiss = true; break; }
+        if (!$otherMiss && isset($cat['lines'][$w]) && !assistant_word_hit($rows[0]['_tok'], $w)) $otherMiss = true;
     }
     $key = $colourMiss ? 'found_colour' : ($relaxed ? 'found_near' : ($otherMiss ? 'found_other' : 'found'));
     return [assistant_canned($cfg, $key, $ar), $payload, $colourMiss || $otherMiss, $asked];
