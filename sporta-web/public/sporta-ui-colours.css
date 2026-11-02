@@ -65,3 +65,24 @@ li.text-amber-700 {
     max-width: 56% !important;
   }
 }
+
+/* سبورتا AI panel: opened OFF the top of the screen.
+   Measured live 2026-11-02: the panel (fixed, bottom-24, max-h-70vh) is
+   rendered INSIDE <header class="app-header">, because the live build puts
+   its launcher in the header. That header has backdrop-filter: blur(8px)
+   and, on phones, will-change: transform (it slides away on scroll), and
+   either one makes it the containing block of every position:fixed child.
+   So "6rem above the bottom" meant 6rem above the bottom of a 138px header:
+   panel top -267px on a phone, input at y -20..28, i.e. not typeable.
+   While the panel is open the header drops the properties that trap it
+   (and stays put rather than sliding away under the panel). Its background
+   is already solid charcoal (rgb 23,26,30), so the lost blur shows nothing.
+   The panel then measures against the viewport as written: 16,440..374,748
+   on a 390x844 phone, input at y 687..735. Closed, nothing changes. */
+.app-header:has([role="dialog"].fixed.bottom-24) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  transform: none !important;
+  will-change: auto !important;
+}
