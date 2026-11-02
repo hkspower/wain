@@ -111,8 +111,15 @@ for (const f of all) {
    same question the same way. The review table was re-encoded first (0.3K
    back); loading the module lazily would have hidden the cost from this audit
    without saving a byte for the visitor, which is the one thing a budget must
-   not be gamed by. */
-const BUDGET_KB = 176;
+   not be gamed by.
+
+   176 → 177 on 2 November, deliberately and once, by the owner's answer. The
+   polish sweep (50a52ba4) moved /search from 180,006 to 180,236 bytes gzipped
+   (176.01K against 176K). The sweep's own cost is what the rise pays for: the
+   accessibility labels and roles on the rating and price badges, and the
+   shared helpers (foldWords, fromArabicDigits) that replaced copies in the
+   same modules. Nothing was lazy-loaded to make the number fit. */
+const BUDGET_KB = 177;
 routes.sort((a, b) => b.gz - a.gz);
 for (const r of routes) {
   if (r.gz / 1024 > BUDGET_KB) err(`${r.route} ships ${kb(r.gz)} of JS, over the ${BUDGET_KB}K budget`);
