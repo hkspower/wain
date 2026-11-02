@@ -284,6 +284,15 @@ bye
 
 # rev search/found_near
 black leggings size xs
+black leggings xs
+
+# rev search/found
+leggings size m
+
+# rev contact/money
+my payment was taken
+money was taken from my account
+they took my money
 
 # suite order_status/ask_track|ask_track_eta
 where is my order
@@ -1566,6 +1575,400 @@ goodbye
 see you
 bye bye
 talk to you later
+# common search/found
+can I see more photos of the define jacket
+are there pictures of the sculpt leggings
+the photo of the jacket looks great
+ممكن صور ثانية للجاكيت
+is the jacket waterproof?
+does the jacket have pockets?
+what is the jacket made of
+what material are the leggings
+are the leggings see through?
+do the leggings have a hole for the phone?
+is there a phone pocket in the leggings
+are the leggings fake? // a question about the leggings: they are shown
+do you have the jacket in a different colour
+what colours does the sculpt jacket come in
+do you have more colours of the cloudsoft leggings
+is the define jacket good for winter
+which jacket is warmer
+is the sculpt top good for yoga
+leggings for running
+jacket for running
+shorts for football
+something for the gym for men
+black and grey leggings
+navy or black jacket
+2 leggings
+I want 2 t-shirts
+do you have matching top and leggings
+top and leggings set
+ابي ليقنز وتوب
+عندكم جاكيت وليقنز نفس اللون؟
+ليقنز كلاودسوفت
+توب سكالبت
+جاكيت ديفاين اسود
+تيشيرت رجالي ابيض
+شورت تكنو
+شورت فلاش احمر
+ستراينجر
+تانك رجالي
+كاب كحلي
+حقيبة كحلية
+سويت شيرت كحلي
+ابي شي يناسب الجيم للبنات
+ليقنز رياضي نسائي
+ابي اشوف التوبات
+jacket in black please
+show me something in grey
+any navy tops?
+women leggings black
+men t-shirts white
+men's shorts
+ladies jackets
+girls leggings
+leggings women
+for women
+for men
+
+# common greeting/greeting search/no_idea
+hello there pizza // a hello with a word that names nothing: the welcome, or an honest no — never a shelf
+
+# common search/found_other
+sculpt shorts // Sculpt is a line, and it has no shorts: provable
+black naples jacket
+vanquish leggings
+cloudsoft shorts
+
+# common search/found_colour
+yellow tank top
+gold leggings
+silver jacket
+
+# common search/not_carried
+do you sell sneakers
+عندكم جزم؟
+عندكم شرابات؟
+yoga mats?
+do you sell protein powder
+عندكم مكملات؟
+swimwear for women
+
+# common search/no_idea search/not_carried
+do you have flip flops // not in the not-carried list: an honest "nothing matches" is right too
+
+# common search/no_idea
+is it new or used?
+هل المنتجات مستعملة؟
+are your products original?
+القطعة اصلية؟
+المنتجات اصلية؟
+do you have it in a different colour?
+what happens after I place an order
+will I get a confirmation after I order
+can I order without an account
+do I need an account to order
+can I order for someone else
+ابي اطلب لشخص ثاني
+ابي اطلب مرة ثانية
+how do I log in
+I forgot my password
+كيف اسجل دخول
+نسيت كلمة السر
+do you have an app?
+is there an app
+عندكم تطبيق؟
+وين الرابط؟
+the app is great
+الموقع حلو
+الموقع وايد حلو
+الصور حلوة
+do you work on friday
+what are your working hours
+are you open now
+متى تفتحون؟
+اوقات الدوام
+تشتغلون يوم الجمعة؟
+
+# common greeting/greeting
+help
+مساعدة
+ساعدني
+who are you
+are you a bot
+انت روبوت؟
+مين انت
+what can you do
+hi, hope you are doing well
+hello good morning
+morning!
+evening all
+هلا والله وغلا
+يا هلا والله
+هلا وسهلا
+السلام عليكم ورحمة الله
+السلام عليكم جميعا
+مساء الخير يا شباب
+صباح الخير يا جماعة
+hey guys
+hi everyone
+hello friends
+hey, are you there?
+hello??
+hi?
+مرحبا؟
+السلام
+ياهلا
+
+# common delivery/delivery
+can the courier come in the evening
+can the driver leave it at the door
+what time does the courier come
+the courier is here
+will the courier call me
+can I get it today
+will it come today
+can you send it tomorrow
+I need it before friday
+how much is shipping
+is shipping free
+do you deliver to all areas
+do you deliver to Ahmadi
+delivery to Jahra how much
+how long is delivery
+متى يوصل الطلب اذا طلبت اليوم؟
+اذا طلبت الحين متى يوصل؟
+التوصيل كم دينار؟
+رسوم التوصيل
+كم رسوم التوصيل
+توصيل مجاني؟
+توصلون الفروانية؟
+توصلون المطلاع؟
+المندوب يتصل قبل؟
+متى يجي المندوب
+المندوب يقدر يجي بالليل؟
+
+# common payment/payment
+does the delivery guy take knet
+المندوب ياخذ كي نت؟
+اقدر ادفع للمندوب بطاقة؟
+can I pay the courier by card
+is the website safe to pay on?
+can I order now and pay later
+do you accept amex
+apple pay?
+knet?
+كي نت؟
+تقبلون ابل باي؟
+الدفع كاش؟
+can I pay in cash when it arrives
+
+# common contact/contact
+I have a problem
+there is a problem
+عندي مشكلة
+عندي مشكلة في الطلب
+I have a problem with my order
+can I add another item to my order
+can I change my order
+ابي اضيف قطعة للطلب
+I want to add something to my order
+are you human?
+I want to complain
+can I speak to the manager
+ابي اكلم المسؤول
+
+# common returns/returns
+can I return worn items?
+if it is too small can I exchange
+اذا طلع صغير اقدر ابدله؟
+the leggings are too see through, I want to return
+I want to exchange the jacket for a bigger size
+how do returns work
+can I return a sale item
+is the return free or do I pay
+كم مدة الاسترجاع؟
+ابي ارجع الجاكيت
+ابي ابدل الليقنز بمقاس اكبر
+الإرجاع كيف؟
+ابي استرجاع المبلغ
+
+# common sizes/sizes
+can I order more than one size
+what if the size is wrong
+what if it doesn't fit
+is the jacket true to size or does it run small
+اذا المقاس ما ضبط؟
+هل المقاس مضبوط؟
+which size is best for me
+do the leggings run small
+الليقنز مقاساته صغيرة؟
+ابي اعرف المقاس المناسب
+
+# common contact/complaint
+the jacket is fake
+I got a fake jacket
+the leggings I got are torn
+my jacket arrived with a broken zip
+the colour is different from the picture
+the item I received is not what I ordered
+وصلني جاكيت غير اللي طلبته
+القطعة وصلتني وسخة
+فيه ريحة بالقطعة اللي وصلتني
+
+# common order_status/ask_track|ask_track_eta
+I just placed an order
+I placed an order, when will it come
+ابي مساعدة في طلبي
+I need help with my order
+
+# common order_status/ask_track|ask_track_eta contact/contact
+can I change the size in my order // a change to an order is a person's job — but asking for the number is not wrong
+
+# common checkout/checkout
+how long does checkout take
+is checkout secure
+how can I order
+how do I order
+
+# common checkout/checkout search/found
+how do I buy the jacket? // names the garment: a search with its Add button is right too
+
+# common recommend/recommend
+can I get a gift wrap // the gift shelf: wrapping is not something this shop says it does
+what do you suggest for the gym
+show me your best items
+any new items?
+عندكم شي جديد؟
+وش الجديد؟
+
+# common returns/returns contact/contact
+ابي اغير المقاس في الطلب
+
+# common contact/money
+I paid twice by mistake
+the payment went through but I didn't get any message
+دفعت مرتين بالغلط
+انخصم مني المبلغ وما وصلني شي
+
+# common payment/payment delivery/delivery
+what if I'm not home when the courier comes and I chose cash // cash, the courier and an absence: payment or delivery are both right
+
+# common contact/courier
+the delivery guy was rude
+the driver never came
+المندوب ما رد على اتصالي
+المندوب وقح
+
+# common contact/checkout_problem
+order failed
+my order failed
+the website says my order failed
+الطلب فشل
+ما انعمل الطلب
+ما اقدر اطلب من الموقع
+
+# common contact/money
+I got an error after paying
+my payment is pending
+I paid but haven't received the order
+I was charged delivery twice
+الموقع يقول خطأ بعد ما دفعت
+
+# common payment/payment
+does payment fail often?
+I paid with knet
+can I pay later?
+
+# common checkout/checkout
+I can't wait to checkout
+is the checkout page in arabic
+
+# common search/found
+do you have leggings for running in the evening
+the leggings are amazing, do you have them in navy
+I love the sculpt leggings
+leggings for my mom
+jacket for my son
+t-shirt for my husband
+شي حلو لزوجتي
+ابي ليقنز لبنتي
+
+# common search/found_near
+leggings XL out of stock?
+
+# common sizes/sizes
+ابي اطلب بس ما اعرف المقاس
+ما لقيت المقاس
+my size is out of stock
+when will size M be back
+
+# common returns/returns
+the jacket is a bit small, can I exchange
+hello, I want to return
+
+# common contact/complaint
+the colour is different in person
+
+# common contact/site_problem
+the app is not working on my iphone
+
+# common order_status/ask_track|ask_track_eta
+hi, my order hasn't arrived
+طلبي معلق
+
+# common delivery/delivery
+do you deliver to my area? I am in mangaf
+can you deliver to my work
+can you call before delivering
+المندوب يتصل قبل ما يجي؟
+ممكن المندوب يتصل علي قبل؟
+I will be at work, can the courier come after 5
+delivery fee is wrong // a fee complaint: the fee is the right first answer
+
+# common thanks/thanks
+وصلني الطلب شكرا
+my order arrived, thanks // "my order" is read before "thanks": known, and older versions do the same
+
+# common thanks/ack thanks/thanks
+الطلب وصل وكل شي تمام // nothing in it is a question; read as nothing matched (all versions)
+
+# common returns/returns sizes/sizes
+القطعة حلوة بس المقاس صغير
+
+# common recommend/recommend
+gift for my sister
+هدية لاختي
+
+# common greeting/greeting
+hi, is this sporta?
+
+# common sizes/sizes search/no_idea
+the M is sold out // a size, sold out, with nothing named: the size line, or an honest no
+
+# common contact/contact search/no_idea
+the price is wrong // a person's job; nothing routes a price complaint yet (all versions)
+is there an error in the price?
+I won't be home tomorrow // a person's job; not routed (all versions)
+
+# common search/found search/no_idea
+something for my boyfriend // "boyfriend" names no gender the dictionary knows
+
+# common search/no_idea
+is any item missing from the set? // a question about a set: not a missing-item complaint
+
+# common delivery/delivery
+will the courier come late at night
+
+# common contact/courier order_status/ask_track|ask_track_eta
+المندوب متأخر
+the courier is late
+المندوب يتأخر؟
+
+# common returns/returns
+I want to go back to the returns page
+
 `
 
 // Orders the messages above look up, in the rolled-back transaction. The

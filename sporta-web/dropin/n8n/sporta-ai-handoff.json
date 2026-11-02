@@ -76,7 +76,7 @@
     {
       "parameters": {
         "sendTo": "cs@sporta.com.kw",
-        "subject": "=سبورتا AI — {{ $json.intent === 'cancel' ? 'customer asked to CANCEL an order' : ($json.topic === 'money' ? 'PAYMENT PROBLEM: money taken, order not right' : ($json.topic === 'complaint' ? 'WRONG OR DAMAGED ITEM received' : ($json.topic === 'coupon_problem' ? 'discount code would not apply' : ($json.intent === 'contact' ? 'customer asked for a person' : 'unanswered question')))) }}",
+        "subject": "=سبورتا AI — {{ $json.intent === 'cancel' ? 'customer asked to CANCEL an order' : ($json.topic === 'money' ? 'PAYMENT PROBLEM: money taken, order not right' : ($json.topic === 'complaint' ? 'WRONG OR DAMAGED ITEM received' : ($json.topic === 'courier' ? 'COURIER PROBLEM: did not come, did not call, or rude' : ($json.topic === 'checkout_problem' ? 'CHECKOUT: customer needs help to complete an order' : ($json.topic === 'site_problem' ? 'WEBSITE PROBLEM reported' : ($json.topic === 'coupon_problem' ? 'discount code would not apply' : ($json.intent === 'contact' ? 'customer asked for a person' : 'unanswered question'))))))) }}",
         "message": "={{ $json.lang === 'ar' ? 'العميل كتب' : 'The customer wrote' }}:\n\n{{ $json.message }}\n\n{{ $json.lang === 'ar' ? 'رد المساعد' : 'The assistant replied' }}:\n\n{{ $json.reply }}\n\n— {{ $json.at }} ({{ $json.lang }})",
         "options": {}
       },

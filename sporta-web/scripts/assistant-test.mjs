@@ -14,6 +14,7 @@
 import { execFile, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { promisify } from 'node:util'
+import { runRegression } from './assistant-regression.mjs'
 
 const BASE = process.env.PHP_BASE ?? 'http://127.0.0.1:8095'
 const run = promisify(execFile)
@@ -82,7 +83,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 33
+const CANNED = 38
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -573,8 +574,8 @@ head('search reads the catalogue the way a shopper means it')
   const F = await answersIn([], [['جاكيت سماوي', 'ar'], ['leggings in XL', 'en'], ['navy leggings', 'en']])
   // Not "the closest": army green is not close to sky blue. The colour is
   // said to be missing, over the same kind in the colours there are.
-  is(/^ما عندنا هذا اللون حاليًا/.test(F[0].reply) && !/أقرب/.test(F[0].reply) && slugs(F[0]).every((x) => x.includes('jacket')),
-     '«جاكيت سماوي» (no sky-blue jacket) is told that colour is not in, over jackets in other colours', F[0].reply)
+  is(/^ما عندنا اللي تبيه بهذا اللون حاليًا/.test(F[0].reply) && !/أقرب/.test(F[0].reply) && slugs(F[0]).every((x) => x.includes('jacket')),
+     '«جاكيت سماوي» (no sky-blue jacket) is told it is not in that colour, over jackets in other colours', F[0].reply)
   is(/closest pieces/.test(F[1].reply), '"leggings in XL" (none in XL) is told the same', F[1].reply)
   is(F[2].reply === 'Here is what I found:', 'and a real match is still "Here is what I found:"')
 
@@ -672,7 +673,7 @@ head('timing, card and fit questions have their answers back')
     // An order's state, asked without a number.
     ['الطلب ملغي؟', 'order_status'], ['انلغى الطلب؟', 'order_status'],
     // "deal" only in offer phrases.
-    ['how do you deal with damaged items', 'search'], ['deal', 'search'], ['any deals?', 'recommend'],
+    ['how do you deal with damaged items', 'returns'], ['deal', 'search'], ['any deals?', 'recommend'],
     ['black friday deals', 'recommend'], ['good deal on leggings?', 'recommend'],
   ]
   const got = await intents(C.map(([q]) => q))
@@ -783,8 +784,9 @@ head('the copy: one register for search, digits that never mix, the full returns
   // Each near-miss says WHICH part is missing, and only "closest" for a size.
   is(/المقاس/.test(near) && !/اللون/.test(near) && /closest/.test(await c('found_near', false)),
      'found_near is about the size only, and keeps "the closest pieces"', near)
-  is(/اللون/.test(colour) && !/أقرب/.test(colour) && /^We do not have that colour right now/.test(await c('found_colour', false)),
-     'found_colour says the colour is not in, and never "closest"', colour)
+  is(/اللون/.test(colour) && !/أقرب/.test(colour) && /^We do not have that in this colour right now/.test(await c('found_colour', false))
+     && !/نفس القطع|same pieces/.test(colour + await c('found_colour', false)),
+     'found_colour says it is not in THAT colour — never "closest", never "the same pieces" when none was named', colour)
   is(!/أقرب|closest/.test(other + await c('found_other', false)) && /نفس النوع/.test(other),
      'found_other says "the same kind", not "the closest"', other)
   // Returns: the exception beside the promise, saying what is still allowed.
@@ -797,8 +799,9 @@ head('the copy: one register for search, digits that never mix, the full returns
   const [del, delAr] = [await c('stage_delivered', false), await c('stage_delivered', true)]
   is(/unworn item with its tags/.test(del) && /women's clothing can be returned but not exchanged/.test(del) && /14 days from delivery/.test(del),
      'stage_delivered (en) carries the condition and the women\'s-clothing exception', del)
-  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /إلا للملابس النسائية/.test(delAr) && /١٤ يومًا/.test(delAr),
-     'stage_delivered (ar) too', delAr)
+  is(/غير ملبوسة وبطاقاتها عليها/.test(delAr) && /ما عدا الملابس النسائية فإرجاع فقط/.test(delAr) && /١٤ يومًا/.test(delAr)
+     && /لإرجاع أو استبدال/.test(delAr) && !/إلا للملابس/.test(delAr),
+     'stage_delivered (ar) too — the exchange inside the same 14 days and condition, «ما عدا … فإرجاع فقط»', delAr)
   // The other two siblings: cancel's return carries its condition, location
   // its "for confirmed orders".
   const [can, canAr, loc, locAr] = [await c('cancel', false), await c('cancel', true), await c('location', false), await c('location', true)]
@@ -919,8 +922,9 @@ head('money taken, said the way people say it, reaches a person')
     `"${ASKED[i][0]}" hears "we will check the payment", not the payment methods`, a.reply.slice(0, 50)))
   // Not opened with "we are happy to help".
   const money = await canned('money', true)
-  is(/^نعتذر عن هذا/.test(money) && !/يسعدنا/.test(money) && money.includes('‎+965'), 'the money line opens with an apology, not «يسعدنا خدمتك»', money)
-  is(/^Sorry about that\. WhatsApp us on \+965 22091914 with your order number and we will check the payment\.$/.test(await canned('money', false)),
+  is(/^إذا انخصم منك مبلغ بالغلط أو صار خطأ في الدفع/.test(money) && !/يسعدنا/.test(money) && money.includes('‎+965'),
+     'the money line is not «يسعدنا خدمتك», and is true whether or not money really went wrong', money)
+  is(/^If money was taken by mistake or a payment went wrong, WhatsApp us on \+965 22091914 with your order number and we will check the payment\.$/.test(await canned('money', false)),
      'and in English')
   // A DISCOUNT TAKEN OFF IS NOT MONEY TAKEN. These were emailed to staff.
   const D = await routes(['is the discount deducted automatically?', 'تم خصم ١٠٪ من السعر؟', 'تقبلون كي نت بس؟'])
@@ -1066,7 +1070,7 @@ head('late orders, where we are, and the small routes')
   C.forEach(([q, want], i) => is(got[i] === want, `"${q}" -> ${want}`, got[i]))
   const [ph, co, coAr] = await answersIn([], [['phone holder for running', 'en'], ['ok take me to checkout', 'en'], ['كمل الطلب', 'ar']])
   is(slugs(ph).includes('gymshark-phone-strap'), '"phone holder for running" finds the phone strap, and nobody is paged', slugs(ph).join(','))
-  is(/from your bag/.test(co.reply) && /صفحة السلة/.test(coAr.reply) && !co.data, '"take me to checkout" is told where checkout starts', co.reply)
+  is(/your bag/.test(co.reply) && /السلة/.test(coAr.reply) && !co.data, '"take me to checkout" is told where checkout starts', co.reply)
   // in_cart is gone: nothing said it, and it invited a reply with no answer.
   const keys = await php(`require ${JSON.stringify(AP)}; echo json_encode(assistant_canned_keys());`)
   is(!keys.includes('in_cart') && keys.length === CANNED && new Set(keys).size === keys.length, 'in_cart is not warmed, and every warmed key is listed once', String(keys.length))
@@ -1147,8 +1151,177 @@ head('a model may not drop what the shop said')
   is(acc[3] === null, 'a rewording that drops the phone number is thrown away')
   is(acc[4] === null, 'and one far longer than the shop\'s own sentence')
   is(typeof acc[5] === 'string', 'while a faithful rewording still passes', acc[5]?.slice(0, 30))
-  is(/Kuwaiti\/Gulf register/.test(acc[6]), 'and the model is told the register, not just "Arabic"', acc[6].slice(0, 90))
+  is(/Keep the register of the SHOP ANSWER \(Kuwaiti\/Gulf where it is Gulf, plain formal Arabic where it is formal\)/.test(acc[6]),
+     'and the model is told to keep the register the shop wrote — Gulf where it is Gulf, formal where it is formal', acc[6].slice(0, 90))
 }
+
+// ------------------------------------------------- the review of round three
+// Round two fixed its list and broke the main path: ordinary openers answered
+// «ما لقيت شي», ordinary searches told «ما عندنا اللي طلبته بالضبط». Every
+// sentence the round-two reviewers quoted is in the regression corpus
+// (assistant-regression.mjs), with several hundred common messages, run through
+// live, c01e6d17, the round-two result and this code — that is the last block
+// of this section. The blocks before it hold what the corpus cannot see: the
+// handoff flag, the copy, and the model's guard.
+
+// What reaches a person under each new topic — shared with the n8n check in
+// the voice section, which runs each through the workflow's subject.
+const MONEY_R3 = [['دفعت والطلب مو مؤكد', 'ar'], ['دفعت بكي نت والطلب للحين غير مؤكد', 'ar'], ['I was billed twice', 'en'],
+                  ['المبلغ انحجز من حسابي', 'ar'], ['البنك يقول العملية تمت والموقع يقول فشلت', 'ar'],
+                  ['المندوب طلب اكثر من المبلغ', 'ar'], ['المندوب خذ مني ٢ دينار توصيل', 'ar'], ['the driver asked for 3 kd delivery', 'en']]
+const CHECKOUT_R3 = [['checkout not working', 'en'], ["I can't checkout", 'en'], ['ما اقدر اكمل الطلب', 'ar'],
+                     ['صار خطأ عند اتمام الطلب', 'ar'], ['I cannot place the order, it gives an error', 'en'],
+                     ['can I place my order on whatsapp', 'en'], ['ابي اتمم الطلب بس المقاس مو موجود', 'ar']]
+const SITE_R3 = [['the website is broken', 'en'], ['الموقع خربان', 'ar'], ['the photos are missing', 'en'],
+                 ['add to bag button not working', 'en'], ['فشل تسجيل الدخول لحسابي', 'ar']]
+const COURIER_R3 = [['المندوب ما جا', 'ar'], ['the courier never came', 'en'], ['courier was rude', 'en'], ['المندوب ما رد علي', 'ar']]
+
+head('round three: an ordinary search is "found", and nobody is paged for it')
+{
+  // Filler and purchase verbs around a stocked piece: 'found', and missed is
+  // false — a found_other used to email staff a "miss" for every one.
+  const Q = [['ابي اشتري ليقنز', 'ar'], ['عطوني ليقنز', 'ar'], ['تكفون عندكم ليقنز', 'ar'], ['هل لديكم بنطال رياضي للرجال؟', 'ar'],
+             ['do you guys sell shorts', 'en'], ['need leggings asap', 'en'], ["i'd like to order leggings", 'en'],
+             ['3indkum leggings?', 'en'], ['leggings aswad', 'en'], ['high waisted leggings', 'en'], ['cotton t-shirt', 'en'],
+             ['ليقنز خصر عالي', 'ar'], ['is there a phone pocket in the leggings', 'en']]
+  const out = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db(); $cfg = store_config();
+    $o = []; foreach (json_decode($argv[1], true) as [$m, $l]) {
+      [$r, $d, $missed] = assistant_search($db, $cfg, $m, $l === 'ar');
+      $o[] = [$r === assistant_canned($cfg, 'found', $l === 'ar'), $missed, count($d['items'] ?? [])];
+    } echo json_encode($o);`, Q)
+  Q.forEach(([q], i) => is(out[i][0] && !out[i][1] && out[i][2] > 0, `"${q}" -> found, over cards, and not handed off as a miss`, JSON.stringify(out[i])))
+  // While a brand the shop does not carry, or a line that has no such piece,
+  // is a provable miss — said, and handed off.
+  const M = [['nike shorts', 'en'], ['تيشيرت الهلال', 'ar'], ['sculpt shorts', 'en'], ['vanquish leggings', 'en']]
+  const mo = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db(); $cfg = store_config();
+    $o = []; foreach (json_decode($argv[1], true) as [$m, $l]) {
+      [$r, $d, $missed] = assistant_search($db, $cfg, $m, $l === 'ar');
+      $o[] = [$r === assistant_canned($cfg, 'found_other', $l === 'ar'), $missed];
+    } echo json_encode($o);`, M)
+  M.forEach(([q], i) => is(mo[i][0] && mo[i][1], `"${q}" -> found_other, and the miss is handed off`, JSON.stringify(mo[i])))
+  // The line names that can prove a miss are the lines and brands, not every
+  // word of every name: "phone" (Gymshark PHONE Strap) and «ظهر» are not.
+  const lines = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)};
+    echo json_encode(array_keys(assistant_catalogue(store_db())['lines']), JSON_UNESCAPED_UNICODE);`)
+  is(['sculpt', 'cloudsoft', 'vanquish', 'سكالبت', 'كلاودسوفت'].every((w) => lines.includes(w)) && !['phone', 'ظهر', 'هاتف', 'back'].some((w) => lines.includes(w)),
+     'the words that prove "not exactly that" are line and brand names only', lines.join(' '))
+  // Colour plus a line name with no garment: the line leads, and the colour is the miss.
+  const [ps, gb] = await answersIn([], [['pink sculpt', 'en'], ['gymshark black', 'en']])
+  is(slugs(ps)[0]?.startsWith('sculpt-') && /^We do not have that in this colour/.test(ps.reply), '"pink sculpt" leads with Sculpt and says the colour is missing', `${slugs(ps)[0]} ${ps.reply.slice(0, 40)}`)
+  is(slugs(gb)[0] === 'gymshark-phone-strap' && /^We do not have that in this colour/.test(gb.reply), '"gymshark black" leads with the Gymshark piece', slugs(gb).join(','))
+}
+
+head('round three: a hello is a hello unless it asks for something')
+{
+  const H = [['هلا وغلا', 'ar'], ['مرحبا عندي استفسار', 'ar'], ['السلام عليكم كيف حالكم', 'ar'], ['هلا احد موجود؟', 'ar'],
+             ['السلام عليكم موجودين؟', 'ar'], ['مسا الخير', 'ar'], ['حياكم الله', 'ar'], ['salamu alaikum', 'en'],
+             ['hi, I have an inquiry', 'en'], ['hey, is anyone available', 'en'], ['hellooo', 'en'], ['I have a question', 'en']]
+  const HA = await answersIn([], H)
+  H.forEach(([q], i) => is(HA[i].intent === 'greeting' && !HA[i].data && /^(Welcome|أهلًا)/.test(HA[i].reply), `"${q}" is the welcome`, `${HA[i].intent} ${HA[i].reply.slice(0, 30)}`))
+  // ...while one that names something is still searched, exactly as without the hello.
+  const S = [['مرحبا، عندكم احذية؟', 'ar', /^للأسف ما عندنا/], ['هلا، عندكم نايكي؟', 'ar', /^ما لقيت شي/],
+             ['hi, do you have leggings?', 'en', /^Here is what I found/], ['السلام عليكم، عندكم شي للبنات؟', 'ar', /^لقيت لك/],
+             ['hello, anything under 5 kd?', 'en', /^Here is what I found/], ['هلا، عندكم ملابس رياضية؟', 'ar', /مختارات/]]
+  const SA = await answersIn([], S.map(([q, l]) => [q, l]))
+  S.forEach(([q, , re], i) => is(SA[i].intent === 'search' && re.test(SA[i].reply), `"${q}" is searched`, `${SA[i].intent} ${SA[i].reply.slice(0, 30)}`))
+}
+
+head('round three: how paying works is not a payment problem')
+{
+  const R = await routes(['is payment taken at delivery?', 'is the money taken when I order or when it arrives', 'is my payment pending until delivery?',
+                          'can I split it into two payments', 'المبلغ يندفع مرتين؟ يعني تقسيط', 'what if my payment fails?',
+                          'if my knet payment fails what happens', 'اذا فشل الدفع شسوي؟', 'do you charge double for express delivery',
+                          'will I be charged twice for delivery if I order 2 items'])
+  is(R.slice(0, 8).every((r) => r[0] === 'payment') && R.slice(8).every((r) => r[0] === 'delivery'),
+     'questions about when and how money is taken are payment (or, with a fee, delivery) — never a PAYMENT PROBLEM email', R.map((r) => r[0]).join(','))
+  const M = await routes(MONEY_R3.map(([q]) => q).concat(['charged twice', 'my bank shows two payments', 'المبلغ انخصم مرتين']))
+  is(M.every((r) => r[0] === 'contact' && r[1] === 'money'), 'while money that went wrong, said any of these ways, is a person\'s job', M.map((r) => r.join('/')).join(' '))
+}
+
+head('round three: checkout, the site and the courier reach a person, with the right line')
+{
+  const C = await answersIn([], [...CHECKOUT_R3, ['how do i place an order', 'en'], ['كيف اطلب', 'ar']])
+  CHECKOUT_R3.forEach(([q], i) => is(C[i].intent === 'contact' && /WhatsApp us on \+965 22091914 with the items and sizes you want|واكتب لنا القطع والمقاسات/.test(C[i].reply),
+    `"${q}" -> a person, with what to send`, `${C[i].intent} ${C[i].reply.slice(0, 40)}`))
+  const [how, howAr] = C.slice(CHECKOUT_R3.length)
+  is(how.intent === 'checkout' && /^Add the pieces you want to your bag/.test(how.reply) && howAr.intent === 'checkout' && /^أضف القطع/.test(howAr.reply),
+     '"how do I place an order" / «كيف اطلب» is told how, in two verbs and no button name', `${how.reply} / ${howAr.reply}`)
+  const S = await answersIn([], SITE_R3)
+  SITE_R3.forEach(([q], i) => is(S[i].intent === 'contact' && /screenshot|صورة للشاشة/.test(S[i].reply) && !/what arrived|وصلتك/.test(S[i].reply),
+    `"${q}" -> a person, asked for a screenshot — not a photo of a parcel`, S[i].reply.slice(0, 50)))
+  const K = await answersIn([], COURIER_R3)
+  COURIER_R3.forEach(([q], i) => is(K[i].intent === 'contact' && /courier|المندوب/.test(K[i].reply) && !/24 hours|٢٤ ساعة/.test(K[i].reply),
+    `"${q}" -> a person, not the courier's timetable`, K[i].reply.slice(0, 50)))
+  // A stock question with "missing" is a stock question.
+  const N = await routes(['size M is missing', 'المقاسات ناقصة؟', 'is the XL missing?', 'ناقص مقاس M؟', 'stain resistant leggings?', 'انا غلطان',
+                          'do you cover damage in delivery', 'can I return worn items?'])
+  is(N.every((r) => r[1] !== 'complaint'), 'a size that is missing, a stain-resistant legging, «انا غلطان» and a policy question are not complaints', N.map((r) => r.join('/')).join(' '))
+  // The complaint line is true when nothing has arrived yet.
+  const [cp, cpAr] = [await canned('complaint', false), await canned('complaint', true)]
+  is(/order number if you have one/.test(cp) && /photo or screenshot of the problem/.test(cp) && /رقم الطلب إذا عندك/.test(cpAr) && !/what arrived|وصلتك/.test(cp + cpAr),
+     'the complaint line asks for the order number IF there is one, and a photo or screenshot', cp)
+}
+
+head('round three: the small routes')
+{
+  const C = [
+    ["I don't want the order anymore", 'cancel'], ['please stop my order', 'cancel'], ['I want my money back', 'returns'], ['ابي فلوسي ترجع', 'returns'],
+    ['شنو تي باي', 'payment'], ["I'm between M and L", 'sizes'], ['القياسات؟', 'sizes'], ['انتو بالكويت؟', 'location'],
+    ['is there a shop I can visit', 'location'], ['is it an online store only', 'location'], ['can I see you in person', 'location'],
+    ['ابي اغير عنواني', 'contact'], ['when will you deliver my discounted item', 'delivery'], ['will the black leggings come back later', 'search'],
+    ['ما جاني الطلب', 'order_status'], ['لم يصلني الطلب حتى الآن', 'order_status'], ["where's my stuff", 'order_status'],
+    ['متى يجيني الطلب', 'delivery'], ['كم ياخذ وقت؟', 'delivery'], ['المقاس يجيني؟', 'sizes'], ['black leggings size xs', 'search'],
+  ]
+  const got = await intents(C.map(([q]) => q))
+  C.forEach(([q, want], i) => is(got[i] === want, `"${q}" -> ${want}`, got[i]))
+  const R = await routes(['كود الخصم ما ينقبل', 'discount code not applying', 'كود الخصم ما طلع لي خصم'])
+  is(R.every((r) => r[0] === 'contact' && r[1] === 'coupon_problem'), 'a code that will not apply, said three more ways, reaches a person', R.map((r) => r.join('/')).join(' '))
+  is((await intents(['ابي ارجع للصفحة الرئيسية']))[0] !== 'returns', '«ارجع للصفحة الرئيسية» is navigation, not a return')
+  // «العفو» answers thanks; a goodbye and an "ok" have lines of their own.
+  const [bye, ack, thx] = await answersIn([], [['مع السلامة', 'ar'], ['تمام', 'ar'], ['شكرا', 'ar']])
+  is(/^الله يسلمك/.test(bye.reply) && /^حاضرين/.test(ack.reply) && /^العفو/.test(thx.reply) && [bye, ack, thx].every((a) => a.intent === 'thanks'),
+     '«مع السلامة» hears «الله يسلمك», «تمام» «حاضرين», «شكرا» «العفو» — all still intent thanks', `${bye.reply.slice(0, 12)} / ${ack.reply.slice(0, 8)} / ${thx.reply.slice(0, 6)}`)
+}
+
+head('round three: a model may not turn a promise round')
+{
+  const acc = await php(`require ${JSON.stringify(AP)};
+    $t = fn ($s) => ['stop_reason' => 'end_turn', 'content' => [['type' => 'text', 'text' => $s]]];
+    $c = fn ($k, $ar) => assistant_canned([], $k, $ar);
+    $p = '+965 22091914';
+    echo json_encode([
+      assistant_llm_accept($t('تم تسليم هذا الطلب. تقدر ترجع القطعة الملبوسة خلال ١٤ يومًا من الاستلام، والاستبدال للملابس النسائية فقط. ابدأ من صفحة الإرجاع.'), $c('stage_delivered', true), null, true),
+      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery if the item is unworn with its tags; women's clothing can be exchanged but not returned. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t("Returns are not free. Within 14 days of delivery, if the item is unworn with its tags, women's clothing can be returned but not exchanged. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t('يسعدنا خدمتك عبر واتساب أو الاتصال على 965 22091914، أو عبر البريد cs@sporta.com.kw'), $c('contact', true), null, true),
+      assistant_llm_accept($t('Your order has shipped and arrives today.'), $c('ask_track', false), null, false),
+      assistant_llm_accept($t('Everything is free today!'), $c('found', false), null, false),
+      assistant_llm_accept($t('everything is half price at checkout'), $c('no_offers', false), null, false),
+      assistant_llm_accept($t('الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام إذا كانت القطعة غير ملبوسة وبطاقاتها عليها، والملابس النسائية تستبدل فقط بدون إرجاع. ابدأ من صفحة الإرجاع برقم طلبك ورقم الهاتف المسجّل فيه، أو راسلنا على واتساب ‎' . $p . '.'), $c('returns', true), null, true),
+      assistant_llm_accept($t("Returns and exchanges are free within 14 days of delivery, unworn or worn, tags optional; women's clothing can be returned but not exchanged. Start on our Returns page with your order number and the phone number on the order, or WhatsApp us on $p."), $c('returns', false), null, false),
+      assistant_llm_accept($t('Delivery inside Kuwait is within 24 hours for confirmed orders, usually the same day, and it costs 1 KWD to every area. The courier calls before arriving.'), $c('delivery', false), null, false),
+      assistant_llm_accept($t('Delivery inside Kuwait is within 24 hours for confirmed orders and costs 1 KWD — free to every area. The courier calls before arriving.'), $c('delivery', false), null, false),
+      // Faithful rewordings of policy-free lines still pass.
+      assistant_llm_accept($t('Sure, here is what I found:'), $c('found', false), null, false),
+      assistant_llm_accept($t('أهلًا وسهلًا في سبورتا. أقدر أتحقق من طلبك، وأشرح لك التوصيل والإرجاع والدفع، وأساعدك في اختيار المنتج والمقاس.'), $c('greeting', true), null, true),
+      // Which answers may be sent to a model at all.
+      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, false), false), ['found', 'found_colour', 'not_carried', 'recommend', 'greeting', 'thanks', 'no_idea']),
+      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, true), true), ['returns', 'cancel', 'delivery', 'payment', 'stage_delivered', 'stage_unpaid', 'money',
+                                                                             'complaint', 'checkout_problem', 'coupon', 'coupon_problem', 'no_offers', 'offers_auto', 'ask_track', 'contact']),
+    ], JSON_UNESCAPED_UNICODE);`)
+  const names = ['stage_delivered (ar) saying WORN items return and ONLY women\'s exchange', 'returns (en) with the exception reversed',
+                 '"Returns are not free"', 'the Arabic contact line with the phone written «965 22091914» (no +, no mark)',
+                 'ask_track reworded as "has shipped and arrives today"', '"Everything is free today!" for found',
+                 '"everything is half price at checkout" for no_offers', 'returns (ar) with women\'s clothing "exchange only, no return"',
+                 '"unworn or worn, tags optional"', '"usually the same day" added to delivery', '"free to every area" added beside the fee']
+  names.forEach((n, i) => is(acc[i] === null, `refused: ${n}`, acc[i] === null ? 'refused' : String(acc[i]).slice(0, 50)))
+  is(typeof acc[11] === 'string' && typeof acc[12] === 'string', 'while a faithful rewording of a found or greeting line still passes', `${acc[11]} / ${String(acc[12]).slice(0, 20)}`)
+  is(acc[13].every(Boolean), 'the found family, the shelf, a hello, a thank-you and "nothing matched" may be reworded', JSON.stringify(acc[13]))
+  is(acc[14].every((x) => x === false), 'returns, cancel, delivery, payment, the order stages, money, complaint, checkout, coupons, offers and contact never are', JSON.stringify(acc[14]))
+}
+
+head('round three: the regression corpus, through four versions')
+await runRegression({ is, log: (l) => console.log(l) })
 
 // ------------------------------------------ the number on the card is the number charged
 // assistant_products_payload used any non-null sale_price and flagged it a
@@ -1346,17 +1519,22 @@ echo json_encode($o);
       try { await fetch('http://127.0.0.1:8102/ping'); break } catch { await new Promise((r) => setTimeout(r, 100)) }
     }
     const AI = { ai_key: 'fake', ai_url: 'http://127.0.0.1:8102/v1/messages', tts_key: 'k', tts_voice_id: 'v' }
-    const [good, invent, cut] = await answersIn([], [['when will it arrive', 'en'], ['when will it arrive INVENT', 'en'], ['when will it arrive CUTOFF', 'en']], AI)
-    is(good.source === 'shop+ai' && good.reply.startsWith('Sure. Delivery inside Kuwait'),
+    // A hello carries no policy, so it may be reworded. The delivery answer
+    // carries a fee and a promise: it is never sent to the model at all, so
+    // the last request the fake saw is still the CUTOFF hello.
+    const [good, invent, cut, del] = await answersIn([], [['hello', 'en'], ['hello INVENT', 'en'], ['hello CUTOFF', 'en'],
+                                                          ['when will it arrive', 'en']], AI)
+    is(good.source === 'shop+ai' && good.reply.startsWith('Sure. Welcome to Sporta'),
        'an honest rewording is used, read past the thinking block Haiku 5.5 sends first', good.reply.slice(0, 40))
     is(good.speak === undefined, 'and a model\'s words are never signed for paid speech')
     is(invent.source === 'shop' && !/SP77|SPORTA50/.test(invent.reply) && typeof invent.speak === 'string',
        'an invented order and coupon are thrown away for the shop\'s own sentence', invent.reply.slice(0, 40))
-    is(cut.source === 'shop' && /courier calls/.test(cut.reply), 'a reply cut off at max_tokens is thrown away too')
+    is(cut.source === 'shop' && /^Welcome to Sporta/.test(cut.reply), 'a reply cut off at max_tokens is thrown away too')
+    is(del.source === 'shop' && /courier calls/.test(del.reply), 'a policy answer (delivery: a fee, 24 hours) is never handed to the model')
     const req = JSON.parse(readFileSync(`${dir}/sporta-fake-model-last.json`, 'utf8'))
     is(req.model === 'claude-haiku-5-5', 'the default model is the current Haiku', req.model)
     is(req.thinking?.type === 'disabled' && req.output_config?.effort === 'low', 'with thinking off and low effort, for a short rewording')
-    is(req.messages.length === 1 && req.messages[0].content === 'when will it arrive CUTOFF',
+    is(req.messages.length === 1 && req.messages[0].content === 'hello CUTOFF',
        'the customer\'s text is the user turn, and nothing else is', JSON.stringify(req.messages[0]).slice(0, 60))
     is(/SHOP ANSWER:\n/.test(req.system) && !/colleague/.test(req.system), 'the facts are in the system prompt, with no follow-up promise')
 
@@ -1553,7 +1731,7 @@ head('the voice, and who is allowed to ask for it')
     // OWN IF node and subject template, read from the JSON that gets imported.
     {
       await fetch(`${VOICE}/reset`)
-      const sent = [...MONEY_R2, ...COMPLAINT_R2, ['do you sell live goldfish', 'en']]
+      const sent = [...MONEY_R2, ...COMPLAINT_R2, ...MONEY_R3, ...CHECKOUT_R3, ...SITE_R3, ...COURIER_R3, ['do you sell live goldfish', 'en']]
       await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true); $db = store_db();
         $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
         $db->beginTransaction();
@@ -1573,12 +1751,16 @@ head('the voice, and who is allowed to ask for it')
       const [yes, no] = wf.connections[ifNode.name].main.map((out) => out.map((x) => x.node))
       const mail = wf.nodes.find((n) => n.type === 'n8n-nodes-base.gmail')
       is(yes.includes(mail.name) && !no.includes(mail.name), 'the workflow\'s "yes" branch is the one that emails the shop', `${yes} / ${no}`)
-      for (const [m, , kind] of [...MONEY_R2.map(([q, l]) => [q, l, 'money']), ...COMPLAINT_R2.map(([q, l]) => [q, l, 'complaint'])]) {
+      const SUBJECT = { money: [/PAYMENT PROBLEM/, 'a payment problem'], complaint: [/WRONG OR DAMAGED/, 'a wrong or damaged item'],
+                        checkout_problem: [/CHECKOUT: customer needs help to complete an order/, 'a checkout that needs a hand'],
+                        site_problem: [/WEBSITE PROBLEM/, 'a website problem'], courier: [/COURIER PROBLEM/, 'a courier problem'] }
+      for (const [m, , kind] of [...MONEY_R2.map(([q, l]) => [q, l, 'money']), ...COMPLAINT_R2.map(([q, l]) => [q, l, 'complaint']),
+                                 ...MONEY_R3.map(([q, l]) => [q, l, 'money']), ...CHECKOUT_R3.map(([q, l]) => [q, l, 'checkout_problem']),
+                                 ...SITE_R3.map(([q, l]) => [q, l, 'site_problem']), ...COURIER_R3.map(([q, l]) => [q, l, 'courier'])]) {
         const p = got.find((x) => x.body?.message === m)?.body
         const subject = p ? tpl(mail.parameters.subject, p) : ''
-        is(p?.intent === 'contact' && p?.topic === kind && needsPerson(p)
-           && (kind === 'money' ? /PAYMENT PROBLEM/ : /WRONG OR DAMAGED/).test(subject),
-           `"${m}" is emailed to the shop as ${kind === 'money' ? 'a payment problem' : 'a wrong or damaged item'}`,
+        is(p?.intent === 'contact' && p?.topic === kind && needsPerson(p) && SUBJECT[kind][0].test(subject),
+           `"${m}" is emailed to the shop as ${SUBJECT[kind][1]}`,
            p ? `${p.intent}/${p.topic} — ${subject}` : 'nothing arrived')
       }
       const gap = got.find((x) => x.body?.message === 'do you sell live goldfish')?.body

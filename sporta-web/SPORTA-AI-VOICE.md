@@ -172,15 +172,28 @@ nothing** the shop sells (or found the kind of thing but not the colour or the
 brand asked for — "yellow shorts", "nike shorts" — which is demand the shop
 wants to hear about). Not on every message — n8n is not a transcript log.
 
-"Asked for a person" (`intent: contact`) includes three things the customer
+"Asked for a person" (`intent: contact`) includes six things the customer
 did not phrase as a request for one, each with its own `topic`, its own reply
 and its own email subject:
 
 | `topic` | what it is | examples |
 |---|---|---|
-| `money` | paid, and it went wrong | «انخصم المبلغ مرتين», «المبلغ نزل من حسابي والطلب ما انعمل», "my card was charged but the order failed", "knet took the money but the order is pending" |
-| `complaint` | a wrong or damaged item | «وصلني مقاس غلط», «القطعة فيها عيب», "wrong item delivered", "missing item in my order" |
-| `coupon_problem` | a code that will not apply | «الكود ما اشتغل», "my promo code is not working" |
+| `money` | paid, and it went wrong — or the courier took too much | «انخصم المبلغ مرتين», «دفعت والطلب مو مؤكد», "my card was charged but the order failed", «المندوب ما عطاني الباقي» |
+| `complaint` | a wrong or damaged item, about something that arrived | «وصلني مقاس غلط», «اللون مو نفس الصورة», "the jacket arrived dirty", "the leggings have a hole" |
+| `coupon_problem` | a code that will not apply | «الكود ما اشتغل», «كود الخصم ما ينقبل», "discount code not applying" |
+| `checkout_problem` | an order that will not go through, or one to place on WhatsApp | «ما اقدر اكمل الطلب», "checkout keeps failing", "can I place my order on whatsapp" |
+| `site_problem` | the website itself | «الموقع خربان», "the photos are missing", "add to bag button not working" |
+| `courier` | a courier who never came, never called, or was rude | «المندوب ما جا», "the courier never came", "courier was rude" |
+
+**Not one of them**, and answered as the question it is: how paying works ("is
+payment taken at delivery?", "can I split it into two payments", «اذا فشل الدفع
+شسوي؟» → the payment methods; "do you charge double for express delivery" → the
+delivery fee), a size that is "missing" ("is the XL missing?", «المقاسات
+ناقصة؟» → the size guide), "stain resistant leggings", "do you cover damage in
+delivery" (→ returns) and «انا غلطان» ("my bad"). The money line is worded to
+be true either way — "If money was taken by mistake or a payment went wrong…"
+— and the complaint line asks for the order number *if there is one* and "a
+photo or screenshot of the problem".
 
 These used to be answered as something else — the payment methods, the
 delivery timetable, the size guide, or «ما لقيت شي» — and a failed search goes
@@ -202,8 +215,10 @@ Import `dropin/n8n/sporta-ai-handoff.json` and set an n8n environment variable
 `SPORTA_N8N_SECRET` to the same string. Its **Needs a person?** node sends both
 `contact` and `cancel` to the email step, and everything else to **Log the
 gap**. The subject says which: a cancellation, a **PAYMENT PROBLEM**, a **WRONG
-OR DAMAGED ITEM**, a code that would not apply, or a plain request for a
-person. `npm run test:assistant` runs every money and complaint sentence above
+OR DAMAGED ITEM**, a **COURIER PROBLEM**, a **CHECKOUT** that needs a hand, a
+**WEBSITE PROBLEM**, a code that would not apply, or a plain request for a
+person. `npm run test:assistant` runs every money, complaint, checkout, website
+and courier sentence above
 through the workflow's own IF node and subject template, read from the JSON
 you import. The first node in that workflow
 verifies `X-Sporta-Signature` and throws if it does not match — keep it there.
@@ -231,35 +246,62 @@ minutes** in a bucket of their own — so a burst of nonsense cannot use up the
 allowance a real cancellation needs. Only a handoff that would actually be sent
 is counted.
 
-Payload: `source`, `intent`, `topic` (null unless one of the three above),
-`lang`, `message`, `reply`, `at`.
+Payload: `source`, `intent`, `topic` (null unless one of the six above),
+`lang`, `message`, `reply`, `at`. Re-import the workflow after updating: its
+subject template is what names the three new topics.
 
 ### Before this ships: one thing only the owner can check
 
-The `coupon` answer tells a customer with a code to enter it **at checkout**,
-and to WhatsApp the shop if it does not work. The live storefront is a build
-whose source is not in this repo, so whether its checkout has a code box cannot
-be confirmed from here (the live API does accept `discount_code` with the
-order, so it very probably does). Open the live checkout and look. If there is
-no box, change the `coupon` and `no_offers` lines in `assistant.php` to "send
-us the code on WhatsApp" before deploying.
+Three lines speak for the live checkout, which is a build whose source is not
+in this repo: `coupon` ("if you have a code, enter it **at checkout**"),
+`no_offers` ("if you have a discount code you can enter it at checkout") and
+`offers_auto` ("taken off at checkout when your order qualifies"). Whether the
+live checkout has a code box cannot be confirmed from here (the live API does
+accept `discount_code` with the order, so it very probably does). Open the live
+checkout and look. If there is no box, change `coupon` and `no_offers` to "send
+us the code on WhatsApp" before deploying (`coupon_problem` already does).
+While there: the assistant calls the bag «السلة» and checkout «إتمام الطلب»;
+this repo's storefront says «الحقيبة» and «إتمام الشراء». If the live labels are
+those, change `recommend`, `recommend_sale`, `checkout` and the payment line to
+match.
 
 ### If a model is configured
 
-`ai_key` lets a model reword the shop's answer. It is told the facts, the
-register (Kuwaiti/Gulf Arabic, as the shop writes), and to keep every
-condition — and what it sends back is CHECKED, not trusted
-(`assistant_llm_accept`). It is thrown away for the shop's own sentence if it
-adds a number, order number, link or email the shop did not say; drops one the
-shop did say (the phone, the email, the 14 days); drops a condition (women's
-clothing, unworn with tags, confirmed orders); runs past 1.3× the shop's
-sentence; writes Arabic numbers in Western digits other than the phone; or was
-cut off. A dropped left-to-right mark before `+965` is put back, or the number
-reads «22091914 965+» in the Arabic bubble.
+`ai_key` lets a model reword the shop's answer — but **only an answer that
+carries no policy**: what search found (and the near-miss lines), the shelf, a
+hello, a thank-you and "nothing matched" (`assistant_llm_rewordable`). Returns,
+cancel, delivery, payment, every order stage, the money / complaint / checkout
+/ courier lines, coupons and offers are never sent: each is a condition or a
+promise, and a rewording that keeps every word can still turn it round («تقدر
+ترجع القطعة الملبوسة… والاستبدال للملابس النسائية فقط» did).
+
+It is told the facts, to keep the SHOP ANSWER's register (Gulf where it is
+Gulf, formal where it is formal), and to keep every condition — and what it
+sends back is CHECKED, not trusted (`assistant_llm_accept`). It is thrown away
+for the shop's own sentence if it adds a number, order number, link or email
+the shop did not say; drops one the shop did say (the 14 days, the email); does
+not carry the phone exactly as the shop wrote it (`+965 22091914`, and in Arabic
+with its left-to-right mark — «965 22091914» is refused); drops a condition
+phrase whole («غير ملبوس», «فإرجاع فقط», "returned but not exchanged", women's
+clothing, tags, confirmed orders); uses a promise-changing word more often than
+the shop did (not, free, today, half, %, shipped, only, without, «مجان», «غير»,
+«فقط», «بدون»…); runs past 1.3× the shop's sentence; writes Arabic numbers in
+Western digits other than the phone; or was cut off. A dropped left-to-right
+mark before `+965` is put back, or the number reads «22091914 965+» in the
+Arabic bubble.
 
 ---
 
 ## Proving it
+
+`npm run test:assistant` ends with the **regression corpus**
+(`scripts/assistant-regression.mjs`, also runnable on its own): every sentence
+the reviewers quoted, every sentence the suite uses and several hundred
+ordinary shop messages, each with the answer a good assistant gives, run
+through the live version (1957b888), c01e6d17, the round-two result (4136ebb4)
+and the working tree. Every reviewer-named message must be right, and no
+message an older version answered right may be answered wrong now. It prints
+the table of every answer that changed between versions.
 
 `npm run test:assistant` covers both against a fake gateway
 (`scripts/fake-voice.php`) — forged and unsigned text refused without a single

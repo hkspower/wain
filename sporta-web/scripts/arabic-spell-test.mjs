@@ -55,9 +55,11 @@ const DIALECT = new Map([
   ['المايك', 'the mic — borrowed, and what people actually say'],
   // The shop assistant (dropin/php-store/assistant.php). The first is in
   // its copy; the rest are words it RECOGNISES because customers type them.
-  // Only words this dictionary rejects are listed: «لقيت», «كنسل», «تمارا»
-  // and «هني» are accepted as they are, and declaring them would make the
-  // redundancy check below fail.
+  // Only what the assistant SAYS is checked (its canned lines, below), so the
+  // recognised-only words show as "declared but not currently used" — kept as
+  // the record of what they mean, and harmless. Only words this dictionary
+  // rejects are listed: «لقيت», «كنسل», «تمارا» and «هني» are accepted as
+  // they are, and declaring them would make the redundancy check below fail.
   ['ينحسب', 'is counted / taken off — offers_auto «وينحسب لك عند إتمام الطلب»; the formal يُحتسب reads as a notice'],
   ['شلونك', 'how are you (شلون + ك) — answered as a greeting, not searched'],
   ['شخبارك', 'Kuwaiti "how are you" — answered as a greeting'],
@@ -221,6 +223,53 @@ const ARABIC_RUN = /[\u0621-\u064A\u0671-\u06D3]+/g
 // was not.
 const STRIP = /[\u064B-\u0652\u0640\u0670]/g
 
+// ------------------------------------------- and the Arabic the SERVER says
+//
+// The assistant's fixed answers live in assistant.php, not in translations.js,
+// so the file above has never seen them — and they are the sentences a customer
+// is most likely to hear read ALOUD, where a misspelling becomes a
+// mispronunciation.
+//
+// COLLECTED BEFORE THE WORD LIST IS BUILT. They used to be pushed onto
+// `strings` after the loop below had already read it, so not one of the
+// assistant's words ever reached hunspell while this file said it checked
+// them.
+//
+// WHAT THE ASSISTANT SAYS, NOT WHAT IT RECOGNISES. Its every sentence, from
+// assistant_canned_lines() itself, at the default settings and at the ones
+// that change a sentence (a fee of 1.500 or none, each payment method on and
+// off), so a line built from a setting is checked as it is said. Not the
+// source text: the keyword lists are deliberately written the way customers
+// type and the way assistant_normalise() folds (ه for ة, «ماقصرت», «كنسل»),
+// and checking them would be checking typos on purpose. store.php and api.php
+// hold no sentences of their own, only a comment or two, and are still read
+// from source.
+const AP = new URL('../dropin/php-store/assistant.php', import.meta.url).pathname
+try {
+  const php = `require ${JSON.stringify(AP)}; $o = [];
+    foreach ([null, ['methods' => ['knet', 'tpay', 'cod'], 'delivery_fee_fils' => 1500],
+              ['methods' => ['cod'], 'delivery_fee_fils' => 0], ['methods' => [], 'delivery_fee_fils' => 1000]] as $ck) {
+      $lines = assistant_canned_lines(['_checkout' => $ck]);
+      foreach (assistant_canned_keys() as $i => $k) $o[] = [$k, $lines['ar'][$i]];
+    }
+    echo json_encode($o, JSON_UNESCAPED_UNICODE);`
+  for (const [key, line] of JSON.parse(execFileSync('php', ['-r', php], { encoding: 'utf8' }))) {
+    strings.push([`assistant.php ${key}`, line])
+  }
+} catch (e) {
+  // No php on this machine: the assistant's copy cannot be read, and saying
+  // so is better than pretending it was checked.
+  console.log(`  (assistant.php not checked — php could not run it: ${String(e.message).split('\n')[0]})`)
+}
+for (const file of ['store.php', 'api.php']) {
+  let src = ''
+  try { src = readFileSync(new URL(`../dropin/php-store/${file}`, import.meta.url), 'utf8') }
+  catch { continue }
+  for (const m of src.match(/[^\n]*[\u0621-\u064A][^\n]*/g) ?? []) {
+    strings.push([file, m])
+  }
+}
+
 const seen = new Map()   // word -> Set(paths)
 for (const [path, s] of strings) {
   // Placeholders go BEFORE tokenising, or {n} leaves a bare n.
@@ -230,26 +279,6 @@ for (const [path, s] of strings) {
     if (w.length < 2) continue          // single letters: ـ, و, ل — not words
     if (!seen.has(w)) seen.set(w, new Set())
     seen.get(w).add(path)
-  }
-}
-
-// ------------------------------------------- and the Arabic the SERVER says
-//
-// The assistant's fixed answers live in assistant.php, not in translations.js,
-// so the file above has never seen them — and they are the sentences a customer
-// is most likely to hear read ALOUD, where a misspelling becomes a
-// mispronunciation. Pulled straight out of the PHP source: crude, but it is a
-// spell-check, and a token that is not really a word simply gets reported like
-// any other.
-for (const file of ['assistant.php', 'store.php', 'api.php']) {
-  let src = ''
-  try { src = readFileSync(new URL(`../dropin/php-store/${file}`, import.meta.url), 'utf8') }
-  catch { continue }
-  // Single- and double-quoted strings containing Arabic. Comments are included
-  // too; the reasoning in this codebase is written in English, so an Arabic run
-  // inside one is a quoted example and worth checking anyway.
-  for (const m of src.match(/[^\n]*[\u0621-\u064A][^\n]*/g) ?? []) {
-    strings.push([file, m])
   }
 }
 
