@@ -126,7 +126,11 @@ function collect() {
   const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
   const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
   // The colour actually behind an element: first opaque background up the tree.
-  const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const p = rgba(getComputedStyle(e).backgroundColor); if (p[3] > 0.85) return p.slice(0, 3) } return [255, 255, 255] }
+  // A gradient counts: average its colour stops (the sidebar is a gradient on a
+  // transparent background-color, and ignoring it reads white-on-white).
+  const stops = (img) => (img.match(/(?:rgba?|oklch|oklab|hsla?|color)\([^()]*(?:\([^()]*\)[^()]*)*\)|#[0-9a-f]{3,8}\b/gi) || []).map(rgba).filter((c) => c[3] > 0.5)
+  const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e); const img = c.backgroundImage && c.backgroundImage !== 'none' && /gradient/.test(c.backgroundImage) ? stops(c.backgroundImage) : []; if (img.length) return [0, 1, 2].map((i) => Math.round(img.reduce((a, x) => a + x[i], 0) / img.length)); const p = rgba(c.backgroundColor); if (p[3] > 0.85) return p.slice(0, 3) } return [255, 255, 255] }
+  const klass = (el) => String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className).trim().replace(/\s+/g, ' ').slice(0, 220)
   const fg = (c) => rgba(c)
   const blend = (c, bg) => (c.length >= 4 && c[3] < 1 ? [0, 1, 2].map((i) => Math.round(c[i] * c[3] + bg[i] * (1 - c[3]))) : c.slice(0, 3))
   const hex = (p) => '#' + p.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')
@@ -147,7 +151,7 @@ function collect() {
     const lab = el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`))
     const lc = lab ? getComputedStyle(lab.querySelector('span') || lab) : null
     out.inputs.push({ sig: `${t} fs ${c.fontSize} lh ${c.lineHeight} fw ${c.fontWeight} col ${hex(col)} h ${Math.round(r.height)} pad ${c.paddingTop}/${c.paddingLeft} bd ${c.borderTopWidth} ${hex(rgba(c.borderTopColor))} rad ${c.borderTopLeftRadius} bg ${hex(bg)}${c.fontFamily.includes('mono') ? ' MONO' : ''}`,
-      fs: parseFloat(c.fontSize), h: r.height, text: ratio(col, bg), ph: ph ? ratio(ph, bg) : null, phcol: ph ? hex(ph) : '', label: lc ? `${lc.fontSize}/${lc.fontWeight}/${hex(blend(fg(lc.color), bgOf(lab)))}` : '-', ex: (el.placeholder || el.name || el.getAttribute('aria-label') || '').slice(0, 24) })
+      fs: parseFloat(c.fontSize), h: r.height, text: ratio(col, bg), ph: ph ? ratio(ph, bg) : null, phcol: ph ? hex(ph) : '', label: lc ? `${lc.fontSize}/${lc.fontWeight}/${hex(blend(fg(lc.color), bgOf(lab)))}` : '-', cl: klass(el), lcl: lab ? klass(lab) + ' > ' + (lab.querySelector('span') ? klass(lab.querySelector('span')) : '') : '', ex: (el.placeholder || el.name || el.getAttribute('aria-label') || '').slice(0, 24) })
   }
   const btnSel = 'button, [role="button"], a[class*="rounded"][class*="px-"], a[class*="btn"], label[class*="rounded"][class*="px-"]'
   for (const el of shell.querySelectorAll(btnSel)) {
@@ -156,7 +160,7 @@ function collect() {
     const own = rgba(c.backgroundColor), solid = own[3] > 0.3
     const kind = solid && hue(own.slice(0, 3)) !== null ? 'solid' : solid && lum(own.slice(0, 3)) < 0.3 ? 'dark' : (parseFloat(c.borderTopWidth) > 0 && c.borderTopStyle !== 'none') ? 'outline' : solid ? 'tint' : 'text'
     out.buttons.push({ sig: `${kind} fs ${c.fontSize} fw ${c.fontWeight} h ${Math.round(r.height)} pad ${c.paddingTop}/${c.paddingLeft} rad ${c.borderTopLeftRadius} bg ${solid ? hex(own) : '-'} col ${hex(col)}${kind === 'outline' ? ' bd ' + hex(rgba(c.borderTopColor)) : ''}`,
-      h: r.height, w: r.width, text: ratio(col, solid ? blend(own, bg) : bg), label: (el.textContent || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 22), nav: !!el.closest('nav, aside') })
+      h: r.height, w: r.width, text: ratio(col, solid ? blend(own, bg) : bg), label: (el.textContent || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 22), nav: !!el.closest('nav, aside'), cl: el.tagName.toLowerCase() + ' ' + klass(el) })
   }
   const walker = document.createTreeWalker(shell, NodeFilter.SHOW_TEXT)
   const seen = new Set()
@@ -183,8 +187,10 @@ function collect() {
     if (el.children.length > 1 || !vis(el)) continue
     const t = el.textContent.trim(); if (!names.has(t)) continue
     const c = getComputedStyle(el), r = el.getBoundingClientRect()
-    out.names.push({ sig: `${el.tagName.toLowerCase()} fs ${c.fontSize} fw ${c.fontWeight} lh ${c.lineHeight} col ${hex(blend(fg(c.color), bgOf(el)))} ws ${c.whiteSpace} ov ${c.textOverflow}${c.webkitLineClamp && c.webkitLineClamp !== 'none' ? ' clamp ' + c.webkitLineClamp : ''} ls ${c.letterSpacing}`, cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2, w: Math.round(r.width), t: t.slice(0, 30), at: cls(el) })
+    out.names.push({ sig: `${el.tagName.toLowerCase()} fs ${c.fontSize} fw ${c.fontWeight} lh ${c.lineHeight} col ${hex(blend(fg(c.color), bgOf(el)))} ws ${c.whiteSpace} ov ${c.textOverflow}${c.webkitLineClamp && c.webkitLineClamp !== 'none' ? ' clamp ' + c.webkitLineClamp : ''} ls ${c.letterSpacing}`, cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 2, w: Math.round(r.width), t: t.slice(0, 30), at: cls(el), cl: klass(el), pcl: el.parentElement ? el.parentElement.tagName.toLowerCase() + ' ' + klass(el.parentElement) : '' })
   }
+  const side = document.querySelector('.admin-sidebar, aside, nav')
+  if (side) { const c = getComputedStyle(side); out.side = `${side.tagName.toLowerCase()}.${klass(side).slice(0, 60)} bg-color ${c.backgroundColor} bg-image ${c.backgroundImage.slice(0, 120)} -> effective ${hex(bgOf(side))}` }
   return out
 }
 
@@ -193,7 +199,8 @@ const SCREENS = ['Overview', 'Orders', 'Returns', 'CRM', 'Support', 'Profiles', 
 // CHROMIUM_PATH: run it elsewhere than the Playwright image (e.g. the sandbox).
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] } : {})
 const report = []
-for (const [vn, w, h, mob] of [['desktop', 1366, 900, false], ['phone', 390, 844, true]]) {
+const VIEWS = [['desktop', 1366, 900, false], ['phone', 390, 844, true]].filter((v) => !process.env.SCAN_VIEWS || process.env.SCAN_VIEWS.split(',').includes(v[0]))
+for (const [vn, w, h, mob] of VIEWS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mob, hasTouch: mob, bypassCSP: !!CSS })
   const pg = await ctx.newPage()
   const errs = [], unknown = new Set()
@@ -253,22 +260,26 @@ await browser.close()
 // ---------------------------------------------------------------- report
 const group = (rows, key, extra) => { const m = new Map(); for (const r of rows) { const k = key(r); const g = m.get(k) || { n: 0, screens: new Set(), ex: [], ...extra() }; g.n++; g.screens.add(r.screen); if (g.ex.length < 3 && r.ex !== undefined) g.ex.push(r.ex); m.set(k, g); g.last = r } return [...m.entries()].sort((a, b) => b[1].n - a[1].n) }
 const scr = (s) => [...s].slice(0, 6).join(',') + (s.size > 6 ? `,+${s.size - 6}` : '')
-for (const vn of ['desktop', 'phone']) {
+for (const [vn] of VIEWS) {
   const rows = report.filter((r) => r.vn === vn && r.data)
   const meta = report.find((r) => r.vn === vn && r.meta)?.meta || {}
   console.log(`\n== ${vn}: screens ${meta.done?.length || 0} (${(meta.done || []).join(' ')}) · missing ${report.filter((r) => r.vn === vn && r.missing).map((r) => r.screen).join(' ') || 'none'} · page errors ${meta.errs?.join(' | ') || 'none'} · unmocked GET r= ${meta.unknown?.join(' ') || 'none'}`)
   const flat = (k) => rows.flatMap((r) => r.data[k].map((x) => ({ ...x, screen: r.screen })))
+  const sides = [...new Set(rows.map((r) => r.data.side).filter(Boolean))]
+  for (const sd of sides.slice(0, 2)) console.log('-- SIDEBAR ' + sd)
   const inputs = flat('inputs')
   console.log(`-- INPUT ${inputs.length} fields, ${new Set(inputs.map((i) => i.sig)).size} styles`)
   for (const [sig, g] of group(inputs, (i) => i.sig, () => ({})).slice(0, 14)) {
     const x = g.last, flags = [x.fs < 16 && vn === 'phone' ? 'iOS-ZOOM(<16px)' : '', x.h < (vn === 'phone' ? 44 : 38) ? 'SHORT' : '', x.text < 4.5 ? `TEXT ${x.text.toFixed(1)}:1` : '', x.ph !== null && x.ph < 3 ? `PLACEHOLDER ${x.ph.toFixed(1)}:1 ${x.phcol}` : (x.ph !== null ? `ph ${x.ph.toFixed(1)}:1 ${x.phcol}` : '')].filter(Boolean).join(' ')
     console.log(`${/ZOOM|SHORT|TEXT|PLACEHOLDER/.test(flags) ? 'WARN ' : 'ok   '}×${g.n} ${sig} · label ${x.label} · ${flags} · [${scr(g.screens)}] e.g. ${g.ex.filter(Boolean).join(' / ')}`)
+    if (process.env.SCAN_CLASSES) console.log(`       class="${x.cl}" label="${x.lcl}"`)
   }
   const buttons = flat('buttons').filter((b) => !b.nav)
   console.log(`-- BUTTON ${buttons.length} (excl. nav), ${new Set(buttons.map((b) => b.sig)).size} styles`)
   for (const [sig, g] of group(buttons.map((b) => ({ ...b, ex: b.label })), (b) => b.sig, () => ({})).slice(0, 26)) {
     const x = g.last, flags = [x.h < (vn === 'phone' ? 44 : 32) ? `SMALL h${Math.round(x.h)}` : '', x.text < 4.5 ? `CONTRAST ${x.text.toFixed(1)}:1` : ''].filter(Boolean).join(' ')
     console.log(`${flags ? 'WARN ' : 'ok   '}×${g.n} ${sig} ${flags} [${scr(g.screens)}] "${[...new Set(g.ex)].join('" "')}"`)
+    if (process.env.SCAN_CLASSES) console.log(`       class="${x.cl}"`)
   }
   const nav = flat('buttons').filter((b) => b.nav)
   for (const [sig, g] of group(nav.map((b) => ({ ...b, ex: b.label })), (b) => b.sig, () => ({})).slice(0, 4)) console.log(`nav  ×${g.n} ${sig} "${[...new Set(g.ex)].slice(0, 3).join('" "')}"`)
@@ -290,5 +301,6 @@ for (const vn of ['desktop', 'phone']) {
   const names = flat('names')
   console.log(`-- NAME product names: ${names.length}, cut off ${names.filter((n) => n.cut).length}`)
   for (const [k, g] of group(names.map((n) => ({ ...n, ex: n.t })), (n) => `${n.sig} at ${n.at}`, () => ({})).slice(0, 8)) console.log(`${g.last.cut ? 'WARN ' : 'ok   '}×${g.n} ${k} w~${g.last.w}px [${scr(g.screens)}] "${g.ex.join('" "')}"`)
+    if (process.env.SCAN_CLASSES) console.log(`       class="${g.last.cl}" parent="${g.last.pcl}"`)
 }
 console.log('\nADMIN_STYLE_SCAN_DONE')
