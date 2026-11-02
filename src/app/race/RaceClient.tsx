@@ -4830,7 +4830,7 @@ function raceCut(): { w: number; h: number } | null {
           </div>
           {/* The VS mark, centred over the seam of the lower bar */}
           <div className="cine-card cine-card-vs absolute bottom-[calc(13vh+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center">
-            <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
+            <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgb(var(--accent-rgb)/0.55),0_2px_18px_rgba(0,0,0,0.9)]">
               VS
             </div>
             <div className="grn-ar-display text-sm text-white/60" lang="ar">ضد</div>

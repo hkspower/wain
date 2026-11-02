@@ -1286,8 +1286,8 @@ html[data-cluster-theme="neon"] .tach-cluster {
  * rather than making it exist. */
 .menu-item.is-primary {
   padding: 0.85rem 0.9rem;
-  border-color: rgba(255, 176, 60, 0.34);
-  background: linear-gradient(90deg, rgba(255, 176, 60, 0.13), rgba(255, 176, 60, 0.01));
+  border-color: rgb(var(--accent-rgb) / 0.34);
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.13), rgb(var(--accent-rgb) / 0.01));
   color: #fff;
   box-shadow: inset 3px 0 0 0 var(--color-sodium-400, #ffb03c);
 }
@@ -1321,11 +1321,11 @@ html[data-cluster-theme="neon"] .tach-cluster {
   color: #fff;
 }
 .menu-item.is-primary.is-sel {
-  border-color: rgba(255, 176, 60, 0.75);
-  background: linear-gradient(90deg, rgba(255, 176, 60, 0.28), rgba(255, 176, 60, 0.03));
+  border-color: rgb(var(--accent-rgb) / 0.75);
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.28), rgb(var(--accent-rgb) / 0.03));
   box-shadow:
     inset 3px 0 0 0 var(--color-sodium-400, #ffb03c),
-    0 0 30px -6px rgba(255, 176, 60, 0.7);
+    0 0 30px -6px rgb(var(--accent-rgb) / 0.7);
 }
 .menu-item-caret {
   width: 0.7rem;
