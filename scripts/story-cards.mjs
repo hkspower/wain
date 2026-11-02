@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Sixteen Instagram Story cards, one per car in the showroom.
+// Instagram Story cards, one per car in the showroom.
 //
 //   npm run stories:images     # lift the renders out of the dark first
 //   npm run stories            # then this
@@ -171,6 +171,9 @@ const CLASS_EN = CLASS_LABEL;
  * about 400px at 68px, which is 0.59 per character; 0.62 leaves a
  * little room for the comma-heavy ones.
  */
+// Also sizes the car's English name onto ONE line of the 944px column:
+// at the stylesheet's 116px "Bareed 30 Anniversary" wrapped to two lines
+// and the second ran into the Arabic name set 144px below.
 const fit = (text, box = 292, max = 68) =>
   Math.min(max, Math.floor(box / (text.length * 0.62)));
 
@@ -189,15 +192,15 @@ for (let i = 0; i < CARS.length; i++) {
   const priceAr = c.price === 0 ? "مجانا" : `${toAr(kd(c.price))} د.ك`;
   cards.push(`
   <section class="story" data-canvas-width="${W}" data-canvas-height="${H}">
-    <div class="brand">GULF ROAD NIGHTS</div>
-    <div class="brand-ar">متسابق الليل</div>
+    <div class="brand">NIGHT RACERS</div>
+    <div class="brand-ar">متسابقو الليل</div>
     <div class="index">${n}<span class="of">/${total}</span></div>
 
     <img class="hero" src="${img}" width="${HERO_W}" height="${HERO_H}" alt="${esc(c.name)}">
 
     <div class="rule"></div>
     <div class="klass">${CLASS_EN[c.cls] ?? c.cls}<span class="klass-ar">${CLASS_AR[c.cls] ?? ""}</span></div>
-    <h1 class="name">${esc(c.name)}</h1>
+    <h1 class="name" style="font-size:${fit(c.name, 944, 116)}px">${esc(c.name)}</h1>
     <div class="name-ar">${esc(c.arabicName)}</div>
 
     <div class="specs">
