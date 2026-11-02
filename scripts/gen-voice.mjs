@@ -21,9 +21,9 @@
  *   node scripts/gen-voice.mjs --dry-run  # print the lines, call nothing
  *   node scripts/gen-voice.mjs --ci       # exit 0 quietly when no key is set
  *
- * Start with --sample. The library is 218 paid calls (109 lines × 2 personas — 324 until the
- * answer was shortened on 3 October — and the count grows with the catalogue) and everything likely to
- * be wrong the first time is audible in the first five seconds.
+ * Start with --sample. The library is one paid call per line per persona, so its size follows the
+ * catalogue: `--dry-run` prints the current count. Everything likely to be wrong the first time is
+ * audible in the first five seconds.
  *
  * See docs/voice-setup.md for picking the two voices.
  */
@@ -248,7 +248,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
  * One line, one API call, one file you can actually listen to.
  *
- * Generating the library is 218 calls against a paid quota, and the things
+ * Generating the library is one call per line per persona against a paid quota, and the things
  * most likely to be wrong on the first attempt — a mistyped key, a voice ID
  * from the wrong account, a model that renders Arabic badly, a voice that
  * turns out to sound nothing like a young Kuwaiti woman — are all audible in
@@ -284,7 +284,7 @@ async function sample() {
 async function tts(voiceId, text, outFile, settings) {
   // Overridable so the pipeline itself can be tested — the hashing, the
   // staleness decision and the manifest are worth exercising without spending
-  // 218 paid calls to do it. See tests/voice-pipeline.test.mjs.
+  // a whole library's worth of paid calls to do it. See tests/voice-pipeline.test.mjs.
   const base = process.env.ELEVEN_API_BASE ?? "https://api.elevenlabs.io";
   const url = `${base}/v1/text-to-speech/${voiceId}?output_format=${OUTPUT_FORMAT}`;
   for (let attempt = 1; attempt <= 4; attempt++) {

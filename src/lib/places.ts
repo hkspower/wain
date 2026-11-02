@@ -1380,7 +1380,3 @@ export function getFeaturedPlaces(): Place[] {
   return places.filter((p) => p.featured);
 }
 
-export function countByCategory(id: CategoryId): number {
-  return places.filter((p) => p.category === id).length;
-}
-

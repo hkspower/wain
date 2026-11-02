@@ -30,8 +30,10 @@ const _settingLabel = {
 /// A place: hero, name, what it is, the invitation if a link carried one, the
 /// description, contact, share, highlights/best time/price/season, the map and
 /// similar places. The order panel renders only for a place that accepts
-/// orders and has a WhatsApp number (docs/content.md counts them); the queue
-/// renders nothing, its back end being unconfigured.
+/// orders (docs/content.md counts them). With the back end on that is enough;
+/// in WhatsApp mode the place also needs a WhatsApp number
+/// (`OrderStore.channelFor`). The queue and registration stay out of the app
+/// (order_api.dart).
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
 
@@ -248,8 +250,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ),
               ],
               _Contact(place: place),
-              // Renders nothing unless the place accepts orders and has a
-              // WhatsApp number — PlaceView's order, between contact and share.
+              // Renders nothing unless the place accepts orders; in WhatsApp
+              // mode it also needs a number (`OrderStore.channelFor`) —
+              // PlaceView's order, between contact and share.
               OrderPanel(place: place),
               KeyedSubtree(
                 key: _shareKey,

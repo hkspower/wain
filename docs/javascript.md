@@ -219,8 +219,9 @@ module nobody would think to look at:
 
 ```
 layout → Footer / AppTabBar → OrdersLink → orders.ts / queue.ts
-(the footer has since been removed; OrdersLink now hangs off the Navbar, and
-the same edge would put the catalogue on every page from there instead)
+(the footer and the Navbar have since been removed. The root layout mounts
+LiveTray from OrdersLink now, and OrdersLink loads orders.ts and queue.ts with
+dynamic imports, so this static edge is gone)
        → supabase.ts → places.ts
 ```
 

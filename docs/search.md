@@ -107,9 +107,10 @@ mount, so she wrote the question, pushed, and this page never looked. The
 address bar said «قهوة هادية» while the results were for whatever had been
 typed before, and the one flow that exists to be spoken said nothing.
 
-The ⌘K palette had the same bug already and nobody had noticed: it is in the
-navbar, so it is reachable from /search, and its «شوف كل النتائج» pushes
-`/search?q=…` into a page that was ignoring it.
+The ⌘K palette had the same bug already and nobody had noticed: it was in the
+navbar, so it was reachable from /search, and its «شوف كل النتائج» pushed
+`/search?q=…` into a page that was ignoring it. (The navbar and the palette
+have since been removed.)
 
 Both now key off `useSearchParams()` rather than mount. `q` is adopted only
 when the incoming value differs from what the box holds, so the page's own

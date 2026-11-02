@@ -31,9 +31,8 @@ const BRIDGED = readdirSync(chunkDir, { recursive: true })
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 const soft = async (f, fallback = null) => { try { return await f(); } catch { return fallback; } };
 
 async function fresh(path, { viewport = { width: 390, height: 844 }, ctx: given } = {}) {
@@ -186,7 +185,7 @@ console.log('\n── 4b. switching between them (7 October) ──');
   await soft(() => p.waitForSelector('[data-salem-places]', { timeout: 8000 }));
   ok('he opens on the place she named first', !!want && (await hisFirst(p)) === want, `${want} / ${await hisFirst(p)}`);
   ok('and says where the question came from',
-    (await soft(() => p.locator('[role="log"] p[role="status"]', { hasText: 'من جواب شوق: «رخيص»' }).count(), 0)) === 1);
+    (await soft(() => p.locator('[role="log"] p[data-system]', { hasText: 'من جواب شوق: «رخيص»' }).count(), 0)) === 1);
   ok('the hand-over leaves the address bar', !p.url().includes('q=') && !p.url().includes('from='), p.url());
 
   // The same hand-over in a tab that already chatted with him about something
@@ -200,7 +199,7 @@ console.log('\n── 4b. switching between them (7 October) ──');
   await soft(() => t.p.waitForFunction(() => document.querySelectorAll('[data-salem-places]').length >= 2, null, { timeout: 8000 }));
   ok('after an older chat, the hand-over is still asked as a new question', (await hisFirst(t.p)) === want, `${await hisFirst(t.p)} / ${want}`);
   ok('and a question from her call says so',
-    (await soft(() => t.p.locator('[role="log"] p[role="status"]', { hasText: 'من مكالمتك مع شوق: «رخيص»' }).count(), 0)) === 1);
+    (await soft(() => t.p.locator('[role="log"] p[data-system]', { hasText: 'من مكالمتك مع شوق: «رخيص»' }).count(), 0)) === 1);
   ok('the older chat is still there above it', (await soft(() => t.p.locator('[role="log"] p', { hasText: /^قهوة$/ }).count(), 0)) === 1);
   await t.ctx.close();
 
@@ -208,6 +207,10 @@ console.log('\n── 4b. switching between them (7 October) ──');
   const call = p.locator('header button[aria-controls="wain-ai-panel"]');
   ok('his header carries the real call button', (await soft(() => call.count(), 0)) === 1);
   const box = await soft(() => call.boundingBox(), null);
+  // 44px is the pill's own size (ShouqCallButton: min-h-11 min-w-11), not the
+  // touch floor. The floor is 40px: --spacing-tap under pointer: coarse
+  // (globals.css), MIN_TARGET_PX in scripts/audit-mobile.mjs. Do not lower this
+  // to 40 to match it; the header call is meant to be bigger than the floor.
   ok('…a finger-sized target', !!box && box.width >= 44 && box.height >= 44, JSON.stringify(box));
   ok('…named by its words', (await soft(() => call.getAttribute('aria-label'))) === 'كلّم سالم');
   // Green, as /find's call button is: a red handset reads as «hang up».
@@ -424,6 +427,8 @@ console.log('\n── 8. a plan with its day on it, the calendar, and «رسّل
   const href = await soft(() => shares.first().getAttribute('href'), '');
   ok('…leading to the place at its share panel', /^\/places\/[a-z0-9-]+\/#share$/.test(href ?? ''), href);
   const box = await soft(() => shares.first().boundingBox(), null);
+  // 40px is the touch floor: --spacing-tap under pointer: coarse (globals.css),
+  // the same number as MIN_TARGET_PX in scripts/audit-mobile.mjs.
   ok('…a finger-sized target', !!box && box.width >= 40 && box.height >= 40, JSON.stringify(box));
   await soft(() => shares.first().click());
   await soft(() => ex.p.waitForURL(/\/places\/[a-z0-9-]+\/#share$/, { timeout: 5000 }));
@@ -446,5 +451,5 @@ console.log('\n── 8. a plan with its day on it, the calendar, and «رسّل
 }
 
 await browser.close();
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

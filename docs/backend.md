@@ -45,6 +45,13 @@ variable to the empty string.
 
 ## What is on the server
 
+> **Dated note, 1 November 2026.** The staging lines below are the record of
+> 4 October. Staging was retired on the owner's word that day (`docs/vps.md`):
+> there is no staging host, and the export's staging rule is gone from
+> `public/.htaccess`. The `staging/` stage in `wain-api.php` does nothing
+> without a `staging/` path. The production lines have the 31 October problem
+> described below: they name the shared account, not the VPS.
+
 ```
 public_html/api/wain.php             production, served at /api/wain.php
 public_html/staging/api/wain.php     staging — the same bytes, its own database
@@ -193,9 +200,12 @@ note, the preparation time and the WhatsApp number. `seed` never overwrites, so
 without it a menu added to `places.ts` after the first seed would never reach
 the database.
 
-Errors are `{ ok: false, error, status, field? }`: `invalid` 422 (with the
-field), `duplicate` 409, `closed` 409, `rate_limited` 429, `admin_unset` 503,
-`admin_weak` 503 (the secret is under 32 characters).
+Errors are `{ ok: false, error, field?, message? }`, with the HTTP status on the
+response line; the body has no status key (the client reads `res.status`).
+`invalid` 422 (with `field` and `message`), `duplicate` 409 (with `field`),
+`closed` 409, `rate_limited` 429, `admin_forbidden` 403 (a wrong
+`X-Wain-Admin`), `admin_required` 403 (the secret is set and none was sent),
+`admin_unset` 503, `admin_weak` 503 (the secret is under 32 characters).
 A wrong token on `order_status`/`queue_status` answers `null`, the same as «no
 such order» — the token is the whole authorisation, and the answer must not
 say whether the id exists.
@@ -267,9 +277,12 @@ under 32 characters is counted too. Past the cap the answer is 429 `rate_limited
 after a 250 ms wait, so guessing stops at that cap (finding 1 of the 14 October
 login scan). Within the cap a wrong guess costs a quarter second and a right one
 costs nothing. The signed media key has the same rule on the view path
-(`media-endpoint.php`), counted against the upload bucket, and it is counted
-while the key is unset or under the floor too; a request that sends no key is not
-counted, in either endpoint.
+(`media-endpoint.php`), counted against the upload bucket. While the key is set,
+a request that sends no key counts as a wrong one. While the key is unset or
+under the floor, a request that sends a key is counted and one that sends none
+is refused without a count. `wain.php` counts every request that is not an
+authenticated admin request in its general bucket, before the admin gate, so a
+request with no `X-Wain-Admin` header is counted there too.
 
 If the counter file cannot be opened, an admin request is refused with 503
 `limiter_unavailable`: a guess is never free because its counter is broken. The
@@ -284,14 +297,14 @@ November, and it is the first thing to revisit if the host runs few workers.
 
 ## What the tests prove, and where
 
-- `npm run test:wain-api` — 239 assertions against a real `php -S` on SQLite:
-  every refusal by name, every write read back, the token answers, the queue
-  under contention, the write cap, the log's promises.
+- `npm run test:wain-api` — against a real `php -S` on SQLite (the suite
+  prints its own total): every refusal by name, every write read back, the
+  token answers, the queue under contention, the write cap, the log's promises.
 - `npm run test:net` — the client's reading of every answer, on a fake server
   that speaks the real shapes.
 - `npm run test:backend` — the fixture build served by `php -S` with the real
   endpoints beside it: the whole customer journey (46) and the admin board in
-  a browser (24), one wire end to end.
+  a browser, one wire end to end.
 - `npm run audit:schema` (in `scan`) — every action the client calls exists,
   with the right gate.
 

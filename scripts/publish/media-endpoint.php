@@ -20,15 +20,12 @@
  *
  * WHAT IT DOES NOT FIX
  *
- * `submitBusiness()` in src/lib/submissions.ts still inserts into
- * `public.submissions`, which is a Supabase table and does not exist here.
- * A file uploaded through this bridge with no submission ever recorded is an
- * orphan — `prune` below exists because of that, not despite it. Wiring the
- * two together needs a submissions endpoint this file does not attempt to
- * be. Until then this replaces ONE failure ("رفع الصور مو متاح حالياً",
- * before a byte was sent) with a LATER one ("التسجيل مو متاح حالياً", after
- * the photos already landed here) — worse for disk usage, not worse for the
- * visitor, who was already being told registration does not work either way.
+ * `submitBusiness()` in src/lib/submissions.ts sends the registration to the
+ * `submit` action of wain-api.php, which records the photo paths on its own
+ * submissions row (and refuses any path that is not a pending file here). This
+ * file only stores the photos. A draft that no submission names is an orphan,
+ * and nothing else deletes it: `prune` below removes a draft once it is older
+ * than PRUNE_AFTER_DAYS.
  *
  * WHAT MAKES AN UNAUTHENTICATED UPLOAD ENDPOINT SAFE ENOUGH TO SHIP
  *
@@ -165,8 +162,10 @@ function storageDir(): ?string {
    before anyone has reviewed them. The filename the browser sent is never
    logged — it is attacker-controlled, it is the visitor's, and `getimagesize`
    has already decided what the bytes actually are, which is the only fact
-   worth keeping. The IP is the first 8 hex of the same hash the rate limiter
-   computes. What is left is enough to answer «is anything arriving, is it
+   worth keeping. The IP is the first 8 hex of sha256 of the full client address
+   (logIp). The rate limiter files an IPv6 visitor under its /64 (rateKey), so
+   for IPv6 the two hashes differ; for IPv4 they are the same. What is left is
+   enough to answer «is anything arriving, is it
    being refused, and is the disk filling up». */
 const LOG_MAX_BYTES = 262144;   // 256K, then rotate
 const LOG_KEEP      = 1;        // media.log plus media.log.1 — 512K, for ever
@@ -392,7 +391,8 @@ if (PHP_SAPI === 'cli') {
                «it exists» is true in exactly the state where ?action=view is
                refused — and this line said «present» for it. Same defect was
                found live in tts.php's copy on 20 September. `weak` is the view's
-               32-byte floor, read the same way (adminKeyState). */
+               32-character floor (ADMIN_KEY_MIN, counted by secretChars), read the
+               same way (adminKeyState). */
             'adminKey' => adminKeyState($adminKeyFile),
             'phpIni'  => [
                 'post_max_size' => $postMax,

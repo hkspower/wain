@@ -24,9 +24,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { mock } from "node:test";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-salem-chat-"));
 const entry = join(tmp, "entry.ts");
@@ -607,5 +606,5 @@ console.log("\n── a line opened while the page was away is «interrupted», 
 }
 
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");
-console.log(`${pass} passed, ${fails.length} failed`);
+console.log(`${counts.pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

@@ -15,6 +15,7 @@
  *     partial words and typos still find the place.
  */
 import { toStandardArabic } from "@/lib/arabic";
+import { fromArabicDigits } from "@/lib/place-kit";
 import {
   categories,
   countAr,
@@ -61,12 +62,23 @@ export interface SearchHit {
 /* Text handling                                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A word list folded the way the index folds a token, as a lookup set. The
+ * modules that read word lists (answer-order, social, salem-followup) each
+ * carried a copy of this one-liner; it lives beside the fold it applies.
+ */
+export function foldWords(words: string[]): Set<string> {
+  return new Set(words.map(normalise));
+}
+
 /** Fold Arabic orthographic variants so equivalent spellings collide. */
 export function normalise(value: string): string {
   // Kuwaiti spellings first: چ/ی/ک are not Arabic letters, and the last two are
   // the same GLYPH as ي and ك — a word spelled correctly on a Farsi keyboard
   // found nothing, with nothing on screen to explain why. See lib/arabic.
-  return toStandardArabic(value)
+  // The Arabic-Indic digits fold first, as place-kit's inverse of toArabicDigits.
+  // Nothing in the chain below alters a digit, so the place in it did not matter.
+  return fromArabicDigits(toStandardArabic(value))
     .toLowerCase()
     .replace(/[ً-ْٰ]/g, "") // harakat
     .replace(/ـ/g, "") // tatweel
@@ -75,7 +87,6 @@ export function normalise(value: string): string {
     .replace(/ؤ/g, "و")
     .replace(/ئ/g, "ي")
     .replace(/ة/g, "ه")
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
     /* And the Latin half, which had no folding at all.
      *
      * The catalogue calls one place «Gulf Road Cafés», so the index held

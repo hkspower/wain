@@ -5,6 +5,7 @@ import { backendEnabled, call, describeApiFailure, isRetryableApiFailure } from 
 import { describeNetError, isDefinitelyOffline, retry } from "@/lib/net";
 import { acceptsOrders } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
+import { NoCryptoError, randomToken, randomUuid } from "@/lib/random-ids";
 import {
   buildOrderMessage,
   normalisePhone,
@@ -43,11 +44,11 @@ export * from "@/lib/order-kit";
  * Where an order goes. One channel per build, never both.
  *
  * With a database every order is a row the business reads on «الطلبات
- * المسبقة». Without one — which is every build to date — the order leaves
- * the site as a WhatsApp message to the place's own number, and is tracked
- * only on the device that sent it. Two send buttons would be two orders, and
- * a board that saw half of them; so the day the database is switched on,
- * WhatsApp orders stop, and the docs say so. `null` means no panel at all: a
+ * المسبقة». Without one — a build with `NEXT_PUBLIC_WAIN_BACKEND=none` — the
+ * order leaves the site as a WhatsApp message to the place's own number, and
+ * is tracked only on the device that sent it. Two send buttons would be two
+ * orders, and a board that saw half of them, so a build has one channel or the
+ * other and never both (docs/orders.md). `null` means no panel at all: a
  * place that has not opted in, or has a menu and nowhere for the order to go
  * (audit:places refuses that shape in the catalogue, but a live row can
  * still carry it).
@@ -58,37 +59,6 @@ export function orderChannel(place: Place): OrderChannel | null {
   if (!acceptsOrders(place)) return null;
   if (backendEnabled) return "db";
   return place.orderWhatsApp ? "whatsapp" : null;
-}
-
-/**
- * Raised where the browser has no random source. The name is the reason, so a
- * caller can tell this apart from a network failure without reading a message.
- */
-class NoCryptoError extends Error {
-  constructor() {
-    super("no_crypto");
-    this.name = "no_crypto";
-  }
-}
-
-/**
- * The browser's cryptographic random bytes, or NoCryptoError. There is no
- * Math.random fallback, and that is the rule this module keeps: the token is
- * the customer's only proof of an order, and Math.random is not built to
- * resist prediction. The fallback was here until the 14 October login scan
- * found it. Every browser in scope has getRandomValues, so the branch never
- * ran; a dead fallback with a weak generator behind it is still a weak
- * credential the day a browser lacks the API.
- */
-function randomBytes(length: number): Uint8Array {
-  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
-    throw new NoCryptoError();
-  }
-  return crypto.getRandomValues(new Uint8Array(length));
-}
-
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -105,20 +75,12 @@ function hex(bytes: Uint8Array): string {
  * could not hand the id back; the reason changed, the shape did not.)
  */
 export function newOrderId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  // Older Safari has getRandomValues but not randomUUID. The id only needs to
-  // be unique, not unguessable — that is the token's job — but it is still
-  // drawn from the same source as the token.
-  const b = randomBytes(16);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const h = hex(b);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  return randomUuid();
 }
 
 /** 32 hex characters of real randomness. The database requires 20 to 64. */
 export function newTrackToken(): string {
-  return hex(randomBytes(16));
+  return randomToken();
 }
 
 /**
@@ -197,7 +159,7 @@ export function markCancelledByMe(id: string): void {
 const STORE_KEY = ORDERS_STORE_KEY;
 const KEEP = 20;
 
-export function rememberOrder(order: TrackedOrder): void {
+function rememberOrder(order: TrackedOrder): void {
   try {
     const all = [order, ...listOrders().filter((o) => o.id !== order.id)].slice(0, KEEP);
     localStorage.setItem(STORE_KEY, JSON.stringify(all));

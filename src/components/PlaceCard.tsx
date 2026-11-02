@@ -29,6 +29,7 @@ export default function PlaceCard({
   place,
   awayKm,
   shareable = false,
+  headingLevel = 3,
 }: {
   place: Place;
   awayKm?: number;
@@ -40,6 +41,13 @@ export default function PlaceCard({
    * سالم's rail draw one next to the card.
    */
   shareable?: boolean;
+  /**
+   * The name's heading level. h3 is right under a section's h2, which is what
+   * /explore and the rails are. /pick and سالم's replies draw cards straight
+   * after the page's h1, or before the h2 beside them, so h3 there skips a
+   * level in the outline and they pass 2.
+   */
+  headingLevel?: 2 | 3;
 }) {
   const category = getCategory(place.category);
   // The five «معالم الكويت» places carry their picture in the band the icon
@@ -48,6 +56,7 @@ export default function PlaceCard({
   // that is still a drawn stand-in is not shown outside a preview build.
   const picture = LANDMARK_CARDS.find((c) => c.slug === place.slug);
   const pictured = picture !== undefined && shown(picture);
+  const Heading = headingLevel === 2 ? "h2" : "h3";
 
   // A link cannot hold a link, so the card stays the one <a> it always was
   // and the share button is its SIBLING, laid over the band's far corner in
@@ -106,6 +115,9 @@ export default function PlaceCard({
             // all four as one ٤٫٧-shaped bucket at two sizes; this is the
             // rule that explains the two, not a slip.
             className="absolute start-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-white/95 px-1.5 py-0.5 text-2xs font-semibold text-ink-800 backdrop-blur"
+            // A label needs a role. ARIA forbids a name on a bare span, and a
+            // screen reader that honours that reads only the digits.
+            role="img"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-3 text-sun-500" />
@@ -119,12 +131,16 @@ export default function PlaceCard({
           {/* text-sm, not text-lg. Two cards to a phone row leaves ~181px of
               card, and an 18px display face wrapped every second name onto a
               third line. */}
-          <h3 className="font-display text-sm font-semibold leading-snug text-ink-900 transition group-hover:text-coral-700">
+          <Heading className="font-display text-sm font-semibold leading-snug text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}
-          </h3>
+          </Heading>
+          {/* role="img" for the same reason as the rating chip. Its children
+              are presentational, so the currency is said in the label, which
+              is the whole of what the badge means to a reader. */}
           <span
+            role="img"
             className="flex shrink-0 items-center gap-1 pt-0.5 text-2xs font-semibold text-sand-700"
-            aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
+            aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣، د.ك`}
           >
             <span className="flex gap-0.5" aria-hidden="true">
               {[1, 2, 3].map((i) => (

@@ -15,9 +15,8 @@ const SECRET = process.env.WAIN_ADMIN_SECRET || '';
 const SLUG = process.env.WAIN_FIXTURE_SLUG || 'mubarakiya-tea-houses';
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'ar-KW' });
 const p = await ctx.newPage();
@@ -143,6 +142,6 @@ if (SECRET_FILE) {
 
 ok('no page errors on the board', errors.length === 0, errors.join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -10,9 +10,9 @@
  * already has a warm HTTP/3 connection to, behind the same CDN, with a year's
  * immutable cache.
  *
- * The package is a devDependency pinned EXACTLY (package.json says `0.18.3`,
- * not `^0.18.3`): the bytes that ship are whatever npm installed, so a range
- * would let an install change the call without a commit saying so.
+ * The package is a devDependency pinned EXACTLY in package.json (no `^` or `~`
+ * range): the bytes that ship are whatever npm installed, so a range would let
+ * an install change the call without a commit saying so.
  *
  * What this writes:
  *

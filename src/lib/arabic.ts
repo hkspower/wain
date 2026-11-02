@@ -12,10 +12,13 @@
  *
  * **The speech engines.** An Arabic TTS voice is trained on the standard
  * letters. Hand it چ and it drops the letter, spells it out, or says something
- * else — and nothing reports that, because the request succeeded. One tagline
- * in the catalogue is affected today («چاي وقهوة عربية في حوش السوق.»), and it
- * belongs to one of the likeliest results for «قهوة». It is also the string
- * ElevenLabs is paid to record, so the fault would be baked into an mp3.
+ * else — and nothing reports that, because the request succeeded. Eight
+ * catalogue strings carry چ today: descriptions, highlights, tags and one
+ * tagline («چاي وقهوة عربية في حوش السوق.»), which belongs to one of the
+ * likeliest results for «قهوة». The agent's knowledge base is generated from
+ * the taglines (`scripts/wain-ai-brief.mjs`), so a call can speak one, and a
+ * clip or bridge render made from a string that carries چ would bake the fault
+ * into the audio.
  *
  * **The search index.** Measured before this existed:
  *

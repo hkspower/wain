@@ -1,6 +1,7 @@
 "use client";
 
 import { audioContext, tone } from "@/lib/audio-context";
+import { toArabicDigits } from "@/lib/place-kit";
 
 /**
  * The three sounds of a phone call, synthesised.
@@ -86,10 +87,9 @@ export function callDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   const mm = String(Math.floor(s / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
-  // Not toArabicDigits from places.ts on the whole string: it would leave the
-  // colon alone, which is what we want, but importing the place data module
-  // into a component that renders on every page pulls the entire catalogue
-  // into that chunk. Ten characters of mapping is cheaper than 36 places.
-  const ar = (t: string) => t.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[+d]);
-  return `${ar(mm)}:${ar(ss)}`;
+  // toArabicDigits comes from place-kit, not places: places.ts holds all 52
+  // records, and this module is imported by a call component that renders on
+  // every page, so the place data module would ship the catalogue with it.
+  // place-kit is catalogue-free and WainAiCall already imports it.
+  return `${toArabicDigits(mm)}:${toArabicDigits(ss)}`;
 }

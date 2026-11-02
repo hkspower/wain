@@ -87,8 +87,8 @@ create table if not exists public.places (
   area_ar        text not null,
   lat            double precision not null check (lat between -90 and 90),
   lng            double precision not null check (lng between -180 and 180),
-  -- Nullable on purpose. rating is optional in the Place type and eight of the
-  -- 44 places carry none; a NOT NULL here made the seed unappliable rather
+  -- Nullable on purpose. rating is optional in the Place type and some of the
+  -- places carry none; a NOT NULL here made the seed unappliable rather
   -- than making the data better. The range check still holds for every row
   -- that has one — a CHECK passes on NULL, which is the behaviour wanted.
   rating         numeric(2,1) check (rating between 0 and 5),

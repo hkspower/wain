@@ -11,7 +11,8 @@
  * So the original is never the file that ships. Put it in `photos-src/<slug>`
  * with any extension, run this, and `public/photos/<slug>.jpg` comes out at a
  * fixed size, a fixed aspect and inside a fixed byte budget. `photos-src/` is
- * not committed; the output is, so a clone builds the real site.
+ * not committed; the output will be once a photograph is made, so a clone
+ * builds the real site.
  *
  * What it does to the picture, and why each part:
  *
@@ -45,8 +46,8 @@ try {
   console.error(
     "gen-photos needs sharp, which this project does not depend on.\n" +
     "  npm i -D sharp\n" +
-    "The web-sized files in public/photos/ are committed, so you only need\n" +
-    "this when adding or replacing a photograph."
+    "The web-sized files in public/photos/ will be committed once a photograph\n" +
+    "is made, so you only need this when adding or replacing one."
   );
   process.exit(1);
 }

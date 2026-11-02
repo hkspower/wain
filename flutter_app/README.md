@@ -97,9 +97,11 @@ Each suite was confirmed able to go red by breaking the code it guards.
   cookies, a sandboxed map frame, browser speech recognition and Local Storage.
   This one describes tile requests, a WebRTC call, a share sheet and platform
   permissions. Overstating is the same defect as denying.
-* **`/add`** says the back end is not connected instead of showing a form whose
-  button does nothing. `supabaseEnabled` is false on the web too; order and
-  queue panels render nothing (0 of 52 places satisfy either).
+* **`/add`** says registration is not connected to the database yet, instead of
+  showing a form whose button does nothing. The web's back end is on by default
+  (`backendEnabled` in `src/lib/backend.ts`; off only when
+  `NEXT_PUBLIC_WAIN_BACKEND` is `none`), but its order and queue panels still
+  render nothing (0 of 52 places satisfy `acceptsOrders` or `takesQueue`).
 * **Two agents, never shared** (14 October). شوق's call runs on
   `WAIN_AI_AGENT_ID`; سالم's call and his typed chat run on
   `WAIN_SALEM_AGENT_ID` (`lib/ai/config.dart`). Unset, a persona's call is the

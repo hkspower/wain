@@ -4,8 +4,9 @@
  *   npm run build && npm run pdf     # writes wainkw-site.pdf
  *
  * Every route in `out/` gets one PDF page showing that route in full, top to
- * bottom. 62 routes today: the home page, the nine other screens, and a page
- * for each of the 52 places.
+ * bottom: the home page, each other screen, and a page for each place. No
+ * count here — routes() finds them from out/, so a count in this comment
+ * would go stale the next time a screen is added.
  *
  * NOT screenshots. The pages are printed through Chromium, so Arabic stays
  * live, selectable, subsetted vector text — the same reason gen-preview.mjs

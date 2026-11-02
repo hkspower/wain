@@ -120,7 +120,7 @@ export function pinHeadroom(size: number): number {
  * The effect stays for what an initialiser cannot see: a device whose answer
  * CHANGES, which is a laptop with a touchscreen having a mouse plugged in.
  */
-export function useHoverless(): boolean {
+function useHoverless(): boolean {
   const [hoverless, setHoverless] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(hover: none)").matches
   );

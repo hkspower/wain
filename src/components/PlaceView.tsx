@@ -133,6 +133,7 @@ export default function PlaceView({
             // the larger badge reads at the same relative scale. See
             // PlaceCard.tsx.
             className="absolute start-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
+            role="img"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-4 text-sun-500" />
@@ -162,7 +163,8 @@ export default function PlaceView({
             )}
             <span
               className="flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-sm font-semibold text-sand-800"
-              aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
+              role="img"
+              aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣، د.ك`}
             >
               <span className="flex gap-0.5" aria-hidden="true">
                 {[1, 2, 3].map((i) => (

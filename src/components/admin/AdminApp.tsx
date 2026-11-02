@@ -594,7 +594,7 @@ function NotConfigured() {
 }
 
 /** The server answered, and said its admin secret cannot be used yet: none
- *  (`unset`), or one under 32 bytes (`weak`). Either way there is no form. */
+ *  (`unset`), or one under 32 characters (`weak`). Either way there is no form. */
 function SecretUnset({ weak = false }: { weak?: boolean }) {
   return (
     <div className="measure mx-auto max-w-2xl gutter py-2 sm:py-3">

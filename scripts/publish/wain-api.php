@@ -1357,8 +1357,11 @@ if (PHP_SAPI === 'cli') {
 
     /* The secret is never written here — this file is fetched from a public
        URL to be run, so anything it carried would be public. Created empty,
-       0600, and every admin action is refused until the owner fills it in. */
-    $secretNote = keyState($secretFile);
+       0600, and every admin action is refused until the owner fills it in.
+       adminSecretState, not keyState: keyState calls any non-blank file
+       'present', so a four-character secret installed as present while
+       version and the gate said weak. */
+    $secretNote = adminSecretState($secretFile);
     if (!is_file($secretFile)) {
         @mkdir(dirname($secretFile), 0700, true);
         @file_put_contents($secretFile, '');

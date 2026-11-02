@@ -2,9 +2,8 @@ import { chromium } from 'playwright';
 
 const B = process.env.WAIN_URL || 'http://localhost:4179';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 /**
  * A page with a scripted speech recogniser and a captured synthesiser.
@@ -1116,6 +1115,6 @@ console.log('\n── the call is not paid for until it is placed ──');
   await ctx.close();
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

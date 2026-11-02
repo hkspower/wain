@@ -96,6 +96,7 @@ function PlaceMeta({ id }: { id: string }) {
         // PlaceCard.tsx for the full note.
         <span
           className="flex items-center gap-1 text-xs font-semibold text-ink-700"
+          role="img"
           aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
         >
           <IconStar className="size-3.5 text-sun-500" />
@@ -104,7 +105,8 @@ function PlaceMeta({ id }: { id: string }) {
       )}
       <span
         className="flex items-center gap-1 text-2xs font-semibold text-sand-700"
-        aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
+        role="img"
+        aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣، د.ك`}
       >
         <span className="flex gap-0.5" aria-hidden="true">
           {[1, 2, 3].map((i) => (

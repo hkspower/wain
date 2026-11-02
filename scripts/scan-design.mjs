@@ -14,7 +14,7 @@ const VIEWS = [
   ["search", "/search/?q=" + encodeURIComponent("بحر"), 0],
 ];
 
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium" });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
 function analyse(px) {

@@ -80,7 +80,9 @@ const ok = (label, cond, detail = "") => {
 // Playwright pins a newer browser build than the one installed here, so the
 // default launch looks for a revision that is not on disk and tells you to
 // download it. The installed Chromium is fine; it just has to be named.
-const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+// CHROMIUM_PATH names another build where this one lives elsewhere, as the
+// other scripts that launch Chromium already allow.
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium" });
 
 async function shoot(page, { title, note, viewport }) {
   const buf = await page.screenshot({ type: "png" });

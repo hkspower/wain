@@ -16,9 +16,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-agent-job-"));
 const entry = join(tmp, "entry.ts");
@@ -126,5 +125,5 @@ console.log("\n── what the next agent is told ──");
   ok("a job from the call-centre page with nothing shown says only what was asked", bare.includes("مركز الاتصال") && bare.includes("«قهوة هادية»") && !bare.includes("الأماكن"), bare);
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

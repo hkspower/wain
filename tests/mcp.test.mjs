@@ -17,6 +17,7 @@
 import { spawn } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadCatalogue } from "./catalogue.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 let passed = 0;
@@ -117,6 +118,10 @@ console.log("\n── the tools ──");
 
 console.log("\n── it answers from the real catalogue ──");
 {
+  // Expected values come from the shipped records, not from a count typed here:
+  // a typed 52 would go red the day a place is added, for a stale test rather
+  // than a wrong server. tests/catalogue.mjs carries the same rule for the browser suites.
+  const shipped = await loadCatalogue();
   const { messages } = await session([
     call(1, "list_categories"),
     call(2, "list_places"),
@@ -124,14 +129,21 @@ console.log("\n── it answers from the real catalogue ──");
     call(4, "search_places", { query: "beach", limit: 3, kind: "place" }),
   ]);
   const cats = textOf(messages.find((m) => m.id === 1));
-  ok(cats.categories.length === 8, `eight categories (${cats.categories.length})`);
   ok(
-    cats.categories.reduce((n, c) => n + c.places, 0) === 52,
-    "and their counts add up to all 52 places"
+    cats.categories.length === shipped.categories.length,
+    `every category the site sorts places into (${cats.categories.length})`
+  );
+  ok(
+    cats.categories.map((c) => c.id).join(",") === shipped.categories.map((c) => c.id).join(","),
+    "in the site's own order"
+  );
+  ok(
+    cats.categories.reduce((n, c) => n + c.places, 0) === shipped.places.length,
+    `and their counts add up to all ${shipped.places.length} places`
   );
 
   const all = textOf(messages.find((m) => m.id === 2));
-  ok(all.count === 52, `list_places returns all 52 (${all.count})`);
+  ok(all.count === shipped.places.length, `list_places returns all ${shipped.places.length} (${all.count})`);
   ok(all.places.every((p) => p.slug && p.name_ar && p.url.startsWith("https://www.wainkw.com/places/")),
     "every summary carries a slug, an Arabic name and a real url");
 

@@ -9,7 +9,7 @@ import type { SubmissionRow } from "@/lib/submissions";
 import type { EditablePlace } from "@/components/admin/PlaceForm";
 
 /** A URL-safe slug from the English name, deduped by the caller if needed. */
-export function slugify(name: string): string {
+function slugify(name: string): string {
   return name
     .toLowerCase()
     .replace(/['’]/g, "")

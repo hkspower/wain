@@ -6,8 +6,13 @@ Tap the وين AI button and the call starts. That is the whole interaction.
 
 They are not the same place, and the difference is load-bearing.
 
-**The button is inside the search box** on /search — `ShouqCallButton`, where
-the mic used to be. It went through two homes to get there. It was a coral
+**The button is on /find, and the empty search page only links to it.**
+`ShouqCallButton` is the one call button on the site, on /find's phone. On
+/search, before anyone has typed, a line under the chips asks «تبي تحكي بدال ما
+تكتب؟» and links «كلّمي شوق» to /find. It is a link, not a second button
+(`SearchClient.tsx`, the empty-state branch that starts at `!q.trim()`).
+
+It went through several homes to get there. It was a coral
 launcher floating over the corner of every page, which was wrong because
 everything a call does already ends on /search: local mode pushes
 `/search?q=…`, `show_places` pushes `/search?q=…` and then reports what that
@@ -16,11 +21,13 @@ type. On the privacy policy its only power was to navigate away from the
 privacy policy. Then it floated over the corner of /search alone, which was
 still one voice control too many — the box already had a microphone that
 dictated into the field, so two microphone-ish buttons sat side by side
-offering what a visitor reads as the same thing.
+offering what a visitor reads as the same thing. The button then took the
+microphone's place in the box, and on 1 October it left the box altogether:
+the box's line is a link to /find now, and /find holds the one call button.
 
-There is one now, in the box, and it places the call. The dictation the mic
-did is not lost on a browser without the agent: local mode ends where the mic
-ended, with the sentence in the field and the answer read back.
+The dictation the microphone did is not lost on a browser without the agent:
+local mode ends where the microphone ended, with the sentence in the field and
+the answer read back.
 
 **The component stays in the root layout**, above the router. It has to:
 `open_place` is a route change, and the `<elevenlabs-convai>` element is
@@ -36,9 +43,10 @@ a dialog it does not render. The gesture work stays with the button, because
 iOS will not unlock audio outside a user gesture and the call mounts an event
 and a chunk-fetch later, by which time the activation is gone.
 
-`tests/shouq-search.test.mjs` asserts the box has her button and no second
-voice control; `tests/shouq-flow.test.mjs` asserts she is offered on /search
-and nowhere else.
+`tests/shouq-search.test.mjs` asserts the box carries no call button, that the
+«كلّمي شوق» link to /find is there, and that no second voice button took the
+microphone's place; `tests/shouq-flow.test.mjs` asserts the button is on /find
+and on none of the other seven routes, /search included.
 
 ## What she answers from
 

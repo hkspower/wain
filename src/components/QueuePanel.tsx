@@ -182,11 +182,14 @@ export default function QueuePanel({ place }: { place: Place }) {
       </div>
 
       {errors.length > 0 && (
-        <ul role="alert" className="mt-4 space-y-1 rounded-2xl bg-coral-50 p-3">
-          {errors.map((e) => (
-            <li key={e} className="text-sm font-semibold text-coral-700">{e}</li>
-          ))}
-        </ul>
+        // The same shape as OrderPanel's: the alert is the box, the list is inside.
+        <div role="alert" className="mt-4 rounded-2xl bg-coral-50 p-3">
+          <ul role="list" className="space-y-1">
+            {errors.map((e) => (
+              <li key={e} className="text-sm font-semibold text-coral-700">{e}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <button

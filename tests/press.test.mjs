@@ -16,9 +16,8 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 // Effective scale of an element right now: its transform's x-scale times its scale property.
 const EFFECTIVE = (el) => {
@@ -104,6 +103,6 @@ console.log('\n── a mouse keeps its transitions and its hover ──');
   await ctx.close();
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 process.exit(fails.length ? 1 : 0);

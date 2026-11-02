@@ -13,9 +13,8 @@ import { chromium } from 'playwright';
 
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4197';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ctx = await browser.newContext({ locale: 'ar-KW' });
 const p = await ctx.newPage();
@@ -351,6 +350,6 @@ console.log('\n── the lines she says are joined into real sentences ──')
 
 ok('no page errors throughout', errors.length === 0, errors.join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

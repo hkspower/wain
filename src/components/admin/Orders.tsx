@@ -7,7 +7,8 @@ import { chime, chimeEnabled, setChimeEnabled } from "@/lib/chime";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";
 import { toArabicDigits } from "@/lib/place-kit";
-import { formatKwd, orderReference, orderTotal, type OrderLine } from "@/lib/orders";
+import { timeAr } from "@/lib/order-kit";
+import { formatKwd, orderReference, orderTotal, type OrderLine, type OrderStatus } from "@/lib/orders";
 
 /**
  * The pre-order queue.
@@ -21,7 +22,7 @@ import { formatKwd, orderReference, orderTotal, type OrderLine } from "@/lib/ord
 
 interface OrderRow extends Record<string, unknown> {
   id: string;
-  status: "placed" | "ready" | "collected" | "cancelled";
+  status: OrderStatus;
   place_slug: string;
   place_name_ar: string;
   lines: OrderLine[];
@@ -46,14 +47,6 @@ const STATUS_TONE = {
   collected: "bg-palm-500/12 text-palm-700",
   cancelled: "bg-sand-200 text-ink-600",
 } as const;
-
-/** 24h "18:30" as the app writes it everywhere else. */
-function timeAr(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map(Number);
-  const period = h < 12 ? "ص" : "م";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${toArabicDigits(h12)}:${toArabicDigits(String(m).padStart(2, "0"))} ${period}`;
-}
 
 /** Often enough that a customer walking over does not beat the alert, rarely
  *  enough to be nothing on a shop's connection. */

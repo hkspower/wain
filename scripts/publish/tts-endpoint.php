@@ -191,9 +191,11 @@ function storageDir(): ?string {
 
    WHAT IS DELIBERATELY NOT IN IT. Not the sentence — `chars` and the
    rendition id are enough to find the cache entry and to see how much was
-   spent, and the text is the visitor's business. Not the IP — the rate
-   limiter already hashes it, and this logs the first 8 hex of that same hash,
-   which correlates one visitor's requests to each other and to nothing else.
+   spent, and the text is the visitor's business. Not the IP — this logs the
+   first 8 hex of sha256 of the full client address (logIp), which correlates
+   one visitor's requests to each other and to nothing else. The rate limiter
+   files an IPv6 visitor under its /64 (rateKey), so for IPv6 the two hashes
+   differ; for IPv4 they are the same.
    A log that would embarrass someone is a log that gets deleted instead of
    read. `logformat` prints these rules and `npm run audit:logs` holds both
    endpoints to them.
@@ -571,9 +573,9 @@ if (PHP_SAPI === 'cli') {
      * The sibling endpoint has had `prune` since it was written; this one
      * never did.
      *
-     * CLI ONLY, and that is a cost control rather than tidiness. CLAUDE.md's
-     * security pass put this bridge's ceiling at DAILY_MISSES × MAX_CHARS ≈
-     * $136/day, and the thing that keeps real spend far below it is that the
+     * CLI ONLY, and that is a cost control rather than tidiness. The bridge's
+     * spend ceiling is DAILY_MISSES × MAX_CHARS, about $27/day at 300 (see
+     * DAILY_MISSES), and the thing that keeps real spend far below it is that the
      * catalogue's sentences are bounded and nearly all of them are hits. An
      * HTTP route that empties the cache turns every following sentence into a
      * paid miss — a denial-of-wallet primitive with no authentication in

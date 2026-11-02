@@ -1,7 +1,13 @@
 /**
- * Regenerates docs/wain-ai-agent.md from the live place data so شوق's
- * knowledge base can never drift from what the site actually shows.
+ * Regenerates two files from the place catalogue (src/lib/places.ts):
+ *   docs/wain-ai-agent.md  the brief for شوق, kept in this repository
+ *   docs/wain-ai-kb.md     the knowledge-base document ElevenLabs is given
  * Run: npm run ai:brief
+ *
+ * Neither file is read by the live agent. Its knowledge base is a copy taken
+ * when the document was attached, pinned to one commit, and its prompt is
+ * hand-adapted from the brief. Both drift from these files until the new
+ * knowledge-base file is pinned and the prompt is edited to match.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";

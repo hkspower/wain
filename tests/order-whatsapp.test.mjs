@@ -19,9 +19,8 @@ const SHOTS = process.env.WAIN_SHOTS || 'shots';
 mkdirSync(SHOTS, { recursive: true });
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 /** A page whose window.open records the URL and returns a window or null. */
 async function fresh({ canOpen = true } = {}) {
@@ -204,6 +203,6 @@ console.log('\n── pressing twice is one order ──');
   await ctx.close();
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

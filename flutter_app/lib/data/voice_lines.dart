@@ -2,7 +2,7 @@
 /// preparation that turns a line written to be READ into one fit to be SPOKEN.
 /// The same strings feed the recorded clips, the bridge and the on-device
 /// voice, so none of them can drift from the others. Replayed against the web
-/// in `test/voice_hangout_parity_test.dart`.
+/// in `test/kit_parity_test.dart` (the `voice lines` group).
 library;
 
 import 'arabic.dart';

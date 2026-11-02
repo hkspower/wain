@@ -9,8 +9,11 @@ import {
   MINUTES_COUNT,
   clampServiceMinutes,
   countAr,
+  fromArabicDigits,
   toArabicDigits,
 } from "@/lib/place-kit";
+import { kuwaitDay } from "@/lib/kuwait-time";
+import { NoCryptoError, randomToken, randomUuid } from "@/lib/random-ids";
 
 /**
  * الطابور — take your turn at the salon.
@@ -103,7 +106,7 @@ export interface HeldTicket {
 const STORE_KEY = QUEUE_STORE_KEY;
 const KEEP = 10;
 
-export function rememberTicket(ticket: HeldTicket): void {
+function rememberTicket(ticket: HeldTicket): void {
   try {
     const all = [ticket, ...listTickets().filter((t) => t.id !== ticket.id)].slice(0, KEEP);
     localStorage.setItem(STORE_KEY, JSON.stringify(all));
@@ -138,12 +141,12 @@ export function forgetTicket(id: string): void {
   }
 }
 
-/** Kuwait's date, which is the one the numbering resets on. */
-export function kuwaitToday(now: Date = new Date()): string {
-  // UTC+3 all year — Kuwait has no daylight saving, so this is exact rather
-  // than an approximation that drifts twice a year.
-  return new Date(now.getTime() + 3 * 3600_000).toISOString().slice(0, 10);
-}
+/**
+ * Kuwait's date, which is the one the numbering resets on. The clock is
+ * kuwait-time's (UTC+3 all year, no daylight saving); this name stays because
+ * the queue's tests and callers say «today» for it.
+ */
+export const kuwaitToday = kuwaitDay;
 
 /** A ticket from a previous day is over, whatever the server last said. */
 export function isFromToday(ticket: HeldTicket, now: Date = new Date()): boolean {
@@ -151,44 +154,6 @@ export function isFromToday(ticket: HeldTicket, now: Date = new Date()): boolean
 }
 
 /* ── talking to the back end ──────────────────────────────────────────── */
-
-/**
- * Raised where the browser has no random source. The same rule as orders.ts:
- * no Math.random fallback, because the ticket's token is the only proof of the
- * ticket and Math.random is not built to resist prediction.
- */
-class NoCryptoError extends Error {
-  constructor() {
-    super("no_crypto");
-    this.name = "no_crypto";
-  }
-}
-
-function randomBytes(length: number): Uint8Array {
-  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
-    throw new NoCryptoError();
-  }
-  return crypto.getRandomValues(new Uint8Array(length));
-}
-
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  // Older Safari has getRandomValues but not randomUUID: the same id shape as
-  // orders.ts, drawn from the same source.
-  const b = randomBytes(16);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const h = hex(b);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
-
-function newToken(): string {
-  return hex(randomBytes(16));
-}
 
 export interface QueueAttempt {
   id: string;
@@ -202,7 +167,7 @@ export interface QueueAttempt {
  */
 export function newQueueAttempt(): QueueAttempt {
   try {
-    return { id: newId(), token: newToken() };
+    return { id: randomUuid(), token: randomToken() };
   } catch (err) {
     if (err instanceof NoCryptoError) return { id: "", token: "" };
     throw err;
@@ -213,8 +178,7 @@ const NO_CRYPTO_AR = "ما قدرنا ناخذ لك دور من هذا المت�
 
 /** Kuwaiti mobile: eight digits starting 5, 6 or 9. */
 export function normalisePhone(value: string): string | null {
-  const digits = value
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+  const digits = fromArabicDigits(value)
     .replace(/[^\d]/g, "")
     .replace(/^00965/, "")
     .replace(/^965(?=\d{8}$)/, "");

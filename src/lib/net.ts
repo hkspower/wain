@@ -140,7 +140,7 @@ export function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
  * comes out of a tunnel gets their request the moment the signal returns
  * rather than at the end of an arbitrary backoff.
  */
-export function waitForOnline(ms: number, signal?: AbortSignal | null): Promise<void> {
+function waitForOnline(ms: number, signal?: AbortSignal | null): Promise<void> {
   if (typeof window === "undefined" || !isDefinitelyOffline()) return sleep(ms, signal);
   return new Promise((resolve) => {
     const done = () => {

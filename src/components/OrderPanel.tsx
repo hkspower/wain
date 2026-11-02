@@ -36,8 +36,8 @@ import {
  *
  *   - **db**: the order is a row the business reads on its board. Name, phone
  *     and the rest go to the database; the tracker polls for «جاهز».
- *   - **whatsapp**: no database (every build to date). The order becomes a
- *     WhatsApp message to the place's own number, opened from the tap, and the
+ *   - **whatsapp**: a build with the back end off (`NEXT_PUBLIC_WAIN_BACKEND=none`).
+ *     The order becomes a WhatsApp message to the place's own number, opened from the tap, and the
  *     device remembers it. No phone field — the shop answers in the thread
  *     the customer just opened. If the popup is blocked, the text is shown
  *     with its own copy button and a plain link, which a tap can always open.
@@ -404,14 +404,19 @@ export default function OrderPanel({ place }: { place: Place }) {
       </div>
 
       {errors.length > 0 && (
-        <ul role="alert" className="mt-4 space-y-1 rounded-2xl bg-coral-50 p-3 text-sm font-semibold text-coral-700">
-          {errors.map((e) => (
-            <li key={e} className="flex items-start gap-2">
-              <IconClose className="mt-0.5 size-3.5 shrink-0" />
-              {e}
-            </li>
-          ))}
-        </ul>
+        // The alert is the box, and the list sits inside it. role="alert" on the
+        // <ul> itself took the list role away, and each item was then a listitem
+        // with no list to belong to.
+        <div role="alert" className="mt-4 rounded-2xl bg-coral-50 p-3 text-sm font-semibold text-coral-700">
+          <ul role="list" className="space-y-1">
+            {errors.map((e) => (
+              <li key={e} className="flex items-start gap-2">
+                <IconClose className="mt-0.5 size-3.5 shrink-0" />
+                {e}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <button

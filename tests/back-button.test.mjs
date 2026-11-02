@@ -17,9 +17,8 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ROUTES = ['/explore/', '/search/', '/places/kuwait-towers/', '/about/', '/privacy/', '/add/', '/orders/', '/queue/', '/find/', '/salem/'];
 
@@ -138,5 +137,5 @@ console.log('\n── an open call covers it ──');
 }
 
 await browser.close();
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

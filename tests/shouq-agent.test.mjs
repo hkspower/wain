@@ -27,9 +27,8 @@ import { existsSync } from 'node:fs';
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 
 /* The widget is served from this origin with an SRI integrity on its tag
@@ -869,6 +868,6 @@ console.log("\n── سالم's call reaches HIS agent, and hers never reaches 
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

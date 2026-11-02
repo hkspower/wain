@@ -1,10 +1,12 @@
 /// The one-time question before a conversation with شوق or سالم starts.
 ///
-/// Her agent records calls and keeps calls and typed chats with no expiry
+/// Both agents record calls and typed chats and keep them with no expiry
 /// (`AiPrivacyCopy`), and Apple's and Google's rules both ask for a clear
 /// disclosure BEFORE personal data goes to a third-party AI service — not a
-/// page somebody may never open. So the first call and the first chat each
-/// pass through here, and the answer is remembered (`AppState.aiConsent`).
+/// page somebody may never open. So a call that reaches an agent asks here
+/// (call_button.dart), and the typed chat asks through its own panel
+/// (salem_screen.dart). Both show the same copy and both remember the answer
+/// in `AppState.aiConsent`. A free call asks nothing, because no agent gets it.
 ///
 /// It runs BEFORE the microphone prompt on purpose: the system's own dialog
 /// says nothing about where the audio goes, and asking for the microphone

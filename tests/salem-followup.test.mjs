@@ -15,9 +15,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-salem-followup-"));
 const entry = join(tmp, "entry.ts");
@@ -412,5 +411,5 @@ console.log("\n── where a place is, said once (14 October) ──");
   ok("a place whose name does not carry its area says the area", whereLine(towers) === `${towers.nameAr} — ${towers.areaAr}.`, whereLine(towers));
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

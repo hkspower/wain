@@ -245,7 +245,7 @@ console.log(`project's PHP app, removed on 17 September (docs/hosting.md).`);
  * because it is worth knowing, but it is no longer offered as the check.
  */
 console.log(`\nAfterwards: npm run deploy:verify`);
-console.log(`It checks ${digest} at the root AND six files below it,`);
+console.log(`It checks ${digest} at the root AND the proof files below it, which deploy:verify lists,`);
 console.log(`because a correct root proves only that the root arrived.\n`);
 if (dirty) {
   console.log(`Note: built from a dirty working tree, so ${shortCommit} does not`);

@@ -4,9 +4,9 @@
 npm run test:journey
 ```
 
-Thirty-six checks that walk one customer from her first tap to a collected
-order: home → search palette → results → the place → the order panel → the
-basket → validation → send → confirmation → «طلباتي» → ready → collected.
+The checks walk one customer from her first tap to a collected order: home →
+the search link → results → the place → the order panel → the basket →
+validation → send → confirmation → «طلباتي» → ready → collected.
 
 Every other suite tests a layer. This is the only one that can catch a break
 *between* two layers that are each fine on their own.
@@ -19,9 +19,10 @@ before it is broken, and nothing but a journey notices.
 
 That rule earned its keep immediately. The first draft clicked what looked
 like a search link and asserted the URL had changed — it had not, because the
-navbar's search button opens the **palette**, an overlay whose dialog is loaded
-on demand. Stepping around it by visiting `/search/` would have skipped the
-code path a thumb actually takes.
+navbar's search button opened the **palette**, an overlay whose dialog is loaded
+on demand. The navbar and the palette have since been removed, and the link on
+the home page is the route now. Stepping around it by visiting `/search/` would
+have skipped the code path a thumb actually takes.
 
 ## It needs its own build, in a worktree
 
@@ -50,8 +51,9 @@ the test told it directly.
 
 ## What it covers that no unit test can
 
-- **The palette's dialog really arrives** when the button is tapped — it is
-  code-split, so "it works" and "it downloads" are different claims.
+- **The search page's bundle really arrives** when the home page's link is
+  tapped — each route is its own chunk, so "it works" and "it downloads" are
+  different claims.
 - **A dropped request does not become two orders.** The first POST is aborted
   mid-journey; the retry carries the same id, and the test asserts every POST
   that reached the server had one id between them.

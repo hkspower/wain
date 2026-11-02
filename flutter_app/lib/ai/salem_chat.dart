@@ -1,4 +1,4 @@
-/// The typed conversation with شوق — a plain WebSocket, not the SDK.
+/// The typed conversation with سالم — a plain WebSocket, not the SDK.
 ///
 /// The wire protocol is read out of ElevenLabs' published client and written
 /// as plain socket calls, for the same reason the web does: a text chat needs

@@ -177,10 +177,10 @@ function errorCopy(code: string, failed: string): string {
   return failed;
 }
 
-/* The detection, the typings and the locale now live in lib/speech, because
-   the search box listens too and a second copy of ar-KW is a second copy that
-   can lose it. The orchestration below — ring-back, silence, six phases — is
-   this file's alone and stays here. */
+/* The detection, the typings and the locale live in lib/speech, because the
+   launcher's tap starts the engine too (wain-ai-bus) and a second copy of ar-KW
+   is a second copy that can lose it. The orchestration below — ring-back,
+   silence, six phases — is this file's alone and stays here. */
 
 type Props = {
   /**
@@ -929,7 +929,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * This used to inject the script itself and, if it found a tag with the right
    * src already there, set `agentReady` on the spot. That was true while this
    * was the only injector. The button now starts the same fetch on pointerdown
-   * — which is the point, it is 451KB — so «a tag exists» became «a tag exists
+   * — which is the point, it is the whole bundle — so «a tag exists» became «a tag exists
    * and may be half-downloaded», and the call would have announced «متصل» over
    * a bundle still on the wire. One shared promise resolves when it has
    * actually loaded, and rejects once if it never does.

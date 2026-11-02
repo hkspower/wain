@@ -46,7 +46,8 @@ import { classifyError, deadlineFetch, describeNetError } from "@/lib/net";
  * `X-Wain-Admin`. It lives in sessionStorage here — gone when the tab closes,
  * never in a cookie (so no CSRF surface), never in the URL. Until the owner
  * fills the file in, every admin action answers 503 `admin_unset`; and while
- * the file holds fewer than 32 bytes, 503 `admin_weak`. The board says so in
+ * the file holds fewer than 32 characters (UTF-8 code points, as the server's
+ * `secretChars()` counts them), 503 `admin_weak`. The board says so in
  * both cases instead of pretending a password would work.
  */
 

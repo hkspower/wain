@@ -21,8 +21,10 @@ file on both stages, creates the database, seeds it from the export's
 
 ## 2. Set the password (once, by the owner)
 
-1. Open `storage/admin.secret`, the file `php …/api/wain.php version` names
-   (beside the public folder, not inside it). The hPanel path this step used to
+1. Open `storage/admin.secret`. Its path is printed by
+   `php …/api/wain.php install` (`adminSecret.path`); `version` reports only
+   whether the secret is set and the file's mode, never the path. The file sits
+   beside the public folder, not inside it. The hPanel path this step used to
    give, `domains/wainkw.com/storage/admin.secret`, was not on the Hostinger
    account on 31 October 2026, and where the file sits on the VPS is not recorded
    yet; the live `?a=ping` reported `admin: unset` that day.
@@ -38,8 +40,10 @@ That is the whole login: `/admin` asks for it once per tab and keeps it in
 sessionStorage. To change it, change the file; every open tab is signed out
 on its next request.
 
-Staging and production share `storage/`, so one secret opens both boards;
-each stage has its own database, so staging's edits never reach the live site.
+Staging and production shared `storage/` while staging existed, so one secret
+opened both boards. Staging was retired on 1 November 2026 (no staging host), so
+there is no second board; the staging stage in `wain-api.php` runs only under a
+`staging/` path, which nothing serves now.
 
 ## 3. The build
 

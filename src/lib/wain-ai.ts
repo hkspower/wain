@@ -291,7 +291,7 @@ export const WAIN_AI_COPY = {
   // micDenied above: turn a silent «she never heard me» into a sentence.
   noMic: "ما لقينا مايك في جهازك — وصّل مايك وجرّب مرة ثانية.",
   micBusy: "المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.",
-  noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.",
+  noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلّم بعد الإشارة.",
   unsupported: "متصفحك ما يدعم الإدخال الصوتي — اكتب اللي تبيه.",
   // The call's own code could not be loaded or threw (WainAi.tsx's boundary):
   // the site stays up and this is all that is said of it. Not persona-aware —

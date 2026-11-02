@@ -1,6 +1,7 @@
 import {
   DEFAULT_PREP_MINUTES,
   clampPrepMinutes,
+  fromArabicDigits,
   toArabicDigits,
 } from "@/lib/place-kit";
 
@@ -41,9 +42,7 @@ export function formatKwd(fils: number): string {
 /** Parse "2.750" or "٢٫٧٥٠" into fils. Returns null for anything unparseable,
  *  so an admin typo becomes a visible error rather than a silent zero. */
 export function parseKwd(value: string): number | null {
-  const western = value
-    .trim()
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+  const western = fromArabicDigits(value.trim())
     .replace(/٫/g, ".")
     .replace(/[،,\s]/g, "");
   if (!/^\d{1,5}(\.\d{0,3})?$/.test(western)) return null;
@@ -133,8 +132,7 @@ export function orderReference(id: string): string {
 /** Kuwaiti mobile numbers are eight digits and start 5, 6 or 9. The same
  *  shape serves the customer's phone and a place's `orderWhatsApp`. */
 export function normalisePhone(value: string): string | null {
-  const digits = value
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+  const digits = fromArabicDigits(value)
     .replace(/[^\d]/g, "")
     .replace(/^00965/, "")
     .replace(/^965(?=\d{8}$)/, "");

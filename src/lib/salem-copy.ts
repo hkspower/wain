@@ -9,10 +9,9 @@
 /**
  * `/salem`'s own copy — for the typed-chat UI itself. Named for and gendered
  * toward سالم now (`connecting`/`connected`/`failed` — see `SALEM_NAME`'s own
- * comment for the identity claim this makes, and its honest limit: the
- * agent's own first line still says «أنا شوق», which this copy cannot
- * change). No `greeting` here still: the first line in the transcript is
- * whatever the wire actually sends, not a written-in-advance line.
+ * comment for the identity claim this makes). The chat runs سالم's own agent,
+ * and its first line is whatever that agent sends on the wire, which this copy
+ * cannot write: so there is no `greeting` here, and none is faked.
  */
 export const WAIN_AI_CHAT_COPY = {
   placeholder: "اكتب رسالتك…",
@@ -47,8 +46,9 @@ export const WAIN_AI_CHAT_COPY = {
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
   // hang — see lib/salem-chat.ts — so this is what a visitor reads when they
-  // tried to open a place or the map from here and could not. The calls are
-  // شوق's: it said «كلّمه بمكالمة», a call to him there is no button for.
+  // tried to open a place or the map from here and could not. The call in the
+  // header is سالم's own (persona="salem"), so the «كلّم شوق» below points at
+  // her call from his page. Kept as it is: it is visible copy, for the owner.
   toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّم شوق بمكالمة.",
   failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
   // The server refused for credits (2 and 7 October). No retry this minute
@@ -56,7 +56,7 @@ export const WAIN_AI_CHAT_COPY = {
   // search (lib/agent-health.ts) and says so once, in the transcript. It used
   // to be «سالم مو متاح الحين» with a retry button that waited 30 seconds.
   agentFallback: "الخدمة الصوتية مو متاحة الحين — أجاوبك من دليل وين.",
-  // The free build (the live site since 2 October): no agent behind the box,
+  // The free build (no agent id for سالم, see wain-ai.ts): no agent behind the box,
   // so سالم answers from وين's own search inside the page. Every line here is
   // something this page does itself, so a greeting written in advance is
   // honest — unlike the agent's, where only the wire may speak first.
@@ -145,7 +145,8 @@ export const WAIN_AI_CHAT_COPY = {
   openPlace: "صفحته",
   followLabel: "تبي",
   // The other ways in, from inside the chat: the same answer as a full page,
-  // and his voice. The call button's label is WAIN_AI_COPY.callShouq.
+  // and his call. The header's call button is his own: its label is callShouq
+  // in SALEM_CALL_COPY (wain-ai.ts), «كلّم سالم».
   // The line over a question handed to him from شوق, so the chat says where it
   // picked up rather than looking like the visitor typed it.
   fromCall: "من مكالمتك مع شوق",

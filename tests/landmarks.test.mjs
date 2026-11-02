@@ -26,9 +26,8 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ORDER = ['kuwait-towers', 'liberation-tower', 'grand-mosque', 'seif-palace', 'souq-al-mubarakiya', 'marina-beach'];
 const SLOTS = ['kuwait-towers', 'liberation-tower', 'seif-palace', 'al-hamra-tower', 'sheikh-jaber-causeway'];
@@ -87,7 +86,7 @@ if (!preview) {
     await ctx.close();
   }
   await browser.close();
-  console.log(`\n${pass} passed, ${fails.length} failed`);
+  console.log(`\n${counts.pass} passed, ${fails.length} failed`);
   process.exit(fails.length ? 1 : 0);
 }
 
@@ -284,6 +283,9 @@ for (const [width, height] of [[320, 640], [390, 844], [768, 1024], [1280, 800],
   ok(`${width}px: the box is ${width < 640 ? '6:5' : '2:1'}`, m && Math.abs(m.w / m.h - want) < 0.01, JSON.stringify(m && { w: m.w, h: m.h }));
   if (width >= 1152) ok(`${width}px: inside the page's width, not edge to edge`, m && m.w <= 1120.5, String(m?.w));
   ok(`${width}px: no sideways scroll`, m && m.over <= 0, String(m?.over));
+  // 11px is the text floor (FLOOR in scripts/audit-type.mjs), the same number
+  // audit:type holds every visible text to. It is written here, not imported,
+  // because this suite reads the rendered page and not the audit's source.
   ok(`${width}px: «صورة توضيحية» on the slide, a solid dark chip of 11px or more`,
     m?.tag?.text === 'صورة توضيحية' && m.tag.bg === 'rgb(20, 18, 15)' && m.tag.color === 'rgb(255, 255, 255)' && m.tag.size >= 11 && m.tag.hidden === 'true', JSON.stringify(m?.tag));
   ok(`${width}px: the preview's «رسم مؤقت» stays whole in the box, even at the far end of the drift`, m?.flag?.inside === true, JSON.stringify(m?.flag));
@@ -398,5 +400,5 @@ for (const [width, height] of [[390, 844], [1280, 800]]) {
 }
 
 await browser.close();
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

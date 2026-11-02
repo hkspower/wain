@@ -27,8 +27,8 @@ can be empty — and it is empty. See **Where photographs come from** below.
 3. `npm run photos`
 4. `npm run audit:photos`
 
-The web-sized output in `public/photos/` **is** committed, so a clone builds the
-real site without needing the originals.
+The web-sized output in `public/photos/` will be committed once a photograph is
+made, so a clone builds the real site without needing the originals.
 
 ## What the pipeline does, and why
 

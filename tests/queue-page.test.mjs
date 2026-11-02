@@ -11,9 +11,8 @@ import { chromium } from 'playwright';
 
 const B = process.env.WAIN_URL || 'http://localhost:4192';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW' });
 await ctx.addInitScript(() => { navigator.vibrate = () => true; });
@@ -131,6 +130,6 @@ await ctx3.close();
 ok('no page errors throughout', errors.length === 0 && errors2.length === 0,
   [...errors, ...errors2].join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

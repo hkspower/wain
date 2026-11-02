@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
  * The site was already a single-page app before this existed, which is worth
  * saying plainly because it is easy to assume otherwise from `output: 'export'`.
  * The export ships an HTML file per route AND an RSC payload per route — those
- * are the 62 `.txt` files, and the reason `audit:htaccess` refuses to deny
+ * are the `index.txt` files, and the reason `audit:htaccess` refuses to deny
  * `index.txt` — so the router swaps views client-side and the document never
  * reloads. Measured: a marker set on `window` survives explore → a place,
  * home → explore and explore → about, with zero document loads.

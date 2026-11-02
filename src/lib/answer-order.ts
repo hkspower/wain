@@ -71,7 +71,7 @@ import {
   declitic,
   isNearOnly,
   isTopicless,
-  normalise,
+  foldWords,
   readWords,
   tokenize,
   type SearchHit,
@@ -101,23 +101,21 @@ export const NOT_CHEAP = 0.5;
 export const INSIDE_OUTDOOR = 0.3;
 export const INSIDE_MIXED = 0.7;
 
-const fold = (words: string[]) => new Set(words.map(normalise));
-
 /**
  * Words that choose the outdoors or the evening. Folded the way a token
  * arrives; matched with a clitic off too, so «بالليل» and «عالبحر» count.
  */
-const ASKS_OUTSIDE = fold([
+const ASKS_OUTSIDE = foldWords([
   // the evening
   "ليل", "ليله", "سهره", "سهر", "اسهر", "نسهر", "مغرب", "غروب", "عشا", "عشاء", "اتعشى", "نتعشى", "تعشى",
   // the outdoors, by name
   "برا", "بره", "مكشوف", "بحر", "شاطئ", "شواطئ", "بيتش", "بر", "كشته", "صحراء", "حديقه", "حدائق",
 ]);
 /** Words that ask to be inside. «مكيّف» folds to «مكيف». */
-const ASKS_INSIDE = fold(["داخلي", "داخل", "مكيف", "مكيفه", "مسكر", "مغلق", "indoor"]);
+const ASKS_INSIDE = foldWords(["داخلي", "داخل", "مكيف", "مكيفه", "مسكر", "مغلق", "indoor"]);
 
 /** The part of the day a question names, by a meal or by the hour. */
-export type DayPart = "morning" | "midday" | "evening";
+export type AskedPart = "morning" | "midday" | "evening";
 /**
  * «فطور», «وين أتغدى», «عشا» — and «الصبح», «الظهر», «الليلة». The meal was
  * matched as a word and nothing more: «فطور» answered «جرّب شارع تونس… روح
@@ -125,17 +123,17 @@ export type DayPart = "morning" | "midday" | "evening";
  * day, with فريج صويلح — «روح الغدا» — second on the list (8 October).
  * Folded the way a token arrives: «الصبح» is «صبح», «الليلة» is «ليله».
  */
-const ASKS_PART: [DayPart, Set<string>][] = [
-  ["morning", fold(["فطور", "فطار", "افطر", "نفطر", "ريوق", "صبح", "صباحا", "بدري", "breakfast", "morning"])],
-  ["midday", fold(["غدا", "غداء", "اتغدى", "نتغدى", "تغدى", "ظهر", "lunch", "noon"])],
+const ASKS_PART: [AskedPart, Set<string>][] = [
+  ["morning", foldWords(["فطور", "فطار", "افطر", "نفطر", "ريوق", "صبح", "صباحا", "بدري", "breakfast", "morning"])],
+  ["midday", foldWords(["غدا", "غداء", "اتغدى", "نتغدى", "تغدى", "ظهر", "lunch", "noon"])],
   [
     "evening",
-    fold(["عشا", "عشاء", "اتعشى", "نتعشى", "تعشى", "ليل", "ليله", "سهره", "سهر", "اسهر", "نسهر", "مغرب", "غروب",
+    foldWords(["عشا", "عشاء", "اتعشى", "نتعشى", "تعشى", "ليل", "ليله", "سهره", "سهر", "اسهر", "نسهر", "مغرب", "غروب",
       "dinner", "night", "evening", "tonight"]),
   ],
 ];
 /** How a place's best time names each part — what the asked part is held to. */
-const PART_OF_BEST: Record<DayPart, RegExp> = {
+const PART_OF_BEST: Record<AskedPart, RegExp> = {
   morning: /(الصبح|بدري|الفطور|الريوق)/,
   midday: /(الظهر|الغدا)/,
   evening: /(المغرب|الغروب|الليل|ليالي|العشا|السهر)/,
@@ -143,9 +141,9 @@ const PART_OF_BEST: Record<DayPart, RegExp> = {
 /** How much a place whose best time names ANOTHER part keeps of its score. */
 export const OTHER_PART = 0.6;
 /** And words that ask for the cheap end. «مو غالي» is read below. */
-const ASKS_CHEAP = fold(["رخيص", "رخيصه", "ارخص", "ميزانيه", "اقتصادي", "بلاش", "ببلاش"]);
-const DEAR = fold(["غالي", "غاليه", "مكلف"]);
-const NEGATOR_SET = fold(NEGATORS);
+const ASKS_CHEAP = foldWords(["رخيص", "رخيصه", "ارخص", "ميزانيه", "اقتصادي", "بلاش", "ببلاش"]);
+const DEAR = foldWords(["غالي", "غاليه", "مكلف"]);
+const NEGATOR_SET = foldWords(NEGATORS);
 
 /** A token, and the word under one clitic: «بالليل» → «ليل». */
 function readings(t: string): string[] {
@@ -160,7 +158,7 @@ export function readAsks(query: string): {
   outside: boolean;
   cheap: boolean;
   inside: boolean;
-  part: DayPart | null;
+  part: AskedPart | null;
 } {
   const raw = tokenize(query);
   const has = (set: Set<string>) => raw.some((t) => readings(t).some((r) => set.has(r)));
@@ -182,7 +180,7 @@ type Rankable = Pick<Place, "slug" | "setting" | "summerOk" | "priceLevel"> & Pa
  *  place's score. */
 export function answerFactor(
   p: Rankable,
-  asks: { outside: boolean; cheap: boolean; inside?: boolean; part?: DayPart | null },
+  asks: { outside: boolean; cheap: boolean; inside?: boolean; part?: AskedPart | null },
   clock: AnswerClock
 ): number {
   let f = 1;
@@ -191,7 +189,7 @@ export function answerFactor(
   if (asks.part && p.bestTimeAr) {
     const best = p.bestTimeAr;
     const fits = PART_OF_BEST[asks.part].test(best);
-    const other = (Object.keys(PART_OF_BEST) as DayPart[]).some((k) => k !== asks.part && PART_OF_BEST[k].test(best));
+    const other = (Object.keys(PART_OF_BEST) as AskedPart[]).some((k) => k !== asks.part && PART_OF_BEST[k].test(best));
     if (!fits && other) f *= OTHER_PART;
   } else if (!asks.part && p.bestTimeAr && isKuwaitNight(clock.hour) && isMorningPlace({ bestTimeAr: p.bestTimeAr })) {
     // No hour asked for, so the hour it IS: a market that packs up by noon

@@ -21,9 +21,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4198';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ctx = await browser.newContext({ locale: 'ar-KW' });
 const page = await ctx.newPage();
@@ -208,6 +207,6 @@ console.log('\n── the persona follows the picker ──');
 
 ok('no page errors anywhere', errors.length === 0, errors.join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

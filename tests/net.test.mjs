@@ -3,9 +3,8 @@ import { chromium } from 'playwright';
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4194';
 const API = process.env.WAIN_API || `${B}/api/wain.php`;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 const ctx = await browser.newContext({ locale: 'ar-KW' });
 const p = await ctx.newPage();
@@ -466,6 +465,6 @@ ok('and looking at the tab again does not restart it',
 
 ok('no page errors in the poll harness', pollErrors.length === 0, pollErrors.join(' | '));
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

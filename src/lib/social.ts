@@ -17,14 +17,12 @@
  * Imports the search's own `normalise`, so a word is folded here exactly as
  * the index folds it. Nothing here reads the catalogue.
  */
-import { normalise } from "@/lib/search";
+import { foldWords, normalise } from "@/lib/search";
 
 /** A greeting said in front of a question, answered before the answer. */
 export type Opener = "salam" | "greet" | "morning" | "evening";
 /** A message that is not about places. */
 export type SocialAct = Opener | "how" | "thanks" | "afia" | "who" | "notShouq" | "help" | "bye" | "ok" | "no";
-
-const fold = (words: string[]) => new Set(words.map(normalise));
 
 /*
  * 14 October, from a replay of the free chat: «يعطيك الصحة» answered «جرّب
@@ -70,7 +68,7 @@ for (const [act, phrases] of SOCIAL) {
 }
 const LONGEST_PHRASE = Math.max(...[...SOCIAL_PHRASES.keys()].map((k) => k.split(" ").length));
 /** Said to a person, around anything: «يا سالم», «والله», «لو سمحت». */
-export const VOCATIVE = fold([
+export const VOCATIVE = foldWords([
   "يا", "سالم", "شوق", "اخوي", "اختي", "حبيبي", "حبيبتي", "والله", "بالله", "الله", "يلا", "يالله", "طال", "عمرك",
   "لو", "سمحت", "سمحتي", "بليز", "please", "تكفى", "تكفين", "ياخي", "يالغالي", "الغالي", "الغاليه",
 ]);
@@ -87,7 +85,7 @@ export function splitWords(folded: string): string[] {
 }
 
 /** The social phrase starting at `i`, longest first. */
-export function phraseAt(words: string[], i: number): { act: SocialAct; len: number } | null {
+function phraseAt(words: string[], i: number): { act: SocialAct; len: number } | null {
   for (let len = Math.min(LONGEST_PHRASE, words.length - i); len >= 1; len--) {
     const act = SOCIAL_PHRASES.get(words.slice(i, i + len).join(" "));
     if (act) return { act, len };
@@ -95,7 +93,7 @@ export function phraseAt(words: string[], i: number): { act: SocialAct; len: num
   return null;
 }
 /** The social phrase ending at `j` (exclusive), longest first. */
-export function phraseBefore(words: string[], j: number, from: number): { act: SocialAct; len: number } | null {
+function phraseBefore(words: string[], j: number, from: number): { act: SocialAct; len: number } | null {
   for (let len = Math.min(LONGEST_PHRASE, j - from); len >= 1; len--) {
     const act = SOCIAL_PHRASES.get(words.slice(j - len, j).join(" "));
     if (act) return { act, len };

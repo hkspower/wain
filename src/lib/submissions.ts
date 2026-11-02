@@ -1,6 +1,7 @@
 "use client";
 
 import { backendEnabled, call, describeApiFailure } from "@/lib/backend";
+import { fromArabicDigits } from "@/lib/place-kit";
 import { describeNetError } from "@/lib/net";
 import type { CategoryId } from "@/lib/places";
 
@@ -88,9 +89,7 @@ export function inKuwait(lat: number, lng: number): boolean {
  * validator then reports as not inside Kuwait rather than taking it for one.
  */
 export function parseCoordinate(text: string): number | null {
-  const t = text
-    .trim()
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+  const t = fromArabicDigits(text.trim())
     .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
     .replace(/[٫,]/g, ".");
   if (t === "") return null;
@@ -98,7 +97,7 @@ export function parseCoordinate(text: string): number | null {
 }
 
 /** Instagram is stored as a bare handle, however the owner typed it. */
-export function normaliseInstagram(value: string): string {
+function normaliseInstagram(value: string): string {
   return value
     .trim()
     .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")

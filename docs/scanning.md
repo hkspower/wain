@@ -4,8 +4,9 @@
 npm run scan
 ```
 
-Runs the linter and six audits in one go: schema use, runtime, place data,
-icons, type, colour. All clean.
+Runs the linter and every step of the `scan` chain in `package.json`: the
+audits for schema use, runtime, place data, icons, type and colour, and the
+rest. All clean.
 
 ## What the scan is for
 
@@ -77,7 +78,7 @@ were checked and specifically found to be fine:
 - Internal links all resolve. `trailingSlash: true` is a real hazard here —
   the source writes `href="/orders"` — but Next normalises it in both the
   server-rendered HTML and the client-rendered DOM. Checked, not assumed.
-- All 27 service-worker precache entries exist. One missing entry would make
+- Every service-worker precache entry exists. One missing entry would make
   `install` reject, so the worker would never activate and offline support
   would silently not exist. The worker registers and reaches `active`.
 - Every manifest icon resolves.
@@ -88,12 +89,9 @@ were checked and specifically found to be fine:
 
 Two small things worth knowing rather than fixing:
 
-- `haptics.isSupported()` and `haptics.setEnabled()` are unused. The comment on
-  the first says it "lets UI hide a toggle that would lie" — but there is no
-  haptics settings screen, so the `wain:haptics` preference can only be set
-  from devtools. The library is correct; the screen it was written for was
-  never built.
-- `form-classes.errorClass` is unused; error text is styled at each call site.
+- `haptics.setEnabled()` has no caller. There is no haptics settings screen in
+  `src/`, so the `wain:haptics` preference can only be set from devtools. The
+  library itself is correct.
 - The voice preferences use `wain-voice-enabled` while everything else uses
   `wain:` with colons. Renaming would orphan the setting on devices that
   already have it, so it stays.

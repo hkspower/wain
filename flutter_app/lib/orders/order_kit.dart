@@ -255,8 +255,9 @@ String whatsappOrderUrl(String digits, String text) =>
 String cancelOrderMessage(String reference) =>
     'السلام عليكم، أبي ألغي الطلب رقم $reference إذا ما بدأتوا فيه. شكراً';
 
-/// Whether this place can take a pre-order from the app, and by what route.
-/// The app has no database, so the only channel is WhatsApp, and it needs a
-/// number — as `orderChannel()` in `orders.ts` with Supabase unconfigured.
+/// Whether this place can take a pre-order by WhatsApp. That is the channel
+/// only when the back end is off (`WAIN_BACKEND_URL=none`, `order_api.dart`):
+/// with it on, `channelFor()` in `order_store.dart` answers `db` and this is
+/// not consulted. Nothing calls it today.
 bool ordersByWhatsApp(Place p) =>
     acceptsOrders(p) && (p.orderWhatsApp?.isNotEmpty ?? false);

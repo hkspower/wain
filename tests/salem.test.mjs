@@ -22,9 +22,8 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 async function fresh(path, viewport = { width: 390, height: 844 }) {
   const ctx = await browser.newContext({ viewport, isMobile: true, hasTouch: true, locale: 'ar-KW' });
@@ -567,7 +566,7 @@ console.log('\n── the job travels between them (14 October) ──');
   await p.goto(`${B}/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { waitUntil: 'networkidle' });
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
   // The newest line: the tab keeps the chat from before, with its own line.
-  const line = (await p.locator('[role="log"] p[role="status"]').last().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
+  const line = (await p.locator('[role="log"] p[data-system]').last().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
   ok('the line over the question names the place picked with her', line.includes('من مكالمتك مع شوق') && line.includes('واخترت'), line);
   await ask(p, 'وينه؟');
   const where = await lastSaid(p);
@@ -583,7 +582,7 @@ console.log('\n── the job travels between them (14 October) ──');
   // The server's call-centre page hands a question over the same way.
   const { ctx, p } = await fresh(`/salem/?q=${encodeURIComponent('بحر')}&from=call-center`);
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
-  const line = (await p.locator('[role="log"] p[role="status"]').first().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
+  const line = (await p.locator('[role="log"] p[data-system]').first().textContent({ timeout: 3000 }).catch(() => '')) ?? '';
   ok('a question from the call centre says so', line.includes('من مركز الاتصال') && line.includes('بحر'), line);
   await ctx.close();
 }
@@ -687,7 +686,7 @@ console.log('\n── on a phone: a pasted link stays in its bubble ──');
     // The line's own box and its own text only: the transcript's sideways
     // scroll is the bubbles' to answer for (above), and the handed-over link's
     // own bubble overflowing it read here as the line's fault.
-    const m = await lines(p, 'p[role="status"]');
+    const m = await lines(p, 'p[data-system]');
     ok('320: the line over a handed-over link stays on the screen too', !!m && m.own <= m.ownClient && m.left >= 0 && m.right <= m.w, JSON.stringify(m));
     await ctx.close();
   }
@@ -717,7 +716,7 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   const { ctx, p } = await at(`/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { viewport: { width, height } });
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
   await settle(p);
-  const line = await inLog(p, '[role="log"] p[role="status"]');
+  const line = await inLog(p, '[role="log"] p[data-system]');
   ok(`${width}×${height}: the «من مكالمتك» line is all on screen`, !!line?.whole, JSON.stringify(line));
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
   ok(`${width}×${height}: …and so is his answer's first sentence`, !!said?.whole, JSON.stringify(said));
@@ -735,9 +734,9 @@ for (const [width, height] of [[320, 568], [390, 844]]) {
   await p.goto(`${B}/salem/?q=${encodeURIComponent('قهوة')}&from=call`, { waitUntil: 'networkidle' }).catch(() => {});
   await p.locator('[role="log"] a[href^="/places/"]').first().waitFor({ state: 'attached', timeout: 9000 }).catch(() => {});
   await settle(p);
-  const text = (await p.locator('[role="log"] p[role="status"]').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
+  const text = (await p.locator('[role="log"] p[data-system]').last().textContent({ timeout: 2000 }).catch(() => '')) ?? '';
   ok('320×568, a pick carried with her: the line names it', text.includes('واخترت'), text);
-  const line = await inLog(p, '[role="log"] p[role="status"]');
+  const line = await inLog(p, '[role="log"] p[data-system]');
   ok('320×568, a pick carried with her: …and the line is all on screen', !!line?.whole, JSON.stringify(line));
   const said = await inLog(p, '[role="log"] div[data-line].justify-start');
   ok('320×568, a pick carried with her: …with his answer\'s first sentence under it', !!said?.whole, JSON.stringify(said));
@@ -1027,5 +1026,5 @@ console.log('\n── before its script runs, the header does not say «جاهز
 
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
-console.log(`${pass} passed, ${fails.length} failed`);
+console.log(`${counts.pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

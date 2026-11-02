@@ -14,9 +14,8 @@ import { chromium } from 'playwright';
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const PLACE = '/places/kuwait-towers/';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 /**
  * A page with the three share mechanisms replaced by spies.
@@ -95,10 +94,18 @@ console.log('\n── closed, it is the plan in one line and a send button (7 Oc
   ok('«غيّر» opens the chips', (await panel(p).locator('fieldset button:visible').count()) >= 3);
   ok('and says it is open', (await panel(p).getByRole('button', { name: /تمام/ }).getAttribute('aria-expanded')) === 'true');
   const chips = panel(p).locator('fieldset button');
-  const last = (await chips.last().textContent()).trim();
-  await chips.last().click();
+  const labels = (await chips.allTextContents()).map((t) => t.trim());
+  const before = await panel(p).locator('[data-plan-when]').textContent();
+  // A chip the line does not already say. Clicking the one it names changes
+  // nothing, and the old check passed on the default line whenever that line
+  // named باچر or الويكند, whatever the chips did (14 October). Read before the
+  // click, so the change is measured and not assumed.
+  const found = labels.findIndex((l) => !before.includes(l.replace(/ مساءً$/, '')));
+  const at = found >= 0 ? found : labels.length - 1;
+  const pick = labels[at];
+  await chips.nth(at).click();
   const after = await panel(p).locator('[data-plan-when]').textContent();
-  ok('a chip changes the line', after.includes(last.replace(/ مساءً$/, '')) || /باچر|الويكند/.test(after), `${last} → ${after}`);
+  ok('a chip changes the line', after !== before && after.includes(pick.replace(/ مساءً$/, '')), `${pick}: ${before} → ${after}`);
   await ctx.close();
 }
 
@@ -332,6 +339,6 @@ console.log('\n── the offer expires while the page is still open ──');
   await ctx.close();
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

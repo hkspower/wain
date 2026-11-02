@@ -43,9 +43,11 @@ export default function PrivacyPage() {
             تنحفظ» below — and called «مزوّد خدمة الصوت» everywhere else, on
             request (2 October): the owner wanted the brand off every visible
             surface but the one sentence a privacy page owes a reader. */}
-        {/* The page describes the build it ships in: the live site is the free
-            build since 2 October (wain-ai.ts) and keeps nothing of a call or a
-            chat anywhere; only the staging sandbox talks to the voice service. */}
+        {/* The page describes the build it ships in. Which sentences show is
+            decided by the switches it reads (WAIN_AI_ANY_AGENT_ENABLED and
+            TTS_BRIDGE_ON, wain-ai.ts and tts-bridge.ts), so a build with no
+            agent id says nothing about a call that it does not have. Which
+            build is live is build.json's business, not this comment's. */}
         باختصار: <strong className="text-ink-900">وين ما يستخدم كوكيز</strong>، وما
         يتتبّعك، وما عنده حساب لك. الصفحة هذي تشرح الوضع بالتفصيل — بما فيه
         اللي ينحفظ: سطر تقني بسيط عندنا

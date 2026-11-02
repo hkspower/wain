@@ -36,9 +36,8 @@ execSync(
 const H = await import(pathToFileURL(bundle).href);
 rmSync(dir, { recursive: true, force: true });
 
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 /** A Date whose Kuwait wall-clock hour is exactly `hour`. */
 // A Tuesday in August: the ordinary-day rules. It was Friday the 21st until
@@ -227,15 +226,17 @@ console.log("\n── the default proposal suits the place and the hour ──")
   ok("after the evening is gone, the default is tomorrow",
     H.defaultWhen(indoor, atKuwait(23)) === "tomorrow", H.defaultWhen(indoor, atKuwait(23)));
   // A default that is not on the menu is a chip nobody can see selected.
+  // One line for the claim, not one per hour: a pass used to be recorded as a
+  // bare literal, which could never fail (14 October). The hours are those
+  // the rules above name, not every hour of the day.
+  const unoffered = [];
   for (const h of [0, 6, 9, 13, 18, 20, 21, 22, 23]) {
     for (const p of [outdoor, indoor]) {
       const d = H.defaultWhen(p, atKuwait(h));
-      if (!H.whenOptions(atKuwait(h)).some((o) => o.id === d)) {
-        ok(`the default at ${h}:00 is one of the offered options`, false, `${d} not offered`);
-      }
+      if (!H.whenOptions(atKuwait(h)).some((o) => o.id === d)) unoffered.push(`${h}:00 → ${d}`);
     }
   }
-  ok("the default is always one of the offered options", true);
+  ok("the default is one of the offered options at every hour tested", unoffered.length === 0, unoffered.join(" · "));
 
   // The small hours. `hour < 12` on its own is every hour before noon, which
   // includes two in the morning — and there it proposed «بعد ساعة» for an
@@ -476,5 +477,5 @@ console.log("\n── the calendar entry ──");
     !H.hasCalendarEntry("now", "2026-10-03") && !H.hasCalendarEntry("soon", "2026-10-03") && !H.hasCalendarEntry("tonight-8", null));
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 if (fails.length) { console.log("FAILED: " + fails.join(" | ")); process.exit(1); }

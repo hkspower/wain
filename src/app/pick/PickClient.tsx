@@ -178,7 +178,7 @@ export default function PickClient() {
                 {["١", "٢", "٣"][i]}
               </span>
               <div className="min-w-0 flex-1">
-                <PlaceCard place={place} />
+                <PlaceCard place={place} headingLevel={2} />
               </div>
               <div className="flex shrink-0 flex-col justify-center">
                 <button

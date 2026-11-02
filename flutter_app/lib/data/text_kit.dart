@@ -1,7 +1,7 @@
 /// Arabic-Indic digits, count agreement, distances, variants and the two
 /// catalogue predicates — a faithful Dart port of the matching helpers in
 /// `src/lib/place-kit.ts`, replayed against the web's own answers in
-/// `test/place_kit_parity_test.dart`. Kept by hand (not
+/// `test/kit_parity_test.dart`. Kept by hand (not
 /// generated) because it is logic, not catalogue data; CLAUDE.md records this
 /// exact class of bug — Arabic count agreement written by hand and gotten
 /// wrong — being made three separate times on the web side, so this follows

@@ -27,9 +27,11 @@ kbps and at the connector's default settings rather than the `mp3_44100_64`,
 library rendered at the wrong settings is the drift `docs/voice.md` exists to
 prevent. Use it to hear her; generate the library with the script.
 
-**Everything except the key is now wired.** The route is §4 below — CI, with
-the library cached between runs. `ELEVENLABS_API_KEY` in GitHub's secrets UI
-is the whole remaining step.
+**Everything except the key was wired on 11 September.** The route was §4
+below — CI, with the library cached between runs — and `ELEVENLABS_API_KEY` in
+GitHub's secrets UI was the whole remaining step. CI was retired on 7 October
+(§4 now says so); the route is §3, run by hand, with the key in the generator's
+environment.
 
 **The blocker that caused it is gone.** Until now both the clip generator and
 the live conversational agent pointed at `w0uhBAmNIG5kUDeaFEsA` (Maryam Essa,
@@ -397,26 +399,34 @@ voice — with the recording winning, because the clip path takes priority
 whenever clips exist. `--force` still re-renders everything, but you should no
 longer need it for a copy change.
 
-## 4. Or let CI do it — which is the only route that works today
+## 4. The CI route — retired on 7 October
 
-Add one repository secret (Settings → Secrets and variables → Actions):
+**Retired on 7 October.** The owner banned GitHub Actions for wain that day
+(CLAUDE.md, the Git section), so nothing in this repository generates the clips
+in CI. The steps and the two subsections below are the record of how that route
+worked; they are not a route to follow. The one that works is section 3: run
+`gen-voice.mjs` on a machine that can reach `api.elevenlabs.io`, with
+`ELEVENLABS_API_KEY` in its environment.
+
+The CI route added one repository secret (Settings → Secrets and variables → Actions):
 
 - `ELEVENLABS_API_KEY`
 
 `ELEVEN_VOICE_SHOUQ` and `ELEVEN_VOICE_SALEM` are optional overrides; without
 them the generator uses the ids in `DEFAULT_VOICE_IDS`, which are the voices
-this workspace actually owns and the ones the n8n TTS bridge is set to.
+this workspace actually owns.
 
-The deploy workflow runs `gen-voice.mjs --ci` before each build: with the
-secret set it renders any missing clips; without it the step logs a notice,
-the next step warns, and the build ships the browser-voice fallback.
+The deploy workflow ran `gen-voice.mjs --ci` before each build: with the
+secret set it rendered any missing clips; without it the step logged a notice,
+the next step warned, and the build shipped the browser-voice fallback.
 
 **This sandbox cannot do it, and an API key would not change that.**
 `api.elevenlabs.io` is refused at CONNECT by the egress gateway here — the
 same block that stops uploads to Hostinger — so `npm run voice:sample` answers
-`403 … Host not in allowlist` whether a key is set or not. A GitHub runner
-reaches it over the ordinary internet. The key belongs in GitHub's secrets UI
-and nowhere else: not in a chat message, not in a file, not in this repository.
+`403 … Host not in allowlist` whether a key is set or not. A machine outside
+this sandbox reaches it over the ordinary internet. The key belongs in the
+environment of whatever runs the generator, and nowhere else: not in a chat
+message, not in a file, not in this repository.
 
 ### The library is cached between runs, and that is load-bearing
 
@@ -510,7 +520,7 @@ proves it: swap شوق's voice and every one of her clips is re-recorded while
 
 ---
 
-## The live bridge — a third rendering path
+## The live bridge — a third rendering path, closed 15 October
 
 The clip library covers every sentence written down in advance. It cannot
 cover one assembled at runtime, and that is exactly where شوق stopped being
@@ -518,24 +528,38 @@ herself: the browser's own Arabic voice took over mid-answer, and the drop from
 a Kuwaiti woman to a robot is the loudest thing on the page — louder than
 anything either voice actually says.
 
-The bridge is an n8n webhook holding the ElevenLabs key server-side, so the
-static export still ships no credential; that constraint is why the clip
-pipeline exists and it is not relaxed here.
+**It is off, and has been since 15 October.** The bridge was `/api/tts.php` on
+wain's own server, which holds the ElevenLabs key in `storage/`, so the static
+export still ships no credential; the owner closed it on 15 October and the
+endpoint was moved out of both docroots. The switch is the build-time variable
+`NEXT_PUBLIC_WAIN_TTS_URL`, read by `src/lib/tts-bridge.ts`: unset, empty or
+`none` means off, and the device's own voice reads every answer. The native app
+reads `WAIN_TTS_URL` as a `--dart-define` for the same switch. To reopen it,
+reinstall the endpoint first and then build with
+`NEXT_PUBLIC_WAIN_TTS_URL=/api/tts.php`; `tts-bridge.ts` has the reasoning and
+the order.
+
+**The webhook below is not wain's bridge.** It is sporta's `fahad-tts` workflow
+on an n8n instance the two projects share, and CLAUDE.md records it as sporta's
+only since wain's bridge moved to `/api/tts.php`. Its path stays as it is:
+renaming it would break whatever already calls it from Sporta, which is a worse
+trade than an ugly URL. Its request shape, for reference:
 
 ```
 POST https://sportake.app.n8n.cloud/webhook/fahad-tts
 { "persona": "shouq" | "salem" | "sporta", "text": "…" }  →  audio/mpeg
 ```
 
-Set the `WAIN_TTS_URL` repository variable to that URL and the site starts
-using it. The path still reads `fahad-tts` after a persona that no longer
-exists anywhere in this repo — renaming it would break whatever already calls
-it from Sporta, which is a worse trade than an ugly URL.
+Its voice table has drifted from the clip library (CLAUDE.md, the n8n section),
+so pointing wain's switch at it would make a live sentence sound like a
+different speaker from the clip before it.
 
-**The workflow and `gen-voice.mjs` carry the same voice table on purpose.** A
+**The bridge and `gen-voice.mjs` carry the same voice table on purpose.** A
 clip and a live sentence are heard one after the other *inside a single
 utterance*; if the voice or the settings differ between them, a visitor hears
-the speaker change mid-sentence. Change one table and change the other.
+the speaker change mid-sentence. Change one table and change the other, and
+`npm run audit:tts` says when they disagree. The n8n workflow kept a table of
+its own, and nothing compared it.
 
 **What it costs.** One ElevenLabs call per runtime sentence, at request time —
 unlike the clips, which are paid for once. And a configured-but-slow bridge

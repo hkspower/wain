@@ -10,10 +10,10 @@
  * reason nobody noticed one.
  *
  * So this refuses to answer from the root. `npm run deploy:plan` writes down
- * every file in the export with its size and marks six of them — a hashed
+ * every file in the export with its size and marks some of them — a hashed
  * stylesheet, a hashed route chunk, the build-id directory, and three
- * different subdirectory depths — as required. All six have to be present and
- * byte-exact before this says yes.
+ * different subdirectory depths — as required. All of those have to be
+ * present and byte-exact before this says yes.
  *
  * Nothing here can read the live site: www.wainkw.com resolves through the
  * same egress policy that refuses the upload host. The readings come from the
@@ -92,7 +92,7 @@ if (buildJsonText) {
 console.log(`\n  A correct stamp proves one root file arrived. It is not the answer.`);
 
 /* ── the proofs that are not at the root ─────────────────────────────────── */
-console.log(`\n── the six that are not at the root ──`);
+console.log(`\n── the proofs that are not at the root ──`);
 for (const { path, why } of plan.required) {
   const want = plan.files[path];
   const got = observed[path];
@@ -181,7 +181,7 @@ if (!stampMatches) {
 
 console.log(
   failures === 0
-    ? `\n✓ ${plan.commit.slice(0, 8)} is live — verified at the root and ${plan.required.length} levels below it.\n`
+    ? `\n✓ ${plan.commit.slice(0, 8)} is live — verified at the root and ${plan.required.length} proof files below it.\n`
     : `\n✗ ${failures} check(s) failed. This deploy has not landed.\n`,
 );
 process.exit(failures === 0 ? 0 : 1);

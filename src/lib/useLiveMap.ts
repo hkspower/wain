@@ -42,8 +42,9 @@ export function useLiveMap() {
    * only once webpack has EVALUATED the module, so priming it moves the parse
    * off the critical path too, not merely the bytes.
    *
-   * Unlike شوق's 451KB widget this is 45K of our own, so it is fetched on
-   * approach rather than held back to `pointerdown` — which is exactly what
+   * Unlike شوق's widget, a third-party bundle many times this size, this is
+   * 45K of our own, so it is fetched on approach rather than held back to
+   * `pointerdown` — which is exactly what
    * her button already does with its OWN chunk, and withholds only from the
    * third-party half.
    *

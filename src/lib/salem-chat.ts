@@ -148,7 +148,7 @@ export function stripFiller(text: string): string {
  * very next suite had them in 32 of her replies — «[sad] ما عندي مطعم ياباني…».
  * Latin letters only, so an Arabic phrase someone puts in brackets survives.
  */
-export function stripAudioTags(text: string): string {
+function stripAudioTags(text: string): string {
   return text
     .replace(/\[[a-z][a-z' -]{0,30}\]/gi, " ")
     .replace(/[ \t]{2,}/g, " ")
@@ -172,7 +172,7 @@ const SOURCE = "js_sdk";
 const NOOP_HANDLE: SalemChatHandle = { send: () => false, tell: () => false, close: () => {} };
 
 /**
- * How long "نوصّل شوق…" waits before giving up.
+ * How long "نوصّل سالم…" waits before giving up.
  *
  * The socket's own `open`/`close`/`error` events only fire for a connection
  * the network actually resolved one way or the other — a handshake accepted

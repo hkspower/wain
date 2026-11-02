@@ -131,16 +131,20 @@ the check rather than an exception to it.
 
 ### One switch now, not two
 
-- **The site needs no variable.** `voice.ts` defaults to `/api/tts.php` — the
-  same relative path on staging and production, on the origin the page came
-  from. `NEXT_PUBLIC_WAIN_TTS_URL` still overrides, and «none» turns the bridge
-  off; unset is the working case.
-- **The endpoint is installed** on both stages, byte-identical, and answers
-  `503 not_configured` until `<domain>/storage/elevenlabs.key` has a key in it.
+- **One variable, read at build time.** `NEXT_PUBLIC_WAIN_TTS_URL` is the whole
+  switch (`src/lib/tts-bridge.ts:20`): unset, empty or «none» is off, and a URL
+  turns the bridge on for that build. Off is the default since 15 October, when
+  the owner closed the bridge; the live builds had said «none» since 7 October.
+- **The endpoint is closed, not installed.** `/api/tts.php` was moved into
+  `<domain>/storage/` on both stages on 15 October, and both URLs answered 404
+  through the edge afterwards. The key file stayed where it was (renamed to
+  `elevenlabs.key.off` on 7 October), so nothing is spent.
+- **To turn it back on,** reinstall the endpoint first, then build with
+  `NEXT_PUBLIC_WAIN_TTS_URL=/api/tts.php`. `tts-bridge.ts:16-17` says the same.
 
 So the half-on state is gone. It used to be that turning on the variable while
 the workflow was off bought a four-second wait and then the robot, and turning
 on the workflow while the variable was unset changed nothing. What is left is
-one file with one value in it, and until it is filled the site behaves exactly
-as it does today: recorded clips where they exist, the browser voice elsewhere,
-one cheap 503 per visit.
+one value, and with it unset the site behaves as it does now: recorded clips
+where they exist, the device's own voice elsewhere, and no request to the bridge
+at all (`voice.ts` returns before fetching when `TTS_URL` is empty).

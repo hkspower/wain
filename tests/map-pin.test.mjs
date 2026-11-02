@@ -14,9 +14,8 @@ import { chromium } from 'playwright';
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 // Reads that come AFTER a tap which may have navigated. Once the page has
 // left /search the pin no longer exists, a bare getAttribute waits its full 30s
 // and throws, and the uncaught throw ends the process — so one red here used
@@ -516,6 +515,6 @@ console.log('\n── grouped where the heads meet, drawn where the places are �
   }
 }
 
-console.log(`\n${pass} passed, ${fails.length} failed`);
+console.log(`\n${counts.pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

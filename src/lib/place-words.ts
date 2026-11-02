@@ -15,7 +15,11 @@ export const SETTING_LABEL = { indoor: "مكيّف", outdoor: "برا", mixed: "
 /** By priceLevel: index 0 is unused. */
 export const PRICE_LABEL = ["", "اقتصادي", "متوسط", "راقي"] as const;
 
-/** Said wherever an approximate coordinate is drawn — the place page's own words. */
+/**
+ * Said on a map pin's callout and in its aria-label (MapPin, through pinLabel).
+ * The place page says the same at greater length, inline in PlaceMap, and
+ * starts with these words.
+ */
 export const APPROX_PIN = "الدبوس على المنطقة تقريباً";
 
 type PinPlace = Pick<Place, "nameAr" | "areaAr" | "rating" | "setting" | "priceLevel" | "coordsUnverified">;

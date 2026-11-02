@@ -11,16 +11,20 @@ evidence; they are the author's checks.
 
 ## Two builds, because the modes differ
 
-- **Free build** (`npm run build`, no `NEXT_PUBLIC_ELEVENLABS_*` set): the live
-  site's free mode. Local answers, the phone's speech, no agent. No `convai-*`
-  file in `out/media`.
+- **Free build** (`npm run build`, no `NEXT_PUBLIC_ELEVENLABS_*` agent id set):
+  local answers, the phone's speech, no agent. `scripts/vendor-widget.mjs
+  --copy` skips the widget, so no `convai-*` file exists under
+  `out/_next/static/media/`.
 - **Agent build** (`NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116
   NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID=agent_5101m4wwgr3ae5qat412ezcnffhn
-  NEXT_PUBLIC_WAIN_TTS_URL=none npm run build`): the live site. Build it, then
-  copy `out/` aside, because the next build overwrites `out/`.
+  NEXT_PUBLIC_WAIN_TTS_URL=none npm run build`): an agent build. Build it, then
+  copy `out/` aside, because the next build overwrites `out/`. Its widget is
+  `out/_next/static/media/convai-*.js`.
 
-Build both. The live site is an agent build, so a free build can hide an
-agent-mode regression. `npm run build` takes a few minutes; give it a timeout.
+Build both. A free build can hide an agent-mode regression. The live site was an
+agent build when its `build.json` was last read (15 October); read the live
+`build.json` before assuming which build it runs now. `npm run build` takes a few
+minutes; give it a timeout.
 
 ## Serve
 

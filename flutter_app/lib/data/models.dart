@@ -84,7 +84,7 @@ class Place {
   final String? website;
   final List<String> productsAr;
 
-  // Order ahead. Gated by [acceptsOrders] in place_kit.dart: a menu alone is
+  // Order ahead. Gated by [acceptsOrders] in text_kit.dart: a menu alone is
   // not consent to take orders.
   final List<MenuItem> menuAr;
   final bool acceptsOrdersFlag;

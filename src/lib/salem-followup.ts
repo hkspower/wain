@@ -45,7 +45,7 @@
  * SalemChat loads it with the index, never up front.
  */
 import type { Place } from "@/lib/places";
-import { normalise } from "@/lib/search";
+import { foldWords, normalise } from "@/lib/search";
 import { isKuwaitNight, isSummerMonth } from "@/lib/kuwait-time";
 import {
   OPENERS,
@@ -104,10 +104,8 @@ export type FollowUp =
   | { kind: "social"; act: SocialAct; opener?: Opener }
   | { kind: "ask"; what: "subject" | "area"; opener?: Opener };
 
-const fold = (words: string[]) => new Set(words.map(normalise));
-
 /** Words that carry nothing: «أبي واحد يكون…», «طيب», «لو سمحت», «عندك…؟». */
-const FILLER = fold([
+const FILLER = foldWords([
   "ابي", "ابغى", "ابا", "بغيت", "نبي", "عطني", "عطيني", "وريني", "شي", "شيء", "مكان", "واحد", "وحده", "يكون",
   "تكون", "فيه", "في", "هذا", "هذي", "هذاك", "طيب", "اوكي", "اوك", "ok", "يعني", "و", "بس", "حلو", "زين", "عن",
   "على", "ع", "ال", "انا", "احنا", "لو", "سمحت", "تكفى", "ممكن", "شنو", "شو", "ايش", "عاد", "هم", "بعد", "كذا",
@@ -117,13 +115,13 @@ const FILLER = fold([
 ]);
 
 /** «غيره» — the next places of the same answer. */
-const MORE = fold([
+const MORE = foldWords([
   "غيره", "غيرها", "غيرهم", "غير", "ثاني", "ثانيه", "ثانين", "زود", "اكثر", "باقي", "كمان", "المزيد", "مزيد",
   "خيارات", "اقتراحات", "بدايل", "بديل",
 ]);
 
 /** «وين بالضبط؟» — where, for the place being pointed at. */
-const WHERE = fold([
+const WHERE = foldWords([
   "وين", "وينه", "وينها", "وينهم", "موقع", "الموقع", "موقعه", "موقعها", "لوكيشن", "اللوكيشن", "طريق",
   "الطريق", "بالضبط", "مكانه", "مكانها", "خريطه", "الخريطه", "العنوان", "عنوانه", "هو", "هي",
 ]);
@@ -148,28 +146,28 @@ const ORDINALS = new Map<string, number>([
   ...["العاشر", "العاشره", "عاشر"].map((w) => [normalise(w), 9] as const),
   ...Array.from({ length: 40 }, (_, i) => [String(i + 1), i] as const),
 ]);
-const ORDINAL_FILLER = fold(["رقم", "المكان", "اللي", "الي", "خلنا", "ناخذ", "نروح", "ابي", "ودي", "هذا", "واحد"]);
+const ORDINAL_FILLER = foldWords(["رقم", "المكان", "اللي", "الي", "خلنا", "ناخذ", "نروح", "ابي", "ودي", "هذا", "واحد"]);
 /** «وين» on its own — see readFollowUp. */
 const WHERE_ALONE = normalise("وين");
-const LAST = fold(["الاخير", "الاخيره", "اخر", "اخرها"]);
+const LAST = foldWords(["الاخير", "الاخيره", "اخر", "اخرها"]);
 /**
  * «أحسن واحد» is the first place: the answer's order IS its best guess. It was
  * searched for the words «أحسن واحد» and answered with a souq.
  */
-const BEST = fold(["احسن", "الاحسن", "افضل", "الافضل", "احلى", "الاحلى"]);
+const BEST = foldWords(["احسن", "الاحسن", "افضل", "الافضل", "احلى", "الاحلى"]);
 /**
  * «كم سعر الأول؟» is the first place, and its card says the price band — the
  * catalogue has no prices, so a card is all an honest answer can show. It was
  * searched for «سعر» and answered with a bridge.
  */
-const PRICE = fold(["كم", "بكم", "سعر", "سعره", "سعرها", "اسعار", "الاسعار", "اسعاره", "اسعارها", "السعر"]);
+const PRICE = foldWords(["كم", "بكم", "سعر", "سعره", "سعرها", "اسعار", "الاسعار", "اسعاره", "اسعارها", "السعر"]);
 /**
  * «قريب مني», «وين أقرب واحد». The page does not know where the visitor is —
  * on purpose, it never asks for a position — so the only honest answer is a
  * question back. Searched, «قريب مني» answered with a Friday market.
  */
-const NEAR = fold(["قريب", "قريبه", "اقرب", "الاقرب", "جنبي", "حذالي", "near", "nearby", "closest", "nearest"]);
-const NEAR_FILLER = fold(["مني", "منا", "عندي", "عندنا", "me", "us"]);
+const NEAR = foldWords(["قريب", "قريبه", "اقرب", "الاقرب", "جنبي", "حذالي", "near", "nearby", "closest", "nearest"]);
+const NEAR_FILLER = foldWords(["مني", "منا", "عندي", "عندنا", "me", "us"]);
 
 /**
  * Words that narrow an answer. «مو غالي» is two of them: the negator travels
@@ -178,7 +176,7 @@ const NEAR_FILLER = fold(["مني", "منا", "عندي", "عندنا", "me", "u
  * «وما»/«ومو» lose their «و» (`known`); a negator on its own narrows nothing
  * — see NEGATORS_CHAT.
  */
-const REFINERS = fold([
+const REFINERS = foldWords([
   // the price
   "رخيص", "رخيصه", "ارخص", "اقتصادي", "ميزانيه", "بلاش", "غالي", "مو", "ما", "مب",
   // inside or out
@@ -196,12 +194,12 @@ const REFINERS = fold([
  * «كم مكان فيه؟», «كم عددهم؟», «عدد الأماكن» — a count. It needs a word for
  * what is counted: «كم» alone, and «كم سعره؟», stay price questions (PRICE).
  */
-const COUNT_ASK = fold(["كم", "عدد", "العدد", "عددهم", "عددها"]);
-const COUNT_NOUN = fold([
+const COUNT_ASK = foldWords(["كم", "عدد", "العدد", "عددهم", "عددها"]);
+const COUNT_NOUN = foldWords([
   "مكان", "اماكن", "الاماكن", "واحد", "عدد", "العدد", "عددهم", "عددها", "خيار", "خيارات", "نتيجه", "نتايج", "نتائج",
   "محل", "محلات",
 ]);
-const COUNT_WORDS = fold(["لقيت", "طلع", "طلعت", "كلها", "كلهم", "بالكل", "تقريبا"]);
+const COUNT_WORDS = foldWords(["لقيت", "طلع", "طلعت", "كلها", "كلهم", "بالكل", "تقريبا"]);
 
 /**
  * A «no» to the answer, and the words it is said with. A negator reads with
@@ -217,19 +215,19 @@ const COUNT_WORDS = fold(["لقيت", "طلع", "طلعت", "كلها", "كله�
  * narrowing by nothing, and «مو هذي» gave the same eight beaches back.
  * «ولا» is not one: it is «or», and is never peeled to «لا».
  */
-const NEGATORS_CHAT = fold(["مو", "ما", "مب", "مش", "موب", "مهوب", "لا"]);
+const NEGATORS_CHAT = foldWords(["مو", "ما", "مب", "مش", "موب", "مهوب", "لا"]);
 /** Skipped between a negator and what it negates: «ما أبي أروح البحر». */
-const WANT = fold(["ابي", "ابغى", "ابا", "نبي", "نبغى", "ودي", "بغيت", "اروح", "نروح", "اطلع", "نطلع"]);
+const WANT = foldWords(["ابي", "ابغى", "ابا", "نبي", "نبغى", "ودي", "بغيت", "اروح", "نروح", "اطلع", "نطلع"]);
 /** What a «no» says after its negator, and needs nothing after it. */
-const NOT_THIS = fold([
+const NOT_THIS = foldWords([
   "هذا", "هذي", "هذاك", "هذيك", "هذول", "هذولا", "هاذي", "هاذا", "ذا", "ذي", "اللي", "الي", "كذا", "عجبني",
   "يعجبني", "عاجبني", "عجبتني", "تعجبني", "عاجبتني", "حبيته", "حبيتها", "احبه", "احبها", "ابيه", "ابيها", "ابيهم",
   "ابغاه", "ابغاها", "حلو", "حلوه", "زين", "زينه", "صح", "مناسب", "مناسبه", "يصلح", "ينفع",
 ]);
 /** «غلط», «خايس» — a «no» with no negator. */
-const WRONG = fold(["غلط", "خطا", "سيء", "سيئ", "سيئه", "خايس", "خايسه", "زفت", "بايخ", "بايخه"]);
+const WRONG = foldWords(["غلط", "خطا", "سيء", "سيئ", "سيئه", "خايس", "خايسه", "زفت", "بايخ", "بايخه"]);
 /** «مو غالي» — the one pair `answerOrder` reads (readAsks, «not dear»). */
-const DEAR = fold(["غالي", "غاليه", "مكلف"]);
+const DEAR = foldWords(["غالي", "غاليه", "مكلف"]);
 /** A word that a negator turns into another narrowing. */
 const OPPOSITE = new Map<string, string>([
   ...["برا", "بره", "خارجي", "مكشوف"].map((w) => [normalise(w), "داخلي"] as const),
@@ -241,7 +239,7 @@ const OPPOSITE = new Map<string, string>([
  * a «no»: its «ما» says nothing and is dropped before anything reads it. «ما
  * فيه شي بالسالمية؟» after an answer was searched whole and found nothing.
  */
-const THERE_IS = fold(["فيه", "في", "عندك", "عندكم", "يوجد", "موجود"]);
+const THERE_IS = foldWords(["فيه", "في", "عندك", "عندكم", "يوجد", "موجود"]);
 const MA = normalise("ما");
 
 type Negation = { kind: "none" | "keep" | "reject" } | { kind: "swap"; words: string[] };

@@ -54,8 +54,8 @@
  *   4. `npm run audit:photos` (it is in `npm run scan`) checks the two halves
  *      still agree.
  *
- * `photos-src/` is not committed. The web-sized output is, so a clone builds
- * the real site without needing the originals.
+ * `photos-src/` is not committed. The web-sized output will be once a photograph
+ * is made, so a clone builds the real site without needing the originals.
  */
 
 export interface PlacePhoto {

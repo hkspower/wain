@@ -30,8 +30,8 @@ import { CHOICE_MAX } from "@/lib/hangout";
 import { PLACES_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import { PRICE_LABEL } from "@/lib/place-words";
 
-/** A typed-chat line — شوق's own reply, the visitor's own, a note from this
- * page itself (a tool it could not run), or one of her two tool RESULTS
+/** A typed-chat line — سالم's own reply, the visitor's own, a note from this
+ * page itself (a tool it could not run), or one of the agent's two tool RESULTS
  * rendered inline: a row of place cards from `show_places`, or one fuller
  * card from `open_place`. Kept apart from `SalemMessage` (which only ever
  * carries "user" | "agent") because none of the other three is something
@@ -62,6 +62,15 @@ const KEPT = "wain:salem:v1";
 const KEPT_LINES = 60;
 /** His replies read aloud — this device's choice, like صوت وين's. */
 const READ_PREF = "wain-salem-read";
+
+/** The place a slug names among a list of live rows, or undefined. Every
+ * answer, card and pin on this page resolves a slug this way. It was written
+ * out at six sites, and a seventh copy is where the lookup would drift. `null`
+ * is the map's «no pin chosen» (`activeSlug`), which names nothing. */
+function placeBySlug(list: readonly Place[], slug: string | null | undefined): Place | undefined {
+  if (!slug) return undefined;
+  return list.find((p) => p.slug === slug);
+}
 
 /** The visitor's last question if nothing has answered it yet: the last line
  * that is not a note from the page, when it is theirs. */
@@ -126,8 +135,8 @@ function socialLine(act: SocialAct, opener: Opener | undefined, remembers: boole
  */
 
 /**
- * The free build — the live site since 2 October (see wain-ai.ts): no agent,
- * no socket, nothing sent anywhere. Each message is answered from وين's own
+ * The free build — no agent id for سالم (`NEXT_PUBLIC_ELEVENLABS_SALEM_AGENT_ID`
+ * unset or «none», see wain-ai.ts): no agent, no socket, nothing sent anywhere. Each message is answered from وين's own
  * search inside the page, with the same cards and hangout panel `show_places`
  * draws for the agent, and a sentence from `answerParts` — the words the
  * free CALL already speaks on /search, so the two free paths say the same
@@ -185,10 +194,10 @@ export default function SalemChat() {
   const [draft, setDraft] = useState("");
   // Why the session failed, for the banner — see SalemFailure.
   const [failure, setFailure] = useState<SalemFailure | null>(null);
-  // A message is out and her reply has not come: the typing bubble, and the
+  // A message is out and the reply has not come: the typing bubble, and the
   // send button held back so a second question does not cross the first.
   const [pending, setPending] = useState(false);
-  // True from a session opening until her first line lands: she speaks first,
+  // True from a session opening until his first line lands: he speaks first,
   // and until then the transcript is empty.
   const [awaitingGreeting, setAwaitingGreeting] = useState(false);
   // A reply is taking long (see WAIN_AI_CHAT_COPY.slow).
@@ -410,7 +419,7 @@ export default function SalemChat() {
       const clock = order.kuwaitClock();
       const ctx = asked ?? ctxRef.current;
       const intent = follow.readFollowUp(q, ctx, activeRef.current, areas);
-      const bySlug = (slug: string) => places.find((p) => p.slug === slug);
+      const bySlug = (slug: string) => placeBySlug(places, slug);
       const lines: ChatLine[] = [];
       let parts: SpeechPart[] = [];
       const opener = "opener" in intent && intent.opener ? `${WAIN_AI_CHAT_COPY.opener[intent.opener]} ` : "";
@@ -631,7 +640,7 @@ export default function SalemChat() {
       onStatus: (s, f) => {
         // The phone put the page away while the line was opening (iOS does it
         // within seconds of an app switch): not the agent's answer, so not a
-        // reason to switch her off — try again once the page is back.
+        // reason to switch the line off — try again once the page is back.
         if (s === "error" && f === "interrupted") {
           const again = () => {
             if (document.visibilityState === "hidden") return;
@@ -684,7 +693,7 @@ export default function SalemChat() {
       },
       onNoReply: () => setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]),
       onSlow: () => setSlow(true),
-      // She corrected what she had just said: replace that bubble rather than
+      // He corrected what he had just said: replace that bubble rather than
       // leave both on screen.
       onCorrection: ({ original, corrected }) =>
         setMessages((prev) => {
@@ -762,7 +771,7 @@ export default function SalemChat() {
     // A question handed over from a call or from شوق comes under a line saying
     // so, and anchoring the reply at its own start left that line above the
     // transcript at every phone width — the visitor never saw where the
-    // question came from, or the place picked with her (15 October). The line
+    // question came from, or the place picked with him (15 October). The line
     // is where to start when it, the question and the reply's first card fit
     // the transcript together; otherwise the reply's start, as before.
     //
@@ -848,15 +857,15 @@ export default function SalemChat() {
   }
 
   // The handed-over question goes as soon as the chat can take it: at once in
-  // the free build, after her greeting on a socket.
+  // the free build, after his greeting on a socket.
   useEffect(() => {
     const handoff = handoffRef.current;
     if (!handoff || !ready || status !== "connected" || pending || awaitingGreeting) return;
     handoffRef.current = null;
     // A NEW question, whatever this tab remembers: read against an older chat,
-    // «شي رخيص» from her came out as a narrowing of that chat's subject, and
-    // the cards were not the ones she had just named. Asked fresh, the same
-    // ordering her answer uses (lib/answer-order.ts) puts the same place first.
+    // «شي رخيص» from him came out as a narrowing of that chat's subject, and
+    // the cards were not the ones he had just named. Asked fresh, the same
+    // ordering his answer uses (lib/answer-order.ts) puts the same place first.
     ctxRef.current = null;
     activeRef.current = null;
     // The job this question comes with, when it is this question's: the place
@@ -868,7 +877,7 @@ export default function SalemChat() {
     if (handoff.from) {
       const C = WAIN_AI_CHAT_COPY;
       const label = handoff.from === "call" ? C.fromCall : handoff.from === "call-center" ? C.fromCallCenter : C.fromShouq;
-      const name = picked ? places.find((p) => p.slug === picked)?.nameAr : undefined;
+      const name = picked ? placeBySlug(places, picked)?.nameAr : undefined;
       setMessages((prev) => [
         ...prev,
         {
@@ -959,7 +968,7 @@ export default function SalemChat() {
     //
     // The height is EXACT, not a minimum. It was `min-h-dvh`, and a minimum
     // gives the transcript's `overflow-y-auto` nothing to overflow: the page
-    // grew instead, the box and her newest reply slid below the fold, and the
+    // grew instead, the box and the newest reply slid below the fold, and the
     // scroll-to-newest effect scrolled a list that could not scroll. Reported
     // as «she did not answer», 1 October. Installed, the body already pads
     // for the tab bar, so the frame is that much shorter — except while the box
@@ -1002,7 +1011,7 @@ export default function SalemChat() {
           className="size-11 shrink-0 rounded-full object-cover"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-base font-bold text-white">{SALEM_NAME}</p>
+          <h1 className="truncate font-display text-base font-bold text-white">{SALEM_NAME}</h1>
           <p aria-live="polite" className="truncate text-xs text-sand-200">
             {statusLine}
           </p>
@@ -1021,8 +1030,8 @@ export default function SalemChat() {
           {readAloud ? <IconSpeaker className="size-5" /> : <IconSpeakerOff className="size-5" />}
         </button>
         {/* The call itself, placed from here (7 October, on request). It was a
-            link to /find — one call button on the site — so switching to her
-            cost a page and a second tap. The real ShouqCallButton, never a
+            link to /find — one call button on the site — so calling him from
+            here cost a page and a second tap. The real ShouqCallButton, never a
             look-alike: the tap has to spend its gesture on the audio and the
             recogniser, or the call rings silently. */}
         <ShouqCallButton size="pill" persona="salem" className="shrink-0" />
@@ -1030,7 +1039,7 @@ export default function SalemChat() {
 
       {/* role="log": the transcript is the one thing on this page that changes
           without the visitor touching it, and a screen reader heard none of
-          her replies — only the header's status line was a live region. */}
+          his replies — only the header's status line was a live region. */}
       <div
         ref={listRef}
         role="log"
@@ -1048,11 +1057,14 @@ export default function SalemChat() {
             // `wrap-anywhere` here and on every bubble: a pasted link has no
             // place to break, and at 320 its bubble's text ran 186px off the
             // screen and slid the whole transcript sideways (15 October).
+            // No `role="status"`: the log around this line already announces
+            // each addition, and a status region nested inside a live log was
+            // read out a second time. `data-system` is what the suites select.
             return (
               <p
                 key={i}
                 data-line={i}
-                role="status"
+                data-system=""
                 className="mx-auto max-w-[85%] wrap-anywhere rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200"
               >
                 {m.text}
@@ -1060,15 +1072,15 @@ export default function SalemChat() {
             );
           }
           if (m.role === "places") {
-            // Her own words already carry the count and the first names
+            // His own words already carry the count and the first names
             // (formatShowPlaces' `spoken`, read by the agent); the rail is
-            // the thing itself, not a repeat of what she said about it. Real
+            // the thing itself, not a repeat of what he said about it. Real
             // `PlaceCard`s, matching /explore's own rail — see this file's
             // `ChatLine` comment for why the ad-hoc pill this used to be was
             // replaced rather than restyled. `SalemPlacesResult` owns its own
             // `ShareHangout`, on the same reasoning.
             const cards = m.slugs.flatMap((slug) => {
-              const place = places.find((p) => p.slug === slug);
+              const place = placeBySlug(places, slug);
               return place ? [place] : [];
             });
             // The chips belong to the newest answer only: under an older one
@@ -1085,7 +1097,7 @@ export default function SalemChat() {
                   latest
                     ? (slug) => {
                         activeRef.current = slug;
-                        const picked = places.find((p) => p.slug === slug);
+                        const picked = placeBySlug(places, slug);
                         if (picked) pickInJob("salem-chat", slug, picked.nameAr);
                       }
                     : undefined
@@ -1094,23 +1106,23 @@ export default function SalemChat() {
             );
           }
           if (m.role === "where") {
-            const place = places.find((p) => p.slug === m.slug);
+            const place = placeBySlug(places, m.slug);
             if (!place) return null;
             return <SalemWhere key={i} place={place} />;
           }
           if (m.role === "place") {
-            const place = places.find((p) => p.slug === m.slug);
+            const place = placeBySlug(places, m.slug);
             if (!place) return null;
             return (
               <div key={i} className="space-y-2">
                 <div className="w-48">
-                  <PlaceCard place={place} />
+                  <PlaceCard place={place} headingLevel={2} />
                 </div>
                 <ShareHangout place={place} />
               </div>
             );
           }
-          // The corner nearest the speaker is the tail — hers on the start
+          // The corner nearest the speaker is the tail — his on the start
           // side, the visitor's on the end — so the dots below and the reply
           // that replaces them are visibly the same bubble.
           return (
@@ -1128,7 +1140,7 @@ export default function SalemChat() {
         })}
         {typing && (
           <div className="flex flex-col items-start gap-1">
-            {/* Her bubble, at the height of one line of her reply, so the
+            {/* His bubble, at the height of one line of his reply, so the
                 reply lands where the dots were instead of below a shorter box. */}
             <div className="flex items-end gap-2">
             <ReplyFace />
@@ -1273,7 +1285,7 @@ function SalemPlacesResult({
   onActive?: (slug: string) => void;
 }) {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
-  const target = places.find((p) => p.slug === activeSlug) ?? places[0];
+  const target = placeBySlug(places, activeSlug) ?? places[0];
   const railRef = useRef<HTMLUListElement>(null);
 
   const choose = (slug: string | null) => {
@@ -1319,7 +1331,7 @@ function SalemPlacesResult({
               place.slug === activeSlug ? "ring-2 ring-sun-400 ring-offset-2 ring-offset-sea-950" : ""
             }`}
           >
-            <PlaceCard place={place} />
+            <PlaceCard place={place} headingLevel={2} />
           </li>
         ))}
       </ul>

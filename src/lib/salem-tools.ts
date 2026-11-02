@@ -8,7 +8,7 @@
  * «قولي له» and «لا تسكتين». The call's own replies choose by persona (agentSay).
  *
  * They run the same
- * search index the search page runs, then say what is now on screen so she
+ * search index the search page runs, then say what is now on screen so he
  * can announce it instead of leaving a caller to guess. `/salem` cannot
  * reuse the CALL's version outright — that one navigates the whole page
  * (`router.push`), which is correct for a call sheet sitting OVER the page
@@ -16,7 +16,7 @@
  * would unmount `SalemChat.tsx` and close the socket mid-conversation.
  *
  * So the two tools split in half here. This file is the part that is pure —
- * given a query and the live rows, what matched and what to tell her — and
+ * given a query and the live rows, what matched and what to tell him — and
  * is unit-testable with no browser, no socket, no React. `SalemChat.tsx`
  * owns the impure half: running these against `usePlaces()`'s live rows and
  * a lazily-loaded search index, and turning the result into an inline

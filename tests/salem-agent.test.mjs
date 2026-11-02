@@ -27,9 +27,8 @@ import { readFileSync } from 'node:fs';
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-let pass = 0;
-const fails = [];
-const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+import { makeCheck } from './harness/check.mjs';
+const { ok, fails, counts } = makeCheck();
 
 async function fresh(path) {
   const ctx = await browser.newContext({
@@ -797,5 +796,5 @@ for (const [by, expected] of [['shouq-call', true], ['salem-chat', false]]) {
 
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
-console.log(`${pass} passed, ${fails.length} failed`);
+console.log(`${counts.pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

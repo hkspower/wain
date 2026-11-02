@@ -232,8 +232,9 @@ export function onPhase(fn: (phase: Phase) => void): () => void {
  *
  * The chain used to be strictly serial and to start at the tap: fetch the
  * WainAiCall chunk, mount it, only then create the <script>, cold DNS + TLS to
- * the CDN, 451KB of widget, and only then a cold DNS + TLS to ElevenLabs before
- * a session can open. The visitor hears ring-back through all of it.
+ * the CDN, the widget bundle itself, and only then a cold DNS + TLS to
+ * ElevenLabs before a session can open. The visitor hears ring-back through all
+ * of it.
  */
 
 let warmed = false;
@@ -348,7 +349,7 @@ export function loadWidget(): Promise<void> {
  *
  * pointerdown lands 100–300ms before the click it becomes, and that is most of
  * a cold connection. Separate from `warmCall` on purpose: a hover should not
- * pull 451KB for somebody who was on their way past.
+ * pull the widget bundle for somebody who was on their way past.
  */
 export function armCall(): void {
   if (!callAgentAvailable()) return;

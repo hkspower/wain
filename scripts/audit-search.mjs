@@ -2,12 +2,12 @@
 /**
  * How good is the search?   npm run audit:search
  *
- * `tests/shouq-battery.test.mjs` asks 24 questions in the Kuwaiti a person
+ * `tests/shouq-battery.test.mjs` asks questions in the Kuwaiti a person
  * would actually use and checks the category that comes back. That is the
  * right test and it catches the thing that matters most — a lost synonym or a
  * changed weight turning شوق from useful into confidently wrong.
  *
- * What it cannot show is coverage: 24 questions over 36 places says nothing
+ * What it cannot show is coverage: a fixed list of questions says nothing
  * about the other several hundred ways in. This measures those, exhaustively,
  * over every place and every word written about it.
  *

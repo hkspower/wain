@@ -162,6 +162,17 @@ export function toArabicDigits(value: string | number): string {
 }
 
 /**
+ * The inverse of `toArabicDigits` for the Arabic-Indic digits only: ٠–٩ become
+ * 0–9 and every other character is left alone. Typed numbers are read through
+ * it before they are parsed (search, phone, coordinates, the order's kwd), so
+ * a number typed on an Arabic keyboard counts. The Persian digits (۰–۹) are a
+ * separate fold, kept where they are read (submissions' parseCoordinate).
+ */
+export function fromArabicDigits(value: string): string {
+  return value.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
+/**
  * A decimal number in Arabic — digits AND the separator.
  *
  * `toArabicDigits` converts the digits and leaves the dot alone, which is

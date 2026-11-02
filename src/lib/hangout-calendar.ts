@@ -73,9 +73,6 @@ export function kuwaitToUtcStamp(day: Day, hour: number, minute: number): string
   return `${t.getUTCFullYear()}${pad(t.getUTCMonth() + 1)}${pad(t.getUTCDate())}T${pad(t.getUTCHours())}${pad(t.getUTCMinutes())}00Z`;
 }
 
-/** `YYYYMMDD`, for an all-day value. */
-export const dateStamp = (day: Day): string => day.replace(/-/g, "");
-
 function stampNow(now: Date): string {
   return now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }

@@ -13,6 +13,7 @@
  * path and spoken only by the fallback.
  */
 import { toStandardArabic } from "@/lib/arabic";
+import { fromArabicDigits } from "@/lib/place-kit";
 import { isKuwaitNight, isSummerMonth } from "@/lib/kuwait-time";
 import type { Opener, SocialAct } from "@/lib/social";
 
@@ -56,8 +57,7 @@ export type SpeechPart = { key?: string; text: string; optional?: boolean; note?
  * the whole point of keeping these lines in one module.
  */
 export function forSpeech(text: string): string {
-  return toStandardArabic(text)
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+  return fromArabicDigits(toStandardArabic(text))
     .replace(/٫/g, ".")
     .replace(/\s*—\s*/g, "، ")
     .replace(/\s+/g, " ")
