@@ -328,7 +328,7 @@ const visit = async (ctx, tag, url, opts) => {
 const TAG0 = LANG + VW
 const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: E.CHROME || undefined })
 try {
-  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW' })
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!E.INJECT })
   await ctx.addInitScript(INIT)
   if (E.INJECT) { let css = ''; for (const u of E.INJECT.split(',')) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css); if (E.EARLY) { await ctx.addInitScript((c) => { const s = document.createElement('style'); s.textContent = c; (document.head || document.documentElement).appendChild(s) }, css); P('EARLY_CSS ' + css.length + ' bytes') } }
 
@@ -491,6 +491,7 @@ try {
       netReport(tag, net)
       const ban = await page.evaluate(() => { const b = document.getElementById('sporta-brand-banner'); return b ? b.getBoundingClientRect().width + 'x' + b.getBoundingClientRect().height + ' ' + b.outerHTML.replace(/\s+/g, ' ').slice(0, 500) : 'NO BANNER' })
       P(tag + ' BANNER ' + ban)
+      P(tag + ' APPLIED catalog-page minHeight ' + (await page.evaluate(() => { const e = document.querySelector('.catalog-page'); return e ? getComputedStyle(e).minHeight + ' h ' + Math.round(e.getBoundingClientRect().height) : 'none' })))
       await page.close()
     }
   }
