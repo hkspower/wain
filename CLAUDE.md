@@ -101,6 +101,22 @@
      NOT current live: the repo's calls `brand_products` (absent from the live
      admin.php) and says "30 days" (the 30-day session change ships with the API),
      so it goes out with the API release, not before.
+   - **Deployed 2026-11-03 (owner: "deploy the location now"):** the optional
+     checkout "Share my location" control (`sporta-gov-autopick.js`, second IIFE)
+     and `.htaccess` `Permissions-Policy` `geolocation=()` → `geolocation=(self)`
+     (`deploy-20261103T104853Z-8bf6001`; undo `compose --rollback` that name). The
+     control writes ONE line `Location: https://www.google.com/maps?q=LAT,LNG` (or
+     `الموقع:`) into the optional order note, joined by a single space (the server
+     deletes control characters, so a newline would glue the words); the note limit
+     is counted in characters (`mb_strlen`, 280). Live-checked read-only on the
+     checkout in ar and en (never submitted). The `.htaccess` that went out also
+     carries the build-filled CSP script hashes (live had `script-src 'self'` only;
+     harmless, the live index.html has no inline script). **Known and still open:**
+     "Remember these details" (ON by default) stores the note, location line
+     included, in `localStorage` (`sporta.delivery`), so a later quick checkout can
+     send a stale pin; the fix (strip the line on write and on load) follows as its
+     own `sporta-gov-autopick.js` deploy. Stage 2 (structured lat/lng columns,
+     admin display, a real link in the warehouse HTML mail) ships with the API.
 
 ## Brand identity (saved by user request — apply always)
 
