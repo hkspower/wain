@@ -203,10 +203,11 @@ is(/--sporta-icon-stroke:\s*1\.5px/.test(SH) && /--sporta-icon-stroke-lg:\s*1\.7
 const SECTIONLESS = ['public/sporta-ui-colours.css', 'public/sporta-brand-theme.css', 'public/sporta-home-trim.css', 'public/sporta-grid.css', 'public/sporta-product-fix.css', 'public/sporta-images.css', 'public/sporta-bag-touch.css', 'public/sporta-checkout-a11y.css', 'public/sporta-admin-knet.css']
 for (const f of SECTIONLESS) is(!read(f).includes(MARK), `${f} has no Icons section (not this lane's file)`)
 
-await suite(br, {}, 'icons')
-const mainFail = fail
+// ICONS_FILES_ONLY=1 skips Part 1 (a few minutes) while the file checks are being worked on.
+const CSS_PART = !process.env.ICONS_FILES_ONLY
+if (CSS_PART) await suite(br, {}, 'icons')
 // mutation: cut the sections, the suite must fail ------------------------------------------------------------------
-{
+if (CSS_PART) {
   const p0 = pass, f0 = fail, fl0 = failures.length
   quiet = true
   await suite(br, Object.fromEntries(FILES.map((f) => [f, cut(read(f))])), 'mutation')
