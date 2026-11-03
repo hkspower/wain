@@ -20,7 +20,7 @@ but it now holds only endpoints, all of which have working defaults:
 window.SPORTA_CONFIG = {}   // correct as-is: /api, /knet and /pay are the defaults
 ```
 
-`npm run test:native` (295 checks) and `npm run test:native-e2e` (26 browser
+`npm run test:native` (412 checks) and `npm run test:native-e2e` (26 browser
 checks) prove the contract against a real MariaDB and a real browser.
 
 ## What ships where
@@ -287,6 +287,15 @@ client the same way.
   phpMyAdmin, and publish the site.
 
 ### Warehouse mail, settling a card by hand, abandoned card orders
+
+Each rule below is held by a check that was proven to FAIL with the rule taken
+out (2026-11-03, release-gate store lane, round 1): the shipped/delivered
+`reinstate` close, the reinstate of a picking list closed as `order cancelled`,
+the mail sent without the order lock, `card_settled` claiming stock again, the
+abandoned no-stock card order, the cookieless admin request, the Google link
+flow and the per-/64 assistant handoff ration each failed their suite
+(`test:native`, `test:admin-session`, `test:assistant`) when reverted, and
+pass with the code as it is.
 
 - **The drain never holds an order's row lock while it mails**
   (`cron-fulfilment.php`): it decides under the lock and marks the row in flight,
