@@ -107,17 +107,25 @@ const report = (tag, S, bgNat, net) => {
     const crops = g.map((x) => x.cropPct + '/' + x.bandPct)
     L.push(tag + ' G ' + g.length + 'x ' + k + ' nat ' + Math.min(...nws) + '-' + Math.max(...nws) + ' natAr ' + Math.min(...ar) + '-' + Math.max(...ar) + ' over ' + Math.min(...ov) + '-' + Math.max(...ov) + ' eff ' + Math.min(...ef) + '-' + Math.max(...ef) + ' ld ' + lds + ' fp ' + fps + ' dec ' + decs + ' altEmpty ' + alts + ' wh ' + ws + ' crop/band ' + [...new Set(crops)].slice(0, 4).join(',') + ' pos ' + [...new Set(g.map((x) => x.pos))].slice(0, 2).join(',') + ' ex ' + (g[0].src.indexOf('data:') === 0 ? g[0].src : g[0].src.slice(-48)))
   }
+  const agg = new Map()
   for (const m of S.imgs) {
     const fl = []
     if (m.vis && (m.nw === 0 || !m.cx)) fl.push('BROKEN')
-    if (m.vis && m.nw && m.eff > 1.05 && m.bw > 40) fl.push('UPSCALED' + m.eff)
+    if (m.vis && m.nw && m.eff > 1.05 && m.bw > 40) fl.push('UPSCALED')
     const kb = kbOf[m.src] == null ? -1 : kbOf[m.src]
-    if (m.vis && m.over > 2 && (kb >= 30 || m.over >= 6)) fl.push('OVERSIZE' + m.over + '(' + kb + 'KB)')
+    if (m.vis && m.over > 2 && (kb >= 30 || m.over >= 6)) fl.push('OVERSIZE')
     if (m.vis && m.ovfX) fl.push('OVERFLOWX')
     if (/placeholder|unavailable|default|no-image|noimage/i.test(m.src)) fl.push('PLACEHOLDER')
     if (m.vis && m.alt === 'MISSING') fl.push('ALT-MISSING')
     if (m.vis && m.inView && m.ld === 'lazy') fl.push('LAZY-INVIEW')
-    if (fl.length) L.push(tag + ' A ' + fl.join(',') + ' ' + m.ctx.slice(0, 50) + ' box ' + m.bw + 'x' + m.bh + ' @' + m.x + ',' + m.y + ' nat ' + m.nw + 'x' + m.nh + ' eff ' + m.eff + ' fit ' + m.fit + ' alt "' + String(m.alt).slice(0, 30) + '" ld ' + m.ld + ' src ' + (m.src.indexOf('data:') === 0 ? m.src : m.src.slice(-60)))
+    if (!fl.length) continue
+    const key = fl.join(',') + '|' + m.ctx.slice(0, 34) + '|' + m.bw + 'x' + m.bh
+    if (!agg.has(key)) agg.set(key, { fl, n: 0, m, kb, effs: [], ys: [] })
+    const g = agg.get(key); g.n++; g.effs.push(m.eff); g.ys.push(m.y)
+  }
+  for (const [, g] of agg) {
+    const m = g.m
+    L.push(tag + ' A ' + g.n + 'x ' + g.fl.join(',') + ' ' + m.ctx.slice(0, 40) + ' box ' + m.bw + 'x' + m.bh + ' y' + Math.min(...g.ys) + '-' + Math.max(...g.ys) + ' nat ' + m.nw + 'x' + m.nh + ' eff ' + Math.min(...g.effs) + '-' + Math.max(...g.effs) + ' ' + g.kb + 'KB fit ' + m.fit + ' alt "' + String(m.alt).slice(0, 24) + '" ld ' + m.ld + ' ex ' + (m.src.indexOf('data:') === 0 ? m.src : m.src.slice(-58)))
   }
   for (const b of S.bgs) {
     const n = bgNat && bgNat[b.url] ? bgNat[b.url] : [0, 0]
@@ -308,7 +316,7 @@ const visit = async (ctx, tag, url, opts) => {
   const m = await page.evaluate(() => ({ cls: +window.__cls.toFixed(4), sh: window.__sh.slice(0, 6), lcp: window.__lcp, title: document.title.slice(0, 50), lang: document.documentElement.lang, dir: document.documentElement.dir }))
   P(tag + ' LOAD ' + url + ' status ' + st + ' lang ' + m.lang + '/' + m.dir + ' CLS4s ' + m.cls + ' LCP ' + JSON.stringify(m.lcp) + ' title ' + JSON.stringify(m.title))
   for (const s of m.sh) P(tag + ' SHIFT ' + JSON.stringify(s))
-  if (CSS_INJECT) { await page.addStyleTag({ content: CSS_INJECT }); await page.waitForTimeout(400); P(tag + ' INJECTED css ' + CSS_INJECT.length + ' bytes') }
+  if (CSS_INJECT && !E.EARLY) { await page.addStyleTag({ content: CSS_INJECT }); await page.waitForTimeout(400); P(tag + ' INJECTED css ' + CSS_INJECT.length + ' bytes') }
   if (opts.beforeScroll) await opts.beforeScroll(page)
   await scrollAll(page)
   const m2 = await page.evaluate(() => +window.__cls.toFixed(4))
@@ -322,7 +330,7 @@ const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: 
 try {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW' })
   await ctx.addInitScript(INIT)
-  if (E.INJECT) { let css = ''; for (const u of E.INJECT.split(',')) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css) }
+  if (E.INJECT) { let css = ''; for (const u of E.INJECT.split(',')) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css); if (E.EARLY) { await ctx.addInitScript((c) => { const s = document.createElement('style'); s.textContent = c; (document.head || document.documentElement).appendChild(s) }, css); P('EARLY_CSS ' + css.length + ' bytes') } }
 
   if (PAGES.includes('api')) {
     const j = await (await fetch(BASE + '/api/api.php?r=products')).json()
