@@ -155,7 +155,12 @@ function inPageNav() {
   const sels = ['.admin-sidebar', 'aside', 'nav', '[role=navigation]']
   let side = null
   for (const s of sels) { side = document.querySelector(s); if (side) break }
-  const out = { side: null, items: [], menuBtn: null, drawer: null }
+  const out = { side: null, items: [], menuBtn: null, drawer: null, tabbar: null, header: null }
+  // The phone layout of the older admin build had a sticky header (.m-header) and a bottom tab bar
+  // (.m-tabbar): record whatever of that kind is painted, with its position.
+  const bar = (q) => { for (const e of document.querySelectorAll(q)) { if (!vis(e)) continue; const c = getComputedStyle(e); return { sel: e.tagName.toLowerCase() + '.' + clean(e.className).split(' ').slice(0, 3).join('.'), pos: c.position, z: c.zIndex, rect: rect(e), bottom: c.bottom, top: c.top, padB: c.paddingBottom, items: [...e.querySelectorAll('a, button')].map((x) => clean(x.textContent || x.getAttribute('aria-label')).slice(0, 20)).filter(Boolean) } } return null }
+  out.tabbar = bar('.m-tabbar, [class*="tabbar"], [class*="bottom-nav"], [class*="bottomnav"]')
+  out.header = bar('.m-header, header[class*="m-"], [class*="mobile-header"]')
   if (side) {
     const c = getComputedStyle(side)
     out.side = { tag: side.tagName.toLowerCase(), cls: clean(side.className).slice(0, 90), vis: vis(side), pos: c.position, z: c.zIndex, transform: c.transform === 'none' ? '' : c.transform.slice(0, 40), rect: rect(side), top: c.top, h: c.height }
@@ -169,7 +174,7 @@ function inPageNav() {
   for (const e of document.querySelectorAll('button, [role=button]')) {
     if (side && side.contains(e)) continue
     const t = clean(e.textContent) + ' ' + (e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('title') || '')
-    if (/menu|☰|≡|navigation/i.test(t) && !/close/i.test(t) && vis(e)) { out.menuBtn = { text: clean(e.textContent).slice(0, 20), aria: e.getAttribute('aria-label') || '', rect: rect(e), cls: clean(e.className).slice(0, 80) }; break }
+    if (/menu|☰|≡|navigation|\bmore\b|المزيد/i.test(t) && !/close/i.test(t) && vis(e)) { out.menuBtn = { text: clean(e.textContent).slice(0, 20), aria: e.getAttribute('aria-label') || '', rect: rect(e), cls: clean(e.className).slice(0, 80) }; break }
   }
   return out
 }
@@ -178,11 +183,12 @@ function inPageNav() {
 // inside the page, so an item hidden behind the phone menu still gets its click.
 function inPageClickNav(key) {
   const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim()
-  const side = document.querySelector('.admin-sidebar') || document.querySelector('aside') || document.querySelector('nav') || document.querySelector('[role=navigation]')
-  if (!side) return false
-  for (const e of side.querySelectorAll('a, button, [role=tab], [role=menuitem]')) {
-    const text = clean(e.textContent || e.getAttribute('aria-label')).slice(0, 40)
-    if (text === key.text && (e.getAttribute('href') || '') === (key.href || '')) { e.click(); return true }
+  const roots = [document.querySelector('.admin-sidebar'), document.querySelector('aside'), document.querySelector('nav'), document.querySelector('[role=navigation]'), document.querySelector('.m-tabbar'), document.querySelector('[class*="tabbar"]')].filter(Boolean)
+  for (const side of roots) {
+    for (const e of side.querySelectorAll('a, button, [role=tab], [role=menuitem]')) {
+      const text = clean(e.textContent || e.getAttribute('aria-label')).slice(0, 40)
+      if (text === key.text && (e.getAttribute('href') || '') === (key.href || '')) { e.click(); return true }
+    }
   }
   return false
 }
@@ -555,7 +561,7 @@ for (const [vn, w, h, mob] of VIEWS) {
     await pg.waitForTimeout(700)
   }
   const openMenu = async () => {
-    const m = pg.locator('button:visible, [role=button]:visible').filter({ hasText: /Open menu|☰|≡|menu/i }).first()
+    const m = pg.locator('button:visible, [role=button]:visible').filter({ hasText: /Open menu|☰|≡|menu|\bmore\b|المزيد/i }).first()
     if (await m.count()) { await m.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(450); return true }
     const a = pg.locator('button[aria-label*="menu" i]:visible').first()
     if (await a.count()) { await a.click({ timeout: 3000 }).catch(() => {}); await pg.waitForTimeout(450); return true }
@@ -734,6 +740,7 @@ const pat = (R, vn) => {
   out(`P|${vn}|sidebar ${j(R.nav.side)}`)
   out(`P|${vn}|nav items ${R.nav.items.length}: ${R.nav.items.map((i) => i.text + (i.vis ? '' : '*') + (i.href ? ' ' + i.href : '')).join(' | ').slice(0, 700)}  (* = not visible at load)`)
   if (R.nav.menuBtn) out(`P|${vn}|menu button ${j(R.nav.menuBtn)}`)
+  out(`P|${vn}|tab bar ${j(R.nav.tabbar)} | header ${j(R.nav.header)}`)
   if (R.navAfterOpen) out(`P|${vn}|menu open: sidebar ${j(R.navAfterOpen.side)}; visible items ${R.navAfterOpen.items.filter((i) => i.vis).length}/${R.navAfterOpen.items.length}`)
   out(`P|${vn}|walked ${R.screens.filter((s) => s.opened).length}/${R.screens.length}; not opened: ${R.screens.filter((s) => !s.opened).map((s) => s.name).join(', ') || 'none'}; page errors: ${[...R.errs].join(' ; ') || 'none'}`)
   out(`P|${vn}|unmocked GET r=: ${[...R.unknown.entries()].map(([k, v]) => k + '(' + [...v].join('/') + ')').join(' ') || 'none'}`)
