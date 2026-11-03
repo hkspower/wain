@@ -44,6 +44,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync, readdir
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { slim } from "./slim-glb.mjs";
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -318,6 +319,9 @@ for (const id of todo) {
   // Written whole, to a temp name, then renamed: a kill mid-write must
   // not leave a short file that passes an exists() check downstream.
   writeFileSync(`${OUT}/glb/${id}.glb.part`, Buffer.from(r.b64, "base64"));
+  // Slimmed on the temp name (UVs nothing samples, blank images —
+  // slim-glb.mjs says why), so the rename still publishes a whole file.
+  await slim(`${OUT}/glb/${id}.glb.part`);
   renameSync(`${OUT}/glb/${id}.glb.part`, `${OUT}/glb/${id}.glb`);
   records.set(id, r.record);
   saveRecords();

@@ -275,10 +275,18 @@ def loft_shell(name, geo):
     # look crooked.
     #
     # The shorter diagonal is a property of the quad's own shape, which
-    # IS mirrored, so the split comes out mirrored too. Where the two
-    # diagonals tie the quad is flat and the choice does not exist.
+    # IS mirrored, so the split comes out mirrored too — in exact
+    # arithmetic. In floats the two diagonals of a mirrored pair differ
+    # in the last bit, and which one "wins" flipped between Blender 5.0
+    # and 5.1 on about 2% of the quads: the vertices stayed mirrored to
+    # the micron while the triangulation did not, and the mirror gate
+    # fell from 100% to 98%. So the ties are not left standing: after the
+    # triangulator has run, every -x quad whose diagonal disagrees with
+    # its +x twin has that diagonal rotated (_mirror_triangulation) — no
+    # vertex moves, no vertex is added, only the split of those quads.
     bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="SHORT_EDGE",
                           ngon_method="BEAUTY")
+    _mirror_triangulation(bm)
 
     bm.to_mesh(mesh)
     bm.free()
@@ -737,6 +745,83 @@ def build_driver(rig):
 
     return objs
 
+
+
+
+def _mirror_triangulation(bm):
+    """Make the -x half's quad diagonals the mirror of the +x half's.
+
+    Works on the triangulated mesh: an interior edge whose two triangles
+    share exactly four vertices is a quad's diagonal. Mirrored vertices
+    negate x exactly (the loft builds them so), so (|x|, y, z) is an
+    exact — not rounded — canonical key, and a quad and its mirror have
+    the same four keys. Where the -x quad's diagonal differs from the
+    +x one's, bmesh.ops.rotate_edges flips it.
+    """
+    canon = {}
+    cid = {}
+    for v in bm.verts:
+        k = (abs(v.co.x), v.co.y, v.co.z)
+        cid[v] = canon.setdefault(k, len(canon))
+    plus = {}   # frozenset of 4 canon ids -> frozenset of the diagonal's 2 ids
+    minus = []  # (edge, quad key, diagonal key) on the -x side
+    for e in bm.edges:
+        if len(e.link_faces) != 2:
+            continue
+        f1, f2 = e.link_faces
+        if len(f1.verts) != 3 or len(f2.verts) != 3:
+            continue
+        quad = set(f1.verts) | set(f2.verts)
+        if len(quad) != 4:
+            continue
+        xs = [v.co.x for v in quad]
+        if all(x > 1e-9 for x in xs):
+            plus[frozenset(cid[v] for v in quad)] = frozenset(cid[v] for v in e.verts)
+        elif all(x < -1e-9 for x in xs):
+            minus.append((e, frozenset(cid[v] for v in quad), frozenset(cid[v] for v in e.verts)))
+    flip = [e for e, qk, dk in minus if qk in plus and plus[qk] != dk]
+    if flip:
+        bmesh.ops.rotate_edges(bm, edges=flip, use_ccw=False)
+
+    # The flank caps are two big n-gons triangulated by BEAUTY, and 5.1's
+    # fan for the left cap stopped mirroring the right one (every twinless
+    # triangle in the 5.1 build sat at |x| = half-width, nowhere else). A
+    # fan is not reachable by rotating one diagonal, so the -x cap's
+    # triangles are deleted outright and rebuilt as mirrors of the +x
+    # cap's, with the winding reversed so they still face outward.
+    capx = max(v.co.x for v in bm.verts)
+    if capx > 1e-6:
+        # A key maps to a LIST: the loft closes each ring on a duplicated
+        # seam vertex, so a cap can hold two distinct verts at one
+        # coordinate, and a face touching both needs two distinct mirror
+        # verts or faces.new refuses the degenerate triple.
+        mirror_vert = {}
+        for v in bm.verts:
+            if v.co.x < -1e-9:
+                mirror_vert.setdefault((-v.co.x, v.co.y, v.co.z), []).append(v)
+        # The cap is not one exact plane everywhere: the suv roof carries a
+        # 25 um bevel inset on its cap ring, so membership is a half-mm
+        # band at the flank, not float equality. The next ring inboard is
+        # a full bevel step (~1 mm) away, so the band cannot swallow it.
+        plus_cap = [f for f in bm.faces if all(v.co.x > capx - 5e-4 for v in f.verts)]
+        minus_cap = [f for f in bm.faces if all(v.co.x < -capx + 5e-4 for v in f.verts)]
+        ok = plus_cap and len(minus_cap) == len(plus_cap) and all(
+            (v.co.x, v.co.y, v.co.z) in mirror_vert for f in plus_cap for v in f.verts)
+        if ok:
+            bmesh.ops.delete(bm, geom=minus_cap, context="FACES_ONLY")
+            for f in plus_cap:
+                taken = {}
+                verts = []
+                for v in reversed(f.verts):
+                    k = (v.co.x, v.co.y, v.co.z)
+                    i = taken.get(k, 0)
+                    copies = mirror_vert[k]
+                    verts.append(copies[min(i, len(copies) - 1)])
+                    taken[k] = i + 1
+                try:
+                    bm.faces.new(tuple(verts))
+                except ValueError:
+                    pass  # already present, or unmatchable: the gate will say
 
 def export_glb(path, objects):
     for o in bpy.context.scene.objects:
