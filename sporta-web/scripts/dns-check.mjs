@@ -15,6 +15,7 @@ import dgram from 'node:dgram'
 import net from 'node:net'
 import tls from 'node:tls'
 import http from 'node:http'
+import https from 'node:https'
 import dns from 'node:dns'
 import { randomInt } from 'node:crypto'
 
@@ -212,10 +213,10 @@ async function viaDoh(provider, name, type, extra = {}) {
     return (j.Answer || []).filter((a) => a.type === T[type]).map((a) => normDoh(type, a.data)).sort()
   } catch (e) { return ['ERR:' + (e.cause?.code || e.name)] }
 }
-function authSet(m, type) {
+function authSet(m, type, owner) {
   if (m.error) return ['ERR:' + m.error]
   if (m.rcode !== 0 && m.rcode !== 3) return ['ERR:rcode' + m.rcode]
-  return m.answers.filter((a) => a.type === T[type]).map((a) => (type === 'TXT' ? a.data : String(a.data).toLowerCase())).sort()
+  return m.answers.filter((a) => a.type === T[type] && (!owner || a.name === owner)).map((a) => (type === 'TXT' ? a.data : String(a.data).toLowerCase())).sort()
 }
 
 // ---------------------------------------------------------------- names
@@ -345,7 +346,9 @@ if (primary) {
     for (const t of typesFor(n)) {
       const m = dump[n + '|' + t]
       if (!m || m.error) { P(`   ${short(n)} ${t}: ${m ? 'ERR ' + m.error : '-'}`); continue }
-      const rr = m.answers.filter((a) => a.type === T[t])
+      const rr = m.answers.filter((a) => a.type === T[t] && a.name === n)
+      const chased = m.answers.filter((a) => a.type === T[t] && a.name !== n)
+      if (chased.length && !rr.length) P(`   ${short(n)} ${t}: (not its own: chased through CNAME to ${[...new Set(chased.map((a) => a.name))].join(',')})`)
       for (const a of rr) { any = true; P(`   ${short(n)} ${t} ${a.ttl} ${clip(a.data, 220)}`) }
       if (m.rcode !== 0 && m.rcode !== 3) P(`   ${short(n)} ${t}: rcode ${m.rcode}`)
     }
@@ -353,7 +356,8 @@ if (primary) {
   }
   P(`   (no records at: ${emptyNames.join(' ')})`)
 }
-const D = (n, t) => (dump[n + '|' + t]?.answers || []).filter((a) => a.type === T[t])
+// own records only: a CNAME answer is followed by the target's records, which carry the target's owner name
+const D = (n, t) => (dump[n + '|' + t]?.answers || []).filter((a) => a.type === T[t] && a.name === n)
 const apexA = D(APEX, 'A'), wwwA = D(WWW, 'A'), wwwCn = D(WWW, 'CNAME'), apexAAAA = D(APEX, 'AAAA'), wwwAAAA = D(WWW, 'AAAA')
 const pointsHome = (rr) => rr.length > 0 && rr.every((a) => a.data === VPS_IP)
 P(`== 3b where it points: apex A=${apexA.map((a) => a.data).join('|') || 'none'} (ttl ${apexA[0]?.ttl ?? '-'}); www A=${wwwA.map((a) => a.data).join('|') || 'none'} CNAME=${wwwCn.map((a) => a.data).join('|') || 'none'} (ttl ${(wwwA[0] || wwwCn[0])?.ttl ?? '-'}); apex AAAA=${apexAAAA.map((a) => a.data).join('|') || 'none'} www AAAA=${wwwAAAA.map((a) => a.data).join('|') || 'none'}`)
@@ -410,7 +414,8 @@ let diffs = 0, shown = 0
 const errCount = {}
 for (const [n, t] of KEYS) {
   const k = n + '|' + t
-  const base = primary ? authSet(dump[k] || { error: 'none' }, t).join(' ; ') : null
+  if (t !== 'CNAME' && D(n, 'CNAME').length) continue // a CNAME owns the name: only the CNAME itself is compared
+  const base = primary ? authSet(dump[k] || { error: 'none' }, t, n).join(' ; ') : null
   const row = {}
   for (const [vn, vv] of Object.entries(views)) { if ((vn === 'doh-cf' && dohDead.cf) || (vn === 'doh-google' && dohDead.google)) continue; row[vn] = (vv[k] || []).join(' ; ') }
   for (const [vn, val] of Object.entries(row)) if (val.startsWith('ERR')) errCount[vn] = (errCount[vn] || 0) + 1
@@ -505,6 +510,17 @@ for (const start of ['http://' + APEX + '/', 'https://' + APEX + '/', 'http://' 
   if (last && last.error) V('high', 'http-fail', `${start}: ${last.error}`)
   if (start.startsWith('https://www') && last.status !== 200) V('high', 'www-not-200', `${start} final status ${last.status}`)
 }
+// the bare server IP over HTTPS (what a visitor typing the IP sees)
+await new Promise((resolve) => {
+  const req = https.request({ host: VPS_IP, port: 443, path: '/', method: 'GET', headers: { host: VPS_IP }, rejectUnauthorized: false, timeout: 8000 }, (res) => {
+    const c = res.socket.getPeerCertificate()
+    P(`   GET https://${VPS_IP}/ (Host: ${VPS_IP}, no SNI) -> ${res.statusCode} ${res.headers.location || ''}; cert CN=${c.subject && c.subject.CN} SAN=[${(c.subjectaltname || '').replace(/DNS:/g, '')}] (trusted for the IP: ${res.socket.authorized})`)
+    res.resume(); resolve()
+  })
+  req.on('timeout', () => { req.destroy(); P('   GET https by IP: timeout'); resolve() })
+  req.on('error', (e) => { P('   GET https by IP: ' + (e.code || e.message)); resolve() })
+  req.end()
+})
 // the bare server IP, with its own Host header (CLAUDE.md: the IP spelling must 301 to https://www)
 await new Promise((resolve) => {
   const req = http.request({ host: VPS_IP, port: 80, path: '/', method: 'GET', headers: { host: VPS_IP }, timeout: 8000 }, (res) => {
