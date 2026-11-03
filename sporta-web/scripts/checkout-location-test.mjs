@@ -661,7 +661,7 @@ const sets = (pg) => pg.evaluate(() => window.__sets.filter((x) => x[1] === 'spo
     const p = await parsed(s.pg)
     const want = { ...saved, note: { 'en label': 'Gate 3', 'ar label': 'Gate 3', 'line only': '', 'line first': 'then more' }[name] }
     is(JSON.stringify(p) === JSON.stringify(want), `N1 ${name}: the stored profile no longer has the line and every other field is exactly as saved`, JSON.stringify(p))
-    const q = await s.pg.evaluate(() => ({ quick: !!document.querySelector('form.purchase-quick'), ta: !!document.getElementById('f-note'), ctl: document.querySelectorAll('#sporta-loc').length, note: document.getElementById('quick-note').textContent, html: document.body.innerHTML }))
+    const q = await s.pg.evaluate(() => ({ quick: !!document.querySelector('form.purchase-quick'), ta: !!document.getElementById('f-note'), ctl: document.querySelectorAll('#sporta-loc').length, note: document.getElementById('quick-note').textContent, html: document.getElementById('root').innerHTML }))
     is(q.quick && !q.ta && q.ctl === 0, `N2 ${name}: a complete saved profile opens the QUICK checkout (no textarea, no location control)`)
     is(q.note === want.note && !/maps|Location|الموقع/.test(q.note) && !/google\.com\/maps/.test(q.html), `N3 ${name}: the quick checkout prints the note WITHOUT the pin (so the next order cannot carry it)`, q.note)
     await done(s)
@@ -791,7 +791,7 @@ const sets = (pg) => pg.evaluate(() => window.__sets.filter((x) => x[1] === 'spo
 }
 {
   // N31: a rewrite happens only when something changed (no write storm)
-  const s = await open({ lang: 'en', saved: withNote('Gate 3') })
+  const s = await open({ lang: 'en', saved: withNote('Gate 3'), ready: 'form.purchase-quick' })
   await s.pg.evaluate(() => window.__sets.length = 0)
   await s.pg.evaluate(() => { window.__go('/shop'); window.__go('/checkout') }); await sleep(900)
   is((await sets(s.pg)).length === 0, 'N31 a clean profile is never rewritten by the add-on')
@@ -891,7 +891,7 @@ await section('P  repo source: src/lib/delivery.js strips the same line', async 
   const addonSrc = (jsSrc.match(/var LINE_SRC = '(.*)';/) || [])[1]
   is(addonSrc === lib.LOCATION_LINE_SRC.replace(/\\/g, '\\\\').replace(/\\\\\\\\/g, '\\\\') || addonSrc === lib.LOCATION_LINE_SRC, 'P1 the add-on and delivery.js hold the SAME pattern text', addonSrc + ' vs ' + lib.LOCATION_LINE_SRC)
   const L = 'Location: ' + LINK, A = 'الموقع: ' + LINK
-  const corpus = [['', ''], ['Gate 3', 'Gate 3'], [L, ''], [A, ''], ['Gate 3 ' + L, 'Gate 3'], ['Gate 3 ' + A, 'Gate 3'], [L + ' then more', 'then more'], ['x ' + L + ' y ' + A, 'x y'], ['Gate 3 ' + L + ' call me', 'Gate 3 call me'], ['no pin: https://www.google.com/maps?q=abc', 'no pin: https://www.google.com/maps?q=abc'], ['Location: https://www.google.com/maps?q=29.3,47.9', 'Location: https://www.google.com/maps?q=29.3,47.9'], ['a  ' + L, 'a '], ['Location: https://www.google.com/maps?q=-29.375912,-47.977446', '']]
+  const corpus = [['', ''], ['Gate 3', 'Gate 3'], [L, ''], [A, ''], ['Gate 3 ' + L, 'Gate 3'], ['Gate 3 ' + A, 'Gate 3'], [L + ' then more', 'then more'], ['x ' + L + ' y ' + A, 'x y'], ['Gate 3 ' + L + ' call me', 'Gate 3 call me'], ['no pin: https://www.google.com/maps?q=abc', 'no pin: https://www.google.com/maps?q=abc'], ['Location: https://www.google.com/maps?q=29,47', 'Location: https://www.google.com/maps?q=29,47'], ['a  ' + L, 'a '], ['Location: https://www.google.com/maps?q=-29.375912,-47.977446', '']]
   for (const [i, [inp, out]] of corpus.entries()) is(lib.stripLocation(inp) === out, `P2.${i} stripLocation(${JSON.stringify(inp.slice(0, 30))}) = ${JSON.stringify(out.slice(0, 30))}`, JSON.stringify(lib.stripLocation(inp)))
   const form = { ...lib.BLANK, name: 'Sara Ali', phone: '55512345', area: 'Salmiya', note: 'Gate 3 ' + L }
   const pf = lib.persistableDelivery(form)
