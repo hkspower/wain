@@ -61,6 +61,46 @@
    `backups/manual-20261102T1506Z-inventory-migration`); see
    `DATA-SCAN-2026-11-02.md`. Before deploying code that touches a new column,
    diff the live schema (read-only job) against the migrations.
+5. **Live server facts and what is on it (measured 2026-11-03).**
+   - **Baseline:** the live `api/`, `knet/` and `pay/` PHP was byte-identical to
+     commit `1eb487aa` (verified by read-only `vps-deploy.mjs` plans). What a
+     backend release ships is `git diff 1eb487aa HEAD -- sporta-web/dropin`; move
+     the baseline after every backend deploy. A whole-site plan also lists
+     `index.html`, the hashed assets, `sw.js`, the sitemaps, `robots.txt` and the
+     manifest as different — those belong to the foreign storefront and are never
+     part of a deploy. Scope backend deploys with `--only api,knet,pay,.htaccess`
+     plus the add-on file names.
+   - **Host cron** (`/etc/cron.d/sporta-cron`, root; each job is a `docker exec -u
+     www-data apache-sporta-1 php …`, output to `/var/log/sporta-cron.log`):
+     `cron-stock.php --release` every 15 min, `cron-fulfilment.php --run` every
+     5 min, `cron-voice.php prune` monthly (1st, 04:30), `cron-birthday.php --send`
+     daily 06:07. The container has no cron daemon. So **new `cron-stock.php` code
+     is live within 15 minutes of a file copy** — including the 24 h COD
+     auto-cancel (`cod_hold_hours`, default 24). That is why a backend deploy waits
+     for the independent review, the suites and the live schema diff, and why a
+     commit whose message says "do not deploy" or "NOT READY" is never shipped.
+   - **Container paths:** `/var/lib/sporta` is the host's
+     `/docker/sporta/private/voice`, owned by uid 33 (www-data): payment logs and
+     `tts-cache`; the admin-session directory (`admin-sessions`) belongs under it and
+     does not exist yet because the 30-day sign-in change has not shipped.
+     `/run/sporta-api-config.php` is the store config (root-owned, `0440`, group
+     33), so every new key needs a safe default in code; the gateway configs are in
+     `/run/sporta-config/`.
+   - **Add-ons the live `index.html` links** (a file not in this list is never
+     loaded): CSS `sporta-product-fix`, `sporta-brand-theme`, `sporta-home-trim`,
+     `sporta-cart-drawer`, `sporta-grid`, `sporta-bag-touch`, `sporta-cat-tiles`,
+     `sporta-admin-knet`, `sporta-returns-touch`, `sporta-clock`,
+     `sporta-ui-colours`, `sporta-checkout-a11y`, `sporta-shadows`,
+     `sporta-images`; JS `boot`, `config`, `birthday`, `sporta-features`,
+     `sporta-admin-brands`, `sporta-footer-call`, `sporta-gov-autopick`,
+     `sporta-clock`, `sporta-checkout-a11y`.
+   - **Deployed 2026-11-03:** `sporta-admin-knet.css` (Payments layout) and
+     `sporta-cart-drawer.css` (`deploy-20261103T070814Z-718787f`);
+     `sporta-home-trim.css` (features band: stacked cards 720–959 px, centred row
+     from 960 px; `deploy-20261103T080059Z-194f739`). `sporta-admin-brands.js` is
+     NOT current live: the repo's calls `brand_products` (absent from the live
+     admin.php) and says "30 days" (the 30-day session change ships with the API),
+     so it goes out with the API release, not before.
 
 ## Brand identity (saved by user request — apply always)
 
@@ -106,6 +146,25 @@
   `npm run test:config` (32 checks: both layouts and the half-configured one).
 - **Payments — two products from the SAME bank (CBK), two separate setups**
   (saved by user request — apply always):
+
+  **2026-11-03 owner decision, NOT shipped yet (queued behind the release gate):
+  "integrate the T-Pay fields with the KNET setup, then remove T-Pay".** Until it
+  ships, the table below is what is live. The agreed shape: KNET becomes ONE setup
+  with two connections (Direct Tranportal, or through the CBK hosted gateway — the
+  existing `knet_via_cbk` switch), and the CBK fields (Merchant API ID/ClientId,
+  Password/ClientSecret, ENCRP_KEY, Test and Production API base, return URL,
+  customer result page, Merchant Server IP 1 and 2) are edited inside the KNET
+  editor, saved through the existing `payment_config` (gateway `tpay`) and
+  `payment_server_ips` routes, with one Test/Production switch for both. T-Pay stops
+  being a customer payment method: new orders are `knet` or `cod` only;
+  `orders.payment_method = 'tpay'` stays valid for history, in-flight payments and
+  callbacks; `checkout.tpay` is forced false (otherwise filling in the CBK
+  credentials would make T-Pay "ready" and offer it beside KNET); `pay/` stays as the
+  CBK transport. The live /backends is a compiled build that reads
+  `payment_config.tpay` and `payment_status.tpay`, so those keys stay in the
+  responses and its T-Pay card and editor are hidden with add-on CSS while the
+  merged panel is built by `sporta-admin-brands.js`. Direct KNET stays unless the
+  owner asks for CBK-only. Same review gate as any money-path change.
 
   | | **KNET** | **T-Pay** |
   |---|---|---|
@@ -390,6 +449,21 @@
   checks of the site therefore run ON the VPS, in Node — the API refuses a
   compose file containing `curl`, `wget` or `require('fs')` (each measured: 403). A deploy
   has happened only when the job's log says `DEPLOY_OK`; say so plainly.
+- **Probing the live site from a session (measured rules).** Browser probes run in
+  `mcr.microsoft.com/playwright:v1.49.0-noble` (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i
+  playwright@1.49.0` inside the job), fetch-only ones in `node:24-alpine`. The script is
+  written with a heredoc in the compose `command`, or fetched from
+  `raw.githubusercontent.com/hkspower/wain/<pushed sha>/…` (hand-copied base64 is
+  unreliable). Never put a `$` in a compose file (compose interpolates it); write Arabic
+  as `\uXXXX`; the first `vps_docker_create` often leaves the project "not found" — create
+  again with the same name; logs show service output only once the container has
+  progressed, are capped at 300 entries, and screenshots cannot be viewed from the VPS, so
+  measure the DOM. Delete every scratch project (`vps_docker_delete`). Probes are
+  read-only: no order, no form, no sign-in, no POST. Add-on CSS for the compiled
+  storefront is proven with a fixture of the exact live markup plus the live rules
+  (`scripts/fixtures/*.mjs`; `test:home-features`, `test:admin-payments`) and a mutation
+  check that the suite fails without the CSS. This machine has 4 CPUs, so a Workflow runs
+  two agents at a time and a long review takes hours.
 - Adding a route to `sporta-web/src/App.jsx` also requires adding it to the
   known-route list in `sporta-web/public/.htaccess`, or it will 404 in
   production.
