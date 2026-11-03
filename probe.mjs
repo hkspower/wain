@@ -53,6 +53,8 @@ const COLLECT = (scope) => {
   const L = window.__ls
   const root = (scope && document.querySelector(scope)) || document.body
   const items = []; const fields = []; const pal = { b: {}, o: {} }; const links = []
+  const fns = []; const ffs = []; window.__lsFns = fns; window.__lsFfs = ffs
+  const P = (it, fn, el) => { const st = L.stackBg(el); it.eb = st.bg; it.art = st.art ? 1 : 0; items.push(it); fns.push(fn) }
   const effOp = (el) => { let o = 1; for (let a = el; a; a = a.parentElement) o *= +getComputedStyle(a).opacity; return o }
   const sig = (el) => el.tagName.toLowerCase() + '.' + [...el.classList].slice(0, 3).join('.')
   const clipped = (el) => { for (let a = el; a && a !== document.body; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.clip && cs.clip !== 'auto') return true; if (cs.clipPath && /inset\(\s*50%/.test(cs.clipPath)) return true; if (/sr-only/.test(a.className || '')) return true; const r = a.getBoundingClientRect(); if (r.width <= 2 && r.height <= 2 && cs.overflow !== 'visible') return true } return false }
@@ -72,7 +74,8 @@ const COLLECT = (scope) => {
     const rg = document.createRange(); rg.selectNodeContents(n)
     const rs = [...rg.getClientRects()].filter(ok)
     if (!rs.length) continue
-    items.push({ k: 't', s: s.slice(0, 26), e: sig(el), c: L.rgba(cs.color), op: +op.toFixed(2), px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: el.closest('a') ? 1 : 0, d: el.closest('[disabled],[aria-disabled="true"]') ? 1 : 0, r: rs.slice(0, 3).map(R) })
+    const node = n
+    P({ k: 't', s: s.slice(0, 26), e: sig(el), c: L.rgba(cs.color), op: +op.toFixed(2), px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: el.closest('a') ? 1 : 0, d: el.closest('[disabled],[aria-disabled="true"]') ? 1 : 0, r: rs.slice(0, 3).map(R) }, () => { const g = document.createRange(); g.selectNodeContents(node); return [...g.getClientRects()].filter(ok).slice(0, 3).map(R) }, el)
   }
   for (const sv of root.querySelectorAll('button svg, a svg, [role=button] svg')) {
     const host = sv.closest('button,a,[role=button]'); if (host.textContent.trim()) continue
@@ -80,16 +83,18 @@ const COLLECT = (scope) => {
     if (!ok(r) || cs.visibility === 'hidden' || effOp(sv) < 0.02 || clipped(sv)) continue
     const col = (cs.stroke !== 'none' && parseFloat(cs.strokeWidth) > 0) ? cs.stroke : cs.fill
     if (col === 'none') continue
-    items.push({ k: 'i', s: (host.getAttribute('aria-label') || '').slice(0, 20), e: sig(host), c: L.rgba(col), op: +effOp(sv).toFixed(2), px: 24, w: 400, l: 0, d: host.matches(':disabled,[aria-disabled="true"]') ? 1 : 0, r: [R(r)] })
+    P({ k: 'i', s: (host.getAttribute('aria-label') || '').slice(0, 20), e: sig(host), c: L.rgba(col), op: +effOp(sv).toFixed(2), px: 24, w: 400, l: 0, d: host.matches(':disabled,[aria-disabled="true"]') ? 1 : 0, r: [R(r)] }, () => [R(sv.getBoundingClientRect())], host)
   }
   const fsig = new Set()
   for (const f of root.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),select,textarea')) {
     const r = f.getBoundingClientRect(); if (!ok(r)) continue
     const cs = getComputedStyle(f)
     const inner = [Math.round(r.left + 10), Math.round(r.top + 8), Math.max(4, Math.round(r.width - 20)), Math.max(4, Math.round(r.height - 16))]
-    if (f.placeholder) { const pc = getComputedStyle(f, '::placeholder'); items.push({ k: 'p', s: f.placeholder.slice(0, 22), e: sig(f), c: L.rgba(pc.color), op: +effOp(f).toFixed(2), px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: 0, d: f.disabled ? 1 : 0, r: [inner] }) }
-    const fs = sig(f); if (!fsig.has(fs)) { fsig.add(fs); items.push({ k: 'f', s: 'field:' + f.type, e: fs, c: L.rgba(cs.color), op: 1, px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: 0, d: f.disabled ? 1 : 0, r: [inner] }) }
+    const innerFn = () => { const q = f.getBoundingClientRect(); return [[Math.round(q.left + 10), Math.round(q.top + 8), Math.max(4, Math.round(q.width - 20)), Math.max(4, Math.round(q.height - 16))]] }
+    if (f.placeholder) { const pc = getComputedStyle(f, '::placeholder'); P({ k: 'p', s: f.placeholder.slice(0, 22), e: sig(f), c: L.rgba(pc.color), op: +effOp(f).toFixed(2), px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: 0, d: f.disabled ? 1 : 0, r: [inner] }, innerFn, f) }
+    const fs = sig(f); if (!fsig.has(fs)) { fsig.add(fs); P({ k: 'f', s: 'field:' + f.type, e: fs, c: L.rgba(cs.color), op: 1, px: parseFloat(cs.fontSize), w: +cs.fontWeight, l: 0, d: f.disabled ? 1 : 0, r: [inner] }, innerFn, f) }
     fields.push({ e: sig(f), t: f.type, n: (f.name || f.id || '').slice(0, 16), r: R(r), bw: parseFloat(cs.borderTopWidth) || 0 })
+    ffs.push(() => R(f.getBoundingClientRect()))
   }
   const addPal = (m, key, e) => { const x = m[key] || (m[key] = { n: 0, e }); x.n++ }
   for (const el of root.querySelectorAll('*')) {
@@ -107,6 +112,13 @@ const COLLECT = (scope) => {
   return { items, fields, pal, links: links.slice(0, 8) }
 }
 
+const HIDE = () => new Promise((res) => {
+  const st = document.createElement('style'); st.id = 'ls-hide'
+  st.textContent = '*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;caret-color:transparent!important}::placeholder{color:transparent!important;-webkit-text-fill-color:transparent!important}'
+  document.head.appendChild(st)
+  requestAnimationFrame(() => requestAnimationFrame(() => res({ items: window.__lsFns.map((f) => { try { return f() } catch (e) { return [] } }), fields: window.__lsFfs.map((f) => { try { return f() } catch (e) { return null } }) })))
+})
+
 const MEASURE = async ([items, fields, url, ox, oy]) => {
   const L = window.__ls
   const img = new Image(); img.src = url; await img.decode()
@@ -115,7 +127,7 @@ const MEASURE = async ([items, fields, url, ox, oy]) => {
   const grab = (x, y, w, h) => { x = Math.round(x - ox); y = Math.round(y - oy); w = Math.round(w); h = Math.round(h); const x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(cv.width, x + w), y1 = Math.min(cv.height, y + h); if (x1 <= x0 || y1 <= y0) return null; return { d: cx.getImageData(x0, y0, x1 - x0, y1 - y0), w: x1 - x0, h: y1 - y0 } }
   const med = (a) => { a = a.slice().sort((p, q) => p - q); return a[Math.floor(a.length / 2)] }
   const hx = (v) => '#' + v.map((q) => q.toString(16).padStart(2, '0')).join('')
-  const bad = []; let n = 0; let minR = 99
+  const bad = []; let n = 0; let minR = 99; let misN = 0
   for (const it of items) {
     const px = []
     const pushRect = (r, ring) => {
@@ -129,13 +141,16 @@ const MEASURE = async ([items, fields, url, ox, oy]) => {
     for (const r of it.r) pushRect(r, it.k === 'i')
     if (!px.length) continue
     const a = it.c[3] * it.op
-    const rs = px.map((b) => L.ratio(L.over([it.c[0], it.c[1], it.c[2], a], b), b)).sort((p, q) => p - q)
+    let rs = px.map((b) => L.ratio(L.over([it.c[0], it.c[1], it.c[2], a], b), b)).sort((p, q) => p - q)
+    const bgm = [med(px.map((b) => b[0])), med(px.map((b) => b[1])), med(px.map((b) => b[2]))]
+    let mis = 0
+    if (!it.art && it.eb && Math.max(Math.abs(bgm[0] - it.eb[0]), Math.abs(bgm[1] - it.eb[1]), Math.abs(bgm[2] - it.eb[2])) > 28) { mis = 1; misN++; const rr = L.ratio(L.over([it.c[0], it.c[1], it.c[2], a], it.eb), it.eb); rs = [rr, rr, rr] }
     const p10 = rs[Math.floor(rs.length * 0.1)]; const md = rs[Math.floor(rs.length / 2)]
     n++; if (p10 < minR) minR = p10
     const need = it.k === 'i' ? 3 : ((it.px >= 24 || (it.w >= 700 && it.px >= 18.66)) ? 3 : 4.5)
     if (p10 + 0.005 < need) {
-      const bg = [med(px.map((b) => b[0])), med(px.map((b) => b[1])), med(px.map((b) => b[2]))]
-      bad.push({ k: it.k, s: it.s, e: it.e, fg: hx(L.over([it.c[0], it.c[1], it.c[2], a], bg)), bg: hx(bg), px: Math.round(it.px), w: it.w, need, p10: +p10.toFixed(2), md: +md.toFixed(2), l: it.l, d: it.d, sp: +(rs[rs.length - 1] - rs[0]).toFixed(1) })
+      const bg = mis ? it.eb : bgm
+      bad.push({ mis, k: it.k, s: it.s, e: it.e, fg: hx(L.over([it.c[0], it.c[1], it.c[2], a], bg)), bg: hx(bg), px: Math.round(it.px), w: it.w, need, p10: +p10.toFixed(2), md: +md.toFixed(2), l: it.l, d: it.d, sp: +(rs[rs.length - 1] - rs[0]).toFixed(1) })
     }
   }
   const fb = []
@@ -149,7 +164,7 @@ const MEASURE = async ([items, fields, url, ox, oy]) => {
     const edge = Math.max(best, fill)
     if (edge < 3) fb.push({ e: f.e, t: f.t, n: f.n, edge: +edge.toFixed(2), bw: f.bw })
   }
-  return { bad, n, minR: +minR.toFixed(2), fb }
+  return { bad, n, minR: +minR.toFixed(2), fb, misN }
 }
 
 const META = () => ({
@@ -223,6 +238,10 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   await ctx.addInitScript(HELP)
   if (CF.themeKey) await ctx.addInitScript((k) => { try { localStorage.setItem(k, 'dark') } catch (e) { } }, CF.themeKey)
   const pg = await ctx.newPage()
+  let net = {}
+  pg.on('response', (r) => { const u = r.url(); if (u.indexOf('sporta.com.kw/api') > -1) net[r.request().method() + ' ' + u.replace(B, '').slice(0, 80) + ' ' + r.status()] = 1 })
+  pg.on('requestfailed', (r) => { const u = r.url(); if (u.indexOf('sporta.com.kw') > -1) net['FAIL ' + r.request().method() + ' ' + u.replace(B, '').slice(0, 80)] = 1 })
+  const netLog = (label) => { const k = Object.keys(net); if (k.length) log('NET', tag, label, J(k.slice(0, 14))); net = {} }
   const U = (p) => B + p + (lang === 'en' ? (p.includes('?') ? '&' : '?') + 'lang=en' : '')
   const go = async (p) => { const r = await pg.goto(U(p), { waitUntil: 'load', timeout: 90000 }).catch(() => null); await pg.waitForTimeout(1800); return r ? r.status() : 'ERR' }
   const seenW = new Set(); const cfAgg = {}; const palAgg = { t: {}, b: {}, o: {} }; const focAgg = {}; const fbAll = []
@@ -266,7 +285,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   }
   const aggCF = (label, bad) => {
     for (const b of bad) {
-      const key = [b.k, b.fg, b.bg, b.px, b.e, b.d].join('|')
+      const key = [b.k, b.fg, b.bg, b.px, b.e, b.d, b.mis].join('|')
       const x = cfAgg[key] || (cfAgg[key] = { pages: new Set(), n: 0, ex: [], b })
       x.pages.add(label); x.n++; if (x.ex.length < 2 && !x.ex.includes(tr(b.s))) x.ex.push(tr(b.s))
       if (b.p10 < x.b.p10) x.b = b
@@ -275,8 +294,9 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   const scan = async (label, scope, opts) => {
     opts = opts || {}
     await settle()
-    const col = await pg.evaluate(COLLECT, scope || null)
     if (CF.w && !opts.nowords) await words(label, scope)
+    await pg.waitForTimeout(250)
+    const col = await pg.evaluate(COLLECT, scope || null)
     if (CF.pal) {
       for (const it of col.items) { const h = '#' + it.c.slice(0, 3).map((v) => v.toString(16).padStart(2, '0')).join('') + (it.c[3] * it.op < 0.99 ? '/' + (it.c[3] * it.op).toFixed(2) : ''); const x = palAgg.t[h] || (palAgg.t[h] = { n: 0, e: it.e, pg: new Set() }); x.n++; x.pg.add(label) }
       for (const [m, src] of [['b', col.pal.b], ['o', col.pal.o]]) for (const h in src) { const x = palAgg[m][h] || (palAgg[m][h] = { n: 0, e: src[h].e, pg: new Set() }); x.n += src[h].n; x.pg.add(label) }
@@ -284,23 +304,24 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
     if (col.links.length) log('LNK', tag, label, J(col.links.map((l) => [tr(l.s), l.c, l.pc, l.u, l.fw])))
     if (!CF.c) return
     if (!col.items.length) { log('CP', tag, label, 'no items'); return }
-    // bounding box of everything measured
+    const fresh = await pg.evaluate(HIDE)
+    col.items.forEach((it, i) => { it.r = fresh.items[i] || [] })
+    col.items = col.items.filter((it) => it.r.length)
+    col.fields.forEach((f, i) => { if (fresh.fields[i]) f.r = fresh.fields[i] })
     let x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0
     const grow = (r) => { x0 = Math.min(x0, r[0] - 8); y0 = Math.min(y0, r[1] - 8); x1 = Math.max(x1, r[0] + r[2] + 8); y1 = Math.max(y1, r[1] + r[3] + 8) }
     for (const it of col.items) for (const r of it.r) grow(r)
     for (const f of col.fields) grow(f.r)
     x0 = Math.max(0, x0); y0 = Math.max(0, y0)
-    const dh = await pg.evaluate(() => document.documentElement.scrollHeight)
-    y1 = Math.min(y1, dh, 15000)
-    await pg.evaluate(() => { const s = document.createElement('style'); s.id = 'ls-hide'; s.textContent = '*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;caret-color:transparent!important;transition:none!important;animation:none!important}::placeholder{color:transparent!important;-webkit-text-fill-color:transparent!important}'; document.head.appendChild(s) })
-    await pg.waitForTimeout(150)
-    const buf = await pg.screenshot({ fullPage: true, clip: { x: x0, y: y0, width: Math.min(x1, await pg.evaluate(() => document.documentElement.scrollWidth)) - x0, height: y1 - y0 }, type: 'png' })
+    const dims = await pg.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight])
+    y1 = Math.min(y1, dims[1], 15000)
+    const buf = await pg.screenshot({ fullPage: true, clip: { x: x0, y: y0, width: Math.min(x1, dims[0]) - x0, height: y1 - y0 }, type: 'png' })
     await pg.evaluate(() => { const s = document.getElementById('ls-hide'); if (s) s.remove() })
     const res = await pg.evaluate(MEASURE, [col.items, col.fields, 'data:image/png;base64,' + buf.toString('base64'), x0, y0]).catch((e) => ({ err: String(e.message).slice(0, 200) }))
     if (res.err) { log('CERR', tag, label, res.err); return }
     aggCF(label, res.bad)
     for (const f of res.fb) fbAll.push(label + ':' + f.e + ':' + f.t + ':' + f.n + ':' + f.edge)
-    log('CP', tag, label, 'measured=' + res.n, 'min_p10=' + res.minR, 'fail=' + res.bad.length, 'fieldEdges<3=' + res.fb.length, 'items=' + col.items.length, 'png=' + Math.round(buf.length / 1024) + 'k')
+    log('CP', tag, label, 'measured=' + res.n, 'min_p10=' + res.minR, 'fail=' + res.bad.length, 'fieldEdges<3=' + res.fb.length, 'items=' + col.items.length, 'stackFallback=' + res.misN, 'png=' + Math.round(buf.length / 1024) + 'k')
   }
   const focusPass = async (label, nTabs) => {
     if (!CF.f) return
@@ -308,6 +329,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
     const ids = new Set(); let ok = 0, noInd = [], low = [], auto = 0
     for (let i = 0; i < nTabs; i++) {
       await pg.keyboard.press('Tab')
+      await pg.waitForTimeout(260)
       const r = await pg.evaluate(FOCUS).catch(() => null)
       if (!r) continue
       if (ids.has(r.id)) break
@@ -365,7 +387,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
         await scan('shop')
         await focusPass('shop', 14)
       } else if (step === 'product') {
-        const st = await go(prod || '/product/cloudsoft-jacket-army-green'); await info('product', st)
+        const st = await go(CF.prod || prod || '/product/cloudsoft-jacket-army-green'); await info('product', st)
         const sz = await chooseSize(); log('SIZE', tag, sz)
         await pg.waitForTimeout(500)
         await scan('product')
@@ -374,7 +396,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
       } else if (step === 'drawer') {
         const add = await pg.evaluate(() => {
           const no = /pay|checkout|order|buy|now|ادفع|اطلب|إتمام|اشتر|الآن/i
-          const yes = /bag|cart|حقيب|سلة|أضف/i
+          const yes = /\badd\b|bag|cart|حقيب|سلة|أضف/i
           const b = [...document.querySelectorAll('button.btn-primary')].find((x) => !x.disabled && !x.closest('header,footer') && yes.test(x.textContent) && !no.test(x.textContent))
           if (b) { b.click(); return b.textContent.trim() }
           return null
@@ -414,10 +436,11 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
         await scan(step)
         await focusPass(step, 20)
       }
+      netLog(step)
     }
   } catch (e) { log('FAIL', tag, String(e.message).slice(0, 300)) }
   // aggregated outputs
-  const cfl = Object.values(cfAgg).sort((a, b) => a.b.p10 - b.b.p10).map((x) => [x.b.k + (x.b.d ? '/DIS' : '') + (x.b.l ? '/LINK' : ''), x.b.fg, 'on', x.b.bg, x.b.px + 'px/' + x.b.w, 'need' + x.b.need, 'p10=' + x.b.p10, 'med=' + x.b.md, 'spread=' + x.b.sp, x.b.e, '"' + x.ex.join('~') + '"', 'x' + x.n, [...x.pages].join(',')].join(' '))
+  const cfl = Object.values(cfAgg).sort((a, b) => a.b.p10 - b.b.p10).map((x) => [x.b.k + (x.b.d ? '/DIS' : '') + (x.b.l ? '/LINK' : '') + (x.b.mis ? '/STACK' : ''), x.b.fg, 'on', x.b.bg, x.b.px + 'px/' + x.b.w, 'need' + x.b.need, 'p10=' + x.b.p10, 'med=' + x.b.md, 'spread=' + x.b.sp, x.b.e, '"' + x.ex.join('~') + '"', 'x' + x.n, [...x.pages].join(',')].join(' '))
   log('CF', tag, 'distinctFailures=' + cfl.length)
   for (const c of chunk(cfl, 3000)) log('CF|' + tag, c)
   if (fbAll.length) log('FIELDEDGE', tag, J(fbAll.slice(0, 12)))
