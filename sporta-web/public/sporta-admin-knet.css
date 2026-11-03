@@ -741,6 +741,7 @@
 }
 .admin-shell .admin-content .payment-gateway-editor label.rounded-2xl > input[type="checkbox"] {
   margin-top: .125rem;
+  min-height: 0 !important; /* measured 25x46 on desktop: a control floor meant for text fields */
 }
 
 /* 4. One line height for every field label. The secret fields' labels measured
