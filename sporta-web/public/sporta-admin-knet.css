@@ -683,3 +683,78 @@
 /* Inventory fits its frame at 1366px again: seven columns at .75rem a side
    instead of 1rem give back 59px, and the table needed 21 (1039px in 1018). */
 .admin-shell .admin-content .inventory-table > :is(thead, tbody) > tr > :is(th, td) { padding-inline: .75rem !important; }
+
+/* ---- 8. Payments: the KNET and T-Pay screens (owner request 2026-11-03) ---- */
+/* Measured on the live screen at 390px and rebuilt offline from its exact DOM
+   (scripts/admin-payments-scan.mjs MODE=dom) to look at it. Five things read
+   badly there; each is fixed below and none changes what is saved or shown,
+   except one duplicate note (see the last rule).
+
+   1. Status cards. The whiter-admin rule in section 1 turned the Mode and
+      Gateway tiles' slate-50 into white, so on a phone they stopped being
+      tiles: two lines of loose text stacked one over the other with 12px of
+      padding around nothing. They get their hairline back and sit side by
+      side (the gateway host is ~15 characters of mono: it fits half a phone). */
+.admin-shell .admin-content .payment-gateway-card > dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .625rem;
+}
+.admin-shell .admin-content .payment-gateway-card > dl > div {
+  border: 1px solid #e2e8f0;
+  padding: .625rem .75rem;
+}
+
+/* 2. Two save buttons in one form read as one. "Save IDs" and "Save IPs" save
+      only the identifiers or addresses in their own panel; "Save KNET" and
+      "Save T-Pay" save the credentials. The identifier and address blocks are
+      now panels of their own with the same hairline and radius as the toggle
+      card, and their button is the quiet one: outlined in the action colour,
+      where the form's own save keeps the filled one. */
+.admin-shell .admin-content .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background-color: #fbfcfd;
+  padding: 1rem;
+}
+.admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600 {
+  background-color: #fff !important;
+  color: var(--admin-action, #9a452c) !important;
+  border: 1px solid var(--admin-action, #9a452c);
+  border-color: var(--admin-action, #9a452c) !important; /* section 4a forces transparent */
+  box-shadow: none;
+}
+.admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600:hover {
+  background-color: #fdf5f1 !important;
+}
+
+/* 3. The "take KNET through this CBK setup" card put its checkbox on a line of
+      its own under the text, 16px wide and orphaned. It goes to the end of the
+      row, 24px, in the action colour; the whole card was already the label. */
+.admin-shell .admin-content .payment-gateway-editor > label.rounded-2xl:has(> input[type="checkbox"]) {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.admin-shell .admin-content .payment-gateway-editor > label.rounded-2xl > input[type="checkbox"] {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: .125rem;
+  accent-color: var(--admin-action, #9a452c);
+}
+
+/* 4. One line height for every field label. The secret fields' labels measured
+      17px and the plain ones' 19px, so the rows under them were 67px and 71px
+      and the form had two rhythms. */
+.admin-shell .admin-content .payment-gateway-editor label > span:first-child:not(.sr-only) {
+  line-height: 1.3;
+}
+
+/* 5. The T-Pay form said the same thing twice: a sky-blue note ("register the
+      hosting server IPs with CBK ... allowlist values, not secret") directly
+      above the Merchant Server IP panel, whose own intro says it again. The
+      panel keeps it; the loose note goes, so the blue tint (the only one on
+      this screen besides the mode notice) goes with it. */
+.admin-shell .admin-content .payment-gateway-editor:has([data-sporta-tpay-ips]) p.bg-sky-50 {
+  display: none;
+}

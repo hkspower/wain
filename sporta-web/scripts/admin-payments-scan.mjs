@@ -3,6 +3,7 @@
 //   node scripts/admin-payments-scan.mjs                 MODE=tree     (default) structure and boxes at 390px
 //   MODE=measure node scripts/admin-payments-scan.mjs    checks at 390, 768 and 1280px
 //   MODE=dom     node scripts/admin-payments-scan.mjs    exact element tree of the section (full classes), to rebuild it offline
+//   MODE=verify CSS_URL=<raw url> node ...               the same page measured before and after the stylesheet is applied
 //   CSS_URL=<raw url of a stylesheet> ...                apply it on top first (before/after on one page)
 //
 // Every admin API call is answered HERE with made-up data; nothing reaches the real
@@ -34,7 +35,7 @@ const FAKE = {
   payment_server_ips: { server_ip_1: '', server_ip_2: '' },
   payment_knet_via_cbk: { enabled: false, tpay_ready: false },
 }
-const open = async (w, h) => {
+const open = async (w, h, withCss = true) => {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: 'en-US' })
   const pg = await ctx.newPage()
   const errs = []
@@ -48,13 +49,55 @@ const open = async (w, h) => {
   await pg.waitForTimeout(900)
   const target = (await pg.$('a[href*="payment" i]')) || (await pg.$('text=/Payments/i'))
   if (target) { await target.evaluate((el) => el.click()); await pg.waitForTimeout(2500) }
-  if (CSS) { await pg.addStyleTag({ content: CSS }); await pg.waitForTimeout(500) }
+  if (CSS && withCss) { await pg.addStyleTag({ content: CSS }); await pg.waitForTimeout(500) }
   return { ctx, pg, errs, found: !!target }
 }
 let browser
 ;(async () => {
   browser = await chromium.launch({ args: ['--no-sandbox'] })
-  if (MODE === 'dom') {
+  if (MODE === 'verify') {
+    // The same live render measured before and after CSS_URL is applied to it.
+    const probe = () => {
+      const R = (e) => { if (!e) return 'none'; const b = e.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}` }
+      const q = (sel, root = document) => root.querySelector(sel)
+      const cs = (e) => (e ? getComputedStyle(e) : null)
+      const card = q('.payment-gateway-card')
+      const dl = card && q(':scope > dl', card)
+      const tile = dl && dl.firstElementChild
+      const knet = q('.payment-gateway-editor:has(.payment-knet-toggle-row)')
+      const tpay = [...document.querySelectorAll('form.payment-gateway-editor')].find((f) => f !== knet)
+      const panel = q('[data-sporta-knet-ids]')
+      const ips = q('[data-sporta-tpay-ips]')
+      const saveIds = panel && q('button', panel)
+      const saveKnet = knet && [...knet.querySelectorAll('button')].filter((b) => !b.closest('[data-sporta-knet-ids]')).pop()
+      const cbk = tpay && q(':scope > label.rounded-2xl', tpay)
+      const box = cbk && q('input[type=checkbox]', cbk)
+      const sky = tpay && q('p.bg-sky-50', tpay)
+      const spans = knet ? [...new Set([...knet.querySelectorAll('label > span:first-child:not(.sr-only)')].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().height)))] : []
+      const tpaySpans = tpay ? [...new Set([...tpay.querySelectorAll('label > span:first-child:not(.sr-only)')].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().height)))] : []
+      const small = [...document.querySelectorAll('.payment-settings button, .payment-settings input:not([type=checkbox]), .payment-settings select')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height < 44 }).length
+      const b = (e) => (e ? `${cs(e).borderTopWidth} ${cs(e).borderTopColor}` : '-')
+      return [
+        `section ${R(q('.payment-settings'))} | overflow ${document.documentElement.scrollWidth > innerWidth ? 'YES ' + document.documentElement.scrollWidth : 'no'} | controls under 44px ${small}`,
+        `status card ${R(card)} | tiles grid [${dl ? cs(dl).gridTemplateColumns.replace(/px/g, '') : '-'}] tile ${R(tile)} border ${b(tile)}`,
+        `KNET panel ${R(panel)} border ${b(panel)} radius ${panel ? cs(panel).borderTopLeftRadius : '-'} pad ${panel ? cs(panel).paddingTop : '-'}`,
+        `Save IDs bg ${saveIds ? cs(saveIds).backgroundColor : '-'} color ${saveIds ? cs(saveIds).color : '-'} border ${b(saveIds)} | Save KNET bg ${saveKnet ? cs(saveKnet).backgroundColor : '-'}`,
+        `T-Pay panel ${R(ips)} border ${b(ips)} | sky note ${sky ? cs(sky).display : 'absent'}`,
+        `CBK card ${R(cbk)} flex-wrap ${cbk ? cs(cbk).flexWrap : '-'} | checkbox ${R(box)}`,
+        `label heights KNET [${spans.join(' ')}] T-Pay [${tpaySpans.join(' ')}]`,
+      ]
+    }
+    for (const [w, h] of [[390, 844], [1280, 900]]) {
+      const { ctx, pg } = await open(w, h, false)
+      const before = await pg.evaluate(probe)
+      await pg.addStyleTag({ content: CSS })
+      await pg.waitForTimeout(500)
+      const after = await pg.evaluate(probe)
+      console.log(`\n== ${w}x${h}  (before -> after)`)
+      before.forEach((l, i) => { console.log('  - ' + l.slice(0, 230)); console.log('  + ' + after[i].slice(0, 230)) })
+      await ctx.close()
+    }
+  } else if (MODE === 'dom') {
     // The exact element tree of the Payments section: full class lists, text and the few
     // attributes that change how a control looks. Enough to rebuild the screen offline.
     const { ctx, pg } = await open(Number(process.env.W || 390), 844)
