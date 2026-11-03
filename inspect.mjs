@@ -24,7 +24,7 @@ const chain = () => {
   const card = sp.closest('a')
   const im = card && card.querySelector('img')
   out.push('IMG ' + (im ? [im.currentSrc.slice(-50), im.naturalWidth + 'x' + im.naturalHeight, 'complete=' + im.complete, getComputedStyle(im).opacity, getComputedStyle(im).filter].join(' ') : 'none'))
-  out.push('SIBLINGS ' + J([...sp.parentElement.children].map((c) => c.tagName.toLowerCase() + '.' + [...c.classList].slice(0, 4).join('.') + ':' + getComputedStyle(c).backgroundColor + ':' + getComputedStyle(c).backgroundImage.slice(0, 50))))
+  out.push('SIBLINGS ' + JSON.stringify([...sp.parentElement.children].map((c) => c.tagName.toLowerCase() + '.' + [...c.classList].slice(0, 4).join('.') + ':' + getComputedStyle(c).backgroundColor + ':' + getComputedStyle(c).backgroundImage.slice(0, 50))))
   return out
 }
 const hero = () => {
