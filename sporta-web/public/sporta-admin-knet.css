@@ -770,3 +770,5 @@
 .admin-shell .admin-content .payment-gateway-editor:has([data-sporta-tpay-ips]) p.bg-sky-50 {
   display: none;
 }
+
+/* ---- 9. Light only (owner decision 2026-11-03: no dark mode for the Payments screen) ---- */
