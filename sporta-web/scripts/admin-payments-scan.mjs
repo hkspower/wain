@@ -70,7 +70,7 @@ let browser
       const ips = q('[data-sporta-tpay-ips]')
       const saveIds = panel && q('button', panel)
       const saveKnet = knet && [...knet.querySelectorAll('button')].filter((b) => !b.closest('[data-sporta-knet-ids]')).pop()
-      const cbk = tpay && q(':scope > label.rounded-2xl', tpay)
+      const cbk = tpay && [...tpay.querySelectorAll('label.rounded-2xl')].find((l) => l.querySelector(':scope > input[type=checkbox]'))
       const box = cbk && q('input[type=checkbox]', cbk)
       const sky = tpay && q('p.bg-sky-50', tpay)
       const spans = knet ? [...new Set([...knet.querySelectorAll('label > span:first-child:not(.sr-only)')].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().height)))] : []
@@ -83,7 +83,7 @@ let browser
         `KNET panel ${R(panel)} border ${b(panel)} radius ${panel ? cs(panel).borderTopLeftRadius : '-'} pad ${panel ? cs(panel).paddingTop : '-'}`,
         `Save IDs bg ${saveIds ? cs(saveIds).backgroundColor : '-'} color ${saveIds ? cs(saveIds).color : '-'} border ${b(saveIds)} | Save KNET bg ${saveKnet ? cs(saveKnet).backgroundColor : '-'}`,
         `T-Pay panel ${R(ips)} border ${b(ips)} | sky note ${sky ? cs(sky).display : 'absent'}`,
-        `CBK card ${R(cbk)} flex-wrap ${cbk ? cs(cbk).flexWrap : '-'} | checkbox ${R(box)}`,
+        `CBK card ${R(cbk)} flex-wrap ${cbk ? cs(cbk).flexWrap : '-'} inside IP panel ${cbk && cbk.closest('[data-sporta-tpay-ips]') ? 'yes' : 'no'} | checkbox ${R(box)} accent ${box ? cs(box).accentColor : '-'}`,
         `label heights KNET [${spans.join(' ')}] T-Pay [${tpaySpans.join(' ')}]`,
       ]
     }
