@@ -60,33 +60,43 @@ async function session(lang, grant) {
 
 const q = (lang, p) => BASE + p + (lang === 'en' ? (p.includes('?') ? '&' : '?') + 'lang=en' : '')
 
+async function productSlugs(page) {
+  try {
+    const r = await page.request.get(BASE + '/api/api.php?r=products')
+    const j = await r.json()
+    const slugs = []
+    const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') { if (typeof x.slug === 'string' && x.slug) slugs.push(x.slug); else Object.values(x).forEach(walk) } }
+    walk(j)
+    return [...new Set(slugs)].slice(0, 14)
+  } catch (e) { return [] }
+}
+
 async function addItem(page, lang) {
-  await page.goto(q(lang, '/shop'), { waitUntil: 'load' })
-  await page.waitForTimeout(2500)
-  const href = await page.evaluate(() => {
-    const a = [...document.querySelectorAll('a[href*="/product"]')].map((x) => x.getAttribute('href'))[0]
-    return a || null
-  })
-  if (!href) return 'no product link'
-  await page.goto(BASE + href + (lang === 'en' ? (href.includes('?') ? '&' : '?') + 'lang=en' : ''), { waitUntil: 'load' })
-  await page.waitForTimeout(2500)
-  const act = await page.evaluate(() => {
-    const SZ = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', 'ONE SIZE', 'FREE SIZE']
-    const bs = [...document.querySelectorAll('main button')]
-    const size = bs.find((b) => !b.disabled && SZ.includes((b.textContent || '').trim().toUpperCase()))
-    if (size) size.click()
-    return size ? 'size ' + size.textContent.trim() : 'no size button'
-  })
-  await page.waitForTimeout(500)
-  const add = await page.evaluate(() => {
-    const txt = (x) => (x.textContent || '').replace(/\s+/g, ' ').trim()
-    const bs = [...document.querySelectorAll('main button')].filter((x) => !x.disabled)
-    const b = bs.find((x) => !/wish|favou?rite|save|buy now|size|المفضلة|مقاس/i.test(txt(x)) && /^(add|أضف|اضف)/i.test(txt(x)))
-    if (b) { b.click(); return 'clicked ' + txt(b).slice(0, 30) }
-    return 'no add button'
-  })
-  await page.waitForTimeout(1500)
-  return act + ' / ' + add
+  const slugs = await productSlugs(page)
+  let last = 'no products from the API'
+  for (const slug of slugs) {
+    await page.goto(q(lang, '/product/' + slug), { waitUntil: 'load' })
+    await page.waitForTimeout(2200)
+    const act = await page.evaluate(() => {
+      const SZ = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', 'ONE SIZE', 'FREE SIZE']
+      const bs = [...document.querySelectorAll('main button')]
+      const size = bs.find((b) => !b.disabled && SZ.includes((b.textContent || '').trim().toUpperCase()))
+      if (size) size.click()
+      return size ? 'size ' + size.textContent.trim() : 'no size button'
+    })
+    await page.waitForTimeout(500)
+    const add = await page.evaluate(() => {
+      const txt = (x) => (x.textContent || '').replace(/\s+/g, ' ').trim()
+      const bs = [...document.querySelectorAll('main button')].filter((x) => !x.disabled)
+      const b = bs.find((x) => !/wish|favou?rite|save|buy now|size|المفضلة|مقاس/i.test(txt(x)) && /^(add|أضف|اضف)/i.test(txt(x)))
+      if (b) { b.click(); return 'clicked ' + txt(b).slice(0, 30) }
+      return 'no add button'
+    })
+    await page.waitForTimeout(1500)
+    last = slug + ': ' + act + ' / ' + add
+    if (/^clicked/.test(add)) return last
+  }
+  return last
 }
 
 const ctlInfo = (page) => page.evaluate(() => {
