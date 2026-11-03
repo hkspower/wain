@@ -41,10 +41,10 @@
 //   5 `Header always unset X-Powered-By` removes nothing         6 Apache-made pages lack nosniff/XFO
 //   7 an unlisted fixed-name add-on is served immutable          8 dot-directories in folders with their own RewriteEngine
 //   9 .php runs from /hero and /cats                            10 text/plain without a charset
-//  11 compressed text never revalidates to 304                  12 /backends static shell has no noindex header
+//  11 (FIXED 2026-11-03, page weight) compressed text never revalidated to 304   12 /backends static shell has no noindex header
 //  13 api include files answer 200                              14 storefront HTML sent no-referrer
-//  16 minor: two hops for /index.html over http, duplicate Cache-Control on 301s, 404 shell uncompressed,
-//     admin-google.php returns to /backends/ which the rules 404
+//  16 minor: two hops for /index.html over http, duplicate Cache-Control on 301s, admin-google.php returns to
+//     /backends/ which the rules 404  (its "404 shell uncompressed" part was FIXED 2026-11-03, page weight)
 // A proposed fix is a unified diff against sporta-web/ (paths a/public/.htaccess, a/dropin/php-*/.htaccess):
 // `--patch F` installs it into the scratch tree, and every defect it repairs prints XPASS.
 import { spawnSync, spawn, execFileSync } from 'node:child_process'
@@ -876,8 +876,31 @@ async function runChecks({ www, hashes, indexHtml }) {
   for (const p of ['/robots.txt', '/llms.txt', '/sw.js', '/config.js', '/boot.js', '/site.webmanifest', '/sitemap-pages.xml']) {
     const gz = await req(p, { headers: ['Accept-Encoding: gzip'] })
     const c = await req(p, { headers: ['Accept-Encoding: gzip', `If-None-Match: ${h1(gz, 'etag')}`] })
-    check(c.status === 304, `${p}: revalidating with the ETag of the COMPRESSED copy answers 304, not a full 200`, `${gz.status} ${h1(gz, 'content-encoding')} etag ${h1(gz, 'etag')} -> ${c.status}`, 'htaccess-11')
+    check(c.status === 304, `${p}: revalidating with the ETag of the COMPRESSED copy answers 304, not a full 200`, `${gz.status} ${h1(gz, 'content-encoding')} etag ${h1(gz, 'etag')} -> ${c.status}`)
   }
+  // The same, for every fixed-name add-on the live index.html links (CLAUDE.md, "Add-ons the live index.html links") and the
+  // three scripts around them: all of them carry `no-cache, must-revalidate`, so a returning visitor asks about each of them
+  // on EVERY page load. Before the RequestHeader edit each answered a full 200 (51.5 kB gzip in all for the copies live on 2026-11-02, 140.5 kB for the repo's); now each is an empty 304,
+  // with gzip's ETag and with Brotli's, and a validator that is genuinely stale still gets the new file.
+  const ADDONS = ['boot.js', 'config.js', 'birthday.js', 'sporta-features.js', 'sporta-admin-brands.js', 'sporta-footer-call.js', 'sporta-gov-autopick.js', 'sporta-clock.js', 'sporta-checkout-a11y.js',
+    'sporta-product-fix.css', 'sporta-brand-theme.css', 'sporta-home-trim.css', 'sporta-cart-drawer.css', 'sporta-grid.css', 'sporta-bag-touch.css', 'sporta-cat-tiles.css', 'sporta-admin-knet.css',
+    'sporta-returns-touch.css', 'sporta-clock.css', 'sporta-ui-colours.css', 'sporta-checkout-a11y.css', 'sporta-shadows.css', 'sporta-images.css']
+  let full = 0, empty = 0, allBack = true
+  for (const f of ADDONS) {
+    const p = '/' + f
+    const gz = await req(p, { headers: ['Accept-Encoding: gzip'] })
+    const c = await req(p, { headers: ['Accept-Encoding: gzip', `If-None-Match: ${h1(gz, 'etag')}`] })
+    const br = await req(p, { headers: ['Accept-Encoding: br'] })
+    const cb = await req(p, { headers: ['Accept-Encoding: br', `If-None-Match: ${h1(br, 'etag')}`] })
+    const stale = await req(p, { headers: ['Accept-Encoding: gzip', 'If-None-Match: "0-0-gzip"'] })
+    full += gz.body.length; empty += c.body.length
+    const ok = gz.status === 200 && h1(gz, 'content-encoding') === 'gzip' && c.status === 304 && c.body.length === 0 && /no-cache/.test(h1(c, 'cache-control')) &&
+      cb.status === 304 && h1(br, 'content-encoding') === 'br' && stale.status === 200 && stale.body.length === gz.body.length
+    if (!ok) allBack = false
+    check(ok, `${p}: its own gzip ETag and its own Brotli ETag answer an empty 304 that keeps no-cache; a stale validator still gets the file`,
+      `gzip 200 ${gz.body.length} B -> ${c.status} ${c.body.length} B; br ${br.status} -> ${cb.status}; stale ${stale.status}/${stale.body.length} B`)
+  }
+  console.log(`   ${ADDONS.length} add-on files, one page load of a returning visitor: ${full} B (gzip) re-sent as 200 before, ${empty} B body as 304 now${allBack ? '' : ' (NOT all)'}`)
 
   // ------------------------------------------------------------ 6 compression and types
   section('6 Compression: text types only, Vary: Accept-Encoding, and Content-Type charsets')
@@ -895,7 +918,14 @@ async function runChecks({ www, hashes, indexHtml }) {
     check(h1(r, 'content-encoding') === '', `${p}: images and fonts are never re-compressed`, h1(r, 'content-encoding') || 'none')
   }
   const shell = await req('/nope', { headers: ['Accept-Encoding: gzip'] })
-  check(h1(shell, 'content-encoding') === 'gzip', 'the 404 shell (27 kB of HTML) is compressed like any other HTML', `${shell.status} ${h1(shell, 'content-encoding') || 'NOT compressed'} ${shell.body.length} B`, 'htaccess-16')
+  check(h1(shell, 'content-encoding') === 'gzip', 'the 404 shell (27 kB of HTML) is compressed like any other HTML', `${shell.status} ${h1(shell, 'content-encoding') || 'NOT compressed'} ${shell.body.length} B`)
+  // ...for a Brotli client too, never for a client that offers neither, and it is still a 404 with the shell in it.
+  const shellBr = await req('/nope', { headers: ['Accept-Encoding: br, gzip'] })
+  check(shellBr.status === 404 && h1(shellBr, 'content-encoding') === 'br' && /Accept-Encoding/i.test(hv(shellBr, 'vary').join()), 'the 404 shell is Brotli for a client that offers br, with Vary: Accept-Encoding', `${shellBr.status} ${h1(shellBr, 'content-encoding') || 'none'} ${shellBr.body.length} B vary=${hv(shellBr, 'vary').join()}`)
+  const shellId = await req('/nope', { headers: ['Accept-Encoding: identity'] })
+  check(shellId.status === 404 && h1(shellId, 'content-encoding') === '' && shellId.body.length > 10000, 'the 404 shell is sent plain to a client that offers no compression', `${shellId.status} ${h1(shellId, 'content-encoding') || 'none'} ${shellId.body.length} B`)
+  const missingPhoto = await req('/images/products/responsive/not-there-320.webp', { headers: ['Accept-Encoding: gzip'] })
+  check(missingPhoto.status === 404 && h1(missingPhoto, 'content-encoding') === 'gzip' && missingPhoto.body.length < shellId.body.length / 2, 'a product-photo copy that is not there costs the compressed shell, not the 27 kB one', `${missingPhoto.status} ${h1(missingPhoto, 'content-encoding') || 'none'} ${missingPhoto.body.length} B vs ${shellId.body.length} B plain`)
   for (const [p, re, why] of [['/robots.txt', /^text\/plain; charset=utf-8$/i, 'robots.txt'], ['/llms.txt', /^text\/plain; charset=utf-8$/i, 'llms.txt (holds Arabic text; an unlabelled text/plain is decoded by guesswork in Firefox)'],
     ['/big.txt', /^text\/plain; charset=utf-8$/i, 'any .txt']]) {
     const r = await req(p)

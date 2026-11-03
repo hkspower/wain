@@ -268,6 +268,9 @@ async function handle(route) {
   if (FILES[p]) return route.fulfill({ status: 200, contentType: FILES[p][0], body: FILES[p][1] })
   if (p === '/logo.png') return route.fulfill({ status: 200, contentType: 'image/png', body: PNG })
   if (p === '/favicon.ico') return route.fulfill({ status: 204, body: '' })
+  // sporta-features.js asks for the small-copies list (2026-11-03, scripts/make-image-variants.mjs) on every storefront page; here, as on a
+  // server where nobody has run the maker yet, there is none, and the block must then do nothing at all (npm run test:sizes-weight proves that).
+  if (p === '/images/products/responsive/variants.txt') return route.fulfill({ status: 404, contentType: 'text/html; charset=utf-8', body: 'no' })
   if (p === '/api/api.php') {
     const r = url.searchParams.get('r')
     state.hits[`api:${r}`] = (state.hits[`api:${r}`] || 0) + 1

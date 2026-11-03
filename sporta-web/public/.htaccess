@@ -202,6 +202,30 @@ ErrorDocument 404 /index.html
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
+# ---- The 404 shell is compressed like every other page (2026-11-03, page weight) ----
+# `ErrorDocument 404 /index.html` below hands every unknown URL the whole SPA shell
+# (27 kB of HTML). That body is produced by an internal redirect to a NEW request
+# whose content type the type-based filters further down never see at the moment
+# they decide, so it went out UNcompressed: every probe of /wp-login.php, every
+# stale link to an old-site URL and every request for a file that is not there
+# (a product photograph copy that does not exist, say) cost the full 27,272 bytes.
+# Measured under Apache 2.4.58 against this very file: 27,272 B without this block,
+# 10,144 B (gzip) with it (scripts/htaccess-rules-test.mjs, section 6, and
+# npm run test:sizes-weight). The filter is named for the 404 status itself, which
+# is known by then. Both filters, in the order the type-based lines use: a client
+# that offers br gets Brotli, one that only offers gzip gets gzip, one that offers
+# neither gets the plain page.
+<If "%{REQUEST_STATUS} == 404">
+  <IfModule mod_deflate.c>
+    SetOutputFilter DEFLATE
+  </IfModule>
+  <IfModule mod_brotli.c>
+    <IfModule mod_deflate.c>
+      SetOutputFilter BROTLI_COMPRESS;DEFLATE
+    </IfModule>
+  </IfModule>
+</If>
+
 # ---- Compression (Brotli if available, else gzip) ----
 # application/manifest+json is listed explicitly: .webmanifest is not covered by
 # application/json, so the manifest was the one text file served uncompressed.
@@ -233,6 +257,29 @@ FileETag MTime Size
 </IfModule>
 
 <IfModule mod_headers.c>
+  # Revalidation of a COMPRESSED text file answers 304 (2026-11-03, page weight).
+  #
+  # mod_deflate / mod_brotli give the compressed copy an ETag ending in "-gzip" /
+  # "-br" (the plain file's is "1c6-62f..."), and a browser sends back exactly what
+  # it was given. Apache compares that request header with the PLAIN ETag, so
+  # "1c6-62f...-gzip" never matched: every conditional request for a file below
+  # that carries no-cache answered a full 200 with the whole body again instead of
+  # a 304 with none. Measured, real Apache 2.4.58 with this file: robots.txt,
+  # sw.js, config.js, boot.js, site.webmanifest and the sitemaps all returned 200
+  # to their own compressed ETag. That is every fixed-name add-on the storefront
+  # links (14 stylesheets and 6 scripts, plus boot.js, config.js and birthday.js:
+  # 23 files) re-sent in full on EVERY page load of a returning visitor: 51.5 kB
+  # gzip for the copies live on 2026-11-02, 140.5 kB gzip for the copies in this
+  # repo today. With this line they are 23 empty 304s (scripts/htaccess-rules-test.mjs
+  # section 5 asserts all 23, with gzip's validator and Brotli's).
+  # DeflateAlterETag / BrotliAlterETag would remove the suffix at the source, but
+  # they are server-config only (a 500 from .htaccess). This strips the suffix from
+  # the REQUEST before the conditional is evaluated (mod_headers runs at fixup, the
+  # conditional later, in the handler). `edit`, not `edit*` (see the Set-Cookie note
+  # below), so it rewrites the first validator, which is all a browser sends; a
+  # request without a suffix is left exactly as it was.
+  RequestHeader edit If-None-Match "-(?:gzip|br)(\")" "$1"
+
   # ONLY content-hashed Vite output (index-CuCZhORW.js, About-sNx2ecy0.css)
   # may be immutable: the filename changes whenever the bytes change. No
   # revalidation, ever — which is why nothing else may claim it.

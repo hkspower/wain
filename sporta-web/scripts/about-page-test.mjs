@@ -129,6 +129,9 @@ async function open(opts = {}) {
       if (o.brands === 'down') return route.abort()
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(o.brands) })
     }
+    // sporta-features.js asks for the small-copies list (2026-11-03, scripts/make-image-variants.mjs) on every storefront page; here, as on a
+    // server where nobody has run the maker yet, there is none, and the block must then do nothing at all (npm run test:sizes-weight proves that).
+    if (u.pathname === '/images/products/responsive/variants.txt') return route.fulfill({ status: 404, contentType: 'text/html; charset=utf-8', body: 'no' })
     state.unmatched.push(u.pathname + u.search)
     return route.fulfill({ status: 404, body: 'no' })
   })

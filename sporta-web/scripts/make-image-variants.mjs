@@ -4,7 +4,7 @@
 //   node scripts/make-image-variants.mjs --dir <media/products>                 plan only (DEFAULT): reads, prints, writes nothing
 //   node scripts/make-image-variants.mjs --dir <media/products> --write         make the missing copies, then rewrite the list
 //   node scripts/make-image-variants.mjs --dir <media/products> --manifest-only --write   only rewrite the list (no conversion tool needed)
-//   options:  --widths 320,640   --quality 80   --force   --tool magick|convert
+//   options:  --widths 320,640   --quality N (40-95; see QUALITY below)   --force   --tool magick|convert
 //
 // WHY THIS EXISTS
 // Uploaded product photographs are LOSSLESS by the owner's decision (2026-11-03): the browser sends the file's own bytes and
@@ -29,6 +29,10 @@
 //     is rotated for real (-auto-orient), so a portrait photograph does not come out as a landscape copy.
 //   * Colour: the ICC profile is kept (a Display-P3 photograph stays P3). EXIF / XMP / IPTC are dropped from the COPY only,
 //     which also leaves the location out of every small picture. The original keeps whatever the camera wrote.
+//   * Quality is the encoder's own default (libwebp, about 75) unless --quality N is given. QUALITY: some ImageMagick builds
+//     IGNORE -quality when they write WebP (measured on 6.9.12-98 with libwebp 1.3.2: q30 and q95 gave byte-identical files, where
+//     PIL's libwebp gave 10.5 kB and 125 kB). So --quality is checked first with a 96x96 test image encoded at 30 and at 95; if
+//     the two come out the same size the run stops with an error instead of pretending, and without --quality it is simply the default.
 //   * Atomic: each copy is written to a hidden temporary name in responsive/ and renamed, so the web server can never send a
 //     half-written file; the list is replaced the same way.
 //   * Only plain files directly inside --dir with a conservative name ([A-Za-z0-9._-], no leading dot or dash) are read;
@@ -52,6 +56,8 @@
 //
 // Exit status: 0 ok (including "nothing to do"); 1 bad usage, folder or tool missing; 2 at least one photograph failed.
 import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync, chmodSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -128,6 +134,7 @@ const EXT = { jpeg: ['jpg', 'jpeg'], png: ['png'], webp: ['webp'] }
 export function plan(dir, widths, { force = false } = {}) {
   const rows = []
   const respDir = join(dir, 'responsive')
+  const seen = new Map() // stem -> the file that claimed it: a.jpg and a.png would both want a-320.webp
   for (const name of readdirSync(dir).sort()) {
     if (name === 'responsive') continue
     if (name.startsWith('.')) continue
@@ -139,6 +146,7 @@ export function plan(dir, widths, { force = false } = {}) {
     if (!m || !['jpg', 'jpeg', 'png', 'webp'].includes(m[2].toLowerCase())) continue // not a picture (e.g. the media mount's own .htaccess)
     if (!STEM_OK.test(name)) { rows.push({ file: name, skip: 'unusual file name' }); continue }
     const stem = m[1]
+    if (seen.has(stem)) { rows.push({ file: name, skip: `same name as ${seen.get(stem)} apart from the extension; both would make ${stem}-<width>.webp` }); continue }
     let head
     try {
       const fd = openSync(full, 'r')
@@ -147,6 +155,7 @@ export function plan(dir, widths, { force = false } = {}) {
     const info = inspect(head)
     if (!info) { rows.push({ file: name, skip: 'not a readable JPEG / PNG / WebP' }); continue }
     if (!EXT[info.kind].includes(m[2].toLowerCase())) { rows.push({ file: name, skip: 'extension says ' + m[2] + ', content is ' + info.kind }); continue }
+    seen.set(stem, name)
     const d = displayed(info)
     const outs = widths.map((width) => {
       const path = join(respDir, `${stem}-${width}.webp`)
@@ -175,6 +184,19 @@ export function findTool(prefer) {
   return { error: 'ImageMagick not found (looked for ' + (prefer || 'magick, convert') + '). Install imagemagick with WebP support.' }
 }
 
+/** Does this ImageMagick really apply -quality when it writes WebP? (Some builds do not: see QUALITY in the header.) */
+export function qualityHonoured(tool) {
+  const dir = mkdtempSync(join(tmpdir(), 'sporta-q-'))
+  try {
+    const sizes = [30, 95].map((q) => {
+      const out = join(dir, `q${q}.webp`)
+      execFileSync(tool.cmd, ['-size', '96x96', '-seed', '3', 'plasma:fractal', '-quality', String(q), `webp:${out}`], { stdio: 'ignore', timeout: 30000 })
+      return statSync(out).size
+    })
+    return sizes[1] > sizes[0] * 1.2
+  } catch { return false } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
 const MAGICK_FORMAT = { jpeg: 'jpeg', png: 'png', webp: 'webp' }
 
 /** One copy, atomically: temp name in the same folder, then rename. Throws on any failure and leaves no temp file behind. */
@@ -190,7 +212,7 @@ export function makeOne(tool, row, out, quality) {
       '-auto-orient',                 // rotate the pixels for real: the copy carries no Orientation tag
       '+profile', '!icc,*',           // drop every profile EXCEPT the colour one (EXIF incl. GPS, XMP, IPTC go)
       '-filter', 'Lanczos', '-resize', `${out.width}x`,
-      '-quality', String(quality),
+      ...(quality ? ['-quality', String(quality)] : []),   // none given: the encoder's own default
       '-define', 'webp:method=6',
       `webp:${tmp}`,
     ], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 120000 })
@@ -234,7 +256,7 @@ function writeAtomic(path, text) {
 
 // ---------------------------------------------------------------- command line
 export function parseArgs(argv) {
-  const o = { dir: '', write: false, manifestOnly: false, force: false, widths: DEFAULT_WIDTHS, quality: 80, tool: '', help: false }
+  const o = { dir: '', write: false, manifestOnly: false, force: false, widths: DEFAULT_WIDTHS, quality: 0, tool: '', help: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const val = () => { if (i + 1 >= argv.length) throw new Error(`${a} needs a value`); return argv[++i] }
@@ -248,7 +270,7 @@ export function parseArgs(argv) {
     else if (a === '-h' || a === '--help') o.help = true
     else throw new Error(`unknown option ${a}`)
   }
-  if (!Number.isInteger(o.quality) || o.quality < 40 || o.quality > 95) throw new Error('--quality must be a whole number from 40 to 95')
+  if (o.quality !== 0 && (!Number.isInteger(o.quality) || o.quality < 40 || o.quality > 95)) throw new Error('--quality must be a whole number from 40 to 95')
   if (!o.widths.length || o.widths.length > 6 || o.widths.some((w) => !Number.isInteger(w) || w < 64 || w > 4096)) throw new Error('--widths is up to six whole numbers from 64 to 4096, e.g. 320,640')
   o.widths = [...new Set(o.widths)].sort((a, b) => a - b)
   return o
@@ -274,7 +296,7 @@ export function main(argv, out = (s) => console.log(s)) {
 
   const rows = plan(dir, o.widths, { force: o.force })
   const todo = rows.flatMap((r) => (r.outs || []).filter((x) => x.action === 'make').map((x) => [r, x]))
-  out(`${o.write ? 'WRITE' : 'PLAN '} ${dir}  widths ${o.widths.join(',')}  quality ${o.quality}  originals are never touched`)
+  out(`${o.write ? 'WRITE' : 'PLAN '} ${dir}  widths ${o.widths.join(',')}  quality ${o.quality || 'encoder default (about 75)'}  originals are never touched`)
   for (const r of rows) {
     if (r.skip) { out(`  skip  ${r.file}: ${r.skip}`); continue }
     const rot = r.orientation >= 5 ? `, stored sideways (EXIF ${r.orientation}), drawn ${r.dw}x${r.dh}` : ''
@@ -290,6 +312,7 @@ export function main(argv, out = (s) => console.log(s)) {
     const tool = findTool(o.tool)
     if (tool.error) { out('make-image-variants: ' + tool.error); return 1 }
     out(`  using ${tool.version}`)
+    if (o.quality && !qualityHonoured(tool)) { out(`make-image-variants: this ImageMagick ignores -quality when it writes WebP (q30 and q95 gave the same size), so --quality ${o.quality} would be a lie. Run without --quality (the encoder default, about 75) or use a build that honours it.`); return 1 }
     mkdirSync(respDir, { recursive: true, mode: 0o755 })
     for (const [r, x] of todo) {
       try { const n = makeOne(tool, r, x, o.quality); out(`  made  ${r.stem}-${x.width}.webp  ${n} B`) } catch (e) {
@@ -309,7 +332,7 @@ export function main(argv, out = (s) => console.log(s)) {
 
 function readmeLines() {
   return [
-    'usage: node scripts/make-image-variants.mjs --dir <media/products> [--write] [--widths 320,640] [--quality 80] [--force] [--manifest-only] [--tool magick|convert]',
+    'usage: node scripts/make-image-variants.mjs --dir <media/products> [--write] [--widths 320,640] [--quality N] [--force] [--manifest-only] [--tool magick|convert]',
     '  Plan only unless --write. Makes <dir>/responsive/<stem>-<width>.webp beside the originals and rewrites responsive/variants.txt.',
     '  Originals are opened read-only and are never changed, moved or deleted. See the header of this file.',
   ]

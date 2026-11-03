@@ -806,3 +806,249 @@
     else start()
   } catch (e) {}
 })()
+
+/* Small copies of the product photographs (2026-11-03, page weight).
+ *
+ * The compiled storefront gives an <img srcset> to exactly the ~33 photographs
+ * it was built with (a hard-coded file list in its own bundle) and to nothing
+ * else. Every photograph the admin uploads - which is lossless on purpose, so
+ * it arrives at 3000-4000 px and up to 10 MiB - is sent FULL SIZE to a 300px
+ * shop card, and every photograph, built-in or uploaded, is sent full size to
+ * the 72px bag-drawer thumbnail, the 80px cart line, the 48px checkout row and
+ * the 64px gallery thumbnail.
+ *
+ * scripts/make-image-variants.mjs, run on the server, makes small WebP copies
+ * BESIDE the originals (/images/products/responsive/<stem>-320.webp, -640.webp;
+ * the originals are never touched) and writes /images/products/responsive/
+ * variants.txt, one line per photograph that has copies:
+ *     # sporta-variants v1
+ *     <stem> 320,640
+ * This block reads that list and, for an <img> that shows one of those
+ * photographs at thumbnail size or as a shop card, puts a srcset of the copies
+ * on it (with a matching sizes). `src` is never changed, so the original stays
+ * the fallback for anything that cannot use srcset.
+ *
+ * WHEN IT ACTS. React sets an <img>'s `src` last and the browser asks for the
+ * file at that instant, long before the element is in the page; an observer is
+ * too late (measured with a throttled server: the bag drawer's and the cart
+ * line's originals were downloaded in full and the copies after them). So the
+ * work is done in an early hook on Element.prototype.setAttribute that only
+ * does anything for `src` on an <img>: the srcset goes on first, in the same
+ * call, and the first and only request is the copy. A MutationObserver and an
+ * animation-frame pass catch what the hook cannot (the list arriving after the
+ * app drew, `src` set another way) - but only for loading="lazy" images, which
+ * have not been asked for yet; an eager one that is already on its way is left
+ * to finish, because switching it would add a download instead of saving one.
+ * The list is remembered in localStorage, so every visit after the first knows
+ * it when the app first draws. Honest limit: on a cold first load the app can
+ * draw before this script has even arrived (deferred scripts run in order, but
+ * the app's first render is its own task); the eager thumbnails of that first
+ * render are then fetched as before, and every later screen is hooked.
+ *
+ * WHY IT CANNOT SHOW A BROKEN OR WRONG PICTURE
+ *  - No list (404, not our header line, network error, nothing remembered) = this
+ *    block does nothing at all: the page is exactly what it was. A copy that the
+ *    list does not name is never requested, so a missing copy costs no 404 (the
+ *    site answers a missing file with its error page).
+ *  - If a named copy still fails, an `error` listener on window in the CAPTURE
+ *    phase (it runs before the image's own handler) removes our srcset, so the
+ *    browser loads the original from `src`, remembers the photograph as bad for
+ *    this page, and stops the event. Stopping it matters: the compiled onError
+ *    swaps in the "photo unavailable" placeholder, which would replace a perfectly
+ *    good original. A failure of the ORIGINAL is not ours (our srcset is gone by
+ *    then) and reaches the compiled handler exactly as before.
+ *  - React can change an <img>'s src in place (a cart line reused for another
+ *    piece). The hook and the scan compare the src and srcset with what was
+ *    written; if either differs, ours is removed first, so the old piece's copy
+ *    can never stay up under a new piece. An <img> that already has a srcset
+ *    (the build's own) is never touched.
+ *  - Not the product gallery's main photograph (it is zoomed to 2.5x and has a
+ *    full-screen view: it keeps the original) and not anything on /backends.
+ *  - Every step is in try/catch and the hook always ends in the real
+ *    setAttribute call with the caller's own arguments: a failure here can never
+ *    reach the shop.
+ */
+;(function () {
+  'use strict'
+  try {
+    if (!window.MutationObserver || !window.WeakMap || !window.fetch || !document.querySelectorAll) return
+    if (location.pathname.indexOf('/backends') === 0) return
+    var DIR = '/images/products/'
+    var LIST = DIR + 'responsive/variants.txt'
+    var LIST_HEAD = '# sporta-variants v1'
+    var SRC = /^\/images\/products\/([A-Za-z0-9][A-Za-z0-9._-]*)\.(?:jpe?g|png|webp)$/i
+    var CARD_SIZES = '(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw'   // the build's own value for its cards
+    var widths = null            // { stem: [320, 640] } once the list has been read; stays null if it cannot be
+    var mine = new WeakMap()     // <img> -> { src, srcset } exactly as this block left it
+    var bad = Object.create(null) // stems whose copy failed to load on this page
+    var queued = false
+
+    function parse(text) {
+      var lines = String(text).split(/\r?\n/)
+      if (lines[0].replace(/\s+$/, '') !== LIST_HEAD) return null
+      var map = Object.create(null)
+      for (var i = 1; i < lines.length; i++) {
+        var m = /^([A-Za-z0-9][A-Za-z0-9._-]*) (\d{2,4}(?:,\d{2,4})*)$/.exec(lines[i])
+        if (!m) continue
+        map[m[1]] = m[2].split(',').map(Number).sort(function (a, b) { return a - b })
+      }
+      return map
+    }
+
+    function kind(img) {
+      if (img.classList.contains('catalog-gallery-photo')) return ''
+      if (img.classList.contains('catalog-card-photo')) return 'card'
+      var w = parseInt(img.getAttribute('width'), 10)
+      return w > 0 && w <= 128 ? 'thumb' : ''
+    }
+
+    function drop(img) {
+      img.removeAttribute('srcset')
+      img.removeAttribute('sizes')
+      mine.delete(img)
+    }
+
+    /** { sizes, srcset } for this <img> showing `src`, or null: not a photograph the list names, not a kind we handle, or it has its own srcset. */
+    function wanted(img, src) {
+      if (!widths || img.hasAttribute('srcset') || location.pathname.indexOf('/backends') === 0) return null   // the admin works on the originals
+      var m = SRC.exec(src)
+      if (!m || bad[m[1]]) return null
+      var ws = widths[m[1]]
+      var k = ws && kind(img)
+      if (!k) return null
+      return {
+        sizes: k === 'card' ? CARD_SIZES : parseInt(img.getAttribute('width'), 10) + 'px',
+        srcset: ws.map(function (w) { return DIR + 'responsive/' + m[1] + '-' + w + '.webp ' + w + 'w' }).join(', ')
+      }
+    }
+    function put(img, src, w) {
+      img.setAttribute('sizes', w.sizes)
+      img.setAttribute('srcset', w.srcset)
+      mine.set(img, { src: src, srcset: img.getAttribute('srcset') })
+    }
+    function one(img) {
+      var src = img.getAttribute('src') || ''
+      var rec = mine.get(img)
+      if (rec) {
+        if (rec.src === src && img.getAttribute('srcset') === rec.srcset) return   // still ours, still right
+        if (img.getAttribute('srcset') === rec.srcset) drop(img)                    // the src moved on under our srcset
+        else mine.delete(img)                                                       // someone else owns srcset now
+      }
+      // This is the LATE path (the hook below is the early one). An <img> that is not loading="lazy" was asked for the moment the
+      // app set its src, and one that has loaded is already here: a copy now would only be a second download on top of the
+      // original, so both are left alone. A lazy one that has not been asked for yet is exactly what this path is for.
+      if (img.getAttribute('loading') !== 'lazy' || (img.complete && img.naturalWidth > 0)) return
+      var w = wanted(img, src)
+      if (w) put(img, src, w)
+    }
+
+    /** Take our srcset off every <img> that still has it (the list is gone: the originals are the truth again). */
+    function unwind() {
+      var all = document.images
+      for (var i = 0; i < all.length; i++) { try { if (mine.has(all[i])) drop(all[i]) } catch (e) {} }
+    }
+    function run() {
+      var all = document.images
+      for (var i = 0; i < all.length; i++) { try { one(all[i]) } catch (e) {} }
+    }
+    function schedule() {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(function () { queued = false; run() })
+    }
+    // An <img> the app has just made or re-pointed is looked at in the SAME microtask checkpoint as the change, not a frame
+    // later: a lazy one (a shop card, a gallery thumbnail, a checkout row) has usually not been requested yet, so it never
+    // asks for the original. `one` leaves eager and already-loaded images alone (see there). The animation-frame pass above
+    // is the backstop.
+    function visit(node) {
+      if (!node || node.nodeType !== 1) return
+      if (node.tagName === 'IMG') { one(node); return }
+      if (!node.firstElementChild) return
+      var l = node.getElementsByTagName('img')
+      for (var i = 0; i < l.length; i++) one(l[i])
+    }
+    function changed(records) {
+      try {
+        for (var i = 0; i < records.length; i++) {
+          var r = records[i]
+          if (r.type === 'attributes') visit(r.target)
+          else for (var j = 0; j < r.addedNodes.length; j++) visit(r.addedNodes[j])
+        }
+      } catch (e) {}
+      schedule()
+    }
+
+    // Capture phase: this runs BEFORE the <img>'s own error handler (and React's), which is the point.
+    window.addEventListener('error', function (ev) {
+      try {
+        var t = ev && ev.target
+        if (!t || t.tagName !== 'IMG') return
+        var rec = mine.get(t)
+        if (!rec) return
+        var m = SRC.exec(rec.src)
+        if (m) bad[m[1]] = true
+        drop(t)                      // the browser now loads `src`, the original
+        ev.stopImmediatePropagation() // the compiled onError would swap in the placeholder over a good original
+      } catch (e) {}
+    }, true)
+
+    // The list is remembered between visits, so the NEXT page load already knows it when the app first builds its <img>s
+    // (a fetch() answer comes after the app's first render, which is one long task, and by then the browser has asked for the
+    // originals). A remembered list can only be out of date by NOT naming a newer photograph: the maker never deletes a copy,
+    // and a copy that has gone anyway falls back to the original (the error listener above).
+    var KEEP = 'sporta.variants.v1'
+    function remembered() {
+      try { var t = localStorage.getItem(KEEP); return t ? parse(t) : null } catch (e) { return null }
+    }
+    function remember(text) {
+      try { localStorage.setItem(KEEP, text) } catch (e) {}
+    }
+    function forget() {
+      try { localStorage.removeItem(KEEP) } catch (e) {}
+    }
+    // THE EARLY HOOK. React builds an <img> detached and sets its `src` LAST (after class, width, loading...), and the browser
+    // asks for that file the moment `src` is set - long before the element is in the page, so an observer sees it too late: the
+    // original is already on the wire (measured: the bag drawer's and the cart line's 3 MB originals were fetched in full and the
+    // copy fetched after them). So when the app sets `src` on an <img>, and the list names that photograph, the srcset goes on
+    // first, in the same call, and the first request is already the small copy. Everything else about setAttribute is untouched:
+    // same arguments, same `this`, same return value, and any failure here falls through to the real call.
+    function hook() {
+      var native = Element.prototype.setAttribute
+      if (native.sportaSrcset) return
+      var wrapped = function (name, value) {
+        if (name === 'src' && widths && this.tagName === 'IMG') {
+          try {
+            var v = String(value)
+            var rec = mine.get(this)
+            if (rec && rec.src !== v) drop(this)   // being pointed at another photograph: ours was for the old one
+            var w = wanted(this, v)
+            if (w) put(this, v, w)
+          } catch (e) {}
+        }
+        return native.apply(this, arguments)
+      }
+      wrapped.sportaSrcset = true
+      Element.prototype.setAttribute = wrapped
+    }
+    function start() {
+      try {
+        widths = remembered()
+        hook()
+        if (widths) run()
+        fetch(LIST, { credentials: 'omit' }).then(function (r) {
+          var ct = r.headers.get('content-type') || ''
+          return r.ok && /^text\//i.test(ct) ? r.text() : null
+        }).then(function (text) {
+          var fresh = text && text.length <= 400000 ? parse(text) : null
+          if (!fresh) { widths = null; forget(); unwind(); return }   // the server says there is no list (404, wrong body): stop using any remembered one
+          widths = fresh
+          remember(text)
+          schedule()
+        }).catch(function () {})   // offline / network error: the remembered list, if any, stays in use
+        new MutationObserver(changed).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] })
+      } catch (e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+    else start()
+  } catch (e) {}
+})()
