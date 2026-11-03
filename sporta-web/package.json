@@ -20,6 +20,7 @@
     "audit:files": "node scripts/file-audit.mjs",
     "test:file-names": "node scripts/file-names-test.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",
+    "test:htaccess-rules": "node scripts/htaccess-rules-test.mjs",
     "test:xss-htaccess": "node scripts/xss-htaccess-test.mjs",
     "sandbox": "bash scripts/sandbox.sh",
     "test:brand": "node scripts/product-brand-test.mjs",
