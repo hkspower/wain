@@ -2749,7 +2749,7 @@
   /** A header cell that IS the word or starts with it ("Price", "Price (KWD)"), never one that merely contains it: the
    *  Comparison table above the list has "Site price", and the panel must not anchor there. */
   function head(ths, word) {
-    for (var i = 0; i < ths.length; i++) if (ths[i].indexOf(word) >= 0) return true
+    for (var i = 0; i < ths.length; i++) if (ths[i] === word || ths[i].indexOf(word + ' ') === 0 || ths[i].indexOf(word + '(') === 0) return true
     return false
   }
   /** The Catalogue's product list: a table headed Product / Web name / Price / On sale. */
