@@ -240,7 +240,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   const pg = await ctx.newPage()
   let net = {}
   pg.on('response', (r) => { const u = r.url(); if (u.indexOf('sporta.com.kw/api') > -1) net[r.request().method() + ' ' + u.replace(B, '').slice(0, 80) + ' ' + r.status()] = 1 })
-  pg.on('requestfailed', (r) => { const u = r.url(); if (u.indexOf('sporta.com.kw') > -1) net['FAIL ' + r.request().method() + ' ' + u.replace(B, '').slice(0, 80)] = 1 })
+  pg.on('requestfailed', (r) => { const u = r.url(); if (u.indexOf('sporta.com.kw') > -1) net['FAIL ' + r.method() + ' ' + u.replace(B, '').slice(0, 80)] = 1 })
   const netLog = (label) => { const k = Object.keys(net); if (k.length) log('NET', tag, label, J(k.slice(0, 14))); net = {} }
   const U = (p) => B + p + (lang === 'en' ? (p.includes('?') ? '&' : '?') + 'lang=en' : '')
   const go = async (p) => { const r = await pg.goto(U(p), { waitUntil: 'load', timeout: 90000 }).catch(() => null); await pg.waitForTimeout(1800); return r ? r.status() : 'ERR' }
