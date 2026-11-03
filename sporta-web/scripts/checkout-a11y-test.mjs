@@ -18,7 +18,7 @@
 //   cash-10  the "remember these details" row is 44px tall, the box centred in it
 //   cash-11  bag drawer quantity and remove buttons are 44x44
 //   cash-12  footer links are 44px tall and do not overlap
-//   cash-13  the payment hint and the assurance line are .875rem (14px at a 16px root)
+//   cash-13  the payment hint, the assurance line and the field errors are .875rem (14px at a 16px root)
 //   always   nothing overflows sideways; blocks the rules are not about do not move
 //
 // Mutation check: CHECKOUT_A11Y_CSS=<path to a file> points the suite at another stylesheet; an empty file must
@@ -158,6 +158,8 @@ for (const lang of ['ar', 'en']) {
     is(g.label.h >= 43.5, 'cash-10: the remember row is 44px tall', g.label.h.toFixed(1))
     is(near((g.cb.t + g.cb.b) / 2, (g.label.t + g.label.b) / 2, 1.5), 'cash-10: the box is centred in the row', ((g.cb.t + g.cb.b) / 2 - (g.label.t + g.label.b) / 2).toFixed(1))
     is(g.over <= 0, 'guest: nothing overflows sideways', `${g.over}px`)
+    const er = await pg.evaluate(() => { const e = document.querySelector('.purchase-flow p[id^="e-"][role="alert"]'), cs = getComputedStyle(e); return { px: parseFloat(cs.fontSize), root: parseFloat(getComputedStyle(document.documentElement).fontSize), lh: parseFloat(cs.lineHeight), w: cs.fontWeight } }) 
+    is(near(er.px, 0.875 * er.root, 0.1) && er.px >= 14 && er.lh >= er.px * 1.35 && er.w === '600', 'cash-13: the field error is .875rem (14px or more), still semibold', `${er.px} lh ${er.lh} w ${er.w}`)
 
     const sel = w >= 1024 ? '.purchase-checkout-summary .btn-primary' : '.purchase-paybar .btn-primary'
     const r = await ring(pg, sel)

@@ -475,6 +475,13 @@ const lines = (tpl, lang, n, longNames) => Array.from({ length: n }, (_, i) => {
   return tpl.split('{{NAME}}').join(name)
 }).join('')
 
+// A field error. NOT dumped from the live DOM (an error appears only after a failed submit, which a read-only scan
+// never makes): reconstructed from the live Checkout chunk, className `mt-1 text-xs font-semibold text-rose-600`,
+// role alert, id e-<field>.
+const FIELD_ERROR = {
+  ar: '<p id="e-f-name" role="alert" class="mt-1 text-xs font-semibold text-rose-600">اكتب اسمك الكامل</p>',
+  en: '<p id="e-f-name" role="alert" class="mt-1 text-xs font-semibold text-rose-600">Enter your full name</p>',
+}
 const H1 = { ar: 'إتمام الشراء', en: 'Checkout' }
 const filler = (h) => `<div style="height:${h}px"></div>`
 
@@ -486,7 +493,7 @@ export function page(lang, addon, opts = {}) {
     ? loc(lang, T_QUICK.split('{{LINES}}').join(lines(T_QUICK_LI, lang, n, long)))
     : `<form class="purchase-checkout-layout grid gap-5 lg:grid-cols-[1fr_23rem]"><div class="min-w-0 space-y-6">
         <h2 class="purchase-stage-title text-xl font-extrabold text-slate-900">${loc(lang, 'التوصيل')}</h2>
-        <fieldset class="purchase-panel rounded-2xl border border-slate-100 bg-white p-4">${filler(560)}</fieldset>
+        <fieldset class="purchase-panel rounded-2xl border border-slate-100 bg-white p-4">${FIELD_ERROR[lang]}${filler(560)}</fieldset>
         <fieldset class="purchase-panel rounded-2xl border border-slate-100 bg-white p-4">${filler(700)}${loc(lang, T_REMEMBER)}</fieldset></div>
         <aside class="min-w-0 lg:sticky lg:top-28 lg:self-start">${loc(lang, T_SUMMARY.split('{{LINES}}').join(lines(T_SUMMARY_LI, lang, n, long)))}</aside>
         ${loc(lang, T_PAYBAR)}<div class="h-[calc(5.25rem+var(--sa-bottom))] lg:hidden"></div></form>`

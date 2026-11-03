@@ -132,11 +132,13 @@ button:has(> .purchase-steps__body) {
 }
 
 /* cash-13. The one screen that says how the customer pays used 12px (English)
-   and 13px (Arabic) for the payment hint and the cash-on-delivery note.
-   .875rem, with room between lines. The note selector carries two element
-   names to beat the live "[dir=rtl] .text-xs" (0,2,0). */
+   and 13px (Arabic) for the payment hint and the cash-on-delivery note, and
+   the checkout's field errors (p#e-<field>, role=alert, #EC003F, 4.53:1) the
+   same. .875rem, with room between lines. The note and the errors carry
+   element names to beat the live "[dir=rtl] .text-xs" (0,2,0). */
 .purchase-payment .payment-method [id$="-hint"],
-form.purchase-quick > p.purchase-quick__assurance {
+form.purchase-quick > p.purchase-quick__assurance,
+.purchase-flow p[id^="e-"][role="alert"] {
   font-size: 0.875rem;
   line-height: 1.45;
 }

@@ -27,6 +27,7 @@
     "test:admin-polish": "node scripts/admin-polish-test.mjs",
     "test:admin-payments": "node scripts/admin-payments-test.mjs",
     "test:home-features": "node scripts/home-features-test.mjs",
+    "test:checkout-a11y": "node scripts/checkout-a11y-test.mjs",
     "test:admin-dark": "node scripts/admin-dark-guard-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
     "test:grid": "node scripts/grid-card-test.mjs",
