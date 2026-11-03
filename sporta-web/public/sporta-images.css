@@ -59,5 +59,6 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
 @media (min-width: 1024px) and (max-height: 800px) {
   .catalog-gallery-stage {
     max-height: max(320px, calc(100vh - 190px));
+    margin-inline: auto;   /* the capped square is narrower than its column: centre it */
   }
 }
