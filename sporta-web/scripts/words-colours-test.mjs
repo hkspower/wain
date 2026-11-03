@@ -103,7 +103,7 @@ for (const lang of ['ar', 'en']) {
     for (const slide of [1, 2]) {
       head(`C1 hero ${lang} ${w}px slide ${slide}`)
       const { ctx, pg } = await open('hero', lang, w, 900)
-      await pg.addStyleTag({ content: `.campaign-hero-copy *{color:transparent!important;text-shadow:none!important;border-color:transparent!important;background:none!important}.campaign-hero-cta-icon svg{display:none}.campaign-photo-hero:nth-child(${slide === 1 ? 2 : 1}){display:none}.campaign-brand-bar,section>button{display:none}` })
+      await pg.addStyleTag({ content: `.campaign-hero-copy *{color:transparent!important;text-shadow:none!important;border-color:transparent!important;background:none!important}.campaign-hero-cta-icon svg{display:none}.campaign-photo-hero:nth-child(${slide === 1 ? 2 : 1}){display:none}.campaign-brand-bar,section>button{display:none!important}` })
       const m = await pg.evaluate(() => { const c = document.querySelector('.campaign-photo-hero:not([style*=none]) .campaign-hero-copy'); const vis = [...document.querySelectorAll('.campaign-hero-copy')].find((e) => e.offsetParent); const r = vis.getBoundingClientRect(); const s = vis.closest('section').getBoundingClientRect(); return { l: r.left, r: r.right, secTop: s.top, secH: s.height, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) } })
       const y = Math.round(m.secTop + m.secH / 2)
       const img = png(await pg.screenshot({ clip: { x: 0, y, width: w, height: 4 } }))

@@ -145,6 +145,12 @@ const LOANWORDS = new Map([
 const DICTIONARY_GAPS = new Map([
   ['إطلالتك', 'your look — إطلالة + ك. cross.title: «أكمل إطلالتك»'],
   ['القياسات', 'the measurements — regular sound plural of قياس. size.note'],
+  // «تالف» (damaged, from تلف "to be ruined") is ordinary Modern Standard Arabic and the
+  // word of the returns page and the shop's own damaged-item reason. This build of
+  // the dictionary lacks the participle and suggests تألف ("to be harmonious").
+  ['تالف', 'damaged — the active participle of تلف. returns.reasons.damaged: «تالف / به عيب»'],
+  ['التالف', 'the damaged (item). returns.sub: «للمنتج التالف»'],
+  ['تالفا', 'damaged, accusative (with its tanwin). returns.policy[1]: «تالفًا»'],
 ])
 
 // ------------------------------------------------------------- what to check

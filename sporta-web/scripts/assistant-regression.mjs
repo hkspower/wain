@@ -1757,7 +1757,6 @@ there is a problem
 عندي مشكلة في الطلب
 I have a problem with my order
 can I add another item to my order
-can I change my order
 ابي اضيف قطعة للطلب
 I want to add something to my order
 are you human?
@@ -1952,6 +1951,237 @@ the courier is late
 # common returns/returns
 I want to go back to the returns page
 
+# rev order_status/ask_track|ask_track_eta|ask_track_missing
+الدفع معلق شنو يعني // a customer looking at a payment that IS pending: a person checks it, and the money line is worded to be true either way
+
+# rev contact/contact|order_change
+ابي اغير عنواني
+
+# suite contact/refund
+when will I get my refund
+رجعت الطلب وين فلوسي
+
+# suite sizes/sizes contact/restock
+when will it be available in XL
+
+# suite contact/contact|order_change
+I entered the wrong address
+ابي اغير العنوان
+
+# suite contact/restock
+when will you restock XL
+any update on the XL restock
+when will it be back in stock
+when will they be restocked
+when will it be in stock
+when will it be available
+when will they get new stock
+
+# common order_status/ask_track|ask_track_eta|ask_track_missing contact/contact contact/order_change
+can I change the size in my order // a change to an order is a person's job — but asking for the number is not wrong
+
+# common returns/returns contact/contact contact/order_change
+ابي اغير المقاس في الطلب
+
+# common sizes/sizes contact/restock
+when will size M be back
+
+
+# rev contact/not_received
+my order SP1AU702NKHTKDV shows delivered but I did not receive it
+طلبي SP1AU702NKHTKDV مكتوب واصل وانا ما استلمت
+ما استلمت الطلب
+مكتوب انه تم التسليم وانا ما استلمت
+the courier says delivered but I never got it
+order shows delivered but I did not get it
+the courier says he delivered but I got nothing
+SP1AU702NKHTKDV never arrived, I want my money back
+الطلب ما وصلني ابي فلوسي
+my package is lost
+الطلب ضايع
+قالو وصل الطلب وانا ما استلمت
+
+# rev contact/no_number
+I lost my order number
+نسيت رقم الطلب
+ضيعت رقم الطلب
+
+# rev contact/money
+I made a payment but nothing happened
+I made the payment but did not get a confirmation email
+دفعت مرة ثانية بالغلط
+اخذتوا فلوسي
+سحبتوا مني فلوس
+flosi inkhasmat marteen
+وصلتني رسالة خصم من البنك
+I paid and nothing happened
+the money is gone from my account
+I was overcharged
+I transferred the money, when will you confirm
+I paid by KNET and the page froze
+my payment is stuck
+
+# rev contact/checkout_problem
+my card was declined
+I can't pay
+knet not working
+the payment page does not open
+رفض البطاقة
+كي نت ما يفتح
+الدفع ما يشتغل
+
+# rev contact/refund
+where is my refund
+I returned the item 10 days ago and no refund yet
+I am still waiting for my refund
+I returned the item, where is my refund
+كم يوم يرجع المبلغ
+متى يرجع المبلغ
+لم أستلم المبلغ المسترد
+ما رجعتو لي فلوسي
+وين الاسترجاع حقي
+ما رجعت لي الفلوس
+وين فلوسي
+متى ترجع الفلوس
+
+# rev cancel/cancel
+I ordered twice by mistake
+duplicate order
+I placed the order twice
+remove my order
+undo my order
+I changed my mind about my order
+طلبت مرتين بالغلط
+الطلب مكرر
+احذف طلبي
+الطلب غلطة ما ابيه
+
+# rev order_status/ask_track|ask_track_eta|ask_track_missing
+why was my order cancelled
+was my order cancelled?
+ليش انلغى طلبي
+what does payment pending mean
+payment pending, is that normal
+
+# rev contact/contact
+please don't cancel my order
+لا تلغون طلبي
+I did not cancel my order but it says cancelled
+don't send me offers
+لا ترسلون لي رسايل ترويجية
+I want to talk to a human about my order
+I want to speak to a manager about my return
+talk to a person about my refund
+let me speak to an agent about the payment
+ابي اكلم موظف عن طلبي
+ابي اتكلم مع موظف بخصوص الدفع
+customer support
+support
+representative
+live chat
+operator
+manager please
+المدير
+في احد يرد؟
+احد يساعدني
+abi akalem ahad
+
+# rev contact/order_change
+do not ship to Hawally, ship to Salmiya
+please deliver after 5pm, don't send in the morning
+لا تشحنون الحين انا مسافر
+update my address
+can you send it to a different address
+I need to change the delivery address
+can I change the size on my order
+I need to change the phone number on my order
+send my order to my office instead
+ابي اغير المقاس في طلبي
+ابي اغير اللون في الطلب
+I paid for the jacket but want to change the size
+
+# rev contact/complaint
+I ordered M but got L
+received L instead of M
+I got a different color
+the zipper is broken
+color faded after washing
+the stitching came apart
+poor quality
+the leggings are see through
+استلمت طلبا خاطئا
+وصلني المنتج مختلفا عما طلبت
+المنتج المستلم لا يطابق الصورة
+القطعة وصلت متضررة
+الزبر خربان
+المنتج الذي وصلني مقاسه خاطئ
+
+# rev returns/returns
+the jacket I received is too small
+
+# rev search/found|found_near|found_colour
+do you have black leggings, thanks
+thanks, do you have this in black?
+looking for a red jacket thx
+cheapest leggings? thanks
+ابي ليقنز اسود شكرا
+الله يعافيك عندكم ليقنز
+يعطيك العافية عندكم شورت؟
+leggings for high energy workouts
+leggings that define my shape
+define my waist leggings
+leggings with a street style look
+jacket for the street
+shorts like the ones in Denver
+
+# rev recommend/recommend|recommend_sale|no_offers|offers_auto
+وش عندكم جديد
+فيه جديد؟
+ايش عندكم جديد
+منتجات جديدة
+فيه موديلات جديدة
+وش نزل جديد
+ابي اشوف الجديد
+latest collection
+any new models
+what's trending
+top sellers
+
+# rev contact/restock
+when will you restock
+is XL coming back
+when do you get more stock
+when will size M be available again
+متى يتوفر مقاس XL
+
+# common thanks/thanks
+thanks bro
+thanks guys
+شكرا يا شباب
+thanks for the quick reply
+
+# common returns/returns
+can I get a refund
+what is your refund policy
+do you give refunds
+
+# common delivery/delivery
+
+# common location/location
+what is your address
+
+# common search/found|found_near|found_colour|no_idea|not_carried
+ankle support leggings
+do you have a support belt
+sports bra with good support
+new leggings in black
+do the leggings come in a different color
+are your leggings see through
+do you have a jacket with a zipper
+
+# common contact/order_change contact/contact
+can I change my order
+
 `
 
 // Orders the messages above look up, in the rolled-back transaction. The
@@ -2049,41 +2279,6 @@ try {
   }
 } finally { $db->rollBack(); }
 echo json_encode($out, JSON_UNESCAPED_UNICODE);
-# rev order_status/ask_track|ask_track_eta|ask_track_missing
-الدفع معلق شنو يعني // a customer looking at a payment that IS pending: a person checks it, and the money line is worded to be true either way
-
-# rev contact/contact|order_change
-ابي اغير عنواني
-
-# suite contact/refund
-when will I get my refund
-رجعت الطلب وين فلوسي
-
-# suite sizes/sizes contact/restock
-when will it be available in XL
-
-# suite contact/contact|order_change
-I entered the wrong address
-ابي اغير العنوان
-
-# suite contact/restock
-when will you restock XL
-any update on the XL restock
-when will it be back in stock
-when will they be restocked
-when will it be in stock
-when will it be available
-when will they get new stock
-
-# common order_status/ask_track|ask_track_eta|ask_track_missing contact/contact contact/order_change
-can I change the size in my order // a change to an order is a person's job — but asking for the number is not wrong
-
-# common returns/returns contact/contact contact/order_change
-ابي اغير المقاس في الطلب
-
-# common sizes/sizes contact/restock
-when will size M be back
-
 `
 
 async function answersOf(file, corpus) {
