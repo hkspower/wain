@@ -90,7 +90,9 @@ head('1  make-image-variants.mjs: the offline small-copy maker')
   is(sniff(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')) === null && sniff(Buffer.from('GIF89a......')) === null, 'header reader: SVG and GIF are not pictures it will touch')
   is(displayed({ w: 1600, h: 1000, orientation: 6 }).w === 1000 && displayed({ w: 1600, h: 1000, orientation: 1 }).w === 1600, 'orientation 5-8 swaps the axes the browser draws')
   const src = readFileSync(join(ROOT, 'scripts/make-image-variants.mjs'), 'utf8')
-  is(!/\b(unlinkSync|rmSync)\([^)]*(full|row\.|dir,)/.test(src.replace(/rmSync\(tmp, \{ force: true \}\)/, '')), 'the maker never deletes anything but its own temporary file (source check)')
+  const removals = (src.match(/\b(?:unlinkSync|rmSync|rmdirSync|rm)\([^)]*\)/g) || []).map((x) => x.replace(/\s+/g, ' '))
+  is(removals.length === 2 && removals.includes('rmSync(tmp, { force: true })') && removals.includes('rmSync(dir, { recursive: true, force: true })') && /const dir = mkdtempSync\(/.test(src),
+    'the maker deletes only its own temporary file and the scratch folder of its quality self-test (source check of every removal call)', removals.join(' | '))
   is(/execFileSync\(tool\.cmd/.test(src) && !/(^|[^.\w])exec\(|execSync\(|shell: true/m.test(src), 'the converter is run with an argument list, never through a shell (source check)')
 }
 if (!tool.cmd) skip('ImageMagick with WebP not found (' + (tool.error || '') + '): conversion checks not run')
