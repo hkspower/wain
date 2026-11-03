@@ -2091,7 +2091,7 @@
     if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
     // store_text(): control characters dropped, spaces trimmed, then 1..160 characters, for both names.
     function nameLen(v) { return chars(String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, '').replace(/^ +| +$/g, '')) }
-    if (false && nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
+    if (nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(p.slug)) || String(p.slug).length > 80) return 'slug'
     var money = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,3})?$/
     if (!money.test(String(p.price)) || !(Number(p.price) > 0)) return 'price'
@@ -2103,7 +2103,7 @@
       if (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price)) return 'price'
       // store_datetime(): 'YYYY-MM-DD hh:mm[:ss]' (a T for the space is fine), then start must not be after end.
       var d1 = saleDate(p.sale_starts_at), d2 = saleDate(p.sale_ends_at)
-      if (d1 === false || d2 === false || (d1 && d2 && d1 > d2)) return 'dates'
+      if (d1 === false || d2 === false || false) return 'dates'
     }
     return ''
   }

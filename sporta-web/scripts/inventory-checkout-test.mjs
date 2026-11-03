@@ -48,7 +48,8 @@
 //      -> 0 of 360 requests failed and Innodb_deadlocks did not move. A UNIQUE key
 //      on (slug,size) alone does NOT fix it (67 of 120 failed): it removes the gap
 //      locks that used to serialise carts, so the plain A,B / B,A cross appears;
-//   3. an admin-cancelled order that was under REVIEW keeps its units for ever;
+//   3. (FIXED, round 2) an admin-cancelled order that was under REVIEW kept its units
+//      for ever; store_stock_release() and cron-stock.php now release it;
 //   4. a size with two variant rows (no unique key on slug,size) is unbuyable;
 //   5. the 60 s phone rule leaks for card orders (2-5 of 5 rounds let several in).
 // Stock itself stayed exact in every one of them: the invariant held throughout.
@@ -867,9 +868,9 @@ delimiter ;`)
     const rc = await admin(admin1, 'fulfilment', { method: 'POST', body: { order_id: rvr.id, status: 'cancelled' } })
     await cron()
     const rvr2 = await orderRow(rv.track)
-    gap(rvr.pay === 'review' && rc.status === 200 && rvr2.ful === 'cancelled' && rvr2.released === 1 && (await stocks(R)).M === 10,
-        'cancelling an order that is under REVIEW gives its units back (M 8 -> 10)',
-        `review order cancelled by the admin: fulfilment=${rvr2.ful} stock_released=${rvr2.released} shelf M=${(await stocks(R)).M} — store_stock_release() excludes 'review', so the 2 units stay claimed by a cancelled order for ever`)
+    is(rvr.pay === 'review' && rc.status === 200 && rvr2.ful === 'cancelled' && rvr2.released === 1 && (await stocks(R)).M === 10,
+       'cancelling an order that is under REVIEW gives its units back (M 8 -> 10)',
+       `review order cancelled by the admin: fulfilment=${rvr2.ful} stock_released=${rvr2.released} shelf M=${(await stocks(R)).M}`)
     await invariant('12')
   }
 
@@ -1114,7 +1115,7 @@ delimiter ;`)
     is(dead === 0, 'after the sweeps, no failed or cancelled (non-review) order of this run still holds units', String(dead))
     const held = await rows(`select o.track_id, o.payment_status, o.fulfilment_status, o.stock_released from orders o join order_items oi on oi.order_id = o.id
       join products p on p.id = oi.product_id where p.slug like 'invchk-${RUN}-%' and o.payment_status = 'review' and o.fulfilment_status = 'cancelled' and o.stock_released = 0 group by o.id`)
-    gap(held.length === 0, 'no cancelled order is left owning units because it was under review', `${held.length} order(s)`)
+    is(held.length === 0, 'no cancelled order is left owning units because it was under review', `${held.length} order(s)`)
   }
 } catch (e) {
   bad('the suite crashed', String(e?.stack ?? e).split('\n').slice(0, 4).join(' | '))
