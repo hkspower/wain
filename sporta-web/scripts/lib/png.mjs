@@ -1,6 +1,6 @@
 // Minimal PNG reader for the test suites (no dependency): 8-bit greyscale, grey+alpha, RGB, RGBA and
 // palette images, no interlacing. That is what Chromium's screenshots and every PNG in public/ are.
-// png(buffer) -> { w, h, bitDepth, colorType, hasAlpha, at(x, y) -> {r,g,b,a} (a is 0..255) }
+// png(buffer) -> { w, h, bitDepth, colorType, hasAlpha, at(x, y) -> {r,g,b,a} (a is 0..255), data (unfiltered samples), chans }
 // pngHeader(buffer) -> { w, h, bitDepth, colorType, interlace } without inflating anything.
 import { inflateSync } from 'node:zlib'
 
@@ -45,5 +45,18 @@ export const png = (buf) => {
       default: return { r: out[i], g: out[i + 1], b: out[i + 2], a: out[i + 3] }
     }
   }
-  return { ...hd, hasAlpha: hd.colorType === 4 || hd.colorType === 6 || (hd.colorType === 3 && !!trns), at }
+  return { ...hd, hasAlpha: hd.colorType === 4 || hd.colorType === 6 || (hd.colorType === 3 && !!trns), at, data: out, chans }
+}
+
+// Encoder: 8-bit RGBA from a Buffer of w*h*4 bytes (Sub filter, deflate level 9). Deterministic.
+import { deflateSync, crc32 } from 'node:zlib'
+export const encodePng = (w, h, rgba) => {
+  const stride = w * 4, raw = Buffer.alloc((stride + 1) * h)
+  for (let y = 0; y < h; y++) {
+    raw[y * (stride + 1)] = 1
+    for (let x = 0; x < stride; x++) raw[y * (stride + 1) + 1 + x] = (rgba[y * stride + x] - (x >= 4 ? rgba[y * stride + x - 4] : 0)) & 255
+  }
+  const chunk = (type, data) => { const b = Buffer.alloc(12 + data.length); b.writeUInt32BE(data.length, 0); b.write(type, 4, 'ascii'); data.copy(b, 8); b.writeUInt32BE(crc32(b.subarray(4, 8 + data.length)) >>> 0, 8 + data.length); return b }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6
+  return Buffer.concat([SIG, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))])
 }

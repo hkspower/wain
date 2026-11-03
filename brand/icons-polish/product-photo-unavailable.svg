@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750" role="img" aria-label="Product image coming soon">
+  <!-- "Photo coming soon" tile. The same 600x750 canvas and the same file name as public/product-photo-unavailable.svg,
+       so it is a drop-in replacement. Media queries inside an SVG used as an <img> are evaluated against the
+       image's own rendered width, so ONE file adapts: from 301px wide it is the full tile (badge, camera, orange
+       rule, three lines of copy); at 300px and under (grid cards on a phone, bag thumbnails, checkout lines) the
+       copy, which would be 4 to 8px tall there, is dropped and the badge is drawn larger and centred, with a
+       thicker line. Colours are brand tokens: #E0561C rule, charcoal-slate #6F7882 line (4.4:1 on the tile). -->
+  <style>
+    .compact { display: none }
+    @media (max-width: 300px) { .full { display: none } .compact { display: inline } }
+  </style>
+  <defs>
+    <linearGradient id="stage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f3f5f7"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="46%" r="54%">
+      <stop offset="0" stop-color="#ff7b17" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#ff7b17" stop-opacity="0"/>
+    </radialGradient>
+    <g id="camera">
+      <path d="M255 315h24l12-17h35l12 17h24v78H255z"/>
+      <circle cx="308" cy="352" r="21"/>
+    </g>
+  </defs>
+  <rect width="600" height="750" fill="url(#stage)"/>
+  <rect width="600" height="750" fill="url(#glow)"/>
+
+  <g class="full" transform="translate(0 -26)">
+    <circle cx="300" cy="318" r="124" fill="#fff" stroke="#d9dee3" stroke-width="3"/>
+    <g transform="translate(300 318) scale(1.5) translate(-300 -346)" fill="none" stroke="#6f7882" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"><use href="#camera"/></g>
+    <rect x="250" y="470" width="100" height="6" rx="3" fill="#e0561c"/>
+    <text x="300" y="530" text-anchor="middle" fill="#20252b" font-family="Arial,sans-serif" font-size="30" font-weight="700" letter-spacing="4">SPORTA</text>
+    <text x="300" y="574" text-anchor="middle" fill="#505a64" font-family="Arial,sans-serif" font-size="28" direction="rtl">صورة المنتج قريبًا</text>
+    <text x="300" y="610" text-anchor="middle" fill="#5f6a75" font-family="Arial,sans-serif" font-size="22">Product image coming soon</text>
+  </g>
+
+  <g class="compact">
+    <circle cx="300" cy="352" r="206" fill="#fff" stroke="#d9dee3" stroke-width="5"/>
+    <g transform="translate(300 352) scale(2.5) translate(-300 -346)" fill="none" stroke="#6f7882" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"><use href="#camera"/></g>
+    <rect x="224" y="596" width="152" height="12" rx="6" fill="#e0561c"/>
+  </g>
+</svg>

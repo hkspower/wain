@@ -28,3 +28,118 @@
 .campaign-brand-bar--sticky {
   box-shadow: 0 4px 14px rgba(23, 26, 30, 0.04) !important;
 }
+
+/* ==== ICONS (storefront; owner request 2026-11-03: "full polish icons design") ===========================
+ * The storefront's icons are compiled inline SVG, all the same family: viewBox 24, round caps and joins,
+ * currentColor, class "sporta-icon", sized by the width/height attribute. This section changes how they are
+ * DRAWN, never which glyph is drawn, so nothing in the markup or the bundle is touched. Every selector is
+ * scoped to .storefront-root (the admin is untouched) and is heavier than the bundle's own icon rules whatever
+ * the load order. Measured with scripts/icons-polish-test.mjs on the captured live markup, the live compiled
+ * rules and the real IBM Plex Arabic (Arabic RTL is the default language; English LTR checked alongside).
+ *
+ * [icons-1] STROKE. The markup says vector-effect="non-scaling-stroke", but it sits on the <svg> and the
+ * property is not inherited, so it has never done anything: the stroke scales with the box (stroke-width x
+ * size / 24). Rendered stroke, measured on a straight bar at 8x:
+ *     13px 0.95   14px 1.02   15px 1.09   16px 1.19   17px 1.25   18px 1.31   19px 1.50 (1.9 attr)
+ *     20px 1.46   22px 1.63   cart 22px 1.74 (live rule 1.9px)    features tile 23px 1.68
+ * That is 0.95 to 1.75 px in one header row (globe 1.02 beside the AI mark 1.50 and the bag 1.74): the small
+ * icons looked drawn with a different pen, and a stroke that is not a multiple of 0.5px is blurry on a 2x
+ * phone. The property is now set on the shapes (where it works) and the width is a design token in screen px:
+ * 1.5px up to a 20px box, 1.75px from 21px (the bag, close, the features tiles). The two tokens are the only
+ * numbers to change if the owner wants a lighter or bolder set.
+ *
+ * [icons-2] BOX SCALE. The shop draws icons at 13, 14, 15, 16, 17, 18, 19, 20 and 22px. The odd sizes sit on a
+ * half pixel inside the 44px buttons (a 17px heart in a 44px circle starts at x=13.5, so its edges are soft on a
+ * 1x and a 3x screen) and the heart (17) is a pixel off the bag (18) in the same card. Odd sizes now snap to
+ * the next even one: 13 -> 14, 15 -> 16, 17 -> 18, 19 -> 20, giving one scale: 14 / 16 / 18 / 20 / 22.
+ *
+ * [icons-3] ALIGNMENT. An icon in a flex row is centred on the LINE BOX, not on the ink of the text. Arabic ink
+ * (IBM Plex Arabic) sits lower in its line than Latin, so beside Arabic an icon rides 1 to 3px high. Measured
+ * as icon centre vs the vertical centre of mass of the label's pixels (underline excluded): see the table in
+ * the test. The product-page reassurance rows pinned the icon 2px below the top of a 24px line (centre 11px,
+ * ink centre 13 to 14px); the margin now follows the line height. In RTL the icons that sit beside a label drop
+ * 1px (translate, so the hover scale still composes). The language globe sits 1px low against the "EN" capitals
+ * in both languages and rises 1px.
+ *
+ * [icons-4] TARGETS. The 44px buttons are 2.75rem, which is 43.5 to 43.8px at the live root size (15.5px +
+ * 0.1vw). The floor is max(44px, 2.75rem) for the icon-only controls outside the header (the header row is the
+ * menu layout section's).
+ *
+ * [icons-5] STATES. The language and bag icons grow 8% on hover, the AI launcher's did not: same cue now.
+ *
+ * [icons-6] DIRECTION. The features band's "easy returns" arrow is a curved back-arrow whose head points left
+ * and the bundle does not mirror it (no rtl: class on it); in Arabic it now points the other way, with the
+ * individual `scale` property so the hover's transform: scale(1.08) still composes. Everything else is
+ * deliberately NOT mirrored: bag, heart, globe, clock, truck, card, check, close, plus/minus, the brand marks
+ * and the phone. The chevrons and arrows whose paths are not in the capture are listed in the test's
+ * LIVE CHECK notes, not guessed at here.
+ * ======================================================================================================= */
+:root {
+  --sporta-icon-stroke: 1.5px;
+  --sporta-icon-stroke-lg: 1.75px;
+}
+
+/* [icons-1] stroke: on the shapes (vector-effect is not inherited), in screen px, two tiers. */
+:root .storefront-root svg.sporta-icon {
+  stroke-width: var(--sporta-icon-stroke);
+}
+:root .storefront-root svg.sporta-icon :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
+}
+:root .storefront-root svg.sporta-icon:is([width="21"], [width="22"], [width="23"], [width="24"], [width="26"], [width="28"], [width="32"]),
+:root .storefront-root .home-feature-icon svg.sporta-icon {
+  stroke-width: var(--sporta-icon-stroke-lg);
+}
+
+/* [icons-2] box scale 14 / 16 / 18 / 20 / 22: odd sizes snap up to the next even one. */
+:root .storefront-root svg.sporta-icon[width="13"] { width: 14px; height: 14px; }
+:root .storefront-root svg.sporta-icon[width="15"] { width: 16px; height: 16px; }
+:root .storefront-root svg.sporta-icon[width="17"] { width: 18px; height: 18px; }
+:root .storefront-root svg.sporta-icon[width="19"] { width: 20px; height: 20px; }
+
+/* [icons-3] alignment. */
+:root .storefront-root .catalog-product-reassurance li > svg.sporta-icon {
+  margin-block-start: calc((1.65em - 18px) / 2);
+}
+:root[dir="rtl"] .storefront-root .catalog-product-reassurance li > svg.sporta-icon {
+  margin-block-start: calc((1.65em - 18px) / 2 + 0.09em);
+}
+:root[dir="rtl"] .storefront-root :is(
+  .btn > .sporta-icon,
+  .footer-payment > .sporta-icon,
+  .campaign-cart-drawer > footer p > .sporta-icon,
+  .catalog-product-summary button.underline > .sporta-icon
+) {
+  translate: 0 1px;
+}
+:root .storefront-root .navbar-language > svg.sporta-icon {
+  translate: 0 -1px;
+}
+/* The AI launcher shows its label from 640px (hidden under it, when the icon is centred alone in the 44px box). */
+@media (min-width: 640px) {
+  :root[dir="rtl"] .storefront-root .navbar-ai > .sporta-icon { translate: 0 1px; }
+}
+
+/* [icons-4] targets: icon-only controls outside the header. */
+:root .storefront-root :is(
+  .catalog-card-save, .catalog-card-add, .catalog-gallery-arrow, .catalog-gallery-zoom,
+  .footer-socials a, .campaign-cart-drawer .purchase-quantity button, .campaign-cart-drawer .cart-drawer__remove
+) {
+  min-width: max(44px, 2.75rem);
+  min-height: max(44px, 2.75rem);
+}
+
+/* [icons-5] states: the AI launcher's icon answers hover like the language and bag icons. */
+@media (hover: hover) and (pointer: fine) {
+  .app-header .navbar-ai > svg.sporta-icon { transition: transform 0.18s; }
+  .app-header .navbar-ai:hover > svg.sporta-icon { transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-header .navbar-ai > svg.sporta-icon { transition: none; }
+}
+
+/* [icons-6] direction: the returns arrow (exact path of the live features band) points the other way in RTL. */
+:root[dir="rtl"] .storefront-root svg.sporta-icon:has(> path[d^="M8 3 4 7 8 11"]) {
+  scale: -1 1;
+}
+/* ==== end ICONS ============================================================================================ */
