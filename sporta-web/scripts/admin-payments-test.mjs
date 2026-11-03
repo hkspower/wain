@@ -16,6 +16,11 @@
 //   4. every field label has one line height;
 //   5. the loose sky-blue note is hidden only while the IP panel it repeats exists;
 //   6. nothing overflows sideways.
+//
+// Every width is run twice: as the light admin, and as a device set to dark with the live build's REAL dark rules
+// on the page (scripts/fixtures/admin-dark-rules.css, html.dark + data-theme=dark). The Payments screen is light
+// only (owner decision 2026-11-03), so every number above must hold in both; the colour side of that is
+// asserted in full by admin-payments-light-test.mjs, this re-run proves the layout rules survive it.
 import { chromium } from 'playwright'
 import postcss from 'postcss'
 import tailwind from '@tailwindcss/postcss'
@@ -34,16 +39,20 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 60 - t.leng
 const classes = [...new Set([...BODY_HTML.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean))]
 const TW = (await postcss([tailwind({ base: ROOT, optimize: false })]).process(
   `@import "tailwindcss" source(none);\n@source inline("${classes.join(' ')}");`, { from: join(ROOT, 'admin-payments-fixture.css') })).css
-const page = (w) => `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=${w},initial-scale=1"><style>${TW}</style><style>${LIVE}</style><style>${ADDON}</style></head><body style="margin:0">${BODY_HTML}</body></html>`
+const DARK = readFileSync(join(ROOT, 'scripts/fixtures/admin-dark-rules.css'), 'utf8')
+const cutAt = DARK.indexOf('/* ---- build /assets/AdminApp')
+const DARK_INDEX = DARK.slice(DARK.indexOf('/* ---- build /assets/index'), cutAt) // linked before the add-ons
+const DARK_ADMIN = DARK.slice(cutAt)                                                // the lazy admin chunk: after them
+const page = (w, dark) => `<!doctype html><html lang="en" dir="ltr"${dark ? ' class="dark" data-theme="dark"' : ''}><head><meta charset="utf-8"><meta name="viewport" content="width=${w},initial-scale=1"><style>${TW}</style><style>${LIVE}</style>${dark ? `<style>${DARK_INDEX}</style>` : ''}<style>${ADDON}</style>${dark ? `<style>${DARK_ADMIN}</style>` : ''}</head><body style="margin:0">${BODY_HTML}</body></html>`
 
 const EDGE = 'rgb(217, 223, 229)', ACCENT = 'rgb(154, 69, 44)', WHITE = 'rgb(255, 255, 255)', TINT = 'rgb(253, 245, 241)'
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
-for (const w of [1280, 390, 360, 320]) {
-  head(`${w}px`)
-  const ctx = await browser.newContext({ viewport: { width: w, height: 900 } })
+for (const [dark, w] of [false, true].flatMap((d) => [1280, 390, 360, 320].map((x) => [d, x]))) {
+  head(`${w}px${dark ? ', dark device and dark theme' : ''}`)
+  const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, colorScheme: dark ? 'dark' : 'light' })
   const pg = await ctx.newPage()
-  await pg.setContent(page(w))
+  await pg.setContent(page(w, dark))
 
   // 1. status tiles
   const t = await pg.evaluate(() => {

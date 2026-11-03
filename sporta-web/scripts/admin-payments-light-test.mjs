@@ -233,7 +233,10 @@ async function failuresOf(addon, verbose) {
     // identical computed paint, element by element
     let nDiff = 0; const ex = []
     if (d.elems.length !== base.elems.length) add('elements', `${sc.name}: ${d.elems.length} vs ${base.elems.length}`)
-    d.elems.forEach((r, i) => { const l = base.elems[i]; if (!l) return; for (const k of Object.keys(r.p)) if (r.p[k] !== l.p[k]) { nDiff++; if (detailOn && sc.name === process.env.DETAIL) console.log(`     . ${r.sig} ${k}: ${l.p[k]} -> ${r.p[k]}`); if (ex.length < 4) ex.push(`${r.sig} ${k} ${l.p[k]} -> ${r.p[k]}`) } })
+    // The one deliberate difference: the screen root carries its own white in the dark states (so it is right where :has() is
+    // missing), where light leaves it clear over the white content area. Clear-over-white and white are the same paint.
+    const sameInk = (r, l, k) => r.p[k] === l.p[k] || (r.sig.startsWith('div.payment-settings') && k === 'backgroundColor' && l.p[k] === 'rgba(0, 0, 0, 0)' && r.p[k] === 'rgb(255, 255, 255)')
+    d.elems.forEach((r, i) => { const l = base.elems[i]; if (!l) return; for (const k of Object.keys(r.p)) if (!sameInk(r, l, k)) { nDiff++; if (detailOn && sc.name === process.env.DETAIL) console.log(`     . ${r.sig} ${k}: ${l.p[k]} -> ${r.p[k]}`); if (ex.length < 4) ex.push(`${r.sig} ${k} ${l.p[k]} -> ${r.p[k]}`) } })
     if (nDiff) add(`paint [${sc.name}]`, `${nDiff} differences, e.g. ${ex.join(' ; ')}`)
     // states
     let sDiff = 0; const sx = []

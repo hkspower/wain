@@ -786,44 +786,36 @@
   color: #18212a;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-white {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .bg-white {
   background-color: #fff !important;
   color: inherit;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-900 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-800 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-800 {
   color: var(--color-slate-800, #1e293b) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-700 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-700 {
   color: var(--color-slate-700, #334155) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-600 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-600 {
   color: var(--color-slate-600, #475569) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-500 {
-  color: var(--color-slate-500, #64748b) !important;
-}
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-400 {
-  color: var(--color-slate-400, #94a3b8) !important;
-}
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-100:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-100:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-100, #f1f5f9) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-200:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-200:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-200, #e2e8f0) !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-300:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-300:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-300, #cbd5e1) !important;
 }
 
@@ -851,8 +843,12 @@
   color-scheme: light;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input:not([class]), input[class=""]) {
-  background-color: #fff;
-  color: #18212a;
-  border-color: #767676;
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input[type="checkbox"], input[type="radio"]) {
+  background-color: transparent;
+  color: inherit;
+  border-color: currentcolor;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
+  border-color: #d9dfe5 !important;
 }
