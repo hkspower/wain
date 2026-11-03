@@ -83,7 +83,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 38
+const CANNED = 45
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -1320,6 +1320,16 @@ head('round three: a model may not turn a promise round')
   is(acc[14].every((x) => x === false), 'returns, cancel, delivery, payment, the order stages, money, complaint, checkout, coupons, offers and contact never are', JSON.stringify(acc[14]))
 }
 
+
+// What each new topic is emailed as — shared with the n8n check in the voice
+// section, which runs every one through the workflow's own subject template.
+const R4_TOPICS = [['my order SP1AU702NKHTKDV shows delivered but I did not receive it', 'en', 'not_received'], ['ما استلمت الطلب', 'ar', 'not_received'],
+                   ['I lost my order number', 'en', 'no_number'], ['where is my refund', 'en', 'refund'], ['متى يرجع المبلغ', 'ar', 'refund'],
+                   ['can I change the size on my order', 'en', 'order_change'], ['when will you restock', 'en', 'restock'],
+                   ['I paid and nothing happened', 'en', 'money'], ['my card was declined', 'en', 'checkout_problem'],
+                   ['اخذتوا فلوسي', 'ar', 'money']]
+// Contact, but NOT a cancellation: these used to carry the CANCEL subject.
+const R4_NOT_CANCEL = [["please don't cancel my order", 'en'], ['لا تلغون طلبي', 'ar'], ["don't send me offers", 'en'], ['do not ship to Hawally, ship to Salmiya', 'en']]
 // ===================================================================== ROUND FOUR
 // The fourth review: the lane's findings were all of one kind — a customer who
 // needs a PERSON (a parcel that never came, money that was taken, a refund that
@@ -1957,7 +1967,7 @@ head('the voice, and who is allowed to ask for it')
     // OWN IF node and subject template, read from the JSON that gets imported.
     {
       await fetch(`${VOICE}/reset`)
-      const sent = [...MONEY_R2, ...COMPLAINT_R2, ...MONEY_R3, ...CHECKOUT_R3, ...SITE_R3, ...COURIER_R3, ['do you sell live goldfish', 'en']]
+      const sent = [...MONEY_R2, ...COMPLAINT_R2, ...MONEY_R3, ...CHECKOUT_R3, ...SITE_R3, ...COURIER_R3, ...R4_TOPICS.map(([q, l]) => [q, l]), ...R4_NOT_CANCEL, ['do you sell live goldfish', 'en']]
       await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true); $db = store_db();
         $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
         $db->beginTransaction();
@@ -1979,10 +1989,13 @@ head('the voice, and who is allowed to ask for it')
       is(yes.includes(mail.name) && !no.includes(mail.name), 'the workflow\'s "yes" branch is the one that emails the shop', `${yes} / ${no}`)
       const SUBJECT = { money: [/PAYMENT PROBLEM/, 'a payment problem'], complaint: [/WRONG OR DAMAGED/, 'a wrong or damaged item'],
                         checkout_problem: [/CHECKOUT: customer needs help to complete an order/, 'a checkout that needs a hand'],
-                        site_problem: [/WEBSITE PROBLEM/, 'a website problem'], courier: [/COURIER PROBLEM/, 'a courier problem'] }
+                        site_problem: [/WEBSITE PROBLEM/, 'a website problem'], courier: [/COURIER PROBLEM/, 'a courier problem'],
+                        not_received: [/ORDER NOT RECEIVED/, 'an order that did not come'], refund: [/REFUND/, 'a refund being waited for'],
+                        order_change: [/CHANGE TO AN ORDER/, 'a change to an order'], restock: [/back in stock/, 'a restock question'],
+                        no_number: [/lost the order number/, 'a customer without the order number'], late_order: [/LATE ORDER/, 'an order that is late'] }
       for (const [m, , kind] of [...MONEY_R2.map(([q, l]) => [q, l, 'money']), ...COMPLAINT_R2.map(([q, l]) => [q, l, 'complaint']),
                                  ...MONEY_R3.map(([q, l]) => [q, l, 'money']), ...CHECKOUT_R3.map(([q, l]) => [q, l, 'checkout_problem']),
-                                 ...SITE_R3.map(([q, l]) => [q, l, 'site_problem']), ...COURIER_R3.map(([q, l]) => [q, l, 'courier'])]) {
+                                 ...SITE_R3.map(([q, l]) => [q, l, 'site_problem']), ...COURIER_R3.map(([q, l]) => [q, l, 'courier']), ...R4_TOPICS]) {
         const p = got.find((x) => x.body?.message === m)?.body
         const subject = p ? tpl(mail.parameters.subject, p) : ''
         is(p?.intent === 'contact' && p?.topic === kind && needsPerson(p) && SUBJECT[kind][0].test(subject),
@@ -1992,6 +2005,53 @@ head('the voice, and who is allowed to ask for it')
       const gap = got.find((x) => x.body?.message === 'do you sell live goldfish')?.body
       is(gap && !needsPerson(gap) && /unanswered question/.test(tpl(mail.parameters.subject, gap)), 'while a failed search still goes only to "Log the gap"',
          gap ? `${gap.intent}/${gap.topic}` : 'nothing arrived')
+      // A message that is NOT a cancellation is not emailed as one.
+      for (const [m] of R4_NOT_CANCEL) {
+        const p = got.find((x) => x.body?.message === m)?.body
+        const subject = p ? tpl(mail.parameters.subject, p) : ''
+        is(p?.intent === 'contact' && !/CANCEL/.test(subject) && needsPerson(p), `"${m}" is emailed to the shop, and not as a cancellation`, p ? `${p.intent}/${p.topic} — ${subject}` : 'nothing arrived')
+      }
+      await unthrottle()
+
+      // ORDERS THAT ARE LATE, OR DELIVERED AND NOT RECEIVED, reach a person even
+      // though the widget still gets the order card (intent order_status).
+      await fetch(`${VOICE}/reset`)
+      const seed = ["insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at) values" +
+        " ('SPTEST000001', 3, 3, 'knet', 'paid', 'delivered', now() - interval 3 day), ('SP5EY126ROLXOHZ', 3, 3, 'knet', 'paid', 'packed', now() - interval 6 day)," +
+        " ('SPFRESHPACK01', 3, 3, 'knet', 'paid', 'packed', now())"]
+      const asked = [['SPTEST000001 never arrived', 'en'], ['my order is late, I ordered 6 days ago SP5EY126ROLXOHZ', 'en'], ['SPTEST000001', 'en'], ['SPFRESHPACK01', 'en']]
+      await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true); $db = store_db();
+        $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
+        $db->beginTransaction();
+        try { foreach ($in['sql'] as $s) $db->exec($s);
+              foreach ($in['msgs'] as [$m, $l]) { $db->exec('delete from rate_limit'); assistant_answer($db, $cfg, $m, $l); } }
+        finally { $db->rollBack(); }
+        echo '[]';`, { sql: seed, msgs: asked })
+      const oh = (await calls()).n8n ?? []
+      const find = (m) => oh.find((x) => x.body?.message === m)?.body
+      const nrP = find('SPTEST000001 never arrived')
+      const lateP = find('my order is late, I ordered 6 days ago SP5EY126ROLXOHZ')
+      is(nrP?.intent === 'contact' && nrP?.topic === 'not_received' && needsPerson(nrP) && SUBJECT.not_received[0].test(tpl(mail.parameters.subject, nrP)),
+         'a delivered order the customer says never came is emailed as ORDER NOT RECEIVED', nrP ? `${nrP.intent}/${nrP.topic}` : 'nothing arrived')
+      is(lateP?.intent === 'contact' && lateP?.topic === 'late_order' && needsPerson(lateP) && SUBJECT.late_order[0].test(tpl(mail.parameters.subject, lateP)),
+         'a six-day-old packed order is emailed as LATE ORDER', lateP ? `${lateP.intent}/${lateP.topic}` : 'nothing arrived')
+      is(!find('SPTEST000001') && !find('SPFRESHPACK01'), 'while a plain look-up of a delivered order, or of a fresh one, is NOT handed off', `${oh.length} handoffs`)
+      await unthrottle()
+
+      // THE HANDOFF RATION IS PER /64, like every other limiter. Twenty-five
+      // addresses of one IPv6 subnet are one client.
+      await fetch(`${VOICE}/reset`)
+      await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db();
+        $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
+        $db->exec('delete from rate_limit');
+        for ($i = 0; $i < 25; $i++) {
+          $_SERVER['REMOTE_ADDR'] = '2001:db8:1234:5678::' . dechex($i + 1);
+          assistant_answer($db, $cfg, 'I want to speak to a human please', 'en');
+        }
+        $db->exec('delete from rate_limit');
+        echo '[]';`, null)
+      const v6 = ((await calls()).n8n ?? []).length
+      is(v6 === 6, 'twenty-five requests from one IPv6 /64 are handed off six times, not twenty-five', `${v6} handoffs`)
       await unthrottle()
     }
 
