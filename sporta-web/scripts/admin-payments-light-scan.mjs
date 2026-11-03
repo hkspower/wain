@@ -62,12 +62,13 @@ async function measure(scheme) {
     for (const e of [content, ...content.querySelectorAll('*')]) {
       const cs = getComputedStyle(e)
       if (cs.display === 'none') continue
-      const r = { s: sig(e), p: {} }
+      const r = { s: sig(e), p: {}, in: !!e.closest('.payment-settings'), up: e.parentElement ? sig(e.parentElement).slice(0, 40) : '' }
       for (const k of props) r.p[k] = cs[k]
       if (e.tagName === 'INPUT') r.p.placeholder = getComputedStyle(e, '::placeholder').color
       out.rows.push(r)
       const bg = num(cs.backgroundColor)
-      if (bg[3] > 0.5 && lm(bg) < 0.25 && e.getBoundingClientRect().width > 0) out.dark.push(sig(e) + ' ' + cs.backgroundColor)
+      // a DARK surface is a near-black neutral; the brand terracotta #9a452c (an accent button in the light admin too) is not one
+      if (bg[3] > 0.5 && lm(bg) < 0.12 && Math.max(bg[0], bg[1], bg[2]) - Math.min(bg[0], bg[1], bg[2]) < 45 && e.getBoundingClientRect().width > 0) out.dark.push(sig(e) + ' ' + cs.backgroundColor)
       if (cs.visibility === 'hidden' || !e.getBoundingClientRect().width) continue
       const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ')
       const list = []
@@ -82,6 +83,11 @@ async function measure(scheme) {
         if (ratio < need) out.low.push(ratio.toFixed(2) + ' ' + sig(e) + ' "' + String(label).slice(0, 24) + '"')
       }
     }
+    if (process.env.TREE) {
+      out.tree = []
+      const walk = (e, d) => { if (d > Number(process.env.TREE) || out.tree.length > 60) return; const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ').slice(0, 30); out.tree.push('.'.repeat(d) + sig(e) + (own ? ' "' + own + '"' : '') + (e.closest('.payment-settings') ? ' [in]' : '')); for (const c of e.children) walk(c, d + 1) }
+      walk(content, 0)
+    }
     return out
   }, PROPS)
   await ctx.close()
@@ -91,10 +97,11 @@ const L = await measure('light'), D = await measure('dark')
 console.log('LIGHTCMP width ' + W + ' | candidate css ' + (CSS ? 'yes (' + CSS.length + ' bytes)' : 'no') + ' | add-on ' + (process.env.BLOCK_ADDON ? 'blocked' : 'as served'))
 if (L.error || D.error) { console.log('ERROR ' + (L.error || D.error)); await browser.close(); process.exit(1) }
 for (const [n, d] of [['light device', L], ['dark device', D]]) console.log(`${n}: html [${d.html}] screen color-scheme ${d.scheme} | ${d.rows.length} elements | ${d.probes} text/field probes, ${d.low.length} under limit | ${d.dark.length} dark surfaces`)
-let nd = 0; const ex = []; const els = new Set()
-L.rows.forEach((r, i) => { const q = D.rows[i]; if (!q || q.s !== r.s) { nd++; ex.push('structure differs at ' + i); return } for (const k of Object.keys(r.p)) if (r.p[k] !== q.p[k]) { nd++; els.add(i); if (ex.length < 14) ex.push(`${r.s} ${k}: ${r.p[k]} -> ${q.p[k]}`) } })
-console.log(`paint differences dark vs light: ${nd} property differences on ${els.size} of ${L.rows.length} elements`)
-ex.forEach((x) => console.log('  ' + x.slice(0, 200)))
+let nd = 0; const per = new Map()
+L.rows.forEach((r, i) => { const q = D.rows[i]; if (!q || q.s !== r.s) { nd++; per.set('structure@' + i, { s: 'structure differs at ' + i, n: 1, in: false, up: '', first: '' }); return } for (const k of Object.keys(r.p)) if (r.p[k] !== q.p[k]) { nd++; const e = per.get(i) || { s: r.s, n: 0, in: r.in, up: r.up, first: `${k}: ${r.p[k]} -> ${q.p[k]}` }; e.n++; per.set(i, e) } })
+console.log(`paint differences dark vs light: ${nd} property differences on ${per.size} of ${L.rows.length} elements (${[...per.values()].filter((e) => e.in).length} inside .payment-settings, ${[...per.values()].filter((e) => !e.in).length} outside it, in the same content area)`)
+;[...per.values()].slice(0, Number(process.env.MAXROWS || 18)).forEach((e) => console.log(`  ${e.in ? 'IN ' : 'OUT'} ${e.s} (parent ${e.up}) x${e.n} ${e.first}`.slice(0, 220)))
+if (D.tree) D.tree.forEach((x) => console.log('  tree ' + x.slice(0, 150)))
 D.low.slice(0, 12).forEach((x) => console.log('  under limit (dark): ' + x))
 L.low.slice(0, 6).forEach((x) => console.log('  under limit (light): ' + x))
 D.dark.slice(0, 12).forEach((x) => console.log('  dark surface (dark device): ' + x))
