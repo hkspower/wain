@@ -157,6 +157,24 @@ export function buildTree({ patchFile = '' } = {}) {
   const indexHtml = readFileSync(join(web, 'index.html'), 'utf8')
   writeFileSync(join(www, 'index.html'), indexHtml)
 
+  // The four .htaccess files, at their repo paths, in a mini tree a proposed diff (a/sporta-web/...)
+  // can be applied to with `patch -p1` before anything is served.
+  const repo = join(BASE, 'repo', 'sporta-web')
+  const HT = {
+    root: join(repo, 'public', '.htaccess'),
+    api: join(repo, 'dropin', 'php-store', '.htaccess'),
+    knet: join(repo, 'dropin', 'php-knet', '.htaccess'),
+    pay: join(repo, 'dropin', 'php-cbk', '.htaccess'),
+  }
+  for (const f of Object.values(HT)) {
+    mkdirSync(join(f, '..'), { recursive: true })
+    cpSync(join(web, f.slice(repo.length + 1)), f)
+  }
+  if (patchFile) {
+    const p = spawnSync('patch', ['-p1', '-s', '--no-backup-if-mismatch', '-d', join(BASE, 'repo'), '-i', patchFile], { encoding: 'utf8' })
+    if (p.status !== 0) throw new Error(`patch did not apply: ${p.stdout}${p.stderr}`)
+  }
+
   // dropin -> api / knet / pay, never a config.php (git-ignored, server-only).
   for (const [src, dst] of [['php-store', 'api'], ['php-knet', 'knet'], ['php-cbk', 'pay']]) {
     cpSync(join(web, 'dropin', src), join(www, dst), {
@@ -164,21 +182,15 @@ export function buildTree({ patchFile = '' } = {}) {
       filter: (p) => !/(^|\/)config\.php$/.test(p),
     })
   }
+  cpSync(HT.api, join(www, 'api', '.htaccess'))
+  cpSync(HT.knet, join(www, 'knet', '.htaccess'))
+  cpSync(HT.pay, join(www, 'pay', '.htaccess'))
 
   // The postbuild step, scripts/csp-hashes.mjs: hash every inline, non-JSON-LD script.
   const hashes = [...indexHtml.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)]
     .filter((m) => !/type\s*=\s*"application\/ld\+json"/.test(m[1]))
     .map((m) => `'sha256-${createHash('sha256').update(m[2], 'utf8').digest('base64')}'`)
-  let ht = readFileSync(join(web, 'public', '.htaccess'), 'utf8')
-  if (patchFile) {
-    const tmp = join(BASE, 'htaccess.patched')
-    writeFileSync(tmp, ht)
-    const p = spawnSync('patch', ['--no-backup-if-mismatch', '-s', tmp, patchFile], { encoding: 'utf8' })
-    if (p.status !== 0) throw new Error(`patch did not apply: ${p.stdout}${p.stderr}`)
-    ht = readFileSync(tmp, 'utf8')
-    rmSync(tmp, { force: true })
-  }
-  writeFileSync(join(www, '.htaccess'), ht.replace('__SCRIPT_HASHES__', hashes.join(' ')))
+  writeFileSync(join(www, '.htaccess'), readFileSync(HT.root, 'utf8').replace('__SCRIPT_HASHES__', hashes.join(' ')))
 
   // The media mount (/images/products): exactly the file admin.php writes first.
   const media = join(www, 'images', 'products')
