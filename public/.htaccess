@@ -24,18 +24,22 @@ DirectoryIndex index.html
 # ambiguous to a crawler — but a declaration is not a redirect. A link shared
 # on WhatsApp as wainkw.com/places/… stayed on the apex for that whole visit,
 # and every absolute url the page then produced pointed somewhere the visitor
-# was not. 301 rather than 302: this is permanent, and only a permanent one
-# moves the address a search engine keeps.
+# was not. A permanent redirect rather than 302: this is permanent, and only a
+# permanent one moves the address a search engine keeps. 308 rather than 301,
+# because 308 keeps the request method, and the status Traefik answers on the
+# VPS is 308 too: the two must agree.
 #
 # The 20 September rollback (f72759e9) removed this rule and nothing replaced
 # it, so the apex served a second full copy of the site until 14 October, when
 # the owner asked for the redirect back. CLAUDE.md records the scan behind it.
 #
-# On 31 October 2026 the live apex answered 308, not this rule's 301: a proxy in
-# front of the web server redirected it before this file was read. So this block
-# is the fallback for a host where this file is the only redirect, and it was
-# not seen running on the host in front of the site that day (CLAUDE.md, «The 31
-# October scan, continued»).
+# On 31 October 2026 the live apex answered 308: a proxy in front of the web
+# server (Traefik, router wain-apex) redirected it before this file was read.
+# That proxy's answer is what a visitor gets today, so this block is the
+# fallback for a host where this file is the only redirect. It was not seen
+# running on the host in front of the site (CLAUDE.md, «The 31 October scan,
+# continued»), and the php:apache container is not known to read .htaccess at
+# all: that is unverified, and the proxy is the one that is measured.
 #
 # mod_rewrite, which this file otherwise avoids — see the header. That warning
 # is about a catch-all rewrite to index.html masking real 404s; this matches
@@ -64,7 +68,7 @@ DirectoryIndex index.html
   RewriteEngine On
   RewriteCond %{HTTP_HOST} ^wainkw\.com$ [NC]
   RewriteCond %{REQUEST_URI} !^/api/
-  RewriteRule ^(.*)$ https://www.wainkw.com/$1 [L,R=301]
+  RewriteRule ^(.*)$ https://www.wainkw.com/$1 [L,R=308]
 </IfModule>
 
 # ---- /shoug/ is closed -----------------------------------------------------
