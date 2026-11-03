@@ -13,7 +13,7 @@ htaccess and config and api and admin". No secret value appears in this file.
   real Host and SNI: `scans` (the repo's live/json/ports/knet/backends scans, a per-area header probe, the
   Hostinger edge-firewall rules), `htaccess`, `config` (mounted `/docker/sporta` read-only: names, modes, owners,
   hashes, key NAMES and verdicts only), `api` (public store API), `admin` (`/backends`, `admin.php`, n8n).
-  Then an independent verification pass on the five findings the lanes flagged as the heaviest.
+  Then an independent verification pass on the six findings the lanes rated medium.
 - **Volume:** about 60 (scans header probe, plus the repo scans' own checks), 293 + 8 (htaccess), 181 (config),
   240 (api), about 215 (admin), under 40 (verifiers). GET, HEAD, OPTIONS and TRACE only. No POST/PUT/DELETE,
   no sign-in, no cron key, no credential-looking request, no 429 seen. The n8n webhook was not called.
@@ -242,7 +242,7 @@ Measured on the VPS before the 10:48Z deploy (see section 0). Live files: root `
 |---|---|---|
 | `api/.htaccess` (3326 B, owner 0:0) | byte-identical to `dropin/php-store/.htaccess` (and unchanged in the repo since `1eb487aa`) | ship nothing now; edit E5 below goes with the API release |
 | `knet/.htaccess` (3724 B), `pay/.htaccess` (4046 B) | byte-identical to `php-knet`, `php-cbk` | ship nothing; E3 below if wanted |
-| `images/products/.htaccess` (100 B) | the media mount's own file (`Options -Indexes`, deny `php|phtml|phar|cgi|pl|py|sh`); no repo copy; `vps-deploy.mjs` treats `images/products/` as a media path | leave it; never overwrite |
+| `images/products/.htaccess` (100 B) | the media mount's own file (`Options -Indexes`, deny `php\|phtml\|phar\|cgi\|pl\|py\|sh`); no repo copy; `vps-deploy.mjs` treats `images/products/` as a media path | leave it; never overwrite |
 
 Hunks in the root file (live as measured, repo at a42c2718, repo HEAD):
 
@@ -260,10 +260,10 @@ Edits that neither file has yet (from this scan), to bundle into the next `.htac
 | # | Edit | Finding | Recommendation |
 |---|---|---|---|
 | E1 | `public/.htaccess` line 379: `microphone=()` -> `microphone=(self)` | V-3 | **ship** |
-| E2 | line 444 `FilesMatch`: add `map|ini|conf|ya?ml|csv|xlsx|pem|key|crt|sqlite3?|db|toml|inc|dist|phps|lock` to the extension list and a name rule `^(error_log|php_errors|access_log|debug)$`. Checked: `public/` contains no file with these extensions | htaccess-5 | **ship** (latent; today none exist on disk and `/error_log`, `/boot.js.map` answer 404) |
+| E2 | line 444 `FilesMatch`: add `map\|ini\|conf\|ya?ml\|csv\|xlsx\|pem\|key\|crt\|sqlite3?\|db\|toml\|inc\|dist\|phps\|lock` to the extension list and a name rule `^(error_log\|php_errors\|access_log\|debug)$`. Checked: `public/` contains no file with these extensions | htaccess-5 | **ship** (latent; today none exist on disk and `/error_log`, `/boot.js.map` answer 404) |
 | E3 | `Header always unset X-Powered-By` (root 338, knet 27, pay 30) removes nothing PHP set (proved on Apache 2.4.58: `always` touches only the error-header table). Add plain `Header unset X-Powered-By` next to it, and put `expose_php=Off` in the Dockerfile image, not only `conf.d/92-sporta-errors.ini` | htaccess-4 | **merge by hand**, low |
 | E4 | `Header always set` for nosniff and X-Frame-Options | K-4 | **merge by hand**, test first |
-| E5 | `api/.htaccess`: add `profiles|support|assistant` (K-2). Optionally also `cron-[a-z]+\.php`: the host cron uses `docker exec php`, not HTTP. First confirm no n8n or other scheduler calls `cron-whatsapp.php` (not in the four host cron lines) by URL with a key | K-2, api-4 | **ship** the three names with the API release; the cron deny **merge by hand** after that check |
+| E5 | `api/.htaccess`: add `profiles\|support\|assistant` (K-2). Optionally also `cron-[a-z]+\.php`: the host cron uses `docker exec php`, not HTTP. First confirm no n8n or other scheduler calls `cron-whatsapp.php` (not in the four host cron lines) by URL with a key | K-2, api-4 | **ship** the three names with the API release; the cron deny **merge by hand** after that check |
 
 ## 5. Single-lane findings (one capture, not re-run)
 
@@ -306,7 +306,8 @@ Fix text is exact where a line or command is meant; "settles it" says what would
 
 ## 6. Refuted or re-graded
 
-- **Refuted: none.** Every finding a verifier touched reproduced.
+- **Refuted: none.** Five of the six verifier runs reproduced their finding; the sixth (K-1) could not run
+  because the connector lost its sign-in, so K-1 rests on three lanes' own captures plus the source.
 - **Re-graded down by verifiers:** V-3 mic header medium -> low (functional, not a vulnerability); V-4 placeholders
   medium -> low (fails closed, values are public example text); V-5 `slide_image` medium -> low (banners only);
   K-1 anonymous cookie medium -> low (cost unmeasured, verifier's own run failed). V-1 and V-2 stay medium.
