@@ -261,6 +261,21 @@ function assistant_money_weak(): array
 // خصم ١٠٪ من السعر؟» say money came OFF, and were emailed to staff as somebody
 // wanting a person. A message that names a discount and nothing that went wrong
 // is left for the offers shelf.
+// "WHAT DOES PENDING MEAN", "payment pending, is that normal": asking what a
+// STATE is, with no failure word beside it. Not a payment problem (it was emailed
+// to staff as PAYMENT PROBLEM: money taken, order not right) and not the list of
+// payment methods either — the answer is that order's own stage, which is one
+// look-up away: the router sends it to order_status, which asks for the number,
+// and stage_unpaid then says what is true of it and where to write if money left.
+function assistant_pending_meaning(string $t): bool
+{
+    return assistant_has($t, ['what does', 'what do you mean', 'what is', "what's", 'whats', 'meaning', 'mean',
+                              'is that normal', 'is this normal', 'is it normal', 'يعني ايش', 'شنو يعني',
+                              'وش يعني', 'معنى', 'طبيعي'])
+        && assistant_has($t, ['pending', 'unpaid', 'not paid', 'معلق', 'غير مدفوع', 'مو مدفوع'])
+        && !assistant_has($t, ['failed', 'fail', 'error', 'twice', 'charged', 'taken', 'deducted', 'فشل', 'مرتين', 'انخصم']);
+}
+
 function assistant_money_complaint(string $t): bool
 {
     $wrong = ['twice', 'two times', '2 times', 'failed', 'fail', 'error', 'pending', 'unpaid', 'not paid',
@@ -294,19 +309,12 @@ function assistant_money_complaint(string $t): bool
     $onPurpose = assistant_has($t, ['because i wanted', 'because i want', 'on purpose', 'intentionally', 'i wanted two',
                                     'wanted two', 'two items', '2 items', 'two of the same', 'عن قصد', 'لاني ابي', 'عشان ابي'])
         && !assistant_has($t, ['mistake', 'accident', 'failed', 'error', 'nothing', 'بالغلط', 'غلط', 'فشل']);
-    if ($onPurpose) $wrong = array_values(array_diff($wrong, ['twice', 'two times', '2 times', 'مرتين', 'مرتان']));
+    if ($onPurpose) return false;
     $direct = assistant_has($t, assistant_money_words());
     if (!$direct) {
         $hypothetical = !assistant_has($t, $past)
             && assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال', '^لنفرض']);
-        // "What does pending mean", "payment pending, is that normal": asking
-        // what a STATE is, with no failure word beside it.
-        $meaning = assistant_has($t, ['what does', 'what do you mean', 'what is', "what's", 'whats', 'meaning', 'mean',
-                                      'is that normal', 'is this normal', 'is it normal', 'يعني ايش', 'شنو يعني',
-                                      'وش يعني', 'معنى', 'طبيعي'])
-            && assistant_has($t, ['pending', 'unpaid', 'not paid', 'معلق', 'غير مدفوع', 'مو مدفوع'])
-            && !assistant_has($t, ['failed', 'fail', 'error', 'twice', 'charged', 'taken', 'deducted', 'فشل', 'مرتين', 'انخصم']);
-        $howItWorks = $meaning || assistant_has($t, ['تقسيط', 'اقساط', '^قسط', 'installment*', 'instalment*', 'split', 'tabby',
+        $howItWorks = assistant_pending_meaning($t) || assistant_has($t, ['تقسيط', 'اقساط', '^قسط', 'installment*', 'instalment*', 'split', 'tabby',
                                          'tamara', '^تابي$', 'تمارا'])
             || (preg_match('/(?:^|[.,!?؟،]\s*)(?:is|are|will|would|can|could|do|does|should|هل)\s/u', $t) === 1
                 && assistant_has($t, ['when', 'at delivery', 'on delivery', 'upon delivery', 'until', 'before',
@@ -401,7 +409,7 @@ function assistant_is_presence(string $t): bool
         || preg_match('/^(?:i have|i got|i\'ve got|got) (?:a |an )?(?:quick |small |little )?(?:question|inquiry|enquiry|query)[\s\p{P}]*$/u', $t) === 1
         || preg_match('/^(?:(?:انا|ابي|ممكن)\s+)?(?:عندي\s+)?(?:سوال|استفسار|اسال|استفسر)(?:\s+(?:بسيط|صغير|لو سمحت|لو سمحتو))?[\s\p{P}]*$/u', $t) === 1
         // "help", "who are you", «انت روبوت؟»: the welcome says what it can do.
-        || preg_match('/^(?:help|help me|help please|please help|i need help|need help|can you help(?: me)?|who are you|are you a bot|are you a robot|what can you do|مساعده|ساعدني|ابي مساعده|احتاج مساعده|ممكن مساعده|مين انت|من انت|انت روبوت|انت بوت|شنو تقدر تسوي)[\s\p{P}]*$/u', $t) === 1;
+        || preg_match('/^(?:help|help me|help please|please help|i need help|need help|can you help(?: me)?|who are you|are you a bot|are you a robot|what can you do|مساعده|ساعدني|ابي مساعده|احتاج مساعده|ممكن مساعده|مين انت|من انت|انت روبوت|انت بوت|انتم روبوت|انتم بوت|انتو روبوت|انتو بوت|شنو تقدر تسوي)[\s\p{P}]*$/u', $t) === 1;
 }
 
 // GOODBYE IS THANKS, NOT HELLO. «مع السلامه» matched «^السلام» and was answered
@@ -627,7 +635,7 @@ function assistant_person_request(string $t): bool
     }
     $person = assistant_has($t, ['human', 'a person', 'real person', 'agent', 'representative', 'manager', 'supervisor',
                                  'operator', 'staff', 'employee', 'team member', 'customer service', 'customer support',
-                                 'customer care', 'someone', 'somebody', 'anyone', 'anybody', 'موظف', 'موظفه', 'انسان',
+                                 'customer care', 'someone', 'somebody', 'anyone', 'anybody', 'ahad', 'a7ad', 'موظف', 'موظفه', 'انسان',
                                  'شخص', 'مدير', 'المدير', 'مسوول', 'المسوول', 'ممثل', 'خدمه العملاء', 'الدعم', 'احد', 'ادمن',
                                  'مشرف']);
     $talk = assistant_has($t, ['talk to', 'talk with', 'speak to', 'speak with', 'chat with', 'connect me', 'transfer me',
@@ -641,7 +649,6 @@ function assistant_person_request(string $t): bool
     if ($person && $talk) return true;
     // «في احد يرد؟», «احد يساعدني», "is anyone available to help": asking whether a person is there.
     return assistant_has($t, ['احد يرد', 'حد يرد', 'احد يساعد', 'حد يساعد', 'احد يجاوب', 'حد يجاوب', 'احد يكلمني', 'احد يتواصل',
-                              'is anyone available', 'is anybody available', 'is there someone', 'is there anyone',
                               'someone to help', 'anyone to help', 'someone who can help', 'ahad yrod', 'ahad yrid']);
 }
 
@@ -768,9 +775,11 @@ function assistant_refund_status(string $t): bool
     }
     $noun = assistant_has($t, ['refund*', 'money back', 'reimburs*', 'استرداد', 'المسترد', 'مسترد', 'الاسترجاع حقي',
                                'استرجاعي', 'استرجاع المبلغ', 'استرجاع فلوس', 'استرجاع الفلوس']);
-    $money = assistant_has($t, ['المبلغ', 'الفلوس', 'فلوسي', 'فلوس', 'my money', 'the money', 'the amount'])
-        && assistant_has($t, ['رجع', 'ترجع', 'يرجع', 'استرجع', 'تنزل', 'ينزل', 'تتحول', 'يتحول', 'تحول', 'back', 'returned',
-                              'refunded', 'credited']);
+    $money = (assistant_has($t, ['المبلغ', 'الفلوس', 'فلوسي', 'فلوس', 'my money', 'the money', 'the amount'])
+            && assistant_has($t, ['رجع', 'ترجع', 'يرجع', 'استرجع', 'تنزل', 'ينزل', 'تتحول', 'يتحول', 'تحول', 'back', 'returned',
+                                  'refunded', 'credited']))
+        // «وين فلوسي» / "where is my money": nothing else needed.
+        || (assistant_has($t, ['فلوسي', 'my money']) && assistant_has($t, ['وين', 'متى', 'where', 'when']));
     if (!$noun && !$money) return false;
     return assistant_has($t, ['where', 'when', 'how long', 'how many days', 'how soon', 'how much longer', 'still', 'yet',
                               'waiting', 'not received', 'never received', "haven't received", 'have not received',
@@ -887,6 +896,10 @@ function assistant_route(string $text): array
     // for SP…, I want a refund" needs somebody to look at the payment, not the
     // status card or the 14-day policy.
     if (assistant_money_complaint($t)) return ['contact', 'money'];
+
+    // "What does payment pending mean" is asked about an order: its number gets
+    // its own stage (assistant_pending_meaning).
+    if (assistant_pending_meaning($t)) return ['order_status', null];
 
     // AN ORDER TO TAKE BACK that has no cancel word in it: "remove my order",
     // "I ordered twice by mistake", «الطلب مكرر». After the money rule, so a
@@ -1022,8 +1035,7 @@ function assistant_route(string $text): array
                  'stitching is', 'stitching has', 'stitching was', 'stitching fell', 'stitches came', 'stitches are',
                  'loose stitching', 'loose thread', 'loose threads', 'threads coming', 'are see through', 'is see through',
                  'are seethrough', 'is seethrough', 'are see-through', 'is see-through', 'became see through',
-                 'become see through', 'went see through', 'turned see through', 'too see through', 'very see through',
-                 'so see through', 'got see through', 'poor quality', 'bad quality', 'low quality', 'cheap quality',
+                 'become see through', 'went see through', 'turned see through', 'got see through', 'poor quality', 'bad quality', 'low quality', 'cheap quality',
                  'shrunk', 'shrank', 'peeling', 'pilling'];
     // Not a bare "used" or "worn": "what is this item used for", "can I return
     // worn items?" are questions; "arrived used", "already worn" are above.
@@ -1039,7 +1051,7 @@ function assistant_route(string $text): array
     // A question about the part ("does the zipper work", "a jacket with a zipper")
     // has no fault word and is not a complaint.
     $partFault = assistant_has($t, ['zipper', 'zip', 'zips', 'drawstring', 'velcro', 'elastic', 'waistband', 'seam', 'seams',
-                                    'button', 'buttons', 'strap', 'straps', 'زبر', 'الزبر', 'سوسته', 'السوسته', 'زيب', 'الزيب',
+                                    'strap', 'straps', 'زبر', 'الزبر', 'سوسته', 'السوسته', 'زيب', 'الزيب',
                                     'سحاب'])
         && assistant_has($t, ['broken', 'stuck', 'jammed', 'not working', "doesn't work", 'does not work', 'came off', 'fell off',
                               'ripped', 'torn', 'snapped', 'split', 'خربان', '^خرب', 'مكسور', 'معطل', 'ما يشتغل', 'ما يسكر',
@@ -1244,8 +1256,11 @@ function assistant_route(string $text): array
     }
     // ("when will it reach me" is the parcel, so 'reach me' is in the contact
     // list further down, after delivery has had its turn.)
+    // (Not "thanks for the quick reply": that is a thank-you, and was paged as a
+    // request for a person.)
     if (assistant_has($t, ['call me back', 'call back', 'contact me', 'reply', 'replies', 'respond',
-                           'get back to me', 'answer my', 'email me', 'message me', 'text me'])) {
+                           'get back to me', 'answer my', 'email me', 'message me', 'text me'])
+        && preg_match('/(?:thanks?|thank you|thx|شكرا)\s+(?:you\s+)?(?:so much\s+)?for\s+(?:the|your)\s+(?:\w+\s+)?(?:reply|replies|response|responses)/u', $t) !== 1) {
         return ['contact', null];
     }
     if ((assistant_has($t, assistant_delivery_words()) && !assistant_has($t, assistant_restock_words()))

@@ -11,3 +11,61 @@
   min-width: 44px;
   min-height: 44px;
 }
+
+/* ---- Description, buy row, authenticity plate, small tap targets (live scan DESC-06, 09, 10, 11) ----------
+ * Every selector is scoped to .catalog-product-page so nothing here can reach another page. Specificity
+ * (0,2,0) or more beats the bundle's single-class rules and its utilities (.mt-3); this file loads after
+ * the bundle, so no !important is needed anywhere below. Proven on the live markup by
+ * scripts/product-desc-test.mjs (npm run test:product-desc). */
+
+/* DESC-06. The description is the owner's own text (desc_ar / desc_en), but it rendered with white-space:
+ * normal, so every line break the owner typed collapsed (3 lines took 49px: two wrapped lines), and with
+ * overflow-wrap:normal one long token (a URL, a SKU, a hashtag) pushed the page sideways (a 70-character
+ * token gave scrollWidth 716 on a 390px screen; the title already has overflow-wrap:anywhere, the
+ * description did not). pre-line keeps the breaks and still collapses runs of spaces; anywhere lets a long
+ * token wrap. The gap under the title goes from .75rem to .5rem and the line height from 1.625 to 1.55, which
+ * lifts the price block by about 5px. No copy is changed and nothing is hidden. */
+.catalog-product-page .catalog-product-description {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  margin-top: .5rem;
+  line-height: 1.55;
+}
+
+/* DESC-09. From 768px the fixed buy bar (.action-bar) is display:none, but the layout is still one column
+ * until the gallery and the options sit side by side, so the only Add button was 730px below the fold on
+ * a tablet (row top 1753 against a 1024px screen) and 340-380px of scrolling on a laptop (1178 against
+ * 800). Sticking the row to the bottom of the screen puts it back in view: 951 (tablet), 724 (1280, two
+ * columns). It sticks inside its own section, so it never covers the footer. */
+@media (min-width: 768px) {
+  .catalog-product-page .product-purchase-row {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--canvas, #fff);
+    padding-block: .75rem;
+    box-shadow: 0 -1px 0 var(--line, rgba(23, 26, 30, .13));
+  }
+}
+
+/* DESC-10. The authenticity plate (logo, maker, "Authentic - sold by Sporta") took 95-110px between the
+ * price and the size picker on every product. Tighter padding (.875rem 1rem to .5rem .75rem) and row gap
+ * (.625rem to .25rem) make it 77-85px and move the first size button up by about 24px. Nothing is hidden. */
+.catalog-product-page .campaign-brand-plate {
+  padding: .5rem .75rem;
+  gap: .25rem .75rem;
+}
+
+/* DESC-11. The breadcrumb links (31-42 x 40px) and the Size guide button (98x41 / 79x40) were under the
+ * 44px tap minimum. Padding grows the hit area and an equal negative margin gives the space back, so the
+ * layout does not move (neighbouring link boxes do not overlap). */
+.catalog-product-page nav a {
+  padding-block: .75rem;
+  margin-block: -.75rem;
+  padding-inline: .5rem;
+  margin-inline: -.5rem;
+}
+.catalog-product-page .catalog-product-options button.text-accent {
+  min-height: 44px;
+  min-width: 44px;
+}

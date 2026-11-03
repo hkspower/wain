@@ -397,9 +397,9 @@ head('keywords are words, not pieces of words — and the order still holds')
     // returning an order is not tracking it
     ['I want to return my order', 'returns'], ['ابي ارجع طلبي', 'returns'], ['ابي ابدل طلبي', 'returns'],
     ['how do I exchange my order for a bigger size', 'returns'], ['ابي ارجع طلبي SP1AU702NKHTKDV', 'returns'],
-    ['how long do I have to return it', 'returns'], ['when will I get my refund', 'returns'],
+    ['how long do I have to return it', 'returns'], ['when will I get my refund', 'contact'],
     ['ابي اغير المقاس', 'returns'], ["the size doesn't fit, can I swap it", 'returns'],
-    ['رجعت اسأل عن طلبي SP1AU702NKHTKDV', 'order_status'], ['رجعت الطلب وين فلوسي', 'returns'],
+    ['رجعت اسأل عن طلبي SP1AU702NKHTKDV', 'order_status'], ['رجعت الطلب وين فلوسي', 'contact'],
     ['هل الطقم يرجع؟', 'search'],
     // Arabic substrings
     ['عندكم مقاسات أطفال ولا بس للبالغين؟', 'sizes'], ['ملابس رياضية للبالغين', 'search'],
@@ -425,7 +425,7 @@ head('keywords are words, not pieces of words — and the order still holds')
     // phrases that were too broad
     ['phone strap', 'search'], ['Gymshark phone strap', 'search'], ['phone armband for running', 'search'],
     ['card holder', 'search'], ['how long are the leggings', 'sizes'],
-    ['how long are the sleeves on the define jacket', 'sizes'], ['when will you restock XL', 'search'],
+    ['how long are the sleeves on the define jacket', 'sizes'], ['when will you restock XL', 'contact'],
     ['I entered the wrong address', 'contact'], ['do you have a store in the avenues', 'location'],
     ['where is your shop', 'location'], ['pickup?', 'location'], ['do you accept cards?', 'payment'], ['card?', 'payment'],
     ['when will I receive it', 'delivery'], ['when will I get it', 'delivery'],
@@ -439,7 +439,7 @@ head('keywords are words, not pieces of words — and the order still holds')
     ["what's your number", 'contact'], ['complaint', 'contact'], ['can I talk to someone', 'contact'],
     ['any discounts?', 'recommend'], ['new arrivals', 'recommend'], ['sale', 'recommend'],
     ['black friday sale', 'recommend'], ['gift for my husband', 'recommend'], ['cash?', 'payment'], ['tabby?', 'payment'],
-    ['when does it come', 'delivery'], ['do you offer this in XL', 'search'], ['any update on the XL restock', 'search'],
+    ['when does it come', 'delivery'], ['do you offer this in XL', 'search'], ['any update on the XL restock', 'contact'],
     // Arabizi, typos and bare sizes
     ['wain talabi', 'order_status'], ['wen el talab', 'order_status'], ['talabi wain wasal', 'order_status'],
     ['tawseel kam?', 'delivery'], ['kam el tawseel', 'delivery'], ['abi arja3 el talab', 'returns'],
@@ -656,10 +656,10 @@ head('small talk gets a hello or a thank-you, never "nothing matched"')
 head('timing, card and fit questions have their answers back')
 {
   const C = [
-    // "when will it / they" is delivery again — but a restock is still a search.
+    // "when will it / they" is delivery again — but a restock is a question for a person (round four: it was "nothing matched").
     ['when will I have it', 'delivery'], ['when will it reach me', 'delivery'], ['when will it get here', 'delivery'],
     ['when will they arrive', 'delivery'], ['when can I expect it', 'delivery'], ['when should I expect my parcel', 'delivery'],
-    ['when will it be back in stock', 'search'], ['when will they be restocked', 'search'], ['when will you restock XL', 'search'],
+    ['when will it be back in stock', 'contact'], ['when will they be restocked', 'contact'], ['when will you restock XL', 'contact'],
     // "card" with no product named is a payment question; a card holder is a product.
     ['can I use my card', 'payment'], ['card accepted?', 'payment'], ['do you accept paypal', 'payment'],
     ['do you accept debit', 'payment'], ['card holder', 'search'], ['cardigan', 'search'],
@@ -950,8 +950,10 @@ head('timing words are the parcel\'s, not the shop\'s or the stock\'s')
   const got = await intents(C.map(([q]) => q))
   C.forEach(([q, want], i) => is(got[i] === want, `"${q}" -> ${want}`, got[i]))
   // Stock questions are about stock: never the courier's timetable.
-  const S = [['when will it be available in XL', 'sizes'], ['when will they have size xl', 'sizes'], ['when will it be in stock', 'search'],
-             ['when will it be available', 'search'], ['when will they get new stock', 'search'], ['when will they have hoodies', 'search']]
+  // (Round four: with no garment named they are a question for a person — restock,
+  // with the item and the size to send — and no longer "nothing matched".)
+  const S = [['when will it be available in XL', 'contact'], ['when will they have size xl', 'sizes'], ['when will it be in stock', 'contact'],
+             ['when will it be available', 'contact'], ['when will they get new stock', 'contact'], ['when will they have hoodies', 'search']]
   const sg = await intents(S.map(([q]) => q))
   S.forEach(([q, want], i) => is(sg[i] === want, `"${q}" -> ${want}, not delivery`, sg[i]))
   const [hood] = await answersIn([], [['when will they have hoodies', 'en']])
@@ -1305,7 +1307,7 @@ head('round three: a model may not turn a promise round')
       assistant_llm_accept($t('Sure, here is what I found:'), $c('found', false), null, false),
       assistant_llm_accept($t('أهلًا وسهلًا في سبورتا. أقدر أتحقق من طلبك، وأشرح لك التوصيل والإرجاع والدفع، وأساعدك في اختيار المنتج والمقاس.'), $c('greeting', true), null, true),
       // Which answers may be sent to a model at all.
-      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, false), false), ['found', 'found_colour', 'not_carried', 'recommend', 'greeting', 'thanks', 'no_idea']),
+      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, false), false), ['found', 'recommend', 'greeting', 'thanks', 'bye', 'ack']),
       array_map(fn ($k) => assistant_llm_rewordable([], $c($k, true), true), ['returns', 'cancel', 'delivery', 'payment', 'stage_delivered', 'stage_unpaid', 'money',
                                                                              'complaint', 'checkout_problem', 'coupon', 'coupon_problem', 'no_offers', 'offers_auto', 'ask_track', 'contact']),
     ], JSON_UNESCAPED_UNICODE);`)
@@ -1316,7 +1318,7 @@ head('round three: a model may not turn a promise round')
                  '"unworn or worn, tags optional"', '"usually the same day" added to delivery', '"free to every area" added beside the fee']
   names.forEach((n, i) => is(acc[i] === null, `refused: ${n}`, acc[i] === null ? 'refused' : String(acc[i]).slice(0, 50)))
   is(typeof acc[11] === 'string' && typeof acc[12] === 'string', 'while a faithful rewording of a found or greeting line still passes', `${acc[11]} / ${String(acc[12]).slice(0, 20)}`)
-  is(acc[13].every(Boolean), 'the found family, the shelf, a hello, a thank-you and "nothing matched" may be reworded', JSON.stringify(acc[13]))
+  is(acc[13].every(Boolean), 'the found line, the shelf, a hello and a thank-you may be reworded (the stock claims may not: round four)', JSON.stringify(acc[13]))
   is(acc[14].every((x) => x === false), 'returns, cancel, delivery, payment, the order stages, money, complaint, checkout, coupons, offers and contact never are', JSON.stringify(acc[14]))
 }
 
@@ -1409,7 +1411,7 @@ head('round four: money taken, a payment that will not go through, a refund that
   const N = await routes(NOT)
   NOT.forEach((q, i) => is(N[i][1] !== 'money' && N[i][1] !== 'checkout_problem', `"${q}" is not a payment problem`, N[i].join('/')))
   is(N[0][0] === 'contact' && N[0][1] === 'order_change', 'but "I paid … want to change the size" is a change to an order, for a person', N[0].join('/'))
-  is(N[2][0] === 'payment' && N[3][0] === 'payment', 'and "payment pending, is that normal" is a payment question', `${N[2].join('/')} ${N[3].join('/')}`)
+  is(N[2][0] === 'order_status' && N[3][0] === 'order_status', 'and "payment pending, is that normal" is asked about an order: it is asked for the number, whose own stage then answers it', `${N[2].join('/')} ${N[3].join('/')}`)
 
   const REFUND = ['where is my refund', 'I returned the item 10 days ago and no refund yet', 'when do I get my refund', 'I am still waiting for my refund',
                   'I returned the item, where is my refund', 'I returned the item two weeks ago and no refund', 'كم يوم يرجع المبلغ', 'متى يرجع المبلغ',

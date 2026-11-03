@@ -102,6 +102,15 @@ li.text-amber-700 {
   }
 }
 
+/* C1, slide arrows. The previous / next slide buttons are `bg-black/35 text-white` discs with a backdrop
+   blur; over a bright photo (the arrow sits on the side AWAY from the copy, where the scrim above is
+   thinnest) the disc comes out at about #999 and the white arrow at 2.92:1, under the 3:1 an icon needs.
+   A charcoal disc at 62% is about 5.5:1 over the same pixels. :not(:hover) leaves the bundle's brand-orange
+   hover (hover:bg-brand hover:text-ink) alone. */
+#main [aria-roledescription="carousel"] > button[class*="bg-black/35"]:not(:hover) {
+  background-color: rgba(23, 26, 30, 0.62);
+}
+
 /* C2 + C3. Keyboard focus ring. The bundle draws it with `outline: 2px solid var(--html5-brand-bright)`
    = #ff7b17, which is 2.59:1 on white and 2.4 on the orange-50 guest note, under the 3:1 a focus indicator
    needs (WCAG 1.4.11). It is fine on charcoal (6.73:1), which is where the header, the footer and the brand

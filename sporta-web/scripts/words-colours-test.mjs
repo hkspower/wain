@@ -124,6 +124,22 @@ for (const lang of ['ar', 'en']) {
       await ctx.close()
     }
   }
+  for (const w of [1280, 768]) {
+    head(`C1 hero arrows ${lang} ${w}px`)
+    const { ctx, pg } = await open('hero', lang, w, 900)
+    // The disc is translucent, so measure what is rendered: a pixel inside the disc, left of the icon, with the
+    // arrow's own white icon hidden. Both arrows, over the brightest photo.
+    await pg.addStyleTag({ content: 'section>button svg{display:none}.campaign-hero-copy{visibility:hidden}.campaign-photo-hero-scrim{display:none}' })
+    const discs = await pg.evaluate(() => [...document.querySelectorAll('section[aria-roledescription=carousel] > button')].map((b) => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width] }))
+    for (const [i, [cx, cy, bw]] of discs.entries()) {
+      const px = png(await pg.screenshot({ clip: { x: Math.round(cx - bw / 2 + 12), y: Math.round(cy), width: 2, height: 2 } })).at(0, 0)
+      is(ratio(WHITE, px) >= 4.5, `arrow ${i + 1}: the white icon on its disc over the bright photo is 4.5:1 or more`, `${hex(px)} ${ratio(WHITE, px).toFixed(2)}`)
+    }
+    await pg.hover('section[aria-roledescription=carousel] > button:last-of-type'); await pg.waitForTimeout(300)
+    const hv = await pg.evaluate(() => getComputedStyle(document.querySelector('section[aria-roledescription=carousel] > button:last-of-type')).backgroundColor)
+    is(is_(hv, '#e0561c'), 'the bundle\'s brand-orange hover is untouched', hex(parse(hv)))
+    await ctx.close()
+  }
   for (const w of [1023, 768, 390]) {
     head(`C1 hero ${lang} ${w}px (under 1024 the live vertical scrim is untouched)`)
     const { ctx, pg } = await open('hero', lang, w, 900)
