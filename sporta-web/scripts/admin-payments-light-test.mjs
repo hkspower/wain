@@ -30,7 +30,15 @@
 //   - the content area around the screen and the screen root are light while the screen is open;
 //   - a control: an admin content area WITHOUT the screen, in the same page, still follows the dark rules (the scope
 //     is not global);
+//   - the same comparison again at 390px, because the live build changes some of its LIGHT rules at min-width 768px (h2/h3
+//     colour, a white background for fields: found by a width sweep of the live page), and a guard that only knew the
+//     desktop light would be wrong on a phone;
+//   - a run with every :has() branch of the section made inert (an older browser): the screen root and everything inside
+//     it must still be light;
 //   - a mutation check: with the "Light only" section cut out of the file, the same checks FAIL (listed).
+//
+// Debugging aids: DETAIL=<scenario name> prints every difference found in that scenario; PROBE=<selector> (with DETAIL)
+// prints the colour and background of that element and each ancestor.
 import { chromium } from 'playwright'
 import postcss from 'postcss'
 import tailwind from '@tailwindcss/postcss'
