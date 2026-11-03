@@ -190,7 +190,11 @@
   function load() {
     if (loading || (stock && Date.now() - stamp < 60000)) return
     loading = true
-    fetch('/api/api.php?r=stock', { credentials: 'same-origin' })
+    // A stalled request must not hold `loading` for ever (AbortSignal.timeout: Safari 16+,
+    // skipped where the browser lacks it).
+    var opts = { credentials: 'same-origin' }
+    try { if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(20000) } catch (e) {}
+    fetch('/api/api.php?r=stock', opts)
       .then(function (r) { return r.ok ? r.json() : null })
       .then(function (j) {
         var rows = Array.isArray(j) ? j : (j && j.stock) || []
@@ -201,7 +205,12 @@
         })
         stock = map; stamp = Date.now()
       })
-      .catch(function () {})
+      // A failed or unreadable answer (network error, timeout, HTML or broken JSON with a 200)
+      // counts as LOADED-BUT-UNKNOWN, exactly like a non-OK status: stock stays empty, the sizes
+      // stay as the app draws them, and load() may ask again only after the 60 s window. Before
+      // (2026-11-03, measured on the live product page with the API failing): stock stayed null,
+      // apply() called load() again on the next animation frame, about 60 requests a second.
+      .catch(function () { stock = {}; stamp = Date.now() })
       .then(function () { loading = false; schedule() })
   }
   function css() {
