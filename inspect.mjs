@@ -27,6 +27,21 @@ const chain = () => {
   out.push('SIBLINGS ' + JSON.stringify([...sp.parentElement.children].map((c) => c.tagName.toLowerCase() + '.' + [...c.classList].slice(0, 4).join('.') + ':' + getComputedStyle(c).backgroundColor + ':' + getComputedStyle(c).backgroundImage.slice(0, 50))))
   return out
 }
+
+const stack = () => {
+  const out = []
+  const re = /\u0646\u0641\u0630\u062a|sold out/i
+  const sps = [...document.querySelectorAll('span.absolute')].filter((s) => re.test(s.textContent.trim()) && s.closest('a')).slice(0, 3)
+  for (const sp of sps) {
+    sp.scrollIntoView({ block: 'center' })
+    const r = sp.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    const card = sp.closest('article')
+    const img = card && card.querySelector('img.catalog-card-photo')
+    out.push(JSON.stringify({ label: Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height), hit: hit ? hit.tagName.toLowerCase() + '.' + [...hit.classList].slice(0, 4).join('.') : null, hitIsLabel: hit === sp || sp.contains(hit), imgZ: img ? getComputedStyle(img).zIndex + '/' + getComputedStyle(img).position + '/' + (img.currentSrc || '').slice(-34) : 'noimg', imgOpacity: img ? getComputedStyle(img).opacity : null }))
+  }
+  return out
+}
 const hero = () => {
   const out = []
   const h = document.querySelector('.campaign-photo-hero')
@@ -44,6 +59,7 @@ const hero = () => {
 }
 try {
   if (CF.task === 'sold') { await go('/shop'); for (const l of await pg.evaluate(chain)) log('SOLD', l) }
+  if (CF.task === 'sold2') { await go('/shop'); for (const l of await pg.evaluate(stack)) log('STACK', l) }
   if (CF.task === 'hero') {
     await go('/')
     await pg.evaluate(() => { const p = [...document.querySelectorAll('button')].find((x) => /pause|إيقاف/i.test(x.getAttribute('aria-label') || '')); if (p) p.click() })
