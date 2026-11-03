@@ -42,6 +42,8 @@ const is = (ok, msg, detail = '') => {
 }
 const head = (t) => { if (!quiet) console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 66 - t.length))}`) }
 const notes = []
+const BASE = new Map()
+const page = async () => (await browser.newContext()).newPage()
 
 const measure = () => {
   const box = (sel) => {
@@ -75,11 +77,17 @@ const VARIANTS = [
 ]
 
 async function suite(css, tag) {
+  // One page for the whole run (a fresh browser context per case made the suite take half an hour);
+  // the baseline (the file without the section) does not depend on `css`, so it is measured once.
+  const pg = await page()
   const open = async (w, h, html) => {
-    const ctx = await browser.newContext({ viewport: { width: w, height: h } })
-    const pg = await ctx.newPage()
-    await pg.setContent(html)
-    return { ctx, pg }
+    await pg.setViewportSize({ width: w, height: h })
+    await pg.setContent(html, { waitUntil: 'domcontentloaded' })
+    return { pg, ctx: { close: async () => {} } }
+  }
+  const baseOf = async (key, w, h, html) => {
+    if (!BASE.has(key)) { await open(w, h, html); BASE.set(key, await pg.evaluate(measure)) }
+    return BASE.get(key)
   }
   for (const lang of ['ar', 'en']) {
     for (const [w, h] of SIZES) {
@@ -87,9 +95,9 @@ async function suite(css, tag) {
       for (const v of VARIANTS) {
         head(`${tag} ${lang} ${w}x${h} ${v.label}`)
         const opts = { lang, variant: v.variant, state: v.state || 'loaded', hdr }
+        const base = await baseOf(`${lang}|${w}|${v.variant}|${opts.state}`, w, h, shop(WITHOUT, opts))
         const a = await open(w, h, shop(css, opts))
-        const b = await open(w, h, shop(WITHOUT, opts))
-        const m = await a.pg.evaluate(measure), base = await b.pg.evaluate(measure)
+        const m = await a.pg.evaluate(measure)
 
         // --- what is removed ---
         is(gone(m.eyebrow), 'the eyebrow (سبورتا / المجموعة) has no box', m.eyebrow && `${m.eyebrow.display} ${m.eyebrow.h}px`)
@@ -144,7 +152,7 @@ async function suite(css, tag) {
           is(Math.abs(gap - m.root) < 1.5, 'the "no results" panel sits about 1rem under the sort row', `${gap.toFixed(1)}px vs ${m.root.toFixed(1)}px`)
         }
         is(m.over <= 0, 'nothing overflows sideways', `${m.over}px`)
-        await a.ctx.close(); await b.ctx.close()
+        await a.ctx.close()
       }
 
       // --- CLS rule: first paint (empty grid), the footer starts at or below the fold ---
@@ -165,12 +173,12 @@ async function suite(css, tag) {
   for (const lang of ['ar', 'en']) {
     for (const w of [390, 1280]) {
       head(`${tag} ${lang} wishlist ${w}`)
+      const base = await baseOf(`${lang}|${w}|wishlist`, w, 800, wishlist(WITHOUT, { lang }))
       const a = await open(w, 800, wishlist(css, { lang }))
-      const b = await open(w, 800, wishlist(WITHOUT, { lang }))
-      const m = await a.pg.evaluate(measure), base = await b.pg.evaluate(measure)
+      const m = await a.pg.evaluate(measure)
       is(m.eyebrow.display !== 'none' && m.lead.display !== 'none' && m.h1.h > 20, 'wishlist keeps its eyebrow, intro and a full-size title')
       is(Math.abs(m.heading.h - base.heading.h) < 0.5 && m.heading.bb === base.heading.bb, 'wishlist title block is the same height, with its divider', `${m.heading.h} vs ${base.heading.h}`)
-      await a.ctx.close(); await b.ctx.close()
+      await a.ctx.close()
     }
   }
 }
