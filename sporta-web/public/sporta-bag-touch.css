@@ -96,9 +96,16 @@
 
 /* [menu-3] Menu tabs, phones. The five columns stay equal while every label fits (they do from 360px in
  * both languages), but a column may now grow to its label instead of letting it spill, and the row
- * scrolls sideways, without a scrollbar, when even that is not enough. */
+ * scrolls sideways, without a scrollbar, when even that is not enough.
+ * justify-content:start is load-bearing for that scroll: the live list carries Tailwind's justify-center,
+ * which still applies to a grid, and when the tracks are wider than the list it splits the overflow
+ * across BOTH edges; the half before the start edge is not scrollable, so the first tab (Home) could never
+ * be brought fully on screen (measured at 320px with one label lengthened: tab 0 unreachable). With
+ * start, all the overflow is after the last tab, in the scrollable direction, in Arabic and in English.
+ * (While the tracks fit, the 1fr columns fill the list and the value changes nothing.) */
 @media (max-width: 639px) {
   .app-header div.navbar-secondary > ul {
+    justify-content: start;
     grid-template-columns: repeat(5, minmax(min-content, 1fr));
     overflow-x: auto;
     overflow-y: hidden;

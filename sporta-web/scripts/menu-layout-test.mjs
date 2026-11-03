@@ -59,6 +59,22 @@ const FOCUS = () => {
     x: r.left, y: r.top, w: r.width, h: r.height, topbarBottom: top.bottom, vw: document.documentElement.clientWidth,
   }
 }
+// Can each tab be scrolled FULLY into the visible part of the tab row? Walks the row's scroll position from one end to the
+// other in 8px steps (both directions of a scroller, so RTL's negative range is covered) and records, per tab, whether
+// its whole box lay inside the row's box at some position. A row whose overflow is split across both edges fails here for
+// the first tab: that half of the overflow is before the scroll origin and cannot be reached.
+const REACH = () => {
+  const ul = document.querySelector('.navbar-secondary > ul'), tabs = [...ul.querySelectorAll('.navbar-link')]
+  const seen = tabs.map(() => false)
+  const look = () => { const u = ul.getBoundingClientRect(); tabs.forEach((t, i) => { const r = t.getBoundingClientRect(); if (r.left >= u.left - 0.5 && r.right <= u.right + 0.5) seen[i] = true }) }
+  look()
+  for (const dir of [1, -1]) {
+    ul.scrollLeft = 0
+    for (let k = 0; k < 400; k++) { const before = ul.scrollLeft; ul.scrollLeft = before + dir * 8; look(); if (ul.scrollLeft === before) break }
+  }
+  ul.scrollLeft = 0
+  return seen
+}
 const LONG = {
   ar: { bar: 'التوصيل خلال ٢٤ ساعة داخل الكويت · الدفع عند الاستلام · استبدال مجاني خلال ١٤ يوماً · شحن سريع لكل المحافظات · عروض نهاية الموسم', tab: 'حسابي وطلباتي وعناويني' },
   en: { bar: 'Delivery within 24 hours inside Kuwait · Cash on delivery · Free exchange within 14 days · Fast shipping to every governorate · End of season offers', tab: 'Account settings and orders' },
@@ -70,9 +86,10 @@ const capture = async (css, lang, w, opt = {}) => {
   const pg = await ctx.newPage()
   await pg.setContent(buildPage(lang, css, !!opt.early))
   await pg.evaluate(() => document.fonts.ready)
-  if (opt.stress) await pg.evaluate(({ bar, tab }) => { document.querySelector('.topbar .truncate').textContent = bar; document.querySelectorAll('.navbar-link')[4].textContent = tab }, LONG[lang])
+  // opt.stress = 1: the last label is lengthened; 2: the last two are (a longer live "Account", say)
+  if (opt.stress) await pg.evaluate(({ bar, tab, n }) => { document.querySelector('.topbar .truncate').textContent = bar; const l = document.querySelectorAll('.navbar-link'); for (let i = 0; i < n; i++) l[4 - i].textContent = tab }, { ...LONG[lang], n: opt.stress })
   await pg.mouse.move(w - 1, 700) // off the header, so nothing is hovered
-  if (opt.stress) { const m = await pg.evaluate(measure); await ctx.close(); return { m } }
+  if (opt.stress) { const m = await pg.evaluate(measure); const reach = await pg.evaluate(REACH); await ctx.close(); return { m, reach } }
   const m = await pg.evaluate(measure)
   const tabs = await pg.$$('.navbar-link')
   await tabs[2].hover()
@@ -163,13 +180,16 @@ const suite = async (css) => {
       is(near(E.m.h.header, m.h.header, 0.5) && E.m.tabFont >= 13.99 && ring.length === TAB_STOPS && ring.every((x) => x.width >= 2.99), 'the section wins whatever the load order (placed before the live bundle: same height, 14px tabs, 3px ring)', `${f1(E.m.h.header)} vs ${f1(m.h.header)}, ${f1(E.m.tabFont)}px`)
     }
     if (w === 320) {
-      const S = (await capture(css, lang, w, { stress: true })).m
+      const SR = await capture(css, lang, w, { stress: 1 }), S = SR.m
       // (the third line is laid out but clipped by the line clamp, so the bar's own height is what counts)
       is(S.h.topbar <= 36.5 && S.h.header <= 138.5, 'a long announcement stops at two lines (bar 36px at most) and the chrome stays within the old 138px', `bar ${f1(S.h.topbar)}px, chrome ${f1(S.h.header)}px`)
       is(S.docOverflow <= 0 && S.hdrOverflow <= 0, 'a long tab label does not push the page or the header sideways', `${S.docOverflow} / ${S.hdrOverflow}`)
       const st = [...S.tabBoxes.map((x, i) => [x[0], x[1], S.boxes['tab' + i].h])].sort((p, q) => p[0] - q[0])
       is(st.every((x) => x[1] >= 43.99 && x[2] >= 43.99) && st.slice(1).every((x, i) => x[0] >= st[i][0] + st[i][1] - 0.5), 'the tabs stay 44x44 and do not overlap each other, even then', st.map((x) => f1(x[1])).join(' / '))
       is(S.ulOverflow > 0.5 && S.ulOverflowX === 'auto' && S.ulScrollbarWidth === 'none', 'and the row scrolls sideways, without a scrollbar, to reach the rest', `scrolls ${f1(S.ulOverflow)}px, ${S.ulOverflowX}/${S.ulScrollbarWidth}`)
+      is(S.ulOverflow > 0.5 && SR.reach.every(Boolean), 'and EVERY tab, the first (Home) included, can be scrolled fully into view', `reachable ${SR.reach.map((x) => (x ? 'yes' : 'NO')).join(' ')}`)
+      const S2 = await capture(css, lang, w, { stress: 2 })
+      is(S2.m.ulOverflow > 0.5 && S2.reach.every(Boolean) && S2.m.docOverflow <= 0, 'also with the last two labels lengthened', `scrolls ${f1(S2.m.ulOverflow)}px, reachable ${S2.reach.map((x) => (x ? 'yes' : 'NO')).join(' ')}`)
     }
   }
   return rows
@@ -191,8 +211,25 @@ const codeNoAt = code.replace(/@media[^{]*\{/g, '') // the media prefixes are no
 const selectors = [...codeNoAt.matchAll(/(^|[};])\s*([^{};]+)\{/g)].map((x) => x[2].trim()).filter(Boolean)
 // split on top-level commas only (":is(a, button)" is one selector)
 const topSplit = (sel) => { const out = []; let d = 0, cur = ''; for (const ch of sel) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && d === 0) { out.push(cur.trim()); cur = '' } else cur += ch } out.push(cur.trim()); return out }
-const unscoped = selectors.flatMap(topSplit).filter((t) => !t.startsWith('.app-header'))
+// A selector is scoped when it is `.app-header`, white space, then a DESCENDANT path: the whole word `.app-header` (not
+// `.app-headerX`), and no sibling or general-sibling combinator anywhere (`.app-header ~ main a`, `.app-header + footer button`
+// reach outside the header), and no `:not(` / `:has(` / `:where(` wrapper that could widen it. (`:is(a, button)` on the
+// right-hand side is fine: it can only narrow what is already under the header.)
+const scopeBad = (sel) => !/^\.app-header\s+[^\s~+>]/.test(sel) && !/^\.app-header\s*>\s*[^\s~+>]/.test(sel) || /[~+]/.test(sel.replace(/\([^)]*\)/g, '')) || /:(not|has|where)\(/.test(sel)
+const unscoped = selectors.flatMap(topSplit).filter(scopeBad)
 is(selectors.length >= 8 && unscoped.length === 0, 'every selector in the section is under .app-header', unscoped.join(' | '))
+{
+  // the check itself must see what it is for: each of these widenings keeps the `.app-header` prefix and must be flagged
+  const widened = ['.app-header ~ main a', '.app-header + footer button', '.app-headerX .navbar-link', '.app-header', '.app-header:not(.x) a', '.app-header .a ~ .b', '.topbar', '.navbar-link']
+  const missed = widened.filter((x) => !scopeBad(x))
+  is(missed.length === 0, 'the scope check flags prefix-keeping widenings (~, +, .app-headerX, bare, :not) and unscoped selectors', missed.join(' | '))
+  const fine = ['.app-header .topbar', '.app-header nav.navbar-main', '.app-header .navbar-main :is(a, button):focus-visible', '.app-header div.navbar-secondary > ul', '.app-header .navbar-secondary ul .navbar-link:focus-visible']
+  const wrong = fine.filter(scopeBad)
+  is(wrong.length === 0, 'and passes the descendant selectors the section really uses', wrong.join(' | '))
+  const sels = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '').matchAll(/(^|[};])\s*([^{};]+)\{/g)].map((x) => x[2].trim()).filter(Boolean).flatMap(topSplit)
+  const widenedSection = sels(SECTION.replace('.app-header .topbar {', '.app-header ~ main .topbar {')).filter(scopeBad)
+  is(widenedSection.length === 1, 'a prefix-keeping widening of the real section (`.app-header ~ main .topbar`) is caught', widenedSection.join(' | '))
+}
 const physical = codeNoAt.match(/\b(margin|padding|border)-(left|right)\b|(^|[\s{;])(left|right)\s*:|text-align\s*:\s*(left|right)|\bwidth\s*:\s*\d+px/gi)
 is(!physical, 'logical properties only (no left/right, no fixed pixel widths)', physical ? physical.join(', ') : '')
 is(!/!important/.test(code), 'no !important')
@@ -213,11 +250,16 @@ const blocks = []
   marks.forEach((mk, i) => blocks.push({ n: mk.n, text: SECTION.slice(mk.at, i + 1 < marks.length ? marks[i + 1].at : SECTION.length) }))
 }
 is(blocks.length === 5, 'the section has its five numbered blocks [menu-1] .. [menu-5]', String(blocks.length))
+is(SECTION.replace(/\n\s*justify-content: start;/, '') !== SECTION, 'the section declares justify-content: start on the phone tab row (its mutant below is real)')
 const sectionPass = pass, sectionFail = fail
 quiet = true
 head('mutation')
 const mutants = [{ name: 'whole section cut', css: BEFORE_CSS }]
 for (const bl of blocks) mutants.push({ name: `[menu-${bl.n}] cut`, css: BEFORE_CSS + '\n' + SECTION.replace(bl.text, '') })
+// the one declaration that makes the sideways scroll reach the FIRST tab (see [menu-3]): without it the overflow is split
+// across both edges and Home cannot be scrolled into view
+const NOJC = SECTION.replace(/\n\s*justify-content: start;/, '')
+mutants.push({ name: '[menu-3] justify-content cut', css: BEFORE_CSS + '\n' + NOJC })
 const killed = []
 for (const mu of mutants) {
   await suite(mu.css)
