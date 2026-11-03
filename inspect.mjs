@@ -42,6 +42,20 @@ const stack = () => {
   }
   return out
 }
+
+const mainInfo = () => {
+  const m = document.querySelector('#main')
+  const out = []
+  const sig = (e) => e ? e.tagName.toLowerCase() + '#' + (e.id || '') + '.' + [...e.classList].slice(0, 4).join('.') : 'none'
+  out.push('MAIN ' + sig(m) + ' parent=' + sig(m && m.parentElement))
+  out.push('IN-MAIN hero=' + !!(m && m.querySelector('.campaign-photo-hero')) + ' brandbar=' + !!(m && m.querySelector('.brand-bar__track')) + ' footer=' + !!(m && m.querySelector('footer,.app-footer')) + ' header=' + !!(m && m.querySelector('header.app-header')) + ' drawer=' + !!(m && m.querySelector('.campaign-cart-drawer')) + ' tiles=' + !!(m && m.querySelector('.campaign-category')))
+  out.push('MAINS ' + document.querySelectorAll('main').length + ' ' + [...document.querySelectorAll('main')].map(sig).join(' | '))
+  const brandBg = (sel) => { const e = document.querySelector(sel); return e ? sel + ' bg=' + getComputedStyle(e).backgroundColor : sel + ' none' }
+  out.push(brandBg('.campaign-brand-bar') + ' ; ' + brandBg('.brand-bar__track') + ' ; ' + brandBg('.campaign-category') + ' ; ' + brandBg('.home-features-wrap'))
+  const c = document.querySelector('.catalog-card-name')
+  out.push('CARDNAME ' + (c ? getComputedStyle(c).color + ' ' + c.className.slice(0, 80) : 'none'))
+  return out
+}
 const hero = () => {
   const out = []
   const h = document.querySelector('.campaign-photo-hero')
@@ -60,6 +74,7 @@ const hero = () => {
 try {
   if (CF.task === 'sold') { await go('/shop'); for (const l of await pg.evaluate(chain)) log('SOLD', l) }
   if (CF.task === 'sold2') { await go('/shop'); for (const l of await pg.evaluate(stack)) log('STACK', l) }
+  if (CF.task === 'main') { await go('/'); for (const l of await pg.evaluate(mainInfo)) log('MAININFO', l) }
   if (CF.task === 'hero') {
     await go('/')
     await pg.evaluate(() => { const p = [...document.querySelectorAll('button')].find((x) => /pause|إيقاف/i.test(x.getAttribute('aria-label') || '')); if (p) p.click() })
