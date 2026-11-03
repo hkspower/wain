@@ -129,7 +129,7 @@ let browser
   } else if (MODE === 'colors') {
     // Contrast of every text-bearing element in the Payments section, lowest first, in the colour scheme
     // given by SCHEME (light | dark). Limits: 4.5:1, or 3:1 for large text (>= 24px, or >= 18.66px bold).
-    const { ctx, pg } = await open(Number(process.env.W || 390), 844, false)
+    const { ctx, pg } = await open(Number(process.env.W || 390), 844)
     const out = await pg.evaluate(() => {
       // Any CSS colour (the compiled theme uses lab() and oklch()) to sRGB bytes, by painting one canvas pixel.
       const cv = document.createElement('canvas'); cv.width = 1; cv.height = 1
@@ -170,7 +170,7 @@ let browser
   } else if (MODE === 'surface') {
     // Computed surfaces of the Payments screen: what paints the page, the cards, the fields and the text, in the
     // colour scheme given by SCHEME. With BLOCK_ADDON=1 it is the compiled admin alone.
-    const { ctx, pg } = await open(Number(process.env.W || 390), 844, false)
+    const { ctx, pg } = await open(Number(process.env.W || 390), 844)
     const out = await pg.evaluate(() => {
       const sels = ['html', 'body', '.admin-shell', '.admin-content', '.payment-settings', 'h1', '.payment-gateway-card', '.payment-gateway-card dl > div', '.payment-gateway-card dd', '.payment-gateway-editor', '.payment-knet-toggle-row', '.payment-secret-field__label', 'label > span.text-xs', 'input.mt-1', 'p.text-sm', 'button.bg-indigo-600', '[data-sporta-knet-ids]', '[data-sporta-tpay-ips]', 'label.rounded-2xl']
       const rows = [`scheme ${matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'} | html color-scheme ${getComputedStyle(document.documentElement).colorScheme}`]
