@@ -266,6 +266,14 @@ function inPageOpeners() {
     const same = [...root.querySelectorAll('button, [role=tab], a[href^="#"], summary')].filter((x) => !(side && side.contains(x)) && clean(x.textContent || x.getAttribute('aria-label')).slice(0, 40) === text && vis(x))
     out.push({ kind: isTab ? 'tab' : 'button', text, nth: same.indexOf(e) })
   }
+  // A list row's own button (an order number, a ticket reference, a customer): the way into a detail
+  // drawer. Table rows on the desktop, .m-row cards on the phone.
+  const ROWS = 'tbody tr, .m-row, .m-list > *, li, [role=row]'
+  const row1 = [...root.querySelectorAll(ROWS)].find((x) => vis(x) && [...x.querySelectorAll('button, [role=button]')].some((b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label')))))
+  if (row1) {
+    const b = [...row1.querySelectorAll('button, [role=button]')].find((x) => vis(x) && !NOT.test(clean(x.textContent || x.getAttribute('aria-label'))))
+    out.push({ kind: 'rowbtn', text: clean(b.textContent || b.getAttribute('aria-label')).slice(0, 24) || 'icon', nth: 0 })
+  }
   const row = root.querySelector('table tbody tr')
   if (row && vis(row)) out.push({ kind: 'row', text: 'first row', nth: 0 })
   return out
@@ -276,6 +284,14 @@ function inPageClickOpener(op) {
   const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && c.visibility !== 'hidden' && c.display !== 'none' }
   const side = document.querySelector('.admin-sidebar') || document.querySelector('aside')
   const root = document.querySelector('.admin-content') || document.querySelector('main') || document.body
+  if (op.kind === 'rowbtn') {
+    const NOT = /delete|remove|cancel|clear|reset|block|ban|refund|void|revoke|log ?out|sign ?out|disconnect|unlink|archive|empty|purge|wipe|call|whatsapp|print|download|export|copy|view site|view on site|next|prev|more|load/i
+    const ROWS = 'tbody tr, .m-row, .m-list > *, li, [role=row]'
+    const row1 = [...root.querySelectorAll(ROWS)].find((x) => vis(x) && [...x.querySelectorAll('button, [role=button]')].some((b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label')))))
+    if (!row1) return false
+    const b = [...row1.querySelectorAll('button, [role=button]')].find((x) => vis(x) && !NOT.test(clean(x.textContent || x.getAttribute('aria-label'))))
+    b.scrollIntoView({ block: 'center' }); b.click(); return true
+  }
   if (op.kind === 'row') {
     const row = root.querySelector('table tbody tr')
     if (!row) return false
@@ -547,7 +563,7 @@ for (const [vn, w, h, mob] of VIEWS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mob, hasTouch: mob, deviceScaleFactor: mob ? 2 : 1, locale: 'en-US', serviceWorkers: 'block' })
   const pg = await ctx.newPage()
   pg.setDefaultTimeout(5000)
-  const R = result[vn] = { nav: null, navAfterOpen: null, shell: {}, screens: [], dialogs: [], listeners: new Set(), unknown: new Map(), errs: new Set(), writes: [] }
+  const R = result[vn] = { nav: null, navAfterOpen: null, shell: {}, screens: [], dialogs: [], listeners: new Set(), unknown: new Map(), errs: new Set(), writes: [], left: [] }
   let hold = 0                       // ms the mock holds a write's answer (the busy probe)
   let context = ''                   // what the scan is doing, for the logs
   await pg.addInitScript(() => {
@@ -561,6 +577,11 @@ for (const [vn, w, h, mob] of VIEWS) {
     const req = route.request(), u = new URL(req.url())
     if (u.origin !== BASE) return route.continue()
     const method = req.method()
+    // A button that leaves the admin (a "View" that opens the storefront) is answered with an empty page and logged.
+    if (req.isNavigationRequest() && req.frame() === pg.mainFrame() && !u.pathname.startsWith('/backends')) {
+      R.left.push(`${context} -> ${u.pathname}`)
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>left admin</title>' })
+    }
     if (u.pathname.includes('/api/admin')) {
       const r = u.searchParams.get('r') || ''
       if (method !== 'GET') {
@@ -576,7 +597,10 @@ for (const [vn, w, h, mob] of VIEWS) {
   })
 
   const load = async () => {
-    await pg.goto(BASE + '/backends', { waitUntil: 'networkidle' })
+    // ERR_ABORTED: a click in the step before had started a navigation of its own; try again
+    for (let k = 0; ; k++) {
+      try { await pg.goto(BASE + '/backends', { waitUntil: 'networkidle' }); break } catch (e) { if (k >= 3) throw e; await pg.waitForTimeout(900) }
+    }
     await pg.waitForTimeout(700)
   }
   const openMenu = async () => {
@@ -623,23 +647,28 @@ for (const [vn, w, h, mob] of VIEWS) {
     const scr = { name: item.text, href: item.href, steps: [], opened: false, shell: null, buttonsAll: new Set() }
     R.screens.push(scr)
     context = item.text
-    if (!(await goScreen(item))) { scr.error = 'nav item could not be clicked'; continue }
-    scr.opened = true
-    scr.shell = await pg.evaluate(inPageShell)
-    const openers = (await pg.evaluate(inPageOpeners)).slice(0, MAX_OPENERS)
+    let openers = []
+    try {
+      if (!(await goScreen(item))) { scr.error = 'nav item could not be clicked'; continue }
+      scr.opened = true
+      scr.shell = await pg.evaluate(inPageShell)
+      openers = (await pg.evaluate(inPageOpeners)).slice(0, MAX_OPENERS)
+    } catch (e) { scr.error = e.message.split('\n')[0].slice(0, 100); continue }
     const seen = new Set()
-    const stepList = [{ name: 'load', op: null }, ...openers.map((op) => ({ name: op.kind === 'row' ? 'row' : op.kind === 'tab' ? 'tab:' + op.text : op.text, op }))]
+    const stepList = [{ name: 'load', op: null }, ...openers.map((op) => ({ name: op.kind === 'row' ? 'row' : op.kind === 'rowbtn' ? 'rowbtn:' + op.text : op.kind === 'tab' ? 'tab:' + op.text : op.text, op }))]
     for (let si = 0; si < stepList.length; si++) {
       const st = stepList[si]
       context = `${item.text}/${st.name}`
-      if (si > 0) {
-        if (!(await goScreen(item))) break
-        const clicked = await pg.evaluate(inPageClickOpener, st.op)
-        await pg.waitForTimeout(clicked ? 900 : 100)
-        if (!clicked) { scr.steps.push({ name: st.name, skipped: 'opener not found after reload' }); continue }
-      }
       let m
-      try { m = await pg.evaluate(inPageMeasure) } catch (e) { scr.steps.push({ name: st.name, error: e.message.slice(0, 100) }); continue }
+      try {
+        if (si > 0) {
+          if (!(await goScreen(item))) break
+          const clicked = await pg.evaluate(inPageClickOpener, st.op)
+          await pg.waitForTimeout(clicked ? 900 : 100)
+          if (!clicked) { scr.steps.push({ name: st.name, skipped: 'opener not found after reload' }); continue }
+        }
+        m = await pg.evaluate(inPageMeasure)
+      } catch (e) { scr.steps.push({ name: st.name, error: e.message.split('\n')[0].slice(0, 100) }); continue }
       // only what this step adds: a surface seen in an earlier step is not repeated
       const sig = (s) => [s.kind, s.root.sel, s.fields.n, s.save ? s.save.text : '-'].join('|')
       // new in this step; repeated rows share a signature, so only the first of each is probed
@@ -650,55 +679,57 @@ for (const [vn, w, h, mob] of VIEWS) {
       const step = { name: st.name, m, fresh: fresh.map((s) => s.id), freshSigs: [...freshSigs], sig }
       m.buttons.forEach((b) => scr.buttonsAll.add(b))
       // ---- probes (desktop): does a change write by itself? what does a pending Save look like?
-      if ((vn === 'desktop' ? PROBE : PROBE_PHONE) && fresh.length) {
-        for (const s of fresh) {
-          s.auto = []
-          for (let k = 0; k < s.probeFields; k++) {
-            const sel = `[data-scan-f="${s.id}.${k}"]`
-            const info = await pg.evaluate((q) => { const e = document.querySelector(q); return e ? { tag: e.tagName.toLowerCase(), type: (e.getAttribute('type') || '').toLowerCase(), value: e.value, checked: e.checked, options: e.options ? e.options.length : 0, role: e.getAttribute('role') || '' } : null }, sel)
-            if (!info) continue
-            const before = R.writes.length
-            let how = ''
-            try {
-              if (info.type === 'checkbox' || info.type === 'radio' || info.role === 'switch' || info.role === 'checkbox') { how = 'click'; await pg.evaluate((q) => document.querySelector(q).click(), sel) }
-              else if (info.tag === 'select' && info.options > 1) { how = 'select'; await pg.locator(sel).selectOption({ index: 1 }, { timeout: 1500 }) }
-              else if (info.tag === 'input' || info.tag === 'textarea') {
-                if (info.type === 'number') { how = 'type'; await pg.locator(sel).fill(String((Number(info.value) || 0) + 1), { timeout: 1500 }) }
-                else { how = 'type'; await pg.locator(sel).fill((info.value || '') + 'x', { timeout: 1500 }) }
+      try {
+        if ((vn === 'desktop' ? PROBE : PROBE_PHONE) && fresh.length) {
+          for (const s of fresh) {
+            s.auto = []
+            for (let k = 0; k < s.probeFields; k++) {
+              const sel = `[data-scan-f="${s.id}.${k}"]`
+              const info = await pg.evaluate((q) => { const e = document.querySelector(q); return e ? { tag: e.tagName.toLowerCase(), type: (e.getAttribute('type') || '').toLowerCase(), value: e.value, checked: e.checked, options: e.options ? e.options.length : 0, role: e.getAttribute('role') || '' } : null }, sel)
+              if (!info) continue
+              const before = R.writes.length
+              let how = ''
+              try {
+                if (info.type === 'checkbox' || info.type === 'radio' || info.role === 'switch' || info.role === 'checkbox') { how = 'click'; await pg.evaluate((q) => document.querySelector(q).click(), sel) }
+                else if (info.tag === 'select' && info.options > 1) { how = 'select'; await pg.locator(sel).selectOption({ index: 1 }, { timeout: 1500 }) }
+                else if (info.tag === 'input' || info.tag === 'textarea') {
+                  if (info.type === 'number') { how = 'type'; await pg.locator(sel).fill(String((Number(info.value) || 0) + 1), { timeout: 1500 }) }
+                  else { how = 'type'; await pg.locator(sel).fill((info.value || '') + 'x', { timeout: 1500 }) }
+                }
+              } catch (e) { s.auto.push(`${how || 'probe'}:err`); continue }
+              await pg.waitForTimeout(650)
+              const onChange = R.writes.slice(before)
+              let res = onChange.length ? `${how}->WRITE(${onChange.map((x) => x.r).join(',')})` : `${how}->none`
+              if (!onChange.length && how === 'type') {
+                const b2 = R.writes.length
+                await pg.locator(sel).blur({ timeout: 1000 }).catch(() => {}); await pg.evaluate((q) => { const e = document.querySelector(q); if (e) e.blur() }, sel)
+                await pg.waitForTimeout(550)
+                const onBlur = R.writes.slice(b2)
+                res = onBlur.length ? `type->blur->WRITE(${onBlur.map((x) => x.r).join(',')})` : 'type->none(+blur)'
               }
-            } catch (e) { s.auto.push(`${how || 'probe'}:err`); continue }
-            await pg.waitForTimeout(650)
-            const onChange = R.writes.slice(before)
-            let res = onChange.length ? `${how}->WRITE(${onChange.map((x) => x.r).join(',')})` : `${how}->none`
-            if (!onChange.length && how === 'type') {
-              const b2 = R.writes.length
-              await pg.locator(sel).blur({ timeout: 1000 }).catch(() => {}); await pg.evaluate((q) => { const e = document.querySelector(q); if (e) e.blur() }, sel)
-              await pg.waitForTimeout(550)
-              const onBlur = R.writes.slice(b2)
-              res = onBlur.length ? `type->blur->WRITE(${onBlur.map((x) => x.r).join(',')})` : 'type->none(+blur)'
+              s.auto.push(res)
             }
-            s.auto.push(res)
+          }
+          // busy probe on the first fresh surface with an enabled Save: hold the answer, sample the button
+          const target = fresh.find((s) => s.save && !s.save.disabled)
+          if (target) {
+            const q = `[data-scan-save="${target.id}"]`
+            const sample = () => pg.evaluate((qq) => { const e = document.querySelector(qq); if (!e) return null; const c = getComputedStyle(e); return { text: (e.textContent || '').trim().slice(0, 24), dis: e.disabled, aria: e.getAttribute('aria-disabled') || '', busy: e.getAttribute('aria-busy') || '', opacity: c.opacity, cursor: c.cursor, cls: String(e.className).slice(0, 90), spinner: !!e.querySelector('svg.animate-spin, .animate-spin, [class*="spin"]'), form: e.form ? e.form.checkValidity() : null } }, q)
+            const pre = await sample()
+            hold = 1400
+            const before = R.writes.length
+            let how = 'click'
+            try { await pg.evaluate((qq) => document.querySelector(qq).click(), q) } catch (e) { how = 'click-err' }
+            await pg.waitForTimeout(220)
+            const mid = await sample()
+            const fired = R.writes.length > before
+            await pg.waitForTimeout(1500)
+            hold = 0
+            const post = await sample()
+            target.busy = { how, pre, mid, post, fired }
           }
         }
-        // busy probe on the first fresh surface with an enabled Save: hold the answer, sample the button
-        const target = fresh.find((s) => s.save && !s.save.disabled)
-        if (target) {
-          const q = `[data-scan-save="${target.id}"]`
-          const sample = () => pg.evaluate((qq) => { const e = document.querySelector(qq); if (!e) return null; const c = getComputedStyle(e); return { text: (e.textContent || '').trim().slice(0, 24), dis: e.disabled, aria: e.getAttribute('aria-disabled') || '', busy: e.getAttribute('aria-busy') || '', opacity: c.opacity, cursor: c.cursor, cls: String(e.className).slice(0, 90), spinner: !!e.querySelector('svg.animate-spin, .animate-spin, [class*="spin"]'), form: e.form ? e.form.checkValidity() : null } }, q)
-          const pre = await sample()
-          hold = 1400
-          const before = R.writes.length
-          let how = 'click'
-          try { await pg.evaluate((qq) => document.querySelector(qq).click(), q) } catch (e) { how = 'click-err' }
-          await pg.waitForTimeout(220)
-          const mid = await sample()
-          const fired = R.writes.length > before
-          await pg.waitForTimeout(1500)
-          hold = 0
-          const post = await sample()
-          target.busy = { how, pre, mid, post, fired }
-        }
-      }
+      } catch (e) { step.probeError = e.message.split('\n')[0].slice(0, 100) }
       scr.steps.push(step)
     }
   }
@@ -750,6 +781,7 @@ for (const sd of D.screens) {
       } else out(`      NO-SAVE; buttons nearby: ${su.otherButtons.join(' / ') || 'none'}${pu ? '; phone kind ' + pu.kind : ''}`)
       for (const b of su.saves.filter((x) => su.save && (x.sel !== su.save.sel || x.text !== su.save.text))) out(`      also ${btnTxt(b)} | D ${posOf(b)}`)
       if (su.auto && su.auto.length) out(`      autosave: ${su.auto.join(' ; ')}`)
+      if (st.probeError) out(`      probe error: ${st.probeError}`)
       if (su.busy) out(`      busy(${su.busy.how}, write fired ${su.busy.fired}): pre ${st1(su.busy.pre)} | pending ${st1(su.busy.mid)} | after ${st1(su.busy.post)}${su.busy.mid && su.busy.mid.form === false ? ' | form invalid -> native validation blocks' : ''}`)
     }
   }
@@ -763,6 +795,7 @@ const pat = (R, vn) => {
   if (R.navAfterOpen) out(`P|${vn}|menu open: sidebar ${j(R.navAfterOpen.side)}; visible items ${R.navAfterOpen.items.filter((i) => i.vis).length}/${R.navAfterOpen.items.length}`)
   out(`P|${vn}|walked ${R.screens.filter((s) => s.opened).length}/${R.screens.length}; not opened: ${R.screens.filter((s) => !s.opened).map((s) => s.name).join(', ') || 'none'}; page errors: ${[...R.errs].join(' ; ') || 'none'}`)
   out(`P|${vn}|unmocked GET r=: ${[...R.unknown.entries()].map(([k, v]) => k + '(' + [...v].join('/') + ')').join(' ') || 'none'}`)
+  out(`P|${vn}|navigations away from /backends (stubbed): ${R.left.slice(0, 6).join(' ; ') || 'none'}`)
   out(`P|${vn}|browser dialogs: ${R.dialogs.slice(0, 10).join(' ; ') || 'none'} | listeners: ${[...R.listeners].join(',') || 'none'}`)
   for (const [name, sh] of Object.entries(R.shell)) if (sh) {
     out(`P|${vn}|shell@${name} ${sh.w}x${sh.h} docH ${sh.docH} windowScrolls ${sh.winScrolls} maxScroll ${sh.maxScroll} scroll-behavior ${sh.scrollBehavior} dir ${j(sh.dir)} elementDir[${sh.shellDir}] viewportMeta "${sh.viewportMeta}" manifest ${sh.manifest} env(safe-area-inset-bottom)=${sh.envBottom}`)
