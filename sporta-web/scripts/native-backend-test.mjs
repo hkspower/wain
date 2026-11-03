@@ -1896,7 +1896,7 @@ const order = (track, items, extra = {}) =>
     {
       const WH = 'warehouse-cash@example.test'
       const CFG_W = join(tmp, 'api-config-cash.php')
-      writeConfig(CFG_W, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw' })
+      writeConfig(CFG_W, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -2119,8 +2119,8 @@ const order = (track, items, extra = {}) =>
       const CFG_R = join(tmp, 'api-config-round2.php')
       // A sender the store refuses: sporta_send_mail() returns false, mails nothing.
       const CFG_BAD = join(tmp, 'api-config-round2-badmail.php')
-      writeConfig(CFG_R, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw' })
-      writeConfig(CFG_BAD, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'cs@sporta.com.kw' })
+      writeConfig(CFG_R, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
+      writeConfig(CFG_BAD, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -2307,7 +2307,7 @@ fi
         await place(10)
         await drain()
         await mark(10, 'cancelled')
-        const alerts = async () => Number(await sql("select count(*) from admin_activity_log where action_key = 'warehouse_mail_failed'"))
+        const alerts = async () => Number(await sql("select count(*) from admin_activity_log where action_key like 'warehouse_mail_failed%'"))
         const alertsBefore = await alerts()
         for (let i = 0; i < 4; i++) await cronOnce(CFG_BAD)
         const afterFour = await alerts()
@@ -2316,7 +2316,7 @@ fi
         is(afterFour === alertsBefore && afterFive === alertsBefore + 1,
            'a do-not-ship that fails four times writes no alert; the fifth failure writes exactly one',
            `${afterFour - alertsBefore} after four, ${afterFive - alertsBefore} after five`)
-        is(await sql("select actor_email from admin_activity_log where action_key = 'warehouse_mail_failed' order by id desc limit 1") === 'system',
+        is(await sql("select actor_email from admin_activity_log where action_key like 'warehouse_mail_failed%' order by id desc limit 1") === 'system',
            'and the alert names the system, not an administrator')
         is(await rows(10, 'cancel', true) === 1 && await sql(`select f.attempts from fulfilment_outbox f join orders o on o.id = f.order_id
            where o.track_id = '${T(10)}' and f.kind = 'cancel'`) === '5',
@@ -2399,6 +2399,257 @@ fi
            && await rows(16, 'payment') === 0,
            'a cancelled card order cannot be settled by hand — 409 order_cancelled, still pending, no payment message',
            `${settled16.status} ${settled16.body?.error}`)
+
+        // ===================== round 3: the review of the release's warehouse mail
+
+        // 13. A picking list CLOSED because the order was cancelled is sent after
+        // all when the order is put back. (The reinstate step looked for such a
+        // row with `sent_at is null`; a closed row has sent_at SET, so only a
+        // list that had failed five times was ever revived, and the live order
+        // stayed invisible to the warehouse.)
+        const closedRows = (n) => sql(`select group_concat(concat(f.kind, ':', coalesce(f.last_error, '-')) order by f.id separator ' | ')
+            from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id = '${T(n)}'`)
+        await place(17)
+        await mark(17, 'cancelled')
+        await drain()
+        is(subjects(T(17)).length === 0 && await closedRows(17) === 'new:order cancelled | cancel:order cancelled',
+           'a cash order cancelled before the first drain: the warehouse hears nothing, both rows are closed',
+           `${subjects(T(17)).join(' | ')} / ${await closedRows(17)}`)
+        const back17 = await mark(17, 'packed')
+        await drain()
+        const l17 = subjects(T(17))
+        is(back17.status === 200 && l17.length === 1 && isList(l17[0]) && isCollect(l17[0]) && !isReinstate(l17[0]),
+           'put back, its picking list goes out ONCE, plain (never heard of, so not REINSTATED) — the live order is visible',
+           `${back17.status}: ${l17.join(' | ')}`)
+        await drain()
+        is(subjects(T(17)).length === 1, 'and a further drain mails nothing more', String(subjects(T(17)).length))
+
+        await place(18)
+        await age(18, 25)
+        const sw18 = await sweep()
+        await drain()
+        is(sw18.cod_cancelled?.includes(T(18)) && subjects(T(18)).length === 0,
+           'a cash order the sweeper cancelled before its picking list went: nothing is mailed', subjects(T(18)).join(' | '))
+        const back18 = await mark(18, 'packed')
+        await drain()
+        const l18 = subjects(T(18))
+        is(back18.status === 200 && l18.length === 1 && isCollect(l18[0]) && !isReinstate(l18[0]),
+           'put back as packed, the sweeper-cancelled order gets its picking list too', `${back18.status}: ${l18.join(' | ')}`)
+
+        // 14. A REINSTATED picking list is a dispatch instruction (items, address,
+        // COLLECT CASH). It is never mailed for an order that has already shipped
+        // or been delivered — the way the owner corrects a cash order the sweeper
+        // cancelled after the van had gone is to move it out of 'cancelled'.
+        for (const [n, target] of [[19, 'delivered'], [20, 'shipped']]) {
+          await place(n)
+          await drain()
+          await mark(n, 'cancelled')
+          await drain()
+          const mv = await mark(n, target)
+          await drain()
+          const s = subjects(T(n))
+          is(mv.status === 200 && s.filter(isList).length === 1 && s.filter(isCancel).length === 1 && !s.some(isReinstate),
+             `cancelled, then recorded as ${target}: the REINSTATED picking list is NOT mailed`,
+             `${mv.status}: ${s.join(' | ')}`)
+          is((await closedRows(n)).endsWith('reinstate:order shipped'),
+             `and its row is closed as "order shipped" (${target})`, await closedRows(n))
+        }
+
+        // 15. The closing rule, every kind against every status, and then the
+        // same rule through the real drain in BOTH passes. The pure table is
+        // store_outbox_closed_reason() itself.
+        {
+          const out = JSON.parse((await run('php', ['-r', `
+            require ${phpStr(join(STORE_DIR, 'store.php'))};
+            $r = [];
+            foreach (['new', 'reinstate', 'payment', 'cancel'] as $k)
+              foreach (['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled'] as $s)
+                foreach ([false, true] as $h)
+                  $r[$k . '/' . $s . '/' . ($h ? 'heard' : 'unheard')] = store_outbox_closed_reason($k, $s, $h);
+            echo json_encode($r);`])).stdout)
+          const C = 'order cancelled', S = 'order shipped'
+          const expect = (k, s, h) => {
+            if (s === 'cancelled') return (k === 'new' || k === 'reinstate') ? C : (h ? null : C)
+            if (s === 'shipped' || s === 'delivered') return k === 'cancel' ? null : S
+            return k === 'cancel' ? 'order reinstated' : null
+          }
+          const wrong = Object.entries(out).filter(([key, v]) => {
+            const [k, s, h] = key.split('/')
+            return v !== expect(k, s, h === 'heard')
+          })
+          is(wrong.length === 0 && Object.keys(out).length === 40,
+             'the closing rule, 4 kinds x 5 statuses x heard/unheard, is exactly the documented table',
+             wrong.map(([k, v]) => `${k}=${v}`).join(', ') || '40 cells')
+        }
+        // Pass 2: the shop decides AFTER the row was claimed and BEFORE it is
+        // sent. A stand-in sendmail changes the target order through the real
+        // admin route while the drain is mailing the decoy ahead of it.
+        const cookieOf = () => [...JAR].map(([k, v]) => `${k}=${v}`).join('; ').replace(/'/g, '')
+        const hookTo = (decoyTrack, targetId, newStatus, name) => {
+          const f = join(tmp, `round3-hook-${name}.sh`)
+          writeFileSync(f, `#!/bin/sh
+# Test stand-in for sendmail: when the message is for ${decoyTrack}, order ${targetId} is
+# moved to ${newStatus} through the admin route, mid-run.
+dir=$1
+f="$dir/$(date +%s%N).$$"
+cat > "$f.tmp"
+mv "$f.tmp" "$f.eml"
+if grep -q '${decoyTrack}' "$f.eml"; then
+  curl -s -o /dev/null -X POST -H 'Content-Type: application/json' -H 'X-Sporta-Admin: 1' \\
+    -H 'X-Forwarded-For: 198.31.9.1' -H 'Sec-Fetch-Site: same-origin' -H 'Cookie: ${cookieOf()}' \\
+    --data '{"order_id":${targetId},"status":"${newStatus}"}' '${PBASE}/admin.php?r=fulfilment'
+fi
+`, { mode: 0o755 })
+          return f
+        }
+        {
+          // a. picking list ('new'): the order is delivered mid-run.
+          await place(21); await place(22)   // 21 is the decoy, ahead of 22 in the queue
+          await drain(CFG_R, hookTo(T(21), await idOf(22), 'delivered', 'a'))
+          is(await status(22) === 'delivered' && subjects(T(22)).length === 0
+             && await closedRows(22) === 'new:order shipped',
+             'pass 2: a picking list whose order is delivered after the claim is closed "order shipped", not mailed',
+             `${await status(22)}; ${await closedRows(22)}; ${subjects(T(22)).join(' | ')}`)
+          // b. picking list ('new'): the order is cancelled mid-run.
+          await place(23); await place(24)
+          await drain(CFG_R, hookTo(T(23), await idOf(24), 'cancelled', 'b'))
+          await drain()
+          is(await status(24) === 'cancelled' && subjects(T(24)).length === 0
+             && await closedRows(24) === 'new:order cancelled | cancel:order cancelled',
+             'pass 2: a picking list whose order is cancelled after the claim is closed "order cancelled" — and so is the do-not-ship nobody needs',
+             `${await status(24)}; ${await closedRows(24)}; ${subjects(T(24)).join(' | ')}`)
+          // c. 'reinstate': the order is delivered mid-run.
+          await place(25); await drain()
+          await mark(25, 'cancelled'); await drain()
+          await place(26)    // the decoy, queued AFTER 25's cancel and BEFORE its reinstate
+          await mark(25, 'packed')
+          await drain(CFG_R, hookTo(T(26), await idOf(25), 'delivered', 'c'))
+          const s25 = subjects(T(25))
+          is(await status(25) === 'delivered' && !s25.some(isReinstate) && (await closedRows(25)).endsWith('reinstate:order shipped'),
+             'pass 2: a REINSTATED list whose order is delivered after the claim is closed "order shipped", not mailed',
+             `${await status(25)}; ${await closedRows(25)}; ${s25.join(' | ')}`)
+          // d. 'payment': a card order is settled, then shipped mid-run.
+          await place(27, 'knet'); await drain()
+          await place(28)
+          await adminAt('card_settled', { order_id: await idOf(27), bank_reference: '100202112233' })
+          await drain(CFG_R, hookTo(T(28), await idOf(27), 'shipped', 'd'))
+          is(await status(27) === 'shipped' && !subjects(T(27)).some(isShipIt) && (await closedRows(27)).endsWith('payment:order shipped'),
+             'pass 2: a "ship it" for an order shipped after the claim is closed "order shipped", not mailed',
+             `${await status(27)}; ${await closedRows(27)}; ${subjects(T(27)).join(' | ')}`)
+          // The same four through pass 1 (the order was already in that state
+          // when the drain began): the reinstate row, by the real route.
+          await place(29); await drain()
+          await mark(29, 'cancelled'); await drain()
+          await mark(29, 'packed')
+          await sql(`update orders set fulfilment_status = 'shipped' where track_id = '${T(29)}'`)
+          await drain()
+          is(!subjects(T(29)).some(isReinstate) && (await closedRows(29)).endsWith('reinstate:order shipped'),
+             'pass 1: a waiting REINSTATED list of an order that is already shipped is closed, not mailed',
+             `${await closedRows(29)}; ${subjects(T(29)).join(' | ')}`)
+        }
+
+        // 16. The mail is NOT sent while the order's row lock is held. A bank
+        // callback (knet_settle_order, cbk_update_order) and the sweeper take that
+        // same lock; a relay that stalls for longer than the database's lock wait
+        // made them fail with 1205, and a captured payment was parked for review.
+        {
+          await place(30)
+          const slowEnv = { ...process.env, SPORTA_API_CONFIG_FILE: CFG_R, MTA_DELAY: '7' }
+          const t0 = Date.now()
+          const slowRun = run('php', ['-d', `sendmail_path=sh ${MTA} ${maildir}`, join(STORE_DIR, 'cron-fulfilment.php'), '--run'],
+            { env: slowEnv })
+          await new Promise((r) => setTimeout(r, 2500))
+          let got = 'locked'
+          try {
+            // What a bank callback does: lock the order row, with a short wait.
+            await run('mariadb', ['sporta', '-e', `set session innodb_lock_wait_timeout = 2;
+              start transaction; select id from orders where id = ${await idOf(30)} for update; commit;`])
+            got = 'free'
+          } catch (e) { got = String(e.stderr ?? e.message).slice(0, 120) }
+          const waited = Date.now() - t0
+          await slowRun
+          is(got === 'free', 'while the relay is stalled mid-mail, the order row is free for a callback to lock',
+             `${got} after ${waited} ms`)
+          is(subjects(T(30)).filter(isList).length === 1, 'and the picking list is still mailed once', subjects(T(30)).join(' | '))
+          // An admin cancel made while the list is in the relay is not lost: the
+          // do-not-ship follows it on the next run.
+          await place(31)
+          const slow2 = run('php', ['-d', `sendmail_path=sh ${MTA} ${maildir}`, join(STORE_DIR, 'cron-fulfilment.php'), '--run'],
+            { env: { ...process.env, SPORTA_API_CONFIG_FILE: CFG_R, MTA_DELAY: '5' } })
+          await new Promise((r) => setTimeout(r, 2000))
+          const c31 = await mark(31, 'cancelled')
+          await slow2
+          await drain()
+          const s31 = subjects(T(31))
+          is(c31.status === 200 && s31.filter(isList).length === 1 && s31.filter(isCancel).length === 1,
+             'a cancel made while the list is in the relay goes out right after it: list, then do-not-ship',
+             `${c31.status}: ${s31.join(' | ')}`)
+        }
+
+        // 17. A message that fails is not lost for good, and the alert says which.
+        {
+          const CFG_SLOW = join(tmp, 'api-config-round3-slow.php')
+          writeConfig(CFG_SLOW, { warehouse_email: WH, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw',
+            warehouse_retry_window_minutes: 60 })
+          await place(32)
+          for (let i = 0; i < 5; i++) await cronOnce(CFG_BAD)
+          const key = `warehouse_mail_failed_new_${T(32).toLowerCase()}`
+          is(await sql(`select count(*) from admin_activity_log where action_key = '${key}'`) === '1',
+             'the fifth failure names the kind and the order in its alert', key)
+          await drain()
+          is(subjects(T(32)).length === 0 && await rows(32, 'new', true) === 1,
+             'outside the slow-retry window a row at five attempts stays put', subjects(T(32)).join(' | '))
+          await cronOnce(CFG_SLOW)
+          is(subjects(T(32)).filter(isList).length === 1 && await rows(32, 'new', true) === 0,
+             'inside it, the mail having recovered, the stranded picking list is sent', subjects(T(32)).join(' | '))
+          await place(33)
+          await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id set f.attempts = 23 where o.track_id = '${T(33)}'`)
+          await cronOnce(CFG_BAD)   // CFG_BAD has the window closed: attempts 23 is not claimed
+          await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id set f.attempts = 23 where o.track_id = '${T(33)}'`)
+          const badSlow = join(tmp, 'api-config-round3-badslow.php')
+          writeConfig(badSlow, { warehouse_email: WH, mail_from: 'not-sporta@example.test', mail_reply_to: 'cs@sporta.com.kw',
+            warehouse_retry_window_minutes: 60 })
+          await cronOnce(badSlow)
+          is(await sql(`select count(*) from admin_activity_log where action_key = 'warehouse_mail_gave_up_new_${T(33).toLowerCase()}'`) === '1',
+             'and the last attempt says it gave up, naming the order', '')
+          await sql(`update fulfilment_outbox f join orders o on o.id = f.order_id set f.sent_at = now(), f.last_error = 'test: tidy' where o.track_id = '${T(33)}'`)
+        }
+
+        // 18. A card order the sweeper released (its 120-minute hold passed) and
+        // the owner then settles by hand claims its garments AGAIN. Before, it
+        // was marked paid with its units back on sale.
+        {
+          const stockNow = stock
+          await sweep()      // earlier cards in this block are let go first: a clean baseline
+          const before = await stockNow()
+          await place(34, 'knet')
+          const afterOrder = await stockNow()
+          await age(34, 3)
+          await sweep()
+          const released = await stockNow()
+          is(afterOrder === before - 1 && released === before
+             && await sql(`select stock_released from orders where track_id = '${T(34)}'`) === '1'
+             && await status(34) === 'unfulfilled',
+             'the sweeper lets go of an abandoned card order: its garment is back on the shelf, the order still open',
+             `${before} -> ${afterOrder} -> ${released}`)
+          const settled = await adminAt('card_settled', { order_id: await idOf(34), bank_reference: '100202445566' })
+          is(settled.status === 200 && await stockNow() === before - 1
+             && await sql(`select stock_released from orders where track_id = '${T(34)}'`) === '0'
+             && await rows(34, 'payment') === 1,
+             'settling it by hand claims the garment again (stock back down), and the "ship it" goes out',
+             `${settled.status} ${settled.body?.error ?? ''}; stock ${await stockNow()}`)
+          // …and refuses when the size has sold in the meantime.
+          await place(35, 'knet')
+          await age(35, 3)
+          await sweep()
+          await sql(`update product_variants set stock = 0 where slug = '${SLUG}' and size = 'L'`)
+          const refused = await adminAt('card_settled', { order_id: await idOf(35), bank_reference: '100202778899' })
+          is(refused.status === 409 && /^out_of_stock_/.test(refused.body?.error ?? '')
+             && await sql(`select payment_status from orders where track_id = '${T(35)}'`) === 'pending'
+             && await rows(35, 'payment') === 0,
+             'and refuses with the checkout\'s own out_of_stock token when that size has sold since — still pending, nothing mailed',
+             `${refused.status} ${refused.body?.error}`)
+        }
       } finally {
         await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SQ${tag}%';
                    delete i from order_items i join orders o on o.id = i.order_id where o.track_id like 'SQ${tag}%';
@@ -2587,7 +2838,7 @@ fi
     {
       const WAREHOUSE = 'warehouse@example.test'
       const CFG_F = join(tmp, 'api-config-fulfilment.php')
-      writeConfig(CFG_F, { warehouse_email: WAREHOUSE, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw' })
+      writeConfig(CFG_F, { warehouse_email: WAREHOUSE, mail_from: 'cs@sporta.com.kw', mail_reply_to: 'cs@sporta.com.kw', warehouse_retry_window_minutes: 0 })
       const subjectOf = (m) => {
         const raw = m.split(/\r?\n/).find((l) => /^Subject:/i.test(l)) ?? ''
         const b = raw.match(/=\?UTF-8\?B\?([^?]+)\?=/i)?.[1]
@@ -2690,6 +2941,26 @@ fi
         await cronS()
         is(await used() === 1, 'and gives it back when cancelled — though it had no stock to release',
            `used=${await used()}`)
+
+        // An ABANDONED card order that held only a use. Nobody cancelled it: the
+        // shopper closed the bank page. It claimed no stock (an accessory), so
+        // the sweeper's candidate query used to skip it, and a limited code was
+        // burned for good by every such order.
+        const fresh = await place(`SPLF${tag}`, '95550408', BAG, 'knet')
+        const abandoned = await place(`SPLC${tag}`, '95550407', BAG, 'knet')
+        const usedBefore = await used()
+        await sql(`update orders set created_at = now() - interval 3 hour where track_id = 'SPLC${tag}'`)
+        const swept = await cronS()
+        const stOf = (t) => sql(`select concat(fulfilment_status, '/', payment_status, '/', discount_released) from orders where track_id = '${t}'`)
+        is(fresh.status === 200 && abandoned.status === 200
+           && await used() === usedBefore - 1 && await stOf(`SPLC${tag}`) === 'cancelled/pending/1',
+           'a card order that held only a use and was abandoned for 3 hours is cancelled and gives the use back',
+           `used ${usedBefore} -> ${await used()}; ${await stOf(`SPLC${tag}`)}; swept ${JSON.stringify(swept.track_ids)}`)
+        is(await stOf(`SPLF${tag}`) === 'unfulfilled/pending/0',
+           'while one still inside its hold is left alone', await stOf(`SPLF${tag}`))
+        const usedAfter = await used()
+        await cronS()
+        is(await used() === usedAfter, 'and a second run gives nothing back twice', `used=${await used()}`)
       } finally {
         await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SPL%${tag}';
                    delete i from order_items i join orders o on o.id = i.order_id where o.track_id like 'SPL%${tag}';

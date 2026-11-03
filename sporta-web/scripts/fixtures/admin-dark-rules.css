@@ -1,0 +1,169 @@
+/* admin-dark-rules.css - every rule of the LIVE /backends build that depends on the colour scheme or the theme.
+
+   Copied from the live build on 2026-11-03. A read-only job on the VPS loaded https://www.sporta.com.kw/backends in
+   Playwright (every admin API call answered locally, nothing sent to the real admin.php), fetched the stylesheets the page
+   links, parsed each one with postcss 8.5.22 and kept, in the build's own order and wrapped exactly as the build wraps
+   them (@layer, @media ...), every top-level block that is
+     - an @media (prefers-color-scheme ...),
+     - a style rule whose selector names the theme mechanism ([data-theme=dark], html.dark, :is(html.dark, ...)),
+     - a rule that declares color-scheme, or uses light-dark().
+   Source sheets (hash of the whole asset; the first 16 hex are in the marker comments below):
+     /assets/index-CdcKvZhs.css     184993 bytes  sha256 031c4c4a3f91f9f9ca28792704293b9ec647bfacd0e57b62affe2f2412f62861
+     /assets/AdminApp-Dw3t3z9Z.css   90491 bytes  sha256 63afa6069640cf23b4d46dfe01b8ad845965bb39b759b806f1bd8fc758d6a4a0
+       (the admin chunk; the page appends it LAST, after every sporta-*.css add-on, so on a tie it beats them)
+   Everything from the first marker comment below to the end of this file is the job's output, byte for byte
+   (140 top-level blocks, 183 style rules, 297 declarations, 39 of them !important, none of those layered):
+     23773 bytes, 142 lines, sha256 de51eb5935149837aefe16b4120b72e3776c405f66d5c1801b12288452758bc3
+   Check it: take the file from the line that starts with the first marker onward and hash those bytes.
+
+   Purpose: lets a rig-free test prove the Payments screen's light-only guarantee against the build's REAL dark
+   rules instead of a guess. The build has two mechanisms, and the device setting is only an input to the first:
+     1. html[data-theme=dark] and html.dark. /boot.js sets data-theme and style.colorScheme on <html> before the first
+        paint (stored sporta_theme if it is dark or light, else the device setting, on /backends); the app's theme
+        provider then re-evaluates on every route change and toggles the dark class, data-theme and style.colorScheme.
+        Every hand-written dark rule below is keyed on it: the admin's whole dark theme. All of them are unlayered.
+     2. @media (prefers-color-scheme:dark): only Tailwind's dark: utilities, in the one @layer utilities block, so the
+        device alone switches those, whatever data-theme says. The Payments screen uses none of them.
+   There is no [data-theme=light] selector; the light state is written as :root:not([data-theme=dark]) (4 rules). */
+/* ---- build /assets/index-CdcKvZhs.css sha256:031c4c4a3f91f9f9 bytes:184993 ---- */
+[data-theme=dark] .purchase-flow,[data-theme=dark] .campaign-cart-drawer,[data-theme=dark] .purchase-result{--purchase-border:#ffffff2e;--purchase-divider:#ffffff1c;--purchase-control-border:#ffffff3d;--purchase-focus:var(--brand-bright);--purchase-focus-ring:color-mix(in srgb, var(--brand-bright) 24%, transparent);color:#e8eaed}
+[data-theme=dark] :is(.purchase-panel,.purchase-flow .cart-line){border-color:var(--purchase-border)!important}
+[data-theme=dark] :is(.purchase-cart__summary,.purchase-checkout-summary){border-block-start-color:var(--brand-bright)!important}
+[data-theme=dark] :is(.purchase-quantity,.purchase-steps),[data-theme=dark] .purchase-steps [data-state=next] .purchase-steps__number,[data-theme=dark] .purchase-payment .payment-method{border-color:var(--purchase-control-border)!important}
+[data-theme=dark] .purchase-payment .payment-method--selected{border-color:var(--brand-bright)!important}
+[data-theme=dark] .purchase-payment .payment-method--selected:before{background:var(--brand-bright)}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout :where(input:not([type=checkbox]):not([type=radio]):not([aria-invalid=true]),select:not([aria-invalid=true]),textarea:not([aria-invalid=true])){border-color:var(--purchase-control-border)!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field>.flex:not(:has(input[aria-invalid=true])){border-color:var(--purchase-control-border)!important}
+[data-theme=dark] .purchase-checkout-summary input+button{border-color:var(--purchase-control-border)!important}
+[data-theme=dark] :is(.purchase-checkout-summary,.purchase-quick__bag)>ul>li,[data-theme=dark] :is(.purchase-checkout-summary,.purchase-quick__bag) .purchase-total,[data-theme=dark] .campaign-cart-drawer>:is(header,footer),[data-theme=dark] .campaign-cart-drawer>ul>li{border-color:var(--purchase-divider)!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout [role=listbox]{border-color:var(--purchase-border)!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout :where(input:not([type=checkbox]):not([type=radio]):not(.bg-transparent),select,textarea):focus-visible,html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field>.flex:focus-within{border-color:var(--purchase-focus)!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout :where(input,select,textarea)[aria-invalid=true],html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout :where(input,select,textarea)[aria-invalid=true]:focus-visible{border-color:#fb7185!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field>.flex:has(input[aria-invalid=true]){border-color:#fb7185!important}
+html[data-theme=dark] .storefront-root .purchase-flow .purchase-checkout-layout .purchase-field>.flex:has(input[aria-invalid=true]):focus-within{border-color:#fb7185!important}
+[data-theme=dark] .catalog-result-count>span{color:#f1f3f5}
+[data-theme=dark] .storefront-root .product-grid-card{border-color:var(--line);box-shadow:0 8px 24px #0000002e}
+[data-theme=dark] .storefront-root .catalog-card-image,[data-theme=dark] .storefront-root .catalog-gallery-stage{border-color:var(--shop-border-on-light,#171a1e1f);background:#fff!important}
+[data-theme=dark] .catalog-gallery-thumbs>button{background:#fff;border-color:#0000}
+[data-theme=dark] .catalog-gallery-thumbs>button[aria-current=true]{border-color:var(--brand-bright)}
+[data-theme=dark] .catalog-filter.is-active{color:#171a1e;background:#f1f3f5;border-color:#f1f3f5}
+[data-theme=dark] .catalog-product-options>div,[data-theme=dark] .catalog-product-quantity,[data-theme=dark] .catalog-empty{background:var(--surface)}
+@media (hover:hover) and (pointer:fine){[data-theme=dark] .storefront-root .product-grid-card:hover{border-color:color-mix(in srgb, var(--brand-bright) 42%, var(--line));box-shadow:0 10px 26px #00000047}}
+[data-theme=dark] .home-feature-icon{color:var(--brand-bright)}
+[data-theme=dark] .campaign-home,[data-theme=dark] .campaign-home .home-section-heading h2,[data-theme=dark] .home-features__heading h2,[data-theme=dark] .home-feature-title,[data-theme=dark] .campaign-brand-bar__heading h2,[data-theme=dark] .campaign-brand-plate,[data-theme=dark] .campaign-brand-plate .text-slate-900,[data-theme=dark] .home-shop-link:not(.home-shop-link--solid){color:#f3f4f6}
+[data-theme=dark] .campaign-home .home-eyebrow,[data-theme=dark] .campaign-brand-bar .brand-bar__cta,[data-theme=dark] .home-shop-link:not(.home-shop-link--solid) svg{color:var(--brand-bright)}
+[data-theme=dark] .campaign-brand-plate__detail>[aria-hidden]{color:#ffffff4d}
+@media (hover:hover){[data-theme=dark] .home-shop-link:not(.home-shop-link--solid):hover{color:var(--brand-bright)}}
+@layer utilities{@media (prefers-color-scheme:dark){.dark\:border-emerald-900{border-color:var(--color-emerald-900)}.dark\:border-orange-900{border-color:var(--color-orange-900)}.dark\:border-rose-900{border-color:var(--color-rose-900)}.dark\:border-slate-600{border-color:var(--color-slate-600)}.dark\:border-slate-700{border-color:var(--color-slate-700)}.dark\:bg-amber-950\/40{background-color:#46190166}@supports (color:color-mix(in lab, red, red)){.dark\:bg-amber-950\/40{background-color:color-mix(in oklab, var(--color-amber-950) 40%, transparent)}}.dark\:bg-emerald-950\/60{background-color:#002c2299}@supports (color:color-mix(in lab, red, red)){.dark\:bg-emerald-950\/60{background-color:color-mix(in oklab, var(--color-emerald-950) 60%, transparent)}}.dark\:bg-orange-950\/60{background-color:#44130699}@supports (color:color-mix(in lab, red, red)){.dark\:bg-orange-950\/60{background-color:color-mix(in oklab, var(--color-orange-950) 60%, transparent)}}.dark\:bg-rose-950\/60{background-color:#4d021899}@supports (color:color-mix(in lab, red, red)){.dark\:bg-rose-950\/60{background-color:color-mix(in oklab, var(--color-rose-950) 60%, transparent)}}.dark\:bg-slate-800{background-color:var(--color-slate-800)}.dark\:bg-slate-900{background-color:var(--color-slate-900)}.dark\:bg-slate-950{background-color:var(--color-slate-950)}.dark\:bg-white{background-color:var(--color-white)}.dark\:text-amber-200{color:var(--color-amber-200)}.dark\:text-amber-300{color:var(--color-amber-300)}.dark\:text-emerald-200{color:var(--color-emerald-200)}.dark\:text-indigo-300{color:var(--color-indigo-300)}.dark\:text-orange-100{color:var(--color-orange-100)}.dark\:text-orange-300{color:var(--color-orange-300)}.dark\:text-rose-200{color:var(--color-rose-200)}.dark\:text-slate-100{color:var(--color-slate-100)}.dark\:text-slate-200{color:var(--color-slate-200)}.dark\:text-slate-300{color:var(--color-slate-300)}.dark\:text-slate-400{color:var(--color-slate-400)}.dark\:text-slate-500{color:var(--color-slate-500)}.dark\:text-slate-600{color:var(--color-slate-600)}.dark\:text-white{color:var(--color-white)}.dark\:caret-indigo-300{caret-color:var(--color-indigo-300)}.dark\:shadow-black\/30{--tw-shadow-color:#0000004d}@supports (color:color-mix(in lab, red, red)){.dark\:shadow-black\/30{--tw-shadow-color:color-mix(in oklab, color-mix(in oklab, var(--color-black) 30%, transparent) var(--tw-shadow-alpha), transparent)}}.dark\:placeholder\:text-slate-500::placeholder{color:var(--color-slate-500)}@media (hover:hover){.dark\:hover\:bg-slate-700:hover{background-color:var(--color-slate-700)}.dark\:hover\:bg-slate-800:hover{background-color:var(--color-slate-800)}}.dark\:focus\:border-indigo-400:focus{border-color:var(--color-indigo-400)}.dark\:focus\:border-orange-400:focus{border-color:var(--color-orange-400)}.dark\:focus\:ring-indigo-500:focus{--tw-ring-color:var(--color-indigo-500)}.dark\:focus\:ring-indigo-500\/20:focus{--tw-ring-color:#625fff33}@supports (color:color-mix(in lab, red, red)){.dark\:focus\:ring-indigo-500\/20:focus{--tw-ring-color:color-mix(in oklab, var(--color-indigo-500) 20%, transparent)}}.dark\:focus\:ring-orange-500\/20:focus{--tw-ring-color:#fe6e0033}@supports (color:color-mix(in lab, red, red)){.dark\:focus\:ring-orange-500\/20:focus{--tw-ring-color:color-mix(in oklab, var(--color-orange-500) 20%, transparent)}}}}
+[data-theme=dark]{--text-primary:#e8eaed;--canvas-muted:#232830;--surface:#1b2026;--surface-raised:#20262e;--line-soft:#ffffff14;--line:#ffffff29;--line-strong:#667482;--text-muted:#aab3be;--accent-text:var(--accent-text-dark);--canvas:#171a1e!important}
+[data-theme=dark] .product-grid-card h3{color:#f1f3f5}
+[data-theme=dark] .card{border-color:var(--line);background-color:var(--surface);box-shadow:0 14px 36px -26px #000c}
+[data-theme=dark] .product-grid-card .bg-slate-100{background-color:var(--canvas-muted)}
+:root:not([data-theme=dark]) :where(.bg-slate-50,.bg-slate-100){background-color:var(--html5-surface-muted)!important}
+:root:not([data-theme=dark]) .storefront-root .text-brand,:root:not([data-theme=dark]) .storefront-root .hover\:text-brand:hover{color:var(--brand-deep)}
+[data-theme=dark] .storefront-root .text-brand,[data-theme=dark] .storefront-root .text-brand-dark,[data-theme=dark] .storefront-root .hover\:text-brand:hover,[data-theme=dark] .storefront-root .hover\:text-brand-dark:hover,[data-theme=dark] .storefront-root .btn-ghost:hover{color:var(--brand-bright)}
+[data-theme=dark] .storefront-root .card{border-color:var(--shop-border);box-shadow:0 14px 36px -26px #000c}
+[data-theme=dark] .storefront-root .page-eyebrow{color:var(--brand-bright)}
+[data-theme=dark] .storefront-root .support-card a{color:var(--brand-bright)}
+[data-theme=dark] .storefront-root .why-card-index{color:var(--brand-bright)}
+[data-theme=dark] .storefront-root .track-summary>div{background:#ffffff0b}
+:root:not([data-theme=dark]) body[data-canvas=silver]{background-color:var(--canvas-muted)}
+:root:not([data-theme=dark]) body{background-color:var(--canvas)}
+[data-theme=dark] body{background-color:var(--canvas);color:#e8eaed}
+[data-theme=dark] .bg-sand,[data-theme=dark] .bg-sand-light{background-color:var(--canvas)!important}
+[data-theme=dark] .bg-white,[data-theme=dark] .card{color:#e8eaed;background-color:var(--surface)!important}
+[data-theme=dark] .text-slate-900,[data-theme=dark] .text-slate-800,[data-theme=dark] .text-slate-700{color:#e8eaed!important}
+[data-theme=dark] .text-slate-600,[data-theme=dark] .text-slate-500,[data-theme=dark] .text-slate-400{color:#9aa3ae!important}
+[data-theme=dark] .border-black\/10,[data-theme=dark] .border-black\/15,[data-theme=dark] .border-slate-100,[data-theme=dark] .border-slate-200,[data-theme=dark] .border-slate-300{border-color:#ffffff1f!important}
+[data-theme=dark] .bg-slate-50,[data-theme=dark] .bg-slate-100{background-color:var(--canvas-muted)!important}
+[data-theme=dark] .guest-note{background-color:#37251e!important;border-color:#895539!important}
+[data-theme=dark] .guest-note .guest-note__title{color:#d28a69!important}
+[data-theme=dark] .guest-note .guest-note__body,[data-theme=dark] .guest-note a{color:#ffd9c4!important}
+[data-theme=dark] .btn-light{color:#171a1e;background:#e8eaed}
+[data-theme=dark] .skeleton{background:var(--canvas-muted)}
+[data-theme=dark] .action-bar{background:#171a1eeb;border-top-color:#ffffff1f}
+[data-theme=dark] .invoice{--invoice-border:#fff3;--invoice-divider:#ffffff1f}
+@media print{html,body,#root,.storefront-root,main{--lightningcss-light:initial!important;--lightningcss-dark: !important;color-scheme:light!important;color:#171a1e!important;background:#fff!important}}
+:is(html.dark,html[data-theme=dark]) .returns-system__progress li[data-complete=true]>span,:is(html.dark,html[data-theme=dark]) .returns-system__success,:is(html.dark,html[data-theme=dark]) .admin-shell .admin-notice--info,:is(html.dark,html[data-theme=dark]) .admin-shell .admin-product-upload-info{color:#f1c7b3!important;background:#3d2923!important;border-color:#b1725e!important}
+/* ---- build /assets/AdminApp-Dw3t3z9Z.css sha256:63afa6069640cf23 bytes:90491 ---- */
+:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__status--muted,:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__dirty{color:#d9e2ec;background:#27313c}
+:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__status--live,:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__status--scheduled,:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__tone--selected,:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__segmented input:checked+span,:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__preview-controls button[aria-pressed=true]{color:#d28a69;background:#3b2417}
+:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__discard{color:#d9e2ec;background:#202832;border-color:#465361}
+:is(html.dark,html[data-theme=dark]) .admin-shell .topbar-editor__preview-stage{background:#111820;border-color:#34414c}
+html[data-theme=dark] .admin-shell{--admin-bg:#0d1116;--admin-surface:#151b22;--admin-surface-soft:#202832;--admin-border:#35414e;--admin-border-strong:#667482;--admin-text:#f5f7fa;--admin-muted:#b5c0cb;--admin-focus:#d28a6947;background:var(--admin-bg);color:#edf1f5}
+html[data-theme=dark] .admin-shell .admin-sidebar,html[data-theme=dark] .admin-shell .bg-white{background-color:#151b22}
+html:is(.dark,[data-theme=dark]) .admin-login{background:radial-gradient(circle at 14% 12%,#c76a421c,#0000 32rem),linear-gradient(135deg,#111820 0%,#090d12 100%)}
+html:is(.dark,[data-theme=dark]) .admin-login__shell{background:#151b22;border-color:#35414e;box-shadow:0 28px 80px #0000006b}
+html:is(.dark,[data-theme=dark]) .admin-login__form-panel{background:#151b22}
+html:is(.dark,[data-theme=dark]) .admin-login__input{box-shadow:none;color:#f5f7fa;background-color:#202832;border-color:#465361}
+html:is(.dark,[data-theme=dark]) .admin-login__input::placeholder{color:#b5c0cb}
+html:is(.dark,[data-theme=dark]) .admin-login :is(.text-slate-950,.text-slate-900,.text-slate-800){color:#f5f7fa!important}
+html:is(.dark,[data-theme=dark]) .admin-login :is(.text-indigo-600,.text-indigo-700,.text-orange-600,.text-orange-700){color:var(--brand-bright)!important}
+html:is(.dark,[data-theme=dark]) .admin-login__input:hover{border-color:#647383}
+html:is(.dark,[data-theme=dark]) .admin-login__checklist{color:#b5c0cb;background:#202832;border-color:#35414e}
+html.dark .admin-shell .bg-slate-50,html.dark .admin-shell .bg-slate-100{background-color:#202832}
+html.dark .admin-shell .border-slate-100,html.dark .admin-shell .border-slate-200,html.dark .admin-shell .border-slate-300{border-color:#35414e}
+html.dark .admin-shell .text-slate-800,html.dark .admin-shell .text-slate-700{color:#f1f5f9}
+html.dark .admin-shell .text-slate-600,html.dark .admin-shell .text-slate-500{color:#cbd5e1}
+html.dark .admin-shell .text-slate-400{color:#94a3b8}
+html.dark .admin-shell input,html.dark .admin-shell select,html.dark .admin-shell textarea{color:#f8fafc;--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark;background-color:#1e293b;border-color:#475569}
+html.dark .admin-shell input::placeholder,html.dark .admin-shell textarea::placeholder{color:#aab6c3}
+html.dark .admin-shell tbody tr:hover,html.dark .admin-shell .hover\:bg-slate-50:hover{background-color:#1e293b}
+:is(html.dark,html[data-theme=dark]) .admin-shell .bg-indigo-50{background-color:var(--admin-accent-soft)!important}
+:is(html.dark,html[data-theme=dark]) .admin-shell .bg-indigo-100{background-color:#c76a4238!important}
+html.dark .admin-shell .text-indigo-600,html.dark .admin-shell .text-indigo-700,html.dark .admin-shell .text-indigo-800,html.dark .admin-shell .text-indigo-900{color:var(--brand-bright)!important}
+html.dark .admin-shell .inventory-toolbar,html.dark .admin-shell .inventory-table-wrap,html.dark .admin-shell .stock-input,html.dark .admin-shell .stock-stepper,html.dark .admin-shell .checkout-method-editor,html.dark .admin-shell .inventory-finance{background:#0f172a;border-color:#334155}
+html.dark .admin-shell .inventory-expense-form{border-color:#334155}
+html.dark .admin-shell .inventory-money>div{background:#1e293b;border-color:#475569}
+html.dark .admin-shell .inventory-money input{color:#f8fafc;background:#1e293b}
+html.dark .admin-shell .inventory-table thead,html.dark .admin-shell .stock-stepper button{background:#1e293b}
+html.dark .admin-shell .inventory-search input,html.dark .admin-shell .stock-input{color:#f8fafc}
+html.dark .admin-shell .checkout-editor-actions{background:#020617eb;border-color:#334155}
+html.dark .admin-shell .admin-product-upload-drop:hover{background:color-mix(in srgb, var(--brand) 14%, transparent)}
+html.dark .admin-shell .admin-product-upload-info{color:#6ee7b7;background:#05966926}
+html.dark .admin-shell .admin-editor-modal__header,html.dark .admin-shell .admin-editor-actions{background:#0f172af5}
+html.dark .admin-shell .admin-editor-status--on{background:color-mix(in srgb, var(--brand) 18%, transparent);color:var(--brand-bright)}
+html.dark .admin-shell .admin-editor-status--off{color:#94a3b8;background:#1e293b}
+html.dark .admin-shell .admin-brand-editor .admin-editor-status--on{background:color-mix(in srgb, var(--brand-bright) 18%, transparent);color:var(--brand-bright)}
+html.dark .admin-shell .admin-page h1{color:#f8fafc}
+html.dark .admin-shell .admin-page .rounded-2xl.border.bg-white,html.dark .admin-shell .admin-page .rounded-3xl.border.bg-white{box-shadow:0 1px #ffffff06}
+html.dark .admin-shell .admin-content{background:#020617}
+html.dark .admin-shell .admin-sidebar{box-shadow:1px 0 #ffffff06}
+html.dark .admin-shell .promotions-card,html.dark .admin-shell .promotions-summary>div{background:#0f172a;border-color:#334155}
+html.dark .admin-shell .crm-table-wrap{background:#0f172a;border-color:#334155}
+html.dark .admin-shell .crm-table-wrap td{border-color:#334155}
+html.dark .admin-shell .inventory-filter-grid select,html.dark .admin-shell .inventory-secondary-button,html.dark .admin-shell .inventory-adjust-button,html.dark .admin-shell .inventory-drawer__close,html.dark .admin-shell .inventory-editor-form,html.dark .admin-shell .inventory-history,html.dark .admin-shell .inventory-adjust-type,html.dark .admin-shell .inventory-number-field input,html.dark .admin-shell .inventory-note-field textarea{color:#e2e8f0;background:#0f172a;border-color:#475569}
+html.dark .admin-shell .inventory-drawer{background:#020617}
+html.dark .admin-shell .inventory-adjust-type--active,html.dark .admin-shell .inventory-realised-note{border-color:var(--brand);background:#27150d}
+html.dark .admin-shell .inventory-drawer__header h2,html.dark .admin-shell .inventory-editor-form h3,html.dark .admin-shell .inventory-history h3{color:#f8fafc}
+html.dark .admin-shell .inventory-product-arabic,html.dark .admin-shell .inventory-card__arabic,html.dark .admin-shell .inventory-adjust-type strong,html.dark .admin-shell .inventory-movement>div strong,html.dark .admin-shell .inventory-movement p{color:#cbd5e1}
+html.dark .admin-shell .admin-page :where(.rounded-2xl.border.bg-white,.rounded-3xl.border.bg-white){box-shadow:0 1px #ffffff08,0 16px 38px #00000029}
+:is(html.dark,html[data-theme=dark]) .admin-shell{--admin-bg:#0b1117;--admin-surface:#151c23;--admin-surface-soft:#1a232c;--admin-border:#2c3944;--admin-border-strong:#536271;--admin-text:#edf2f7;--admin-muted:#9aa9b8;--admin-accent-soft:#37251e;--admin-accent-border:#895539;background:var(--admin-bg)}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-content{background:var(--admin-bg)}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page h1,:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page h2,:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page h3{color:var(--admin-text)}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page :where(input,select,textarea){border-color:var(--admin-border-strong);color:#edf2f7;background:#111820}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page :where(table) thead{background:#19222b}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page :where(table) tbody tr:hover{background:color-mix(in srgb, var(--brand-bright) 8%, transparent)}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-notice--warn{color:#ffe0a2;background:#382c1a;border-color:#8b6a35}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-notice--error{color:#ffd7df;background:#381e27;border-color:#925261}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-notice--info{color:#d5eaff;background:#183147;border-color:#527b9d}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-notice--ok{color:#ffd9c4;background:#37251e;border-color:#895539}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-kpi--warn{background:#382c1a;border-color:#8b6a35}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-kpi--warn .text-amber-700{color:#ffbd55}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-kpi--warn .text-slate-500{color:#e0c49a}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-passcode__success{color:#ffd9c4;background:#37251e;border-color:#895539}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-passcode__error{color:#ffd7df;background:#381e27;border-color:#925261}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-passcode .text-orange-800{color:var(--brand-bright)}
+:is(html.dark,html[data-theme=dark]) .admin-shell{--admin-bg:#0d1217;--admin-surface:#151b21;--admin-surface-soft:#1a2128;--admin-border:#303942;--admin-border-strong:#5a6875;--admin-text:#eef2f5;--admin-muted:#9aa6b2;--admin-shadow:0 1px 1px #0003, 0 12px 30px #0000001f}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page .admin-table>thead>tr>th{color:#b0bbc5;background:#1b232b}
+:is(html.dark,html[data-theme=dark]) .admin-shell .admin-page .admin-table>tbody>tr:hover{background:#211d1a}
+@media (max-width:1023px){html.dark .admin-shell .inventory-drawer__header{background:#020617}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-header,:is(html.dark,html[data-theme=dark]) .admin-shell .m-tabbar,:is(html.dark,html[data-theme=dark]) .admin-shell .m-row{background:var(--admin-surface);border-color:var(--admin-border)}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-header__title,:is(html.dark,html[data-theme=dark]) .admin-shell .m-row__title{color:#f1f5f9}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-row__meta,:is(html.dark,html[data-theme=dark]) .admin-shell .m-tabbar__item{color:#94a3b8}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-tabbar__item[aria-current=page]{color:var(--brand-bright)}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-header__menu,:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-panel,:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-close{background:var(--admin-surface);border-color:var(--admin-border);color:#d8e0e7}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-item{background:var(--admin-surface-soft);border-color:var(--admin-border);color:#d8e0e7}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-item__icon{background:var(--admin-surface);color:var(--brand-bright)}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-panel__head p{color:var(--admin-text)}}
+@media (max-width:1023px){:is(html.dark,html[data-theme=dark]) .admin-shell .m-menu-item[aria-current=page]{border-color:var(--brand);background:color-mix(in srgb, var(--brand) 20%, transparent);color:var(--brand-bright)}}

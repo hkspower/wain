@@ -376,7 +376,7 @@ FileETag MTime Size
   </IfModule>
 
   # Turn off browser features the storefront never uses.
-  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
 
   # Content-Security-Policy.
   # No 'unsafe-inline' in script-src. The live site keeps its boot code in

@@ -61,7 +61,12 @@ Email + password (`password_hash`), a session cookie that is HttpOnly and
 SameSite=Strict, plus an `X-Sporta-Admin: 1` header the PHP side requires — the
 two together are the CSRF defence. Five wrong passwords lock the account for
 15 minutes, counted **in the database**, not the session, so clearing cookies
-does not reset it.
+does not reset it. A session lives 30 days in a directory of its own, so it is
+created only for a request that earned one (a granted sign-in, or a pending
+phone-code / password-change step): an anonymous `?r=me` or an unknown `?r=`
+makes no file and sends no cookie, which keeps a scanner from filling the host
+directory the payment logs share. The Google sign-in flow session is kept out of
+that directory.
 
 ## Checklist for going live
 - [ ] Keep the database password only in `api/config.php`, `knet/config.php`

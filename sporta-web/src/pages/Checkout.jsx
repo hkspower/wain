@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { optionLine } from '../lib/options'
@@ -413,6 +413,7 @@ export default function Checkout() {
                   placeholder={t.checkout.notePh} className={`${input()} resize-y`}
                 />
               </Field>
+              <LocationNote value={form.note} update={(fn) => setForm((f) => ({ ...f, note: fn(f.note) }))} />
             </div>
 
             {/* tap-row: a checkbox cannot grow to 44px without looking wrong,
@@ -538,6 +539,152 @@ const input = (bad) =>
       ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
       : 'border-slate-200 focus:border-brand focus:ring-brand/15'
   }`
+
+// OPTIONAL delivery location.
+//
+// A tap-to-share control under the delivery note. Nothing is requested until the customer taps and nothing is
+// required to order. The position travels as ONE map link at the END of the note the order already carries
+// (orders.customer_note, 280 characters, printed in the warehouse email and shown in the admin):
+//
+//   "<their words> Location: https://www.google.com/maps?q=29.375900,47.977400"
+//
+// This is the same contract as public/sporta-gov-autopick.js, which does the same thing on the compiled live
+// storefront (scripts/checkout-location-test.mjs holds the add-on to it):
+//  - joined with ONE SPACE, never a newline: the server deletes control characters, so a newline would glue
+//    "text" and "Location:" together;
+//  - the state is READ from the note, so a line that came back with "remember these details" is shown and can be
+//    removed, deleting the line by hand returns the control to idle, and sharing again REPLACES (never two lines);
+//  - if the line does not fit the note's limit nothing is written and the customer's words are never cut;
+//  - the coordinates are kept nowhere but the note line, and nothing is sent anywhere by this component.
+const LOCATION_MAPS = 'https://www.google.com/maps?q='
+const LOCATION_LINE_SRC = '(Location|الموقع): https:\\/\\/www\\.google\\.com\\/maps\\?q=(-?\\d{1,3}\\.\\d{1,6}),(-?\\d{1,3}\\.\\d{1,6})'
+const LOCATION_LIMIT = 280
+const LOCATION_WEAK_M = 500
+
+// Removes every location line plus ONE separator next to it (the space before it, or after it when it opens the
+// note). Nothing else in the customer's text is touched.
+function stripLocation(v) {
+  const re = new RegExp(LOCATION_LINE_SRC, 'g')
+  let out = ''
+  let pos = 0
+  let m
+  while ((m = re.exec(v))) {
+    let s = m.index
+    let e = s + m[0].length
+    if (s > 0 && /\s/.test(v.charAt(s - 1))) s -= 1
+    else if (s === 0 && e < v.length && /\s/.test(v.charAt(e))) e += 1
+    if (s < pos) s = pos
+    out += v.slice(pos, s)
+    pos = e
+  }
+  return out + v.slice(pos)
+}
+
+// The browser refuses the call on every tap while the site's Permissions-Policy says geolocation=(); the control
+// stays hidden then. Where the API cannot tell (Safari, Firefox) it is shown and errors are handled.
+function locationBlocked() {
+  const p = typeof document !== 'undefined' && (document.permissionsPolicy || document.featurePolicy)
+  try { return !!(p && typeof p.allowsFeature === 'function' && p.allowsFeature('geolocation') === false) } catch { return false }
+}
+
+function LocationNote({ value, update }) {
+  const { t } = useLang()
+  const c = t.checkout
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [fix, setFix] = useState(null)
+  const latest = useRef(value)
+  const alive = useRef(true)
+  const ticket = useRef(0)
+  latest.current = value
+  useEffect(() => () => { alive.current = false; ticket.current += 1 }, [])
+
+  if (locationBlocked()) return null
+
+  const cur = new RegExp(LOCATION_LINE_SRC).exec(value)
+  const known = cur && fix && fix.lat === cur[2] && fix.lng === cur[3] && fix.acc !== null ? fix : null
+  const weak = !!(known && known.acc > LOCATION_WEAK_M)
+
+  function finish(mine, kind) {
+    if (!alive.current || mine !== ticket.current) return
+    setBusy(false)
+    setMsg(kind)
+  }
+  function share(fresh) {
+    if (busy) return
+    const mine = ++ticket.current
+    setBusy(true)
+    setMsg(null)
+    const geo = typeof navigator !== 'undefined' ? navigator.geolocation : null
+    if (!geo || typeof geo.getCurrentPosition !== 'function') { finish(mine, 'locFail'); return }
+    try {
+      geo.getCurrentPosition(
+        (pos) => {
+          if (!alive.current || mine !== ticket.current) return
+          const co = pos && pos.coords
+          const lat = co && Number(co.latitude)
+          const lng = co && Number(co.longitude)
+          if (!co || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { finish(mine, 'locFail'); return }
+          const la = lat.toFixed(6)
+          const ln = lng.toFixed(6)
+          const line = c.locLabel + LOCATION_MAPS + la + ',' + ln
+          const base = stripLocation(latest.current)
+          if (base.length + (base.length ? 1 : 0) + line.length > LOCATION_LIMIT) { finish(mine, 'locTooLong'); return }
+          const acc = Number(co.accuracy)
+          setFix({ lat: la, lng: ln, acc: Number.isFinite(acc) ? Math.max(1, Math.round(acc)) : null })
+          setBusy(false)
+          setMsg(null)
+          update((prev) => {
+            const b = stripLocation(prev)
+            return b + (b.length ? ' ' : '') + line
+          })
+        },
+        (err) => finish(mine, err && err.code === 1 ? 'locDenied' : 'locFail'),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: fresh === true ? 0 : 60000 },
+      )
+    } catch {
+      finish(mine, 'locFail')
+    }
+  }
+  function remove() {
+    setMsg('locRemoved')
+    update((prev) => stripLocation(prev))
+  }
+
+  let status = ''
+  if (busy) status = c.locLocating
+  else if (msg && (msg !== 'locRemoved' || !cur)) status = c[msg]
+  else if (cur) status = known ? (weak ? c.locDoneWeak : c.locDone).replace('{n}', String(known.acc)) : c.locDoneOld
+
+  const btn =
+    'inline-flex min-h-[44px] max-w-full items-center justify-center rounded-xl border border-slate-400 bg-white px-4 ' +
+    'text-center text-sm font-bold leading-snug text-slate-900 outline-none transition ' +
+    'focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-70'
+  return (
+    <div role="group" aria-label={c.locRegion} className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:col-span-2">
+      <button
+        type="button" className={btn} disabled={busy} aria-busy={busy || undefined}
+        aria-describedby="loc-hint" aria-label={cur && !busy ? c.locRemoveLabel : undefined}
+        onClick={cur && !busy ? remove : share}
+      >
+        {busy ? c.locLocating : cur ? c.locRemove : c.locShare}
+      </button>
+      {cur && !busy && (
+        <a
+          href={LOCATION_MAPS + cur[2] + ',' + cur[3]} target="_blank" rel="noopener noreferrer"
+          className="inline-flex min-h-[44px] items-center px-2 text-sm font-bold text-slate-900 underline underline-offset-4"
+        >
+          {c.locOpen}
+        </a>
+      )}
+      {cur && !busy && weak && <button type="button" className={btn} onClick={() => share(true)}>{c.locRetry}</button>}
+      <p role="status" aria-live="polite" className={status ? 'min-w-0 flex-1 basis-48 text-xs leading-relaxed text-slate-900' : 'sr-only'}>
+        {status}
+      </p>
+      <p id="loc-hint" className="basis-full text-xs leading-relaxed text-slate-600">{c.locHint}</p>
+    </div>
+  )
+}
 
 function Field({ id, label, hint, error, optional, className = '', children }) {
   return (

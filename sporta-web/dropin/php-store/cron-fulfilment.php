@@ -8,7 +8,13 @@
 // One run holds a MariaDB advisory lock through the external send. Row locks
 // alone are insufficient: after the claim transaction commits, another cron
 // could otherwise claim the still-unsent row before the first email finishes.
-// A message that fails five times stops retrying and remains visible.
+//
+// A message that fails five times leaves the every-run retry and is reported on
+// the Activity page by kind and order number. It is NOT abandoned: in the first
+// `warehouse_retry_window_minutes` of each hour (default 10, 0 switches it off)
+// a failed row is tried again, up to 24 attempts in all, and the last failure
+// is reported once more. A mail outage of half an hour used to strand every
+// picking list and do-not-ship queued inside it for good.
 //
 // The email follows the same rules as render.mjs, because the reader is the
 // same picker on the same warehouse floor: the SUBJECT carries the whole
@@ -46,20 +52,36 @@ if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 // Every message here is decided TWICE, and the second decision is the one that
 // counts. The first is a batch pass that closes what can no longer go; the
 // second happens for each row immediately before it is mailed, under the
-// order's row lock, and the mail is sent while that lock is held. So a
-// decision the shop makes while this run is in progress — an admin cancel, a
-// reinstate, a delivery — is seen by the next message for that order, and a
-// message that is already on its way cannot be overtaken by one of the shop's
-// decisions. (Before this, a row was claimed and committed, and then mailed
+// order's row lock. So a decision the shop makes while this run is in progress
+// — an admin cancel, a reinstate, a delivery — is seen by the next message for
+// that order. (Before this, a row was claimed and committed, and then mailed
 // without anyone looking at the order again: a reinstate that landed during
 // the run was overwritten, and the warehouse was told not to ship a live order.)
+//
+// THE MAIL IS SENT WITHOUT THE ORDER'S ROW LOCK. An earlier version kept the
+// lock through mail() so that no decision could overtake a message already on
+// its way. But a bank callback (KNET, T-Pay), the stock sweeper and every admin
+// route take the same lock, and a relay that stalls for longer than the
+// database's lock wait (50 s) made the callback fail with error 1205: a shopper
+// who had paid saw the review page, the order stayed 'pending' with the money
+// captured, and two hours later the sweeper gave its stock away. So a row goes
+// in three steps (sporta_send_row): decide under the lock and mark it IN FLIGHT
+// (sent_at set, last_error 'sending'), commit; mail with no lock held; take the
+// lock again and record the result. While in flight the row reads as sent to
+// everything that asks, which is what it will be a moment later, so a cancel
+// made now is followed by its do-not-ship, and a reinstate made now answers a
+// cancel the warehouse is about to read. If the mail then FAILS, the order is
+// looked at again before the row goes back to being unsent. A run that dies
+// mid-send leaves the in-flight mark behind; the next run (the advisory lock
+// below means no other is running) turns those rows back into unsent ones.
 //
 // The rules themselves are in store_outbox_closed_reason() (store.php), one
 // place for both passes. A row closed that way is marked sent with last_error
 // saying why it never went: 'order cancelled', 'order shipped'. In short: a
 // cancelled order's picking list and reinstate are never mailed; its payment
 // and cancel are mailed only if the warehouse already holds a picking list for
-// it; and an order that has shipped or been delivered gets no dispatch message.
+// it; and an order that has shipped or been delivered gets no dispatch message
+// (picking list, payment, or REINSTATED list).
 //
 // LOCK ORDER. Every change to what the warehouse is told takes the order's row
 // lock first (the admin route, the sweeper, the callbacks, and the checkout
@@ -69,17 +91,31 @@ if ((string)$acquired !== '1') store_fail('queue_lock_unavailable', 503);
 //
 // Under the advisory lock above, so a second cron cannot claim these first.
 
+// A previous run that died between "in flight" and "recorded": nothing else can
+// be sending (we hold the advisory lock), so these were never confirmed. Back to
+// unsent; the attempt that was spent on them stays spent.
+$db->prepare('update fulfilment_outbox set sent_at = null, last_error = ? where last_error = ? and sent_at is not null')
+   ->execute(['interrupted', STORE_OUTBOX_SENDING]);
+
+// How many attempts a row has left. The first five happen on consecutive runs;
+// after that only inside the retry window at the top of each hour, until 24.
+const SPORTA_FAST_ATTEMPTS = 5;
+const SPORTA_SLOW_ATTEMPTS = 24;
+$window = max(0, min(60, (int)($cfg['warehouse_retry_window_minutes'] ?? 10)));
+$slowOpen = $window > 0 && (int)$db->query('select minute(now())')->fetchColumn() < $window;
+$eligible = $slowOpen ? 'attempts < ' . SPORTA_SLOW_ATTEMPTS : 'attempts < ' . SPORTA_FAST_ATTEMPTS;
+
 // Pass 1: every order that has an unsent row which may now be closed.
 $candidates = $db->query(
     "select distinct f.order_id from fulfilment_outbox f
        join orders o on o.id = f.order_id
-      where f.sent_at is null and f.attempts < 5
+      where f.sent_at is null and f.{$eligible}
         and o.fulfilment_status in ('cancelled', 'shipped', 'delivered')
       order by f.order_id limit 500"
 )->fetchAll(PDO::FETCH_COLUMN);
 $suppressed = 0;
 foreach ($candidates as $orderId) {
-    $suppressed += sporta_close_unsent($db, (int)$orderId);
+    $suppressed += sporta_close_unsent($db, (int)$orderId, $eligible);
 }
 
 // ---- claim ----
@@ -91,10 +127,10 @@ foreach ($candidates as $orderId) {
 // written with the order, the cancel later).
 $db->beginTransaction();
 $rows = $db->query(
-    'select id, order_id, kind, payload, attempts from fulfilment_outbox
-      where sent_at is null and attempts < 5
+    "select id, order_id, kind, payload, attempts from fulfilment_outbox
+      where sent_at is null and {$eligible}
       order by created_at, id limit 20
-        for update skip locked'
+        for update skip locked"
 )->fetchAll();
 if ($rows) {
     $ids = implode(',', array_map(fn($r) => (int)$r['id'], $rows));
@@ -102,8 +138,9 @@ if ($rows) {
 }
 $db->commit();
 
-// Pass 2: each claimed row is decided and, if it may go, mailed, under its
-// order's lock (sporta_send_row). A row the shop overtook is closed, not mailed.
+// Pass 2: each claimed row is decided under its order's lock and, if it may go,
+// mailed with no lock held (sporta_send_row). A row the shop overtook is closed,
+// not mailed.
 $sent = 0; $failed = [];
 foreach ($rows as $row) {
     $outcome = sporta_send_row($db, $cfg, $row, (int)$row['attempts'] + 1);
@@ -132,14 +169,14 @@ function sporta_lock_order(PDO $db, int $orderId): ?string {
 // Pass 1 for one order: close every unsent row that must not go. One
 // transaction under the order's lock, so no shop decision lands between the
 // reading of the status and the closing of the rows. Returns how many closed.
-function sporta_close_unsent(PDO $db, int $orderId): int {
+function sporta_close_unsent(PDO $db, int $orderId, string $eligible): int {
     $db->beginTransaction();
     try {
         $status = sporta_lock_order($db, $orderId);
         $closed = 0;
         if ($status !== null) {
             $q = $db->prepare('select id, kind from fulfilment_outbox
-                                where order_id = ? and sent_at is null and attempts < 5 for update');
+                                where order_id = ? and sent_at is null and ' . $eligible . ' for update');
             $q->execute([$orderId]);
             foreach ($q->fetchAll() as $r) {
                 $why = store_outbox_closed_reason((string)$r['kind'], $status, store_outbox_heard($db, $orderId));
@@ -157,51 +194,107 @@ function sporta_close_unsent(PDO $db, int $orderId): int {
     }
 }
 
-// Pass 2 for one claimed row. The decision and the mail happen in ONE
-// transaction under the order's lock, and the lock is held through the mail:
-// an admin cancel or reinstate of this order waits for the send to finish and
-// then sees the row as sent, so its do-not-ship or its REINSTATED list is
-// decided on what the warehouse really holds. A mail is one sendmail call, so
-// the wait is short.
+// Pass 2 for one claimed row, in three steps (see the header for why the order
+// lock is not held through the mail):
+//   1. under the order's lock: skip a row that is already settled, close one
+//      the shop has overtaken, or mark the row IN FLIGHT and commit;
+//   2. render and mail, holding no lock;
+//   3. under the lock again: record the result. A failed send puts the row back
+//      to unsent, unless the order changed meanwhile in a way that makes the
+//      message moot, in which case it is closed instead.
 //
-// Returns 'sent', 'failed' (mail refused; the row stays unsent and is retried
-// until its fifth attempt), 'closed' (the shop overtook it; nothing mailed) or
+// Returns 'sent', 'failed' (mail refused; the row stays unsent and is retried),
+// 'closed' (the shop overtook it; nothing mailed, or nothing left to mail) or
 // 'skipped' (the order is gone, or the row was already settled).
 //
-// A row that fails its fifth attempt is reported to the owner on the Activity
-// page: from then on it is never retried by the drain, so nothing else would
-// say that the warehouse was never told.
+// The fifth failed attempt, and the last (24th), are reported to the owner on
+// the Activity page with the kind and the order number in the key
+// (warehouse_mail_failed_<kind>_<track>, warehouse_mail_gave_up_<kind>_<track>),
+// so the owner can see WHICH order the warehouse never heard about.
 function sporta_send_row(PDO $db, array $cfg, array $row, int $attempts): string {
     $orderId = (int)$row['order_id'];
+    $id = (int)$row['id'];
+    $kind = (string)$row['kind'];
+    $p = json_decode((string)$row['payload'], true) ?: [];
+
+    // 1.
     $db->beginTransaction();
     try {
         $status = sporta_lock_order($db, $orderId);
         $cur = $db->prepare('select sent_at from fulfilment_outbox where id = ? for update');
-        $cur->execute([(int)$row['id']]);
+        $cur->execute([$id]);
         $state = $cur->fetch(PDO::FETCH_ASSOC);
         if ($status === null || !$state || $state['sent_at'] !== null) {
             $db->commit();
             return 'skipped';
         }
-        $why = store_outbox_closed_reason((string)$row['kind'], $status, store_outbox_heard($db, $orderId));
+        $why = store_outbox_closed_reason($kind, $status, store_outbox_heard($db, $orderId));
         if ($why !== null) {
             $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
-               ->execute([$why, (int)$row['id']]);
+               ->execute([$why, $id]);
             $db->commit();
             return 'closed';
         }
-        $p = json_decode($row['payload'], true) ?: [];
-        [$subject, $text, $html] = sporta_render_warehouse((string)$row['kind'], $p);
-        $ok = sporta_send_mail($cfg, $subject, $text, $html);
-        $db->prepare('update fulfilment_outbox set sent_at = ?, last_error = ? where id = ?')
-           ->execute([$ok ? date('Y-m-d H:i:s') : null, $ok ? null : 'mail() returned false', (int)$row['id']]);
-        if (!$ok && $attempts >= 5) store_system_event($db, 'warehouse_mail_failed');
+        $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
+           ->execute([STORE_OUTBOX_SENDING, $id]);
         $db->commit();
-        return $ok ? 'sent' : 'failed';
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
     }
+
+    // 2. No transaction, no lock: a stalled relay holds up nothing but this run.
+    try {
+        [$subject, $text, $html] = sporta_render_warehouse($kind, $p);
+        $ok = sporta_send_mail($cfg, $subject, $text, $html);
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+
+    // 3.
+    $db->beginTransaction();
+    try {
+        $status = sporta_lock_order($db, $orderId);
+        if ($ok) {
+            $db->prepare('update fulfilment_outbox set last_error = null where id = ? and last_error = ?')
+               ->execute([$id, STORE_OUTBOX_SENDING]);
+            $db->commit();
+            return 'sent';
+        }
+        // Unsent again FIRST, so the in-flight row is not counted as the warehouse
+        // having heard something when the order is looked at below.
+        $db->prepare('update fulfilment_outbox set sent_at = null, last_error = ? where id = ?')
+           ->execute(['mail() returned false', $id]);
+        $why = $status === null ? null
+             : store_outbox_closed_reason($kind, $status, store_outbox_heard($db, $orderId));
+        if ($why !== null) {
+            $db->prepare('update fulfilment_outbox set sent_at = now(), last_error = ? where id = ?')
+               ->execute([$why, $id]);
+            $db->commit();
+            return 'closed';
+        }
+        if ($attempts === SPORTA_FAST_ATTEMPTS) {
+            sporta_alert($db, 'warehouse_mail_failed', $kind, $p);
+        } elseif ($attempts >= SPORTA_SLOW_ATTEMPTS) {
+            sporta_alert($db, 'warehouse_mail_gave_up', $kind, $p);
+        }
+        $db->commit();
+        return 'failed';
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
+// An Activity-page row for a message that is not getting through. The log has
+// one text column, so the kind and the order number go in the key itself:
+// warehouse_mail_failed_new_sp4kq7x9m. Lower case and [a-z0-9_] only, as
+// store_system_event() requires; the order number is the shopper-facing track
+// id, which is no more private than the order number on the warehouse's own mail.
+function sporta_alert(PDO $db, string $what, string $kind, array $payload): void {
+    $track = strtolower((string)preg_replace('/[^A-Za-z0-9]/', '', (string)($payload['track_id'] ?? '')));
+    $kind = strtolower((string)preg_replace('/[^A-Za-z0-9]/', '', $kind));
+    store_system_event($db, substr($what . '_' . $kind . ($track !== '' ? '_' . $track : ''), 0, 80));
 }
 
 // ---------------------------------------------------------------------------

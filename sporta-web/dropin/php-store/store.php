@@ -2645,6 +2645,17 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
 //
 // Returns null when the order may go on, or [token, http status].
 function store_order_reinstate(PDO $db, int $orderId): ?array {
+    $refused = store_order_reclaim($db, $orderId);
+    if ($refused !== null) return $refused;
+    store_fulfilment_reinstate($db, $orderId);
+    return null;
+}
+
+// The stock and the discount uses half of the above, which is also what
+// settling a card order by hand needs when its reservation was released while
+// it waited for the bank (stock_released = 1 on an order that was never
+// cancelled): the same claims, the same refusals, nothing about the warehouse.
+function store_order_reclaim(PDO $db, int $orderId): ?array {
     $hasDiscount = store_column_exists($db, 'orders', 'discount_ids');
     $q = $db->prepare('select stock_claimed, stock_released'
         . ($hasDiscount ? ', discount_ids, discount_released' : '') . ' from orders where id = ?');
@@ -2689,7 +2700,6 @@ function store_order_reinstate(PDO $db, int $orderId): ?array {
         $db->prepare('update orders set discount_released = 0 where id = ?')->execute([$orderId]);
     }
 
-    store_fulfilment_reinstate($db, $orderId);
     return null;
 }
 
@@ -2707,6 +2717,13 @@ function store_order_reinstate(PDO $db, int $orderId): ?array {
 const STORE_OUTBOX_CLOSED_CANCELLED  = 'order cancelled';
 const STORE_OUTBOX_CLOSED_REINSTATED = 'order reinstated';
 const STORE_OUTBOX_CLOSED_SHIPPED    = 'order shipped';
+// NOT a closed spelling: a row the drain has decided to send and is handing to
+// the mail relay right now (cron-fulfilment.php). sent_at is set while it is
+// in flight, so everything that asks "has the warehouse been told?" (the admin
+// routes, store_outbox_heard) answers as it will be true a moment later, and
+// the order's row lock is NOT held through the network call. A run that dies
+// mid-send leaves it behind; the next run turns it back into an unsent row.
+const STORE_OUTBOX_SENDING           = 'sending';
 // The same three, as an SQL list. The constants are fixed strings, never input.
 const STORE_OUTBOX_CLOSED_SPELLINGS  = "'order cancelled', 'order reinstated', 'order shipped'";
 
@@ -2738,17 +2755,27 @@ function store_outbox_heard(PDO $db, int $orderId): bool {
 //     what they hold, and dropping it would leave them with a picking list and
 //     no do-not-ship. Nothing heard: the row is closed, and nothing is mailed.
 //   * A SHIPPED or DELIVERED order. Nothing that tells the warehouse to dispatch
-//     may go: a picking list ('new') or a payment ('payment'). The parcel has
-//     left the shop, and a second van is a second delivery. 'cancel' and
-//     'reinstate' are not dispatch messages and are left alone.
+//     may go: a picking list ('new'), a payment ('payment') or a REINSTATED
+//     picking list ('reinstate' — the full list, address and COLLECT CASH
+//     banner, so a dispatch instruction like the first). The parcel has left
+//     the shop, and a second van is a second delivery. A 'cancel' is not a
+//     dispatch message and is left alone. This is also the way the owner
+//     corrects a cash order the 24-hour sweep cancelled after the van had
+//     gone: moving it out of 'cancelled' queues a reinstate, and recording it
+//     as delivered must not send the warehouse the list again.
+//   * A LIVE order (not cancelled, not shipped) and a 'cancel' row: the
+//     do-not-ship was withdrawn by a reinstate and is moot. The reinstate
+//     closes such rows itself; this is the same answer for a cancel that was in
+//     flight when the reinstate happened and then failed to send.
 function store_outbox_closed_reason(string $kind, string $orderStatus, bool $warehouseHeard): ?string {
     if ($orderStatus === 'cancelled') {
         if (in_array($kind, ['new', 'reinstate'], true)) return STORE_OUTBOX_CLOSED_CANCELLED;
         return $warehouseHeard ? null : STORE_OUTBOX_CLOSED_CANCELLED;
     }
-    if (in_array($orderStatus, ['shipped', 'delivered'], true) && in_array($kind, ['new', 'payment'], true)) {
-        return STORE_OUTBOX_CLOSED_SHIPPED;
+    if (in_array($orderStatus, ['shipped', 'delivered'], true)) {
+        return in_array($kind, ['new', 'payment', 'reinstate'], true) ? STORE_OUTBOX_CLOSED_SHIPPED : null;
     }
+    if ($kind === 'cancel') return STORE_OUTBOX_CLOSED_REINSTATED;
     return null;
 }
 
@@ -2764,7 +2791,13 @@ function store_outbox_closed_reason(string $kind, string $orderStatus, bool $war
 //      a cancel answered by an earlier reinstate is not owed a second one;
 //   4. nothing was said to the warehouse: a picking list closed unsent BECAUSE
 //      the order was cancelled, or one that failed to send five times, goes
-//      out after all, with its attempts counted from zero.
+//      out after all, with its attempts counted from zero. A CLOSED row is
+//      one with sent_at SET and last_error 'order cancelled' (that is how the
+//      drain and the sweeper close it), so it is matched by its spelling —
+//      matching `sent_at is null` here found only the failed ones, and a live
+//      order whose picking list had been closed stayed invisible to the
+//      warehouse, with only a bare "ship it" to follow when its cash was
+//      recorded.
 function store_fulfilment_reinstate(PDO $db, int $orderId): void {
     // 1.
     $db->prepare("update fulfilment_outbox set sent_at = now(), last_error = ?
@@ -2796,8 +2829,8 @@ function store_fulfilment_reinstate(PDO $db, int $orderId): void {
     // 4. A picking list that failed five times is included: the owner's
     // reinstate is the one moment it is certain the order is wanted again.
     $db->prepare("update fulfilment_outbox set sent_at = null, last_error = null, attempts = 0
-                   where order_id = ? and kind = 'new' and sent_at is null
-                     and (last_error = ? or attempts >= 5)")
+                   where order_id = ? and kind = 'new'
+                     and ((sent_at is null and attempts >= 5) or last_error = ?)")
        ->execute([$orderId, STORE_OUTBOX_CLOSED_CANCELLED]);
 }
 

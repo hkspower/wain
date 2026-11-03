@@ -1362,6 +1362,22 @@ if ($r === 'card_settled' && $method === 'POST') {
             $db->rollBack();
             store_fail('order_cancelled', 409);
         }
+        // THE TWIN CASE: an order that was never cancelled but whose hold ran
+        // out. A card order nobody paid for within stock_hold_minutes has its
+        // garments (and its discount uses) put back by the sweeper while it
+        // stays 'pending', and a capture that arrives later is parked for
+        // review for exactly that reason. The owner settling it here would
+        // otherwise mark it paid and mail "ship it" with those units back on
+        // sale — a paid order the shelf cannot fill, and the same units
+        // sellable to someone else. So it claims them AGAIN, with checkout's
+        // own guarded UPDATE, or is refused with out_of_stock_<slug>_<size>_<left>
+        // (409): the bank's money is then the owner's to return, and nothing
+        // is marked paid against a shelf that is empty.
+        $refused = store_order_reclaim($db, $id);
+        if ($refused !== null) {
+            $db->rollBack();
+            store_fail($refused[0], $refused[1]);
+        }
         $db->prepare(
             "update orders set payment_status = 'paid', paid_at = ?,
                     cbk_status = 'MANUAL_BANK_CONFIRMED',

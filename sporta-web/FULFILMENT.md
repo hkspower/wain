@@ -166,10 +166,24 @@ before it mails. The rules are in `store_outbox_closed_reason()` (store.php):
 |---|---|---|---|---|
 | cancelled, warehouse heard nothing | closed | closed | closed | closed |
 | cancelled, warehouse heard something | closed | closed | sent | sent |
-| shipped or delivered | closed | sent | closed | sent |
+| shipped or delivered | closed | closed | closed | sent |
+| unfulfilled or packed | sent | sent | sent | closed (`order reinstated`) |
 
 A closed row is never mailed; its `last_error` says why (`order cancelled`,
-`order reinstated`, `order shipped`).
+`order reinstated`, `order shipped`). A `reinstate` is the full picking list
+(address, items, COLLECT CASH), so it is closed for a shipped or delivered
+order exactly like the first one: moving a cancelled cash order straight to
+`delivered` to correct the books must not send the warehouse a second van.
+
+- **Put back after a silent cancel.** A picking list closed as `order
+  cancelled` (cancelled before the first drain, or by the 24-hour sweep) is
+  sent when the order is put back, as a plain picking list, not a REINSTATED
+  one, because the warehouse never heard of it.
+- **The mail is sent without the order's row lock.** The drain marks the row in
+  flight (`sent_at` set, `last_error = 'sending'`), mails, then records the
+  result. A stalled relay cannot make a bank callback time out on the order
+  lock. A run that dies mid-send leaves `sending` behind; the next run turns it
+  back into an unsent row (`interrupted`).
 
 - **Cancelling** is refused with 409 for an order that has left the shop
   (`order_already_shipped`) or is paid (`order_paid`). Both are settled through
@@ -179,9 +193,14 @@ A closed row is never mailed; its `last_error` says why (`order cancelled`,
 - **A cancelled card order** cannot be settled by hand (`order_cancelled`): put
   it back first. A bank capture that arrives after a cancel is held for review
   (`ORDER_CANCELLED`), not marked paid.
-- **Five failed sends** of a cancel, payment or picking list write one
-  `warehouse_mail_failed` row to the Activity page (actor `system`). The drain
-  never retries a row past five, so this row is how the owner learns of it.
+- **Failed sends.** A row is tried on five consecutive runs. The fifth failure
+  writes one Activity row (actor `system`) naming the kind and the order:
+  `warehouse_mail_failed_<kind>_<track>`. After that it is retried only in the
+  first `warehouse_retry_window_minutes` of each hour (config key, default 10,
+  `0` switches it off), up to 24 attempts, and the last failure writes
+  `warehouse_mail_gave_up_<kind>_<track>`. Each retry decides again, so a
+  message that has become moot (the order shipped, was cancelled or put back) is
+  closed, not mailed late.
 
 **Before deploying** on a database created before this change, import
 `dropin/php-store/outbox-kinds.mysql.sql`. Until it is in, the outbox refuses

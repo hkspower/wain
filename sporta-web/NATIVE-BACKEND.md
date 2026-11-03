@@ -268,7 +268,16 @@ client the same way.
   `/var/lib/sporta/admin-sessions` on the VPS, else the account home, else the
   temp dir) with PHP's sweep set to the same 30 days: PHP's default sweep
   (24 minutes, in a path every session shares) used to sign an idle admin out
-  long before the coded expiry. Proven by `npm run test:admin-session`.
+  long before the coded expiry. A request that carries NO session cookie
+  (`?r=me` from a visitor, a scanner, any unknown `?r=`) makes no session: no
+  file, no `Set-Cookie`. Files in that directory live 30 days, so one per
+  anonymous request would have been ~345,000 inodes a day from a single address
+  at the 240/minute limit. Sessions are created only where they must be (a
+  granted sign-in, the pending phone-code and password-change steps), and a
+  cookie that names no stored session is ended on the spot
+  (`store_session_resume()`). The Google sign-in flow session lives in PHP's
+  default path, never in the admin directory. Proven by
+  `npm run test:admin-session`.
   Orders, inventory, stats, COD settlement all read MySQL.
 - **Stock:** edit in the admin's Inventory tab, or directly in phpMyAdmin
   (`product_variants.stock`).
@@ -276,6 +285,28 @@ client the same way.
   (`sporta-html5/assets/products.js`), re-run
   `node scripts/generate-mysql-seed.mjs`, re-import `seed.mysql.sql` in
   phpMyAdmin, and publish the site.
+
+### Warehouse mail, settling a card by hand, abandoned card orders
+
+- **The drain never holds an order's row lock while it mails**
+  (`cron-fulfilment.php`): it decides under the lock and marks the row in flight,
+  mails with no lock held, then records the result under the lock again. A
+  stalled relay can no longer make a bank callback fail with a lock timeout.
+  An in-flight row reads as sent (`sent_at` set, `last_error = 'sending'`); a run
+  that dies mid-send is repaired by the next one.
+- **A message that fails is retried, not abandoned.** Five attempts on
+  consecutive runs; then, in the first `warehouse_retry_window_minutes` of each
+  hour (config key, default 10, `0` = off), up to 24 in all. The fifth failure
+  and the last each write one Activity row naming the kind and the order:
+  `warehouse_mail_failed_<kind>_<track>`, `warehouse_mail_gave_up_<kind>_<track>`.
+- **`card_settled` claims the garments again** when the sweeper had released the
+  order's hold (`stock_released = 1` on an order that was never cancelled), and
+  is refused with the checkout's own `out_of_stock_<slug>_<size>_<left>` (409)
+  when that size has sold since; discount uses are claimed again too
+  (`discount_used_up`, 409).
+- **`cron-stock.php` finds an abandoned card order that claimed no stock** (an
+  accessories-only KNET / T-Pay order whose hold has passed), cancels it and
+  gives its discount uses back.
 
 ## What went with the old backend
 

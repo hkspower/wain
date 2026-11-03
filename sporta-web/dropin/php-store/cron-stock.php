@@ -84,10 +84,24 @@ $dry = PHP_SAPI === 'cli'
 // not it claimed stock — an accessories-only order that failed used a code all
 // the same (store_discount_release). Only once discount-release.mysql.sql is
 // imported: before that there is no record of what an order claimed.
-$discountClause = store_column_exists($db, 'orders', 'discount_ids')
+//
+// A CARD ORDER THAT CLAIMED NO STOCK is one of those too, once its hold has
+// passed: an accessories-only KNET / T-Pay order the shopper abandoned at the
+// bank page. It is not in the first clause (stock_claimed = 0) and not failed or
+// cancelled, so without its own clause it was never a candidate and
+// store_stock_release()'s card-expiry branch (which cancels it and returns the
+// uses) could not be reached from here: a single-use or launch code was burned
+// for good by every such order. Same states as that branch decides on.
+$discountOnly = store_column_exists($db, 'orders', 'discount_ids');
+$discountClause = $discountOnly
     ? "or ( discount_ids is not null and discount_released = 0
             and payment_status not in ('paid','review')
-            and (payment_status = 'failed' or fulfilment_status = 'cancelled') )"
+            and (payment_status = 'failed' or fulfilment_status = 'cancelled') )
+       or ( discount_ids is not null and discount_released = 0 and stock_claimed = 0
+            and payment_status = 'pending'
+            and payment_method in ('knet','tpay')
+            and fulfilment_status = 'unfulfilled'
+            and created_at < (now() - interval ? minute) )"
     : '';
 $sql =
   "select id, track_id, payment_status, payment_method, fulfilment_status, created_at
@@ -108,7 +122,7 @@ $sql =
     order by id
     limit 500";
 $q = $db->prepare($sql);
-$q->execute([$minutes, $codHours, max(1, $codHours)]);
+$q->execute($discountOnly ? [$minutes, $codHours, max(1, $codHours), $minutes] : [$minutes, $codHours, max(1, $codHours)]);
 $rows = $q->fetchAll();
 
 $done = [];

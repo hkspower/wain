@@ -123,7 +123,7 @@ const MOCK = {
     order_track_id: i % 2 ? 'SPTEST' + (1000 + i) : null, subject: ['Where is my order?', 'Size exchange for the black tee', 'Payment question', 'Wrong colour delivered — can I swap it?', 'استفسار عن الطلب', 'Invoice copy'][i],
     status: ['open', 'pending', 'resolved', 'open', 'closed', 'pending'][i], priority: ['urgent', 'high', 'normal', 'normal', 'low', 'normal'][i], assigned_to: i % 3 ? null : 'owner@example.com',
     last_customer_at: day(i), last_staff_at: i % 2 ? day(i) : null, created_at: day(i), updated_at: day(i) })) },
-  crm_list: { contacts: NAMES.map((n, i) => ({ key: 'phone:9650000' + (1000 + i), source: 'phone', name: n, display_name: '', phone: '9650000' + (1000 + i), email: '', order_count: 1 + i, order_total: 9 * (1 + i), paid_total: 9 * i, open_cod_count: i % 2, open_cod_total: (i % 2) * 9, last_order_at: day(i), last_area: AREAS[i], last_track_id: 'SPTEST' + (1000 + i), status: ['new', 'contacted', 'vip'][i % 3], tags: i % 2 ? ['vip'] : [], follow_up_at: null, note_count: i % 3, updated_at: null, updated_by: null })) },
+  crm_list: { page: 1, has_more: false, total: 6, summary: { contacts: 6, orders: 21, order_total: 189, paid_total: 135, open_cod_count: 3, open_cod_total: 27, due_followups: 1 }, contacts: NAMES.map((n, i) => ({ key: 'phone:9650000' + (1000 + i), source: 'phone', name: n, display_name: '', phone: '9650000' + (1000 + i), email: '', order_count: 1 + i, order_total: 9 * (1 + i), paid_total: 9 * i, open_cod_count: i % 2, open_cod_total: (i % 2) * 9, last_order_at: day(i), last_area: AREAS[i], last_track_id: 'SPTEST' + (1000 + i), status: ['new', 'contacted', 'vip'][i % 3], tags: i % 2 ? ['vip'] : [], follow_up_at: null, note_count: i % 3, updated_at: null, updated_by: null })) },
   profiles_list: { profiles: Array.from({ length: 6 }, (_, i) => ({ id: 300 + i, name: NAMES[i % 6], email: `customer${i}@example.com`, phone: '9650000' + (1000 + i), created_at: day(i + 3), last_login_at: day(i),
     order_count: i, paid_total: 9.5 * i, last_order_at: i ? day(i) : null })), page: 1, has_more: false },
   activity_log: { events: Array.from({ length: 12 }, (_, i) => ({ id: 500 - i, actor_email: 'owner@example.com', action_key: ['login', 'product_save', 'brand_save', 'settings_save'][i % 4], created_at: day(i) })), page: 1, has_more: false },
@@ -508,7 +508,14 @@ function inPageMeasure() {
     if (!stop) { k.T = Math.max(k.T, usableTop); k.B = Math.min(k.B, usableBottom) }      // under a fixed header / tab bar is not in view
     const visibleArea = Math.max(0, k.R - k.L) * Math.max(0, k.B - k.T)
     const full = visibleArea >= r.width * r.height - 2
-    const hit = (() => { if (visibleArea <= 0) return false; const h = document.elementFromPoint((k.L + k.R) / 2, (k.T + k.B) / 2); return !!h && (h === e || e.contains(h)) })()
+    let coveredBy = ''
+    const hit = (() => {
+      if (visibleArea <= 0) return false
+      const h = document.elementFromPoint((k.L + k.R) / 2, (k.T + k.B) / 2)
+      const ok = !!h && (h === e || e.contains(h))
+      if (!ok && h) { let z = ''; for (let q = h; q && q !== document.body; q = q.parentElement) { const c = getComputedStyle(q); if (c.zIndex !== 'auto' && c.position !== 'static') { z = ' z' + c.zIndex; break } } coveredBy = short(h).slice(0, 50) + z }
+      return ok
+    })()
     const c = getComputedStyle(e)
     const bg = rgba(c.backgroundColor)
     const mx = Math.max(bg[0], bg[1], bg[2]), mn = Math.min(bg[0], bg[1], bg[2])
@@ -517,7 +524,7 @@ function inPageMeasure() {
       disabled: e.disabled === true, ariaDisabled: e.getAttribute('aria-disabled') || '', ariaBusy: e.getAttribute('aria-busy') || '', dataState: e.getAttribute('data-state') || e.getAttribute('data-loading') || '',
       primary: bg[3] > 0.3 && mx - mn > 60, bg: bg[3] > 0.3 ? hex(bg) : '-', cls: cn(e).slice(0, 110),
       top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right), w: Math.round(r.width), h: Math.round(r.height),
-      visible: visibleArea > 0, fully: full, hit, need: Math.max(0, Math.round(r.bottom - k.B)),
+      visible: visibleArea > 0, fully: full, hit, coveredBy, need: Math.max(0, Math.round(r.bottom - k.B)),
       sticky: stickyOf(e, stop), scroller: scrollParentOf(e),
     }
   }
@@ -799,7 +806,7 @@ await browser.close()
 const L = []
 const out = (s) => L.push(s)
 const j = (o) => JSON.stringify(o)
-const posOf = (b) => b ? `y${b.bottom}${b.visible ? (b.fully ? '' : '~part') : '~HIDDEN'}${b.hit ? '' : '~COVERED'}${b.need ? ' +' + b.need + 'px' : ' inview'}${b.sticky ? ' STICKY(' + b.sticky.pos + ' ' + b.sticky.sel + ')' : ''}${b.scroller ? ' [scroller ' + (b.scroller.scrolls ? 'scrolls ' : 'fits ') + b.scroller.sel + ']' : ''}` : '-'
+const posOf = (b) => b ? `y${b.bottom}${b.visible ? (b.fully ? '' : '~part') : '~HIDDEN'}${b.hit ? '' : b.coveredBy ? '~COVERED-by(' + b.coveredBy + ')' : '~COVERED'}${b.need ? ' +' + b.need + 'px' : ' inview'}${b.sticky ? ' STICKY(' + b.sticky.pos + ' ' + b.sticky.sel + ')' : ''}${b.scroller ? ' [scroller ' + (b.scroller.scrolls ? 'scrolls ' : 'fits ') + b.scroller.sel + ']' : ''}` : '-'
 const fieldsTxt = (f) => `${f.n}f{${Object.entries(f.kinds).map(([k, v]) => k + (v > 1 ? 'x' + v : '')).join(',')}}${f.disabled ? ' dis' + f.disabled : ''}`
 const btnTxt = (b) => b ? `"${b.text}" ${b.sel.slice(0, 64)} ${b.inForm ? (b.submit ? 'SUBMIT-in-form' : 'btn-in-form') : 'onClick-only'}${b.formAttr ? '(form=)' : ''} ${b.disabled ? 'DISABLED' : 'on'}${b.primary ? ' ' + b.bg : ''} ${b.w}x${b.h}` : 'NO-SAVE'
 const st1 = (x) => x ? `${x.text}/${x.dis ? 'dis' : 'en'}${x.aria ? '/aria-disabled=' + x.aria : ''}${x.busy ? '/aria-busy=' + x.busy : ''}/op${x.opacity}/${x.cursor}${x.spinner ? '/spinner' : ''}` : 'gone'
