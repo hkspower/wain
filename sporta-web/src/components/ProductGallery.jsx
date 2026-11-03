@@ -159,7 +159,12 @@ function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
         onMouseMove={(e) => window.matchMedia('(hover: hover)').matches && hover(e)}
         onMouseLeave={() => setLens(null)}
         onClick={() => { if (!moved.current) onZoom(); moved.current = false }}
-        className="group relative aspect-[4/5] cursor-zoom-in touch-pan-y overflow-hidden rounded-2xl bg-sand-light"
+        // 4:5 matches the photographs (and the card). From md up this column is
+        // sticky, with the thumbnails and the brand plate under the frame, so the
+        // frame's height is capped to what is left of the screen: uncapped, the
+        // block was taller than a 800px laptop window and its lower part could
+        // never be scrolled into view while it stuck. Width follows the ratio.
+        className="group relative aspect-[4/5] cursor-zoom-in touch-pan-y overflow-hidden rounded-2xl bg-sand-light md:mx-auto md:h-[clamp(22rem,calc(100svh_-_21rem),44rem)] md:max-w-full"
       >
         <div
           className="flex h-full w-full"
