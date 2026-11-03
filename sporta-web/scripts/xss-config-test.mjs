@@ -200,7 +200,13 @@ const writePay = (over = {}) => { writeFileSync(join(PRIV, 'pay-config.php'), ph
 writeApiConfig(); writeKnet(); writePay()
 
 const phpEnv = { ...process.env, SPORTA_API_CONFIG_FILE: join(tmp, 'api-config.php'), SPORTA_PRIVATE_CONFIG_DIR: PRIV }
-const phpFlags = ['-d', `sendmail_path=sh ${join(tmp, 'mta.sh')} ${MAIL}`, '-d', 'display_errors=0', '-d', 'log_errors=1', '-d', `error_log=${join(tmp, 'php-error.log')}`]
+// opcache is ON in the built-in server (its SAPI is "cli-server", which
+// opcache.enable governs, not opcache.enable_cli) and revalidates a file's
+// timestamp at most every 2 s: a config rewritten twice within two seconds is
+// served stale, and this suite rewrites the three configs dozens of times in a
+// row. Measured: the same hostile test_base was refused in one run and
+// "accepted" in the next. Off, every request reads the file it is given.
+const phpFlags = ['-d', 'opcache.enable=0', '-d', 'opcache.enable_cli=0', '-d', `sendmail_path=sh ${join(tmp, 'mta.sh')} ${MAIL}`, '-d', 'display_errors=0', '-d', 'log_errors=1', '-d', `error_log=${join(tmp, 'php-error.log')}`]
 procs.push(spawn('php', [...phpFlags, '-S', `127.0.0.1:${FAKE_PORT}`, join(tmp, 'fake-cbk.php')], { stdio: 'ignore', env: phpEnv }))
 procs.push(spawn('php', [...phpFlags, '-S', `127.0.0.1:${SITE_PORT}`, '-t', STAGE, join(STAGE, 'router.php')], { stdio: 'ignore', env: { ...phpEnv, PHP_CLI_SERVER_WORKERS: '4' } }))
 let siteUp = false
@@ -782,7 +788,7 @@ const T = ordersMade[0].track
     if (r.status === 400 && r.json?.error === 'invalid_ticket') refusedTags.push(field)
   }
   is(refusedTags.length === 3, 'support_create REFUSES < and > in name, subject and message (support_text: validation, not escaping)', `refused in ${refusedTags.join(',') || 'none'}`)
-  const t = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify({ name: P.apos.slice(0, 40), subject: `${P.attr} ${P.js} ${P.tpl}`, message: `${P.lsep} ${P.rlo} ${P.apos} ${P.amp} ${P.data}`, email }) })
+  const t = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify({ name: P.apos.slice(0, 40), subject: `${P.attr} ${P.js} ${P.tpl}`, message: `${P.lsep} ${P.rlo} ${P.apos} ${P.amp} ${P.js} ${P.tpl}`, email }) })
   const ref = t.json?.ticket?.reference ?? t.json?.ticket?.ref
   const look = ref ? await api('support_lookup', '', { method: 'POST', headers: cust, body: JSON.stringify({ reference: ref, email }) }) : null
   is(t.status === 201 && !inert('support_create', t) && look && !inert('support_lookup', look) && JSON.stringify(look?.json ?? {}).includes('onfocus=alert(1)'), 'a ticket with quotes, on*=, javascript:, {{7*7}}, bidi and U+2028 (no < >) is stored and comes back as inert JSON', `${t.status} ${ref ?? t.json?.error ?? ''}`)
