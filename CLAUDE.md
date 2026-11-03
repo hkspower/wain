@@ -383,11 +383,20 @@
   `RewriteRule` is NOT** — measured under Apache: a dotfile in a folder whose
   own `.htaccess` says `RewriteEngine On` was served 200 while the same file at
   the root was 403. Deny by NAME for anything that must hold everywhere.
-- **There is no image upload, by design.** Product and brand images are either
-  files the owner puts on the server by hand (category photos, `/cats/*.jpg`)
-  or `data:` URIs stored in the database row (brand logos). An upload endpoint
-  would have to write into the web root, and the live server already had one
-  such endpoint once — see "Never build a PHP deploy endpoint" below.
+- **Image upload: ONE route exists, and no other is to be built.** (Corrected
+  2026-11-03: this bullet used to say there was none, which was no longer true.)
+  `admin.php?r=product_image_upload` is the live backend's own: admin-only
+  (session + `X-Sporta-Admin`), PNG/JPEG/WebP only (SVG refused), magic-number
+  checked, 10 MiB cap, written unchanged into the media mount
+  `/docker/sporta/private/media/products` (served as `/images/products/`, with a
+  `.htaccess` that denies PHP there), answering `{path, width, height, bytes,
+  mime}`; the product row keeps `image` / `images` through `product_save`. Every
+  OTHER image is either a file the owner puts on the server by hand (category
+  photos, `/cats/*.jpg`) or a `data:` URI stored in the database row (brand
+  logos, hero slides). A second upload endpoint would be another way to write
+  into the web root, and the live server already had one such endpoint once —
+  see "Never build a PHP deploy endpoint" below. Tools that upload (the bulk
+  photo uploader in `sporta-admin-brands.js`) call this route and nothing else.
 - Outstanding before/after launch: real product photos (biggest gap), and the
   SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`.
 
