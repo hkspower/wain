@@ -50,6 +50,23 @@ export const BODY_HTML = BODY
 export const LIVE = `
 html { font-size: 16px; font-family: system-ui, sans-serif; }
 .admin-shell { --admin-action: #9a452c; --brand-deep: #9a452c; color: #18212a; }
+/* The build's LIGHT custom properties on .admin-shell, as measured on the live page (2026-11-03, probe job in
+   a read-only container: getComputedStyle of .admin-shell with the device and the stored theme both light). In dark
+   the build redefines every one of them; the Light only section of the add-on puts these back. */
+.admin-shell { --admin-bg: #f3f5f7; --admin-surface: #fff; --admin-surface-soft: #f7f8fa; --admin-border: #d9dfe5; --admin-border-strong: #aeb8c2;
+  --admin-text: #18212a; --admin-muted: #65717d; --admin-accent-soft: #f8ece6; --admin-accent-border: #d8a38b;
+  --admin-focus: color-mix(in srgb, #e0561c 16%, transparent); --admin-shadow: 0 1px 2px #0f172a0a, 0 10px 28px #0f172a09; }
+/* The live LIGHT mappings the fixture lacked: the build paints the indigo utilities and orange-700 with the accent
+   terracotta. Measured: text-orange-700 rgb(154,69,44); the mode note (bg-indigo-50, border-indigo-200, text-indigo-800)
+   rgb(248,236,230) / rgb(216,163,139) / rgb(184,67,15); the admin-wide error notice rgb(141,36,53) on rgb(255,240,242)
+   with an edge of rgb(233,160,169). Without them the fixture's light state is raw Tailwind, a light that does not exist. */
+.text-orange-700 { color: #9a452c; }
+.text-indigo-700 { color: #9a452c; }
+.text-indigo-800 { color: #b8430f; }
+.admin-shell .bg-indigo-50 { background-color: var(--admin-accent-soft); }
+.admin-shell .border-indigo-200 { border-color: var(--admin-accent-border); } /* a base rule that reads the custom property, as the build's does */
+.admin-notice { border: 1px solid; }
+.admin-notice--error { color: #8d2435; background-color: #fff0f2; border-color: #e9a0a9; }
 .admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font-weight: inherit; font-size: inherit; }
 .admin-shell .bg-indigo-600 { background-color: var(--admin-action) !important; color: #fff !important; }
 .admin-shell .text-indigo-600 { color: var(--brand-deep) !important; }

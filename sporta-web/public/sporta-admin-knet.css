@@ -771,84 +771,186 @@
   display: none;
 }
 
-/* ---- 9. Light only (owner decision 2026-11-03: no dark mode for the Payments screen) ---- */
+/* ==========================================================================
+   9. Light only (owner decision 2026-11-03: no dark mode for the Payments screen)
+
+   The owner's words were "no dark mode for knet". Our reading: the /backends
+   Payments screen (the KNET and CBK / T-Pay cards, both editors, the Merchant
+   ID / Terminal ID panel, the Merchant Server IP panel, the "take KNET through
+   this CBK setup" card) looks exactly like its LIGHT appearance on every
+   device, a device set to dark included. It is not dark, and it is not a
+   half-dark mix. Every other /backends screen is outside this decision.
+
+   WHY THIS SECTION EXISTS. The compiled admin ships its own dark theme and the
+   sections above were written for the white admin (they paint white, slate and
+   terracotta with !important). Measured on the live page, a dark-mode owner got
+   a white content area under a #151b21 card, white tiles under light text and
+   dark ink in dark fields. The first answer to that (commits 4da598d1..0e3184d6)
+   moved every colour into @media (prefers-color-scheme) twins and added a dark
+   layer: the wrong design twice over. It made the screen DARK, which is what the
+   owner refused; and it keyed on the wrong thing, because the build does not
+   follow the device. It follows html[data-theme="dark"] and html.dark, which
+   /boot.js sets before the first paint (the stored choice if there is one, else
+   the device setting, on /backends) and the app's theme provider keeps. A stored
+   choice outranks the device both ways, so "device dark" and "theme dark" are
+   different facts and only the second one paints. Hence:
+
+   THE MECHANISM. Every selector here starts with the build's own dark switch,
+   :is(html.dark, html[data-theme="dark"]) (boot.js writes only the attribute,
+   the provider adds the class afterwards, so both are named), then .admin-shell,
+   then the screen root .payment-settings or the content area that holds it
+   (.admin-content:has(.payment-settings)). Outside that, nothing here applies:
+   not to another screen, not to the sidebar or the phone bars (the build keeps
+   drawing those), not to the storefront. In the light theme none of it applies
+   either, so the light appearance is byte-for-byte what sections 1 to 8 give.
+   The values are the light ones, measured on the live page with the theme light
+   (probe, 2026-11-03), never invented: the build's own custom properties on
+   .admin-shell (--admin-bg #f3f5f7 ... --admin-action #9a452c), its Tailwind
+   slate ladder through var(--color-slate-N) with the hex as fallback, and the
+   terracotta the build gives the indigo utilities.
+
+   THE CASCADE. The build's dark rules that reach this screen are 20 of its 183
+   (scripts/fixtures/admin-dark-rules.css keeps them verbatim). Seven are
+   !important: five in the storefront sheet at (0,2,0), which the page links
+   BEFORE this file, and two in the admin chunk at (0,3,1), which the page
+   appends AFTER every add-on and which therefore wins every tie. So:
+     - against the (0,2,0) rules a selector needs !important and one point
+       more. It is written as the dark switch + :where(.admin-shell
+       .payment-settings) + the utility class, which is (0,2,1): just above the
+       build, and below every rule of sections 1 to 8 that is meant to win
+       (labels, placeholders, field edges, disabled fields, the quiet save
+       button, the meta text colour), so none of that polish is undone. A
+       stronger selector here would put slate-300 over the fields' #7d8799;
+     - against the (0,3,1) admin-chunk rules the selector spells out
+       .admin-shell .payment-settings and reaches (0,4,1), because a tie is lost;
+     - the build's non-!important dark rules (field colours, the content area,
+       headings, card shadows) reach (0,3,1); where the screen needs a value
+       back, the rule below is above that or !important.
+   The Tailwind utilities the screen uses are restated one by one (bg-white,
+   text-slate-900..600, border-slate-100..300, bg-indigo-50, text-indigo-*)
+   because that is how the build paints them. The custom properties it reads
+   (--admin-*, --surface, --line ...) are put back on the scope root, so
+   anything that reads one reads the light value.
+
+   NOT COVERED, on purpose. The sidebar, the phone header and tab bar, and the
+   viewport scrollbar (it belongs to <html>, whose inline color-scheme the boot
+   script owns) stay as the build draws them. Tailwind's dark: utilities, which
+   follow the device alone (one @media block in the build), are not used by the
+   Payments chunk. The admin-wide notices other than the error one are not
+   restated until a screen shows them. A browser without :has() still gets a
+   light screen root and light descendants; only the frame around it (the
+   content area's padding) is then left to the rules above, which already paint
+   it white.
+
+   scripts/admin-payments-light-test.mjs proves it against the live build's real
+   dark rules (npm run test:admin-light), with a mutation check that fails
+   without this section. */
+
+/* The scope: light colour scheme (native popups, autofill, checkboxes) and the
+   build's light custom properties. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) {
   color-scheme: light;
+  --admin-bg: #f3f5f7;
+  --admin-surface: #fff;
+  --admin-surface-soft: #f7f8fa;
+  --admin-border: #d9dfe5;
+  --admin-border-strong: #aeb8c2;
+  --admin-text: #18212a;
+  --admin-muted: #65717d;
+  --admin-accent-soft: #f8ece6;
+  --admin-accent-border: #d8a38b;
+  --admin-focus: color-mix(in srgb, #e0561c 16%, transparent);
+  --admin-shadow: 0 1px 2px #0f172a0a, 0 10px 28px #0f172a09;
+  --surface: #fff;
+  --canvas: #fff;
+  --canvas-muted: #f6f7f8;
+  --line: #171a1e21;
+  --line-soft: #171a1e13;
+  --line-strong: #7b8793;
+  --text-primary: #171a1e;
+  --text-muted: #596571;
 }
 
+/* Page and ink. The content area is white while the screen is open (section 1
+   already paints it white; this keeps it so by itself), and the screen root
+   carries its own white and ink for a browser without :has(). */
 :is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) {
   background-color: #fff !important;
   color: #18212a;
 }
-
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings {
   background-color: #fff;
   color: #18212a;
 }
 
+/* The admin-wide alert region that sits above the screen in the same content
+   area ("46 of 46 products are not in the database"): light error colours. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--error {
+  color: #8d2435;
+  background-color: #fff0f2;
+  border-color: #e9a0a9;
+}
+
+/* Cards, forms, fields and toggle knobs carry bg-white. The build's rule also
+   sets a text colour on them, so they take the screen's ink back. Below the
+   disabled-field rule of section 1 (0,3,1), which paints #f1f5f9. */
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .bg-white {
   background-color: #fff !important;
   color: inherit;
 }
 
+/* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
+   which already outranks the build; 900..600 are restated. */
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
-
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-800 {
   color: var(--color-slate-800, #1e293b) !important;
 }
-
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-700 {
   color: var(--color-slate-700, #334155) !important;
 }
-
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-600 {
   color: var(--color-slate-600, #475569) !important;
 }
 
+/* The slate edges, except on fields (their edge is section 1's #7d8799). */
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-100:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-100, #f1f5f9) !important;
 }
-
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-200:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-200, #e2e8f0) !important;
 }
-
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-300:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-300, #cbd5e1) !important;
 }
 
+/* The two panels carry border-slate-100 and section 8 gives them #d9dfe5,
+   which the build's !important would otherwise take. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
+  border-color: #d9dfe5 !important;
+}
+
+/* The accent terracotta the build gives the indigo utilities: the mode note on
+   the KNET and T-Pay editors, and the "Check again" button. The build's dark
+   rules for these are !important in the admin chunk, hence the longer scope. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-indigo-50 {
   background-color: #f8ece6 !important;
 }
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-600 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(.text-indigo-600, .text-indigo-700) {
   color: #9a452c !important;
 }
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-700 {
-  color: #9a452c !important;
-}
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-800 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(.text-indigo-800, .text-indigo-900) {
   color: #b8430f !important;
 }
 
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-900 {
-  color: #b8430f !important;
-}
-
+/* Fields: a light control (the build sets color-scheme: dark on each one), and
+   the class-less checkbox of the CBK card, which the build paints dark. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input, select, textarea) {
   color-scheme: light;
 }
-
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input[type="checkbox"], input[type="radio"]) {
   background-color: transparent;
   color: inherit;
   border-color: currentcolor;
-}
-
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
-  border-color: #d9dfe5 !important;
 }

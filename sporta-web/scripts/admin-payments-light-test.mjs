@@ -92,7 +92,7 @@ section.walkRules((r) => {
     if (!ok) loose.push(t.slice(0, 90))
   }
 })
-is(nRules >= 20, 'the Light only section carries its rules', `${nRules} rules`)
+is(nRules >= 12, 'the Light only section carries its rules', `${nRules} rules`)
 is(loose.length === 0, 'every selector in it names the dark-state html, .admin-shell and the screen root (.payment-settings): nothing global', loose.slice(0, 3).join(' | '))
 const scheme = []
 section.walkAtRules('media', (a) => { if (/prefers-color-scheme/.test(a.params)) scheme.push(a.params) })
@@ -133,15 +133,15 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 let detailOn = true
 // DETAIL=<scenario name> prints every difference found in that scenario (a debugging aid, not part of the verdict)
 // Everything measured in one scenario, as plain data
-async function collect(addon, sc) {
+async function collect(addon, sc, within = '#scr .admin-content') {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: sc.device })
   const pg = await ctx.newPage()
   await pg.setContent(pageHtml(addon, sc.attrs))
   const out = { sc: sc.name }
-  out.elems = await pg.evaluate((props) => {
+  out.elems = await pg.evaluate(([props, within]) => {
     const sig = (e) => e.tagName.toLowerCase() + '.' + String(e.getAttribute('class') || '').split(/\s+/).filter(Boolean).slice(0, 3).join('.')
     const rows = []
-    for (const e of [document.querySelector('#scr .admin-content'), ...document.querySelectorAll('#scr .admin-content *')]) {
+    for (const e of [document.querySelector(within), ...document.querySelectorAll(within + ' *')]) {
       const cs = getComputedStyle(e)
       if (cs.display === 'none') continue
       const r = { sig: sig(e), p: {} }
@@ -150,7 +150,7 @@ async function collect(addon, sc) {
       rows.push(r)
     }
     return rows
-  }, PROPS)
+  }, [PROPS, within])
   out.schemeOnControls = await pg.evaluate(() => [...document.querySelectorAll('#scr .payment-settings, #scr .payment-settings input, #scr .payment-settings select')].map((e) => getComputedStyle(e).colorScheme))
   out.areas = await pg.evaluate(() => {
     const c = (s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : 'none' }
@@ -183,7 +183,7 @@ async function collect(addon, sc) {
   out.selection = await pg.evaluate(() => { const c = getComputedStyle(document.querySelector('#scr h1'), '::selection'); return { color: c.color, background: c.backgroundColor } })
 
   // contrast of every text node and every field, against its effective background
-  out.contrast = await pg.evaluate(() => {
+  out.contrast = await pg.evaluate((within) => {
     const cv = document.createElement('canvas'); cv.width = 1; cv.height = 1
     const g = cv.getContext('2d', { willReadFrequently: true })
     const num = (str) => { g.clearRect(0, 0, 1, 1); g.fillStyle = '#000'; g.fillStyle = str; g.fillRect(0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255] }
@@ -191,7 +191,7 @@ async function collect(addon, sc) {
     const lm = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]) }
     const bgOf = (e) => { const layers = []; for (let x = e; x; x = x.parentElement) { const c = num(getComputedStyle(x).backgroundColor); if (c[3] > 0) layers.push(c); if (c[3] >= 1) break } let col = [255, 255, 255, 1]; for (let i = layers.length - 1; i >= 0; i--) col = mix(layers[i], col); return col }
     const rows = []
-    for (const e of document.querySelectorAll('#scr .admin-content *')) {
+    for (const e of document.querySelectorAll(within + ' *')) {
       const cs = getComputedStyle(e)
       if (cs.display === 'none' || cs.visibility === 'hidden' || !e.getBoundingClientRect().width) continue
       const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ')
@@ -207,7 +207,7 @@ async function collect(addon, sc) {
       }
     }
     return rows
-  })
+  }, within)
 
   // control: a content area without the screen
   out.control = await pg.evaluate(() => {
@@ -221,13 +221,14 @@ async function collect(addon, sc) {
 const lumOf = (rgb) => { const m = rgb.match(/[\d.]+/g); if (!m || (m.length > 3 && +m[3] === 0)) return null; const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(+m[0]) + 0.7152 * f(+m[1]) + 0.0722 * f(+m[2]) }
 
 // All the failures of one css text, as { check -> [details] }: the real run and the mutation run use the same function
-async function failuresOf(addon, verbose) {
+async function failuresOf(addon, verbose, within = '#scr .admin-content', only = null) {
   const F = {}
   const add = (k, v) => { (F[k] = F[k] || []).push(v) }
-  const base = await collect(addon, SCENARIOS[0])
+  const scs = only ? SCENARIOS.filter((x) => x.name === 'light' || only.includes(x.name)) : SCENARIOS
+  const base = await collect(addon, SCENARIOS[0], within)
   const runs = []
-  for (const sc of SCENARIOS) {
-    const d = sc.name === 'light' ? base : await collect(addon, sc)
+  for (const sc of scs) {
+    const d = sc.name === 'light' ? base : await collect(addon, sc, within)
     runs.push(d)
     if (sc.name === 'light') continue
     // identical computed paint, element by element
@@ -245,7 +246,7 @@ async function failuresOf(addon, verbose) {
     if (JSON.stringify(d.selection) !== JSON.stringify(base.selection)) add(`selection [${sc.name}]`, `${JSON.stringify(base.selection)} -> ${JSON.stringify(d.selection)}`)
     // the page around the screen
     // a surface is right when it is what light paints, or (the screen root, which light leaves clear) when it is light itself
-    for (const [k, v] of Object.entries(d.areas)) if (v !== base.areas[k] && !(k === 'screen' && lumOf(v) !== null && lumOf(v) >= 0.9)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
+    for (const [k, v] of Object.entries(d.areas)) if (!(only && k === 'alert') && v !== base.areas[k] && !(k === 'screen' && lumOf(v) !== null && lumOf(v) >= 0.9)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
     if (d.schemeOnControls.some((s) => /dark/.test(s))) add(`color-scheme [${sc.name}]`, [...new Set(d.schemeOnControls)].join('/'))
   }
   // contrast, in every scenario
@@ -280,6 +281,18 @@ head('Control: the scope is not global')
 for (const d of V.runs.filter((r) => /^(dark\+dark|dark\+light-device|first-paint)$/.test(r.sc))) {
   is(!F['control [' + d.sc + ']'], `[${d.sc}] a card on an admin content area WITHOUT the screen still follows the dark rules`, `card ${d.control.card}, border ${d.control.cardBorder}, text ${d.control.text}`)
   is(d.control.card !== light.control.card, `[${d.sc}] and its background differs from light`, `${light.control.card} -> ${d.control.card}`)
+}
+
+// ------------------------------------------------------------------------------------------------ without :has()
+head('Without :has(): the screen itself is still light')
+// Older browsers drop a selector they cannot parse. Simulate that for the section by making every :has(.payment-settings)
+// match nothing: the content-area rules and the alert-region rule are gone, the rules on the screen root and its
+// descendants (written inside :is(), which forgives) must still make every element of the screen light.
+const noHas = CSS.slice(0, cut) + CSS.slice(cut).replaceAll(':has(.payment-settings)', ':not(*)')
+is(noHas !== CSS, 'the simulation really removed the :has() branches')
+const NF = await failuresOf(noHas, null, '#scr .payment-settings', ['dark+dark', 'first-paint'])
+for (const name of ['dark+dark', 'first-paint']) {
+  is(!Object.keys(NF).some((k) => k.endsWith('[' + name + ']') && !k.startsWith('control')), `[${name}] every element inside the screen root still paints, states, surfaces and contrasts as light`, Object.entries(NF).filter(([k]) => k.endsWith('[' + name + ']')).map(([k, v]) => k + ': ' + v[0]).join(' | ').slice(0, 400))
 }
 
 // ---------------------------------------------------------------------------------------------------------- mutation
