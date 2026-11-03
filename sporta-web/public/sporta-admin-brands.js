@@ -2058,7 +2058,7 @@
         productId: null, pos: null, manual: false, ambiguous: false, phase: 'idle', error: '', errorCode: '', path: '', progress: 0, note: '', picker: false, node: null }
       // A file this page already wrote (removed or cleared from the list, then added again) is not written a second time:
       // the same path is added to the product instead. The page remembers only until it is reloaded; the saved log is paths.
-      if (written[it.sig]) it.path = written[it.sig].path
+
       applyMatch(it)
       items.push(it)
       added++
@@ -2103,7 +2103,7 @@
       if (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price)) return 'price'
       // store_datetime(): 'YYYY-MM-DD hh:mm[:ss]' (a T for the space is fine), then start must not be after end.
       var d1 = saleDate(p.sale_starts_at), d2 = saleDate(p.sale_ends_at)
-      if (d1 === false || d2 === false || false) return 'dates'
+      if (d1 === false || d2 === false || (d1 && d2 && d1 > d2)) return 'dates'
     }
     return ''
   }
