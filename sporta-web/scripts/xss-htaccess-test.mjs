@@ -234,6 +234,9 @@ export function buildTree({ patchFile = '' } = {}) {
     "<?php\nsetcookie('plain', '1');\nsetcookie('sec', '2', ['secure' => true, 'httponly' => true, 'samesite' => 'Strict']);\nsetcookie('none', '3', ['secure' => true, 'samesite' => 'None']);\nheader('Content-Type: text/plain'); echo 'ok';\n")
   writeFileSync(join(www, 'pay', 'zz-cookie.php'),
     "<?php\nsetcookie('plain', '1');\nheader('Content-Type: text/plain'); echo 'ok';\n")
+  // What api.php's slide_image / brand_logo answer with: it sets its own nosniff.
+  writeFileSync(join(www, 'api', 'zz-image.php'),
+    "<?php\nheader('Content-Type: image/png');\nheader('X-Content-Type-Options: nosniff');\nheader('Cache-Control: public, max-age=31536000, immutable');\necho base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');\n")
   writeFileSync(join(www, 'api', 'zz-reflect.php'),
     "<?php\n// A script that echoes its input with the WRONG type: shows which layer still holds.\nheader('Content-Type: text/html; charset=utf-8');\necho '<p>' . ($_GET['q'] ?? '') . '</p>';\n")
   chmodRecursive(BASE)
@@ -335,7 +338,15 @@ const waitUp = async () => {
     await new Promise((r2) => setTimeout(r2, 150))
   }
 }
-const stopApacheOnly = () => stopApache()
+// `-k stop` returns before the listener is gone; starting again too soon fails silently.
+const stopApacheOnly = async () => {
+  stopApache()
+  for (let i = 0; i < 60; i++) {
+    const r = await raw(PORT, ['GET /robots.txt HTTP/1.0', `Host: ${HOST}`], { timeout: 500 })
+    if (!r.status && !existsSync(`${BASE}/httpd.pid`)) return
+    await new Promise((r2) => setTimeout(r2, 100))
+  }
+}
 const stopApache = () => {
   try { execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'stop'], { stdio: 'ignore' }) } catch { /* not running */ }
 }
@@ -359,12 +370,18 @@ export async function startAll({ patchFile = '', extra = '', phpHandler = 'files
   // the script itself.
   const router = join(BASE, 'router.php')
   writeFileSync(router, `<?php
+// Every request reaching this server was handed over by Apache's PHP handler, whatever the file is
+// called (that is the point of the double-extension control), so the router runs the file as PHP.
 $www = ${JSON.stringify(www)};
+$f = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 $orig = $_SERVER['HTTP_X_ORIG_REQUEST'] ?? '';
 if (preg_match('#^[A-Z]+ (\\S+) HTTP/#', $orig, $m)) $_SERVER['REQUEST_URI'] = $m[1];
-$f = parse_url($_SERVER['REQUEST_URI_FS'] ?? ($_SERVER['SCRIPT_NAME'] ?? ''), PHP_URL_PATH);
-if (is_string($f) && str_starts_with($f, $www)) { $_SERVER['SCRIPT_NAME'] = $_SERVER['PHP_SELF'] = substr($f, strlen($www)); }
-return false;
+if (!str_starts_with($f, $www) || !is_file($f)) { http_response_code(404); echo 'router: no such file'; return true; }
+$_SERVER['SCRIPT_FILENAME'] = $f;
+$_SERVER['SCRIPT_NAME'] = $_SERVER['PHP_SELF'] = substr($f, strlen($www));
+chdir(dirname($f));
+require $f;
+return true;
 `)
   phpProc = spawn('php', ['-d', 'display_errors=1', '-d', 'html_errors=1', '-d', 'error_reporting=32767',
     '-S', `127.0.0.1:${PHP_PORT}`, '-t', '/', router], {
@@ -471,9 +488,11 @@ async function cspChecks() {
     const { r, csp } = seen.get(p)
     check(csp.length === 1, `exactly one CSP on ${p}`, `${csp.length} header(s), status ${r.status}`)
   }
-  for (const p of ['/api/store.php', '/.env']) {
-    const { r, csp } = seen.get(p)
-    check(csp.length === 1, `CSP on the Apache-made ${r.status} page ${p}`, csp.length ? 'present' : 'absent (stock error page: HSTS only)', D3)
+  // Apache's own error pages are fixed text, so a policy on them protects nothing; nosniff and the frame ban are
+  // the two that matter, and are checked in sections 2 and 4 (xsshtaccess-3).
+  for (const p of ['/api/store.php', '/.env', '/index.php', '/images/products', '/image/cache/x']) {
+    const r = await get(p)
+    check(h1(r, 'x-content-type-options') === 'nosniff', `Apache-made ${r.status} page ${p} is nosniff`, h1(r, 'x-content-type-options') || 'absent (HSTS only)', D3)
   }
 
   const storefront = h1(seen.get('/shop').r, 'content-security-policy')
@@ -516,7 +535,7 @@ async function cspChecks() {
   const sc = [...(pay.get('script-src-attr') ?? []), ...(pay.get('script-src') ?? [])].join(' ')
   const hash = `'sha256-${createHash('sha256').update(handler, 'utf8').digest('base64')}'`
   check(sc.includes("'unsafe-inline'") || sc.includes(hash), `/pay/pay.php: its onload handler (${handler || 'none'}) is allowed by the policy`, `script-src(-attr): ${short(sc, 90)}`, D1)
-  check(!/<body[^>]*onload=/.test(real) || true, 'note: pay.php still starts from an inline onload (durable fix: external script)')
+  if (/<body[^>]*onload=/.test(real)) console.log('   note: pay.php starts its POST from an inline onload; the durable fix is an external script file (no hash to keep in step).')
   const knet = h1(seen.get('/knet/pay.php').r, 'content-security-policy')
   check(knet.length > 0, '/knet/pay.php carries the policy (it redirects, so form-action is not in play)')
 }
@@ -557,7 +576,7 @@ async function mimeChecks() {
     check(/^image\/(jpeg|png)$/.test(h1(r, 'content-type')) && h1(r, 'x-content-type-options') === 'nosniff', `${n} (an image holding markup) is served as ${h1(r, 'content-type')} with nosniff: it cannot render or run as a page`)
   }
   for (const n of ['x.php.jpg', 'x.jpg.']) {
-    check(!/PHP-EXECUTED/.test(res[n].text) && /^image\//.test(h1(res[n], 'content-type')), `${n}: double extension is an image, PHP did not run it`, `${h1(res[n], 'content-type')}`)
+    check(!/PHP-EXECUTED-42/.test(res[n].text) && /^image\//.test(h1(res[n], 'content-type')), `${n}: double extension is an image, PHP did not run it`, `${h1(res[n], 'content-type')}`)
   }
   for (const n of ['x.jpg.php', 'x.phtml', 'x.PHP', 'x.Php', 'x.php5', 'x.pht']) {
     check(!/PHP-EXECUTED-42/.test(res[n].text), `${n}: never executed`, `${res[n].status} ${h1(res[n], 'content-type') || '(no type)'}`)
@@ -570,6 +589,7 @@ async function mimeChecks() {
     const inert = !active || /(^|[\s;])sandbox($|[\s;])/.test(h1(r, 'content-security-policy')) || /^attachment/i.test(h1(r, 'content-disposition'))
     check(inert, `${n} dropped in /images/products is inert (refused, sandboxed or a download)`,
       `${r.status} ${h1(r, 'content-type') || '(none)'}; CSP sandbox=${/sandbox/.test(h1(r, 'content-security-policy'))}`, D2)
+    if (n === 'x.js') check(!(r.status === 200 && ACTIVE_TYPE.test(h1(r, 'content-type'))), 'x.js dropped in /images/products is not served as a script (script-src \'self\' would run it from any page)', `${r.status} ${h1(r, 'content-type') || '(none)'}`, D2)
   }
   // The same on the folders the owner fills by hand.
   for (const p of ['/hero/x.html', '/hero/x.svg']) {
@@ -583,7 +603,7 @@ async function mimeChecks() {
     ['/images/products/real.jpg/x.html', 'PATH_INFO after an image'], ['/images/products/x.html%00.jpg', 'NUL byte']]) {
     const r = await get(p)
     const body = r.text
-    check(!/<script>alert\(1\)<\/script>/.test(body) && !/PHP-EXECUTED/.test(body), `${label}: ${p} serves none of the planted files`, `${r.status} ${h1(r, 'content-type')}`)
+    check(!/<script>alert\(1\)<\/script>/.test(body) && !/PHP-EXECUTED-42/.test(body), `${label}: ${p} serves none of the planted files`, `${r.status} ${h1(r, 'content-type')}`)
   }
   // Directory handling: no listing, and with DirectorySlash Off a bare directory must not index.
   for (const p of ['/images/products', '/images/products/', '/hero', '/api', '/pay', '/knet']) {
@@ -592,14 +612,14 @@ async function mimeChecks() {
   }
   // Negative control: the same fixtures under the older `AddHandler ... .php` form DO run a double
   // extension. Without this the "never executed" lines above could pass for the wrong reason.
-  stopApacheOnly()
+  await stopApacheOnly()
   writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www'), phpHandler: 'legacy', tls: TLS }))
   execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'start'])
   await waitUp()
   const ctl = await get('/images/products/x.php.jpg')
   check(/PHP-EXECUTED-42/.test(ctl.text), 'control: under AddHandler .php a double extension (x.php.jpg) DOES execute, so the checks above can fail',
     'docker-php.conf anchors with .+\\.ph(?:ar|p|tml)$ and a SetHandler in a FilesMatch, which is why the real image does not')
-  stopApacheOnly()
+  await stopApacheOnly()
   writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www'), tls: TLS }))
   execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'start'])
   await waitUp()
@@ -707,7 +727,10 @@ async function cookieFrameChecks() {
     check(hv(r, 'x-frame-options').length === 1, `Apache-made ${r.status} ${path} cannot be framed (X-Frame-Options)`, hv(r, 'x-frame-options').join('|') || 'absent', D3)
   }
   const rp = await get('/shop')
-  check(h1(rp, 'referrer-policy') === 'strict-origin-when-cross-origin', 'storefront Referrer-Policy strict-origin-when-cross-origin', h1(rp, 'referrer-policy'))
+  // /shop is rendered by api/seo-page.php, so api/.htaccess (no-referrer) wins over the root's
+  // strict-origin-when-cross-origin; the static shell keeps the root value. Both are safe.
+  const rpStatic = await get('/nope-404')
+  check(hv(rp, 'referrer-policy').length === 1 && /^(no-referrer|strict-origin-when-cross-origin)$/.test(h1(rp, 'referrer-policy')), 'storefront pages send one strict Referrer-Policy', `/shop: ${h1(rp, 'referrer-policy')}; 404 shell: ${h1(rpStatic, 'referrer-policy')}`)
   const ra = await get('/api/api.php?r=ping')
   check(hv(ra, 'referrer-policy').join() === 'no-referrer', '/api answers Referrer-Policy: no-referrer once', hv(ra, 'referrer-policy').join('|'))
   check(h1(rp, 'cross-origin-opener-policy') === 'same-origin' && h1(rp, 'cross-origin-resource-policy') === 'same-origin', 'COOP and CORP same-origin on the storefront')
@@ -780,7 +803,7 @@ async function duplicateHeaderChecks() {
   const watch = ['content-security-policy', 'x-content-type-options', 'x-frame-options', 'referrer-policy', 'strict-transport-security', 'cross-origin-opener-policy', 'cross-origin-resource-policy', 'cache-control', 'content-type', 'permissions-policy']
   const paths = ['/', '/shop', '/backends', '/nope-404', '/boot.js', '/sw.js', '/logo.png', '/robots.txt', '/sitemap.xml', '/site.webmanifest',
     '/api/api.php?r=ping', '/api/admin.php?r=me', '/api/sitemap-index.php', '/pay/pay.php', '/pay/callback.php', '/knet/pay.php', '/knet/callback.php',
-    '/images/products/real.jpg', '/images/products/x.svg', '/hero/x.svg', '/api/store.php', '/.env', '/index.php', '/shipping', '/images/products/x.php.jpg']
+    '/images/products/real.jpg', '/images/products/x.svg', '/hero/x.svg', '/api/store.php', '/.env', '/index.php', '/shipping', '/images/products/x.php.jpg', '/api/zz-image.php']
   const dups = []
   for (const p of paths) {
     const r = await get(p)
@@ -813,7 +836,10 @@ async function browserChecks(www) {
     `<?php\n$checkoutUrl='https://pgtest.cbk.com/ePay/pg/epay?_v=x'; $fields=['tij_a'=>'b'];\n$h=fn($v)=>htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');\nheader('Content-Type: text/html; charset=utf-8');\n${tpl}`)
   writeFileSync(join(www, 'images', 'products', 'zz-script.html'), '<script src="/images/products/x.js"></script><script>document.title="INLINE-RAN"</script>')
   writeFileSync(join(www, 'images', 'products', 'x.js'), 'document.title="EXTERNAL-JS-RAN"')
-  const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--ignore-certificate-errors', `--host-resolver-rules=MAP www.sporta.com.kw 127.0.0.1:${TLS_PORT}, MAP pgtest.cbk.com 127.0.0.1:1, MAP pg.cbk.com 127.0.0.1:1, MAP * ~NOTFOUND , EXCLUDE 127.0.0.1`] })
+  // An upload that is JavaScript inside a .jpg, pulled in by a page the attacker controls (here a root fixture).
+  writeFileSync(join(www, 'images', 'products', 'js-in.jpg'), 'document.title="JPG-JS-RAN"')
+  writeFileSync(join(www, 'zz-host.html'), '<!doctype html><script src="/images/products/js-in.jpg"></script>')
+  const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--no-proxy-server', '--ignore-certificate-errors', `--host-resolver-rules=MAP www.sporta.com.kw 127.0.0.1:${TLS_PORT}, MAP pgtest.cbk.com 127.0.0.1:1, MAP pg.cbk.com 127.0.0.1:1, MAP * ~NOTFOUND , EXCLUDE 127.0.0.1`] })
   try {
     const ctx = await browser.newContext({ ignoreHTTPSErrors: true })
     const visit = async (path) => {
@@ -837,6 +863,9 @@ async function browserChecks(www) {
       const s = await visit(p)
       check(s.dialogs === 0, `Chrome: ${p} (onload + <script>) shows no dialog`, `blocked by ${s.console.some((c) => /sandbox/.test(c)) ? 'sandbox' : s.console.some((c) => /Content Security Policy/.test(c)) ? 'the page CSP' : '?'}`)
     }
+    const host = await visit('/zz-host.html')
+    check(host.title !== 'JPG-JS-RAN', 'Chrome: JavaScript uploaded as a .jpg cannot be run through <script src> (image/jpeg + nosniff)',
+      `title=${JSON.stringify(host.title)} ${host.console.filter((c) => /MIME|nosniff/i.test(c)).map((c) => c.slice(0, 80)).join(' | ')}`)
     const poly = await visit('/images/products/poly.jpg')
     check(poly.dialogs === 0 && poly.title === '', 'Chrome: poly.jpg (an image holding <html><script>) renders as an image, nothing runs')
   } finally { await browser.close() }
