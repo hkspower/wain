@@ -51,6 +51,7 @@
     "test:sizes-screen": "node scripts/sizes-screen-test.mjs",
     "test:sizes-product": "node scripts/sizes-product-test.mjs",
     "test:links": "node scripts/links-images-test.mjs",
+    "test:url-inventory": "node scripts/url-inventory-test.mjs",
     "test:legal": "node scripts/legal-pages-test.mjs",
     "audit:mobile": "node scripts/mobile-audit.mjs",
     "test:areas": "node scripts/kuwait-areas-test.mjs",
