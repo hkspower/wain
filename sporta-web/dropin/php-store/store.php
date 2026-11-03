@@ -1024,8 +1024,28 @@ function store_admin_session_dir(): ?string {
     return $dir = null;
 }
 
-function store_session_start(): void {
-    if (session_status() === PHP_SESSION_ACTIVE) return;
+// What PHP's session settings were BEFORE this file touched them: the host's
+// default save path and sweep lifetime. store_session_configure() points the
+// admin session at its own directory and a 30-day lifetime with ini_set(), and
+// ini_set() lasts for the rest of the request. Anything else that opens a
+// session in the same request (the Google sign-in flow session) must not
+// inherit that: its files would land in the admin directory, where the
+// callback request — which never configures the admin session — cannot find
+// them, and a sweep run with the host's short lifetime over the admin directory
+// would delete admin sessions. Captured on first use, i.e. before the first
+// ini_set below.
+function store_session_host_defaults(): array {
+    static $d = null;
+    if ($d === null) {
+        $d = ['save_path' => (string)ini_get('session.save_path'),
+              'gc_maxlifetime' => (string)ini_get('session.gc_maxlifetime')];
+    }
+    return $d;
+}
+
+// Everything about the admin session EXCEPT opening it.
+function store_session_configure(): void {
+    store_session_host_defaults();
     // Reject attacker-supplied session ids, use cookies only, and never leak
     // an id through a URL. Regeneration after login remains the privilege
     // boundary; these settings make the pre-login side strict as well.
@@ -1066,13 +1086,54 @@ function store_session_start(): void {
         'httponly' => true,         // no script access — this cookie IS the admin
         'samesite' => 'Strict',     // the CSRF defence: no cross-site request carries it
     ]);
+}
+
+// Opens the admin session, CREATING one if the request has none. Only the
+// places that must make a session call this: sign-in (the granted session, the
+// pending-2FA and pending-password-change ones) and the routes that run
+// signed in. Anything that merely LOOKS for a session uses
+// store_session_resume(): a session file lives 30 days here, so one made for
+// every anonymous request (a scanner on ?r=me, ?r=anything, 240 a minute per
+// address) would be ~345,000 inodes a day in a host directory the payment logs
+// and the voice cache share, none of them swept before the month is out.
+function store_session_start(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) return;
+    store_session_configure();
     session_start();
+}
+
+// Opens the admin session ONLY if the request really carries one; true when a
+// session is open afterwards. No cookie: nothing is started, no file is made,
+// no Set-Cookie is sent. A cookie that names no stored session (stale, forged,
+// a scanner sending junk) would make session_start() mint a new id and a new
+// file under strict mode, so that case is detected by what comes back — an
+// EMPTY session was just created and is ended again, which deletes its file
+// and expires the cookie. A session that holds anything (signed in, pending
+// 2FA, pending password change, a set-up in progress) stays open.
+//
+// Asked once per request: after a "nothing there" answer the same question is
+// not asked of the same cookie again (?r=me asks three times).
+function store_session_resume(): bool {
+    if (session_status() === PHP_SESSION_ACTIVE) return true;
+    // Set by store_session_end() too, so a session that was found expired and
+    // ended is not looked for again under the very cookie that named it.
+    if (!empty($GLOBALS['store_session_none'])) return false;
+    store_session_configure();
+    $sent = $_COOKIE[session_name()] ?? null;
+    if (!is_string($sent) || $sent === '') { $GLOBALS['store_session_none'] = true; return false; }
+    session_start();
+    if (empty($_SESSION)) {
+        store_session_end();
+        return false;
+    }
+    return true;
 }
 
 // Ends the session and the cookie together. Unsetting $_SESSION alone leaves
 // the browser holding an id that still resolves, which is how a "signed out"
 // admin turns out not to be.
 function store_session_end(): void {
+    $GLOBALS['store_session_none'] = true;
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
@@ -1084,7 +1145,7 @@ function store_session_end(): void {
             'samesite' => $p['samesite'],
         ]);
     }
-    session_destroy();
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
 }
 
 // Who is signed in, or null — and the ONE place a session's age is judged.
@@ -1117,7 +1178,7 @@ function store_admin_session_valid(?array $user, string $fingerprint): bool {
 // A temporary credential grants only this short-lived change-password step.
 // No admin_id is put in the session, so every normal data route stays closed.
 function store_pending_password_change(): ?array {
-    store_session_start();
+    if (!store_session_resume()) return null;
     $id = (int)($_SESSION['pending_password_change_id'] ?? 0);
     if ($id < 1) return null;
     $since = (int)($_SESSION['pending_password_change_at'] ?? 0);
@@ -1142,7 +1203,7 @@ function store_pending_password_change(): ?array {
 }
 
 function store_session_admin(): ?array {
-    store_session_start();
+    if (!store_session_resume()) return null;
     if (empty($_SESSION['admin_id'])) return null;
     $now = time();
     $started = (int) ($_SESSION['started_at'] ?? $now);
@@ -1655,7 +1716,8 @@ function store_login(string $email, string $password): array {
 // The password stage grants no admin privilege. It only creates a five-minute
 // pending challenge; this step verifies the phone code and then grants access.
 function store_login_code(string $code): array {
-    store_session_start();
+    // No session cookie is no pending sign-in, and asking must not make one.
+    if (!store_session_resume()) store_fail('code_expired', 401);
     $id = (int)($_SESSION['pending_admin_id'] ?? 0);
     $since = (int)($_SESSION['pending_at'] ?? 0);
     $fingerprint = (string)($_SESSION['pending_auth_fingerprint'] ?? '');

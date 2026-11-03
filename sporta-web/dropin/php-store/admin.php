@@ -77,18 +77,21 @@ if ($r === 'logout' && $method === 'POST') {
     if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
     $leaving = store_session_admin();
     if ($leaving !== null) store_admin_event($db, $leaving, 'logout');
-    store_session_start();
     // Clears the cookie as well as the server-side session. Emptying $_SESSION
     // and calling session_destroy() left the browser holding an id — expired
     // server-side, but still sent on every request, and still the thing an
     // attacker with the cookie would replay against a session PHP had not yet
-    // collected.
-    store_session_end();
+    // collected. Nothing to end when the request carried no session — and
+    // asking must not create one (see store_session_resume()).
+    if (store_session_resume()) store_session_end();
     store_out(['ok' => true]);
 }
 
 if ($r === 'me') {
-    store_session_start();
+    // Looks for a session, never makes one: an anonymous ?r=me is the most
+    // common request this file gets (every visitor to /backends), and a
+    // session file made for each would live 30 days.
+    store_session_resume();
     if (!empty($_SESSION['pending_admin_id']) && time() - (int)($_SESSION['pending_at'] ?? 0) <= 300) {
         store_out(['need_code' => true], 202);
     }

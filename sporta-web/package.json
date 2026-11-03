@@ -27,6 +27,7 @@
     "test:admin-polish": "node scripts/admin-polish-test.mjs",
     "test:admin-payments": "node scripts/admin-payments-test.mjs",
     "test:home-features": "node scripts/home-features-test.mjs",
+    "test:images-layout": "node scripts/images-layout-test.mjs",
     "test:product-desc": "node scripts/product-desc-test.mjs",
     "test:words-colours": "node scripts/words-colours-test.mjs",
     "test:checkout-a11y": "node scripts/checkout-a11y-test.mjs",
