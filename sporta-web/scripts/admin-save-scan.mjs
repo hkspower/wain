@@ -829,7 +829,7 @@ await browser.close()
 const L = []
 const out = (s) => L.push(s)
 const j = (o) => JSON.stringify(o)
-const posOf = (b) => b ? `y${b.bottom}${b.visible ? (b.fully ? '' : '~part') : '~HIDDEN'}${b.hit ? '' : b.coveredBy ? '~COVERED-by(' + b.coveredBy + ')' : '~COVERED'}${b.need ? ' +' + b.need + 'px' : ' inview'}${b.sticky ? ' STICKY(' + b.sticky.pos + ' ' + b.sticky.sel + ')' : ''}${b.scroller ? ' [scroller ' + (b.scroller.scrolls ? 'scrolls ' : 'fits ') + b.scroller.sel + ']' : ''}` : '-'
+const posOf = (b) => b ? `y${b.bottom}${b.visible ? (b.fully ? '' : '~part') : '~HIDDEN'}${b.hit ? '' : b.coveredBy ? '~COVERED-by(' + b.coveredBy + ')' : '~COVERED'}${b.need ? ' +' + b.need + 'px' : ' inview'}${b.sticky ? ' STICKY(' + b.sticky.pos + ' ' + b.sticky.sel + ' top:' + b.sticky.top + ' bottom:' + b.sticky.bottom + ' z:' + b.sticky.z + ')' : ''}${b.scroller ? ' [scroller ' + (b.scroller.scrolls ? 'scrolls ' : 'fits ') + b.scroller.sel + ']' : ''}` : '-'
 const fieldsTxt = (f) => `${f.n}f{${Object.entries(f.kinds).map(([k, v]) => k + (v > 1 ? 'x' + v : '')).join(',')}}${f.disabled ? ' dis' + f.disabled : ''}`
 const btnTxt = (b) => b ? `"${b.text}" ${b.sel.slice(0, 64)} ${b.inForm ? (b.submit ? 'SUBMIT-in-form' : 'btn-in-form') : 'onClick-only'}${b.formAttr ? '(form=)' : ''} ${b.disabled ? 'DISABLED' : 'on'}${b.primary ? ' ' + b.bg : ''} ${b.w}x${b.h}` : 'NO-SAVE'
 const st1 = (x) => x ? `${x.text}/${x.dis ? 'dis' : 'en'}${x.aria ? '/aria-disabled=' + x.aria : ''}${x.busy ? '/aria-busy=' + x.busy : ''}/op${x.opacity}/${x.cursor}${x.spinner ? '/spinner' : ''}` : 'gone'
