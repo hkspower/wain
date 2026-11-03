@@ -920,7 +920,7 @@
 
 /* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
    which already outranks the build; 900..600 are restated. */
-:is(html.dark, html[data-theme="dark"]) .text-slate-900 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-800 {
