@@ -397,6 +397,18 @@
   into the web root, and the live server already had one such endpoint once —
   see "Never build a PHP deploy endpoint" below. Tools that upload (the bulk
   photo uploader in `sporta-admin-brands.js`) call this route and nothing else.
+  **Owner decision 2026-11-03 (saved by user request — apply always): uploaded
+  product photos are LOSSLESS.** The browser sends the file's own bytes: no
+  canvas, no resize, no re-encode, no format conversion (a JPEG stays a JPEG, a
+  PNG a PNG, a WebP a WebP), no quality slider, no metadata stripping, and the
+  route writes them unchanged. A file over the route's 10 MiB cap is refused with
+  a clear message and is never shrunk. The tests assert it: the request body
+  decodes to bytes identical to the file. Two consequences to keep in view: the
+  EXIF the camera wrote (including location, if it was on) stays in the file, and
+  the small responsive WebP variants the shop cards use
+  (`/images/products/responsive/<slug>-320.webp`, `-640.webp`) are made offline,
+  not by the route, so an uploaded original is served at full size on grid cards
+  until its variants exist (a server-side job, not a browser step).
 - Outstanding before/after launch: real product photos (biggest gap), and the
   SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`.
 
