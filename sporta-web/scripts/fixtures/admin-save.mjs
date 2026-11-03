@@ -92,7 +92,7 @@ export const PAGES = {
 
   'crm-inline': {
     main: `<h1 class="text-xl font-bold">CRM</h1>
-<form id="crm-create" class="crm-create panel flex gap-3 rounded-xl border bg-white p-4" data-save="crm"><input class="rounded-lg border px-3 py-2" name="name" placeholder="Name"><input class="rounded-lg border px-3 py-2" name="phone" placeholder="Phone"><button type="submit" class="crm-primary rounded-xl bg-slate-900 px-4 py-2 font-bold text-white">Create contact</button></form>
+<form id="crm-create" class="crm-create panel flex flex-wrap gap-3 rounded-xl border bg-white p-4" data-save="crm"><input class="rounded-lg border px-3 py-2" name="name" placeholder="Name"><input class="rounded-lg border px-3 py-2" name="phone" placeholder="Phone"><button type="submit" class="crm-primary rounded-xl bg-slate-900 px-4 py-2 font-bold text-white">Create contact</button></form>
 <ul class="mt-6 space-y-2">${Array.from({ length: 40 }, (_, i) => `<li class="panel rounded-lg border bg-white p-4">Contact ${i + 1}</li>`).join('')}</ul>`,
   },
 

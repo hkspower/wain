@@ -100,7 +100,7 @@ export default function Invoice() {
   ].filter(Boolean)
 
   return (
-    <section className="invoice mx-auto max-w-3xl px-4 py-10">
+    <section className="invoice mx-auto max-w-3xl px-3 py-10 sm:px-4">
       {/* Not printed — the actions are for the screen only. */}
       <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link to="/" className="text-accent text-sm font-semibold underline underline-offset-2">
@@ -111,7 +111,7 @@ export default function Invoice() {
         </button>
       </div>
 
-      <article className="rounded-2xl border border-slate-200 bg-white p-6 md:p-10">
+      <article className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 md:p-10">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
             <img src="/logo.png" alt="Sporta Sports Wear" width="132" height="41" className="h-9 w-auto" />
@@ -176,7 +176,7 @@ export default function Invoice() {
         {/* The table mirrors with the page. Alignment is logical throughout —
             a hard-coded text-right puts the total under the item names in
             Arabic instead of at the end of its own column. */}
-        <table className="mt-6 w-full border-collapse text-sm" dir={dir}>
+        <table className="mt-6 w-full border-collapse text-[13px] sm:text-sm" dir={dir}>
           <thead>
             <tr className="border-b border-slate-300 text-xs uppercase tracking-wide text-slate-600">
               <th className="py-2 text-start font-bold">{t.invoice.item}</th>
@@ -192,10 +192,10 @@ export default function Invoice() {
                 <tr key={`${i.name_en}-${i.size}-${n}`} className="border-b border-slate-100 align-top">
                   <td className="py-3 text-start">
                     {/* Both names, each in its own direction. */}
-                    <span dir={dirFor(lang === 'ar' ? i.name_ar : i.name_en)} className="block font-semibold text-slate-900">
+                    <span dir={dirFor(lang === 'ar' ? i.name_ar : i.name_en)} className="block font-semibold text-slate-900 [text-align:match-parent]">
                       {lang === 'ar' ? i.name_ar : i.name_en}
                     </span>
-                    <span dir={dirFor(lang === 'ar' ? i.name_en : i.name_ar)} className="block text-xs text-slate-600">
+                    <span dir={dirFor(lang === 'ar' ? i.name_en : i.name_ar)} className="block text-xs text-slate-600 [text-align:match-parent]">
                       {lang === 'ar' ? i.name_en : i.name_ar}
                     </span>
                     {opts.length > 0 && (
@@ -213,6 +213,18 @@ export default function Invoice() {
               )
             })}
           </tbody>
+          {/* print:table-row-group — see styles/index.css: a <tfoot> is
+              repeated at the foot of EVERY printed page unless it is made an
+              ordinary row group, which printed the totals block six times on
+              a six-page invoice.
+
+              The label cell spans the first three columns and the figure sits
+              in the fourth. It used to be an empty two-column cell, a label in
+              the unit-price column and a figure: the promo name then had only
+              that one narrow column to wrap inside, and the label (no padding)
+              touched the figure whenever the figure set the column's width —
+              "Total1,122.625". `pe-4` is the gap, on the end side in either
+              direction. */}
           <tfoot>
             {/* The invoice has to add up. The server sends goods subtotal,
                 discount and delivery separately, and each is shown on its own
@@ -222,41 +234,52 @@ export default function Invoice() {
                 subtotal and delivery are always present. Values fall back to
                 the arithmetic if an older cached response lacks a field. */}
             <tr>
-              <td colSpan={2} className="pt-4" />
-              <td className="pt-4 text-end text-sm text-slate-600">{t.invoice.subtotal}</td>
+              <td colSpan={3} className="pe-4 pt-4 text-end text-sm text-slate-600">{t.invoice.subtotal}</td>
               <td className="pt-4 text-end tabular-nums text-slate-700">
                 {formatKWD(goodsSubtotal, lang)}
               </td>
             </tr>
             {discountAmount > 0 && (
               <tr>
-                <td colSpan={2} />
                 {/* The line is always named in the reader's language; the
                     promo's own name (which the merchant may have typed in one
                     language only) rides alongside as context, like a product
-                    name does — never in place of the translated label. */}
-                <td className="text-end text-sm text-slate-600">
+                    name does — never in place of the translated label.
+
+                    The separator is OUTSIDE the isolated span. Inside it, in
+                    an Arabic page, the leading " · " belongs to the LTR run,
+                    so it was painted on the far side of the promo name and the
+                    name touched the word "الخصم": "Launch 10% offالخصم". */}
+                <td colSpan={3} className="pe-4 text-end text-sm text-slate-600">
                   {t.invoice.discount}
                   {discountLabel && (
-                    <span dir={dirFor(discountLabel)} className="text-slate-400"> · {discountLabel}</span>
+                    <>
+                      {' '}<span aria-hidden="true">·</span>{' '}
+                      <span dir={dirFor(discountLabel)}>{discountLabel}</span>
+                    </>
                   )}
                 </td>
-                <td dir="ltr" className="text-end tabular-nums text-emerald-700">
-                  −{formatKWD(discountAmount, lang)}
+                {/* Formatted as a NEGATIVE amount, in the page's direction.
+                    This cell used to be dir="ltr" with a typed "−" in front,
+                    which in Arabic did two wrong things: it right-aligned the
+                    figure (an LTR cell's end is its right edge) while every
+                    other figure sits at the left end of the column, and it put
+                    the minus on the far side of the currency, "3.000 د.ك. −".
+                    Intl writes the sign inside an LRM, glued to the digits. */}
+                <td className="text-end tabular-nums text-emerald-700">
+                  {formatKWD(-discountAmount, lang)}
                 </td>
               </tr>
             )}
             <tr>
-              <td colSpan={2} />
-              <td className="text-end text-sm text-slate-600">{t.invoice.delivery}</td>
+              <td colSpan={3} className="pe-4 text-end text-sm text-slate-600">{t.invoice.delivery}</td>
               <td className="text-end tabular-nums text-slate-700">
                 {formatKWD(deliveryFee, lang)}
               </td>
             </tr>
             <tr>
-              <td colSpan={2} />
-              <td className="pt-3 text-end text-sm font-bold text-slate-700">{t.cart.total}</td>
-              <td className="text-accent pt-3 text-end font-display text-lg font-extrabold tabular-nums">
+              <td colSpan={3} className="pe-4 pt-3 text-end text-sm font-bold text-slate-700">{t.cart.total}</td>
+              <td className="text-accent pt-3 text-end font-display text-base font-extrabold tabular-nums sm:text-lg">
                 {formatKWD(total, lang)}
               </td>
             </tr>

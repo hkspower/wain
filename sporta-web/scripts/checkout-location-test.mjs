@@ -807,7 +807,7 @@ await section('O  the review findings: double evaluation, watchdog, retry, bad c
   await two.pg.addScriptTag({ content: ADDON }); await two.pg.addScriptTag({ content: ADDON }); await sleep(400)
   const a = await idle(one), b = await idle(two)
   is(a <= 2 && b <= a + 1, 'O1 evaluating the file twice more: mutations over 3 s are like ONE instance (' + b + ' vs ' + a + '), not a ping-pong')
-  is((await count(two.pg)) === 1 && (await two.pg.evaluate(() => document.documentElement.getAttribute('data-sporta-loc-js'))) === '1', 'O2 one control, one marker on <html>')
+  is((await count(two.pg)) === 1 && (await two.pg.evaluate(() => document.documentElement.__sportaLocJs === 1 && !document.documentElement.hasAttribute('data-sporta-loc-js'))), 'O2 one control, the marker is a property on <html> (no attribute: the markup is unchanged)')
   await tap(two.pg)
   is((await calls(two.pg)) === 1 && (await note(two.pg)) === LINE_EN, 'O3 and one tap makes one lookup and one line (two live instances would answer twice)')
   await done(one); await done(two)
@@ -908,7 +908,7 @@ await section('P  repo source: src/lib/delivery.js strips the same line', async 
   is(JSON.stringify(lib.loadDelivery()) === JSON.stringify(lib.BLANK), 'P8 unreadable storage still loads the blank form')
   // the same corpus through the add-on in a browser (Remove = strip)
   for (const [i, [inp]] of corpus.entries()) {
-    if (!/maps\?q=-?\d/.test(inp) || !inp) continue
+    if (!inp || lib.stripLocation(inp) === inp) continue
     const s = await open({ lang: 'en', note: inp })
     await s.pg.click('#sporta-loc-btn'); await sleep(80)
     const got = await note(s.pg)

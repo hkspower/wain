@@ -694,6 +694,27 @@ p, li, dd, figcaption {
     display: none !important;
   }
 
+  /* Fixed-position furniture is NOT part of the document either, and it is the
+     one kind of element print does not leave alone: a fixed box is laid out
+     against the PAGE and repeated on every page. Measured on a six-page
+     invoice, three of them leaked onto paper:
+       * the skip link ("Skip to content", an orange button) — parked at
+         top:-4rem, which on paper is the bottom of the previous page — printed
+         at the foot of every page;
+       * the closed cart drawer — kept in the DOM off-canvas, so its box-shadow
+         bled a grey band down the page margin on every page;
+       * the drawer's backdrop (bg-ink/60) — printed as a solid charcoal slab
+         over the end of the last page, the one large dark fill on the
+         document, with print-color-adjust:exact above forcing it onto paper.
+     `body > .fixed` is every overlay that is portalled out of the app (the
+     drawer and its scrim today, any future dialog tomorrow); the skip link
+     sits inside the app, so it is named. */
+  .skip-link,
+  .cart-drawer,
+  body > .fixed {
+    display: none !important;
+  }
+
   body {
     background: #fff;
   }
@@ -715,6 +736,17 @@ p, li, dd, figcaption {
   .invoice thead {
     break-inside: avoid;
     display: table-header-group; /* repeat the header on every page */
+  }
+  /* The OPPOSITE for the totals. A <tfoot> is `table-footer-group`, which
+     browsers repeat at the bottom of every page the table crosses: the
+     subtotal / discount / delivery / grand total printed on all six pages of a
+     thirty-four-line invoice, and page one read as a complete invoice with the
+     other thirty lines still to come. As an ordinary row group it prints once,
+     after the last line, and `break-inside: avoid` keeps the four figures
+     together rather than leaving "Total" alone on a page of its own. */
+  .invoice tfoot {
+    display: table-row-group;
+    break-inside: avoid;
   }
 
   @page {

@@ -95,12 +95,12 @@
 (function () {
   'use strict';
   /* Once per page: a second evaluation would start a second observer that undoes the first one's writes. The marker
-   * is on <html> (visible to a person debugging) and on window (document.documentElement can still be null when a
-   * script runs at document start). */
+   * is a JS property on <html> (an attribute would change the page's markup) and on window (document.documentElement
+   * can still be null when a script runs at document start). */
   var root0 = document.documentElement;
-  if (window.__sportaLocJs || (root0 && root0.getAttribute('data-sporta-loc-js'))) return;
+  if (window.__sportaLocJs || (root0 && root0.__sportaLocJs)) return;
   window.__sportaLocJs = 1;
-  if (root0) root0.setAttribute('data-sporta-loc-js', '1');
+  if (root0) root0.__sportaLocJs = 1;
   var NS = 'sporta-loc';
   var LIMIT = 280;
   var STORE_KEY = 'sporta.delivery';
