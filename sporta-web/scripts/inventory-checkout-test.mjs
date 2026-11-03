@@ -37,6 +37,22 @@
 // at the end (and on a crash exit). cron-stock.php is global to the database:
 // on a shared rig it would also release OTHER suites' expired orders.
 //
+// MEASURED 2026-11-03 on a private MariaDB 10.11 (REPEATABLE-READ) + 16 PHP workers
+// per port, code at 79bae2ee: 222 ok, 0 FAIL, 9 GAP, 9 info (about 80 s). The GAPs:
+//   1. the ledger never records a sale or a release (scenarios 1, 14a, 15);
+//   2. carts claim their lines in CART ORDER with no retry, so two carts that
+//      list the same products in opposite order deadlock InnoDB (1213) on
+//      idx_variants_slug and the loser is answered 500 `failed`: 41-42 of 120
+//      customers with 100 units on both shelves (scenario 14b). Measured fix, on a
+//      scratch copy only: sort the lines by slug|size inside store_stock_claim()
+//      -> 0 of 360 requests failed and Innodb_deadlocks did not move. A UNIQUE key
+//      on (slug,size) alone does NOT fix it (67 of 120 failed): it removes the gap
+//      locks that used to serialise carts, so the plain A,B / B,A cross appears;
+//   3. an admin-cancelled order that was under REVIEW keeps its units for ever;
+//   4. a size with two variant rows (no unique key on slug,size) is unbuyable;
+//   5. the 60 s phone rule leaks for card orders (2-5 of 5 rounds let several in).
+// Stock itself stayed exact in every one of them: the invariant held throughout.
+//
 // Output: `ok` / `FAIL` as in the other suites, plus
 //   `GAP`  behaviour that is real, understood and NOT yet fixed — printed
 //          every run so it cannot be forgotten, counted separately, and only
