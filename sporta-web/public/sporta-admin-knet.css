@@ -1057,6 +1057,12 @@
     border: 1px solid rgba(255, 255, 255, .12);
     background-color: rgba(255, 255, 255, .03);
   }
+  /* Status words. The compiled admin's own dark theme leaves these at light-admin colours: OK
+     (the action terracotta) 2.7:1, Fix (rose) 2.9:1 on the card, and the "Active" tag the panel
+     script paints with an inline indigo, 2.0:1. */
+  .admin-shell .admin-content .payment-gateway-card__check-status:is(.text-orange-700, .text-orange-600) { color: #ff7b17; }
+  .admin-shell .admin-content .payment-gateway-card__check-status:is(.text-rose-700, .text-rose-600) { color: #ff8fa3; }
+  .admin-shell .admin-content :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) .payment-secret-field__state:not(.text-amber-600) { color: #ff7b17 !important; }
   /* The quiet save: outlined in the bright orange, where the form's own save keeps the filled one */
   .admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600 {
     background-color: transparent !important;
