@@ -90,8 +90,15 @@ function redactLine(line) {
 }
 
 // ================================================================ layout
+const PART = process.env.SEC_PART || 'all'
 function layout() {
-  say(`SEC_LAYOUT start sha=${SHA.slice(0, 8)} ${new Date().toISOString()}`)
+  say(`SEC_LAYOUT start sha=${SHA.slice(0, 8)} part=${PART} ${new Date().toISOString()}`)
+  if (PART === 'all' || PART === '1') layout1()
+  if (PART === 'all' || PART === '2') layout2()
+  say('SEC_LAYOUT done')
+  flush()
+}
+function layout1() {
   say('== A. /sporta top level (type mode uid:gid size-or-entries name)')
   for (const e of ls(ROOT).sort((a, b) => a.name.localeCompare(b.name))) {
     const st = lst(path.join(ROOT, e.name))
@@ -171,6 +178,10 @@ function layout() {
   for (const h of hits) say(`  found ${h.rel} ${oct(h.st.mode)} ${own(h.st)} ${h.st.size}B`)
 
   say('== E. sensitive-named files outside site/ (grouped by top-level dir)')
+  layoutE()
+  flush()
+}
+function layoutE() {
   const rest = walk(ROOT, (rel, isDir) => isDir && (rel === 'site' || rel === 'private/media' || /node_modules$/.test(rel)), 8)
   const byTop = {}
   for (const x of rest) {
@@ -182,20 +193,21 @@ function layout() {
     if (SENSITIVE.test(base) || /(^|\/)private\//.test(x.rel) && false) {
       if (/^config\.example\.php$/.test(base)) continue
       g.sens.push(x)
-      if (/(^|-)config.*\.php$/.test(base) && !/example/.test(base)) g.realCfg.push(x)
-      if (x.st.mode & 0o004) g.worldReadSens.push(x)
+      if (/(^|-)config.*\.php$/.test(base) && !/example|config-path|seo-config/.test(base)) g.realCfg.push(x)
+      if ((x.st.mode & 0o004) && !/\.mysql\.sql$|config-path\.php$|seo-config\.php$|\.(js|mjs|json)$/.test(base)) g.worldReadSens.push(x)
     }
   }
   for (const [top, g] of Object.entries(byTop).sort()) {
     const wr = g.worldReadSens.filter((x) => !/\.(md|txt)$/.test(x.rel))
     say(`${top}: ${g.files} files; sensitive-named ${g.sens.length}; config-php-like ${g.realCfg.length}; of the sensitive ones world-readable ${wr.length}`)
     for (const x of g.realCfg.slice(0, 12)) say(`   CFG ${oct(x.st.mode)} ${own(x.st)} ${x.st.size}B ${x.rel}`)
-    for (const x of wr.slice(0, 8)) say(`   WORLD-READABLE ${oct(x.st.mode)} ${own(x.st)} ${x.st.size}B ${x.rel}`)
+    for (const x of wr.slice(0, 4)) say(`   WORLD-READABLE ${oct(x.st.mode)} ${own(x.st)} ${x.st.size}B ${x.rel}`)
   }
-  flush()
-
+}
+function layout2() {
   say('== F. backups/ (entry mode owner, then sensitive files inside)')
   const bdir = path.join(ROOT, 'backups')
+  const deployFiles = []
   const bents = ls(bdir).sort((a, b) => a.name.localeCompare(b.name))
   say(`backups: ${bents.length} entries`)
   for (const e of bents) {
@@ -208,8 +220,10 @@ function layout() {
       const wr = inner.filter((x) => x.st.mode & 0o004)
       const cfg = inner.filter((x) => /config.*\.php$/i.test(x.rel) && !/example/.test(x.rel))
       say(`d ${oct(st.mode)} ${own(st)} ${inner.length}f ${e.name}${cfg.length ? ' CONFIG-COPIES=' + cfg.map((x) => `${x.rel}(${oct(x.st.mode)} ${own(x.st)})`).join(',') : ''}${sens.length ? ' sens=' + sens.slice(0, 6).map((x) => `${x.rel}(${oct(x.st.mode)})`).join(',') : ''}${wr.length && cfg.length ? ' world-readable-files=' + wr.length : ''}`)
-    } else say(`${kind(st)} ${oct(st.mode)} ${own(st)} ${st.size}B ${e.name}${(st.mode & 0o004) && SENSITIVE.test(e.name) ? ' WORLD-READABLE' : ''}`)
+    } else if (/^deploy-\d{8}T\d{6}Z-[0-9a-f]{7}\.(json|tar\.gz)$/.test(e.name)) { deployFiles.push(st) }
+    else say(`${kind(st)} ${oct(st.mode)} ${own(st)} ${st.size}B ${e.name}${(st.mode & 0o004) && SENSITIVE.test(e.name) ? ' WORLD-READABLE' : ''}`)
   }
+  { const m = {}; for (const st of deployFiles) { const k = oct(st.mode) + ' ' + own(st); m[k] = (m[k] ?? 0) + 1 }; say(`deploy-*.json/.tar.gz files (the vps-deploy.mjs backups): ${deployFiles.length}; mode+owner ${JSON.stringify(m)}`) }
   flush()
 
   say('== G. compose / Dockerfile / shell / ini files under /sporta (depth<=2, not site/backups; values redacted)')
@@ -219,12 +233,10 @@ function layout() {
     const lines = fs.readFileSync(f.abs, 'utf8').split('\n')
     const secrets = lines.map((l, i) => [l, i + 1]).filter(([l]) => !l.trim().startsWith('#') && redactLine(l) !== l)
     say(`-- ${f.rel} ${oct(f.st.mode)} ${own(f.st)} ${f.st.size}B ${lines.length}L; secret-looking assignments: ${secrets.length}${secrets.length ? ' (' + secrets.slice(0, 6).map(([l, n]) => `L${n}`).join(',') + ')' : ''}`)
-    if (/\.ya?ml$|dockerfile|\.ini$|msmtprc/i.test(path.basename(f.rel)) && lines.length <= 140) {
+    if (/\.ya?ml$|dockerfile$|\.ini$|msmtprc/i.test(path.basename(f.rel)) && !/xss-stage|\.bak|retired/.test(f.rel) && lines.length <= 140) {
       for (const l of lines) if (l.trim() && !l.trim().startsWith('#')) say('   ' + redactLine(l).slice(0, 160))
     }
   }
-  flush()
-  say('SEC_LAYOUT done')
   flush()
 }
 
@@ -477,7 +489,10 @@ function verdict(key, v, example) {
     const broad = v.v.filter((x) => /^(0\.0\.0\.0\/0|::\/0|\*)$/.test(x) || /\/([0-7])$/.test(x))
     return `array(${v.v.length})${broad.length ? ' BROAD-ENTRY' : ''}${v.v.length === 0 ? ' present-empty' : ''}`
   }
-  if (v.type === 'expr') return `dynamic-expression(${/getenv|\$_ENV|\$_SERVER/.test(v.v) ? 'reads environment' : 'other'})`
+  if (v.type === 'expr') {
+    const m = v.v.match(/(\/run\/secrets\/[a-z_]+|getenv\(\s*['"][A-Z_]+['"]\s*\))/)
+    return `dynamic-expression(${m ? 'reads ' + m[1] : 'other'})`
+  }
   const s = v.v
   if (s === '') return 'present-empty'
   const bits = []
@@ -515,6 +530,26 @@ async function keys() {
     parsed[k] = { map: parseConfig(src), srcLen: src.length, startsPhp: src.startsWith('<?php'), hasBom: src.charCodeAt(0) === 0xfeff }
     const exSrc = await rawFile(t.example)
     parsed[k].example = exSrc ? parseConfig(exSrc) : new Map()
+  }
+  // stray copies one level up: parsed the same way, verdicts only
+  for (const [k, rel, ex] of [['knet', 'private/knet-config.php', targets.knet.example], ['tpay', 'private/pay-config.php', targets.tpay.example]]) {
+    const abs = path.join(ROOT, rel)
+    if (!lst(abs)) continue
+    const m = parseConfig(fs.readFileSync(abs, 'utf8'))
+    const exm = parsed[k]?.example ?? new Map()
+    const same = [...m.keys()].filter((x) => parsed[k].map.has(x) && String(parsed[k].map.get(x).v) === String(m.get(x).v) && SECRETISH.test(x))
+    const differ = [...m.keys()].filter((x) => parsed[k].map.has(x) && String(parsed[k].map.get(x).v) !== String(m.get(x).v) && SECRETISH.test(x))
+    say(`STRAY ${rel}: ${m.size} keys; secret-ish keys identical to the live ${k} config: [${same.join(',')}]; differing: [${differ.join(',')}]; verdicts: ` + REQUIRED[k].filter((x) => SECRETISH.test(x) && m.has(x)).map((x) => `${x}=${verdict(x, m.get(x), exm.get(x))}`).join(' ; '))
+  }
+  // db secret files vs the literal mysql_* values (booleans only)
+  {
+    const rd = (n) => { try { return fs.readFileSync(path.join(PRIVATE, n), 'utf8') } catch { return null } }
+    for (const n of ['db_name', 'db_user', 'db_pass']) {
+      const st = lst(path.join(PRIVATE, n))
+      const val = rd(n)
+      const trimmedEq = (k, key) => (parsed[k]?.map.get(key)?.type === 'string' && val !== null ? (parsed[k].map.get(key).v === val.replace(/\r?\n$/, '') ? 'equal' : 'DIFFERENT') : 'n/a (dynamic or absent)')
+      say(`private/${n}: ${st ? `${oct(st.mode)} ${own(st)} ${st.size}B` : 'ABSENT'}; trailing newline=${val !== null && /\n$/.test(val)}; knet.mysql_${n.slice(3)} ${trimmedEq('knet', 'mysql_' + n.slice(3))}; tpay.mysql_${n.slice(3)} ${trimmedEq('tpay', 'mysql_' + n.slice(3))}; api.${n} ${trimmedEq('api', n)}`)
+    }
   }
   say('other config-like files in private/ (names, modes):')
   for (const x of walk(PRIVATE, (rel, isDir) => isDir && /media|voice/.test(rel), 4)) {
