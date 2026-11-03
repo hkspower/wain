@@ -11,12 +11,16 @@
 }
 
 /* Shop / brand / category / search pages: keep the footer under the fold while the grid loads.
- * Measured live 2026-11-03 on /shop?brand=vanquish: CLS 0.229 at 768px (needs-improvement;
- * 0.068 at 390px). The page first paints short (empty grid, so the footer sits at the bottom of
- * the window), then the brand banner is inserted and the empty state is replaced by the products
- * ~150ms later: the filters, the empty state and the whole FOOTER were pushed down twice
- * (layout-shift sources: .catalog-filters, .catalog-empty, footer.app-footer). Giving the
- * catalogue section the height of a window means the footer starts below the fold from the first
- * paint, so it is never "visible then moved". Pages that are already taller than a window
- * (the shop with 36 cards, a brand with 4) are untouched. */
+ * Measured live 2026-11-03 on /shop?brand=vanquish: CLS 0.226-0.229 at 768x1024 (the rating
+ * "needs improvement"; 0.068 at 390x844 and 0.031 at 1280x800, where the footer is already below
+ * the fold). The page first paints short, so on a tall window the 715px footer sits INSIDE the
+ * first screen; then the brand banner is inserted and the empty state is replaced by the products
+ * ~100ms later, and the filters, the empty state and the whole FOOTER were pushed down twice
+ * (layout-shift sources: .catalog-filters, .catalog-empty, footer.app-footer: 0.132 + 0.094).
+ * Giving the catalogue section the height of a window starts the footer below the fold from the
+ * first paint, so it is never "visible, then moved". Measured with this rule on the live page at
+ * 768x1024: CLS 0.035 (the footer shifts are gone). What remains (~0.03 at every width) is the
+ * banner pushing the filters down; sporta-features.js builds the banner after the first paint.
+ * Pages that are already taller than a window (the shop with 36 cards, a brand with 4) are not
+ * changed; an empty search result just leaves air above the footer, as in any sticky-footer page. */
 .catalog-page { min-height: calc(100vh - 6rem); }

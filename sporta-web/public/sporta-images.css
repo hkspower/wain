@@ -47,15 +47,17 @@ html:lang(en) .brand-bar__item > span:dir(rtl) {
 [data-sporta-plate-link]:focus-visible { outline: 2px solid #e0561c; outline-offset: 2px; }
 .campaign-brand-plate__maker:has(> [data-sporta-plate-link]:hover) { opacity: .72; }
 
-/* Product page gallery on a short screen (laptop 1280x720, 1366x657 with browser chrome).
-   Measured live 2026-11-03 at 1280x720: the gallery column is sticky from 168px
-   (header 144px + 24px) and is 576px tall, so its bottom edge sat at 744px, 24px
-   below the fold: while the buyer scrolled the size / bag column, the lowest 4% of the
-   photograph was always cut off by the window. At 1280x800 it fits (744 < 800), so
-   this only touches short windows. The square stage is capped to what is left under
-   the sticky offset (190px = 168px offset + 22px air); the photograph is
-   object-fit: contain, so a shorter stage just makes the picture a little narrower,
-   nothing is cropped. Phones are not sticky and are untouched. */
+/* Product page gallery on a short window (laptop 1280x720, a 1366x768 laptop with its browser
+   bars leaves ~650px). Measured live 2026-11-03 at 1280x720 (viewport 720): the gallery column is
+   sticky from 168px (header 145px + 24px) and is 576px tall, so its lower edge sat at 744px,
+   24px under the fold: the photograph itself ended at 719px, flush with the window edge, and the
+   frame's lower border was cut off. The same geometry in a 650px window hides ~70px of the
+   photograph while the buyer scrolls the size / bag column. At 1280x800 it fits (744 < 800), so
+   this only acts on short windows. The square stage is capped to what is left under the sticky
+   offset (190px = 168px offset + 22px air) and centred in its column; the photograph is
+   object-fit: contain, so a shorter stage only makes the picture a little narrower, nothing is
+   cropped. Measured with this rule at 1280x720: stage 530x530, column bottom 698px, fits.
+   Phones and the non-sticky tablet layout are not affected. */
 @media (min-width: 1024px) and (max-height: 800px) {
   .catalog-gallery-stage {
     max-height: max(320px, calc(100vh - 190px));
