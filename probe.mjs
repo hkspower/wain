@@ -55,6 +55,7 @@ const COLLECT = (scope) => {
   const items = []; const fields = []; const pal = { b: {}, o: {} }; const links = []
   const effOp = (el) => { let o = 1; for (let a = el; a; a = a.parentElement) o *= +getComputedStyle(a).opacity; return o }
   const sig = (el) => el.tagName.toLowerCase() + '.' + [...el.classList].slice(0, 3).join('.')
+  const clipped = (el) => { for (let a = el; a && a !== document.body; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.clip && cs.clip !== 'auto') return true; if (cs.clipPath && /inset\(\s*50%/.test(cs.clipPath)) return true; if (/sr-only/.test(a.className || '')) return true; const r = a.getBoundingClientRect(); if (r.width <= 2 && r.height <= 2 && cs.overflow !== 'visible') return true } return false }
   const W = document.documentElement.scrollWidth
   const ok = (r) => r.width > 1 && r.height > 1 && r.right > 0 && r.left < W && r.bottom > 0
   const R = (r) => [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]
@@ -67,6 +68,7 @@ const COLLECT = (scope) => {
     const cs = getComputedStyle(el)
     if (cs.visibility === 'hidden' || cs.display === 'none') continue
     const op = effOp(el); if (op < 0.02) continue
+    if (clipped(el)) continue
     const rg = document.createRange(); rg.selectNodeContents(n)
     const rs = [...rg.getClientRects()].filter(ok)
     if (!rs.length) continue
@@ -75,7 +77,7 @@ const COLLECT = (scope) => {
   for (const sv of root.querySelectorAll('button svg, a svg, [role=button] svg')) {
     const host = sv.closest('button,a,[role=button]'); if (host.textContent.trim()) continue
     const r = sv.getBoundingClientRect(); const cs = getComputedStyle(sv)
-    if (!ok(r) || cs.visibility === 'hidden' || effOp(sv) < 0.02) continue
+    if (!ok(r) || cs.visibility === 'hidden' || effOp(sv) < 0.02 || clipped(sv)) continue
     const col = (cs.stroke !== 'none' && parseFloat(cs.strokeWidth) > 0) ? cs.stroke : cs.fill
     if (col === 'none') continue
     items.push({ k: 'i', s: (host.getAttribute('aria-label') || '').slice(0, 20), e: sig(host), c: L.rgba(col), op: +effOp(sv).toFixed(2), px: 24, w: 400, l: 0, d: host.matches(':disabled,[aria-disabled="true"]') ? 1 : 0, r: [R(r)] })
@@ -150,6 +152,13 @@ const MEASURE = async ([items, fields, url, ox, oy]) => {
   return { bad, n, minR: +minR.toFixed(2), fb }
 }
 
+const META = () => ({
+  canon: (document.querySelector('link[rel=canonical]') || {}).href,
+  alt: [...document.querySelectorAll('link[rel=alternate][hreflang]')].map((l) => l.hreflang + '=' + l.href.replace('https://www.sporta.com.kw', '')),
+  og: ['og:title', 'og:description', 'og:locale'].map((p) => { const m = document.querySelector('meta[property="' + p + '"]'); return m ? m.content.slice(0, 200) : '' }),
+  ld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((x) => x.textContent.replace(/\s+/g, ' ').slice(0, 1500)),
+})
+
 const FOCUS = () => {
   const L = window.__ls
   const el = document.activeElement
@@ -212,6 +221,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   const ctx = await br.newContext({ viewport: { width: vw, height: vh }, locale: lang === 'ar' ? 'ar-KW' : 'en-US', colorScheme: CF.dark ? 'dark' : 'light' })
   await ctx.route('**/*', (r) => { const q = r.request(); if (!['GET', 'HEAD'].includes(q.method()) || /\/(backends|knet\/|pay\/)/.test(q.url())) return r.abort(); return r.continue() })
   await ctx.addInitScript(HELP)
+  if (CF.themeKey) await ctx.addInitScript((k) => { try { localStorage.setItem(k, 'dark') } catch (e) { } }, CF.themeKey)
   const pg = await ctx.newPage()
   const U = (p) => B + p + (lang === 'en' ? (p.includes('?') ? '&' : '?') + 'lang=en' : '')
   const go = async (p) => { const r = await pg.goto(U(p), { waitUntil: 'load', timeout: 90000 }).catch(() => null); await pg.waitForTimeout(1800); return r ? r.status() : 'ERR' }
@@ -223,6 +233,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   }
   const info = async (label, st) => {
     const i = await pg.evaluate(() => ({ h1: (document.querySelector('h1') || {}).textContent, ov: document.documentElement.scrollWidth - innerWidth, dir: document.documentElement.dir, hl: document.documentElement.lang, th: document.documentElement.dataset.theme, bodyBg: getComputedStyle(document.body).backgroundColor, bodyCol: getComputedStyle(document.body).color }))
+    if (CF.meta) { const m = await pg.evaluate(META); log('META', tag, label, tr(J({ c: m.canon, a: m.alt, og: m.og }))); for (const l of m.ld) log('LD', tag, label, tr(l)) }
     log('PG', tag, label, 'st=' + st, 'ov=' + i.ov, 'dir=' + i.dir + '/' + i.hl, 'th=' + i.th, 'bodyBg=' + i.bodyBg, 'h1=' + tr((i.h1 || '').trim().slice(0, 50)))
   }
   const words = async (label, scope) => {
@@ -411,7 +422,7 @@ for (const lang of CF.langs) for (const [vw, vh] of CF.vps) {
   for (const c of chunk(cfl, 3000)) log('CF|' + tag, c)
   if (fbAll.length) log('FIELDEDGE', tag, J(fbAll.slice(0, 12)))
   if (CF.pal) for (const m of ['t', 'b', 'o']) {
-    const rows = Object.entries(palAgg[m]).sort((a, b) => b[1].n - a[1].n).slice(0, 40).map(([h, x]) => h + '=' + classify(h) + ' x' + x.n + ' ' + x.e.slice(0, 28) + ' [' + [...x.pg].slice(0, 4).join(',') + (x.pg.size > 4 ? '+' + (x.pg.size - 4) : '') + ']')
+    const rows = Object.entries(palAgg[m]).sort((a, b) => b[1].n - a[1].n).slice(0, 30).map(([h, x]) => h + '=' + classify(h) + ' x' + x.n + ' ' + x.e.slice(0, 28) + ' [' + [...x.pg].slice(0, 4).join(',') + (x.pg.size > 4 ? '+' + (x.pg.size - 4) : '') + ']')
     for (const c of chunk(rows, 3000)) log('PAL' + m + '|' + tag, c)
   }
   const fl = Object.values(focAgg).map((x) => x.r.e + ' ol=' + x.r.os + '/' + x.r.ow + '/' + x.r.oc + '/off' + x.r.oo + ' bs=' + x.r.bs.slice(0, 40) + ' ratio=' + x.r.r + (x.r.art ? '(art)' : '') + ' x' + x.n + ' "' + x.ex + '" [' + [...x.pg].slice(0, 3).join(',') + ']')
