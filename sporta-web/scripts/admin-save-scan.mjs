@@ -218,9 +218,11 @@ function inPageShell() {
   }
   const se = document.scrollingElement
   const before = se.scrollTop
-  scrollTo(0, 99999)
+  // behavior: 'instant' — the live page may say scroll-behavior: smooth, which makes a plain scrollTo asynchronous
+  scrollTo({ top: 99999, left: 0, behavior: 'instant' })
   const winMoved = se.scrollTop > 0
-  scrollTo(0, before)
+  const maxScroll = se.scrollTop
+  scrollTo({ top: before, left: 0, behavior: 'instant' })
   const cs = (s) => { const e = document.querySelector(s); if (!e) return null; const c = getComputedStyle(e); return { sel: s, pos: c.position, display: c.display, h: c.height, minH: c.minHeight, maxH: c.maxHeight, overflow: c.overflow, padB: c.paddingBottom, padT: c.paddingTop, padL: c.paddingLeft, transform: c.transform === 'none' ? '' : 'T', rect: rect(e) } }
   // env() probe: does the browser give a value, and does the page ask for it?
   const probe = document.createElement('div'); probe.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;padding-bottom:env(safe-area-inset-bottom);visibility:hidden'
@@ -228,7 +230,9 @@ function inPageShell() {
   const vp = document.querySelector('meta[name=viewport]')
   const manifest = document.querySelector('link[rel=manifest]')
   return {
-    w: innerWidth, h: innerHeight, docH: se.scrollHeight, winScrolls: winMoved, scrollers,
+    w: innerWidth, h: innerHeight, docH: se.scrollHeight, winScrolls: winMoved, maxScroll, scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
+    shellDir: ['.admin-shell', '.admin-content', '.admin-sidebar', '.m-header', '.m-tabbar'].map((q) => { const e = document.querySelector(q); return e ? q + '=' + getComputedStyle(e).direction + (e.getAttribute('dir') ? '(dir=' + e.getAttribute('dir') + ')' : '') : null }).filter(Boolean).join(' '),
+    scrollers,
     dir: { html: document.documentElement.dir || '', htmlComputed: getComputedStyle(document.documentElement).direction, lang: document.documentElement.lang, body: getComputedStyle(document.body).direction },
     viewportMeta: vp ? vp.getAttribute('content') : null, manifest: manifest ? manifest.getAttribute('href') : null,
     envBottom, shell: cs('.admin-shell'), content: cs('.admin-content'), main: cs('main'), body: cs('body'), root: cs('#root'), html: cs('html'),
@@ -299,8 +303,8 @@ function inPageMeasure() {
     return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + pick.map((c) => '.' + c.replace(/([^\w-])/g, '\\$1')).join('')
   }
   // scrolling of the page and of the admin shell back to the top, so every y below is "at scroll 0"
-  window.scrollTo(0, 0); document.scrollingElement.scrollTop = 0
-  for (const e of document.querySelectorAll('.admin-content, main, .admin-shell, [class*="overflow-y"], [class*="overflow-auto"]')) { try { e.scrollTop = 0 } catch (x) {} }
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  for (const e of document.querySelectorAll('.admin-content, main, .admin-shell, [class*="overflow-y"], [class*="overflow-auto"]')) { try { e.scrollTo({ top: 0, left: 0, behavior: 'instant' }) } catch (x) {} }
 
   const cv = document.createElement('canvas'); cv.width = cv.height = 1
   const cx = cv.getContext('2d', { willReadFrequently: true })
@@ -325,6 +329,20 @@ function inPageMeasure() {
     overlays.push({ el: e, z: c.zIndex, r })
   }
   const inOverlay = (e) => overlays.find((o) => o.el.contains(e)) || null
+  // The phone's fixed furniture (a sticky header, a bottom tab bar) hides part of the page: what a
+  // button needs to be "in view" is the strip between them. Only wide, low, FIXED bars (or a sticky
+  // one stuck to the top) count; the sidebar and a modal do not.
+  let usableTop = 0, usableBottom = innerHeight
+  for (const e of document.body.querySelectorAll('*')) {
+    if (inSide(e) || overlays.some((o) => o.el.contains(e))) continue
+    const c = getComputedStyle(e)
+    if (c.position !== 'fixed' && c.position !== 'sticky') continue
+    if (!vis(e)) continue
+    const r = e.getBoundingClientRect()
+    if (r.width < innerWidth * 0.7 || r.height > 160) continue
+    if (r.top <= 2) usableTop = Math.max(usableTop, Math.round(r.bottom))
+    else if (c.position === 'fixed' && r.bottom >= innerHeight - 2) usableBottom = Math.min(usableBottom, Math.round(r.top))
+  }
 
   // fields: visible (a switch's own checkbox is often sr-only, so its label counts)
   const FIELD = 'input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=image]):not([type=reset]), select, textarea, [contenteditable=true], [role=switch], [role=checkbox], [role=slider], [role=combobox]'
@@ -422,6 +440,7 @@ function inPageMeasure() {
   const describeBtn = (b, stop) => {
     const e = b.el
     const k = clipOf(e), r = k.r
+    if (!stop) { k.T = Math.max(k.T, usableTop); k.B = Math.min(k.B, usableBottom) }      // under a fixed header / tab bar is not in view
     const visibleArea = Math.max(0, k.R - k.L) * Math.max(0, k.B - k.T)
     const full = visibleArea >= r.width * r.height - 2
     const hit = (() => { if (visibleArea <= 0) return false; const h = document.elementFromPoint((k.L + k.R) / 2, (k.T + k.B) / 2); return !!h && (h === e || e.contains(h)) })()
@@ -514,7 +533,7 @@ function inPageMeasure() {
   })
   const allButtons = [...new Set(buttons.map((b) => b.text).filter(Boolean))]
   const h1 = document.querySelector('h1, h2')
-  return { surfaces, actions: [...new Set(actions)], overlays: quiet, filterCount, buttons: allButtons, heading: h1 ? clean(h1.textContent).slice(0, 40) : '', docH: document.scrollingElement.scrollHeight, innerH: innerHeight, innerW: innerWidth, fieldTotal: real.length }
+  return { usable: [usableTop, usableBottom], surfaces, actions: [...new Set(actions)], overlays: quiet, filterCount, buttons: allButtons, heading: h1 ? clean(h1.textContent).slice(0, 40) : '', docH: document.scrollingElement.scrollHeight, innerH: innerHeight, innerW: innerWidth, fieldTotal: real.length }
 }
 
 // ---------------------------------------------------------------- the walk
@@ -714,7 +733,7 @@ for (const sd of D.screens) {
     const mp = stp && stp.m ? stp.m : null
     const fresh = m.surfaces.filter((x) => st.freshSigs.includes(st.sig(x)))
     if (st.name !== 'load' && !fresh.length && !m.overlays.length) { out(`  step "${st.name}": nothing new (fields ${m.fieldTotal}, actions[${m.actions.join('/')}])`); continue }
-    out(`  step "${st.name}": fields ${m.fieldTotal} filters ${m.filterCount} surfaces ${m.surfaces.length}${mp ? '/' + mp.surfaces.length + 'ph' : ''} overlays ${m.overlays.length} actions[${m.actions.join('/')}]`)
+    out(`  step "${st.name}": usable y${m.usable[0]}-${m.usable[1]}${mp ? '/' + mp.usable[0] + '-' + mp.usable[1] + 'ph' : ''} fields ${m.fieldTotal} filters ${m.filterCount} surfaces ${m.surfaces.length}${mp ? '/' + mp.surfaces.length + 'ph' : ''} overlays ${m.overlays.length} actions[${m.actions.join('/')}]`)
     for (const ov of m.overlays) out(`    overlay ${j(ov)}`)
     // rows that repeat (one per product, one per SKU) stand for each other: print the first, count the rest
     const sigOf = (x) => [x.kind, x.root.sel, x.fields.n, x.save ? x.save.text : '-'].join('|')
@@ -746,12 +765,12 @@ const pat = (R, vn) => {
   out(`P|${vn}|unmocked GET r=: ${[...R.unknown.entries()].map(([k, v]) => k + '(' + [...v].join('/') + ')').join(' ') || 'none'}`)
   out(`P|${vn}|browser dialogs: ${R.dialogs.slice(0, 10).join(' ; ') || 'none'} | listeners: ${[...R.listeners].join(',') || 'none'}`)
   for (const [name, sh] of Object.entries(R.shell)) if (sh) {
-    out(`P|${vn}|shell@${name} ${sh.w}x${sh.h} docH ${sh.docH} windowScrolls ${sh.winScrolls} dir ${j(sh.dir)} viewportMeta "${sh.viewportMeta}" manifest ${sh.manifest} env(safe-area-inset-bottom)=${sh.envBottom}`)
+    out(`P|${vn}|shell@${name} ${sh.w}x${sh.h} docH ${sh.docH} windowScrolls ${sh.winScrolls} maxScroll ${sh.maxScroll} scroll-behavior ${sh.scrollBehavior} dir ${j(sh.dir)} elementDir[${sh.shellDir}] viewportMeta "${sh.viewportMeta}" manifest ${sh.manifest} env(safe-area-inset-bottom)=${sh.envBottom}`)
     out(`P|${vn}|scrollers@${name}: ${sh.scrollers.map((x) => `${x.sel} ${x.overflowY} ${x.client}/${x.scroll}${x.overflows ? ' OVERFLOWS' : ''}`).join(' ; ') || 'none (the window scrolls)'}`)
     out(`P|${vn}|boxes@${name}: shell ${j(sh.shell)} content ${j(sh.content)} body ${j(sh.body)} root ${j(sh.root)}`)
     out(`P|${vn}|fixed@${name}: ${sh.fixed.map((x) => `${x.sel} ${x.pos} z${x.z} [${x.rect}]${x.atBottom ? ' AT-BOTTOM' : ''}${x.atTop ? ' at-top' : ''}${x.inSide ? ' in-sidebar' : ''} f${x.fields}b${x.buttons} "${x.text}"`).join(' ;; ') || 'none'}`)
   }
 }
-for (const [vn] of VIEWS) pat(result[vn], vn)
+if (process.env.SCAN_PATTERNS !== '0') for (const [vn] of VIEWS) pat(result[vn], vn)
 for (const l of L) console.log(l.length > 1400 ? l.slice(0, 1400) + '…' : l)
 console.log('ADMIN_SAVE_SCAN_DONE')
