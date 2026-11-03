@@ -13,6 +13,10 @@
 //   short-modal       a small modal whose Save is in view (no bar)
 //   crm-inline        a 2-field inline "Create contact" form at the top of a long list
 //   no-save           autosave toggles + a Search/Apply filter form (no bar, ever)
+//   cancel-button    a long form whose ONLY out-of-view button is a Cancel (type=button): never a Save (no bar)
+//   cancel-submit    the same with Cancel as a type=submit button (Cancel can submit a form in a compiled build)
+//   delete-submit    the same with a type=submit "Delete product" (a destructive action is never offered as a Save)
+//   delete-modal     a scrolling modal whose out-of-view buttons are a submit Cancel and a submit Delete
 //   confirm-over-form the Topbar page with a Cancel/Delete confirm dialog on top (no bar while it is open)
 //
 // The markup follows the structure and class names the scan recorded; the fields are made up. Tailwind is
@@ -31,6 +35,13 @@ const topbarForm = `<form class="topbar-editor admin-page-layout panel space-y-4
 <h1 class="text-xl font-bold">Top bar</h1>
 ${fields(12)}
 <div class="flex justify-end"><button type="submit" class="topbar-editor__save rounded-xl bg-slate-900 px-4 py-2 font-bold text-white" disabled>Saved</button></div>
+</form>`
+
+// A 12-field page form with one trailing button (given) and no Save; used by the finder fixtures.
+const longForm = (button, key) => `<form class="topbar-editor admin-page-layout panel space-y-4 rounded-2xl border border-slate-200 bg-white p-5" data-save="${key}">
+<h1 class="text-xl font-bold">Product</h1>
+${fields(12)}
+<div class="flex justify-end">${button}</div>
 </form>`
 
 export const PAGES = {
@@ -101,6 +112,17 @@ export const PAGES = {
 <form class="panel flex flex-wrap gap-3 rounded-xl border bg-white p-4" data-save="filter"><input class="rounded-lg border px-3 py-2" type="search" placeholder="Search"><select class="rounded-lg border px-3 py-2"><option>All</option></select><input class="rounded-lg border px-3 py-2" placeholder="Min price"><button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-white">Search</button><button type="button" class="rounded-xl border px-4 py-2">Apply</button></form>
 <ul class="mt-6 space-y-2">${Array.from({ length: 30 }, (_, i) => `<li class="panel flex items-center justify-between rounded-lg border bg-white p-4">Product ${i + 1}<label><input type="checkbox" checked> On sale</label><button type="button" class="rounded-lg border px-3 py-1">Delete</button></li>`).join('')}</ul>
 <button type="button" class="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-white">Push 30 products</button>`,
+  },
+
+  // Finder fixtures: a form long enough that its only button is out of view, with fields, and NO Save in it.
+  // Each of these is a button the finder must refuse; the real Save is simply not part of the screen.
+  'cancel-button': { main: longForm('<button type="button" class="rounded-xl border px-4 py-2" data-save="cancel-button">Cancel</button>', 'cancel-button') },
+  'cancel-submit': { main: longForm('<button type="submit" class="rounded-xl border px-4 py-2" data-save="cancel-submit">Cancel</button>', 'cancel-submit') },
+  'delete-submit': { main: longForm('<button type="submit" class="rounded-xl bg-rose-600 px-4 py-2 text-white" data-save="delete-submit">Delete product</button>', 'delete-submit') },
+  'delete-modal': {
+    main: '<h1 class="text-xl font-bold">Catalogue</h1>',
+    extra: `<div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" id="delete-overlay"><form class="w-full max-w-2xl space-y-5 rounded-2xl bg-white p-5 mx-auto panel" data-save="delete-modal"><h2 class="text-lg font-bold">Edit product</h2>${fields(10)}
+<div class="flex justify-end gap-3"><button type="submit" class="rounded-xl border px-4 py-2 font-semibold" data-save="delete-modal">Cancel</button><button type="submit" class="rounded-xl bg-rose-600 px-4 py-2 text-white" data-save="delete-modal">Delete</button></div></form></div>`,
   },
 
   'confirm-over-form': { main: topbarForm, confirm: true },

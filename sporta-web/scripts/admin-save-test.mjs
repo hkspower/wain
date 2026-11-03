@@ -25,7 +25,11 @@
 //   - a burst of DOM changes costs at most one pass per frame and an idle page costs none;
 //   - evaluated twice, the file still makes one bar; on the storefront nothing runs, and a single-page navigation into
 //     and out of /backends starts and stops it;
-//   - MUTATION CHECK: with the block cut out of the file the same checks fail.
+//   - Cancel / Delete are never offered as a Save: a long form whose only out-of-view button is a Cancel (type=button or
+//     type=submit), a submit "Delete product", and a scrolling modal with a submit Cancel and Delete get no bar, even after
+//     a field was typed in;
+//   - MUTATION CHECK: with the block cut out of the file the same checks fail, and so do copies of the block whose finder
+//     counts Cancel / Delete as a Save or skips its refusal list.
 import { chromium } from 'playwright'
 import postcss from 'postcss'
 import tailwind from '@tailwindcss/postcss'
@@ -119,6 +123,11 @@ const CASES = {
   'short-modal': { sel: 'form[data-save=discount] button', box: 'window', save: 'discount', label: 'Save', show: { phone: false, desktop: false } },
   'crm-inline': { sel: '#crm-create button', box: 'window', save: 'crm', label: 'Create contact', show: { phone: false, desktop: false } },
   'no-save': { sel: null, box: 'window', show: { phone: false, desktop: false } },
+  // Buttons the finder must refuse: Cancel / Delete are never a Save, in view or not, touched or not.
+  'cancel-button': { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } },
+  'cancel-submit': { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } },
+  'delete-submit': { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } },
+  'delete-modal': { sel: null, box: '#delete-overlay', touch: true, show: { phone: false, desktop: false } },
   'confirm-over-form': { sel: '.topbar-editor__save', box: 'window', save: 'topbar', label: 'Saved', show: { phone: true, desktop: true } },
 }
 
@@ -337,6 +346,15 @@ for (const dark of [false, true]) {
         // not shown at load: scrolling the page must not conjure one either
         for (const y of [200, 'max']) { await scrollBox(pg, c.box, y); await settle(pg, 400) }
         is(!(await barState(pg)).shown, `${name} @${vn}${dark ? ' dark' : ''}: and none appears when scrolled`)
+        if (c.touch) {
+          // the reader types in the form (the strongest reason to chase a button down the page) and scrolls away from it
+          await scrollBox(pg, c.box, 0); await settle(pg, 300)
+          await pg.evaluate(() => { const i = document.querySelector('input[name=f1]'); i.focus({ preventScroll: true }); i.value = 'x'; i.dispatchEvent(new Event('input', { bubbles: true })) })
+          await settle(pg)
+          is(!(await barState(pg)).shown, `${name} @${vn}${dark ? ' dark' : ''}: a Cancel / Delete button is not offered as a Save even after a field was typed in`)
+          await scrollBox(pg, c.box, 'max'); await settle(pg, 400)
+          is((await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]:not([hidden])').length)) === 0, `${name} @${vn}${dark ? ' dark' : ''}: and none is up at the end of the form either`)
+        }
         continue
       }
       await checkShownBar(pg, name, vn, dark, st)
@@ -485,6 +503,32 @@ head('mutation check')
   sink = null
   brandsText = BRANDS
   is(failed >= 1 && failed === total, `with the block cut out, the "bar is shown" checks fail (${failed} of ${total})`)
+}
+// The finder's refusals must be pinned too: break each rule in a copy of the block and the Cancel / Delete fixtures must
+// start showing a bar. A mutant that does not apply (the line moved) fails the run, so the check cannot rot into a no-op.
+const MUTANTS = [
+  ['a label starting with Cancel counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^cancel/i.test(lead)', ['cancel-button', 'cancel-submit', 'delete-modal']],
+  ['the Cancel / Delete / ... refusal list is not consulted', 'if (!save && NOT.test(lead)) return false', '', ['cancel-submit', 'delete-submit', 'delete-modal']],
+  ['a label starting with Delete counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^delete/i.test(lead)', ['delete-submit', 'delete-modal']],
+]
+for (const [what, from, to, names] of MUTANTS) {
+  const at = BRANDS.indexOf(from, BEGIN)
+  is(at > BEGIN && at < END, `mutant "${what}" applies to the block`, 'the line it edits moved')
+  if (!(at > BEGIN && at < END)) continue
+  brandsText = BRANDS.slice(0, at) + to + BRANDS.slice(at + from.length)
+  sink = []
+  const { ctx, pg } = await open(browser, { w: 390, h: 844, dark: false })
+  for (const name of names) {
+    await load(pg, name)
+    await pg.evaluate(() => { const i = document.querySelector('input[name=f1]'); i.focus({ preventScroll: true }); i.value = 'x'; i.dispatchEvent(new Event('input', { bubbles: true })) })
+    await settle(pg)
+    is(!(await barState(pg)).shown, `${name}: no bar`)
+  }
+  await ctx.close()
+  const failed = sink.filter((x) => !x.ok).length
+  sink = null
+  brandsText = BRANDS
+  is(failed >= 1, `mutant "${what}" is caught: a Cancel / Delete fixture shows a bar (${failed} of ${names.length} fixtures fail)`)
 }
 
 await browser.close()

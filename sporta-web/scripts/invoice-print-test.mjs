@@ -29,6 +29,8 @@
 //     proves the suite FAILS on the code before these fixes.
 //   CHROMIUM_PATH=...   the browser (default /opt/pw-browsers/chromium).
 //   INVOICE_TEST_PORT=  first port to try for the dev server (default 5391).
+//   BASE_URL=http://127.0.0.1:PORT   test an already-running server (a `vite preview`
+//     of a production build) instead of starting a dev server.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -78,6 +80,15 @@ const SMALL = {
     { name_en: 'Cheetahs Rugby T-Shirt', name_ar: 'تيشيرت تشيتاز رَغبي', qty: 1, size: 'M', fit: null, unit_price: 8.0, line_total: 8.0 },
   ],
 }
+// Six ordinary lines: a normal basket. Before the print tightening this spilled
+// onto a second sheet in Arabic (five lines was the limit), carrying nothing but
+// the totals and the two footnotes.
+const SIX = {
+  ...SMALL, track_id: 'SPINV0006',
+  items: Array.from({ length: 6 }, (_, i) => ({ ...SMALL.items[i % 2], size: ['S', 'M', 'L'][i % 3] })),
+}
+SIX.subtotal = SIX.items.reduce((t, i) => t + i.line_total, 0)
+SIX.amount = SIX.subtotal - SIX.discount_amount + SIX.delivery_fee
 // Thirty-four lines, every third one with a long name in BOTH languages, a long
 // promo name, a four-digit total: the order that stresses wrapping, page breaks
 // and the width of the money column all at once.
@@ -102,14 +113,23 @@ BIG.amount = BIG.subtotal - BIG.discount_amount + BIG.delivery_fee // 1,122.625
 const BIG_TOTAL = '1,122.625'
 
 // ------------------------------------------------------------- dev server
-const server = await createServer({
-  root: ROOT,
-  configFile: path.join(ROOT, 'vite.config.js'),
-  logLevel: 'error',
-  server: { host: '127.0.0.1', port: Number(process.env.INVOICE_TEST_PORT ?? 5391), strictPort: false },
-})
-await server.listen()
-const BASE = server.resolvedUrls.local[0].replace(/\/$/, '')
+// BASE_URL points the suite at a server that is already running — a `vite
+// preview` of a production build, say, to prove the minified, purged CSS prints
+// the same as the dev server's. Otherwise it starts its own.
+let server = null
+let BASE
+if (process.env.BASE_URL) {
+  BASE = process.env.BASE_URL.replace(/\/$/, '')
+} else {
+  server = await createServer({
+    root: ROOT,
+    configFile: path.join(ROOT, 'vite.config.js'),
+    logLevel: 'error',
+    server: { host: '127.0.0.1', port: Number(process.env.INVOICE_TEST_PORT ?? 5391), strictPort: false },
+  })
+  await server.listen()
+  BASE = server.resolvedUrls.local[0].replace(/\/$/, '')
+}
 console.log(`invoice-print-test: ${ROOT} served at ${BASE}`)
 
 const browser = await chromium.launch({
@@ -389,6 +409,17 @@ if (HAVE_POPPLER) {
         `${lang}: the page corners (the margin) are white`)
       await ctx.close()
     }
+    // A normal basket of six lines is still ONE page. The invoice used to carry
+    // generous screen spacing onto paper (header, billing block, 12px of padding
+    // above and below every line), so six lines in Arabic already pushed the
+    // totals onto a second, nearly empty sheet.
+    {
+      const { ctx, page } = await open(SIX, { lang })
+      await page.emulateMedia({ media: 'print' })
+      const f = await pdfOf(page, `six-${lang}`)
+      is(pages(f) === 1, `${lang}: a six-line invoice is one A4 page`, `${pages(f)} page(s)${lang === 'ar' ? ' (two before)' : ''}`)
+      await ctx.close()
+    }
     // A long order: the totals once, no furniture on any page, no charcoal.
     {
       const { ctx, page } = await open(BIG, { lang })
@@ -437,7 +468,7 @@ if (HAVE_POPPLER) {
 }
 
 await browser.close()
-await server.close()
+if (server) await server.close()
 rmSync(tmp, { recursive: true, force: true })
 console.log(fails ? `\n${fails} problem(s) with the invoice layout` : '\ninvoice layout: correct on screen and on paper')
 process.exit(fails ? 1 : 0)

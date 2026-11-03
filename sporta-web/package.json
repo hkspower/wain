@@ -34,6 +34,7 @@
     "test:admin-light": "node scripts/admin-payments-light-test.mjs",
     "test:photo-uploader": "node scripts/photo-uploader-test.mjs",
     "test:admin-save": "node scripts/admin-save-test.mjs",
+    "test:inventory-checkout": "node scripts/inventory-checkout-test.mjs",
     "test:checkout-location": "node scripts/checkout-location-test.mjs",
     "test:about-page": "node scripts/about-page-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",

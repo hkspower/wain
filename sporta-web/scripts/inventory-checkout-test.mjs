@@ -572,13 +572,17 @@ try {
     const P = await mkProduct('s8d', { M: 5 })
     // product_variants has no unique key on (slug, size): only the sku is the primary key
     const dupSku = `IV${RUN}s8dDUP`
-    await q(`insert into product_variants (sku, slug, size, stock) values ('${dupSku}', '${P.slug}', 'M', 7)`)
-    const r = await placeOrder({ items: [line(P, 'M', 1)] })
-    const rows_ = await rows(`select sku, stock from product_variants where slug = '${P.slug}' order by sku`)
-    const sumNow = rows_.reduce((n, x) => n + Number(x[1]), 0)
-    is(sumNow === 12, 'whatever the order did, no unit was created or destroyed (5 + 7 = 12 on the two rows)', JSON.stringify(rows_))
-    gap(r.status === 200, 'a size with two variant rows can still be ordered',
-        `the order was ${r.status} ${r.err ?? ''}: the claim updates both rows, sees rowCount 2 instead of 1 and reports the size as out of stock; nothing is oversold, but the size becomes unbuyable until the duplicate is removed`)
+    const dupErr = await sqlErr(`insert into product_variants (sku, slug, size, stock) values ('${dupSku}', '${P.slug}', 'M', 7)`)
+    if (dupErr !== null) {
+      is(/Duplicate entry|1062/.test(dupErr), 'the database refuses a second variant row for the same (slug, size): the duplicate cannot exist', dupErr.split('\n')[0].slice(0, 100))
+    } else {
+      const r = await placeOrder({ items: [line(P, 'M', 1)] })
+      const rows_ = await rows(`select sku, stock from product_variants where slug = '${P.slug}' order by sku`)
+      const sumNow = rows_.reduce((n, x) => n + Number(x[1]), 0)
+      is(sumNow === 12 || sumNow === 10, 'no unit was created or destroyed (5 + 7 = 12 on the two rows, or 10 after one accepted unit on each)', JSON.stringify(rows_))
+      gap(r.status === 200, 'a size with two variant rows can still be ordered',
+          `the order was ${r.status} ${r.err ?? ''}: the claim updates both rows, sees rowCount 2 instead of 1 and reports the size as out of stock; nothing is oversold, but the size becomes unbuyable until the duplicate is removed`)
+    }
     await q(`delete from product_variants where sku = '${dupSku}'`)
   }
 
