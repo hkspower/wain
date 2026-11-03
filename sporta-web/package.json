@@ -49,6 +49,7 @@
     "test:images": "node scripts/image-budget-test.mjs",
     "test:invoice": "node scripts/invoice-test.mjs",
     "test:invoice-print": "node scripts/invoice-print-test.mjs",
+    "test:ai-icon": "node scripts/sporta-ai-icon-test.mjs",
     "test:quick": "node scripts/quick-checkout-test.mjs",
     "test:contrast": "node scripts/contrast-audit.mjs",
     "test:product": "node scripts/product-page-test.mjs",
