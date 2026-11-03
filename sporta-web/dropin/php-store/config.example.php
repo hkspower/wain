@@ -23,6 +23,11 @@ return [
     // or the mail lands in spam and nobody is told.
     'mail_from'       => 'cs@sporta.com.kw',
     'mail_reply_to'   => 'cs@sporta.com.kw',
+    // A warehouse message that failed five times in a row is tried again only
+    // in the first N minutes of each hour (up to 24 attempts), and the owner is
+    // told on the Activity page which order it was. Optional: absent means 10,
+    // 0 switches the slow retry off.
+    // 'warehouse_retry_window_minutes' => 10,
     'admin_mail_from' => 'cs@sporta.com.kw',
     // Customer password recovery uses this verified mailbox, independently
     // of the logistics sender. Keep it on the Sporta domain with SPF/DKIM.
