@@ -131,13 +131,10 @@ let browser
     // given by SCHEME (light | dark). Limits: 4.5:1, or 3:1 for large text (>= 24px, or >= 18.66px bold).
     const { ctx, pg } = await open(Number(process.env.W || 390), 844, false)
     const out = await pg.evaluate(() => {
-      const num = (str) => {
-        const m = str.match(/[\d.]+/g)
-        if (!m) return [0, 0, 0, 0]
-        const v = m.map(Number)
-        if (str.startsWith('color(')) return [v[0] * 255, v[1] * 255, v[2] * 255, v.length > 3 ? v[3] : 1]
-        return [v[0], v[1], v[2], v.length > 3 ? v[3] : 1]
-      }
+      // Any CSS colour (the compiled theme uses lab() and oklch()) to sRGB bytes, by painting one canvas pixel.
+      const cv = document.createElement('canvas'); cv.width = 1; cv.height = 1
+      const g = cv.getContext('2d', { willReadFrequently: true })
+      const num = (str) => { g.clearRect(0, 0, 1, 1); g.fillStyle = '#000'; g.fillStyle = str; g.fillRect(0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255] }
       const mix = (top, bottom) => { const a = top[3]; return [top[0] * a + bottom[0] * (1 - a), top[1] * a + bottom[1] * (1 - a), top[2] * a + bottom[2] * (1 - a), 1] }
       const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]) }
       const bgOf = (e) => {
