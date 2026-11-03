@@ -937,10 +937,9 @@
     var viaBox = document.createElement('input')
     viaBox.type = 'checkbox'
     viaBox.disabled = true
-    viaBox.style.cssText = 'width:1.5rem;height:1.5rem;flex:none;accent-color:#4f46e5;cursor:pointer'
+    viaBox.style.cssText = 'width:1.5rem;height:1.5rem;flex:none;accent-color:var(--admin-action,#9a452c);cursor:pointer'
     via.appendChild(viaText)
     via.appendChild(viaBox)
-    card.appendChild(via)
     call('payment_knet_via_cbk').then(function (r) {
       if (r.ok && r.body && 'enabled' in r.body) { viaBox.checked = !!r.body.enabled; viaBox.disabled = false } else { viaStatus.textContent = MSG[r.body && r.body.error] || 'Could not read this setting.' }
     })
@@ -983,7 +982,14 @@
         if (r.ok && r.body && 'server_ip_1' in r.body) { show(r.body); status.style.color = '#c2410c'; status.textContent = 'Saved.' } else { fail(r) }
       })
     })
-    return card
+    // The checkbox applies the moment it is ticked (there is no save button for it), so it
+    // must not sit INSIDE the Merchant Server IP panel, under that panel's "Save IPs": it read
+    // as part of that save. It is its own card, between the credentials and the IP panel.
+    // The panel keeps the marker, which is what scan() looks for to build only once.
+    var frag = document.createDocumentFragment()
+    frag.appendChild(via)
+    frag.appendChild(card)
+    return frag
   }
 
   function scan() {
