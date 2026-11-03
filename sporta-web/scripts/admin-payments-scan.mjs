@@ -5,6 +5,7 @@
 //   MODE=dom     node scripts/admin-payments-scan.mjs    exact element tree of the section (full classes), to rebuild it offline
 //   MODE=verify CSS_URL=<raw url> node ...               the same page measured before and after the stylesheet is applied
 //   CSS_URL=<raw url of a stylesheet> ...                apply it on top first (before/after on one page)
+//   BLOCK_ADDON=1 ...                                    any mode with sporta-admin-knet.css refused: the compiled admin alone
 //   MODE=colors [SCHEME=dark] [W=390] node ...           text/background contrast of every text element, lowest first (the admin's dark
 //                                                        mode is prefers-color-scheme, so SCHEME=dark is what a dark-mode owner sees)
 //
@@ -47,6 +48,7 @@ const open = async (w, h, withCss = true) => {
     const body = route.request().method() === 'GET' && r in FAKE ? FAKE[r] : r === 'me' ? FAKE.me : route.request().method() === 'GET' ? [] : {}
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
   })
+  if (process.env.BLOCK_ADDON) await pg.route('**/sporta-admin-knet.css*', (route) => route.abort())  // the admin as the compiled build alone styles it
   await pg.goto(B + '/backends', { waitUntil: 'networkidle' })
   await pg.waitForTimeout(900)
   const target = (await pg.$('a[href*="payment" i]')) || (await pg.$('text=/Payments/i'))
@@ -167,6 +169,23 @@ let browser
       return [`scheme ${matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'} width ${innerWidth} | text elements ${rows.length} | under limit ${low.length}`, ...low.slice(0, 28).map((r) => r.line)]
     })
     out.forEach((l) => console.log(l.slice(0, 240)))
+    await ctx.close()
+  } else if (MODE === 'surface') {
+    // Computed surfaces of the Payments screen: what paints the page, the cards, the fields and the text, in the
+    // colour scheme given by SCHEME. With BLOCK_ADDON=1 it is the compiled admin alone.
+    const { ctx, pg } = await open(Number(process.env.W || 390), 844, false)
+    const out = await pg.evaluate(() => {
+      const sels = ['html', 'body', '.admin-shell', '.admin-content', '.payment-settings', 'h1', '.payment-gateway-card', '.payment-gateway-card dl > div', '.payment-gateway-card dd', '.payment-gateway-editor', '.payment-knet-toggle-row', '.payment-secret-field__label', 'label > span.text-xs', 'input.mt-1', 'p.text-sm', 'button.bg-indigo-600', '[data-sporta-knet-ids]', '[data-sporta-tpay-ips]', 'label.rounded-2xl']
+      const rows = [`scheme ${matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'} | html color-scheme ${getComputedStyle(document.documentElement).colorScheme}`]
+      for (const s of sels) {
+        const e = document.querySelector(s)
+        if (!e) { rows.push(s + ' : none'); continue }
+        const c = getComputedStyle(e)
+        rows.push(`${s} : bg ${c.backgroundColor} | color ${c.color} | border ${c.borderTopWidth} ${c.borderTopColor} | cls ${String(e.getAttribute('class') || '').split(/\s+/).filter((x) => /^dark:|bg-|text-|border-/.test(x)).slice(0, 8).join(' ')}`)
+      }
+      return rows
+    })
+    out.forEach((l) => console.log(l.slice(0, 300)))
     await ctx.close()
   } else if (MODE === 'tree') {
     const { ctx, pg, errs, found } = await open(390, 844)
