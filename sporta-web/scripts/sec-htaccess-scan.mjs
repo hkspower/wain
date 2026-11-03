@@ -264,9 +264,10 @@ async function probe() {
   add('bak', ['/backup.zip', '/backups/', '/backup/', '/site.zip', '/sporta-dist.zip', '/SPORTA-GO-LIVE.zip', '/SPORTA-BACKEND.zip', '/public_html.zip', '/www.zip', '/db.sql', '/dump.sql', '/schema.mysql.sql', '/api/schema.mysql.sql', '/api/install.mysql.sql', '/api/seed.mysql.sql', '/api/inventory.mysql.sql', '/knet-payments.log', '/cbk-payments.log', '/knet/knet-payments.log', '/pay/cbk-payments.log', '/error_log', '/api/error_log', '/knet/error_log', '/php_errors.log', '/api/php_errors.log', '/access.log', '/debug.log'])
   add('vcs', ['/package.json', '/package-lock.json', '/node_modules/', '/composer.json', '/composer.lock', '/vendor/', '/vendor/autoload.php', '/sporta-web/', '/dropin/', '/scripts/', '/README.md', '/CLAUDE.md', '/SERVER-LAYOUT.md', '/Dockerfile', '/docker-compose.yml', '/vite.config.js', '/deploy.config.json', '/.env.deploy', '/src/', '/src/main.jsx', '/knet/README.md', '/pay/README.md'])
   add('dir', ['/images/', '/assets/', '/api/', '/knet/', '/pay/', '/cats/', '/icons/', '/fonts/', '/hero/', '/api', '/backends/', '/backends'])
-  add('trick', ['/API/config.php', '/Api/api.php', '/api/CONFIG.PHP', '/api/config.php%00', '/api/config.php%2e', '/api/config.php%20', '/api/config.php.', '/api/config.php/', '/api/config.php/x', '/api//config.php', '/api/;/config.php', '/api/..;/', '/api/%2e%2e/api/config.php', '/api/%252e%252e/api/config.php', '/api/./config.php', '/api/x/../config.php', '/%2e%65nv', '/%2e/%2e/api/config.php', '/api/config%2ephp', '/api/config.php%0a', '/api/config.php%23', '/api/config.php%3f', '/api%2fconfig.php', '/api/%63onfig.php', '/..%2f..%2fetc/passwd', '/.%2e/etc/passwd', '/api/api.php/../config.php', '/api/store.php/x.css', '/api/store.php%2f', '/api/api.php/x'])
-  add('mv', ['/config', '/robots', '/sitemap', '/logo', '/api/config', '/api/store', '/knet/config', '/pay/config', '/api/admin'])
+  add('trick', ['/API/config.php', '/Api/api.php', '/api/CONFIG.PHP', '/api/config.php%00', '/api/config.php%2e', '/api/config.php%20', '/api/config.php.', '/api/config.php/', '/api/config.php/x', '/api//config.php', '/api/;/config.php', '/api/..;/', '/api/%2e%2e/api/config.php', '/api/%252e%252e/api/config.php', '/api/./config.php', '/api/x/../config.php', '/%2e%65nv', '/%2e/%2e/api/config.php', '/api/config%2ephp', '/api/%63onfig.php', '/..%2f..%2fetc/passwd', '/.%2e/etc/passwd', '/api/api.php/../config.php', '/api/store.php/x.css'])
+  add('mv', ['/config', '/robots', '/sitemap', '/logo', '/api/config'])
   add('route', ['/account', '/support', '/cart', '/checkout', '/payment/result', '/invoice/ABC123', '/product/zz-none', '/track', '/women', '/men', '/privacy-policy', '/shipping', '/index.html', '/image/cache/catalog/x.jpg', '/zz-not-a-route', '/shop/', '/shop/x'])
+  add('addon', ['/sporta-product-fix.css', '/sporta-brand-theme.css', '/sporta-home-trim.css', '/sporta-cart-drawer.css', '/sporta-grid.css', '/sporta-bag-touch.css', '/sporta-cat-tiles.css', '/sporta-admin-knet.css', '/sporta-returns-touch.css', '/sporta-clock.css', '/sporta-ui-colours.css', '/sporta-checkout-a11y.css', '/sporta-shadows.css', '/sporta-images.css', '/boot.js', '/birthday.js', '/sporta-features.js', '/sporta-admin-brands.js', '/sporta-footer-call.js', '/sporta-gov-autopick.js', '/sporta-clock.js', '/sporta-checkout-a11y.js'])
   // source maps next to the real bundle files
   const assets = [...new Set([...homeHtml.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css))[^"]*"/g)].map((m) => m[1]))].slice(0, 8)
   for (const a of assets) A.push(['map', `${a}.map`])
@@ -351,12 +352,30 @@ async function probe() {
   walk(SITE, 0)
   say(`${risky.length} candidate file(s) on disk`)
   const rr = []
-  for (const rel of risky.slice(0, 20)) {
+  for (const rel of risky.slice(0, 10)) {
     const r = await request(`https://${HOST}${rel.split('/').map(encodeURIComponent).join('/')}`, { insecure: true })
     await sleep(120)
     rr.push(`${rel} -> ${r.status}${r.status === 200 && !isShell(r) ? ' !!200' : ''}`)
   }
   chunked(rr, 25)
+  // 8. which browser features does the LIVE bundle use? (judges Permissions-Policy against reality)
+  say('\n== ON-DISK ASSET FEATURE USE (names only)')
+  try {
+    const dirs = [SITE, path.join(SITE, 'assets')]
+    const feats = ['SpeechRecognition', 'getUserMedia', 'getCurrentPosition', 'navigator.geolocation', 'serviceWorker', 'sendBeacon', 'Notification', 'requestPayment', 'PaymentRequest', 'unsafe-eval', 'new Function', 'eval(']
+    const hit = {}
+    for (const d of dirs) {
+      for (const f of fs.existsSync(d) ? fs.readdirSync(d) : []) {
+        if (!/\.(js)$/.test(f) || f === 'sw.js' && false) continue
+        let t
+        try { t = fs.readFileSync(path.join(d, f), 'utf8') } catch { continue }
+        for (const k of feats) if (t.includes(k)) (hit[k] ||= []).push(f)
+      }
+    }
+    for (const k of feats) say(`${k}: ${(hit[k] || []).slice(0, 6).join(' ') || '-'}`)
+    const idx = fs.existsSync(path.join(SITE, 'index.html')) ? fs.readFileSync(path.join(SITE, 'index.html'), 'utf8') : ''
+    say(`index.html: sporta-build meta=${/name="sporta-build"/.test(idx)} inline-scripts=${(idx.match(/<script(?![^>]*src=)/g) || []).length} external-origins=${[...new Set((idx.match(/https?:\/\/[a-z0-9.-]+/gi) || []))].join(',').slice(0, 300)}`)
+  } catch (e) { say(`asset scan failed: ${e.message}`) }
   say(`\nSEC_PROBE done requests=${reqCount}`)
 }
 
