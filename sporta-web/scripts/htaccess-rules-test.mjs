@@ -190,7 +190,7 @@ function buildTree(patchFile) {
   for (const f of ['.env', '.env.local', '.git/config', '.git/HEAD', '.svn/entries', '.DS_Store', '.htpasswd', '.user.ini', '._logo.png',
     '.hidden/inner.txt', '.well-known/acme-challenge/tok123', '.well-known/security.txt', '.well-known/.hidden', 'sub/.env', 'sub/.git/config',
     'knet/.env', 'pay/.env', 'api/.env', 'images/products/.env', 'hero/.env',
-    'api/.git/config', 'knet/.git/config', 'pay/.git/config', 'hero/.git/config', 'cats/.git/HEAD', 'images/products/.git/config', 'fonts/.git/config',
+    '.well-known-evil/x', '.well-known.bak', 'api/.git/config', 'knet/.git/config', 'pay/.git/config', 'hero/.git/config', 'cats/.git/HEAD', 'images/products/.git/config', 'fonts/.git/config',
     'assets/.git/config', 'images/.git/config', 'hero/desktop/.git/config', 'api/.svn/entries', 'hero/.hidden/inner.txt', 'sub/.hidden/inner.txt']) {
     put(join(www, f), 'SECRET\n')
   }

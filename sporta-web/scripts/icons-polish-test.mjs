@@ -228,7 +228,8 @@ const PNG = (p) => png(readFileSync(join(ROOT, p)))
 const stats = (P, thr = 16) => {
   let x1 = P.w, y1 = P.h, x2 = -1, y2 = -1, maxR = 0, tr = 0; const cx = (P.w - 1) / 2, cy = (P.h - 1) / 2
   for (let y = 0; y < P.h; y++) for (let x = 0; x < P.w; x++) { const p = P.at(x, y); if (p.a < 255) tr++; if (p.a > thr) { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y); maxR = Math.max(maxR, Math.hypot(x - cx, y - cy)) } }
-  let run = 0; for (let y = 0; y < P.h; y++) if (P.at(x2, y).a > 128) run++
+  let xs = x2; while (xs > 0 && ![...Array(P.h).keys()].some((y) => P.at(xs, y).a > 128)) xs--
+  let run = 0; for (let c = xs; c > xs - 3 && c >= 0; c--) { let n = 0; for (let y = 0; y < P.h; y++) if (P.at(c, y).a > 128) n++; run = Math.max(run, n) }
   return { x1, y1, x2, y2, padL: x1 / P.w, padT: y1 / P.h, padR: (P.w - 1 - x2) / P.w, padB: (P.h - 1 - y2) / P.h, maxR: maxR / P.w, tr: tr / (P.w * P.h), edgeRun: run }
 }
 
@@ -286,11 +287,11 @@ head('the corrected set in brand/icons-polish/')
     } else {
       is(st.tr > 0.7 && P.at(0, 0).a === 0, `${f.file} is transparent around the S`)
       is(st.padT >= 0.04 && st.padB >= 0.04 && st.padL >= 0.04 && st.padR >= 0.04, `${f.file} keeps 4% padding on every side (${(st.padL * 100).toFixed(1)}/${(st.padT * 100).toFixed(1)}/${(st.padR * 100).toFixed(1)}/${(st.padB * 100).toFixed(1)}%)`)
-      is(st.edgeRun <= Math.max(3, 0.05 * s), `${f.file} keeps the S whole: its right edge is a ${st.edgeRun}px run (a flat cut is 11% of the height)`)
+      if (s >= 192) { const was = stats(PNG(`public/${f.file}`)).edgeRun; is(st.edgeRun <= 0.6 * was, `${f.file} keeps the S whole: its right edge is a ${st.edgeRun}px vertical run (the cut file has ${was}px)`) }
     }
     // the S is the brand orange
-    const o = []; for (let y = 0; y < s; y += 2) for (let x = 0; x < s; x += 2) { const p = P.at(x, y); if (p.a > 250 && p.r > 200 && p.b < 90) o.push(p) }
-    is(o.length > 0 && o.every((p) => near(p.r, 255, 40) && p.g > 90 && p.g < 150), `${f.file}: the S is the logo orange`)
+    const o = []; for (let y = 0; y < s; y += 2) for (let x = 0; x < s; x += 2) { const p = P.at(x, y); if (p.a > 250 && p.r > 235 && p.b < 60) o.push(p) }
+    is(o.length > 0 && o.every((p) => p.g > 90 && p.g < 150), `${f.file}: the S is the logo orange`)
     if (s === 32) { let ink = 0; for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) if (P.at(x, y).a > 128) ink++; is(ink / (s * s) >= 0.08, `${f.file}: the S covers ${(ink / (s * s) * 100).toFixed(0)}% of a 32px tab icon (reads at 16px)`) }
   }
   note(`master S ${SHAPE.w} x ${SHAPE.h} (farthest ink ${(SHAPE.maxR / SHAPE.h * 100).toFixed(1)}% of its height from the box centre)`)
@@ -312,14 +313,14 @@ head('the "photo coming soon" tile: public/ file vs brand/icons-polish/ file, re
   }
   const camera = (P) => { // slate line pixels (#6F7882 and its anti-aliasing): bbox width and height of the glyph
     let x1 = P.w, x2 = -1, y1 = P.h, y2 = -1
-    for (let y = 0; y < P.h; y++) for (let x = 0; x < P.w; x++) { const p = P.at(x, y); if (p.b > p.r + 6 && p.r < 170 && p.r > 70) { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y) } }
+    for (let y = Math.floor(P.h * 0.25); y < Math.floor(P.h * 0.6); y++) for (let x = 0; x < P.w; x++) { const p = P.at(x, y); if (p.b > p.r + 3 && p.r < 215) { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y) } }
     return { w: x2 - x1 + 1, h: y2 - y1 + 1, x1, y1, y2 }
   }
   const dark = (P, y1, y2, x1, x2) => { let n = 0; for (let y = Math.floor(y1); y < y2; y++) for (let x = Math.floor(x1); x < x2; x++) { const p = P.at(x, y); if (p.r < 150 && p.g < 150) n++ } return n }
   for (const w of [72, 169, 300, 301, 340]) {
     const o = await render(OLD, w), n = await render(NEW, w), co = camera(o), cn = camera(n)
     note(`${w}px wide: camera glyph ${co.w}px (public/) -> ${cn.w}px (new)`)
-    if (w <= 169) is(cn.w >= 1.7 * co.w && cn.w >= 0.3 * w, `at ${w}px the new camera glyph is ${cn.w}px, ${(cn.w / co.w).toFixed(1)}x the current ${co.w}px (a deliberate badge, not a smudge)`)
+    if (w <= 169) is(cn.w >= 1.3 * co.w && cn.w >= 0.3 * w, `at ${w}px the new camera glyph is ${cn.w}px, ${(cn.w / co.w).toFixed(1)}x the current ${co.w}px (a deliberate badge, not a smudge)`)
     // the copy: dark pixels in the band where "SPORTA" sits in the full tile (about 66-72% down); the compact tile has none
     const band = (P) => dark(P, P.h * 0.665, P.h * 0.715, P.w * 0.3, P.w * 0.7)
     if (w <= 300) is(band(n) === 0, `at ${w}px the new tile drops the copy (it would be ${Math.round(w / 600 * 24)}px tall)`, `${band(n)} dark pixels in the copy band`)

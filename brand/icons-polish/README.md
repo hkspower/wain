@@ -17,7 +17,7 @@ Made by `node sporta-web/scripts/make-icons-polish.mjs` (`--preview` also writes
 | same | the S **touches the top and bottom** of the canvas: padding 0.0% above and below, 17.4% left and right |
 | `site.webmanifest`, `backends.webmanifest` | `favicon.png` is declared as **both "any" and "maskable"**. A maskable icon must keep its ink inside the central 80% circle (radius 40% of the width); this one's ink reaches **58.8%**, so Android's circle or squircle mask cuts the S's two tips off, and the transparent corners are filled with the launcher's default colour |
 | `apple-touch-icon.png` 180 | **87% transparent**: iOS fills transparency with black, so the home-screen tile is an orange S on black by accident, not by design, and with the same cut S |
-| `product-photo-unavailable.svg` | at the sizes the shop shows it the camera is a smudge: 9.6px wide in a 72px bag thumbnail (0.4px line), 26px in a 2-column phone card; its three lines of copy are 4 to 6px tall there (illegible noise); the orange rule is the retired clay `#d28a69` |
+| `product-photo-unavailable.svg` | at the sizes the shop shows it the camera is a smudge: 14px wide in a 72px bag thumbnail (a 0.4px line), 32px in a 169px phone card; its three lines of copy are 4 to 6px tall there (illegible noise); the orange rule is the retired clay `#d28a69` |
 
 Fine as they are (measured): `og-image.png` 1200 x 630 RGB, 1.91:1, as the og tags declare; `logo.png` 800px and
 `logo-white.png` 600px (396px is needed on a 3x phone at the header's 132px); every manifest and `index.html` size matches its file.
@@ -55,7 +55,7 @@ before and after (any on white and charcoal, the maskable circle, the iOS tile, 
 are evaluated against the image's own rendered width, so one file serves every size: **301px and wider** it is the full tile
 (badge, camera, orange rule, "SPORTA", the Arabic and English lines, the lines larger than before); **300px and under** (grid
 cards on a phone, bag drawer and checkout thumbnails) it drops the copy and draws the badge larger with a thicker line.
-Measured at 72px wide: camera 9.6px -> 38px. The rule is `#E0561C` and the glow `#FF7B17` (brand tokens) instead of the clay.
+Measured (rendered, `npm run test:icons-polish`): camera glyph 14px -> 33px at 72px wide, 32px -> 79px at 169px, 56px -> 84px at 301px. The rule is `#E0561C` and the glow `#FF7B17` (brand tokens) instead of the clay.
 No CSS change is needed: the existing `img[src$="/product-photo-unavailable.svg"]` rule in `sporta-cat-tiles.css` still fits it.
 (`object-view-box` was tried as a CSS-only crop: it does not clip, and Safari support is not certain; the asset is the fix.)
 

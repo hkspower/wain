@@ -48,6 +48,7 @@ const PATCH = patchIdx >= 0 ? resolve(argv[patchIdx + 1]) : process.env.XSSHT_PA
 const BASE = process.env.XSSHT_DIR || join(tmpdir(), 'sporta-xss-htaccess')
 const PORT = Number(process.env.XSSHT_PORT || 8411)
 const PHP_PORT = Number(process.env.XSSHT_PHP_PORT || 8412)
+const TLS_PORT = Number(process.env.XSSHT_TLS_PORT || 8413)
 const HOST = 'www.sporta.com.kw'
 const MODULES = process.env.XSSHT_MODULES || '/usr/lib/apache2/modules'
 
@@ -248,10 +249,10 @@ function chmodRecursive(dir) {
   try { chmodSync(dir, 0o755) } catch { /* best effort */ }
 }
 
-export function httpdConf({ www, extra = '', phpHandler = 'filesmatch' } = {}) {
+export function httpdConf({ www, extra = '', phpHandler = 'filesmatch', tls = false } = {}) {
   const mods = ['mpm_event', 'authz_core', 'authz_host', 'mime', 'dir', 'headers', 'rewrite', 'deflate',
     'brotli', 'filter', 'setenvif', 'alias', 'expires', 'autoindex', 'negotiation', 'env', 'log_config',
-    'proxy', 'proxy_http']
+    'proxy', 'proxy_http', ...(tls ? ['ssl', 'socache_shmcb'] : [])]
   // Modules compiled into the binary (core, so, http, log_config, unixd...) cannot be loaded.
   const builtin = spawnSync(APACHE, ['-l'], { encoding: 'utf8' }).stdout
   const load = mods
@@ -312,7 +313,17 @@ DocumentRoot ${www}
   Require all granted
 </Directory>
 ${php}
-${extra}
+${tls ? `# TLS twin of the site on ${TLS_PORT}, only so a real browser sees https://www.sporta.com.kw like production
+# (upgrade-insecure-requests would otherwise turn every http subresource into a failed https one).
+Listen 127.0.0.1:${TLS_PORT}
+SSLSessionCache none
+<VirtualHost 127.0.0.1:${TLS_PORT}>
+  ServerName www.sporta.com.kw
+  SSLEngine on
+  SSLCertificateFile ${BASE}/tls.crt
+  SSLCertificateKeyFile ${BASE}/tls.key
+</VirtualHost>
+` : ''}${extra}
 `
 }
 
@@ -327,6 +338,14 @@ const waitUp = async () => {
 const stopApacheOnly = () => stopApache()
 const stopApache = () => {
   try { execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'stop'], { stdio: 'ignore' }) } catch { /* not running */ }
+}
+
+let TLS = false
+function makeCert() {
+  const r = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=www.sporta.com.kw',
+    '-addext', 'subjectAltName=DNS:www.sporta.com.kw', '-keyout', `${BASE}/tls.key`, '-out', `${BASE}/tls.crt`], { encoding: 'utf8' })
+  TLS = r.status === 0 && existsSync(`${MODULES}/mod_ssl.so`) && existsSync(`${MODULES}/mod_socache_shmcb.so`)
+  return TLS
 }
 
 export async function startAll({ patchFile = '', extra = '', phpHandler = 'filesmatch' } = {}) {
@@ -352,7 +371,8 @@ return false;
     env: { ...process.env, SPORTA_API_CONFIG_FILE: cfg },
     stdio: ['ignore', openSync(join(BASE, 'php.log'), 'a'), openSync(join(BASE, 'php.log'), 'a')],
   })
-  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www, extra, phpHandler }))
+  const tls = makeCert()
+  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www, extra, phpHandler, tls }))
   const t = spawnSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-t'], { encoding: 'utf8' })
   if (t.status !== 0) throw new Error(`httpd -t failed: ${t.stdout}${t.stderr}`)
   stopApache()
@@ -573,14 +593,14 @@ async function mimeChecks() {
   // Negative control: the same fixtures under the older `AddHandler ... .php` form DO run a double
   // extension. Without this the "never executed" lines above could pass for the wrong reason.
   stopApacheOnly()
-  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www'), phpHandler: 'legacy' }))
+  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www'), phpHandler: 'legacy', tls: TLS }))
   execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'start'])
   await waitUp()
   const ctl = await get('/images/products/x.php.jpg')
   check(/PHP-EXECUTED-42/.test(ctl.text), 'control: under AddHandler .php a double extension (x.php.jpg) DOES execute, so the checks above can fail',
     'docker-php.conf anchors with .+\\.ph(?:ar|p|tml)$ and a SetHandler in a FilesMatch, which is why the real image does not')
   stopApacheOnly()
-  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www') }))
+  writeFileSync(`${BASE}/httpd.conf`, httpdConf({ www: join(BASE, 'www'), tls: TLS }))
   execFileSync(APACHE, ['-f', `${BASE}/httpd.conf`, '-k', 'start'])
   await waitUp()
 }
@@ -783,7 +803,7 @@ async function browserChecks(www) {
   const exe = await findChrome()
   let chromium
   try { ({ chromium } = await import(join(web, 'node_modules', 'playwright', 'index.mjs'))) } catch { /* not installed */ }
-  if (!exe || !chromium) { console.log('   skipped: no Chrome binary or no playwright in node_modules'); return }
+  if (!exe || !chromium || !TLS) { console.log(`   skipped: ${!exe ? 'no Chrome binary' : !chromium ? 'no playwright in node_modules' : 'no openssl / mod_ssl for the https twin'}`); return }
   // pay.php's real markup (the template after the PHP prologue), rendered with stub values, put
   // beside the real file's name so pay/.htaccess's <FilesMatch "^pay\.php$"> applies to it.
   const real = readFileSync(join(web, 'dropin', 'php-cbk', 'pay.php'), 'utf8')
@@ -793,16 +813,16 @@ async function browserChecks(www) {
     `<?php\n$checkoutUrl='https://pgtest.cbk.com/ePay/pg/epay?_v=x'; $fields=['tij_a'=>'b'];\n$h=fn($v)=>htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');\nheader('Content-Type: text/html; charset=utf-8');\n${tpl}`)
   writeFileSync(join(www, 'images', 'products', 'zz-script.html'), '<script src="/images/products/x.js"></script><script>document.title="INLINE-RAN"</script>')
   writeFileSync(join(www, 'images', 'products', 'x.js'), 'document.title="EXTERNAL-JS-RAN"')
-  const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', `--host-resolver-rules=MAP www.sporta.com.kw 127.0.0.1:${PORT}, MAP pgtest.cbk.com 127.0.0.1:1, MAP pg.cbk.com 127.0.0.1:1`] })
+  const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox', '--ignore-certificate-errors', `--host-resolver-rules=MAP www.sporta.com.kw 127.0.0.1:${TLS_PORT}, MAP pgtest.cbk.com 127.0.0.1:1, MAP pg.cbk.com 127.0.0.1:1, MAP * ~NOTFOUND , EXCLUDE 127.0.0.1`] })
   try {
-    const ctx = await browser.newContext({ extraHTTPHeaders: { 'X-Forwarded-Proto': 'https' } })
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true })
     const visit = async (path) => {
       const page = await ctx.newPage()
       const out = { requests: [], dialogs: 0, console: [] }
       page.on('request', (rq) => out.requests.push(`${rq.method()} ${rq.url()}`))
       page.on('dialog', async (d) => { out.dialogs++; await d.dismiss() })
       page.on('console', (m) => out.console.push(m.text()))
-      try { await page.goto(`http://www.sporta.com.kw:${PORT}${path}`, { waitUntil: 'load', timeout: 8000 }) } catch { /* connection refused to the gateway host is expected */ }
+      try { await page.goto(`https://www.sporta.com.kw${path}`, { waitUntil: 'load', timeout: 8000 }) } catch { /* connection refused to the gateway host is expected */ }
       await page.waitForTimeout(500)
       out.title = await page.title().catch(() => '')
       await page.close()
