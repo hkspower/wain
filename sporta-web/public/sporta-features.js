@@ -561,18 +561,214 @@
     }
   }
 
+  // ------------------------------------- 4. /about: the brand names are live
+  /* The About page (a compiled React page, no source here) names the brands in
+   * three sentences — the lead under the title, the "Brands worth training in"
+   * card, and the answer to "Which brands do you carry?" — plus the same FAQ
+   * answer in its FAQPage JSON-LD. All static text, so the admin's Brands screen
+   * did not control any of it. This swaps ONLY the brand-name run in each, from
+   * the list already fetched above (the public r=brands: shown brands, in the
+   * order the API sends them), and keeps every other character the live build
+   * has. Rules that keep it safe:
+   *   - text nodes only: the one text node of the <p> gets a new nodeValue. No
+   *     element is added, moved or removed, so React's tree is never touched, and
+   *     a re-render that rewrites the node (language toggle, route change) is
+   *     simply answered by writing the run again.
+   *   - a sentence is recognised by its fixed words either side of the run
+   *     (prefix and suffix below, copied from the live build) and by its heading
+   *     for the card and the FAQ. Reworded copy → no match → left alone.
+   *   - nothing to say (API down, empty list) → nothing written: the static
+   *     names stay, which are the owner's last known list.
+   *   - the join follows the language: English "A, B and C", Arabic "أ، ب وج"
+   *     (the card uses "وـ" between all, as the live build does). SPORTA is called
+   *     "our own label" ONLY when the API lists it last; anywhere else it is a
+   *     brand like the rest — no order rule is invented here.
+   *   - Latin names inside Arabic text (and Arabic names inside English) are
+   *     wrapped in FSI…PDI so punctuation next to them cannot flip. The JSON-LD
+   *     gets the plain names.
+   *   - the writes happen with the observers disconnected (quiet()), so this
+   *     module never wakes itself; it only runs again when React changes the DOM.
+   * Runs on /about only, and only once the page has rendered; it does not ask
+   * for the list before then. */
+  var ABOUT_ATTR = 'data-sporta-brands'
+  var FSI = '⁨', PDI = '⁩'
+  var ABOUT = {
+    lead: {
+      ar: { pre: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — ', suf: '.', style: 'comma', own: 'علامتنا الخاصة سبورتا' },
+      en: { pre: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — ', suf: '.', style: 'comma', own: 'our own SPORTA label' }
+    },
+    card: {
+      head: { ar: 'ماركات تستحق التمرين بها', en: 'Brands worth training in' },
+      ar: { pre: '', suf: '.', style: 'and', own: 'ماركتنا الخاصة سبورتا' },
+      en: { pre: '', suf: '.', style: 'comma', own: 'our own SPORTA label' }
+    },
+    faq: {
+      head: { ar: 'ما الماركات المتوفرة لديكم؟', en: 'Which brands do you carry?' },
+      ar: { pre: '', suf: ' — ملابس رياضية وهوديز وإكسسوارات جيم.', style: 'comma', own: 'ماركتنا الخاصة سبورتا' },
+      en: { pre: '', suf: ' — activewear, hoodies and gym accessories.', style: 'comma', own: 'our own SPORTA label' }
+    }
+  }
+
+  function onAbout() { return /^\/about\/?$/.test(location.pathname) }
+  function squash(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+
+  /** The shown brands, in API order, named in language L; [] when there is nothing to say. */
+  function aboutNames(L) {
+    var out = []
+    for (var i = 0; rows && i < rows.length; i++) {
+      var b = rows[i]
+      if (!b || typeof b !== 'object') continue
+      var n = squash(L === 'ar' ? (b.name_ar || b.name_en) : (b.name_en || b.name_ar))
+      if (n) out.push({ n: n, slug: low(b.slug) })
+    }
+    return out
+  }
+  function isolate(n, L) {
+    return (L === 'ar' ? /[A-Za-z]/ : /[؀-ۿ]/).test(n) ? FSI + n + PDI : n
+  }
+  /** The run of names for one sentence template. `plain` = no bidi marks (JSON-LD). */
+  function aboutRun(list, L, tpl, plain) {
+    if (!list.length) return ''
+    var own = list[list.length - 1].slug === 'sporta'      // only when the API lists it LAST
+    var parts = []
+    for (var i = 0; i < list.length; i++) {
+      if (own && i === list.length - 1) parts.push(tpl.own)
+      else parts.push(plain ? list[i].n : isolate(list[i].n, L))
+    }
+    if (parts.length === 1) return parts[0]
+    var last = parts[parts.length - 1], head = parts.slice(0, -1)
+    if (L === 'ar') {
+      if (tpl.style === 'and') return head.join(' و') + ' و' + last
+      return head.join('، ') + ' و' + last
+    }
+    return head.join(', ') + ' and ' + last
+  }
+  /** The middle of `text` between the template's fixed words, or null if it is not that sentence. */
+  function aboutMid(text, tpl) {
+    if (text.length <= tpl.pre.length + tpl.suf.length) return null
+    if (text.indexOf(tpl.pre) !== 0) return null
+    if (text.lastIndexOf(tpl.suf) !== text.length - tpl.suf.length) return null
+    var mid = text.slice(tpl.pre.length, text.length - tpl.suf.length)
+    return mid.length <= 600 ? mid : null
+  }
+  function onlyText(el) {
+    return el && el.childNodes.length === 1 && el.firstChild.nodeType === 3 ? el.firstChild : null
+  }
+  /** Which language's wording an element carries ('' = neither). */
+  function aboutLang(text, tpls, head, headText) {
+    var ls = ['ar', 'en']
+    for (var i = 0; i < ls.length; i++) {
+      if (head && squash(headText) !== head[ls[i]]) continue
+      if (aboutMid(text, tpls[ls[i]]) !== null) return ls[i]
+    }
+    return ''
+  }
+
+  function aboutTargets() {
+    var page = document.querySelector('main .editorial-page') || document.querySelector('.editorial-page')
+    var found = []
+    if (!page) return found
+    var lead = page.querySelector('p.page-lead')
+    if (lead) found.push({ kind: 'lead', el: lead, head: null })
+    var cards = page.querySelectorAll('.why-card')
+    for (var i = 0; i < cards.length; i++) {
+      var h = cards[i].querySelector('h3'), p = cards[i].querySelector('p')
+      if (h && p) found.push({ kind: 'card', el: p, head: h.textContent })
+    }
+    var qs = page.querySelectorAll('.faq-list > details')
+    for (var j = 0; j < qs.length; j++) {
+      var s = qs[j].querySelector('summary'), a = qs[j].querySelector('p')
+      if (s && a) found.push({ kind: 'faq', el: a, head: s.textContent })
+    }
+    return found
+  }
+
+  function mountAbout() {
+    if (!onAbout()) return
+    var targets = aboutTargets()
+    if (!targets.length) return                              // the page has not rendered yet
+    if (!rows) { load(); return }
+    if (!rows.length) return                                 // API down or empty: the static names stay
+    var writes = []
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i], tpls = ABOUT[t.kind], tn = onlyText(t.el)
+      if (!tn) continue
+      var text = tn.nodeValue
+      var L = aboutLang(text, tpls, t.head === null ? null : tpls.head, t.head)
+      if (!L) continue
+      var list = aboutNames(L)
+      var run = aboutRun(list, L, tpls[L], false)
+      if (!run) continue
+      var want = tpls[L].pre + run + tpls[L].suf
+      var sig = L + ':' + list.map(function (x) { return x.slug }).join(',')
+      if (text !== want) writes.push([tn, want, t.el, sig])
+      else if (t.el.getAttribute(ABOUT_ATTR) !== sig) writes.push([null, null, t.el, sig])
+    }
+    // The FAQPage JSON-LD the route writes into <head>: same answer, plain names.
+    var ld = document.querySelectorAll('script[type="application/ld+json"]')
+    for (var k = 0; k < ld.length; k++) {
+      var raw = ld[k].textContent || ''
+      if (raw.indexOf('FAQPage') < 0) continue
+      var doc = null
+      try { doc = JSON.parse(raw) } catch (e) { continue }
+      var changed = false
+      ;(function walk(o) {
+        if (!o || typeof o !== 'object') return
+        if (Array.isArray(o)) { for (var m = 0; m < o.length; m++) walk(o[m]); return }
+        var ans = o.acceptedAnswer
+        if (o['@type'] === 'Question' && ans && typeof ans.text === 'string') {
+          var ls = ['ar', 'en']
+          for (var n = 0; n < ls.length; n++) {
+            var tp = ABOUT.faq[ls[n]]
+            if (squash(o.name) !== ABOUT.faq.head[ls[n]] || aboutMid(ans.text, tp) === null) continue
+            var rn = aboutRun(aboutNames(ls[n]), ls[n], tp, true)
+            if (rn && ans.text !== tp.pre + rn + tp.suf) { ans.text = tp.pre + rn + tp.suf; changed = true }
+          }
+        }
+        for (var key in o) if (Object.prototype.hasOwnProperty.call(o, key)) walk(o[key])
+      })(doc)
+      if (changed) writes.push([ld[k], JSON.stringify(doc), ld[k], 'jsonld'])
+    }
+    if (!writes.length) return
+    quiet(function () {
+      for (var w = 0; w < writes.length; w++) {
+        var x = writes[w]
+        if (x[3] === 'jsonld') x[0].textContent = x[1]
+        else if (x[0]) x[0].nodeValue = x[1]
+        x[2].setAttribute(ABOUT_ATTR, x[3] === 'jsonld' ? 'ld' : x[3])
+      }
+    })
+  }
+
   function run() {
     try { mountBanner() } catch (e) {}
     try { mountPlates() } catch (e) {}
     try { fitStrip() } catch (e) {}
+    try { mountAbout() } catch (e) {}
   }
   var queued = false
+  var watched = []         // [observer, target, options] — quiet() pauses them around our own writes
   function schedule() {
     if (queued) return
     queued = true
     requestAnimationFrame(function () { queued = false; run() })
   }
-  function watch(target, opts) { try { if (target) new MutationObserver(schedule).observe(target, opts) } catch (e) {} }
+  function watch(target, opts) {
+    try {
+      if (!target) return
+      var mo = new MutationObserver(schedule)
+      mo.observe(target, opts)
+      watched.push([mo, target, opts])
+    } catch (e) {}
+  }
+  /** Run fn with every observer disconnected, then watch again: a write of ours is never seen as a change. */
+  function quiet(fn) {
+    var i
+    for (i = 0; i < watched.length; i++) watched[i][0].disconnect()
+    try { fn() } finally {
+      for (i = 0; i < watched.length; i++) { try { watched[i][0].observe(watched[i][1], watched[i][2]) } catch (e) {} }
+    }
+  }
   function start() {
     run()
     // React re-renders (and SPA navigation, which re-renders) → body; the

@@ -59,3 +59,63 @@
   }
   .campaign-home .home-feature-item > div { text-align: start; }
 }
+
+/* About page: one scale for every number (owner request, 2026-11-03).
+ *
+ * Measured on the live /about at 390, 768 and 1280px, Arabic and English, before this change:
+ *   - the four card indices 01-04 were 12px/800 (the compiled .why-card-index rule), the smallest
+ *     text on the page and 4px under the 16px card titles they number. Plex ships 400/600/700, so
+ *     the 800 drew as 700 anyway;
+ *   - Arabic-Indic digits (٢٤ ١ ١٤) sat 7-23% shorter than the Arabic letters beside them: the digit
+ *     height / alef height is 0.835 in Plex Arabic (the sentences) and 0.89 in Alexandria (the card
+ *     title), so the same figure was 13px tall in the title and 10px tall in the FAQ answer at the
+ *     same font-size;
+ *   - the English card titles carry -0.018em of tracking, which pulls "24" and "1" into "hours" and
+ *     "KWD". Arabic titles have none.
+ * Clean already and left alone: the phone "+965 2209 1914" never wraps down to 320px (an LRM leads it),
+ * and "١ د.ك" / "1 KWD" are not flipped.
+ *
+ * What changes, and nothing else (colours, copy, line-heights and card sizes are the live build's own):
+ *   indices     1rem / 700, tabular lining figures, so 01-04 are the title's size and equally wide.
+ *   digits      the Arabic-Indic digits U+0660-0669 / U+06F0-06F9 are drawn from the same font files the
+ *               page already loads, through two extra @font-face rules that scale ONLY those code points
+ *               (size-adjust) until they are as tall as the alef: 740/618 = 120% for Plex (sentences),
+ *               820/730 = 112% for Alexandria (card titles). Latin and Arabic letters, and the Western
+ *               digits of the indices and the phone, do not go through these rules. This is "a per-run size
+ *               on the digit spans" without touching the compiled text nodes.
+ *   tracking    the card titles use 0 in English as they already do in Arabic.
+ * Scoped to the page that has .why-card-index (.editorial-page also carries Terms, Privacy and Returns), and
+ * to Arabic for the digit faces (the English page has no Arabic-Indic digits). The font stacks repeat the
+ * live ones, variables included, so a font chosen in the admin still wins. */
+@font-face {
+  font-family: "Sporta About Digits";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plex-400-arabic.woff2") format("woff2");
+  unicode-range: U+0660-0669, U+06F0-06F9;
+  size-adjust: 120%;
+}
+@font-face {
+  font-family: "Sporta About Digits Display";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/alexandria-var-arabic.woff2") format("woff2-variations");
+  unicode-range: U+0660-0669, U+06F0-06F9;
+  size-adjust: 112%;
+}
+.storefront-root .editorial-page:has(.why-card-index) .why-card-index {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.storefront-root .editorial-page:has(.why-card-index) :is(p, h3) { font-variant-numeric: lining-nums; }
+.storefront-root .editorial-page:has(.why-card-index) .why-card h3 { letter-spacing: 0; }
+[dir="rtl"] .storefront-root .editorial-page:has(.why-card-index) p {
+  font-family: "Sporta About Digits", var(--sporta-font-body-ar, "Sporta Plex Arabic Local"), "Plex Arabic Fallback", "ibm-plex-arabic", system-ui, sans-serif;
+}
+[dir="rtl"] .storefront-root .editorial-page:has(.why-card-index) .why-card h3 {
+  font-family: "Sporta About Digits Display", var(--sporta-font-display-ar, "Sporta Alexandria Local"), "Alexandria Fallback", "Sporta Plex Arabic Local", "Plex Arabic Fallback", "alexandria", "ibm-plex-arabic", system-ui, sans-serif;
+}

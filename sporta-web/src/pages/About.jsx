@@ -1,6 +1,52 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 import { usePageMeta, faqJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
+import { phpBrands } from '../lib/backend'
+
+// The brand names are the admin's Brands list (the public r=brands: shown
+// brands, in the order the API sends them), so the Brands screen controls this
+// page. The wording below is the fallback: it stays when the list cannot be read
+// or is empty. The live site (a compiled build) gets the same behaviour from
+// public/sporta-features.js, which swaps only the brand-name run in the same
+// sentences; keep the two joins in step.
+const STATIC_BRANDS = {
+  // the join differs by sentence: the FAQ uses Arabic commas, the card "و" between all
+  comma: {
+    en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label',
+    ar: 'ريو، فانكويش، ATE، جيمشارك، آي سبورت وماركتنا الخاصة سبورتا',
+  },
+  and: {
+    en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label',
+    ar: 'ريو وفانكويش وATE وجيمشارك وآي سبورت وماركتنا الخاصة سبورتا',
+  },
+}
+const OWN_LABEL = { en: 'our own SPORTA label', ar: 'ماركتنا الخاصة سبورتا' }
+
+/** A name from the other script inside a sentence is isolated so punctuation cannot flip (not in JSON-LD). */
+function isolate(name, lang, plain) {
+  if (plain) return name
+  return (lang === 'ar' ? /[A-Za-z]/ : /[\u0600-\u06ff]/).test(name) ? `\u2068${name}\u2069` : name
+}
+
+/** "A, B and C" / "أ، ب وج" from the API rows; the static wording when there is nothing to say. */
+function brandRun(rows, lang, style, plain = false) {
+  const list = (Array.isArray(rows) ? rows : [])
+    .filter((b) => b && typeof b === 'object')
+    .map((b) => ({
+      n: String((lang === 'ar' ? b.name_ar || b.name_en : b.name_en || b.name_ar) || '').replace(/\s+/g, ' ').trim(),
+      slug: String(b.slug || '').trim().toLowerCase(),
+    }))
+    .filter((b) => b.n)
+  if (!list.length) return STATIC_BRANDS[style][lang]
+  // SPORTA is "our own label" only when the API lists it last; elsewhere it is a brand like the rest.
+  const ownLast = list[list.length - 1].slug === 'sporta'
+  const parts = list.map((b, i) => (ownLast && i === list.length - 1 ? OWN_LABEL[lang] : isolate(b.n, lang, plain)))
+  if (parts.length === 1) return parts[0]
+  const head = parts.slice(0, -1)
+  const last = parts[parts.length - 1]
+  if (lang === 'ar') return style === 'and' ? `${head.join(' و')} و${last}` : `${head.join('، ')} و${last}`
+  return `${head.join(', ')} and ${last}`
+}
 
 // Visible FAQ — the FAQPage schema below is built from these exact strings,
 // per Google's requirement that structured data match rendered content.
@@ -35,9 +81,10 @@ const FAQ = [
   },
   {
     q: { en: 'Which brands do you carry?', ar: 'ما الماركات المتوفرة لديكم؟' },
+    // {brands} is filled from the Brands list (see brandRun)
     a: {
-      en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label — activewear, hoodies and gym accessories.',
-      ar: 'ريو، فانكويش، ATE، جيمشارك، آي سبورت وماركتنا الخاصة سبورتا — ملابس رياضية وهوديز وإكسسوارات جيم.',
+      en: '{brands} — activewear, hoodies and gym accessories.',
+      ar: '{brands} — ملابس رياضية وهوديز وإكسسوارات جيم.',
     },
   },
 ]
@@ -65,14 +112,24 @@ const WHY = [
   },
   {
     t: { en: 'Brands worth training in', ar: 'ماركات تستحق التمرين بها' },
-    d: { en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label.',
-         ar: 'ريو وفانكويش وATE وجيمشارك وآي سبورت وماركتنا الخاصة سبورتا.' },
+    d: { en: '{brands}.', ar: '{brands}.' },
   },
 ]
 
 export default function About() {
   const { lang, t } = useLang()
-  const faqItems = FAQ.map((f) => ({ q: f.q[lang], a: f.a[lang] }))
+  // null until the list arrives (or if it cannot be read): the static names show
+  const [brands, setBrands] = useState(null)
+  useEffect(() => {
+    let live = true
+    phpBrands()
+      .then((rows) => { if (live && Array.isArray(rows)) setBrands(rows) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
+  const fill = (text, style, plain) => text.replace('{brands}', brandRun(brands, lang, style, plain))
+  const faqItems = FAQ.map((f) => ({ q: f.q[lang], a: fill(f.a[lang], 'comma', false) }))
+  const faqLd = FAQ.map((f) => ({ q: f.q[lang], a: fill(f.a[lang], 'comma', true) }))
   const jsonLd = useMemo(
     () =>
       graph(
@@ -83,14 +140,15 @@ export default function About() {
           about: { '@id': 'https://www.sporta.com.kw/#store' },
           inLanguage: lang,
         },
-        faqJsonLd(faqItems),
+        faqJsonLd(faqLd),
         breadcrumbJsonLd([
           [t.nav.home, '/'],
           [t.nav.about, '/about'],
         ]),
       ),
-    // faqItems derives from lang, so lang covers it
-    [lang, t],
+    // faqLd derives from lang and the brand list
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, t, brands],
   )
   usePageMeta({
     title: t.about.title,
@@ -113,7 +171,7 @@ export default function About() {
         {WHY.map((w) => (
           <div key={w.t.en} className="rounded-2xl border border-slate-100 bg-white p-5">
             <h3 className="font-bold text-slate-900">{w.t[lang]}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{w.d[lang]}</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{fill(w.d[lang], 'and', false)}</p>
           </div>
         ))}
       </div>

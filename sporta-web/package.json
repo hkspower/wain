@@ -32,6 +32,7 @@
     "test:words-colours": "node scripts/words-colours-test.mjs",
     "test:checkout-a11y": "node scripts/checkout-a11y-test.mjs",
     "test:admin-dark": "node scripts/admin-dark-guard-test.mjs",
+    "test:about-page": "node scripts/about-page-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
     "test:grid": "node scripts/grid-card-test.mjs",
     "test:links": "node scripts/links-images-test.mjs",
