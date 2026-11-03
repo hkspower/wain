@@ -77,6 +77,10 @@ html { font-size: 16px; font-family: system-ui, sans-serif; }
 }
 .admin-notice { border: 1px solid; }
 .admin-notice--error { color: #8d2435; background-color: #fff0f2; border-color: #e9a0a9; }
+/* The other admin-wide notices that can sit above the screen in the same content area. NOT measured on the live page (the live check
+   needs the Hostinger connector): stand-ins for the build's light look, the same values the Light only section of the add-on states. */
+.admin-notice--info { color: var(--admin-text); background-color: #fff; border-color: #bd7c5b; }
+.admin-notice--ok { color: #7a3512; background-color: #f8ece6; border-color: #d8a38b; }
 .admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font-weight: inherit; font-size: inherit; }
 .admin-shell .bg-indigo-600 { background-color: var(--admin-action) !important; color: #fff !important; }
 .admin-shell .text-indigo-600 { color: var(--brand-deep) !important; }

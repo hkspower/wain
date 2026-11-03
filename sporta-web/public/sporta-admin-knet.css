@@ -894,6 +894,26 @@
   border-color: #e9a0a9;
 }
 
+/* The other admin-wide notices that can show in the same content area while the
+   screen is open: info and ok. The build paints them dark on any .admin-shell
+   (info peach on #3d2923, !important; ok #ffd9c4 on #37251e), so a notice of
+   either kind above the screen would be the half-dark mix. Warn needs no rule:
+   section 3 paints it light with !important at a higher weight than the build's.
+   Values: info is the white admin's own (ink, white, section 3's #cbd5e1 edge);
+   ok is the add-on's accent tint (#f8ece6 / #d8a38b, ink 7.7:1). Neither has been
+   read off the live page yet (the live pass needs the Hostinger connector), so
+   re-check both with admin-payments-light-scan.mjs when it is available. */
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--info {
+  color: var(--admin-text, #18212a) !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) .admin-notice--ok {
+  color: #7a3512 !important;
+  background: #f8ece6 !important;
+  border-color: #d8a38b !important;
+}
+
 /* Cards, forms, fields and toggle knobs carry bg-white. The build's rule also
    sets a text colour on them, so they take the screen's ink back. Below the
    disabled-field rule of section 1 (0,3,1), which paints #f1f5f9. */

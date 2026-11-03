@@ -117,7 +117,7 @@ if (!BODY_HTML.startsWith(SHELL_OPEN)) throw new Error('fixture markup changed: 
 // sidebar + main.admin-content > two sections. The first is the Overview page's header, the admin-wide alert region and
 // its figures (the page is still mounted beside the screen, with its own h1 and indigo figures), the second the screen. Then a CONTROL: another admin content area
 // without the screen, in the same page, whose cards must keep following the dark rules.
-const OVERVIEW = `<section class="admin-page"><div class="admin-page-layout space-y-8"><header class="admin-page-header"><h1 class="text-2xl font-bold text-slate-800">Overview</h1></header><div class="admin-notice admin-notice--error rounded-xl border p-4" role="alert">46 of 46 products are not in the database</div><div class="grid grid-cols-2 gap-3 lg:grid-cols-4"><div class="admin-kpi rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Products</p><p class="admin-kpi__value mt-1 text-xl font-bold text-indigo-700">46</p></div></div></div></section>`
+const OVERVIEW = `<section class="admin-page"><div class="admin-page-layout space-y-8"><header class="admin-page-header"><h1 class="text-2xl font-bold text-slate-800">Overview</h1></header><div class="admin-notice admin-notice--error rounded-xl border p-4" role="alert">46 of 46 products are not in the database</div><div class="admin-notice admin-notice--warn rounded-xl border p-4" role="status"><p>Products sync from the site</p></div><div class="admin-notice admin-notice--info rounded-xl border p-4" role="status"><p>Products sync from the site</p></div><div class="admin-notice admin-notice--ok rounded-xl border p-4" role="status"><p>Saved</p></div><div class="grid grid-cols-2 gap-3 lg:grid-cols-4"><div class="admin-kpi rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Products</p><p class="admin-kpi__value mt-1 text-xl font-bold text-indigo-700">46</p></div><div class="admin-kpi admin-kpi--warn rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Not synced</p><p class="admin-kpi__value mt-1 text-xl font-bold text-indigo-700">3</p></div></div></div></section>`
 const SCREEN = `<div id="scr" class="admin-shell min-h-screen bg-slate-50"><aside class="admin-sidebar w-60"><a href="#" class="text-slate-500">Overview</a></aside><main class="admin-content flex-1">${OVERVIEW}<section class="admin-page">` + BODY_HTML.slice(SHELL_OPEN.length)
 const CONTROL = `<div id="ctl" class="admin-shell"><main class="admin-content"><section class="admin-page"><h1 class="text-2xl font-bold text-slate-900">Orders</h1><div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-sm text-slate-500">Other screen</p><input class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Search"></div></section></main></div>`
 const BODY = SCREEN + CONTROL
@@ -165,7 +165,7 @@ async function collect(addon, sc, within = '#scr .admin-content') {
   out.schemeOnControls = await pg.evaluate(() => [...document.querySelectorAll('#scr .payment-settings, #scr .payment-settings input, #scr .payment-settings select')].map((e) => getComputedStyle(e).colorScheme))
   out.areas = await pg.evaluate(() => {
     const c = (s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : 'none' }
-    return { content: c('#scr .admin-content'), screen: c('#scr .payment-settings'), alert: c('#scr .admin-notice'), card: c('#scr .payment-gateway-card'), field: c('#scr input.mt-1') }
+    return { content: c('#scr .admin-content'), screen: c('#scr .payment-settings'), alert: c('#scr .admin-notice'), warn: c('#scr .admin-notice--warn'), info: c('#scr .admin-notice--info'), ok: c('#scr .admin-notice--ok'), card: c('#scr .payment-gateway-card'), field: c('#scr input.mt-1') }
   })
 
   // states on representative controls
@@ -257,7 +257,7 @@ async function failuresOf(addon, verbose, within = '#scr .admin-content', only =
     if (JSON.stringify(d.selection) !== JSON.stringify(base.selection)) add(`selection [${sc.name}]`, `${JSON.stringify(base.selection)} -> ${JSON.stringify(d.selection)}`)
     // the page around the screen
     // a surface is right when it is what light paints, or (the screen root, which light leaves clear) when it is light itself
-    for (const [k, v] of Object.entries(d.areas)) if (!(only && k === 'alert') && v !== base.areas[k] && !(k === 'screen' && lumOf(v) !== null && lumOf(v) >= 0.9)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
+    for (const [k, v] of Object.entries(d.areas)) if (!(only && ['alert', 'warn', 'info', 'ok'].includes(k)) && v !== base.areas[k] && !(k === 'screen' && lumOf(v) !== null && lumOf(v) >= 0.9)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
     if (d.schemeOnControls.some((s) => /dark/.test(s))) add(`color-scheme [${sc.name}]`, [...new Set(d.schemeOnControls)].join('/'))
   }
   // contrast, in every scenario
