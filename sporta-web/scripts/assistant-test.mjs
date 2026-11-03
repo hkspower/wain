@@ -1784,6 +1784,30 @@ await R5('"come back" is a restock question only when stock is meant (finding 14
 ])
 
 await unthrottle()
+// ====================================== ROUND SIX: the release gate's re-check
+// The release gate re-read the nineteen findings of rounds four and five against
+// 40c32b40, the commit before either round landed, and probed every sentence they
+// quote against this tree (the tables above hold them). ONE was still open: "I
+// changed my mind" / «غيرت رايي» as the WHOLE message names no order, so
+// assistant_cancel_extra — which rightly needs one — left it to search, and the
+// customer was told «ما لقيت شي يطابق كلامك». A person reads it: contact with no
+// topic, NOT a CANCEL subject, because nothing says what was changed about (the
+// lesson of round five's finding 3). With an order named it is still a
+// cancellation; about a product, still that product.
+await R5('"I changed my mind", alone, reaches a person (re-check of round four, finding 19)', [
+  ['غيرت رايي', 'contact/-'], ['I changed my mind', 'contact/-'], ['changed my mind', 'contact/-'], ['غيرت فكرتي', 'contact/-'],
+  ['خلاص غيرت رايي', 'contact/-'], ['sorry, I changed my mind', 'contact/-'], ['بدلت رايي', 'contact/-'], ['ok changed my mind', 'contact/-'],
+  ['غيرت رأيي لو سمحت', 'contact/-'], ["I've changed my mind, sorry", 'contact/-'],
+  ['I changed my mind about my order', 'cancel'], ['غيرت رايي ما ابي الطلب', 'cancel'],
+  ['I changed my mind, I want the black one', 'search'], ['غيرت رايي ابي الاسود', 'search'],
+  ['changed my mind about the colour, can I exchange', 'returns'], ['I changed my mind about the size', 'sizes'],
+])
+{
+  const CM = await answersIn([], [['غيرت رايي', 'ar'], ['I changed my mind', 'en']])
+  is(CM[0].intent === 'contact' && CM[0].reply === await canned('contact', true) && CM[1].reply === await canned('contact', false),
+     'and it is answered with the contact line (a way to reach a person), not "nothing in the shop matches"', `${CM[0].intent} ${CM[1].reply.slice(0, 50)}`)
+}
+
 head('round five: the pieces underneath')
 {
   // assistant_words_before trimmed punctuation BYTE-wise: its list held «؟» and «،», whose

@@ -229,7 +229,11 @@ What changed:
   تلغون»), a state ("was it cancelled?", «ليش انلغى») and "don't send me
   offers" / "don't ship to Hawally" are not cancellations and no longer carry
   the CANCEL subject. Deleting, removing or undoing an order, a duplicate,
-  "ordered twice by mistake" and «غيرت رايي» are.
+  "ordered twice by mistake" and «غيرت رايي» beside an order are. A bare
+  «غيرت رايي» / "I changed my mind" (the whole message, nothing named) is a
+  `contact` with no topic — a person reads it, without a CANCEL subject,
+  because nothing says what was changed about; it used to fall to search and
+  «ما لقيت شي» (release-gate re-check, 2026-11-03).
 * **A person asked for by name is answered first**, before the topic words:
   "talk to a human about my order", "support", "representative", «المدير», «في
   احد يرد؟».

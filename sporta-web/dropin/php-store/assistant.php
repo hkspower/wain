@@ -785,6 +785,23 @@ function assistant_cancel_extra(string $t, string $text): bool
         || (assistant_has($t, ['ما ابيه', 'ما ابغاه', 'ما ابغيه']) && assistant_order_word($t));
 }
 
+// "I CHANGED MY MIND", AND NOTHING ELSE. assistant_cancel_extra rightly needs an
+// order beside it (a change of mind about a colour is not a cancellation), so the
+// bare «غيرت رايي», «بدلت رايي», "I changed my mind" — with at most an "ok", a
+// "sorry" or a «خلاص» around it — fell to search and was told «ما لقيت شي يطابق
+// كلامك». As the WHOLE message it is a customer with something to undo and
+// nothing said about what: a person reads it (contact, no topic — not a CANCEL
+// subject, which drove a wrong cancel once already), and the contact line gives
+// them the way to say which order. Anything more in the sentence — a colour, a
+// size, an order — keeps its own rule.
+function assistant_change_of_mind_alone(string $t): bool
+{
+    $lead = '(?:(?:ok|okay|no|sorry|actually|hmm|hm|wait|hi|hello|hey|please|pls|plz|well|um|uh|so|oh|خلاص|لا|اسف|اسفه|طيب|تمام|انا|والله|بس|عفوا|لو سمحت|لو سمحتو|اوكي)[\s\p{P}]*)*';
+    $tail = '(?:[\s\p{P}]*(?:please|pls|plz|sorry|thanks|thank you|now|خلاص|لو سمحت|لو سمحتو|الله يخليك|شكرا|اسف|اسفه|الحين))*[\s\p{P}]*';
+    return preg_match('/^' . $lead . '(?:i(?:\'ve|\'d| have| had)?\s+)?(?:changed|change)\s+(?:my|our)\s+mind' . $tail . '$/u', $t) === 1
+        || preg_match('/^' . $lead . '(?:غيرت|بدلت)\s+(?:رايي|فكرتي|رايينا|فكرتنا)' . $tail . '$/u', $t) === 1;
+}
+
 // WITHDRAWING CONSENT OR ASKING FOR ONE'S DATA — to stop messages, be taken off a list, have an account
 // or a number deleted, or to know what the shop holds and whom it is shared with. The shop messages its
 // customers (order updates, a birthday email), and src/pages/Privacy.jsx tells them to ask on WhatsApp or by
@@ -1225,6 +1242,10 @@ function assistant_route(string $text): array
     // "I ordered twice by mistake", «الطلب مكرر». After the money rule, so a
     // double charge is still a payment problem.
     if (assistant_cancel_extra($t, $text)) return ['cancel', null];
+
+    // "I changed my mind", alone: a person's, with no CANCEL subject, because the
+    // message names no order (assistant_change_of_mind_alone).
+    if (assistant_change_of_mind_alone($t)) return ['contact', null];
 
     // LEAVING THE LIST, OR ASKING WHAT THE SHOP HOLDS. "unsubscribe me", "stop emailing me", "delete my
     // account", "what data do you keep" were searched, found nothing and logged as a gap that emails
