@@ -79,8 +79,8 @@ const orders = Array.from({ length: 14 }, (_, i) => ({
   cbk_paymentid: null, cbk_reference: null, cbk_status: null, utm_source: i % 2 ? 'instagram' : null, utm_medium: null, utm_campaign: null, referrer_host: null,
 }))
 const productsAll = P.map((p, i) => ({ id: i + 1, slug: p.slug, name_en: p.name_en, name_ar: p.name_ar, desc_en: p.desc_en || '', desc_ar: p.desc_ar || '',
-  price: Number(p.price || 0).toFixed(3), sale_price: p.on_sale ? Number(p.price).toFixed(3) : null, sale_starts_at: null, sale_ends_at: null,
-  featured: p.featured ? 1 : 0, featured_sort: p.featured_sort || 0, category: p.category, brand_slug: p.brand_slug || null,
+  price: Number(p.price || 0).toFixed(3), sale_price: p.on_sale || i < 3 ? (Number(p.price || 0) * 0.8).toFixed(3) : null, sale_starts_at: null, sale_ends_at: null,
+  featured: p.featured || i < 2 ? 1 : 0, featured_sort: p.featured_sort || 0, category: p.category, brand_slug: p.brand_slug || null,
   image: p.image || null, images: p.images || null, active: i % 9 === 8 ? 0 : 1 }))
 const S = Array.isArray(stock) ? stock : []
 const variants = S.slice(0, 120).map((v, i) => {
@@ -106,8 +106,8 @@ const MOCK = {
     products: P.filter((p) => p.brand_slug === b.slug).length, products_active: P.filter((p) => p.brand_slug === b.slug).length })),
   brand_products: productsAll.map((p) => ({ slug: p.slug, name_en: p.name_en, name_ar: p.name_ar, brand_slug: p.brand_slug, active: p.active, category: p.category })),
   discounts: [
-    { id: 1, code: 'WELCOME', kind: 'percent', value: 10, min_subtotal: 0, auto: 0, active: 1, single_use: 0, uses: 4, max_uses: null, starts_at: null, ends_at: null, label_en: 'Welcome 10%', label_ar: 'خصم ترحيبي ١٠٪' },
-    { id: 2, code: null, kind: 'fixed', value: 2, min_subtotal: 20, auto: 1, active: 0, single_use: 0, uses: 0, max_uses: null, starts_at: null, ends_at: null, label_en: '2 KWD off 20+', label_ar: 'خصم ٢ د.ك' },
+    { id: 1, kind: 'code', code: 'WELCOME', label: 'Welcome 10%', type: 'percent', value: 10, min_order: 0, category: null, starts_at: null, ends_at: null, usage_limit: 0, used_count: 4, active: true, live: true },
+    { id: 2, kind: 'auto', code: null, label: '2 KWD off 20+', type: 'fixed', value: 2, min_order: 20, category: null, starts_at: null, ends_at: null, usage_limit: 0, used_count: 0, active: false, live: false },
   ],
   slides: { slides: [
     { id: 1, sort: 0, active: 1, title_en: 'New season', title_ar: 'موسم جديد', subtitle_en: 'Fresh drops', subtitle_ar: 'جديد', cta_en: 'Shop now', cta_ar: 'تسوق', href: '/shop', has_image: 0, image_v: 0, image_alt_en: '', image_alt_ar: '', starts_at: null, ends_at: null },
@@ -285,11 +285,19 @@ function inPageOpeners() {
   // A list row's own button (an order number, a ticket reference, a customer): the way into a detail
   // drawer. Table rows on the desktop, .m-row cards on the phone.
   const ROWS = 'tbody tr, .m-row, .m-list > *, li, [role=row]'
-  const row1 = [...root.querySelectorAll(ROWS)].find((x) => vis(x) && [...x.querySelectorAll('button, [role=button]')].some((b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label')))))
-  if (row1) {
-    const b = [...row1.querySelectorAll('button, [role=button]')].find((x) => vis(x) && !NOT.test(clean(x.textContent || x.getAttribute('aria-label'))))
-    out.push({ kind: 'rowbtn', text: clean(b.textContent || b.getAttribute('aria-label')).slice(0, 24) || 'icon', nth: 0 })
+  const eligible = (b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label'))) && !/^(refresh|export|add|new|push|save|show|apply|reset)\b/i.test(clean(b.textContent || b.getAttribute('aria-label')))
+  const pickRowBtn = () => {
+    for (const x of root.querySelectorAll(ROWS)) {
+      if (!vis(x)) continue
+      if (x.matches('button, [role=button], a[href]') && eligible(x)) return x          // the row IS the button (phone cards)
+      const b = [...x.querySelectorAll('button, [role=button]')].find(eligible)
+      if (b) return b
+    }
+    // a wide, tall button inside the content: a card that is one big tap target
+    return [...root.querySelectorAll('button, [role=button]')].find((b) => eligible(b) && b.getBoundingClientRect().width >= root.clientWidth * 0.6 && b.getBoundingClientRect().height >= 44 && !b.closest('header, form')) || null
   }
+  const row1 = pickRowBtn()
+  if (row1) out.push({ kind: 'rowbtn', text: clean(row1.textContent || row1.getAttribute('aria-label')).slice(0, 24) || 'icon', nth: 0 })
   const row = root.querySelector('table tbody tr')
   if (row && vis(row)) out.push({ kind: 'row', text: 'first row', nth: 0 })
   // lists whose rows are plain boxes with an onClick (no button inside): the first cursor:pointer box
@@ -308,10 +316,17 @@ function inPageClickOpener(op) {
   if (op.kind === 'rowbtn') {
     const NOT = /delete|remove|cancel|clear|reset|block|ban|refund|void|revoke|log ?out|sign ?out|disconnect|unlink|archive|empty|purge|wipe|call|whatsapp|print|download|export|copy|view site|view on site|next|prev|more|load/i
     const ROWS = 'tbody tr, .m-row, .m-list > *, li, [role=row]'
-    const row1 = [...root.querySelectorAll(ROWS)].find((x) => vis(x) && [...x.querySelectorAll('button, [role=button]')].some((b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label')))))
-    if (!row1) return false
-    const b = [...row1.querySelectorAll('button, [role=button]')].find((x) => vis(x) && !NOT.test(clean(x.textContent || x.getAttribute('aria-label'))))
-    b.scrollIntoView({ block: 'center' }); b.click(); return true
+    const eligible = (b) => vis(b) && !NOT.test(clean(b.textContent || b.getAttribute('aria-label'))) && !/^(refresh|export|add|new|push|save|show|apply|reset)\b/i.test(clean(b.textContent || b.getAttribute('aria-label')))
+    let target = null
+    for (const x of root.querySelectorAll(ROWS)) {
+      if (!vis(x)) continue
+      if (x.matches('button, [role=button], a[href]') && eligible(x)) { target = x; break }
+      const b = [...x.querySelectorAll('button, [role=button]')].find(eligible)
+      if (b) { target = b; break }
+    }
+    if (!target) target = [...root.querySelectorAll('button, [role=button]')].find((b) => eligible(b) && b.getBoundingClientRect().width >= root.clientWidth * 0.6 && b.getBoundingClientRect().height >= 44 && !b.closest('header, form')) || null
+    if (!target) return false
+    target.scrollIntoView({ block: 'center' }); target.click(); return true
   }
   if (op.kind === 'pointer') {
     const p = [...root.querySelectorAll('li, article, tr, div, section')].slice(0, 1500).find((x) => vis(x) && getComputedStyle(x).cursor === 'pointer' && !x.closest('button, a, label') && x.getBoundingClientRect().height > 30 && x.getBoundingClientRect().height < 400)
@@ -347,7 +362,15 @@ function inPageDump(depthMax) {
     const tag = e.tagName.toLowerCase()
     if (!vis(e) && !['option'].includes(tag)) return
     out.push(' '.repeat(d) + tag + (sem.length ? '.' + sem.join('.') : (cl[0] ? '.' + cl[0] : '')) + (e.getAttribute('type') ? '[' + e.getAttribute('type') + ']' : '') + (e.getAttribute('role') ? '{' + e.getAttribute('role') + '}' : '') + (c.cursor === 'pointer' && !['button', 'a'].includes(tag) ? ' CURSOR' : '') + (c.position === 'fixed' || c.position === 'sticky' ? ' ' + c.position.toUpperCase() : '') + (own ? ' "' + own + '"' : ''))
-    for (const k of e.children) walk(k, d + 1)
+    const kids = [...e.children]
+    const sig = (k) => k.tagName + '.' + clean(k.className && k.className.baseVal !== undefined ? k.className.baseVal : k.className)
+    for (let n = 0; n < kids.length;) {
+      let run = 1
+      while (n + run < kids.length && sig(kids[n + run]) === sig(kids[n])) run++
+      walk(kids[n], d + 1)
+      if (run > 2) out.push(' '.repeat(d + 1) + '… x' + run + ' like the one above')
+      n += run > 2 ? run : 1
+    }
   }
   walk(root, 0)
   return out
@@ -834,7 +857,8 @@ for (const sd of D.screens) {
     for (const x of fresh) groups.set(sigOf(x), [...(groups.get(sigOf(x)) || []), x])
     for (const [, grp] of groups) {
       const su = grp[0]
-      const pu = mp ? mp.surfaces[m.surfaces.indexOf(su)] : null
+      // the phone twin: the same surface (kind, root, field count, Save text) in ANY phone step of this screen
+      const pu = sp ? ((sp.steps.flatMap((x) => (x.m ? x.m.surfaces : []))).find((x) => sigOf(x) === sigOf(su)) || null) : null
       out(`    ${su.id}${grp.length > 1 ? ' x' + grp.length : ''} ${su.kind} ${su.root.sel} ${su.root.w}x${su.root.h}@y${su.root.top} ${fieldsTxt(su.fields)} [${su.fields.labels.join('; ')}] saves ${su.nSaves}${su.hasNestedSurface ? ' nested' + su.hasNestedSurface : ''}${su.overlay ? ' IN-OVERLAY ' + su.overlay.sel + ' z' + su.overlay.z + ' parent ' + su.overlay.parent : ''}`)
       if (su.save) {
         out(`      SAVE ${btnTxt(su.save)}`)
