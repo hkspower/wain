@@ -71,7 +71,7 @@
         0
       ],
       "notesInFlow": true,
-      "notes": "contact (asked for a person — or, by its topic, money taken wrongly, a wrong or damaged item, a code that will not apply) and cancel (an order to stop before it ships) all need a human. Everything else here is a failed search."
+      "notes": "contact (asked for a person — or, by its topic, money taken wrongly, a wrong or damaged item, a code that will not apply, a parcel that did not come, a late order, a refund being waited for, a change to an order, a restock question, a lost order number) and cancel (an order to stop before it ships) all need a human. Everything else here is a failed search."
     },
     {
       "parameters": {

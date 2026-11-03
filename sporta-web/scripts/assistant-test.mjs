@@ -1535,6 +1535,19 @@ head('round four: new, trending and restock are the shelf and a person — not "
   is(Z.every((r) => r[0] === 'search'), 'while a restock question about a NAMED garment still shows the garment', Z.map((r) => r.join('/')).join(' '))
 }
 
+head('round four: the guards — what must NOT reach a person')
+{
+  const NOT = ['I did not receive a confirmation email', 'ما استلمت الرسالة', 'ما استلمت المبلغ', 'I lost my order confirmation email', "I'll be back tomorrow",
+               'gift card not working', 'I lost my wallet', 'did not get the email']
+  const R = await routes(NOT)
+  NOT.forEach((q, i) => is(!(R[i][0] === 'contact' && ['not_received', 'restock', 'checkout_problem'].includes(R[i][1])), `"${q}" is not a lost parcel, a restock or a payment that will not go through`, R[i].join('/')))
+  const CAN = ["I can't cancel my order", 'ما اقدر الغي طلبي', 'ما يمديني الغي الطلب']
+  const C = await routes(CAN)
+  CAN.forEach((q, i) => is(C[i][0] === 'cancel', `"${q}" is still a cancellation: an ability that fails is not a refusal`, C[i].join('/')))
+  const OK = await routes(['where is my order', 'when will my order arrive', 'تتبع طلبي', 'do you have a tracksuit', 'what is the delivery fee', 'ابي ارجع طلبي'])
+  is(OK.map((r) => r[0]).join() === 'order_status,order_status,order_status,search,delivery,returns', 'and the ordinary order, delivery and returns questions are unchanged', OK.map((r) => r.join('/')).join(' '))
+}
+
 head('round four: a model may not flip a stock claim')
 {
   const acc = await php(`require ${JSON.stringify(AP)};

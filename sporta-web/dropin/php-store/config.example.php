@@ -194,6 +194,12 @@ return [
     // somebody's browser history.
     'n8n_secret'  => '',
 
+    // How old, in hours, a packed, shipped or not-yet-started order may be before
+    // the assistant calls it LATE: it stops saying "within 24 hours" / "on its way"
+    // and a person is told (n8n topic late_order). The promise is 24 hours, so 48
+    // leaves a day of slack. OPTIONAL — a config without it behaves as 48.
+    'assistant_late_hours' => 48,
+
     // ---------------------------------------------------------------- WhatsApp
     // Order updates to the CUSTOMER, through Meta's WhatsApp Cloud API.
     // Blank = the feature is off: nothing is queued and nothing is sent, so

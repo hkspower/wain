@@ -502,7 +502,11 @@ function assistant_order_context(string $t, string $text): bool
 // Split on spaces only: "don't" must stay one word.
 function assistant_words_before(string $t, int $byteOffset, int $n = 3): array
 {
-    $w = preg_split('/\s+/u', substr($t, 0, $byteOffset), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    // «ما اقدر الغي طلبي» ("I cannot cancel my order") is a wish to cancel that is
+    // failing, not a refusal: the «ما» that belongs to an ability verb is not a
+    // negation OF the cancelling.
+    $head = preg_replace('/(?<![\p{L}\p{N}])ما\s+(?:اقدر|يمديني|يمدي|قدرت|اعرف|ينفع|لقيت|ادري|عرفت|زبط)(?![\p{L}\p{N}])/u', ' ', substr($t, 0, $byteOffset)) ?? substr($t, 0, $byteOffset);
+    $w = preg_split('/\s+/u', $head, -1, PREG_SPLIT_NO_EMPTY) ?: [];
     $w = array_map(fn ($x) => trim($x, ",.;:!?؟،()\"“”"), $w);
     return array_slice(array_values(array_filter($w, fn ($x) => $x !== '')), -$n);
 }
@@ -738,14 +742,21 @@ function assistant_receipt_dispute(string $t): bool
     $delivered = assistant_has($t, ['delivered', 'تم التسليم', 'تم توصيل', 'تم التوصيل', 'واصل', 'سلمو', 'سلمتو', 'سلموني',
                                     'وصل الطلب', 'وصلكم الطلب', 'قالو وصل', 'يقولون وصل', 'يقول وصل', 'مكتوب وصل', 'تسليم']);
     if ($delivered && $negReceipt) return true;
-    if (assistant_has($t, ['did not receive', "didn't receive", 'never received', 'never got my', 'did not get my',
-                           "didn't get my", 'got nothing', 'received nothing', 'nothing arrived', 'ما استلمت', 'لم استلم',
-                           'ما استلمنا', 'ما تسلمت', 'لم نستلم'])) {
+    // "I did not receive …" is a parcel only when what was not received IS the
+    // parcel: "I did not receive a confirmation email", «ما استلمت الرسالة» and «ما
+    // استلمت المبلغ» are about something else.
+    if (preg_match('/(?<![a-z])(?:did not|didn\'t|never)\s+(?:receive[d]?|get|got)\s+(?:my\s+|the\s+|any\s+|an?\s+)?(?:order|parcel|package|item|items|delivery|shipment|goods|products?|stuff|it|them)(?![a-z])/', $t) === 1
+        || preg_match('/(?<![a-z])(?:got|received)\s+nothing(?![a-z])|(?<![a-z])nothing\s+(?:arrived|came)(?![a-z])/', $t) === 1
+        || (assistant_has($t, ['ما استلمت', 'لم استلم', 'ما استلمنا', 'ما تسلمت', 'لم نستلم'])
+            && !assistant_has($t, ['المبلغ', 'الفلوس', 'فلوسي', 'رساله', 'الرساله', 'ايميل', 'الايميل', 'اتصال', 'مكالمه', 'كود',
+                                   'رمز', 'تاكيد', 'فاتوره', 'اشعار', 'رد']))) {
         return true;
     }
     if (assistant_has($t, ['lost', 'got lost', 'ضايع', 'ضايعه', 'ضاع', 'ضاعت', 'مفقود', 'مفقوده'])
-        && assistant_has($t, ['order', 'parcel', 'package', 'shipment', 'delivery', 'طلب', 'الطلب', 'طلبي', 'الشحنه', 'شحنتي',
-                              'الطرد', 'الطلبيه'])) {
+        && assistant_has($t, ['order', 'parcel', 'package', 'shipment', 'طلب', 'الطلب', 'طلبي', 'الشحنه', 'شحنتي',
+                              'الطرد', 'الطلبيه'])
+        && !assistant_has($t, ['number', 'confirmation', 'receipt', 'email', 'invoice', 'tracking', 'رقم', 'ايميل', 'فاتوره',
+                               'تاكيد'])) {
         return true;
     }
     // "Never arrived, I want my money back": the parcel is gone AND the money is wanted.
@@ -802,6 +813,8 @@ function assistant_payment_trouble(string $t): bool
     if (assistant_has($t, ['if', 'what if', 'in case', 'what happens', '^اذا$', '^لو$', 'في حال', '^لنفرض', 'policy', 'سياسه'])) {
         return false;
     }
+    // A gift card or a card holder is a thing to buy, not a way to pay.
+    if (assistant_has($t, ['gift card', 'gift cards', 'giftcard', 'card holder', 'cardholder', 'بطاقه هديه', 'بطاقات هدايا'])) return false;
     if (assistant_has($t, ["can't pay", 'cant pay', 'cannot pay', 'can not pay', 'unable to pay', "couldn't pay", 'could not pay',
                            "won't let me pay", 'wont let me pay', 'not able to pay', 'ما اقدر ادفع', 'ما قدرت ادفع',
                            'ما يمديني ادفع', 'ما يخليني ادفع', 'ما اعرف ادفع', 'مو قادر ادفع'])) {
@@ -825,6 +838,8 @@ function assistant_payment_trouble(string $t): bool
 function assistant_restock_question(string $t, array $c): bool
 {
     if ($c['type']) return false;
+    // "I'll be back tomorrow" is a goodbye, not a restock question.
+    if (preg_match("/(?<![a-z])(?:i|we)(?:'ll|'m going to|\\s+will|\\s+shall|\\s+am going to)\\s+(?:be|come)\\s+back/", $t) === 1) return false;
     return assistant_has($t, ['restock*', 'back in stock', 'in stock again', 'coming back', 'come back', 'be back',
                               'available again', 'more stock', 'new stock', 'متى يتوفر', 'متى بيتوفر', 'متى تتوفر',
                               'متى يرجع', 'متى ترجع', 'متى تجيبون', 'متى تحصلون', 'تتوفر مره ثانيه', 'يتوفر مره ثانيه'])

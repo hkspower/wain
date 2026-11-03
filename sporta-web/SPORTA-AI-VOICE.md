@@ -172,9 +172,9 @@ nothing** the shop sells (or found the kind of thing but not the colour or the
 brand asked for — "yellow shorts", "nike shorts" — which is demand the shop
 wants to hear about). Not on every message — n8n is not a transcript log.
 
-"Asked for a person" (`intent: contact`) includes six things the customer
-did not phrase as a request for one, each with its own `topic`, its own reply
-and its own email subject:
+"Asked for a person" (`intent: contact`) includes twelve things the customer
+did not phrase as a request for one (six from the first rounds, six added in
+round four), each with its own `topic`, its own reply and its own email subject:
 
 | `topic` | what it is | examples |
 |---|---|---|
@@ -184,6 +184,12 @@ and its own email subject:
 | `checkout_problem` | an order that will not go through, or one to place on WhatsApp | «ما اقدر اكمل الطلب», "checkout keeps failing", "can I place my order on whatsapp" |
 | `site_problem` | the website itself | «الموقع خربان», "the photos are missing", "add to bag button not working" |
 | `courier` | a courier who never came, never called, or was rude | «المندوب ما جا», "the courier never came", "courier was rude" |
+| `not_received` | a parcel the customer says never came: the courier says delivered, it was lost, or it never arrived and the money is wanted back | "it says delivered but I did not receive it", «ما استلمت الطلب», «الطلب ضايع», "SP… never arrived, I want my money back" |
+| `no_number` | the customer cannot give the order number | "I lost my order number", «نسيت رقم الطلب» — the reply asks for the phone number on the order |
+| `refund` | money owed back, being waited for (not the returns *policy*) | "where is my refund", «وين فلوسي», «كم يوم يرجع المبلغ», «ما رجعت لي الفلوس» |
+| `order_change` | a change to an order that exists: address, phone, size, colour, where or when it goes | "update my address", "can I change the size on my order", "send my order to my office instead", «ابي اغير المقاس في طلبي», "do not ship to Hawally, ship to Salmiya" |
+| `restock` | when an item is back, with no garment named | "when will you restock", "is XL coming back", «متى يتوفر مقاس XL» |
+| `late_order` | *not a message*: an order whose own state is past its promise (see below) | «طلبي ما وصل» with an SP number on a packed order that is days old |
 
 **Not one of them**, and answered as the question it is: how paying works ("is
 payment taken at delivery?", "can I split it into two payments", «اذا فشل الدفع
@@ -194,6 +200,49 @@ delivery" (→ returns) and «انا غلطان» ("my bad"). The money line is 
 be true either way — "If money was taken by mistake or a payment went wrong…"
 — and the complaint line asks for the order number *if there is one* and "a
 photo or screenshot of the problem".
+
+**Round four, in one paragraph.** The review's findings were all of one kind: a
+customer who needed a person was answered with a fixed line, a shelf or «ما
+لقيت شي», and the reverse — a customer who did not ask for one was paged.
+What changed:
+
+* **A parcel that did not come reaches a person.** "Delivered but I never got
+  it", «ما استلمت», a lost parcel, and "never arrived, I want my money back" are
+  `not_received`. A plain "it is late" / «ما وصل» is still a tracking question,
+  now asked WITHOUT the 24-hour promise (the hour has passed) and with a way
+  out if there is no number (`ask_track_missing`). With an SP number, the
+  **order decides**: a `delivered` order the customer says never came is a
+  dispute (the `not_received` line, handed off — it is no longer told "delivered,
+  you have 14 days to return it"), and a packed, shipped or not-yet-started
+  order older than `assistant_late_hours` (default **48**, optional key in
+  `config.php`) is `stage_late` — neither "within 24 hours" nor "on its way" —
+  and handed off as `late_order`. The widget still receives intent
+  `order_status` and the order card; only the n8n payload says `contact`.
+* **Money moving the wrong way.** "I paid and nothing happened", «اخذتوا
+  فلوسي», «رسالة خصم من البنك», "overcharged", "the page froze", "my payment is
+  stuck" are `money`. A card declined, "I can't pay", "knet not working", «كي
+  نت ما يفتح» are `checkout_problem`. "Pending, what does it mean" is asked
+  for the order number (its stage answers it) and is not a payment problem;
+  "I paid … but want to change the size" is an `order_change`.
+* **Cancel means cancel.** A negation before the word ("don't cancel", «لا
+  تلغون»), a state ("was it cancelled?", «ليش انلغى») and "don't send me
+  offers" / "don't ship to Hawally" are not cancellations and no longer carry
+  the CANCEL subject. Deleting, removing or undoing an order, a duplicate,
+  "ordered twice by mistake" and «غيرت رايي» are.
+* **A person asked for by name is answered first**, before the topic words:
+  "talk to a human about my order", "support", "representative", «المدير», «في
+  احد يرد؟».
+* **"Thanks" does not eat a question** ("do you have black leggings, thanks").
+* **"We do not have exactly that"** is said of a line name only when it stands
+  beside a garment, colour or gender ("sculpt shorts"), not of the ordinary
+  English words that are also line names (energy, define, street).
+* **The shelf and restock.** «وش عندكم جديد», "latest collection", "top
+  sellers" are the shelf in any word order; a restock question with no garment
+  named is `restock`.
+* **A model may no longer reword the stock claims** (`found_near`,
+  `found_colour`, `found_other`, `not_carried`, `no_idea`), and the accept
+  guard refuses any rewording that loses a negation.
+* **The handoff ration is per IPv6 /64**, like every other limiter.
 
 These used to be answered as something else — the payment methods, the
 delivery timetable, the size guide, or «ما لقيت شي» — and a failed search goes
@@ -216,7 +265,9 @@ Import `dropin/n8n/sporta-ai-handoff.json` and set an n8n environment variable
 `contact` and `cancel` to the email step, and everything else to **Log the
 gap**. The subject says which: a cancellation, a **PAYMENT PROBLEM**, a **WRONG
 OR DAMAGED ITEM**, a **COURIER PROBLEM**, a **CHECKOUT** that needs a hand, a
-**WEBSITE PROBLEM**, a code that would not apply, or a plain request for a
+**WEBSITE PROBLEM**, a code that would not apply, **ORDER NOT RECEIVED**, a
+**LATE ORDER**, a **REFUND** being waited for, a **CHANGE TO AN ORDER**, a
+restock question, a customer who lost the order number, or a plain request for a
 person. `npm run test:assistant` runs every money, complaint, checkout, website
 and courier sentence above
 through the workflow's own IF node and subject template, read from the JSON
@@ -239,16 +290,18 @@ platform acknowledged the handoff is not their problem and must never delay or
 fail their request. (It was four seconds, and a slow webhook cost every
 "phone strap" question the full four.)
 
-**It is rationed, in two buckets per IP**, because every handoff is an email in
+**It is rationed, in two buckets per client (an IPv6 client by its /64)**, because every handoff is an email in
 the shop's inbox: a person or a cancellation at most **6 per 10 minutes** (the
 same limit as a support ticket), and unanswered questions at most **10 per 10
 minutes** in a bucket of their own — so a burst of nonsense cannot use up the
 allowance a real cancellation needs. Only a handoff that would actually be sent
 is counted.
 
-Payload: `source`, `intent`, `topic` (null unless one of the six above),
+Payload: `source`, `intent`, `topic` (null unless one of the twelve above),
 `lang`, `message`, `reply`, `at`. Re-import the workflow after updating: its
-subject template is what names the three new topics.
+subject template is what names the six round-four topics (a payload with a topic
+the imported template does not know is still emailed, as "customer asked for a
+person").
 
 ### Before this ships: one thing only the owner can check
 
