@@ -22,7 +22,10 @@ import { fileURLToPath } from 'node:url'
 import { page, DESC } from './fixtures/product-desc.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const ADDON = readFileSync(process.env.ADDON_FILE || join(ROOT, 'public/sporta-product-fix.css'), 'utf8')
+// The file ends with a SIZES section (the size ladder and option cards: sizes lane, proven by test:sizes-product on seven product states). It
+// shortens the size card on purpose, and this fixture shows the stress state of a ladder (all nine chips on screen), so this suite measures
+// the file up to that marker: it proves the DESC rules, the other suite proves the section and runs it together with them.
+const ADDON = readFileSync(process.env.ADDON_FILE || join(ROOT, 'public/sporta-product-fix.css'), 'utf8').split('/* ==== SIZES:')[0]
 
 let pass = 0, fail = 0
 const is = (ok, msg, detail = '') => { if (ok) { pass++; console.log('ok   ' + msg) } else { fail++; console.log('FAIL ' + msg + (detail ? '  — ' + detail : '')) } }

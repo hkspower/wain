@@ -85,3 +85,90 @@
   min-height: 44px;
   min-width: 44px;
 }
+
+/* ==== SIZES: the buy box (size ladder, option cards, buy row) ============================================
+ * Owner, 2026-11-03, "reduce over sizes all" + ticked "Product sizes (S/M/L)". Last thing in this file: the suite cuts the file
+ * here to measure "before" (npm run test:sizes-product: the real compiled product page under the real rules, ar + en, 320-1280px).
+ *
+ * Already true, and left alone: sporta-features.js hides every size the product has no variant for (so a backpack shows one
+ * chip, a jacket two or three, only a full S-5XL product eight); labels are 14px bold, the floor for a phone; every control in
+ * the box is 44px or more (this project's tap minimum), so the chips are NOT made smaller (36px would save 8px a row and
+ * fail it). Order, selected and disabled are the bundle's. Measured before (ar, 390px, S-5XL + Fit card, 138px header):
+ * ladder wrapped 5 + 3, chips 44-55px wide, 8px apart, 96px; size card 210px (48px of it a blank stock-line reserve); options
+ * 411px; buy box 484px. After: ladder 4 + 4, 94px; size card 178px; options 357px; buy box 421px (-62px). Not reachable:
+ * ladder AND Add above the fold of a 390x844 phone. Add is (the fixed bar, 73px); the first chip is 962px down the page
+ * before this, 946px after, i.e. 118px then 102px below the fold, and the gallery square (358px) and the title stack above
+ * it are not ours.
+ */
+
+/* [sizes-prod-1] Equal-width chips in a grid (the bundle's flex-wrap sized each chip to its label: 44px S, 55px 2XL). Under
+ * 452px, 4 columns: S-5XL is 4 + 4 (59px chips at 320, 79px at 390), 44px floor = the bundle's min-w-11. From 452px, as many
+ * 44px+ columns as fit; 452px is the first viewport where eight chips and seven 6px gaps (394px) fit in the card. The one-size
+ * chip ("One size" / "مقاس واحد", longer than a cell) takes two. The bundle's px-3.5 is not needed: cells set the width. */
+#product-size-options [role="group"] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .375rem;
+}
+@media (min-width: 452px) {
+  #product-size-options [role="group"] {
+    grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr));
+  }
+}
+#product-size-options [role="group"] > button {
+  min-width: 2.75rem;
+  padding-inline: .25rem;
+}
+#product-size-options [role="group"] > button[data-sporta-one] {
+  grid-column: span 2;
+}
+
+/* [sizes-prod-2] A sold-out size keeps its box (the ladder never jumps); it was a 1px strike on a grey chip. Now 2px and a
+ * dashed border, a cue that does not rely on the grey. No colour or size is set. The one-size chip's strike was drawn on the
+ * font-size:0 span sporta-features.js relabels it with, i.e. ABOVE the words; it moves to the ::after, which is the text. */
+#product-size-options [role="group"] > button:disabled {
+  border-style: dashed;
+}
+#product-size-options [role="group"] > button:disabled > span {
+  text-decoration-thickness: 2px;
+}
+#product-size-options [role="group"] > button[data-sporta-one]:disabled > span {
+  text-decoration-line: none;
+}
+#product-size-options [role="group"] > button[data-sporta-one]:disabled > span::after {
+  text-decoration-line: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: inherit;
+}
+
+/* [sizes-prod-3] The option cards (size, Fit, colour; bundle: p-4, mb-3 label row, space-y-3, mt-2.5 hint): .75rem padding,
+ * .5rem under the label row and between cards, 6px gap in the Fit group (its chips keep their natural widths). The stock
+ * line's wrapper was min-h-10 + mt-2 = 48px and is empty unless a size is nearly sold out; it reserves 1.5rem now, one text-sm
+ * line, so a one-line "only 2 left" still moves nothing when the stock list arrives; the second line a catalogue product adds
+ * ("stocked in these sizes only") grows it 13px (below the fold on a phone). The hint ("Struck-through sizes are not
+ * carried...") is NOT hidden even though the script has hidden those chips: removing it would move the page 23px at load. */
+.catalog-product-options > div {
+  padding: .75rem;
+}
+.catalog-product-options > div:not(:last-child) {
+  margin-block-end: .5rem;
+}
+.catalog-product-options > div > div:first-child {
+  margin-bottom: .5rem;
+}
+.catalog-product-options [role="group"] {
+  gap: .375rem;
+}
+.catalog-product-options > div > p:last-child {
+  margin-top: .375rem;
+}
+#product-size-options > [role="group"] ~ div {
+  min-height: 1.5rem;
+  margin-top: .375rem;
+}
+
+/* [sizes-prod-4] 1rem above the option cards and above the buy row (was mt-6, 1.5rem each). */
+.catalog-product-page .catalog-product-options,
+.catalog-product-page .product-purchase-row {
+  margin-top: 1rem;
+}

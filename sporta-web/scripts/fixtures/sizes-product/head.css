@@ -1,0 +1,39 @@
+/* The inline <style> of the live index.html (it loads before the bundle). Do not edit by hand. */
+html { background: #171a1e }
+      /* The root type size is duplicated from index.css so the shell and the
+         mounted application use the same rem scale from the first paint. */
+      html { font-size: clamp(16px, 15.5px + 0.104vw, 17px) }
+      /* Reset the browser's default body margin before the app mounts. */
+      body { margin: 0 }
+      .boot { min-height: 100vh }
+      .boot-bar  { height: 28px; background: #c76a42 }
+      /* The header's REAL height, measured, so the sticky header does not push
+         the hero down when it arrives. Phone: 28px promo bar + 60px logo bar +
+         45px nav = 133. The logo bar grows at 640px and then creeps with the
+         fluid root size, so the reserved box grows with it — measured at
+         134/143/147/151 against 133 reserved, i.e. the shell was 10-18px short
+         on every screen above a phone. (An earlier comment here said
+         "57px + 48px"; neither number was ever right.) */
+      .boot-head { height: 105px; background: #171a1e;
+                   display: flex; align-items: flex-start; justify-content: center }
+      @media (min-width: 640px)  { .boot-head { height: 115px } }
+      @media (min-width: 768px)  { .boot-head { height: 117px } }
+      @media (min-width: 1024px) { .boot-head { height: 119px } }
+      @media (min-width: 1440px) { .boot-head { height: 121px } }
+      /* 8px top = the real logo bar's padding, so the mark does not move. */
+      .boot-head img { height: 32px; width: auto; margin-top: 12px }
+      /* --hero-h is set by the script below, from the size the owner chose,
+         BEFORE anything paints. The skeleton and the real hero read the same
+         variable, so the real one drops into exactly this box. */
+      .boot-hero { height: var(--hero-h, 540px); background: #171a1e }
+      /* Only ever seen when the shell has become permanent — see the note by
+         the <noscript> below. Plain, centred, no dependency on the stylesheet
+         that also did not load. */
+      .boot-msg { position: absolute; inset: 133px 0 auto; padding: 48px 24px;
+                  text-align: center; color: #e2dbce; font: 16px/1.6 system-ui, sans-serif }
+      .boot-msg code { display: block; margin-top: 16px; font-size: 12px;
+                       color: #8a8a8a; word-break: break-all }
+      /* Keep the first-paint reservation aligned with HeroSlider's 600px
+         desktop-image breakpoint; otherwise 600–767px tablets jump when the
+         React hero replaces the skeleton. */
+      @media (min-width: 600px) { .boot-hero { height: var(--hero-h-md, 640px) } }
