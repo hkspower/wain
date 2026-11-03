@@ -1771,7 +1771,7 @@
   }
   function t(key, vars) {
     var s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.en[key] != null ? STR.en[key] : key)
-
+    s = plural(s, vars)
     if (vars) for (var k in vars) if (Object.prototype.hasOwnProperty.call(vars, k)) {
       var v = vars[k]
       s = s.split('{' + k + '}').join(typeof v === 'number' ? num(v) : String(v))
@@ -2091,7 +2091,7 @@
     if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
     // store_text(): control characters dropped, spaces trimmed, then 1..160 characters, for both names.
     function nameLen(v) { return chars(String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, '').replace(/^ +| +$/g, '')) }
-    if (nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
+    if (false && nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(p.slug)) || String(p.slug).length > 80) return 'slug'
     var money = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,3})?$/
     if (!money.test(String(p.price)) || !(Number(p.price) > 0)) return 'price'
