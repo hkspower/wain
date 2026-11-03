@@ -10,7 +10,8 @@ import { phpBrands } from '../lib/backend'
 // public/sporta-features.js, which swaps only the brand-name run in the same
 // sentences; keep the two joins in step.
 const STATIC_BRANDS = {
-  // the join differs by sentence: the FAQ uses Arabic commas, the card "و" between all
+  // the wording that stays when the list cannot be read: the card's is the live build's "و" between all;
+  // a LIVE run uses Arabic commas in every sentence (a bare "و" is unreadable once a name has several words)
   comma: {
     en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label',
     ar: 'ريو، فانكويش، ATE، جيمشارك، آي سبورت وماركتنا الخاصة سبورتا',
@@ -38,13 +39,15 @@ function brandRun(rows, lang, style, plain = false) {
     }))
     .filter((b) => b.n)
   if (!list.length) return STATIC_BRANDS[style][lang]
-  // SPORTA is "our own label" only when the API lists it last; elsewhere it is a brand like the rest.
-  const ownLast = list[list.length - 1].slug === 'sporta'
-  const parts = list.map((b, i) => (ownLast && i === list.length - 1 ? OWN_LABEL[lang] : isolate(b.n, lang, plain)))
+  // SPORTA is the shop's own label wherever the API lists it (the live list sends it first): it leaves the run
+  // and is named last as "our own SPORTA label", never as one of the leading brands.
+  const hasOwn = list.some((b) => b.slug === 'sporta')
+  const parts = list.filter((b) => b.slug !== 'sporta').map((b) => isolate(b.n, lang, plain))
+  if (hasOwn) parts.push(OWN_LABEL[lang])
   if (parts.length === 1) return parts[0]
   const head = parts.slice(0, -1)
   const last = parts[parts.length - 1]
-  if (lang === 'ar') return style === 'and' ? `${head.join(' و')} و${last}` : `${head.join('، ')} و${last}`
+  if (lang === 'ar') return `${head.join('، ')} و${last}`
   return `${head.join(', ')} and ${last}`
 }
 

@@ -579,10 +579,13 @@
    *     for the card and the FAQ. Reworded copy → no match → left alone.
    *   - nothing to say (API down, empty list) → nothing written: the static
    *     names stay, which are the owner's last known list.
-   *   - the join follows the language: English "A, B and C", Arabic "أ، ب وج"
-   *     (the card uses "وـ" between all, as the live build does). SPORTA is called
-   *     "our own label" ONLY when the API lists it last; anywhere else it is a
-   *     brand like the rest — no order rule is invented here.
+   *   - the join follows the language: English "A, B and C", Arabic "أ، ب وج" in
+   *     all three sentences (the live card joined with a bare "و" between all, which
+   *     cannot be read once an API name has several words: "جيم شارك و..."). SPORTA
+   *     is the shop's OWN label wherever the API lists it: the row is taken out of
+   *     the run and named last as "our own SPORTA label", as the live sentences do,
+   *     so it is never presented as one of "the world's leading brands" (the live
+   *     list sends it FIRST). The other names keep the API order.
    *   - Latin names inside Arabic text (and Arabic names inside English) are
    *     wrapped in FSI…PDI so punctuation next to them cannot flip. The JSON-LD
    *     gets the plain names.
@@ -594,18 +597,18 @@
   var FSI = '⁨', PDI = '⁩'
   var ABOUT = {
     lead: {
-      ar: { pre: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — ', suf: '.', style: 'comma', own: 'علامتنا الخاصة سبورتا' },
-      en: { pre: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — ', suf: '.', style: 'comma', own: 'our own SPORTA label' }
+      ar: { pre: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — ', suf: '.', own: 'علامتنا الخاصة سبورتا' },
+      en: { pre: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — ', suf: '.', own: 'our own SPORTA label' }
     },
     card: {
       head: { ar: 'ماركات تستحق التمرين بها', en: 'Brands worth training in' },
-      ar: { pre: '', suf: '.', style: 'and', own: 'ماركتنا الخاصة سبورتا' },
-      en: { pre: '', suf: '.', style: 'comma', own: 'our own SPORTA label' }
+      ar: { pre: '', suf: '.', own: 'ماركتنا الخاصة سبورتا' },
+      en: { pre: '', suf: '.', own: 'our own SPORTA label' }
     },
     faq: {
       head: { ar: 'ما الماركات المتوفرة لديكم؟', en: 'Which brands do you carry?' },
-      ar: { pre: '', suf: ' — ملابس رياضية وهوديز وإكسسوارات جيم.', style: 'comma', own: 'ماركتنا الخاصة سبورتا' },
-      en: { pre: '', suf: ' — activewear, hoodies and gym accessories.', style: 'comma', own: 'our own SPORTA label' }
+      ar: { pre: '', suf: ' — ملابس رياضية وهوديز وإكسسوارات جيم.', own: 'ماركتنا الخاصة سبورتا' },
+      en: { pre: '', suf: ' — activewear, hoodies and gym accessories.', own: 'our own SPORTA label' }
     }
   }
 
@@ -629,18 +632,15 @@
   /** The run of names for one sentence template. `plain` = no bidi marks (JSON-LD). */
   function aboutRun(list, L, tpl, plain) {
     if (!list.length) return ''
-    var own = list[list.length - 1].slug === 'sporta'      // only when the API lists it LAST
-    var parts = []
+    var parts = [], own = false
     for (var i = 0; i < list.length; i++) {
-      if (own && i === list.length - 1) parts.push(tpl.own)
+      if (!own && list[i].slug === 'sporta') own = true        // the shop's own label: named last, wherever the API puts it
       else parts.push(plain ? list[i].n : isolate(list[i].n, L))
     }
+    if (own) parts.push(tpl.own)
     if (parts.length === 1) return parts[0]
     var last = parts[parts.length - 1], head = parts.slice(0, -1)
-    if (L === 'ar') {
-      if (tpl.style === 'and') return head.join(' و') + ' و' + last
-      return head.join('، ') + ' و' + last
-    }
+    if (L === 'ar') return head.join('، ') + ' و' + last
     return head.join(', ') + ' and ' + last
   }
   /** The middle of `text` between the template's fixed words, or null if it is not that sentence. */

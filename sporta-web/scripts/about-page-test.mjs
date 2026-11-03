@@ -82,17 +82,24 @@ const WANT = {
   // 7 shown brands, the API sorts SPORTA (sort 99) last
   seven: { en: 'AHED, RHEO, Vanquish, Gymshark, Eyesportwear, NBA and our own SPORTA label',
     lead: 'عهد، ريو، فانكويش، جيم شارك، آي سبورت وير، إن بي إيه وعلامتنا الخاصة سبورتا',
-    card: 'عهد وريو وفانكويش وجيم شارك وآي سبورت وير وإن بي إيه وماركتنا الخاصة سبورتا',
+    // commas in the card too: with a bare "و" between all, "جيم شارك و..." cannot be told from two names
+    card: 'عهد، ريو، فانكويش، جيم شارك، آي سبورت وير، إن بي إيه وماركتنا الخاصة سبورتا',
     faq: 'عهد، ريو، فانكويش، جيم شارك، آي سبورت وير، إن بي إيه وماركتنا الخاصة سبورتا' },
   // 3: a Latin name inside the Arabic text (name_ar empty → falls back to name_en)
   three: { en: 'RHEO, ATE and our own SPORTA label',
-    lead: 'ريو، ATE وعلامتنا الخاصة سبورتا', card: 'ريو وATE وماركتنا الخاصة سبورتا', faq: 'ريو، ATE وماركتنا الخاصة سبورتا' },
+    lead: 'ريو، ATE وعلامتنا الخاصة سبورتا', card: 'ريو، ATE وماركتنا الخاصة سبورتا', faq: 'ريو، ATE وماركتنا الخاصة سبورتا' },
   one: { en: 'RHEO', lead: 'ريو', card: 'ريو', faq: 'ريو' },
-  // SPORTA listed FIRST: no "our own label" wording, it is a brand like the others (the API order is followed)
-  sportaFirst: { en: 'SPORTA and RHEO', lead: 'سبورتا وريو', card: 'سبورتا وريو', faq: 'سبورتا وريو' },
+  // SPORTA listed FIRST (what the live API does: sort 0): still the shop's own label, named last, never a "leading brand"
+  sportaFirst: { en: 'RHEO and our own SPORTA label', lead: 'ريو وعلامتنا الخاصة سبورتا', card: 'ريو وماركتنا الخاصة سبورتا', faq: 'ريو وماركتنا الخاصة سبورتا' },
+  // ... and the real list: SPORTA first of seven, SPORTA in the middle of seven: the same sentences as SPORTA last
+  liveOrder: null, sportaMiddle: null,
+  // SPORTA alone: the own-label wording, as before
+  sportaOnly: { en: 'our own SPORTA label', lead: 'علامتنا الخاصة سبورتا', card: 'ماركتنا الخاصة سبورتا', faq: 'ماركتنا الخاصة سبورتا' },
   // no SPORTA row at all
   noOwn: { en: 'RHEO and Vanquish', lead: 'ريو وفانكويش', card: 'ريو وفانكويش', faq: 'ريو وفانكويش' },
 }
+WANT.liveOrder = WANT.sportaMiddle = WANT.seven
+const withSort = (slug, sort) => MASTER.map((b) => (b.slug === slug ? { ...b, sort } : b))
 const runFor = (w, lang, kind) => (lang === 'en' ? w.en : w[kind])
 
 // ------------------------------------------------------------------------------ the browser rig
@@ -178,7 +185,8 @@ async function brandsGroup(o = {}) {
     }
     head(`brands, ${lang}: 3, 1 and the SPORTA position`)
     for (const [name, rows] of [['three', [pick('rheo')[0], { ...MASTER.find((b) => b.slug === 'ate'), name_ar: '', products: 2, sort: 4 }, pick('sporta')[0]]],
-      ['one', pick('rheo')], ['sportaFirst', [{ ...pick('sporta')[0], sort: 0 }, pick('rheo')[0]]], ['noOwn', pick('rheo', 'vanquish')]]) {
+      ['one', pick('rheo')], ['sportaFirst', [{ ...pick('sporta')[0], sort: 0 }, pick('rheo')[0]]], ['noOwn', pick('rheo', 'vanquish')],
+      ['liveOrder', withSort('sporta', 0)], ['sportaMiddle', withSort('sporta', 4.5)], ['sportaOnly', pick('sporta')]]) {
       const { pg, ctx } = await open({ lang, brands: api(rows), ...o })
       await waitApplied(pg, 4); await settle(pg)
       const r = await read(pg), w = WANT[name]
