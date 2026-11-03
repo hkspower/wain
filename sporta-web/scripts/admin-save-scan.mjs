@@ -149,7 +149,8 @@ const MOCK = {
 // is visible (on the phone it sits behind the menu button).
 function inPageNav() {
   const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim()
-  const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && c.visibility !== 'hidden' && c.display !== 'none' }
+  // visible = painted AND on the screen (the phone's sidebar sits off-canvas, translated out of view)
+  const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && r.right > 1 && r.left < innerWidth - 1 && r.bottom > 1 && r.top < innerHeight - 1 && c.visibility !== 'hidden' && c.display !== 'none' }
   const rect = (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }
   const sels = ['.admin-sidebar', 'aside', 'nav', '[role=navigation]']
   let side = null
@@ -348,11 +349,15 @@ function inPageMeasure() {
     const text = clean(b.tagName === 'INPUT' ? b.value : b.textContent) || clean(b.getAttribute('aria-label') || b.getAttribute('title'))
     const form = b.form || b.closest('form')
     const typeAttr = b.getAttribute('type')
-    const submit = b.tagName === 'BUTTON' || b.tagName === 'INPUT' ? (b.type === 'submit') : false     // b.type is the effective type: a button in a form with no type attribute is "submit"
+    // b.type is the effective type: a <button> with no type attribute says "submit" even outside any form,
+    // where it submits nothing — so a submit button needs a form.
+    const submit = (b.tagName === 'BUTTON' || b.tagName === 'INPUT') && b.type === 'submit' && !!form
+    const inForm = form ? fields.filter((f) => form.contains(f.el)) : []
+    const searchOnly = !!form && inForm.length > 0 && inForm.every((f) => f.filter)     // a search box's own button
     const ov = inOverlay(b)
     const strong = SAVE_STRONG.test(text) && !/\b(delete|remove|cancel|discard)\b/i.test(text)
     const weak = SAVE_WEAK.test(text) && !NOTSAVE.test(text) && (!!form || !!ov)
-    const saveLike = (submit && !/\b(cancel|close|discard|back|reset|clear|delete|remove|dismiss)\b/i.test(text)) || strong || weak
+    const saveLike = !searchOnly && ((submit && !/\b(cancel|close|discard|back|reset|clear|delete|remove|dismiss)\b/i.test(text)) || strong || weak)
     buttons.push({ el: b, text: text.slice(0, 40), form, submit, typeAttr, saveLike, strong, ov })
   }
 
@@ -513,7 +518,8 @@ const VIEWS = [['desktop', 1280, 800, false], ['phone', 390, 844, true]].filter(
 const result = {}   // vn -> { nav, shell, screens: [{ name, href, steps: [{ name, m }] }] , dialogs, listeners, unknown }
 
 for (const [vn, w, h, mob] of VIEWS) {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mob, hasTouch: mob, deviceScaleFactor: mob ? 2 : 1, locale: 'en-US' })
+  // serviceWorkers blocked: the live site registers sw.js, and a worker's own fetches would bypass the mock below
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mob, hasTouch: mob, deviceScaleFactor: mob ? 2 : 1, locale: 'en-US', serviceWorkers: 'block' })
   const pg = await ctx.newPage()
   pg.setDefaultTimeout(5000)
   const R = result[vn] = { nav: null, navAfterOpen: null, shell: {}, screens: [], dialogs: [], listeners: new Set(), unknown: new Map(), errs: new Set(), writes: [] }
@@ -556,7 +562,7 @@ for (const [vn, w, h, mob] of VIEWS) {
     return false
   }
   const closeMenu = async () => {
-    const c = pg.locator('button:visible').filter({ hasText: /Close menu|✕|×/ }).first()
+    const c = pg.locator('button:visible').filter({ hasText: /Close menu|✕/ }).first()
     if (await c.count()) await c.click({ timeout: 3000 }).catch(() => {})
     else await pg.keyboard.press('Escape').catch(() => {})
     await pg.waitForTimeout(350)
@@ -611,9 +617,12 @@ for (const [vn, w, h, mob] of VIEWS) {
       try { m = await pg.evaluate(inPageMeasure) } catch (e) { scr.steps.push({ name: st.name, error: e.message.slice(0, 100) }); continue }
       // only what this step adds: a surface seen in an earlier step is not repeated
       const sig = (s) => [s.kind, s.root.sel, s.fields.n, s.save ? s.save.text : '-'].join('|')
-      const fresh = m.surfaces.filter((s) => !seen.has(sig(s)))
+      // new in this step; repeated rows share a signature, so only the first of each is probed
+      const freshSigs = new Set(m.surfaces.map(sig).filter((g) => !seen.has(g)))
+      const fresh = []
+      for (const s of m.surfaces) if (freshSigs.has(sig(s)) && !fresh.some((f) => sig(f) === sig(s))) fresh.push(s)
       m.surfaces.forEach((s) => seen.add(sig(s)))
-      const step = { name: st.name, m, fresh: fresh.map((s) => s.id) }
+      const step = { name: st.name, m, fresh: fresh.map((s) => s.id), freshSigs: [...freshSigs], sig }
       m.buttons.forEach((b) => scr.buttonsAll.add(b))
       // ---- probes (desktop): does a change write by itself? what does a pending Save look like?
       if ((vn === 'desktop' ? PROBE : PROBE_PHONE) && fresh.length) {
@@ -690,20 +699,25 @@ const D = result.desktop || result[both[0]], Ph = result.phone
 for (const sd of D.screens) {
   const sp = Ph ? Ph.screens.find((x) => x.name === sd.name) : null
   if (!sd.opened) { out(`S|${sd.name}|NOT OPENED ${sd.error || ''}`); continue }
-  const f = sd.shell ? `docH ${sd.shell.docH}${sp && sp.shell ? '/' + sp.shell.docH : ''} fixed:${sd.shell.fixed.filter((x) => !x.inSide).map((x) => x.sel.split('.')[0] + (x.atBottom ? '@bottom' : x.atTop ? '@top' : '')).join(',') || '-'}` : ''
+  const f = sd.shell ? `docH ${sd.shell.docH}${sp && sp.shell ? '/' + sp.shell.docH : ''} fixed:${sd.shell.fixed.filter((x) => !x.inSide).map((x) => x.sel.slice(0, 34) + (x.atBottom ? '@bottom' : x.atTop ? '@top' : '')).join(',') || '-'}` : ''
   out(`S|${sd.name}|${sd.href}| ${f}`)
   for (const st of sd.steps) {
     if (st.skipped || st.error) { out(`  step "${st.name}": ${st.skipped || st.error}`); continue }
     const m = st.m
     const stp = sp ? sp.steps.find((x) => x.name === st.name) : null
     const mp = stp && stp.m ? stp.m : null
-    const fresh = m.surfaces.filter((x) => st.fresh.includes(x.id))
+    const fresh = m.surfaces.filter((x) => st.freshSigs.includes(st.sig(x)))
     if (st.name !== 'load' && !fresh.length && !m.overlays.length) { out(`  step "${st.name}": nothing new (fields ${m.fieldTotal}, actions[${m.actions.join('/')}])`); continue }
     out(`  step "${st.name}": fields ${m.fieldTotal} filters ${m.filterCount} surfaces ${m.surfaces.length}${mp ? '/' + mp.surfaces.length + 'ph' : ''} overlays ${m.overlays.length} actions[${m.actions.join('/')}]`)
     for (const ov of m.overlays) out(`    overlay ${j(ov)}`)
-    for (const su of fresh) {
+    // rows that repeat (one per product, one per SKU) stand for each other: print the first, count the rest
+    const sigOf = (x) => [x.kind, x.root.sel, x.fields.n, x.save ? x.save.text : '-'].join('|')
+    const groups = new Map()
+    for (const x of fresh) groups.set(sigOf(x), [...(groups.get(sigOf(x)) || []), x])
+    for (const [, grp] of groups) {
+      const su = grp[0]
       const pu = mp ? mp.surfaces[m.surfaces.indexOf(su)] : null
-      out(`    ${su.id} ${su.kind} ${su.root.sel} ${su.root.w}x${su.root.h}@y${su.root.top} ${fieldsTxt(su.fields)} [${su.fields.labels.join('; ')}] saves ${su.nSaves}${su.hasNestedSurface ? ' nested' + su.hasNestedSurface : ''}${su.overlay ? ' IN-OVERLAY ' + su.overlay.sel + ' z' + su.overlay.z + ' parent ' + su.overlay.parent : ''}`)
+      out(`    ${su.id}${grp.length > 1 ? ' x' + grp.length : ''} ${su.kind} ${su.root.sel} ${su.root.w}x${su.root.h}@y${su.root.top} ${fieldsTxt(su.fields)} [${su.fields.labels.join('; ')}] saves ${su.nSaves}${su.hasNestedSurface ? ' nested' + su.hasNestedSurface : ''}${su.overlay ? ' IN-OVERLAY ' + su.overlay.sel + ' z' + su.overlay.z + ' parent ' + su.overlay.parent : ''}`)
       if (su.save) {
         out(`      SAVE ${btnTxt(su.save)}`)
         out(`      D ${posOf(su.save)}`)
