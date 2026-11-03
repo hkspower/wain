@@ -19,6 +19,8 @@
 //   cash-11  bag drawer quantity and remove buttons are 44x44
 //   cash-12  footer links are 44px tall and do not overlap
 //   cash-13  the payment hint, the assurance line and the field errors are .875rem (14px at a 16px root)
+//   review-1 the scrolling bag list gets tabindex="0" from public/sporta-checkout-a11y.js while it overflows (and
+//            only then), so the keyboard can reach lines 4-6; it shows a #B8430F ring and ArrowDown scrolls it
 //   always   nothing overflows sideways; blocks the rules are not about do not move
 //
 // Mutation check: CHECKOUT_A11Y_CSS=<path to a file> points the suite at another stylesheet; an empty file must
@@ -30,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import { page } from './fixtures/checkout-a11y.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const SCRIPT = readFileSync(process.env.CHECKOUT_A11Y_JS || join(ROOT, 'public/sporta-checkout-a11y.js'), 'utf8')
 const ADDON = readFileSync(process.env.CHECKOUT_A11Y_CSS || join(ROOT, 'public/sporta-checkout-a11y.css'), 'utf8')
 
 let pass = 0, fail = 0
@@ -203,6 +206,69 @@ for (const lang of ['ar', 'en']) {
       if (n >= 6 && h <= 900) is(p.ulOv === 'auto' && p.ulScroll > p.ulClient, `cash-07: ${tag} a long list scrolls inside the card`, `${p.ulOv} ${p.ulScroll}/${p.ulClient}`)
       await ctx.close(); await base.ctx.close()
     }
+  }
+}
+
+// review-1: the scroller must be reachable by keyboard. The script only runs on a /checkout path, so the fixture is
+// served from a fake origin.
+head('scrolling bag list is keyboard-reachable (sporta-checkout-a11y.js)')
+const openLive = async (lang, w, h, opts, js = SCRIPT) => {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US' })
+  const pg = await ctx.newPage()
+  const html = page(lang, ADDON, opts)
+  await pg.route('https://sporta.test/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }))
+  await pg.goto('https://sporta.test/checkout')
+  if (js) await pg.addScriptTag({ content: js })
+  await pg.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))))
+  return { pg, ctx }
+}
+const listState = (pg) => pg.evaluate(() => {
+  const ul = document.querySelector('.purchase-checkout-summary > ul')
+  return { tab: ul.getAttribute('tabindex'), mine: ul.getAttribute('data-sporta-scroll'), scrolls: ul.scrollHeight > ul.clientHeight + 1 }
+})
+for (const lang of ['ar', 'en']) {
+  {
+    const { pg, ctx } = await openLive(lang, 1280, 800, { state: 'guest', n: 6, long: true })
+    const st = await listState(pg)
+    is(st.scrolls && st.tab === '0' && st.mine === '1', `${lang}: a list that scrolls gets tabindex="0"`, JSON.stringify(st))
+    // Tab from the top of the page until the list is focused (it comes before the summary's own controls)
+    let reached = false
+    for (let i = 0; i < 60 && !reached; i++) {
+      await pg.keyboard.press('Tab')
+      reached = await pg.evaluate(() => document.activeElement && document.activeElement.matches('.purchase-checkout-summary > ul'))
+    }
+    is(reached, `${lang}: Tab reaches the scrolling list`)
+    const f = await pg.evaluate(() => { const ul = document.activeElement, cs = getComputedStyle(ul); return { vis: ul.matches(':focus-visible'), color: cs.outlineColor, style: cs.outlineStyle, w: parseFloat(cs.outlineWidth), top: ul.scrollTop } })
+    is(f.vis && f.color === 'rgb(184, 67, 15)' && f.style === 'solid' && f.w >= 2, `${lang}: the focused list shows a 2px #B8430F ring`, JSON.stringify(f))
+    await pg.keyboard.press('ArrowDown'); await pg.keyboard.press('ArrowDown')
+    await pg.waitForFunction(() => document.activeElement.scrollTop > 0, null, { timeout: 2000 }).catch(() => {})
+    const top2 = await pg.evaluate(() => document.activeElement.scrollTop)
+    is(top2 > f.top, `${lang}: the arrow keys scroll the focused list`, `${f.top} -> ${top2}`)
+    // narrowing below 1024px lifts the cap, so the tab stop must go with it
+    await pg.setViewportSize({ width: 768, height: 800 })
+    await pg.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))))
+    const st2 = await listState(pg)
+    is(!st2.scrolls && st2.tab === null && st2.mine === null, `${lang}: below 1024px (nothing clips the list) the tab stop is removed`, JSON.stringify(st2))
+    await pg.setViewportSize({ width: 1280, height: 800 })
+    await pg.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))))
+    const st3 = await listState(pg)
+    is(st3.tab === '0', `${lang}: widening back to 1280px restores it`, JSON.stringify(st3))
+    await ctx.close()
+  }
+  for (const [n, long, w] of [[1, false, 1280], [3, false, 1280], [12, true, 768]]) {
+    const { pg, ctx } = await openLive(lang, w, 900, { state: 'guest', n, long })
+    const st = await listState(pg)
+    is(!st.scrolls && st.tab === null, `${lang}: a list that does not scroll (n=${n}, ${w}px) gets no tab stop`, JSON.stringify(st))
+    await ctx.close()
+  }
+  {
+    // a list the page itself already made focusable is never touched or stripped
+    const { pg, ctx } = await openLive(lang, 1280, 800, { state: 'guest', n: 1 })
+    await pg.evaluate(() => document.querySelector('.purchase-checkout-summary > ul').setAttribute('tabindex', '-1'))
+    await pg.setViewportSize({ width: 1281, height: 800 })
+    await pg.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))))
+    is((await listState(pg)).tab === '-1', `${lang}: an attribute the script did not add is left alone`)
+    await ctx.close()
   }
 }
 

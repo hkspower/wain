@@ -101,6 +101,17 @@ button:has(> .purchase-steps__body) {
   .purchase-checkout-layout > aside {
     top: 9.5rem;
   }
+  /* The list is a scroll container whose rows are plain text, so
+     sporta-checkout-a11y.js gives it tabindex="0" while it overflows (a
+     keyboard-only shopper must be able to scroll to lines 4-6; Safari and
+     Chrome before 130 do not focus scrollers by themselves). A focused,
+     scrollable box needs a visible ring: the deep orange of the other
+     checkout rings, drawn inside the card's padding so the list's own
+     overflow cannot clip it. Only the scripted list matches. */
+  .purchase-checkout-summary > ul[data-sporta-scroll]:focus-visible {
+    outline: 2px solid #b8430f;
+    outline-offset: 2px;
+  }
 }
 
 /* cash-10. "Remember these details on this device" was a 20px tall row. The
@@ -123,7 +134,14 @@ button:has(> .purchase-steps__body) {
 /* cash-12. Footer links (every page) were 32-34px tall. The live
    ".storefront-root .footer-links a" sets 2rem; this is heavier. The list's
    8px gaps (space-y-2) go, so a column grows by 4px per link instead of 12
-   and the 44px boxes sit edge to edge without overlapping. */
+   and the 44px boxes sit edge to edge without overlapping.
+   Known, intended consequence (independent review): from 768px the footer is
+   a two-column grid, so the brand column (div.footer-brand) is stretched to
+   the taller links column and its BOX grows with it (about 29px at 768-1440px
+   in Arabic and English). It has no background or border and its children do
+   not move, so nothing visible changes. Avoiding it would mean keeping the
+   old 40px link pitch and letting neighbouring 44px hit areas overlap by 4px,
+   which this file chooses not to do. */
 .storefront-root .footer-links a.inline-flex {
   min-height: 2.75rem;
 }
