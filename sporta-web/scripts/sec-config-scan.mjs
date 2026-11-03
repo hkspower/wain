@@ -38,6 +38,7 @@ import zlib from 'node:zlib'
 
 const MODE = process.env.SEC_MODE || 'layout'
 const SHA = process.env.SEC_SHA || 'HEAD'
+const REPO_SHA = process.env.SEC_REPO_SHA || SHA
 const HOST = 'www.sporta.com.kw'
 const ROOT = process.env.SEC_ROOT || '/sporta'
 const SITE = `${ROOT}/site`
@@ -244,7 +245,7 @@ function layout2() {
 async function repoIndex() {
   const idx = new Map()   // basename -> [{sha, path, size}]
   try {
-    const r = await fetch(`https://api.github.com/repos/hkspower/wain/git/trees/${SHA}?recursive=1`, { headers: { 'User-Agent': 'sporta-sec-config-scan', Accept: 'application/vnd.github+json' } })
+    const r = await fetch(`https://api.github.com/repos/hkspower/wain/git/trees/${REPO_SHA}?recursive=1`, { headers: { 'User-Agent': 'sporta-sec-config-scan', Accept: 'application/vnd.github+json' } })
     if (!r.ok) { say(`repo tree: HTTP ${r.status}; falling back to the tarball`); return await tarIndex(idx) }
     const j = await r.json()
     if (j.truncated) say('repo tree: TRUNCATED (comparison may miss files)')
@@ -254,14 +255,14 @@ async function repoIndex() {
       if (!idx.has(b)) idx.set(b, [])
       idx.get(b).push({ sha: t.sha, path: t.path, size: t.size })
     }
-    say(`repo tree: ${j.tree.length} entries at ${SHA.slice(0, 8)}`)
+    say(`repo tree: ${j.tree.length} entries at ${REPO_SHA.slice(0, 8)}`)
     return { idx, ok: true }
   } catch (e) { say(`repo tree: failed ${e.message}; falling back to the tarball`); return await tarIndex(idx) }
 }
 // Fallback: the commit's tarball from codeload (the route vps-deploy.mjs uses), parsed in memory.
 async function tarIndex(idx) {
   try {
-    const r = await fetch(`https://codeload.github.com/hkspower/wain/tar.gz/${SHA}`)
+    const r = await fetch(`https://codeload.github.com/hkspower/wain/tar.gz/${REPO_SHA}`)
     if (!r.ok) { say(`tarball: HTTP ${r.status}`); return { idx, ok: false } }
     const tar = zlib.gunzipSync(Buffer.from(await r.arrayBuffer()))
     let off = 0, n = 0
@@ -284,7 +285,7 @@ async function tarIndex(idx) {
       }
       off += 512 + Math.ceil(size / 512) * 512
     }
-    say(`tarball: ${n} php files indexed at ${SHA.slice(0, 8)}`)
+    say(`tarball: ${n} php files indexed at ${REPO_SHA.slice(0, 8)}`)
     return { idx, ok: true }
   } catch (e) { say(`tarball failed: ${e.message}`); return { idx, ok: false } }
 }
@@ -343,6 +344,7 @@ async function site() {
   say('   ' + rows.filter((r) => / ident( |$)/.test(r)).map((r) => r.split(' ')[0]).join(' '))
   say(`-- webshell signatures in non-identical php: ${suspicious.length ? suspicious.join(' ') : 'none'}`)
   flush()
+  if (process.env.SEC_PART === 'a') { say('SEC_SITE done'); flush(); return }
 
   say('== B. PHP source hidden in non-PHP files (images, text, html, js, css, data) - files <=2 MB')
   const hidden = []
@@ -351,11 +353,15 @@ async function site() {
     if (/\.(php\d?|phtml|phar|pht|inc|phps)$/i.test(f.rel) || f.st.size > 2 * 1048576) continue
     if (/\.(woff2?|ttf|otf|mp4|webm|zip|gz|map)$/i.test(f.rel)) continue
     scanned++
-    const b = fs.readFileSync(f.abs)
-    const t = b.toString('latin1')
-    if (/<\?php|<\?=|<\?\s/.test(t)) hidden.push(`${f.rel}(${f.st.size}B ${oct(f.st.mode)})`)
+    const t = fs.readFileSync(f.abs).toString('latin1')
+    const full = (t.match(/<\?php[\s]/gi) ?? []).length
+    const short = (t.match(/<\?=/g) ?? []).length
+    // a real script has code right after the tag: look for a function call or superglobal within 300 bytes
+    let code = 0
+    for (const m of t.matchAll(/<\?php[\s]|<\?=/gi)) { if (/(\$_(GET|POST|REQUEST|COOKIE|FILES|SERVER)|eval\s*\(|system\s*\(|exec\s*\(|passthru|shell_exec|base64_decode|file_put_contents|include|require)/i.test(t.slice(m.index, m.index + 300))) code++ }
+    if (full + short > 0) hidden.push(`${f.rel}(${f.st.size}B ${oct(f.st.mode)} open-tags:${full}+${short} code-like:${code})`)
   }
-  say(`scanned ${scanned} non-php files; contain a PHP open tag: ${hidden.length ? hidden.slice(0, 25).join(' ') : 'none'}`)
+  say(`scanned ${scanned} non-php files; with a real "<?php " or "<?=" tag: ${hidden.length ? hidden.slice(0, 25).join(' ') : 'none'}`)
 
   say('== C. leftover setup tools and sensitive-looking names inside the web root')
   const SETUP = /^(go-live\.html|selftest\.php|setup-config\.php|setup-admin\.php|preflight\.php|sporta-deploy\.php|index\.php|phpinfo\.php|info\.php|test\.php|adminer\.php|shell\.php|wp-.*|xmlrpc\.php|cmd\.php|upload\.php)$/i
@@ -607,6 +613,70 @@ async function keys() {
   flush()
 }
 
+
+// ================================================================ stale
+// Config-like copies left outside their live place: do they still hold a
+// CURRENT secret? Booleans and verdicts only; no value is printed.
+async function stale() {
+  say(`SEC_STALE start ${new Date().toISOString()}`)
+  const rd = (f) => { try { return fs.readFileSync(f, 'utf8') } catch { return null } }
+  const liveApi = parseConfig(rd(path.join(PRIVATE, 'api-config.php')) ?? '')
+  const cur = {
+    db_pass: (rd(path.join(PRIVATE, 'db_pass')) ?? '').replace(/\r?\n$/, ''),
+    cron_key: liveApi.get('cron_key')?.v, rate_limit_secret: liveApi.get('rate_limit_secret')?.v,
+  }
+  const exApi = parseConfig((await rawFile('sporta-web/dropin/php-store/config.example.php')) ?? '')
+  const exKnet = parseConfig((await rawFile('sporta-web/dropin/php-knet/config.example.php')) ?? '')
+  const exPay = parseConfig((await rawFile('sporta-web/dropin/php-cbk/config.example.php')) ?? '')
+  const liveFiles = new Set([path.join(PRIVATE, 'api-config.php'), path.join(PRIVATE, 'config', 'knet-config.php'), path.join(PRIVATE, 'config', 'pay-config.php')])
+  const all = walk(ROOT, (rel, isDir) => isDir && (rel === 'site' || /node_modules|private\/media/.test(rel)), 8)
+  const copies = all.filter((x) => x.st.isFile() && !liveFiles.has(x.abs) && /(config[^/]*\.php(\.[a-z0-9-]+)?|\.php\.bak[^/]*)$/i.test(path.basename(x.rel)) && !/example|config-path|seo-config|seo-runtime|setup-config|cron-auth|customer-auth/.test(path.basename(x.rel)))
+  say(`config-like copies outside their live place: ${copies.length}`)
+  const KEYS = { api: ['db_pass', 'cron_key', 'rate_limit_secret', 'google_oauth_client_secret', 'ai_key', 'tts_key', 'whatsapp_token', 'n8n_secret'], knet: ['tranportal_id', 'tranportal_password', 'resource_key', 'mysql_pass'], pay: ['client_id', 'client_secret', 'encrp_key', 'mysql_pass'] }
+  for (const c of copies) {
+    const txt = rd(c.abs) ?? ''
+    const b = path.basename(c.rel)
+    const kind = /knet/i.test(b) || /\/knet\//.test(c.rel) ? 'knet' : /pay|cbk/i.test(b) || /\/pay\//.test(c.rel) ? 'pay' : 'api'
+    const m = parseConfig(txt)
+    const ex = kind === 'knet' ? exKnet : kind === 'pay' ? exPay : exApi
+    const verdicts = []
+    for (const k of KEYS[kind]) {
+      const v = m.get(k)
+      let r
+      if (!v) r = 'absent'
+      else if (v.type === 'string' && v.v === '') r = 'empty'
+      else if (v.type === 'expr') r = 'dynamic'
+      else if (v.type === 'string') {
+        const currentVal = k === 'db_pass' || k === 'mysql_pass' ? cur.db_pass : cur[k]
+        r = ex.get(k) && ex.get(k).v === v.v ? 'placeholder(=example)' : currentVal !== undefined && currentVal !== '' ? (v.v === currentVal ? 'LITERAL-EQUALS-CURRENT-SECRET' : 'literal-differs-from-current') : 'LITERAL(no current value to compare)'
+      } else r = v.type
+      verdicts.push(`${k}=${r}`)
+    }
+    const dir = lst(path.dirname(c.abs))
+    say(`${c.rel} ${oct(c.st.mode)} ${own(c.st)} ${c.st.size}B (dir ${oct(dir.mode)} ${own(dir)}) [${kind}] ${verdicts.join(' ')}`)
+  }
+  // tar archives that may hold private/ (names only, no content)
+  const arch = all.filter((x) => x.st.isFile() && /(private|before|full|site).*\.(tar\.gz|tgz)$/.test(path.basename(x.rel)) && x.st.size < 200 * 1048576)
+  say(`archives that may contain config files (name mode owner size, then whether the tar lists a config*.php entry; names only):`)
+  for (const a of arch.slice(0, 40)) {
+    let hit = 0, err = ''
+    try {
+      const tar = zlib.gunzipSync(fs.readFileSync(a.abs))
+      for (let off = 0; off + 512 <= tar.length;) {
+        const h = tar.subarray(off, off + 512); if (h.every((x) => x === 0)) break
+        const name = h.toString('utf8', 0, 100).replace(/\0.*$/s, '')
+        const size = parseInt(h.toString('ascii', 124, 136).replace(/\0.*$/s, '').trim() || '0', 8)
+        if (/(^|\/)(api-config|knet-config|pay-config|config)\.php$/.test(name) && size > 0) hit++
+        off += 512 + Math.ceil(size / 512) * 512
+      }
+    } catch (e) { err = ' (unreadable as gzip tar)' }
+    const dir = lst(path.dirname(a.abs))
+    say(`   ${a.rel} ${oct(a.st.mode)} ${own(a.st)} ${a.st.size}B (dir ${oct(dir.mode)}) non-empty config*.php entries: ${hit}${err}`)
+  }
+  say('SEC_STALE done')
+  flush()
+}
+
 // ================================================================== http
 function request(p, { method = 'GET', headers = {} } = {}) {
   return new Promise((resolve) => {
@@ -661,7 +731,17 @@ async function http_() {
     else if (SENSITIVE.test(b) && !/^config\.example\.php$/.test(b) && !/\.(js|css|html|png|jpe?g|webp|woff2?)$/.test(b)) found.push('/' + x.rel)
     else if (/^(\.env|\.git|\.htpasswd|\.user\.ini)$/.test(b)) found.push('/' + x.rel)
   }
-  const paths = [...new Set([...fixed, ...found.slice(0, 70)])]
+  // The photo folders are bind mounts from private/media: they are not under site/ on disk, so look there too.
+  const mounts = [['products', '/images/products/'], ['cats', '/cats/'], ['hero', '/hero/']]
+  const mediaOdd = []
+  for (const [dir, url] of mounts) {
+    for (const x of walk(path.join(PRIVATE, 'media', dir), () => false, 4)) {
+      if (!x.st.isFile()) continue
+      if (/(^|\/)\._|\.DS_Store|\.htaccess$/.test(x.rel) || !/\.(png|jpe?g|webp|gif|avif|ico)$/i.test(x.rel)) mediaOdd.push(url + x.rel.split(path.sep).join('/'))
+    }
+  }
+  const paths = process.env.SEC_HTTP_ONLY === 'media' ? mediaOdd.slice(0, 40) : [...new Set([...fixed, ...found.slice(0, 70), ...mediaOdd.slice(0, 30)])]
+  say(`media-mount odd names (AppleDouble, dotfiles, non-images): ${mediaOdd.length}, probing ${Math.min(mediaOdd.length, 30)}`)
   say(`paths: ${fixed.length} fixed + ${Math.min(found.length, 70)} discovered on disk (of ${found.length})`)
   const rows = []
   const bad = [], odd = []
@@ -714,6 +794,6 @@ async function http_() {
   flush()
 }
 
-const run = { layout, site, keys, http: http_ }[MODE]
+const run = { layout, site, keys, stale, http: http_ }[MODE]
 if (!run) { console.log(`unknown SEC_MODE ${MODE}`); process.exit(2) }
 await run()
