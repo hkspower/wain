@@ -1339,11 +1339,16 @@
 
   function setAttr(el, n, v) { if (v === null) { if (el.hasAttribute(n)) el.removeAttribute(n) } else if (el.getAttribute(n) !== v) el.setAttribute(n, v) }
 
-  function holdPad(el, h) {
+  // Keep the last field clear of the bar: the scroll container's bottom padding grows to the height the bar
+  // (and any tab bar under it) takes from the bottom of the container, and goes back when the bar goes.
+  function holdPad(el, reserve) {
     if (pad && pad.el !== el) releasePad()
-    if (!pad) pad = { el: el, v: el.style.getPropertyValue('padding-bottom'), p: el.style.getPropertyPriority('padding-bottom'), had: el.hasAttribute('style'), base: parseFloat(getComputedStyle(el).paddingBottom) || 0 }
-    var want = (pad.base + h + GAP) + 'px'
-    if (el.style.getPropertyValue('padding-bottom') !== want) el.style.setProperty('padding-bottom', want)
+    var base = pad ? pad.base : (parseFloat(getComputedStyle(el).paddingBottom) || 0)
+    var want = Math.max(base, reserve + GAP)
+    if (want <= base + 0.5) { releasePad(); return }
+    if (!pad) pad = { el: el, v: el.style.getPropertyValue('padding-bottom'), p: el.style.getPropertyPriority('padding-bottom'), had: el.hasAttribute('style'), base: base }
+    var css = want + 'px'
+    if (el.style.getPropertyValue('padding-bottom') !== css) el.style.setProperty('padding-bottom', css)
   }
   function releasePad() {
     if (!pad) return
@@ -1410,7 +1415,8 @@
     setAttr(bar, 'data-tone', dark ? 'dark' : 'light')
     bar.hidden = false
     var sc = info.scroller || (de.scrollHeight > de.clientHeight ? de : null)
-    if (sc) holdPad(sc, bar.offsetHeight); else releasePad()
+    if (sc) holdPad(sc, Math.max(0, (info.scroller ? Math.min(sc.getBoundingClientRect().bottom, de.clientHeight) : de.clientHeight) - bar.offsetTop))
+    else releasePad()
   }
 
   function run() {
@@ -1493,7 +1499,7 @@
     if (navHooked) return
     navHooked = true
     window.addEventListener('popstate', function () { setTimeout(check, 0) })
-    if (window.navigation && window.navigation.addEventListener) window.navigation.addEventListener('navigatesuccess', function () { setTimeout(check, 0) })
+    if (window.navigation && window.navigation.addEventListener) { window.navigation.addEventListener('navigatesuccess', function () { setTimeout(check, 0) }); window.navigation.addEventListener('currententrychange', function () { setTimeout(check, 0) }) }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot()
 })()
