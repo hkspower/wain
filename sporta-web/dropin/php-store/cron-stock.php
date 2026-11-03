@@ -19,7 +19,11 @@
 //
 // WHAT IT WILL NOT TOUCH, and this is the part worth reading twice:
 //
-//   * 'paid' and 'review' orders. Obvious, and stated so nobody adds them.
+//   * 'paid' orders, and 'review' orders UNLESS a person has cancelled them. A
+//     capture parked for review keeps its garments claimed, because the money
+//     may be real. Once the owner has settled it at the bank and cancelled the
+//     order in /backends, the order is dead like any other cancelled one and
+//     its pieces and discount uses go back (they used to be held for ever).
 //   * A 'cod' order the shop has touched, at any age. Every order in this
 //     shop starts life as payment_status='pending', cash on delivery
 //     included — a pending COD order may be a real sale waiting for a
@@ -95,7 +99,7 @@ $dry = PHP_SAPI === 'cli'
 $discountOnly = store_column_exists($db, 'orders', 'discount_ids');
 $discountClause = $discountOnly
     ? "or ( discount_ids is not null and discount_released = 0
-            and payment_status not in ('paid','review')
+            and payment_status <> 'paid' and (payment_status <> 'review' or fulfilment_status = 'cancelled')
             and (payment_status = 'failed' or fulfilment_status = 'cancelled') )
        or ( discount_ids is not null and discount_released = 0 and stock_claimed = 0
             and payment_status = 'pending'
@@ -107,7 +111,7 @@ $sql =
   "select id, track_id, payment_status, payment_method, fulfilment_status, created_at
      from orders
     where ( stock_claimed = 1 and stock_released = 0
-            and payment_status not in ('paid','review')
+            and payment_status <> 'paid' and (payment_status <> 'review' or fulfilment_status = 'cancelled')
             and ( payment_status = 'failed'
                or fulfilment_status = 'cancelled'
                or (payment_status = 'pending'

@@ -20,7 +20,8 @@
 // is under a fixed bar or off screen. Output is grouped, so a 19-screen run is a few dozen lines.
 //
 // The live admin is a compiled build with no source here: the fixes this finds are add-on CSS in
-// public/sporta-admin-knet.css (colours inside the colour-scheme media query, npm run test:admin-dark) or
+// public/sporta-admin-knet.css (the admin follows html.dark / data-theme=dark, not the device alone; there is no
+// test:admin-dark script, the guards are npm run test:admin-light and test:admin-payments) or
 // copy / markup the owner has to decide. The shell it expects: header.m-header, nav.m-tabbar, a
 // .m-menu-layer > .m-menu-panel bottom sheet, main.admin-content (measured 2026-11-03).
 //

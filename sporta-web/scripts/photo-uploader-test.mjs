@@ -38,7 +38,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { LIVE, PRODUCTS, BRANDS, SCREEN, ORDERS, screenHtml, PAGE_CSS, FIXTURE_JS } from './fixtures/admin-products.mjs'
+import { LIVE, PRODUCTS, BRANDS, SCREEN, ORDERS, LIST, screenHtml, PAGE_CSS, FIXTURE_JS } from './fixtures/admin-products.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BRANDS_JS = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
@@ -773,6 +773,237 @@ for (const [label, opts] of [
   is((await rowFor(pg, 'vanquish-tee-white-1.jpg')).state === 'done', 'Enter on Upload runs it (keyboard only)')
   is(await pg.locator(`${SEL} input[type=file]`).getAttribute('tabindex') === '-1', 'the hidden file input is not a second tab stop; the Choose button is')
   await pg.context().close()
+}
+
+// =============================================================================================== 8b. the review round
+// Each block below is one finding of the independent review of the first version.
+// A JPEG with an EXIF Orientation segment spliced in after the SOI marker (the bytes the phone's camera writes).
+function withExif(jpeg, orientation, bigEndian) {
+  const tiff = bigEndian
+    ? Buffer.from([0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation, 0, 0, 0, 0, 0, 0])
+    : Buffer.from([0x49, 0x49, 0x2a, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, orientation, 0, 0, 0, 0, 0, 0, 0])
+  const body = Buffer.concat([Buffer.from([0x45, 0x78, 0x69, 0x66, 0, 0]), tiff])
+  const seg = Buffer.concat([Buffer.from([0xff, 0xe1, (body.length + 2) >> 8, (body.length + 2) & 255]), body])
+  return Buffer.concat([jpeg.subarray(0, 2), seg, jpeg.subarray(2)])
+}
+put('turned-be.jpg', withExif(await makeImage('image/jpeg', 1500, 1200, 11), 6, true))
+put('turned-le.jpg', withExif(await makeImage('image/jpeg', 1500, 1200, 12), 8, false))
+put('upright-exif.jpg', withExif(await makeImage('image/jpeg', 1200, 1500, 13), 1, false))
+put('flat.jpg', await makeImage('image/jpeg', 1500, 1200, 14))
+put('air-max-15.jpg', await makeImage('image/jpeg', 1600, 2000, 15))
+put('air-max-90-1.jpg', await makeImage('image/jpeg', 1200, 1500, 16))
+
+head('review 1: the compiled product list goes stale after a run')
+{
+  const { pg, api } = await open()
+  is(!(await pg.locator(`${SEL} [data-sph=stale]`).isVisible()), 'before any save there is no stale-list notice')
+  await addFiles(pg, P('vanquish-tee-white-1.jpg'))
+  await uploadAll(pg)
+  const box = pg.locator(`${SEL} [data-sph=stale]`)
+  is(await box.isVisible() && /Reload the page before you edit a product/.test(await box.textContent()) && /old photos back/.test(await box.textContent()), 'after a save the panel says the list is out of date and to reload before editing', await box.textContent())
+  is(/Reload the page before editing products\./.test(await statusOf(pg)), 'the end-of-run line (an aria-live region) says it too', await statusOf(pg))
+  is(await box.getAttribute('role') === 'alert' && await pg.locator(`${SEL} [data-k=reloadpage]`).isVisible(), 'the notice is an alert and carries a Reload the page button')
+  await pg.locator(`${SEL} [data-k=clear]`).click()
+  is(await box.isVisible(), 'clearing the file list does not hide it: the page is still stale')
+  await pg.evaluate(() => { window.__marker = 1 })
+  await Promise.all([pg.waitForNavigation(), pg.locator(`${SEL} [data-k=reloadpage]`).click()])
+  await pg.waitForTimeout(450)
+  is(await pg.evaluate(() => window.__marker === undefined), 'the button reloads the page')
+  is(!(await pg.locator(`${SEL} [data-sph=stale]`).isVisible()), 'and after the reload the notice is gone')
+  // a run in which nothing was saved does not claim the list is stale
+  const api2 = makeApi(); api2.st.saveFaults.push({ status: 500, body: { error: 'boom' } })
+  const o = await open({ api: api2 })
+  await addFiles(o.pg, P('vanquish-tee-white-1.jpg')); await uploadAll(o.pg)
+  is(!(await o.pg.locator(`${SEL} [data-sph=stale]`).isVisible()) && !/Reload the page/.test(await statusOf(o.pg)), 'a run whose save failed saved nothing: no stale notice')
+  await o.ctx.close()
+  const a = await open({ ar: true })
+  await addFiles(a.pg, P('vanquish-tee-white-1.jpg')); await uploadAll(a.pg)
+  is(/أعد تحميل الصفحة قبل تعديل المنتجات/.test(await statusOf(a.pg)) && /إعادة تحميل الصفحة/.test(await a.pg.locator(`${SEL} [data-sph=stale]`).textContent()), 'and in Arabic')
+  await a.ctx.close()
+  await pg.context().close()
+}
+
+head('review 2: -1 over an existing main photo')
+{
+  const MAIN = '/images/products/air-max-90-old0000001.jpg', EXTRA = '/images/products/air-max-90-old0000002.jpg'
+  const { pg, api } = await open()
+  await addFiles(pg, P('air-max-90-1.jpg', 'vanquish-tee-white-1.jpg', 'air-max-90.jpg'))
+  const R = Object.fromEntries((await rowsOf(pg)).map((r) => [r.name, r]))
+  is(R['air-max-90-1.jpg'].pos === '1' && R['air-max-90-1.jpg'].slug === 'air-max-90', 'air-max-90-1.jpg -> air-max-90, position 1')
+  is(R['air-max-90-1.jpg'].warns.some((w) => /becomes the main photo/.test(w) && /moves to second place; nothing is deleted/.test(w)), 'position 1 over a product that has a main photo warns BEFORE any upload', R['air-max-90-1.jpg'].warns.join('|'))
+  is(!R['vanquish-tee-white-1.jpg'].warns.some((w) => /main photo/.test(w)), 'no warning when the product has no main photo yet')
+  is(!R['air-max-90.jpg'].warns.some((w) => /main photo/.test(w)), 'no warning for an unnumbered file (it is added at the end)')
+  is(api.mine().filter((c) => c.method === 'POST').length === 0, 'nothing was sent yet')
+  for (const n of ['vanquish-tee-white-1.jpg', 'air-max-90.jpg']) await pg.locator(`${SEL} li.sph-row:has(.sph-name:text-is("${n}")) [data-k=remove]`).click()
+  await uploadAll(pg)
+  const up = api.st.uploads.find((u) => u.name === 'air-max-90-1.jpg').path
+  const row = rowOf(api, 5)
+  is(row.image === up, 'the new file is the main photo', row.image)
+  is(row.images === [MAIN, EXTRA].join(','), 'the old main photo is not dropped: it leads the other photos, then the old extra', row.images)
+  const body = api.st.saves.find((x) => x.body.id === 5).body
+  is(body.image === up && body.images === [MAIN, EXTRA].join(','), 'the product_save body says the same')
+  const after = (await rowsOf(pg)).find((r) => r.name === 'air-max-90-1.jpg')
+  is(/Added to .*as main photo\. The previous main photo is now photo 2\./.test(after.detail), 'the row says what moved', after.detail)
+  is(!after.warns.some((w) => /main photo/.test(w)), 'the warning goes away once it is done')
+  const log = await pg.locator(`${SEL} [data-sph=log]`).textContent()
+  is(log.includes('was image=' + MAIN + ' images=' + EXTRA), 'and the log still has what the product had before')
+  // the old main is also one of the extras: no duplicate
+  const api2 = makeApi(); rowOf(api2, 5).images = MAIN + ',' + EXTRA
+  const o = await open({ api: api2 })
+  await addFiles(o.pg, P('air-max-90-1.jpg')); await uploadAll(o.pg)
+  is(rowOf(api2, 5).images === [MAIN, EXTRA].join(','), 'a main photo that is also listed among the others is not listed twice', rowOf(api2, 5).images)
+  await o.ctx.close()
+  const a = await open({ ar: true })
+  await addFiles(a.pg, P('air-max-90-1.jpg'))
+  is((await rowsOf(a.pg))[0].warns.some((w) => /الصورة الرئيسية الحالية/.test(w)), 'the warning exists in Arabic')
+  await a.ctx.close()
+  const b = await open()
+  const copy = await b.pg.locator(`${SEL} .sph-ex`).textContent()
+  is(/added after the photos the product already has/.test(copy) && !/second photo/.test(copy), 'the example text says -2 goes AFTER the product\'s photos, not into slot 2', copy)
+  await b.ctx.close()
+  await pg.context().close()
+}
+
+head('review 3: Arabic counts agree with their nouns')
+{
+  const arSrc = BRANDS_JS.slice(BRANDS_JS.indexOf("    ar: {\n      title: 'الصور'"), BRANDS_JS.indexOf("unit: 'بكسل'"))
+  // {k} is excluded: "الصورة {k}" is the photo's number (an ordinal label), not a count
+  is(!/\{[a-jl-z]\}\s*(صورة|ملف|منتج|ثانية|ثوان)/.test(arSrc) && !/(صورة|ملف|منتج)\s*\{[a-jl-z]\}/.test(arSrc), 'no Arabic string puts a bare digit in front of a singular count noun')
+  const toks = [...arSrc.matchAll(/\{[a-z]+\|[^{}]*\}/g)].map((m) => m[0])
+  is(toks.length >= 10 && toks.every((tk) => tk.slice(1, -1).split('|').length === 6), `every count token has the five forms (${toks.length} tokens)`, toks.filter((tk) => tk.slice(1, -1).split('|').length !== 6).join(' '))
+  const extra = Array.from({ length: 6 }, (_, i) => ({ ...clone(PRODUCTS[5]), id: 100 + i, slug: 'extra-' + i, name_en: 'Extra ' + i, name_ar: 'إضافي ' + i }))
+  const api = makeApi(); api.st.rows = api.st.rows.concat(extra)
+  const a = await open({ ar: true, api })
+  const prod = () => a.pg.locator(`${SEL} .sph-prod`).textContent()
+  is(/تم تحميل ١٢ منتجًا\./.test(await prod()), '12 products: تم تحميل ١٢ منتجًا (singular after eleven)', await prod())
+  await addFiles(a.pg, P('vanquish-tee-white-1.jpg'))
+  is(await startBtn(a.pg).textContent() === 'رفع صورة واحدة', 'one file: رفع صورة واحدة', await startBtn(a.pg).textContent())
+  is(/تمت إضافة ملف واحد\./.test(await statusOf(a.pg)) && /ملف واحد جاهز\./.test(await a.pg.locator(`${SEL} .sph-hint`).textContent()), 'one file added / ready: ملف واحد', await statusOf(a.pg))
+  await addFiles(a.pg, P('vanquish-tee-white-2.png'))
+  is(await startBtn(a.pg).textContent() === 'رفع صورتين', 'two files: the dual, رفع صورتين', await startBtn(a.pg).textContent())
+  is(/ملفان جاهزان\./.test(await a.pg.locator(`${SEL} .sph-hint`).textContent()), 'two ready: ملفان جاهزان', await a.pg.locator(`${SEL} .sph-hint`).textContent())
+  await addFiles(a.pg, P('Vanquish_Tee_White 3.webp', 'air-max-2.jpg', 'run-shorts (2).jpg'))
+  is(await startBtn(a.pg).textContent() === 'رفع ٥ صور', 'five files: the plural, رفع ٥ صور', await startBtn(a.pg).textContent())
+  is(/تمت إضافة ٣ ملفات\./.test(await statusOf(a.pg)), 'three added: ٣ ملفات', await statusOf(a.pg))
+  await addFiles(a.pg, P('vanquish-tee-white-1.jpg'))
+  is(/ملف واحد موجود في القائمة أصلًا\./.test(await statusOf(a.pg)), 'one duplicate: ملف واحد موجود في القائمة أصلًا', await statusOf(a.pg))
+  await addFiles(a.pg, P('mystery.jpg', 'team-hoodie.jpg'))
+  is(/ملفان يحتاجان إلى منتج\./.test(await a.pg.locator(`${SEL} .sph-hint`).textContent()), 'two need a product: ملفان يحتاجان إلى منتج', await a.pg.locator(`${SEL} .sph-hint`).textContent())
+  await uploadAll(a.pg)
+  const sumAr = await a.pg.locator(`${SEL} [data-sph=summary]`).textContent()
+  is(/رُفعت ٥ صور،/.test(sumAr) && /أُضيفت ٥ صور إلى المنتجات/.test(sumAr) && /لم تفشل أي صورة/.test(sumAr), 'the summary counts its nouns too', sumAr)
+  await a.ctx.close()
+  // the stop line
+  const b = await open({ ar: true })
+  await addFiles(b.pg, P('vanquish-tee-white-1.jpg', 'vanquish-tee-white-2.png', 'Vanquish_Tee_White 3.webp'))
+  await startBtn(b.pg).click(); await b.pg.locator(`${SEL} [data-k=stop]`).click(); await waitIdle(b.pg)
+  const st = await statusOf(b.pg)
+  is(/(ما زالت صورتان|ما زالت صورة واحدة|ما زالت ٣ صور) بانتظار الرفع/.test(st) || /اكتمل/.test(st), 'after a stop: the waiting photos are counted by their noun', st)
+  await b.ctx.close()
+}
+
+head('review 4: more rows held before anything is uploaded')
+{
+  const api = makeApi()
+  rowOf(api, 6).name_en = '   '
+  rowOf(api, 1).name_ar = 'ا'.repeat(161)
+  Object.assign(rowOf(api, 4), { sale_price: '30.000', sale_starts_at: '2026-12-01 00:00:00', sale_ends_at: '2026-11-01 00:00:00' })
+  const { pg } = await open({ api })
+  await addFiles(pg, P('vanquish-tee-white-1.jpg', 'run-shorts (2).jpg', 'air-max-2.jpg'))
+  const R = Object.fromEntries((await rowsOf(pg)).map((r) => [r.name, r]))
+  is(R['vanquish-tee-white-1.jpg'].state === 'held' && /empty or over 160/.test(R['vanquish-tee-white-1.jpg'].warns.join('')), 'an empty (spaces only) name is held with the reason', JSON.stringify(R['vanquish-tee-white-1.jpg']))
+  is(R['run-shorts (2).jpg'].state === 'held' && /empty or over 160/.test(R['run-shorts (2).jpg'].warns.join('')), 'a 161-character Arabic name is held')
+  is(R['air-max-2.jpg'].state === 'held' && /ends before it starts/.test(R['air-max-2.jpg'].warns.join('')), 'sale dates that run backwards (with a sale price) are held', JSON.stringify(R['air-max-2.jpg']))
+  is(await startBtn(pg).isDisabled(), 'so nothing is ready to upload')
+  is(api.mine().filter((c) => c.method === 'POST').length === 0, 'and nothing was uploaded or saved')
+  await pg.context().close()
+
+  // what the server accepts is not held: 160 characters, equal dates, backwards dates WITHOUT a sale price
+  const api2 = makeApi()
+  rowOf(api2, 6).name_ar = 'ا'.repeat(160)
+  Object.assign(rowOf(api2, 4), { sale_price: '30.000', sale_starts_at: '2026-11-01 00:00:00', sale_ends_at: '2026-11-01 00:00:00' })
+  Object.assign(rowOf(api2, 1), { sale_price: null, sale_starts_at: '2026-12-01 00:00:00', sale_ends_at: '2026-11-01 00:00:00' })
+  const o = await open({ api: api2 })
+  await addFiles(o.pg, P('vanquish-tee-white-1.jpg', 'run-shorts (2).jpg', 'air-max-2.jpg'))
+  const R2 = Object.fromEntries((await rowsOf(o.pg)).map((r) => [r.name, r]))
+  is(Object.values(R2).every((r) => r.state === 'ready'), '160 characters, equal dates, and dates with no sale price at all are not held', Object.values(R2).map((r) => r.state).join(','))
+  is(/sale dates but no sale price.*clears the dates/.test(R2['run-shorts (2).jpg'].warns.join('')), 'a row with sale dates but no sale price warns that saving clears them', R2['run-shorts (2).jpg'].warns.join('|'))
+  is(!R2['air-max-2.jpg'].warns.some((w) => /sale dates/.test(w)) && !R2['vanquish-tee-white-1.jpg'].warns.some((w) => /sale dates/.test(w)), 'and rows with a sale price (or no dates) do not')
+  await uploadAll(o.pg)
+  const r1 = rowOf(api2, 1)
+  is(r1.sale_starts_at === null && r1.sale_ends_at === null && /^\/images\/products\/run-shorts-2-[0-9a-f]{10}\.jpg$/.test(r1.image) && r1.images.split(',').length === 2, 'the warned row was saved and the server did clear the dates, as announced (the photo is on it: this product had no main photo, so the file is its main one)', JSON.stringify([r1.sale_starts_at, r1.sale_ends_at, r1.image, r1.images]))
+  is(rowOf(api2, 4).sale_starts_at === '2026-11-01 00:00:00', 'a row with a real sale keeps its dates')
+  await o.ctx.close()
+  // an unknown brand (only possible after a hand edit of the database) ends honestly, with a reason and a Retry
+  const api3 = makeApi(); rowOf(api3, 6).brand_slug = 'gone-brand'
+  const u = await open({ api: api3 })
+  await addFiles(u.pg, P('vanquish-tee-white-1.jpg')); await uploadAll(u.pg)
+  const ru = await rowFor(u.pg, 'vanquish-tee-white-1.jpg')
+  is(ru.state === 'unattached' && /brand that no longer exists/.test(ru.detail) && ru.buttons.includes('retry') && /Written to \/images\/products\//.test(ru.detail), 'unknown brand: Uploaded, not added, with the reason, the path and a Retry', ru.detail)
+  await u.ctx.close()
+}
+
+head('review 5: finding the screen')
+{
+  SCREENS.cmponly = SCREEN.replace(LIST, '')
+  SCREENS.kwd = SCREEN.replace('<th class="p-3 text-end">Price</th>', '<th class="p-3 text-end">Price (KWD)</th>')
+  is(SCREENS.cmponly !== SCREEN && SCREENS.kwd !== SCREEN, 'the two variant screens were built')
+  const a = await open({ screen: 'cmponly' })
+  is(await a.pg.locator(SEL).count() === 0, 'a screen with only the Comparison table (Product / Site price / Database) gets no panel: "Site price" is not "Price"')
+  await a.ctx.close()
+  const b = await open({ screen: 'kwd' })
+  is(await b.pg.locator(SEL).count() === 1 && await b.pg.evaluate((sel) => document.querySelector(sel).nextElementSibling?.id === 'product-table-wrap', SEL), 'a header "Price (KWD)" still finds the product table, and the panel sits above it, not above Comparison')
+  await b.ctx.close()
+}
+
+head('review 6: the small edges')
+{
+  const { pg, api } = await open()
+  // (a) a finished file removed, then added again, is not written twice
+  await addFiles(pg, P('vanquish-tee-white-1.jpg'))
+  await uploadAll(pg)
+  is(api.st.uploads.length === 1 && api.st.saves.length === 1, 'first run: one upload, one save')
+  await pg.locator(`${SEL} [data-sph=list] li`).first().locator('[data-k=remove]').click()
+  await addFiles(pg, P('vanquish-tee-white-1.jpg'))
+  const again = await rowFor(pg, 'vanquish-tee-white-1.jpg')
+  is(again.state === 'ready' && again.warns.some((w) => /already uploaded in this session/.test(w)), 'the same file added again says it was already uploaded', JSON.stringify(again))
+  await uploadAll(pg)
+  is(api.st.uploads.length === 1, 'removed and added again: NOT uploaded a second time', String(api.st.uploads.length))
+  is(rowOf(api, 6).image === api.st.uploads[0].path && !rowOf(api, 6).images, 'and the product has the photo once')
+  await pg.locator(`${SEL} [data-k=clear]`).click()
+  await addFiles(pg, P('vanquish-tee-white-1.jpg'))
+  await uploadAll(pg)
+  is(api.st.uploads.length === 1, 'cleared and added again: still one upload')
+  is(await pg.locator(`${SEL} details summary`).textContent() === 'Files written (1)', 'the "files written" count counts the one file, not the repeats', await pg.locator(`${SEL} details summary`).textContent())
+  is(/same file, not written again/.test(await pg.locator(`${SEL} [data-sph=log]`).textContent()), 'the repeats are in the list, marked')
+  await pg.context().close()
+  // an uploaded-but-not-added file that is removed and re-added is only added, not uploaded again
+  const api2 = makeApi(); api2.st.saveFaults.push({ status: 500, body: { error: 'boom' } })
+  const o = await open({ api: api2 })
+  await addFiles(o.pg, P('run-shorts (2).jpg')); await uploadAll(o.pg)
+  is(api2.st.uploads.length === 1 && (await rowFor(o.pg, 'run-shorts (2).jpg')).state === 'unattached', 'a save failed after the upload')
+  await o.pg.locator(`${SEL} [data-sph=list] li`).first().locator('[data-k=remove]').click()
+  await addFiles(o.pg, P('run-shorts (2).jpg')); await uploadAll(o.pg)
+  is(api2.st.uploads.length === 1 && rowOf(api2, 1).image === api2.st.uploads[0].path, 'removed and re-added: only added to the product, the file is not on the server twice')
+  await o.ctx.close()
+
+  // (c) a phone photo stored sideways: the 4:5 check is on the picture as it is seen
+  const p2 = await open()
+  await addFiles(p2.pg, P('turned-be.jpg', 'turned-le.jpg', 'upright-exif.jpg', 'flat.jpg'))
+  const R = Object.fromEntries((await rowsOf(p2.pg)).map((r) => [r.name, r]))
+  is(/1200×1500/.test(R['turned-be.jpg'].meta) && !R['turned-be.jpg'].warns.some((w) => /4:5/.test(w)), 'JPEG 1500x1200 with EXIF turn 6 (big-endian): shown as 1200x1500, no 4:5 warning', R['turned-be.jpg'].meta + ' ' + R['turned-be.jpg'].warns.join('|'))
+  is(/1200×1500/.test(R['turned-le.jpg'].meta) && !R['turned-le.jpg'].warns.some((w) => /4:5/.test(w)), 'the same with turn 8 (little-endian)')
+  is(/1200×1500/.test(R['upright-exif.jpg'].meta) && R['upright-exif.jpg'].warns.length === 0, 'EXIF turn 1 leaves the size alone')
+  is(/1500×1200/.test(R['flat.jpg'].meta) && R['flat.jpg'].warns.some((w) => /Not 4:5/.test(w)), 'a landscape JPEG with no EXIF still warns', R['flat.jpg'].warns.join('|'))
+  await p2.ctx.close()
+
+  // (d) a suffix over 12 is a real option
+  const p3 = await open()
+  await addFiles(p3.pg, P('air-max-15.jpg'))
+  const r15 = await rowFor(p3.pg, 'air-max-15.jpg')
+  is(r15.slug === 'air-max' && r15.pos === '15', 'air-max-15.jpg -> position 15, not a blank select', JSON.stringify(r15))
+  is(await p3.pg.locator(`${SEL} select[data-k=pos] option`).evaluateAll((o) => o.map((x) => x.value).join(',')) === ',1,2,3,4,5,6,7,8,9,10,11,12,13,14,15', 'the position list runs to the number the file name asked for')
+  await p3.ctx.close()
 }
 
 // =============================================================================================== 9. rest of the file

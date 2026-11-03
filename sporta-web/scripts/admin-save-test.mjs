@@ -25,6 +25,9 @@
 //   - a burst of DOM changes costs at most one pass per frame and an idle page costs none;
 //   - evaluated twice, the file still makes one bar; on the storefront nothing runs, and a single-page navigation into
 //     and out of /backends starts and stops it;
+//   - Only Save-like labels or an allowlist (create, add note, send, update, publish, set/change password) are mirrored: submits
+//     "Approve refund", "Reject return", "Issue refund", "Mark as shipped", "Ship order", "Charge card", "Void payment",
+//     "Push to store" get no bar, each pinned by a mutant;
 //   - Cancel / Delete are never offered as a Save: a long form whose only out-of-view button is a Cancel (type=button or
 //     type=submit), a submit "Delete product", and a scrolling modal with a submit Cancel and Delete get no bar, even after
 //     a field was typed in;
@@ -36,7 +39,7 @@ import tailwind from '@tailwindcss/postcss'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PAGES, CONFIRM, ALL_HTML, FIXTURE_CSS, FIXTURE_JS, render } from './fixtures/admin-save.mjs'
+import { PAGES, ACTIONS, CONFIRM, ALL_HTML, FIXTURE_CSS, FIXTURE_JS, render } from './fixtures/admin-save.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const BRANDS = readFileSync(join(ROOT, 'public/sporta-admin-brands.js'), 'utf8')
@@ -128,6 +131,7 @@ const CASES = {
   'cancel-submit': { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } },
   'delete-submit': { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } },
   'delete-modal': { sel: null, box: '#delete-overlay', touch: true, show: { phone: false, desktop: false } },
+  ...Object.fromEntries(ACTIONS.map(([k]) => [k, { sel: null, box: 'window', touch: true, show: { phone: false, desktop: false } }])),
   'confirm-over-form': { sel: '.topbar-editor__save', box: 'window', save: 'topbar', label: 'Saved', show: { phone: true, desktop: true } },
 }
 
@@ -351,7 +355,7 @@ for (const dark of [false, true]) {
           await scrollBox(pg, c.box, 0); await settle(pg, 300)
           await pg.evaluate(() => { const i = document.querySelector('input[name=f1]'); i.focus({ preventScroll: true }); i.value = 'x'; i.dispatchEvent(new Event('input', { bubbles: true })) })
           await settle(pg)
-          is(!(await barState(pg)).shown, `${name} @${vn}${dark ? ' dark' : ''}: a Cancel / Delete button is not offered as a Save even after a field was typed in`)
+          is(!(await barState(pg)).shown, `${name} @${vn}${dark ? ' dark' : ''}: a Cancel / Delete / action button is not offered as a Save even after a field was typed in`)
           await scrollBox(pg, c.box, 'max'); await settle(pg, 400)
           is((await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]:not([hidden])').length)) === 0, `${name} @${vn}${dark ? ' dark' : ''}: and none is up at the end of the form either`)
         }
@@ -508,8 +512,18 @@ head('mutation check')
 // start showing a bar. A mutant that does not apply (the line moved) fails the run, so the check cannot rot into a no-op.
 const MUTANTS = [
   ['a label starting with Cancel counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^cancel/i.test(lead)', ['cancel-button', 'cancel-submit', 'delete-modal']],
-  ['the Cancel / Delete / ... refusal list is not consulted', 'if (!save && NOT.test(lead)) return false', '', ['cancel-submit', 'delete-submit', 'delete-modal']],
+  // (The NOT list is now a second line behind the SENDLIKE allowlist, so removing it alone changes nothing a fixture can see; the
+  // allowlist mutant below and the label mutants above pin the behaviour.)
   ['a label starting with Delete counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^delete/i.test(lead)', ['delete-submit', 'delete-modal']],
+  ['a label starting with Approve counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^approve/i.test(lead)', ['approve-submit']],
+  ['a label starting with Reject counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^reject/i.test(lead)', ['reject-submit']],
+  ['a label starting with Issue counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^issue/i.test(lead)', ['refund-submit']],
+  ['a label starting with Mark counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^mark/i.test(lead)', ['markship-submit']],
+  ['a label starting with Ship counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^ship/i.test(lead)', ['ship-submit']],
+  ['a label starting with Charge counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^charge/i.test(lead)', ['charge-submit']],
+  ['a label starting with Void counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^void/i.test(lead)', ['void-submit']],
+  ['a label starting with Push counts as a Save', 'var save = SAVE.test(lead)', 'var save = SAVE.test(lead) || /^push/i.test(lead)', ['push-submit']],
+  ['the allowlist of mirrored submit labels is not consulted', 'if (!SENDLIKE.test(lead)) return false', '', ACTIONS.map(([k]) => k)],
 ]
 for (const [what, from, to, names] of MUTANTS) {
   const at = BRANDS.indexOf(from, BEGIN)
@@ -528,7 +542,7 @@ for (const [what, from, to, names] of MUTANTS) {
   const failed = sink.filter((x) => !x.ok).length
   sink = null
   brandsText = BRANDS
-  is(failed >= 1, `mutant "${what}" is caught: a Cancel / Delete fixture shows a bar (${failed} of ${names.length} fixtures fail)`)
+  is(failed >= 1, `mutant "${what}" is caught: a Cancel / Delete / action fixture shows a bar (${failed} of ${names.length} fixtures fail)`)
 }
 
 await browser.close()

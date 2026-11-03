@@ -17,6 +17,8 @@
 //   cancel-submit    the same with Cancel as a type=submit button (Cancel can submit a form in a compiled build)
 //   delete-submit    the same with a type=submit "Delete product" (a destructive action is never offered as a Save)
 //   delete-modal     a scrolling modal whose out-of-view buttons are a submit Cancel and a submit Delete
+//   approve-submit .. push-submit  the same with a submit "Approve refund", "Reject return", "Issue refund", "Mark as shipped",
+//                     "Ship order", "Charge card", "Void payment", "Push to store" (actions, not saves: only an allowlist of labels is mirrored)
 //   confirm-over-form the Topbar page with a Cancel/Delete confirm dialog on top (no bar while it is open)
 //
 // The markup follows the structure and class names the scan recorded; the fields are made up. Tailwind is
@@ -43,6 +45,13 @@ const longForm = (button, key) => `<form class="topbar-editor admin-page-layout 
 ${fields(12)}
 <div class="flex justify-end">${button}</div>
 </form>`
+
+// [fixture name, label]: each is the lone submit of a 12-field form.
+export const ACTIONS = [
+  ['approve-submit', 'Approve refund'], ['reject-submit', 'Reject return'], ['refund-submit', 'Issue refund'],
+  ['markship-submit', 'Mark as shipped'], ['ship-submit', 'Ship order'], ['charge-submit', 'Charge card'],
+  ['void-submit', 'Void payment'], ['push-submit', 'Push to store'],
+]
 
 export const PAGES = {
   'topbar-window': { main: topbarForm },
@@ -124,6 +133,9 @@ export const PAGES = {
     extra: `<div class="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" id="delete-overlay"><form class="w-full max-w-2xl space-y-5 rounded-2xl bg-white p-5 mx-auto panel" data-save="delete-modal"><h2 class="text-lg font-bold">Edit product</h2>${fields(10)}
 <div class="flex justify-end gap-3"><button type="submit" class="rounded-xl border px-4 py-2 font-semibold" data-save="delete-modal">Cancel</button><button type="submit" class="rounded-xl bg-rose-600 px-4 py-2 text-white" data-save="delete-modal">Delete</button></div></form></div>`,
   },
+
+  // Action buttons that are a type=submit of a form with fields: money or irreversible, never a Save (no bar).
+  ...Object.fromEntries(ACTIONS.map(([key, label]) => [key, { main: longForm(`<button type="submit" class="rounded-xl bg-rose-600 px-4 py-2 text-white" data-save="${key}">${label}</button>`, key) }])),
 
   'confirm-over-form': { main: topbarForm, confirm: true },
 }

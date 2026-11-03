@@ -2575,9 +2575,23 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
             $order['fulfilment_status'] = 'cancelled';
         }
 
+        // PAID is never released. REVIEW is released only once a PERSON has
+        // cancelled the order. A capture parked for review (wrong amount, no
+        // payment id, an unrecognised result) keeps its garments claimed on
+        // purpose, because the money may be real; but the owner settles it at
+        // the bank and cancels it in /backends, and that cancel was accepted
+        // while every release path skipped 'review': the order stayed
+        // stock_claimed=1 / stock_released=0 / discount_released=0 for ever, the
+        // shelf short by its pieces and a limited code short by its spent use.
+        // A review order that is NOT cancelled still holds everything. The
+        // stock_released / discount_released flags, read under this row lock,
+        // stop a second release.
+        $reviewKept = $order && $order['payment_status'] === 'review'
+            && $order['fulfilment_status'] !== 'cancelled';
         $eligible = $order && (int)$order['stock_claimed'] === 1
             && (int)$order['stock_released'] === 0
-            && !in_array($order['payment_status'], ['paid', 'review'], true)
+            && $order['payment_status'] !== 'paid'
+            && !$reviewKept
             && ($order['payment_status'] === 'failed'
                 || $order['fulfilment_status'] === 'cancelled'
                 || ($order['payment_status'] === 'pending'
@@ -2589,8 +2603,8 @@ function store_stock_release(PDO $db, int $orderId, int $holdMinutes = 120): boo
         // a card order whose reservation is being released right now — pay.php
         // refuses an order once its stock is gone, or once it is cancelled
         // (which a card order holding only uses now is, above). Never a paid
-        // order, never one under review.
-        $dead = $order && !in_array($order['payment_status'], ['paid', 'review'], true)
+        // order; one under review only once it has been cancelled.
+        $dead = $order && $order['payment_status'] !== 'paid' && !$reviewKept
             && ($order['payment_status'] === 'failed'
                 || $order['fulfilment_status'] === 'cancelled'
                 || $eligible);

@@ -2968,6 +2968,98 @@ fi
       }
     }
 
+    // ------------- a card order UNDER REVIEW that the owner cancels gives it all back
+    //
+    // A bank capture that does not match the order (wrong amount, no payment id,
+    // an unrecognised result) is parked as payment_status 'review' and keeps its
+    // garments claimed on purpose: the money may be real. When the owner settles
+    // it at the bank and cancels the order in /backends, the cancel was accepted
+    // but every release path excluded 'review', so the order stayed
+    // stock_claimed=1 / stock_released=0 / discount_released=0 for ever: the
+    // shelf short by its pieces and a limited code short by its spent use.
+    // Measured before the fix: shelf 10, order of 2 leaves 8, cancel and sweep
+    // still 8, sweeper candidates 0. A review order that is NOT cancelled must
+    // still hold everything (that is what review is for), and a PAID one too.
+    {
+      const tag = Date.now().toString(36).toUpperCase()
+      const cronR = async () => {
+        const env = { ...process.env, SPORTA_API_CONFIG_FILE: CFG }
+        return JSON.parse((await run('php', [join(STORE_DIR, 'cron-stock.php'), '--release'], { env })).stdout)
+      }
+      const JARR = new Map()
+      const adminR = (route, body) => at('198.41.9.1', `admin.php?r=${route}`, { method: 'POST', body, jar: JARR })
+      const shelf = async () => Number(await sql("select stock from product_variants where slug = 'cloudsoft-top-navy' and size = 'L'"))
+      const used = async () => Number(await sql("select used_count from discounts where code = 'REVIEW2'"))
+      const row = (t) => sql(`select concat(payment_status, '/', fulfilment_status, '/', stock_claimed, '/', stock_released, '/', discount_released) from orders where track_id = '${t}'`)
+      const idR = async (t) => Number(await sql(`select id from orders where track_id = '${t}'`))
+      const TOP2 = [{ slug: 'cloudsoft-top-navy', size: 'L', qty: 2 }]
+      const place = (track, phone, method) => at(`198.41.0.${Number(phone.slice(-2))}`, 'api.php?r=order', {
+        method: 'POST', body: { track_id: track, items: TOP2, customer: { ...CUSTOMER, phone }, payment_method: method,
+          discount_code: 'REVIEW2' } })
+      const stock0 = await shelf()
+      try {
+        await sql(`delete from rate_limit; delete from discounts;
+                   update admin_users set failed_attempts = 0, locked_until = null where email = 'cs@sporta.com.kw';
+                   insert into discounts (kind, code, label, type, value, min_order, active, usage_limit)
+                   values ('code', 'REVIEW2', 'review', 'fixed', 1, 0, 1, 2)`)
+        const signed = await at('198.41.9.1', 'admin.php?r=login', { method: 'POST',
+          body: { email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }, jar: JARR })
+        is(signed.status === 200, 'the owner signs in for the review-order checks', `${signed.status} ${signed.body?.error ?? ''}`)
+
+        for (const method of ['knet', 'tpay']) {
+          const A = `SPRV${method === 'knet' ? 'K' : 'T'}${tag}`
+          const before = await shelf()
+          const placed = await place(A, method === 'knet' ? '95560701' : '95560702', method)
+          is(placed.status === 200 && await shelf() === before - 2 && await used() === 1,
+             `a ${method} order for 2 claims both pieces and one code use`, `${placed.status} shelf ${before}->${await shelf()} used=${await used()}`)
+          // the capture lands in review, as the callbacks leave it
+          await sql(`update orders set payment_status = 'review' where track_id = '${A}'`)
+          await sql(`update orders set created_at = now() - interval 3 hour where track_id = '${A}'`)
+          const held = await cronR()
+          is(!held.track_ids?.includes(A) && await shelf() === before - 2 && await used() === 1
+             && await row(A) === 'review/unfulfilled/1/0/0',
+             `control: a ${method} order under review that is NOT cancelled keeps its pieces and its use, however old`,
+             `${await row(A)} shelf=${await shelf()} used=${await used()}`)
+          const c = await adminR('fulfilment', { order_id: await idR(A), status: 'cancelled' })
+          is(c.status === 200, `the owner cancels the ${method} order under review`, `${c.status} ${c.body?.error ?? ''}`)
+          const swept = await cronR()
+          is(swept.track_ids?.includes(A) && await shelf() === before && await used() === 0
+             && await row(A) === 'review/cancelled/1/1/1',
+             `and the sweep gives its 2 pieces and its code use back (${method})`,
+             `${await row(A)} shelf=${await shelf()} (want ${before}) used=${await used()} swept=${JSON.stringify(swept.track_ids)}`)
+          await cronR()
+          is(await shelf() === before && await used() === 0, `a second sweep gives nothing back twice (${method})`,
+             `shelf=${await shelf()} used=${await used()}`)
+        }
+
+        // A review order cancelled and swept can be put back: it claims again, once.
+        const B = `SPRVB${tag}`
+        const b0 = await shelf()
+        await place(B, '95560703', 'knet')
+        await sql(`update orders set payment_status = 'review' where track_id = '${B}'`)
+        await adminR('fulfilment', { order_id: await idR(B), status: 'cancelled' })
+        await cronR()
+        const back = await adminR('fulfilment', { order_id: await idR(B), status: 'unfulfilled' })
+        is(back.status === 200 && await shelf() === b0 - 2 && await used() === 1 && await row(B) === 'review/unfulfilled/1/0/0',
+           'putting a released review order back claims its pieces and its use again, once',
+           `${back.status} ${back.body?.error ?? ''} ${await row(B)} shelf ${b0}->${await shelf()} used=${await used()}`)
+
+        // A PAID order is never released, cancelled or not (the admin refuses the cancel).
+        const P = `SPRVP${tag}`
+        const p0 = await shelf()
+        await place(P, '95560704', 'knet')
+        await sql(`update orders set payment_status = 'paid', fulfilment_status = 'cancelled' where track_id = '${P}'`)
+        await cronR()
+        is(await shelf() === p0 - 2 && await row(P) === 'paid/cancelled/1/0/0',
+           'a PAID order is never released by the sweeper, even if its fulfilment says cancelled', `${await row(P)} shelf=${await shelf()}`)
+      } finally {
+        await sql(`delete f from fulfilment_outbox f join orders o on o.id = f.order_id where o.track_id like 'SPRV%${tag}';
+                   delete i from order_items i join orders o on o.id = i.order_id where o.track_id like 'SPRV%${tag}';
+                   delete from orders where track_id like 'SPRV%${tag}'; delete from discounts; delete from rate_limit;
+                   update product_variants set stock = ${stock0} where slug = 'cloudsoft-top-navy' and size = 'L'`)
+      }
+    }
+
     // ------------------------------------------- what one password guess costs
     {
       const ARGON = 'rl-argon@example.test'

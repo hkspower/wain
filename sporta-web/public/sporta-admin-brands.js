@@ -1106,7 +1106,10 @@
   // The first word of a label that is never a save (checked after any leading icon/symbol).
   var NOT = /^(cancel|delete|remove|reset|close|discard|clear|search|filter|apply|find|go|show|load|view|open|sign|log|login|logout|signin|signout|back|next|prev|refresh|export|download|block|unblock|revoke|disconnect|unlink|archive|copy|print|edit|add (photo|image|size|row|variant|item))\b/i
   var SAVE = /^(save|saved|saving)\b/i
-  var SENDLIKE = /^(create|add note|send|update|publish)\b/i
+  // The ONLY labels, other than Save, that may be mirrored from a form's submit button. An allowlist on purpose: any
+  // other submit ("Approve refund", "Ship order", "Charge card", "Void payment" ...) is an action, not a Save, and must
+  // never sit in the thumb zone looking like one.
+  var SENDLIKE = /^(create|add note|send|update|publish|set (a |the )?(new )?password|change (the |your )?password)\b/i
   var SIDE = 'nav, [role=navigation], .admin-sidebar, .m-tabbar, .m-header'
 
   var bar = null, btn = null, styleEl = null
@@ -1147,7 +1150,8 @@
     if (save) return true
     var form = b.form
     if (!form || String(form.getAttribute('role')).toLowerCase() === 'search') return false
-    if (!(type === 'submit' || (!type && SENDLIKE.test(lead)))) return false
+    if (!SENDLIKE.test(lead)) return false
+    if (type && type !== 'submit') return false
     return fieldsIn(form) > 0
   }
   function findCandidates() {
@@ -1568,14 +1572,39 @@
  * sale price as the strings the database gave, sale dates, featured, featured
  * order, brand, category, descriptions, active), except:
  *   - position 1, or a product with no main photo: image = the new path (the
- *     first photo of a product with none becomes its main one);
+ *     first photo of a product with none becomes its main one). A main photo the
+ *     product already has is NOT dropped: it moves to the FRONT of images (so it
+ *     becomes photo 2), the row warns about it before the upload, and the result
+ *     line says so. Without that, -1 would have replaced the main photo and left it
+ *     in neither field;
  *   - otherwise the path is appended to images (comma-separated list), in
- *     position order within the run. A path already on the product is not added twice.
+ *     position order within the run. -2, -3 ... therefore mean "after the photos the
+ *     product has", NOT "put in slot 2". A path already on the product is not added twice.
  * product_save cuts a description at 280 characters (store_opt), so saving a
  * product whose description is longer would silently shorten it. Such a
  * product is HELD BACK: its photos are not uploaded from here at all (no
- * orphan file), and the panel says why. Same for a row product_save would refuse
- * (a slug that is not in its normal form, a price or sale price it would reject).
+ * orphan file), and the panel says why. Same for every row product_save would refuse,
+ * mirrored from admin.php: a slug that is not in its normal form, an empty or over-160
+ * name, a price or sale price it would reject, sale dates that run backwards (only
+ * checked with a sale price, as the server does), a photo address it would reject. An unknown
+ * brand cannot be checked without a fourth route, and brand_delete refuses while a
+ * product uses the brand, so it is only possible after a hand edit of the database; if
+ * it ever happens the file ends as "Uploaded, not added" with the reason and a Retry.
+ * A row with sale dates but no sale price gets a warning: product_save empties both dates
+ * when there is no sale price, so a photo save clears them (the product editor does too).
+ *
+ * THE PRODUCT LIST ON THE PAGE GOES STALE. The compiled Catalogue table was read before
+ * the photos were added and this panel does not redraw it: Edit + Save in that list
+ * would send the old image / images back. After the first save the panel shows a
+ * standing notice with a Reload the page button, and the end-of-run line says it too.
+ *
+ * KNOWN, NOT CLOSED: products_all is read and product_save sent within milliseconds, but
+ * the API has no version check, so another admin tab saving the same product in that
+ * window would be overwritten. Making that impossible needs a server change.
+ *
+ * A file this page has already written is never written twice: removed or cleared and
+ * added again, it keeps its path and is only added to the product (kept until reload).
+ * A JPEG's EXIF turn (orientation 5-8) swaps the pixel size before the 4:5 check.
  *
  * ONE AT A TIME. A single request is in flight at any moment: upload, then the
  * read, then the save, then the next file. HTTP 429 is waited out (Retry-After
@@ -1606,7 +1635,7 @@
   var MAX_BYTES = 10 * 1024 * 1024        // the route's cap
   var MIN_LONG = 1200                     // px on the long side
   var RATIO = 0.8, RATIO_TOL = 0.03       // the shop frames photos 4:5 (w/h = 0.8)
-  var MAX_FILES = 200, MAX_TRIES = 6, DESC_MAX = 280
+  var MAX_FILES = 200, MAX_TRIES = 6, DESC_MAX = 280, NAME_MAX = 160
   var LOG_KEY = 'sporta_photo_log'
   var FORMATS = { 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' }
 
@@ -1614,8 +1643,8 @@
   var STR = {
     en: {
       title: 'Photos',
-      intro: 'Add many product photos at once. Name each file after the product’s web name; add -1, -2 … for the position.',
-      exMain: 'main photo', exSecond: 'second photo', exAuto: 'main photo if the product has none, otherwise added at the end',
+      intro: 'Add many product photos at once. Name each file after the product’s web name. Add -1 for the main photo, or -2, -3 … to add more after the photos the product already has.',
+      exMain: 'main photo (a main photo the product has moves to second place)', exSecond: 'added after the photos the product already has (if it has none, it becomes the main photo)', exAuto: 'main photo if the product has none, otherwise added at the end',
       limits: 'PNG, JPEG or WebP, up to 10 MB each. The shop frames photos 4:5; at least 1200 px on the long side is best. Files are uploaded exactly as they are.',
       choose: 'Choose photos', drop: 'or drop photos here',
       dropAria: 'Drop zone for product photos',
@@ -1642,36 +1671,42 @@
       r_slug: 'This product’s web name is not in its normal form, so it cannot be saved from here. Use the product editor.',
       r_price: 'This product’s price or sale price would be refused when saved. Fix it in the product editor first.',
       r_link: 'A photo already on this product has an address the server would refuse when saving. Fix it in the product editor first.',
+      r_name: 'This product’s name is empty or over 160 characters, so the server would refuse to save it. Fix it in the product editor first.',
+      r_dates: 'The sale on this product ends before it starts, so the server would refuse to save it. Fix the dates in the product editor first.',
       w_small: 'Only {w}×{h} px: under 1200 px on the long side.', w_aspect: 'Not 4:5 ({w}×{h}): the shop will crop it to fit.',
-      w_dup: 'Another file in the list is for the same position of this product.', w_hidden: 'This product is hidden from the shop.', w_ambig: 'The name matches more than one product.', w_dims: 'Size in pixels could not be read.',
+      w_dup: 'Another file in the list is for the same position of this product.', w_hidden: 'This product is hidden from the shop.', w_main: 'This becomes the main photo. The product’s current main photo moves to second place; nothing is deleted.',
+      w_again: 'This file was already uploaded in this session. It is not uploaded again; the same address is added to the product.',
+      w_dates: 'This product has sale dates but no sale price. Saving it clears the dates, as the product editor does.', w_ambig: 'The name matches more than one product.', w_dims: 'Size in pixels could not be read.',
       e_not_signed_in: 'Your session ended.', e_image_too_large: 'The server says the file is too large.', e_image_bad_format: 'The server did not accept the format.', e_image_not_an_image: 'The server could not read it as an image.',
       e_image_storage_unavailable: 'The server has no place to store photos.', e_image_write_failed: 'The server could not write the file.', e_request_too_large: 'The request was too large for the server.',
       e_too_many: 'Too many requests; gave up after several tries.', e_network: 'No answer from the server.', e_read: 'The browser could not read the file.',
       e_read_products: 'Could not read the product again before saving.', e_gone: 'The product no longer exists.', e_save: 'Could not save the product',
-      path: 'Written to {p}', attachedOk: 'Added to {n} as {w}.', asMain: 'main photo', asExtra: 'photo {k}',
+      e_unknown_brand: 'The product points to a brand that no longer exists. Fix it in the product editor.', e_sale_dates_backwards: 'The sale on this product ends before it starts. Fix the dates in the product editor.',
+      path: 'Written to {p}', attachedOk: 'Added to {n} as {w}.', asMain: 'main photo', asExtra: 'photo {k}', movedMain: 'The previous main photo is now photo 2.',
+      staleNote: 'The product list on this page still shows the old photos. Reload the page before you edit a product in it: saving from the old list would put the old photos back.', staleReload: 'Reload the page', staleShort: 'Reload the page before editing products.',
       bytes: '{n} B', kb: '{n} KB', mb: '{n} MB', unit: 'px'
     },
     ar: {
       title: 'الصور',
-      intro: 'أضف صور المنتجات دفعة واحدة. سمِّ كل ملف باسم المنتج المختصر على الموقع، ثم أضف في آخره شرطة ورقم الترتيب إن أردت.',
-      exMain: 'الصورة الرئيسية', exSecond: 'الصورة الثانية', exAuto: 'الصورة الرئيسية إن لم يكن للمنتج صورة، وإلا تُضاف في النهاية',
+      intro: 'أضف صور المنتجات دفعة واحدة. سمِّ كل ملف باسم المنتج المختصر على الموقع. أضف في آخره شرطة ثم الرقم ١ للصورة الرئيسية، أو ٢ و٣ وهكذا لإضافة صور بعد صور المنتج الحالية.',
+      exMain: 'الصورة الرئيسية، وتنتقل الصورة الرئيسية الحالية إلى المركز الثاني', exSecond: 'تُضاف بعد صور المنتج الحالية، وإن لم يكن للمنتج صور تصبح الصورة الرئيسية', exAuto: 'الصورة الرئيسية إن لم يكن للمنتج صورة، وإلا تُضاف في النهاية',
       limits: 'الصيغ المقبولة PNG وJPEG وWebP، بحجم أقصاه ١٠ ميغابايت للملف. يعرض المتجر الصور بنسبة ٤:٥، ويُفضَّل ألا يقل الضلع الأطول عن ١٢٠٠ بكسل. تُرفع الملفات كما هي تمامًا.',
       choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا',
       dropAria: 'منطقة إفلات صور المنتجات',
-      prodLoading: 'جارٍ تحميل المنتجات…', prodCount: 'تم تحميل {n} منتج.', prodFail: 'تعذّر تحميل المنتجات ({e}). لا يمكن مطابقة الصور قبل تحميلها.',
+      prodLoading: 'جارٍ تحميل المنتجات…', prodCount: 'تم تحميل {n|لا منتجات|منتج واحد|منتجين|# منتجات|# منتجًا}.', prodFail: 'تعذّر تحميل المنتجات ({e}). لا يمكن مطابقة الصور قبل تحميلها.',
       reload: 'إعادة تحميل المنتجات',
-      upload: 'رفع {n} صورة', upload1: 'رفع صورة واحدة', uploadNone: 'رفع الصور',
+      upload: 'رفع {n|لا صور|صورة واحدة|صورتين|# صور|# صورة}', upload1: 'رفع صورة واحدة', uploadNone: 'رفع الصور',
       stop: 'إيقاف بعد هذه الصورة', retryAll: 'إعادة محاولة الفاشلة ({n})', clear: 'مسح القائمة',
-      added: 'تمت إضافة {n} ملف.', skippedDup: '{n} موجود في القائمة أصلًا.', tooMany: 'تتسع القائمة لـ {n} ملف على الأكثر، وتُركت البقية.',
-      needProduct: '{n} تحتاج إلى منتج.', readyN: '{n} جاهزة.',
-      running: 'جارٍ رفع {i} من {n}: {name}', waiting: 'الانتظار {s} ثانية (طلبات كثيرة) قبل المحاولة مجددًا.', stopping: 'سيتم الإيقاف بعد هذه الصورة…',
+      added: 'تمت إضافة {n|لا ملفات|ملف واحد|ملفين|# ملفات|# ملفًا}.', skippedDup: '{n|لا ملف|ملف واحد موجود|ملفان موجودان|# ملفات موجودة|# ملفًا موجودًا} في القائمة أصلًا.', tooMany: 'تتسع القائمة لـ {n|لا ملفات|ملف واحد|ملفين|# ملفات|# ملفًا} على الأكثر، وتُركت البقية.',
+      needProduct: '{n|لا ملف|ملف واحد يحتاج|ملفان يحتاجان|# ملفات تحتاج|# ملفًا يحتاج} إلى منتج.', readyN: '{n|لا ملف|ملف واحد جاهز|ملفان جاهزان|# ملفات جاهزة|# ملفًا جاهزًا}.',
+      running: 'جارٍ رفع {i} من {n}: {name}', waiting: 'الانتظار {s|لا ثوانٍ|ثانية واحدة|ثانيتين|# ثوانٍ|# ثانية} (طلبات كثيرة) قبل المحاولة مجددًا.', stopping: 'سيتم الإيقاف بعد هذه الصورة…',
       halted: 'انتهت جلستك. سجّل الدخول مجددًا ثم اضغط رفع للمتابعة. لم يضع شيء.',
-      stopped: 'تم الإيقاف. ما زالت {n} صورة بانتظار الرفع.',
-      sumTitle: 'الملخص', sumLine: 'تم رفع {u}، وإضافة {a} إلى المنتجات، وفشل {f}.', sumDone: 'اكتمل.',
+      stopped: 'تم الإيقاف. {n|لا صور|ما زالت صورة واحدة|ما زالت صورتان|ما زالت # صور|ما زالت # صورة} بانتظار الرفع.',
+      sumTitle: 'الملخص', sumLine: '{u|لم تُرفع أي صورة|رُفعت صورة واحدة|رُفعت صورتان|رُفعت # صور|رُفعت # صورة}، و{a|لم تُضف أي صورة إلى المنتجات|أُضيفت صورة واحدة إلى المنتجات|أُضيفت صورتان إلى المنتجات|أُضيفت # صور إلى المنتجات|أُضيفت # صورة إلى المنتجات}، و{f|لم تفشل أي صورة|فشلت صورة واحدة|فشلت صورتان|فشلت # صور|فشلت # صورة}.', sumDone: 'اكتمل.',
       overall: '{d} من {n}', overallLabel: 'التقدم الكلي',
       logTitle: 'الملفات المكتوبة ({n})', logHint: 'كل ملف وضعته هذه اللوحة على الخادم، مع ما كان لدى كل منتج قبله. لا تحذف هذه اللوحة أي شيء.', logCopy: 'نسخ القائمة', logSave: 'تنزيل القائمة', logCopied: 'تم النسخ.', logEmpty: 'لا شيء بعد.',
       product: 'المنتج', change: 'تغيير', choosePro: 'اختر منتجًا', position: 'الترتيب', auto: 'تلقائي',
-      search: 'ابحث في المنتجات', results: 'عدد المنتجات المطابقة {n}.', noResults: 'لا يوجد منتج مطابق.', more: 'و{n} أخرى، اكتب لتضييق القائمة.', close: 'إغلاق',
+      search: 'ابحث في المنتجات', results: 'عدد المنتجات المطابقة {n}.', noResults: 'لا يوجد منتج مطابق.', more: 'و{n|لا منتجات أخرى|منتج آخر|منتجان آخران|# منتجات أخرى|# منتجًا آخر}، اكتب لتضييق القائمة.', close: 'إغلاق',
       retry: 'إعادة المحاولة', remove: 'إزالة', hidden: '(مخفي)',
       st_checking: 'جارٍ الفحص…', st_ready: 'جاهزة', st_needs: 'اختر منتجًا', st_queued: 'بالانتظار', st_uploading: 'جارٍ الرفع', st_attaching: 'تُضاف إلى المنتج',
       st_done: 'تم', st_failed: 'فشلت', st_unattached: 'رُفعت ولم تُضف', st_refused: 'غير مقبولة', st_toolarge: 'كبيرة جدًا', st_held: 'محجوزة',
@@ -1681,13 +1716,19 @@
       r_slug: 'الاسم المختصر لهذا المنتج ليس بصيغته المعتادة، فلا يمكن حفظه من هنا. استخدم محرر المنتج.',
       r_price: 'سعر هذا المنتج أو سعر التخفيض سيُرفض عند الحفظ. صحّحه في محرر المنتج أولًا.',
       r_link: 'عنوان إحدى الصور الموجودة على هذا المنتج سيرفضه الخادم عند الحفظ. صحّحه في محرر المنتج أولًا.',
+      r_name: 'اسم هذا المنتج فارغ أو يزيد على ١٦٠ حرفًا، فسيرفض الخادم حفظه. صحّحه في محرر المنتج أولًا.',
+      r_dates: 'ينتهي التخفيض على هذا المنتج قبل أن يبدأ، فسيرفض الخادم حفظه. صحّح التاريخين في محرر المنتج أولًا.',
       w_small: 'الأبعاد {w}×{h} بكسل فقط، أي أقل من ١٢٠٠ بكسل في الضلع الأطول.', w_aspect: 'النسبة ليست ٤:٥ ({w}×{h})، وسيقصّ المتجر الصورة لتناسب الإطار.',
-      w_dup: 'ملف آخر في القائمة لنفس الترتيب من هذا المنتج.', w_hidden: 'هذا المنتج مخفي عن المتجر.', w_ambig: 'الاسم يطابق أكثر من منتج.', w_dims: 'تعذّرت قراءة الأبعاد بالبكسل.',
+      w_dup: 'ملف آخر في القائمة لنفس الترتيب من هذا المنتج.', w_hidden: 'هذا المنتج مخفي عن المتجر.', w_main: 'ستصبح هذه الصورة الرئيسية، وتنتقل الصورة الرئيسية الحالية للمنتج إلى المركز الثاني. لا يُحذف شيء.',
+      w_again: 'رُفع هذا الملف من قبل في هذه الجلسة. لن يُرفع مرة أخرى، وإنما يُضاف العنوان نفسه إلى المنتج.',
+      w_dates: 'لهذا المنتج تاريخان للتخفيض بلا سعر تخفيض. سيمسح الحفظ التاريخين، كما يفعل محرر المنتج.', w_ambig: 'الاسم يطابق أكثر من منتج.', w_dims: 'تعذّرت قراءة الأبعاد بالبكسل.',
       e_not_signed_in: 'انتهت جلستك.', e_image_too_large: 'يقول الخادم إن الملف كبير جدًا.', e_image_bad_format: 'لم يقبل الخادم هذه الصيغة.', e_image_not_an_image: 'تعذّرت قراءة الملف كصورة على الخادم.',
       e_image_storage_unavailable: 'لا يوجد مكان لحفظ الصور على الخادم.', e_image_write_failed: 'تعذّرت كتابة الملف على الخادم.', e_request_too_large: 'الطلب أكبر مما يقبله الخادم.',
       e_too_many: 'طلبات كثيرة جدًا، وتوقفت المحاولة بعد عدة مرات.', e_network: 'لا رد من الخادم.', e_read: 'تعذّرت قراءة الملف في المتصفح.',
       e_read_products: 'تعذّرت إعادة قراءة المنتج قبل الحفظ.', e_gone: 'لم يعد المنتج موجودًا.', e_save: 'تعذّر حفظ المنتج',
-      path: 'كُتب في {p}', attachedOk: 'أُضيفت إلى {n} بوصفها {w}.', asMain: 'الصورة الرئيسية', asExtra: 'الصورة {k}',
+      e_unknown_brand: 'المنتج مرتبط بعلامة تجارية لم تعد موجودة. صحّحه في محرر المنتج.', e_sale_dates_backwards: 'ينتهي التخفيض على هذا المنتج قبل أن يبدأ. صحّح التاريخين في محرر المنتج.',
+      path: 'كُتب في {p}', attachedOk: 'أُضيفت إلى {n} بوصفها {w}.', asMain: 'الصورة الرئيسية', asExtra: 'الصورة {k}', movedMain: 'أصبحت الصورة الرئيسية السابقة الصورة ٢.',
+      staleNote: 'قائمة المنتجات في هذه الصفحة ما زالت تعرض الصور القديمة. أعد تحميل الصفحة قبل تعديل أي منتج فيها، فالحفظ من القائمة القديمة يعيد الصور القديمة.', staleReload: 'إعادة تحميل الصفحة', staleShort: 'أعد تحميل الصفحة قبل تعديل المنتجات.',
       bytes: '{n} بايت', kb: '{n} ك.ب', mb: '{n} م.ب', unit: 'بكسل'
     }
   }
@@ -1702,6 +1743,8 @@
   var running = false, stopReq = false, halted = false
   var run = { total: 0, done: 0, uploaded: 0, attached: 0, failed: 0, current: '' }
   var showSummary = false
+  var staleList = false        // a product was saved from here: the compiled product list on this page is now out of date
+  var written = {}             // file signature -> {path} of files this page already put on the server (never uploaded twice)
   var log = []                 // [{t, file, slug, pos, path, attached, note, prevImage, prevImages}]
   var statusText = ''
   var panel = null, refs = null, styleEl = null
@@ -1712,8 +1755,23 @@
     var c = window.SPORTA_PHOTOS, v = c ? Number(c[key]) : NaN
     return isFinite(v) && v >= 0 ? v : dflt
   }
+  /** Arabic counts the noun, it does not just put a digit in front of the singular. A token
+   *  {k|zero|one|two|few|many} in a string is replaced by the form the number needs, '#' standing for the digits:
+   *  0 -> zero, 1 -> one (the noun carries the count), 2 -> two (the dual), 3-10 (and x03-x10) -> few (plural), anything else
+   *  -> many (back to the singular). The same five cases as arabicCount() in src/i18n/translations.js, which this file
+   *  cannot import. A token with other than five forms is left as written, so a typo shows rather than hides. */
+  function plural(s, vars) {
+    return s.replace(/\{([a-z]+)\|([^{}]*)\}/g, function (all, key, body) {
+      var f = body.split('|')
+      if (f.length !== 5 || !vars) return all
+      var n = Math.abs(Number(vars[key]) || 0), m = n % 100
+      var form = n === 0 ? f[0] : n === 1 ? f[1] : n === 2 ? f[2] : (m >= 3 && m <= 10) ? f[3] : f[4]
+      return form.split('#').join(num(n))
+    })
+  }
   function t(key, vars) {
     var s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.en[key] != null ? STR.en[key] : key)
+
     if (vars) for (var k in vars) if (Object.prototype.hasOwnProperty.call(vars, k)) {
       var v = vars[k]
       s = s.split('{' + k + '}').join(typeof v === 'number' ? num(v) : String(v))
@@ -1899,18 +1957,42 @@
         return null
       }
       if (mime === 'image/jpeg') {
-        var i = 2
+        var i = 2, orient = 1
         while (i + 9 < b.length) {
           if (b[i] !== 0xff) { i++; continue }
           var mk = b[i + 1]
           if (mk === 0xff) { i++; continue }
-          if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] }
+          if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) {
+            var jw = (b[i + 7] << 8) | b[i + 8], jh = (b[i + 5] << 8) | b[i + 6]
+            // A phone photo is stored sideways with an EXIF turn; browsers (and so the shop) show it turned. Orientations 5-8
+            // swap width and height, so the 4:5 check is made on the picture as it is seen.
+            return orient >= 5 && orient <= 8 ? { w: jh, h: jw } : { w: jw, h: jh }
+          }
+          if (mk === 0xe1) orient = exifOrientation(b, i + 4, ((b[i + 2] << 8) | b[i + 3]) - 2) || orient
           if (mk === 0xd8 || mk === 0x01 || (mk >= 0xd0 && mk <= 0xd7)) { i += 2; continue }
           i += 2 + ((b[i + 2] << 8) | b[i + 3])
         }
       }
     } catch (e) { /* fall through */ }
     return null
+  }
+  /** The EXIF Orientation (1-8) of an APP1 segment that starts at `at` and is `len` bytes long, or 0 when there is none. */
+  function exifOrientation(b, at, len) {
+    try {
+      if (len < 14 || at + len > b.length) return 0
+      if (String.fromCharCode(b[at], b[at + 1], b[at + 2], b[at + 3]) !== 'Exif' || b[at + 4] !== 0 || b[at + 5] !== 0) return 0
+      var tiff = at + 6, le = b[tiff] === 0x49 && b[tiff + 1] === 0x49
+      if (!le && !(b[tiff] === 0x4d && b[tiff + 1] === 0x4d)) return 0
+      var r16 = function (o) { return le ? b[o] | (b[o + 1] << 8) : (b[o] << 8) | b[o + 1] }
+      var r32 = function (o) { return le ? (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0 : ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0 }
+      var ifd = tiff + r32(tiff + 4), n = r16(ifd)
+      if (ifd + 2 + 12 * n > at + len) return 0
+      for (var k = 0; k < n; k++) {
+        var e = ifd + 2 + 12 * k
+        if (r16(e) === 0x0112) { var v = r16(e + 8); return v >= 1 && v <= 8 ? v : 0 }
+      }
+    } catch (x) { /* unreadable: treat as upright */ }
+    return 0
   }
   function readBuffer(blob) {
     return new Promise(function (resolve, reject) {
@@ -1974,6 +2056,9 @@
       if (items.length >= MAX_FILES) { over++; continue }
       var it = { id: nextId++, file: f, sig: sig(f), name: f.name, size: f.size, mime: '', w: 0, h: 0, thumb: '', block: '', checked: false,
         productId: null, pos: null, manual: false, ambiguous: false, phase: 'idle', error: '', errorCode: '', path: '', progress: 0, note: '', picker: false, node: null }
+      // A file this page already wrote (removed or cleared from the list, then added again) is not written a second time:
+      // the same path is added to the product instead. The page remembers only until it is reloaded; the saved log is paths.
+      if (written[it.sig]) it.path = written[it.sig].path
       applyMatch(it)
       items.push(it)
       added++
@@ -2004,6 +2089,9 @@
     if (!p) return ''
     function chars(s) { return s == null ? 0 : Array.from(String(s)).length }
     if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
+    // store_text(): control characters dropped, spaces trimmed, then 1..160 characters, for both names.
+    function nameLen(v) { return chars(String(v == null ? '' : v).replace(/[\x00-\x1f\x7f]/g, '').replace(/^ +| +$/g, '')) }
+    if (nameLen(p.name_en) < 1 || nameLen(p.name_en) > NAME_MAX || nameLen(p.name_ar) < 1 || nameLen(p.name_ar) > NAME_MAX) return 'name'
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(p.slug)) || String(p.slug).length > 80) return 'slug'
     var money = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,3})?$/
     if (!money.test(String(p.price)) || !(Number(p.price) > 0)) return 'price'
@@ -2011,8 +2099,22 @@
     var paths = splitImages(p.images)
     if (p.image != null && String(p.image).trim() !== '') paths.push(String(p.image).trim())
     for (var q = 0; q < paths.length; q++) if (!href.test(paths[q])) return 'link'
-    if (p.sale_price != null && p.sale_price !== '' && (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price))) return 'price'
+    if (hasSalePrice(p)) {
+      if (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price)) return 'price'
+      // store_datetime(): 'YYYY-MM-DD hh:mm[:ss]' (a T for the space is fine), then start must not be after end.
+      var d1 = saleDate(p.sale_starts_at), d2 = saleDate(p.sale_ends_at)
+      if (d1 === false || d2 === false || (d1 && d2 && d1 > d2)) return 'dates'
+    }
     return ''
+  }
+  function hasSalePrice(p) { return p.sale_price != null && p.sale_price !== '' }
+  /** A sale date as the server reads it: '' / null -> null, a well-formed one -> 'YYYY-MM-DD hh:mm:ss', anything else -> false. */
+  function saleDate(v) {
+    var x = v == null ? '' : String(v).replace(/^\s+|\s+$/g, '')
+    if (x === '') return null
+    x = x.replace('T', ' ')
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(x)) return false
+    return x.length === 16 ? x + ':00' : x
   }
   /** What the list shows for a file: its state key and the reason lines. */
   function view(it) {
@@ -2040,6 +2142,12 @@
       } else warns.push({ level: 'warn', text: t('w_dims') })
     }
     if (p && isHidden(p) && st !== 'done') warns.push({ level: 'warn', text: t('w_hidden') })
+    // Position 1 takes the main place. The product's current main photo is not lost: it moves to the front of the
+    // other photos (attachPlan). The owner is told BEFORE the upload, not after.
+    if (p && st !== 'done' && it.pos === 1 && p.image != null && String(p.image).trim() !== '') warns.push({ level: 'warn', text: t('w_main') })
+    // product_save empties both sale dates when there is no sale price, whatever was sent: say so before a photo does it.
+    if (p && st !== 'done' && !hasSalePrice(p) && ((p.sale_starts_at != null && p.sale_starts_at !== '') || (p.sale_ends_at != null && p.sale_ends_at !== ''))) warns.push({ level: 'warn', text: t('w_dates') })
+    if (it.path && st !== 'done' && it.phase === 'idle') warns.push({ level: 'warn', text: t('w_again') })
     if (p && it.pos != null && st !== 'done') {
       for (var i = 0; i < items.length; i++) {
         var o = items[i]
@@ -2059,9 +2167,13 @@
     var extras = splitImages(row.images)
     if (main === path) return { already: true, role: 'main' }
     if (extras.indexOf(path) >= 0) return { already: true, role: 'extra', k: extras.indexOf(path) + 2 }
-    var image = main, images = extras.slice(), role, k
-    if (pos === 1 || !main) { image = path; role = 'main'; k = 1 } else { images.push(path); role = 'extra'; k = images.length + 1 }
-    return { already: false, image: image, images: images, role: role, k: k, prevImage: main, prevImages: extras.join(',') }
+    var image = main, images = extras.slice(), role, k, moved = false
+    if (pos === 1 || !main) {
+      image = path; role = 'main'; k = 1
+      // A main photo that is already there is not dropped: it goes to the front of the other photos.
+      if (main) { images = [main].concat(images.filter(function (x) { return x !== main })); moved = true }
+    } else { images.push(path); role = 'extra'; k = images.length + 1 }
+    return { already: false, image: image, images: images, role: role, k: k, moved: moved, prevImage: main, prevImages: extras.join(',') }
   }
   /** The whole row, every field as read; only image and images differ. */
   function saveBody(row, plan) {
@@ -2136,11 +2248,21 @@
       if (signedOut(up)) { halted = true; item.phase = 'idle'; item.progress = 0; return }
       if (!up.ok || !up.body || typeof up.body.path !== 'string') { fail(item, 'failed', up, 'e_save'); return }
       item.path = up.body.path; item.progress = 1
+      written[item.sig] = { path: item.path }
       run.uploaded++
       var p0 = productById(item.productId)
       entry = { t: new Date().toISOString(), file: item.name, slug: p0 ? p0.slug : '', pos: item.pos, path: item.path, bytes: up.body.bytes, attached: false, prevImage: '', prevImages: '' }
       log.push(entry); item.entry = entry; persistLog()
-    } else entry = item.entry || null
+    } else {
+      entry = item.entry || null
+      if (!entry) {
+        // The path is one this page wrote earlier (the same file added to the list again): nothing is uploaded, but
+        // the product it is added to still gets its own log line, flagged so the "files written" count stays true.
+        var p1 = productById(item.productId)
+        entry = { t: new Date().toISOString(), file: item.name, slug: p1 ? p1.slug : '', pos: item.pos, path: item.path, bytes: item.size, attached: false, again: true, prevImage: '', prevImages: '' }
+        log.push(entry); item.entry = entry; persistLog()
+      }
+    }
 
     // Attach: read the row again right now, then save it whole.
     item.phase = 'attaching'; item.error = ''; item.errorCode = ''
@@ -2165,7 +2287,8 @@
     if (!sv.ok || !sv.body || sv.body.error) { fail(item, 'unattached', sv, 'e_save'); return }
     if (sv.body.id != null) for (var i = 0; i < products.length; i++) if (Number(products[i].id) === Number(sv.body.id)) products[i] = sv.body
     item.phase = 'done'; run.attached++
-    item.note = t('attachedOk', { n: productName(row), w: plan.role === 'main' ? t('asMain') : t('asExtra', { k: plan.k }) })
+    staleList = true
+    item.note = t('attachedOk', { n: productName(row), w: plan.role === 'main' ? t('asMain') : t('asExtra', { k: plan.k }) }) + (plan.moved ? ' ' + t('movedMain') : '')
     if (entry) { entry.attached = true; entry.prevImage = plan.prevImage; entry.prevImages = plan.prevImages; persistLog() }
   }
 
@@ -2194,7 +2317,7 @@
       showSummary = true
       if (halted) setStatus(t('halted'))
       else if (stopReq && left) setStatus(t('stopped', { n: left }))
-      else setStatus(t('sumDone') + ' ' + t('sumLine', { u: run.uploaded, a: run.attached, f: run.failed }))
+      else setStatus(t('sumDone') + ' ' + t('sumLine', { u: run.uploaded, a: run.attached, f: run.failed }) + (staleList ? ' ' + t('staleShort') : ''))
       stopReq = false
       refreshAll()
     }
@@ -2282,6 +2405,9 @@
     '.sph-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
     '.sph-sum{margin-top:.875rem;padding:.75rem;border:1px solid var(--sph-line);border-radius:.75rem;background:var(--sph-soft)}',
     '.sph-sum h4{margin:0;font-size:.9375rem;font-weight:700;color:var(--sph-text)}',
+    '.sph-stale{margin-top:.875rem;padding:.75rem;border:1px solid var(--sph-warn);border-radius:.75rem;background:var(--sph-soft);display:grid;gap:.5rem;justify-items:start}',
+    '.sph-stale[hidden]{display:none}',
+    '.sph-stale p{margin:0;font-weight:600;color:var(--sph-text)}',
     '.sph-log{margin-top:.875rem}',
     '.sph-log summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;border-radius:.5rem}',
     '.sph-log ol{margin:.5rem 0 0;padding:0 1.25rem;display:grid;gap:.25rem}',
@@ -2369,6 +2495,12 @@
     root.appendChild(list)
     var sum = el('div', 'sph-sum'); sum.hidden = true; sum.setAttribute('data-sph', 'summary')
     root.appendChild(sum)
+    // The product list the compiled screen drew was read BEFORE the photos were added and is not redrawn by this panel.
+    // Editing a product in it and pressing Save would send its old image / images back. Said in words, with the way out.
+    var stale = el('div', 'sph-stale'); stale.hidden = true; stale.setAttribute('data-sph', 'stale'); stale.setAttribute('role', 'alert')
+    stale.appendChild(el('p', '', t('staleNote')))
+    stale.appendChild(button('sph-btn--primary sph-btn--small', t('staleReload'), 'reloadpage', function () { location.reload() }))
+    root.appendChild(stale)
 
     var det = document.createElement('details'); det.className = 'sph-log'
     var summ = el('summary', '', ''); det.appendChild(summ)
@@ -2382,7 +2514,7 @@
     root.appendChild(det)
 
     refs = { root: root, drop: drop, input: input, prod: prod, reload: reload, start: start, stop: stop, retry: retry, clear: clear, overall: overall, bar: bar2, overallText: overallText,
-      status: status, hint: hint2, list: list, sum: sum, logSummary: summ, logList: ol, logDet: det }
+      status: status, hint: hint2, list: list, sum: sum, stale: stale, logSummary: summ, logList: ol, logDet: det }
     panel = root
     status.textContent = statusText
     return root
@@ -2390,7 +2522,7 @@
 
   function logLine(e) {
     return [e.t, e.slug || '?', 'pos ' + (e.pos == null ? 'auto' : e.pos), e.path, e.attached ? 'attached' : 'NOT attached',
-      'was image=' + (e.prevImage || '-') + ' images=' + (e.prevImages || '-'), e.file].join(' | ')
+      'was image=' + (e.prevImage || '-') + ' images=' + (e.prevImages || '-'), e.file].concat(e.again ? ['same file, not written again'] : []).join(' | ')
   }
   function logText() { return log.map(logLine).join('\n') + (log.length ? '\n' : '') }
   function copyLog() {
@@ -2476,7 +2608,8 @@
         var pl = el('label'); pl.appendChild(el('span', 'sph-lbl', t('position')))
         var sel = document.createElement('select'); sel.setAttribute('data-k', 'pos')
         var opt0 = el('option', '', t('auto')); opt0.value = ''; sel.appendChild(opt0)
-        for (var n = 1; n <= 12; n++) { var o = el('option', '', num(n)); o.value = String(n); sel.appendChild(o) }
+        // 1..12, and the number the file name asked for when it is higher (air-max-15.jpg): never a blank select.
+        for (var n = 1; n <= Math.max(12, it.pos || 0); n++) { var o = el('option', '', num(n)); o.value = String(n); sel.appendChild(o) }
         sel.value = it.pos == null ? '' : String(it.pos)
         sel.addEventListener('change', function () { it.pos = sel.value === '' ? null : Number(sel.value); it.manual = true; items.forEach(refreshRow); refreshAll() })
         pl.appendChild(sel)
@@ -2591,7 +2724,8 @@
       refs.sum.appendChild(el('h4', '', t('sumTitle')))
       refs.sum.appendChild(el('p', '', t('sumLine', { u: run.uploaded, a: run.attached, f: run.failed })))
     } else refs.sum.hidden = true
-    refs.logSummary.textContent = t('logTitle', { n: log.length })
+    refs.stale.hidden = !staleList
+    refs.logSummary.textContent = t('logTitle', { n: log.filter(function (e) { return !e.again }).length })
     while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
     if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
     log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
@@ -2612,6 +2746,12 @@
 
   // -------------------------------------------------------- finding the screen
   function cellText(n) { return String(n.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase() }
+  /** A header cell that IS the word or starts with it ("Price", "Price (KWD)"), never one that merely contains it: the
+   *  Comparison table above the list has "Site price", and the panel must not anchor there. */
+  function head(ths, word) {
+    for (var i = 0; i < ths.length; i++) if (ths[i] === word || ths[i].indexOf(word + ' ') === 0 || ths[i].indexOf(word + '(') === 0) return true
+    return false
+  }
   /** The Catalogue's product list: a table headed Product / Web name / Price / On sale. */
   function findTable() {
     var tables = document.querySelectorAll('main table, .admin-content table')
@@ -2619,7 +2759,7 @@
       var tb = tables[i]
       if (panel && panel.contains(tb)) continue
       var ths = Array.prototype.map.call(tb.querySelectorAll('thead th'), cellText)
-      if (ths.indexOf('product') >= 0 && ths.indexOf('price') >= 0 && (ths.indexOf('web name') >= 0 || ths.indexOf('on sale') >= 0)) return tb
+      if (head(ths, 'product') && head(ths, 'price') && (head(ths, 'web name') || head(ths, 'on sale'))) return tb
     }
     var hs = document.querySelectorAll('main h2, main h3, .admin-content h2, .admin-content h3')
     for (var j = 0; j < hs.length; j++) {
