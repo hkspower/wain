@@ -827,7 +827,7 @@
        headings, card shadows) reach (0,3,1); where the screen needs a value
        back, the rule below is above that or !important.
    The Tailwind utilities the screen uses are restated one by one (bg-white,
-   text-slate-900..600, border-slate-100..300, bg-indigo-50, text-indigo-*)
+   text-slate-900..600, border-slate-100..300, bg-indigo-50, text-indigo-700/800)
    because that is how the build paints them. The custom properties it reads
    (--admin-*, --surface, --line ...) are put back on the scope root, so
    anything that reads one reads the light value.
@@ -931,16 +931,19 @@
   border-color: #d9dfe5 !important;
 }
 
-/* The accent terracotta the build gives the indigo utilities: the mode note on
-   the KNET and T-Pay editors, and the "Check again" button. The build's dark
-   rules for these are !important in the admin chunk, hence the longer scope. */
+/* The accent terracotta the build gives the indigo utilities the screen uses:
+   bg-indigo-50 and text-indigo-800 on the mode note, text-indigo-700 on the
+   "Check again" button (rgb(248,236,230), rgb(184,67,15), rgb(154,69,44),
+   measured). The build's dark rules for these are !important in the admin
+   chunk, hence the longer scope. text-indigo-600 and -900 are not on this
+   screen and have not been measured, so they are not guessed here. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-indigo-50 {
   background-color: #f8ece6 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(.text-indigo-600, .text-indigo-700) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-700 {
   color: #9a452c !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(.text-indigo-800, .text-indigo-900) {
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-800 {
   color: #b8430f !important;
 }
 
