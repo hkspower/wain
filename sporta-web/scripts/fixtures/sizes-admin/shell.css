@@ -1,0 +1,60 @@
+/* STAND-IN for the live admin's OWN stylesheets: AdminApp-Dw3t3z9Z.css (shell, sidebar, header, tab bar, tables, KPI, inventory,
+   payments, brand cards, editor modal ...) and the CRM / Support / Profiles / Returns / SEO / Theme chunk sheets. They were NOT in
+   the capture of the live build (only the JS chunks and index-CdcKvZhs.css were saved), and the Hostinger connector is signed out,
+   so they cannot be fetched now. Everything that the compiled admin takes from Tailwind utilities (every px-/py-/gap-/space-y-/
+   text-/h-/min-h- class) IS the live rule, in live.css; this file supplies only what the missing sheets add, and only the pieces the
+   sizes in this suite depend on.
+
+   Where the values come from (nothing here is invented to flatter a result):
+     - the repo's src/styles/admin.css + admin-mobile.css (the same family: .m-header 56px, .m-tabbar 60px, .m-row, .m-list);
+     - values the earlier lanes MEASURED on the live page: scripts/admin-polish-test.mjs (LIVE block), scripts/fixtures/
+       admin-payments.mjs (LIVE block) and the 2026-11-02 live rescan at 1366px: table cells .75rem 1rem, .admin-nav-item 44px high
+       at .79rem / 600, the sidebar gradient #151b21 -> #10151a, the content column 1018px wide at 1366px (sidebar 254px + 47px a
+       side), the light custom properties on .admin-shell;
+     - CALIBRATION: at 1366px with the add-on as it was before this lane, the fixture reproduces the rescan - Orders rows 48px,
+       cell padding 12.7px / 16.9px, field 46.5-47px, "Push 46 products" 46.5px, panel padding 21.2px, card padding 16.9px, Slides
+       empty state 33.8px, the Orders table 1016px in a 1018px frame (sizes-admin-test.mjs asserts it, so a stand-in that drifts fails).
+
+   What the suite does NOT claim: the sizes of anything whose only source is a missing sheet and that no add-on rule touches (the
+   CRM / Support / Returns / Profiles / Inventory-card internals). Those screens are left out of the fixtures on purpose.
+   This sheet sits AFTER the add-ons in the page, as the live chunk sheet does (the build appends it when the admin loads). */
+.admin-shell { --admin-action: #9a452c; --brand-deep: #9a452c; --admin-bg: #f3f5f7; --admin-surface: #fff; --admin-surface-soft: #f7f8fa; --admin-border: #d9dfe5; --admin-border-strong: #aeb8c2; --admin-text: #18212a; --admin-muted: #65717d; --admin-accent-soft: #f8ece6; --admin-accent-border: #d8a38b; --admin-line: #cbd5e1; --admin-accent: #9a452c; color: #18212a; }
+.admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font-weight: inherit; font-size: inherit; }
+.admin-shell .bg-indigo-600 { background-color: var(--admin-action) !important; color: #fff !important; }
+.admin-shell .text-indigo-600 { color: var(--brand-deep) !important; }
+.admin-shell .admin-page :where(button, .btn) { border-radius: .7rem; }
+.admin-shell .admin-page h1 { color: var(--admin-text); }
+.admin-shell .admin-page .admin-table > thead > tr > th { color: #5d6975; font-size: .69rem; font-weight: 800; }
+.admin-table th, .admin-table td { padding: .75rem 1rem; }
+.admin-sidebar { background: linear-gradient(#151b21, #10151a); color: #acb8c4; }
+.admin-sidebar .admin-nav-item { display: block; width: 100%; min-height: 44px; font-size: .79rem; font-weight: 600; border-radius: .72rem; color: #acb8c4; }
+.admin-sidebar .admin-nav-item.bg-indigo-50 { color: #fff5ed; border: 1px solid #ff7a15; }
+.admin-sidebar__title, .admin-sidebar__identity strong { color: #fff; }
+.admin-content { padding: 14px 16px; }
+@media (min-width: 768px) { .admin-content { padding: 1.5rem clamp(1rem, 3.44vw, 3rem); } }
+.admin-page-header { display: flex; flex-direction: column; gap: .7rem; }
+@media (min-width: 640px) { .admin-page-header { flex-direction: row; } }
+.admin-notice { border: 1px solid; }
+.admin-notice--error { color: #8d2435; background-color: #fff0f2; border-color: #e9a0a9; }
+.admin-notice--info { color: var(--admin-text); background-color: #fff; border-color: #bd7c5b; }
+.admin-notice--warn { color: #765010; background: #fffbeb; border-color: #ffd230; }
+.admin-kpi__value { font-weight: 800; }
+.inventory-ledger-mini { color: #64748b; font-size: .67rem; font-weight: 600; }
+.inventory-product-meta { font-size: .7rem; font-weight: 500; }
+.inventory-size-chip { font-size: .68rem; font-weight: 800; }
+.admin-product-upload-button { display: inline-flex; cursor: pointer; border: 1px dashed #bd7c5b; }
+.m-header, .m-tabbar { display: none; }
+.m-header small { font-size: .61rem; font-weight: 700; }
+.m-row__badge { font-size: .68rem; font-weight: 700; }
+@media (max-width: 767px) {
+  .admin-sidebar { display: none !important; }
+  .m-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; position: sticky; top: 0; z-index: 40; height: 56px; padding-inline: 1rem; background: #fff; border-bottom: 1px solid #cbd5e1; }
+  .m-tabbar { display: flex; position: fixed; inset-inline: 0; bottom: 0; z-index: 40; height: 60px; background: #fff; border-top: 1px solid #cbd5e1; overflow-x: auto; padding-inline: .5rem; }
+  .m-tabbar__item { flex: 0 0 auto; min-width: 4.75rem; padding-inline: .35rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: .7rem; font-weight: 600; color: #65717d; background: none; border: 0; }
+  .admin-content { padding-bottom: 76px; }
+  .admin-table { display: none; }
+  .m-list { display: flex; flex-direction: column; gap: .75rem; }
+  .m-row { display: flex; flex-direction: column; gap: .35rem; padding: .9rem 1rem; background: #fff; border: 1px solid #cbd5e1; border-radius: .9rem; }
+  .admin-shell button { min-height: 44px; }
+}
+@media (min-width: 768px) { .m-list { display: none; } .admin-shell input { min-height: 2.75rem; } }

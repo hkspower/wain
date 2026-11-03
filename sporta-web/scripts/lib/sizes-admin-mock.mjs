@@ -2,9 +2,10 @@
 // fetches the public lists from the live site; this version reads the CAPTURE of them, so it runs offline).
 // Used by scripts/make-sizes-admin-fixtures.mjs to render the REAL compiled admin locally. Nothing here is a real
 // customer, order or secret: made-up names, SPTEST track ids, example.com addresses, 9650000xxxx phones.
-export function buildMock({ pub, BASE }) {
+export function buildMock({ pub, BASE, limit = {} }) {
+  const N = { orders: 14, products: 1e9, variants: 120, ...limit }
   const [products, brands, stock, theme] = ['products', 'brands', 'stock', 'theme'].map(pub)
-  const P = Array.isArray(products) ? products : []
+  const P = (Array.isArray(products) ? products : []).slice(0, N.products)
   // ---------------------------------------------------------------- mock data
   // Synthetic, plausible, and in the shapes admin.php returns (checked against
   // the sandbox): enough rows that tables, badges and buttons actually render.
@@ -13,7 +14,7 @@ export function buildMock({ pub, BASE }) {
   const NAMES = ['Test Customer A', 'Test Customer B', 'عميل تجريبي', 'Test Customer C', 'Sample Buyer', 'عميلة تجريبية']
   const PAY = [['paid', 'knet'], ['pending', 'cod'], ['failed', 'knet'], ['paid', 'tpay'], ['pending', 'knet'], ['paid', 'cod']]
   const FUL = ['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled']
-  const orders = Array.from({ length: 14 }, (_, i) => ({
+  const orders = Array.from({ length: N.orders }, (_, i) => ({
     id: 900 + i, track_id: 'SPTEST' + String(1000 + i), amount: 5 + i, subtotal: 4 + i, discount_amount: i % 4 === 0 ? 1 : 0,
     discount_code: i % 4 === 0 ? 'WELCOME' : null, delivery_fee: 1, payment_status: PAY[i % 6][0], payment_method: PAY[i % 6][1],
     fulfilment_status: FUL[i % 5], paid_at: PAY[i % 6][0] === 'paid' ? day(i) : null, created_at: day(i),
@@ -26,7 +27,7 @@ export function buildMock({ pub, BASE }) {
     featured: p.featured ? 1 : 0, featured_sort: p.featured_sort || 0, category: p.category, brand_slug: p.brand_slug || null,
     image: p.image || null, images: p.images || null, active: i % 9 === 8 ? 0 : 1 }))
   const S = Array.isArray(stock) ? stock : []
-  const variants = S.slice(0, 120).map((v, i) => {
+  const variants = S.slice(0, N.variants).map((v, i) => {
     const p = P.find((x) => x.slug === v.slug) || {}
     return { sku: v.sku || `SKU-${i}`, slug: v.slug, name_en: p.name_en || v.slug, name_ar: p.name_ar || '', category: p.category || 'men', price: Number(p.price || 9),
       size: v.size, stock: v.stock ?? 5, cost_aed: 40, unit_cost_kwd: 3.35, low_stock_threshold: 2, inventory_version: 10 + i, sold_qty: i % 4, received_qty: 10, returned_qty: 0, damaged_qty: 0 }
