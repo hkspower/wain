@@ -32,23 +32,13 @@ const SCAN = () => {
     const nw = im.naturalWidth, nh = im.naturalHeight
     const vis = b.width > 0 && b.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'
     const fit = cs.objectFit, pos = cs.objectPosition
-    const boxAr = b.height ? b.width / b.height : 0
-    const natAr = nh ? nw / nh : 0
-    let cropPct = 0, bandPct = 0
-    if (nw && nh && vis) {
-      const k = Math.min(natAr / boxAr, boxAr / natAr)
-      if (fit === 'cover') cropPct = Math.round((1 - k) * 100)
-      else if (fit === 'contain' || fit === 'scale-down') bandPct = Math.round((1 - k) * 100)
-      else if (fit === 'fill') cropPct = -Math.round(Math.abs(1 - natAr / boxAr) * 100)
-    }
-    // pixels the browser needs (CSS px * DPR) vs pixels in the file
-    const needW = b.width * dpr
     out.imgs.push({
+      full: im.getAttribute('srcset') ? (im.currentSrc || '') : '', bwf: b.width, bhf: b.height,
       src: ss(im.currentSrc || im.src || ''),
       ctx: ctx(im), vis,
       bw: Math.round(b.width), bh: Math.round(b.height), x: Math.round(b.left), y: Math.round(b.top + scrollY),
-      nw, nh, cx: im.complete, over: needW ? +(nw / needW).toFixed(2) : 0, overCss: b.width ? +(nw / b.width).toFixed(2) : 0,
-      fit, pos: pos.replace(/ /g, '/'), boxAr: +boxAr.toFixed(3), natAr: +natAr.toFixed(3), cropPct, bandPct,
+      nw, nh, cx: im.complete,
+      fit, pos: pos.replace(/ /g, '/'),
       ld: im.getAttribute('loading') || '', fp: im.getAttribute('fetchpriority') || '', dec: im.getAttribute('decoding') || '',
       alt: im.getAttribute('alt') === null ? 'MISSING' : im.getAttribute('alt'),
       wa: im.getAttribute('width') || '', ha: im.getAttribute('height') || '',
@@ -108,26 +98,26 @@ const report = (tag, S, bgNat, net) => {
     groups.get(key).push(m)
   }
   for (const [k, g] of groups) {
-    const nws = g.map((x) => x.nw), ov = g.map((x) => x.over), ar = g.map((x) => x.natAr)
+    const nws = g.map((x) => x.nw), ov = g.map((x) => x.over), ar = g.map((x) => x.natAr), ef = g.map((x) => x.eff)
     const lds = [...new Set(g.map((x) => x.ld || '-'))].join(',')
     const fps = [...new Set(g.map((x) => x.fp || '-'))].join(',')
     const decs = [...new Set(g.map((x) => x.dec || '-'))].join(',')
     const alts = g.filter((x) => x.alt === '' || x.alt === 'MISSING').length
     const ws = [...new Set(g.map((x) => (x.wa || '-') + 'x' + (x.ha || '-')))].join(',')
     const crops = g.map((x) => x.cropPct + '/' + x.bandPct)
-    L.push(tag + ' G ' + g.length + 'x ' + k + ' nat ' + Math.min(...nws) + '-' + Math.max(...nws) + ' natAr ' + Math.min(...ar) + '-' + Math.max(...ar) + ' over ' + Math.min(...ov) + '-' + Math.max(...ov) + ' ld ' + lds + ' fp ' + fps + ' dec ' + decs + ' altEmpty ' + alts + ' wh ' + ws + ' crop/band ' + [...new Set(crops)].slice(0, 4).join(',') + ' pos ' + [...new Set(g.map((x) => x.pos))].slice(0, 2).join(',') + ' ex ' + (g[0].src.indexOf('data:') === 0 ? g[0].src : g[0].src.slice(-48)))
+    L.push(tag + ' G ' + g.length + 'x ' + k + ' nat ' + Math.min(...nws) + '-' + Math.max(...nws) + ' natAr ' + Math.min(...ar) + '-' + Math.max(...ar) + ' over ' + Math.min(...ov) + '-' + Math.max(...ov) + ' eff ' + Math.min(...ef) + '-' + Math.max(...ef) + ' ld ' + lds + ' fp ' + fps + ' dec ' + decs + ' altEmpty ' + alts + ' wh ' + ws + ' crop/band ' + [...new Set(crops)].slice(0, 4).join(',') + ' pos ' + [...new Set(g.map((x) => x.pos))].slice(0, 2).join(',') + ' ex ' + (g[0].src.indexOf('data:') === 0 ? g[0].src : g[0].src.slice(-48)))
   }
   for (const m of S.imgs) {
     const fl = []
     if (m.vis && (m.nw === 0 || !m.cx)) fl.push('BROKEN')
-    if (m.vis && m.nw && m.over < 1) fl.push('UPSCALED' + m.over)
+    if (m.vis && m.nw && m.eff > 1.05 && m.bw > 40) fl.push('UPSCALED' + m.eff)
     const kb = kbOf[m.src] == null ? -1 : kbOf[m.src]
     if (m.vis && m.over > 2 && (kb >= 30 || m.over >= 6)) fl.push('OVERSIZE' + m.over + '(' + kb + 'KB)')
     if (m.vis && m.ovfX) fl.push('OVERFLOWX')
     if (/placeholder|unavailable|default|no-image|noimage/i.test(m.src)) fl.push('PLACEHOLDER')
     if (m.vis && m.alt === 'MISSING') fl.push('ALT-MISSING')
     if (m.vis && m.inView && m.ld === 'lazy') fl.push('LAZY-INVIEW')
-    if (fl.length) L.push(tag + ' A ' + fl.join(',') + ' ' + m.ctx.slice(0, 50) + ' box ' + m.bw + 'x' + m.bh + ' @' + m.x + ',' + m.y + ' nat ' + m.nw + 'x' + m.nh + ' fit ' + m.fit + ' alt "' + String(m.alt).slice(0, 30) + '" ld ' + m.ld + ' src ' + (m.src.indexOf('data:') === 0 ? m.src : m.src.slice(-60)))
+    if (fl.length) L.push(tag + ' A ' + fl.join(',') + ' ' + m.ctx.slice(0, 50) + ' box ' + m.bw + 'x' + m.bh + ' @' + m.x + ',' + m.y + ' nat ' + m.nw + 'x' + m.nh + ' eff ' + m.eff + ' fit ' + m.fit + ' alt "' + String(m.alt).slice(0, 30) + '" ld ' + m.ld + ' src ' + (m.src.indexOf('data:') === 0 ? m.src : m.src.slice(-60)))
   }
   for (const b of S.bgs) {
     const n = bgNat && bgNat[b.url] ? bgNat[b.url] : [0, 0]
@@ -139,19 +129,56 @@ const report = (tag, S, bgNat, net) => {
   return L
 }
 
+const REAL = async (urls) => {
+  const res = {}
+  await Promise.all(urls.map((u) => new Promise((ok) => {
+    const im = new Image()
+    const to = setTimeout(() => ok(), 8000)
+    im.onload = () => { res[u] = [im.naturalWidth, im.naturalHeight]; clearTimeout(to); ok() }
+    im.onerror = () => { clearTimeout(to); ok() }
+    im.src = u
+  })))
+  return res
+}
+
+const derive = (m, dpr) => {
+  const bw = m.bwf, bh = m.bhf
+  const boxAr = bh ? bw / bh : 0, natAr = m.nh ? m.nw / m.nh : 0
+  m.boxAr = +boxAr.toFixed(3); m.natAr = +natAr.toFixed(3)
+  m.cropPct = 0; m.bandPct = 0; m.eff = 0; m.over = 0
+  if (m.nw && m.nh && bw && bh) {
+    const k = Math.min(natAr / boxAr, boxAr / natAr)
+    if (m.fit === 'cover') m.cropPct = Math.round((1 - k) * 100)
+    else if (m.fit === 'contain' || m.fit === 'scale-down') m.bandPct = Math.round((1 - k) * 100)
+    else if (m.fit === 'fill') m.cropPct = -Math.round(Math.abs(1 - natAr / boxAr) * 100)
+    const sc = (m.fit === 'cover' || m.fit === 'fill') ? Math.max(bw / m.nw, bh / m.nh) : Math.min(bw / m.nw, bh / m.nh)
+    m.eff = +(sc * dpr).toFixed(2)
+    m.over = m.eff ? +(1 / m.eff).toFixed(2) : 0
+  }
+}
+
 const scanPage = async (page, tag, net) => {
   const S = await page.evaluate(SCAN)
+  // naturalWidth of an <img srcset sizes> is DENSITY-CORRECTED (it equals the sizes slot, not the file): load the real file
+  const fulls = [...new Set(S.imgs.filter((m) => m.full).map((m) => m.full))]
+  const real = fulls.length ? await page.evaluate(REAL, fulls) : {}
+  for (const m of S.imgs) {
+    if (m.full && real[m.full]) { m.nw = real[m.full][0]; m.nh = real[m.full][1] }
+    derive(m, S.dpr)
+  }
   const urls = [...new Set(S.bgs.map((b) => b.url).filter((u) => u.indexOf('data:') !== 0))]
   const bgNat = urls.length ? await page.evaluate(BGSIZE, urls) : {}
   return { S, lines: report(tag, S, bgNat, net) }
 }
 
 const E = process.env
+const setInject = (c) => { CSS_INJECT = c }
 const BASE = E.BASE || 'https://www.sporta.com.kw'
 const VW = Number(E.VW || 1280), VH = Number(E.VH || 800), DPR = Number(E.DPR || 1), LANG = E.LNG || 'ar'
 const PAGES = String(E.PAGES || 'home').split(',')
 const SLUG_A = E.SLUGA || '', SLUG_B = E.SLUGB || '', BRAND = E.BRAND || ''
 const q = (u) => (LANG === 'en' ? u + (u.indexOf('?') >= 0 ? '&' : '?') + 'lang=en' : u)
+let CSS_INJECT = ''
 const OUT = []
 const P = (s) => { console.log(s) }
 
@@ -204,7 +231,28 @@ const FOOTER = () => {
   for (const e of f.querySelectorAll('img,svg,picture')) {
     const b = e.getBoundingClientRect(); if (!b.width) continue
     const al = e.getAttribute('alt'), ar = e.getAttribute('aria-label'), tt = e.querySelector && e.querySelector('title')
-    out.push(e.tagName.toLowerCase() + ' ' + Math.round(b.width) + 'x' + Math.round(b.height) + ' @' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + (e.tagName === 'IMG' ? ' nat ' + e.naturalWidth + 'x' + e.naturalHeight + ' fit ' + getComputedStyle(e).objectFit + ' src ' + (e.currentSrc || '').replace(location.origin, '').slice(-40) : ' vb ' + e.getAttribute('viewBox')) + ' alt ' + JSON.stringify(al) + ' aria ' + JSON.stringify(ar) + ' title ' + JSON.stringify(tt ? tt.textContent.slice(0, 20) : null) + ' par ' + (e.parentElement ? e.parentElement.tagName.toLowerCase() + '.' + String(e.parentElement.className.baseVal !== undefined ? e.parentElement.className.baseVal : e.parentElement.className).split(' ')[0].slice(0, 24) : ''))
+    out.push(e.tagName.toLowerCase() + ' ' + Math.round(b.width) + 'x' + Math.round(b.height) + ' @' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + (e.tagName === 'IMG' ? ' nat ' + e.naturalWidth + 'x' + e.naturalHeight + ' fit ' + getComputedStyle(e).objectFit + ' src ' + (e.currentSrc || '').replace(location.origin, '').slice(-40) : ' vb ' + e.getAttribute('viewBox')) + ' alt ' + JSON.stringify(al) + ' aria ' + JSON.stringify(ar) + ' title ' + JSON.stringify(tt ? tt.textContent.slice(0, 20) : null) + ' hit ' + (e.closest('a,button') ? Math.round(e.closest('a,button').getBoundingClientRect().width) + 'x' + Math.round(e.closest('a,button').getBoundingClientRect().height) : '-') + ' par ' + (e.parentElement ? e.parentElement.tagName.toLowerCase() + '.' + String(e.parentElement.className.baseVal !== undefined ? e.parentElement.className.baseVal : e.parentElement.className).split(' ')[0].slice(0, 24) : ''))
+  }
+  return out
+}
+
+const EDGE = () => {
+  const out = []
+  const bgOf = (e) => { let p = e; while (p) { const c = getComputedStyle(p).backgroundColor; const mm = c.match(/rgba?\(([^)]+)\)/); if (mm) { const a = mm[1].split(',').map(Number); if (a.length < 4 || a[3] > 0.5) return { rgb: a.slice(0, 3), el: p.tagName.toLowerCase() + '.' + String(p.className).split(' ')[0].slice(0, 28) } } p = p.parentElement } return { rgb: [255, 255, 255], el: 'default' } }
+  const imgs = [...document.querySelectorAll('.catalog-gallery-photo, .catalog-card-photo')].slice(0, 6)
+  for (const im of imgs) {
+    if (!im.naturalWidth) continue
+    try {
+      const w = 40, h = Math.max(8, Math.round(40 * im.naturalHeight / im.naturalWidth))
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      const x = c.getContext('2d'); x.drawImage(im, 0, 0, w, h)
+      const px = (xx, yy) => Array.from(x.getImageData(xx, yy, 1, 1).data)
+      const cs = [px(1, 1), px(w - 2, 1), px(1, h - 2), px(w - 2, h - 2)]
+      const bg = bgOf(im)
+      const opaque = cs.filter((p) => p[3] > 200)
+      const diff = opaque.length ? Math.max(...opaque.map((p) => Math.max(Math.abs(p[0] - bg.rgb[0]), Math.abs(p[1] - bg.rgb[1]), Math.abs(p[2] - bg.rgb[2])))) : -1
+      out.push((im.getAttribute('src') || '').slice(-44) + ' corners ' + JSON.stringify(cs.map((p) => p.slice(0, 4).join('/'))) + ' bg ' + bg.rgb.join(',') + ' via ' + bg.el + ' maxdiff ' + diff)
+    } catch (e) { out.push('edge err ' + String(e.message).slice(0, 40)) }
   }
   return out
 }
@@ -260,6 +308,7 @@ const visit = async (ctx, tag, url, opts) => {
   const m = await page.evaluate(() => ({ cls: +window.__cls.toFixed(4), sh: window.__sh.slice(0, 6), lcp: window.__lcp, title: document.title.slice(0, 50), lang: document.documentElement.lang, dir: document.documentElement.dir }))
   P(tag + ' LOAD ' + url + ' status ' + st + ' lang ' + m.lang + '/' + m.dir + ' CLS4s ' + m.cls + ' LCP ' + JSON.stringify(m.lcp) + ' title ' + JSON.stringify(m.title))
   for (const s of m.sh) P(tag + ' SHIFT ' + JSON.stringify(s))
+  if (CSS_INJECT) { await page.addStyleTag({ content: CSS_INJECT }); await page.waitForTimeout(400); P(tag + ' INJECTED css ' + CSS_INJECT.length + ' bytes') }
   if (opts.beforeScroll) await opts.beforeScroll(page)
   await scrollAll(page)
   const m2 = await page.evaluate(() => +window.__cls.toFixed(4))
@@ -273,6 +322,7 @@ const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: 
 try {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW' })
   await ctx.addInitScript(INIT)
+  if (E.INJECT) { let css = ''; for (const u of E.INJECT.split(',')) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css) }
 
   if (PAGES.includes('api')) {
     const j = await (await fetch(BASE + '/api/api.php?r=products')).json()
@@ -334,6 +384,8 @@ try {
       const r = await scanPage(page, tag, net)
       for (const l of r.lines) P(l)
       netReport(tag, net)
+      const rt = await page.evaluate(() => performance.getEntriesByType('resource').filter((e) => /hero|slide_image|api\.php\?r=slides/.test(e.name)).map((e) => e.name.replace(location.origin, '').slice(0, 60) + ' start ' + Math.round(e.startTime) + ' end ' + Math.round(e.responseEnd) + ' bytes ' + e.encodedBodySize))
+      for (const x of rt) P(tag + ' HERORT ' + x)
       const logos = await page.evaluate(LOGO_STATS)
       for (const l of logos) P(tag + ' LOGO ' + JSON.stringify(l))
       for (const l of await page.evaluate(FOOTER)) P(tag + ' FOOT ' + l)
@@ -395,6 +447,18 @@ try {
 
   if (PAGES.includes('brand')) {
     const tag = 'BRAND ' + TAG0
+    {
+      const tp = await ctx.newPage()
+      const t0 = Date.now()
+      tp.goto(BASE + q('/shop?brand=' + BRAND), { waitUntil: 'commit' }).catch(() => {})
+      const tl = []
+      while (Date.now() - t0 < 2600) {
+        await tp.waitForTimeout(140)
+        try { tl.push(await tp.evaluate(() => [Math.round(performance.now()), !!document.getElementById('sporta-brand-banner'), document.querySelectorAll('.product-grid-card').length, !!document.querySelector('.catalog-empty'), document.querySelectorAll('.image-loading-skeleton').length, Math.round(document.documentElement.scrollHeight)].join(','))) } catch (e) { tl.push('nav') }
+      }
+      P(tag + ' TIMELINE [t,banner,cards,emptyState,skeletons,docH] ' + tl.join(' | '))
+      await tp.close()
+    }
     const v = await visit(ctx, tag, q('/shop?brand=' + BRAND))
     if (v) {
       const { page, net } = v
@@ -443,6 +507,25 @@ try {
     P(tag + ' GAL ' + gal)
     const il = await page.evaluate(() => [...document.querySelectorAll('main img')].filter((i) => i.getBoundingClientRect().width > 0).slice(0, 12).map((i) => { const b = i.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + ' nat ' + i.naturalWidth + 'x' + i.naturalHeight + ' alt ' + JSON.stringify(String(i.getAttribute('alt') || '').slice(0, 40)) + ' ld ' + (i.getAttribute('loading') || '-') + ' fp ' + (i.getAttribute('fetchpriority') || '-') + ' fit ' + getComputedStyle(i).objectFit + ' src ' + (i.currentSrc || '').replace(location.origin, '').slice(-70) + ' srcset ' + String(i.getAttribute('srcset') || '').replace(/\s+/g, ' ').slice(0, 330) + ' sizes ' + String(i.getAttribute('sizes') || '').slice(0, 60) }))
     for (const x of il) P(tag + ' MIMG ' + x)
+    const hd = await page.evaluate(() => { const h = document.querySelector('header'); const cs = h ? getComputedStyle(h) : null; const vis = document.querySelector('.catalog-product-visual'); const vc = vis ? getComputedStyle(vis) : null; const st = document.querySelector('.catalog-gallery-stage'); const sc = st ? getComputedStyle(st) : null; return 'HDR pos ' + (cs ? cs.position + ' top ' + cs.top : '-') + ' h ' + (h ? Math.round(h.getBoundingClientRect().height) : '-') + ' | visual pos ' + (vc ? vc.position + ' top ' + vc.top + ' h ' + Math.round(vis.getBoundingClientRect().height) + ' maxh ' + vc.maxHeight + ' align ' + vc.alignSelf : '-') + ' | stage ' + (sc ? Math.round(st.getBoundingClientRect().width) + 'x' + Math.round(st.getBoundingClientRect().height) + ' ar ' + sc.aspectRatio + ' bg ' + sc.backgroundColor + ' maxh ' + sc.maxHeight + ' ovf ' + sc.overflow : '-') + ' | docEl scrollH ' + document.documentElement.scrollHeight + ' vh ' + innerHeight })
+    P(tag + ' ' + hd)
+    for (const x of await page.evaluate(EDGE)) P(tag + ' EDGE ' + x)
+    // sticky fit after scrolling the purchase column into view
+    await page.evaluate(() => window.scrollTo(0, 400)); await page.waitForTimeout(500)
+    const sf = await page.evaluate(() => { const v = document.querySelector('.catalog-product-visual'); if (!v) return 'no visual'; const b = v.getBoundingClientRect(); return 'scrolled400 visual top ' + Math.round(b.top) + ' bottom ' + Math.round(b.bottom) + ' vh ' + innerHeight + (b.bottom > innerHeight ? ' CLIPPED ' + Math.round(b.bottom - innerHeight) + 'px' : ' fits') })
+    P(tag + ' STICKYFIT ' + sf)
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(300)
+    const zm = await page.evaluate(async () => {
+      const im = document.querySelector('.catalog-gallery-photo'); if (!im) return 'no gallery img'
+      const before = document.querySelectorAll('[role=dialog],[class*=lightbox],[class*=zoom]').length
+      const cur = getComputedStyle(im).cursor
+      im.click()
+      await new Promise((ok) => setTimeout(ok, 700))
+      const after = document.querySelectorAll('[role=dialog],[class*=lightbox],[class*=zoom]').length
+      const fixedImgs = [...document.querySelectorAll('img')].filter((i) => getComputedStyle(i).position === 'fixed' || (i.closest('[role=dialog]') !== null)).length
+      return 'cursor ' + cur + ' overlays before ' + before + ' after ' + after + ' fixedImgs ' + fixedImgs + ' track children ' + (document.querySelector('.catalog-gallery-track') ? document.querySelector('.catalog-gallery-track').children.length : '-') + ' thumbsStrip ' + document.querySelectorAll('.catalog-gallery-thumbs, [class*=thumb]').length + ' dots ' + document.querySelectorAll('[class*=gallery-dot],[class*=dots]').length
+    })
+    P(tag + ' ZOOM ' + zm)
     await page.close()
   }
 
