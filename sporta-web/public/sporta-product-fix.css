@@ -46,6 +46,22 @@
     padding-block: .75rem;
     box-shadow: 0 -1px 0 var(--line, rgba(23, 26, 30, .13));
   }
+
+  /* The stuck row covers the bottom 73px of the screen, so a control that scrolls into view at the bottom edge
+   * (a keyboard Tab, or scrollIntoView({block:'nearest'}) as the "pick a size" prompt does) used to stop there,
+   * wholly UNDER the row: measured at 768x1024, a size button scrolled into view with block:'nearest' was
+   * covered 45px of 45px (WCAG 2.4.11, focus not obscured); with the rule it is covered 0px. Chrome centres a
+   * focused control that is mostly off screen, so this matters most to scrollIntoView, Safari and Firefox.
+   * scroll-margin-bottom makes the browser stop 6rem short of the screen edge instead
+   * (the row is 4.5rem plus its hairline, and 6rem leaves room for a Buy now label that wraps to two lines).
+   * It changes nothing at rest and nothing on the first view (the lowest 73px of the first screen is under the
+   * row, exactly as the fixed bar covers it under 768px; one scroll reveals it): it only sets where focus and
+   * scrollIntoView stop. The
+   * row's own buttons are excluded, because a stuck element asked to scroll clear of its own bar would chase
+   * it to the end of the page. Scoped to the summary column, the only place the row can sit over. */
+  .catalog-product-page .catalog-product-summary :is(a, button, input, select, textarea, summary, [tabindex], #product-size-options):not(.product-purchase-row *) {
+    scroll-margin-bottom: 6rem;
+  }
 }
 
 /* DESC-10. The authenticity plate (logo, maker, "Authentic - sold by Sporta") took 95-110px between the

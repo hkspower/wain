@@ -9,6 +9,7 @@
 //
 //   DESC-06  description keeps the owner's line breaks, a long token cannot widen the page, tighter rhythm
 //   DESC-09  from 768px the buy row sticks to the bottom of the screen (the fixed bar is gone from there)
+//   DESC-09b a control scrolled to the bottom edge stops clear of the stuck row (scroll-margin-bottom)
 //   DESC-10  the authenticity plate is shorter, nothing is hidden, nothing overflows
 //   DESC-11  breadcrumb links and the Size guide button reach 44px without moving anything
 //   leaks    other elements (title, reassurance list, related cards) are untouched
@@ -161,6 +162,65 @@ for (const lang of LANGS) {
     }
     await ctx.close()
   }
+}
+
+// ---- DESC-09b: a control scrolled to the bottom edge stops clear of the stuck row --------------------
+// Review finding on the first DESC-09 commit: at 768x1024 the stuck row sits on the lowest 73px of the screen, and
+// a control that scrolled into view at the bottom edge ended up under it. The rule (scroll-margin-bottom) moves
+// where scrolling STOPS; it cannot change the first screen. Measured with scrollIntoView({block:'nearest'}),
+// which every browser implements the same way, against the same page with only that one rule removed.
+const SEL = '.catalog-product-summary :is(a,button,input,select,textarea,summary,[tabindex]):not(.product-purchase-row *)'
+const NO_MARGIN = ADDON.replace(/scroll-margin-bottom:\s*6rem;/, '')
+for (const lang of LANGS) {
+  for (const [w, h] of [[768, 1024], [900, 700], [1000, 800], [1280, 800]]) {
+    head(`focus clear of the row ${lang} ${w}x${h}`)
+    const covered = (css) => async () => {
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US' })
+      const pg = await ctx.newPage()
+      await pg.setContent(page(lang, DESC[lang], css))
+      await pg.evaluate(H)
+      const r = await pg.evaluate((SEL) => {
+        const els = [...document.querySelectorAll(SEL)], row = $('.product-purchase-row'), out = { n: els.length, worst: 0, worstEl: '', rowH: row.getBoundingClientRect().height, rowOwn: 0, margin: [] }
+        for (const e of els) {
+          const t = e.getBoundingClientRect().top + scrollY
+          scrollTo({ top: t - innerHeight + 20, behavior: 'instant' }) // 20px of it peeking in at the bottom edge
+          e.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+          const er = e.getBoundingClientRect(), rr = row.getBoundingClientRect()
+          const c = Math.max(0, Math.min(er.bottom, rr.bottom) - Math.max(er.top, rr.top))
+          if (c > out.worst) { out.worst = c; out.worstEl = e.tagName + '.' + String(e.className).split(' ')[0] }
+          out.margin.push(getComputedStyle(e).scrollMarginBottom)
+        }
+        // the container the app prompts with ("pick a size")
+        const box = $('#product-size-options'); scrollTo({ top: box.getBoundingClientRect().top + scrollY - innerHeight + 20, behavior: 'instant' }); box.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+        const br = box.getBoundingClientRect(), rr2 = row.getBoundingClientRect()
+        out.box = Math.max(0, Math.min(br.bottom, rr2.bottom) - Math.max(br.top, rr2.top))
+        // the row's own buttons: no margin, so they never chase the bar
+        out.rowOwn = [...row.querySelectorAll('button')].map((b) => getComputedStyle(b).scrollMarginBottom).filter((m) => m !== '0px').length
+        out.docW = document.documentElement.scrollWidth; out.innerW = innerWidth
+        return out
+      }, SEL)
+      await ctx.close()
+      return r
+    }
+    const off = await covered(NO_MARGIN)()
+    const on = await covered(ADDON)()
+    is(on.n >= 10, 'the summary controls are found (heart, Size guide, sizes)', `${on.n}`)
+    // two columns (1280): the page is short enough that scrolling clamps before a control reaches the edge, so there is
+    // nothing to cover; the precondition is asserted where the single-column page is long enough to show it
+    if (w < 1024) is(off.worst >= 40, 'precondition: without the margin a control stops wholly under the row', `${Math.round(off.worst)}px of it covered (${off.worstEl})`)
+    is(on.worst === 0, 'with the margin no control stops under the row', `${Math.round(on.worst)}px covered (${on.worstEl})`)
+    is(on.box === 0 && (w >= 1024 || off.box > 0), 'the size picker box clears the row when scrolled to nearest', `${Math.round(off.box)} -> ${Math.round(on.box)}`)
+    is(on.margin.every((m) => parseFloat(m) >= 90), 'every control above the row carries a 6rem margin', [...new Set(on.margin)].join(' '))
+    is(on.rowOwn === 0, "the row's own buttons carry no margin", `${on.rowOwn}`)
+    is(on.docW <= on.innerW, 'nothing overflows sideways', `${on.docW} vs ${on.innerW}`)
+  }
+}
+head('focus margin under 768px')
+{
+  const { pg, ctx } = await open('ar', 390, 844)
+  const m = await pg.evaluate((SEL) => [...document.querySelectorAll(SEL)].map((e) => getComputedStyle(e).scrollMarginBottom).filter((x) => x !== '0px').length, SEL)
+  is(m === 0, 'under 768px (fixed bar, no sticky row) no scroll margin is added', `${m}`)
+  await ctx.close()
 }
 
 // ---- DESC-10: authenticity plate ---------------------------------------------------------------------
