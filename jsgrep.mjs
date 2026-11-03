@@ -26,7 +26,7 @@ if (CFG.needles) {
     let i = 0, n = 0
     const hits = []
     while ((i = js.indexOf(nd, i)) !== -1 && n < (CFG.max || 3)) { hits.push(i); i += nd.length; n++ }
-    log('NEEDLE', tr(nd), 'hits>=' + hits.length)
+    log('NEEDLE', tr(nd), 'total=' + (js.split(nd).length - 1))
     for (const h of hits) log('  CTX', tr(js.slice(Math.max(0, h - (CFG.w || 220)), h + nd.length + (CFG.w || 220)).replace(/\s+/g, ' ')))
   }
 }
