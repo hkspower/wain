@@ -5,6 +5,8 @@
 //   MODE=dom     node scripts/admin-payments-scan.mjs    exact element tree of the section (full classes), to rebuild it offline
 //   MODE=verify CSS_URL=<raw url> node ...               the same page measured before and after the stylesheet is applied
 //   CSS_URL=<raw url of a stylesheet> ...                apply it on top first (before/after on one page)
+//   MODE=colors [SCHEME=dark] [W=390] node ...           text/background contrast of every text element, lowest first (the admin's dark
+//                                                        mode is prefers-color-scheme, so SCHEME=dark is what a dark-mode owner sees)
 //
 // Every admin API call is answered HERE with made-up data; nothing reaches the real
 // admin.php, nothing is saved, no credential is typed. The Payments link is triggered
@@ -36,7 +38,7 @@ const FAKE = {
   payment_knet_via_cbk: { enabled: false, tpay_ready: false },
 }
 const open = async (w, h, withCss = true) => {
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: 'en-US' })
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, locale: 'en-US', colorScheme: process.env.SCHEME === 'dark' ? 'dark' : 'light' })
   const pg = await ctx.newPage()
   const errs = []
   pg.on('pageerror', (e) => errs.push(e.message.slice(0, 90)))
@@ -121,6 +123,50 @@ let browser
       return out
     })
     lines.forEach((l) => console.log(l.slice(0, 420)))
+    await ctx.close()
+  } else if (MODE === 'colors') {
+    // Contrast of every text-bearing element in the Payments section, lowest first, in the colour scheme
+    // given by SCHEME (light | dark). Limits: 4.5:1, or 3:1 for large text (>= 24px, or >= 18.66px bold).
+    const { ctx, pg } = await open(Number(process.env.W || 390), 844, false)
+    const out = await pg.evaluate(() => {
+      const num = (str) => {
+        const m = str.match(/[\d.]+/g)
+        if (!m) return [0, 0, 0, 0]
+        const v = m.map(Number)
+        if (str.startsWith('color(')) return [v[0] * 255, v[1] * 255, v[2] * 255, v.length > 3 ? v[3] : 1]
+        return [v[0], v[1], v[2], v.length > 3 ? v[3] : 1]
+      }
+      const mix = (top, bottom) => { const a = top[3]; return [top[0] * a + bottom[0] * (1 - a), top[1] * a + bottom[1] * (1 - a), top[2] * a + bottom[2] * (1 - a), 1] }
+      const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]) }
+      const bgOf = (e) => {
+        const layers = []
+        for (let x = e; x; x = x.parentElement) { const c = num(getComputedStyle(x).backgroundColor); if (c[3] > 0) layers.push(c); if (c[3] >= 1) break }
+        let col = [255, 255, 255, 1]
+        for (let i = layers.length - 1; i >= 0; i--) col = mix(layers[i], col)
+        return col
+      }
+      const hex = (c) => '#' + c.slice(0, 3).map((x) => Math.round(x).toString(16).padStart(2, '0')).join('')
+      const root = document.querySelector('.payment-settings')
+      const rows = []
+      for (const e of root ? root.querySelectorAll('*') : []) {
+        const cs = getComputedStyle(e)
+        if (cs.display === 'none' || cs.visibility === 'hidden' || !e.getBoundingClientRect().width) continue
+        const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ')
+        const isField = e.tagName === 'INPUT' && e.type !== 'checkbox'
+        if (!own && !isField) continue
+        const fg = mix(num(cs.color), bgOf(e)), bg = bgOf(e)
+        const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x)
+        const ratio = (a + 0.05) / (b + 0.05)
+        const px = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight, 10) >= 700
+        const need = px >= 24 || (px >= 18.66 && bold) ? 3 : 4.5
+        const sig = e.tagName.toLowerCase() + '.' + String(e.getAttribute('class') || '').split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+        rows.push({ ratio, need, line: `${ratio.toFixed(2)} (need ${need}) ${sig} "${(own || e.value || e.placeholder || '').slice(0, 34)}" fg ${hex(fg)} on ${hex(bg)} ${px.toFixed(0)}px/${cs.fontWeight}${e.closest('[data-sporta-knet-ids],[data-sporta-tpay-ips]') ? ' [panel]' : ''}` })
+      }
+      rows.sort((x, y) => x.ratio - y.ratio)
+      const low = rows.filter((r) => r.ratio < r.need)
+      return [`scheme ${matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'} width ${innerWidth} | text elements ${rows.length} | under limit ${low.length}`, ...low.slice(0, 28).map((r) => r.line)]
+    })
+    out.forEach((l) => console.log(l.slice(0, 240)))
     await ctx.close()
   } else if (MODE === 'tree') {
     const { ctx, pg, errs, found } = await open(390, 844)
