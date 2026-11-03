@@ -775,7 +775,20 @@ for (const [vn, w, h, mob] of VIEWS) {
               try {
                 if (info.type === 'checkbox' || info.type === 'radio' || info.role === 'switch' || info.role === 'checkbox') { how = 'click'; await pg.evaluate((q) => document.querySelector(q).click(), sel) }
                 else if (info.tag === 'select' && info.options > 1) { how = 'select'; await pg.locator(sel).selectOption({ index: 1 }, { timeout: 1500 }) }
-                else if (info.tag === 'input' || info.tag === 'textarea') {
+                else if (info.tag === 'input' && ['range', 'datetime-local', 'date', 'time', 'month', 'week', 'color'].includes(info.type)) {
+                // Playwright's fill() cannot type into these; set the value the way the browser would and fire input + change
+                how = 'set'
+                await pg.evaluate(([q, t]) => {
+                  const e = document.querySelector(q)
+                  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+                  const to = { 'datetime-local': '2030-01-02T10:00', date: '2030-01-02', time: '10:30', month: '2030-01', week: '2030-W01', color: '#123456' }
+                  let v = to[t]
+                  if (t === 'range') { const lo = Number(e.min || 0), hi = Number(e.max || 100), cur = Number(e.value); v = String(cur + (hi - lo) / 10 <= hi ? cur + (hi - lo) / 10 : cur - (hi - lo) / 10) }
+                  setter.call(e, v)
+                  e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true }))
+                }, [sel, info.type])
+              }
+              else if (info.tag === 'input' || info.tag === 'textarea') {
                   if (info.type === 'number') { how = 'type'; await pg.locator(sel).fill(String((Number(info.value) || 0) + 1), { timeout: 1500 }) }
                   else { how = 'type'; await pg.locator(sel).fill((info.value || '') + 'x', { timeout: 1500 }) }
                 }
@@ -783,12 +796,12 @@ for (const [vn, w, h, mob] of VIEWS) {
               await pg.waitForTimeout(650)
               const onChange = R.writes.slice(before)
               let res = onChange.length ? `${how}->WRITE(${onChange.map((x) => x.r).join(',')})` : `${how}->none`
-              if (!onChange.length && how === 'type') {
+              if (!onChange.length && (how === 'type' || how === 'set')) {
                 const b2 = R.writes.length
                 await pg.locator(sel).blur({ timeout: 1000 }).catch(() => {}); await pg.evaluate((q) => { const e = document.querySelector(q); if (e) e.blur() }, sel)
                 await pg.waitForTimeout(550)
                 const onBlur = R.writes.slice(b2)
-                res = onBlur.length ? `type->blur->WRITE(${onBlur.map((x) => x.r).join(',')})` : 'type->none(+blur)'
+                res = onBlur.length ? `${how}->blur->WRITE(${onBlur.map((x) => x.r).join(',')})` : `${how}->none(+blur)`
               }
               s.auto.push(res)
             }
