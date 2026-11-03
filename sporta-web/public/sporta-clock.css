@@ -29,10 +29,10 @@
 }
 
 /* ==== ICONS (the header clock face) ======================================================================
- * The clock's face ring is drawn rgba(255,255,255,.30) on the charcoal header: 2.6:1 (WCAG 1.4.11 asks 3:1
+ * The clock's face ring is drawn rgba(255,255,255,.30) on the charcoal header: 2.7:1 (WCAG 1.4.11 asks 3:1
  * for the parts of a graphic needed to read it; the hands are white, 15:1, and the face is what tells a
- * shopper it is a clock). The live hover rule (.38) is 3.2:1, so the resting ring was the dimmer one. Resting
- * .42 is 3.9:1, hover .58 is 5.3:1, so hover is still the brighter state. Same selector weight as the live
+ * shopper it is a clock). The live hover rule (.38) is 3.5:1, so the resting ring was the dimmer one. Resting
+ * .42 is 3.9:1, hover .58 is 6.1:1, so hover is still the brighter state. Same selector weight as the live
  * hover rule (0,5,0), later in the cascade. The stroke is a presentation attribute on the circle, which any
  * CSS rule overrides.
  * ==================================================================================================== */

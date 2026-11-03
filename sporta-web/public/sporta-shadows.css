@@ -39,27 +39,32 @@
  *
  * [icons-1] STROKE. The markup says vector-effect="non-scaling-stroke", but it sits on the <svg> and the
  * property is not inherited, so it has never done anything: the stroke scales with the box (stroke-width x
- * size / 24). Rendered stroke, measured on a straight bar at 8x:
- *     13px 0.95   14px 1.02   15px 1.09   16px 1.19   17px 1.25   18px 1.31   19px 1.50 (1.9 attr)
+ * size / 24). Rendered stroke in screen px, measured on a straight bar at 8x:
+ *     13px 0.94   14px 1.02   15px 1.09   16px 1.19   17px 1.25   18px 1.31   19px 1.50 (attr 1.9)
  *     20px 1.46   22px 1.63   cart 22px 1.74 (live rule 1.9px)    features tile 23px 1.68
- * That is 0.95 to 1.75 px in one header row (globe 1.02 beside the AI mark 1.50 and the bag 1.74): the small
- * icons looked drawn with a different pen, and a stroke that is not a multiple of 0.5px is blurry on a 2x
- * phone. The property is now set on the shapes (where it works) and the width is a design token in screen px:
- * 1.5px up to a 20px box, 1.75px from 21px (the bag, close, the features tiles). The two tokens are the only
- * numbers to change if the owner wants a lighter or bolder set.
+ * That is 0.94 to 1.75px, and 1.02px (the globe) beside 1.50 (the AI mark) and 1.74 (the bag) in ONE header
+ * row: the small icons read as drawn with a different pen. The property is now set on the shapes (where it
+ * works) and the width is a design token in screen px, two tiers: 1.5px up to a 20px box (3 device px on a 2x
+ * phone), 1.75px from 21px (the bag, close, the features tiles: what the bag already was). The two tokens
+ * are the only numbers to change if the owner wants a lighter or bolder set. Hover keeps the stroke (the
+ * 8% grow scales the glyph, a non-scaling stroke does not follow it).
  *
- * [icons-2] BOX SCALE. The shop draws icons at 13, 14, 15, 16, 17, 18, 19, 20 and 22px. The odd sizes sit on a
- * half pixel inside the 44px buttons (a 17px heart in a 44px circle starts at x=13.5, so its edges are soft on a
- * 1x and a 3x screen) and the heart (17) is a pixel off the bag (18) in the same card. Odd sizes now snap to
- * the next even one: 13 -> 14, 15 -> 16, 17 -> 18, 19 -> 20, giving one scale: 14 / 16 / 18 / 20 / 22.
+ * [icons-2] BOX SCALE. The shop draws icons at 13, 14, 15, 16, 17, 18, 19, 20 and 22px: nine sizes. The odd
+ * ones start on a fractional pixel inside the 44px buttons (the 17px heart: x = 13.3 to 13.5, so its edges are
+ * soft) and the heart (17) is a pixel off the add-to-bag icon (18) in the same card. Odd sizes now snap up to
+ * the next even one: 13 -> 14, 15 -> 16, 17 -> 18, 19 -> 20, so the scale is 14 / 16 / 18 / 20 / 22 and every
+ * icon in a 44px control starts on a whole pixel. The features tiles are sized in rem by sporta-home-trim.css
+ * and are left to it.
  *
- * [icons-3] ALIGNMENT. An icon in a flex row is centred on the LINE BOX, not on the ink of the text. Arabic ink
- * (IBM Plex Arabic) sits lower in its line than Latin, so beside Arabic an icon rides 1 to 3px high. Measured
- * as icon centre vs the vertical centre of mass of the label's pixels (underline excluded): see the table in
- * the test. The product-page reassurance rows pinned the icon 2px below the top of a 24px line (centre 11px,
- * ink centre 13 to 14px); the margin now follows the line height. In RTL the icons that sit beside a label drop
- * 1px (translate, so the hover scale still composes). The language globe sits 1px low against the "EN" capitals
- * in both languages and rises 1px.
+ * [icons-3] ALIGNMENT. An icon in a flex row is centred on the LINE BOX, not on the ink of the text, and
+ * Arabic ink (IBM Plex Arabic) sits lower in its line than Latin. Measured as icon centre vs the vertical
+ * centre of mass of the label's pixels (underline excluded), 73 icon + label pairs over 320 / 390 / 768 /
+ * 1280 px in both languages: before, up to 3.36px off (mean 0.89, 11 pairs over 1.5px; worst: the
+ * product-page reassurance rows at 1280, which pinned the icon 2px below the top of a 24px line while the
+ * ink centre sits 13 to 14px down); after, at most 1.06px (mean 0.48). The reassurance margin now follows the
+ * line height (1.65em); in RTL the icons that sit beside a label drop 1px (`translate`, so the hover scale
+ * still composes); the language globe sat 0.9px low against the "EN" / "AR" capitals in both languages and
+ * rises 1px. Icon-only controls are not touched: they stay centred in their box.
  *
  * [icons-4] TARGETS. The 44px buttons are 2.75rem, which is 43.5 to 43.8px at the live root size (15.5px +
  * 0.1vw). The floor is max(44px, 2.75rem) for the icon-only controls outside the header (the header row is the
