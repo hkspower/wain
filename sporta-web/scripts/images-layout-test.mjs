@@ -72,9 +72,10 @@ for (const lang of ['ar', 'en']) {
       const withRule = await open(w, h, shop(GRID, { state: 'loaded', n, hdr }), lang)
       const without = await open(w, h, shop(GRID_WITHOUT, { state: 'loaded', n, hdr }), lang)
       const [x, y] = [await withRule.pg.evaluate(measureShop), await without.pg.evaluate(measureShop)]
-      const tall = y.docH > h
-      if (tall) is(near(x.docH, y.docH, 0.5), `${n} cards, page taller than the window: height unchanged by the rule`, `${x.docH} vs ${y.docH}`)
-      else is(x.footTop >= x.innerH - 0.5, `${n} cards, short page: footer still under the fold`, `${Math.round(x.footTop)}`)
+      // the rule only ever adds air to a section SHORTER than a window minus 6rem; a taller one keeps its height
+      const want = Math.max(y.secH, h - 6 * y.root)
+      is(near(x.secH, want, 1), `${n} cards: section is max(its content, window - 6rem)`, `${Math.round(x.secH)}px, content ${Math.round(y.secH)}px, window - 6rem ${Math.round(h - 6 * y.root)}px`)
+      if (y.secH >= h - 6 * y.root) is(near(x.docH, y.docH, 0.5), `${n} cards, section already taller than a window: page height unchanged`, `${x.docH} vs ${y.docH}`)
       await withRule.ctx.close(); await without.ctx.close()
     }
   }
@@ -107,7 +108,11 @@ for (const lang of ['ar', 'en']) {
       is(m.stH >= 320 - 0.5, 'never smaller than 320px', `${Math.round(m.stH)}px`)
       is(near(m.stLeft - m.visLeft, m.visRight - m.stRight, 1.5), 'the stage is centred in its column', `${(m.stLeft - m.visLeft).toFixed(1)} | ${(m.visRight - m.stRight).toFixed(1)}`)
       is(m.fit === 'contain' && near(m.imgW, m.stW - 2, 2) && near(m.imgH, m.stH - 2, 2), 'the photograph is contained, not cropped, and fills the stage', `${m.fit} ${Math.round(m.imgW)}x${Math.round(m.imgH)}`)
-      if (h < 745) is(base.visBottom > h + 0.5 || h < 520, 'baseline (without the rule) did run past the window', `bottom ${Math.round(base.visBottom)}px`)
+      is(m.stH <= base.stH + 0.5, 'never makes the stage bigger', `${Math.round(m.stH)} vs ${Math.round(base.stH)}`)
+      // window height 190px under the stuck column's top is exactly where the cap starts to act
+      if (base.visBottom <= h - 22 + 0.5) is(near(m.stH, base.stH, 0.5), 'a window the gallery already fits is left alone', `${Math.round(m.stH)} vs ${Math.round(base.stH)}`)
+      // 22px of air at a 16px root; the sticky offset is 10rem, so on a very wide window (root up to 17.4px) it is ~16px
+      else is(m.visBottom <= h - 14 || m.stH <= 320.5, 'it did not fit (baseline bottom ' + Math.round(base.visBottom) + 'px): now at least 14px of air under it', `bottom ${Math.round(m.visBottom)}px`)
     } else {
       is(near(m.stW, base.stW, 0.5) && near(m.stH, base.stH, 0.5) && near(m.stLeft, base.stLeft, 0.5), 'untouched: same stage as without the rule', `${Math.round(m.stW)}x${Math.round(m.stH)} vs ${Math.round(base.stW)}x${Math.round(base.stH)}`)
       if (w < 1024) is(m.pos !== 'sticky', 'not sticky under 1024px', m.pos)
