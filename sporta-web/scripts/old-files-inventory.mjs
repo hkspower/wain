@@ -54,7 +54,9 @@
 //
 // OUTPUT. Compact lines, because a Hostinger job log keeps 300 entries:
 //   ROOT · BUILD · SEED · SW · SITEMAP · HTACCESS lines first, then
-//   F <flag> <size> <mtime> <sha12> <path> [<- referrer]   (flagged files only)
+//   F <flag> <size> <mtime> <sha12> <path> [<- referrer] [markers]  (flagged only;
+//     markers on old JS/HTML/maps: cost_table, supabase, lovable, old_admin_path,
+//     passcode, internal_host, debugger)
 //   B <backup dir> files= bytes= php= html= js= newest=
 //   DIR <top folder> listed= referenced= orphan= orphan_bytes=
 //   MISSING <path> <- <referrer>       (from index.html, sw.js, CSS only)
@@ -300,6 +302,28 @@ for (const name of ['sitemap.xml', 'sitemap-pages.xml', 'sitemap-products.xml'])
 const htaccessFiles = listed.filter((r) => path.posix.basename(r) === '.htaccess' && !inBackup(r))
 say(`HTACCESS ${htaccessFiles.length} file(s): ${htaccessFiles.join(' ')}`)
 
+// What an old file still carries. Read only for files nothing loads (and
+// backups / old pages): a reachable old chunk is public whatever it holds, so
+// these name what a stranger could fetch. The marker NAME is printed, never
+// the matched text.
+const MARKERS = [
+  ['cost_table', /aedPerKwd|AHED_COST_AED|cost_aed/],        // supplier cost (REPO-SCAN webcode-1)
+  ['supabase', /supabase/i],
+  ['lovable', /lovable/i],
+  ['old_admin_path', /["'`]\/admin(?:["'`\/?#])/],
+  ['passcode', /AdminPasscode|passcode/i],
+  ['internal_host', /187\.7\.78\.123|46\.202\.158\.211|hstgr\.cloud|n8n\.cloud/i],
+  ['debugger', /\bdebugger\b/],
+]
+let marked = 0
+const marks = (flag, rel) => {
+  if (!['ORPHAN', 'BACKUP', 'OLD_HTML', 'MAP'].includes(flag) || !/\.(m?js|cjs|html?|map)$/i.test(rel) || all.get(rel).isLink) return ''
+  const t = read(rel)
+  const hit = MARKERS.filter(([, re]) => re.test(t)).map(([n]) => n)
+  if (hit.length) marked++
+  return hit.length ? ` [${hit.join(',')}]` : ''
+}
+
 const order = { SECRET_SHAPED: 0, SETUP_TOOL: 1, PHP_OUTSIDE: 2, MAP: 3, OLD_HTML: 4, BACKUP: 5, SYMLINK: 6, ORPHAN: 7, REFERENCED: 8 }
 flagged.sort((a, b) => order[a[0]] - order[b[0]] || a[1].localeCompare(b[1]))
 let shown = 0
@@ -307,10 +331,11 @@ for (const [flag, rel] of flagged) {
   if (shown >= MAX_F) break
   const f = all.get(rel)
   const via = reached.get(rel)
-  say(`F ${flag.padEnd(13)} ${String(f.size).padStart(8)} ${when(f.mtime)} ${f.isLink ? 'symlink     ' : sha12(rel)} ${rel}${via ? ' <- ' + via : ''}`)
+  say(`F ${flag.padEnd(13)} ${String(f.size).padStart(8)} ${when(f.mtime)} ${f.isLink ? 'symlink     ' : sha12(rel)} ${rel}${via ? ' <- ' + via : ''}${marks(flag, rel)}`)
   shown++
 }
 if (flagged.length > shown) say(`F ... ${flagged.length - shown} more flagged files not printed (counts below are complete)`)
+for (const [flag, rel] of flagged.slice(shown)) marks(flag, rel)   // keep the marked count complete
 let bshown = 0
 for (const [b, v] of [...backups].sort()) {
   if (bshown++ >= MAX_B) { say(`B ... ${backups.size - MAX_B} more backup folders`); break }
@@ -326,6 +351,6 @@ for (const [p, from] of missing) {
 // Any script or stylesheet outside backups/ that still names a source map,
 // reached or not: an orphan with a map comment is a map someone can ask for.
 const smapRefs = listed.filter((r) => /\.(m?js|cjs|css)$/.test(r) && !inBackup(r) && !all.get(r).isLink && /sourceMappingURL=/.test(read(r)))
-say(`OLD_FILES_EXTRA referenced=${counts.referenced} backend=${counts.backend} setup_tools=${counts.setup} php_outside=${counts.phpOutside} secret_shaped=${counts.secret} backup_dirs=${backups.size} backup_files=${counts.backupFiles} symlinks=${counts.links} missing=${seen.size} sourcemap_comments=${smapRefs.length}${smapRefs.length ? ' (' + smapRefs.slice(0, 4).join(' ') + ')' : ''}`)
+say(`OLD_FILES_EXTRA referenced=${counts.referenced} backend=${counts.backend} setup_tools=${counts.setup} php_outside=${counts.phpOutside} secret_shaped=${counts.secret} backup_dirs=${backups.size} backup_files=${counts.backupFiles} symlinks=${counts.links} missing=${seen.size} marked=${marked} sourcemap_comments=${smapRefs.length}${smapRefs.length ? ' (' + smapRefs.slice(0, 4).join(' ') + ')' : ''}`)
 say(`OLD_FILES orphans=${counts.orphans} html=${counts.html} maps=${counts.maps}`)
 say('OLD_FILES_DONE')
