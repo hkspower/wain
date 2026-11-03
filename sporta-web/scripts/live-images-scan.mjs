@@ -328,9 +328,9 @@ const visit = async (ctx, tag, url, opts) => {
 const TAG0 = LANG + VW
 const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: E.CHROME || undefined })
 try {
-  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!E.INJECT })
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!(E.INJECT || E.INJECT_B64) })
   await ctx.addInitScript(INIT)
-  if (E.INJECT) { let css = ''; for (const u of E.INJECT.split(',')) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css); if (E.EARLY) { await ctx.addInitScript((c) => { const s = document.createElement('style'); s.textContent = c; (document.head || document.documentElement).appendChild(s) }, css); P('EARLY_CSS ' + css.length + ' bytes') } }
+  if (E.INJECT || E.INJECT_B64) { let css = E.INJECT_B64 ? Buffer.from(E.INJECT_B64, 'base64').toString('utf8') + '\n' : ''; for (const u of String(E.INJECT || '').split(',').filter(Boolean)) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css); if (E.EARLY) { await ctx.addInitScript((c) => { const s = document.createElement('style'); s.textContent = c; (document.head || document.documentElement).appendChild(s) }, css); P('EARLY_CSS ' + css.length + ' bytes') } }
 
   if (PAGES.includes('api')) {
     const j = await (await fetch(BASE + '/api/api.php?r=products')).json()
