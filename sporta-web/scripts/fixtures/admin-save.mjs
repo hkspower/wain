@@ -75,7 +75,7 @@ export const PAGES = {
 <form class="support-admin__editor space-y-3" data-save="ticket"><label class="block text-sm">Status<select class="w-full rounded-lg border px-3 py-2"><option>open</option><option>closed</option></select></label>
 <label class="block text-sm">Priority<select class="w-full rounded-lg border px-3 py-2"><option>normal</option></select></label>
 <button type="submit" class="support-admin__primary rounded-xl bg-slate-900 px-4 py-2 font-bold text-white">Save ticket</button></form>
-<section>${para(14)}</section>
+<section>${para(30)}</section>
 <form class="support-admin__reply space-y-3" data-save="reply"><textarea class="w-full rounded-lg border px-3 py-2" rows="4" name="reply" data-enables="reply-save" data-last="1"></textarea>
 <button type="submit" id="reply-save" class="support-admin__primary rounded-xl bg-slate-900 px-4 py-2 font-bold text-white" disabled>Send customer reply</button></form>
 </aside></div>`,

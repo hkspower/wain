@@ -146,14 +146,14 @@ async function checkShownBar(pg, name, vn, dark, st) {
   is(st.last, `${tag}: the bar is the last element in the body (last tab stop)`)
   is(contrast(st.color, st.bg) >= 4.5, `${tag}: text contrast ${contrast(st.color, st.bg).toFixed(2)}:1 is 4.5 or better`)
   is(st.tone === (dark ? 'dark' : 'light'), `${tag}: ${dark ? 'dark' : 'light'} tone`, st.tone)
-  if (vn === 'phone' && name !== 'support-drawer' && name !== 'orders-drawer') {
+  const oz = c.overlay ? await pg.evaluate((s) => +getComputedStyle(document.querySelector(s)).zIndex, c.overlay) : 0
+  if (vn === 'phone') {
     const tb = await pg.evaluate(() => document.querySelector('.m-tabbar').getBoundingClientRect().top)
-    is(st.rect.b <= tb + 0.5, `${tag}: the bar sits above the phone tab bar`, `${st.rect.b} vs ${tb}`)
+    if (!c.overlay || oz <= 40) is(st.rect.b <= tb + 0.5, `${tag}: the bar sits above the phone tab bar`, `${st.rect.b} vs ${tb}`)
+    else is(Math.abs(st.rect.b - st.vh) < 1.5, `${tag}: the z${oz} overlay already covers the tab bar, so the bar is not lifted`, `${st.rect.b} vs ${st.vh}`)
   }
-  if (c.overlay) {
-    const oz = await pg.evaluate((s) => +getComputedStyle(document.querySelector(s)).zIndex, c.overlay)
-    is(st.z === oz + 1 || st.z > oz, `${tag}: one z-index above the overlay`, `${st.z} vs ${oz}`)
-  } else is(st.z < 40, `${tag}: below the modals (z-index ${st.z})`)
+  if (c.overlay) is(st.z === oz + 1, `${tag}: one z-index above the overlay (z${oz})`, `${st.z}`)
+  else is(st.z < 40, `${tag}: below the modals (z-index ${st.z})`)
 }
 
 async function checkInteract(pg, name, vn, errors) {
@@ -197,22 +197,27 @@ async function checkClickOnce(pg, name, vn) {
 
 async function checkReveal(pg, name, vn) {
   const c = CASES[name], tag = `${name} @${vn}`
-  const before = await pg.evaluate(([s]) => document.querySelector(s).textContent, [c.sel])
-  await intoView(pg, c.sel)
+  const y = await pg.evaluate(([sel, boxSel]) => {
+    const box = boxSel === 'window' ? document.scrollingElement : document.querySelector(boxSel)
+    document.querySelector(sel).scrollIntoView({ block: 'center', behavior: 'instant' })
+    return box.scrollTop
+  }, [c.sel, c.box])
   await settle(pg)
   const st = await barState(pg)
   is(!st.shown, `${tag}: the bar goes when the real Save scrolls into view`)
-  const styles = await pg.evaluate(([boxSel]) => {
-    const box = boxSel === 'window' ? document.documentElement : document.querySelector(boxSel)
-    return [box.getAttribute('style'), document.documentElement.getAttribute('style')]
-  }, [c.box])
-  is(styles[0] === null && styles[1] === null, `${tag}: the scroll container's style attribute is back to what it was`, JSON.stringify(styles))
-  // and comes back when it scrolls away again
+  const y2 = await pg.evaluate(([boxSel]) => (boxSel === 'window' ? document.scrollingElement : document.querySelector(boxSel)).scrollTop, [c.box])
+  is(Math.abs(y2 - y) <= 1, `${tag}: and the page does not jump under the reader when it goes`, `${y} -> ${y2}`)
+  // back to the top: the bar returns, and once the scroll position is inside the page proper the padding is gone
   await scrollBox(pg, c.box, 0)
   if (c.box !== 'window') await scrollBox(pg, 'window', 0)
   await settle(pg)
   is((await barState(pg)).shown, `${tag}: and comes back when the Save scrolls out of view again`)
-  return before
+  await intoView(pg, c.sel)
+  await settle(pg)
+  await scrollBox(pg, c.box, 0)
+  if (c.box !== 'window') await scrollBox(pg, 'window', 0)
+  await settle(pg)
+  await scrollBox(pg, c.box, 0)
 }
 
 async function checkRerender(pg, name, vn) {
@@ -381,11 +386,17 @@ for (const dark of [false, true]) {
       await checkRerender(pg, name, vn)
       await checkKeyboard(pg, name, vn)
       if (name === 'catalogue-modal') {
-        // the Save row is under the tab bar at every scroll position: the bar stays, and the last field clears it
+        // at the very end the sticky row has come out from under the tab bar: the Save is reachable, the bar steps aside, nothing is covered
         await scrollBox(pg, c.box, 'max'); await settle(pg)
-        const m = await pg.evaluate(() => { const b = document.querySelector('[data-sporta-savebar]'); const l = document.querySelector('[data-last]'); return { shown: !b.hidden, barTop: b.getBoundingClientRect().top, last: l.getBoundingClientRect().bottom } })
-        is(m.shown && m.last <= m.barTop + 0.5, `${name} @${vn}: scrolled to the end the last field is clear of the bar (and the bar stays: the Save row is under the tab bar)`, JSON.stringify(m))
+        const m = await pg.evaluate(() => {
+          const r = document.querySelector('.admin-editor-actions button[type=submit]').getBoundingClientRect(), l = document.querySelector('[data-last]').getBoundingClientRect()
+          const b = document.querySelector('[data-sporta-savebar]'), t = document.querySelector('.m-tabbar').getBoundingClientRect().top
+          return { barShown: !b.hidden, realBottom: r.bottom, tab: t, lastBottom: l.bottom, barTop: b.getBoundingClientRect().top }
+        })
+        is(m.realBottom <= m.tab + 0.5 || m.barShown, `${name} @${vn}: scrolled to the end the Save is reachable (above the tab bar, or the bar is up)`, JSON.stringify(m))
+        is(m.barShown ? m.lastBottom <= m.barTop + 0.5 : m.lastBottom <= m.tab, `${name} @${vn}: and the last field is clear of the bar / tab bar`, JSON.stringify(m))
         await scrollBox(pg, c.box, 0); await settle(pg)
+        is((await barState(pg)).shown, `${name} @${vn}: back at the top the sticky row is under the tab bar again and the bar is back`)
       } else await checkReveal(pg, name, vn)
       // DOM diff: the bar up, then the Save in view; the app root must be identical (except the padding we add)
       await scrollBox(pg, c.box, 0); await scrollBox(pg, 'window', 0); await settle(pg)
