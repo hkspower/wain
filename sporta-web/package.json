@@ -74,6 +74,7 @@
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
     "test:config": "node scripts/config-path-test.mjs",
+    "test:xss-config": "node scripts/xss-config-test.mjs",
     "test:vps-deploy": "node scripts/vps-deploy-test.mjs",
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",

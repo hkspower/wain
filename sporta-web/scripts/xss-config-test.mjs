@@ -263,18 +263,23 @@ const parseXml = async (xml) => page?.evaluate((x) => {
 }, xml)
 
 // What EXECUTING a page does: load it, listen for dialogs, console and every
-// request that leaves for evil.example. The page body is served by the route.
+// request that leaves for evil.example. Each call gets a FRESH browser context:
+// the shared `page` is used for parsing only. (A page left on an image or error
+// document by a navigation check makes setContent throw "execution context was
+// destroyed", and a swallowed throw reads as "0 dialogs": a false pass. Section
+// 9's canary caught exactly that.) A setContent error is a failure, never a pass.
 async function execute(htmlText, label) {
-  if (!page) return null
+  if (!browser) return null
   const seen = { dialogs: [], evil: [], errors: [] }
-  const onDialog = async (d) => { seen.dialogs.push(d.message()); await d.dismiss().catch(() => {}) }
-  const onReq = (r) => { if (/evil\.example/.test(r.url())) seen.evil.push(r.url()) }
-  page.on('dialog', onDialog); page.on('request', onReq)
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort())
-  await page.setContent(htmlText, { waitUntil: 'load' }).catch((e) => { seen.errors.push(String(e.message).split('\n')[0]) })
-  await page.waitForTimeout(150)
-  page.off('dialog', onDialog); page.off('request', onReq)
-  await page.unroute(/^https?:\/\/(?!127\.0\.0\.1)/)
+  const ctx = await browser.newContext({ locale: 'en-US' })
+  const p = await ctx.newPage()
+  p.on('dialog', async (d) => { seen.dialogs.push(d.message()); await d.dismiss().catch(() => {}) })
+  p.on('request', (r) => { if (/evil\.example/.test(r.url())) seen.evil.push(r.url()) })
+  await p.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort())
+  await p.setContent(htmlText, { waitUntil: 'load' }).catch((e) => { seen.errors.push(String(e.message).split('\n')[0]) })
+  await p.waitForTimeout(150)
+  await ctx.close().catch(() => {})
+  if (seen.errors.length) bad(`execute(${label}): the page could not be loaded for execution`, seen.errors[0])
   return { ...seen, label }
 }
 
@@ -445,11 +450,14 @@ is(stored('product slug').length === 0 && stored('brand slug').length === 0, 'pr
 is(stored('discount code').length === 0, 'discount codes are rebuilt to A-Z0-9', '')
 {
   const ctl = (l) => mx(l).filter((m) => /[\x00-\x1F]/.test(m.got ?? '')).map((m) => m.pname) // eslint-disable-line no-control-regex
-  is(ctl('promo_bar.text_en').length === 0 && ctl('checkout.notice_en').length === 0 && ctl('seo page title_en').length === 0 && ctl('product name_en').length === 0 && ctl('brand name_en').length === 0 && ctl('discount label').length === 0,
-    'control characters (NUL, CR, LF) never reach a stored title, notice, name or label (store_text and the SEO/notice cleaners strip them)', '')
-  weak(ctl('slide title_en').length === 0 && ctl('product desc_en').length === 0,
-    'slide titles and product descriptions strip control characters too (store_opt does not; store_text does)',
-    `kept: slide ${JSON.stringify(ctl('slide title_en'))}, description ${JSON.stringify(ctl('product desc_en'))}; JSON, mail and HTML paths all neutralise them, so cosmetic`)
+  const STRIPPED = ['promo_bar.text_en', 'seo page title_en', 'product name_en', 'brand name_en', 'discount label']
+  const KEPT = ['checkout.notice_en', 'slide title_en', 'product desc_en']
+  is(STRIPPED.every((l) => ctl(l).length === 0),
+    'control characters (NUL, CR, LF) never reach a stored promo text, SEO title, product name, brand name or discount label (store_text / store_topbar_setting / the SEO cleaner strip them)',
+    STRIPPED.filter((l) => ctl(l).length).map((l) => `${l} kept ${JSON.stringify(ctl(l))}`).join('; '))
+  weak(KEPT.every((l) => ctl(l).length === 0),
+    'the checkout notice, slide titles and product descriptions strip control characters too (their cleaners are mb_substr(trim()) / store_opt, not store_text)',
+    `kept: ${KEPT.map((l) => `${l} ${JSON.stringify(ctl(l))}`).join(', ')}; JSON (\\u0000, \\r\\n), mail (base64 subject, escaped HTML) and React (text child) all neutralise them, so cosmetic`)
 }
 {
   const verbatim = (l) => `${stored(l).length}/${Object.keys(P).length + 2} verbatim`
@@ -708,11 +716,16 @@ is(jsonBodies.products.json?.some?.((p) => p.name_en?.includes('<script>') || tr
   is(/^image\/png$/.test(slide.headers.get('content-type')) && slide.headers.get('x-content-type-options') === 'nosniff', 'slide_image likewise', slide.headers.get('content-type'))
   is(svgBrand.status === 404, 'a row holding data:image/svg+xml is NOT served (the route only decodes png/jpeg/webp)', String(svgBrand.status))
   if (browser) {
-    const seen = { dialogs: [], evil: [] }
-    page.on('dialog', async (d) => { seen.dialogs.push(d.message()); await d.dismiss().catch(() => {}) })
-    await page.goto(`${SITE}/api/api.php?r=brand_logo&slug=poly`).catch(() => {})
-    await page.goto(`${SITE}/api/api.php?r=slide_image&id=${slideId}`).catch(() => {})
-    is(seen.dialogs.length === 0, 'navigating straight to the polyglot logo and slide executes nothing', `${seen.dialogs.length} dialogs`)
+    const seen = { dialogs: [], failed: [] }
+    const ctx = await browser.newContext()
+    const p = await ctx.newPage()
+    p.on('dialog', async (d) => { seen.dialogs.push(d.message()); await d.dismiss().catch(() => {}) })
+    for (const u of [`/api/api.php?r=brand_logo&slug=poly`, `/api/api.php?r=slide_image&id=${slideId}`]) {
+      const res = await p.goto(SITE + u).catch(() => null)
+      if (!res || res.status() !== 200) seen.failed.push(`${u.slice(0, 40)} ${res?.status() ?? 'error'}`)
+    }
+    await ctx.close().catch(() => {})
+    is(seen.dialogs.length === 0 && seen.failed.length === 0, 'navigating straight to the polyglot logo and slide executes nothing (both answered 200)', `${seen.dialogs.length} dialogs${seen.failed.length ? `; ${seen.failed.join(', ')}` : ''}`)
   }
 }
 
@@ -763,10 +776,16 @@ const T = ordersMade[0].track
 {
   const cust = { 'X-Sporta-Customer': '1', 'Sec-Fetch-Site': 'same-origin' }
   const email = 'hostile@sporta.test'
-  const t = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify({ name: P.tag, subject: P.endscript + ' ' + P.img, message: COMBO(1500), email }) })
+  const refusedTags = []
+  for (const [field, body] of [['name', { name: P.tag, subject: 'Order question', message: 'Where is my order, please?', email }], ['subject', { name: 'Hostile Customer', subject: P.endscript + ' ' + P.img, message: 'Where is my order, please?', email }], ['message', { name: 'Hostile Customer', subject: 'Order question', message: COMBO(1500), email }]]) {
+    const r = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify(body) })
+    if (r.status === 400 && r.json?.error === 'invalid_ticket') refusedTags.push(field)
+  }
+  is(refusedTags.length === 3, 'support_create REFUSES < and > in name, subject and message (support_text: validation, not escaping)', `refused in ${refusedTags.join(',') || 'none'}`)
+  const t = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify({ name: P.apos.slice(0, 40), subject: `${P.attr} ${P.js} ${P.tpl}`, message: `${P.lsep} ${P.rlo} ${P.apos} ${P.amp} ${P.data}`, email }) })
   const ref = t.json?.ticket?.reference ?? t.json?.ticket?.ref
   const look = ref ? await api('support_lookup', '', { method: 'POST', headers: cust, body: JSON.stringify({ reference: ref, email }) }) : null
-  is(t.status === 201 && !inert('support_create', t) && look && !inert('support_lookup', look), 'support ticket with HTML in subject, name and message: stored, returned as inert JSON', `${t.status} ${ref ?? ''}`)
+  is(t.status === 201 && !inert('support_create', t) && look && !inert('support_lookup', look) && JSON.stringify(look?.json ?? {}).includes('onfocus=alert(1)'), 'a ticket with quotes, on*=, javascript:, {{7*7}}, bidi and U+2028 (no < >) is stored and comes back as inert JSON', `${t.status} ${ref ?? t.json?.error ?? ''}`)
   const ai = await api('assistant', '', { method: 'POST', body: JSON.stringify({ message: `${P.img} how much is the jacket? ${P.tag}`, lang: 'en' }) })
   is(!inert('assistant', ai), 'the assistant answers a hostile question and a hostile catalogue with inert JSON (its answer is data to the client)', `${ai.status} ${(ai.json?.answer ?? ai.json?.text ?? '').toString().slice(0, 50)}`)
 }
@@ -1022,7 +1041,33 @@ head('8. the client side, as far as the repo can show it')
       'the client neutralises a protocol-relative or data: Link target itself (defence in depth for a poisoned slide row)',
       `react-router passes href="${out['//evil.example']}" and href="${out['data:text/html,x']}" through verbatim, so a poisoned cta_href of //evil.example is an off-site button unless the server stops it`)
   } catch (e) { info('react-router rendering check skipped', String(e.message).split('\n')[0]) }
-  info('live compiled bundle', 'not in the repo: whether it uses dangerouslySetInnerHTML on settings fields is a live check (see live_checks_pending)')
+  // The live storefront is a compiled build whose source is not in the repo.
+  // When a copy of its /assets directory is at hand (LIVE_ASSETS=<dir>, e.g. a
+  // read-only capture made through the Hostinger connector), its chunks are
+  // read for DOM sinks and for the client-side gates that compensate the
+  // "weak" read-side checks above. Without it this is a live check.
+  const LIVE = process.env.LIVE_ASSETS
+  if (LIVE && existsSync(LIVE)) {
+    const chunks = readdirSync(LIVE).filter((n) => n.endsWith('.js'))
+    const texts = Object.fromEntries(chunks.map((n) => [n, readFileSync(join(LIVE, n), 'utf8')]))
+    const app = Object.entries(texts).filter(([n]) => !/^react-vendor-/.test(n))
+    const hits = (re) => app.filter(([, t]) => re.test(t)).map(([n]) => n)
+    const sinkHits = {
+      dangerouslySetInnerHTML: hits(/dangerouslySetInnerHTML|__html/), innerHTML: hits(/\.innerHTML\s*=|insertAdjacentHTML|outerHTML\s*=/),
+      'document.write': hits(/document\.write\(/), eval: hits(/\beval\(|new Function\(/), srcdoc: hits(/srcdoc/), 'window.open': hits(/window\.open\(/), 'javascript:': hits(/["'`]javascript:/),
+    }
+    is(Object.values(sinkHits).every((v) => v.length === 0), `live bundle (${chunks.length} chunks, react-vendor excluded): no dangerouslySetInnerHTML/__html, innerHTML, document.write, eval, srcdoc, window.open or javascript: literal`,
+      Object.entries(sinkHits).filter(([, v]) => v.length).map(([k, v]) => `${k}: ${v.join(',')}`).join('; ') || `${app.length} app chunks`)
+    const main = app.find(([n]) => /^index-/.test(n))?.[1] ?? ''
+    // The gates, as the minifier left them (literal source text, not re-derived).
+    const hrefGate = main.includes('/^\\/(?![/\\\\])[A-Za-z0-9/_\\-?=&%.#]{0,180}$/')
+    is(hrefGate, 'live bundle gates cta_href and the promo bar href on the client with a single-slash same-origin path regex (compensates the r=slides read-side weak)', hrefGate ? '' : 'gate not found: re-read the bundle')
+    is(main.includes('/^#[0-9a-f]{6}$/i.test(') && main.includes('[`10`,`16`,`24`].includes(String('), 'live bundle re-validates theme colours (#rrggbb) and radius (10|16|24) before style.setProperty (compensates the r=theme read-side weak)')
+    is(main.includes('/^\\/fonts\\/custom\\/([a-f0-9]{20})\\.(woff2|woff|ttf|otf)$/'), 'live bundle only loads a custom font from /fonts/custom/<20 hex>.(woff2|woff|ttf|otf)')
+    is(/Math\.max\(2e3,Number\(\w+\.speed_ms\)\|\|/.test(main), 'live bundle coerces hero.speed_ms with Number() and a 2 s floor (a string becomes the default)')
+    const all = Object.values(texts).join('\n')
+    info('live bundle notice and topbar text', /children:\w+\[e===`ar`\?`notice_ar`:`notice_en`\]/.test(all) && /text_ar:e\?\.text_en/.test(all) ? 'both rendered as React text children' : 'render shape not matched (read it)')
+  } else info('live compiled bundle', 'not in the repo: set LIVE_ASSETS=<captured /assets dir> to read its chunks for sinks and client gates; otherwise a live check (see live_checks_pending)')
 }
 
 // ========================================================================== 9
@@ -1044,7 +1089,6 @@ head('9. the detectors can fail: two deliberate regressions on a copy')
     const a = await analyse(r)
     const problems = a ? samePage(baseline['/'].a, a) : ['(no browser)']
     const ex = a ? await execute(r, label) : null
-    if (process.env.XSS_DEBUG) { const i = r.indexOf('alert(1)'); console.log('DEBUG', label, JSON.stringify(ex)); writeFileSync(join(process.env.XSS_DEBUG, `${label.replace(/\W+/g, '_')}.html`), r); const j = r.indexOf('name="description"'); console.log(JSON.stringify(r.slice(j - 20, j + 200))); console.log(r.length, r.slice(0, 300)) }
     writeFileSync(seoFile, orig)
     return { problems, ex }
   }
