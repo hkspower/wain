@@ -80,16 +80,18 @@ button:has(> .purchase-steps__body) {
 
 /* cash-07 + cash-09. From 1024px the order summary is sticky beside the form.
    Six lines (two of them wrapping) made it 744px tall: taller than the 688px
-   a 800px screen leaves under the header, so the only "Continue to payment"
+   an 800px screen leaves under the header, so the only "Continue to payment"
    button dropped off the bottom and could be reached only at the very end of
    the page (the pay bar is hidden from 1024px). The bag list now scrolls
-   inside the card: 224px of it at 800px tall, growing with the screen
-   (about 504px at 1080px), and never under 7rem. A one-line bag (50px) is
-   untouched. The 36rem is the header (145px) and its gap, the card's own
-   fixed parts (promo field, totals, button) and 1rem of air below. */
+   inside the card. Measured on the live markup at 1280x800, six long lines:
+   summary 812px -> 577px, button bottom at y 909 -> 716 of 800. The list gets
+   the height the screen has left, about 210px at 800px tall and 490px at
+   1080px, never under 7rem; a one-line bag (50px) is untouched. The 35rem is
+   the 160px sticky offset below, the card's fixed parts (promo field, totals,
+   button: 383px) and about 3rem of air for a discount line or two. */
 @media (min-width: 1024px) {
   .purchase-checkout-summary > ul {
-    max-height: max(7rem, calc(100vh - 36rem));
+    max-height: max(7rem, calc(100vh - 35rem));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
