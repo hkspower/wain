@@ -793,6 +793,7 @@ for (const [vn, w, h, mob] of VIEWS) {
                 how = 'set'
                 await pg.evaluate(([q, t]) => {
                   const e = document.querySelector(q)
+                  e.focus()                       // a real edit has focus, so the later blur is a real blur
                   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
                   const to = { 'datetime-local': '2030-01-02T10:00', date: '2030-01-02', time: '10:30', month: '2030-01', week: '2030-W01', color: '#123456' }
                   let v = to[t]
@@ -806,7 +807,7 @@ for (const [vn, w, h, mob] of VIEWS) {
                   else { how = 'type'; await pg.locator(sel).fill((info.value || '') + 'x', { timeout: 1500 }) }
                 }
               } catch (e) { s.auto.push(`${how || 'probe'}:err`); continue }
-              await pg.waitForTimeout(650)
+              await pg.waitForTimeout(how === 'set' ? 1200 : 650)
               const onChange = R.writes.slice(before)
               let res = onChange.length ? `${how}->WRITE(${onChange.map((x) => x.r).join(',')})` : `${how}->none`
               if (!onChange.length && (how === 'type' || how === 'set')) {
