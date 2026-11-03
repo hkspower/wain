@@ -22,20 +22,24 @@
  * under .app-header, so nothing outside the header moves.
  *
  * Measured on the captured live header markup + the live compiled rules + real Tailwind
- * (scripts/menu-layout-test.mjs; the phone numbers are the same at 320, 360 and 390 wide, a 16px root):
+ * (scripts/menu-layout-test.mjs; a 16px root; Arabic is identical at 320, 360 and 390 wide, English
+ * differs only where the fixture's 57-character announcement wraps):
  *
  *                                        before                     after
  *   announcement bar  height             32px                       28px (grows to 36px only for 2 lines)
  *                     text (Arabic)      12px                       12px
- *                     text (English)     11px, CUT at 320px         12px, wraps to 2 lines instead of "..."
+ *                     text (English)     11px (--type-micro is       12px; a sentence that no longer fits
+ *                                        .6875rem when not RTL),     wraps to 2 lines instead of "..."
+ *                                        cut at 320px
  *   brand row         height             60px (44px + 2 x 8px)      52px (44px + 2 x 4px)
  *   menu tabs         height             45px (44 + border)         45px
  *                     text               12px (phone) 13.2px (768)  14px at every width
  *                                        13.7px (1280)
  *                     overflow           clipped nowhere, but no    scrolls sideways, scrollbar hidden,
  *                                        way out if it ever did     if a long label ever needs it
- *   sticky chrome (all three, phone)     138px                      126px (-12px, -8.7% of the screen's
- *                                                                   top; 17% -> 15% of a 740px phone)
+ *   sticky chrome (all three, phone)     138px                      126px (-12px; 18.6% -> 17.0% of a
+ *                                                                   740px-tall phone; English with a long
+ *                                                                   announcement: 134px, still under 138)
  *   tablet / desktop (640px and up)      heights and positions unchanged; only the tab text and the
  *                                        focus ring change
  *   keyboard focus ring                  2px, 3px away              3px (tabs: 3px INSIDE the box, so the
@@ -94,14 +98,14 @@
  * both languages), but a column may now grow to its label instead of letting it spill, and the row
  * scrolls sideways, without a scrollbar, when even that is not enough. */
 @media (max-width: 639px) {
-  .app-header .navbar-secondary ul {
+  .app-header div.navbar-secondary > ul {
     grid-template-columns: repeat(5, minmax(min-content, 1fr));
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
-  .app-header .navbar-secondary ul::-webkit-scrollbar { display: none; }
+  .app-header div.navbar-secondary > ul::-webkit-scrollbar { display: none; }
   .app-header .navbar-secondary ul .navbar-link { padding-inline: .375rem; }
 }
 

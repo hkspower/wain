@@ -26,7 +26,9 @@ const LOGO = 'data:image/png;base64,' + b64('public/logo-white.png')
 // add-on files that style the header's colours/shadows/clock, as linked by the live index.html
 const ADDONS = ['public/sporta-brand-theme.css', 'public/sporta-ui-colours.css', 'public/sporta-shadows.css', 'public/sporta-clock.css'].map(read).join('\n')
 
-export const page = (lang, extraCss = '') => `<!doctype html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${FONTS}</style><style>${TW}</style><style>${LIVE_RULES}</style><style>${ADDONS}</style><style>${extraCss}</style></head><body><div class="storefront-root">${headerHtml(lang, LOGO)}<main id="main" style="height:1600px;padding:24px"><p>page</p></main></div></body></html>`
+// `early` puts the CSS under test BEFORE the live bundle's rules: the section must win by specificity, not by
+// being loaded last (the live index.html order of the add-on links is not something this repo controls).
+export const page = (lang, extraCss = '', early = false) => `<!doctype html><html lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${FONTS}</style><style>${TW}</style>${early ? `<style>${extraCss}</style>` : ''}<style>${LIVE_RULES}</style><style>${ADDONS}</style>${early ? '' : `<style>${extraCss}</style>`}</head><body><div class="storefront-root">${headerHtml(lang, LOGO)}<main id="main" style="height:1600px;padding:24px"><p>page</p></main></div></body></html>`
 
 // the add-on file the section lives in, split into "everything before the section" and the section
 export const sectionOf = (file) => {

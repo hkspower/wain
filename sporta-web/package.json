@@ -41,6 +41,7 @@
     "test:about-page": "node scripts/about-page-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
     "test:grid": "node scripts/grid-card-test.mjs",
+    "test:menu-layout": "node scripts/menu-layout-test.mjs",
     "test:shop-header": "node scripts/shop-header-test.mjs",
     "test:links": "node scripts/links-images-test.mjs",
     "test:legal": "node scripts/legal-pages-test.mjs",

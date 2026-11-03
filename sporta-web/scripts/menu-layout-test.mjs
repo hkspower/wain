@@ -24,7 +24,6 @@
 //     the suite fail (the counts are printed).
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium); MENU_CSS_FILE to test another copy of the file.
 import { chromium } from 'playwright'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ROOT, page as buildPage, measure, sectionOf, SECTION_START } from './lib/menu-layout-page.mjs'
 
@@ -60,12 +59,20 @@ const FOCUS = () => {
     x: r.left, y: r.top, w: r.width, h: r.height, topbarBottom: top.bottom, vw: document.documentElement.clientWidth,
   }
 }
-const capture = async (css, lang, w) => {
+const LONG = {
+  ar: { bar: 'التوصيل خلال ٢٤ ساعة داخل الكويت · الدفع عند الاستلام · استبدال مجاني خلال ١٤ يوماً · شحن سريع لكل المحافظات · عروض نهاية الموسم', tab: 'حسابي وطلباتي وعناويني' },
+  en: { bar: 'Delivery within 24 hours inside Kuwait · Cash on delivery · Free exchange within 14 days · Fast shipping to every governorate · End of season offers', tab: 'Account settings and orders' },
+}
+// opt.early: the CSS under test is placed BEFORE the live bundle's rules; opt.stress: an admin-length announcement
+// and a long last tab label (the announcement text is edited in the admin; a label can be longer than today's)
+const capture = async (css, lang, w, opt = {}) => {
   const ctx = await browser.newContext({ viewport: { width: w, height: 800 }, locale: lang === 'ar' ? 'ar-KW' : 'en-US' })
   const pg = await ctx.newPage()
-  await pg.setContent(buildPage(lang, css))
+  await pg.setContent(buildPage(lang, css, !!opt.early))
   await pg.evaluate(() => document.fonts.ready)
+  if (opt.stress) await pg.evaluate(({ bar, tab }) => { document.querySelector('.topbar .truncate').textContent = bar; document.querySelectorAll('.navbar-link')[4].textContent = tab }, LONG[lang])
   await pg.mouse.move(w - 1, 700) // off the header, so nothing is hovered
+  if (opt.stress) { const m = await pg.evaluate(measure); await ctx.close(); return { m } }
   const m = await pg.evaluate(measure)
   const tabs = await pg.$$('.navbar-link')
   await tabs[2].hover()
@@ -74,7 +81,7 @@ const capture = async (css, lang, w) => {
   await pg.evaluate(() => document.activeElement && document.activeElement.blur())
   const stops = []
   // the tabs carry Tailwind's `transition` (outline-color included, 150ms): read the ring once it has settled
-  for (let i = 0; i < TAB_STOPS + 1; i++) { await pg.keyboard.press('Tab'); await pg.waitForTimeout(260); stops.push(await pg.evaluate(FOCUS)) }
+  for (let i = 0; i < TAB_STOPS + 1; i++) { await pg.keyboard.press('Tab'); await pg.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => 0)))); stops.push(await pg.evaluate(FOCUS)) }
   await ctx.close()
   return { m, hovTab: hov.contrast.tab2, stops }
 }
@@ -149,6 +156,21 @@ const suite = async (css) => {
     const reach = (s) => Math.max(0, s.offset + s.width)
     is(stops.length === TAB_STOPS && stops.filter((s) => s.tab).every((s) => reach(s) <= 0.01), 'a tab\'s ring lies inside its box (a scrolling row cannot clip it)', stops.filter((s) => s.tab).map((s) => f1(reach(s))).join(', '))
     is(stops.length === TAB_STOPS && stops.filter((s) => !s.tab).every((s) => s.y - reach(s) >= s.topbarBottom - 0.01 && s.x - reach(s) >= -0.01 && s.x + s.w + reach(s) <= s.vw + 0.01), 'a brand-row ring stays inside the room it has: not under the announcement bar, not off the screen', stops.filter((s) => !s.tab).map((s) => `top ${f1(s.y - reach(s) - s.topbarBottom)}`).join(', '))
+    // 7. the order the add-on is loaded in, and text longer than today's
+    if (w === 320 || w === 390) {
+      const E = await capture(css, lang, w, { early: true })
+      const ring = E.stops.slice(0, TAB_STOPS).filter(Boolean)
+      is(near(E.m.h.header, m.h.header, 0.5) && E.m.tabFont >= 13.99 && ring.length === TAB_STOPS && ring.every((x) => x.width >= 2.99), 'the section wins whatever the load order (placed before the live bundle: same height, 14px tabs, 3px ring)', `${f1(E.m.h.header)} vs ${f1(m.h.header)}, ${f1(E.m.tabFont)}px`)
+    }
+    if (w === 320) {
+      const S = (await capture(css, lang, w, { stress: true })).m
+      // (the third line is laid out but clipped by the line clamp, so the bar's own height is what counts)
+      is(S.h.topbar <= 36.5 && S.h.header <= 138.5, 'a long announcement stops at two lines (bar 36px at most) and the chrome stays within the old 138px', `bar ${f1(S.h.topbar)}px, chrome ${f1(S.h.header)}px`)
+      is(S.docOverflow <= 0 && S.hdrOverflow <= 0, 'a long tab label does not push the page or the header sideways', `${S.docOverflow} / ${S.hdrOverflow}`)
+      const st = [...S.tabBoxes.map((x, i) => [x[0], x[1], S.boxes['tab' + i].h])].sort((p, q) => p[0] - q[0])
+      is(st.every((x) => x[1] >= 43.99 && x[2] >= 43.99) && st.slice(1).every((x, i) => x[0] >= st[i][0] + st[i][1] - 0.5), 'the tabs stay 44x44 and do not overlap each other, even then', st.map((x) => f1(x[1])).join(' / '))
+      is(S.ulOverflow > 0.5 && S.ulOverflowX === 'auto' && S.ulScrollbarWidth === 'none', 'and the row scrolls sideways, without a scrollbar, to reach the rest', `scrolls ${f1(S.ulOverflow)}px, ${S.ulOverflowX}/${S.ulScrollbarWidth}`)
+    }
   }
   return rows
 }
@@ -161,7 +183,7 @@ pass = 0; fail = 0
 // ---- the section itself: where it is and what it may contain ---------------------------------------------------
 quiet = false
 head('the section')
-const raw = readFileSync(FILE, 'utf8')
+const raw = BEFORE_CSS + SECTION // the one read of the file, so an edit during the run cannot disagree with itself
 is(raw.split(SECTION_START).length === 2, 'the section exists once in the file', String(raw.split(SECTION_START).length - 1))
 is(SECTION.length > 0 && raw.endsWith(SECTION), 'it is the last thing in the file')
 const code = SECTION.replace(/\/\*[\s\S]*?\*\//g, '')
