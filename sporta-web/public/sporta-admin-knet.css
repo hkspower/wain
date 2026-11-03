@@ -816,7 +816,8 @@
    appends AFTER every add-on and which therefore wins every tie. So:
      - against the (0,2,0) rules a selector needs !important and one point
        more. It is written as the dark switch + :where(.admin-shell
-       .payment-settings) + the utility class, which is (0,2,1): just above the
+       :is(content area, .payment-settings)) + the utility class, which is
+       (0,2,1): just above the
        build, and below every rule of sections 1 to 8 that is meant to win
        (labels, placeholders, field edges, disabled fields, the quiet save
        button, the meta text colour), so none of that polish is undone. A
@@ -826,6 +827,8 @@
      - the build's non-!important dark rules (field colours, the content area,
        headings, card shadows) reach (0,3,1); where the screen needs a value
        back, the rule below is above that or !important.
+   The screen's heading and summary figures may sit in the content area next to
+   the screen root rather than inside it, so the utility rules cover both.
    The Tailwind utilities the screen uses are restated one by one (bg-white,
    text-slate-900..600, border-slate-100..300, bg-indigo-50, text-indigo-700/800)
    because that is how the build paints them. The custom properties it reads
@@ -894,34 +897,34 @@
 /* Cards, forms, fields and toggle knobs carry bg-white. The build's rule also
    sets a text colour on them, so they take the screen's ink back. Below the
    disabled-field rule of section 1 (0,3,1), which paints #f1f5f9. */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .bg-white {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .bg-white {
   background-color: #fff !important;
   color: inherit;
 }
 
 /* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
    which already outranks the build; 900..600 are restated. */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-900 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-900 {
   color: var(--color-slate-900, #0f172a) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-800 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-800 {
   color: var(--color-slate-800, #1e293b) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-700 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-700 {
   color: var(--color-slate-700, #334155) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .text-slate-600 {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-600 {
   color: var(--color-slate-600, #475569) !important;
 }
 
 /* The slate edges, except on fields (their edge is section 1's #7d8799). */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-100:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-100:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-100, #f1f5f9) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-200:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-200:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-200, #e2e8f0) !important;
 }
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell .payment-settings) .border-slate-300:not(input):not(select):not(textarea) {
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .border-slate-300:not(input):not(select):not(textarea) {
   border-color: var(--color-slate-300, #cbd5e1) !important;
 }
 
@@ -937,13 +940,13 @@
    measured). The build's dark rules for these are !important in the admin
    chunk, hence the longer scope. text-indigo-600 and -900 are not on this
    screen and have not been measured, so they are not guessed here. */
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-indigo-50 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .bg-indigo-50 {
   background-color: #f8ece6 !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-700 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-700 {
   color: #9a452c !important;
 }
-:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-800 {
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) .text-indigo-800 {
   color: #b8430f !important;
 }
 

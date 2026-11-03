@@ -13,7 +13,7 @@
 // paints a dark surface. Like admin-payments-scan.mjs, every admin API call is answered HERE with made-up data: nothing
 // reaches the real admin.php, nothing is saved, no credential is typed. Run it on the VPS in the Playwright image.
 import { chromium } from 'playwright'
-const B = 'https://www.sporta.com.kw'
+const B = process.env.BASE || 'https://www.sporta.com.kw' // BASE only for a local dry run of this script
 const CSS = process.env.CSS_URL ? await (await fetch(process.env.CSS_URL)).text() : ''
 const W = Number(process.env.W || 1280)
 const off = { has_tranportal_id: false, has_tranportal_password: false, has_resource_key: false }
@@ -48,7 +48,7 @@ async function measure(scheme) {
   if ((await t.count()) === 0) t = pg.locator('text=/Payments/i')
   if ((await t.count()) > 0) { await t.first().evaluate((el) => el.click()); await pg.waitForTimeout(2500) }
   if (CSS) { await pg.addStyleTag({ content: CSS }); await pg.waitForTimeout(500) }
-  const data = await pg.evaluate((props) => {
+  const data = await pg.evaluate(([props, treeDepth]) => {
     const content = document.querySelector('.payment-settings') && document.querySelector('.payment-settings').closest('.admin-content')
     if (!content) return { error: 'no Payments screen found' }
     const cv = document.createElement('canvas'); cv.width = 1; cv.height = 1
@@ -83,13 +83,13 @@ async function measure(scheme) {
         if (ratio < need) out.low.push(ratio.toFixed(2) + ' ' + sig(e) + ' "' + String(label).slice(0, 24) + '"')
       }
     }
-    if (process.env.TREE) {
+    if (treeDepth) {
       out.tree = []
-      const walk = (e, d) => { if (d > Number(process.env.TREE) || out.tree.length > 60) return; const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ').slice(0, 30); out.tree.push('.'.repeat(d) + sig(e) + ' [' + String(e.getAttribute('class') || '').replace(/\s+/g, ' ').slice(0, 70) + ']' + (own ? ' "' + own + '"' : '') + (e.closest('.payment-settings') ? ' [in]' : '')); for (const c of e.children) walk(c, d + 1) }
+      const walk = (e, d) => { if (d > treeDepth || out.tree.length > 60) return; const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ').slice(0, 30); out.tree.push('.'.repeat(d) + sig(e) + ' [' + String(e.getAttribute('class') || '').replace(/\s+/g, ' ').slice(0, 70) + ']' + (own ? ' "' + own + '"' : '') + (e.closest('.payment-settings') ? ' [in]' : '')); for (const c of e.children) walk(c, d + 1) }
       walk(content, 0)
     }
     return out
-  }, PROPS)
+  }, [PROPS, Number(process.env.TREE || 0)])
   await ctx.close()
   return data
 }
