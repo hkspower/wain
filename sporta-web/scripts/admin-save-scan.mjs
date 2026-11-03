@@ -55,6 +55,8 @@ const DEBUG = !!process.env.SCAN_DEBUG
 const PROBE = process.env.SCAN_PROBE !== '0'
 const PROBE_PHONE = process.env.SCAN_PROBE_PHONE === '1'
 const MAX_OPENERS = Number(process.env.SCAN_MAX_OPENERS || 6)
+const DUMP = process.env.SCAN_DUMP ? process.env.SCAN_DUMP.split(',').map((x) => x.trim().toLowerCase()) : null     // print the element tree of these screens (load step + openers)
+const DUMP_STEPS = Number(process.env.SCAN_DUMP_STEPS || 0)
 
 // ---------------------------------------------------------------- mock data
 // Copied from admin-style-scan.mjs: synthetic, plausible, and in the shapes
@@ -139,6 +141,20 @@ const MOCK = {
   payment_identifiers: { env: 'test', test: { merchant_id: '', terminal_id: '' }, production: { merchant_id: '', terminal_id: '' } },
   payment_server_ips: { server_ip_1: '', server_ip_2: '' },
   payment_knet_via_cbk: { enabled: false, tpay_ready: false },
+  // the detail routes the drawers ask for (id is ignored by the mock: the first row's data answers all)
+  items: [{ id: 1, qty: 2, unit_price: 9, size: 'M', fit: 'regular', products: { slug: 'test-tee', name_en: 'Test tee', name_ar: 'قميص تجريبي' } }],
+  return_detail: { request: { id: 70, order_id: 900, reference: 'RR260000', status: 'submitted', allowed_next: ['under_review', 'approved', 'declined', 'cancelled'], eligibility: 'eligible', created_at: day(1), updated_at: day(1),
+    track_id: 'SPTEST1000', customer_name: NAMES[0], customer_phone: '96500001000', payment_status: 'paid', payment_method: 'knet', fulfilment_status: 'delivered', fulfilled_at: day(5), ordered_at: day(6), kind: 'exchange', customer_note: 'Too small' },
+    items: [{ id: 1, order_item_id: 1, action: 'exchange', reason: 'size', qty: 1, requested_size: 'L', name_en: 'Test tee', name_ar: 'قميص تجريبي', original_size: 'M', original_fit: 'regular', unit_price: 9 }],
+    events: [{ id: 1, from_status: null, to_status: 'submitted', actor_type: 'customer', actor: 'customer', note: '', created_at: day(1) }] },
+  support_detail: { ticket: { id: 40, reference: 'ST510000', customer_name: NAMES[0], customer_email: 'customer0@example.com', customer_phone: '96500001000', order_track_id: 'SPTEST1001', subject: 'Where is my order?', status: 'open', priority: 'urgent', assigned_to: null,
+    last_customer_at: day(1), last_staff_at: null, resolved_at: null, created_at: day(1), updated_at: day(1) },
+    messages: [{ id: 1, author_kind: 'customer', author_name: NAMES[0], body: 'Where is my order?', visible_to_customer: true, created_at: day(1) }] },
+  profile_detail: { profile: { id: 300, name: NAMES[0], email: 'customer0@example.com', phone: '96500001000', created_at: day(4), last_login_at: day(1) },
+    orders: orders.slice(0, 3), summary: { orders: 3, paid_total: 18 } },
+  crm_detail: { contact: { key: 'phone:96500001000', source: 'phone', name: NAMES[0], display_name: '', phone: '96500001000', email: '', order_count: 3, order_total: 27, paid_total: 18, open_cod_count: 1, open_cod_total: 9, last_order_at: day(1), last_area: 'Salmiya', last_track_id: 'SPTEST1000', status: 'new', tags: ['vip'], follow_up_at: null, note_count: 1, updated_at: null, updated_by: null },
+    orders: orders.slice(0, 3), orders_has_more: false, orders_page: 1,
+    notes: [{ id: 1, note: 'Called, no answer', created_at: day(1), created_by: 'owner@example.com' }], notes_has_more: false, notes_page: 1 },
 }
 
 // ---------------------------------------------------------------- in-page code
@@ -276,6 +292,11 @@ function inPageOpeners() {
   }
   const row = root.querySelector('table tbody tr')
   if (row && vis(row)) out.push({ kind: 'row', text: 'first row', nth: 0 })
+  // lists whose rows are plain boxes with an onClick (no button inside): the first cursor:pointer box
+  if (!row1) {
+    const p = [...root.querySelectorAll('li, article, tr, div, section')].slice(0, 1500).find((x) => vis(x) && getComputedStyle(x).cursor === 'pointer' && !x.closest('button, a, label') && x.getBoundingClientRect().height > 30 && x.getBoundingClientRect().height < 400)
+    if (p) out.push({ kind: 'pointer', text: clean(p.className).split(' ').slice(0, 2).join('.') || p.tagName.toLowerCase(), nth: 0 })
+  }
   return out
 }
 
@@ -292,6 +313,11 @@ function inPageClickOpener(op) {
     const b = [...row1.querySelectorAll('button, [role=button]')].find((x) => vis(x) && !NOT.test(clean(x.textContent || x.getAttribute('aria-label'))))
     b.scrollIntoView({ block: 'center' }); b.click(); return true
   }
+  if (op.kind === 'pointer') {
+    const p = [...root.querySelectorAll('li, article, tr, div, section')].slice(0, 1500).find((x) => vis(x) && getComputedStyle(x).cursor === 'pointer' && !x.closest('button, a, label') && x.getBoundingClientRect().height > 30 && x.getBoundingClientRect().height < 400)
+    if (!p) return false
+    p.scrollIntoView({ block: 'center' }); p.click(); return true
+  }
   if (op.kind === 'row') {
     const row = root.querySelector('table tbody tr')
     if (!row) return false
@@ -302,6 +328,29 @@ function inPageClickOpener(op) {
   const e = same[op.nth] || same[0]
   if (!e) return false
   e.scrollIntoView({ block: 'center' }); e.click(); return true
+}
+
+// The content (or the first overlay) as a compact tree: tag, semantic classes, type, text — enough to
+// see how a list or a drawer is built when the measurement finds nothing in it.
+function inPageDump(depthMax) {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim()
+  const vis = (e) => { const r = e.getBoundingClientRect(), c = getComputedStyle(e); return r.width > 1 && r.height > 1 && c.visibility !== 'hidden' && c.display !== 'none' }
+  const ov = [...document.body.querySelectorAll('*')].find((e) => { const c = getComputedStyle(e); return c.position === 'fixed' && vis(e) && e.getBoundingClientRect().width >= innerWidth * 0.45 && e.getBoundingClientRect().height >= innerHeight * 0.3 && !e.closest('aside, nav, header') && !e.contains(document.querySelector('.admin-content')) })
+  const root = ov || document.querySelector('.admin-content') || document.body
+  const out = [ov ? 'OVERLAY' : 'CONTENT']
+  const walk = (e, d) => {
+    if (d > depthMax || out.length > 90) return
+    const cl = clean(e.className && e.className.baseVal !== undefined ? e.className.baseVal : e.className).split(' ').filter(Boolean)
+    const sem = cl.filter((c) => /__|--|^(admin|crm|support|profiles|inventory|theme|seo|topbar|checkout|payment|m-|tile|card|row|list|drawer|backdrop|modal)/.test(c)).slice(0, 3)
+    const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => clean(n.textContent)).filter(Boolean).join(' ').slice(0, 26)
+    const c = getComputedStyle(e)
+    const tag = e.tagName.toLowerCase()
+    if (!vis(e) && !['option'].includes(tag)) return
+    out.push(' '.repeat(d) + tag + (sem.length ? '.' + sem.join('.') : (cl[0] ? '.' + cl[0] : '')) + (e.getAttribute('type') ? '[' + e.getAttribute('type') + ']' : '') + (e.getAttribute('role') ? '{' + e.getAttribute('role') + '}' : '') + (c.cursor === 'pointer' && !['button', 'a'].includes(tag) ? ' CURSOR' : '') + (c.position === 'fixed' || c.position === 'sticky' ? ' ' + c.position.toUpperCase() : '') + (own ? ' "' + own + '"' : ''))
+    for (const k of e.children) walk(k, d + 1)
+  }
+  walk(root, 0)
+  return out
 }
 
 // THE MEASUREMENT. One call per step: every edit surface on the page or in an
@@ -563,7 +612,7 @@ for (const [vn, w, h, mob] of VIEWS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mob, hasTouch: mob, deviceScaleFactor: mob ? 2 : 1, locale: 'en-US', serviceWorkers: 'block' })
   const pg = await ctx.newPage()
   pg.setDefaultTimeout(5000)
-  const R = result[vn] = { nav: null, navAfterOpen: null, shell: {}, screens: [], dialogs: [], listeners: new Set(), unknown: new Map(), errs: new Set(), writes: [], left: [] }
+  const R = result[vn] = { nav: null, navAfterOpen: null, shell: {}, screens: [], dialogs: [], listeners: new Set(), unknown: new Map(), errs: new Set(), writes: [], left: [], dumps: [] }
   let hold = 0                       // ms the mock holds a write's answer (the busy probe)
   let context = ''                   // what the scan is doing, for the logs
   await pg.addInitScript(() => {
@@ -572,7 +621,9 @@ for (const [vn, w, h, mob] of VIEWS) {
     EventTarget.prototype.addEventListener = function (type, fn, opts) { if (type === 'beforeunload' || type === 'popstate' || type === 'keydown' && this === window) window.__scanL.push(type + (this === window ? '@window' : this === document ? '@document' : '')); return add.call(this, type, fn, opts) }
   })
   pg.on('pageerror', (e) => R.errs.add(e.message.slice(0, 80)))
-  pg.on('dialog', (d) => { R.dialogs.push(`${context}: ${d.type()} "${d.message().slice(0, 70)}"`); d.dismiss().catch(() => {}) })
+  // A beforeunload prompt is the app's unsaved-changes guard. Dismissing it would cancel our own reload (ERR_ABORTED),
+  // so it is accepted ("leave") and written down; any other dialog (confirm, alert) is dismissed = cancelled.
+  pg.on('dialog', (d) => { R.dialogs.push(`${context}: ${d.type()}${d.message() ? ' "' + d.message().slice(0, 60) + '"' : ''}`); (d.type() === 'beforeunload' ? d.accept() : d.dismiss()).catch(() => {}) })
   await pg.route('**/*', async (route) => {
     const req = route.request(), u = new URL(req.url())
     if (u.origin !== BASE) return route.continue()
@@ -655,12 +706,13 @@ for (const [vn, w, h, mob] of VIEWS) {
       openers = (await pg.evaluate(inPageOpeners)).slice(0, MAX_OPENERS)
     } catch (e) { scr.error = e.message.split('\n')[0].slice(0, 100); continue }
     const seen = new Set()
-    const stepList = [{ name: 'load', op: null }, ...openers.map((op) => ({ name: op.kind === 'row' ? 'row' : op.kind === 'rowbtn' ? 'rowbtn:' + op.text : op.kind === 'tab' ? 'tab:' + op.text : op.text, op }))]
+    const stepList = [{ name: 'load', op: null }, ...openers.map((op) => ({ name: op.kind === 'row' ? 'row' : op.kind === 'rowbtn' ? 'rowbtn' : op.kind === 'pointer' ? 'pointer' : op.kind === 'tab' ? 'tab:' + op.text : op.text, op }))]
     for (let si = 0; si < stepList.length; si++) {
       const st = stepList[si]
       context = `${item.text}/${st.name}`
       let m
       try {
+        if (DUMP && DUMP.includes(item.text.toLowerCase()) && si <= DUMP_STEPS) { /* dumped below, after the click */ }
         if (si > 0) {
           if (!(await goScreen(item))) break
           const clicked = await pg.evaluate(inPageClickOpener, st.op)
@@ -668,6 +720,7 @@ for (const [vn, w, h, mob] of VIEWS) {
           if (!clicked) { scr.steps.push({ name: st.name, skipped: 'opener not found after reload' }); continue }
         }
         m = await pg.evaluate(inPageMeasure)
+        if (DUMP && DUMP.includes(item.text.toLowerCase()) && si <= DUMP_STEPS) R.dumps.push(`${item.text}/${st.name} ` + (await pg.evaluate(inPageDump, 7)).join(' ¦ '))
       } catch (e) { scr.steps.push({ name: st.name, error: e.message.split('\n')[0].slice(0, 100) }); continue }
       // only what this step adds: a surface seen in an earlier step is not repeated
       const sig = (s) => [s.kind, s.root.sel, s.fields.n, s.save ? s.save.text : '-'].join('|')
@@ -676,7 +729,7 @@ for (const [vn, w, h, mob] of VIEWS) {
       const fresh = []
       for (const s of m.surfaces) if (freshSigs.has(sig(s)) && !fresh.some((f) => sig(f) === sig(s))) fresh.push(s)
       m.surfaces.forEach((s) => seen.add(sig(s)))
-      const step = { name: st.name, m, fresh: fresh.map((s) => s.id), freshSigs: [...freshSigs], sig }
+      const step = { name: st.name, label: st.op && st.op.text || '', m, fresh: fresh.map((s) => s.id), freshSigs: [...freshSigs], sig }
       m.buttons.forEach((b) => scr.buttonsAll.add(b))
       // ---- probes (desktop): does a change write by itself? what does a pending Save look like?
       try {
@@ -730,10 +783,11 @@ for (const [vn, w, h, mob] of VIEWS) {
           }
         }
       } catch (e) { step.probeError = e.message.split('\n')[0].slice(0, 100) }
+      try { step.listeners = await pg.evaluate(() => [...new Set(window.__scanL || [])].concat(typeof window.onbeforeunload === 'function' ? ['onbeforeunload-prop'] : [])) } catch (e) { step.listeners = [] }
+      step.listeners.forEach((x) => R.listeners.add(x))
       scr.steps.push(step)
     }
   }
-  R.listeners = new Set(await pg.evaluate(() => window.__scanL || []).catch(() => []))
   await ctx.close()
 }
 await browser.close()
@@ -761,10 +815,11 @@ for (const sd of D.screens) {
     if (st.skipped || st.error) { out(`  step "${st.name}": ${st.skipped || st.error}`); continue }
     const m = st.m
     const stp = sp ? sp.steps.find((x) => x.name === st.name) : null
+    if (sp && !stp && st.m) out(`  W step "${st.name}${st.label ? ':' + st.label : ''}" has no phone twin; phone steps: ${sp.steps.map((x) => x.name + (x.label ? ':' + x.label : '') + (x.skipped || x.error ? '(!' + (x.skipped || x.error) + ')' : '')).join(' | ')}`)
     const mp = stp && stp.m ? stp.m : null
     const fresh = m.surfaces.filter((x) => st.freshSigs.includes(st.sig(x)))
     if (st.name !== 'load' && !fresh.length && !m.overlays.length) { out(`  step "${st.name}": nothing new (fields ${m.fieldTotal}, actions[${m.actions.join('/')}])`); continue }
-    out(`  step "${st.name}": usable y${m.usable[0]}-${m.usable[1]}${mp ? '/' + mp.usable[0] + '-' + mp.usable[1] + 'ph' : ''} fields ${m.fieldTotal} filters ${m.filterCount} surfaces ${m.surfaces.length}${mp ? '/' + mp.surfaces.length + 'ph' : ''} overlays ${m.overlays.length} actions[${m.actions.join('/')}]`)
+    out(`  step "${st.name}${st.label && st.label !== st.name ? ':' + st.label : ''}"${st.listeners && st.listeners.length ? ' LISTENERS[' + st.listeners.join(',') + ']' : ''}: usable y${m.usable[0]}-${m.usable[1]}${mp ? '/' + mp.usable[0] + '-' + mp.usable[1] + 'ph' : ''} fields ${m.fieldTotal} filters ${m.filterCount} surfaces ${m.surfaces.length}${mp ? '/' + mp.surfaces.length + 'ph' : ''} overlays ${m.overlays.length} actions[${m.actions.join('/')}]`)
     for (const ov of m.overlays) out(`    overlay ${j(ov)}`)
     // rows that repeat (one per product, one per SKU) stand for each other: print the first, count the rest
     const sigOf = (x) => [x.kind, x.root.sel, x.fields.n, x.save ? x.save.text : '-'].join('|')
@@ -787,16 +842,18 @@ for (const sd of D.screens) {
   }
   out(`  buttons: ${[...sd.buttonsAll].slice(0, 36).join(' / ')}`)
 }
+const warn = (R, vn) => {
+  out(`W|${vn}|walked ${R.screens.filter((x) => x.opened).length}/${R.screens.length}; not opened: ${R.screens.filter((x) => !x.opened).map((x) => x.name + '(' + (x.error || '').slice(0, 50) + ')').join(', ') || 'none'}; page errors: ${[...R.errs].join(' ; ') || 'none'}`)
+  out(`W|${vn}|unmocked GET r=: ${[...R.unknown.entries()].map(([k, v]) => k + '(' + [...v].join('/') + ')').join(' ') || 'none'}`)
+  out(`W|${vn}|navigations away from /backends (stubbed): ${R.left.slice(0, 6).join(' ; ') || 'none'}`)
+  out(`W|${vn}|browser dialogs: ${R.dialogs.slice(0, 14).join(' ; ') || 'none'} | listeners seen: ${[...R.listeners].join(',') || 'none'}`)
+}
 const pat = (R, vn) => {
   out(`P|${vn}|sidebar ${j(R.nav.side)}`)
   out(`P|${vn}|nav items ${R.nav.items.length}: ${R.nav.items.map((i) => i.text + (i.vis ? '' : '*') + (i.href ? ' ' + i.href : '')).join(' | ').slice(0, 700)}  (* = not visible at load)`)
   if (R.nav.menuBtn) out(`P|${vn}|menu button ${j(R.nav.menuBtn)}`)
   out(`P|${vn}|tab bar ${j(R.nav.tabbar)} | header ${j(R.nav.header)}`)
   if (R.navAfterOpen) out(`P|${vn}|menu open: sidebar ${j(R.navAfterOpen.side)}; visible items ${R.navAfterOpen.items.filter((i) => i.vis).length}/${R.navAfterOpen.items.length}`)
-  out(`P|${vn}|walked ${R.screens.filter((s) => s.opened).length}/${R.screens.length}; not opened: ${R.screens.filter((s) => !s.opened).map((s) => s.name).join(', ') || 'none'}; page errors: ${[...R.errs].join(' ; ') || 'none'}`)
-  out(`P|${vn}|unmocked GET r=: ${[...R.unknown.entries()].map(([k, v]) => k + '(' + [...v].join('/') + ')').join(' ') || 'none'}`)
-  out(`P|${vn}|navigations away from /backends (stubbed): ${R.left.slice(0, 6).join(' ; ') || 'none'}`)
-  out(`P|${vn}|browser dialogs: ${R.dialogs.slice(0, 10).join(' ; ') || 'none'} | listeners: ${[...R.listeners].join(',') || 'none'}`)
   for (const [name, sh] of Object.entries(R.shell)) if (sh) {
     out(`P|${vn}|shell@${name} ${sh.w}x${sh.h} docH ${sh.docH} windowScrolls ${sh.winScrolls} maxScroll ${sh.maxScroll} scroll-behavior ${sh.scrollBehavior} dir ${j(sh.dir)} elementDir[${sh.shellDir}] viewportMeta "${sh.viewportMeta}" manifest ${sh.manifest} env(safe-area-inset-bottom)=${sh.envBottom}`)
     out(`P|${vn}|scrollers@${name}: ${sh.scrollers.map((x) => `${x.sel} ${x.overflowY} ${x.client}/${x.scroll}${x.overflows ? ' OVERFLOWS' : ''}`).join(' ; ') || 'none (the window scrolls)'}`)
@@ -804,6 +861,8 @@ const pat = (R, vn) => {
     out(`P|${vn}|fixed@${name}: ${sh.fixed.map((x) => `${x.sel} ${x.pos} z${x.z} [${x.rect}]${x.atBottom ? ' AT-BOTTOM' : ''}${x.atTop ? ' at-top' : ''}${x.inSide ? ' in-sidebar' : ''} f${x.fields}b${x.buttons} "${x.text}"`).join(' ;; ') || 'none'}`)
   }
 }
+for (const [vn] of VIEWS) warn(result[vn], vn)
+for (const [vn] of VIEWS) for (const d of result[vn].dumps) { const parts = d.split(' ¦ '); out(`T|${vn}|${parts[0]}`); for (const line of parts.slice(1)) out(`T|${vn}|${line}`) }
 if (process.env.SCAN_PATTERNS !== '0') for (const [vn] of VIEWS) pat(result[vn], vn)
 for (const l of L) console.log(l.length > 1400 ? l.slice(0, 1400) + '…' : l)
 console.log('ADMIN_SAVE_SCAN_DONE')
