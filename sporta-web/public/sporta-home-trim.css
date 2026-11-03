@@ -19,3 +19,43 @@
 .campaign-home .home-spotlight-wrap { display: none !important; }
 .campaign-home .home-category-intro { display: none !important; }
 .campaign-home:has(.home-features-wrap) > #sporta-features { display: none !important; }
+
+/* Features band: Easy returns / Fast delivery / Cash on delivery (owner request, 2026-11-03).
+ *
+ * Measured on the live page at 1000px BEFORE this change: three cards of 291x74 in a row, each
+ * holding a 141px group (icon tile + title + sub) pinned to the START edge, so more than half of
+ * every card was empty on the opposite side. The live stylesheet centres the group only from
+ * 1024px (.home-feature-item { justify-content: center } in a min-width:1024px query), and below
+ * that, from 720px, the three cards sit side by side with the group at the start. At 720-800px
+ * the longest title ("الدفع عند الاستلام") and its sub also broke onto two lines.
+ *
+ * Only layout, size and spacing change; colours, copy and the hover are the live build's own.
+ *   720-959px   each card stacks: icon tile on top, title and sub centred under it. Nothing wraps,
+ *               and the three cards read as one family at any width in this range.
+ *   960px up    one row again, the group centred in the card, with a roomier tile and larger type.
+ *   under 720   untouched: one card per row, group at the start (a list), as the live build has it.
+ * Scoped to .campaign-home so it outranks the bundle's single-class rules whatever the load order. */
+@media (min-width: 720px) {
+  .campaign-home .home-feature-item {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: 0.625rem;
+    min-height: 7.5rem;
+    padding: 1rem 0.875rem;
+  }
+  .campaign-home .home-feature-item > div { text-align: center; }
+  .campaign-home .home-feature-icon { width: 2.875rem; height: 2.875rem; border-radius: 0.875rem; }
+  .campaign-home .home-feature-icon svg { width: 1.375rem; height: 1.375rem; }
+  .campaign-home .home-feature-title { font-size: 1rem; font-weight: 800; line-height: 1.4; }
+  .campaign-home .home-feature-sub { font-size: 0.875rem; line-height: 1.5; }
+}
+@media (min-width: 960px) {
+  .campaign-home .home-feature-item {
+    flex-direction: row;
+    gap: 0.875rem;
+    min-height: 5rem;
+    padding: 0.875rem 1.125rem;
+  }
+  .campaign-home .home-feature-item > div { text-align: start; }
+}
