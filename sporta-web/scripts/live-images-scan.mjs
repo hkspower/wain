@@ -53,7 +53,7 @@ const SCAN = () => {
       alt: im.getAttribute('alt') === null ? 'MISSING' : im.getAttribute('alt'),
       wa: im.getAttribute('width') || '', ha: im.getAttribute('height') || '',
       ss: im.getAttribute('srcset') ? 1 : 0, ar: cs.aspectRatio, role: im.getAttribute('role') || '', ah: im.getAttribute('aria-hidden') || '',
-      inView: b.top < vh && b.bottom > 0 && b.left < vw && b.right > 0,
+      inView: (b.top + scrollY) < vh && (b.bottom + scrollY) > 0 && b.left < vw && b.right > 0,
       ovfX: b.width > vw + 1,
     })
   }
@@ -93,8 +93,13 @@ const BGSIZE = async (urls) => {
 
 const f = (n) => (n == null ? '' : String(n))
 // compact reporting of a scan: grouped lines + anomaly lines
-const report = (tag, S, bgNat) => {
+const report = (tag, S, bgNat, net) => {
   const L = []
+  const kbOf = {}
+  for (const n of net || []) kbOf[n.u] = Math.round(n.len / 1024)
+  let nPh = 0
+  for (const m of S.imgs) if (m.vis && /product-photo-unavailable/.test(m.src)) nPh++
+  L.push(tag + ' PLACEHOLDERS visible ' + nPh + ' of ' + S.imgs.filter((m) => m.vis && m.bw > 100).length + ' big imgs')
   const groups = new Map()
   for (const m of S.imgs) {
     if (!m.vis && m.nw === 0 && !m.src) continue
@@ -116,7 +121,8 @@ const report = (tag, S, bgNat) => {
     const fl = []
     if (m.vis && (m.nw === 0 || !m.cx)) fl.push('BROKEN')
     if (m.vis && m.nw && m.over < 1) fl.push('UPSCALED' + m.over)
-    if (m.vis && m.over > 2) fl.push('OVERSIZE' + m.over)
+    const kb = kbOf[m.src] == null ? -1 : kbOf[m.src]
+    if (m.vis && m.over > 2 && (kb >= 30 || m.over >= 6)) fl.push('OVERSIZE' + m.over + '(' + kb + 'KB)')
     if (m.vis && m.ovfX) fl.push('OVERFLOWX')
     if (/placeholder|unavailable|default|no-image|noimage/i.test(m.src)) fl.push('PLACEHOLDER')
     if (m.vis && m.alt === 'MISSING') fl.push('ALT-MISSING')
@@ -133,11 +139,11 @@ const report = (tag, S, bgNat) => {
   return L
 }
 
-const scanPage = async (page, tag) => {
+const scanPage = async (page, tag, net) => {
   const S = await page.evaluate(SCAN)
   const urls = [...new Set(S.bgs.map((b) => b.url).filter((u) => u.indexOf('data:') !== 0))]
   const bgNat = urls.length ? await page.evaluate(BGSIZE, urls) : {}
-  return { S, lines: report(tag, S, bgNat) }
+  return { S, lines: report(tag, S, bgNat, net) }
 }
 
 const E = process.env
@@ -289,12 +295,25 @@ try {
     const v = await visit(ctx, tag, q('/'))
     if (v) {
       const { page, net } = v
-      const r = await scanPage(page, tag)
+      const r = await scanPage(page, tag, net)
       for (const l of r.lines) P(l)
       netReport(tag, net)
       const logos = await page.evaluate(LOGO_STATS)
       for (const l of logos) P(tag + ' LOGO ' + JSON.stringify(l))
       for (const l of await page.evaluate(FOOTER)) P(tag + ' FOOT ' + l)
+      const bb = await page.evaluate(() => {
+        const o = []
+        const cs = (e, k) => getComputedStyle(e)[k]
+        const bar = document.querySelector('.brand-bar'); if (bar) o.push('bar bg ' + cs(bar, 'backgroundColor') + ' bgimg ' + cs(bar, 'backgroundImage').slice(0, 40) + ' color ' + cs(bar, 'color'))
+        for (const it of document.querySelectorAll('.brand-bar__item')) {
+          const im = it.querySelector('img'); const sp = it.querySelector('span')
+          o.push('item ' + (it.getAttribute('aria-label') || '-') + ' | title ' + (it.getAttribute('title') || '-') + ' | text ' + JSON.stringify((it.textContent || '').trim().slice(0, 24)) + ' | bg ' + cs(it, 'backgroundColor') + ' border ' + cs(it, 'borderTopWidth') + ' ' + cs(it, 'borderTopColor') + ' op ' + cs(it, 'opacity') + ' filter ' + cs(it, 'filter').slice(0, 30) + (im ? ' | img filter ' + cs(im, 'filter').slice(0, 40) + ' op ' + cs(im, 'opacity') + ' blend ' + cs(im, 'mixBlendMode') : ' | span color ' + (sp ? cs(sp, 'color') + ' fs ' + cs(sp, 'fontSize') : '-')) + ' | href ' + (it.getAttribute('href') || '-') + ' | rect ' + Math.round(it.getBoundingClientRect().width) + 'x' + Math.round(it.getBoundingClientRect().height))
+        }
+        return o
+      })
+      for (const x of bb) P(tag + ' BRANDBAR ' + x)
+      const pay = await page.evaluate(() => { const e = document.querySelector('.footer-payment'); if (!e) return 'NO .footer-payment'; const p = e.parentElement; return 'payment html ' + p.outerHTML.replace(/\s+/g, ' ').replace(/<path[^>]*>/g, '<path/>').slice(0, 900) })
+      P(tag + ' ' + pay)
       // hero / tiles / brand-bar boxes
       const boxes = await page.evaluate(() => {
         const R = (e) => { const b = e.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) }
@@ -313,9 +332,17 @@ try {
     const v = await visit(ctx, tag, q('/shop'))
     if (v) {
       const { page, net } = v
-      const r = await scanPage(page, tag)
+      const r = await scanPage(page, tag, net)
       for (const l of r.lines) P(l)
       netReport(tag, net)
+      const cardGeo = await page.evaluate(() => {
+        const a = document.querySelector('.product-grid-card'); if (!a) return 'NO CARD'
+        const R = (e) => { if (!e) return '-'; const b = e.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) }
+        const wrap = a.querySelector('.catalog-card-image'); const link = wrap && wrap.querySelector('a'); const im = wrap && wrap.querySelector('img')
+        const pad = (e) => { if (!e) return '-'; const c = getComputedStyle(e); return 'pad ' + c.padding + ' mar ' + c.margin + ' bord ' + c.borderTopWidth + ' tf ' + c.transform.slice(0, 40) + ' bg ' + c.backgroundColor }
+        return 'article ' + R(a) + ' ' + pad(a) + ' || wrap ' + R(wrap) + ' ' + pad(wrap) + ' || link ' + R(link) + ' || img ' + R(im) + ' ' + pad(im) + ' || html2 ' + a.outerHTML.replace(/\s+/g, ' ').replace(/<svg.*?<\/svg>/g, '<svg/>').slice(700, 1500)
+      })
+      P(tag + ' CARDGEO ' + cardGeo)
       const cards = await page.evaluate(() => {
         const g = document.querySelector('.product-grid'); if (!g) return ['NO .product-grid']
         const ch = [...g.children]
@@ -335,7 +362,7 @@ try {
     const v = await visit(ctx, tag, q('/shop?brand=' + BRAND))
     if (v) {
       const { page, net } = v
-      const r = await scanPage(page, tag)
+      const r = await scanPage(page, tag, net)
       for (const l of r.lines) P(l)
       netReport(tag, net)
       const ban = await page.evaluate(() => { const b = document.getElementById('sporta-brand-banner'); return b ? b.getBoundingClientRect().width + 'x' + b.getBoundingClientRect().height + ' ' + b.outerHTML.replace(/\s+/g, ' ').slice(0, 500) : 'NO BANNER' })
@@ -351,7 +378,7 @@ try {
     const v = await visit(ctx, tag, q('/product/' + slug))
     if (!v) continue
     const { page, net } = v
-    const r = await scanPage(page, tag)
+    const r = await scanPage(page, tag, net)
     for (const l of r.lines) P(l)
     netReport(tag, net)
     const g = await page.evaluate(() => {
@@ -378,6 +405,8 @@ try {
       return 'main ' + Math.round(b.width) + 'x' + Math.round(b.height) + ' nat ' + main.naturalWidth + 'x' + main.naturalHeight + ' fit ' + getComputedStyle(main).objectFit + ' parent ' + main.parentElement.tagName + '.' + String(main.parentElement.className).split(' ').slice(0, 3).join('.').slice(0, 60) + ' thumbs ' + thumbs.length + ' ' + thumbs.slice(0, 8).map((t) => Math.round(t.getBoundingClientRect().width) + 'x' + Math.round(t.getBoundingClientRect().height) + 'n' + t.naturalWidth + 'x' + t.naturalHeight + ' ' + getComputedStyle(t).objectFit).join(' ; ')
     })
     P(tag + ' GAL ' + gal)
+    const il = await page.evaluate(() => [...document.querySelectorAll('main img')].filter((i) => i.getBoundingClientRect().width > 0).slice(0, 12).map((i) => { const b = i.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + ' nat ' + i.naturalWidth + 'x' + i.naturalHeight + ' alt ' + JSON.stringify(String(i.getAttribute('alt') || '').slice(0, 40)) + ' ld ' + (i.getAttribute('loading') || '-') + ' fp ' + (i.getAttribute('fetchpriority') || '-') + ' fit ' + getComputedStyle(i).objectFit + ' src ' + (i.currentSrc || '').replace(location.origin, '').slice(-70) + ' srcset ' + String(i.getAttribute('srcset') || '').replace(/\s+/g, ' ').slice(0, 170) + ' sizes ' + String(i.getAttribute('sizes') || '').slice(0, 60) }))
+    for (const x of il) P(tag + ' MIMG ' + x)
     await page.close()
   }
 
@@ -385,7 +414,7 @@ try {
     const tag = 'CART ' + TAG0
     const v = await visit(ctx, tag, q('/product/' + SLUG_A))
     if (v) {
-      const { page } = v
+      const { page, net } = v
       // choose first enabled size, then add to bag (client-side only; no order button is ever pressed)
       const act = await page.evaluate(() => {
         const bs = [...document.querySelectorAll('main button')]
@@ -432,7 +461,7 @@ try {
         if (page.url().indexOf('/checkout') < 0) { await page.goto(BASE + q('/checkout'), { waitUntil: 'load' }); await page.waitForTimeout(3000) }
         const t2 = 'CHECKOUT ' + TAG0
         await scrollAll(page)
-        const r = await scanPage(page, t2)
+        const r = await scanPage(page, t2, net)
         for (const l of r.lines) P(l)
         const sm = await page.evaluate(() => {
           const o = []
