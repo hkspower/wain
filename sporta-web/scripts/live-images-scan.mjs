@@ -290,6 +290,42 @@ try {
     for (const e of ex) P('API ex ' + e)
   }
 
+
+  if (PAGES.includes('files')) {
+    const j = await (await fetch(BASE + '/api/api.php?r=products')).json()
+    const list = Array.isArray(j) ? j : (j.products || [])
+    const dimsOf = (b) => {
+      try {
+        if (b[0] === 0x52 && b[8] === 0x57) {
+          const t = String.fromCharCode(b[12], b[13], b[14], b[15])
+          if (t === 'VP8 ') return [(b[26] | (b[27] << 8)) & 0x3fff, (b[28] | (b[29] << 8)) & 0x3fff]
+          if (t === 'VP8X') return [1 + (b[24] | (b[25] << 8) | (b[26] << 16)), 1 + (b[27] | (b[28] << 8) | (b[29] << 16))]
+          if (t === 'VP8L') { const v = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return [(v & 0x3fff) + 1, ((v >> 14) & 0x3fff) + 1] }
+        }
+        if (b[0] === 0xff && b[1] === 0xd8) { let i = 2; while (i < b.length - 9) { if (b[i] !== 0xff) { i++; continue } const m = b[i + 1]; if (m >= 0xc0 && m <= 0xc3) return [(b[i + 7] << 8) | b[i + 8], (b[i + 5] << 8) | b[i + 6]]; i += 2 + ((b[i + 2] << 8) | b[i + 3]) } }
+        if (b[0] === 0x89 && b[1] === 0x50) return [(b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19], (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]]
+      } catch (e) {}
+      return null
+    }
+    const get = async (u) => { try { const r = await fetch(BASE + u); if (!r.ok) return [r.status, 0, null]; const buf = new Uint8Array(await r.arrayBuffer()); return [r.status, buf.length, dimsOf(buf)] } catch (e) { return [0, 0, null] } }
+    let miss = 0
+    for (const p of list) {
+      const s = p.slug
+      const jp = await get('/images/products/' + s + '.jpg')
+      const w3 = await get('/images/products/responsive/' + s + '-320.webp')
+      const w6 = await get('/images/products/responsive/' + s + '-640.webp')
+      const deep = list.indexOf(p) < 2
+      const w9 = deep ? await get('/images/products/responsive/' + s + '-960.webp') : [-1, 0, null]
+      const w12 = deep ? await get('/images/products/responsive/' + s + '-1280.webp') : [-1, 0, null]
+      const wp = deep ? await get('/images/products/' + s + '.webp') : [-1, 0, null]
+      const d = (x) => (x[0] === 200 ? x[1] + 'B' + (x[2] ? ' ' + x[2][0] + 'x' + x[2][1] : '') : String(x[0]))
+      const has = jp[0] === 200 || w6[0] === 200 || w3[0] === 200
+      if (!has) miss++
+      P('FILE ' + s + ' | jpg ' + d(jp) + ' | webp ' + d(wp) + ' | 320 ' + d(w3) + ' | 640 ' + d(w6) + ' | 960 ' + d(w9) + ' | 1280 ' + d(w12) + (has ? '' : ' | NO-PHOTO') + ' | cat ' + p.category + ' | brand ' + (p.brand_slug || '-'))
+    }
+    P('FILES_MISSING ' + miss + ' of ' + list.length)
+  }
+
   if (PAGES.includes('home')) {
     const tag = 'HOME ' + TAG0
     const v = await visit(ctx, tag, q('/'))
@@ -405,7 +441,7 @@ try {
       return 'main ' + Math.round(b.width) + 'x' + Math.round(b.height) + ' nat ' + main.naturalWidth + 'x' + main.naturalHeight + ' fit ' + getComputedStyle(main).objectFit + ' parent ' + main.parentElement.tagName + '.' + String(main.parentElement.className).split(' ').slice(0, 3).join('.').slice(0, 60) + ' thumbs ' + thumbs.length + ' ' + thumbs.slice(0, 8).map((t) => Math.round(t.getBoundingClientRect().width) + 'x' + Math.round(t.getBoundingClientRect().height) + 'n' + t.naturalWidth + 'x' + t.naturalHeight + ' ' + getComputedStyle(t).objectFit).join(' ; ')
     })
     P(tag + ' GAL ' + gal)
-    const il = await page.evaluate(() => [...document.querySelectorAll('main img')].filter((i) => i.getBoundingClientRect().width > 0).slice(0, 12).map((i) => { const b = i.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + ' nat ' + i.naturalWidth + 'x' + i.naturalHeight + ' alt ' + JSON.stringify(String(i.getAttribute('alt') || '').slice(0, 40)) + ' ld ' + (i.getAttribute('loading') || '-') + ' fp ' + (i.getAttribute('fetchpriority') || '-') + ' fit ' + getComputedStyle(i).objectFit + ' src ' + (i.currentSrc || '').replace(location.origin, '').slice(-70) + ' srcset ' + String(i.getAttribute('srcset') || '').replace(/\s+/g, ' ').slice(0, 170) + ' sizes ' + String(i.getAttribute('sizes') || '').slice(0, 60) }))
+    const il = await page.evaluate(() => [...document.querySelectorAll('main img')].filter((i) => i.getBoundingClientRect().width > 0).slice(0, 12).map((i) => { const b = i.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height) + '@' + Math.round(b.left) + ',' + Math.round(b.top + scrollY) + ' nat ' + i.naturalWidth + 'x' + i.naturalHeight + ' alt ' + JSON.stringify(String(i.getAttribute('alt') || '').slice(0, 40)) + ' ld ' + (i.getAttribute('loading') || '-') + ' fp ' + (i.getAttribute('fetchpriority') || '-') + ' fit ' + getComputedStyle(i).objectFit + ' src ' + (i.currentSrc || '').replace(location.origin, '').slice(-70) + ' srcset ' + String(i.getAttribute('srcset') || '').replace(/\s+/g, ' ').slice(0, 330) + ' sizes ' + String(i.getAttribute('sizes') || '').slice(0, 60) }))
     for (const x of il) P(tag + ' MIMG ' + x)
     await page.close()
   }
@@ -426,10 +462,12 @@ try {
       P(tag + ' ACT ' + act)
       await page.waitForTimeout(500)
       const add = await page.evaluate(() => {
-        const bs = [...document.querySelectorAll('main button')]
-        const b = bs.find((x) => !x.disabled && /add to (bag|cart)|أضف إلى|أضف لل|اضف|أضف/i.test((x.textContent || '')))
-        if (b) { b.click(); return 'clicked ' + b.textContent.trim().slice(0, 30) }
-        return 'no add button; buttons ' + JSON.stringify(bs.map((x) => (x.textContent || '').trim().slice(0, 20) + (x.disabled ? '(dis)' : '')).slice(0, 25))
+        const bs = [...document.querySelectorAll('main button')].filter((x) => !x.disabled)
+        const txt = (x) => (x.textContent || '').replace(/\s+/g, ' ').trim()
+        const ok = (x) => !/wish|favou?rite|save|buy now|\u0627\u0634\u062a\u0631|\u0627\u0644\u0645\u0641\u0636\u0644\u0629|size|\u0645\u0642\u0627\u0633/i.test(txt(x)) && (/^(add|\u0623\u0636\u0641|\u0627\u0636\u0641)( to (bag|cart))?\s*(\+)?\s*/i.test(txt(x)) && txt(x).length < 22)
+        const b = bs.find(ok)
+        if (b) { b.click(); return 'clicked ' + txt(b) }
+        return 'no add button; buttons ' + JSON.stringify(bs.map((x) => txt(x).slice(0, 20)).slice(0, 25))
       })
       P(tag + ' ADD ' + add)
       await page.waitForTimeout(1500)
