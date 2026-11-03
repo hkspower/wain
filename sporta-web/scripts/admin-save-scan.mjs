@@ -245,6 +245,18 @@ function inPageShell() {
   document.body.appendChild(probe); const envBottom = getComputedStyle(probe).paddingBottom; probe.remove()
   const vp = document.querySelector('meta[name=viewport]')
   const manifest = document.querySelector('link[rel=manifest]')
+  // The stylesheet rules that decide where the fixed furniture and the sticky Save rows sit (env() use, heights, offsets, z-index).
+  const css = []
+  const WANT = /\.m-tabbar|\.m-header|\.m-menu-layer|\.admin-editor-actions|\.checkout-editor-actions|\.admin-content\b[^,{]*\{|\.admin-shell\s*\{/
+  const scanRules = (rules, media) => {
+    for (const r of rules) {
+      if (css.length >= 14) return
+      if (r.cssRules && r.media) { scanRules(r.cssRules, r.media.mediaText); continue }
+      if (r.cssRules && !r.selectorText) { scanRules(r.cssRules, media); continue }
+      if (r.selectorText && WANT.test(r.cssText)) css.push((media ? '@media ' + media + ' ' : '') + r.cssText.replace(/\s+/g, ' ').slice(0, 260))
+    }
+  }
+  for (const sh of document.styleSheets) { try { scanRules(sh.cssRules, '') } catch (e) {} }
   return {
     w: innerWidth, h: innerHeight, docH: se.scrollHeight, winScrolls: winMoved, maxScroll, scrollBehavior: getComputedStyle(document.documentElement).scrollBehavior,
     shellDir: ['.admin-shell', '.admin-content', '.admin-sidebar', '.m-header', '.m-tabbar'].map((q) => { const e = document.querySelector(q); return e ? q + '=' + getComputedStyle(e).direction + (e.getAttribute('dir') ? '(dir=' + e.getAttribute('dir') + ')' : '') : null }).filter(Boolean).join(' '),
@@ -252,6 +264,7 @@ function inPageShell() {
     dir: { html: document.documentElement.dir || '', htmlComputed: getComputedStyle(document.documentElement).direction, lang: document.documentElement.lang, body: getComputedStyle(document.body).direction },
     viewportMeta: vp ? vp.getAttribute('content') : null, manifest: manifest ? manifest.getAttribute('href') : null,
     envBottom, shell: cs('.admin-shell'), content: cs('.admin-content'), main: cs('main'), body: cs('body'), root: cs('#root'), html: cs('html'),
+    css,
     fixed,
   }
 }
@@ -902,6 +915,7 @@ const pat = (R, vn) => {
     out(`P|${vn}|shell@${name} ${sh.w}x${sh.h} docH ${sh.docH} windowScrolls ${sh.winScrolls} maxScroll ${sh.maxScroll} scroll-behavior ${sh.scrollBehavior} dir ${j(sh.dir)} elementDir[${sh.shellDir}] viewportMeta "${sh.viewportMeta}" manifest ${sh.manifest} env(safe-area-inset-bottom)=${sh.envBottom}`)
     out(`P|${vn}|scrollers@${name}: ${sh.scrollers.map((x) => `${x.sel} ${x.overflowY} ${x.client}/${x.scroll}${x.overflows ? ' OVERFLOWS' : ''}`).join(' ; ') || 'none (the window scrolls)'}`)
     out(`P|${vn}|boxes@${name}: shell ${j(sh.shell)} content ${j(sh.content)} body ${j(sh.body)} root ${j(sh.root)}`)
+    if (name === 'load') for (const c of sh.css) out(`P|${vn}|css: ${c}`)
     out(`P|${vn}|fixed@${name}: ${sh.fixed.map((x) => `${x.sel} ${x.pos} z${x.z} [${x.rect}]${x.atBottom ? ' AT-BOTTOM' : ''}${x.atTop ? ' at-top' : ''}${x.inSide ? ' in-sidebar' : ''} f${x.fields}b${x.buttons} "${x.text}"`).join(' ;; ') || 'none'}`)
   }
 }
