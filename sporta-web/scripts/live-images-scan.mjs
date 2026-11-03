@@ -349,6 +349,20 @@ try {
   }
 
 
+
+  if (PAGES.includes('css')) {
+    const h = await (await fetch(BASE + '/?lang=ar')).text()
+    const m = h.match(/href="([^"]*assets\/index-[^"]*\.css)"/)
+    const css = await (await fetch(BASE + (m ? m[1] : '/assets/index.css'))).text()
+    P('CSS bytes ' + css.length + ' from ' + (m ? m[1] : '?'))
+    const toks = String(E.TOKENS || 'catalog-gallery,catalog-product-visual,home-category-grid,campaign-category,category-tile,campaign-photo-hero,catalog-card-photo,catalog-card-image,brand-bar__item,cart-drawer__line,catalog-page').split(',')
+    const rules = css.split('}')
+    let n = 0
+    for (const rule of rules) {
+      if (toks.some((t) => rule.indexOf(t) >= 0) && n < 70) { n++; P('RULE ' + rule.replace(/\s+/g, ' ').trim().slice(0, 330)) }
+    }
+  }
+
   if (PAGES.includes('files')) {
     const j = await (await fetch(BASE + '/api/api.php?r=products')).json()
     const list = Array.isArray(j) ? j : (j.products || [])
@@ -408,6 +422,8 @@ try {
         return o
       })
       for (const x of bb) P(tag + ' BRANDBAR ' + x)
+      const tl = await page.evaluate(() => [...document.querySelectorAll('.campaign-category')].map((t) => { const cs = getComputedStyle(t); const kids = [...t.children].map((k) => k.tagName.toLowerCase() + '.' + String(k.className).split(' ')[0].slice(0, 22) + ' ' + Math.round(k.getBoundingClientRect().width) + 'x' + Math.round(k.getBoundingClientRect().height) + (k.scrollHeight > k.clientHeight + 1 ? '(scrollH ' + k.scrollHeight + ')' : '')); const b = t.getBoundingClientRect(); return t.className.split(' ').slice(0, 3).join('.') + ' ' + Math.round(b.width) + 'x' + Math.round(b.height) + ' minH ' + cs.minHeight + ' h ' + cs.height + ' ar ' + cs.aspectRatio + ' pad ' + cs.padding + ' | ' + kids.join(' ; ') + ' | tileScrollH ' + t.scrollHeight + ' clientH ' + t.clientHeight }))
+      for (const x of tl) P(tag + ' TILE ' + x)
       const pay = await page.evaluate(() => { const e = document.querySelector('.footer-payment'); if (!e) return 'NO .footer-payment'; const p = e.parentElement; return 'payment html ' + p.outerHTML.replace(/\s+/g, ' ').replace(/<path[^>]*>/g, '<path/>').slice(0, 900) })
       P(tag + ' ' + pay)
       // hero / tiles / brand-bar boxes
