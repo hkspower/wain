@@ -330,6 +330,14 @@ const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: 
 try {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!(E.INJECT || E.INJECT_B64) })
   await ctx.addInitScript(INIT)
+  if (E.REPLACE) {
+    for (const pair of E.REPLACE.split(';').filter(Boolean)) {
+      const name = pair.slice(0, pair.indexOf('=')), url = pair.slice(pair.indexOf('=') + 1)
+      const body = await (await fetch(url)).text()
+      await ctx.route((u) => u.pathname.endsWith('/' + name), (route) => route.fulfill({ status: 200, contentType: 'text/css', headers: { 'cache-control': 'no-store' }, body }))
+      P('REPLACED ' + name + ' with ' + body.length + ' bytes from ' + url.slice(-60))
+    }
+  }
   if (E.INJECT || E.INJECT_B64) { let css = E.INJECT_B64 ? Buffer.from(E.INJECT_B64, 'base64').toString('utf8') + '\n' : ''; for (const u of String(E.INJECT || '').split(',').filter(Boolean)) { try { css += await (await fetch(u)).text() + '\n' } catch (e) { P('INJECT_FAIL ' + u) } } setInject(css); if (E.EARLY) { await ctx.addInitScript((c) => { const s = document.createElement('style'); s.textContent = c; (document.head || document.documentElement).appendChild(s) }, css); P('EARLY_CSS ' + css.length + ' bytes') } }
 
   if (PAGES.includes('api')) {
