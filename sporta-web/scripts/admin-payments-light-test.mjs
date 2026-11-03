@@ -130,13 +130,14 @@ const SCENARIOS = [
 const PROPS = ['color', 'backgroundColor', 'backgroundImage', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'boxShadow', 'outlineColor', 'caretColor', 'accentColor', 'textDecorationColor']
 const SIG = (e) => e.tagName.toLowerCase() + '.' + String(e.getAttribute('class') || '').split(/\s+/).filter(Boolean).slice(0, 3).join('.')
 
+let VIEW_W = 1280 // the build changes some of its LIGHT rules with the viewport width, so the comparison runs at two
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
 let detailOn = true
 // DETAIL=<scenario name> prints every difference found in that scenario (a debugging aid, not part of the verdict)
 // Everything measured in one scenario, as plain data
 async function collect(addon, sc, within = '#scr .admin-content') {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: sc.device })
+  const ctx = await browser.newContext({ viewport: { width: VIEW_W, height: 900 }, colorScheme: sc.device })
   const pg = await ctx.newPage()
   await pg.setContent(pageHtml(addon, sc.attrs))
   const out = { sc: sc.name }
@@ -296,6 +297,16 @@ const NF = await failuresOf(noHas, null, '#scr .payment-settings', ['dark+dark',
 for (const name of ['dark+dark', 'first-paint']) {
   is(!Object.keys(NF).some((k) => k.endsWith('[' + name + ']') && !k.startsWith('control')), `[${name}] every element inside the screen root still paints, states, surfaces and contrasts as light`, Object.entries(NF).filter(([k]) => k.endsWith('[' + name + ']')).map(([k, v]) => k + ': ' + v[0]).join(' | ').slice(0, 400))
 }
+
+// ----------------------------------------------------------------------------------------------------------- phone width
+head('Phone width (390px): the build changes some of its light rules with the viewport')
+VIEW_W = 390
+const FP = await failuresOf(CSS)
+for (const sc of SCENARIOS.slice(1)) {
+  const keys = Object.keys(FP).filter((k) => k.endsWith('[' + sc.name + ']') && !k.startsWith('control'))
+  is(keys.length === 0, `[${sc.name}] at 390px: paint, states, surfaces, scheme and contrast all match light`, keys.map((k) => k + ': ' + FP[k][0]).join(' | ').slice(0, 500))
+}
+VIEW_W = 1280
 
 // ---------------------------------------------------------------------------------------------------------- mutation
 head('Mutation: the Light only section cut out of the file')

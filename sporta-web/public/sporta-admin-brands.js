@@ -1042,3 +1042,459 @@
   function start() { scan(); new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true }) }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
 })()
+
+/* ===== ADMIN SAVE BAR - begin ===========================================
+ * 5. Save bar (owner request 2026-11-03: "add save buttons every page
+ * backends").
+ *
+ * Every /backends screen where something is edited already HAS a Save; the
+ * trouble is reach. Order and Support drawers keep it 600-800 px down, the
+ * Slides and Discounts modals scroll it away, Topbar and Inventory are one long
+ * page, and on a phone the sticky Save row of the Catalogue and Brands editors
+ * sits UNDER the fixed bottom tab bar. This block adds no save logic of its own.
+ * It watches for the screen's real Save and, ONLY while that button is out of
+ * view (or covered), shows one slim bar with the same words that calls the real
+ * button's click(), so the screen's own validation, request and busy/disabled
+ * behaviour run exactly as if the owner had pressed the real one.
+ *
+ * What counts as a Save (finder, not a guess at all the text on the page):
+ *   - any button whose label starts with Save / Saved / Saving, whatever its
+ *     type (the Orders drawer saves are type=button with an onClick, no form);
+ *   - a <button type=submit> (or an <input type=submit>) of a <form> that has
+ *     editable fields, whatever it says (Create contact, Add note, Send customer
+ *     reply, Save product...); a typeless <button> in a form only when it starts
+ *     with Create / Add note / Send / Update / Publish;
+ *   - never Cancel / Delete / Remove / Reset / Close / Clear / Search / Filter /
+ *     Apply / Sign in / Back / Next / Block / Export ... (the label is checked
+ *     from its first word), never the sidebar, the tab bar, a role=search form,
+ *     or the bar itself.
+ * Which Save: the top-most open overlay (a big position:fixed box: drawer,
+ * modal, the phone menu) owns the screen, so a page behind it is ignored; with
+ * several Saves in it the one nearest in the tree to the field last touched
+ * wins (else the first enabled one). A Save that is not in an overlay needs 3+
+ * fields in its form, or a field touched in it, so a tiny inline "Add contact"
+ * form is not chased down the page.
+ *
+ * Out of view = less than 90% of the button inside every clipping/scrolling
+ * ancestor and the window, or something else (the tab bar) on top of its
+ * centre. The bar sits at the bottom of that scrolling frame (the drawer, the
+ * modal's form, or the window), above env(safe-area-inset-bottom) and above any
+ * fixed bar at the bottom of the screen; a Save inside an overlay gets a bar
+ * one z-index above the overlay. While it shows, the scroll container gets
+ * extra padding-bottom (put back exactly afterwards) so the last field can be
+ * scrolled clear of it. It mirrors the real button's label, disabled
+ * (aria-disabled, so keyboard focus survives) and aria-busy, ignores clicks
+ * while the real one is disabled or busy and for half a second after a press.
+ *
+ * One debounced (rAF) MutationObserver on <body>; it is disconnected around the
+ * block's own writes. Nothing runs off /backends: if the page is not /backends
+ * the block only waits for a navigation (Navigation API, popstate) and starts
+ * then; leaving /backends stops it. Evaluated twice, the second does nothing.
+ * Styles are created from here (a <style>), colours follow the colour of the
+ * frame behind the bar so it reads in light and dark.
+ */
+;(function () {
+  if (window.__sportaSaveBar) return
+  var api = { version: 1, ticks: 0 }
+  try { Object.defineProperty(window, '__sportaSaveBar', { value: api, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var BAR = 'data-sporta-savebar'
+  var GAP = 8                         // air between the last field and the bar
+  var MAXW = 720                      // widest the bar gets on a desktop
+  // The first word of a label that is never a save (checked after any leading icon/symbol).
+  var NOT = /^(cancel|delete|remove|reset|close|discard|clear|search|filter|apply|find|go|show|load|view|open|sign|log|login|logout|signin|signout|back|next|prev|refresh|export|download|block|unblock|revoke|disconnect|unlink|archive|copy|print|edit|add (photo|image|size|row|variant|item))\b/i
+  var SAVE = /^(save|saved|saving)\b/i
+  var SENDLIKE = /^(create|add note|send|update|publish)\b/i
+  var SIDE = 'nav, [role=navigation], .admin-sidebar, .m-tabbar, .m-header'
+
+  var bar = null, btn = null, styleEl = null
+  var running = false, obs = null, frame = 0, trail = 0
+  var domDirty = true, cands = [], field = null
+  var cur = null                      // the real Save the bar mirrors
+  var pad = null                      // { el, v, p, had, base } while padding is added
+  var locked = false
+  var navHooked = false
+
+  function onAdmin() { return location.pathname.indexOf('/backends') === 0 }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim() }
+  function labelOf(b) {
+    var t = clean(b.tagName === 'INPUT' ? b.value : b.textContent)
+    return t || clean(b.getAttribute('aria-label') || b.getAttribute('title'))
+  }
+  function isFieldEl(e) {
+    if (!e || e.nodeType !== 1 || !/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName)) return false
+    return !/^(hidden|search|button|submit|reset|image)$/i.test(e.type || '')
+  }
+  function fieldsIn(scope) {
+    var n = 0, list = scope.querySelectorAll('input, select, textarea')
+    for (var i = 0; i < list.length && n < 6; i++) if (isFieldEl(list[i]) && list[i].getClientRects().length) n++
+    return n
+  }
+  function isSave(b) {
+    if (bar && bar.contains(b)) return false
+    if (b.tagName === 'INPUT' && String(b.type).toLowerCase() !== 'submit') return false
+    var label = labelOf(b)
+    if (!label || label.length > 60) return false
+    var lead = label.replace(/^[^A-Za-z؀-ۿ]+/, '')
+    if (!lead) return false
+    var type = (b.getAttribute('type') || '').toLowerCase()
+    if (type === 'reset') return false
+    if (b.closest(SIDE)) return false
+    var save = SAVE.test(lead)
+    if (!save && NOT.test(lead)) return false
+    if (save) return true
+    var form = b.form
+    if (!form || String(form.getAttribute('role')).toLowerCase() === 'search') return false
+    if (!(type === 'submit' || (!type && SENDLIKE.test(lead)))) return false
+    return fieldsIn(form) > 0
+  }
+  function findCandidates() {
+    var out = [], list = document.querySelectorAll('button, input[type=submit]')
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i]
+      if (!b.isConnected) continue
+      var t = b.tagName === 'INPUT' ? b.value : b.textContent
+      if (t && t.length > 120) continue
+      if (!isSave(b)) continue
+      out.push(b)
+    }
+    return out
+  }
+  function rendered(b) {
+    if (!b.isConnected || !b.getClientRects().length) return false
+    var cs = getComputedStyle(b)
+    return cs.visibility !== 'hidden' && cs.display !== 'none'
+  }
+
+  // A big position:fixed box (drawer, modal, backdrop, the phone menu): the nearest one at or above e.
+  function bigFixed(e) {
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight
+    for (var n = e; n && n.nodeType === 1 && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      if (bar && n === bar) return null
+      if (getComputedStyle(n).position !== 'fixed') continue
+      var r = n.getBoundingClientRect()
+      if (r.width >= vw * 0.3 && r.height >= vh * 0.6 && !n.querySelector('.admin-sidebar, .m-tabbar')) return n
+    }
+    return null
+  }
+  // The top-most overlay on screen, sampled at the centre and either side of it.
+  function topOverlay() {
+    var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight
+    var pts = [[0.5, 0.5], [0.88, 0.5], [0.12, 0.5]]
+    for (var p = 0; p < pts.length; p++) {
+      var list = document.elementsFromPoint(Math.round(vw * pts[p][0]), Math.round(vh * pts[p][1]))
+      for (var i = 0; i < list.length; i++) {
+        if (bar && bar.contains(list[i])) continue
+        var o = bigFixed(list[i])
+        if (o) return o
+        break
+      }
+    }
+    return null
+  }
+
+  function depthOf(n) { var d = 0; for (; n && n.parentElement; n = n.parentElement) d++; return d }
+  function lca(a, b) {
+    var seen = [], n
+    for (n = a; n; n = n.parentElement) seen.push(n)
+    for (n = b; n; n = n.parentElement) if (seen.indexOf(n) >= 0) return n
+    return null
+  }
+  function isOff(b) { return b.disabled || b.getAttribute('aria-disabled') === 'true' }
+  function isBusy(b) { return b.getAttribute('aria-busy') === 'true' }
+  function choose(list) {
+    var f = field && field.isConnected ? field : null
+    var best = null, bs = -1
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i], s = 0
+      if (f) { var a = lca(f, c); s = (a ? depthOf(a) : 0) * 8 }
+      if (!isOff(c)) s += 4
+      if ((c.getAttribute('type') || '').toLowerCase() === 'submit') s += 2
+      s += (list.length - i) / (list.length + 1)       // earlier in the page wins a tie
+      if (s > bs) { bs = s; best = c }
+    }
+    return best
+  }
+  function blockOf(c) { return c.form || c.closest('section, fieldset, aside') || c.parentElement }
+  function qualifies(c, ov) {
+    if (ov) return true
+    var blk = blockOf(c)
+    if (!blk) return false
+    if (field && field.isConnected && blk.contains(field)) return true
+    return fieldsIn(blk) >= 3
+  }
+
+  // Where the real Save is: the part of its box inside every clipping ancestor and the window, and which
+  // ancestor scrolls (null = the window).
+  function reach(b) {
+    var de = document.documentElement
+    var vis = { l: 0, t: 0, r: de.clientWidth, b: de.clientHeight }
+    var scroller = null
+    for (var a = b.parentElement; a && a !== document.body && a !== de; a = a.parentElement) {
+      var cs = getComputedStyle(a)
+      if (cs.overflowY !== 'visible' || cs.overflowX !== 'visible') {
+        var ar = a.getBoundingClientRect()
+        if (cs.overflowX !== 'visible') { vis.l = Math.max(vis.l, ar.left); vis.r = Math.min(vis.r, ar.right) }
+        if (cs.overflowY !== 'visible') {
+          vis.t = Math.max(vis.t, ar.top); vis.b = Math.min(vis.b, ar.bottom)
+          if (!scroller && /^(auto|scroll|overlay)$/.test(cs.overflowY) && a.scrollHeight > a.clientHeight + 1) scroller = a
+        }
+      }
+      if (cs.position === 'fixed') break
+    }
+    var r = b.getBoundingClientRect()
+    var ix = Math.max(0, Math.min(r.right, vis.r) - Math.max(r.left, vis.l))
+    var iy = Math.max(0, Math.min(r.bottom, vis.b) - Math.max(r.top, vis.t))
+    var area = r.width * r.height
+    var frac = area > 0 ? (ix * iy) / area : 0
+    var seen = frac >= 0.9
+    if (seen) {
+      var top = document.elementFromPoint(Math.round(Math.max(r.left, vis.l) + ix / 2), Math.round(Math.max(r.top, vis.t) + iy / 2))
+      if (top && top !== b && !b.contains(top)) seen = false      // something (the tab bar, our bar) is on top of it
+    }
+    return { seen: seen, vis: vis, scroller: scroller }
+  }
+
+  // Fixed or sticky strip at the very bottom of the screen that sits above the overlay/page: its height.
+  function lift(ov, real) {
+    var de = document.documentElement, vw = de.clientWidth, vh = de.clientHeight, best = 0
+    var xs = [0.25, 0.5, 0.75]
+    for (var k = 0; k < xs.length; k++) {
+      var list = document.elementsFromPoint(Math.round(vw * xs[k]), vh - 2)
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i]
+        if (bar && bar.contains(e)) continue
+        if (ov && ov.contains(e)) break                          // everything below is behind the overlay
+        for (var f = e; f && f !== document.body && f !== de; f = f.parentElement) {
+          var pos = getComputedStyle(f).position
+          if (pos !== 'fixed' && pos !== 'sticky') continue
+          var r = f.getBoundingClientRect()
+          if (r.bottom >= vh - 2 && r.height <= 160 && r.width >= vw * 0.4 && !f.contains(real)) best = Math.max(best, vh - r.top)
+          break
+        }
+      }
+    }
+    return best
+  }
+
+  function effectiveBg(from) {
+    for (var n = from; n && n.nodeType === 1; n = n.parentElement) {
+      var m = /^rgba?\(([^)]+)\)$/.exec(getComputedStyle(n).backgroundColor)
+      if (!m) continue
+      var p = m[1].split(',').map(parseFloat)
+      if (p.length < 4 || p[3] > 0.6) return p.slice(0, 3)
+    }
+    return null
+  }
+  function luminance(c) {
+    var v = c.map(function (x) { x = x / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4) })
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
+  }
+
+  function css() {
+    return '[' + BAR + ']{position:fixed;z-index:35;box-sizing:border-box;padding:8px 12px;border-top:1px solid #e2e8f0;background:#fff;box-shadow:0 -6px 18px rgba(15,23,42,.12);font-family:inherit}' +
+      '[' + BAR + '][hidden]{display:none}' +
+      '[' + BAR + '] button{appearance:none;display:block;box-sizing:border-box;width:100%;min-height:44px;margin:0;padding:10px 16px;border:0;border-radius:12px;background:#4f46e5;color:#fff;font:inherit;font-size:15px;font-weight:700;line-height:1.25;cursor:pointer;text-align:center}' +
+      '[' + BAR + '] button:hover{background:#4338ca}' +
+      '[' + BAR + '] button:focus-visible{outline:3px solid #312e81;outline-offset:2px}' +
+      '[' + BAR + '] button[aria-disabled=true]{background:#e2e8f0;color:#475569;cursor:not-allowed}' +
+      '[' + BAR + '] button[aria-busy=true]{cursor:progress}' +
+      '[' + BAR + '][data-tone=dark]{border-top-color:rgba(148,163,184,.35);box-shadow:0 -6px 18px rgba(0,0,0,.45)}' +
+      '[' + BAR + '][data-tone=dark] button{background:#818cf8;color:#0f172a}' +
+      '[' + BAR + '][data-tone=dark] button:hover{background:#a5b4fc}' +
+      '[' + BAR + '][data-tone=dark] button:focus-visible{outline-color:#c7d2fe}' +
+      '[' + BAR + '][data-tone=dark] button[aria-disabled=true]{background:#334155;color:#e2e8f0}' +
+      '@media (prefers-reduced-motion:no-preference){[' + BAR + ']:not([hidden]){animation:sporta-savebar-in .16s ease-out}}' +
+      '@keyframes sporta-savebar-in{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}'
+  }
+  function ensureBar() {
+    if (bar && bar.isConnected) return
+    if (!styleEl || !styleEl.isConnected) {
+      styleEl = document.createElement('style')
+      styleEl.setAttribute('data-sporta-savebar-css', '1')
+      styleEl.textContent = css()
+      document.head.appendChild(styleEl)
+    }
+    bar = document.createElement('div')
+    bar.setAttribute(BAR, '1')
+    bar.setAttribute('role', 'group')
+    bar.setAttribute('aria-label', 'Save changes')
+    bar.hidden = true
+    btn = document.createElement('button')
+    btn.type = 'button'
+    btn.addEventListener('click', press)
+    bar.appendChild(btn)
+    document.body.appendChild(bar)
+  }
+
+  function press(ev) {
+    ev.preventDefault()
+    var real = cur
+    if (locked || !real || !real.isConnected || isOff(real) || isBusy(real)) return
+    locked = true
+    setTimeout(function () { locked = false }, 500)
+    real.click()
+    schedule(false)
+  }
+
+  function setAttr(el, n, v) { if (v === null) { if (el.hasAttribute(n)) el.removeAttribute(n) } else if (el.getAttribute(n) !== v) el.setAttribute(n, v) }
+
+  function holdPad(el, h) {
+    if (pad && pad.el !== el) releasePad()
+    if (!pad) pad = { el: el, v: el.style.getPropertyValue('padding-bottom'), p: el.style.getPropertyPriority('padding-bottom'), had: el.hasAttribute('style'), base: parseFloat(getComputedStyle(el).paddingBottom) || 0 }
+    var want = (pad.base + h + GAP) + 'px'
+    if (el.style.getPropertyValue('padding-bottom') !== want) el.style.setProperty('padding-bottom', want)
+  }
+  function releasePad() {
+    if (!pad) return
+    var el = pad.el
+    if (el.isConnected) {
+      if (pad.v) el.style.setProperty('padding-bottom', pad.v, pad.p); else el.style.removeProperty('padding-bottom')
+      if (!pad.had && el.getAttribute('style') === '') el.removeAttribute('style')
+    }
+    pad = null
+  }
+
+  function hideBar() {
+    cur = null
+    if (!bar || !bar.isConnected) { releasePad(); return }
+    if (!bar.hidden) {
+      var real = null
+      if (bar.contains(document.activeElement)) real = lastReal
+      bar.hidden = true
+      if (real && real.isConnected && rendered(real)) { try { real.focus({ preventScroll: true }) } catch (e) {} }
+    }
+    releasePad()
+  }
+  var lastReal = null
+
+  function show(real, info, ov) {
+    ensureBar()
+    cur = lastReal = real
+    var label = labelOf(real)
+    var off = isOff(real), busy = isBusy(real)
+    if (btn.textContent !== label) btn.textContent = label
+    setAttr(btn, 'aria-label', label)
+    setAttr(btn, 'aria-disabled', off || busy ? 'true' : null)
+    setAttr(btn, 'aria-busy', busy ? 'true' : null)
+    // Frame: across the form (or the scrolling box), inside what is visible of it.
+    var host = real.form && (!ov || ov.contains(real.form)) ? real.form : (info.scroller || ov || real.parentElement)
+    var hr = host.getBoundingClientRect()
+    var l = Math.max(info.vis.l, hr.left), r = Math.min(info.vis.r, hr.right)
+    if (r - l < 200) { l = info.vis.l; r = info.vis.r }
+    var w = Math.min(r - l, MAXW)
+    var left = l + (r - l - w) / 2
+    var lf = lift(ov, real)
+    var de = document.documentElement
+    var bottomEdge = Math.min(info.vis.b, de.clientHeight - lf)
+    var fromBottom = Math.max(0, de.clientHeight - bottomEdge)
+    var z = 35
+    if (ov) { var oz = parseInt(getComputedStyle(ov).zIndex, 10); z = (isFinite(oz) ? Math.max(oz, 40) : 40) + 1 }
+    var bg = effectiveBg(host)
+    var dark
+    if (bg) dark = luminance(bg) < 0.4
+    else {
+      // Nothing painted behind it (the browser's own canvas): light text means a dark page.
+      var fg = /^rgba?\(([^)]+)\)$/.exec(getComputedStyle(host).color)
+      dark = fg ? luminance(fg[1].split(',').slice(0, 3).map(parseFloat)) > 0.5 : false
+    }
+    var rgb = bg ? 'rgb(' + bg.map(Math.round).join(',') + ')' : (dark ? '#0f172a' : '#fff')
+    var st = bar.style
+    st.left = Math.round(left) + 'px'
+    st.width = Math.round(w) + 'px'
+    // The safe area is the phone's own bottom edge; it only matters when the bar is on it.
+    st.bottom = fromBottom === 0 ? 'env(safe-area-inset-bottom, 0px)' : Math.round(fromBottom) + 'px'
+    st.zIndex = String(z)
+    st.background = rgb
+    st.borderRadius = w < r - l ? '14px 14px 0 0' : '0'
+    setAttr(bar, 'data-tone', dark ? 'dark' : 'light')
+    bar.hidden = false
+    var sc = info.scroller || (de.scrollHeight > de.clientHeight ? de : null)
+    if (sc) holdPad(sc, bar.offsetHeight); else releasePad()
+  }
+
+  function run() {
+    if (!onAdmin()) { stop(); return }
+    if (domDirty) { cands = findCandidates(); domDirty = false }
+    var live = []
+    for (var i = 0; i < cands.length; i++) if (rendered(cands[i])) live.push(cands[i])
+    if (!live.length) { hideBar(); return }
+    var ov = topOverlay()
+    if (ov) live = live.filter(function (b) { return ov.contains(b) })
+    else live = live.filter(function (b) { return !bigFixed(b) })
+    if (!live.length) { hideBar(); return }
+    var real = choose(live)
+    if (!real || !qualifies(real, ov)) { hideBar(); return }
+    var info = reach(real)
+    if (info.seen) { hideBar(); return }
+    show(real, info, ov)
+  }
+
+  function tick() {
+    frame = 0
+    api.ticks++
+    if (obs) { if (obs.takeRecords().length) domDirty = true; obs.disconnect() }
+    try { run() } catch (e) { try { hideBar() } catch (e2) {} }
+    if (running && obs) obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'aria-busy', 'aria-disabled', 'hidden', 'class', 'style'] })
+  }
+  function schedule(dom, settled) {
+    if (dom) domDirty = true
+    if (!settled) {
+      // Panels slide in and settle after the mutation: look once more when the burst is over (once; this look does not re-arm itself).
+      clearTimeout(trail)
+      trail = setTimeout(function () { schedule(false, true) }, 320)
+    }
+    if (frame) return
+    frame = requestAnimationFrame(tick)
+  }
+  function onMut() { schedule(true) }
+  function onGeom() { schedule(false) }
+  function onField(e) {
+    if (isFieldEl(e.target) && !(bar && bar.contains(e.target))) field = e.target
+    schedule(false)
+  }
+
+  function start() {
+    if (running || !document.body) return
+    running = true
+    obs = new MutationObserver(onMut)
+    document.addEventListener('scroll', onGeom, { capture: true, passive: true })
+    window.addEventListener('resize', onGeom)
+    document.addEventListener('transitionend', onGeom, true)
+    document.addEventListener('animationend', onGeom, true)
+    document.addEventListener('focusin', onField, true)
+    document.addEventListener('input', onField, true)
+    document.addEventListener('change', onField, true)
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', onGeom); window.visualViewport.addEventListener('scroll', onGeom) }
+    domDirty = true
+    tick()
+  }
+  function stop() {
+    if (!running) return
+    running = false
+    if (obs) { obs.disconnect(); obs = null }
+    document.removeEventListener('scroll', onGeom, true)
+    window.removeEventListener('resize', onGeom)
+    document.removeEventListener('transitionend', onGeom, true)
+    document.removeEventListener('animationend', onGeom, true)
+    document.removeEventListener('focusin', onField, true)
+    document.removeEventListener('input', onField, true)
+    document.removeEventListener('change', onField, true)
+    if (window.visualViewport) { window.visualViewport.removeEventListener('resize', onGeom); window.visualViewport.removeEventListener('scroll', onGeom) }
+    cancelAnimationFrame(frame); frame = 0
+    clearTimeout(trail)
+    hideBar()
+    field = null; cands = []
+  }
+  // The admin is a single-page app: /backends can be entered or left without a page load.
+  function check() { if (onAdmin()) start(); else stop() }
+  function boot() {
+    check()
+    if (navHooked) return
+    navHooked = true
+    window.addEventListener('popstate', function () { setTimeout(check, 0) })
+    if (window.navigation && window.navigation.addEventListener) window.navigation.addEventListener('navigatesuccess', function () { setTimeout(check, 0) })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot()
+})()
+/* ===== ADMIN SAVE BAR - end ============================================== */
