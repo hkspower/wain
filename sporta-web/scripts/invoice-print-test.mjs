@@ -294,6 +294,25 @@ await section('screen: product names, the discount line, the total', async () =>
   }
 })
 
+await section('screen: the customer name shares an edge with its heading and address', async () => {
+  // A name in the OTHER script (Arabic in the English invoice, Latin in the
+  // Arabic one) used to float to the far edge of its column: the direction was
+  // on the block, and a block aligns `start` to its own direction.
+  for (const [lang, order] of [['en', SMALL], ['ar', BIG]]) {
+    const { ctx, page } = await open(order, { lang, width: 1000 })
+    const e = await page.evaluate(() => {
+      const box = document.querySelector('article .grid > div')
+      const edge = (n) => { const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); return { l: b.left, r: b.right } }
+      return { rtl: getComputedStyle(box).direction === 'rtl', h: edge(box.querySelector('h2')), n: edge(box.querySelector('p')), a: edge(box.querySelectorAll('p')[1]) }
+    })
+    const side = e.rtl ? 'r' : 'l'
+    const gap = Math.abs(e.n[side] - e.h[side])
+    is(gap < 2, `${lang}: the ${lang === 'en' ? 'Arabic' : 'Latin'} customer name starts where its heading starts`, `${gap.toFixed(1)}px off`)
+    is(Math.abs(e.n[side] - e.a[side]) < 2, `${lang}: ...and where the address starts`, `${Math.abs(e.n[side] - e.a[side]).toFixed(1)}px off`)
+    await ctx.close()
+  }
+})
+
 await section('screen: contrast (WCAG AA, 4.5:1 on white)', async () => {
   for (const lang of ['ar', 'en']) {
     const { ctx, page } = await open(BIG, { lang, width: 1000 })

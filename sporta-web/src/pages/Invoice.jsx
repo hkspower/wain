@@ -149,8 +149,13 @@ export default function Invoice() {
             {/* The customer's own name decides its direction, not the page:
                 this shop has customers called both "Fatima Al-Sabah" and
                 "فاطمة الصباح", and neither should render backwards. */}
-            <p dir={dirFor(inv.customer_name)} className="mt-1 font-bold text-slate-900">
-              {inv.customer_name}
+            {/* The direction sits on an inline span inside a block that keeps
+                the page's: on the <p> itself, an Arabic name in the English
+                invoice (or a Latin one in the Arabic invoice) was pushed to the
+                far edge of its column, away from the heading and the address
+                it belongs to. */}
+            <p className="mt-1 font-bold text-slate-900">
+              <span dir={dirFor(inv.customer_name)}>{inv.customer_name}</span>
             </p>
             <p className="mt-1 text-sm leading-relaxed text-slate-700">
               {addressParts.join(t.invoice.sep)}
