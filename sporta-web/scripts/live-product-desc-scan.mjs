@@ -2,6 +2,7 @@
 // markup, spacing, punctuation and duplicate problems, and the layout of the description on the product page at 390,
 // 768 and 1280px in Arabic and English. Clicks nothing, types nothing. Run on the VPS in the Playwright image
 // (npm i playwright@1.49.0 with PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1), like admin-payments-scan.mjs.
+import { chromium } from 'playwright'
 const B = 'https://www.sporta.com.kw'
 const j = await (await fetch(B + '/api/api.php?r=products')).json()
 const list = Array.isArray(j) ? j : (j.products || [])
