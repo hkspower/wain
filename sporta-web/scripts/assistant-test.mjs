@@ -1320,6 +1320,232 @@ head('round three: a model may not turn a promise round')
   is(acc[14].every((x) => x === false), 'returns, cancel, delivery, payment, the order stages, money, complaint, checkout, coupons, offers and contact never are', JSON.stringify(acc[14]))
 }
 
+// ===================================================================== ROUND FOUR
+// The fourth review: the lane's findings were all of one kind — a customer who
+// needs a PERSON (a parcel that never came, money that was taken, a refund that
+// is late, an order to change or stop) was answered with a fixed line, a shelf
+// or "nothing matched", and n8n was never told. And the reverse: a customer who
+// did NOT ask for a person (an opt-out, a "don't cancel", "thanks" at the end of
+// a product question) was paged as if they had. Every sentence the reviewers
+// quoted is below, with the answer it should get; the controls beside them are
+// the ordinary messages that must keep their old answers.
+await unthrottle()
+head('round four: a parcel that did not come reaches a person')
+{
+  const NOT_RECEIVED = [
+    ['my order SP1AU702NKHTKDV shows delivered but I did not receive it', 'en'], ['طلبي SP1AU702NKHTKDV مكتوب واصل وانا ما استلمت', 'ar'],
+    ['ما استلمت الطلب', 'ar'], ['مكتوب انه تم التسليم وانا ما استلمت', 'ar'], ['the courier says delivered but I never got it', 'en'],
+    ['order shows delivered but I did not get it', 'en'], ['the courier says he delivered but I got nothing', 'en'],
+    ['SP1AU702NKHTKDV never arrived, I want my money back', 'en'], ['الطلب ما وصلني ابي فلوسي', 'ar'], ['my package is lost', 'en'],
+    ['الطلب ضايع', 'ar'], ['قالو وصل الطلب وانا ما استلمت', 'ar'], ['I did not receive my order', 'en'], ['I never received my parcel', 'en']]
+  const NO_NUMBER = [['I lost my order number', 'en'], ['نسيت رقم الطلب', 'ar'], ['ضيعت رقم الطلب', 'ar'], ["I don't have the order number", 'en']]
+  const R = await routes([...NOT_RECEIVED, ...NO_NUMBER].map(([q]) => q))
+  NOT_RECEIVED.forEach(([q], i) => is(R[i][0] === 'contact' && R[i][1] === 'not_received', `"${q}" -> a person (not_received)`, R[i].join('/')))
+  NO_NUMBER.forEach(([q], i) => is(R[NOT_RECEIVED.length + i][0] === 'contact' && R[NOT_RECEIVED.length + i][1] === 'no_number',
+    `"${q}" -> a person, with the phone number to find it by`, R[NOT_RECEIVED.length + i].join('/')))
+  // Late is not lost: a fresh "where is it" still gets the status path.
+  const L = await routes(['my order did not arrive', 'it has been 5 days and nothing', 'ما وصلني الطلب للحين', 'order not received', 'when will my order arrive'])
+  is(L.every((r) => r[0] === 'order_status' || r[0] === 'delivery'), 'while a plain "it is late" is still a tracking question', L.map((r) => r.join('/')).join(' '))
+  // …and a reply that does not promise 24 hours to someone who says it did not come, or loop.
+  const A = await answersIn([], [['my order did not arrive', 'en'], ['طلبي ما وصل', 'ar'], ['I lost my order number', 'en'], ['ضيعت رقم الطلب', 'ar']])
+  is(!/24 hours/.test(A[0].reply) && /WhatsApp/.test(A[0].reply) && /SP/.test(A[0].reply), '"my order did not arrive" is asked for the number WITHOUT the 24-hour promise, and given a way out', A[0].reply)
+  is(!/٢٤/.test(A[1].reply) && /واتساب/.test(A[1].reply), 'in Arabic too', A[1].reply)
+  is(/WhatsApp/.test(A[2].reply) && /phone number/.test(A[2].reply) && !/Send me your order number/.test(A[2].reply), '"I lost my order number" is not asked for it again', A[2].reply)
+  is(/واتساب/.test(A[3].reply) && !/أرسل لي رقم الطلب/.test(A[3].reply), 'in Arabic too', A[3].reply)
+
+  // A delivered order that the customer says never came is a dispute, not a return window.
+  const DAY = (d) => `now() - interval ${d} day`
+  const orders = ['insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at) values' +
+    ` ('SPTEST000001', 3, 3, 'knet', 'paid', 'delivered', ${DAY(3)}), ('SPTEST000002', 3, 3, 'knet', 'paid', 'shipped', ${DAY(4)}),` +
+    ` ('SP5EY126ROLXOHZ', 3, 3, 'knet', 'paid', 'packed', ${DAY(6)}), ('SP9SHIPPED001', 3, 3, 'knet', 'paid', 'shipped', ${DAY(9)}),` +
+    ` ('SPFRESHPACK01', 3, 3, 'knet', 'paid', 'packed', ${DAY(0)}), ('SPFRESHSHIP01', 3, 3, 'knet', 'paid', 'shipped', ${DAY(0)}),` +
+    ` ('SPOLDDELIV001', 3, 3, 'knet', 'paid', 'delivered', ${DAY(20)}), ('SPOLDUNPAID01', 3, 3, 'knet', 'failed', 'unfulfilled', ${DAY(20)}),` +
+    ` ('SPOLDCANCEL01', 3, 3, 'knet', 'paid', 'cancelled', ${DAY(20)}), ('SPOLDRECEIV01', 3, 3, 'cod', 'pending', 'unfulfilled', ${DAY(5)})`]
+  const O = await answersIn(orders, [
+    ['SPTEST000001 never arrived', 'en'], ['my order SPTEST000001 shows delivered but I did not receive it', 'en'],
+    ['طلبي SPTEST000001 ما وصلني', 'ar'], ['SPTEST000001', 'en'], ['SPTEST000002 it has been 4 days, still not here', 'en'],
+    ['my order is late, I ordered 6 days ago SP5EY126ROLXOHZ', 'en'], ['SP9SHIPPED001', 'en'], ['SPFRESHPACK01', 'en'], ['SPFRESHSHIP01', 'en'],
+    ['SPOLDDELIV001', 'en'], ['SPOLDUNPAID01', 'en'], ['SPOLDCANCEL01', 'en'], ['SPOLDRECEIV01', 'en'], ['SP5EY126ROLXOHZ', 'ar']])
+  const nr = await canned('not_received', false)
+  const late = await canned('stage_late', false)
+  is(O[0].reply === nr && O[1].reply === nr && O[2].reply === await canned('not_received', true), 'a delivered order the customer says never came gets the person line, not "delivered, you have 14 days to return"',
+     O[0].reply.slice(0, 60))
+  is(O[0].data?.stage === 'delivered' && O[0].intent === 'order_status', 'and still shows the order card, as the widget expects', `${O[0].intent} ${O[0].data?.stage}`)
+  is(/14 days from delivery/.test(O[3].reply) && /14 days from delivery/.test(O[9].reply), 'a plain look-up of a delivered order is still told the return window', O[3].reply.slice(0, 40))
+  is(O[4].reply === late && O[5].reply === late && O[6].reply === late, 'a packed or shipped order that is days old is not promised 24 hours or "on its way"', `${O[4].reply.slice(0, 40)} | ${O[5].reply.slice(0, 40)} | ${O[6].reply.slice(0, 40)}`)
+  is(!/24 hours|on its way/.test(late) && /WhatsApp/.test(late), 'the late line says neither, and gives the way to reach a person', late)
+  is(/being prepared/.test(O[7].reply) && /on its way/.test(O[8].reply), 'while a fresh packed or shipped order is told its stage as before', `${O[7].reply.slice(0, 30)} | ${O[8].reply.slice(0, 30)}`)
+  is(/not confirmed/.test(O[10].reply) && /cancelled/.test(O[11].reply) && O[10].reply !== late && O[11].reply !== late, 'an old unpaid or cancelled order keeps its own line', `${O[10].reply.slice(0, 30)} | ${O[11].reply.slice(0, 30)}`)
+  is(O[12].reply === late, 'an old order nobody has started on is late too', O[12].reply.slice(0, 50))
+  is(O[13].reply === await canned('stage_late', true), 'in Arabic', O[13].reply.slice(0, 40))
+}
+
+await unthrottle()
+head('round four: money taken, a payment that will not go through, a refund that is late')
+{
+  const MONEY = ['I made a payment but nothing happened', 'I made the payment but did not get a confirmation email', 'دفعت مرة ثانية بالغلط',
+                 'اخذتوا فلوسي', 'سحبتوا مني فلوس', 'flosi inkhasmat marteen', 'وصلتني رسالة خصم من البنك', 'I paid and nothing happened',
+                 'the money is gone from my account', 'I was overcharged', 'I transferred the money, when will you confirm',
+                 'I paid by KNET and the page froze', 'my payment is stuck']
+  const R = await routes(MONEY)
+  MONEY.forEach((q, i) => is(R[i][0] === 'contact' && R[i][1] === 'money', `"${q}" -> money, to a person`, R[i].join('/')))
+  const TROUBLE = ['my card was declined', "I can't pay", 'knet not working', 'the payment page does not open', 'رفض البطاقة', 'كي نت ما يفتح', 'الدفع ما يشتغل']
+  const T = await routes(TROUBLE)
+  TROUBLE.forEach((q, i) => is(T[i][0] === 'contact' && T[i][1] === 'checkout_problem', `"${q}" -> a payment that will not go through reaches a person`, T[i].join('/')))
+  // A question about how paying works, or a customer who simply wants a change, is not a payment problem.
+  const NOT = ['I paid for the jacket but want to change the size', 'I paid twice for the same item because I wanted two', 'payment pending, is that normal',
+               'what does payment pending mean', 'what if my card is declined?', 'do you accept cards', 'how do I pay by knet', 'can I pay with a card',
+               'is payment taken at delivery?', 'اذا فشل الدفع شسوي؟', 'هل تقبلون كي نت']
+  const N = await routes(NOT)
+  NOT.forEach((q, i) => is(N[i][1] !== 'money' && N[i][1] !== 'checkout_problem', `"${q}" is not a payment problem`, N[i].join('/')))
+  is(N[0][0] === 'contact' && N[0][1] === 'order_change', 'but "I paid … want to change the size" is a change to an order, for a person', N[0].join('/'))
+  is(N[2][0] === 'payment' && N[3][0] === 'payment', 'and "payment pending, is that normal" is a payment question', `${N[2].join('/')} ${N[3].join('/')}`)
+
+  const REFUND = ['where is my refund', 'I returned the item 10 days ago and no refund yet', 'when do I get my refund', 'I am still waiting for my refund',
+                  'I returned the item, where is my refund', 'I returned the item two weeks ago and no refund', 'كم يوم يرجع المبلغ', 'متى يرجع المبلغ',
+                  'لم أستلم المبلغ المسترد', 'ما رجعتو لي فلوسي', 'وين الاسترجاع حقي', 'ما رجعت لي الفلوس', 'وين فلوسي', 'متى ترجع الفلوس']
+  const F = await routes(REFUND)
+  REFUND.forEach((q, i) => is(F[i][0] === 'contact' && F[i][1] === 'refund', `"${q}" -> a refund being waited for reaches a person`, F[i].join('/')))
+  const POLICY = ['can I get a refund', 'what is your refund policy', 'do you give refunds', 'I want to return my order', 'ابي استرجع القطعة', 'how do I return an item']
+  const P = await routes(POLICY)
+  POLICY.forEach((q, i) => is(P[i][0] === 'returns', `"${q}" is still the returns policy`, P[i].join('/')))
+  const D = await routes(['كم يوم التوصيل', 'how many days for delivery'])
+  is(D.every((r) => r[0] === 'delivery'), 'and «كم يوم» about the parcel is still delivery', D.map((r) => r.join('/')).join(' '))
+}
+
+await unthrottle()
+head('round four: cancelling means cancelling — and nothing else does')
+{
+  const CANCEL = ['please delete my order SPAAA222222', 'I ordered twice by mistake, SPAAA222222 is the duplicate', 'I ordered twice by mistake', 'duplicate order',
+                  'I placed the order twice', 'remove my order', 'undo my order', 'I changed my mind about my order', 'طلبت مرتين بالغلط', 'الطلب مكرر',
+                  'غيرت رايي بخصوص طلبي', 'احذف طلبي', 'امسح الطلب', 'شيل الطلب', 'الطلب غلطة ما ابيه', 'طلبت بالغلط', 'cancel my order', 'ألغي طلبي',
+                  'can I cancel my order', 'I want my order cancelled', 'don\'t send the order', 'لا ترسلون الطلب', 'cancel SP1AU702NKHTKDV']
+  const C = await routes(CANCEL)
+  CANCEL.forEach((q, i) => is(C[i][0] === 'cancel', `"${q}" -> a cancellation`, C[i].join('/')))
+  const STATE = ['why was my order cancelled', 'was my order cancelled?', 'SPTEST000008 is it cancelled?', 'ليش انلغى طلبي', 'is my order cancelled']
+  const S = await routes(STATE)
+  STATE.forEach((q, i) => is(S[i][0] === 'order_status', `"${q}" asks the state of an order — it is not a cancellation`, S[i].join('/')))
+  const KEEP = ["please don't cancel my order", 'لا تلغون طلبي', 'I did not cancel my order but it says cancelled']
+  const K = await routes(KEEP)
+  KEEP.forEach((q, i) => is(K[i][0] === 'contact' && K[i][1] === null, `"${q}" is a person's to read, and no CANCEL email`, K[i].join('/')))
+  const CHANGE = ['do not ship to Hawally, ship to Salmiya', "please deliver after 5pm, don't send in the morning", 'لا تشحنون الحين انا مسافر',
+                  'update my address', 'can you send it to a different address', 'I need to change the delivery address', 'can I change the size on my order',
+                  'I need to change the phone number on my order', 'send my order to my office instead', 'ابي اغير المقاس في طلبي', 'ابي اغير اللون في الطلب',
+                  'I placed an order and want to change the colour']
+  const H = await routes(CHANGE)
+  CHANGE.forEach((q, i) => is(H[i][0] === 'contact' && H[i][1] === 'order_change', `"${q}" -> a change to an order, for a person`, H[i].join('/')))
+  const OPTOUT = ["don't send me offers", 'لا ترسلون لي رسايل ترويجية', 'do not send me emails']
+  const U = await routes(OPTOUT)
+  OPTOUT.forEach((q, i) => is(U[i][0] === 'contact' && U[i][1] === null, `"${q}" is an opt-out for a person — not a cancellation`, U[i].join('/')))
+  const KEPT = await routes(['what is your address', 'how do I change the size', 'do you have sizes for adults', 'I want to return my order', 'ordered twice and both came fine'])
+  is(KEPT[0][0] === 'location' && KEPT[1][0] !== 'cancel' && KEPT[2][0] !== 'cancel' && KEPT[3][0] === 'returns', 'and "your address", a size question, "for adults" and a return are not touched', KEPT.map((r) => r.join('/')).join(' '))
+}
+
+await unthrottle()
+head('round four: asking for a person is answered first, and the support words are known')
+{
+  const WITH_TOPIC = ['I want to talk to a human about my order', 'I want to speak to a manager about my return', 'talk to a person about my refund',
+                      'let me speak to an agent about the payment', 'ابي اكلم موظف عن طلبي', 'ابي اتكلم مع موظف بخصوص الدفع']
+  const BARE = ['customer support', 'support', 'representative', 'live chat', 'operator', 'manager please', 'المدير', 'في احد يرد؟', 'احد يساعدني', 'abi akalem ahad',
+                'ابي مسؤول', 'خدمة العملاء']
+  const R = await routes([...WITH_TOPIC, ...BARE])
+  ;[...WITH_TOPIC, ...BARE].forEach((q, i) => is(R[i][0] === 'contact', `"${q}" -> a person`, R[i].join('/')))
+  const N = await routes(['ankle support leggings', 'do you have a support belt', 'sports bra with good support', 'the manager jacket'])
+  is(N.every((r) => r[0] !== 'contact'), 'while "support" inside a product question is still a product question', N.map((r) => r.join('/')).join(' '))
+  const bot = await routes(['انتم روبوت؟', 'انتو روبوت'])
+  is(bot.every((r) => r[0] === 'greeting'), 'and «انتم روبوت؟» is answered with what the assistant can do, not "nothing matched"', bot.map((r) => r.join('/')).join(' '))
+}
+
+await unthrottle()
+head('round four: a wrong, damaged or different item, said any way')
+{
+  const EN = ['I ordered M but got L', 'received L instead of M', 'I got a different color', 'the zipper is broken', 'color faded after washing',
+              'the stitching came apart', 'poor quality', 'the leggings are see through']
+  const AR = ['استلمت طلبا خاطئا', 'وصلني المنتج مختلفا عما طلبت', 'المنتج المستلم لا يطابق الصورة', 'القطعة وصلت متضررة', 'الزبر خربان', 'المنتج الذي وصلني مقاسه خاطئ']
+  const R = await routes([...EN, ...AR])
+  ;[...EN, ...AR].forEach((q, i) => is(R[i][0] === 'contact' && R[i][1] === 'complaint', `"${q}" -> a complaint, for a person`, R[i].join('/')))
+  const small = await routes(['the jacket I received is too small', 'the leggings I got are too big'])
+  is(small.every((r) => r[0] === 'returns'), '"the jacket I received is too small" is an exchange, with the returns policy', small.map((r) => r.join('/')).join(' '))
+  const N = await routes(['do the leggings come in a different color', 'does the zipper work', 'is the quality good', 'are your leggings see through',
+                          'do you have a jacket with a zipper', 'leggings that dont fade', 'what is the best quality jacket'])
+  is(N.every((r) => r[0] !== 'contact'), 'while a question about colour, zip, quality or fading is not a complaint', N.map((r) => r.join('/')).join(' '))
+}
+
+await unthrottle()
+head('round four: "thanks" inside a product question does not eat it')
+{
+  const ASK = ['do you have black leggings, thanks', 'thanks, do you have this in black?', 'looking for a red jacket thx', 'cheapest leggings? thanks',
+               'thanks. how much is the jacket', 'ابي ليقنز اسود شكرا', 'الله يعافيك عندكم ليقنز', 'يعطيك العافية عندكم شورت؟', 'black leggings in M please, thank you']
+  const R = await routes(ASK)
+  ASK.forEach((q, i) => is(R[i][0] !== 'thanks', `"${q}" is a question, not a thank-you`, R[i].join('/')))
+  const A = await answersIn([], ASK.slice(0, 2).concat(ASK.slice(5)).map((q) => [q, /[؀-ۿ]/.test(q) ? 'ar' : 'en']))
+  A.forEach((a, i) => is(a.intent === 'search' && (a.data?.items ?? []).length > 0, `and it is answered with products: "${[...ASK.slice(0, 2), ...ASK.slice(5)][i]}"`, `${a.intent} ${(a.data?.items ?? []).length}`))
+  const T = await routes(['thanks', 'thank you', 'thanks a lot', 'thank you so much', 'thanks for your help', 'شكرا', 'يعطيك العافية', 'الله يعافيك', 'thanks bro',
+                          'شكرا يا شباب', 'thanks guys', 'thanks for the quick reply', 'thanks, where is my order'])
+  is(T.slice(0, 12).every((r) => r[0] === 'thanks') && T[12][0] === 'order_status', 'a plain thank-you is still a thank-you, and "thanks, where is my order" is still the order',
+     T.map((r) => r.join('/')).join(' '))
+}
+
+await unthrottle()
+head('round four: ordinary words are not product lines')
+{
+  const Q = ['leggings for high energy workouts', 'leggings that define my shape', 'define my waist leggings', 'leggings with a street style look', 'jacket for the street',
+             'shorts like the ones in Denver', 'leggings I ate']
+  const out = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db(); $cfg = store_config();
+    $o = []; foreach (json_decode($argv[1], true) as $m) {
+      [$r, $d, $missed] = assistant_search($db, $cfg, $m, false);
+      $o[] = [$r === assistant_canned($cfg, 'found_other', false), $missed, count($d['items'] ?? [])];
+    } echo json_encode($o);`, Q)
+  Q.forEach((q, i) => is(!out[i][0] && !out[i][1] && out[i][2] > 0, `"${q}" is not "we do not have exactly that", and not a logged miss`, JSON.stringify(out[i])))
+  const M = await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $db = store_db(); $cfg = store_config();
+    $o = []; foreach (json_decode($argv[1], true) as $m) {
+      [$r, $d, $missed] = assistant_search($db, $cfg, $m, false);
+      $o[] = [$r === assistant_canned($cfg, 'found_other', false), $missed];
+    } echo json_encode($o);`, ['sculpt shorts', 'vanquish leggings', 'define leggings', 'flash jacket', 'street shorts', 'nike shorts'])
+  M.forEach((m, i) => is(m[0] && m[1], `"${['sculpt shorts', 'vanquish leggings', 'define leggings', 'flash jacket', 'street shorts', 'nike shorts'][i]}" still names a line the shop does not have in that kind of garment`, JSON.stringify(m)))
+}
+
+await unthrottle()
+head('round four: new, trending and restock are the shelf and a person — not "nothing matched"')
+{
+  const SHELF = ['وش عندكم جديد', 'فيه جديد؟', 'ايش عندكم جديد', 'منتجات جديدة', 'فيه موديلات جديدة', 'وش نزل جديد', 'ابي اشوف الجديد', 'latest collection',
+                 'any new models', "what's trending", 'top sellers']
+  const R = await routes(SHELF)
+  SHELF.forEach((q, i) => is(R[i][0] === 'recommend', `"${q}" -> the shelf`, R[i].join('/')))
+  const q = await php(`require ${JSON.stringify(AP)}; echo json_encode(array_keys(assistant_query('top sellers')['type']));`)
+  is(q.length === 0, '"top sellers" is not the garment "top"', JSON.stringify(q))
+  const KEEP = await routes(['ابي الجاكيت الجديد', 'new leggings in black', 'I am new here'])
+  is(KEEP[0][0] === 'search' && KEEP[1][0] === 'search', 'while a NAMED new piece is still a search', KEEP.map((r) => r.join('/')).join(' '))
+  const RESTOCK = ['when will you restock', 'is XL coming back', 'when do you get more stock', 'when will size M be available again', 'متى يتوفر مقاس XL']
+  const S = await routes(RESTOCK)
+  RESTOCK.forEach((q2, i) => is(S[i][0] === 'contact' && S[i][1] === 'restock', `"${q2}" -> WhatsApp us (restock), not "nothing matched"`, S[i].join('/')))
+  const Z = await routes(['when will black leggings be back in stock', 'will the black leggings come back later'])
+  is(Z.every((r) => r[0] === 'search'), 'while a restock question about a NAMED garment still shows the garment', Z.map((r) => r.join('/')).join(' '))
+}
+
+head('round four: a model may not flip a stock claim')
+{
+  const acc = await php(`require ${JSON.stringify(AP)};
+    $t = fn ($s) => ['stop_reason' => 'end_turn', 'content' => [['type' => 'text', 'text' => $s]]];
+    $c = fn ($k, $ar) => assistant_canned([], $k, $ar);
+    echo json_encode([
+      assistant_llm_accept($t('Great news, those pieces are available in that size right now:'), $c('found_near', false), null, false),
+      assistant_llm_accept($t('We have that in this colour, here it is:'), $c('found_colour', false), null, false),
+      assistant_llm_accept($t('We have exactly that, here are the pieces:'), $c('found_other', false), null, false),
+      assistant_llm_accept($t('Yes, we carry that, here are a few pieces:'), $c('not_carried', false), null, false),
+      assistant_llm_accept($t('Sure, we have it, here you go.'), $c('no_idea', false), null, false),
+      assistant_llm_accept($t('لقيت لك المقاس متوفر، وهذي القطع:'), $c('found_near', true), null, true),
+      assistant_llm_accept($t('Sorry, that size is not in stock, so here are the closest pieces:'), $c('found_near', false), null, false),
+      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, false), false), ['found_near', 'found_colour', 'found_other', 'not_carried', 'no_idea']),
+      array_map(fn ($k) => assistant_llm_rewordable([], $c($k, false), false), ['found', 'recommend', 'greeting', 'thanks', 'bye', 'ack']),
+    ], JSON_UNESCAPED_UNICODE);`)
+  ;['found_near', 'found_colour', 'found_other', 'not_carried', 'no_idea'].forEach((k, i) => is(acc[i] === null, `refused: a rewording of ${k} that drops the negation`, String(acc[i]).slice(0, 60)))
+  is(acc[5] === null, 'refused: the Arabic found_near turned into «found it»', String(acc[5]).slice(0, 60))
+  is(typeof acc[6] === 'string', 'while a faithful rewording that keeps the "not" still passes', String(acc[6]).slice(0, 60))
+  is(acc[7].every((x) => x === false), 'and the stock claims are never sent to a model at all: near, colour, other, not carried, nothing matched', JSON.stringify(acc[7]))
+  is(acc[8].every(Boolean), 'while the found line, the shelf, a hello and a thank-you still may be', JSON.stringify(acc[8]))
+}
+
 head('round three: the regression corpus, through four versions')
 await runRegression({ is, log: (l) => console.log(l) })
 
