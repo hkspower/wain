@@ -28,6 +28,8 @@ const statuses = new Map()
 
 function request(path, { method = 'GET', headers = {}, max = 200000 } = {}) {
   count++
+  // Node refuses a raw space or a non-Latin-1 character in a request path: encode them, leave every other byte as written.
+  path = path.replace(/ /g, '%20').replace(/[^\x21-\x7e]/g, (c) => encodeURIComponent(c))
   return new Promise((resolve) => {
     const t0 = process.hrtime.bigint()
     const req = https.request({
