@@ -72,9 +72,9 @@ img[src$="/product-photo-unavailable.svg"] {
  * setting, written into --hero-h before the first paint, and a rule here would take that control away).
  *
  * Measured on the captured live build (index-CdcKvZhs.css) with this repo's add-ons, Arabic, 390px wide:
- *   category tiles    4 x 227px = 908px of the page. The live floor is clamp(14rem, 63.3vw - 1.27rem, 20rem),
- *                     which is the height at which the 900x570 phone photos fit without any crop; the
- *                     copy needs 168-173px (padding 40 + kicker/badge 31-35 + title 40 + brief 57).
+ *   category tiles    4 x 227px = 908px of the page. The live floor is clamp(14rem, 63.3vw - 1.27rem, 20rem); at
+ *                     390px that is the height at which the 900x570 phone photos fit without any crop. The copy
+ *                     needs only 168-173px (padding 40 + kicker/badge 31-35 + title 40 + brief 57).
  *   brand strip       150px: 68px chips (text only), 12px above and below, 12px under the heading.
  *   section headings  35.8px (essentials) against 28.2px for the features band two sections above, at 1280px;
  *                     tile titles 42px at 1280px, 30.7px at 768px.
@@ -82,11 +82,17 @@ img[src$="/product-photo-unavailable.svg"] {
  *   [sizes-home-1]    phones: tile floor .55 x the tile's width (never under 11rem, never over 17rem), so it
  *                     follows the photo's width instead of a fixed 14rem; the photo is anchored 20% from the
  *                     top instead of the centre, so the shorter box trims the floor under the model, not the
- *                     head (measured: the head stays at least 8px inside the box on both portrait photos).
+ *                     head (computed from the photo geometry, 900x570 scaled to the tile's width: the head top
+ *                     stays 7-12px inside the box at 320-390px on both portrait photos, the women's hair
+ *                     being the tightest; look at the live page after it ships).
  *   [sizes-home-2]    phones: brand chips 56px (3.5rem, the live 44px tap minimum plus 12), strip padding 8px.
  *   [sizes-home-3]    768px up: the section heading is one size for the page (the features band's), tile
  *                     titles are capped at 2.125rem. Phones keep the live sizes (24px / 26px are already the
  *                     clamp floors).
+ * Measured after, on the same build and fixtures (scripts/sizes-screen-test.mjs): tiles 227 -> 197px at 390px
+ * (216 -> 176px at 320px), brand strip 150 -> 126px, the home page 4053 -> 3727px at 390px together with the
+ * footer section in sporta-checkout-a11y.css; at 768px and 1280px only the type steps down (tile and strip boxes
+ * are unchanged there, the owner's equal 2 x 2 rows included).
  * Nothing here depends on JavaScript, uses a physical left/right, or changes a colour. Every selector is under
  * .campaign-home (the home page), so no other page moves. The hero, the features band (its own owner-requested
  * section in sporta-home-trim.css) and the product cards are untouched. */
@@ -111,6 +117,6 @@ img[src$="/product-photo-unavailable.svg"] {
 
 /* [sizes-home-3] */
 @media (min-width: 768px) {
-  .campaign-home .home-section-heading h2 { font-size: clamp(1.5rem, 2.2vw, 1.75rem); }
+  .campaign-home .home-section .home-section-heading h2 { font-size: clamp(1.5rem, 2.2vw, 1.75rem); }
   .campaign-home .campaign-category .campaign-category__title { font-size: clamp(1.625rem, 3vw, 2.125rem); }
 }

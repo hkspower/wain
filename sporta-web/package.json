@@ -47,6 +47,7 @@
     "test:grid": "node scripts/grid-card-test.mjs",
     "test:menu-layout": "node scripts/menu-layout-test.mjs",
     "test:shop-header": "node scripts/shop-header-test.mjs",
+    "test:sizes-screen": "node scripts/sizes-screen-test.mjs",
     "test:links": "node scripts/links-images-test.mjs",
     "test:legal": "node scripts/legal-pages-test.mjs",
     "audit:mobile": "node scripts/mobile-audit.mjs",

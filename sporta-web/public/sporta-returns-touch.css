@@ -70,3 +70,34 @@
     padding: 24px !important;
   }
 }
+
+/* ==== SIZES: ABOUT, POLICY AND EDITORIAL PAGES (lane B of "reduce over sizes all", 2026-11-03) ===========
+ * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
+ *
+ * Measured on the captured live build (index-CdcKvZhs.css) with this repo's add-ons: /about, Arabic.
+ *   page heading (h1.page-heading, every editorial page): clamp(1.875rem, 4.5vw, 3.5rem) = 30px at 390, 34.6px at
+ *                     768 and 57.6px at 1280 (two lines, 144px tall, at 1068px wide)
+ *   /about page padding  64px above and below (Tailwind py-16): the policy pages got 48px from the rule above
+ *   /about FAQ        five items of 91px: 16px above and below each, 58px summary rows
+ * Changes ([sizes-edit-N] so the suite can cut each block and prove it is load-bearing):
+ *   [sizes-edit-1]  one heading scale for the editorial pages: clamp(1.75rem, 3.2vw, 2.75rem) = 28px on a phone,
+ *                   28.5px at 768, 41px at 1280 (the body text stays 16px, the section headings 24px).
+ *   [sizes-edit-2]  the /about page's block padding follows the policy pages' rule in this file: 40px on a phone
+ *                   rising to 56px (the .legal-page / .returns-system !important rule above still wins on those).
+ *   [sizes-edit-3]  /about FAQ items: 12px above and below (the summary row, 44px or taller, is the tap target and
+ *                   is not touched).
+ * Measured after (same build and fixtures, scripts/sizes-screen-test.mjs): the heading 30 -> 28px at 390px, 34.6 -> 28.5px at
+ * 768px, 57.6 -> 41px at 1280px; /about 2918 -> 2641px at 390px (-277px, of which the footer section in
+ * sporta-checkout-a11y.css is -184px) and 2436 -> 2172px at 1280px; /terms keeps its 48px padding.
+ * Not changed: body text, the policy pages' own padding rhythm (set above on the owner's request), the /returns page
+ * itself (its own stylesheet, returns-system, is not part of the captured build, so it could not be measured).
+ * Scoped to .storefront-root .editorial-page / .faq-list; no physical left/right, no colour, no script. */
+
+/* [sizes-edit-1] */
+.storefront-root .editorial-page h1.page-heading { font-size: clamp(1.75rem, 3.2vw, 2.75rem); }
+
+/* [sizes-edit-2] */
+.storefront-root .editorial-page.mx-auto { padding-block: clamp(2.5rem, 4vw, 3.5rem); }
+
+/* [sizes-edit-3] */
+.storefront-root .editorial-page .faq-list details { padding-block: .75rem; }

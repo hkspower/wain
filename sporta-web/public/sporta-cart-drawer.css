@@ -88,3 +88,35 @@
 :where(html:not([data-theme="dark"])) .campaign-cart-drawer > div.flex-1 > p {
   color: #4a5160;
 }
+
+/* ==== SIZES: BAG DRAWER (lane B of "reduce over sizes all", 2026-11-03) =================================
+ * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
+ *
+ * Measured on the captured live build (index-CdcKvZhs.css) with this repo's add-ons, a bag of two lines, 390x844:
+ *   header   85px   (20px above and below the 44px close button; the live floor is min-height 4.75rem)
+ *   a line   171px  (16px above and below; the name's line is 28px high - the page's 1.75 body line height on
+ *                    16px bold text - where its 14px sub line has 20px; the line total drops to a row of its own)
+ *   footer   204px  (20px above the total)
+ * Changes ([sizes-drawer-N] so the suite can cut each block and prove it is load-bearing):
+ *   [sizes-drawer-1]  header: 12px above and below (68px), floor 4rem.
+ *   [sizes-drawer-2]  lines: 12px above and below, the name on a 1.4 line height (22px, as the 16px text deserves).
+ *   [sizes-drawer-3]  footer: 14px above the total.
+ * Measured after (same build and fixtures, scripts/sizes-screen-test.mjs): header 85 -> 69px, a line 171 -> 158px, footer
+ * 204 -> 198px, so a bag of two lines is 48px shorter at every width from 320 to 1280px, in both languages.
+ * Not changed, on purpose: every control keeps the 44px minimum (close, quantity steppers, remove, checkout,
+ * back to shop); the thumbnail (72px) and every font size are the live build's. Selectors carry both drawer classes
+ * (aside.cart-drawer.campaign-cart-drawer), so they outrank the bundle's single-class rules whatever the load order.
+ * No physical left/right, no colour, no script. */
+
+/* [sizes-drawer-1] */
+.campaign-cart-drawer.cart-drawer > header {
+  min-height: 4rem;
+  padding-block: .75rem;
+}
+
+/* [sizes-drawer-2] */
+.campaign-cart-drawer.cart-drawer .cart-drawer__line { padding-block: .75rem; }
+.campaign-cart-drawer.cart-drawer .cart-drawer__line p.font-bold { line-height: 1.4; }
+
+/* [sizes-drawer-3] */
+.campaign-cart-drawer.cart-drawer > footer { padding-block-start: .875rem; }

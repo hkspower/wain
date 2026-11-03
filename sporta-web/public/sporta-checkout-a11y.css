@@ -160,3 +160,63 @@ form.purchase-quick > p.purchase-quick__assurance,
   font-size: 0.875rem;
   line-height: 1.45;
 }
+
+/* ==== SIZES: FOOTER AND CHECKOUT HEADINGS (lane B of "reduce over sizes all", 2026-11-03) ===============
+ * Owner request: "reduce over sizes all", "text and elements on screen that are too big" ticked.
+ *
+ * Measured on the captured live build (index-CdcKvZhs.css) with this repo's add-ons, Arabic, 390px wide. The footer
+ * is on EVERY page and was the tallest block on all of them (1063px: 26% of the home page, 31% of the shop page):
+ *   container         48px above and below (Tailwind py-12)
+ *   .footer-club      275px: the copy (90px), then "Message us" and "Call 2209 1914" stacked on two lines
+ *                     (48px each, 24px apart), then 40px of padding under a divider
+ *   .footer-columns   555px: 40px above and below, 40px between the brand block and the link columns
+ *   .footer-brand     182px with 20px gaps; .footer-links headings with 12px under them
+ *   .footer-payments  77px (16px above and below the one pill)
+ *   From 768px: container 48px, club 40px under, columns 48px above and below (footer 744px at 768, 768px at 1280).
+ * The checkout and bag titles were clamp(1.75rem, 3.2vw, 2.65rem): 28px on a phone, 41px at 1280, with 24px above.
+ *
+ * Changes (blocks are numbered [sizes-foot-N] so the suite can cut each one and prove it is load-bearing):
+ *   [sizes-foot-1]  phones (up to 767px): container 32px, club buttons side by side in one row (they wrap to two
+ *                   rows only when they cannot fit, e.g. long English labels at 320px), 16px between the copy and
+ *                   the buttons, 24px under them; columns 28px above/below and between; brand block 16px gaps;
+ *                   link headings 8px; payments strip 12px. The club row works the same with ONE button (the call
+ *                   button is added after load by sporta-footer-call.js and is absent when the number is not set),
+ *                   so no rule waits for that script.
+ *   [sizes-foot-2]  768px up: container 36px, club 28px under, columns 36px. (The club is already one row there.)
+ *   [sizes-title-1] the checkout and bag titles: clamp(1.5rem, 2.4vw, 2rem), 16px above (24px before). 24px on a
+ *                   phone (the page's own body text is 14px), 30.7px at 1280.
+ * Measured after (same build and fixtures, scripts/sizes-screen-test.mjs): footer 1063 -> 879px at 390px (club 275 -> 179,
+ * columns 555 -> 507), 744 -> 651px at 768px, 768 -> 671px at 1280px; English at 320px 1096 -> 976px (the two club
+ * labels no longer fit one row there and wrap, as before). The checkout title 28 -> 24px at 390px, 41 -> 30.7px at 1280px.
+ * Never reduced, on purpose: the footer link rows (44px, cash-12 above), the social buttons (44px) and the club
+ * buttons (48px) are tap targets; the payments pill is left at the live 44px; no text gets smaller than the live
+ * build's (the club title, the copy and the links keep their sizes). No physical left/right, no colour, no script. */
+
+/* [sizes-foot-1] */
+@media (max-width: 767px) {
+  .storefront-root footer.app-footer > .mx-auto { padding-block: 2rem; }
+  .storefront-root footer .footer-club {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem .75rem;
+    padding-block-end: 1.5rem;
+  }
+  .storefront-root footer .footer-club .btn { margin-inline: 0; }
+  .storefront-root footer .footer-columns { gap: 1.75rem; padding-block: 1.75rem; }
+  .storefront-root footer .footer-brand { gap: 1rem; }
+  .storefront-root footer .footer-links h2 { margin-block-end: .5rem; }
+  .storefront-root footer .footer-payments { padding-block: .75rem; }
+}
+
+/* [sizes-foot-2] */
+@media (min-width: 768px) {
+  .storefront-root footer.app-footer > .mx-auto { padding-block: 2.25rem; }
+  .storefront-root footer .footer-club { padding-block-end: 1.75rem; }
+  .storefront-root footer .footer-columns { padding-block: 2.25rem; }
+}
+
+/* [sizes-title-1] */
+.storefront-root .purchase-flow > h1,
+.storefront-root .purchase-flow .purchase-heading h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); }
+.storefront-root .purchase-flow > h1 { margin-block: 1rem .5rem !important; }
