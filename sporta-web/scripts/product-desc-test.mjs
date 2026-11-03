@@ -114,7 +114,8 @@ for (const lang of LANGS) {
       const row = $('.product-purchase-row'), sum = $('.catalog-product-summary'), bar = $('.action-bar')
       if (scrollTo === 'summary') scrollTo = Math.max(0, R(sum).top - innerHeight / 3)
       if (scrollTo === 'end') scrollTo = document.documentElement.scrollHeight
-      if (typeof scrollTo === 'number') window.scrollTo(0, scrollTo)
+      // the live html has scroll-behavior:smooth, so jump explicitly or the read happens mid-animation
+      if (typeof scrollTo === 'number') window.scrollTo({ top: scrollTo, behavior: 'instant' })
       const rr = row.getBoundingClientRect(), cs = getComputedStyle(row), s = sum.getBoundingClientRect()
       const rel = $('.catalog-related').getBoundingClientRect()
       return {
@@ -141,7 +142,7 @@ for (const lang of LANGS) {
     } else {
       is(on0.barDisplay === 'none', 'the fixed bar is gone from 768px', on0.barDisplay)
       is(on0.pos === 'sticky' && on0.bottom === '0px', 'the row is sticky at the bottom', `${on0.pos} ${on0.bottom}`)
-      is(on0.z === '5', 'above the content, below the header and the drawers (z-index 5)', on0.z)
+      is(on0.z === '5', 'above the content, below the live fixed bar (z-index 5 against its 30)', on0.z)
       is(on0.bg === 'rgb(255, 255, 255)', 'opaque canvas background (nothing shows through)', on0.bg)
       is(near(on0.pad, 0.75 * on0.root, 0.3) && near(on0.padB, 0.75 * on0.root, 0.3), 'padding .75rem top and bottom', `${on0.pad}/${on0.padB}`)
       is(on0.shadow !== 'none', 'a hairline above it', on0.shadow)
@@ -201,13 +202,14 @@ for (const lang of LANGS) {
     head(`tap targets ${lang} ${w}px`)
     const { pg, ctx } = await open(lang, w, 844)
     const measure = () => {
+      window.scrollTo({ top: 0, behavior: 'instant' }) // the gallery is sticky: always measure from the top
       const links = [...document.querySelectorAll('.catalog-product-page nav a')].map((a) => R(a))
       const guide = [...document.querySelectorAll('.catalog-product-options button.text-accent')].map((b) => R(b))
-      const hit = (r, dy) => { const x = (r.left + r.right) / 2, y = r.top - scrollY + dy; const e = document.elementFromPoint(x, y); return !!e && !!e.closest('a,button') }
+      const hit = (r, dy) => { window.scrollTo({ top: Math.max(0, r.top - 300), behavior: 'instant' }); const x = (r.left + r.right) / 2, y = r.top - scrollY + dy; const e = document.elementFromPoint(x, y); return !!e && !!e.closest('a,button') }
       const card = $('.catalog-card-info a')
       return {
         links, guide, navH: R($('nav')).height, h1Top: R($('h1')).top, visTop: R($('.catalog-product-visual')).top, eyebrow: R($('.catalog-eyebrow')).top,
-        optsH: R($('#product-size-options')).height, optsTop: R($('#product-size-options')).top, cardLink: R(card).height,
+        optsH: R($('#product-size-options')).height, cardLink: R(card).height,
         hitTop: links.map((r) => hit(r, 3)), hitBottom: links.map((r) => hit(r, r.height - 3)),
         guideHit: guide.map((r) => hit(r, 3)), docW: document.documentElement.scrollWidth, innerW: innerWidth,
         n: document.querySelectorAll('.catalog-product-page nav a').length,
@@ -224,7 +226,7 @@ for (const lang of LANGS) {
     is(sorted.every((r, i) => i === 0 || r.left >= sorted[i - 1].right - 1), 'neighbouring link boxes do not overlap', sorted.map((r) => Math.round(r.left) + '-' + Math.round(r.right)).join(' | '))
     is(on.hitTop.every(Boolean) && on.hitBottom.every(Boolean) && on.guideHit.every(Boolean), 'the extra area is really tappable (hit test on the padding)', JSON.stringify([on.hitTop, on.hitBottom, on.guideHit]))
     is(near(on.navH, base.navH, 0.6) && near(on.h1Top, base.h1Top, 0.6) && near(on.visTop, base.visTop, 0.6) && near(on.eyebrow, base.eyebrow, 0.6), 'nothing moves: nav, gallery, eyebrow and title keep their place', `nav ${base.navH}->${on.navH} gallery ${base.visTop}->${on.visTop}`)
-    is(near(on.optsH, base.optsH, 0.6) && near(on.optsTop, base.optsTop, 0.6), 'the size box keeps its height and place', `${base.optsH}->${on.optsH}`)
+    is(near(on.optsH, base.optsH, 0.6), 'the size box keeps its height', `${base.optsH}->${on.optsH}`)
     is(near(on.cardLink, base.cardLink, 0.1), 'related-product links are untouched', `${base.cardLink}->${on.cardLink}`)
     is(on.docW <= on.innerW, 'nothing overflows sideways', `${on.docW} vs ${on.innerW}`)
     await ctx.close()

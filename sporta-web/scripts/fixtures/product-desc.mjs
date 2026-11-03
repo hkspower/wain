@@ -4,7 +4,7 @@
 // /assets/index-CdcKvZhs.css that matches an element in it, with its @layer / @media context (Tailwind's
 // utilities are in @layer utilities, so the unlayered add-on files beat them whatever the specificity). Used
 // by product-desc-test.mjs to prove the rules in public/sporta-product-fix.css against the real markup.
-// Dump caveats: rules whose selector the dump cut inside :where(...) are dropped (none of them touches the
+// Dump caveats: rules whose selector the dump cut inside :where(...) are dropped (and the six RTL flip utilities whose :where(:lang(ar), [dir=rtl]) the dump cut into global rules; none of them touches the
 // elements under test), and the theme/lab and print rules are left out. The live English copy was not dumped;
 // the English strings are the repo's wording and only geometry is asserted, never words.
 //
@@ -243,12 +243,6 @@ li{min-width: 0px;}
 @layer utilities{@media (min-width: 64rem){.lg\:grid-cols-2{grid-template-columns: repeat(2, minmax(0px, 1fr));}}}
 @layer utilities{@media (min-width: 64rem){.lg\:self-start{align-self: flex-start;}}}
 @layer utilities{@media (min-width: 64rem){.lg\:opacity-0{opacity: 0;}}}
-@layer utilities{:lang(ar),[dir="rtl"]{--tw-translate-x: -100%; translate: var(--tw-translate-x) var(--tw-translate-y);}}
-@layer utilities{:lang(ar),[dir="rtl"]{--tw-translate-x: calc(1 / 2 * 100%); translate: var(--tw-translate-x) var(--tw-translate-y);}}
-@layer utilities{:lang(ar),[dir="rtl"]{--tw-scale-x: calc(100% * -1); scale: var(--tw-scale-x) var(--tw-scale-y);}}
-@layer utilities{:lang(ar),[dir="rtl"]{rotate: 0deg;}}
-@layer utilities{:lang(ar),[dir="rtl"]{rotate: 180deg;}}
-@layer utilities{:lang(ar),[dir="rtl"]{--tw-gradient-position: to left in oklab; background-image: linear-gradient(var(--tw-gradient-stops));}}
 :root{--brand: #c76a42; --brand-bright: #d28a69; --brand-deep: #99452b; --ink: #171a1e; --text-primary: #171a1e; --canvas: #fff; --canvas-muted: #f6f7f8; --surface: #fff; --surface-raised: #fff; --line-soft: #171a1e13; --line: #171a1e21; --line-strong: #7b8793; --text-muted: #596571; --primary: 18.9 53.8% 61.8%; --primary-foreground: 210 13% 10%; --accent: 14.2 56.1% 38.4%; --accent-foreground: 0 0% 100%; --accent-text-light: 14.2 56.1% 38.4%; --accent-text-dark: 18.9 53.8% 61.8%; --accent-text: var(--accent-text-light); --on-brand: 210 13% 10%; --type-micro: .6875rem; --type-caption: .75rem; --type-body: .9375rem; --type-lead: 1rem;}
 [dir="rtl"]{--type-micro: .75rem;}
 .text-accent{color: hsl(var(--accent-text));}
