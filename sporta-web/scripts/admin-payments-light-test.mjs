@@ -105,10 +105,12 @@ const DARK_ADMIN = DARK.slice(i2)                                               
 
 const SHELL_OPEN = '<div class="admin-shell"><main class="admin-content flex-1"><section class="admin-page">'
 if (!BODY_HTML.startsWith(SHELL_OPEN)) throw new Error('fixture markup changed: the admin shell opener is not what this test expects')
-// The live nesting, as measured: shell (bg-slate-50, min-h-screen) > sidebar + main.admin-content > two sections, the
-// first carrying the admin-wide alert region, the second the screen. Then a CONTROL: another admin content area
+// The live nesting, as measured (admin-payments-light-scan.mjs TREE=3, 2026-11-03): shell (bg-slate-50, min-h-screen) >
+// sidebar + main.admin-content > two sections. The first is the Overview page's header, the admin-wide alert region and
+// its figures (the page is still mounted beside the screen, with its own h1 and indigo figures), the second the screen. Then a CONTROL: another admin content area
 // without the screen, in the same page, whose cards must keep following the dark rules.
-const SCREEN = `<div id="scr" class="admin-shell min-h-screen bg-slate-50"><aside class="admin-sidebar w-60"><a href="#" class="text-slate-500">Overview</a></aside><main class="admin-content flex-1"><section class="admin-page"><div class="admin-notice admin-notice--error" role="alert">46 of 46 products are not in the database</div></section><section class="admin-page">` + BODY_HTML.slice(SHELL_OPEN.length)
+const OVERVIEW = `<section class="admin-page"><div class="admin-page-layout space-y-8"><header class="admin-page-header"><h1 class="text-2xl font-bold text-slate-800">Overview</h1></header><div class="admin-notice admin-notice--error rounded-xl border p-4" role="alert">46 of 46 products are not in the database</div><div class="grid grid-cols-2 gap-3 lg:grid-cols-4"><div class="admin-kpi rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs text-slate-500">Products</p><p class="admin-kpi__value mt-1 text-xl font-bold text-indigo-700">46</p></div></div></div></section>`
+const SCREEN = `<div id="scr" class="admin-shell min-h-screen bg-slate-50"><aside class="admin-sidebar w-60"><a href="#" class="text-slate-500">Overview</a></aside><main class="admin-content flex-1">${OVERVIEW}<section class="admin-page">` + BODY_HTML.slice(SHELL_OPEN.length)
 const CONTROL = `<div id="ctl" class="admin-shell"><main class="admin-content"><section class="admin-page"><h1 class="text-2xl font-bold text-slate-900">Orders</h1><div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-sm text-slate-500">Other screen</p><input class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Search"></div></section></main></div>`
 const BODY = SCREEN + CONTROL
 const classes = [...new Set([...BODY.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean))]
@@ -180,7 +182,7 @@ async function collect(addon, sc, within = '#scr .admin-content') {
     out.states[name] = st
   }
   if (detailOn && process.env.PROBE && sc.name === process.env.DETAIL) console.log('     ? ' + (await pg.evaluate((q) => { const rows = []; for (let e = document.querySelector('#scr ' + q); e && e.tagName !== 'HTML'; e = e.parentElement) { const c = getComputedStyle(e); rows.push(e.tagName.toLowerCase() + '.' + String(e.getAttribute('class') || '').split(/\s+/).slice(0, 3).join('.') + ' color ' + c.color + ' bg ' + c.backgroundColor) } return rows.join('\n     ? ') }, process.env.PROBE)))
-  out.selection = await pg.evaluate(() => { const c = getComputedStyle(document.querySelector('#scr h1'), '::selection'); return { color: c.color, background: c.backgroundColor } })
+  out.selection = await pg.evaluate(() => { const c = getComputedStyle(document.querySelector('#scr .payment-settings h1'), '::selection'); return { color: c.color, background: c.backgroundColor } })
 
   // contrast of every text node and every field, against its effective background
   out.contrast = await pg.evaluate((within) => {

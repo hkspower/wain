@@ -65,6 +65,11 @@ html { font-size: 16px; font-family: system-ui, sans-serif; }
 .text-indigo-800 { color: #b8430f; }
 .admin-shell .bg-indigo-50 { background-color: var(--admin-accent-soft); }
 .admin-shell .border-indigo-200 { border-color: var(--admin-accent-border); } /* a base rule that reads the custom property, as the build's does */
+/* Measured on the live page, theme light: the headings of the screen (h1 'Payments', every h2) are the ink rgb(24,33,42) = --admin-text,
+   whatever text-slate-* class they carry: the build's non-!important ".admin-page h1, h2, h3 { color: var(--admin-text) }" outranks the utility. A
+   class-less control (the CBK card's checkbox) is white: the build's base field rule. */
+.admin-shell .admin-page :is(h1, h2, h3) { color: var(--admin-text); }
+.admin-shell .admin-page :where(input, select, textarea) { background-color: var(--admin-surface); }
 .admin-notice { border: 1px solid; }
 .admin-notice--error { color: #8d2435; background-color: #fff0f2; border-color: #e9a0a9; }
 .admin-shell button, .admin-shell input, .admin-shell select, .admin-shell textarea { font-weight: inherit; font-size: inherit; }

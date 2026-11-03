@@ -902,6 +902,16 @@
   color: inherit;
 }
 
+/* Headings: in the light theme the build's own `.admin-page h1, h2, h3 { color:
+   var(--admin-text) }` outranks the text-slate-* class they carry (measured:
+   h1 "Payments" and every h2 are rgb(24,33,42)), so the slate restatement below
+   must not reach them. The dark theme turns the utility !important, hence this
+   !important too, and [class] lifts it from (0,1,2) to (0,2,2): above the
+   utility rules below and the build's (0,2,0). */
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) :is(h1, h2, h3)[class] {
+  color: var(--admin-text, #18212a) !important;
+}
+
 /* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
    which already outranks the build; 900..600 are restated. */
 :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) .text-slate-900 {
@@ -956,7 +966,7 @@
   color-scheme: light;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input[type="checkbox"], input[type="radio"]) {
-  background-color: transparent;
+  background-color: #fff;
   color: inherit;
   border-color: currentcolor;
 }
