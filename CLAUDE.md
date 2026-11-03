@@ -489,6 +489,15 @@
   known-route list in `sporta-web/public/.htaccess`, or it will 404 in
   production.
 - Keep the indigo accent for admin UI.
+- **The /backends Payments (KNET) screen has NO dark mode** (owner, 2026-11-03,
+  "no dark mode for knet"; saved by user request — apply always). The compiled
+  admin follows `prefers-color-scheme: dark` on every other screen and keeps
+  doing so, but the Payments screen must show its light appearance on a
+  dark-mode device too, never a dark or half-dark mix. Implemented in
+  `public/sporta-admin-knet.css` as a light-only section scoped to the screen
+  root (`.payment-settings`) and the content area that holds it; guarded by
+  `npm run test:admin-light`. The earlier dark layer (commits 4da598d1–0e3184d6)
+  was never deployed and is replaced, not extended.
 
 - **Every order emails the logistics company** — see `sporta-web/FULFILMENT.md`.
   `store_queue_fulfilment()` writes `fulfilment_outbox` in the same
