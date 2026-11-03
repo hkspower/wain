@@ -14,3 +14,116 @@
   align-items: center;
   justify-content: center;
 }
+
+/* ==== HEADER AND MENU LAYOUT (storefront header: announcement bar, brand row, menu tabs) ================
+ * Owner request 2026-11-03: "improve menu layout". Nothing more specific was said, so only what a
+ * measurement shows is changed; colours, icon glyph sizes, the order of the DOM and the focus order are
+ * not touched, and neither is the active tab's underline (see the end of this comment). Every selector is
+ * under .app-header, so nothing outside the header moves.
+ *
+ * Measured on the captured live header markup + the live compiled rules + real Tailwind
+ * (scripts/menu-layout-test.mjs; the phone numbers are the same at 320, 360 and 390 wide, a 16px root):
+ *
+ *                                        before                     after
+ *   announcement bar  height             32px                       28px (grows to 36px only for 2 lines)
+ *                     text (Arabic)      12px                       12px
+ *                     text (English)     11px, CUT at 320px         12px, wraps to 2 lines instead of "..."
+ *   brand row         height             60px (44px + 2 x 8px)      52px (44px + 2 x 4px)
+ *   menu tabs         height             45px (44 + border)         45px
+ *                     text               12px (phone) 13.2px (768)  14px at every width
+ *                                        13.7px (1280)
+ *                     overflow           clipped nowhere, but no    scrolls sideways, scrollbar hidden,
+ *                                        way out if it ever did     if a long label ever needs it
+ *   sticky chrome (all three, phone)     138px                      126px (-12px, -8.7% of the screen's
+ *                                                                   top; 17% -> 15% of a 740px phone)
+ *   tablet / desktop (640px and up)      heights and positions unchanged; only the tab text and the
+ *                                        focus ring change
+ *   keyboard focus ring                  2px, 3px away              3px (tabs: 3px INSIDE the box, so the
+ *                                                                   row's scroll container cannot clip it)
+ *
+ * What was already right and is only guarded by the test: every control is at least 44 x 44 (the AI
+ * launcher, the language switch, the bag, the logo link and the five tabs, 320-1280px, both languages);
+ * the logo's centre is the screen's centre to the pixel (the grid is minmax(0,1fr) auto minmax(0,1fr),
+ * and the clusters do not push it); the AI label is hidden under 640px (so it cannot wrap or meet the
+ * clock) and fits on one line from 640px; the announcement text is 4.59:1 on the orange (dark ink on
+ * #E0561C, AA needs 4.5:1), the tab text 10.9:1, hover/focus orange on the charcoal 6.7:1.
+ *
+ * Why 28px and 52px: the bar's text is 12px on a 15px line, so 28px leaves 6.5px above and below it;
+ * the brand row's content is the 44px controls, so 4px above and below keeps them 4px from the bar and
+ * 5px from the tabs (the horizontal gaps between them are 4px already). Both are min-heights, not fixed
+ * heights: a larger system font, or the two-line announcement, makes them grow rather than clip.
+ *
+ * Not recorded in the capture (the page it was taken on had no current tab): the markup and CSS of the
+ * ACTIVE tab's orange underline. It is left exactly as the live build draws it. Check it live after this
+ * ships (thickness, colour against #171A1E, and that it still sits inside the tab at 14px text).
+ *
+ * Blocks are numbered [menu-N] so the test can cut each one and prove it is load-bearing. */
+
+/* [menu-1] Announcement bar, phones. The bar was a fixed h-8 (32px) with a one-line truncating text, so a
+ * longer sentence (the text is edited in the admin) lost its end to "...", and in English the text is
+ * 11px (the live --type-micro is .6875rem when the page is not RTL). 12px on a 15px line, a bar that is
+ * 28px for one line, and at most two lines before the ellipsis. */
+@media (max-width: 639px) {
+  .app-header .topbar {
+    height: auto;
+    min-height: 1.75rem;
+    padding-block: .1875rem;
+    font-size: .75rem;
+    line-height: 1.25;
+  }
+  .app-header .topbar > .truncate {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+    text-overflow: ellipsis;
+  }
+}
+
+/* [menu-2] Brand row, phones: 4px above and below the 44px controls instead of 8px (and no 3.75rem floor). */
+@media (max-width: 639px) {
+  .app-header nav.navbar-main {
+    min-height: 0;
+    padding-block: .25rem;
+  }
+}
+
+/* [menu-3] Menu tabs, phones. The five columns stay equal while every label fits (they do from 360px in
+ * both languages), but a column may now grow to its label instead of letting it spill, and the row
+ * scrolls sideways, without a scrollbar, when even that is not enough. */
+@media (max-width: 639px) {
+  .app-header .navbar-secondary ul {
+    grid-template-columns: repeat(5, minmax(min-content, 1fr));
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .app-header .navbar-secondary ul::-webkit-scrollbar { display: none; }
+  .app-header .navbar-secondary ul .navbar-link { padding-inline: .375rem; }
+}
+
+/* [menu-4] Menu tabs, every width: 14px labels (they were 12px on a phone, 13.2px at 768px and 13.7px at
+ * 1280px) and a 44px-wide hit area even for a short word such as "Shop". */
+.app-header .navbar-secondary ul .navbar-link {
+  font-size: .875rem;
+  min-width: 2.75rem;
+}
+
+/* [menu-5] Keyboard focus in the header: a 3px ring in the bright orange (the 2px ring was 6.7:1 against
+ * the charcoal already; the thickness is the owner-facing improvement). Icon buttons and the logo draw it
+ * outside, 1px off the box: 4px in all, which is exactly the brand row's new 4px padding, so the ring is
+ * never painted under the announcement bar (that bar is positioned, so it paints over its in-flow
+ * neighbours' outlines; the old 3px offset + 2px ring needed 5px). Tabs draw it inside because their row
+ * can be a scroll container, which clips outlines. */
+.app-header .navbar-main :is(a, button):focus-visible {
+  outline: 3px solid var(--brand-bright, #ff7b17);
+  outline-offset: 1px;
+}
+.app-header .navbar-secondary ul .navbar-link:focus-visible {
+  outline: 3px solid var(--brand-bright, #ff7b17);
+  outline-offset: -3px;
+  border-radius: .5rem;
+}

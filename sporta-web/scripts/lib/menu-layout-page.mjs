@@ -92,7 +92,7 @@ export const measure = () => {
     hdrOverflow: header.scrollWidth - header.clientWidth, docOverflow: document.documentElement.scrollWidth - docW,
     ulOverflow: ul.scrollWidth - ul.clientWidth, ulOverflowX: cs(ul).overflowX, ulScrollbarWidth: cs(ul).scrollbarWidth,
     overlaps,
-    contrast: { topbar: ratio(topC, topBg), tab: ratio(tabC, tabBg), brandBright: ratio(brandBright, ink), brand: ratio(brand, ink) },
+    contrast: { topbar: ratio(topC, topBg), tab: ratio(tabC, tabBg), tab2: ratio(textColour(tabs[2]), bgOf(tabs[2])),  brandBright: ratio(brandBright, ink), brand: ratio(brand, ink) },
     tabBoxes: tabs.map((t) => { const r = R(t); return [r.x, r.w] }),
   }
 }
