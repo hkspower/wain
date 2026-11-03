@@ -902,14 +902,20 @@
   color: inherit;
 }
 
-/* Headings: in the light theme the build's own `.admin-page h1, h2, h3 { color:
-   var(--admin-text) }` outranks the text-slate-* class they carry (measured:
-   h1 "Payments" and every h2 are rgb(24,33,42)), so the slate restatement below
-   must not reach them. The dark theme turns the utility !important, hence this
-   !important too, and [class] lifts it from (0,1,2) to (0,2,2): above the
-   utility rules below and the build's (0,2,0). */
-:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) :is(h1, h2, h3)[class] {
+/* Headings: in the light theme the build's own rules beat the text-slate-* class
+   a heading carries and paint --admin-text instead: for the h1 at every width,
+   for h2 and h3 only from 768px (a width sweep of the live page: h2 is the raw
+   slate-900 of its class below that, rgb(24,33,42) from there up). The dark
+   theme turns the utility !important, so these are !important too, and [class]
+   lifts them from (0,1,2) to (0,2,2): above the slate rules below and the
+   build's (0,2,0). Same breakpoint, so the phone keeps its light look too. */
+:is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) h1[class] {
   color: var(--admin-text, #18212a) !important;
+}
+@media (min-width: 768px) {
+  :is(html.dark, html[data-theme="dark"]) :where(.admin-shell :is(.admin-content:has(.payment-settings), .payment-settings)) :is(h2, h3)[class] {
+    color: var(--admin-text, #18212a) !important;
+  }
 }
 
 /* The slate text ladder. 500 and 400 are section 3's meta colour (#556274),
@@ -961,12 +967,18 @@
 }
 
 /* Fields: a light control (the build sets color-scheme: dark on each one), and
-   the class-less checkbox of the CBK card, which the build paints dark. */
+   the class-less checkbox of the CBK card, which the build paints dark: in light
+   it is transparent on a phone and white from 768px, like every field. */
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input, select, textarea) {
   color-scheme: light;
 }
 :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input[type="checkbox"], input[type="radio"]) {
-  background-color: #fff;
+  background-color: transparent;
   color: inherit;
   border-color: currentcolor;
+}
+@media (min-width: 768px) {
+  :is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input[type="checkbox"], input[type="radio"]) {
+    background-color: #fff; /* the build's field rule, from 768px; transparent below */
+  }
 }
