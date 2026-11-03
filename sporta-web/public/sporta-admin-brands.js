@@ -1,4 +1,4 @@
-/* FOUR add-ons for the compiled live admin live in this file, because this is
+/* Several add-ons for the compiled live admin live in this file, because this is
  * the only admin script the live index.html loads (a new file name would not
  * be loaded without editing that page, whose source is not in the repo):
  *   1. the Brands screen: a "Remove" button, a product count and a "View on
@@ -7,7 +7,9 @@
  *   2. Merchant ID / Terminal ID card in Payments > KNET editor (second block,
  *      after the brands one);
  *   3. Merchant Server IP 1 / 2 card in Payments > T-Pay editor (third block);
- *   4. the sign-in screen's session line, which still says 8 hours (last block).
+ *   4. the sign-in screen's session line, which still says 8 hours (fourth block);
+ *   then two later blocks with their own comments: the Save bar on every
+ *   screen, and "6. Photos", the bulk product-photo uploader (last block).
  *
  * 1. Brands (add-on for the compiled live admin bundle, whose source is not in
  * the repo; the Remove button also exists in src/admin/Brands.jsx for the next
@@ -1522,3 +1524,1153 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot()
 })()
 /* ===== ADMIN SAVE BAR - end ============================================== */
+
+/* ===== ADMIN PHOTO UPLOADER - begin =====================================
+ * 6. Photos (owner request 2026-11-03: "make images uploader").
+ *
+ * The biggest gap on the shop is real product photographs, and the compiled
+ * product editor takes ONE per product. This adds a "Photos" panel to the
+ * Catalogue screen, above the list of products, that takes MANY files at once
+ * (drag and drop, or the file chooser, which is what a phone uses), matches
+ * each to a product by its file name, shows what it understood, and uploads
+ * them one after another.
+ *
+ * NOTHING NEW ON THE SERVER. Three routes that already exist on the live
+ * admin.php are used, with the headers the admin's own calls carry
+ * (session cookie, X-Sporta-Admin: 1, application/json for writes):
+ *   GET  products_all           every product, to match names and to read the
+ *                               row again right before it is saved;
+ *   POST product_image_upload   {name, data: "data:image/<png|jpeg|webp>;base64,..."}
+ *                               -> {path, width, height, bytes, mime}. The route
+ *                               writes the ORIGINAL bytes (owner decision
+ *                               2026-11-03: photos are lossless). Here too: the
+ *                               browser reads the file, never draws or resizes
+ *                               it, and sends its own bytes;
+ *   POST product_save           the full row, with the new path in image/images.
+ * Nothing is ever deleted, and no photograph is ever removed from a product by
+ * this panel: a photo that REPLACES the main one (file name ending -1) leaves
+ * the old path in the log, which lists every path written and what the product
+ * had before, so any step can be undone by hand.
+ *
+ * FILE NAME -> PRODUCT. The name without its extension, lower-cased and with
+ * every run of other characters turned into one dash, is looked up as (1) the
+ * product's web name (slug), (2) its English or Arabic name written the same
+ * way, (3) either with the dashes left out. If nothing matches and the name
+ * ends in -N (also "_N", " N", "(N)", ".N"), the name without it is looked up
+ * the same way and N is the position: 1 = the main photo, 2 = the next, ...
+ * A name that matches as a whole always wins over a split (a product called
+ * "air-max-90" is not "air-max", position 90). No suffix = "auto": the main
+ * photo if the product has none, else added at the end. A name that matches
+ * two products is NOT guessed: it is shown as "choose a product".
+ *
+ * WHAT IT SAVES. After each upload the product row is read again (products_all)
+ * and saved whole with product_save, every field exactly as read (price and
+ * sale price as the strings the database gave, sale dates, featured, featured
+ * order, brand, category, descriptions, active), except:
+ *   - position 1, or a product with no main photo: image = the new path (the
+ *     first photo of a product with none becomes its main one);
+ *   - otherwise the path is appended to images (comma-separated list), in
+ *     position order within the run. A path already on the product is not added twice.
+ * product_save cuts a description at 280 characters (store_opt), so saving a
+ * product whose description is longer would silently shorten it. Such a
+ * product is HELD BACK: its photos are not uploaded from here at all (no
+ * orphan file), and the panel says why. Same for a row product_save would refuse
+ * (a slug that is not in its normal form, a price or sale price it would reject).
+ *
+ * ONE AT A TIME. A single request is in flight at any moment: upload, then the
+ * read, then the save, then the next file. HTTP 429 is waited out (Retry-After
+ * when the server sends it, else 1, 2, 4 ... seconds, at most 6 tries) with the
+ * wait shown. 401 stops the run cleanly (the rest stay waiting; sign in and press
+ * Upload again). Anything else marks that file Failed with the reason and a
+ * Retry button; a file that was uploaded but could not be added to its product
+ * is retried WITHOUT uploading it again.
+ *
+ * Shown on the Catalogue screen only: the screen is found by its product table
+ * (headers Product / Web name / Price / On sale) or its heading "Every product
+ * in the database", the panel is inserted before the table and taken out when
+ * the screen goes. React's own nodes are never touched or moved.
+ * Colours: the admin's dark theme is html[data-theme=dark] / html.dark (a stored
+ * choice outranks the device), so the dark palette follows THAT switch, like the
+ * rest of this file's admin CSS, and not prefers-color-scheme alone.
+ * Language: the panel follows the nearest lang attribute (Arabic -> Arabic,
+ * right-to-left, Arabic-Indic digits; anything else English).
+ * Tuning hook for tests: window.SPORTA_PHOTOS = {paceMs, backoffMs}.
+ */
+;(function () {   // leading ; — the block above ends in `)()` with no semicolon
+  'use strict'
+  if (location.pathname.indexOf('/backends') !== 0) return
+  if (window.__sportaPhotos) return
+  try { Object.defineProperty(window, '__sportaPhotos', { value: { version: 1 }, enumerable: false, configurable: false }) } catch (e) { return }
+
+  var API = '/api/admin.php'
+  var MAX_BYTES = 10 * 1024 * 1024        // the route's cap
+  var MIN_LONG = 1200                     // px on the long side
+  var RATIO = 0.8, RATIO_TOL = 0.03       // the shop frames photos 4:5 (w/h = 0.8)
+  var MAX_FILES = 200, MAX_TRIES = 6, DESC_MAX = 280
+  var LOG_KEY = 'sporta_photo_log'
+  var FORMATS = { 'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/webp': 'WebP' }
+
+  // ------------------------------------------------------------------ strings
+  var STR = {
+    en: {
+      title: 'Photos',
+      intro: 'Add many product photos at once. Name each file after the product’s web name; add -1, -2 … for the position.',
+      exMain: 'main photo', exSecond: 'second photo', exAuto: 'main photo if the product has none, otherwise added at the end',
+      limits: 'PNG, JPEG or WebP, up to 10 MB each. The shop frames photos 4:5; at least 1200 px on the long side is best. Files are uploaded exactly as they are.',
+      choose: 'Choose photos', drop: 'or drop photos here',
+      dropAria: 'Drop zone for product photos',
+      prodLoading: 'Loading products…', prodCount: '{n} products loaded.', prodFail: 'Could not load the products ({e}). Photos cannot be matched until they load.',
+      reload: 'Reload products',
+      upload: 'Upload {n} photos', upload1: 'Upload 1 photo', uploadNone: 'Upload photos',
+      stop: 'Stop after this photo', retryAll: 'Retry failed ({n})', clear: 'Clear list',
+      added: '{n} files added.', skippedDup: '{n} already in the list.', tooMany: 'The list holds {n} files at most; the rest were left out.',
+      needProduct: '{n} need a product.', readyN: '{n} ready.',
+      running: 'Uploading {i} of {n}: {name}', waiting: 'Waiting {s} s (too many requests) before trying again.', stopping: 'Stopping after this photo…',
+      halted: 'Your session ended. Sign in again, then press Upload to continue. Nothing was lost.',
+      stopped: 'Stopped. {n} photos are still waiting.',
+      sumTitle: 'Summary', sumLine: '{u} uploaded, {a} added to products, {f} failed.', sumDone: 'Finished.',
+      overall: '{d} of {n}', overallLabel: 'Overall progress',
+      logTitle: 'Files written ({n})', logHint: 'Every file this panel put on the server, with what each product had before. Nothing is deleted by this panel.', logCopy: 'Copy list', logSave: 'Download list', logCopied: 'Copied.', logEmpty: 'Nothing yet.',
+      product: 'Product', change: 'Change', choosePro: 'Choose a product', position: 'Position', auto: 'Auto',
+      search: 'Search products', results: '{n} products found.', noResults: 'No product matches.', more: '{n} more — type to narrow the list.', close: 'Close',
+      retry: 'Retry', remove: 'Remove', hidden: '(hidden)',
+      st_checking: 'Checking…', st_ready: 'Ready', st_needs: 'Choose a product', st_queued: 'Waiting', st_uploading: 'Uploading', st_attaching: 'Adding to the product',
+      st_done: 'Done', st_failed: 'Failed', st_unattached: 'Uploaded, not added', st_refused: 'Not accepted', st_toolarge: 'Too large', st_held: 'Held back',
+      r_format: 'Only PNG, JPEG and WebP photos are accepted.', r_svg: 'SVG is not accepted: it can carry script.', r_empty: 'The file is empty.',
+      r_large: 'Over 10 MB: the server would refuse it. Nothing was shrunk; reduce it and add it again.',
+      r_desc: 'This product’s description is over 280 characters and saving the product from here would cut it. Add the photo in the product editor instead.',
+      r_slug: 'This product’s web name is not in its normal form, so it cannot be saved from here. Use the product editor.',
+      r_price: 'This product’s price or sale price would be refused when saved. Fix it in the product editor first.',
+      w_small: 'Only {w}×{h} px: under 1200 px on the long side.', w_aspect: 'Not 4:5 ({w}×{h}): the shop will crop it to fit.',
+      w_dup: 'Another file in the list is for the same position of this product.', w_hidden: 'This product is hidden from the shop.', w_ambig: 'The name matches more than one product.', w_dims: 'Size in pixels could not be read.',
+      e_not_signed_in: 'Your session ended.', e_image_too_large: 'The server says the file is too large.', e_image_bad_format: 'The server did not accept the format.', e_image_not_an_image: 'The server could not read it as an image.',
+      e_image_storage_unavailable: 'The server has no place to store photos.', e_image_write_failed: 'The server could not write the file.', e_request_too_large: 'The request was too large for the server.',
+      e_too_many: 'Too many requests; gave up after several tries.', e_network: 'No answer from the server.', e_read: 'The browser could not read the file.',
+      e_read_products: 'Could not read the product again before saving.', e_gone: 'The product no longer exists.', e_save: 'Could not save the product',
+      path: 'Written to {p}', attachedOk: 'Added to {n} as {w}.', asMain: 'main photo', asExtra: 'photo {k}',
+      bytes: '{n} B', kb: '{n} KB', mb: '{n} MB', unit: 'px'
+    },
+    ar: {
+      title: 'الصور',
+      intro: 'أضف صور المنتجات دفعة واحدة. سمِّ كل ملف باسم المنتج المختصر على الموقع، ثم أضف في آخره شرطة ورقم الترتيب إن أردت.',
+      exMain: 'الصورة الرئيسية', exSecond: 'الصورة الثانية', exAuto: 'الصورة الرئيسية إن لم يكن للمنتج صورة، وإلا تُضاف في النهاية',
+      limits: 'الصيغ المقبولة PNG وJPEG وWebP، بحجم أقصاه ١٠ ميغابايت للملف. يعرض المتجر الصور بنسبة ٤:٥، ويُفضَّل ألا يقل الضلع الأطول عن ١٢٠٠ بكسل. تُرفع الملفات كما هي تمامًا.',
+      choose: 'اختيار الصور', drop: 'أو أفلت الصور هنا',
+      dropAria: 'منطقة إفلات صور المنتجات',
+      prodLoading: 'جارٍ تحميل المنتجات…', prodCount: 'تم تحميل {n} منتج.', prodFail: 'تعذّر تحميل المنتجات ({e}). لا يمكن مطابقة الصور قبل تحميلها.',
+      reload: 'إعادة تحميل المنتجات',
+      upload: 'رفع {n} صورة', upload1: 'رفع صورة واحدة', uploadNone: 'رفع الصور',
+      stop: 'إيقاف بعد هذه الصورة', retryAll: 'إعادة محاولة الفاشلة ({n})', clear: 'مسح القائمة',
+      added: 'تمت إضافة {n} ملف.', skippedDup: '{n} موجود في القائمة أصلًا.', tooMany: 'تتسع القائمة لـ {n} ملف على الأكثر، وتُركت البقية.',
+      needProduct: '{n} تحتاج إلى منتج.', readyN: '{n} جاهزة.',
+      running: 'جارٍ رفع {i} من {n}: {name}', waiting: 'الانتظار {s} ثانية (طلبات كثيرة) قبل المحاولة مجددًا.', stopping: 'سيتم الإيقاف بعد هذه الصورة…',
+      halted: 'انتهت جلستك. سجّل الدخول مجددًا ثم اضغط رفع للمتابعة. لم يضع شيء.',
+      stopped: 'تم الإيقاف. ما زالت {n} صورة بانتظار الرفع.',
+      sumTitle: 'الملخص', sumLine: 'تم رفع {u}، وإضافة {a} إلى المنتجات، وفشل {f}.', sumDone: 'اكتمل.',
+      overall: '{d} من {n}', overallLabel: 'التقدم الكلي',
+      logTitle: 'الملفات المكتوبة ({n})', logHint: 'كل ملف وضعته هذه اللوحة على الخادم، مع ما كان لدى كل منتج قبله. لا تحذف هذه اللوحة أي شيء.', logCopy: 'نسخ القائمة', logSave: 'تنزيل القائمة', logCopied: 'تم النسخ.', logEmpty: 'لا شيء بعد.',
+      product: 'المنتج', change: 'تغيير', choosePro: 'اختر منتجًا', position: 'الترتيب', auto: 'تلقائي',
+      search: 'ابحث في المنتجات', results: 'عدد المنتجات المطابقة {n}.', noResults: 'لا يوجد منتج مطابق.', more: 'و{n} أخرى، اكتب لتضييق القائمة.', close: 'إغلاق',
+      retry: 'إعادة المحاولة', remove: 'إزالة', hidden: '(مخفي)',
+      st_checking: 'جارٍ الفحص…', st_ready: 'جاهزة', st_needs: 'اختر منتجًا', st_queued: 'بالانتظار', st_uploading: 'جارٍ الرفع', st_attaching: 'تُضاف إلى المنتج',
+      st_done: 'تم', st_failed: 'فشلت', st_unattached: 'رُفعت ولم تُضف', st_refused: 'غير مقبولة', st_toolarge: 'كبيرة جدًا', st_held: 'محجوزة',
+      r_format: 'الصيغ المقبولة هي PNG وJPEG وWebP فقط.', r_svg: 'صيغة SVG غير مقبولة لأنها قد تحمل شيفرة برمجية.', r_empty: 'الملف فارغ.',
+      r_large: 'يتجاوز ١٠ ميغابايت فسيرفضه الخادم. لم يُصغَّر شيء؛ قلّل حجمه ثم أضفه مجددًا.',
+      r_desc: 'وصف هذا المنتج يزيد على ٢٨٠ حرفًا، وحفظ المنتج من هنا سيقصّه. أضف الصورة من محرر المنتج بدلًا من ذلك.',
+      r_slug: 'الاسم المختصر لهذا المنتج ليس بصيغته المعتادة، فلا يمكن حفظه من هنا. استخدم محرر المنتج.',
+      r_price: 'سعر هذا المنتج أو سعر التخفيض سيُرفض عند الحفظ. صحّحه في محرر المنتج أولًا.',
+      w_small: 'الأبعاد {w}×{h} بكسل فقط، أي أقل من ١٢٠٠ بكسل في الضلع الأطول.', w_aspect: 'النسبة ليست ٤:٥ ({w}×{h})، وسيقصّ المتجر الصورة لتناسب الإطار.',
+      w_dup: 'ملف آخر في القائمة لنفس الترتيب من هذا المنتج.', w_hidden: 'هذا المنتج مخفي عن المتجر.', w_ambig: 'الاسم يطابق أكثر من منتج.', w_dims: 'تعذّرت قراءة الأبعاد بالبكسل.',
+      e_not_signed_in: 'انتهت جلستك.', e_image_too_large: 'يقول الخادم إن الملف كبير جدًا.', e_image_bad_format: 'لم يقبل الخادم هذه الصيغة.', e_image_not_an_image: 'تعذّرت قراءة الملف كصورة على الخادم.',
+      e_image_storage_unavailable: 'لا يوجد مكان لحفظ الصور على الخادم.', e_image_write_failed: 'تعذّرت كتابة الملف على الخادم.', e_request_too_large: 'الطلب أكبر مما يقبله الخادم.',
+      e_too_many: 'طلبات كثيرة جدًا، وتوقفت المحاولة بعد عدة مرات.', e_network: 'لا رد من الخادم.', e_read: 'تعذّرت قراءة الملف في المتصفح.',
+      e_read_products: 'تعذّرت إعادة قراءة المنتج قبل الحفظ.', e_gone: 'لم يعد المنتج موجودًا.', e_save: 'تعذّر حفظ المنتج',
+      path: 'كُتب في {p}', attachedOk: 'أُضيفت إلى {n} بوصفها {w}.', asMain: 'الصورة الرئيسية', asExtra: 'الصورة {k}',
+      bytes: '{n} بايت', kb: '{n} ك.ب', mb: '{n} م.ب', unit: 'بكسل'
+    }
+  }
+
+  // ------------------------------------------------------------------- state
+  var lang = 'en'
+  var products = null          // products_all rows (plain objects)
+  var productsErr = ''
+  var loadingProducts = false
+  var items = []               // the file list
+  var nextId = 1
+  var running = false, stopReq = false, halted = false
+  var run = { total: 0, done: 0, uploaded: 0, attached: 0, failed: 0, current: '' }
+  var showSummary = false
+  var log = []                 // [{t, file, slug, pos, path, attached, note, prevImage, prevImages}]
+  var statusText = ''
+  var panel = null, refs = null, styleEl = null
+  var onScreen = false
+  var index = null
+
+  function cfg(key, dflt) {
+    var c = window.SPORTA_PHOTOS, v = c ? Number(c[key]) : NaN
+    return isFinite(v) && v >= 0 ? v : dflt
+  }
+  function t(key, vars) {
+    var s = (STR[lang] && STR[lang][key] != null) ? STR[lang][key] : (STR.en[key] != null ? STR.en[key] : key)
+    if (vars) for (var k in vars) if (Object.prototype.hasOwnProperty.call(vars, k)) {
+      var v = vars[k]
+      s = s.split('{' + k + '}').join(typeof v === 'number' ? num(v) : String(v))
+    }
+    return s
+  }
+  /** Digits in the page's language: Arabic-Indic in Arabic, plain otherwise. */
+  function num(n) {
+    var s = String(n)
+    return lang === 'ar' ? s.replace(/[0-9]/g, function (d) { return String.fromCharCode(0x0660 + Number(d)) }).replace('.', '٫') : s
+  }
+  function langOf(node) {
+    var h = (node && node.closest && node.closest('[lang]')) || document.documentElement
+    return /^ar/i.test(h.getAttribute('lang') || '') ? 'ar' : 'en'
+  }
+  function el(tag, className, text) {
+    var n = document.createElement(tag)
+    if (className) n.className = className
+    if (text != null) n.textContent = text
+    return n
+  }
+  function fmtSize(b) {
+    if (b < 1024) return t('bytes', { n: b })
+    if (b < 1024 * 1024) return t('kb', { n: Math.round(b / 1024) })
+    var m = Math.round(b / 104857.6) / 10
+    return t('mb', { n: m })
+  }
+  function sleep(ms) {
+    return new Promise(function (res) {
+      var end = Date.now() + ms
+      ;(function tick() {
+        if (stopReq || halted || Date.now() >= end) return res()
+        setTimeout(tick, Math.min(200, Math.max(1, end - Date.now())))
+      })()
+    })
+  }
+
+  // ----------------------------------------------------------- admin requests
+  function parse(r) { return r.json().catch(function () { return null }) }
+  function call(route, body) {
+    return fetch(API + '?r=' + route, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: Object.assign({ 'X-Sporta-Admin': '1' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return parse(r).then(function (j) { return { ok: r.ok, status: r.status, body: j, retryAfter: r.headers.get('Retry-After') } })
+    }).catch(function () { return { ok: false, status: 0, body: null, retryAfter: null } })
+  }
+  /** The upload goes by XMLHttpRequest only to get byte progress; headers are the same. */
+  function postUpload(body, onProgress) {
+    return new Promise(function (resolve) {
+      var x = new XMLHttpRequest()
+      x.open('POST', API + '?r=product_image_upload')
+      x.withCredentials = true
+      x.timeout = 180000
+      x.setRequestHeader('X-Sporta-Admin', '1')
+      x.setRequestHeader('Content-Type', 'application/json')
+      if (x.upload) x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded / e.total) }
+      x.onload = function () {
+        var j = null
+        try { j = JSON.parse(x.responseText) } catch (e) { /* not JSON */ }
+        resolve({ ok: x.status >= 200 && x.status < 300, status: x.status, body: j, retryAfter: x.getResponseHeader('Retry-After') })
+      }
+      x.onerror = x.ontimeout = x.onabort = function () { resolve({ ok: false, status: 0, body: null, retryAfter: null }) }
+      x.send(JSON.stringify(body))
+    })
+  }
+  function rowsOf(j) {
+    if (Array.isArray(j)) return j
+    if (j && Array.isArray(j.data)) return j.data
+    if (j && Array.isArray(j.products)) return j.products
+    return null
+  }
+  function errCode(r) { return (r.body && r.body.error) || (r.status ? 'HTTP ' + r.status : 'network') }
+
+  /** Repeat a request while the server answers 429, waiting as it asks. */
+  async function patient(send, item) {
+    var r = null
+    for (var attempt = 0; attempt < MAX_TRIES; attempt++) {
+      r = await send()
+      if (r.status !== 429) return r
+      var ra = Number(r.retryAfter)
+      var wait = isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 60000) : Math.min(cfg('backoffMs', 1000) * Math.pow(2, attempt), 20000)
+      if (attempt === MAX_TRIES - 1) break
+      for (var left = Math.ceil(wait / 1000); left > 0 && !stopReq && !halted; left--) {
+        setStatus(t('waiting', { s: left }))
+        await sleep(Math.min(1000, wait))
+        wait -= 1000
+      }
+      if (stopReq || halted) break
+    }
+    return r
+  }
+
+  // ---------------------------------------------------------------- matching
+  function norm(s) {
+    var x = String(s == null ? '' : s)
+    try { x = x.normalize('NFKC') } catch (e) { /* old engine */ }
+    return x.toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '-').replace(/^-+|-+$/g, '')
+  }
+  function compact(s) { return norm(s).replace(/-/g, '') }
+  function stemOf(name) { return String(name).replace(/\.[^.\\/]*$/, '') }
+
+  function addKey(map, key, p) {
+    if (!key) return
+    if (!map[key]) map[key] = [p]
+    else if (map[key].indexOf(p) < 0) map[key].push(p)
+  }
+  function buildIndex() {
+    index = { slug: {}, name: {}, cslug: {}, cname: {} }
+    var list = products || []
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      addKey(index.slug, norm(p.slug), p)
+      addKey(index.name, norm(p.name_en), p)
+      addKey(index.name, norm(p.name_ar), p)
+      addKey(index.cslug, compact(p.slug), p)
+      addKey(index.cname, compact(p.name_en), p)
+      addKey(index.cname, compact(p.name_ar), p)
+    }
+  }
+  /** {p} one product, {ambiguous:true} several at the first tier that hits, or null. */
+  function lookup(base) {
+    if (!base) return null
+    var tiers = [[index.slug, norm(base)], [index.name, norm(base)], [index.cslug, compact(base)], [index.cname, compact(base)]]
+    for (var i = 0; i < tiers.length; i++) {
+      var hit = tiers[i][0][tiers[i][1]]
+      if (!hit) continue
+      return hit.length === 1 ? { p: hit[0], tier: i } : { ambiguous: true }
+    }
+    return null
+  }
+  /** What a file name says: {product, pos, ambiguous}. A whole-name match beats a split. */
+  function matchName(fileName) {
+    if (!index) buildIndex()
+    var stem = norm(stemOf(fileName))
+    if (!stem) return { product: null, pos: null }
+    var r = lookup(stem)
+    if (r) return r.ambiguous ? { product: null, pos: null, ambiguous: true } : { product: r.p, pos: null }
+    var m = /^(.+)-(\d{1,2})$/.exec(stem)
+    if (m && Number(m[2]) >= 1) {
+      r = lookup(m[1])
+      if (r) return r.ambiguous ? { product: null, pos: null, ambiguous: true } : { product: r.p, pos: Number(m[2]) }
+    }
+    return { product: null, pos: null }
+  }
+  function productById(id) {
+    for (var i = 0; products && i < products.length; i++) if (Number(products[i].id) === Number(id)) return products[i]
+    return null
+  }
+  function productName(p) {
+    if (!p) return ''
+    return lang === 'ar' ? String(p.name_ar || p.name_en || p.slug) : String(p.name_en || p.name_ar || p.slug)
+  }
+  function isHidden(p) { return p && !Number(p.active) }
+
+  // ------------------------------------------------------------ file analysis
+  function sniff(b) {
+    if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'image/png'
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+    if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+    return ''
+  }
+  function looksSvg(b) {
+    var s = ''
+    for (var i = 0; i < Math.min(b.length, 512); i++) s += String.fromCharCode(b[i])
+    return /<svg[\s>]|^\s*<\?xml/i.test(s)
+  }
+  /** Pixel size from the file header, as the server's getimagesize reports it. */
+  function headerDims(b, mime) {
+    try {
+      if (mime === 'image/png') {
+        if (b.length < 24) return null
+        return { w: ((b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19]) >>> 0, h: ((b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]) >>> 0 }
+      }
+      if (mime === 'image/webp') {
+        var tag = String.fromCharCode(b[12], b[13], b[14], b[15])
+        if (tag === 'VP8X') return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) }
+        if (tag === 'VP8L') return { w: 1 + (((b[22] & 0x3f) << 8) | b[21]), h: 1 + (((b[24] & 0x0f) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6)) }
+        if (tag === 'VP8 ') return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff }
+        return null
+      }
+      if (mime === 'image/jpeg') {
+        var i = 2
+        while (i + 9 < b.length) {
+          if (b[i] !== 0xff) { i++; continue }
+          var mk = b[i + 1]
+          if (mk === 0xff) { i++; continue }
+          if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] }
+          if (mk === 0xd8 || mk === 0x01 || (mk >= 0xd0 && mk <= 0xd7)) { i += 2; continue }
+          i += 2 + ((b[i + 2] << 8) | b[i + 3])
+        }
+      }
+    } catch (e) { /* fall through */ }
+    return null
+  }
+  function readBuffer(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader()
+      fr.onload = function () { resolve(new Uint8Array(fr.result)) }
+      fr.onerror = function () { reject(fr.error) }
+      fr.readAsArrayBuffer(blob)
+    })
+  }
+  /** Fallback when the header could not be read: let the browser decode it. createImageBitmap, not an
+   *  <img src=blob:>, because the site's CSP allows img-src 'self' data: only. */
+  function decodeDims(file) {
+    if (!window.createImageBitmap) return Promise.resolve(null)
+    return createImageBitmap(file).then(function (bmp) {
+      var d = { w: bmp.width, h: bmp.height }
+      if (bmp.close) bmp.close()
+      return d
+    }).catch(function () { return null })
+  }
+  /** A small preview (never uploaded): the browser decodes it at reduced size. */
+  function makeThumb(file) {
+    if (!window.createImageBitmap) return Promise.resolve('')
+    return createImageBitmap(file, { resizeWidth: 144, resizeQuality: 'low' }).then(function (bmp) {
+      var c = document.createElement('canvas')
+      c.width = bmp.width; c.height = bmp.height
+      var g = c.getContext('2d')
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height)
+      g.drawImage(bmp, 0, 0)
+      if (bmp.close) bmp.close()
+      return c.toDataURL('image/jpeg', 0.7)
+    }).catch(function () { return '' })
+  }
+
+  var chain = Promise.resolve()
+  function analyse(item) {
+    chain = chain.then(function () { return analyseOne(item) }).catch(function () {}).then(function () { item.checked = true; refreshRow(item); refreshAll() })
+  }
+  async function analyseOne(item) {
+    var f = item.file
+    if (f.size === 0) { item.block = 'empty'; return }
+    var head
+    try { head = await readBuffer(f.slice(0, 1048576)) } catch (e) { item.block = 'read'; return }
+    var mime = sniff(head)
+    if (!mime) { item.block = looksSvg(head) ? 'svg' : 'format'; return }
+    item.mime = mime
+    if (f.size > MAX_BYTES) { item.block = 'large'; return }
+    var d = headerDims(head, mime) || await decodeDims(f)
+    if (d && d.w > 0 && d.h > 0) { item.w = d.w; item.h = d.h }
+    item.thumb = await makeThumb(f)
+  }
+
+  // ---------------------------------------------------------- list handling
+  function sig(f) { return [f.name, f.size, f.lastModified].join('|') }
+  function addFiles(fileList) {
+    var list = Array.prototype.slice.call(fileList || []), added = 0, dup = 0, over = 0
+    list.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) })
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i], same = false
+      for (var j = 0; j < items.length; j++) if (items[j].sig === sig(f)) { same = true; break }
+      if (same) { dup++; continue }
+      if (items.length >= MAX_FILES) { over++; continue }
+      var it = { id: nextId++, file: f, sig: sig(f), name: f.name, size: f.size, mime: '', w: 0, h: 0, thumb: '', block: '', checked: false,
+        productId: null, pos: null, manual: false, ambiguous: false, phase: 'idle', error: '', errorCode: '', path: '', progress: 0, note: '', picker: false, node: null }
+      applyMatch(it)
+      items.push(it)
+      added++
+      analyse(it)
+    }
+    showSummary = false
+    var msg = []
+    if (added) msg.push(t('added', { n: added }))
+    if (dup) msg.push(t('skippedDup', { n: dup }))
+    if (over) msg.push(t('tooMany', { n: MAX_FILES }))
+    if (msg.length) setStatus(msg.join(' '))
+    rebuildList()
+    refreshAll()
+  }
+  function applyMatch(it) {
+    if (it.manual) return
+    var m = matchName(it.name)
+    it.productId = m.product ? Number(m.product.id) : null
+    it.pos = m.pos
+    it.ambiguous = !!m.ambiguous
+  }
+  function rematchAll() {
+    buildIndex()
+    for (var i = 0; i < items.length; i++) if (items[i].phase === 'idle' || items[i].phase === 'failed') applyMatch(items[i])
+  }
+  /** Why the product cannot be saved from here, or ''. product_save cuts descriptions at 280 and refuses odd rows. */
+  function holdCode(p) {
+    if (!p) return ''
+    function chars(s) { return s == null ? 0 : Array.from(String(s)).length }
+    if (chars(p.desc_en) > DESC_MAX || chars(p.desc_ar) > DESC_MAX) return 'desc'
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(p.slug)) || String(p.slug).length > 80) return 'slug'
+    var money = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,3})?$/
+    if (!money.test(String(p.price)) || !(Number(p.price) > 0)) return 'price'
+    if (p.sale_price != null && p.sale_price !== '' && (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price))) return 'price'
+    return ''
+  }
+  /** What the list shows for a file: its state key and the reason lines. */
+  function view(it) {
+    var warns = []
+    var p = it.productId != null ? productById(it.productId) : null
+    var st
+    if (it.phase === 'done') st = 'done'
+    else if (it.phase === 'uploading' || it.phase === 'attaching' || it.phase === 'queued') st = it.phase
+    else if (it.phase === 'unattached') st = 'unattached'
+    else if (it.phase === 'failed') st = 'failed'
+    else if (!it.checked) st = 'checking'
+    else if (it.block === 'large') st = 'toolarge'
+    else if (it.block) st = 'refused'
+    else if (!p) st = 'needs'
+    else if (holdCode(p)) st = 'held'
+    else st = 'ready'
+    if (it.block && it.block !== 'read') warns.push({ level: 'block', text: t(it.block === 'svg' ? 'r_svg' : it.block === 'empty' ? 'r_empty' : it.block === 'large' ? 'r_large' : 'r_format') })
+    if (it.block === 'read') warns.push({ level: 'block', text: t('e_read') })
+    if (st === 'held') warns.push({ level: 'block', text: t('r_' + holdCode(p)) })
+    if (it.ambiguous && !p) warns.push({ level: 'warn', text: t('w_ambig') })
+    if (!it.block && it.checked) {
+      if (it.w && it.h) {
+        if (Math.max(it.w, it.h) < MIN_LONG) warns.push({ level: 'warn', text: t('w_small', { w: it.w, h: it.h }) })
+        if (Math.abs(it.w / it.h - RATIO) / RATIO > RATIO_TOL) warns.push({ level: 'warn', text: t('w_aspect', { w: it.w, h: it.h }) })
+      } else warns.push({ level: 'warn', text: t('w_dims') })
+    }
+    if (p && isHidden(p) && st !== 'done') warns.push({ level: 'warn', text: t('w_hidden') })
+    if (p && it.pos != null && st !== 'done') {
+      for (var i = 0; i < items.length; i++) {
+        var o = items[i]
+        if (o !== it && o.productId === it.productId && o.pos === it.pos && !o.block && o.phase !== 'done' && o.id < it.id) { warns.push({ level: 'warn', text: t('w_dup') }); break }
+      }
+    }
+    return { state: st, warns: warns, product: p }
+  }
+
+  // ----------------------------------------------------------------- attaching
+  function splitImages(v) {
+    return String(v == null ? '' : v).split(',').map(function (s) { return s.trim() }).filter(Boolean)
+  }
+  /** Where the new path goes on the row as read just now. Pure: nothing is sent here. */
+  function attachPlan(row, path, pos) {
+    var main = row.image == null ? '' : String(row.image).trim()
+    var extras = splitImages(row.images)
+    if (main === path) return { already: true, role: 'main' }
+    if (extras.indexOf(path) >= 0) return { already: true, role: 'extra', k: extras.indexOf(path) + 2 }
+    var image = main, images = extras.slice(), role, k
+    if (pos === 1 || !main) { image = path; role = 'main'; k = 1 } else { images.push(path); role = 'extra'; k = images.length + 1 }
+    return { already: false, image: image, images: images, role: role, k: k, prevImage: main, prevImages: extras.join(',') }
+  }
+  /** The whole row, every field as read; only image and images differ. */
+  function saveBody(row, plan) {
+    function money(v) { return typeof v === 'number' ? v : String(v) }
+    return {
+      id: Number(row.id), slug: row.slug, name_en: row.name_en, name_ar: row.name_ar,
+      desc_en: row.desc_en == null ? null : row.desc_en, desc_ar: row.desc_ar == null ? null : row.desc_ar,
+      price: money(row.price),
+      sale_price: row.sale_price == null || row.sale_price === '' ? null : money(row.sale_price),
+      sale_starts_at: row.sale_starts_at || null, sale_ends_at: row.sale_ends_at || null,
+      featured: !!Number(row.featured), featured_sort: Number(row.featured_sort) || 0,
+      category: row.category == null ? null : row.category, brand_slug: row.brand_slug == null ? '' : row.brand_slug,
+      image: plan.image || null, images: plan.images.join(','), active: !!Number(row.active)
+    }
+  }
+
+  // -------------------------------------------------------------------- queue
+  function queueOrder(list) {
+    var first = {}, has1 = {}
+    list.forEach(function (it, i) { if (first[it.productId] == null) first[it.productId] = i; if (it.pos === 1) has1[it.productId] = true })
+    function eff(it) { return it.pos == null ? (has1[it.productId] ? 1.5 : 1) : it.pos }
+    return list.map(function (it, i) { return { it: it, i: i } }).sort(function (a, b) {
+      var fa = first[a.it.productId], fb = first[b.it.productId]
+      return fa - fb || eff(a.it) - eff(b.it) || a.i - b.i
+    }).map(function (x) { return x.it })
+  }
+  function toDataUrl(file, mime) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader()
+      fr.onload = function () {
+        var s = String(fr.result), at = s.indexOf(',')
+        // The payload is the file's own base64. Only the label is replaced: a file whose
+        // type the browser guessed wrongly must still carry the type its bytes have.
+        resolve('data:' + mime + ';base64,' + s.slice(at + 1))
+      }
+      fr.onerror = function () { reject(fr.error) }
+      fr.readAsDataURL(file)
+    })
+  }
+  function signedOut(r) { return r.status === 401 || (r.body && r.body.error === 'not_signed_in') }
+  function reason(r, fallbackKey) {
+    var code = r.status === 429 ? 'too_many' : r.status === 0 ? 'network' : (r.body && r.body.error) || ('HTTP ' + r.status)
+    var known = STR.en['e_' + code] != null
+    return { code: code, text: known ? t('e_' + code) : t(fallbackKey || 'e_save') + ' (' + code + ').' }
+  }
+  function fail(item, phase, r, fallbackKey) {
+    var why = reason(r, fallbackKey)
+    item.phase = phase; item.error = why.text; item.errorCode = why.code
+    run.failed++
+  }
+  function persistLog() {
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(-500))) } catch (e) { /* private window: the in-page list still works */ }
+  }
+  function loadLog() {
+    try { var j = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); if (Array.isArray(j)) log = j } catch (e) { log = [] }
+  }
+
+  async function processItem(item) {
+    var entry = null
+    run.current = item.name
+    if (!item.path) {
+      item.phase = 'uploading'; item.progress = 0; item.error = ''; item.errorCode = ''
+      refreshRow(item)
+      setStatus(t('running', { i: run.done + 1, n: run.total, name: item.name }))
+      var dataUrl
+      try { dataUrl = await toDataUrl(item.file, item.mime) } catch (e) { fail(item, 'failed', { status: 0, body: { error: 'read' } }); return }
+      var up = await patient(function () {
+        item.progress = 0
+        return postUpload({ name: item.name, data: dataUrl }, function (f) { item.progress = f; refreshProgress(item) })
+      }, item)
+      dataUrl = null
+      if (signedOut(up)) { halted = true; item.phase = 'idle'; item.progress = 0; return }
+      if (!up.ok || !up.body || typeof up.body.path !== 'string') { fail(item, 'failed', up, 'e_save'); return }
+      item.path = up.body.path; item.progress = 1
+      run.uploaded++
+      var p0 = productById(item.productId)
+      entry = { t: new Date().toISOString(), file: item.name, slug: p0 ? p0.slug : '', pos: item.pos, path: item.path, bytes: up.body.bytes, attached: false, prevImage: '', prevImages: '' }
+      log.push(entry); item.entry = entry; persistLog()
+    } else entry = item.entry || null
+
+    // Attach: read the row again right now, then save it whole.
+    item.phase = 'attaching'; item.error = ''; item.errorCode = ''
+    refreshRow(item)
+    var rd = await patient(function () { return call('products_all') }, item)
+    if (signedOut(rd)) { halted = true; item.phase = 'unattached'; return }
+    var rows = rowsOf(rd.body)
+    if (!rd.ok || !rows) { fail(item, 'unattached', { status: rd.status, body: { error: 'read_products' } }); return }
+    products = rows; buildIndex()
+    var row = productById(item.productId)
+    if (!row) { fail(item, 'unattached', { status: 0, body: { error: 'gone' } }); return }
+    var hold = holdCode(row)
+    if (hold) { item.phase = 'unattached'; item.error = t('r_' + hold); item.errorCode = hold; run.failed++; return }
+    var plan = attachPlan(row, item.path, item.pos)
+    if (plan.already) {
+      item.phase = 'done'; run.attached++; if (entry) { entry.attached = true; persistLog() }
+      item.note = t('attachedOk', { n: productName(row), w: plan.role === 'main' ? t('asMain') : t('asExtra', { k: plan.k }) })
+      return
+    }
+    var sv = await patient(function () { return call('product_save', saveBody(row, plan)) }, item)
+    if (signedOut(sv)) { halted = true; item.phase = 'unattached'; return }
+    if (!sv.ok || !sv.body || sv.body.error) { fail(item, 'unattached', sv, 'e_save'); return }
+    if (sv.body.id != null) for (var i = 0; i < products.length; i++) if (Number(products[i].id) === Number(sv.body.id)) products[i] = sv.body
+    item.phase = 'done'; run.attached++
+    item.note = t('attachedOk', { n: productName(row), w: plan.role === 'main' ? t('asMain') : t('asExtra', { k: plan.k }) })
+    if (entry) { entry.attached = true; entry.prevImage = plan.prevImage; entry.prevImages = plan.prevImages; persistLog() }
+  }
+
+  async function runQueue() {
+    if (running) return
+    running = true; stopReq = false; halted = false; showSummary = false
+    var order = queueOrder(items.filter(function (it) { return it.phase === 'queued' }))
+    run = { total: order.length, done: 0, uploaded: 0, attached: 0, failed: 0, current: '' }
+    refreshAll()
+    try {
+      for (var i = 0; i < order.length; i++) {
+        var it = order[i]
+        if (stopReq || halted) break
+        if (it.phase !== 'queued') continue
+        await processItem(it)
+        refreshRow(it)
+        run.done++
+        refreshAll()
+        if (halted) break
+        if (i < order.length - 1 && !stopReq) await sleep(cfg('paceMs', 250))
+      }
+    } finally {
+      var left = 0
+      items.forEach(function (it) { if (it.phase === 'queued') { it.phase = it.path ? 'unattached' : 'idle'; left++; refreshRow(it) } })
+      running = false
+      showSummary = true
+      if (halted) setStatus(t('halted'))
+      else if (stopReq && left) setStatus(t('stopped', { n: left }))
+      else setStatus(t('sumDone') + ' ' + t('sumLine', { u: run.uploaded, a: run.attached, f: run.failed }))
+      stopReq = false
+      refreshAll()
+    }
+  }
+  function enqueue(list) {
+    list.forEach(function (it) { it.phase = 'queued'; it.error = ''; it.errorCode = ''; refreshRow(it) })
+    if (list.length) runQueue()
+  }
+  function readyItems() { return items.filter(function (it) { return view(it).state === 'ready' }) }
+  function failedItems() { return items.filter(function (it) { return it.phase === 'failed' || it.phase === 'unattached' }) }
+
+  window.addEventListener('beforeunload', function (e) {
+    if (!running) return undefined
+    e.preventDefault(); e.returnValue = ''
+    return ''
+  })
+
+  // ------------------------------------------------------------------- styles
+  var CSS = [
+    '.sph{--sph-bg:#fff;--sph-soft:#f7f8fa;--sph-line:#d9dfe5;--sph-edge:#7d8799;--sph-text:#18212a;--sph-muted:#556274;--sph-action:#9a452c;--sph-action-hover:#813a25;--sph-on-action:#fff;--sph-ok:#166534;--sph-warn:#8a4b00;--sph-err:#be123c;--sph-focus:#9a452c;--sph-over:#f8ece6;',
+    'container-type:inline-size;box-sizing:border-box;margin:0 0 1.25rem;padding:1rem;border:1px solid var(--sph-line);border-radius:1rem;background:var(--sph-bg);color:var(--sph-text);font:400 .875rem/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:start}',
+    ':is(html.dark,html[data-theme="dark"]) .sph{--sph-bg:#151b21;--sph-soft:#1a2128;--sph-line:#303942;--sph-edge:#7a8896;--sph-text:#eef2f5;--sph-muted:#a7b3be;--sph-action:#ff7b17;--sph-action-hover:#ff9a4d;--sph-on-action:#171a1e;--sph-ok:#6ee7a3;--sph-warn:#fbbf24;--sph-err:#fda4af;--sph-focus:#ff7b17;--sph-over:#37251e}',
+    '.sph *,.sph *::before,.sph *::after{box-sizing:border-box}',
+    '.sph-title{margin:0;font-size:1.125rem;font-weight:700;color:var(--sph-text)}',
+    '.sph p{margin:.375rem 0 0;color:var(--sph-text)}',
+    '.sph .sph-muted{color:var(--sph-muted)}',
+    '.sph code{font:600 .8125rem/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--sph-text);background:var(--sph-soft);border:1px solid var(--sph-line);border-radius:.375rem;padding:0 .3rem;unicode-bidi:isolate;direction:ltr}',
+    '.sph ul{margin:0;padding:0;list-style:none}',
+    '.sph-ex{margin-top:.5rem!important;display:grid;gap:.25rem}',
+    '.sph-drop{margin-top:.875rem;display:flex;flex-wrap:wrap;align-items:center;gap:.75rem;padding:1rem;border:2px dashed var(--sph-edge);border-radius:.875rem;background:var(--sph-soft)}',
+    '.sph-drop[data-over="1"]{background:var(--sph-over);border-color:var(--sph-action)}',
+    '.sph-drop p{margin:0}',
+    '.sph-file{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    '.sph button,.sph select,.sph input[type="search"]{font:inherit;color:var(--sph-text);min-height:2.75rem;border-radius:.75rem}',
+    // The admin add-on stylesheet paints EVERY field with an !important ink (#18212a, for the white admin). In
+    // the dark theme that is dark ink on a dark field, so the panel's fields say their colours with !important too.
+    '.sph :is(select,input[type="search"]){color:var(--sph-text)!important;background-color:var(--sph-bg)!important}',
+    '.sph input::placeholder{color:var(--sph-muted)!important;opacity:1!important}',
+    '.sph .sph-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.5rem 1rem;border:1px solid var(--sph-edge);background:var(--sph-bg);color:var(--sph-text);font-weight:600;cursor:pointer;text-align:center}',
+    '.sph .sph-btn:hover:not(:disabled){background:var(--sph-soft);border-color:var(--sph-text)}',
+    '.sph .sph-btn--primary{background:var(--sph-action);border-color:transparent;color:var(--sph-on-action);font-weight:700}',
+    '.sph .sph-btn--primary:hover:not(:disabled){background:var(--sph-action-hover);border-color:transparent}',
+    '.sph .sph-btn:disabled{cursor:not-allowed;background:var(--sph-soft);border-color:var(--sph-line);color:var(--sph-muted)}',
+    '.sph .sph-btn--small{min-height:2.75rem;padding:.25rem .75rem;font-size:.8125rem}',
+    '.sph :is(button,select,input,summary):focus-visible,.sph .sph-drop:focus-visible{outline:2px solid var(--sph-focus);outline-offset:2px}',
+    '.sph select,.sph input[type="search"]{border:1px solid var(--sph-edge);background:var(--sph-bg);padding:.25rem .5rem}',
+    '.sph input[type="search"]{width:100%}',
+    '.sph-bar{margin-top:.875rem;display:flex;flex-wrap:wrap;gap:.5rem}',
+    '.sph-bar>.sph-btn{flex:1 1 auto}',
+    '@container (min-width:560px){.sph-bar>.sph-btn{flex:0 0 auto}}',
+    '.sph-prod{margin-top:.75rem!important}',
+    '.sph-overall{margin-top:.75rem;display:flex;align-items:center;gap:.75rem}',
+    '.sph progress{appearance:none;-webkit-appearance:none;height:.5rem;border:0;border-radius:.25rem;background:var(--sph-line);accent-color:var(--sph-action);overflow:hidden}',
+    '.sph progress::-webkit-progress-bar{background:var(--sph-line);border-radius:.25rem}',
+    '.sph progress::-webkit-progress-value{background:var(--sph-action);border-radius:.25rem}',
+    '.sph progress::-moz-progress-bar{background:var(--sph-action);border-radius:.25rem}',
+    '.sph-overall progress{flex:1 1 auto;min-width:0}',
+    '.sph-status{min-height:1.5rem;font-weight:600}',
+    '.sph-list{margin-top:.875rem!important;display:grid;gap:.625rem}',
+    '.sph-row{display:grid;grid-template-columns:3.5rem minmax(0,1fr);gap:.5rem .75rem;padding:.75rem;border:1px solid var(--sph-line);border-radius:.875rem;background:var(--sph-bg)}',
+    '.sph-row[data-state="done"]{background:var(--sph-soft)}',
+    '.sph-thumb{width:3.5rem;height:4.375rem;border-radius:.5rem;border:1px solid var(--sph-line);background:var(--sph-soft);object-fit:cover;display:block}',
+    '.sph-thumb--none{display:flex;align-items:center;justify-content:center;color:var(--sph-muted);font-size:.6875rem;font-weight:600}',
+    '.sph-main{min-width:0}',
+    '.sph-name{margin:0!important;font-weight:700;overflow-wrap:anywhere;unicode-bidi:plaintext}',
+    '.sph-meta{margin:.125rem 0 0!important;color:var(--sph-muted)!important}',
+    '.sph-match{margin-top:.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem}',
+    '.sph-match label{display:inline-flex;align-items:center;gap:.4rem;color:var(--sph-muted);font-weight:600}',
+    '.sph-who{display:inline-flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;min-width:0;font-weight:600}',
+    '.sph-warns{margin-top:.5rem!important;display:grid;gap:.25rem}',
+    '.sph-warns li{color:var(--sph-warn);font-weight:600}',
+    '.sph-warns li[data-level="block"]{color:var(--sph-err)}',
+    '.sph-side{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .75rem}',
+    '.sph-badge{display:inline-block;padding:.125rem .625rem;border:1px solid currentColor;border-radius:999px;background:var(--sph-bg);font-size:.8125rem;font-weight:700;color:var(--sph-muted)}',
+    '.sph-row[data-state="done"] .sph-badge{color:var(--sph-ok)}',
+    '.sph-row:is([data-state="failed"],[data-state="unattached"],[data-state="toolarge"],[data-state="refused"],[data-state="held"]) .sph-badge{color:var(--sph-err)}',
+    '.sph-row[data-state="needs"] .sph-badge{color:var(--sph-warn)}',
+    '.sph-row[data-state="ready"] .sph-badge{color:var(--sph-text)}',
+    '.sph-rowbar{width:6rem}',
+    '.sph-detail{margin:0!important;flex:1 1 12rem;min-width:0;overflow-wrap:anywhere}',
+    '.sph-detail[data-bad="1"]{color:var(--sph-err)}',
+    '.sph-picker{margin-top:.5rem;padding:.625rem;border:1px solid var(--sph-line);border-radius:.75rem;background:var(--sph-soft)}',
+    '.sph-results{margin-top:.5rem!important;display:grid;gap:.25rem}',
+    '.sph-results .sph-btn{width:100%;justify-content:flex-start;flex-wrap:wrap;text-align:start}',
+    '.sph-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}',
+    '.sph-sum{margin-top:.875rem;padding:.75rem;border:1px solid var(--sph-line);border-radius:.75rem;background:var(--sph-soft)}',
+    '.sph-sum h4{margin:0;font-size:.9375rem;font-weight:700;color:var(--sph-text)}',
+    '.sph-log{margin-top:.875rem}',
+    '.sph-log summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;border-radius:.5rem}',
+    '.sph-log ol{margin:.5rem 0 0;padding:0 1.25rem;display:grid;gap:.25rem}',
+    '.sph-log li{overflow-wrap:anywhere}',
+    '@container (min-width:600px){.sph-row{grid-template-columns:4.5rem minmax(0,1fr) minmax(11rem,16rem)}.sph-thumb{width:4.5rem;height:5.625rem}.sph-side{grid-column:auto;flex-direction:column;align-items:flex-start}.sph-rowbar{width:100%}}',
+    '@media (prefers-reduced-motion:no-preference){.sph-row{transition:background-color .15s ease}.sph .sph-btn{transition:background-color .15s ease,border-color .15s ease}}'
+  ].join('\n')
+  function ensureStyle() {
+    if (styleEl && styleEl.isConnected) return
+    styleEl = document.createElement('style')
+    styleEl.setAttribute('data-sporta-photos-style', '')
+    styleEl.textContent = CSS
+    document.head.appendChild(styleEl)
+  }
+
+  // ----------------------------------------------------------------- the panel
+  function button(cls, label, k, onClick) {
+    var b = el('button', 'sph-btn' + (cls ? ' ' + cls : ''), label)
+    b.type = 'button'
+    if (k) b.setAttribute('data-k', k)
+    if (onClick) b.addEventListener('click', onClick)
+    return b
+  }
+  function setStatus(msg) {
+    statusText = msg
+    if (refs && refs.status && refs.status.textContent !== msg) refs.status.textContent = msg
+  }
+
+  function buildPanel() {
+    ensureStyle()
+    var root = el('section', 'sph')
+    root.setAttribute('data-sporta-photos', '')
+    root.setAttribute('lang', lang)
+    root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr')
+    root.setAttribute('aria-labelledby', 'sph-title')
+    var head = el('h3', 'sph-title', t('title')); head.id = 'sph-title'
+    root.appendChild(head)
+    root.appendChild(el('p', '', t('intro')))
+    var ex = el('ul', 'sph-ex')
+    ;[['tee-white-1.jpg', 'exMain'], ['tee-white-2.jpg', 'exSecond'], ['tee-white.jpg', 'exAuto']].forEach(function (e) {
+      var li = el('li'); li.appendChild(el('code', '', e[0])); li.appendChild(document.createTextNode(' → ' + t(e[1]))); ex.appendChild(li)
+    })
+    root.appendChild(ex)
+    root.appendChild(el('p', 'sph-muted', t('limits')))
+
+    var drop = el('div', 'sph-drop')
+    drop.setAttribute('role', 'group'); drop.setAttribute('aria-label', t('dropAria'))
+    var input = el('input', 'sph-file')
+    input.type = 'file'; input.multiple = true; input.accept = 'image/png,image/jpeg,image/webp'
+    input.setAttribute('data-sph', 'input'); input.tabIndex = -1; input.setAttribute('aria-hidden', 'true')
+    var choose = button('sph-btn--primary', t('choose'), 'choose', function () { input.click() })
+    input.addEventListener('change', function () { addFiles(input.files); input.value = '' })
+    drop.appendChild(choose); drop.appendChild(el('p', 'sph-muted', t('drop'))); drop.appendChild(input)
+    ;['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.setAttribute('data-over', '1') }) })
+    drop.addEventListener('dragleave', function (e) { if (!drop.contains(e.relatedTarget)) drop.removeAttribute('data-over') })
+    drop.addEventListener('drop', function (e) { e.preventDefault(); drop.removeAttribute('data-over'); if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files) })
+    root.appendChild(drop)
+
+    var prod = el('p', 'sph-prod sph-muted'); prod.setAttribute('role', 'status')
+    var reload = button('sph-btn--small', t('reload'), 'reload', function () { loadProducts(true) })
+    root.appendChild(prod)
+
+    var bar = el('div', 'sph-bar')
+    var start = button('sph-btn--primary', t('uploadNone'), 'start', function () { enqueue(readyItems()) })
+    var stop = button('', t('stop'), 'stop', function () { stopReq = true; setStatus(t('stopping')); refreshAll() })
+    var retry = button('', '', 'retryall', function () { enqueue(failedItems()) })
+    var clear = button('', t('clear'), 'clear', function () {
+      items = items.filter(function (it) { return it.phase === 'uploading' || it.phase === 'attaching' || it.phase === 'queued' })
+      showSummary = false; rebuildList(); refreshAll()
+    })
+    ;[start, stop, retry, clear].forEach(function (b) { bar.appendChild(b) })
+    root.appendChild(bar)
+    var hint2 = el('p', 'sph-muted sph-hint')
+    root.appendChild(hint2)
+
+    var overall = el('div', 'sph-overall'); overall.hidden = true
+    var bar2 = document.createElement('progress'); bar2.max = 1; bar2.value = 0; bar2.setAttribute('aria-label', t('overallLabel'))
+    var overallText = el('span', 'sph-muted')
+    overall.appendChild(bar2); overall.appendChild(overallText)
+    root.appendChild(overall)
+
+    var status = el('p', 'sph-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('data-sph', 'status')
+    root.appendChild(status)
+    var list = el('ul', 'sph-list'); list.setAttribute('data-sph', 'list')
+    root.appendChild(list)
+    var sum = el('div', 'sph-sum'); sum.hidden = true; sum.setAttribute('data-sph', 'summary')
+    root.appendChild(sum)
+
+    var det = document.createElement('details'); det.className = 'sph-log'
+    var summ = el('summary', '', ''); det.appendChild(summ)
+    var hint = el('p', 'sph-muted', t('logHint'))
+    var ol = el('ol'); ol.setAttribute('data-sph', 'log')
+    var acts = el('div', 'sph-bar')
+    var copy = button('sph-btn--small', t('logCopy'), 'logcopy', function () { copyLog() })
+    var save = button('sph-btn--small', t('logSave'), 'logsave', function () { downloadLog() })
+    acts.appendChild(copy); acts.appendChild(save)
+    det.appendChild(hint); det.appendChild(ol); det.appendChild(acts)
+    root.appendChild(det)
+
+    refs = { root: root, drop: drop, input: input, prod: prod, reload: reload, start: start, stop: stop, retry: retry, clear: clear, overall: overall, bar: bar2, overallText: overallText,
+      status: status, hint: hint2, list: list, sum: sum, logSummary: summ, logList: ol, logDet: det }
+    panel = root
+    status.textContent = statusText
+    return root
+  }
+
+  function logLine(e) {
+    return [e.t, e.slug || '?', 'pos ' + (e.pos == null ? 'auto' : e.pos), e.path, e.attached ? 'attached' : 'NOT attached',
+      'was image=' + (e.prevImage || '-') + ' images=' + (e.prevImages || '-'), e.file].join(' | ')
+  }
+  function logText() { return log.map(logLine).join('\n') + (log.length ? '\n' : '') }
+  function copyLog() {
+    var text = logText()
+    function done() { setStatus(t('logCopied')) }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done) })
+    else fallbackCopy(text, done)
+  }
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea')
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+    document.body.appendChild(ta); ta.select()
+    try { document.execCommand('copy'); done() } catch (e) { /* the list is on screen to copy by hand */ }
+    document.body.removeChild(ta)
+  }
+  function downloadLog() {
+    var url = URL.createObjectURL(new Blob([logText()], { type: 'text/plain;charset=utf-8' }))
+    var a = document.createElement('a')
+    a.href = url; a.download = 'sporta-photos-written.txt'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(function () { URL.revokeObjectURL(url) }, 2000)
+  }
+
+  // --------------------------------------------------------------- the rows
+  function keepFocus(root, fn) {
+    var a = document.activeElement, k = a && root.contains(a) ? a.getAttribute('data-k') : null
+    var picked = k === 'psearch' && a ? a.value : null
+    fn()
+    if (k) {
+      var n = root.querySelector('[data-k="' + k + '"]')
+      if (n && !n.disabled && !n.hidden) { n.focus(); if (picked != null && n.setSelectionRange) try { n.setSelectionRange(picked.length, picked.length) } catch (e) { /* not a text field */ } }
+    }
+  }
+  function rebuildList() {
+    if (!refs) return
+    while (refs.list.firstChild) refs.list.removeChild(refs.list.firstChild)
+    items.forEach(function (it) {
+      var li = el('li', 'sph-row'); li.setAttribute('data-id', String(it.id))
+      it.node = li
+      refs.list.appendChild(li)
+      renderRow(it)
+    })
+  }
+  function refreshRow(it) {
+    if (!it.node || !it.node.isConnected) return
+    keepFocus(it.node, function () { renderRow(it) })
+  }
+  function refreshProgress(it) {
+    var p = it.node && it.node.querySelector('progress')
+    if (p) p.value = it.progress
+  }
+  function editable(it) { return it.phase === 'idle' || it.phase === 'failed' || it.phase === 'unattached' || it.phase === 'queued' }
+
+  function renderRow(it) {
+    var li = it.node, v = view(it)
+    while (li.firstChild) li.removeChild(li.firstChild)
+    li.setAttribute('data-state', v.state)
+    // thumbnail (decorative: the name is next to it)
+    if (it.thumb) { var img = el('img', 'sph-thumb'); img.alt = ''; img.src = it.thumb; li.appendChild(img) }
+    else li.appendChild(el('div', 'sph-thumb sph-thumb--none', it.mime ? FORMATS[it.mime] : ''))
+    var main = el('div', 'sph-main')
+    var nm = el('p', 'sph-name', it.name); nm.setAttribute('dir', 'ltr'); main.appendChild(nm)
+    var meta = [fmtSize(it.size)]
+    if (it.w && it.h) meta.push(num(it.w) + '×' + num(it.h) + ' ' + t('unit'))
+    if (it.mime) meta.push(FORMATS[it.mime])
+    var mp = el('p', 'sph-meta', meta.join(' · ')); main.appendChild(mp)
+
+    if (!it.block) {
+      var match = el('div', 'sph-match')
+      var who = el('span', 'sph-who')
+      var lab = el('span', 'sph-muted', t('product') + ':')
+      who.appendChild(lab)
+      if (v.product) {
+        who.appendChild(document.createTextNode(productName(v.product)))
+        who.appendChild(el('code', '', String(v.product.slug)))
+        if (isHidden(v.product)) who.appendChild(el('span', 'sph-muted', t('hidden')))
+      } else who.appendChild(document.createTextNode(t('choosePro')))
+      match.appendChild(who)
+      if (editable(it)) {
+        var ch = button('sph-btn--small', t('change'), 'change', function () { it.picker = !it.picker; if (!it.picker) it.pickerNode = null; refreshRow(it); if (it.picker) { var s = it.node.querySelector('[data-k="psearch"]'); if (s) s.focus() } })
+        ch.setAttribute('aria-expanded', it.picker ? 'true' : 'false')
+        match.appendChild(ch)
+        var pl = el('label'); pl.appendChild(el('span', 'sph-lbl', t('position')))
+        var sel = document.createElement('select'); sel.setAttribute('data-k', 'pos')
+        var opt0 = el('option', '', t('auto')); opt0.value = ''; sel.appendChild(opt0)
+        for (var n = 1; n <= 12; n++) { var o = el('option', '', num(n)); o.value = String(n); sel.appendChild(o) }
+        sel.value = it.pos == null ? '' : String(it.pos)
+        sel.addEventListener('change', function () { it.pos = sel.value === '' ? null : Number(sel.value); it.manual = true; items.forEach(refreshRow); refreshAll() })
+        pl.appendChild(sel)
+        match.appendChild(pl)
+      } else if (it.pos != null) {
+        match.appendChild(el('span', 'sph-muted', t('position') + ': ' + num(it.pos)))
+      }
+      main.appendChild(match)
+      if (it.picker && editable(it)) main.appendChild(pickerFor(it))
+    }
+    if (v.warns.length) {
+      var wl = el('ul', 'sph-warns')
+      v.warns.forEach(function (w) { var wi = el('li', '', (w.level === 'block' ? '✕ ' : '▲ ') + w.text); wi.setAttribute('data-level', w.level); wl.appendChild(wi) })
+      main.appendChild(wl)
+    }
+    li.appendChild(main)
+
+    var side = el('div', 'sph-side')
+    side.appendChild(el('span', 'sph-badge', t('st_' + v.state)))
+    if (it.phase === 'uploading' || it.phase === 'attaching') {
+      var pr = document.createElement('progress'); pr.className = 'sph-rowbar'; pr.max = 1
+      pr.setAttribute('aria-label', t('st_' + v.state) + ': ' + it.name)
+      if (it.phase === 'uploading') pr.value = it.progress
+      side.appendChild(pr)
+    }
+    var detail = ''
+    if (it.error) detail = it.error
+    else if (it.note) detail = it.note
+    if (detail) { var d = el('p', 'sph-detail', detail); if (it.error) d.setAttribute('data-bad', '1'); side.appendChild(d) }
+    if (it.path) { var pp = el('p', 'sph-detail sph-muted'); pp.appendChild(document.createTextNode(t('path', { p: '' }))); pp.appendChild(el('code', '', it.path)); side.appendChild(pp) }
+    if (it.phase === 'failed' || it.phase === 'unattached') side.appendChild(button('sph-btn--small', t('retry'), 'retry', function () { enqueue([it]) }))
+    if (it.phase !== 'uploading' && it.phase !== 'attaching' && it.phase !== 'queued') {
+      side.appendChild(button('sph-btn--small', t('remove'), 'remove', function () {
+        items = items.filter(function (x) { return x !== it }); if (it.node && it.node.parentNode) it.node.parentNode.removeChild(it.node); refreshAll()
+      }))
+    }
+    li.appendChild(side)
+  }
+
+  /** The searchable product list for one file. Built once per opening so typing is never interrupted by a refresh. */
+  function pickerFor(it) {
+    if (it.pickerNode) return it.pickerNode
+    var box = el('div', 'sph-picker')
+    var input = el('input'); input.type = 'search'; input.setAttribute('data-k', 'psearch'); input.setAttribute('aria-label', t('search')); input.placeholder = t('search'); input.autocomplete = 'off'
+    var live = el('p', 'sph-sr'); live.setAttribute('role', 'status')
+    var ul = el('ul', 'sph-results')
+    var more = el('p', 'sph-muted')
+    function fill() {
+      var q = norm(input.value).split('-').filter(Boolean)
+      var hits = (products || []).filter(function (p) {
+        var hay = ' ' + String(p.slug).toLowerCase() + ' ' + String(p.name_en || '').toLowerCase() + ' ' + String(p.name_ar || '').toLowerCase()
+        hay = hay.replace(/[^a-z0-9؀-ۿ]+/g, ' ')
+        return q.every(function (w) { return hay.indexOf(w) >= 0 })
+      })
+      while (ul.firstChild) ul.removeChild(ul.firstChild)
+      hits.slice(0, 8).forEach(function (p, i) {
+        var li = el('li')
+        var b = button('', '', 'pick' + i, function () {
+          it.productId = Number(p.id); it.manual = true; it.ambiguous = false; it.picker = false; it.pickerNode = null
+          refreshRow(it); refreshAll()
+          var c = it.node.querySelector('[data-k="change"]'); if (c) c.focus()
+        })
+        b.appendChild(document.createTextNode(productName(p))); b.appendChild(el('code', '', String(p.slug)))
+        if (isHidden(p)) b.appendChild(el('span', 'sph-muted', t('hidden')))
+        li.appendChild(b); ul.appendChild(li)
+      })
+      more.textContent = hits.length > 8 ? t('more', { n: hits.length - 8 }) : (hits.length ? '' : t('noResults'))
+      live.textContent = t('results', { n: hits.length })
+    }
+    input.addEventListener('input', fill)
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); it.picker = false; it.pickerNode = null; refreshRow(it); var c = it.node.querySelector('[data-k="change"]'); if (c) c.focus() }
+      if (e.key === 'Enter' && e.target === input) e.preventDefault()
+    })
+    box.appendChild(input); box.appendChild(live); box.appendChild(ul); box.appendChild(more)
+    fill()
+    it.pickerNode = box
+    return box
+  }
+
+  // ------------------------------------------------------- panel-level refresh
+  function refreshAll() {
+    if (!refs) return
+    var ready = 0, needs = 0, held = 0
+    items.forEach(function (it) { var s = view(it).state; if (s === 'ready') ready++; else if (s === 'needs') needs++; else if (s === 'held') held++ })
+    var failed = failedItems().length
+    refs.prod.textContent = ''
+    if (loadingProducts) refs.prod.textContent = t('prodLoading')
+    else if (productsErr) {
+      refs.prod.appendChild(document.createTextNode(t('prodFail', { e: productsErr }) + ' '))
+      refs.prod.appendChild(refs.reload)
+    } else if (products) refs.prod.textContent = t('prodCount', { n: products.length })
+    refs.start.textContent = ready === 1 ? t('upload1') : ready > 1 ? t('upload', { n: ready }) : t('uploadNone')
+    refs.start.disabled = running || ready === 0
+    refs.stop.hidden = !running
+    refs.stop.disabled = stopReq
+    refs.retry.hidden = running || failed === 0
+    refs.retry.textContent = t('retryAll', { n: failed })
+    refs.clear.disabled = running && items.every(function (it) { return it.phase === 'queued' || it.phase === 'uploading' || it.phase === 'attaching' })
+    refs.clear.hidden = items.length === 0
+    refs.overall.hidden = !(running || (showSummary && run.total))
+    refs.bar.max = Math.max(1, run.total); refs.bar.value = run.done
+    refs.overallText.textContent = t('overall', { d: run.done, n: run.total })
+    // idle hints: how many are ready / waiting for a product, as the list is built
+    var parts = []
+    if (ready) parts.push(t('readyN', { n: ready }))
+    if (needs) parts.push(t('needProduct', { n: needs }))
+    refs.hint.textContent = parts.join(' ')
+    if (showSummary && run.total) {
+      refs.sum.hidden = false
+      while (refs.sum.firstChild) refs.sum.removeChild(refs.sum.firstChild)
+      refs.sum.appendChild(el('h4', '', t('sumTitle')))
+      refs.sum.appendChild(el('p', '', t('sumLine', { u: run.uploaded, a: run.attached, f: run.failed })))
+    } else refs.sum.hidden = true
+    refs.logSummary.textContent = t('logTitle', { n: log.length })
+    while (refs.logList.firstChild) refs.logList.removeChild(refs.logList.firstChild)
+    if (!log.length) refs.logList.appendChild(el('li', 'sph-muted', t('logEmpty')))
+    log.slice(-200).forEach(function (e) { var li = el('li'); li.setAttribute('dir', 'ltr'); li.textContent = logLine(e); refs.logList.appendChild(li) })
+    refs.root.setAttribute('aria-busy', running ? 'true' : 'false')
+  }
+
+  async function loadProducts(force) {
+    if (loadingProducts || (running && !force)) return
+    loadingProducts = true; productsErr = ''
+    refreshAll()
+    var r = await call('products_all')
+    loadingProducts = false
+    var rows = rowsOf(r.body)
+    if (r.ok && rows) { products = rows; productsErr = ''; rematchAll() }
+    else if (!products) productsErr = r.status === 401 ? 'not_signed_in' : errCode(r)
+    rebuildList(); refreshAll()
+  }
+
+  // -------------------------------------------------------- finding the screen
+  function cellText(n) { return String(n.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase() }
+  /** The Catalogue's product list: a table headed Product / Web name / Price / On sale. */
+  function findTable() {
+    var tables = document.querySelectorAll('main table, .admin-content table')
+    for (var i = 0; i < tables.length; i++) {
+      var tb = tables[i]
+      if (panel && panel.contains(tb)) continue
+      var ths = Array.prototype.map.call(tb.querySelectorAll('thead th'), cellText)
+      if (ths.indexOf('product') >= 0 && ths.indexOf('price') >= 0 && (ths.indexOf('web name') >= 0 || ths.indexOf('on sale') >= 0)) return tb
+    }
+    var hs = document.querySelectorAll('main h2, main h3, .admin-content h2, .admin-content h3')
+    for (var j = 0; j < hs.length; j++) {
+      if (/every product in the database/i.test(hs[j].textContent || '')) {
+        var sec = hs[j].closest('section') || hs[j].parentElement
+        var t2 = sec && sec.querySelector('table')
+        if (t2) return t2
+      }
+    }
+    return null
+  }
+  function scan() {
+    var tb = findTable()
+    if (!tb) {
+      onScreen = false
+      if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+      return
+    }
+    var host = tb, main = tb.closest('main') || document.body
+    while (host.parentElement && host.parentElement !== main && host.parentElement.children.length === 1) host = host.parentElement
+    var L = langOf(host)
+    if (!panel) { lang = L; buildPanel(); rebuildList(); refreshAll() }
+    else if (L !== lang) {
+      lang = L
+      items.forEach(function (it) { it.pickerNode = null })
+      var old = panel
+      buildPanel()
+      if (old.parentNode) old.parentNode.replaceChild(panel, old)
+      rebuildList(); refreshAll()
+    }
+    var entering = !onScreen
+    onScreen = true
+    if (!host.parentNode) return
+    if (panel.parentNode !== host.parentNode || panel.nextElementSibling !== host) host.parentNode.insertBefore(panel, host)
+    if (entering && !running && !loadingProducts) loadProducts()
+  }
+
+  var queued = false
+  function schedule() {
+    if (queued) return
+    queued = true
+    requestAnimationFrame(function () { queued = false; try { scan() } catch (e) { /* never break the admin */ } })
+  }
+  function start() {
+    loadLog()
+    schedule()
+    // Our own redraws (progress ticks, rows) are not news: only changes elsewhere matter.
+    new MutationObserver(function (muts) {
+      if (panel) {
+        var outside = false
+        for (var i = 0; i < muts.length; i++) if (!panel.contains(muts[i].target)) { outside = true; break }
+        if (!outside) return
+      }
+      schedule()
+    }).observe(document.body, { childList: true, subtree: true })
+    new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start()
+})()
+/* ===== ADMIN PHOTO UPLOADER - end ======================================== */

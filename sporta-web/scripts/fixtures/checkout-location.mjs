@@ -26,6 +26,7 @@
 // note as text, NO textarea, no location control) instead of the form. The fixture models that:
 //   - opts.saved     a profile object seeded into localStorage BEFORE the page script runs (once per browser
 //                    session; opts.savedRaw seeds an exact string instead)
+//   - opts.savedSession  the same, as a raw string, into sessionStorage
 //   - opts.appAfter  boot the app AFTER the add-on (a deferred module script placed behind it) instead of before
 //   - window.__save(remember)  what the storefront does on "continue": writes the form to the key, NOT submitting
 //   - window.__showForm()      the quick checkout's "edit details" button
@@ -71,7 +72,8 @@ const COPY = {
 // opts: { note, maxlength, themeDark }
 export function page(lang, opts = {}) {
   const seedValue = opts.savedRaw !== undefined ? opts.savedRaw : opts.saved ? JSON.stringify(opts.saved) : null
-  const seed = seedValue === null ? '' : `<script>try { if (!sessionStorage.getItem('__seeded')) { sessionStorage.setItem('__seeded', '1'); localStorage.setItem('sporta.delivery', ${JSON.stringify(seedValue)}); } } catch (e) {}</script>`
+  const sess = opts.savedSession ? `sessionStorage.setItem('sporta.delivery', ${JSON.stringify(opts.savedSession)});` : ''
+  const seed = seedValue === null && !sess ? '' : `<script>try { if (!sessionStorage.getItem('__seeded')) { sessionStorage.setItem('__seeded', '1'); ${seedValue === null ? '' : `localStorage.setItem('sporta.delivery', ${JSON.stringify(seedValue)});`} ${sess} } } catch (e) {}</script>`
   const maxlength = opts.maxlength === undefined ? 280 : opts.maxlength
   const dark = opts.themeDark
     ? `:root{--surface:#171a1e;--ink:#f3efe6;--text-muted:#b9c1c9;--line-strong:#8a96a2;--canvas:#0f1114;--canvas-muted:#0f1114}`

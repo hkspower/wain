@@ -668,6 +668,20 @@ p, li, dd, figcaption {
 }
 
 
+/* The invoice's logo in two inks (Invoice.jsx): black lettering on a light card,
+ * white lettering on the dark theme's charcoal one. Only one is displayed; the
+ * other is display:none, so it is neither painted nor read out. The print block
+ * below puts the black one back whatever the theme. */
+.invoice-logo-dark {
+  display: none;
+}
+[data-theme='dark'] .invoice-logo-dark {
+  display: block;
+}
+[data-theme='dark'] .invoice-logo-light {
+  display: none;
+}
+
 /* ---- Printing, and specifically printing the invoice ----
  * An invoice is a document a customer keeps, forwards, or hands to a company
  * accounts department. It has to survive leaving the browser.
@@ -696,27 +710,94 @@ p, li, dd, figcaption {
 
   /* Fixed-position furniture is NOT part of the document either, and it is the
      one kind of element print does not leave alone: a fixed box is laid out
-     against the PAGE and repeated on every page. Measured on a six-page
-     invoice, three of them leaked onto paper:
+     against the PAGE and repeated on every page. Measured on a multi-page
+     invoice:
        * the skip link ("Skip to content", an orange button) — parked at
          top:-4rem, which on paper is the bottom of the previous page — printed
-         at the foot of every page;
-       * the closed cart drawer — kept in the DOM off-canvas, so its box-shadow
-         bled a grey band down the page margin on every page;
-       * the drawer's backdrop (bg-ink/60) — printed as a solid charcoal slab
-         over the end of the last page, the one large dark fill on the
-         document, with print-color-adjust:exact above forcing it onto paper.
-     `body > .fixed` is every overlay that is portalled out of the app (the
-     drawer and its scrim today, any future dialog tomorrow); the skip link
-     sits inside the app, so it is named. */
+         at the foot of EVERY page;
+       * the cart drawer and its backdrop print nothing while closed (off-canvas
+         and transparent) but are fixed overlays like any other: with the bag
+         open when Print is pressed, the 60% charcoal backdrop covered every
+         page — the printed sheet measured 57% luminance against 99% without it.
+     `body > .fixed` is every overlay portalled out of the app (the drawer and
+     its backdrop today, any future dialog tomorrow); the skip link sits inside
+     the app, so it is named. */
   .skip-link,
   .cart-drawer,
   body > .fixed {
     display: none !important;
   }
 
-  body {
+  /* PAPER IS WHITE, whatever theme the screen was in.
+     Three separate leaks, all measured on the printed invoice:
+
+     1. `html` carries a charcoal background in every theme — index.html inlines
+        `html { background: #171a1e }` so the first paint is not white — and the
+        `body { background: #fff }` only paints body's own box. Wherever the
+        document does not fill the sheet (the rest of the last page; a hairline
+        seam down the end margin of every page) the root's charcoal shows, and
+        print-color-adjust:exact above sends it to paper: a solid dark slab
+        under the footer of a multi-page invoice. !important on the root,
+        because that charcoal is an inline <style> in <head> that may sit after
+        this stylesheet in document order.
+     2. `color-scheme`. The boot script writes `color-scheme: dark` INLINE on
+        <html>, and under it Chrome paints the page MARGIN (the 14mm outside the
+        body box) in the dark canvas colour whatever background the root
+        declares: a charcoal frame around every sheet with a white block in the
+        middle. An inline style loses to an !important rule in a stylesheet, so
+        this is the one way to take it back.
+     3. In the DARK theme (the OS preference most phones ship with) the dark
+        remaps — `[data-theme='dark'] body / .bg-white / .text-slate-*` — are
+        written without a media query, so they apply to print: the article
+        printed as a charcoal card with near-white text, the whole sheet 88%
+        ink. The remaps are unlayered and `!important`, so each class the
+        invoice uses is put back at higher specificity (the `html` + `.invoice`
+        prefix), reading the same Tailwind variables the light theme does.
+        `--accent-text` is the one token the theme flips, and it flips to a
+        light orange that is 2.4:1 on white. */
+  html {
+    background: #fff !important;
+    color-scheme: light !important;
+  }
+  body,
+  html[data-theme='dark'] body {
     background: #fff;
+  }
+  html[data-theme='dark'] body {
+    color: #171a1e;
+  }
+  html[data-theme='dark'] {
+    --accent-text: 19 88% 34%; /* the light-theme value, #A33A0A */
+  }
+  html[data-theme='dark'] .invoice .bg-white {
+    background-color: #fff !important;
+    color: #171a1e;
+  }
+  html[data-theme='dark'] .invoice .text-slate-900 {
+    color: var(--color-slate-900, #0f172a) !important;
+  }
+  html[data-theme='dark'] .invoice .text-slate-700 {
+    color: var(--color-slate-700, #334155) !important;
+  }
+  html[data-theme='dark'] .invoice .text-slate-600 {
+    color: var(--color-slate-600, #475569) !important;
+  }
+  html[data-theme='dark'] .invoice .border-slate-100 {
+    border-color: var(--color-slate-100, #f1f5f9) !important;
+  }
+  html[data-theme='dark'] .invoice .border-slate-200 {
+    border-color: var(--color-slate-200, #e2e8f0) !important;
+  }
+  html[data-theme='dark'] .invoice .border-slate-300 {
+    border-color: var(--color-slate-300, #cbd5e1) !important;
+  }
+
+  /* Black lettering on white paper, in either theme. */
+  .invoice .invoice-logo-dark {
+    display: none !important;
+  }
+  .invoice .invoice-logo-light {
+    display: block !important;
   }
 
   .invoice {

@@ -87,7 +87,7 @@ const OLD_AR = 'يوجد موقع في ملاحظتك. أزله إن كنت في
 // throw | absent. Every call is counted (and its options kept) by a wrapper installed before any page script.
 async function open(o = {}) {
   const { lang = 'ar', w = 390, h = 844, grant = true, geo = KUWAIT, mode = 'real', note = '', maxlength, policy = 'geolocation=(self)', dark = false, addon = ADDON,
-    saved, savedRaw, appAfter = false, ready = '#f-note', fastDog = false, noPolicyApi = false } = o
+    saved, savedRaw, savedSession, appAfter = false, ready = '#f-note', fastDog = false, noPolicyApi = false, path = '/checkout' } = o
   const ctx = await browser.newContext({
     viewport: { width: w, height: h }, locale: lang === 'ar' ? 'ar-KW' : 'en-US',
     permissions: grant ? ['geolocation'] : [], geolocation: geo,
@@ -99,7 +99,7 @@ async function open(o = {}) {
     if (u.origin !== ORIGIN) { external.push(u.href); return route.abort() }
     if (u.pathname === '/sporta-gov-autopick.js') return route.fulfill({ contentType: 'text/javascript; charset=utf-8', body: addon })
     const headers = policy ? { 'permissions-policy': policy } : {}
-    return route.fulfill({ contentType: 'text/html; charset=utf-8', headers, body: fixture(lang, { note, maxlength, themeDark: dark, saved, savedRaw, appAfter }) })
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', headers, body: fixture(lang, { note, maxlength, themeDark: dark, saved, savedRaw, savedSession, appAfter }) })
   })
   // Runs before any page script, so the add-on wraps THIS setItem/getItem: the spy is the "native" layer. It records
   // what the native layer is given, throws QuotaExceededError for the key "boom" or a value containing QUOTA, and
@@ -131,7 +131,7 @@ async function open(o = {}) {
         if (m === 'timeout') { setTimeout(function () { err({ code: 3, message: 'Timeout' }) }, 30); return }
         if (m === 'timeout-once' && window.__geoCalls === 1) { setTimeout(function () { err({ code: 3, message: 'Timeout' }) }, 30); return }
         if (m === 'late') { setTimeout(function () { ok({ coords: { latitude: 29.37, longitude: 47.97, accuracy: 10 } }) }, 1600); return }
-        var bad = { nullcoords: { latitude: null, longitude: null, accuracy: 10 }, nan: { latitude: NaN, longitude: 47.9, accuracy: 10 }, range: { latitude: 91, longitude: 47.9, accuracy: 10 }, lng: { latitude: 29.3, longitude: 181, accuracy: 10 }, str: { latitude: 'abc', longitude: '47.9', accuracy: 10 } }[m]
+        var bad = { nullcoords: { latitude: null, longitude: 47.9, accuracy: 10 }, nan: { latitude: NaN, longitude: 47.9, accuracy: 10 }, range: { latitude: 91, longitude: 47.9, accuracy: 10 }, lng: { latitude: 29.3, longitude: 181, accuracy: 10 }, str: { latitude: 'abc', longitude: '47.9', accuracy: 10 } }[m]
         if (bad) { setTimeout(function () { ok({ coords: bad }) }, 30); return }
         if (m === 'unavailable') { setTimeout(function () { err({ code: 2, message: 'Position unavailable' }) }, 30); return }
         if (m === 'hang') return
@@ -144,8 +144,8 @@ async function open(o = {}) {
   pg.setDefaultTimeout(4000)
   const errors = []
   pg.on('pageerror', (e) => errors.push(String(e)))
-  await pg.goto(ORIGIN + '/checkout')
-  await pg.waitForSelector(ready)
+  await pg.goto(ORIGIN + path)
+  await pg.waitForSelector(path === '/checkout' ? ready : '#to-checkout')
   await sleep(350)   // the add-on's first pass (script is defer) and its debounce
   return { pg, ctx, external, requests, errors }
 }
@@ -676,6 +676,16 @@ const sets = (pg) => pg.evaluate(() => window.__sets.filter((x) => x[1] === 'spo
   await done(s)
 }
 {
+  // N4b: the load-time pass does not depend on /checkout: opened on a shop page (no navigation pass can run), a
+  // stored value in either storage is already clean
+  const dirty = JSON.stringify(withNote('Gate 3 ' + LINE_AR))
+  const s = await open({ lang: 'en', savedRaw: dirty, savedSession: dirty, path: '/shop' })
+  const l = await parsed(s.pg, 'localStorage'), ss = await parsed(s.pg, 'sessionStorage')
+  is(l && l.note === 'Gate 3' && l.name === 'Sara Ali', 'N4b localStorage "sporta.delivery" is scrubbed on load, on a page that is not /checkout', JSON.stringify(l))
+  is(ss && ss.note === 'Gate 3' && ss.area === 'Salmiya', 'N4c and so is sessionStorage "sporta.delivery"', JSON.stringify(ss))
+  await done(s)
+}
+{
   // N5: a write of the form with a location line stores no line; the page keeps its own
   const s = await open({ lang: 'en', note: 'Gate 3' })
   const { pg } = s
@@ -726,9 +736,9 @@ const sets = (pg) => pg.evaluate(() => window.__sets.filter((x) => x[1] === 'spo
   await pg.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify({ note: 'a ' + LINE_EN + ' b', street: 'near ' + LINE_EN, floor: LINE_AR, extra: { note: LINE_EN + ' z' } })])
   const p = await parsed(pg)
   is(p.note === 'a b' && p.street === 'near ' + LINE_EN && p.floor === LINE_AR && p.extra.note === 'z', 'N15 only NOTE fields lose the line; another field that happens to contain one is untouched', JSON.stringify(p))
-  for (const raw of ['not json maps?q=1 ' + LINE_EN, '"' + LINE_EN + '"', JSON.stringify({ note: 5, x: LINE_EN }), JSON.stringify([LINE_EN])]) {
+  for (const raw of ['{ "street" : "near ' + LINE_EN + '" ,  "note":"plain" }', 'not json maps?q=1 ' + LINE_EN, '"' + LINE_EN + '"', JSON.stringify({ note: 5, x: LINE_EN }), JSON.stringify([LINE_EN])]) {
     await pg.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, raw])
-    is((await stored(pg)) === raw, `N16 an unexpected shape is left alone, not guessed at: ${raw.slice(0, 28)}`)
+    is((await stored(pg)) === raw, `N16 an unexpected shape (or a pin in a field that is not the note) is stored byte for byte: ${raw.slice(0, 28)}`)
   }
   // sessionStorage: same key, same rule; other keys untouched
   await pg.evaluate(([k, v]) => { sessionStorage.setItem(k, v); sessionStorage.setItem('keep', v) }, [KEY, JSON.stringify({ note: 'w ' + LINE_AR })])
@@ -808,8 +818,11 @@ await section('O  the review findings: double evaluation, watchdog, retry, bad c
   const a = await idle(one), b = await idle(two)
   is(a <= 2 && b <= a + 1, 'O1 evaluating the file twice more: mutations over 3 s are like ONE instance (' + b + ' vs ' + a + '), not a ping-pong')
   is((await count(two.pg)) === 1 && (await two.pg.evaluate(() => document.documentElement.__sportaLocJs === 1 && !document.documentElement.hasAttribute('data-sporta-loc-js'))), 'O2 one control, the marker is a property on <html> (no attribute: the markup is unchanged)')
-  await tap(two.pg)
+  await tap(two.pg); await tap(one.pg)
   is((await calls(two.pg)) === 1 && (await note(two.pg)) === LINE_EN, 'O3 and one tap makes one lookup and one line (two live instances would answer twice)')
+  // the ping-pong shows once the instances' states differ (one of them did the lookup): measure AFTER a tap
+  const a2 = await idle(one), b2 = await idle(two)
+  is(a2 <= 2 && b2 <= a2 + 1, 'O3b after a share, 3 s idle: ' + b2 + ' mutations with the file evaluated three times vs ' + a2 + ' with one (a second live instance would flip the status text back and forth)')
   await done(one); await done(two)
 }
 {

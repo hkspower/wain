@@ -114,7 +114,14 @@ export default function Invoice() {
       <article className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 md:p-10">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <img src="/logo.png" alt="Sporta Sports Wear" width="132" height="41" className="h-9 w-auto" />
+            {/* Two inks, one shown at a time (index.css). logo.png has BLACK
+                lettering for a light surface; on the dark theme's charcoal card
+                it measured about 1.1:1 and the wordmark all but vanished, only
+                the orange S left. The white-lettered logo takes over there on
+                screen, and the black one always prints. Both carry the alt text:
+                the hidden one is not exposed, so it is read once. */}
+            <img src="/logo.png" alt="Sporta Sports Wear" width="132" height="41" className="invoice-logo-light h-9 w-auto" />
+            <img src="/logo-white.png" alt="Sporta Sports Wear" width="600" height="184" className="invoice-logo-dark h-9 w-auto" />
             <p className="mt-2 text-xs text-slate-600">{t.invoice.seller}</p>
           </div>
           <div className="text-start sm:text-end">
@@ -191,12 +198,19 @@ export default function Invoice() {
               return (
                 <tr key={`${i.name_en}-${i.size}-${n}`} className="border-b border-slate-100 align-top">
                   <td className="py-3 text-start">
-                    {/* Both names, each in its own direction. */}
-                    <span dir={dirFor(lang === 'ar' ? i.name_ar : i.name_en)} className="block font-semibold text-slate-900 [text-align:match-parent]">
-                      {lang === 'ar' ? i.name_ar : i.name_en}
+                    {/* Both names, each in its own direction — on an INLINE
+                        span inside a block that keeps the page's direction.
+                        The `dir` used to sit on the block itself, and a block
+                        aligns `start` to its OWN direction: the English name in
+                        an Arabic page hugged the left of the column while the
+                        Arabic name above it hugged the right (and the other way
+                        round in English), so the two lines of one product never
+                        shared an edge. */}
+                    <span className="block font-semibold text-slate-900">
+                      <span dir={dirFor(lang === 'ar' ? i.name_ar : i.name_en)}>{lang === 'ar' ? i.name_ar : i.name_en}</span>
                     </span>
-                    <span dir={dirFor(lang === 'ar' ? i.name_en : i.name_ar)} className="block text-xs text-slate-600 [text-align:match-parent]">
-                      {lang === 'ar' ? i.name_en : i.name_ar}
+                    <span className="block text-xs text-slate-600">
+                      <span dir={dirFor(lang === 'ar' ? i.name_en : i.name_ar)}>{lang === 'ar' ? i.name_en : i.name_ar}</span>
                     </span>
                     {opts.length > 0 && (
                       <span className="mt-0.5 block text-xs font-semibold text-slate-700">
