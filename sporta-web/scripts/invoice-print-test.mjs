@@ -136,8 +136,8 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
 })
 
-async function open(order, { lang, width = 1280, height = 900, scheme = 'light', theme = null }) {
-  const ctx = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block', colorScheme: scheme })
+async function open(order, { lang, width = 1280, height = 900, scheme = 'light', theme = null, touch = false }) {
+  const ctx = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block', colorScheme: scheme, hasTouch: touch })
   await ctx.addInitScript(([l, t]) => {
     localStorage.setItem('lang', l)
     if (t) localStorage.setItem('sporta_theme', t)
@@ -206,6 +206,12 @@ await section('screen: no sideways scroll, a readable item column on a phone', a
     const itemW = await page.$eval('thead th', (e) => Math.round(e.getBoundingClientRect().width))
     is(itemW >= 120, `${lang} 390px: the item column is wide enough to read`, `${itemW}px (was 78-81)`)
     await ctx.close()
+    // The two controls above the card are tap targets on a touch screen: the
+    // "Home" link was a 20px-high text link.
+    const t = await open(SMALL, { lang, width: 390, height: 800, touch: true })
+    const sizes = await t.page.$$eval('.no-print > *', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] }))
+    is(sizes.length === 2 && sizes.every(([w, h]) => w >= 44 && h >= 44), `${lang} touch: Home and Print are 44x44 targets or larger`, sizes.map((x) => x.join('x')).join(', '))
+    await t.ctx.close()
   }
 })
 

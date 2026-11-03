@@ -103,7 +103,7 @@ export default function Invoice() {
     <section className="invoice mx-auto max-w-3xl px-3 py-10 sm:px-4">
       {/* Not printed — the actions are for the screen only. */}
       <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/" className="text-accent text-sm font-semibold underline underline-offset-2">
+        <Link to="/" className="tap text-accent inline-flex items-center text-sm font-semibold underline underline-offset-2">
           {t.nav.home}
         </Link>
         <button type="button" onClick={() => window.print()} className="btn btn-primary btn-sm">
