@@ -247,13 +247,13 @@ function inPageShell() {
   const manifest = document.querySelector('link[rel=manifest]')
   // The stylesheet rules that decide where the fixed furniture and the sticky Save rows sit (env() use, heights, offsets, z-index).
   const css = []
-  const WANT = /\.m-tabbar|\.m-header|\.m-menu-layer|\.admin-editor-actions|\.checkout-editor-actions|\.admin-content\b[^,{]*\{|\.admin-shell\s*\{/
+  const WANT = /\.m-tabbar|\.m-header|\.m-menu-layer|\.admin-editor-actions|\.checkout-editor-actions|\.inventory-drawer-layer|\.crm-backdrop/
   const scanRules = (rules, media) => {
     for (const r of rules) {
-      if (css.length >= 14) return
+      if (css.length >= 18) return
       if (r.cssRules && r.media) { scanRules(r.cssRules, r.media.mediaText); continue }
       if (r.cssRules && !r.selectorText) { scanRules(r.cssRules, media); continue }
-      if (r.selectorText && WANT.test(r.cssText)) css.push((media ? '@media ' + media + ' ' : '') + r.cssText.replace(/\s+/g, ' ').slice(0, 260))
+      if (r.selectorText && WANT.test(r.cssText)) css.push((media ? '@media ' + media + ' ' : '') + r.cssText.replace(/\s+/g, ' ').slice(0, 330))
     }
   }
   for (const sh of document.styleSheets) { try { scanRules(sh.cssRules, '') } catch (e) {} }
