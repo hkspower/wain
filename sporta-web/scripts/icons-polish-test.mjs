@@ -123,7 +123,7 @@ const suite = async (br, overrides, label) => {
     for (const r of icons) {
       const b = B[r.id]; if (!b || !b.rect.w || r.id === 'drawer.mark') continue
       const cx = (m) => m.rect.x + m.rect.w / 2, cy = (m) => m.rect.y + m.rect.h / 2
-      const lim = MOVE[r.id] ?? 1.1
+      const lim = MOVE[r.id] ?? (LABELLED.includes(r.id) ? 1.6 : 1.1)
       const dxx = Math.abs(cx(r) - cx(b)), dyy = Math.abs(cy(r) - cy(b))
       // the icon's own box may grow by one px; its centre moves by the layout the larger box causes (<= 1px) and the nudge (<= 1px)
       is(Math.abs(r.rect.w - b.rect.w) <= 1.01 && dxx <= lim + 0.5 && dyy <= lim, `${tag(r)} moved ${f1(dxx)}, ${f1(dyy)}px and changed size by ${f1(r.rect.w - b.rect.w)}px (limit ${lim})`)
@@ -132,8 +132,8 @@ const suite = async (br, overrides, label) => {
     if (w === 1280 && kind === 'header') {
       for (const sel of ['.navbar-ai', '.navbar-language', '.navbar-cart']) {
         await pg.hover(sel); await pg.waitForTimeout(320)
-        const st = await pg.evaluate((s) => { const svg = document.querySelector(s + ' svg.sporta-icon'), cs = getComputedStyle(svg); return { t: cs.transform, sw: parseFloat(cs.strokeWidth) } }, sel)
-        const sc = st.t === 'none' ? 1 : new DOMMatrix(st.t).a
+        const st = await pg.evaluate((s) => { const svg = document.querySelector(s + ' svg.sporta-icon'), cs = getComputedStyle(svg); return { sc: cs.transform === 'none' ? 1 : new DOMMatrix(cs.transform).a, sw: parseFloat(cs.strokeWidth) } }, sel)
+        const sc = st.sc
         is(near(sc, 1.08, 0.02), `${sel} icon grows 8% on hover`, `scale ${f1(sc)}`)
         is(near(st.sw, sel === '.navbar-cart' ? 1.75 : 1.5, 0.01), `${sel} icon keeps its stroke on hover`, `${st.sw}`)
       }

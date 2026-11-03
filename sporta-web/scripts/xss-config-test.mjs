@@ -75,16 +75,23 @@ const freePort = async (from) => { for (let p = from; p < from + 60; p++) if (aw
 
 const tmp = mkdtempSync(join(tmpdir(), 'sporta-xss-config-'))
 const procs = []
+const procsCleanup = []
 const cleanup = () => {
   for (const p of procs) { try { p.kill() } catch { /* gone */ } }
+  for (const d of procsCleanup) { try { rmSync(d, { recursive: true, force: true }) } catch { /* ignore */ } }
   if (!process.env.KEEP) { try { rmSync(tmp, { recursive: true, force: true }) } catch { /* ignore */ } }
 }
 process.on('exit', cleanup)
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(130))
 
 // ------------------------------------------------------------------ the database
-const DATA = join(tmp, 'db'), SOCK = join(tmp, 'db.sock')
+const DATA = join(tmp, 'db')
 mkdirSync(DATA)
+// A unix socket path is limited to ~107 bytes; a deep TMPDIR can exceed it, so
+// the socket (and only the socket) falls back to a short directory of its own.
+let sockDir = tmp
+if (join(tmp, 'db.sock').length > 100) { sockDir = mkdtempSync('/tmp/sx-'); procsCleanup.push(sockDir) }
+const SOCK = join(sockDir, 'db.sock')
 const asRoot = typeof process.getuid === 'function' && process.getuid() === 0
 {
   const r = spawnSync(installDb, ['--no-defaults', `--datadir=${DATA}`, '--auth-root-authentication-method=normal', '--skip-test-db',
@@ -122,7 +129,9 @@ for (const f of readdirSync(SQLDIR).filter((n) => n.endsWith('.mysql.sql') && !S
 // sporta-live/birthday/birthday.mysql.sql), so the suite adds them itself.
 await mysqlRaw('alter table customer_accounts add column if not exists birthday date null default null, ' +
   'add column if not exists birthday_set_at datetime null default null, add column if not exists birthday_sent_year smallint null default null')
-const sql = mysqlRaw
+// Direct row writes model a hostile database editor: no strict mode, so a
+// payload longer than its column is cut rather than refused.
+const sql = (text, db) => mysqlRaw(`set session sql_mode='';\n${text}`, db)
 const q = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\0/g, '\\0')}'`
 const hex = (s) => `convert(0x${Buffer.from(String(s), 'utf8').toString('hex') || '00'} using utf8mb4)`
 const h = (s) => (s === '' ? "''" : hex(s))
@@ -209,7 +218,7 @@ let chromium = null, browser = null
 try {
   ({ chromium } = await import('playwright'))
   const exe = process.env.CHROMIUM_PATH || (existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined)
-  browser = await chromium.launch(exe ? { executablePath: exe } : {})
+  browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: asRoot ? ['--no-sandbox'] : [] })
 } catch (e) {
   browser = null
   console.log(`NOTE no Chromium (${String(e.message).split('\n')[0]}): parser and dialog checks are SKIPPED, string checks still run.`)
@@ -300,7 +309,12 @@ const get = async (path, headers = {}) => {
   return { status: res.status, headers: res.headers, text: await res.text() }
 }
 let cookie = ''
+// The API throttles every route per client (that is itself a defence), so the
+// table is emptied every few calls; section 2 does not test the throttle.
+let calls = 0
+const tick = async () => { if (++calls % 12 === 0) await sql('delete from rate_limit') }
 const adm = async (route, { method = 'POST', body } = {}) => {
+  await tick()
   const res = await fetch(`${SITE}/api/admin.php?r=${route}`, {
     method, headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', 'Sec-Fetch-Site': 'same-origin', ...(cookie ? { Cookie: cookie } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -315,6 +329,7 @@ const adm = async (route, { method = 'POST', body } = {}) => {
   return { status: res.status, json, text, ct: res.headers.get('content-type') ?? '' }
 }
 const api = async (route, qs = '', opts = {}) => {
+  await tick()
   const res = await fetch(`${SITE}/api/api.php?r=${route}${qs}`, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https', ...(opts.headers ?? {}) } })
   const text = await res.text()
   let json = null
