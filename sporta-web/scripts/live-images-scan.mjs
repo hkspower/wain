@@ -328,7 +328,7 @@ const visit = async (ctx, tag, url, opts) => {
 const TAG0 = LANG + VW
 const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: E.CHROME || undefined })
 try {
-  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!(E.INJECT || E.INJECT_B64) })
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DPR, locale: LANG === 'en' ? 'en-US' : 'ar-KW', bypassCSP: !!(E.INJECT || E.INJECT_B64), serviceWorkers: 'block' })
   await ctx.addInitScript(INIT)
   if (E.REPLACE) {
     for (const pair of E.REPLACE.split(';').filter(Boolean)) {
