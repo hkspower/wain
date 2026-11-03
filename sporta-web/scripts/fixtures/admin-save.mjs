@@ -183,7 +183,7 @@ export const FIXTURE_JS = `
     // React replacing the Save button (or its whole row) with an identical new node
     rerender: function (sel) { var e = document.querySelector(sel); var c = e.cloneNode(true); e.replaceWith(c); return !!c },
     // the whole screen re-rendered from scratch
-    rerenderAll: function () { var r = document.getElementById('root'); var h = r.innerHTML; r.innerHTML = ''; r.innerHTML = h },
+    rerenderAll: function () { var r = document.getElementById('root'); var h = r.innerHTML.replace(/ style="padding-bottom:[^"]*"/g, ''); r.innerHTML = ''; r.innerHTML = h },
     confirm: function (on) { var o = document.getElementById('confirm-overlay'); if (o) o.remove(); if (on) document.getElementById('root').insertAdjacentHTML('beforeend', window.FX_CONFIRM) },
     mount: function (html) { document.getElementById('root').innerHTML = html },
     noise: function (frames, per) {

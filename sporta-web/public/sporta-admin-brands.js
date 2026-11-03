@@ -1342,17 +1342,26 @@
   // Keep the last field clear of the bar: the scroll container's bottom padding grows to the height the bar
   // (and any tab bar under it) takes from the bottom of the container, and goes back when the bar goes.
   function holdPad(el, reserve) {
-    if (pad && pad.el !== el) releasePad()
+    if (pad && pad.el !== el) releasePad(true)
     var base = pad ? pad.base : (parseFloat(getComputedStyle(el).paddingBottom) || 0)
     var want = Math.max(base, reserve + GAP)
-    if (want <= base + 0.5) { releasePad(); return }
-    if (!pad) pad = { el: el, v: el.style.getPropertyValue('padding-bottom'), p: el.style.getPropertyPriority('padding-bottom'), had: el.hasAttribute('style'), base: base }
+    if (want <= base + 0.5) { releasePad(false); return }
+    if (!pad) pad = { el: el, v: el.style.getPropertyValue('padding-bottom'), p: el.style.getPropertyPriority('padding-bottom'), had: el.hasAttribute('style'), base: base, cur: base }
     var css = want + 'px'
     if (el.style.getPropertyValue('padding-bottom') !== css) el.style.setProperty('padding-bottom', css)
+    pad.cur = want
   }
-  function releasePad() {
+  // Scrolled into the extra padding: taking it away now would shorten the page under the reader and jerk the
+  // content, so it stays until the scroll position is back inside the page proper.
+  function inPadZone() {
+    if (!pad || !pad.el.isConnected) return false
+    var e = pad.el === document.documentElement ? (document.scrollingElement || pad.el) : pad.el
+    return e.scrollTop + e.clientHeight > e.scrollHeight - (pad.cur - pad.base) + 1
+  }
+  function releasePad(force) {
     if (!pad) return
     var el = pad.el
+    if (!force && inPadZone()) return
     if (el.isConnected) {
       if (pad.v) el.style.setProperty('padding-bottom', pad.v, pad.p); else el.style.removeProperty('padding-bottom')
       if (!pad.had && el.getAttribute('style') === '') el.removeAttribute('style')
@@ -1360,16 +1369,16 @@
     pad = null
   }
 
-  function hideBar() {
+  function hideBar(force) {
     cur = null
-    if (!bar || !bar.isConnected) { releasePad(); return }
+    if (!bar || !bar.isConnected) { releasePad(true); return }
     if (!bar.hidden) {
       var real = null
       if (bar.contains(document.activeElement)) real = lastReal
       bar.hidden = true
       if (real && real.isConnected && rendered(real)) { try { real.focus({ preventScroll: true }) } catch (e) {} }
     }
-    releasePad()
+    releasePad(!!force)
   }
   var lastReal = null
 
@@ -1431,7 +1440,16 @@
     if (!live.length) { hideBar(); return }
     var real = choose(live)
     if (!real || !qualifies(real, ov)) { hideBar(); return }
+    // Judge by the page as the app lays it out, never as our own bar and padding change it. The bar is made
+    // click-through for the measurement (elementFromPoint then sees what is under it), and when the Save looks
+    // in reach only because of our padding, the padding is taken off and the Save is looked at again: a sticky
+    // Save row (the Catalogue and Brands editors) moves up out from under the tab bar when its container gets
+    // padding, which would hide the bar, which takes the padding away, which covers the row again...
+    var up = bar && !bar.hidden
+    if (up) bar.style.pointerEvents = 'none'
     var info = reach(real)
+    if (info.seen && pad && !inPadZone()) { releasePad(true); info = reach(real) }
+    if (up) bar.style.pointerEvents = ''
     if (info.seen) { hideBar(); return }
     show(real, info, ov)
   }
@@ -1489,7 +1507,7 @@
     if (window.visualViewport) { window.visualViewport.removeEventListener('resize', onGeom); window.visualViewport.removeEventListener('scroll', onGeom) }
     cancelAnimationFrame(frame); frame = 0
     clearTimeout(trail)
-    hideBar()
+    hideBar(true)
     field = null; cands = []
   }
   // The admin is a single-page app: /backends can be entered or left without a page load.

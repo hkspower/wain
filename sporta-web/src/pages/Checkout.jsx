@@ -15,9 +15,12 @@ import AreaSelect from '../components/AreaSelect'
 import {
   BLANK,
   canQuickCheckout,
+  LOCATION_LINE_SRC,
+  LOCATION_MAPS,
   loadDelivery,
   remembering,
   saveDelivery,
+  stripLocation,
   validateDelivery as validate,
 } from '../lib/delivery'
 
@@ -552,33 +555,13 @@ const input = (bad) =>
 // storefront (scripts/checkout-location-test.mjs holds the add-on to it):
 //  - joined with ONE SPACE, never a newline: the server deletes control characters, so a newline would glue
 //    "text" and "Location:" together;
-//  - the state is READ from the note, so a line that came back with "remember these details" is shown and can be
-//    removed, deleting the line by hand returns the control to idle, and sharing again REPLACES (never two lines);
+//  - the state is READ from the note, so a line that is in the note is shown and can be removed, deleting the line
+//    by hand returns the control to idle, and sharing again REPLACES (never two lines);
+//  - the line is NEVER saved with "Remember these details" (saveDelivery / loadDelivery in lib/delivery.js strip it);
 //  - if the line does not fit the note's limit nothing is written and the customer's words are never cut;
 //  - the coordinates are kept nowhere but the note line, and nothing is sent anywhere by this component.
-const LOCATION_MAPS = 'https://www.google.com/maps?q='
-const LOCATION_LINE_SRC = '(Location|الموقع): https:\\/\\/www\\.google\\.com\\/maps\\?q=(-?\\d{1,3}\\.\\d{1,6}),(-?\\d{1,3}\\.\\d{1,6})'
 const LOCATION_LIMIT = 280
 const LOCATION_WEAK_M = 500
-
-// Removes every location line plus ONE separator next to it (the space before it, or after it when it opens the
-// note). Nothing else in the customer's text is touched.
-function stripLocation(v) {
-  const re = new RegExp(LOCATION_LINE_SRC, 'g')
-  let out = ''
-  let pos = 0
-  let m
-  while ((m = re.exec(v))) {
-    let s = m.index
-    let e = s + m[0].length
-    if (s > 0 && /\s/.test(v.charAt(s - 1))) s -= 1
-    else if (s === 0 && e < v.length && /\s/.test(v.charAt(e))) e += 1
-    if (s < pos) s = pos
-    out += v.slice(pos, s)
-    pos = e
-  }
-  return out + v.slice(pos)
-}
 
 // The browser refuses the call on every tap while the site's Permissions-Policy says geolocation=(); the control
 // stays hidden then. Where the API cannot tell (Safari, Firefox) it is shown and errors are handled.
@@ -597,7 +580,12 @@ function LocationNote({ value, update }) {
   const alive = useRef(true)
   const ticket = useRef(0)
   latest.current = value
-  useEffect(() => () => { alive.current = false; ticket.current += 1 }, [])
+  // Set to true INSIDE the effect: React StrictMode (dev) runs mount, cleanup, mount, and the cleanup of the first
+  // pass leaves the ref false for the second unless the effect body puts it back.
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false; ticket.current += 1 }
+  }, [])
 
   if (locationBlocked()) return null
 
@@ -624,7 +612,7 @@ function LocationNote({ value, update }) {
           const co = pos && pos.coords
           const lat = co && Number(co.latitude)
           const lng = co && Number(co.longitude)
-          if (!co || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { finish(mine, 'locFail'); return }
+          if (!co || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { finish(mine, 'locFail'); return }
           const la = lat.toFixed(6)
           const ln = lng.toFixed(6)
           const line = c.locLabel + LOCATION_MAPS + la + ',' + ln

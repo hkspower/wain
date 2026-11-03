@@ -84,11 +84,12 @@
  *               digits of the indices and the phone, do not go through these rules. This is "a per-run size
  *               on the digit spans" without touching the compiled text nodes.
  *   tracking    the card titles use 0 in English as they already do in Arabic.
- * Measured after the change (live markup, 390/768/1280, both languages): the index goes from 12px/800 to
- * 16px/700, so its box grows (14x19 -> 20x22 px), the English card titles lose their negative tracking and the
- * card text takes the lining-figure and digit-face rules; cards and everything below them move by 0.4-3 px
- * (footer -2.4 px at Arabic 390, +0.4 to +0.8 px in English). That shift is the intended result of the sizes
- * above, not a side effect to chase: no colour, display or width changes, and no sideways overflow at any size.
+ * Measured after the change on a FIXTURE of the live markup with the live rules (scripts/about-page-test.mjs,
+ * 320-1280px, both languages), not yet on the live page itself: the index goes from 12px/800 to 16px/700, so its
+ * box grows (about 14x19 -> 19x22 px), the English card titles lose their negative tracking and the card text
+ * takes the lining-figure and digit-face rules. Each card moves by under 1px and the page by under 4px (Arabic 390:
+ * cards 139.5 -> 138.9px, page -2.4px; English 390: +0.8px). That small shift is the intended result of the sizes
+ * above; the suite bounds it. Colour, display and width are not touched, and nothing overflows sideways.
  * Scoped to the page that has .why-card-index (.editorial-page also carries Terms, Privacy and Returns), and
  * to Arabic for the digit faces (the English page has no Arabic-Indic digits). The font stacks repeat the
  * live ones, variables included, so a font chosen in the admin still wins. */

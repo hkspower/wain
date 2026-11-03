@@ -19,6 +19,16 @@
 //   - window.__go(path)          is the SPA router: /checkout renders the form, anything else a shop page;
 //   - window.__lang('en'|'ar')   relabels in place and flips html lang/dir (the live toggle does the same);
 //   - window.__state             exposes the state; window.__submits counts submit events (must stay 0).
+//
+// "Remember these details" (the live storefront's behaviour, measured in the compiled bundle): the whole form,
+// note included, is written as JSON to localStorage "sporta.delivery"; the next visit reads it back, and with
+// every required field present shows the QUICK checkout (form.purchase-quick: the saved address and the saved
+// note as text, NO textarea, no location control) instead of the form. The fixture models that:
+//   - opts.saved     a profile object seeded into localStorage BEFORE the page script runs (once per browser
+//                    session; opts.savedRaw seeds an exact string instead)
+//   - opts.appAfter  boot the app AFTER the add-on (a deferred module script placed behind it) instead of before
+//   - window.__save(remember)  what the storefront does on "continue": writes the form to the key, NOT submitting
+//   - window.__showForm()      the quick checkout's "edit details" button
 const RAW = String.raw
 
 const TOKENS = RAW`
@@ -60,6 +70,8 @@ const COPY = {
 
 // opts: { note, maxlength, themeDark }
 export function page(lang, opts = {}) {
+  const seedValue = opts.savedRaw !== undefined ? opts.savedRaw : opts.saved ? JSON.stringify(opts.saved) : null
+  const seed = seedValue === null ? '' : `<script>try { if (!sessionStorage.getItem('__seeded')) { sessionStorage.setItem('__seeded', '1'); localStorage.setItem('sporta.delivery', ${JSON.stringify(seedValue)}); } } catch (e) {}</script>`
   const maxlength = opts.maxlength === undefined ? 280 : opts.maxlength
   const dark = opts.themeDark
     ? `:root{--surface:#171a1e;--ink:#f3efe6;--text-muted:#b9c1c9;--line-strong:#8a96a2;--canvas:#0f1114;--canvas-muted:#0f1114}`
@@ -69,9 +81,17 @@ export function page(lang, opts = {}) {
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout</title>
 <style>${TOKENS}${dark}</style></head>
 <body><header class="site">SPORTA</header><div id="root"></div>
-<script>
+${seed}
+${opts.appAfter ? '<script defer src="/sporta-gov-autopick.js"></script>' : ''}
+<script${opts.appAfter ? ' type="module" data-after' : ''}>
 var COPY = ${JSON.stringify(COPY)};
-var state = { note: ${JSON.stringify(opts.note || '')}, name: '', area: '' };
+var STORE_KEY = 'sporta.delivery', REMEMBER_KEY = 'sporta.delivery.remember';
+var FIELDS = ['name', 'phone', 'governorate', 'area', 'block', 'street', 'building', 'floor', 'flat'];
+function loadSaved() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+var saved = loadSaved();
+var state = { note: ${JSON.stringify(opts.note || '')} || (typeof saved.note === 'string' ? saved.note : '') };
+FIELDS.forEach(function (k) { state[k] = typeof saved[k] === 'string' ? saved[k] : ''; });
+var quickMode = FIELDS.slice(0, 7).every(function (k) { return state[k].trim() !== ''; });
 window.__state = state; window.__submits = 0; window.__renders = 0;
 var MAXLEN = ${maxlength === null ? 'null' : maxlength};
 function L() { return COPY[document.documentElement.lang] || COPY.en; }
@@ -128,7 +148,37 @@ function gridChildren() {
   row2.appendChild(field('flat', '', '<input id="f-flat" name="flat" maxlength="16">', '', true));
   return [g1, g2, row, row2, noteWrapper()];
 }
+function formFromDom() {
+  var f = {};
+  FIELDS.forEach(function (k) { var e = document.getElementById('f-' + k); f[k] = e ? e.value : state[k]; });
+  f.note = state.note;
+  return f;
+}
+// What the storefront's saveDelivery does on "continue": the WHOLE form, note included, as JSON under one key.
+window.__save = function (remember) {
+  var f = document.getElementById('f-name') ? formFromDom() : (function () { var o = {}; FIELDS.forEach(function (k) { o[k] = state[k]; }); o.note = state.note; return o; })();
+  localStorage.setItem(REMEMBER_KEY, remember === false ? '0' : '1');
+  if (remember === false) localStorage.removeItem(STORE_KEY); else localStorage.setItem(STORE_KEY, JSON.stringify(f));
+  return f;
+};
+window.__showForm = function () { quickMode = false; route(); };
+function quick() {
+  var root = document.getElementById('root');
+  root.innerHTML = '';
+  var main = document.createElement('main'); main.className = 'purchase-flow';
+  main.innerHTML = '<h1 data-t="h1"></h1>';
+  var form = document.createElement('form'); form.className = 'purchase-quick'; form.noValidate = true;
+  form.addEventListener('submit', function (e) { e.preventDefault(); window.__submits++; });
+  form.innerHTML = '<p id="quick-name"></p><p id="quick-addr"></p><p id="quick-note"></p><button type="button" id="quick-edit">edit</button>';
+  form.querySelector('#quick-name').textContent = state.name;
+  form.querySelector('#quick-addr').textContent = state.area + ' ' + state.block + ' ' + state.street + ' ' + state.building;
+  form.querySelector('#quick-note').textContent = state.note;
+  form.querySelector('#quick-edit').addEventListener('click', window.__showForm);
+  main.appendChild(form); root.appendChild(main);
+  label();
+}
 function checkout() {
+  if (quickMode) { quick(); return; }
   var root = document.getElementById('root');
   root.innerHTML = '';
   var main = document.createElement('main'); main.className = 'purchase-flow';
@@ -149,6 +199,7 @@ function checkout() {
   var next = document.createElement('button'); next.type = 'submit'; next.className = 'go'; next.setAttribute('data-t', 'next');
   form.appendChild(f1); form.appendChild(f2); form.appendChild(next);
   main.appendChild(form); root.appendChild(main);
+  FIELDS.forEach(function (k) { var e = document.getElementById('f-' + k); if (e && state[k]) e.value = state[k]; });
   label();
 }
 function shop() { document.getElementById('root').innerHTML = '<div class="shop"><h1 data-t="shop"></h1><a id="to-checkout" href="/checkout">checkout</a></div>'; label(); }
@@ -169,6 +220,6 @@ window.__rerender = function (how) {
 };
 route();
 </script>
-<script defer src="/sporta-gov-autopick.js"></script>
+${opts.appAfter ? '' : '<script defer src="/sporta-gov-autopick.js"></script>'}
 </body></html>`
 }

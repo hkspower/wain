@@ -19,7 +19,7 @@ const REMEMBER_KEY = 'sporta.delivery.remember'
 
 export function loadDelivery() {
   try {
-    return { ...BLANK, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }
+    return persistableDelivery({ ...BLANK, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') })
   } catch {
     return { ...BLANK }
   }
@@ -27,9 +27,43 @@ export function loadDelivery() {
 
 export const remembering = () => localStorage.getItem(REMEMBER_KEY) !== '0'
 
+// The optional "Share my location" line the checkout writes at the end of the delivery note. It is NEVER saved
+// with "Remember these details": a later visit goes to the quick checkout, which prints and submits the saved note,
+// so an old pin would ride on the next order (home, then office: the driver is sent to the wrong place) and the
+// coordinates would stay on a shared device. public/sporta-gov-autopick.js applies the same rule to the live
+// (compiled) storefront with the same pattern; scripts/checkout-location-test.mjs keeps the two in step.
+export const LOCATION_MAPS = 'https://www.google.com/maps?q='
+export const LOCATION_LINE_SRC = '(Location|الموقع): https:\\/\\/www\\.google\\.com\\/maps\\?q=(-?\\d{1,3}\\.\\d{1,6}),(-?\\d{1,3}\\.\\d{1,6})'
+
+// Removes every location line plus ONE separator next to it (the space before it, or after it when it opens the
+// note). Nothing else in the customer's text is touched.
+export function stripLocation(v) {
+  const re = new RegExp(LOCATION_LINE_SRC, 'g')
+  let out = ''
+  let pos = 0
+  let m
+  while ((m = re.exec(v))) {
+    let s = m.index
+    let e = s + m[0].length
+    if (s > 0 && /\s/.test(v.charAt(s - 1))) s -= 1
+    else if (s === 0 && e < v.length && /\s/.test(v.charAt(e))) e += 1
+    if (s < pos) s = pos
+    out += v.slice(pos, s)
+    pos = e
+  }
+  return out + v.slice(pos)
+}
+
+// The form as it is stored: the same object with the location line taken out of the note. Pure.
+export function persistableDelivery(form) {
+  if (!form || typeof form.note !== 'string') return form
+  const note = stripLocation(form.note)
+  return note === form.note ? form : { ...form, note }
+}
+
 export function saveDelivery(form, remember) {
   localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
-  if (remember) localStorage.setItem(STORE_KEY, JSON.stringify(form))
+  if (remember) localStorage.setItem(STORE_KEY, JSON.stringify(persistableDelivery(form)))
   else localStorage.removeItem(STORE_KEY)
 }
 

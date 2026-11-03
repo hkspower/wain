@@ -14,7 +14,8 @@
 //   - the four indices are the size and weight of the card titles, tabular and equally wide
 //   - an Arabic-Indic figure is as tall as the alef beside it (live: 0.80-0.93), in the titles and in the sentences
 //   - the English titles have no negative tracking
-//   - line boxes of every title and sentence are what they were (no layout shift), nothing overflows sideways,
+//   - line boxes of every title and sentence are what they were; each card moves 1px and the page 4px at most (the
+//     index grows 12 -> 16px), nothing overflows sideways,
 //     the phone and "1 KWD" stay on one line
 //   - nothing outside the About page changes (a Terms-like .editorial-page page is untouched), and the new CSS
 //     sets no colour or background (so the storefront's light and dark themes stay in charge)
@@ -412,6 +413,8 @@ async function layoutStability(heightsOn) {
         p: [...document.querySelectorAll('.why-card p')].map((h) => h.getBoundingClientRect().height),
         faq: [...document.querySelectorAll('.faq-list > details > p')].map((h) => h.getBoundingClientRect().height),
         lead: document.querySelector('.page-lead').getBoundingClientRect().height,
+        card: [...document.querySelectorAll('.why-card')].map((h) => h.getBoundingClientRect().height),
+        page: document.documentElement.getBoundingClientRect().height,
       }))
       await ctx.close()
       const { pg: pg2, ctx: ctx2 } = await open({ lang, width, brands: [] })
@@ -421,12 +424,18 @@ async function layoutStability(heightsOn) {
         p: [...document.querySelectorAll('.why-card p')].map((h) => h.getBoundingClientRect().height),
         faq: [...document.querySelectorAll('.faq-list > details > p')].map((h) => h.getBoundingClientRect().height),
         lead: document.querySelector('.page-lead').getBoundingClientRect().height,
+        card: [...document.querySelectorAll('.why-card')].map((h) => h.getBoundingClientRect().height),
+        page: document.documentElement.getBoundingClientRect().height,
       }))
       await ctx2.close()
       const same = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 0.5)
       is(same(off.p, on.p) && same(off.faq, on.faq) && Math.abs(off.lead - on.lead) < 0.5, `${lang} ${width}: sentences (cards, FAQ, lead) are the same height with and without the digit faces`, JSON.stringify([off.p, on.p, off.faq, on.faq]))
       // the title's tracking is the only thing allowed to change a title's wrap; it never makes one taller
       is(on.h3.every((v, i) => v <= off.h3[i] + 0.5), `${lang} ${width}: card titles are not taller than before`, JSON.stringify([off.h3, on.h3]))
+      // The declared shift (the index grows from 12 to 16px): bounded, so a later rule cannot move the page by more.
+      // Measured on this fixture (live markup and rules), NOT on the live page: the live before/after was not run.
+      is(on.card.every((v, i) => Math.abs(v - off.card[i]) <= 1), `${lang} ${width}: each card moves by 1px at most`, JSON.stringify([off.card, on.card]))
+      is(Math.abs(on.page - off.page) <= 4, `${lang} ${width}: the whole page moves by 4px at most`, `${off.page} -> ${on.page}`)
     }
   }
   void heightsOn

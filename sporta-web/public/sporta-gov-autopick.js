@@ -58,6 +58,16 @@
  *
  * Rules this file keeps (each one is asserted by scripts/checkout-location-test.mjs):
  *  - The coordinates live ONLY in the note line. No storage of its own, no network request, no map preview.
+ *  - The line is NEVER persisted. The checkout's "Remember these details on this device" box is ON by default and
+ *    the storefront saves the whole form, note included, under the localStorage key "sporta.delivery"; a later
+ *    visit with complete details goes to the quick checkout (no textarea, no location control), which prints and
+ *    submits the saved note, so an old pin would ride on the NEXT order (home, then office: the driver is sent to
+ *    the wrong place) and the coordinates would stay on a shared device. So this file, and only for that exact key
+ *    (localStorage and sessionStorage): (a) wraps Storage.prototype.setItem and takes our line out of the note
+ *    before it is stored, (b) wraps getItem so the app never READS a line that is already stored, (c) rewrites an
+ *    already-stored value on load and on every pass over /checkout. Every other key, and every other field, passes
+ *    through untouched (same arguments, same return value, same exceptions). The note the customer is typing in
+ *    this page (React state) is NOT touched: the line stays there until they order or remove it.
  *  - The line is joined with ONE SPACE, never a newline: the server deletes control characters, so
  *    "text\nLocation:" would arrive as "textLocation:". The location segment is always LAST.
  *  - It is written into the React-controlled textarea through the native value setter plus a bubbling input
@@ -65,20 +75,36 @@
  *    render.
  *  - If the line does not fit the note's limit (280, or its maxlength) nothing is written and the customer is
  *    told to shorten the note; the customer's words are never cut.
- *  - The state is READ from the note on every pass, so a location that came back with "remember these details"
+ *  - The state is READ from the note on every pass, so a line that is in the note (pasted, or kept by the page)
  *    is shown (and can be removed), an edit that deletes the line returns the control to idle, and two lines can
  *    never exist: sharing again replaces.
- *  - While the site's Permissions-Policy still says geolocation=() the browser refuses the call on every tap, so
- *    the control stays hidden (document.permissionsPolicy.allowsFeature). That makes this file safe to ship
- *    before the header change. Where the API is absent (Safari, Firefox) the control shows and errors are handled.
+ *  - Permissions-Policy: the site's header says geolocation=(self) since deploy-20261103T104853Z-8bf6001, so the
+ *    control is live. If the header ever says geolocation=() again, the browser refuses the call on every tap and
+ *    the control hides itself (document.permissionsPolicy.allowsFeature). That API exists in Chromium only:
+ *    Safari and Firefox do not expose document.permissionsPolicy, so there the control is ALWAYS shown and a
+ *    refusal is handled as an ordinary denied/failed lookup.
+ *  - A lookup that never answers (in-app browsers, an unanswered iOS prompt) ends after about 25 s as a failure;
+ *    a timeout (error code 3) is retried ONCE with low accuracy before it is reported; a position of exactly 0,0,
+ *    a non-number or an out-of-range value (a webview can report null as 0) is refused as "could not get it".
  *  - /checkout only, the control is re-inserted idempotently after React re-renders (one debounced observer,
  *    disconnected around its own writes) and removed everywhere else. It touches nothing else on the page.
+ *  - Evaluating this file twice is harmless: the second run finds the marker on <html> and returns at once
+ *    (two live instances would undo each other's writes forever).
  * Inline styles only, with the page's own CSS variables and fallbacks; no inline script (the CSP forbids it).
  * No dollar signs on purpose (see the header of this file). */
 (function () {
   'use strict';
+  /* Once per page: a second evaluation would start a second observer that undoes the first one's writes. The marker
+   * is on <html> (visible to a person debugging) and on window (document.documentElement can still be null when a
+   * script runs at document start). */
+  var root0 = document.documentElement;
+  if (window.__sportaLocJs || (root0 && root0.getAttribute('data-sporta-loc-js'))) return;
+  window.__sportaLocJs = 1;
+  if (root0) root0.setAttribute('data-sporta-loc-js', '1');
   var NS = 'sporta-loc';
   var LIMIT = 280;
+  var STORE_KEY = 'sporta.delivery';
+  var WATCHDOG_MS = 25000;
   var MAPS = 'https://www.google.com/maps?q=';
   var WEAK_M = 500;
   var LINE_SRC = '(Location|الموقع): https:\\/\\/www\\.google\\.com\\/maps\\?q=(-?\\d{1,3}\\.\\d{1,6}),(-?\\d{1,3}\\.\\d{1,6})';
@@ -88,11 +114,11 @@
       label: 'Location: ',
       region: 'Delivery location (optional)',
       share: 'Share my location (optional)',
-      hint: 'Helps the driver find you. Sent only with this order.',
+      hint: 'Helps the driver find you. Added to your delivery note and shared only with the shop and the delivery team.',
       locating: 'Finding your location…',
       done: 'Location added (about {n} m)',
       doneWeak: 'Location added, but it is only accurate to about {n} m. You can remove it or try again.',
-      doneOld: 'Location added earlier. Remove it if you are somewhere else now.',
+      doneOld: 'A location is in your note. Remove it if you are somewhere else now.',
       open: 'Open in Maps',
       remove: 'Remove',
       removeLabel: 'Remove location',
@@ -106,11 +132,11 @@
       label: 'الموقع: ',
       region: 'موقع التوصيل (اختياري)',
       share: 'مشاركة موقعي (اختياري)',
-      hint: 'يساعد المندوب في الوصول إليك، ويُرسل مع هذا الطلب فقط.',
+      hint: 'يساعد المندوب في الوصول إليك. يُضاف إلى ملاحظة التوصيل ويصل إلى المتجر وفريق التوصيل فقط.',
       locating: 'جارٍ تحديد موقعك…',
       done: 'تمت إضافة الموقع (بدقة تقارب {n} م)',
       doneWeak: 'تمت إضافة الموقع، لكن دقته تقارب {n} م فقط. يمكنك إزالته أو المحاولة مرة أخرى.',
-      doneOld: 'أُضيف الموقع سابقًا. أزله إن كنت في مكان آخر الآن.',
+      doneOld: 'يوجد موقع في ملاحظتك. أزله إن كنت في مكان آخر الآن.',
       open: 'فتح في الخرائط',
       remove: 'إزالة',
       removeLabel: 'إزالة الموقع',
@@ -122,7 +148,7 @@
     }
   };
 
-  var busy = false, token = 0, msg = null, last = null, writing = false, timer = null, obs = null, live = false, refocus = false;
+  var busy = false, token = 0, msg = null, last = null, writing = false, timer = null, obs = null, live = false, refocus = false, dog = null;
 
   function lang() {
     var h = document.documentElement;
@@ -172,6 +198,64 @@
       ta.dispatchEvent(new Event('input', { bubbles: true }));
     } finally { writing = false; }
   }
+
+  /* ---------- the line is never persisted ---------- */
+  var SP = window.Storage && window.Storage.prototype;
+  var rawGet = SP && SP.getItem, rawSet = SP && SP.setItem;
+  /* The saved-details value is JSON whose note field is the customer's text. Returns the SAME string when there is
+   * nothing to take out (byte-identical, so an unrelated or unparsable value is never re-serialised). */
+  function clean(v) {
+    if (typeof v !== 'string' || v.indexOf('google.com/maps') < 0) return v;
+    var data;
+    try { data = JSON.parse(v); } catch (e) { return v; }
+    var changed = false;
+    (function walk(x, depth) {
+      if (!x || typeof x !== 'object' || depth > 4) return;
+      Object.keys(x).forEach(function (k) {
+        var val = x[k];
+        if (k === 'note' && typeof val === 'string') {
+          var out = strip(val);
+          if (out !== val) { x[k] = out; changed = true; }
+        } else walk(val, depth + 1);
+      });
+    })(data, 0);
+    return changed ? JSON.stringify(data) : v;
+  }
+  function isKey(k) { try { return k === STORE_KEY || String(k) === STORE_KEY; } catch (e) { return false; } }
+  /* Narrow wrappers: ONLY the saved-details key is looked at; everything else is forwarded with the caller's own
+   * arguments and `this`, and the native return value or exception comes straight back. */
+  function install() {
+    if (!SP || typeof rawSet !== 'function' || typeof rawGet !== 'function') return;
+    if (SP.setItem.__sportaLoc) return;
+    var set = function (k, v) {
+      var a = arguments;
+      if (a.length > 1 && isKey(k)) {
+        try { var c = clean(v); if (c !== v) a = [k, c]; } catch (e) { /* store the original rather than lose the save */ }
+      }
+      return rawSet.apply(this, a);
+    };
+    var get = function (k) {
+      var r = rawGet.apply(this, arguments);
+      if (typeof r === 'string' && isKey(k)) { try { return clean(r); } catch (e) { return r; } }
+      return r;
+    };
+    set.__sportaLoc = true; get.__sportaLoc = true;
+    SP.setItem = set; SP.getItem = get;
+  }
+  /* Rewrite what is already stored (a customer who ticked "remember" since the control went live). */
+  function scrubStored() {
+    if (!rawGet || !rawSet) return;
+    ['localStorage', 'sessionStorage'].forEach(function (name) {
+      try {
+        var st = window[name], v = st && rawGet.call(st, STORE_KEY);
+        if (typeof v !== 'string') return;
+        var c = clean(v);
+        if (c !== v) rawSet.call(st, STORE_KEY, c);
+      } catch (e) { /* storage blocked or full: nothing to scrub, and nothing was written by us */ }
+    });
+  }
+  install();
+  scrubStored();
 
   /* ---------- the control ---------- */
   var BTN = 'min-height:44px;padding:0 16px;border:1px solid var(--line-strong,#7b8793);border-radius:12px;background:var(--surface,#fff);color:var(--ink,#171a1e);font:inherit;font-size:14px;font-weight:700;line-height:1.3;cursor:pointer;max-width:100%;text-align:center';
@@ -279,21 +363,32 @@
     var geo = null;
     try { geo = navigator.geolocation; } catch (e) { geo = null; }
     if (!geo || typeof geo.getCurrentPosition !== 'function') { finish(mine, 'fail'); return; }
-    try {
-      geo.getCurrentPosition(function (pos) { arrived(mine, pos); }, function (err) {
-        finish(mine, err && err.code === 1 ? 'denied' : 'fail');
-      }, { enableHighAccuracy: true, timeout: 12000, maximumAge: fresh === true ? 0 : 60000 });
-    } catch (e) { finish(mine, 'fail'); }
+    /* Nothing else ends the "Finding your location" state if neither callback ever fires (in-app browsers, an
+     * unanswered iOS prompt). Bumping the token makes a very late answer harmless. */
+    clearTimeout(dog);
+    dog = setTimeout(function () { dog = null; if (mine === token && busy) { token++; finish(token, 'fail'); } }, WATCHDOG_MS);
+    var ask = function (high, ms, retried) {
+      try {
+        geo.getCurrentPosition(function (pos) { arrived(mine, pos); }, function (err) {
+          if (err && err.code === 3 && !retried && mine === token) { ask(false, 10000, true); return; }
+          finish(mine, err && err.code === 1 ? 'denied' : 'fail');
+        }, { enableHighAccuracy: high, timeout: ms, maximumAge: fresh === true ? 0 : 60000 });
+      } catch (e) { finish(mine, 'fail'); }
+    };
+    ask(true, 12000, false);
   }
   function finish(mine, kind) {
     if (mine !== token) return;
+    clearTimeout(dog); dog = null;
     busy = false; msg = kind;
     guarded(render);
   }
   function arrived(mine, pos) {
     if (mine !== token) return;
+    clearTimeout(dog); dog = null;
     var c = pos && pos.coords, lat = c && Number(c.latitude), lng = c && Number(c.longitude);
-    if (!c || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { finish(mine, 'fail'); return; }
+    /* null becomes 0 in some webviews: exactly 0,0 (the Gulf of Guinea) is never a delivery address. */
+    if (!c || c.latitude === null || c.longitude === null || !isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { finish(mine, 'fail'); return; }
     var ta = getNote();
     if (!ta || !onCheckout()) { busy = false; guarded(render); return; }
     var la = lat.toFixed(6), ln = lng.toFixed(6);
@@ -314,9 +409,11 @@
   /* ---------- keeping it in place ---------- */
   function ensure() {
     var n = document.getElementById(NS);
+    if (onCheckout()) scrubStored();
     var ta = onCheckout() && !blocked() ? getNote() : null;
     if (!ta) {
       if (n && n.parentNode) n.parentNode.removeChild(n);
+      clearTimeout(dog); dog = null;
       busy = false; token++; msg = null;
       return;
     }

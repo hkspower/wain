@@ -380,6 +380,13 @@ for (const dark of [false, true]) {
       }
       await checkRerender(pg, name, vn)
       await checkKeyboard(pg, name, vn)
+      if (name === 'catalogue-modal') {
+        // the Save row is under the tab bar at every scroll position: the bar stays, and the last field clears it
+        await scrollBox(pg, c.box, 'max'); await settle(pg)
+        const m = await pg.evaluate(() => { const b = document.querySelector('[data-sporta-savebar]'); const l = document.querySelector('[data-last]'); return { shown: !b.hidden, barTop: b.getBoundingClientRect().top, last: l.getBoundingClientRect().bottom } })
+        is(m.shown && m.last <= m.barTop + 0.5, `${name} @${vn}: scrolled to the end the last field is clear of the bar (and the bar stays: the Save row is under the tab bar)`, JSON.stringify(m))
+        await scrollBox(pg, c.box, 0); await settle(pg)
+      } else await checkReveal(pg, name, vn)
       // DOM diff: the bar up, then the Save in view; the app root must be identical (except the padding we add)
       await scrollBox(pg, c.box, 0); await scrollBox(pg, 'window', 0); await settle(pg)
       if ((await barState(pg)).shown) {
