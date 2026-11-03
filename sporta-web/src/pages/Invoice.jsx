@@ -112,7 +112,7 @@ export default function Invoice() {
       </div>
 
       <article className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 md:p-10">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-6 print:pb-4">
           <div>
             {/* Two inks, one shown at a time (index.css). logo.png has BLACK
                 lettering for a light surface; on the dark theme's charcoal card
@@ -143,7 +143,7 @@ export default function Invoice() {
           </div>
         </header>
 
-        <div className="grid gap-6 border-b border-slate-200 py-6 sm:grid-cols-2">
+        <div className="grid gap-6 border-b border-slate-200 py-6 sm:grid-cols-2 print:gap-4 print:py-4">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wide text-slate-600">{t.invoice.billTo}</h2>
             {/* The customer's own name decides its direction, not the page:
@@ -183,7 +183,7 @@ export default function Invoice() {
         {/* The table mirrors with the page. Alignment is logical throughout —
             a hard-coded text-right puts the total under the item names in
             Arabic instead of at the end of its own column. */}
-        <table className="mt-6 w-full border-collapse text-[13px] sm:text-sm" dir={dir}>
+        <table className="mt-6 w-full border-collapse text-[13px] sm:text-sm print:mt-4" dir={dir}>
           <thead>
             <tr className="border-b border-slate-300 text-xs uppercase tracking-wide text-slate-600">
               <th className="py-2 text-start font-bold">{t.invoice.item}</th>
@@ -197,7 +197,7 @@ export default function Invoice() {
               const opts = [i.size, i.fit ? fitLabel(i.fit, lang) : null].filter(Boolean)
               return (
                 <tr key={`${i.name_en}-${i.size}-${n}`} className="border-b border-slate-100 align-top">
-                  <td className="py-3 text-start">
+                  <td className="py-3 text-start print:py-1.5">
                     {/* Both names, each in its own direction — on an INLINE
                         span inside a block that keeps the page's direction.
                         The `dir` used to sit on the block itself, and a block
@@ -218,9 +218,9 @@ export default function Invoice() {
                       </span>
                     )}
                   </td>
-                  <td className="py-3 text-center font-semibold tabular-nums text-slate-900">{i.qty}</td>
-                  <td className="py-3 text-end tabular-nums text-slate-700">{formatKWD(i.unit_price, lang)}</td>
-                  <td className="py-3 text-end font-semibold tabular-nums text-slate-900">
+                  <td className="py-3 text-center font-semibold tabular-nums text-slate-900 print:py-1.5">{i.qty}</td>
+                  <td className="py-3 text-end tabular-nums text-slate-700 print:py-1.5">{formatKWD(i.unit_price, lang)}</td>
+                  <td className="py-3 text-end font-semibold tabular-nums text-slate-900 print:py-1.5">
                     {formatKWD(i.line_total, lang)}
                   </td>
                 </tr>
