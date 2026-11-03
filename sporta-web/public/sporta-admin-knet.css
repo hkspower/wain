@@ -700,8 +700,19 @@
   gap: .625rem;
 }
 .admin-shell .admin-content .payment-gateway-card > dl > div {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d9dfe5;       /* section 6: one neutral edge */
+  border-radius: .875rem;          /* section 6: cards and tiles */
   padding: .625rem .75rem;
+}
+/* "kpaytest.com.kw" and "www.kpay.com.kw" are 126px of mono at 14px; a half-width
+   tile has 124px at 375, 116 at 360 and 96 at 320. Smaller type holds it down to
+   360 (108px); below that the tiles go back to one column rather than truncate
+   the one value the owner looks at here. */
+@media (max-width: 399px) {
+  .admin-shell .admin-content .payment-gateway-card > dl dd.font-mono { font-size: .75rem; }
+}
+@media (max-width: 359px) {
+  .admin-shell .admin-content .payment-gateway-card > dl { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* 2. Two save buttons in one form read as one. "Save IDs" and "Save IPs" save
@@ -711,8 +722,8 @@
       card, and their button is the quiet one: outlined in the action colour,
       where the form's own save keeps the filled one. */
 .admin-shell .admin-content .payment-gateway-editor > :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) {
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
+  border: 1px solid #d9dfe5;       /* section 6: one neutral edge */
+  border-radius: .875rem;          /* section 6: cards and tiles */
   background-color: #fbfcfd;
   padding: 1rem;
 }
@@ -723,7 +734,7 @@
   border-color: var(--admin-action, #9a452c) !important; /* section 4a forces transparent */
   box-shadow: none;
 }
-.admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600:hover {
+.admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600:hover:not(:disabled) {
   background-color: #fdf5f1 !important;
 }
 

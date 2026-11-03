@@ -76,10 +76,12 @@ let browser
       const spans = knet ? [...new Set([...knet.querySelectorAll('label > span:first-child:not(.sr-only)')].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().height)))] : []
       const tpaySpans = tpay ? [...new Set([...tpay.querySelectorAll('label > span:first-child:not(.sr-only)')].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().height)))] : []
       const small = [...document.querySelectorAll('.payment-settings button, .payment-settings input:not([type=checkbox]), .payment-settings select')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height < 44 }).length
+      const hosts = [...document.querySelectorAll('.payment-gateway-card dd.font-mono')]
+      const trunc = hosts.filter((h) => h.scrollWidth > h.clientWidth + 0.5).length
       const b = (e) => (e ? `${cs(e).borderTopWidth} ${cs(e).borderTopColor}` : '-')
       return [
         `section ${R(q('.payment-settings'))} | overflow ${document.documentElement.scrollWidth > innerWidth ? 'YES ' + document.documentElement.scrollWidth : 'no'} | controls under 44px ${small}`,
-        `status card ${R(card)} | tiles grid [${dl ? cs(dl).gridTemplateColumns.replace(/px/g, '') : '-'}] tile ${R(tile)} border ${b(tile)}`,
+        `status card ${R(card)} | tiles grid [${dl ? cs(dl).gridTemplateColumns.replace(/px/g, '') : '-'}] tile ${R(tile)} border ${b(tile)} | gateway host truncated ${trunc} of ${hosts.length}`,
         `KNET panel ${R(panel)} border ${b(panel)} radius ${panel ? cs(panel).borderTopLeftRadius : '-'} pad ${panel ? cs(panel).paddingTop : '-'}`,
         `Save IDs bg ${saveIds ? cs(saveIds).backgroundColor : '-'} color ${saveIds ? cs(saveIds).color : '-'} border ${b(saveIds)} | Save KNET bg ${saveKnet ? cs(saveKnet).backgroundColor : '-'}`,
         `T-Pay panel ${R(ips)} border ${b(ips)} | sky note ${sky ? cs(sky).display : 'absent'}`,
@@ -87,7 +89,7 @@ let browser
         `label heights KNET [${spans.join(' ')}] T-Pay [${tpaySpans.join(' ')}]`,
       ]
     }
-    for (const [w, h] of [[390, 844], [1280, 900]]) {
+    for (const [w, h] of [[390, 844], [360, 800], [320, 700], [1280, 900]]) {
       const { ctx, pg } = await open(w, h, false)
       const before = await pg.evaluate(probe)
       await pg.addStyleTag({ content: CSS })
