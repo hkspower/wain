@@ -21,11 +21,9 @@
    still read as cards on a white page. */
 .admin-shell,
 .admin-shell .bg-slate-50,
-.admin-shell .bg-slate-50\/70,
-.admin-content,
-.flex.min-h-screen.items-center.justify-center.bg-slate-50 {
+.admin-content {
   background-color: #fff !important;
-}
+} /* CSS scan 2026-11-03: dropped .bg-slate-50\/70 and the old sign-in wrapper .flex.min-h-screen.items-center.justify-center.bg-slate-50; neither is in any of the 50 live JS chunks (the live sign-in is .admin-login). */
 .admin-shell .bg-slate-100 { background-color: #f8fafc !important; }
 .admin-shell .hover\:bg-slate-50:hover { background-color: #f8fafc !important; }
 .admin-shell .admin-content .bg-white.border,
@@ -38,7 +36,8 @@
 
 /* /backends: no rainbow (owner request 2026-11-02). The compiled admin tints
    badges, notes and a few buttons amber, emerald, sky and violet. Everything
-   becomes neutral slate, with indigo (the admin accent) for solid buttons.
+   becomes neutral slate; solid buttons take the admin accent, --admin-action
+   (section 2a; this rule used to paint them indigo #4f46e5, which 2a overrode).
    Rose is kept for TEXT only, because red is what says "error" or "delete";
    its pale backgrounds go neutral like the rest. Scoped to .admin-shell. */
 .admin-shell [class*="bg-amber-5"], .admin-shell [class*="bg-amber-1"],
@@ -52,11 +51,8 @@
   background-color: #e2e8f0 !important;
 }
 .admin-shell .bg-emerald-600, .admin-shell .bg-amber-600 {
-  background-color: #4f46e5 !important; color: #fff !important;
-}
-.admin-shell .hover\:bg-emerald-700:hover, .admin-shell .hover\:bg-amber-700:hover {
-  background-color: #4338ca !important;
-}
+  color: #fff !important;
+} /* CSS scan 2026-11-03: dead #4f46e5 fill and #4338ca hover removed; section 2a's later equal-specificity rules always won. */
 .admin-shell [class*="text-amber-"], .admin-shell [class*="text-emerald-"],
 .admin-shell [class*="text-sky-"], .admin-shell [class*="text-violet-"] {
   color: #334155 !important;
@@ -66,10 +62,7 @@
 .admin-shell [class*="border-rose-"] {
   border-color: #e2e8f0 !important;
 }
-.admin-shell [class*="ring-amber-"], .admin-shell [class*="ring-emerald-"],
-.admin-shell [class*="ring-sky-"], .admin-shell [class*="ring-violet-"] {
-  --tw-ring-color: #e2e8f0 !important;
-}
+/* CSS scan 2026-11-03: a ring-amber/emerald/sky/violet rule stood here; no live chunk uses those classes. */
 
 /* /backends: real bold only (owner request 2026-11-02). The admin font, IBM
    Plex Sans Arabic, ships as 400/600/700 (public/fonts/plex-*.woff2). The
@@ -78,11 +71,9 @@
    big numbers. Capped at the real 700. 500 (font-medium) is left alone: the
    browser picks the 400 or 600 file for it, so nothing is synthesized. */
 .admin-shell .font-extrabold,
-.admin-shell .font-black,
-.flex.min-h-screen.items-center.justify-center.bg-slate-50 .font-extrabold,
-.flex.min-h-screen.items-center.justify-center.bg-slate-50 .font-black {
+.admin-shell .font-black {
   font-weight: 700 !important;
-}
+} /* CSS scan 2026-11-03: the dead sign-in wrapper selectors were dropped here too. */
 .admin-shell { font-synthesis-weight: none; }
 
 /* /backends > Brands: the count line, "View on site" link and the "Tag
@@ -250,7 +241,7 @@
    not forbidden. */
 .admin-shell .admin-content button[class~="disabled:cursor-wait"]:disabled { cursor: wait !important; }
 /* The same two fills on anything else (a badge, a chip): the accent too, so
-   the #4f46e5 of the rule above is gone from the whole shell. */
+   no second fill colour is left anywhere in the shell. */
 .admin-shell :is(.bg-emerald-600, .bg-amber-600) { background-color: var(--admin-action, #9a452c) !important; }
 .admin-shell :is(.hover\:bg-emerald-700, .hover\:bg-amber-700):hover {
   background-color: color-mix(in srgb, var(--admin-action, #9a452c) 84%, #000) !important;
@@ -731,7 +722,7 @@
   background-color: #fff !important;
   color: var(--admin-action, #9a452c) !important;
   border: 1px solid var(--admin-action, #9a452c);
-  border-color: var(--admin-action, #9a452c) !important; /* section 4a forces transparent */
+  border-color: var(--admin-action, #9a452c) !important; /* section 2a forces transparent */
   box-shadow: none;
 }
 .admin-shell .admin-content .payment-gateway-editor :is([data-sporta-knet-ids], [data-sporta-tpay-ips]) button.bg-indigo-600:hover:not(:disabled) {

@@ -40,7 +40,7 @@ button:has(> .purchase-steps__body) {
    ------------------------------------------------------------------------ */
 
 /* cash-04. The selected payment radio drew in the bright orange (#FF7B17),
-   2.44:1 on the white card and lower on its 5% tint; a UI state needs 3:1.
+   2.59:1 on the white card (figure corrected by the CSS scan 2026-11-03) and lower on its 5% tint; a UI state needs 3:1.
    #B8430F is 5.46:1 on white and 5.15:1 on the tint. The live rule is
    ".purchase-payment .payment-method input" (0,2,1); this is one class and
    an attribute more, so no !important. */
@@ -50,7 +50,7 @@ button:has(> .purchase-steps__body) {
 
 /* cash-05. The global keyboard ring is 2px #FF7B17 with a 3px offset: 2.59:1
    on the white page. On the three buttons that carry the checkout it is the
-   deep orange instead (5.46:1 on white, 4.4:1 on the #E2DBCE canvas); the
+   deep orange instead (5.46:1 on white, 3.97:1 on the #E2DBCE canvas; corrected 2026-11-03); the
    button itself stays bright orange with near-black text. The global rule is
    "button:focus-visible" (0,1,1), each selector below is heavier, so no
    !important. Not applied to the bag drawer's CTA or anything else. */

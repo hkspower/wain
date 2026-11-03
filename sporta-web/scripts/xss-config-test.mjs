@@ -271,7 +271,7 @@ async function execute(htmlText, label) {
   const onReq = (r) => { if (/evil\.example/.test(r.url())) seen.evil.push(r.url()) }
   page.on('dialog', onDialog); page.on('request', onReq)
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (route) => route.abort())
-  await page.setContent(htmlText, { waitUntil: 'load' }).catch(() => {})
+  await page.setContent(htmlText, { waitUntil: 'load' }).catch((e) => { seen.errors.push(String(e.message).split('\n')[0]) })
   await page.waitForTimeout(150)
   page.off('dialog', onDialog); page.off('request', onReq)
   await page.unroute(/^https?:\/\/(?!127\.0\.0\.1)/)
@@ -1044,6 +1044,7 @@ head('9. the detectors can fail: two deliberate regressions on a copy')
     const a = await analyse(r)
     const problems = a ? samePage(baseline['/'].a, a) : ['(no browser)']
     const ex = a ? await execute(r, label) : null
+    if (process.env.XSS_DEBUG) { const i = r.indexOf('alert(1)'); console.log('DEBUG', label, JSON.stringify(ex)); writeFileSync(join(process.env.XSS_DEBUG, `${label.replace(/\W+/g, '_')}.html`), r); const j = r.indexOf('name="description"'); console.log(JSON.stringify(r.slice(j - 20, j + 200))); console.log(r.length, r.slice(0, 300)) }
     writeFileSync(seoFile, orig)
     return { problems, ex }
   }

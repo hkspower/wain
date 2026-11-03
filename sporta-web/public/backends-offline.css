@@ -6,4 +6,5 @@ body { display: grid; min-height: 100dvh; margin: 0; place-items: center; backgr
 h1 { margin: 1.5rem 0 .75rem; font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.2; }
 p { line-height: 1.55; color: #48515a; }
 a { display: inline-flex; min-height: 2.75rem; align-items: center; margin-top: .65rem; border-radius: .75rem; background: #171a1e; padding: .65rem 1rem; color: #fff; font-weight: 700; text-decoration: none; }
-a:focus-visible { outline: 3px solid #d28a69; outline-offset: 3px; }
+/* CSS scan 2026-11-03: ring was #d28a69, 2.77:1 on the white card (under 3:1); now the admin accent, 6.44:1. */
+a:focus-visible { outline: 3px solid #9a452c; outline-offset: 3px; }

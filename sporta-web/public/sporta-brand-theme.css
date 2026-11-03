@@ -41,10 +41,9 @@ html:root:root {
  *    focused button keeps its charcoal label (6.73:1) and the ring says it has focus.
  * Hover now does what the note above promises: the deep orange #B8430F with white text (5.46:1), on the
  * storefront buttons, the drawer's Checkout and the hero call to action. Only where hover exists, and never
- * on a disabled button. Specificity (0,4,0) / (1,2,0) beats the bundle's (0,3,0) and (0,2,0). */
-.btn-primary:hover {
-  color: #fff;
-}
+ * on a disabled button. Specificity (0,5,0) / (1,2,0) beats the bundle's (0,3,0) and (0,2,0).
+ * (CSS scan 2026-11-03: a bare `.btn-primary:hover { color: #fff }` stood here; every live .btn-primary is
+ * under .storefront-root or the drawer, where the bundle's (0,3,0) always beat it, so it was removed.) */
 @media (hover: hover) {
   .storefront-root .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),
   .campaign-cart-drawer .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),

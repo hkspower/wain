@@ -17,9 +17,12 @@
 /* Bag drawer layout, 2026-11-02. Measured on the live site at 390px BEFORE this
    change: the header held a 40px brand tile, the title and a 28px count pill in
    one cluster at the start edge; the empty state put a 122px-wide button and
-   16px copy in a 759px column, so the content floated in white space. Only
-   layout, size and spacing change here. Colours and copy stay as the live
-   build has them. */
+   16px copy in a 759px column, so the content floated in white space. Mostly
+   layout, size and spacing; the count pill, the empty-state icon tile and its
+   copy also get colours, light theme only (rules at the end of this file).
+   Copy stays as the live build has it. (CSS scan 2026-11-03: this comment said
+   no colours changed, and those colours were not theme-guarded: in the stored
+   dark theme the #4a5160 copy was 2.06:1 on the #1b2026 drawer.) */
 
 /* Header. The brand tile repeated the bag icon the empty state already shows,
    so it steps back. The count sits beside the title as a pill: it reads as the
@@ -38,8 +41,6 @@
   height: 1.75rem;
   padding: 0 0.5rem;
   border-radius: 9999px;
-  background: #f6e7de;
-  color: #b8430f;
   font-size: 0.875rem;
   font-weight: 800;
   line-height: 1;
@@ -60,18 +61,30 @@
   padding: 1.5rem;
   box-sizing: border-box;
   border-radius: 9999px;
-  background: #f5f0e8;
 }
 .campaign-cart-drawer > div.flex-1 > p {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.6;
-  color: #4a5160;
 }
 .campaign-cart-drawer > div.flex-1 > a.btn {
   min-width: 14rem;
   min-height: 3.25rem;
   padding: 0.75rem 2rem;
   font-size: 1rem;
+}
+
+/* Colours of the pill, the icon tile and the copy above, moved here unchanged
+   behind :where(html:not([data-theme="dark"])) (zero specificity, so the light
+   theme is identical); the dark theme keeps the bundle's own colours. */
+:where(html:not([data-theme="dark"])) .campaign-cart-drawer > header .purchase-count {
+  background: #f6e7de;
+  color: #b8430f;
+}
+:where(html:not([data-theme="dark"])) .campaign-cart-drawer > div.flex-1 > svg {
+  background: #f5f0e8;
+}
+:where(html:not([data-theme="dark"])) .campaign-cart-drawer > div.flex-1 > p {
+  color: #4a5160;
 }

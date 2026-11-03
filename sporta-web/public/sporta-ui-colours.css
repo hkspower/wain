@@ -4,10 +4,13 @@
 
 /* Bag drawer close (X): slate-400 #90a1b9 on white = 2.63:1, under the 3:1
    minimum for controls. Charcoal = 17:1. */
-.cart-drawer header button.text-slate-400 {
+/* CSS scan 2026-11-03: the light-theme colours in this block (close X, quantity -/+, wishlist, amber line)
+   are now behind :where(html:not([data-theme="dark"])) like the later blocks. :where() adds no specificity,
+   so the light theme is unchanged; in the stored dark theme charcoal on #1b2026 was about 1.1:1. */
+:where(html:not([data-theme="dark"])) .cart-drawer header button.text-slate-400 {
   color: #171a1e !important;
 }
-.cart-drawer header button.text-slate-400:hover {
+:where(html:not([data-theme="dark"])) .cart-drawer header button.text-slate-400:hover {
   color: #b8430f !important;
 }
 
@@ -31,30 +34,30 @@ footer a.rounded-full.border {
 
 /* Product page: quantity -/+ (slate-700) and the wishlist button (slate-600
    icon, slate-300 ring) -> charcoal with the site's hairline ring. */
-button[aria-label="إنقاص الكمية"],
-button[aria-label="زيادة الكمية"],
-button[aria-label="Decrease quantity"],
-button[aria-label="Increase quantity"] {
+:where(html:not([data-theme="dark"])) button[aria-label="إنقاص الكمية"],
+:where(html:not([data-theme="dark"])) button[aria-label="زيادة الكمية"],
+:where(html:not([data-theme="dark"])) button[aria-label="Decrease quantity"],
+:where(html:not([data-theme="dark"])) button[aria-label="Increase quantity"] {
   color: #171a1e !important;
 }
-button[aria-label="إنقاص الكمية"]:hover:not(:disabled),
-button[aria-label="زيادة الكمية"]:hover:not(:disabled),
-button[aria-label="Decrease quantity"]:hover:not(:disabled),
-button[aria-label="Increase quantity"]:hover:not(:disabled) {
+:where(html:not([data-theme="dark"])) button[aria-label="إنقاص الكمية"]:hover:not(:disabled),
+:where(html:not([data-theme="dark"])) button[aria-label="زيادة الكمية"]:hover:not(:disabled),
+:where(html:not([data-theme="dark"])) button[aria-label="Decrease quantity"]:hover:not(:disabled),
+:where(html:not([data-theme="dark"])) button[aria-label="Increase quantity"]:hover:not(:disabled) {
   color: #b8430f !important;
 }
-button.border-slate-300.text-slate-600[aria-pressed="false"] {
+:where(html:not([data-theme="dark"])) button.border-slate-300.text-slate-600[aria-pressed="false"] {
   color: #171a1e !important;
   border-color: rgba(23, 26, 30, 0.2) !important;
 }
-button.border-slate-300.text-slate-600[aria-pressed="false"]:hover {
+:where(html:not([data-theme="dark"])) button.border-slate-300.text-slate-600[aria-pressed="false"]:hover {
   color: #b8430f !important;
   border-color: #b8430f !important;
 }
 
 /* The one amber-700 (#bb4d00) product-page line vs burnt orange everywhere
    else. */
-li.text-amber-700 {
+:where(html:not([data-theme="dark"])) li.text-amber-700 {
   color: #b8430f !important;
 }
 
@@ -119,8 +122,9 @@ li.text-amber-700 {
    Scope: #main is the single <main> (it holds the hero, the brand bar and the category tiles but not the
    header, footer or the bag drawer), so the drawer is named as well. The surfaces inside #main that are
    dark choose their own ring through --sporta-ring, which the rule reads: white on the hero photo (the
-   carousel section and its arrows), #ff7b17 on the charcoal brand bar, and the orange the category tiles
-   and the call bar already carry. `select`, `input` and `textarea` are left out on purpose: the checkout
+   carousel section and its arrows), #ff7b17 on the charcoal brand bar, and the orange the dark call bar
+   already carries. (CSS scan 2026-11-03: the category tiles were on that list, but their ring sits 3px
+   OUTSIDE the tile, on the white home canvas, where #ff8f3d is 2.27:1; they now take #b8430f, 5.46:1.) `select`, `input` and `textarea` are left out on purpose: the checkout
    draws their focus with a border and a halo and a transparent outline.
    C3: the selected shop filter chip showed a WHITE ring on the white page when sampled. The ring is not
    white in the steady state; the bundle's `.transition` list includes outline-color, so for 150ms the ring
@@ -136,7 +140,7 @@ html:not([data-theme="dark"]) .campaign-cart-drawer .transition:focus-visible {
 }
 #main [aria-roledescription="carousel"] { --sporta-ring: #ffffff; }
 #main .campaign-brand-bar { --sporta-ring: #ff7b17; }
-#main :is(.campaign-category, .sf__btn) { --sporta-ring: #ff8f3d; }
+#main .sf__btn { --sporta-ring: #ff8f3d; }
 
 /* C4. Sold-out label hidden behind the photo. The "Sold out" band (span.absolute.inset-x-0.bg-ink/85) and
    the white veil (span.absolute.inset-0.bg-white/55) have no z-index, but the sibling photo

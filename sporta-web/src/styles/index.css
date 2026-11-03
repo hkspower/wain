@@ -569,7 +569,10 @@ p, li, dd, figcaption {
    and full-bleed rows would otherwise run under it. */
 .app-header > *,
 .app-footer > * {
-  padding-inline: var(--sa-left) var(--sa-right);
+  /* Physical, like the insets themselves (CSS scan 2026-11-03): padding-inline put the LEFT inset on the
+     right edge in Arabic (RTL, the default). Same as admin-mobile.css. Nothing changes when the insets are 0. */
+  padding-left: var(--sa-left);
+  padding-right: var(--sa-right);
 }
 
 .app-footer {
