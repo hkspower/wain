@@ -25,6 +25,19 @@ function google_redirect(string $result): never {
 
 function google_oauth_session(): void {
     if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    // ALWAYS the host's own save path and sweep lifetime, never whatever the
+    // request has set so far. `start?intent=link` reads the signed-in admin
+    // first, and that points session.save_path at the admin session directory
+    // (30-day lifetime) for the rest of the request, so this flow session
+    // (state, nonce, PKCE verifier) was written THERE; the callback request
+    // opens this session first, with the default path, found nothing, and the
+    // owner landed on ?google=invalid — the Google account never linked. Both
+    // requests now name the same place, and the short flow session is never in
+    // the directory whose files must outlive a month (or swept by a request
+    // that thinks a day is long enough).
+    $host = store_session_host_defaults();
+    ini_set('session.save_path', $host['save_path']);
+    ini_set('session.gc_maxlifetime', $host['gc_maxlifetime']);
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     $secure = store_is_https();
