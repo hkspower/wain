@@ -9,3 +9,14 @@
 @media (min-width: 1024px) {
   .product-grid { column-gap: 20px !important; row-gap: 32px !important; }
 }
+
+/* Shop / brand / category / search pages: keep the footer under the fold while the grid loads.
+ * Measured live 2026-11-03 on /shop?brand=vanquish: CLS 0.229 at 768px (needs-improvement;
+ * 0.068 at 390px). The page first paints short (empty grid, so the footer sits at the bottom of
+ * the window), then the brand banner is inserted and the empty state is replaced by the products
+ * ~150ms later: the filters, the empty state and the whole FOOTER were pushed down twice
+ * (layout-shift sources: .catalog-filters, .catalog-empty, footer.app-footer). Giving the
+ * catalogue section the height of a window means the footer starts below the fold from the first
+ * paint, so it is never "visible then moved". Pages that are already taller than a window
+ * (the shop with 36 cards, a brand with 4) are untouched. */
+.catalog-page { min-height: calc(100vh - 6rem); }
