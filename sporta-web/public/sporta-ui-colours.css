@@ -141,6 +141,10 @@ html:not([data-theme="dark"]) .campaign-cart-drawer .transition:focus-visible {
 #main [aria-roledescription="carousel"] { --sporta-ring: #ffffff; }
 #main .campaign-brand-bar { --sporta-ring: #ff7b17; }
 #main .sf__btn { --sporta-ring: #ff8f3d; }
+/* CSS scan 2026-11-03: the /shop?brand= banner (charcoal, built by sporta-features.js) asks for a white ring in
+   sporta-images.css, but C2 above outranks that rule (1,3,1 vs 1,2,0) and painted #b8430f on #171a1e (3.2:1).
+   Naming the ring here gives the banner the white it was written for (about 17:1). */
+#main #sporta-brand-banner { --sporta-ring: #ffffff; }
 
 /* C4. Sold-out label hidden behind the photo. The "Sold out" band (span.absolute.inset-x-0.bg-ink/85) and
    the white veil (span.absolute.inset-0.bg-white/55) have no z-index, but the sibling photo
