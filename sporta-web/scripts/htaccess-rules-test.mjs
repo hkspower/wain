@@ -80,7 +80,8 @@ function raw(lines, { timeout = 6000, port = PORT } = {}) {
         const i = l.indexOf(':')
         return [l.slice(0, i).trim().toLowerCase(), l.slice(i + 1).trim()]
       })
-      const body = buf.subarray(cut + 4)
+      let body = buf.subarray(cut + 4)
+      if (headers.some(([k, v]) => k === 'transfer-encoding' && /chunked/i.test(v))) body = dechunk(body)
       resolveP({ status, headers, body, text: body.toString('utf8') })
     }
     sock.setTimeout(timeout, done)
@@ -91,12 +92,25 @@ function raw(lines, { timeout = 6000, port = PORT } = {}) {
     sock.on('connect', () => sock.write(`${lines.join('\r\n')}\r\n\r\n`))
   })
 }
+function dechunk(buf) {
+  const out = []
+  let i = 0
+  for (;;) {
+    const eol = buf.indexOf('\r\n', i)
+    if (eol < 0) break
+    const n = parseInt(buf.subarray(i, eol).toString('latin1'), 16)
+    if (!n) break
+    out.push(buf.subarray(eol + 2, eol + 2 + n))
+    i = eol + 2 + n + 2
+  }
+  return Buffer.concat(out)
+}
 const hv = (res, name) => res.headers.filter(([k]) => k === name.toLowerCase()).map(([, v]) => v)
 const h1 = (res, name) => hv(res, name)[0] ?? ''
 
 // A request as Traefik would forward it: Host + X-Forwarded-Proto, plain HTTP on the wire.
 // `host: null` sends no Host; `proto: null` sends no X-Forwarded-Proto.
-const req = (path, { method = 'GET', host = HOST, proto = 'https', headers = [], version = '1.0' } = {}) =>
+const req = (path, { method = 'GET', host = HOST, proto = 'https', headers = [], version = '1.1' } = {}) =>
   raw([
     `${method} ${path} HTTP/${version}`,
     ...(host !== null ? [`Host: ${host}`] : []),
@@ -175,7 +189,9 @@ function buildTree(patchFile) {
   // Secrets and bait: every one has been seen in a web root, or is the shape of one.
   for (const f of ['.env', '.env.local', '.git/config', '.git/HEAD', '.svn/entries', '.DS_Store', '.htpasswd', '.user.ini', '._logo.png',
     '.hidden/inner.txt', '.well-known/acme-challenge/tok123', '.well-known/security.txt', '.well-known/.hidden', 'sub/.env', 'sub/.git/config',
-    'knet/.env', 'pay/.env', 'api/.env', 'images/products/.env', 'hero/.env']) {
+    'knet/.env', 'pay/.env', 'api/.env', 'images/products/.env', 'hero/.env',
+    'api/.git/config', 'knet/.git/config', 'pay/.git/config', 'hero/.git/config', 'cats/.git/HEAD', 'images/products/.git/config', 'fonts/.git/config',
+    'assets/.git/config', 'images/.git/config', 'hero/desktop/.git/config', 'api/.svn/entries', 'hero/.hidden/inner.txt', 'sub/.hidden/inner.txt']) {
     put(join(www, f), 'SECRET\n')
   }
   for (const f of ['dump.sql', 'backup.bak', 'index.html.bak', 'index.html.old', 'index.html~', 'index.html.orig', 'index.html.save', 'index.html.swp', '.index.html.swp',
@@ -192,7 +208,7 @@ function buildTree(patchFile) {
     'knet/config.php.bak', 'pay/x.log', 'pay/data.json', 'pay/notes.md', 'pay/dump.sql', 'pay/.cbk_token.json', 'pay/cbk-payments.log', 'pay/config.php',
     'pay/config.php.bak', 'pay/package.json', 'knet/package.json', 'knet/backup.zip', 'pay/backup.zip', 'api/backup.zip', 'api/x.map', 'pay/x.map', 'knet/x.map',
     'images/products/x.log', 'images/products/dump.sql', 'images/products/data.json', 'hero/x.log', 'hero/data.json']) {
-    put(join(www, f), 'SECRET\n')
+    put(join(www, f), /\.php$/.test(f) ? "<?php /* SECRET */ return ['k' => 'SECRET'];\n" : 'SECRET\n')
   }
   // Directories with no index file.
   put(join(www, 'emptyish/thing.txt'), 'x\n')

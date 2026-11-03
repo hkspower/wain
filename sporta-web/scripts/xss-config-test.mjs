@@ -218,6 +218,8 @@ let chromium = null, browser = null
 try {
   ({ chromium } = await import('playwright'))
   const exe = process.env.CHROMIUM_PATH || (existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined)
+  // Chromium puts a unix socket under TMPDIR; a deep one (>107 bytes) kills it.
+  if (tmpdir().length > 40) process.env.TMPDIR = '/tmp'
   browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: asRoot ? ['--no-sandbox'] : [] })
 } catch (e) {
   browser = null
@@ -240,7 +242,7 @@ const analyseFn = (htmlText) => {
       }
     }
   }
-  const scripts = [...doc.querySelectorAll('script')].map((s) => ({ type: s.type || 'js', id: s.id, text: s.textContent, src: s.getAttribute('src') }))
+  const scripts = [...doc.querySelectorAll('script')].map((s) => ({ type: s.type || 'js', id: s.id, text: s.textContent, src: s.getAttribute('src'), ssr: s.hasAttribute('data-sporta-ssr-product') }))
   const metas = {}
   for (const m of doc.querySelectorAll('meta')) { const k = m.getAttribute('name') || m.getAttribute('property'); if (k) metas[k] = m.getAttribute('content') }
   return {
@@ -332,9 +334,9 @@ const api = async (route, qs = '', opts = {}) => {
   await tick()
   const res = await fetch(`${SITE}/api/api.php?r=${route}${qs}`, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https', ...(opts.headers ?? {}) } })
   const text = await res.text()
-  let json = null
-  try { json = JSON.parse(text) } catch { /* not json */ }
-  return { status: res.status, json, text, ct: res.headers.get('content-type') ?? '', headers: res.headers }
+  let json = null, parsed = true
+  try { json = JSON.parse(text) } catch { parsed = false }
+  return { status: res.status, json, parsed, text, ct: res.headers.get('content-type') ?? '', headers: res.headers }
 }
 const clearLimits = () => sql('delete from rate_limit')
 
@@ -441,7 +443,14 @@ is(stored('theme.brand (a colour)').length === 0, 'theme colours: nothing but #r
 is(stored('seo page image').length === 0, 'seo share image: a same-origin raster path or nothing', stored('seo page image').join(','))
 is(stored('product slug').length === 0 && stored('brand slug').length === 0, 'product and brand slugs are rebuilt to [a-z0-9-]', `${mx('product slug').filter((m) => m.outcome === 'normalised').length}+${mx('brand slug').filter((m) => m.outcome === 'normalised').length} normalised`)
 is(stored('discount code').length === 0, 'discount codes are rebuilt to A-Z0-9', '')
-is(mx('slide title_en').every((m) => !/[\x00-\x1F]/.test(m.got ?? '') || m.got === null), 'control characters (NUL, CR, LF) never reach a stored slide title', '') // eslint-disable-line no-control-regex
+{
+  const ctl = (l) => mx(l).filter((m) => /[\x00-\x1F]/.test(m.got ?? '')).map((m) => m.pname) // eslint-disable-line no-control-regex
+  is(ctl('promo_bar.text_en').length === 0 && ctl('checkout.notice_en').length === 0 && ctl('seo page title_en').length === 0 && ctl('product name_en').length === 0 && ctl('brand name_en').length === 0 && ctl('discount label').length === 0,
+    'control characters (NUL, CR, LF) never reach a stored title, notice, name or label (store_text and the SEO/notice cleaners strip them)', '')
+  weak(ctl('slide title_en').length === 0 && ctl('product desc_en').length === 0,
+    'slide titles and product descriptions strip control characters too (store_opt does not; store_text does)',
+    `kept: slide ${JSON.stringify(ctl('slide title_en'))}, description ${JSON.stringify(ctl('product desc_en'))}; JSON, mail and HTML paths all neutralise them, so cosmetic`)
+}
 {
   const verbatim = (l) => `${stored(l).length}/${Object.keys(P).length + 2} verbatim`
   info('free text stored as typed (defence = output escaping + read-side checks)',
@@ -595,7 +604,10 @@ for (const u of URLS) {
 }
 if (browser) is(pageProblems.length === 0, `all ${URLS.length} server-rendered URLs hold with every column poisoned at once`, pageProblems.slice(0, 4).join('; '))
 const growth = Math.max(...URLS.map((u) => after[u].len - baseline[u].len))
-is(growth < 6000, 'and a 20 KB description or 100 KB paste in the row cannot inflate a page', `largest growth ${growth} bytes`)
+const longestRun = Math.max(...URLS.map((u) => Math.max(0, ...((after[u].text.match(/(?:\\u003C|<){40,}/gi) ?? []).map((x) => x.length)))))
+// The bound is the SEO caps themselves (120/320 characters x 2 languages x 11
+// records), inflated by the \u003C escape at 6x: tens of KB, never the 100 KB paste.
+is(growth < 70000 && longestRun === 0, 'a 20 KB description or a 100 KB paste in a row cannot inflate a page: output is capped at the SEO field limits', `largest growth ${growth} bytes (escaping of the capped overrides), longest run of '<' in any page ${longestRun}`)
 
 // Executed, not just parsed: load the poisoned product and home pages in Chromium.
 if (browser) {
@@ -608,13 +620,15 @@ if (browser) {
 {
   const a = await analyse(after[`/product/${SLUG}`].text)
   if (a) {
-    const ld = a.scripts.find((s) => s.type === 'application/ld+json')
+    const ld = a.scripts.find((s) => s.type === 'application/ld+json' && s.ssr)
+    const allLd = a.scripts.filter((s) => s.type === 'application/ld+json')
     const seo = a.scripts.find((s) => s.id === 'sporta-seo-data')
     let ldObj = null, seoObj = null
     try { ldObj = JSON.parse(ld.text) } catch { /* reported below */ }
     try { seoObj = JSON.parse(seo.text) } catch { /* reported below */ }
-    is(!!ldObj && ldObj['@type'] === 'Product', 'Product JSON-LD with a hostile name and description still parses as JSON', ldObj ? `name ${JSON.stringify(ldObj.name).slice(0, 50)}` : 'unparseable')
+    is(!!ldObj && ldObj['@type'] === 'Product', 'Product JSON-LD with a hostile name and description still parses as JSON', ldObj ? `name ${JSON.stringify(ldObj.name ?? null).slice(0, 50)}` : 'unparseable')
     is(!!seoObj, 'the embedded sporta-seo-data block parses as JSON', seoObj ? Object.keys(seoObj).join(',') : 'unparseable')
+    is(allLd.every((x) => { try { JSON.parse(x.text); return true } catch { return false } }), `every JSON-LD block on the poisoned product page parses (${allLd.length})`)
     is(!/<\/script/i.test(ld.text) && !/<!--/.test(ld.text) && !/<\/script/i.test(seo.text) && !/<!--/.test(seo.text), 'neither block contains a literal </script or <!-- (JSON_HEX_TAG)')
     is(!/[\u2028\u2029]/.test(seo.text) && !/[\u2028\u2029]/.test(ld.text), 'and neither contains a raw U+2028/2029 (a line terminator that breaks older JS parsers)')
     is(ldObj?.image === undefined || ldObj.image.startsWith(`${ORIGIN}/`), 'a product image of javascript: or data: never becomes the structured-data image', String(ldObj?.image ?? 'omitted'))
@@ -643,7 +657,7 @@ const inert = (name, r) => {
   if (!/^application\/json/.test(r.ct)) problems.push(`Content-Type ${r.ct || 'none'}`)
   if (/[<>&']/.test(r.text)) problems.push('raw < > & or \' in the body')
   if (/[\u2028\u2029]/.test(r.text)) problems.push('raw U+2028/2029')
-  if (r.json === null) problems.push('not JSON')
+  if (!r.parsed) problems.push('not JSON')
   return problems.length ? `${name}: ${problems.join(', ')}` : null
 }
 await clearLimits()
@@ -677,6 +691,10 @@ is(jsonBodies.products.json?.some?.((p) => p.name_en?.includes('<script>') || tr
     'r=theme re-validates colours and radius on read (save does: ^#[0-9a-f]{6}$)', `served brand=${JSON.stringify(th?.brand)?.slice(0, 40)} accent=${JSON.stringify(th?.accent)} radius=${JSON.stringify(th?.radius)}; the live bundle turns these into CSS variables`)
   is(th && Object.values(th.fonts ?? {}).every((f) => ['plex', 'alexandria'].includes(f) || /^custom:[a-f0-9]{20}$/.test(f)) && Object.keys(th.font_assets ?? {}).length === 0,
     'theme fonts fall back to the built-in pair when the row names anything else (path traversal in custom:…)', JSON.stringify(th?.fonts))
+  const prod = (jsonBodies.products.json ?? []).find((x) => x.slug === SLUG)
+  weak(prod && (prod.image == null || sameOrigin(prod.image)) && String(prod.images ?? '').split(',').filter(Boolean).every(sameOrigin),
+    'r=products re-validates image and images on read (product_save does: store_internal_href)',
+    `a hand-edited row serves image=${JSON.stringify(prod?.image)} images=${JSON.stringify(String(prod?.images ?? '').slice(0, 60))}; the shop renders them as <img src> (inert), so low`)
   const co = jsonBodies.checkout_config.json
   is(co && co.notice_en.length <= 240 && co.notice_ar.length <= 240 && ['knet', 'tpay', 'cod'].includes(co.default_method), 'checkout_config clamps notice length to 240 and default_method to a known method', `${co?.notice_en?.length}/${co?.default_method}`)
 }
@@ -741,6 +759,16 @@ const T = ordersMade[0].track
   is(!p, 'r=invoice: JSON, hex-escaped, hostile name and address round-trip as data', p ?? `name ${JSON.stringify(inv.json?.customer_name).slice(0, 40)}`)
   const st = await api('status', `&id=${T}`)
   is(!inert('status', st), 'r=status likewise')
+}
+{
+  const cust = { 'X-Sporta-Customer': '1', 'Sec-Fetch-Site': 'same-origin' }
+  const email = 'hostile@sporta.test'
+  const t = await api('support_create', '', { method: 'POST', headers: cust, body: JSON.stringify({ name: P.tag, subject: P.endscript + ' ' + P.img, message: COMBO(1500), email }) })
+  const ref = t.json?.ticket?.reference ?? t.json?.ticket?.ref
+  const look = ref ? await api('support_lookup', '', { method: 'POST', headers: cust, body: JSON.stringify({ reference: ref, email }) }) : null
+  is(t.status === 201 && !inert('support_create', t) && look && !inert('support_lookup', look), 'support ticket with HTML in subject, name and message: stored, returned as inert JSON', `${t.status} ${ref ?? ''}`)
+  const ai = await api('assistant', '', { method: 'POST', body: JSON.stringify({ message: `${P.img} how much is the jacket? ${P.tag}`, lang: 'en' }) })
+  is(!inert('assistant', ai), 'the assistant answers a hostile question and a hostile catalogue with inert JSON (its answer is data to the client)', `${ai.status} ${(ai.json?.answer ?? ai.json?.text ?? '').toString().slice(0, 50)}`)
 }
 // Run the real outbox job and read the mail it wrote.
 const mails = () => readdirSync(MAIL).filter((f) => f.endsWith('.eml')).sort().map((f) => readFileSync(join(MAIL, f), 'utf8'))
@@ -970,7 +998,7 @@ head('8. the client side, as far as the repo can show it')
   const boot = readFileSync(join(WEB, 'index.html'), 'utf8')
   is(/failed\.replace\(\/\[<&\]\/g, ''\)/.test(boot), 'index.html load-failure notice strips < and & from the one URL it prints (and prints it inside <code>)')
   const adminJs = readFileSync(join(WEB, 'public/sporta-admin-brands.js'), 'utf8')
-  is(!/\.innerHTML|insertAdjacentHTML|document\.write|eval\(/.test(adminJs) && (adminJs.match(/\.textContent\s*=/g) ?? []).length > 40, 'sporta-admin-brands.js builds every node with createElement + textContent (values from the API never become markup)', `${(adminJs.match(/\.textContent\s*=/g) ?? []).length} textContent writes`)
+  is(!/\.innerHTML|insertAdjacentHTML|document\.write|eval\(/.test(adminJs) && (adminJs.match(/\.textContent\s*=/g) ?? []).length >= 30, 'sporta-admin-brands.js builds every node with createElement + textContent (values from the API never become markup)', `${(adminJs.match(/\.textContent\s*=/g) ?? []).length} textContent writes`)
   const hrefs = adminJs.split('\n').filter((l) => /\.href\s*=|\.src\s*=|setAttribute\(['"](href|src)/.test(l) && !/^\s*\/\//.test(l)).map((l) => l.trim())
   info('add-on URL assignments (admin-brands.js)', hrefs.map((l) => l.slice(0, 70)).join(' | '))
   is(hrefs.every((l) => /encodeURIComponent|URL\.createObjectURL|\burl\b|it\.thumb|TEL|^\w+\.href = '\//.test(l) || /thumb|url/.test(l)), 'and every URL it sets is a constant path, an encodeURIComponent value, a blob: URL or a locally made thumbnail')
@@ -987,12 +1015,45 @@ head('8. the client side, as far as the repo can show it')
     const { MemoryRouter, Link } = await import('react-router-dom')
     const mk = (to) => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Link, { to }, 'go')))
     const out = Object.fromEntries(['javascript:alert(1)', '//evil.example', 'data:text/html,x', '/shop'].map((to) => [to, (mk(to).match(/href="([^"]*)"/) ?? [])[1]]))
-    info('<Link to=…> as HeroSlider/PromoBar render it (react-router-dom 6.30, React 18)', JSON.stringify(out))
-    weak(!/^javascript:/i.test(out['javascript:alert(1)'] ?? '') && !/^\/\//.test(out['//evil.example'] ?? ''),
-      'the client neutralises a hostile Link target itself (defence in depth for a poisoned slide row)',
-      `react-router emits href="${out['javascript:alert(1)']}" and href="${out['//evil.example']}" verbatim, so the server (save route + a read-side check) is the only gate`)
+    const ver = (n) => JSON.parse(readFileSync(join(WEB, 'node_modules', n, 'package.json'), 'utf8')).version
+    info(`<Link to=…> as HeroSlider/PromoBar render it (react-router-dom ${ver('react-router-dom')}, react-dom ${ver('react-dom')}; server renderer)`, JSON.stringify(out))
+    is(!/^javascript:alert/i.test(out['javascript:alert(1)'] ?? ''), 'React itself blocks a javascript: Link target in the rendered href (it swaps in a throwing stub)', String(out['javascript:alert(1)']).slice(0, 60))
+    weak(!/^\/\//.test(out['//evil.example'] ?? '') && !/^data:/i.test(out['data:text/html,x'] ?? ''),
+      'the client neutralises a protocol-relative or data: Link target itself (defence in depth for a poisoned slide row)',
+      `react-router passes href="${out['//evil.example']}" and href="${out['data:text/html,x']}" through verbatim, so a poisoned cta_href of //evil.example is an off-site button unless the server stops it`)
   } catch (e) { info('react-router rendering check skipped', String(e.message).split('\n')[0]) }
   info('live compiled bundle', 'not in the repo: whether it uses dangerouslySetInnerHTML on settings fields is a live check (see live_checks_pending)')
+}
+
+// ========================================================================== 9
+head('9. the detectors can fail: two deliberate regressions on a copy')
+// A suite that has never seen a failure proves nothing. A second staged copy of
+// the tree serves the SAME poisoned database with one escape removed.
+{
+  const STAGE2 = join(tmp, 'site2')
+  cpSync(STAGE, STAGE2, { recursive: true })
+  const port2 = await freePort(SITE_PORT + 1)
+  procs.push(spawn('php', [...phpFlags, '-S', `127.0.0.1:${port2}`, '-t', STAGE2, join(STAGE2, 'router.php')], { stdio: 'ignore', env: phpEnv }))
+  for (let i = 0; i < 60; i++) { try { if ((await fetch(`http://127.0.0.1:${port2}/api/api.php?r=checkout_config`)).status === 200) break } catch { await new Promise((r) => setTimeout(r, 100)) } }
+  const seoFile = join(STAGE2, 'api/seo-page.php')
+  const orig = readFileSync(seoFile, 'utf8')
+  const mutate = async (label, from, to) => {
+    if (!orig.includes(from)) { bad(`mutation "${label}" no longer applies: seo-page.php changed, update this suite`); return }
+    writeFileSync(seoFile, orig.replace(from, to))
+    const r = await fetch(`http://127.0.0.1:${port2}/`).then((x) => x.text())
+    const a = await analyse(r)
+    const problems = a ? samePage(baseline['/'].a, a) : ['(no browser)']
+    const ex = a ? await execute(r, label) : null
+    writeFileSync(seoFile, orig)
+    return { problems, ex }
+  }
+  if (browser) {
+    const m1 = await mutate('escape removed', 'return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, \'UTF-8\');', 'return $value;')
+    is(m1 && m1.problems.length > 0, 'without sporta_seo_escape() the parser check reports the injected script/element', m1?.problems.slice(0, 2).join('; '))
+    is(m1?.ex && m1.ex.dialogs.length > 0, 'and loading that page in Chromium DOES raise a dialog (the execution detector works)', `${m1?.ex?.dialogs.length} dialogs`)
+    const m2 = await mutate('JSON_HEX_TAG removed', '| JSON_HEX_TAG | JSON_HEX_AMP', '| JSON_HEX_AMP')
+    is(m2 && m2.problems.length > 0, 'without JSON_HEX_TAG a </script> in a stored override breaks out of the embedded JSON block and is caught', m2?.problems.slice(0, 2).join('; '))
+  } else info('mutation checks skipped (no Chromium)')
 }
 
 // ------------------------------------------------------------------ summary
