@@ -31,3 +31,110 @@ button:has(> .purchase-steps__body) {
 .relative:has(> button.absolute.h-8.w-8[tabindex="-1"]) > input {
   padding-inline-end: 52px !important;
 }
+
+/* ------------------------------------------------------------------------
+   Checkout colour, hit-area and sticky-summary fixes (scan of the live
+   /checkout, 2026-11-03). The storefront is a compiled build, so each of
+   these is an add-on rule anchored to the live class names. Proven on the
+   live markup by scripts/checkout-a11y-test.mjs (npm run test:checkout-a11y).
+   ------------------------------------------------------------------------ */
+
+/* cash-04. The selected payment radio drew in the bright orange (#FF7B17),
+   2.44:1 on the white card and lower on its 5% tint; a UI state needs 3:1.
+   #B8430F is 5.46:1 on white and 5.15:1 on the tint. The live rule is
+   ".purchase-payment .payment-method input" (0,2,1); this is one class and
+   an attribute more, so no !important. */
+.purchase-payment .payment-method input[type="radio"] {
+  accent-color: #b8430f;
+}
+
+/* cash-05. The global keyboard ring is 2px #FF7B17 with a 3px offset: 2.59:1
+   on the white page. On the three buttons that carry the checkout it is the
+   deep orange instead (5.46:1 on white, 4.4:1 on the #E2DBCE canvas); the
+   button itself stays bright orange with near-black text. The global rule is
+   "button:focus-visible" (0,1,1), each selector below is heavier, so no
+   !important. Not applied to the bag drawer's CTA or anything else. */
+.purchase-quick__submit:focus-visible,
+.purchase-checkout-summary .btn-primary:focus-visible,
+.purchase-paybar .btn-primary:focus-visible {
+  outline-color: #b8430f;
+}
+
+/* cash-06. "Change" (the saved address) was 26x35px in Arabic and "Edit bag"
+   74x18. Both become 44px hit areas and the card headings do not move: the
+   negative block margin leaves 16px of layout height, under the 21px heading
+   that sets the row, and align-self centres the hit area on the heading's
+   line (the live row aligns them to the start / the baseline). The label is
+   pushed to the end edge so the visible text keeps its old position and the
+   extra width falls on the side towards the heading. */
+.purchase-quick__delivery > div > button.text-accent,
+.purchase-quick__bag > h2 > a.text-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-block: -14px;
+}
+
+/* cash-07 + cash-09. From 1024px the order summary is sticky beside the form.
+   Six lines (two of them wrapping) made it 744px tall: taller than the 688px
+   a 800px screen leaves under the header, so the only "Continue to payment"
+   button dropped off the bottom and could be reached only at the very end of
+   the page (the pay bar is hidden from 1024px). The bag list now scrolls
+   inside the card: 224px of it at 800px tall, growing with the screen
+   (about 504px at 1080px), and never under 7rem. A one-line bag (50px) is
+   untouched. The 36rem is the header (145px) and its gap, the card's own
+   fixed parts (promo field, totals, button) and 1rem of air below. */
+@media (min-width: 1024px) {
+  .purchase-checkout-summary > ul {
+    max-height: max(7rem, calc(100vh - 36rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* The live offset is lg:top-28 = 112px (118px at a 1280px screen) under a
+     145px sticky header, so the card slid 27px beneath the header's menu row.
+     9.5rem is 152-160px: the header and a 7-15px gap. */
+  .purchase-checkout-layout > aside {
+    top: 9.5rem;
+  }
+}
+
+/* cash-10. "Remember these details on this device" was a 20px tall row. The
+   live .tap-row rule already gives it 44px on touch screens; this does the
+   same for every pointer. */
+.purchase-flow label:has(> input[type="checkbox"]) {
+  align-items: center;
+  min-height: 44px;
+}
+
+/* cash-11. Bag drawer: quantity and remove buttons were 40px (the live
+   .purchase-quantity button / .cart-drawer__remove minimums are 2.5rem).
+   Close, Checkout and Back to shop in the same drawer were already 44px+. */
+.campaign-cart-drawer .purchase-quantity button,
+.campaign-cart-drawer .cart-drawer__remove {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* cash-12. Footer links (every page) were 32-34px tall. The live
+   ".storefront-root .footer-links a" sets 2rem; this is heavier. The list's
+   8px gaps (space-y-2) go, so a column grows by 4px per link instead of 12
+   and the 44px boxes sit edge to edge without overlapping. */
+.storefront-root .footer-links a.inline-flex {
+  min-height: 2.75rem;
+}
+.storefront-root .footer-links ul.space-y-2 > li {
+  margin-block: 0;
+}
+
+/* cash-13. The one screen that says how the customer pays used 12px (English)
+   and 13px (Arabic) for the payment hint and the cash-on-delivery note.
+   .875rem, with room between lines. The note selector carries two element
+   names to beat the live "[dir=rtl] .text-xs" (0,2,0). */
+.purchase-payment .payment-method [id$="-hint"],
+form.purchase-quick > p.purchase-quick__assurance {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
