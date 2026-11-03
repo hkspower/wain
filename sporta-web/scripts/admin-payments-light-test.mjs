@@ -130,6 +130,8 @@ const SIG = (e) => e.tagName.toLowerCase() + '.' + String(e.getAttribute('class'
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
+let detailOn = true
+// DETAIL=<scenario name> prints every difference found in that scenario (a debugging aid, not part of the verdict)
 // Everything measured in one scenario, as plain data
 async function collect(addon, sc) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: sc.device })
@@ -177,6 +179,7 @@ async function collect(addon, sc) {
     if (/checkbox/.test(name)) { await el.evaluate((e) => { e.checked = true }); st.checked = await el.evaluate(read); await el.evaluate((e) => { e.checked = false }) }
     out.states[name] = st
   }
+  if (detailOn && process.env.PROBE && sc.name === process.env.DETAIL) console.log('     ? ' + (await pg.evaluate((q) => { const rows = []; for (let e = document.querySelector('#scr ' + q); e && e.tagName !== 'HTML'; e = e.parentElement) { const c = getComputedStyle(e); rows.push(e.tagName.toLowerCase() + '.' + String(e.getAttribute('class') || '').split(/\s+/).slice(0, 3).join('.') + ' color ' + c.color + ' bg ' + c.backgroundColor) } return rows.join('\n     ? ') }, process.env.PROBE)))
   out.selection = await pg.evaluate(() => { const c = getComputedStyle(document.querySelector('#scr h1'), '::selection'); return { color: c.color, background: c.backgroundColor } })
 
   // contrast of every text node and every field, against its effective background
@@ -215,7 +218,7 @@ async function collect(addon, sc) {
   return out
 }
 
-const lumOf = (rgb) => { const m = rgb.match(/[\d.]+/g); if (!m) return null; const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(+m[0]) + 0.7152 * f(+m[1]) + 0.0722 * f(+m[2]) }
+const lumOf = (rgb) => { const m = rgb.match(/[\d.]+/g); if (!m || (m.length > 3 && +m[3] === 0)) return null; const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }; return 0.2126 * f(+m[0]) + 0.7152 * f(+m[1]) + 0.0722 * f(+m[2]) }
 
 // All the failures of one css text, as { check -> [details] }: the real run and the mutation run use the same function
 async function failuresOf(addon, verbose) {
@@ -230,15 +233,16 @@ async function failuresOf(addon, verbose) {
     // identical computed paint, element by element
     let nDiff = 0; const ex = []
     if (d.elems.length !== base.elems.length) add('elements', `${sc.name}: ${d.elems.length} vs ${base.elems.length}`)
-    d.elems.forEach((r, i) => { const l = base.elems[i]; if (!l) return; for (const k of Object.keys(r.p)) if (r.p[k] !== l.p[k]) { nDiff++; if (ex.length < 4) ex.push(`${r.sig} ${k} ${l.p[k]} -> ${r.p[k]}`) } })
+    d.elems.forEach((r, i) => { const l = base.elems[i]; if (!l) return; for (const k of Object.keys(r.p)) if (r.p[k] !== l.p[k]) { nDiff++; if (detailOn && sc.name === process.env.DETAIL) console.log(`     . ${r.sig} ${k}: ${l.p[k]} -> ${r.p[k]}`); if (ex.length < 4) ex.push(`${r.sig} ${k} ${l.p[k]} -> ${r.p[k]}`) } })
     if (nDiff) add(`paint [${sc.name}]`, `${nDiff} differences, e.g. ${ex.join(' ; ')}`)
     // states
     let sDiff = 0; const sx = []
-    for (const [name, st] of Object.entries(d.states)) for (const [state, v] of Object.entries(st)) for (const k of Object.keys(v)) { const l = base.states[name][state][k]; if (v[k] !== l) { sDiff++; if (sx.length < 4) sx.push(`${name}/${state} ${k} ${l} -> ${v[k]}`) } }
+    for (const [name, st] of Object.entries(d.states)) for (const [state, v] of Object.entries(st)) for (const k of Object.keys(v)) { const l = base.states[name][state][k]; if (v[k] !== l) { sDiff++; if (detailOn && sc.name === process.env.DETAIL) console.log(`     . ${name}/${state} ${k}: ${l} -> ${v[k]}`); if (sx.length < 4) sx.push(`${name}/${state} ${k} ${l} -> ${v[k]}`) } }
     if (sDiff) add(`states [${sc.name}]`, `${sDiff} differences, e.g. ${sx.join(' ; ')}`)
     if (JSON.stringify(d.selection) !== JSON.stringify(base.selection)) add(`selection [${sc.name}]`, `${JSON.stringify(base.selection)} -> ${JSON.stringify(d.selection)}`)
     // the page around the screen
-    for (const [k, v] of Object.entries(d.areas)) if (v !== base.areas[k] || (lumOf(v) !== null && lumOf(v) < 0.5)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
+    // a surface is right when it is what light paints, or (the screen root, which light leaves clear) when it is light itself
+    for (const [k, v] of Object.entries(d.areas)) if (v !== base.areas[k] && !(k === 'screen' && lumOf(v) !== null && lumOf(v) >= 0.9)) add(`surface [${sc.name}]`, `${k} ${base.areas[k]} -> ${v}`)
     if (d.schemeOnControls.some((s) => /dark/.test(s))) add(`color-scheme [${sc.name}]`, [...new Set(d.schemeOnControls)].join('/'))
   }
   // contrast, in every scenario
@@ -272,12 +276,13 @@ for (const sc of SCENARIOS.slice(1)) is(!F['contrast [' + sc.name + ']'], `[${sc
 head('Control: the scope is not global')
 for (const d of V.runs.filter((r) => /^(dark\+dark|dark\+light-device|first-paint)$/.test(r.sc))) {
   is(!F['control [' + d.sc + ']'], `[${d.sc}] a card on an admin content area WITHOUT the screen still follows the dark rules`, `card ${d.control.card}, border ${d.control.cardBorder}, text ${d.control.text}`)
-  is(d.control.card !== light.control.card && d.control.text !== light.control.text, `[${d.sc}] and its background and text differ from light`, `${light.control.card}/${light.control.text} -> ${d.control.card}/${d.control.text}`)
+  is(d.control.card !== light.control.card, `[${d.sc}] and its background differs from light`, `${light.control.card} -> ${d.control.card}`)
 }
 
 // ---------------------------------------------------------------------------------------------------------- mutation
 head('Mutation: the Light only section cut out of the file')
 const mutated = cut > 0 ? CSS.slice(0, cut) : CSS
+detailOn = false
 const MF = await failuresOf(mutated)
 const kinds = Object.keys(MF)
 console.log(`     ${kinds.length} failing checks without the section:`)

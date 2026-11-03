@@ -772,3 +772,87 @@
 }
 
 /* ---- 9. Light only (owner decision 2026-11-03: no dark mode for the Payments screen) ---- */
+:is(html.dark, html[data-theme="dark"]) .admin-shell :is(.admin-content:has(.payment-settings), .payment-settings) {
+  color-scheme: light;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .admin-content:has(.payment-settings) {
+  background-color: #fff !important;
+  color: #18212a;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings {
+  background-color: #fff;
+  color: #18212a;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-white {
+  background-color: #fff !important;
+  color: inherit;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-900 {
+  color: var(--color-slate-900, #0f172a) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-800 {
+  color: var(--color-slate-800, #1e293b) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-700 {
+  color: var(--color-slate-700, #334155) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-600 {
+  color: var(--color-slate-600, #475569) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-500 {
+  color: var(--color-slate-500, #64748b) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-slate-400 {
+  color: var(--color-slate-400, #94a3b8) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-100:not(input):not(select):not(textarea) {
+  border-color: var(--color-slate-100, #f1f5f9) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-200:not(input):not(select):not(textarea) {
+  border-color: var(--color-slate-200, #e2e8f0) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .border-slate-300:not(input):not(select):not(textarea) {
+  border-color: var(--color-slate-300, #cbd5e1) !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .bg-indigo-50 {
+  background-color: #f8ece6 !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-600 {
+  color: #9a452c !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-700 {
+  color: #9a452c !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-800 {
+  color: #b8430f !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings .text-indigo-900 {
+  color: #b8430f !important;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input, select, textarea) {
+  color-scheme: light;
+}
+
+:is(html.dark, html[data-theme="dark"]) .admin-shell .payment-settings :is(input:not([class]), input[class=""]) {
+  background-color: #fff;
+  color: #18212a;
+  border-color: #767676;
+}
