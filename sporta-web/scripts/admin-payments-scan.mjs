@@ -2,6 +2,7 @@
 //
 //   node scripts/admin-payments-scan.mjs                 MODE=tree     (default) structure and boxes at 390px
 //   MODE=measure node scripts/admin-payments-scan.mjs    checks at 390, 768 and 1280px
+//   MODE=dom     node scripts/admin-payments-scan.mjs    exact element tree of the section (full classes), to rebuild it offline
 //   CSS_URL=<raw url of a stylesheet> ...                apply it on top first (before/after on one page)
 //
 // Every admin API call is answered HERE with made-up data; nothing reaches the real
@@ -53,7 +54,30 @@ const open = async (w, h) => {
 let browser
 ;(async () => {
   browser = await chromium.launch({ args: ['--no-sandbox'] })
-  if (MODE === 'tree') {
+  if (MODE === 'dom') {
+    // The exact element tree of the Payments section: full class lists, text and the few
+    // attributes that change how a control looks. Enough to rebuild the screen offline.
+    const { ctx, pg } = await open(Number(process.env.W || 390), 844)
+    const lines = await pg.evaluate(() => {
+      const root = document.querySelector('.payment-settings')
+      const out = [`html font-size ${getComputedStyle(document.documentElement).fontSize} dir ${getComputedStyle(root).direction} lang ${document.documentElement.lang}`]
+      const walk = (e, d) => {
+        if (out.length > 330) return
+        const tag = e.tagName.toLowerCase()
+        const cls = String(e.getAttribute('class') || '').replace(/\s+/g, ' ').trim()
+        const own = [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).filter(Boolean).join(' ')
+        const at = ['type', 'placeholder', 'aria-pressed', 'aria-checked', 'role', 'value', 'href', 'checked', 'for', 'name']
+          .map((a) => (e.hasAttribute(a) ? `${a}=${JSON.stringify(e.getAttribute(a).slice(0, 40))}` : '')).filter(Boolean).join(' ')
+        const hid = getComputedStyle(e).display === 'none' ? ' [display:none]' : ''
+        out.push(`${'.'.repeat(d)}${tag} {${cls}} ${at}${own ? ' T:' + JSON.stringify(own.slice(0, 80)) : ''}${hid}`)
+        for (const c of e.children) walk(c, d + 1)
+      }
+      if (root) walk(root, 0)
+      return out
+    })
+    lines.forEach((l) => console.log(l.slice(0, 420)))
+    await ctx.close()
+  } else if (MODE === 'tree') {
     const { ctx, pg, errs, found } = await open(390, 844)
     console.log(`PAYMENTS LINK ${found} ERR ${errs.length} ${errs.join(' | ')}`)
     const lines = await pg.evaluate(() => {
