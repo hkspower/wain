@@ -28,7 +28,58 @@ html:root:root {
   --accent-text-light: 18.5 84.9% 39% !important;
   --accent-text-dark: 25.9 100% 54.5% !important;
 }
-.btn-primary:hover,
-.btn-primary:focus-visible {
+/* Primary buttons, hover and keyboard focus (live scan 2026-11-03, C8).
+ *
+ * The old rule here, `.btn-primary:hover, .btn-primary:focus-visible { color: #fff }`, did two wrong things:
+ *  - hover: the bundle's `.storefront-root .btn-primary:hover { background: var(--brand-bright); color:
+ *    #171a1e }` (0,3,0) outranks it (0,2,0), so a hovered button never changed colour at all. Measured
+ *    on six button types (hero CTA, Add, footer, Back to shop, drawer Checkout): rest and hover were both
+ *    #171a1e on #ff7b17. Only the lift and the shadow moved.
+ *  - keyboard focus: no bundle rule beats `.btn-primary:focus-visible` (0,2,0) because the bundle's own
+ *    `.storefront-root .btn-primary` is the same specificity and earlier, so a Tab onto a primary button
+ *    turned its text WHITE on #ff7b17 = 2.5:1, below the 4.5:1 the label needs. That half is gone: the
+ *    focused button keeps its charcoal label (6.73:1) and the ring says it has focus.
+ * Hover now does what the note above promises: the deep orange #B8430F with white text (5.46:1), on the
+ * storefront buttons, the drawer's Checkout and the hero call to action. Only where hover exists, and never
+ * on a disabled button. Specificity (0,4,0) / (1,2,0) beats the bundle's (0,3,0) and (0,2,0). */
+.btn-primary:hover {
   color: #fff;
+}
+@media (hover: hover) {
+  .storefront-root .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),
+  .campaign-cart-drawer .btn-primary:hover:not(:disabled):not([aria-disabled="true"]),
+  #main .campaign-hero-cta:hover {
+    background: #b8430f;
+    color: #fff;
+  }
+}
+
+/* Off-palette leftovers (C7). Cool slate/navy text and the bundle's hard-coded terracotta (#d28a69 /
+ * #c76a42) sit beside the orange-and-charcoal brand; this file only moves the CSS variables, which the
+ * bundle's literal values never read. All text pairs below already passed AA; this is brand consistency.
+ * The footer's cooler greys on charcoal are left alone on purpose. Light theme only for the text colours
+ * (the dark theme sets its own). */
+html:not([data-theme="dark"]) .storefront-root :is(.catalog-card-name, .catalog-product-title, h1.page-heading) {
+  color: #171a1e;
+}
+/* Selected payment method and the notice box: terracotta tints -> the brand orange at the same strength. */
+.purchase-payment .payment-method--selected {
+  background: rgba(224, 86, 28, 0.07);
+  box-shadow: 0 5px 16px -12px rgba(184, 67, 15, 0.9);
+}
+.purchase-payment .payment-method--selected:hover {
+  background: rgba(224, 86, 28, 0.1);
+}
+.purchase-payment .payment-method--selected .payment-method__badge {
+  background: rgba(224, 86, 28, 0.09);
+}
+.purchase-notice {
+  background: rgba(224, 86, 28, 0.07);
+  border-color: rgba(224, 86, 28, 0.25);
+}
+/* The 3px halo on a focused field was rgba(210,138,105,.12), about 1.1:1, so the only visible cue was the
+ * border change; the brand orange at .22 is the same halo in the right colour. A field marked invalid keeps
+ * its rose halo (the bundle's [aria-invalid] rule is more specific than this one). */
+.storefront-root :is(input, select, textarea):focus-visible {
+  box-shadow: 0 0 0 3px rgba(224, 86, 28, 0.22);
 }

@@ -66,6 +66,100 @@ li.text-amber-700 {
   }
 }
 
+/* ===== Words and colours, live scan 2026-11-03 (fix round 1) ================================
+   Every number below was measured on www.sporta.com.kw (Chromium, ar-KW and en-US). The theme guard
+   html:not([data-theme="dark"]) keeps every colour decision here to the light theme: the bundle ships a
+   dark theme (html[data-theme="dark"]) with its own rules, and a charcoal icon or a burnt-orange ring on
+   a dark surface would vanish. The live <html> carries data-theme="light". */
+
+/* C1. Home hero text on photo slides, 1024px and wider. The live scrim at that width is
+   linear-gradient(90deg, rgba(15,18,23,.70), rgba(15,18,23,.16) 54%, transparent 82%), so by the middle of
+   the copy block the overlay is only 0.3-0.5 over a bright photo. Measured on rendered pixels with the text
+   hidden: Arabic 1280, the 59px/900 title was white on #8c8e90 (2.37:1, worst decile) and the sub-line on
+   #a0a1a2 (2.03:1); English slide 2 title 2.82, sub 2.63. WCAG AA needs 3 for the large title and 4.5 for
+   the sub-line. Below 1024 the vertical scrim already passes every slide (worst decile 6.73 at 390 and 768).
+   The copy sits on the START side (left in English, right in Arabic) and the --copy-end slides mirror it.
+   Where the TEXT sits inside the copy box matters as much as where the box is: at 1440px and wider the
+   box is 56% wide (rule above), and its text hugs the box's own start edge. On a start-side slide that is
+   the dark edge of the photo, so the plateau only has to reach about 40% (the 27rem sub-line ends near 37%
+   at 1440). On a --copy-end slide the box is pushed to the far edge and the text starts at its INNER side,
+   about 63% in from the dark edge at 1440px, so that plateau is longer. A first version with one shared
+   gradient (.80 to 42%, .45 at 62%) left the end-side sub-line at 3.95-4.22:1 on a #ececec photo at
+   1440-1920px; this is the version that passes at every width from 1024 to 1920. Specificity is one type
+   selector (html) above the live rules, so no !important. */
+@media (min-width: 1024px) {
+  html[dir="ltr"] .campaign-photo-hero-scrim {
+    background: linear-gradient(90deg, rgba(15, 18, 23, 0.86) 0, rgba(15, 18, 23, 0.8) 42%, rgba(15, 18, 23, 0.45) 62%, rgba(15, 18, 23, 0) 88%);
+  }
+  html[dir="rtl"] .campaign-photo-hero-scrim {
+    background: linear-gradient(270deg, rgba(15, 18, 23, 0.86) 0, rgba(15, 18, 23, 0.8) 42%, rgba(15, 18, 23, 0.45) 62%, rgba(15, 18, 23, 0) 88%);
+  }
+  html[dir="rtl"] .campaign-photo-hero--copy-end .campaign-photo-hero-scrim {
+    background: linear-gradient(90deg, rgba(15, 18, 23, 0.86) 0, rgba(15, 18, 23, 0.8) 58%, rgba(15, 18, 23, 0.5) 70%, rgba(15, 18, 23, 0) 90%);
+  }
+  html[dir="ltr"] .campaign-photo-hero--copy-end .campaign-photo-hero-scrim {
+    background: linear-gradient(270deg, rgba(15, 18, 23, 0.86) 0, rgba(15, 18, 23, 0.8) 58%, rgba(15, 18, 23, 0.5) 70%, rgba(15, 18, 23, 0) 90%);
+  }
+}
+
+/* C2 + C3. Keyboard focus ring. The bundle draws it with `outline: 2px solid var(--html5-brand-bright)`
+   = #ff7b17, which is 2.59:1 on white and 2.4 on the orange-50 guest note, under the 3:1 a focus indicator
+   needs (WCAG 1.4.11). It is fine on charcoal (6.73:1), which is where the header, the footer and the brand
+   bar sit, so only the colour changes and only on light surfaces: #b8430f is 5.46:1 on white, 5.1 on
+   #f6f7f8 and 3.95 on the beige #e2dbce. Width, offset and layout are untouched.
+   Scope: #main is the single <main> (it holds the hero, the brand bar and the category tiles but not the
+   header, footer or the bag drawer), so the drawer is named as well. The surfaces inside #main that are
+   dark choose their own ring through --sporta-ring, which the rule reads: white on the hero photo (the
+   carousel section and its arrows), #ff7b17 on the charcoal brand bar, and the orange the category tiles
+   and the call bar already carry. `select`, `input` and `textarea` are left out on purpose: the checkout
+   draws their focus with a border and a halo and a transparent outline.
+   C3: the selected shop filter chip showed a WHITE ring on the white page when sampled. The ring is not
+   white in the steady state; the bundle's `.transition` list includes outline-color, so for 150ms the ring
+   fades in from currentColor, which is white on that dark chip (and slate on the light ones). Dropping
+   outline-color from that list while focused makes the ring appear in its final colour at once. */
+html:not([data-theme="dark"]) #main :is(a, button, summary, [role="button"]):focus-visible,
+html:not([data-theme="dark"]) .campaign-cart-drawer :is(a, button):focus-visible {
+  outline-color: var(--sporta-ring, #b8430f);
+}
+html:not([data-theme="dark"]) #main .transition:focus-visible,
+html:not([data-theme="dark"]) .campaign-cart-drawer .transition:focus-visible {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+}
+#main [aria-roledescription="carousel"] { --sporta-ring: #ffffff; }
+#main .campaign-brand-bar { --sporta-ring: #ff7b17; }
+#main :is(.campaign-category, .sf__btn) { --sporta-ring: #ff8f3d; }
+
+/* C4. Sold-out label hidden behind the photo. The "Sold out" band (span.absolute.inset-x-0.bg-ink/85) and
+   the white veil (span.absolute.inset-0.bg-white/55) have no z-index, but the sibling photo
+   img.catalog-card-photo is `relative z-[1]` and opaque, so the photo painted over both:
+   document.elementFromPoint at the label's centre returned the <img> on two cards, and a sold-out card
+   looked like a normal one. z-index 2 puts the veil and the band over the photo (the card is
+   isolation:isolate, so this stays inside the card) and under the wishlist button (z-10). The attribute
+   selectors leave span.image-loading-skeleton (z-0, no bg-ink / bg-white class) where it is. */
+.storefront-root .catalog-card-image a > span.absolute.inset-x-0[class*="bg-ink"],
+.storefront-root .catalog-card-image a > span.absolute.inset-0[class*="bg-white"] {
+  z-index: 2;
+}
+
+/* C5. Bag drawer remove (trash) icon: slate-400 #90a1b9 on white = 2.63:1, under the 3:1 a control icon
+   needs; same root cause as the close X fixed at the top of this file. #596571 (the site's muted text
+   colour) is 6.0:1. :not(:hover) leaves the bundle's rose hover alone. */
+html:not([data-theme="dark"]) .campaign-cart-drawer .cart-drawer__remove.text-slate-400:not(:hover) {
+  color: #596571;
+}
+
+/* C6. Disabled controls. The bundle fades them to .40 / .35, which leaves the discount "Apply" button
+   (disabled for as long as no code is typed) at #adb3bc on white = 2.11:1 and a minimum-quantity minus
+   at #aeafb0 = 2.20:1. WCAG exempts disabled controls, but these are on screen the whole time; .60 lifts
+   Apply to about 3.4:1 and the minus to 4.7:1 while still reading as off beside the live ones. */
+.purchase-checkout-summary input + button:disabled,
+button[aria-label="إنقاص الكمية"]:disabled,
+button[aria-label="زيادة الكمية"]:disabled,
+button[aria-label="Decrease quantity"]:disabled,
+button[aria-label="Increase quantity"]:disabled {
+  opacity: 0.6;
+}
+
 /* سبورتا AI panel: opened OFF the top of the screen.
    Measured live 2026-11-02: the panel (fixed, bottom-24, max-h-70vh) is
    rendered INSIDE <header class="app-header">, because the live build puts
