@@ -73,6 +73,7 @@
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",
     "test:seo": "node scripts/seo-arabic-test.mjs",
+    "test:sitemap-check": "node scripts/sitemap-check-test.mjs",
     "test:arabic-spell": "node scripts/arabic-spell-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:review": "node scripts/review-test.mjs",
