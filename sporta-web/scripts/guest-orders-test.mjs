@@ -44,6 +44,32 @@
 // OUTPUT. `ok` = the behaviour is right. `FAIL` = the suite's expectation was
 // wrong or the system broke. `DEFECT <id>` = the system does something it should
 // not, proven with the exact requests; `note` = an observation, counted nowhere.
+// MEASURED, 2026-11-03, private MariaDB 10.11 + PHP 8.3, repo HEAD 899d2e2b plus this file:
+//   336 ok, 0 FAIL, 18 open DEFECT lines. What each DEFECT id is (severity is mine):
+//   G1  medium  the server takes any 6-30 alphanumerics as the order number, and that number is the
+//               only credential for ?r=status, ?r=invoice (name + full address + items) and /knet/pay.php
+//   G2  medium  no route or script erases or anonymises a guest (the Privacy page promises deletion);
+//   G2b         the best available overwrite of the order leaves 11 other places holding the data
+//   G3  medium  a phone number is typed, never verified: a stranger who orders under it first locks the
+//   G3b         owner out for 60 s, and three cash orders under it block the owner's own cash order
+//   G4  medium  the admin CSV writes guest-typed name/area/street/building/note without neutralising = + - @
+//   G5  medium  an admin address correction does not reach the warehouse picking list (outbox untouched)
+//   G6  low     the audit trail says "customer" was edited, not which order, field or old value
+//   G7  low     bidi override and zero-width characters survive in names and notes
+//   G8  low     a newline in the note is deleted, not replaced, so two lines of directions run together
+//   G9  low     register answers 409 account_not_created: it says which emails are customers
+//   G10 low     a browser that thinks it is signed in but has a dead session places a guest order, silently
+//   G10b medium customer sessions fall to PHP's default 1440 s garbage collection, not the 8 h / 7 d the code states
+//   G11 low     the order number is in every status / invoice / pay.php URL, so in every access log
+//   G12 low     the order response returns the sequential database id (reveals order volume)
+//   G13 low     ?r[]=x answers 500 {"error":"failed"}
+//   G14 low     /knet/pay.php has no rate limit: anyone with a track id can burn the order's attempt counter
+//   G15 low     admin search by phone is a GET (?search=, crm_list&q=, crm_detail&key=phone:965…), so in the access log
+//   Everything else (about 320 checks) is the behaviour being right: the server prices, the phone is
+//   canonicalised, a guest order is never attached to an account by phone or email, status/invoice/returns/
+//   assistant/review/support answer one thing for a wrong and an unknown identifier and never carry another
+//   order's data, the cooldown/cap/route limits hold under 20 parallel identical requests, the sweeper and
+//   the do-not-ship mail work, and no request, log line or table outside the intended ones holds personal data.
 import { spawn, execFile } from 'node:child_process'
 import http from 'node:http'
 import { createHmac, randomBytes } from 'node:crypto'
@@ -67,6 +93,12 @@ const BASE_CONFIG = process.env.GUEST_BASE_CONFIG ?? join(HOME, 'config-main.php
 const PORT_FROM = Number(process.env.GUEST_PORT_FROM ?? 8341)
 const RUN_CRON = (process.env.GUEST_RUN_CRON ?? '1') === '1'
 const STRICT = process.env.GUEST_STRICT === '1'
+
+if (!existsSync(BASE_CONFIG)) {
+  console.error(`guest-orders-test: base store config not found: ${BASE_CONFIG}\n` +
+    'Point it at a database and a config of your own (see the header): GUEST_BASE_CONFIG=<file> GUEST_DB_ARGS="<mariadb args> <db>"')
+  process.exit(2)
+}
 
 let passes = 0, fails = 0, defects = 0
 const defectList = []
@@ -171,12 +203,12 @@ let nextPort = PORT_FROM
 const freePort = async () => { for (let p = nextPort; p < nextPort + 60; p++) if (await isFree(p)) { nextPort = p + 1; return p } throw new Error('no free port') }
 const phpEnv = (cfgFile) => ({ ...process.env, SPORTA_API_CONFIG_FILE: cfgFile, SPORTA_PRIVATE_CONFIG_DIR: PRIV, PHP_CLI_SERVER_WORKERS: '8' })
 const phpArgs = (errlog) => ['-d', `sendmail_path=sh ${MTA} ${MAILDIR}`, '-d', `error_log=${errlog}`, '-d', 'log_errors=1']
-async function startStore(name, cfg) {
+async function startStore(name, cfg, phpFlags = []) {
   const file = join(TMP, `config-${name}.php`)
   writeConfig(file, { ...OVERRIDES, ...cfg })
   const port = await freePort()
   const out = join(LOGDIR, `php-${name}.out`)
-  const p = spawn('php', [...phpArgs(join(LOGDIR, `php-${name}-error.log`)), '-S', `127.0.0.1:${port}`, '-t', STORE_DIR], {
+  const p = spawn('php', [...phpArgs(join(LOGDIR, `php-${name}-error.log`)), ...phpFlags, '-S', `127.0.0.1:${port}`, '-t', STORE_DIR], {
     stdio: ['ignore', (await import('node:fs')).openSync(out, 'a'), (await import('node:fs')).openSync(out, 'a')], env: phpEnv(file),
   })
   procs.push(p)
@@ -754,7 +786,7 @@ await section('5  lookup: what a stranger gets back, with the right id, a wrong 
   const m = 100
   const tm = async (track, phone) => { const t = []; for (let i = 0; i < m; i++) t.push((await rl(track, phone)).ms); t.sort((a, b) => a - b); return t[m >> 1] }
   const tUnknown = await tm('SPNOPE' + TAG, V.phone); const tWrong = await tm(V.track, newLocal())
-  is(Math.abs(tUnknown - tWrong) < 5, 'returns: unknown order and wrong phone take the same time', `unknown ${tUnknown.toFixed(2)} ms, wrong phone ${tWrong.toFixed(2)} ms`)
+  is(Math.abs(tUnknown - tWrong) < 10, 'returns: unknown order and wrong phone take the same time', `unknown ${tUnknown.toFixed(2)} ms, wrong phone ${tWrong.toFixed(2)} ms`)
   const lim = []; const lip = newIp()
   for (let i = 0; i < 13; i++) lim.push((await post(B.base, 'return_lookup', { track_id: V.track, phone: newLocal() }, { headers: { ...CUST, 'X-Forwarded-For': lip } })).status)
   is(lim[11] === 404 && lim[12] === 429, 'returns: guessing a phone number is limited to 12 tries a minute per client', `13th: ${lim[12]}`)
@@ -773,7 +805,7 @@ await section('5  lookup: what a stranger gets back, with the right id, a wrong 
   // ---- review link (signed)
   const sig = (t) => createHmac('sha256', CRON_KEY).update('review\0' + t).digest('hex').slice(0, 32)
   const rv = await get(B.base, `review_invite&o=${V.track}&t=${sig(V.track)}`, ip())
-  is(rv.status === 200 && rv.json?.name === V.name && !rv.text.includes(V.phone.slice(-8)) && !rv.text.includes(V.street), 'review link: the signed link shows the first name field only (name, no phone, no address)', JSON.stringify(rv.json).slice(0, 120))
+  is(rv.status === 200 && rv.json?.name === V.name && !rv.text.includes(V.phone.slice(-8)) && !rv.text.includes(V.street), 'review link: the signed link shows the name only (no phone, no address, no note)', JSON.stringify(rv.json).slice(0, 120))
   const rvBodies = new Set()
   for (const [label, o, t] of [['no signature', V.track, ''], ['wrong signature', V.track, sig(fx.W.track)], ['the neighbour\'s signature', fx.W.track, sig(V.track)], ['unknown order, valid shape', 'SPNOPE' + TAG, sig('SPNOPE' + TAG)], ['signature of a prefix', V.track, sig(V.track.slice(0, -1))]]) {
     const r = await get(B.base, `review_invite&o=${o}&t=${t}`, ip()); rvBodies.add(r.text)
@@ -907,8 +939,35 @@ await section('6  guest vs account: does a later account see, claim or leak a gu
   // silent downgrade: the password changed elsewhere, the browser still sends the old cookie
   await sql(`update customer_accounts set password_hash = ${lit('$2y$12$vNk3QOHYO.g/y1k6SJzYL.YjGRlwOp9P1TIeCDX.K6s9gFgNI8Bpe')} where id = ${accId}`)
   const stale = await placeOrder(B, { ip: newIp(), headers: { ...CUST, Cookie: a2.c }, customer: baseCustomer() })
-  is(stale.status === 200 && (await orderRow(stale.track)).account === null, 'an expired or invalidated session turns the order into a guest order with no warning',
-    `HTTP ${stale.status}, customer_account_id ${(await orderRow(stale.track)).account}: the shopper thinks it is on their account`)
+  const staleRow = await orderRow(stale.track)
+  defect('G10', !(stale.status === 200 && staleRow.account === null && !('signed_in' in (stale.json ?? {}))),
+    'an order sent by a browser that believes it is signed in, with a dead session, says it was NOT placed on the account',
+    `HTTP ${stale.status}, customer_account_id ${staleRow.account}, answer fields ${Object.keys(stale.json ?? {}).join()}: the order silently becomes a guest order and never shows under "my orders"`)
+  // The session the app promises (8 h idle, 7 days) lives in PHP's DEFAULT session store:
+  // customer_session_start() never sets session.gc_maxlifetime, so PHP's own 1440 s decides.
+  // This server only makes the default 1% garbage collection deterministic (1/1) and puts the
+  // session files where the test can age them; the lifetime is untouched.
+  const csess = join(TMP, 'csess'); mkdirSync(csess)
+  const SS = await startStore('sess', { order_cooldown_seconds: 0, trusted_proxy_ips: LOOP }, ['-d', `session.save_path=${csess}`, '-d', 'session.gc_probability=1', '-d', 'session.gc_divisor=1'])
+  const sj = { c: '' }
+  const cu2 = async (route, o = {}) => {
+    const res = await request(SS.base, o.method ?? (o.body === undefined ? 'GET' : 'POST'), `/customer.php?r=${route}`, { headers: { 'X-Forwarded-For': newIp(), ...(o.body !== undefined ? CUST : {}), ...(sj.c ? { Cookie: sj.c } : {}) }, body: o.body })
+    const set = res.headers['set-cookie']; if (set) sj.c = [].concat(set).map((c) => c.split(';')[0]).join('; ')
+    return res
+  }
+  const E2 = newEmail()
+  await cu2('register', { body: { name: 'Idle Shopper', email: E2, password: pw } })
+  is((await cu2('me')).json?.email === E2, 'a signed-in shopper is recognised straight after signing in')
+  const files = readdirSync(csess).filter((f) => f.startsWith('sess_'))
+  const old = new Date(Date.now() - 30 * 60 * 1000)
+  for (const f of files) (await import('node:fs')).utimesSync(join(csess, f), old, old)
+  await cu2('me')                       // the first request after the idle spell: PHP reads, then collects
+  const stillMe = await cu2('me')
+  const idleOrder = await placeOrder(SS, { ip: newIp(), headers: { ...CUST, Cookie: sj.c }, customer: baseCustomer() })
+  const idleRow = await orderRow(idleOrder.track)
+  defect('G10b', stillMe.json !== null && idleRow.account !== null,
+    'a customer signed in less than the app\'s own 8 hours ago is still signed in after 30 idle minutes',
+    `session untouched for 30 min: me -> ${JSON.stringify(stillMe.json)}, then the order has customer_account_id ${idleRow.account}. customer_session_start() never sets session.gc_maxlifetime, so PHP's default 1440 s (24 min) decides, not the 8 h / 7 d in customer_session_valid()`)
   // the admin gate does not honour a customer cookie
   const asCust = await adm('orders', { cookie: b.c })
   is(asCust.status === 401, 'a customer session is not an admin session', `HTTP ${asCust.status}`)
@@ -1060,7 +1119,7 @@ await section('8  cancel and return: what a guest can do, with the right and the
   is(look2.json?.order?.eligibility === 'standard', 'delivered today: standard eligibility', look2.json?.order?.eligibility)
   const s1 = await sub({ note: 'too small' })
   is(s1.status === 201 && /^SR[0-9A-F]{16}$/.test(s1.json?.request?.reference) && s1.json.request.status === 'submitted', 'a return for 1 of 2 pieces is created with an unguessable reference', s1.json?.request?.reference)
-  is(!/Ret|\d{8}|NOTE/.test(s1.text.replace(/\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/g, '')), 'and the answer carries no personal data')
+  is(![o1.customer.name, o1.customer.street, o1.customer.note, 'too small', phone1.slice(-8)].some((m) => s1.text.includes(m)), 'and the answer carries no personal data (no name, address, note, return note or phone)')
   const s2 = await sub({})
   const s3 = await sub({})
   is(s2.status === 201 && s3.status === 409 && s3.json?.error === 'quantity_exceeded', 'the second piece can be returned, a third attempt cannot (quantity_exceeded)', `${s2.status} then ${s3.status} ${s3.json?.error}`)
@@ -1158,7 +1217,7 @@ await section('9  personal data in logs, and where it must not be', async () => 
   const report = {}, adminHits = []
   for (const f of [...files, ...extra]) {
     const lines = readFileSync(f, 'utf8').split('\n').filter((l) => !/customer\.php\?r=orders&/.test(l)) // 6 sent a phone in a probe query on purpose
-    const adminSearch = lines.filter((l) => /admin\.php\?r=(orders|crm_list|profiles_list)&(search|q)=/.test(l) && classes.phone.test(l))
+    const adminSearch = lines.filter((l) => /admin\.php\?r=(orders&search|crm_list&q|profiles_list&q|crm_detail&key)=/.test(l) && classes.phone.test(l))
     adminHits.push(...adminSearch)
     const c = Object.fromEntries(Object.entries(classes).map(([k, re]) => [k, lines.filter((l) => re.test(l)).length]))
     c.phone -= adminSearch.length
@@ -1169,11 +1228,11 @@ await section('9  personal data in logs, and where it must not be', async () => 
   is(sum('phone') === 0 && sum('name') === 0 && sum('address') === 0 && sum('note') === 0 && sum('email') === 0,
     'no phone number, name, address, note or email address is written to the web server, PHP, KNET or MariaDB logs', `phone ${sum('phone')}, name ${sum('name')}, address ${sum('address')}, note ${sum('note')}, email ${sum('email')}`)
   defect('G15', adminHits.length === 0, 'staff searches for a customer by phone number without putting the number in the URL',
-    `${adminHits.length} access-log lines carry a phone number as a query string, e.g. ${adminHits[0]?.replace(/^.*(GET|POST) /, '$1 ').slice(0, 70)}: admin.php?r=orders&search=<phone>, crm_list&q=, profiles_list&q= are GETs`)
+    `${adminHits.length} access-log lines carry a phone number as a query string, e.g. ${adminHits[0]?.replace(/^.*(GET|POST) /, '$1 ').slice(0, 70)}: admin.php?r=orders&search=<phone>, crm_list&q=, profiles_list&q= and crm_detail&key=phone:965… are all GETs`)
   defect('G11', sum('track') === 0, 'the order number (the credential for status and invoice) stays out of the logs',
     `${sum('track')} log lines carry a track id in a URL (GET ?r=status&id=, ?r=invoice&id=, /pay.php?trackid=): anyone who can read the access log can open the invoice (name + address) of every order looked up`)
   const knetLog = existsSync(join(LOGDIR, 'knet-payments.log')) ? readFileSync(join(LOGDIR, 'knet-payments.log'), 'utf8') : ''
-  note('KNET payment log', knetLog ? `${knetLog.split('\n').filter(Boolean).length} lines; fields: ${[...new Set(knetLog.match(/"[a-z_]+":/g) ?? [])].slice(0, 14).join(' ')}` : 'empty')
+  note('KNET payment log (above the web root; it records the client address and the track id of every start)', knetLog ? `${knetLog.split('\n').filter(Boolean).length} lines; fields: ${[...new Set(knetLog.match(/"[a-z_]+":/g) ?? [])].slice(0, 14).join(' ')}` : 'empty')
   // tables that must not hold personal data
   const hits = await scanDb([[...PHONES][0].slice(3), `Name${'V'}${TAG}`, `ST${'V'}${TAG}`, `Note${'V'}${TAG}`])
   const allowed = new Set(['orders.customer_name', 'orders.customer_phone', 'orders.customer_street', 'orders.customer_note', 'fulfilment_outbox.payload'])

@@ -35,6 +35,7 @@
     "test:photo-uploader": "node scripts/photo-uploader-test.mjs",
     "test:admin-save": "node scripts/admin-save-test.mjs",
     "test:inventory-checkout": "node scripts/inventory-checkout-test.mjs",
+    "test:guest-orders": "node scripts/guest-orders-test.mjs",
     "test:checkout-location": "node scripts/checkout-location-test.mjs",
     "test:about-page": "node scripts/about-page-test.mjs",
     "test:gallery": "node scripts/gallery-test.mjs",
