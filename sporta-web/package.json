@@ -32,6 +32,7 @@
     "test:words-colours": "node scripts/words-colours-test.mjs",
     "test:checkout-a11y": "node scripts/checkout-a11y-test.mjs",
     "test:admin-light": "node scripts/admin-payments-light-test.mjs",
+    "test:photo-uploader": "node scripts/photo-uploader-test.mjs",
     "test:admin-save": "node scripts/admin-save-test.mjs",
     "test:checkout-location": "node scripts/checkout-location-test.mjs",
     "test:about-page": "node scripts/about-page-test.mjs",

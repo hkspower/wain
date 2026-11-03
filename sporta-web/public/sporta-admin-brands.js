@@ -1641,6 +1641,7 @@
       r_desc: 'This product’s description is over 280 characters and saving the product from here would cut it. Add the photo in the product editor instead.',
       r_slug: 'This product’s web name is not in its normal form, so it cannot be saved from here. Use the product editor.',
       r_price: 'This product’s price or sale price would be refused when saved. Fix it in the product editor first.',
+      r_link: 'A photo already on this product has an address the server would refuse when saving. Fix it in the product editor first.',
       w_small: 'Only {w}×{h} px: under 1200 px on the long side.', w_aspect: 'Not 4:5 ({w}×{h}): the shop will crop it to fit.',
       w_dup: 'Another file in the list is for the same position of this product.', w_hidden: 'This product is hidden from the shop.', w_ambig: 'The name matches more than one product.', w_dims: 'Size in pixels could not be read.',
       e_not_signed_in: 'Your session ended.', e_image_too_large: 'The server says the file is too large.', e_image_bad_format: 'The server did not accept the format.', e_image_not_an_image: 'The server could not read it as an image.',
@@ -1679,6 +1680,7 @@
       r_desc: 'وصف هذا المنتج يزيد على ٢٨٠ حرفًا، وحفظ المنتج من هنا سيقصّه. أضف الصورة من محرر المنتج بدلًا من ذلك.',
       r_slug: 'الاسم المختصر لهذا المنتج ليس بصيغته المعتادة، فلا يمكن حفظه من هنا. استخدم محرر المنتج.',
       r_price: 'سعر هذا المنتج أو سعر التخفيض سيُرفض عند الحفظ. صحّحه في محرر المنتج أولًا.',
+      r_link: 'عنوان إحدى الصور الموجودة على هذا المنتج سيرفضه الخادم عند الحفظ. صحّحه في محرر المنتج أولًا.',
       w_small: 'الأبعاد {w}×{h} بكسل فقط، أي أقل من ١٢٠٠ بكسل في الضلع الأطول.', w_aspect: 'النسبة ليست ٤:٥ ({w}×{h})، وسيقصّ المتجر الصورة لتناسب الإطار.',
       w_dup: 'ملف آخر في القائمة لنفس الترتيب من هذا المنتج.', w_hidden: 'هذا المنتج مخفي عن المتجر.', w_ambig: 'الاسم يطابق أكثر من منتج.', w_dims: 'تعذّرت قراءة الأبعاد بالبكسل.',
       e_not_signed_in: 'انتهت جلستك.', e_image_too_large: 'يقول الخادم إن الملف كبير جدًا.', e_image_bad_format: 'لم يقبل الخادم هذه الصيغة.', e_image_not_an_image: 'تعذّرت قراءة الملف كصورة على الخادم.',
@@ -2005,6 +2007,10 @@
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(p.slug)) || String(p.slug).length > 80) return 'slug'
     var money = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,3})?$/
     if (!money.test(String(p.price)) || !(Number(p.price) > 0)) return 'price'
+    var href = /^\/(?![\/\\])[A-Za-z0-9\/_\-?=&%.#]{0,180}$/
+    var paths = splitImages(p.images)
+    if (p.image != null && String(p.image).trim() !== '') paths.push(String(p.image).trim())
+    for (var q = 0; q < paths.length; q++) if (!href.test(paths[q])) return 'link'
     if (p.sale_price != null && p.sale_price !== '' && (!money.test(String(p.sale_price)) || !(Number(p.sale_price) > 0) || Number(p.sale_price) >= Number(p.price))) return 'price'
     return ''
   }
@@ -2280,7 +2286,7 @@
     '.sph-log summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:700;border-radius:.5rem}',
     '.sph-log ol{margin:.5rem 0 0;padding:0 1.25rem;display:grid;gap:.25rem}',
     '.sph-log li{overflow-wrap:anywhere}',
-    '@container (min-width:600px){.sph-row{grid-template-columns:4.5rem minmax(0,1fr) minmax(11rem,16rem)}.sph-thumb{width:4.5rem;height:5.625rem}.sph-side{grid-column:auto;flex-direction:column;align-items:flex-start}.sph-rowbar{width:100%}}',
+    '@container (min-width:600px){.sph-row{grid-template-columns:4.5rem minmax(0,1fr) minmax(11rem,16rem)}.sph-thumb{width:4.5rem;height:5.625rem}.sph-side{grid-column:auto;flex-direction:column;align-items:flex-start}.sph-detail{flex:0 1 auto}.sph-rowbar{width:100%}}',
     '@media (prefers-reduced-motion:no-preference){.sph-row{transition:background-color .15s ease}.sph .sph-btn{transition:background-color .15s ease,border-color .15s ease}}'
   ].join('\n')
   function ensureStyle() {

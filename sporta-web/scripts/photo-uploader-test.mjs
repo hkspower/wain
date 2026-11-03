@@ -436,6 +436,7 @@ head('the run: order, bodies, lossless, one at a time')
   await pg.reload(); await pg.waitForTimeout(500)
   is(await pg.locator(`${SEL} details summary`).textContent() === 'Files written (5)', 'the log survives a reload (kept in this browser only)')
   // nothing else changed
+  is(await pg.evaluate(() => document.querySelectorAll('[data-sporta-savebar]').length) === 0, 'the Save bar of block 5 stayed away after a full run')
   is(errors.length === 0, 'no page errors during the run', errors.join(' | '))
   await pg.context().close()
 }
@@ -555,6 +556,32 @@ head('429 backoff, 401 stop, partial failure and retry')
   const rh = await rowFor(h.pg, 'vanquish-tee-white-1.jpg')
   is(rh.state === 'unattached' && /280/.test(rh.detail) && h.api.st.saves.length === 0 && h.api.st.truncated === 0, 'a description that became long after the list was read: uploaded, NOT saved (it would have been cut), path shown', JSON.stringify(rh))
   await h.ctx.close()
+}
+
+// =============================================================================================== 5b. load failure, odd rows
+head('products that cannot be read, rows the save would refuse')
+{
+  const api = makeApi()
+  api.st.readFaults.push({ status: 500, body: { error: 'failed' } })
+  const { pg } = await open({ api })
+  is(/Could not load the products \(failed\)/.test(await pg.locator(`${SEL} .sph-prod`).textContent()) && await pg.locator(`${SEL} [data-k=reload]`).isVisible(), 'products_all failing: said so, with a Reload button')
+  await addFiles(pg, P('vanquish-tee-white-1.jpg'))
+  is((await rowFor(pg, 'vanquish-tee-white-1.jpg')).state === 'needs' && await startBtn(pg).isDisabled(), 'nothing can be matched or uploaded until products load')
+  await pg.locator(`${SEL} [data-k=reload]`).click(); await pg.waitForTimeout(150)
+  is((await rowFor(pg, 'vanquish-tee-white-1.jpg')).slug === 'vanquish-tee-white' && /6 products loaded/.test(await pg.locator(`${SEL} .sph-prod`).textContent()), 'Reload loads them and matches the file already in the list')
+  await pg.context().close()
+
+  const api2 = makeApi()
+  api2.st.rows.find((r) => r.id === 6).image = 'https://cdn.example.com/x.jpg'
+  api2.st.rows.find((r) => r.id === 1).price = '0.000'
+  api2.st.rows.find((r) => r.id === 4).slug = 'Air Max'
+  const o = await open({ api: api2 })
+  await addFiles(o.pg, P('vanquish-tee-white-1.jpg', 'run-shorts (2).jpg', 'air-max-2.jpg'))
+  const R = Object.fromEntries((await rowsOf(o.pg)).map((r) => [r.name, r]))
+  is(Object.values(R).every((r) => r.state === 'held'), 'an off-site photo address, a zero price and an abnormal web name are each held back', Object.values(R).map((r) => r.state).join(','))
+  is(/address the server would refuse/.test(R['vanquish-tee-white-1.jpg'].warns.join('')) && /price/.test(R['run-shorts (2).jpg'].warns.join('')) && /normal form/.test(R['air-max-2.jpg'].warns.join('')), 'each says which problem')
+  is(o.api.mine().filter((c) => c.method === 'POST').length === 0, 'and nothing was uploaded or saved')
+  await o.ctx.close()
 }
 
 // =============================================================================================== 6. re-render
@@ -722,6 +749,14 @@ for (const [label, opts] of [
     const again = (await contrast(o.pg)).filter((r) => r.ratio < r.need)
     is(again.length === 0, `${label}: still 4.5:1 with the admin stylesheet appended after the panel's`, again.slice(0, 3).map((r) => r.ratio.toFixed(2) + ' ' + r.what).join(' || '))
   }
+  await o.ctx.close()
+}
+{
+  // MUTATION: without the panel's own !important field colours the admin add-on's dark-on-dark ink shows through
+  const cut = BRANDS_JS.replace(".sph :is(select,input[type=\"search\"]){color:var(--sph-text)!important;background-color:var(--sph-bg)!important}", '')
+  is(cut !== BRANDS_JS, 'mutation set up')
+  const o = await showcase({ w: 1280, theme: 'dark', device: 'dark', js: cut })
+  is((await contrast(o.pg)).some((r) => r.ratio < r.need), 'MUTATION: without the field colours the dark contrast check FAILS (it can tell)')
   await o.ctx.close()
 }
 {
