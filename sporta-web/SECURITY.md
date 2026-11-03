@@ -68,6 +68,16 @@ makes no file and sends no cookie, which keeps a scanner from filling the host
 directory the payment logs share. The Google sign-in flow session is kept out of
 that directory.
 
+### 🟢 Assistant handoff mail is plain text
+The Sporta AI chat emails staff (`dropin/n8n/sporta-ai-handoff.json`, node "Tell the shop")
+with up to 500 characters the visitor chose, under a subject the shop's own system wrote.
+The Gmail node defaults to HTML, so a visitor could put a link or an `<img>` (an
+open-tracking pixel, a phishing link labelled "Approve refund") into that mail. The node
+is now `emailType: text`, so the words arrive as typed. The workflow is not part of the PHP
+deploy: **re-import it in n8n** and confirm the node's "Email Type" reads Text. The
+signature check on the webhook and the 6-per-10-minutes ration per client are unchanged.
+`npm run test:assistant` asserts the setting in the JSON that gets imported.
+
 ## Checklist for going live
 - [ ] Keep the database password only in `api/config.php`, `knet/config.php`
       and `pay/config.php` — all three server-side, all three denied by name.

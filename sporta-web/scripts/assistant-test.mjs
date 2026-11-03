@@ -83,7 +83,7 @@ const canned = (key, ar, cfg = {}) => php(`require ${JSON.stringify(AP)}; $in = 
 // How many fixed sentences the warmer buys per language. Read from the PHP,
 // asserted against the number written here, so adding a line is a decision
 // this file notices (and the warmer's "N of 2N warm" moves with it).
-const CANNED = 45
+const CANNED = 46
 const routes = (msgs) => php(`require ${JSON.stringify(AP)};
   echo json_encode(array_map('assistant_route', json_decode($argv[1], true)), JSON_UNESCAPED_UNICODE);`, msgs)
 
@@ -1329,8 +1329,12 @@ const R4_TOPICS = [['my order SP1AU702NKHTKDV shows delivered but I did not rece
                    ['I lost my order number', 'en', 'no_number'], ['where is my refund', 'en', 'refund'], ['متى يرجع المبلغ', 'ar', 'refund'],
                    ['can I change the size on my order', 'en', 'order_change'], ['when will you restock', 'en', 'restock'],
                    ['I paid and nothing happened', 'en', 'money'], ['my card was declined', 'en', 'checkout_problem'],
-                   ['اخذتوا فلوسي', 'ar', 'money']]
+                   ['اخذتوا فلوسي', 'ar', 'money'], ['unsubscribe me', 'en', 'privacy_request'], ['احذف حسابي', 'ar', 'privacy_request'],
+                   ['someone used my card on your site', 'en', 'money'], ['دفعت وما في طلب', 'ar', 'money'], ['I paid and the page closed', 'en', 'money']]
 // Contact, but NOT a cancellation: these used to carry the CANCEL subject.
+const R5_NOT_CANCEL = [['ليش تم الغاء طلبي', 'ar'], ['why did you cancel my order', 'en'], ['please tell me why my order was cancelled', 'en'],
+                       ['I want to order again next week', 'en'], ['my second order has not arrived', 'en'], ['I have two orders, when will they arrive', 'en'],
+                       ['I did not ask you to cancel my order', 'en']]
 const R4_NOT_CANCEL = [["please don't cancel my order", 'en'], ['لا تلغون طلبي', 'ar'], ["don't send me offers", 'en'], ['do not ship to Hawally, ship to Salmiya', 'en']]
 // ===================================================================== ROUND FOUR
 // The fourth review: the lane's findings were all of one kind — a customer who
@@ -1569,6 +1573,258 @@ head('round four: a model may not flip a stock claim')
   is(typeof acc[6] === 'string', 'while a faithful rewording that keeps the "not" still passes', String(acc[6]).slice(0, 60))
   is(acc[7].every((x) => x === false), 'and the stock claims are never sent to a model at all: near, colour, other, not carried, nothing matched', JSON.stringify(acc[7]))
   is(acc[8].every(Boolean), 'while the found line, the shelf, a hello and a thank-you still may be', JSON.stringify(acc[8]))
+}
+
+// ===================================================================== ROUND FIVE
+// The fifth review of the lane (23 findings), fixed at the root. Every sentence the
+// reviewers quoted is below with the route it must get, and beside each family are
+// the ordinary messages that must keep theirs. A row is [message, want] where want is
+// "intent", "intent/topic" ('-' = no topic), "!intent" or "!intent/topic" (anything
+// but that). The same table runs through the n8n subject check further down for the
+// topics that email staff.
+const R5 = async (title, rows) => {
+  await unthrottle()
+  head(`round five: ${title}`)
+  const got = await routes(rows.map(([q]) => q))
+  rows.forEach(([q, want], i) => {
+    const [intent, topic] = got[i]
+    const neg = want.startsWith('!')
+    const [wi, wt] = want.replace(/^!/, '').split('/')
+    const hit = intent === wi && (wt === undefined || (wt === '-' ? topic === null : wt === '*' ? topic !== null : topic === wt))
+    is(neg ? !hit : hit, `"${q}" -> ${want}`, `${intent}/${topic ?? '-'}`)
+  })
+}
+
+await R5('ordinary talk about a second order, or ordering again, is not a cancellation (findings 1, 18)', [
+  ['my second order has not arrived', 'order_status'],
+  ['I have 2 orders SP1AU702NKHTKDV and SP2BV803OLIULEW, where are they', 'order_status'],
+  ['please combine my two orders into one delivery', '!cancel'],
+  ['I made 2 orders one for me and one for my husband', '!cancel'],
+  ['great jacket, I will order again', '!cancel'], ['I want to order again next week', '!cancel'],
+  ['if I order two items do I pay delivery twice', '!cancel'], ['طلبت مرتين من عندكم وكان ممتاز', '!cancel'],
+  ['I want to order again', '!cancel'], ['order again leggings', '!cancel'],
+  ['I would like to order again the same jacket', '!cancel'], ['my first order arrived but the second order did not', '!cancel'],
+  ['I have two orders, when will they arrive', '!cancel'], ['I placed two orders yesterday, where are they', '!cancel'],
+  ['I ordered twice this month', '!cancel'], ['extra order for my sister', '!cancel'], ['I want the order doubled', '!cancel'],
+  ['what is the extra fee on my order', '!cancel'], ['عندي طلبين وين وصلوا', '!cancel'],
+  // …and the duplicates made by mistake still are.
+  ['I ordered twice by mistake', 'cancel'], ['duplicate order', 'cancel'], ['I placed the order twice', 'cancel'],
+  ['I ordered the same thing twice by mistake', 'cancel'], ['my order was placed twice by accident', 'cancel'],
+  ['طلبت مرتين بالغلط', 'cancel'], ['الطلب مكرر', 'cancel'], ['طلبت الطلب مرتين', 'cancel'],
+])
+
+await R5('«تم الغاء», "you cancelled" and a polite lead-in are a state, not a request (findings 3, 19, 20)', [
+  ['ليش تم الغاء طلبي', 'order_status'], ['تم الغاء طلبي بدون علمي', 'order_status'], ['مين الغى طلبي', 'order_status'],
+  ['الغيتوا طلبي ليش', 'order_status'], ['تم الغاء طلبي', 'order_status'], ['هل تم الغاء طلبي', 'order_status'],
+  ['اتصلوا علي وقالوا تم الغاء الطلب', 'order_status'], ['هل تم الغاء طلبي SPTEST000007', 'order_status'],
+  ['why did you cancel my order', 'order_status'], ['did you cancel my order', 'order_status'],
+  ['please tell me why my order was cancelled', 'order_status'], ['I need to know why my order was cancelled', 'order_status'],
+  ['I would like to know if my order was cancelled', 'order_status'], ['I have no idea why my order was cancelled', 'order_status'],
+  ['have you cancelled my order', 'order_status'], ['you have cancelled my order why', 'order_status'],
+  ['please tell me why SPTEST000007 was cancelled', 'order_status'],
+  ['I did not ask you to cancel my order', '!cancel'],
+  // …while a request, however politely put, is one.
+  ['I want my order cancelled', 'cancel'], ['please get my order cancelled', 'cancel'], ['I would like it to be cancelled', 'cancel'],
+  ['I need to cancel my order', 'cancel'], ['cancel SP1AU702NKHTKDV', 'cancel'], ['can you have my order cancelled', 'cancel'],
+  ['ليش ما اقدر الغي طلبي', 'cancel'], ['الغي طلبي', 'cancel'], ['ابي الغاء الطلب', 'cancel'],
+])
+
+await R5('cancel in Gulf spellings, Arabizi, and after another clause (finding 11)', [
+  ['ما ابغى الطلب', 'cancel'], ['مابي الطلب', 'cancel'], ['ما ابغى طلبي', 'cancel'],
+  ['abi alghi talabi', 'cancel'], ['abghi akansel el talab', 'cancel'], ['bgait algi el talab', 'cancel'],
+  ["I didn't pay, cancel my order", 'cancel'], ['the site is not working, please cancel my order', 'cancel'],
+  ['no, cancel it', 'cancel'], ['never mind please cancel my order', 'cancel'], ['خلاص الغي طلبي', 'cancel'], ["please don't cancel my order", 'contact/-'], ['never mind, cancel my order', 'cancel'], ['I did not pay so cancel my order', 'cancel'],
+  // the negation still counts when it is on the verb
+  ["please don't cancel my order", 'contact/-'], ['لا تلغون طلبي', 'contact/-'], ['I do not want to cancel my order', 'contact/-'],
+])
+
+await R5('money said in Gulf and MSA Arabic, and a payment that was lost half way (findings 2, 13, 14)', [
+  ['دفعت وما في طلب', 'contact/money'], ['دفعت ومافي طلب', 'contact/money'], ['تم الدفع ولا في تأكيد', 'contact/money'],
+  ['دفعت ولا شي', 'contact/money'], ['دفعت ومافي ايميل', 'contact/money'], ['دفعت اكثر من مره', 'contact/money'],
+  ['قمت بالدفع ولم يظهر الطلب', 'contact/money'], ['الصفحة وقفت بعد الدفع', 'contact/money'],
+  ['دفعت وما وصلني شي', 'contact/money'], ['دفعت ولا وصلني شي', 'contact/money'], ['لقد دفعت ولم يظهر طلبي', 'contact/money'],
+  ['ما رجعني للموقع بعد الدفع', 'contact/money'], ['لم أتلق تأكيدا بعد الدفع', 'contact/money'], ['دفعت وما اجاني اشعار', 'contact/money'],
+  ['I paid by KNET then my phone died', 'contact/money'], ['my browser closed after paying', 'contact/money'],
+  ['I paid and the page closed', 'contact/money'], ['I paid and the page went blank', 'contact/money'],
+  ['قبل شوي دفعت بالكي نت وسكر المتصفح', 'contact/money'],
+  ["the bank page didn't come back to your site after I paid", 'contact/money'],
+  ['it did not come back to the website after the bank', 'contact/money'], ['after paying I was not redirected to the site', 'contact/money'],
+  // controls: the same words, asking
+  ['هل ممكن ادفع اكثر من مره', '!contact/money'], ['تقبلون كي نت؟', 'payment'], ['ما في كي نت؟', '!contact/money'],
+  ['دفعت وما في مشكلة', '!contact/money'], ['what happens if my phone dies while paying', '!contact/money'],
+  ['is the shop closed on Friday, I want to pay', '!contact/money'],
+])
+
+await R5('an unauthorised charge, fraud and a dispute reach a person (finding 13)', [
+  ['someone used my card on your site', 'contact/money'], ['I think my card was used without my permission', 'contact/money'],
+  ['charged for an order that I did not place', 'contact/money'], ['I did not make this purchase', 'contact/money'],
+  ['fraud', 'contact/money'], ['chargeback', 'contact/money'], ['I want to dispute this charge', 'contact/money'],
+  ['حد استخدم بطاقتي في موقعكم', 'contact/money'], ['انخصم من حسابي مبلغ وانا ما طلبت شي', 'contact/money'],
+  ['is it safe to use my card on your site', '!contact/money'], ['do you take card payments', 'payment'],
+])
+
+await R5('duplicate and double payments, deductions, holds, and "please confirm my payment" (finding 23)', [
+  ['double payment', 'contact/money'], ['I made a double payment', 'contact/money'], ['duplicate payment', 'contact/money'],
+  ['two charges on my card', 'contact/money'], ['money on hold from my card', 'contact/money'], ['payment done, please confirm', 'contact/money'],
+  ['did you receive my payment', 'contact/money'], ['payment completed', 'contact/money'], ['دفعت ولا وصلني شي', 'contact/money'],
+  ['دفع مكرر', 'contact/money'], ['bank sent me a deduction message', 'contact/money'], ['I received a debit message from my bank', 'contact/money'],
+  ['two deductions', 'contact/money'], ['my money is on hold', 'contact/money'], ['you owe me money', 'contact/money'],
+  ['dfa3t w ma wsalni shi', 'contact/money'], ['تم السحب من بطاقتي ولم يصلني تأكيد', 'contact/money'],
+  ['how do I confirm my payment', '!contact/money'], ['can I pay in two payments', '!contact/money'],
+])
+
+await R5('"when is my card charged" is a question about paying, not a payment problem (finding 6)', [
+  ['when is payment taken', 'payment'], ['when is my card charged', 'payment'], ['when is the money deducted', 'payment'],
+  ['when does the payment get deducted', 'payment'], ['how is payment taken', 'payment'], ['what gets charged to my card', 'payment'],
+  ['وقت ينخصم المبلغ', 'payment'], ['متى ينخصم المبلغ', 'payment'], ['متى يتم خصم المبلغ', 'payment'],
+  ['متى ينسحب المبلغ من البطاقة', 'payment'], ['شلون ينخصم المبلغ', 'payment'],
+  // …and the same words about money that DID move are a complaint.
+  ['why was my card charged twice', 'contact/money'], ['my card was charged but the order failed', 'contact/money'],
+  ['when was my card charged twice', 'contact/money'], ['charged twice', 'contact/money'], ['المبلغ انخصم مرتين', 'contact/money'],
+])
+
+await R5('an overcharge or a wrong total that names a discount code is a billing dispute (finding 8)', [
+  ['the discount was not applied and I was charged the full amount', 'contact/money'],
+  ['the discount code worked but I was still overcharged', 'contact/money'], ['charged the full price even with the coupon', 'contact/money'],
+  ['استخدمت الكود وانخصم المبلغ كامل', 'contact/money'], ['I used code SAVE10 but was charged full price', 'contact/money'],
+  ['I paid more than the listed price', 'contact/money'], ['charged 11 KD instead of 10', 'contact/money'],
+  ['المبلغ اللي انخصم اكثر من السعر', 'contact/money'],
+  ['how do I use a discount code', '!contact'], ['does the coupon take 10% off the full price', '!contact/money'],
+  ['is the discount deducted automatically?', '!contact/money'],
+])
+
+await R5('a refund asked about in advance is the returns policy; one waited for is a person (finding 7)', [
+  ['how long does a refund take', 'returns'], ['how long do refunds take', 'returns'], ['how many days does the refund take', 'returns'],
+  ['when will I get my refund if I return the item', 'returns'], ['when do I get my money back after a return', 'returns'],
+  ['if I return, when do I get my money back', 'returns'], ['how soon is the refund', 'returns'], ['where does the refund go', 'returns'],
+  ['متى يرجع المبلغ بعد الارجاع', 'returns'], ['اذا رجعت القطعة متى تنزل الفلوس', 'returns'],
+  ['where is my refund', 'contact/refund'], ['متى يرجع المبلغ', 'contact/refund'], ['I returned the jacket, when do I get my money back', 'contact/refund'],
+  ['how long is my refund taking', 'contact/refund'], ['SP1AU702NKHTKDV how long will the refund take', 'contact/refund'],
+  ['my money did not come back', 'contact/refund'], ['ارجعت القطعة ومتى تنزل الفلوس', 'contact/refund'],
+])
+
+await R5('Gulf and MSA "cannot pay" reaches the checkout line (finding 9)', [
+  ['الكي نت ما يمشي', 'contact/checkout_problem'], ['ما يمشي الدفع', 'contact/checkout_problem'], ['ما يقبل البطاقة', 'contact/checkout_problem'],
+  ['الكي نت ما يقبل', 'contact/checkout_problem'], ['الدفع واقف', 'contact/checkout_problem'], ['ما قدرت اكمل الدفع', 'contact/checkout_problem'],
+  ['ما اقدر اكمل الدفع', 'contact/checkout_problem'], ['بطاقتي مرفوضة', 'contact/checkout_problem'], ['تعذر الدفع', 'contact/checkout_problem'],
+  ['كرتي مرفوض', 'contact/checkout_problem'], ['ما يقبل الكرت', 'contact/checkout_problem'], ['الكرت ما يمر', 'contact/checkout_problem'],
+  ['ما قبل الكرت', 'contact/checkout_problem'], ['الطلب ما يكمل', 'contact/checkout_problem'],
+  ['تقبلون الكرت؟', 'payment'], ['do you accept card', 'payment'], ['ابي كرتون', '!contact'],
+])
+
+await R5('a parcel that is late or never came, said any way, is a tracking question with no promise (findings 10, 16)', [
+  ["the leggings I ordered haven't arrived", 'order_status'], ['delivery took 3 days', 'order_status'], ['3 days and no delivery', 'order_status'],
+  ['still waiting for delivery', 'order_status'], ['my parcel is delayed', 'order_status'], ['order delayed', 'order_status'], ['still waiting', 'order_status'],
+  ['my parcel never came', 'order_status'], ["my package didn't come", 'order_status'], ['order not here yet', 'order_status'],
+  ['it has been a week and I have nothing', 'order_status'],
+  ['only one item arrived', 'contact/complaint'], ['my order is incomplete', 'contact/complaint'],
+  ['متى سيصل الطلب', 'delivery'], ['متى سيصلني الطلب', 'delivery'],
+  ['when will my parcel arrive', 'delivery'], ['do you deliver late at night', 'delivery'], ['will there be a delay in delivery', '!order_status'],
+])
+
+await R5('a changed address or phone, said as a predicate, is a change to an order (finding 4)', [
+  ['my address is wrong', 'contact/order_change'], ['the address is incorrect', 'contact/order_change'],
+  ['I made a mistake in the address', 'contact/order_change'], ['I have a new address', 'contact/order_change'],
+  ['my new address is block 5', 'contact/order_change'], ['the phone number on my order is wrong', 'contact/order_change'],
+  ['wrong phone number on my order', 'contact/order_change'], ['رقم الجوال غلط في الطلب', 'contact/order_change'],
+  ['غلطت في العنوان', 'contact/order_change'], ['عنواني تغير', 'contact/order_change'], ['انتقلت لعنوان جديد', 'contact/order_change'],
+  ['what is your address', 'location'], ['the order number is wrong', '!contact/order_change'],
+])
+
+await R5('shopping for someone is not asking for a person (finding 5)', [
+  ['I want a gift for someone', '!contact'], ['I need a gift for my manager', '!contact'], ['I want a jacket for my manager', '!contact'],
+  ['I need a jacket for someone tall', '!contact'], ['need a uniform for my staff', '!contact'], ['we want a team kit for our staff', '!contact'],
+  ['I want a tracksuit for an employee', '!contact'], ['want a hoodie for anyone', '!contact'], ['ابي جاكيت لموظفي', '!contact'],
+  ['I need a manager jacket', '!contact'], ['I want a manager for my team', '!contact'],
+  ['I need a human', 'contact'], ['I want an agent', 'contact'], ['I need a manager', 'contact'], ['I want a real person', 'contact'],
+  ['can I talk to someone', 'contact'], ['I want to talk to a human about my order', 'contact'], ['ابي موظف', 'contact'],
+])
+
+await R5('a parcel that came wrong, short or empty, in Gulf Arabic, and a customer who is angry (finding 12)', [
+  ['جاني لون ثاني', 'contact/complaint'], ['جاني مقاس ثاني', 'contact/complaint'], ['وصلني قطعة وحدة بس', 'contact/complaint'],
+  ['the box was empty', 'contact/complaint'], ['the parcel was opened', 'contact/complaint'], ['it is different from what I ordered', 'contact/complaint'],
+  ['I am not satisfied', 'contact/complaint'], ['this is unacceptable', 'contact/complaint'], ['you are useless', 'contact/complaint'],
+  ['خدمتكم سيئة', 'contact/complaint'], ['مو راضي', 'contact/complaint'], ['terrible service', 'contact/complaint'], ['is this a scam', 'contact/complaint'],
+  ['نصابين', 'contact/complaint'], ['استلمت الجاكيت وهو صغير', 'returns'],
+  ['عندكم مقاس ثاني؟', '!contact'], ['do you have another colour', '!contact'], ['is the box sturdy', '!contact'],
+  ['what if I am not satisfied', '!contact/complaint'], ['do you offer a satisfaction guarantee', '!contact/complaint'],
+])
+
+await R5('returning, returnable: the returns policy (finding 21)', [
+  ['is returning free', 'returns'], ['how does returning work', 'returns'], ['returning an item', 'returns'],
+  ['I am thinking of returning something', 'returns'], ['can I keep returning items', 'returns'], ['is it returnable', 'returns'],
+  ['returnable?', 'returns'],
+])
+
+await R5('a worry before buying is not a complaint about something delivered (finding 22)', [
+  ['how do I avoid ordering the wrong size', '!contact'], ["I don't want the wrong size", '!contact'],
+  ['I am worried about getting the wrong size', '!contact'], ['I always get the wrong size online', '!contact'],
+  ['afraid the colour is different from the picture', '!contact'], ["make sure it doesn't arrive damaged", '!contact'],
+  ['I received the wrong size', 'contact/complaint'], ['the jacket arrived damaged', 'contact/complaint'],
+  ['I got the wrong item', 'contact/complaint'], ['I am worried because I received the wrong size', 'contact/complaint'],
+])
+
+await R5('opting out, unsubscribing and asking for one\'s data reach a person (finding 15)', [
+  ['unsubscribe me', 'contact/privacy_request'], ['opt out', 'contact/privacy_request'], ['stop sending me messages', 'contact/privacy_request'],
+  ['please stop emailing me', 'contact/privacy_request'], ['remove my number from your list', 'contact/privacy_request'],
+  ['delete my account', 'contact/privacy_request'], ['delete my data', 'contact/privacy_request'],
+  ['please delete my personal data', 'contact/privacy_request'], ['what data do you keep about me', 'contact/privacy_request'],
+  ['do you share my information', 'contact/privacy_request'], ['what is your privacy policy', 'contact/privacy_request'],
+  ['وقفوا الرسايل', 'contact/privacy_request'], ['احذفوا رقمي', 'contact/privacy_request'], ['احذف حسابي', 'contact/privacy_request'],
+  ['ما ابي رسايل', 'contact/privacy_request'], ['الغاء الاشتراك في النشرة', 'contact/privacy_request'],
+  ['delete my order', 'cancel'], ['remove an item from my order', '!contact/privacy_request'], ['stop my order', 'cancel'],
+  ['do you have a tracksuit', 'search'],
+])
+
+await R5('"come back" is a restock question only when stock is meant (finding 14)', [
+  ['the page will not come back', '!contact/restock'], ['will you come back to me about my complaint', 'contact/-'],
+  ['can someone come back to me', 'contact/-'],
+  ['is XL coming back', 'contact/restock'], ['when will you restock', 'contact/restock'], ['will the black leggings come back later', '!contact'],
+  ['when will the jacket be back in stock', '!contact/restock'],
+])
+
+await unthrottle()
+head('round five: the pieces underneath')
+{
+  // assistant_words_before trimmed punctuation BYTE-wise: its list held «؟» and «،», whose
+  // lead byte 0xD8 is also the lead byte of ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ, so «تم»
+  // came back as three broken bytes and the "it HAS been cancelled" check could never match.
+  const W = await php(`require ${JSON.stringify(AP)};
+    echo json_encode([assistant_words_before('ليش تم الغاء', strlen('ليش تم ')), assistant_words_before('هل تم الغاء', strlen('هل تم ')),
+                      assistant_words_before('no, cancel it', strlen('no, ')), assistant_words_before('i did not pay, cancel', strlen('i did not pay, ')),
+                      assistant_words_before('please, don\\'t cancel', strlen('please, don\\'t '))], JSON_UNESCAPED_UNICODE);`)
+  is(JSON.stringify(W[0]) === JSON.stringify(['ليش', 'تم']) && JSON.stringify(W[1]) === JSON.stringify(['هل', 'تم']),
+     'Arabic words keep their first letter in the words before a cancel word (a byte-wise trim ate it)', JSON.stringify(W[0]) + JSON.stringify(W[1]))
+  is(W[2].length === 0 && W[3].length === 0 && JSON.stringify(W[4]) === JSON.stringify(["don't"]),
+     'and a comma ends the clause, so a negation in the sentence before is not read as "don\'t cancel"', JSON.stringify(W.slice(2)))
+
+  // The order itself decides: a cancelled order is told it is cancelled, never "we can cancel an order before it leaves".
+  const cancelled = ["insert into orders (track_id, amount, subtotal, payment_method, payment_status, fulfilment_status, created_at) values ('SPTEST000007', 3, 3, 'cod', 'pending', 'cancelled', now() - interval 2 day)"]
+  const CA = await answersIn(cancelled, [['هل تم الغاء طلبي SPTEST000007', 'ar'], ['please tell me why SPTEST000007 was cancelled', 'en'], ['why did you cancel SPTEST000007', 'en'],
+                                         ['cancel SPTEST000007', 'en']])
+  is(CA[0].intent === 'order_status' && /تم إلغاء/.test(CA[0].reply) && CA[1].intent === 'order_status' && /cancelled/.test(CA[1].reply) && CA[2].intent === 'order_status',
+     'asking about a cancelled order gets that order\'s cancelled stage, not the cancel instructions', `${CA[0].intent} ${CA[0].reply.slice(0, 30)} | ${CA[1].reply.slice(0, 30)}`)
+  is(CA[3].intent === 'cancel', 'while "cancel SPTEST000007" is still a cancellation', CA[3].intent)
+
+  // A late parcel is asked for its number without the 24-hour promise, with a way out.
+  const LATE = ["the leggings I ordered haven't arrived", 'delivery took 3 days', '3 days and no delivery', 'still waiting for delivery', 'my parcel is delayed',
+                'order delayed', 'still waiting', 'my parcel never came', "my package didn't come", 'order not here yet']
+  const LA = await answersIn([], LATE.map((m) => [m, 'en']))
+  LATE.forEach((m, i) => is(!/24 hours/.test(LA[i].reply) && /WhatsApp/.test(LA[i].reply) && /SP/.test(LA[i].reply),
+    `"${m}" is asked for the number WITHOUT the 24-hour promise, and given a way out`, LA[i].reply.slice(0, 70)))
+
+  // The new topic has a line in both languages that names the way to ask, and the people it is for.
+  const PR = [await canned('privacy_request', false), await canned('privacy_request', true)]
+  is(PR.every((l) => /cs@sporta\.com\.kw/.test(l) && /2209/.test(l)), 'the privacy_request line gives the WhatsApp number and the email the Privacy page names', PR[0])
+  const PA = await answersIn([], [['unsubscribe me', 'en'], ['احذف حسابي', 'ar']])
+  is(PA[0].reply === PR[0] && PA[1].reply === PR[1] && PA[0].intent === 'contact', 'and it is the answer to an unsubscribe / delete request', `${PA[0].intent} ${PA[0].reply.slice(0, 30)}`)
+  const MA = await answersIn([], [['دفعت وما في طلب', 'ar'], ['someone used my card on your site', 'en']])
+  is(MA[0].reply === await canned('money', true) && MA[1].reply === await canned('money', false), 'a payment lost half way and an unauthorised charge get the money line', MA[1].reply.slice(0, 50))
+
+  // The workflow that emails these messages must not turn the customer's words into mail markup.
+  const wf5 = JSON.parse(readFileSync(new URL('../dropin/n8n/sporta-ai-handoff.json', import.meta.url), 'utf8'))
+  const gm = wf5.nodes.find((n) => n.type === 'n8n-nodes-base.gmail')
+  is(gm?.parameters?.emailType === 'text', 'the "Tell the shop" mail is plain text: a customer\'s <a href> or <img> is not markup in staff\'s inbox', String(gm?.parameters?.emailType))
 }
 
 head('round three: the regression corpus, through four versions')
@@ -1982,7 +2238,7 @@ head('the voice, and who is allowed to ask for it')
     // OWN IF node and subject template, read from the JSON that gets imported.
     {
       await fetch(`${VOICE}/reset`)
-      const sent = [...MONEY_R2, ...COMPLAINT_R2, ...MONEY_R3, ...CHECKOUT_R3, ...SITE_R3, ...COURIER_R3, ...R4_TOPICS.map(([q, l]) => [q, l]), ...R4_NOT_CANCEL, ['do you sell live goldfish', 'en']]
+      const sent = [...MONEY_R2, ...COMPLAINT_R2, ...MONEY_R3, ...CHECKOUT_R3, ...SITE_R3, ...COURIER_R3, ...R4_TOPICS.map(([q, l]) => [q, l]), ...R4_NOT_CANCEL, ...R5_NOT_CANCEL, ['do you sell live goldfish', 'en']]
       await php(`require ${JSON.stringify(SP)}; require ${JSON.stringify(AP)}; $in = json_decode($argv[1], true); $db = store_db();
         $cfg = array_merge(store_config(), ['n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret']);
         $db->beginTransaction();
@@ -2007,7 +2263,7 @@ head('the voice, and who is allowed to ask for it')
                         site_problem: [/WEBSITE PROBLEM/, 'a website problem'], courier: [/COURIER PROBLEM/, 'a courier problem'],
                         not_received: [/ORDER NOT RECEIVED/, 'an order that did not come'], refund: [/REFUND/, 'a refund being waited for'],
                         order_change: [/CHANGE TO AN ORDER/, 'a change to an order'], restock: [/back in stock/, 'a restock question'],
-                        no_number: [/lost the order number/, 'a customer without the order number'], late_order: [/LATE ORDER/, 'an order that is late'] }
+                        no_number: [/lost the order number/, 'a customer without the order number'], privacy_request: [/PRIVACY REQUEST/, 'a privacy request'], late_order: [/LATE ORDER/, 'an order that is late'] }
       for (const [m, , kind] of [...MONEY_R2.map(([q, l]) => [q, l, 'money']), ...COMPLAINT_R2.map(([q, l]) => [q, l, 'complaint']),
                                  ...MONEY_R3.map(([q, l]) => [q, l, 'money']), ...CHECKOUT_R3.map(([q, l]) => [q, l, 'checkout_problem']),
                                  ...SITE_R3.map(([q, l]) => [q, l, 'site_problem']), ...COURIER_R3.map(([q, l]) => [q, l, 'courier']), ...R4_TOPICS]) {
@@ -2025,6 +2281,11 @@ head('the voice, and who is allowed to ask for it')
         const p = got.find((x) => x.body?.message === m)?.body
         const subject = p ? tpl(mail.parameters.subject, p) : ''
         is(p?.intent === 'contact' && !/CANCEL/.test(subject) && needsPerson(p), `"${m}" is emailed to the shop, and not as a cancellation`, p ? `${p.intent}/${p.topic} — ${subject}` : 'nothing arrived')
+      }
+      // …and neither is a customer asking about a cancelled order, or about a second one.
+      for (const [m] of R5_NOT_CANCEL) {
+        const subs = got.filter((x) => x.body?.message === m).map((x) => x.body)
+        is(subs.every((p) => p.intent !== 'cancel' && !/CANCEL/.test(tpl(mail.parameters.subject, p))), `"${m}" is never emailed to the shop as a cancellation`, subs.map((p) => `${p.intent}/${p.topic}`).join(' ') || 'no handoff')
       }
       await unthrottle()
 

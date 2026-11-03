@@ -172,9 +172,9 @@ nothing** the shop sells (or found the kind of thing but not the colour or the
 brand asked for — "yellow shorts", "nike shorts" — which is demand the shop
 wants to hear about). Not on every message — n8n is not a transcript log.
 
-"Asked for a person" (`intent: contact`) includes twelve things the customer
+"Asked for a person" (`intent: contact`) includes thirteen things the customer
 did not phrase as a request for one (six from the first rounds, six added in
-round four), each with its own `topic`, its own reply and its own email subject:
+round four, one in round five), each with its own `topic`, its own reply and its own email subject:
 
 | `topic` | what it is | examples |
 |---|---|---|
@@ -189,6 +189,7 @@ round four), each with its own `topic`, its own reply and its own email subject:
 | `refund` | money owed back, being waited for (not the returns *policy*) | "where is my refund", «وين فلوسي», «كم يوم يرجع المبلغ», «ما رجعت لي الفلوس» |
 | `order_change` | a change to an order that exists: address, phone, size, colour, where or when it goes | "update my address", "can I change the size on my order", "send my order to my office instead", «ابي اغير المقاس في طلبي», "do not ship to Hawally, ship to Salmiya" |
 | `restock` | when an item is back, with no garment named | "when will you restock", "is XL coming back", «متى يتوفر مقاس XL» |
+| `privacy_request` | stopping messages, leaving a list, or asking what the shop holds, or to correct or delete it | "unsubscribe me", "stop emailing me", "delete my account", "what data do you keep about me", «وقفوا الرسايل», «احذف حسابي» — the line points to the WhatsApp number and email the Privacy page names |
 | `late_order` | *not a message*: an order whose own state is past its promise (see below) | «طلبي ما وصل» with an SP number on a packed order that is days old |
 
 **Not one of them**, and answered as the question it is: how paying works ("is
@@ -244,6 +245,46 @@ What changed:
   guard refuses any rewording that loses a negation.
 * **The handoff ration is per IPv6 /64**, like every other limiter.
 
+**Round five, in one paragraph.** The fifth review found the same two faults in
+the other direction. Ordinary talk was paged as a cancellation or a person ("I
+will order again", "my second order has not arrived", «تم الغاء طلبي», "why did
+you cancel my order", "I want a gift for someone"), and a customer who needed a
+person was answered with a fixed line (a payment that was lost half way, in Gulf
+or MSA Arabic or because the browser closed; an unauthorised charge, fraud or a
+dispute; a card that «ما يمشي»; a parcel that "never came"; an address that "is
+wrong"; an opt-out or a request to delete one's data). What changed:
+
+* **Cancel is a request only when it is one.** "Again", "second", "extra",
+  "two orders" and a bare "twice" no longer mean a duplicate — only a word that
+  says it was not meant ("by mistake", "duplicate", «مكرر», «بالغلط») or the same
+  order placed twice does. A negation counts only inside its own clause
+  ("I didn't pay, cancel my order" cancels). «تم الغاء», «الغيتوا», «مين الغى»,
+  "did you cancel", "why was it cancelled" and "please tell me why it was
+  cancelled" are the order's STATE and are answered with its stage. The
+  punctuation strip in `assistant_words_before` was byte-wise and ate the first
+  letter of every Arabic word starting with ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ;
+  it is Unicode-aware now.
+* **More money phrasings reach a person**: «دفعت وما في طلب», «ولا شي», «اكثر من
+  مره», «الصفحة وقفت», «ما رجعني للموقع», "the page closed", "my phone died",
+  "it did not come back to the site", a duplicate payment, a deduction message, a
+  hold on the card, "please confirm my payment", an overcharge that names a
+  discount code, and fraud / an unauthorised charge / a dispute (all `money`). A
+  question that merely opens with when / how / what ("when is my card charged",
+  «متى ينخصم المبلغ») is about paying, not a complaint.
+* **A refund asked about before any return** ("how long does a refund take", "if
+  I return it, when do I get my money back") is the returns policy; a status needs
+  "my refund", "I returned it" or an SP number.
+* **Payment trouble, said the Gulf way** («الكي نت ما يمشي», «ما يقبل الكرت»,
+  «الدفع واقف», «تعذر الدفع») is `checkout_problem`; **a late parcel** has one word
+  list (`assistant_late_words`), so "haven't arrived", "delayed", "never came" and
+  "still waiting" are all a tracking question without the 24-hour promise.
+* **`privacy_request`** is new (its own line and its own email subject), and
+  **`order_change`** now also reads the predicate forms ("my address is wrong").
+* **Shopping is not asking for a person**: "I want a gift for someone", "a
+  uniform for my staff" are searched. "Returning", "returnable", a worry before
+  buying ("I'm afraid I'll get the wrong size") and "come back" without a stock
+  word each stopped being what they were mistaken for.
+
 These used to be answered as something else — the payment methods, the
 delivery timetable, the size guide, or «ما لقيت شي» — and a failed search goes
 only to **Log the gap**, which emails nobody. So nobody heard about them. A
@@ -260,6 +301,14 @@ that is advice nobody followed up.
 'n8n_secret'  => 'a long random string',
 ```
 
+**Re-import the workflow when it changes** (it is not part of the PHP deploy): round
+five added the PRIVACY REQUEST subject and set the "Tell the shop" Gmail node to
+`emailType: text`. That node defaulted to HTML, and the customer's words go into
+the mail body, so a visitor could put a link or an `<img>` into a message that
+arrives from the shop's own system with a trusted subject. As plain text it is
+shown as typed. After re-importing, open the node once and confirm "Email Type"
+reads Text.
+
 Import `dropin/n8n/sporta-ai-handoff.json` and set an n8n environment variable
 `SPORTA_N8N_SECRET` to the same string. Its **Needs a person?** node sends both
 `contact` and `cancel` to the email step, and everything else to **Log the
@@ -267,7 +316,8 @@ gap**. The subject says which: a cancellation, a **PAYMENT PROBLEM**, a **WRONG
 OR DAMAGED ITEM**, a **COURIER PROBLEM**, a **CHECKOUT** that needs a hand, a
 **WEBSITE PROBLEM**, a code that would not apply, **ORDER NOT RECEIVED**, a
 **LATE ORDER**, a **REFUND** being waited for, a **CHANGE TO AN ORDER**, a
-restock question, a customer who lost the order number, or a plain request for a
+restock question, a customer who lost the order number, a **PRIVACY REQUEST**
+(stop messages, or see, correct or delete data), or a plain request for a
 person. `npm run test:assistant` runs every money, complaint, checkout, website
 and courier sentence above
 through the workflow's own IF node and subject template, read from the JSON
@@ -297,7 +347,7 @@ minutes** in a bucket of their own — so a burst of nonsense cannot use up the
 allowance a real cancellation needs. Only a handoff that would actually be sent
 is counted.
 
-Payload: `source`, `intent`, `topic` (null unless one of the twelve above),
+Payload: `source`, `intent`, `topic` (null unless one of the thirteen above),
 `lang`, `message`, `reply`, `at`. Re-import the workflow after updating: its
 subject template is what names the six round-four topics (a payload with a topic
 the imported template does not know is still emailed, as "customer asked for a
