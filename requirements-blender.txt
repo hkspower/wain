@@ -1,3 +1,7 @@
 # Blender as a Python module, for tools/blender and tools/max.
-# 5.0.1 is the newest build on PyPI; it needs Python 3.11.
-bpy==5.0.1
+# 5.0.1 (the version these tools were written against) is no longer on
+# PyPI; 5.1.x is tested here — the one 5.1 behaviour change found (quad
+# and cap triangulation no longer mirroring across the centreline) is
+# answered in build_assets.py's _mirror_triangulation, and version.py
+# still enforces the 5.0 floor the tools need. bpy 5.1 needs Python 3.13.
+bpy>=5.1,<5.3

@@ -46,39 +46,6 @@
         "Roof"
       ]
     },
-    "wheel-5": {
-      "tris": 21940,
-      "kb": 400.7,
-      "parts": [
-        "Alloy",
-        "Barrel",
-        "Lugs",
-        "Rotor",
-        "Tire"
-      ]
-    },
-    "wheel-6": {
-      "tris": 22276,
-      "kb": 406.6,
-      "parts": [
-        "Alloy",
-        "Barrel",
-        "Lugs",
-        "Rotor",
-        "Tire"
-      ]
-    },
-    "driver": {
-      "tris": 27744,
-      "kb": 443.6,
-      "parts": [
-        "Glove",
-        "Helmet",
-        "Pedal",
-        "Visor",
-        "Wheel"
-      ]
-    },
     "car-hatch": {
       "tris": 201016,
       "kb": 3535.8,
@@ -115,6 +82,37 @@
         "Roof"
       ]
     },
+    "car-suv": {
+      "tris": 178744,
+      "kb": 3144.3,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "wheel-5": {
+      "tris": 21940,
+      "kb": 400.7,
+      "parts": [
+        "Alloy",
+        "Barrel",
+        "Lugs",
+        "Rotor",
+        "Tire"
+      ]
+    },
+    "wheel-6": {
+      "tris": 22276,
+      "kb": 406.6,
+      "parts": [
+        "Alloy",
+        "Barrel",
+        "Lugs",
+        "Rotor",
+        "Tire"
+      ]
+    },
     "police": {
       "tris": 1400,
       "kb": 26.8,
@@ -124,15 +122,16 @@
         "LampR"
       ]
     },
-    "car-suv": {
-      "tris": 178744,
-      "kb": 3144.3,
+    "driver": {
+      "tris": 27744,
+      "kb": 443.6,
       "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
+        "Glove",
+        "Helmet",
+        "Pedal",
+        "Visor",
+        "Wheel"
       ]
     }
-  },
-  "faces": "mirrored"
+  }
 }
