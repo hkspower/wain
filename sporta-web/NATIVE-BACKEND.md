@@ -307,6 +307,14 @@ client the same way.
 - **`cron-stock.php` finds an abandoned card order that claimed no stock** (an
   accessories-only KNET / T-Pay order whose hold has passed), cancels it and
   gives its discount uses back.
+- **`store_stock_release()` and `cron-stock.php` release a cancelled order that
+  is under review** (`payment_status = 'review'`, `fulfilment_status =
+  'cancelled'`): its garments go back on the shelf and its discount uses back to
+  the code. Before, every release path excluded `review`, so an owner who
+  refunded a mismatched capture and cancelled the order left the shelf short for
+  ever. A review order that is not cancelled, and a paid one, still hold
+  everything. No schema change: the existing `stock_released` /
+  `discount_released` flags stop a second release.
 
 ## What went with the old backend
 

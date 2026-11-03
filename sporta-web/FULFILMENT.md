@@ -188,6 +188,11 @@ order exactly like the first one: moving a cancelled cash order straight to
 - **Cancelling** is refused with 409 for an order that has left the shop
   (`order_already_shipped`) or is paid (`order_paid`). Both are settled through
   Returns and a refund, by hand.
+- **Cancelling an order under review** (a card capture parked for review: wrong
+  amount, no payment id, unrecognised result) is allowed, and the cancel gives
+  the order's pieces and discount uses back at the next stock sweep. A review
+  order that is NOT cancelled keeps both, because the money may be real; a
+  paid one is never released.
 - **A cash order past `cod_hold_hours`** cannot go back as `unfulfilled`
   (`cod_hold_expired`): the sweeper would cancel it again. Put it back as packed.
 - **A cancelled card order** cannot be settled by hand (`order_cancelled`): put

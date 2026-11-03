@@ -24,3 +24,63 @@
  * Pages that are already taller than a window (the shop with 36 cards, a brand with 4) are not
  * changed; an empty search result just leaves air above the footer, as in any sticky-footer page. */
 .catalog-page { min-height: calc(100vh - 6rem); }
+
+/* ------------------------------------------------------------------------------------------------
+ * Shop page without its title block, product count and category chips (owner request 2026-11-03:
+ * a screenshot of the Arabic /shop on a phone with three areas circled in blue, "remove inside blue
+ * lines").  Applies to every variant of the page, because they are all the one compiled Shop view
+ * (section.catalog-page): /shop, /shop?brand=<slug>, ?category=, ?sale=1 and ?q= search.
+ *
+ * Markup and rules relied on (the live Shop-hSBJtlix.js and index-CdcKvZhs.css, dumped 2026-11-03):
+ *   section.catalog-page
+ *     div.catalog-heading        border-block-end 1px; margin-block-end 1.25rem; padding-block .25rem 1.25rem
+ *       p.catalog-eyebrow        "سبورتا / المجموعة"; margin-block-end .75rem
+ *       div.catalog-heading-copy display:grid
+ *         h1                     t.shop.h1 (the same string on every variant: no "results for X" here)
+ *         p                      the intro paragraph (inline-start 2px orange border from 1024px)
+ *     div.catalog-toolbar        flex, space-between, margin-block-end 1rem
+ *       p.catalog-result-count   role=status, "٤ منتج"
+ *       label.catalog-sort       "ترتيب" + select.catalog-sort-select.min-h-11   <- KEPT
+ *     div.catalog-filters        the category chips (buttons)
+ *     (#sporta-brand-banner is inserted by sporta-features.js just before .catalog-filters)
+ *     div.product-grid                                                              <- KEPT
+ * Everything is scoped to .catalog-page: the wishlist reuses .catalog-heading / .catalog-eyebrow
+ * under .catalog-wishlist and must keep its title.  No :has() is needed, so a browser without it
+ * renders exactly the same page.  Logical properties only (RTL and LTR).
+ *
+ * The h1 is NOT display:none.  It is the page's only h1: screen readers, search engines and the
+ * document outline still need it, and "remove" means remove from the picture.  It is made
+ * visually hidden with the clip technique, which takes it out of the flow (no layout space) but
+ * keeps it in the accessibility tree.  The eyebrow, the intro paragraph, the count and the chips
+ * are decoration or a duplicate of what the grid already shows, so they go with display:none.
+ * (The count was a role=status live region; it goes with the rest, as the owner asked.)
+ *
+ * The title block's own spacing goes with it, so no empty band is left: the divider (border),
+ * the .25rem/1.25rem padding and the 1.25rem margin existed only to space that content.  What
+ * remains above the sort row is the section's own top padding (1.5rem, 2.5rem from 768px), the
+ * same page gutter every other screen has; below it the toolbar's own 1rem margin to the grid.
+ * The chips' 1.25rem margin goes with them, so the grid sits 1rem under the sort row.
+ * The one way to switch category inside the page is gone; ?category= in the address still works. */
+.catalog-page .catalog-heading {
+  position: relative !important;                /* containing block for the clipped h1 */
+  border-block-end: 0 !important;               /* the thin divider */
+  margin-block: 0 !important;
+  padding-block: 0 !important;
+}
+.catalog-page .catalog-eyebrow,
+.catalog-page .catalog-heading-copy > p,
+.catalog-page .catalog-result-count,
+.catalog-page .catalog-filters {
+  display: none !important;
+}
+.catalog-page .catalog-heading h1 {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
