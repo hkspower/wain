@@ -507,13 +507,25 @@
 - Keep the indigo accent for admin UI.
 - **The /backends Payments (KNET) screen has NO dark mode** (owner, 2026-11-03,
   "no dark mode for knet"; saved by user request — apply always). The compiled
-  admin follows `prefers-color-scheme: dark` on every other screen and keeps
-  doing so, but the Payments screen must show its light appearance on a
-  dark-mode device too, never a dark or half-dark mix. Implemented in
-  `public/sporta-admin-knet.css` as a light-only section scoped to the screen
-  root (`.payment-settings`) and the content area that holds it; guarded by
-  `npm run test:admin-light`. The earlier dark layer (commits 4da598d1–0e3184d6)
-  was never deployed and is replaced, not extended.
+  admin's dark theme is NOT keyed on the device alone (measured 2026-11-03): it is
+  `html[data-theme=dark]` / `html.dark`, set by `/boot.js` before first paint from
+  the stored `sporta_theme` choice, else from the device's `prefers-color-scheme`
+  on `/backends` (the stored choice outranks the device; the app re-evaluates it
+  on route change, not on a device change). Every other screen keeps following
+  that; the Payments screen must show its light appearance in every dark state,
+  never a dark or half-dark mix. Implemented in `public/sporta-admin-knet.css`
+  (Section 9, "Light only", commit 5037bb57) as rules that open with
+  `:is(html.dark, html[data-theme="dark"])` and are scoped to `.payment-settings`
+  and the content area that holds it (`.admin-content:has(.payment-settings)`);
+  guarded by `npm run test:admin-light` against a verbatim copy of the live
+  build's dark rules (`scripts/fixtures/admin-dark-rules.css`, from
+  `/assets/index-CdcKvZhs.css` and `AdminApp-Dw3t3z9Z.css`; re-fetch it if the
+  build's asset hashes change). The earlier dark layer and `prefers-color-scheme`
+  twins (commits 4da598d1–0e3184d6) were keyed on the wrong thing, were never
+  deployed, and are gone. NOT yet measured on the live page (needs the Hostinger
+  connector): the light look of the info and ok admin notices (stand-in values in
+  the add-on) and `text-indigo-600/900`; run `admin-payments-scan.mjs` with
+  `SCHEME=dark` and `CSS_URL` before deploying.
 
 - **Every order emails the logistics company** — see `sporta-web/FULFILMENT.md`.
   `store_queue_fulfilment()` writes `fulfilment_outbox` in the same
