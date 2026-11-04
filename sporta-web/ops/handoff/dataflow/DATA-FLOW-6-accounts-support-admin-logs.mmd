@@ -1,0 +1,44 @@
+%% Data classes: ACCOUNT, SUPPORT / RETURNS / REVIEWS, CRM, ADMIN, and the LOGS that copy them. Verifier lane V, 2026-11-04.
+flowchart LR
+  classDef browser fill:#dcfce7,stroke:#15803d,color:#111
+  classDef db fill:#dbeafe,stroke:#1d4ed8,color:#111
+  classDef third fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111
+  classDef file fill:#e5e7eb,stroke:#4b5563,color:#111
+
+  REG["register / login / profile / reset<br/>customer.php"]:::browser
+  BDAY["birthday.php set"]:::browser
+  SUPX["support_create, reply, return_submit, review"]:::browser
+  ADMX["/backends: CRM note, block, product, brand, settings, order edit"]:::browser
+
+  CAX[("customer_accounts<br/>email, name, phone, birthday,<br/>password hash only (verified)")]:::db
+  RSET[("customer_password_resets<br/>sha256 of the token")]:::db
+  SUPT[("support_tickets, support_messages<br/>return_requests incl. contact_phone<br/>reviews.comment")]:::db
+  CRMX[("crm_contacts.contact_key = phone:965...<br/>crm_notes.contact_key + note")]:::db
+  ACTL[("admin_activity_log<br/>action key + admin email, no bodies")]:::db
+  ADMS[("admin_users.totp_secret plain base32 [F1-12]<br/>recovery codes hashed")]:::db
+
+  RMAIL["Customer mailbox<br/>reset link (token only here),<br/>birthday gift code"]:::third
+  GOOG["Google OAuth (code)"]:::third
+  NOLEAK["Found NOWHERE (measured): passwords,<br/>fbclid, gclid, referring-URL path,<br/>forged item name, pasted PAN on HEAD"]:::file
+  RET["No deleter, no retention job:<br/>orders, outbox copies, tickets, CRM, logs [F1-10]"]:::file
+  NONOTIFY["Tickets and returns notify nobody [F1-19]"]:::file
+
+  REG --> CAX
+  REG --> RSET
+  REG -->|"reset link"| RMAIL
+  BDAY --> CAX
+  CAX -->|"birthday cron"| RMAIL
+  SUPX --> SUPT
+  SUPT -.-> NONOTIFY
+  ADMX --> CRMX
+  ADMX --> ACTL
+  ADMX --> ADMS
+  ADMX -->|"sign in with Google"| GOOG
+  CAX -.-> RET
+  SUPT -.-> RET
+  CRMX -.-> RET
+
+  linkStyle 6 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 11 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 12 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 13 stroke:#b91c1c,stroke-dasharray:4 3

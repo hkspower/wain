@@ -1,0 +1,29 @@
+%% Data class: ASSISTANT CHAT (anything a shopper types to the Sporta AI panel). Verifier lane V, 2026-11-04.
+%% The two code versions differ and both were measured: LIVE = commit 1eb487aa (on the server), HEAD = d78a0c43 (repo, not deployed).
+%% Whether ai_key / n8n_webhook are set on the live server could not be read (connector signed out).
+flowchart LR
+  classDef browser fill:#dcfce7,stroke:#15803d,color:#111
+  classDef db fill:#dbeafe,stroke:#1d4ed8,color:#111
+  classDef third fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111
+  classDef route fill:#ede9fe,stroke:#6d28d9,color:#111
+
+  PANEL["AI panel<br/>sends {message, lang}<br/>transcript kept in page memory only"]:::browser
+  AS["assistant.php<br/>rule router answers from the shop's own data"]:::route
+  RED["assistant_redact<br/>masks card number, expiry, CVV"]:::route
+  RFM["assistant_redact_for_model (patch P2)<br/>also phones, emails, order numbers"]:::route
+  LLM["Language-model vendor<br/>x-api-key header"]:::third
+  N8N["n8n webhook<br/>HMAC header, intent, topic, message, reply"]:::third
+  TTS["ElevenLabs<br/>only the shop's fixed sentence"]:::third
+  RLM[("rate_limit<br/>HMAC of IP")]:::db
+
+  PANEL --> AS
+  AS --> RLM
+  AS -.->|"LIVE code: EVERY message, verbatim,<br/>pasted card number + expiry + CVV measured [V-01]"| LLM
+  AS --> RED
+  RED -->|"HEAD: only rewordable answers,<br/>cards masked, phone / email still sent [F1-02]"| LLM
+  RED -->|"handoff / gap / money: text kept so a person can call back"| N8N
+  RFM -->|"with P2: [phone removed]"| LLM
+  AS -->|"speaker button, signed tag"| TTS
+
+  linkStyle 2 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 4 stroke:#b45309,stroke-dasharray:4 3

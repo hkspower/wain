@@ -1,0 +1,38 @@
+%% Data class: PAYMENT (card via KNET or T-Pay/CBK, cash on delivery). Verifier lane V, 2026-11-04.
+%% Card number, PIN, CVV and expiry never touch the shop: only the order number, the amount and the bank's references do.
+flowchart TD
+  classDef browser fill:#dcfce7,stroke:#15803d,color:#111
+  classDef db fill:#dbeafe,stroke:#1d4ed8,color:#111
+  classDef third fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111
+  classDef file fill:#e5e7eb,stroke:#4b5563,color:#111
+
+  ORD["api.php order<br/>server computes subtotal, discounts (cap 60%), delivery fee<br/>browser-supplied amount / price ignored (25 forged values tested)"]:::db
+  OAMT[("orders.amount = 11.000<br/>stock claimed in the same transaction")]:::db
+  PAYP["knet/pay.php or pay/pay.php<br/>reads amount from the database"]:::db
+  BANKX["Bank page (KNET / CBK)<br/>receives amount + order number only<br/>customer types card data THERE"]:::third
+  PLOGX["knet-payments.log / cbk-payments.log<br/>order no, amount, bank refs,<br/>client IP plain on HEAD [F1-05]<br/>proxy address only on live code"]:::file
+  CB["callback.php<br/>verifies, compares amount, one transaction:<br/>orders + outbox payment"]:::db
+  PAID[("orders paid<br/>paid_at stamped by PHP clock [F1-07]")]:::db
+  PEND[("order stays PENDING<br/>no bank refs on the row")]:::db
+  SWEEP["cron-stock sweeper after 2 h<br/>releases the stock"]:::db
+  REV[("orders review + DB_WRITE_FAILED<br/>+ payment id, stock kept<br/>(patch P3)")]:::db
+  WAQ[("whatsapp_outbox confirmed<br/>only AFTER patch P7 [F1-06]")]:::db
+  WHM["Warehouse mail: ship it / do not ship"]:::third
+  ADMN["/backends: card_settled with the bank payment id"]:::db
+
+  ORD --> OAMT --> PAYP
+  PAYP -->|"amount, order no"| BANKX
+  PAYP --> PLOGX
+  BANKX -->|"result via the customer's browser"| CB
+  CB --> PLOGX
+  CB -->|"normal"| PAID
+  PAID --> WHM
+  PAID -.->|"[F1-06] no customer WhatsApp today"| WAQ
+  CB -.->|"[F1-03] write fails after capture,<br/>not a lock wait"| PEND
+  PEND -.->|"money taken, garments resold"| SWEEP
+  CB -.->|"with P3"| REV
+  REV --> ADMN --> PAID
+  linkStyle 8 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 9 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 10 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 11 stroke:#15803d,stroke-dasharray:4 3

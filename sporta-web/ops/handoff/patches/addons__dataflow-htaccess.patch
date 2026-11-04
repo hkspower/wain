@@ -1,0 +1,95 @@
+diff --git a/sporta-web/dropin/php-store/.htaccess b/sporta-web/dropin/php-store/.htaccess
+index add33d2..89c9745 100644
+--- a/sporta-web/dropin/php-store/.htaccess
++++ b/sporta-web/dropin/php-store/.htaccess
+@@ -34,6 +34,17 @@ Options -Indexes
+   Header set Cache-Control "no-cache, stale-while-revalidate=60" "expr=%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304"
+ </Files>
+ 
++# [F2-06] Pages that put ONE PERSON'S data on screen (the checkout form, the account, an invoice, an order's status, the payment
++# result, a review invite, the admin) must not come back from the browser's back/forward cache. "no-cache" above still
++# allows it; measured in Chromium: after Back, the typed checkout form (name, phone), the invoice (name, address) and the
++# signed-in account (name, email) were restored from memory with no request at all, for whoever held the device by then.
++# "no-store" makes Back ask the server again, so what is shown follows the session as it is NOW. The shell is a few kB
++# and only these routes pay for it; every other page keeps the 304 above. THE_REQUEST is the line the browser sent,
++# before the rewrite to seo-page.php (REQUEST_URI would already be /api/seo-page.php).
++<Files "seo-page.php">
++  Header set Cache-Control "no-store" "expr=(%{REQUEST_STATUS} == 200 || %{REQUEST_STATUS} == 304) && %{THE_REQUEST} =~ m!^[A-Z]+ /(checkout|account|invoice|payment/result|track|review|backends)([/? ]|$)!"
++</Files>
++
+ # Hero slides and brand logos are IMAGES served by api.php, each URL carrying
+ # its content hash (&v=), and api.php sends "public, max-age=31536000,
+ # immutable" for them. The blanket no-store above REPLACED that header, so
+diff --git a/sporta-web/public/boot.js b/sporta-web/public/boot.js
+index baa6b1f..01a2245 100644
+--- a/sporta-web/public/boot.js
++++ b/sporta-web/public/boot.js
+@@ -120,6 +120,36 @@
+   }, 10000)
+ })()
+ 
++/* [F2-02] Customer sign-out forgets what this device remembered for checkout.
++ * "Remember these details on this device" (ON by default) keeps the customer's name, mobile number, full address and
++ * delivery note in localStorage under "sporta.delivery", and the one-tap quick checkout reads it back. Signing out of the
++ * account did not touch it, so on a shared phone or computer the NEXT person's checkout opened on the previous person's
++ * name, number and address (measured). When the server confirms a customer sign-out (POST customer.php?r=logout answered
++ * with a success status), this removes that one key. The bag and wishlist are left alone: they hold no personal data.
++ * Nothing else about fetch changes: same arguments, same promise, same result; a rejected or non-2xx sign-out removes
++ * nothing, because the account is then still signed in. */
++;(function () {
++  'use strict'
++  try {
++    var nativeFetch = window.fetch
++    if (typeof nativeFetch !== 'function') return
++    window.fetch = function (input, init) {
++      var promise = nativeFetch.apply(this, arguments)
++      try {
++        var url = typeof input === 'string' ? input : input && input.url ? input.url : String(input)
++        var method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase()
++        if (method === 'POST' && /\/customer\.php\?r=logout(?:&|$)/.test(url)) {
++          promise.then(function (res) {
++            if (!res || !res.ok) return
++            try { localStorage.removeItem('sporta.delivery') } catch (_) {}
++          }, function () {})
++        }
++      } catch (_) {}
++      return promise
++    }
++  } catch (_) {}
++})()
++
+ /* Adobe Fonts kits are linked with media="print" data-async-css so they never
+  * block the first paint (the subsetted local faces are the default anyway).
+  * Switch each one on once it has loaded. This lives here, not in an onload
+diff --git a/sporta-web/public/sw.js b/sporta-web/public/sw.js
+index 473f8b1..5d23953 100644
+--- a/sporta-web/public/sw.js
++++ b/sporta-web/public/sw.js
+@@ -45,7 +45,9 @@
+ // that is not the current one, so a deploy cannot leave a visitor pinned to old
+ // assets — and skipWaiting + clients.claim mean it happens on the first load
+ // after the deploy rather than after every tab has been closed.
+-const VERSION = 'v1'
++// [F2-05] v2: activating a worker deletes every cache whose name is not the current one (see the activate handler), so bumping this
++// is also what removes the /api/ answers that the v1 worker already stored on visitors' devices.
++const VERSION = 'v2'
+ const SHELL = `sporta-shell-${VERSION}`
+ const ASSETS = `sporta-assets-${VERSION}`
+ 
+@@ -54,9 +56,16 @@ const ASSETS = `sporta-assets-${VERSION}`
+ // itself rather than unstyled text.
+ const PRECACHE = ['/', '/index.html', '/logo-white.webp', '/favicon-32.png', '/site.webmanifest']
+ 
++// [F2-05] /api/ answers are per-person, per-moment data, and every one of them is marked no-store by api/.htaccess:
++// invoices (name + delivery address + items), order status, the signed-in customer's profile and order list,
++// the assistant. Rule 3 below used to copy every successful GET of them into Cache Storage, where they outlived
++// the page, survived "Sign out" and were served back as an offline fallback to whoever used the device next.
++// Same reason as /knet/ and /pay/: pass them straight to the network; offline, they fail, which is the right answer.
++// (The two immutable image routes, slide_image and brand_logo, are handled by the browser's HTTP cache.)
+ const NEVER = (url) =>
+   url.pathname.startsWith('/knet/') ||
+   url.pathname.startsWith('/pay/') ||
++  url.pathname.startsWith('/api/') ||
+   url.pathname === '/config.js'
+ 
+ // Content-hashed, or frozen in practice. A hit is correct by construction.

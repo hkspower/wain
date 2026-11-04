@@ -1,0 +1,92 @@
+%% Sporta data flow, OVERVIEW. Verifier lane V, 2026-11-04. Repo HEAD d78a0c43; the live server runs the older commit 1eb487aa.
+%% Green = browser, blue = database, grey = files on the host, AMBER = third parties (data leaves the shop's control).
+%% Edge labels name the data class. Dashed red edges are the leaks / losses found (finding ids in brackets).
+%% Everything drawn was measured with a canary unless marked "(code)".
+flowchart LR
+  classDef browser fill:#dcfce7,stroke:#15803d,color:#111
+  classDef db fill:#dbeafe,stroke:#1d4ed8,color:#111
+  classDef file fill:#e5e7eb,stroke:#4b5563,color:#111
+  classDef third fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111
+  classDef route fill:#ede9fe,stroke:#6d28d9,color:#111
+
+  subgraph BR["Shopper browser"]
+    FORM["Checkout form<br/>name, phone, address, note,<br/>optional location pin"]:::browser
+    LS[("localStorage<br/>sporta.delivery = whole form + note<br/>bag, wishlist, lang, theme")]:::browser
+    SS[("sessionStorage<br/>campaign labels, hostname only")]:::browser
+    CK[("cookies<br/>customer session HttpOnly<br/>device cookie 180 days")]:::browser
+    SW[("Service worker cache<br/>no /api answers today (latent)")]:::browser
+  end
+
+  subgraph SRV["Shop server: Apache + PHP (VPS)"]
+    ORD["api.php  order, quote,<br/>invoice, status"]:::route
+    ACC["customer.php, birthday.php<br/>account, reset, birthday"]:::route
+    CS["support, returns, review"]:::route
+    AST["assistant.php"]:::route
+    PAY["knet/ and pay/<br/>pay.php + callback.php"]:::route
+    ADM["admin.php  /backends"]:::route
+    CRON["host cron<br/>fulfilment 5 min, stock 15 min,<br/>birthday daily, voice monthly"]:::route
+  end
+
+  subgraph DBX["MariaDB"]
+    O[("orders, order_items<br/>name, phone, address, note, utm labels")]:::db
+    OBX[("fulfilment_outbox.payload<br/>copy of name, phone, address, note")]:::db
+    WBX[("whatsapp_outbox<br/>phone, name, order no, amount")]:::db
+    CA[("customer_accounts<br/>email, phone, password HASH, birthday")]:::db
+    SUP[("support_*, return_requests, reviews<br/>free text + contact")]:::db
+    CRMT[("crm_*, blocked_customers,<br/>admin_activity_log")]:::db
+    RL[("rate_limit<br/>HMAC of IP only")]:::db
+  end
+
+  subgraph FL["Files on the host"]
+    PLOG["knet / cbk payment logs<br/>order no, amount, bank refs, client IP"]:::file
+    ALOG["web access log<br/>query strings: order numbers,<br/>cron key"]:::file
+    SESS["admin sessions, tts-cache"]:::file
+  end
+
+  subgraph TP["Third parties"]
+    BANK["KNET / CBK bank<br/>amount + order number"]:::third
+    WHM["Warehouse mailbox<br/>name, phone, FULL address, note, pin"]:::third
+    META["WhatsApp / Meta<br/>phone, name, order no, amount"]:::third
+    LLM["Language-model vendor<br/>customer's typed text"]:::third
+    N8N["n8n workflow<br/>typed text + shop reply"]:::third
+    ELV["ElevenLabs<br/>fixed shop sentences only"]:::third
+    ADOBE["Adobe Fonts<br/>IP + user agent, no Referer"]:::third
+    MAIL["Customer mailbox<br/>reset link, birthday code"]:::third
+    GOOG["Google OAuth<br/>admin sign-in (code)"]:::third
+  end
+
+  FORM -->|"order POST: delivery details, attribution"| ORD
+  FORM --> LS
+  LS -.->|"[F2-01 live add-on] pin re-sent with a later order"| ORD
+  SS -->|"utm_*, referrer host"| ORD
+  ORD --> O
+  ORD -->|"same transaction"| OBX
+  CRON -->|"drain"| OBX
+  OBX -->|"picking list mail"| WHM
+  ORD -.->|"[F1-11] order number is the key to name + address"| ALOG
+  ADM -.->|"[F1-01 live code / V-02] a correction after the list was mailed never reaches the warehouse"| WHM
+  ADM --> O
+  ADM --> CRMT
+  O --> WBX
+  CRON -->|"HTTP only, key in URL [F1-04]"| WBX
+  WBX -->|"shipped, review; confirmed only for COD [F1-06]"| META
+  PAY --> O
+  PAY -->|"amount + order no"| BANK
+  PAY --> PLOG
+  PAY -.->|"[F1-03] write fails after capture: order stays pending, stock released"| O
+  ACC --> CA
+  ACC -->|"reset link, birthday gift"| MAIL
+  CS --> SUP
+  AST -->|"every typed message on live code,<br/>card number included [V-01]"| LLM
+  AST -->|"handoff / gap, card masked"| N8N
+  AST -->|"speaker button"| ELV
+  ADM -->|"sign-in"| GOOG
+  FORM -.->|"every page load: font kit request"| ADOBE
+  ORD --> RL
+  ACC --> CK
+  linkStyle 2 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 8 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 9 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 13 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 18 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 22 stroke:#b91c1c,stroke-dasharray:4 3

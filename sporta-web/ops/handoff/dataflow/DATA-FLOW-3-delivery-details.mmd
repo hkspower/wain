@@ -1,0 +1,45 @@
+%% Data class: DELIVERY DETAILS (name, phone, address, note, optional location pin). Verifier lane V, 2026-11-04.
+%% Amber = leaves the shop's control. Red dashed = finding. Measured with canaries in the browser (live bundle + add-ons as deployed) and on a private PHP + MariaDB stack.
+flowchart TD
+  classDef browser fill:#dcfce7,stroke:#15803d,color:#111
+  classDef db fill:#dbeafe,stroke:#1d4ed8,color:#111
+  classDef third fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#111
+  classDef file fill:#e5e7eb,stroke:#4b5563,color:#111
+
+  T["Shopper types name, phone, address, note"]:::browser
+  PIN["Taps 'Share my location'<br/>add-on writes ONE line into the note:<br/>Location: https://www.google.com/maps?q=LAT,LNG"]:::browser
+  SUBMIT["Submit order (COD or card)"]:::browser
+  LSX[("localStorage sporta.delivery<br/>whole form + note<br/>remember box is ON by default")]:::browser
+  QC["Next visit: one-tap quick checkout<br/>prints and re-sends the stored note"]:::browser
+  GATE["HEAD add-on sporta-gov-autopick.js<br/>strips the pin on write, on read and on load<br/>NOT DEPLOYED"]:::browser
+
+  API["api.php order<br/>server validates, prices, stores"]:::db
+  ORDX[("orders.customer_*<br/>incl. note with the pin")]:::db
+  OBX[("fulfilment_outbox.payload<br/>copy at queue time")]:::db
+  INV["api.php invoice / status<br/>answer to the ORDER NUMBER alone"]:::db
+  LOGA["web access log<br/>GET ...r=invoice&id=ORDERNO"]:::file
+  WH["Warehouse mailbox<br/>name, phone, full address, note + pin<br/>kept forever outside the shop"]:::third
+  EDIT["Admin edits the address in /backends"]:::db
+
+  T --> PIN --> SUBMIT
+  T --> SUBMIT
+  SUBMIT -->|"order POST: 8 keys, no price, no email"| API --> ORDX
+  API -->|"same transaction"| OBX
+  SUBMIT -->|"saved before the server answers"| LSX
+  LSX -.->|"[F2-01] live add-on: pin stays, second order from elsewhere carries it"| QC
+  QC -.->|"stale pin in order 2"| API
+  GATE -.->|"fix, proven in ar and en"| LSX
+  OBX -->|"cron-fulfilment every 5 min"| WH
+  EDIT -->|"updates orders only"| ORDX
+  EDIT -.->|"[F1-01] live code mails the OLD snapshot; HEAD re-reads the order"| WH
+  EDIT -.->|"[V-02] after the mail: nothing is sent"| WH
+  ORDX --> INV
+  INV -.->|"[F1-11] a stranger with the number gets name + street + area"| LOGA
+  LSX -.->|"[F2-02] still there after the order and after sign-out"| QC
+  linkStyle 7 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 8 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 12 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 13 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 15 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 16 stroke:#b91c1c,stroke-dasharray:4 3
+  linkStyle 9 stroke:#15803d,stroke-dasharray:4 3

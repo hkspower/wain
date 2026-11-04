@@ -1,0 +1,37 @@
+%% Sporta order lifecycle as a state machine, with the data written or sent at each step. Verifier lane V, 2026-11-04.
+%% Measured on a private stack (HEAD d78a0c43 and the live baseline 1eb487aa). "[F..]" marks a finding.
+%% Notation: orders.payment_status / orders.fulfilment_status. Each arrow label says what is written or sent.
+stateDiagram-v2
+  [*] --> Created: POST order. ONE transaction writes orders, order_items, stock claim, coupon use, outbox new. Server prices it
+  Created --> CardPending: payment_method knet or tpay
+  Created --> CodPending: payment_method cod
+
+  CardPending --> Paid: bank callback CAPTURED and amount equal. Outbox payment. WhatsApp confirmed ONLY AFTER P7 [F1-06]
+  CardPending --> Failed: callback NOT CAPTURED. Outbox payment = do not ship
+  CardPending --> Review: wrong amount, order cancelled, stock already released, or settlement write failed
+  CardPending --> Released: no callback for 2 h. Sweeper returns the stock. Order stays pending and unfulfilled, no event, no mail
+  Review --> Paid: admin card_settled with the bank payment id. Stock re-claimed or refused
+  Released --> Paid: late capture arrives. Parked in Review first, then settled by hand
+
+  note right of CardPending
+    [F1-03] a capture whose settlement write fails for a reason other than a lock wait stays PENDING on both live and HEAD.
+    The sweeper then releases the stock of a paid order. Patch: park it in Review with the bank references.
+  end note
+
+  CodPending --> CodCancelled: 24 h sweeper. Outbox cancel
+  CodPending --> Packed: admin fulfilment packed
+  CodPending --> Cancelled: admin cancel. Outbox cancel. Stock returns at the next 15 minute sweep
+  Cancelled --> CodPending: admin reinstate. Outbox reinstate
+  Paid --> Packed: admin fulfilment
+  Packed --> Shipped: admin. WhatsApp shipped
+  Shipped --> Delivered: admin. WhatsApp review with a stored signed link that is never sent [F1-08]
+  Delivered --> CodPaid: admin cod_paid. Outbox payment. paid_at stamped by PHP clock [F1-07]
+  CodPaid --> [*]
+
+  note left of Packed
+    Edits of name, phone, address after the picking list was mailed change orders only.
+    No message kind exists for a correction [V-02]. Before the mail: live code mails the OLD snapshot [F1-01], HEAD re-reads the order.
+  end note
+
+  Delivered --> ReturnOpen: customer return_submit with order number + checkout phone
+  ReturnOpen --> [*]: staff review in /backends, nothing notifies staff [F1-19]

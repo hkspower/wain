@@ -1,0 +1,359 @@
+diff --git a/sporta-web/dropin/php-cbk/callback.php b/sporta-web/dropin/php-cbk/callback.php
+index 8442387..397deba 100644
+--- a/sporta-web/dropin/php-cbk/callback.php
++++ b/sporta-web/dropin/php-cbk/callback.php
+@@ -320,12 +320,34 @@ function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res):
+         $out = cbk_update_order_once($cfg, $trackid, $paid, $res, $attempt);
+         if (empty($out['retry']) || $attempt >= CBK_SETTLE_ATTEMPTS) {
+             unset($out['retry']);
++            // [F1-03] Same rule as the KNET callback: a capture CBK confirmed whose settlement transaction failed for a
++            // reason that is not transient is parked in 'review' with CBK's references, not left 'pending'.
++            if (($out['reason'] ?? '') === 'database_write_failed' && $paid) {
++                cbk_record_unsettled_capture($cfg, $trackid, $res);
++            }
+             return $out;
+         }
+         usleep(random_int(40, 160) * 1000 * $attempt);
+     }
+ }
+ 
++function cbk_record_unsettled_capture(array $cfg, string $trackid, array $res): void
++{
++    try {
++        $pdo = cbk_pdo($cfg);
++        $st = $pdo->prepare(
++            "update orders set payment_status = 'review', cbk_status = ?, cbk_message = 'DB_WRITE_FAILED',
++                    cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?, cbk_reference = ?
++              where track_id = ? and payment_status = 'pending'"
++        );
++        $st->execute([(string)($res['Status'] ?? ''), (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
++                      (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''), $trackid]);
++        cbk_log($cfg, 'callback.review_marker', ['trackid' => $trackid, 'rows' => $st->rowCount()]);
++    } catch (Throwable $e) {
++        cbk_log($cfg, 'callback.review_marker_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
++    }
++}
++
+ // Has this order's discount use already been handed back? Read under the order's
+ // row lock, in the settlement transaction. A database that never had
+ // discount-release.mysql.sql has no such column and nothing was ever returned
+@@ -394,9 +416,10 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
+             return ['state' => 'review', 'reason' => 'already_under_review'];
+         }
+ 
++        // [F1-07] paid_at comes from the database clock (if(? = 1, now(), null)), the clock that stamps created_at.
+         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                   cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
+-                  cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
++                  cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = if(? = 1, now(), null)
+                 where track_id = ?';
+         if (!$paid) $sql .= " and payment_status <> 'paid'";
+         $pdo->prepare($sql)->execute([
+@@ -408,7 +431,7 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
+             (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
+             (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
+             (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
+-            $paid ? gmdate('Y-m-d H:i:s') : null,
++            $paid ? 1 : 0,   // [F1-07] paid_at is stamped by the database: the clock that stamps created_at
+             $trackid,
+         ]);
+         // CBK's own Track ID, in its own statement on purpose: on a database
+@@ -440,6 +463,19 @@ function cbk_update_order_once(array $cfg, string $trackid, bool $paid, array $r
+                 if (is_file($lib)) {
+                     require_once $lib;
+                     store_queue_fulfilment($pdo, (int) $orderId, 'payment');
++                    // [F1-06] The customer's "payment received" (see the KNET callback): savepointed so that a WhatsApp
++                    // problem can never roll back the settlement.
++                    if ($status === 'paid') {
++                        $pdo->exec('savepoint wa_confirmed');
++                        try {
++                            store_queue_whatsapp($pdo, (int) $orderId, 'confirmed');
++                        } catch (Throwable $e) {
++                            // a lock wait or deadlock has already rolled the whole transaction back: let the retry loop see it
++                            if (cbk_tx_retryable($e)) throw $e;
++                            $pdo->exec('rollback to savepoint wa_confirmed');
++                            cbk_log($cfg, 'callback.whatsapp_not_queued', ['trackid' => $trackid, 'error' => (string) $e->getCode()]);
++                        }
++                    }
+                 }
+             }
+         }
+diff --git a/sporta-web/dropin/php-cbk/cbk.php b/sporta-web/dropin/php-cbk/cbk.php
+index 2af7f45..6d10352 100644
+--- a/sporta-web/dropin/php-cbk/cbk.php
++++ b/sporta-web/dropin/php-cbk/cbk.php
+@@ -153,6 +153,19 @@ function cbk_client_ip(array $cfg): string
+     return sporta_client_ip(sporta_trusted_proxy_rules($cfg['trusted_proxy_ips'] ?? []));
+ }
+ 
++// [F1-05] See knet_log_ip() in the KNET dropin: the payment log keeps a network, not a person.
++function cbk_log_ip(array $cfg): string
++{
++    $ip = cbk_client_ip($cfg);
++    if (!empty($cfg['log_full_client_ip'])) return $ip;
++    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return (string) preg_replace('/\.\d+$/', '.0', $ip);
++    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
++        $packed = @inet_pton($ip);
++        return $packed === false ? 'unknown' : (string) inet_ntop(substr($packed, 0, 6) . str_repeat("\0", 10)) . '/48';
++    }
++    return 'unknown';
++}
++
+ // A per-client limit on the two T-Pay endpoints a stranger can call, in the
+ // store's own rate_limit table, through the store's own counter
+ // (sporta_rate_limit_hit) and key (sporta_rate_limit_key) — the same HMAC the
+@@ -392,7 +405,7 @@ function cbk_log(array $cfg, string $event, array $data = []): void
+         'event' => $event,
+         // The shopper, not the proxy in front of the server — which made every
+         // line of the log name the same address.
+-        'ip'    => cbk_client_ip($cfg),
++        'ip'    => cbk_log_ip($cfg), // [F1-05] a network, not the person
+     ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+     $new = !file_exists($path);
+     if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {
+diff --git a/sporta-web/dropin/php-knet/callback.php b/sporta-web/dropin/php-knet/callback.php
+index c8e29dd..9a60299 100644
+--- a/sporta-web/dropin/php-knet/callback.php
++++ b/sporta-web/dropin/php-knet/callback.php
+@@ -201,12 +201,40 @@ function knet_settle_order(
+         $out = knet_settle_order_once($cfg, $trackid, $bankPaid, $result, $paidAmount, $fields, $attempt);
+         if (empty($out['retry']) || $attempt >= KNET_SETTLE_ATTEMPTS) {
+             unset($out['retry']);
++            // [F1-03] THE BANK HAS CAPTURED THE MONEY AND THE SETTLEMENT TRANSACTION COULD NOT BE WRITTEN, for a reason
++            // that is not a lock wait or a deadlock (a column or table a migration should have added, a full
++            // disk, a constraint). The transaction rolled back completely, so the order was left PENDING with
++            // none of the bank's references on it - the facts were only in the payment log - and two hours later
++            // the stock sweeper handed its garments to someone else. One small statement, outside the failed
++            // transaction and touching nothing but the order row, parks the order in 'review' with the bank's
++            // references, which is exactly where the other fail-closed outcomes go (the sweeper never releases
++            // a review order, and /backends shows it with the payment id).
++            if (($out['reason'] ?? '') === 'database_write_failed' && $bankPaid) {
++                knet_record_unsettled_capture($cfg, $trackid, $fields);
++            }
+             return $out;
+         }
+         usleep(random_int(40, 160) * 1000 * $attempt);
+     }
+ }
+ 
++function knet_record_unsettled_capture(array $cfg, string $trackid, array $fields): void
++{
++    try {
++        $pdo = knet_pdo($cfg);
++        $st = $pdo->prepare(
++            "update orders set payment_status = 'review', cbk_status = 'DB_WRITE_FAILED', cbk_message = ?,
++                    cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?, cbk_authcode = ?
++              where track_id = ? and payment_method = 'knet' and payment_status = 'pending'"
++        );
++        $st->execute([(string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''), (string)($fields['tranid'] ?? ''),
++                      (string)($fields['ref'] ?? ''), (string)($fields['auth'] ?? ''), $trackid]);
++        knet_log($cfg, 'callback.review_marker', ['trackid' => $trackid, 'rows' => $st->rowCount()]);
++    } catch (Throwable $e) {
++        knet_log($cfg, 'callback.review_marker_failed', ['trackid' => $trackid, 'error' => $e->getMessage()]);
++    }
++}
++
+ function knet_settle_order_once(
+     array $cfg,
+     string $trackid,
+@@ -331,9 +359,10 @@ function knet_settle_order_once(
+             }
+         }
+ 
++        // [F1-07] paid_at comes from the database clock (if(? = 1, now(), null)), the clock that stamps created_at.
+         $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                   cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
+-                  cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
++                  cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = if(? = 1, now(), null)
+                 where id = ?';
+         $st = $pdo->prepare($sql);
+         $st->execute([
+@@ -343,7 +372,7 @@ function knet_settle_order_once(
+             (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
+             (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
+             (string)($fields['paytype'] ?? ''),
+-            $after === 'paid' ? gmdate('Y-m-d H:i:s') : null,
++            $after === 'paid' ? 1 : 0,   // [F1-07] paid_at is stamped by the database: the clock that stamps created_at
+             (int) $order['id'],
+         ]);
+ 
+@@ -367,6 +396,22 @@ function knet_settle_order_once(
+             if (is_file($storeLib)) {
+                 require_once $storeLib;
+                 store_queue_fulfilment($pdo, (int) $order['id'], 'payment');
++                // [F1-06] THE CUSTOMER'S "payment received". store_payment_settled() queues it for the two admin settle
++                // paths (cod_paid, card_settled), but a card payment that the BANK confirms never reached it, so
++                // the main way to pay was the only one that got no WhatsApp confirmation. A savepoint keeps a
++                // WhatsApp problem (migration not applied, queue disabled) from ever rolling back the record that
++                // money was taken - the same rule as the CBK track id below.
++                if ($after === 'paid') {
++                    $pdo->exec('savepoint wa_confirmed');
++                    try {
++                        store_queue_whatsapp($pdo, (int) $order['id'], 'confirmed');
++                    } catch (Throwable $e) {
++                        // a lock wait or deadlock has already rolled the whole transaction back: let the retry loop see it
++                        if (knet_tx_retryable($e)) throw $e;
++                        $pdo->exec('rollback to savepoint wa_confirmed');
++                        knet_log($cfg, 'callback.whatsapp_not_queued', ['trackid' => $trackid, 'error' => (string) $e->getCode()]);
++                    }
++                }
+             }
+         }
+ 
+diff --git a/sporta-web/dropin/php-knet/knet.php b/sporta-web/dropin/php-knet/knet.php
+index 3abbbef..93f576e 100644
+--- a/sporta-web/dropin/php-knet/knet.php
++++ b/sporta-web/dropin/php-knet/knet.php
+@@ -195,7 +195,7 @@ function knet_log(array $cfg, string $event, array $data = []): void
+         'event' => $event,
+         // The shopper, not the proxy in front of the server — which made every
+         // line of the log name the same address.
+-        'ip'    => knet_client_ip($cfg),
++        'ip'    => knet_log_ip($cfg), // [F1-05] a network, not the person
+     ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+     $new = !file_exists($path);
+     if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {
+@@ -261,6 +261,24 @@ function knet_client_ip(array $cfg): string
+     return sporta_client_ip(sporta_trusted_proxy_rules($cfg['trusted_proxy_ips'] ?? []));
+ }
+ 
++// [F1-05] WHAT THE PAYMENT LOG RECORDS. The privacy page lists what the shop keeps and a visitor's network address is not
++// on it, while this log is append-only, has no rotation and sits in the same private directory as the backups of
++// everything else. The log needs a network to tell a bank retry from a stranger; it does not need the person. So
++// IPv4 is written with the last octet zeroed and IPv6 as its /48, unless the owner sets `log_full_client_ip` => true
++// in this gateway's config (a dispute with the bank may want the full address). Rate limiting is not affected: it
++// keys on knet_client_ip() and an HMAC, never on this.
++function knet_log_ip(array $cfg): string
++{
++    $ip = knet_client_ip($cfg);
++    if (!empty($cfg['log_full_client_ip'])) return $ip;
++    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return (string) preg_replace('/\.\d+$/', '.0', $ip);
++    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
++        $packed = @inet_pton($ip);
++        return $packed === false ? 'unknown' : (string) inet_ntop(substr($packed, 0, 6) . str_repeat("\0", 10)) . '/48';
++    }
++    return 'unknown';
++}
++
+ // A per-client limit on the two KNET endpoints a stranger can call, in the
+ // store's own rate_limit table, through the store's own counter
+ // (sporta_rate_limit_hit) and key (sporta_rate_limit_key) — the same HMAC the
+diff --git a/sporta-web/dropin/php-store/admin.php b/sporta-web/dropin/php-store/admin.php
+index ac2849e..7820788 100644
+--- a/sporta-web/dropin/php-store/admin.php
++++ b/sporta-web/dropin/php-store/admin.php
+@@ -1298,8 +1298,10 @@ if ($r === 'cod_paid' && $method === 'POST') {
+             $db->rollBack();
+             store_fail($paid ? 'order_not_pending' : 'order_not_paid');
+         }
+-        $db->prepare('update orders set payment_status = ?, paid_at = ? where id = ?')
+-           ->execute([$paid ? 'paid' : 'pending', $paid ? date('Y-m-d H:i:s') : null, $id]);
++        // [F1-07] paid_at from the database clock, like created_at and the card callbacks (it was PHP's date(), in whatever
++        // zone php.ini names, while the card callbacks wrote gmdate() and created_at is the database's now()).
++        $db->prepare('update orders set payment_status = ?, paid_at = if(? = 1, now(), null) where id = ?')
++           ->execute([$paid ? 'paid' : 'pending', $paid ? 1 : 0, $id]);
+         // Cash collected is a settled outcome: the warehouse follow-up fires
+         // exactly as it does when the bank confirms a card — except that an
+         // order already shipped or delivered gets no "ship it" (COD-04). The
+@@ -1378,13 +1380,13 @@ if ($r === 'card_settled' && $method === 'POST') {
+             $db->rollBack();
+             store_fail($refused[0], $refused[1]);
+         }
++        // [F1-07] paid_at = now(): the database clock, like created_at.
+         $db->prepare(
+-            "update orders set payment_status = 'paid', paid_at = ?,
++            "update orders set payment_status = 'paid', paid_at = now(),
+                     cbk_status = 'MANUAL_BANK_CONFIRMED',
+                     cbk_paymentid = ?, cbk_message = ?
+               where id = ? and payment_status <> 'paid'"
+         )->execute([
+-            date('Y-m-d H:i:s'),
+             $ref,
+             'settled in admin by ' . (string)($_SESSION['admin_email'] ?? '?'),
+             $id,
+diff --git a/sporta-web/dropin/php-store/assistant.php b/sporta-web/dropin/php-store/assistant.php
+index 1c668c6..0649898 100644
+--- a/sporta-web/dropin/php-store/assistant.php
++++ b/sporta-web/dropin/php-store/assistant.php
+@@ -3800,9 +3800,9 @@ function assistant_llm_request(array $cfg, string $message, string $reply, ?arra
+         . "\n\nSHOP ANSWER:\n" . $reply
+         . ($json !== '' ? "\n\nDATA (reference only; never output JSON):\n" . $json : '');
+     $model = (string) ($cfg['ai_model'] ?? 'claude-haiku-5-5');
+-    // The customer's words reach the model through assistant_redact, like the handoff: a pasted card is not sent anywhere.
++    // [F1-02] The customer's words reach the model through assistant_redact_for_model (cards, then phones/emails/order numbers).
+     $req = ['model' => $model, 'max_tokens' => ASSISTANT_LLM_MAX_TOKENS, 'system' => $system,
+-            'messages' => [['role' => 'user', 'content' => assistant_redact($message)]]];
++            'messages' => [['role' => 'user', 'content' => assistant_redact_for_model($message)]]];
+     if (str_starts_with($model, 'claude-haiku-5')) {
+         $req['thinking'] = ['type' => 'disabled'];
+         $req['output_config'] = ['effort' => 'low'];
+@@ -4600,6 +4600,22 @@ function assistant_redact(string $s): string
+     return $s;
+ }
+ 
++// [F1-02] WHAT THE LANGUAGE MODEL NEVER NEEDS. The model only rewords a fixed shop sentence (assistant_llm_rewordable:
++// a search result, a hello, a thank-you); the customer's own words reach it only so it can answer in the same tone
++// and language. A customer who writes "do you have the black hoodie, call me on 9XXXXXXX" or pastes an email address
++// or an order number was sending that to the AI provider, which the privacy page does not name. So phone numbers,
++// email addresses, order numbers and any other run of seven or more digits are replaced before the request is built.
++// The n8n handoff keeps them on purpose: a person who is asked to call a customer back needs the number.
++function assistant_redact_for_model(string $s): string
++{
++    $s = assistant_redact($s);
++    $s = preg_replace('/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/u', '[email removed]', $s) ?? $s;
++    $s = preg_replace('/(?<![A-Za-z0-9])SP(?=[A-Z0-9]*\d)[A-Z0-9]{4,}(?![A-Za-z0-9])/u', '[order number removed]', $s) ?? $s;
++    $s = preg_replace('/(?<![\p{Nd}])(?:(?:\+|00)?\s?965[\s\-.]?)?[569](?:[\s\-.]?\p{Nd}){7}(?![\p{Nd}])/u', '[phone removed]', $s) ?? $s;
++    $s = preg_replace('/(?<![\p{Nd}])\p{Nd}(?:[\s\-.]?\p{Nd}){6,}(?![\p{Nd}])/u', '[number removed]', $s) ?? $s;
++    return $s;
++}
++
+ // ---------------------------------------------------------------------- n8n
+ //
+ // One outbound webhook, fired when the assistant has reached the end of what
+diff --git a/sporta-web/dropin/php-store/cron-whatsapp.php b/sporta-web/dropin/php-store/cron-whatsapp.php
+index ac5df6f..b81b02d 100644
+--- a/sporta-web/dropin/php-store/cron-whatsapp.php
++++ b/sporta-web/dropin/php-store/cron-whatsapp.php
+@@ -36,9 +36,15 @@
+ 
+ declare(strict_types=1);
+ require __DIR__ . '/store.php';
++require_once __DIR__ . '/cron-auth.php';
+ 
+ $cfg = store_config();
+-if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], (string)($_GET['key'] ?? ''))) {
++// [F1-04] THE SAME GATE AS cron-fulfilment.php / cron-stock.php / cron-birthday.php: on the VPS the host scheduler runs
++//   docker exec -u www-data apache-sporta-1 php /var/www/html/api/cron-whatsapp.php --run
++// and the cron key never appears in a URL. It was HTTP-only (`?key=<cron_key>`), which put the key in the web
++// server's access log on every run - and that same key signs the review links and the voice URLs. The keyed HTTP
++// route is kept for the shared-hosting layout (sporta_cron_authorized still accepts ?key= over HTTP).
++if (!sporta_cron_authorized($cfg, PHP_SAPI, $_GET, $GLOBALS['argv'] ?? [], ['--run'])) {
+     store_fail('forbidden', 403);
+ }
+ 
+diff --git a/sporta-web/scripts/knet-test.mjs b/sporta-web/scripts/knet-test.mjs
+index ea2da61..9567dfc 100644
+--- a/sporta-web/scripts/knet-test.mjs
++++ b/sporta-web/scripts/knet-test.mjs
+@@ -518,7 +518,7 @@ head('a stranger cannot flood the payment log or the bank')
+     is(count('pay.init', (e) => e.trackid === THREE) === 1 && await sql(`select pay_attempt from orders where track_id = '${THREE}'`) === '1',
+        'and the refused start consumed no attempt number and wrote no request line')
+     const initLine = logEvents().find((e) => e.event === 'pay.init' && e.trackid === TWO)
+-    is(initLine?.ip === '192.0.2.77', 'and the payment log records the SHOPPER, not the proxy in front', initLine?.ip ?? '(none)')
++    is(initLine?.ip === '192.0.2.0', 'and the payment log records the shopper network (/24), not the proxy in front (the full address only with log_full_client_ip)', initLine?.ip ?? '(none)')   // [F1-05] the log keeps a /24, see knet_log_ip()
+ 
+     // callback.php: junk that cannot be decrypted. Twelve 4 kB posts from one
+     // client are each answered as before, but only the first ten are logged.
+diff --git a/sporta-web/scripts/tpay-test.mjs b/sporta-web/scripts/tpay-test.mjs
+index ccbc670..886aa7e 100644
+--- a/sporta-web/scripts/tpay-test.mjs
++++ b/sporta-web/scripts/tpay-test.mjs
+@@ -624,7 +624,7 @@ head('a stranger cannot make this server hammer CBK')
+        `${mine.join(',')} then ${over.status}, other ${other.status}`)
+     const logLine = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)
+       .map((l) => JSON.parse(l)).find((e) => e.event === 'pay.init' && e.trackid === TWO)
+-    is(logLine?.ip === '192.0.2.77', 'and the payment log records the SHOPPER, not the proxy in front', logLine?.ip ?? '(none)')
++    is(logLine?.ip === '192.0.2.0', 'and the payment log records the shopper network (/24), not the proxy in front (the full address only with log_full_client_ip)', logLine?.ip ?? '(none)')   // [F1-05] the log keeps a /24, see knet_log_ip()
+ 
+     // Thirty returns a minute per client, refused before CBK is asked.
+     await sql('delete from rate_limit')
