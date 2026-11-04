@@ -232,6 +232,10 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   const MIX = (await cs('mix-ref', 'background-color'))['background-color']
   console.log(`\n== ${vn} (${w}px, 1rem = ${rem}px)`)
 
+  // The SIZES section of the add-on (owner request 2026-11-03, "reduce over sizes all"; proven by sizes-admin-test.mjs) brings the
+  // 44px floors (primary buttons, the controls that carry min-h-11) down to 40px (2.4rem when the root font is bigger) on a MOUSE
+  // screen (min-width 768px and pointer: fine; this desktop run); a phone keeps 2.75rem / 44px.
+  const MINH = phone ? 2.75 * rem : Math.max(40, 2.4 * rem)
   // ---- keyboard focus first, before any pointer interaction
   // (waits: buttons transition colour and box-shadow over .15s)
   await pg.keyboard.press('Tab'); await pg.waitForTimeout(220)
@@ -250,7 +254,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   is(s['font-weight'] === '700', `primary button is bold (700), not the live 400 — got ${s['font-weight']}`)
   is(near(s['font-size'], 0.875), `primary button text-sm (.875rem) — got ${s['font-size']}`)
   is(s['background-color'] === ACCENT && s.color === WHITE, `primary is the --admin-action accent with white text — got ${s['background-color']} / ${s.color}`)
-  is(s.h >= 44, `primary is at least 44px tall — got ${s.h}`)
+  is(s.h >= (phone ? 44 : MINH) - 0.5, `primary is at least ${phone ? '44px' : '40px (2.4rem; the SIZES section, mouse screens)'} tall — got ${s.h}`)
   s = await hover('primary', 'background-color'); is(s['background-color'] === MIX, `primary hover: accent mixed 84% with black — got ${s['background-color']}`)
   s = await cs('primary-off', 'opacity', 'cursor'); is(parseFloat(s.opacity) <= 0.5 && s.cursor === 'not-allowed', `disabled primary is faded and says not-allowed — got ${s.opacity} / ${s.cursor}`)
   s = await cs('push', 'cursor'); is(s.cursor === 'wait', `"Push 46 products" (disabled:cursor-wait) says busy, not forbidden — got ${s.cursor}`)
@@ -270,7 +274,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   // ---- b. secondary, b2. destructive
   s = await cs('refresh', 'background-color', 'border-top-color', 'color', 'font-weight')
   is(s['background-color'] === WHITE && s['border-top-color'] === EDGE && s.color === SLATE800 && s['font-weight'] === '600', `secondary: white, #7d8799 edge (3.62:1, as efea155c), 600 — got ${s['background-color']} ${s['border-top-color']} ${s.color} ${s['font-weight']}`)
-  is(s.h >= 2.75 * rem - 0.5, `Refresh keeps min-h-11 (2.75rem) — got ${s.h}`)
+  is(s.h >= MINH - 0.5, `Refresh keeps its min-h-11 floor (${phone ? '2.75rem' : '2.4rem / 40px on a mouse screen, SIZES 8'}) — got ${s.h}`)
   s = await hover('refresh', 'background-color', 'border-top-color'); is(s['background-color'] === CHIP && s['border-top-color'] === EDGE_HOVER, `secondary hover: #f1f5f9 + #64748b — got ${s['background-color']} ${s['border-top-color']}`)
   for (const id of ['inv-refresh', 'crm-refresh', 'hover-indigo', 'block-cod', 'upload']) {
     s = await cs(id, 'border-top-color', 'color', 'background-color')
@@ -278,7 +282,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   }
   s = await cs('inv-refresh', 'font-weight'); is(s['font-weight'] === '600', `Inventory Refresh at 600 — got ${s['font-weight']}`)
   s = await cs('edit-product', 'border-top-color', 'color'); is(s['border-top-color'] === EDGE && s.color === SLATE800, `phone "Edit product" (dark:text-orange-300 in its class) is a plain secondary — got ${s['border-top-color']} ${s.color}`)
-  is(s.h >= 2.75 * rem - 0.5, `"Edit product" keeps min-h-11 (2.75rem; 44px on a phone) — got ${s.h}`)
+  is(s.h >= MINH - 0.5, `"Edit product" keeps its min-h-11 floor (44px on a phone; 40px on a mouse screen, SIZES 8) — got ${s.h}`)
   s = await cs('block-all', 'color', 'border-top-color', 'background-color')
   is(s.color === ROSE && s['border-top-color'] === EDGE && s['background-color'] === WHITE, `bordered destructive "Block entirely" keeps rose text #be123c on the secondary box — got ${s.color} ${s['border-top-color']} ${s['background-color']}`)
   s = await hover('block-all', 'border-top-color', 'background-color'); is(s['border-top-color'] === ROSE && s['background-color'] === CHIP, `destructive hover rings it in rose — got ${s['border-top-color']} ${s['background-color']}`)
@@ -384,7 +388,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   for (const id of ['field', 'field-num', 'field-select', 'field-area', 'crm-sel', 'seo-input', 'ord-select']) {
     s = await cs(id, 'border-top-color'); is(s['border-top-color'] === EDGE, `${id}: the one #7d8799 field edge — got ${s['border-top-color']}`)
   }
-  s = await cs('ord-select', 'min-height'); is(s.h >= 2.75 * rem - 0.5, `the Orders filter select keeps min-h-11 (no longer shorter than the pills) — got ${s.h}`)
+  s = await cs('ord-select', 'min-height'); is(s.h >= MINH - 0.5, `the Orders filter select keeps its min-h-11 floor (no shorter than the pills, which carry it too) — got ${s.h}`)
   is((await ph('field')) === 'rgb(100, 116, 139)', 'placeholder is #64748b (4.76:1, was 3.0:1)')
   s = await cs('field-embedded', 'border-top-width'); is(s['border-top-width'] === '0px', 'an input embedded in a bordered wrapper gets no border of its own')
   s = await cs('field-ro', 'background-color', 'color'); is(s['background-color'] === CHIP && s.color === SLATE600, `read-only field: #f1f5f9 with #475569 text — got ${s['background-color']} ${s.color}`)
@@ -681,7 +685,9 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
     radii.add(rad.toFixed(3))
     const want = { panel: 1, modal: 1, card: 0.875, tile: 0.875, notice: 0.875, frame: 0.875, empty: 0.875, chip: 0.5 }[role]
     is(near(s['border-top-left-radius'], want), `${id} (${role}): radius ${want}rem — got ${s['border-top-left-radius']} (polish alone ${p0['border-top-left-radius']})`)
-    const pad = { panel: phone ? 1 : 1.25, modal: phone ? 1 : 1.25, card: 1, tile: 1, notice: 1, frame: 0, empty: 2 }[role]
+    // section 6 gave 1.25rem / 1rem (panels, 1rem on a phone), 1rem (cards, tiles, notices) and 2rem (empty states); the SIZES section
+    // (sizes-admin-2) replaces them with 1rem / .875rem, .875rem and 1.25rem. Frames stay at 0.
+    const pad = { panel: phone ? 0.875 : 1, modal: phone ? 0.875 : 1, card: 0.875, tile: 0.875, notice: 0.875, frame: 0, empty: 1.25 }[role]
     if (pad !== undefined) is(near(s['padding-top'], pad) && near(s['padding-left'], pad), `${id} (${role}): padding ${pad}rem — got ${s['padding-top']} / ${s['padding-left']} (polish alone ${p0['padding-top']})`)
     if (['panel', 'card', 'tile', 'frame'].includes(role) && id !== 'kpi-accent') {
       is(s['border-top-width'] === '1px' && s['border-top-style'] === 'solid' && s['border-top-color'] === NEUTRAL, `${id} (${role}): the one neutral edge, 1px #d9dfe5 — got ${s['border-top-width']} ${s['border-top-style']} ${s['border-top-color']} (polish alone ${p0['border-top-color']})`)
@@ -737,7 +743,7 @@ for (const [vn, w, rem] of [['desktop', 1366, 16.92], ['phone', 390, 16]]) {
   }
 
   // ---- 7. Payments: every state inside the form's padding, in the palette
-  const formPad = (phone ? 1 : 1.25) * rem
+  const formPad = (phone ? 0.875 : 1) * rem   // the form's padding after the SIZES section (section 6 gave 1rem / 1.25rem)
   let worst0 = Infinity
   for (const id of ['st-ok', 'st-req', 'st-err', 'st-req2', 'st-req3', 'st-req4']) {
     const d = (p) => p.evaluate((id) => {

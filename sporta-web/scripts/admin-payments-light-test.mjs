@@ -59,6 +59,10 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 62 - t.leng
 const MARK = 'Light only (owner decision 2026-11-03'
 const at = CSS.indexOf(MARK)
 const cut = at > 0 ? CSS.lastIndexOf('/*', at) : -1 // start of the section's header comment
+// The SIZES section (owner request 2026-11-03, "reduce over sizes all"; proven by sizes-admin-test.mjs) was appended AFTER the Light only
+// section, so the Light only section ends where it starts (or at the end of the file, as before it existed). It declares no colour.
+const sizesAt = CSS.indexOf('/* ==== SIZES:')
+const end = sizesAt > cut ? sizesAt : CSS.length
 head('Static: public/sporta-admin-knet.css')
 is(at > 0, 'the "Light only (owner decision 2026-11-03 ...)" section exists')
 const root = postcss.parse(CSS)
@@ -81,14 +85,14 @@ const dark = []
 root.walkDecls((d) => {
   if (!/^background/.test(d.prop)) return
   const sel = d.parent.selector || ''
-  const inSection = d.source.start.offset >= cut
+  const inSection = d.source.start.offset >= cut && d.source.start.offset < end
   if (!(inSection || /payment|data-sporta-(knet-ids|tpay-ips)/.test(sel))) return
   const b = nearBlack(d.value)
   if (b) dark.push(`${sel.replace(/\s+/g, ' ').slice(0, 70)} { ${d.prop}: ${d.value.slice(0, 30)} }`)
 })
 is(dark.length === 0, 'no near-black background is declared for the screen (or anywhere in the Light only section)', dark.slice(0, 3).join(' | '))
 
-const section = cut > 0 ? postcss.parse(CSS.slice(cut)) : postcss.root()
+const section = cut > 0 ? postcss.parse(CSS.slice(cut, end)) : postcss.root()
 const loose = []
 let nRules = 0
 section.walkRules((r) => {
@@ -299,7 +303,7 @@ head('Without :has(): the screen itself is still light')
 // Older browsers drop a selector they cannot parse. Simulate that for the section by making every :has(.payment-settings)
 // match nothing: the content-area rules and the alert-region rule are gone, the rules on the screen root and its
 // descendants (written inside :is(), which forgives) must still make every element of the screen light.
-const noHas = CSS.slice(0, cut) + CSS.slice(cut).replaceAll(':has(.payment-settings)', ':not(*)')
+const noHas = CSS.slice(0, cut) + CSS.slice(cut, end).replaceAll(':has(.payment-settings)', ':not(*)') + CSS.slice(end)
 is(noHas !== CSS, 'the simulation really removed the :has() branches')
 const NF = await failuresOf(noHas, null, '#scr .payment-settings', ['dark+dark', 'first-paint'])
 for (const name of ['dark+dark', 'first-paint']) {
@@ -318,7 +322,7 @@ VIEW_W = 1280
 
 // ---------------------------------------------------------------------------------------------------------- mutation
 head('Mutation: the Light only section cut out of the file')
-const mutated = cut > 0 ? CSS.slice(0, cut) : CSS
+const mutated = cut > 0 ? CSS.slice(0, cut) + CSS.slice(end) : CSS
 detailOn = false
 const MF = await failuresOf(mutated)
 const kinds = Object.keys(MF)

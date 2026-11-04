@@ -993,3 +993,144 @@
     background-color: #fff; /* the build's field rule, from 768px; transparent below */
   }
 }
+
+/* ==== SIZES: /backends compact density (owner request 2026-11-03, "reduce over sizes all", admin lane) ====
+   Everything above this line is untouched; this section is the last thing in the file, so a cut at its first line gives the file as
+   it was (scripts/sizes-admin-test.mjs does exactly that to measure BEFORE).
+
+   MEASURED first, on the captured live admin (the real compiled markup under the real compiled rules, light and dark, in Arabic and
+   English, at 320 / 360 / 390 / 768 (touch and mouse) / 1280, plus 1366 where the live page was measured 2026-11-02) and calibrated against that
+   live rescan (the fixture reproduces its Orders rows 48px, field 46.5-47px, panel 21.2px, card 16.9px, Slides empty state 33.8px):
+     - fields were 46-51px on a mouse screen and 44-50px on a phone: 16px text in 10px of padding above and below, 24px lines;
+     - buttons without a min-h class were 46-47px on a mouse screen around 14.8px text;
+     - table rows were 48px (Orders), 47px (Catalogue), 112px (Inventory) at 1280: .75rem a side of every cell;
+     - panels 1.25rem, cards 1rem, the Slides empty state 2rem, and a 1.25-2rem rhythm between the blocks of a page (space-y-5 to
+       space-y-8: 2rem on the Overview);
+     - the sidebar 15rem + 1rem padding (252px at 1280) with 44px nav rows;
+     - the page title 24px (text-2xl) and the stat figures 25px at 1280.
+   WHAT THIS DOES, in two densities, and nothing else:
+     - a MOUSE screen (min-width 768px and pointer: fine): fields and buttons 40px (2.4rem when the root font is bigger), sidebar
+       13.5rem with 40px rows, table cells .5rem x .75rem;
+     - a PHONE (max-width 767px): every tap target keeps the project's 44px minimum - fields come to exactly 44px (they were up to
+       50), the rest of the saving is padding, gaps and headings. A touch tablet (pointer: coarse from 768px) keeps its fields and
+       its 44px sidebar rows and controls and gets the rest.
+     - both: panels 1rem (.875rem on a phone), cards .875rem, page rhythm 1rem, titles 1.375rem, empty states 1.25rem / 1.5rem.
+   WHAT IT NEVER DOES: shrink any text except the page title (24 -> 22px) and the stat figure on a mouse screen (25 -> 22px); put a
+   tap target under 44px on a phone or a touch tablet, or under 40px on a mouse screen; touch a colour, background, border, shadow or
+   outline (so every rule here reads the same in the light and the dark admin, and the Payments screen's light-only appearance, section
+   9, is the one it already was); touch the Theme / Top bar previews ([class*="__preview"] show the storefront at its own sizes); touch
+   .admin-content's bottom padding (the phone tab bar's clearance), the tab bar (60px), the phone header (56px) or the Save bar
+   (public/sporta-admin-brands.js, its own 44px). Every rule is scoped to .admin-shell, written with !important where it overrides a
+   rule that has it (the sections above, the build's own sheets) and with logical properties, so it flips in Arabic.
+   NOT MEASURED, so not touched: CRM, Support, Returns, Profiles, Theme, SEO and the Inventory cards - their sizes live in the admin's
+   own per-screen sheets, which the capture did not hold (scripts/fixtures/sizes-admin/shell.css says what is stand-in). The rules
+   below that reach them (table cells, panel padding, fields) are the ones the sections above already style by class. */
+
+/* [sizes-admin-1] Page frame: title, rhythm, gaps.
+   The title is text-2xl, 24px (25px at 1280), over a subtitle and a 1.5-2rem gap before the first panel. 1.375rem keeps it the
+   largest thing on the screen. The page column and the forms inside it space their children with space-y-5/6/8 (1.25-2rem) on top
+   of the 1rem the boxes section gives stacked boxes: one rhythm, 1rem. gap-5 grids (two panels side by side) 1rem; the Catalogue
+   section's mt-8 1.25rem; a py-10 empty state 1.5rem. The content area's own padding (47px a side at 1366px, from the admin's own
+   sheet, which the capture lacked) is NOT changed: a rule that cannot read the value it replaces could make it bigger. */
+.admin-shell .admin-content h1.text-2xl:not([class*="__preview"] *) { font-size: 1.375rem !important; line-height: 1.2 !important; }
+.admin-shell .admin-content .admin-page-layout:is([class~="space-y-5"], [class~="space-y-6"], [class~="space-y-8"]) > :not(:last-child) { margin-block-end: 1rem !important; }
+.admin-shell .admin-content form:is([class~="space-y-4"], [class~="space-y-5"], [class~="space-y-6"]):not([class*="__preview"] *) > :not(:last-child) { margin-block-end: 1rem !important; }
+.admin-shell .admin-content :is(.grid, .flex).gap-5:not([class*="__preview"] *) { gap: 1rem !important; }
+.admin-shell .admin-content .admin-section-block.mt-8 { margin-top: 1.25rem !important; }
+.admin-shell .admin-content div.py-10:not([class*="__preview"] *) { padding-block: 1.5rem !important; }
+
+/* [sizes-admin-2] Boxes: cards .875rem, panels 1rem (.875rem on a phone), empty states 1.25rem, stat figure 22px.
+   The same selector lists as section 6, so each replaces the value that section gave (it was 1rem, 1.25rem and 2rem; 1rem on a
+   phone panel). Text inside a box keeps its size. The Overview stat figure is text-xl on a phone (20px, left as it is: the Inventory
+   tile's phone clamp is section 6's) and 25px from 768px: 1.375rem there. */
+.admin-shell .admin-content :is(li.admin-brand-card, section.rounded-xl.border, .admin-product-section, .payment-gateway-editor div.rounded-2xl.border, .seo-editor__panel fieldset, .crm-tile, .admin-kpi, .inventory-tile, .admin-notice, div.rounded-xl.border.p-3.text-sm.font-semibold):not([class*="__preview"] *) {
+  padding: .875rem !important;
+}
+.admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
+  padding: 1rem !important;
+}
+.admin-shell .admin-content div.rounded-xl.border.border-dashed.p-10:not([class*="__preview"] *) { padding: 1.25rem !important; }
+@media (max-width: 767px) {
+  .admin-shell .admin-content :is(section.rounded-2xl.border, form.payment-gateway-editor, form.rounded-2xl.bg-white, .theme-editor__panel, .seo-editor__panel, form.admin-editor-modal):not([class*="__preview"] *) {
+    padding: .875rem !important;
+  }
+}
+@media (min-width: 768px) {
+  .admin-shell .admin-content .admin-kpi__value { font-size: 1.375rem !important; }
+}
+
+/* [sizes-admin-3] Fields: 40px on a mouse screen, exactly 44px on a phone.
+   Measured 46-51px (mouse) and 44-50px (phone): 16px text on a 24px line inside 10px of padding. A fixed height with 4px (mouse) or
+   6px (touch) of padding keeps the 16px text - the add-on's no-zoom size, never smaller - centred and unclipped. Only bordered
+   text fields and selects (the set section 1 sizes; its 2.5rem floor is 40.7-42px, so the floor is set here too); checkboxes, radios, files, colour pickers, range sliders and textareas are not
+   in it. Phone fields were never under 44px, so this never makes one taller; a touch tablet (pointer: coarse from 768px) is left as
+   it is, because a field there can be under 44px already (42px) and a fixed height would raise it. */
+@media (min-width: 768px) and (pointer: fine) {
+  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) {
+    height: max(40px, 2.4rem); min-height: max(40px, 2.4rem); padding-block: .25rem !important;
+  }
+}
+@media (max-width: 767px) {
+  .admin-shell :is(input, select):is(.border, [class^="border-slate-"], [class*=" border-slate-"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([class*="__preview"] *) {
+    height: 2.75rem; padding-block: .375rem !important;
+  }
+}
+
+/* [sizes-admin-4] Buttons on a mouse screen: 40px.
+   "Push 46 products", "Add a discount" and the like were 46-47px around 14.8px text (section 2a's 2.75rem floor and py-2.5); the
+   secondary, destructive and quiet buttons (Cancel, Refresh, Export, Block ...) sat at section 2b-2c's 2.5rem, 40.7-42px, so a
+   Save beside a Cancel came out 41-42px (their py-2.5 padding is taller than the floor). Section 2's floors are touch sizes; on a
+   mouse screen they are all max(40px, 2.4rem) with .5rem of padding, the photo uploader's 2.75rem floors included. The same selector
+   lists as section 2. The phone keeps 2.75rem (44px). */
+@media (min-width: 768px) and (pointer: fine) {
+  .admin-shell .admin-content button:is(.bg-indigo-600, .bg-emerald-600, .bg-amber-600, .crm-primary, .topbar-editor__save, .inventory-primary-button) {
+    min-height: max(40px, 2.4rem); padding-block: .5rem;
+  }
+  .admin-shell .admin-content button:is(.border, .inventory-refresh, .inventory-adjust-button, .crm-refresh):not(.text-start):not(.theme-editor__scheme):not([class^="bg-indigo-"]):not([class*=" bg-indigo-"]):not(.bg-emerald-600):not(.bg-amber-600):not([class^="text-rose-"]):not([class*=" text-rose-"]):not([class^="text-red-"]):not([class*=" text-red-"]),
+  .admin-shell .admin-content label.admin-product-upload-button,
+  .admin-shell .admin-content button.border:is([class^="text-rose-"], [class*=" text-rose-"], [class^="text-red-"], [class*=" text-red-"]),
+  .admin-shell .admin-content button.text-slate-600:not(.border):not([class^="bg-"]):not([class*=" bg-"]):not(.rounded-full) {
+    min-height: max(40px, 2.4rem); padding-block: .5rem;
+  }
+  /* the bulk photo uploader and its siblings (public/sporta-admin-brands.js injects their sheet, with 2.75rem floors) */
+  .admin-shell .admin-content .sph :is(button, select, input[type="search"]) { min-height: max(40px, 2.4rem) !important; }
+}
+
+/* [sizes-admin-5] Tables: cells .5rem x .75rem from 768px, and the column may shrink.
+   Every cell was .75rem x 1rem (12.7 x 16.9px at 1366): Orders rows 48px, Catalogue 47px, Inventory 112px at 1280. .5rem x .75rem
+   takes 8.4px off every row and 8 cells x 8.4px off a wide table's width, which is the difference between Orders fitting its frame
+   at 1280px and wrapping into 68px rows. Text, header text and the rows' own buttons keep their sizes (the 32px row actions are
+   section 2d's). The content area may now shrink below its widest table (min-width: 0), so a table that cannot fit scrolls INSIDE
+   its frame, as the frames are for, and never widens the page: Orders at 768px was 1084px wide on a 768px screen. */
+@media (min-width: 768px) {
+  .admin-shell .admin-content { min-width: 0 !important; }
+  .admin-shell .admin-content .admin-table > :is(thead, tbody) > tr > :is(th, td) { padding: .5rem .75rem !important; }
+}
+
+/* [sizes-admin-6] Sidebar: 13.5rem wide, 40px rows on a mouse screen.
+   15rem + 1rem padding (252px at 1280) with 44px rows and a 1.5rem gap under the brand; the account line and Sign out sit below
+   them. 13.5rem + .75rem padding is 227px at 1280, the brand gap 1rem. A touch tablet keeps the 44px rows. */
+@media (min-width: 768px) {
+  .admin-shell .admin-sidebar { width: 13.5rem !important; padding: .75rem !important; }
+  .admin-shell .admin-sidebar .admin-sidebar__brand { margin-bottom: 1rem !important; }
+}
+@media (min-width: 768px) and (pointer: fine) {
+  .admin-shell .admin-sidebar .admin-nav-item { min-height: max(40px, 2.4rem) !important; }
+}
+
+/* [sizes-admin-7] Phone card lists: .m-row padding .625rem x .875rem, .25rem gaps, .5rem between rows.
+   The phone Catalogue lists 46 products twice, a row each (.9rem x 1rem, .35rem gaps, .75rem apart). Row text and the 44px
+   buttons inside them keep their sizes. */
+@media (max-width: 767px) {
+  .admin-shell .admin-content .m-list { gap: .5rem !important; }
+  .admin-shell .admin-content .m-row { padding: .625rem .875rem !important; gap: .25rem !important; }
+}
+
+/* [sizes-admin-8] Controls that carry min-h-11 (filter pills, the Orders search and select, Refresh, Save): 40px on a mouse screen.
+   min-h-11 is the build's own touch size (2.75rem), restored by section 2f when an unlayered rule undercut it. It stays 44px on a
+   phone and on a touch tablet. On a mouse screen it came to 46px around 14.8px text; 2.4rem is the same 40px every other control
+   has now. Icon buttons with a fixed h-11 / w-11 (the drawer's Close, the switch) are not min-h and are left as they are. */
+@media (min-width: 768px) and (pointer: fine) {
+  .admin-shell .admin-content :is(button, select, input, a, label, summary).min-h-11,
+  .admin-shell :is(input, select, textarea).min-h-11 { min-height: max(40px, 2.4rem) !important; }
+}

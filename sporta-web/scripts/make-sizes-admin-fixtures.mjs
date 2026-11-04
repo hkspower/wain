@@ -100,6 +100,7 @@ const reach = async (pg, [name, label, add], w) => {
 }
 
 const union = new Set()
+const injected = new Set()   // the <style> texts the add-on scripts inject, per screen (the photo uploader's only exists on Catalogue)
 let last = null
 for (const st of STATES) {
   const [name] = st
@@ -115,6 +116,7 @@ for (const st of STATES) {
     await wide.evaluate((t) => { document.documentElement.dataset.theme = t; document.documentElement.classList.toggle('dark', t === 'dark') }, theme)
     for (const p of await wide.evaluate(matchedFns)) union.add(p)
   }
+  for (const t of await wide.evaluate(() => [...document.head.querySelectorAll('style')].map((e) => e.textContent))) injected.add(t)
   console.log('captured', name, a.markup.length, 'bytes of markup')
   if (last) await last.context().close()
   last = wide
@@ -170,7 +172,7 @@ writeFileSync(join(OUT, 'live.css'), `/* The rules of the live compiled styleshe
 const indexHtml = readFileSync(join(LIVE, 'index.html'), 'utf8')
 const inline = [...indexHtml.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1].trim()).join('\n')
 writeFileSync(join(OUT, 'head.css'), `/* The inline <style> of the live index.html (it loads before the bundle). Do not edit by hand. */\n${inline}\n`)
-const features = await wide.evaluate((inl) => [...document.head.querySelectorAll('style')].map((s) => s.textContent).filter((t) => t.trim() && t.trim() !== inl.trim()).join('\n'), inline)
+const features = [...injected].filter((t) => t.trim() && t.trim() !== inline.trim()).join('\n')
 writeFileSync(join(OUT, 'features.css'), `/* The <style> elements the add-on scripts (sporta-admin-brands.js, sporta-features.js ...) inject into <head> after load. Do not edit by hand. */\n${features}\n`)
 console.log('live.css', css.length, 'bytes,', union.size, 'rules; head.css and features.css written')
 await browser.close(); server.close()

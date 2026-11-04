@@ -26,6 +26,7 @@
 .admin-shell .admin-page h1 { color: var(--admin-text); }
 .admin-shell .admin-page .admin-table > thead > tr > th { color: #5d6975; font-size: .69rem; font-weight: 800; }
 .admin-table th, .admin-table td { padding: .75rem 1rem; }
+.admin-table-surface, .inventory-table-wrap, .admin-returns__table-wrap, .support-admin__table, .profiles-admin__table { overflow-x: auto; }
 .admin-sidebar { background: linear-gradient(#151b21, #10151a); color: #acb8c4; }
 .admin-sidebar .admin-nav-item { display: block; width: 100%; min-height: 44px; font-size: .79rem; font-weight: 600; border-radius: .72rem; color: #acb8c4; }
 .admin-sidebar .admin-nav-item.bg-indigo-50 { color: #fff5ed; border: 1px solid #ff7a15; }
