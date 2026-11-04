@@ -880,7 +880,7 @@ async function runChecks({ www, hashes, indexHtml }) {
   }
   // The same, for every fixed-name add-on the live index.html links (CLAUDE.md, "Add-ons the live index.html links") and the
   // three scripts around them: all of them carry `no-cache, must-revalidate`, so a returning visitor asks about each of them
-  // on EVERY page load. Before the RequestHeader edit each answered a full 200 (51.5 kB gzip in all for the copies live on 2026-11-02, 140.5 kB for the repo's); now each is an empty 304,
+  // on EVERY page load. Before the RequestHeader edit each answered a full 200 (51.5 kB gzip in all for the copies live on 2026-11-02, about 145 kB for the repo's on 2026-11-04); now each is an empty 304,
   // with gzip's ETag and with Brotli's, and a validator that is genuinely stale still gets the new file.
   const ADDONS = ['boot.js', 'config.js', 'birthday.js', 'sporta-features.js', 'sporta-admin-brands.js', 'sporta-footer-call.js', 'sporta-gov-autopick.js', 'sporta-clock.js', 'sporta-checkout-a11y.js',
     'sporta-product-fix.css', 'sporta-brand-theme.css', 'sporta-home-trim.css', 'sporta-cart-drawer.css', 'sporta-grid.css', 'sporta-bag-touch.css', 'sporta-cat-tiles.css', 'sporta-admin-knet.css',

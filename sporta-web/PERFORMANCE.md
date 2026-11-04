@@ -157,7 +157,7 @@ minifier for JS, an estimate: nothing was changed). It is an owner decision beca
 **1. `public/.htaccess`: revalidating a compressed file now answers 304.** `mod_deflate` / `mod_brotli` give the compressed copy
 an ETag ending `-gzip` / `-br`; a browser sends that back; Apache compared it with the plain ETag, so it never matched and every
 conditional request answered a full 200. Every add-on carries `no-cache, must-revalidate`, so a returning visitor re-downloaded
-**all 23 files on every page load**: 51.5 kB gzip for the copies live on 2026-11-02, **144.9 kB gzip for the copies in this repo**.
+**all 23 files on every page load**: 51.5 kB gzip for the copies live on 2026-11-02, **144.9 kB gzip for the copies in this repo** (re-measured 2026-11-04 on Apache 2.4.58: 148,407 B gzip, 140,049 B Brotli; the add-ons keep growing).
 `RequestHeader edit If-None-Match "-(?:gzip|br)(\")" "$1"` strips the suffix before the conditional is evaluated. Measured on
 Apache 2.4.58 with the real file: all 23 answer an empty 304 to their own gzip ETag and to their Brotli ETag, `no-cache` is kept
 on the 304, a validator that is really stale still gets the new file (`test:htaccess-rules` section 5 and `test:sizes-weight` 3).
@@ -180,7 +180,11 @@ The maker (dry run by default, ImageMagick with WebP, no dependency added) write
 `/images/products/responsive/<stem>-320.webp`, `-640.webp` BESIDE the originals and `variants.txt` listing what exists; the
 add-on reads that list and puts a `srcset` on thumbnails and shop cards. Originals are never opened for writing (asserted by
 sha-256), nothing is enlarged, a phone photograph stored sideways comes out upright, the colour profile is kept and EXIF/GPS is
-left out of the copy. **Without the list the add-on does nothing**, so shipping the code before anybody runs the maker changes nothing.
+left out of the copy. **Without the list the add-on changes nothing on the page** - but it is not free (review, 2026-11-04): the first version asked for
+`variants.txt` on every full page load, and until the maker has run that URL answers 404 with the whole error shell (19 kB, about 6.3 kB Brotli on the live
+shell; 27 kB / 10 kB gzip for the shell this repo builds), uncached, for every visitor. A miss is now remembered in `localStorage` for 6 hours (no request, no
+hook, no observer); a first visit, or a miss older than that, asks again, so a list made by a later maker run reaches a browser that recorded a miss up to
+6 hours late. A 5xx or 429 for the list (a restart) is neither a miss nor a reason to drop a remembered list. Asserted in `test:sizes-weight`, with a mutation check.
 Fail-safe, each asserted in Chromium: a listed copy that is missing falls back to the original and the build's own `onError`
 (which would show the "photo unavailable" placeholder) never runs; a missing list, a 404 shell, a 200 with HTML or a list without
 its header line leave every `<img>` as it was and request no copy; React reusing an `<img>` for another piece cannot leave the old
@@ -241,6 +245,8 @@ lossless). A 1280px copy for it is an owner decision. The first-ever visit strai
    ImageMagick with WebP (`convert -list format | grep WEBP`); the header of the script has a one-shot `docker run` line.
    Copies are made at the encoder's own quality (about 75): this ImageMagick build ignores `-quality` for WebP, and the script says so
    instead of pretending (`--quality N` is refused on such a build).
+   To SEE the effect at once on your own phone or computer, use a private window (or clear this site's data): a browser that asked for the list within the
+   last 6 hours and was told there is none (the state before the first run) waits out those 6 hours before it asks again; a first-time visitor asks at once.
 2. Split the admin add-ons off the shopper path (lane D): `sporta-admin-brands.js` and `sporta-admin-knet.css` become a ~1 kB loader that
    injects the real files only on `/backends` (a file the loader requests need not be linked by `index.html`): saves up to 60.8 kB Brotli
    on every shopper page.

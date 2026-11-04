@@ -847,9 +847,18 @@
  *
  * WHY IT CANNOT SHOW A BROKEN OR WRONG PICTURE
  *  - No list (404, not our header line, network error, nothing remembered) = this
- *    block does nothing at all: the page is exactly what it was. A copy that the
+ *    block changes nothing on the page: it is exactly what it was. A copy that the
  *    list does not name is never requested, so a missing copy costs no 404 (the
  *    site answers a missing file with its error page).
+ *  - ...and asking for the list is not free either, which the first version of
+ *    this block overlooked (review, 2026-11-04): until somebody runs the maker, the
+ *    list's URL answers 404 with the whole error shell (19 kB, 6.3 kB Brotli on the
+ *    live shell; 27 kB / 10 kB gzip for the shell this repo builds), and a 404 is
+ *    not cached, so EVERY full page load of EVERY visitor paid that for nothing.
+ *    A miss is therefore remembered (MISS below): for MISS_MS the block neither asks
+ *    for the list, hooks setAttribute nor watches the page. The price is that a list
+ *    made by a later maker run reaches a browser that recorded a miss up to MISS_MS
+ *    late; a browser with nothing recorded (a first visit) asks at once.
  *  - If a named copy still fails, an `error` listener on window in the CAPTURE
  *    phase (it runs before the image's own handler) removes our srcset, so the
  *    browser loads the original from `src`, remembers the photograph as bad for
@@ -1006,6 +1015,23 @@
     function forget() {
       try { localStorage.removeItem(KEEP) } catch (e) {}
     }
+    // "The server has no list": when that was last found out. A timestamp in the future (a clock that was set back) counts as
+    // old, so a wrong clock can silence the block for at most MISS_MS, never for ever.
+    var MISS = 'sporta.variants.v1.miss'
+    var TRANSIENT = {}   // what the first .then below hands the second when the answer was a server hiccup, not an answer
+    var MISS_MS = 6 * 60 * 60 * 1000
+    function recentMiss() {
+      try {
+        var t = Number(localStorage.getItem(MISS)), now = Date.now()
+        return t > 0 && now >= t && now - t < MISS_MS
+      } catch (e) { return false }
+    }
+    function noteMiss() {
+      try { localStorage.setItem(MISS, String(Date.now())) } catch (e) {}
+    }
+    function clearMiss() {
+      try { localStorage.removeItem(MISS) } catch (e) {}
+    }
     // THE EARLY HOOK. React builds an <img> detached and sets its `src` LAST (after class, width, loading...), and the browser
     // asks for that file the moment `src` is set - long before the element is in the page, so an observer sees it too late: the
     // original is already on the wire (measured: the bag drawer's and the cart line's 3 MB originals were fetched in full and the
@@ -1033,16 +1059,24 @@
     function start() {
       try {
         widths = remembered()
+        // Nothing remembered and the server said "no list" a short while ago: do not ask again, and do not hook or watch anything
+        // for a list that is not there (see the second bullet of the header comment).
+        if (!widths && recentMiss()) return
         hook()
         if (widths) run()
         fetch(LIST, { credentials: 'omit' }).then(function (r) {
+          // A server hiccup (a restart during a deploy: 502/503/504, or 429) says nothing about whether the list exists: it is
+          // treated like a network error, so it neither drops a good remembered list nor starts the MISS_MS silence.
+          if (r.status >= 500 || r.status === 429) return TRANSIENT
           var ct = r.headers.get('content-type') || ''
           return r.ok && /^text\//i.test(ct) ? r.text() : null
         }).then(function (text) {
+          if (text === TRANSIENT) return
           var fresh = text && text.length <= 400000 ? parse(text) : null
-          if (!fresh) { widths = null; forget(); unwind(); return }   // the server says there is no list (404, wrong body): stop using any remembered one
+          if (!fresh) { widths = null; forget(); noteMiss(); unwind(); return }   // the server says there is no list (404, wrong body): stop using any remembered one
           widths = fresh
           remember(text)
+          clearMiss()
           schedule()
         }).catch(function () {})   // offline / network error: the remembered list, if any, stays in use
         new MutationObserver(changed).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] })

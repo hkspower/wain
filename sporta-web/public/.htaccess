@@ -269,8 +269,8 @@ FileETag MTime Size
   # to their own compressed ETag. That is every fixed-name add-on the storefront
   # links (14 stylesheets and 6 scripts, plus boot.js, config.js and birthday.js:
   # 23 files) re-sent in full on EVERY page load of a returning visitor: 51.5 kB
-  # gzip for the copies live on 2026-11-02, 140.5 kB gzip for the copies in this
-  # repo today. With this line they are 23 empty 304s (scripts/htaccess-rules-test.mjs
+  # gzip for the copies live on 2026-11-02, about 145 kB gzip (137 kB Brotli) for
+  # the copies in this repo on 2026-11-04 (it grows as the add-ons do). With this line they are 23 empty 304s (scripts/htaccess-rules-test.mjs
   # section 5 asserts all 23, with gzip's validator and Brotli's).
   # DeflateAlterETag / BrotliAlterETag would remove the suffix at the source, but
   # they are server-config only (a 500 from .htaccess). This strips the suffix from

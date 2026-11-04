@@ -27,7 +27,11 @@
 //       - the original is missing too: the compiled onError runs, exactly as without this block
 //       - React reusing an <img> for another piece, an <img> that already has the build's srcset, the gallery's main
 //         photograph, the full-screen view and anything on /backends are all left alone
-//       - MUTATION: the same checks FAIL when the block is cut out of the file
+//       - REVIEW FIX 2026-11-04: with no list on the server (the state until somebody runs the maker) a full page load used to
+//         fetch the list's URL every time and get the 404 error shell; now the miss is remembered for 6 hours (no request, no hook,
+//         no observer), a first visit or a miss older than that asks again, a clock set back cannot silence it for ever, and a 5xx
+//         for the list (a restart) is neither a miss nor a reason to drop a remembered list
+//       - MUTATION: the same checks FAIL when the block is cut out of the file, and the silence check FAILS without its guard
 //  3  public/.htaccess, on a real Apache 2.4 (htaccess-rules-test.mjs, which this runs): the 404 shell is compressed, and all
 //     23 fixed-name add-ons answer an empty 304 to their own gzip / Brotli ETag. MUTATION: the same run FAILS when the two
 //     blocks are taken out of a copy of the file.
@@ -35,7 +39,7 @@
 //     over 50 kB, and the weight of every add-on the live index.html links, printed (INFO) with the two that are admin-only.
 //
 // Measured with it (numbers in PERFORMANCE.md, "Page weight lane, 2026-11-03"): 404 shell 27,272 B -> 10,144 B; one page load of
-// a returning visitor, 23 add-ons: 140.5 kB gzip re-sent -> 23 empty 304s; a 3024x4032 phone photograph on a bag thumbnail:
+// a returning visitor, 23 add-ons: about 145 kB gzip re-sent -> 23 empty 304s; a 3024x4032 phone photograph on a bag thumbnail:
 // the original -> an ~8 kB copy.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -221,6 +225,8 @@ else {
   const SHELL_HTML = '<!doctype html><html><head><title>shell</title></head><body>' + 'x'.repeat(8000) + '</body></html>'
   const PLACEHOLDER = readFileSync(join(PUBLIC, 'product-photo-unavailable.svg'))
   const KEEP = 'sporta.variants.v1'
+  const MISS = 'sporta.variants.v1.miss'   // when the page last found out that the server has no list
+  const HOUR = 3600 * 1000
 
   // The compiled app's <img>s, as React makes them: every attribute first, `src` LAST, a listener on the element, then into the page.
   const FIXTURE = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>fixture</title></head>
@@ -269,6 +275,7 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
       if (state.list === 'html200') return send(200, 'text/html', SHELL_HTML)
       if (state.list === 'noheader') return send(200, 'text/plain', LIST.split('\n').slice(1).join('\n'))
       if (state.list === 'plainhtml') return send(200, 'text/plain', SHELL_HTML)
+      if (state.list === '503') return send(503, 'text/html; charset=utf-8', SHELL_HTML)   // a restart during a deploy: not an answer about the list
       return send(404, 'text/html; charset=utf-8', SHELL_HTML)
     }
     if (p.startsWith('/images/products/') && !state.missing.has(p)) {
@@ -288,10 +295,14 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
     await page.waitForTimeout(250)
   }
   const info = (page, id) => page.evaluate((i) => { const e = document.getElementById(i); if (!e) return null; return { src: e.getAttribute('src'), srcset: e.getAttribute('srcset'), sizes: e.getAttribute('sizes'), cur: e.currentSrc.replace(location.origin, ''), nat: e.naturalWidth, complete: e.complete } }, id)
-  const open = async ({ list = 'ok', missing = [], dpr = 1, width = 390, path = '/shop', features = null, remembered = false, delayOrig = 0, delayList = 0, manual = false } = {}) => {
+  const open = async ({ list = 'ok', missing = [], dpr = 1, width = 390, path = '/shop', features = null, remembered = false, delayOrig = 0, delayList = 0, manual = false, missAge = null } = {}) => {
     Object.assign(state, { list, missing: new Set(missing), log: [], featuresFile: features, delayOrig, delayList })
     const ctx = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: dpr, serviceWorkers: 'block' })
-    await ctx.addInitScript(([r, key, text, man]) => { if (r) { try { localStorage.setItem(key, text) } catch (e) {} } if (man) window.__manual = true }, [remembered, KEEP, LIST, manual])
+    await ctx.addInitScript(([r, key, text, man, mkey, age]) => {
+      if (r) { try { localStorage.setItem(key, text) } catch (e) {} }
+      if (age !== null) { try { if (localStorage.getItem(mkey) === null) localStorage.setItem(mkey, String(Date.now() - age)) } catch (e) {} }   // only once: a reload keeps what the page itself wrote
+      if (man) window.__manual = true
+    }, [remembered, KEEP, LIST, manual, MISS, missAge])
     const page = await ctx.newPage()
     await page.goto(BASE + path); await settle(page)
     // the lazy <img>s sit 6000px down, where the browser has not asked for them yet; scroll to them as a shopper would
@@ -375,6 +386,62 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
     await ctx.close()
   }
 
+  // ---- C2  review fix (2026-11-04): a miss is remembered, so a server with no list is not asked on every page load
+  {
+    // The first version fetched the list on every full page load; until the maker runs the answer is a 404 carrying the whole
+    // error shell (19 kB / 6.3 kB Brotli live), uncached, for every visitor, for nothing. Now: ask once, remember the miss for 6 h.
+    const t0 = Date.now()   // not "within the last minute": a loaded machine can take longer than that to settle a page
+    const { ctx, page } = await open({ list: '404', dpr: 2 })
+    const first = asked(/variants\.txt/).length
+    const stamp = Number(await page.evaluate((k) => localStorage.getItem(k), MISS))
+    is(first === 1 && stamp >= t0 && stamp <= Date.now(), 'no list: the first load asks once and records the miss (a timestamp from during this test)', `asked ${first}, stamp ${stamp}, test started ${t0}`)
+    state.log = []
+    await page.reload(); await settle(page)
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await settle(page)   // the lazy <img>s sit 6000px down
+    const hooked = await page.evaluate(() => Element.prototype.setAttribute.sportaSrcset === true)
+    is(asked(/variants\.txt/).length === 0 && !hooked, 'and the next full page load, within the 6 hours, does NOT ask again and installs no hook (the block is inert)', `asked ${asked(/variants\.txt/).length}, hook ${hooked}`)
+    const all = await Promise.all(['drawer-a', 'cart-b', 'sum-c', 'card-up', 'gal-thumb'].map((i) => info(page, i)))
+    is(all.every((x) => x.srcset === null && /^\/images\/products\/up-/.test(x.cur) && !x.cur.includes('responsive')), 'and the page is exactly as it was: every original, no srcset', JSON.stringify(all.map((x) => x.srcset)))
+    await ctx.close()
+  }
+  {
+    // the maker has run since: a first visit (nothing recorded) learns it at once ...
+    const a = await open({ list: 'ok', dpr: 2 })
+    is(asked(/variants\.txt/).length === 1 && (await info(a.page, 'sum-c')).srcset !== null, 'the maker has run: a first visit asks, gets the list and uses it')
+    is(await a.page.evaluate((k) => localStorage.getItem(k), MISS) === null, 'a good list leaves no miss behind')
+    await a.ctx.close()
+    // ... a browser whose miss is 7 hours old asks again, uses the list, and the old miss is removed ...
+    const b = await open({ list: 'ok', dpr: 2, missAge: 7 * HOUR })
+    is(asked(/variants\.txt/).length === 1 && (await info(b.page, 'sum-c')).srcset !== null && await b.page.evaluate((k) => localStorage.getItem(k), MISS) === null, 'a miss older than 6 hours is asked about again; the list is used and the miss is cleared')
+    await b.ctx.close()
+    // ... and one whose miss is 5 minutes old does not (the price of the silence, stated in the header comment) ...
+    const c = await open({ list: 'ok', dpr: 2, missAge: 5 * 60000 })
+    const cs = await info(c.page, 'sum-c')
+    is(asked(/variants\.txt/).length === 0 && cs.srcset === null && /^\/images\/products\/up-/.test(cs.cur) && !cs.cur.includes('responsive'), 'a miss from 5 minutes ago is respected: no request, originals shown (the list reaches this browser within 6 hours)')
+    await c.ctx.close()
+    // ... a clock that was set back (a miss "from the future") cannot silence the block for ever.
+    const d = await open({ list: 'ok', dpr: 2, missAge: -2 * HOUR })
+    is(asked(/variants\.txt/).length === 1 && (await info(d.page, 'sum-c')).srcset !== null, 'a miss time in the future counts as old: the block asks again')
+    await d.ctx.close()
+  }
+  {
+    // a remembered list and a server that now has none: forgotten (as before) AND the miss is recorded, so the next load is silent
+    const { ctx, page } = await open({ list: '404', remembered: true, dpr: 1 })
+    const kept = await page.evaluate((k) => localStorage.getItem(k), KEEP), miss = await page.evaluate((k) => localStorage.getItem(k), MISS)
+    is(kept === null && miss !== null, 'a remembered list the server no longer has is dropped and the miss is recorded')
+    await ctx.close()
+    // a 503 (the server restarting) is NOT an answer about the list: the remembered one stays in use, no miss is recorded
+    const t = await open({ list: '503', remembered: true, dpr: 2 })
+    const keptT = await t.page.evaluate((k) => localStorage.getItem(k), KEEP), missT = await t.page.evaluate((k) => localStorage.getItem(k), MISS)
+    const dT = await info(t.page, 'drawer-a')
+    is(keptT === LIST && missT === null && dT.srcset !== null && /up-aaaaaaaaaa-320\.webp$/.test(dT.cur), 'a 503 for the list leaves a remembered list in use and records no miss', JSON.stringify({ kept: keptT === LIST, miss: missT, cur: dT.cur }))
+    await t.ctx.close()
+    // ... and with nothing remembered a 503 records no miss either, so the next load asks again
+    const u = await open({ list: '503', dpr: 2 })
+    is(await u.page.evaluate((k) => localStorage.getItem(k), MISS) === null, 'a 503 with nothing remembered records no miss (the next load asks again)')
+    await u.ctx.close()
+  }
+
   // ---- D  the list names a copy that is not there
   {
     const { ctx, page } = await open({ missing: [V('up-aaaaaaaaaa', 320), V('up-aaaaaaaaaa', 640)], dpr: 3, remembered: true })
@@ -450,6 +517,17 @@ document.addEventListener('DOMContentLoaded', function () { if (!window.__manual
     const o = origs('up-aaaaaaaaaa', 'up-bbbbbbbbbb', 'up-cccccccccc', 'up-dddddddddd', 'up-eeeeeeeeee').length
     is(o === 5, 'MUTATION: ...and the browser really does download those five originals (' + o + ')')
     await ctx.close()
+    // MUTATION of the review fix: without the early return on a recent miss, the second load asks for the list again
+    const noSilence = join(WORK, 'features-without-silence.js')
+    const guard = 'if (!widths && recentMiss()) return'
+    is(full.includes(guard), 'the miss guard is in the block (so the mutation below cuts something)')
+    writeFileSync(noSilence, full.replace(guard, ''))
+    const mm = await open({ list: '404', dpr: 2, features: noSilence })
+    state.log = []
+    await mm.page.reload(); await settle(mm.page)
+    await mm.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); await settle(mm.page)
+    is(asked(/variants\.txt/).length === 1, 'MUTATION: without the miss guard the second load asks for the list again (so the silence check above can fail)', 'asked ' + asked(/variants\.txt/).length)
+    await mm.ctx.close()
   }
   await browser.close(); server.close()
 }

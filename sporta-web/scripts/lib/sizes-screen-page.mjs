@@ -100,3 +100,23 @@ export const measure = () => {
     p: { editorial: pad('.editorial-page'), flowH1: pad('.purchase-flow > h1'), details: pad('.faq-list details'), tile: pad('.campaign-category'), club: pad('.footer-club'), cols: pad('.footer-columns'), inner: pad('footer.app-footer > .mx-auto'), dHead: pad('.campaign-cart-drawer > header'), dLine: pad('.cart-drawer__line'), brandBar: pad('.campaign-brand-bar'), heroH: getComputedStyle(document.documentElement).getPropertyValue('--hero-h').trim() },
   }
 }
+
+// ---- a strip that holds LOGO images (added in review, 2026-11-04) ----------------------------------------------------
+// The captured live API sends no brand logo, so every chip on the captured home page is text. Once the brands API ships (the
+// admin Brands screen uploads logos), the compiled bundle draws <img class="brand-bar__logo"> inside a chip, sized by the live
+// rule below: height:100% of the chip's content box, capped at 3rem. A chip made shorter would draw every logo smaller
+// (68px chip: 46px logo; 56px chip: 34px logo, measured). The rule is copied verbatim from the live stylesheet
+// (assets/index-CdcKvZhs.css); live.css does not hold it because no element of the captured pages matched it.
+export const LOGO_RULE = '.campaign-brand-bar .brand-bar__item img,.campaign-brand-bar .brand-bar__logo{object-fit:contain;filter:grayscale()brightness(0)invert();width:100%;max-width:9rem;height:100%;max-height:3rem}'
+// in page: put the live logo rule before the add-ons and turn the first two chips into logo chips (an inline 1x1 PNG, as the
+// bundle's <img width=144 height=64> would load a real file; the size comes from the rule, not from the picture)
+export const logoSwap = ([rule, png]) => {
+  const st = document.createElement('style'); st.id = 'fx-logo'; st.textContent = rule
+  document.querySelector('style[data-addon]').before(st)
+  document.querySelectorAll('.brand-bar__item').forEach((a, i) => { if (i < 2) a.innerHTML = '<img class="brand-bar__logo" width="144" height="64" alt="" src="data:image/png;base64,' + png + '">' })
+}
+export const logoMeasure = () => {
+  const r = (e) => e.getBoundingClientRect()
+  return { chips: [...document.querySelectorAll('.brand-bar__item')].map((e) => r(e).height), imgs: [...document.querySelectorAll('.brand-bar__item img')].map((e) => r(e).height), bar: r(document.querySelector('.campaign-brand-bar')).height }
+}
+export const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='

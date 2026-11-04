@@ -85,7 +85,10 @@ img[src$="/product-photo-unavailable.svg"] {
  *                     head (computed from the photo geometry, 900x570 scaled to the tile's width: the head top
  *                     stays 7-12px inside the box at 320-390px on both portrait photos, the women's hair
  *                     being the tightest; look at the live page after it ships).
- *   [sizes-home-2]    phones: brand chips 56px (3.5rem, the live 44px tap minimum plus 12), strip padding 8px.
+ *   [sizes-home-2]    phones: brand chips 56px (3.5rem, the live 44px tap minimum plus 12) while the strip holds
+ *                     text chips only (as the live capture does today); a strip with a logo image in it keeps the
+ *                     live 68px chips so no uploaded logo is drawn smaller (46px -> 34px at 56px, review finding).
+ *                     Strip padding 8px and heading gap 8px either way.
  *   [sizes-home-3]    768px up: the section heading is one size for the page (the features band's), tile
  *                     titles are capped at 2.125rem. Phones keep the live sizes (24px / 26px are already the
  *                     clamp floors).
@@ -112,7 +115,14 @@ img[src$="/product-photo-unavailable.svg"] {
 @media (max-width: 767px) {
   .campaign-home .campaign-brand-bar { padding-block: .5rem; }
   .campaign-home .campaign-brand-bar .campaign-brand-bar__heading { margin-block-end: .5rem; }
-  .campaign-home .campaign-brand-bar .brand-bar__item { height: 3.5rem; }
+  /* Review fix (2026-11-04): only a strip of TEXT chips gets the 56px height. The live build draws a brand's logo
+   * (the admin's Brands screen uploads it; the compiled bundle renders <img class="brand-bar__logo"> once the API
+   * sends one) with "height:100%; max-height:3rem" of the chip's content box, so a 56px chip took the logo from
+   * 46px to 34px tall (-26%, measured in Chromium: chip 68 -> 56, logo 110x46 -> 110x34). A brand's own mark is
+   * not "text that is too big", so a strip that holds any image keeps the live 68px chips for every chip (one row,
+   * one height) and keeps only the padding and heading savings above. :has() is not known to a browser older than
+   * Chrome 105 / Safari 15.4 / Firefox 121, which drops the whole rule and shows the live 68px: the safe side. */
+  .campaign-home .campaign-brand-bar:not(:has(.brand-bar__item img)) .brand-bar__item { height: 3.5rem; }
 }
 
 /* [sizes-home-3] */

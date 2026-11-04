@@ -23,6 +23,7 @@
 //   colours         every text element keeps its colour and its background (no contrast can change)
 //   hero            the hero's box, --hero-h and the header's height are identical before and after (first paint and CLS)
 //   load order      the same measurements with the sections placed BEFORE the bundle's own rules (every rule wins by specificity)
+//   logo strip      (review) a strip holding logo images keeps the live 68px chips and 46px logos on a phone; the guard is mutation-checked
 //   no JavaScript   the footer's call button is added by a script after load: with and without it the footer is the same height
 //                   at 360px and wider (and grows by at most one row at 320px); the sections name no script-built node
 //   scope and style the sections are last in their files, scoped to .campaign-home / .storefront-root / .campaign-cart-drawer,
@@ -33,7 +34,7 @@
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ROOT, ADDON_ORDER, SIZES_FILES, SECTION_START, PAGES, WIDTHS, LANGS, sectionOf, blocksOf, addonFiles, serve, measure } from './lib/sizes-screen-page.mjs'
+import { ROOT, ADDON_ORDER, SIZES_FILES, SECTION_START, PAGES, WIDTHS, LANGS, sectionOf, blocksOf, addonFiles, serve, measure, LOGO_RULE, PNG_B64, logoSwap, logoMeasure } from './lib/sizes-screen-page.mjs'
 
 const FILES = addonFiles()
 const PARTS = Object.fromEntries(SIZES_FILES.map((f) => [f, sectionOf(FILES[f])]))
@@ -54,6 +55,11 @@ for (const f of SIZES_FILES) {
 // rules (what a different link order would do): every rule must win by specificity, not by being last
 const EARLY = SIZES_FILES.map((f) => PARTS[f].section).join('\n')
 variants.early = Object.fromEntries(SIZES_FILES.map((f) => [f, PARTS[f].before]))
+// 'unguarded' (review, 2026-11-04): [sizes-home-2] with the :not(:has(img)) guard taken off, i.e. the 56px chip for EVERY strip. A strip
+// holding a logo image must keep the live 68px chips (a 56px chip draws the logo 46px -> 34px tall); the logo phase below fails this variant.
+const GUARD = ':not(:has(.brand-bar__item img))'
+const GUARD_OK = FILES['sporta-cat-tiles.css'].includes(GUARD)   // reported as a check below (a missing guard must FAIL the suite, not crash it)
+variants.unguarded = { 'sporta-cat-tiles.css': FILES['sporta-cat-tiles.css'].replace(GUARD, '') }
 
 // ---- measurement matrix ----------------------------------------------------------------------------------------------
 const ref = { current: FILES }
@@ -61,6 +67,7 @@ const { server, base } = await serve(ref)
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 const M = {}                   // M[variant]["page|lang|w"] = measurement
 const NOCALL = {}              // footer measured without the script-built call button (after only)
+const LOGO = {}                // phone home page with two logo chips: LOGO[variant]["page|lang|w"]
 const key = (p, l, w) => `${p}|${l}|${w}`
 const SETSTYLE = ([name, css]) => { document.querySelector(`style[data-addon="${name}"]`).textContent = css }
 for (const lang of LANGS) for (const p of PAGES) for (const w of WIDTHS) {
@@ -82,6 +89,15 @@ for (const lang of LANGS) for (const p of PAGES) for (const w of WIDTHS) {
         const h = document.querySelector('footer.app-footer').getBoundingClientRect().height
         parent.insertBefore(el, next); return h
       })
+    }
+  }
+  if (p === 'home' && w <= 767) {
+    // the same page with two chips turned into logo chips (what the strip shows once the brands API sends logos), under each variant
+    await pg.evaluate(logoSwap, [LOGO_RULE, PNG_B64])
+    for (const v of ['before', 'after', 'unguarded']) {
+      for (const f of SIZES_FILES) await pg.evaluate(SETSTYLE, [f, (variants[v][f] ?? FILES[f])])
+      await pg.evaluate(() => { const el = document.getElementById('fx-early'); if (el) el.textContent = '' })
+      ;(LOGO[v] ||= {})[key(p, lang, w)] = await pg.evaluate(logoMeasure)
     }
   }
   await ctx.close()
@@ -187,6 +203,18 @@ const run = (B, A, noCall) => {
   return rows
 }
 
+// a strip with logo images in it (review finding): every chip keeps the live height, so every logo keeps its live box
+const logoRows = (B, A) => {
+  const rows = []
+  for (const lang of LANGS) for (const w of WIDTHS.filter((x) => x <= 767)) {
+    const k = key('home', lang, w), b = B[k], a = A[k], tag = `home ${lang} ${w}px`
+    const same = a.chips.length === b.chips.length && a.chips.every((h, i) => Math.abs(h - b.chips[i]) < 0.01) && a.imgs.length === 2 && a.imgs.every((h, i) => Math.abs(h - b.imgs[i]) < 0.01 && h >= 46 - 0.5)
+    rows.push(['a strip with logo images keeps the live chips and logo boxes (no logo is drawn smaller than 46px)', same, `${tag}: chips ${b.chips.map(f1).join('/')} -> ${a.chips.map(f1).join('/')}, logos ${b.imgs.map(f1).join('/')} -> ${a.imgs.map(f1).join('/')}`])
+    rows.push(['a strip with logo images still saves the strip padding and heading gap (>= 11px)', b.bar - a.bar >= 11 - 0.01 && b.bar - a.bar <= 13, `${tag}: strip ${f1(b.bar)} -> ${f1(a.bar)}`])
+  }
+  return rows
+}
+
 // the same geometry with the sections placed before the bundle's rules
 const sameGeometry = (A, E) => {
   const rows = []
@@ -214,6 +242,14 @@ for (const n of names) {
 {
   const rs = sameGeometry(M.after, M.early), bad = rs.filter((r) => !r[1])
   is(bad.length === 0, `${rs[0][0]}  [${rs.length - bad.length}/${rs.length} cases]`, bad.slice(0, 4).map((r) => r[2]).join(' | '))
+}
+
+{
+  const rows2 = logoRows(LOGO.before, LOGO.after)
+  for (const n of [...new Set(rows2.map((r) => r[0]))]) {
+    const rs = rows2.filter((r) => r[0] === n), bad = rs.filter((r) => !r[1])
+    is(bad.length === 0, `${n}  [${rs.length - bad.length}/${rs.length} cases]`, bad.slice(0, 4).map((r) => r[2]).join(' | '))
+  }
 }
 
 // the numbers, for the report (not assertions)
@@ -263,6 +299,7 @@ for (const f of SIZES_FILES) {
   const imp = (code.match(/!important/g) || []).length
   is(f === 'sporta-checkout-a11y.css' ? imp === 1 && /margin-block:\s*1rem \.5rem !important/.test(code) : imp === 0, `${f}: !important ${f === 'sporta-checkout-a11y.css' ? 'once (the live .purchase-flow > h1 margin is itself !important)' : 'never'}`, String(imp))
 }
+is(GUARD_OK, `sporta-cat-tiles.css: [sizes-home-2] carries the ${GUARD} logo guard`)
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 is(pkg.scripts['test:sizes-screen'] === 'node scripts/sizes-screen-test.mjs', 'package.json has the test:sizes-screen script')
 
@@ -275,6 +312,10 @@ head('mutation: the checks must fail without the sections, and without each bloc
   const none = failsOf(M.before)                // "the sections cut": the after run IS the before run
   quiet = false
   is(none >= 100, `with every SIZES section cut, ${none} of ${total} case checks fail (needs 100 or more)`)
+  {
+    const n = logoRows(LOGO.before, LOGO.unguarded).filter((r) => !r[1]).length
+    is(n >= 1, `without the :not(:has(img)) guard on [sizes-home-2]: ${n} logo case checks fail (needs 1 or more)`)
+  }
   for (const name of mutants) {
     const n = failsOf(M[name])
     is(n >= 1, `without ${name}: ${n} case checks fail (needs 1 or more)`)
