@@ -123,8 +123,6 @@ function fetch_one($p, $q) { return $p->query($q)->fetch(PDO::FETCH_ASSOC); }`
   const opt = runPhp(AFTER, `$o = sporta_db_options(store_config()); echo json_encode(['timeout' => $o[PDO::ATTR_TIMEOUT], 'multi' => $o[PDO::MYSQL_ATTR_MULTI_STATEMENTS] ?? 'unset', 'infile' => $o[PDO::MYSQL_ATTR_LOCAL_INFILE] ?? 'unset', 'tls' => array_key_exists(PDO::MYSQL_ATTR_SSL_CA, $o)]);`)
   const oj = JSON.parse(opt.out || '{}')
   is(oj.timeout === 5 && oj.multi === false && oj.infile === false && oj.tls === false, 'connect timeout 5 s, stacked statements off, LOAD DATA LOCAL off, no TLS for a local host', opt.out.slice(0, 160))
-  const local = runPhp(AFTER, `echo json_encode(array_map('sporta_db_host_is_local', ['localhost', '127.0.0.1', '127.0.0.1;port=3307', '::1', 'mariadb', 'db', '/run/mysqld/mysqld.sock']), array_map('sporta_db_host_is_local', ['db.example.com', '10.0.0.5', '172.18.0.2', '203.0.113.7', '2001:db8::1']));`)
-  info('host classification', local.out.slice(0, 200))
   const L = runPhp(AFTER, `echo json_encode([array_map('sporta_db_host_is_local', ['localhost', '127.0.0.1', '127.0.0.1;port=3307', '::1', 'mariadb', 'db', '/run/mysqld/mysqld.sock']), array_map('sporta_db_host_is_local', ['db.example.com', '10.0.0.5', '172.18.0.2', '203.0.113.7', '2001:db8::1'])]);`)
   const Lj = JSON.parse(L.out || '[[],[]]')
   is(Lj[0].length === 7 && Lj[0].every(Boolean) && Lj[1].length === 5 && Lj[1].every((x) => x === false), 'local = localhost, loopback, a socket path, a one-label service name; remote = any dotted name or other address literal (so a LAN or datacenter IP needs TLS)')
@@ -158,8 +156,8 @@ head('3. Stacked statements, runaway statements, LOAD DATA LOCAL')
   const infile = join(tmp, 'infile.txt'); writeFileSync(infile, `${CANARY}\n`)
   const load = `$pdo = store_db(); try { $pdo->exec("load data local infile '${infile}' into table zz_load"); echo 'LOADED'; } catch (Throwable $e) { echo 'REFUSED ' . (int)($e->errorInfo[1] ?? 0); }`
   const lb = runPhp(BEFORE, load), la = runPhp(AFTER, load)
-  info('LOAD DATA LOCAL BEFORE', lb.out.slice(0, 60))
-  is(/^REFUSED/.test(la.out) && (await DB.sql('select count(*) from zz_load', 'sporta')) === (/^LOADED/.test(lb.out) ? '1' : '0'), 'AFTER: LOAD DATA LOCAL is refused by the client even though this server allows it', la.out)
+  info('LOAD DATA LOCAL on the unpatched tree', `${lb.out.slice(0, 60)} (PHP 8.3 already defaults the client to off: the option makes it explicit, it does not change today's behaviour)`)
+  is(/^REFUSED/.test(la.out) && (await DB.sql('select count(*) from zz_load', 'sporta')) === (/^LOADED/.test(lb.out) ? '1' : '0'), 'AFTER: LOAD DATA LOCAL is refused by the client even though this server allows it (explicit, not a PHP default someone may change)', la.out)
 }
 
 head('4. A database that accepts the connection and never answers')

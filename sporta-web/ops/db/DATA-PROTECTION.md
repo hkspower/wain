@@ -355,6 +355,6 @@ PHP library are generated from one source and produce identical tables; previews
 (confirmation word, closed-only, age, open return, unsent mail) hold and each goes red when removed; the second run changes nothing;
 erasure removes the person and not the bystander; restore + re-apply erases them again; the ledger holds no phone or email.
 
-Only the live server can confirm: that the live schema already has the three marker columns' tables (it does not: apply
-`privacy-schema.sql`), MariaDB 11.8 behaviour of `REGEXP_REPLACE` and `UPDATE ... JOIN` (both are documented there and were exercised
-on 10.11), what the old-build tables hold, how many rows each rule would change on the real data (run the preview), and the grants.
+Only the live server can confirm: that `privacy-schema.sql` applies there (it has not been run; the live database does not have `anonymised_at`, `privacy_runs` or `privacy_erasures`),
+MariaDB 11.8 behaviour of `REGEXP_REPLACE` and `UPDATE ... JOIN` (both exist on 11.8 and were exercised on 10.11), the connection collation of the job's client (the SQL files cast their variables to the tables' collation so
+they do not depend on it), what the old-build tables hold, how many rows each rule would change on the real data (run the preview first), and the grants of the account that runs the apply.

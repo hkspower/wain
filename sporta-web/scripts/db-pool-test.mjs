@@ -347,6 +347,11 @@ async function sectionCount() {
   const sFromSeo = await info_('api', '&via=seo')
   is(sFromSeo.j?.cid === s3.j?.cid, 'the SEO pages ride the store handle (same role, same account)', `${sFromSeo.j?.cid} vs ${s3.j?.cid}`)
 
+  setPool({})
+  const tw = await probe('api', 'act=twice')
+  is(tw.j?.same === true && tw.j?.held === 1, 'the store and the SEO pages in ONE request share one wrapper, so the second does not release the first one\'s lock', JSON.stringify(tw.j))
+  setPlain()
+
   head('3c. config parsing (asked of the real function through the server)')
   setPlain()
   const S = async (role, cfg) => (await probe('api', `act=settings&role=${role}&cfg=${encodeURIComponent(JSON.stringify(cfg))}`)).j
@@ -563,6 +568,7 @@ const MUTANTS = [
   { name: 'every error is retried, not only a lost connection', find: "            if ($try === 0 && sporta_db_lost($e)) continue;\n            throw $e;", repl: "            if ($try === 0) continue;\n            throw $e;", unit: true },
   { name: 'a failure in the pool fails the request instead of falling back', find: "            return $plain();\n        }\n        // Queue", repl: "            throw $e;\n        }\n        // Queue", unit: true },
   { name: 'the CLI is pooled too', find: "    if (in_array(PHP_SAPI, ['cli', 'phpdbg'], true)) return null;\n", repl: "", unit: true },
+  { name: 'a second caller in the same request gets a second wrapper', find: "    if (isset($open[$key]) && $open[$key]->poolAlive()) return $open[$key];\n", repl: "", run: ['count'] },
   { name: 'the config switch is ignored', find: "    if (!$on) return null;\n", repl: "", run: ['plain'] },
 ]
 

@@ -102,7 +102,8 @@
  *     (the left edge in Arabic, the right in English), on every page of the site, 25px wide              [ux-drawer-1]
  *   - a line was four rows tall: name, price, the stepper with remove, and the line total ALONE on a fourth row
  *     (158px with the sizes section, 3 lines = 3.0 visible on a 740px phone)                            [ux-drawer-2]
- *   - a "+" that is greyed out says nothing: stock ran out, the button is just dead                     [ux-drawer-3]
+ *   - a "+" that is greyed out says nothing: stock ran out, the button is just dead; and the "-" on a line of
+ *     ONE deletes the line (the bundle turns a quantity of 0 into a removal), no undo                     [ux-drawer-3]
  *   - the footer showed a subtotal and nothing about delivery, the muted lines were 12-13px at 4.4:1     [ux-drawer-4]
  *   - a tap leaves the button tinted on a phone (sticky :hover) and shows no press, double-tap zoom      [ux-drawer-5]
  *   - on a landscape phone the footer took 200px of a 390px screen                                      [ux-drawer-6]
@@ -180,8 +181,14 @@
   margin-block-start: .375rem;
 }
 
-/* [ux-drawer-3] When the stepper's "+" is disabled (the bundle disables it when the quantity has reached the stock of
- * that size, or 99), the line says why, under the price, in the accent colour (5.5:1 on white). */
+/* [ux-drawer-3] The stepper's two limits. When "+" is disabled (the bundle disables it when the quantity has reached the
+ * stock of that size, or 99), the line says why, under the price, in the accent colour (5.5:1 on white). And the minus on
+ * a line of one, which the script in sporta-footer-call.js marks aria-disabled (the bundle would delete the line), is
+ * drawn as disabled as the "+" is (35%, no pointer). */
+.campaign-cart-drawer.cart-drawer .purchase-quantity > button[aria-disabled="true"] {
+  opacity: .35;
+  cursor: not-allowed;
+}
 .campaign-cart-drawer.cart-drawer .cart-drawer__line:has(.purchase-quantity > button:last-of-type:disabled) > div > p:nth-child(2)::after {
   content: var(--ux-max);
   display: block;
@@ -226,7 +233,7 @@
 .campaign-cart-drawer.cart-drawer .cart-drawer__remove {
   touch-action: manipulation;
 }
-.campaign-cart-drawer.cart-drawer .purchase-quantity button:active:not(:disabled),
+.campaign-cart-drawer.cart-drawer .purchase-quantity button:active:not(:disabled):not([aria-disabled="true"]),
 .campaign-cart-drawer.cart-drawer .cart-drawer__remove:active {
   background: color-mix(in srgb, var(--brand) 16%, transparent);
 }

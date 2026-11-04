@@ -211,7 +211,11 @@
       }
       for (i = 0; i < mine.length; i++) {
         k = mine[i] && mine[i].key
-        if (typeof k === 'string' && !used[k]) out.push(mine[i]) // added here, or still wanted here after the other tab removed it
+        if (typeof k !== 'string' || used[k]) continue
+        // Not in the stored bag any more. If this tab never touched the line it is the OTHER tab that removed it: leave it
+        // out. If this tab added it, or changed it after the other tab removed it, this tab's latest wish stands.
+        var was = B[k]
+        if (!was || qty(mine[i]) !== qty(was) || mine[i].price !== was.price) out.push(mine[i])
       }
       return out
     }

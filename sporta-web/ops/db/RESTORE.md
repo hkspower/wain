@@ -34,10 +34,9 @@ stopped for the duration. Read `BACKUP.md` first for where the files and the key
 
 ### 2a. Recover some rows (shop keeps running)
 
-1. Start a scratch server and load the backup into it: `db-restore-test.sh --file <name> --keep-scratch` is **not** provided (the test removes its scratch on purpose);
-   do the same by hand, a container with `--network none`, `MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1`, the same image as the live database
-   (`docker inspect -f '{{.Config.Image}}' sporta-db-mariadb-1`), then
-   `openssl enc -d ... | gzip -dc | docker exec -i <scratch> mariadb -uroot sporta`.
+1. Start a scratch server and load the backup into it: a container with `--network none` and `MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1`, the same image as the live database
+   (`docker inspect -f '{{.Config.Image}}' sporta-db-mariadb-1`; `docker run --pull never`), then
+   `openssl enc -d ... | gzip -dc | docker exec -i <scratch> mariadb -uroot sporta` (the exact commands `db-restore-test.sh` runs, minus the removal at the end).
 2. Dump just the rows, as `REPLACE` statements, without the table definition:
    `docker exec <scratch> mariadb-dump -uroot --no-create-info --replace --skip-triggers --single-transaction --where="track_id in ('...')" sporta orders > rows.sql`
    (and the child table: `... --where="order_id in (<ids>)" sporta order_items`).

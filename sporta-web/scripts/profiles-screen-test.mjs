@@ -28,6 +28,11 @@
 //             search with no new request and focus on the row; names that are markup stay text; Arabic names are
 //             dir="auto"; nothing read from the server reaches localStorage, sessionStorage or the console; every
 //             request carries X-Sporta-Admin.
+//   Enum      (added in review) an order whose payment method or status reads "__proto__", "constructor" or
+//             "toString" is shown as text; it used to turn the whole profile into "Profiles stopped working".
+//   Storage   (added in review) with the service worker ON, as in production, nothing from /api/admin.php (customer
+//             names, emails, phones, addresses) is left in Cache Storage. True today only because public/sw.js clones
+//             the response too late; the mutant below shows what a "fixed" worker would store.
 //   Failure   a chunk that will not load shows a retry (and a reload button), does not loop, recovers on "Try
 //             again" once it can load, and leaving the screen and coming back tries it afresh.
 //   Fallback  while a chunk travels the content area holds at least 70vh (the shell does not move, layout shift stays
@@ -35,11 +40,12 @@
 //   Layout    at 390 (touch, light, Arabic/RTL and English/LTR) and 768/1280: no horizontal page overflow with a
 //             70-character email, every tap target in the screen is at least 40px, the search box is 16px, cards
 //             replace the table on the phone.
-//   MUTATION  eleven mutants of the source are built and run: Profiles imported eagerly, a screen importing another
+//   MUTATION  thirteen mutants are built and run: Profiles imported eagerly, a screen importing another
 //             screen, search without its pause, without its abort, names without dir="auto", a retry that retries
 //             nothing, tabs that no longer warm their chunk, a first tab fetched only after the session check, a
-//             table frame that lets the page widen, a fallback with no height, and a precache script that skips the
-//             admin by name again. Each must fail the check(s) that guard it.
+//             table frame that lets the page widen, a fallback with no height, a precache script that skips the
+//             admin by name again, a plain table lookup for the payment method (the "__proto__" crash), and a
+//             service worker that does cache what it fetches. Each must fail the check(s) that guard it.
 //
 // Env: CHROMIUM_PATH (default /opt/pw-browsers/chromium-1243/chrome-linux64/chrome), SPLIT_SCRATCH (where the
 // builds go; default the OS temp dir), SPLIT_KEEP=1 keeps them, SPLIT_BASELINE_REF=<ref> adds the before/after table,
@@ -433,6 +439,31 @@ async function groupProfiles(browser, server, only = null) {
     is((await page.locator('[data-profile-id="403"]:visible').innerText()).includes('<img src=x'), 'the same name in the list is text too')
   }
 
+  if (on('enum')) {
+    // FOUND IN REVIEW: METHOD['__proto__'] is Object.prototype, an object, and React refuses an object as a child (error
+    // #31), so one order whose payment_method read "__proto__" turned the whole detail into "Profiles stopped working".
+    // The value is the server's (an enum), not a customer's, but a screen that dies on a string is not a screen to trust.
+    // Statuses are looked up in tables too ('constructor' is a function, 'toString' another): none may take it down.
+    const P2 = P[2]
+    const hostile = ['__proto__', 'constructor', 'toString'].map((v, k) => ({
+      id: 91000 + k, track_id: `SPPROTO${k}`, amount: 5, payment_method: v, payment_status: v, fulfilment_status: v,
+      customer_name: 'x', customer_phone: '1', customer_governorate: 'hawalli', customer_area: 'Salmiya', customer_block: '1',
+      customer_street: '2', customer_building: '3', created_at: '2026-10-01 10:00:00',
+    }))
+    const match = (u) => u.pathname === '/api/admin.php' && u.searchParams.get('r') === 'profile_detail' && u.searchParams.get('id') === String(P2.id)
+    await page.route(match, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      profile: { id: P2.id, name: P2.name, email: P2.email, phone: P2.phone, created_at: P2.created_at, last_login_at: null },
+      orders: hostile, summary: { orders: 3, paid_total: 0 } }) }))
+    await page.locator(`[data-profile-id="${P2.id}"]:visible`).click()
+    await heading(page, P2.name).waitFor()
+    const body = await page.locator('[data-profile-detail]').innerText()
+    is(await page.locator('main [role="alert"]').count() === 0 && /SPPROTO0/.test(body) && /SPPROTO2/.test(body), 'an order whose method/status read "__proto__", "constructor" or "toString" shows as text, the screen does not fall over')
+    is(/__proto__/.test(body), 'and the odd value is shown as the text it is')
+    await page.keyboard.press('Escape')
+    await page.locator('[data-profiles-list]').waitFor({ state: 'visible' })
+    await page.unroute(match)
+  }
+
   if (on('rtl')) {
     // Arabic names in the English admin are dir="auto".
     const ar = P.find((p) => /[؀-ۿ]/.test(p.name))
@@ -459,6 +490,50 @@ async function groupProfiles(browser, server, only = null) {
     is(bad.length === 0, 'every admin.php request carried X-Sporta-Admin: 1', bad.map((e) => e.query).join())
     is(seen.errors.length === 0, 'no page errors during the whole Profiles session', seen.errors.join(' | '))
   }
+  await ctx.close()
+}
+
+// ------------------------------------------- the service worker keeps no customer data
+// The suite's other pages run with the service worker blocked (it is not what they test). In production it is on, and
+// its last rule is "network first, cache as a fallback" for EVERY same-origin GET that is not /knet/, /pay/ or config.js:
+// /api/admin.php included. Whether an admin answer (customer names, emails, phones, delivery addresses) then lands in
+// Cache Storage is decided by one line of public/sw.js: it clones the response AFTER handing it to the page, which
+// throws "body already used", so nothing is stored. That is a bug standing guard over customer data. This group pins the
+// RESULT (nothing from admin.php is in Cache Storage with the worker running), so the day that line is "fixed" this
+// fails and the fix has to come with /api/ in the worker's never-cache list.
+async function groupStorage(browser, server, tag = '') {
+  const t = (s) => (tag ? `${s} [${tag}]` : s)
+  head('Storage: with the service worker ON, no customer data is kept in Cache Storage' + (tag ? ` (${tag})` : ''))
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'allow', locale: 'en-GB' })
+  const page = await ctx.newPage()
+  page.setDefaultTimeout(30000)
+  await page.route((u) => !['127.0.0.1', 'localhost'].includes(u.hostname), (r) => r.abort())
+  // localhost is a secure context (as https is in production), which main.jsx needs to register the worker.
+  await page.goto(`http://localhost:${server.port}/backends?lang=en`, { waitUntil: 'load' })
+  await heading(page, 'Overview').waitFor()
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true))
+  await page.reload({ waitUntil: 'load' })
+  await heading(page, 'Overview').waitFor()
+  is(await until(() => page.evaluate(() => !!navigator.serviceWorker.controller), 8000), t('a service worker controls /backends (the production situation)'))
+  await sideTab(page, 'Profiles').click()
+  await rows(page).first().waitFor()
+  await page.locator('[data-profile-id="404"]:visible').click()
+  await heading(page, 'Demo Shopper 4').waitFor()
+  await sleep(900) // the worker's cache.put is not awaited by anything
+  const kept = await page.evaluate(async () => {
+    const urls = [], text = []
+    for (const k of await caches.keys()) {
+      const c = await caches.open(k)
+      for (const req of await c.keys()) {
+        if (!/admin\.php/.test(req.url)) continue
+        urls.push(new URL(req.url).search)
+        text.push(await (await c.match(req)).text())
+      }
+    }
+    return { urls, text: text.join('\n') }
+  })
+  is(kept.urls.length === 0, t('no /api/admin.php answer (profile list, profile detail, stats) is in Cache Storage'), kept.urls.join(' '))
+  is(!/example\.com|Demo Shopper|9650000/.test(kept.text), t('and no customer name, email or phone is'))
   await ctx.close()
 }
 
@@ -720,6 +795,7 @@ try {
     await groupFailure(browser, server)
     await groupFallback(browser, server)
     await groupLayout(browser, server)
+    await groupStorage(browser, server)
     await server.close()
     server = null
   }
@@ -745,6 +821,26 @@ try {
       is(failed.length > 0, `MUTANT sw-by-name: caught (precache skipping the admin by name lets ${results.filter((r) => !r.ok).length} check(s) fail)`, 'no check failed')
       if (failed.length) console.log(`       e.g. FAIL ${failed[0].msg.slice(0, 150)}`)
     }
+    {
+      // The worker as someone would "fix" it: clone BEFORE handing the response to the page, so the cache write works.
+      // That stores every same-origin GET it sees, /api/admin.php among them. Run directly on a copy of the built sw.js.
+      const copy = join(SCRATCH, 'dist-sw-clones')
+      await cp(DIST, copy, { recursive: true })
+      const swPath = join(copy, 'sw.js')
+      const sw = readFileSync(swPath, 'utf8')
+      const needle = 'if (CACHEABLE(request, res)) caches.open(SHELL).then((c) => c.put(request, res.clone()))'
+      if (!sw.includes(needle)) throw new Error('mutant sw-clones: needle not found in sw.js')
+      await writeFile(swPath, sw.replace(needle, 'if (CACHEABLE(request, res)) { const keep = res.clone(); caches.open(SHELL).then((c) => c.put(request, keep)) }'))
+      const s = await startMockAdmin({ distDir: copy })
+      const results = []
+      sink = results
+      try { await groupStorage(browser, s, 'worker clones in time') } catch (e) { results.push({ ok: false, msg: `run aborted: ${String(e.message).split('\n')[0]}` }) }
+      sink = null
+      await s.close()
+      const failed = results.filter((r) => !r.ok && /Cache Storage|customer name/.test(r.msg))
+      is(failed.length > 0, `MUTANT sw-clones-in-time: caught (a worker that does cache lets ${results.filter((r) => !r.ok).length} check(s) fail)`, 'no check failed: the suite would not notice customer data in Cache Storage')
+      if (failed.length) console.log(`       e.g. FAIL ${failed[0].msg.slice(0, 150)}`)
+    }
     await mutant(browser, 'eager-profiles', [
       { file: 'src/admin/screens.js', from: "const LOADERS = {", to: "import ProfilesEager from './Profiles'\nconst LOADERS = {" },
       { file: 'src/admin/screens.js', from: "profiles: () => import('./Profiles'),", to: "profiles: () => Promise.resolve({ default: ProfilesEager })," },
@@ -759,6 +855,10 @@ try {
     await mutant(browser, 'no-abort', [
       { file: 'src/admin/Profiles.jsx', from: '    return () => ac.abort()\n  }, [query, page, reload])', to: '    return () => {}\n  }, [query, page, reload])' },
     ], ({ server: s }) => groupProfiles(browser, s, ['search']), /ABORTED|slow answer/)
+    await mutant(browser, 'proto-lookup', [
+      // The lookups as they were: a plain table index, which answers for "__proto__".
+      { file: 'src/admin/Profiles.jsx', from: 'methodLabel(o.payment_method)', to: '(METHOD[o.payment_method] ?? o.payment_method)', all: true },
+    ], ({ server: s }) => groupProfiles(browser, s, ['enum']), /__proto__/)
     await mutant(browser, 'no-dir-auto', [
       { file: 'src/admin/Profiles.jsx', from: ' dir="auto"', to: '', all: true },
     ], ({ server: s }) => groupProfiles(browser, s, ['rtl']), /dir="auto"|right-to-left/)

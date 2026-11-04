@@ -58,7 +58,7 @@
  * and add to cart", 2026-11-04). A second, self-contained block in this file: it shares nothing with the footer
  * call above, so either can fail without the other.
  *
- * Three things CSS cannot do, on the bag page (/cart) and in the bag drawer; everything else of this lane is CSS
+ * Five things CSS cannot do, on the bag page (/cart) and in the bag drawer; everything else of this lane is CSS
  * (public/sporta-bag-touch.css, public/sporta-cart-drawer.css).
  *   1. Every line has three buttons and they carry the same words on every line ("Decrease quantity", "Increase
  *      quantity", "Remove"), so a screen reader user cannot tell which product a button is for. Each button is
@@ -71,11 +71,21 @@
  *      carries on with Tab; the heading is the same place whether the bag now has lines or is empty. Not the next
  *      line's remove button: a held Enter key would then delete line after line. A hidden polite message says what
  *      was removed, in the page's language.
+ *   4. On a line of ONE the stepper's minus is not a decrease: the bundle turns a quantity of 0 into a removal, so the
+ *      minus deletes the line, at once, with no warning and no undo, from a control that says "Decrease quantity".
+ *      At one the minus is marked aria-disabled (the CSS draws it disabled), a tap or key on it is not passed on to the
+ *      app, and the status message says why and where Remove is. The quantity is read from the stepper's own number at the
+ *      moment of the tap, so a second quick tap cannot slip through; if the number cannot be read, the tap goes through
+ *      as built. Removal itself is untouched: it has its own button.
+ *   5. In the DRAWER the bundle moves focus to the Close button after every change of the bag (its focus effect re-runs
+ *      each time the header re-renders): a keyboard user presses Enter on "+" and the second Enter closes the drawer.
+ *      One frame after the bundle's own effect, focus goes back to the button the shopper was on (the minus beside it
+ *      when a "+" has just reached its limit and is disabled), and only when focus is still on Close or on <body>.
  * What it never does: write to storage, call the shop's API, dispatch an event, set a field's value, move, re-parent
  * or remove a node of the app, or change a price, a quantity or the order. It adds the attributes above (and
  * tabindex="-1" to the heading it focuses), one hidden status node under <body>, and it calls focus() after a removal.
- * A MutationObserver (childList only, so its own attribute writes cannot wake it) re-applies the attributes when the
- * app re-renders; the work is queued to one animation frame and is idempotent. Every entry point is wrapped, so a
+ * A MutationObserver (child nodes and text, never attributes, so its own attribute writes cannot wake it) re-applies
+ * the attributes when the app re-renders; the work is queued to one animation frame and is idempotent. Every entry point is wrapped, so a
  * failure here cannot reach the app. Evaluating the file twice is the same as once. */
 ;(function () {
   'use strict'
@@ -86,10 +96,13 @@
   var ID = 'sporta-bag-n'
   var STATUS_ID = 'sporta-bag-status'
   var MSG = { ar: function (n) { return 'تمت إزالة «' + n + '» من الحقيبة' }, en: function (n) { return 'Removed from your bag: ' + n } }
+  var MIN = { ar: 'أقل كمية هي ١. استخدم زر الإزالة لحذف المنتج من الحقيبة', en: 'The smallest quantity is 1. Use Remove to take this item out of your bag.' }
   var counter = 0
 
   function lang() { return (document.documentElement.lang || 'ar').slice(0, 2) === 'en' ? 'en' : 'ar' }
   function setAttr(el, name, value) { if (el && el.getAttribute(name) !== value) el.setAttribute(name, value) }
+  // the number the stepper shows (NaN when it cannot be read: then nothing here acts on it)
+  function qtyOf(step) { var s = step.querySelector('span'); var n = s ? parseInt(s.textContent, 10) : NaN; return isFinite(n) ? n : NaN }
 
   // 1 and 2: describe each line's buttons by its name, make the quantity and the subtotal live regions
   function label() {
@@ -103,6 +116,8 @@
       for (var b = 0; b < buttons.length; b++) setAttr(buttons[b], 'aria-describedby', name.id)
       var qty = line.querySelector('.purchase-quantity > span')
       if (qty) { setAttr(qty, 'aria-live', 'polite'); setAttr(qty, 'aria-atomic', 'true') }
+      var step = line.querySelector('.purchase-quantity'), minus = step && step.querySelector('button')
+      if (minus) { if (qtyOf(step) <= 1) setAttr(minus, 'aria-disabled', 'true'); else if (minus.getAttribute('aria-disabled') === 'true') minus.removeAttribute('aria-disabled') }
     }
     var totals = document.querySelectorAll('.purchase-cart__summary .purchase-total > span:last-child, .campaign-cart-drawer > footer > div:first-child > span:last-child')
     for (var t = 0; t < totals.length; t++) { setAttr(totals[t], 'aria-live', 'polite'); setAttr(totals[t], 'aria-atomic', 'true') }
@@ -122,6 +137,16 @@
     el.textContent = ''
     setTimeout(function () { el.textContent = text }, 60)
   }
+  // the bundle's own focus effect runs in the frame after a click: this runs one frame after that
+  function later(fn) { requestAnimationFrame(function () { requestAnimationFrame(function () { try { fn() } catch (err) { /* never reaches the app */ } }) }) }
+  function afterStep(btn) {
+    var drawer = btn.closest('.campaign-cart-drawer')
+    if (!drawer || !document.contains(btn)) return
+    var active = document.activeElement
+    if (active && active !== document.body && active !== drawer.querySelector('button')) return // the shopper put focus there
+    var target = btn.disabled ? btn.parentNode.querySelector('button:not(:disabled)') : btn
+    if (target) target.focus({ preventScroll: true })
+  }
   function afterRemoval(line, drawer, name) {
     if (document.contains(line)) return // nothing was removed: leave focus where it is
     var heading = drawer
@@ -135,13 +160,21 @@
       var btn = e.target && e.target.closest ? e.target.closest('button') : null
       var line = btn && btn.closest(LINES)
       if (!line) return
+      var step = btn.closest('.purchase-quantity')
+      if (step && step.querySelector('button') === btn && qtyOf(step) <= 1) { // the minus on a line of one: not a removal
+        e.preventDefault(); e.stopImmediatePropagation(); status(MIN[lang()]); return
+      }
       var all = line.querySelectorAll('button')
-      if (all[all.length - 1] !== btn) return // the stepper's buttons are not removals
+      if (all[all.length - 1] !== btn) { // the stepper's buttons are not removals
+        if (line.closest('.campaign-cart-drawer')) later(function () { afterStep(btn) })
+        return
+      }
       var nameEl = line.querySelector('h3, p.font-bold')
       var name = nameEl ? nameEl.textContent.trim() : ''
       var drawer = !!line.closest('.campaign-cart-drawer')
-      // the bundle removes the line when its own handler runs, after this capturing listener: look one frame later
-      requestAnimationFrame(function () { try { afterRemoval(line, drawer, name) } catch (err) { /* never reaches the app */ } })
+      // the bundle removes the line when its own handler runs, after this capturing listener, and moves focus (drawer) in
+      // the frame after: act one frame after that
+      later(function () { afterRemoval(line, drawer, name) })
     } catch (err) { /* never reaches the app */ }
   }
 
@@ -154,7 +187,9 @@
   function start() {
     try { label() } catch (err) { /* never reaches the app */ }
     document.addEventListener('click', onClick, true)
-    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true })
+    // childList for re-rendered nodes, characterData for the quantity's number (React updates its text node in place);
+    // never attributes, so the attribute writes above cannot wake the observer
+    new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true })
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
   else start()

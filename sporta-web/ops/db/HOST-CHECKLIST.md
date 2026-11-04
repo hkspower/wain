@@ -58,6 +58,7 @@ becomes UNKNOWN. If it refuses a mount, the facts that need it say UNKNOWN with 
 | `host.private_config` | secret and config files are closed to other users | modes and owners of `api-config.php`, `db_name`, `db_user`, `db_pass`, `config/`, `mail/`, `voice/` (nothing is read) | secret files `0400`/`0440`/`0600`; no world-readable entry | `chmod 600 /docker/sporta/private/db_pass` etc. (`voice` was `0755`) |
 | `host.tts_cache` | spoken assistant replies are pruned and private | file ages under `private/voice/tts-cache` | oldest under 100 days (the monthly `cron-voice.php prune` keeps 90); folder not world-readable | run the prune; `chmod 700` the folder |
 | `host.compose_declared` | the compose files declare no published database port, no socket mount, no literal password | lines of `docker-compose*.yml`/`compose*.yml` under `/docker`, depth 3; values are never printed | none | edit the file named in the finding |
+| `host.audit_error` | the audit itself ran to the end (this row appears only when it did not) | an exception inside the script, named by its code or type; no value is printed | the row is absent | UNKNOWN: the facts above it are what the job had; re-run, and read the runtime file the error points at |
 | `host.firewall` | the firewall closes 3306 | **not visible from a container** | only 80, 443 and SSH from one owner address are open | read the Hostinger firewall group with the connector; `host.port_reachable` is the practical test |
 
 ## 2. Run the database audit
@@ -151,7 +152,13 @@ as a hypothesis until the jobs have run.
    optional map-location line stored in the order note: `Privacy.jsx` section 1 under-declares it.
 5. **`ONLY_FULL_GROUP_BY`.** The eleven `GROUP BY` queries in `dropin/php-store` all parse under it, but run
    `npm run test:native` against a copy with the mode before the live restart.
-6. **MariaDB 11.8 end of life.** The tool lists 2028-06-04 and says the date was not confirmed offline; check the
+6. **Restart rehearsal.** Two lines in these files stop a server from starting at all when the thing they name is missing:
+   `secure-file-priv=/var/lib/mysql-files` (the directory must exist: mount an empty read-only one) and, in
+   `sporta-db-tls.cnf`, the three certificate paths (measured on 10.11: "Failed to setup SSL ... Aborting"). Every other
+   option was started on 10.11, not on the live 11.8, so any option 11.8 renamed or removed would also stop it. Start a
+   throwaway container of the live image with the same files and mounts on an EMPTY data directory first; apply the
+   hardening file, then (after the certificate is mounted) the TLS file, never both in one step.
+7. **MariaDB 11.8 end of life.** The tool lists 2028-06-04 and says the date was not confirmed offline; check the
    vendor's maintenance policy before relying on it.
 
 ## 5. What this does not cover
@@ -163,3 +170,30 @@ as a hypothesis until the jobs have run.
   logs. The audit counts them in tables; the dump and binary-log copies need the same cleaning by hand.
 * Authentication plugins other than `mysql_native_password` (the audit's client cannot sign in with `ed25519`); it says
   so plainly if it meets one.
+
+## 6. Independent review (2026-11-04): what it found and changed
+
+The tool and both jobs were re-run on separate private instances and then attacked. Findings, all fixed in this
+directory and `scripts/db-security-audit*.mjs`, each with a test that fails without the fix:
+
+* **The TLS lines could take the database down.** `sporta-db-hardening.cnf` named `ssl_cert` / `ssl_key` / `ssl_ca` and said
+  the server would start without TLS if they were missing. Measured on MariaDB 10.11: it refuses to start. The lines are now
+  in `sporta-db-tls.cnf`, applied last; the first file alone is proven to start with no certificate on disk.
+* **Roles hid privileges.** `SHOW GRANTS FOR <user>` lists only `GRANT role TO user`; an account holding a role with ALL
+  PRIVILEGES passed `acct.powerful_privs`. The tool now reads each role's grants (nested roles too) and says UNKNOWN when it
+  may not read one.
+* **Reach beyond the shop schema passed.** `SELECT/INSERT/UPDATE/DELETE ON *.*`, DML on the `mysql` account tables and
+  `REPLICATION SLAVE` (a copy of the binary log) were not flagged for an ordinary account.
+* **Netmask hosts passed.** `'x'@'0.0.0.0/0.0.0.0'` (every address) and `'x'@'10.0.0.0/0.0.0.0'` were not wildcard hosts.
+* **Card numbers in Arabic-Indic digits, or with dots between groups, were not seen**; a password with punctuation in a
+  message, a differently-cased key in a JSON column (JSON columns are case-sensitive `utf8mb4_bin`), and a short
+  `maps.app.goo.gl` link were not found.
+* **A latin1 column broke the card check** (an Arabic pattern cannot be compared with it); the column is now converted
+  first, so one old-build table can no longer turn the whole check into UNKNOWN.
+* **"0 columns scanned" was a PASS.** An account that can see no column now gets UNKNOWN from the data checks.
+* **A silent server hung the job for ever.** Connect and idle timeouts (`--connect-timeout`, default 30 s).
+* **The host audit claimed to print the network subnet and did not**; it now prints it with the account host pattern. It no
+  longer dies on one corrupt runtime file or a file that vanishes while it looks, and recognises `MYSQL_PWD`-style names.
+
+Still only the live server can confirm: MariaDB 11.8 behaviour (every option and variable above was started on 10.11), the
+sign-in plugin of the real accounts, the real `config.v2.json` layout, and the Hostinger edge firewall.

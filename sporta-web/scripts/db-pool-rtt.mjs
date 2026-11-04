@@ -12,7 +12,13 @@
 // spends one on PHP's ping, one on the pool's reset statement, and one on the query. So even with the reset kept
 // as short as one statement, pooling saves about HALF a round trip plus the server's CPU for the connection,
 // however far away the database is. The bare handle, which skips the reset and is not safe, saves about 1.5.
-import { spawnSync } from 'node:child_process'
+//
+// LIMITS OF THIS MODEL, read them before quoting a number: the forwarder accepts the client's TCP connection
+// locally, so the TCP handshake of a NEW connection is not delayed here (on a real network it adds one round trip to
+// the plain column); Node timers have about a millisecond of jitter, and on a loaded machine more. Treat the table
+// as a count of protocol round trips, not as a latency to expect.
+import { execFile, spawnSync } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createServer, connect } from 'node:net'
 import { join } from 'node:path'
 import { DROPIN, FIXTURES, WEB } from './lib/pool-rig.mjs'
@@ -42,11 +48,14 @@ const forward = (delayMs) => new Promise((resolve) => {
 })
 
 console.log(`MariaDB ${inst.version}; ${N} interleaved rounds per delay; machine load ${process.platform === 'linux' ? spawnSync('cat', ['/proc/loadavg'], { encoding: 'utf8' }).stdout.split(' ').slice(0, 3).join(' ') : 'n/a'}`)
+console.log("(the forwarder terminates TCP locally: a new connection's TCP handshake is NOT delayed here; on a real network add one round trip to the plain column)")
 console.log('| one-way delay | round trip | plain (connect each request) | pooled (ping + reset + query) | bare persistent (unsafe) | pooled saves | = round trips |')
 console.log('|---:|---:|---:|---:|---:|---:|---:|')
 for (const d of DELAYS) {
   const port = await forward(d)
-  const r = spawnSync('php', ['-d', 'error_log=/dev/null', join(FIXTURES, 'pool-rtt.php'), poolFile, String(port), 'rtt', pw, 'rtt', String(N)], { encoding: 'utf8', timeout: 600000 })
+  // ASYNC on purpose: the forwarder runs in THIS process, so a blocking spawnSync would starve it and hang the client
+  const r = await promisify(execFile)('php', ['-d', 'error_log=/dev/null', join(FIXTURES, 'pool-rtt.php'), poolFile, String(port), 'rtt', pw, 'rtt', String(N)], { timeout: 600000 })
+    .then((x) => ({ stdout: x.stdout, stderr: x.stderr }), (e) => ({ stdout: e.stdout ?? '', stderr: e.stderr ?? String(e) }))
   let o
   try { o = JSON.parse(r.stdout.trim()) } catch { console.log(`| ${d} ms | failed: ${(r.stderr || r.stdout).slice(0, 120)} |`); continue }
   const rtt = d * 2

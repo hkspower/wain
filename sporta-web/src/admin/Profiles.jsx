@@ -26,7 +26,6 @@ import { IconClose, IconSearch } from '../components/icons'
 //     top of the answer to "ali".
 
 const DEBOUNCE_MS = 300
-const MAX_PAGE = 500 // admin.php answers page 501 with invalid_filter; the pager stops where the server does
 const CONTROL = /[\u0000-\u001f\u007f]/g // the server refuses these in a search
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
@@ -341,8 +340,8 @@ function ProfileList({ hidden, onOpen }) {
           <span className="text-sm text-slate-500">Page {page}</span>
           <button
             type="button"
-            onClick={() => setPage((n) => Math.min(MAX_PAGE, n + 1))}
-            disabled={!hasMore || page >= MAX_PAGE}
+            onClick={() => setPage((n) => n + 1)}
+            disabled={!hasMore}
             className="min-h-11 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             More

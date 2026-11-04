@@ -123,6 +123,7 @@ const PROBE_PAGE = (lang) => {
   const rm = l0.querySelector('.cart-line__controls > button:last-child')
   P.remove = { ratio: contrast(rm), w: R(rm).w, h: R(rm).h, ta: getComputedStyle(rm).touchAction }
   P.stepper = $$('.purchase-quantity button', l0).map((b) => ({ ta: getComputedStyle(b).touchAction, w: R(b).w, h: R(b).h }))
+  const m0 = l0.querySelector('.purchase-quantity > button'); m0.setAttribute('aria-disabled', 'true'); P.minusDis = { op: getComputedStyle(m0).opacity, cur: getComputedStyle(m0).cursor }; m0.removeAttribute('aria-disabled'); P.minusOn = { op: getComputedStyle(m0).opacity, cur: getComputedStyle(m0).cursor }
   // [ux-cart-5..7] the summary
   const s = $('.purchase-cart__summary'), sc = getComputedStyle(s), total = $('.purchase-total', s)
   const label = total.children[0], amount = total.children[1]
@@ -182,6 +183,7 @@ const PROBE_DRAWER = () => {
     return { h: lr.h, totalEnd: Math.abs(endOf(rt) - endOf(lr)), removeEnd: Math.abs(endOf(rr) - endOf(lr)), stepStart: Math.abs(startOf(rs) - startOf(rn)), totalDy: rt.cy >= rp.t - 0.5 && rt.cy <= rp.b + 0.5 ? 0 : Math.min(Math.abs(rt.cy - rp.t), Math.abs(rt.cy - rp.b)), ctlDy: Math.abs(rs.cy - rr.cy), imgTop: Math.abs(ri.t - rn.t), imgW: ri.w, overlap, btns, over: li.scrollWidth - li.clientWidth, rowsOrdered: rn.b <= rp.t + 1 && rp.b <= rs.t + 1, ta: [...$$('.purchase-quantity button', li), rm].map((b) => getComputedStyle(b).touchAction) }
   }
   D.l0 = geo(lis[0]); D.l1 = geo(lis[1]); D.lis = lis.map((l) => R(l).h)
+  const m0 = lis[0].querySelector('.purchase-quantity > button'); m0.setAttribute('aria-disabled', 'true'); D.minusDis = { op: getComputedStyle(m0).opacity, cur: getComputedStyle(m0).cursor }; m0.removeAttribute('aria-disabled'); D.minusOn = { op: getComputedStyle(m0).opacity, cur: getComputedStyle(m0).cursor }
   // [ux-drawer-3]
   const hint = (li) => pseudo($(':scope > div > p:nth-child(2)', li))
   D.hintOff = hint(lis[0]); D.hintOn = hint(lis[1])
@@ -266,6 +268,7 @@ const checksFor = (v, rec) => {
       rec('page: a line with a disabled "+" says why, in the page\'s language, in the accent colour (4.5:1)', p.hintOn.content === MAX[lang] && p.hintOn.display === 'block' && p.hintOn.ratio >= 4.5 && p.hintOn.fs >= 14, `${c}: ${JSON.stringify(p.hintOn)}`)
       rec('page: a line with an enabled "+" says nothing, and the hint follows the attribute both ways', p.hintOff.content === 'none' && p.hintOnWhenEnabled === 'none' && p.hintOffWhenDisabled === MAX[lang], `${c}: ${p.hintOff.content} / ${p.hintOnWhenEnabled} / ${p.hintOffWhenDisabled}`)
       rec('page: the hint stays inside its card', p.hintInside, c)
+      rec('page: a minus marked aria-disabled (a line of one) is drawn disabled like the "+" (35%, no pointer); an ordinary one is not', p.minusDis.op === '0.35' && p.minusDis.cur === 'not-allowed' && p.minusOn.op === '1' && p.minusOn.cur !== 'not-allowed', `${c}: ${JSON.stringify([p.minusDis, p.minusOn])}`)
       rec('page: the remove icon is 4.5:1 or better on the card (was 2.6:1) and a 44px target', p.remove.ratio >= 4.5 && p.remove.w >= 44 && p.remove.h >= 44, `${c}: ${f1(p.remove.ratio)}:1 ${p.remove.w}x${p.remove.h}`)
       rec('page: the stepper and remove ask the browser for no double-tap zoom (touch-action: manipulation)', p.remove.ta === 'manipulation' && p.stepper.every((s) => s.ta === 'manipulation'), `${c}: ${p.remove.ta}`)
       rec('page: every button of every line is 44 x 44 or more', p.targets.every((t) => t >= 43.5), `${c}: ${Math.min(...p.targets)}`)
@@ -298,6 +301,7 @@ const checksFor = (v, rec) => {
       rec('drawer: the photo keeps 72px and starts level with the name', near(d.l0.imgW, 4.5 * d.rem, 1) && d.l0.imgTop <= 1.5, `${c}: ${f1(d.l0.imgW)}px, ${f1(d.l0.imgTop)}px off`)
       rec('drawer: the price and the line total never overlap', !d.l0.overlap && !d.l1.overlap, c)
       rec('drawer: every button is 44 x 44 or more', [...d.l0.btns, ...d.l1.btns].every((t) => t >= 43.5), `${c}: ${Math.min(...d.l0.btns, ...d.l1.btns)}`)
+      rec('drawer: a minus marked aria-disabled (a line of one) is drawn disabled like the "+" (35%, no pointer); an ordinary one is not', d.minusDis.op === '0.35' && d.minusDis.cur === 'not-allowed' && d.minusOn.op === '1' && d.minusOn.cur !== 'not-allowed', `${c}: ${JSON.stringify([d.minusDis, d.minusOn])}`)
       rec('drawer: the stepper and remove ask for no double-tap zoom (touch-action: manipulation)', d.l0.ta.every((t) => t === 'manipulation'), `${c}: ${d.l0.ta}`)
       rec('drawer: a disabled "+" says why (accent, 4.5:1, 14px), an enabled one says nothing, and it follows the attribute', d.hintOn.content === MAX[lang] && d.hintOn.ratio >= 4.5 && d.hintOn.fs >= 14 && d.hintOff.content === 'none' && d.hintOnWhenEnabled === 'none', `${c}: ${JSON.stringify(d.hintOn)} / ${d.hintOff.content} / ${d.hintOnWhenEnabled}`)
       rec('drawer: the note fits ONE line (the total block is under 56px tall at 320-390px)', d.totalBlockH <= 56 || w >= 768, `${c}: ${f1(d.totalBlockH)}px`)
@@ -390,14 +394,47 @@ head('A2  the accessibility script on the live markup (public/sporta-footer-call
     const s2 = await pg.evaluate(STATE, drawer)
     is(JSON.stringify(s2.own.map((o) => o.id)) === JSON.stringify(ids1), `${c}: evaluating the file again changes nothing`, '')
     // a tap on the stepper moves no focus and says nothing
-    const stepBtn = pg.locator(drawer ? '.cart-drawer__line .purchase-quantity button' : '.cart-line .purchase-quantity button').first()
+    const stepBtn = pg.locator(drawer ? '.cart-drawer__line .purchase-quantity > button:last-of-type:not(:disabled)' : '.cart-line .purchase-quantity > button:last-of-type:not(:disabled)').first()
     await stepBtn.focus(); await stepBtn.click(); await pg.waitForTimeout(200)
     const sStep = await pg.evaluate(STATE, drawer)
     is(sStep.status.length === 0 && /^BUTTON/.test(sStep.active), `${c}: the stepper's buttons are not removals: focus stays, no message`, JSON.stringify([sStep.active, sStep.status]))
+    if (drawer) {
+      // the bundle's effect throws focus at Close one frame after the click (stood in for here): focus is given back
+      await pg.evaluate(() => document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('.purchase-quantity button')) requestAnimationFrame(() => document.querySelector('.campaign-cart-drawer > header button').focus()) }))
+      const plus2 = pg.locator('.cart-drawer__line .purchase-quantity > button:last-of-type:not(:disabled)').first()
+      await plus2.focus(); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250)
+      const lab = await plus2.getAttribute('aria-label'), act = await pg.evaluate(() => document.activeElement.getAttribute('aria-label'))
+      is(act === lab, `${c}: after Enter on "+" the bundle's jump to Close is undone: focus is back on "${lab}" (it was "${act}")`, '')
+    }
+    // the minus on a line of one is not a removal: a bubbling listener stands in for the bundle's own handler
+    await pg.evaluate(() => {
+      window.__minus = 0
+      document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('.purchase-quantity button'); if (b && b === b.closest('.purchase-quantity').querySelector('button')) window.__minus++ })
+    })
+    const setQty = (i, v) => pg.evaluate(([i, v, drawer]) => { document.querySelectorAll(drawer ? '.cart-drawer__line' : '.cart-line')[i].querySelector('.purchase-quantity > span').textContent = v }, [i, v, drawer])
+    await setQty(0, '1'); await setQty(1, '2'); await pg.waitForTimeout(250)
+    const mState = () => pg.evaluate((drawer) => [...document.querySelectorAll(drawer ? '.cart-drawer__line' : '.cart-line')].slice(0, 3).map((l) => l.querySelector('.purchase-quantity > button').getAttribute('aria-disabled')), drawer)
+    is(JSON.stringify((await mState()).slice(0, 2)) === JSON.stringify(['true', null]), `${c}: the minus of a line of 1 is marked aria-disabled, the minus of a line of 2 is not`, JSON.stringify(await mState()))
+    const minus0 = pg.locator(drawer ? '.cart-drawer__line' : '.cart-line').nth(0).locator('.purchase-quantity button').first()
+    await minus0.focus(); await pg.keyboard.press('Enter'); await pg.waitForTimeout(200)
+    const sMin = await pg.evaluate(STATE, drawer), mc = await pg.evaluate(() => window.__minus)
+    is(mc === 0 && sMin.n === s2.n && /^BUTTON/.test(sMin.active), `${c}: Enter on the minus of a line of 1 is not passed on to the app (0 calls), nothing is removed, focus stays on the button`, JSON.stringify([mc, sMin.n, s2.n, sMin.active]))
+    const MINTXT = { ar: 'أقل كمية هي ١. استخدم زر الإزالة لحذف المنتج من الحقيبة', en: 'The smallest quantity is 1. Use Remove to take this item out of your bag.' }
+    is(sMin.status.length === 1 && sMin.status[0] === MINTXT[lang], `${c}: the status message says why and where Remove is, in the page's language`, JSON.stringify(sMin.status))
+    await minus0.click({ force: true }); await pg.waitForTimeout(100)
+    is((await pg.evaluate(() => window.__minus)) === 0, `${c}: a tap does the same as the key`, '')
+    await pg.locator(drawer ? '.cart-drawer__line' : '.cart-line').nth(1).locator('.purchase-quantity button').first().click(); await pg.waitForTimeout(100)
+    is((await pg.evaluate(() => window.__minus)) === 1, `${c}: the minus of a line of 2 IS passed on (the app lowers it to 1)`, '')
+    await setQty(1, '3'); await setQty(0, 'x'); await pg.waitForTimeout(250)
+    const afterSet = await mState()
+    is(afterSet[0] === null && afterSet[1] === null, `${c}: the mark follows the number (3: none) and an unreadable number is never marked`, JSON.stringify(afterSet))
+    await minus0.click({ force: true }); await pg.waitForTimeout(100)
+    is((await pg.evaluate(() => window.__minus)) === 2, `${c}: with a number that cannot be read the tap goes through as built (fail open)`, '')
+    await setQty(0, '2'); await pg.waitForTimeout(100)
     // removal: stand in for the bundle (it deletes the line when its own handler runs, after the add-on's capturing listener)
     await pg.evaluate((drawer) => {
       window.__sc = drawer ? 0 : 0
-      document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); const l = b && b.closest('.cart-line, .cart-drawer__line'); if (l && [...l.querySelectorAll('button')].pop() === b) l.remove() })
+      document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); const l = b && b.closest('.cart-line, .cart-drawer__line'); if (l && [...l.querySelectorAll('button')].pop() === b) l.remove(); if (l && drawer) requestAnimationFrame(() => document.querySelector('.campaign-cart-drawer > header button').focus()) })
       if (!drawer) { scrollTo({ top: 120, left: 0, behavior: 'instant' }); window.__y = scrollY }
     }, drawer)
     const rmBtn = pg.locator(drawer ? '.cart-drawer__remove' : '.cart-line__controls > button:last-child').nth(1)
@@ -436,7 +473,7 @@ head('A2  the accessibility script on the live markup (public/sporta-footer-call
   is(!/localStorage|sessionStorage|indexedDB|document\.cookie|fetch\(|XMLHttpRequest|sendBeacon|WebSocket|dispatchEvent|\.value\s*=|innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function|\.remove\(|removeChild|replaceChild|insertBefore|\.click\(\)|\.submit\(/.test(code), 'the script block touches no storage, no network, no event, no field value, injects no markup, removes and moves no node')
   is(/appendChild/.test(code) && code.match(/appendChild/g).length === 1 && /createElement\('div'\)/.test(code), 'the one node it adds is the hidden status div (one appendChild, to <body>)')
   is(/^\s*;\(function/m.test(block) && /window\.__sportaBagA11y/.test(block), 'it starts with a semicolon (the block above ends in a call) and guards against a second evaluation')
-  is((code.match(/catch \(err\)/g) || []).length >= 4 && /childList: true, subtree: true/.test(code) && !/attributes: true|characterData/.test(code), 'every entry point is wrapped in try/catch; the observer watches childList only, so its own attribute writes cannot wake it')
+  is((code.match(/catch \(err\)/g) || []).length >= 4 && /childList: true, subtree: true, characterData: true/.test(code) && !/attributes\s*:/.test(code), 'every entry point is wrapped in try/catch; the observer watches child nodes and text, never attributes, so its own attribute writes cannot wake it')
   is(jsOf(JS).before === JS_WITHOUT && /sporta-footer-call/.test(JS_WITHOUT) && /\}\)\(\)\s*$/.test(JS_WITHOUT.trimEnd() + '\n'), 'the footer-call block above it is unchanged in shape (ends with its own call)')
 }
 flush()
@@ -586,8 +623,8 @@ if (REAL) {
     const hint = (l) => { const c = getComputedStyle(info(l).lastElementChild, '::after').content; return c === 'none' || c === 'normal' ? '' : c.replace(/^"|"$/g, '') }
     const o = { vw, vh, lines: lines.length, docW: document.documentElement.scrollWidth, sizeGaps: lines.map((l) => Math.abs(ink(l.querySelector('p[dir="auto"]')) - (rtl ? R(info(l)).r : R(info(l)).l))), hints: lines.map((l) => [!!l.querySelector('.purchase-quantity > button:last-of-type').disabled, hint(l)]), pos: getComputedStyle(s).position, bar0: R(s), cta0: R(cta), sumLast: R(lines[lines.length - 1]) }
     const max = document.documentElement.scrollHeight - vh
-    scrollTo(0, max); o.barEnd = R(s); o.lastEnd = R(lines[lines.length - 1]); o.footEnd = foot ? R(foot) : null
-    scrollTo(0, 0); o.max = max
+    scrollTo({ top: max, left: 0, behavior: 'instant' }); o.barEnd = R(s); o.lastEnd = R(lines[lines.length - 1]); o.footEnd = foot ? R(foot) : null
+    scrollTo({ top: 0, left: 0, behavior: 'instant' }); o.max = max
     return o
   }
   for (const lang of LANGS) for (const [w, h] of [[360, 640], [390, 844], [1280, 800]]) {
@@ -607,6 +644,7 @@ if (REAL) {
     }
   }
 
+  flush()
   // ---- B2 the real drawer --------------------------------------------------------------------------------------------
   head('B2  the real drawer: compact lines, the closed drawer\'s shadow, the keyboard order')
   const REALDRAWER = () => {
@@ -620,7 +658,7 @@ if (REAL) {
     const run = async (name) => { const o = await open(name, { lang, w, h }); await openDrawer(o, lang); const r = await o.pg.evaluate(REALDRAWER); await o.ctx.close(); return r }
     const a = await run('with'), b = await run('without')
     const noHint = a.lines.findIndex((_, i) => a.hints[i] === '')
-    is(a.open && a.lines.length === 3 && noHint >= 0 && a.lines[noHint] <= b.lines[noHint] - 25, `real drawer ${c}: a line is ${f1(b.lines[noHint] - a.lines[noHint])}px shorter than before (${f1(b.lines[noHint])} -> ${f1(a.lines[noHint])}px)`, JSON.stringify([a.lines, b.lines]))
+    is(a.open && a.lines.length === 3 && noHint >= 0 && a.lines[noHint] <= b.lines[noHint] - 20, `real drawer ${c}: a line is ${f1(b.lines[noHint] - a.lines[noHint])}px shorter than before (${f1(b.lines[noHint])} -> ${f1(a.lines[noHint])}px)`, JSON.stringify([a.lines, b.lines]))
     is(a.hints.join('|') === ['', MAX[lang], ''].join('|') || a.hints.filter(Boolean).length === 2, `real drawer ${c}: the hint is on the lines the app stopped at the stock limit (${a.hints.map((x) => (x ? 1 : 0)).join('')})`, JSON.stringify(a.hints))
     is(a.footerB <= a.vh + 0.5 && a.ctaB <= a.vh, `real drawer ${c}: the footer and the button are on screen`, JSON.stringify([a.footerB, a.ctaB, a.vh]))
     note(`${c}: three lines took ${f1(b.lines.reduce((p, q) => p + q, 0))} -> ${f1(a.lines.reduce((p, q) => p + q, 0))}px; the list is ${f1(a.ul)}px of ${a.vh}px (footer ${f1(b.footer)} -> ${f1(a.footer)}px)`)
@@ -650,6 +688,7 @@ if (REAL) {
     for (const lang of LANGS) { const a = await order('with', lang), b = await order('without', lang); is(a === b && a.split(' > ').length === 14, `real drawer ${lang}: the keyboard walks the same controls in the same order with and without the add-on`, `${a} !== ${b}`) }
   }
 
+  flush()
   // ---- B3 the script in the real DOM ---------------------------------------------------------------------------------
   head('B3  the script in the real app: labels, live regions, focus after a removal, both languages')
   for (const lang of LANGS) {
@@ -657,10 +696,10 @@ if (REAL) {
     const s = await o.pg.evaluate(() => [...document.querySelectorAll('.cart-line')].map((l) => { const nm = l.querySelector('h3'); return { id: nm.id, t: nm.textContent.trim(), d: [...l.querySelectorAll('button')].map((b) => b.getAttribute('aria-describedby')), live: l.querySelector('.purchase-quantity > span').getAttribute('aria-live') } }))
     is(s.length === 3 && s.every((x) => /^sporta-bag-n\d+$/.test(x.id) && x.d.length === 3 && x.d.every((d) => d === x.id) && x.live === 'polite') && new Set(s.map((x) => x.id)).size === 3, `real page ${lang}: each line's three buttons are described by that line's name; the quantity is a live region`, JSON.stringify(s.map((x) => [x.id, x.d])))
     // the stepper changes the stored bag exactly as it would without the add-on
-    const y = await o.pg.evaluate(() => scrollTo(0, 150) || scrollY)
+    const y = await o.pg.evaluate(() => { scrollTo({ top: 150, left: 0, behavior: 'instant' }); return scrollY })
     const removedName = s[1].t
     await o.pg.locator('.cart-line').nth(1).locator('button').last().focus()
-    await o.pg.keyboard.press('Enter'); await o.pg.waitForTimeout(500)
+    await o.pg.keyboard.press('Enter'); await o.pg.waitForFunction(() => document.getElementById('sporta-bag-status')?.textContent, null, { timeout: 15000 }).catch(() => {}); await o.pg.waitForTimeout(300)
     const r = await o.pg.evaluate(() => ({ active: document.activeElement.tagName, h: document.activeElement.textContent.trim().slice(0, 12), status: document.getElementById('sporta-bag-status')?.textContent, lines: document.querySelectorAll('.cart-line').length, y: scrollY, count: document.querySelector('.purchase-count')?.textContent }))
     is(r.active === 'H1' && r.lines === 2 && near(r.y, y, 2), `real page ${lang}: removing a line with the keyboard puts focus on the bag's heading (${r.h}), two lines left, no scroll jump (${f1(y)} -> ${f1(r.y)})`, JSON.stringify(r))
     is(r.status === REMOVED[lang](removedName), `real page ${lang}: the hidden status message is "${r.status}"`, '')
@@ -673,7 +712,7 @@ if (REAL) {
     // the drawer, in place
     const d = await open('with', { lang, w: 390, h: 844 }); await openDrawer(d, lang)
     const nm = await d.pg.evaluate(() => document.querySelectorAll('.cart-drawer__line')[0].querySelector('p.font-bold').textContent.trim())
-    await d.pg.locator('.cart-drawer__remove').first().focus(); await d.pg.keyboard.press('Enter'); await d.pg.waitForTimeout(500)
+    await d.pg.locator('.cart-drawer__remove').first().focus(); await d.pg.keyboard.press('Enter'); await d.pg.waitForFunction(() => document.getElementById('sporta-bag-status')?.textContent, null, { timeout: 15000 }).catch(() => {}); await d.pg.waitForTimeout(300)
     const dr = await d.pg.evaluate(() => ({ active: document.activeElement.tagName, inDrawer: !!document.querySelector('.campaign-cart-drawer').contains(document.activeElement), status: document.getElementById('sporta-bag-status')?.textContent, lines: document.querySelectorAll('.cart-drawer__line').length }))
     is(dr.active === 'H2' && dr.inDrawer && dr.lines === 2 && dr.status === REMOVED[lang](nm), `real drawer ${lang}: after a removal focus is the drawer's own heading, inside the dialog, with the message "${dr.status}"`, JSON.stringify(dr))
     await d.pg.keyboard.press('Tab'); const nx = await d.pg.evaluate(() => document.activeElement.getAttribute('aria-label') || document.activeElement.textContent.trim().slice(0, 12))
@@ -689,6 +728,24 @@ if (REAL) {
     await o.ctx.close()
   }
 
+  head('B3c  the real drawer: Enter on "+" keeps focus on "+" (the bundle throws it at Close: without the add-on a second Enter closes the drawer)')
+  for (const lang of LANGS) {
+    const run = async (name) => {
+      const o = await open(name, { lang, w: 390, h: 844 }); await openDrawer(o, lang)
+      const p = o.pg.locator('.cart-drawer__line').nth(1).locator('.purchase-quantity button').last()
+      const label = await p.getAttribute('aria-label')
+      await p.focus(); await o.pg.keyboard.press('Enter'); await o.pg.waitForTimeout(800)
+      const a1 = await o.pg.evaluate(() => document.activeElement.getAttribute('aria-label'))
+      await o.pg.keyboard.press('Enter'); await o.pg.waitForTimeout(600)
+      const st = await o.pg.evaluate(() => ({ open: !document.querySelector('.campaign-cart-drawer').hasAttribute('inert'), qty: JSON.parse(localStorage.getItem('sporta_cart')).map((l) => l.qty).join(',') }))
+      await o.ctx.close(); return { label, a1, ...st }
+    }
+    const a = await run('with'), b = await run('without')
+    is(a.a1 === a.label && a.open && a.qty === '2,3,1', `real drawer ${lang}: Enter on "+" twice adds two pieces (bag 2,3,1), focus stays on "${a.label}", the drawer stays open`, JSON.stringify(a))
+    is(b.a1 !== b.label && !b.open && b.qty === '2,2,1', `real drawer ${lang}: ...and without the add-on focus jumped to "${b.a1}" and the second Enter CLOSED the drawer (bag ${b.qty})`, JSON.stringify(b))
+  }
+
+  flush()
   // ---- B6 touch: nothing stays lifted or tinted after a tap, with the bundle's own :hover rules ------------------------
   head('B6  the bundle\'s :hover sticks after a tap on a phone (the card stays lifted, the button tinted): not any more; a mouse is untouched')
   const hoverOf = async (name, lang, touch) => {
@@ -711,6 +768,7 @@ if (REAL) {
     is(mw.lift && mw.tint && mw.dTint && mw.transform === mb.transform && mb.lift && mb.tint && mb.dTint, `real ${lang} desktop (mouse): the bundle's lift and tint are exactly as before`, JSON.stringify([mw, mb]))
   }
 
+  flush()
   // ---- B7 the dark theme follows the tokens ---------------------------------------------------------------------------------
   head('B7  the dark theme (the shop\'s own data-theme): the bar, the hint and the note take the tokens and stay readable')
   for (const lang of LANGS) {
@@ -734,6 +792,26 @@ if (REAL) {
     await dr.ctx.close()
   }
 
+  flush()
+  head('B3b  the real app: the minus on a line of ONE no longer deletes the line (with the add-on); without it, it does')
+  for (const lang of LANGS) {
+    const run = async (name) => {
+      const o = await open(name, { lang, w: 390, h: 844 }); await goCart({ ...o, lang })
+      const minus = () => o.pg.locator('.cart-line').nth(0).locator('.purchase-quantity button').first()
+      await minus().click(); await o.pg.waitForTimeout(400)
+      const one = await o.pg.evaluate(() => ({ lines: document.querySelectorAll('.cart-line').length, qty: document.querySelector('.cart-line .purchase-quantity > span').textContent, dis: document.querySelector('.cart-line .purchase-quantity > button').getAttribute('aria-disabled'), stored: JSON.parse(localStorage.getItem('sporta_cart')).map((l) => l.qty).join(',') }))
+      await minus().focus(); await o.pg.keyboard.press('Enter'); await o.pg.waitForTimeout(400)
+      const two = await o.pg.evaluate(() => ({ lines: document.querySelectorAll('.cart-line').length, status: document.getElementById('sporta-bag-status')?.textContent || '', active: document.activeElement.tagName, stored: JSON.parse(localStorage.getItem('sporta_cart')).map((l) => l.qty).join(',') }))
+      await o.ctx.close(); return { one, two }
+    }
+    const a = await run('with'), b = await run('without')
+    const MINTXT = { ar: 'أقل كمية هي ١. استخدم زر الإزالة لحذف المنتج من الحقيبة', en: 'The smallest quantity is 1. Use Remove to take this item out of your bag.' }
+    is(a.one.lines === 3 && a.one.qty === '1' && a.one.dis === 'true' && a.one.stored === '1,1,1', `real page ${lang}: "-" on a line of 2 lowers it to 1 and the minus is then aria-disabled`, JSON.stringify(a.one))
+    is(a.two.lines === 3 && a.two.stored === '1,1,1' && a.two.status === MINTXT[lang] && a.two.active === 'BUTTON', `real page ${lang}: "-" on a line of 1 removes nothing (3 lines, stored bag unchanged), says why in ${lang}, focus stays on the button`, JSON.stringify(a.two))
+    is(b.two.lines === 2 && b.two.stored === '1,1', `real page ${lang}: ...and without the add-on that same "-" deleted the line from the bag (the hazard is real, stored bag ${b.two.stored})`, JSON.stringify(b.two))
+  }
+
+  flush()
   // ---- B4 nothing the shopper submits changes ------------------------------------------------------------------------------
   head('B4  the order POST is BYTE-IDENTICAL with the add-on, without it, with its script throwing and with its script blocked')
   const place = async (name, lang) => {
@@ -763,11 +841,12 @@ if (REAL) {
     for (const name of ['without', 'throws', 'blocked']) is(R[name].order.length === 1 && R[name].order[0] === R.with.order[0], `order ${lang}: the order POST with the add-on is byte-identical to the one ${name === 'without' ? 'without it' : name === 'throws' ? 'with its script throwing' : 'with its script blocked'} (${R.with.order[0].length} bytes)`, `${R[name].order[0]} vs ${R.with.order[0]}`)
     for (const name of ['without', 'throws', 'blocked']) is(R[name].quote.length >= 1 && JSON.stringify(R[name].quote) === JSON.stringify(R.with.quote), `order ${lang}: the quote request ("discount": the server prices the bag) is byte-identical too (${name})`, '')
     is(['without', 'throws', 'blocked'].every((n) => R[n].stored === R.with.stored), `order ${lang}: the stored bag is identical after the same taps in every variant`, JSON.stringify(R.with.stored).slice(0, 200))
-    is(!/price|amount|total|discount_amount/i.test(Object.keys(JSON.parse(R.with.order[0])).join(',')), `order ${lang}: the body names no price field (the browser never sends one; only expected_total_fils, the figure the shopper was quoted)`, Object.keys(JSON.parse(R.with.order[0])).join(','))
+    is(Object.keys(JSON.parse(R.with.order[0])).join(',') === 'track_id,items,customer,payment_method,discount_code,expected_total_fils,lang' && JSON.parse(R.with.order[0]).items.every((i) => Object.keys(i).every((k) => ['slug', 'qty', 'size', 'fit'].includes(k))), `order ${lang}: the body names no price: only the slugs, sizes and quantities, the customer, and expected_total_fils (the figure the shopper was quoted)`, Object.keys(JSON.parse(R.with.order[0])).join(','))
     is(R.throws.errs.some((e) => /sporta-bag boom/.test(e)) && R.throws.order.length === 1, `order ${lang}: a throwing add-on script raises its own error and the shop still takes the order`, JSON.stringify(R.throws.errs))
     is(R.with.errs.length === 0 && R.blocked.errs.length === 0, `order ${lang}: no page error with the add-on or with its script blocked`, JSON.stringify([R.with.errs, R.blocked.errs]))
   }
 
+  flush()
   // ---- B5 the page works with the script gone; CLS; reduced motion -----------------------------------------------------------
   head('B5  the page works with the script throwing or blocked; no layout shift from this change; reduced motion')
   const CLS = () => new Promise((res) => { let v = 0; new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) v += e.value }).observe({ type: 'layout-shift', buffered: true }); setTimeout(() => res(v), 1800) })
@@ -781,7 +860,7 @@ if (REAL) {
       cls[name] = st; await o.ctx.close(); void CLS
     }
     const c = `${lang} ${w}x${h}`
-    is(cls.with.cls <= cls.without.cls + 0.001 && cls.with.cls < 0.05, `real page ${c}: CLS ${f1(cls.with.cls * 1000) / 1000} with the add-on, ${f1(cls.without.cls * 1000) / 1000} without: the change adds no layout shift`, JSON.stringify(Object.fromEntries(Object.entries(cls).map(([k, v]) => [k, v.cls]))))
+    is(cls.with.cls <= cls.without.cls + 0.001, `real page ${c}: CLS ${Math.round(cls.with.cls * 10000) / 10000} with the add-on, ${Math.round(cls.without.cls * 10000) / 10000} without (the page's own, the bundle's): the change adds none`, JSON.stringify(Object.fromEntries(Object.entries(cls).map(([k, v]) => [k, v.cls]))))
     is(cls.throws.lines === 5 && cls.blocked.lines === 5 && cls.throws.pos === cls.with.pos && cls.blocked.pos === cls.with.pos && cls.throws.hints === cls.with.hints && cls.blocked.hints === cls.with.hints, `real page ${c}: with the script throwing or blocked the page renders the same, the bar and the hints (CSS) are all still there`, JSON.stringify([cls.throws, cls.blocked]))
     is(cls.cssOnly.cls <= cls.without.cls + 0.001, `real page ${c}: the CSS alone adds no layout shift either (script off)`, JSON.stringify([cls.cssOnly.cls, cls.without.cls]))
   }

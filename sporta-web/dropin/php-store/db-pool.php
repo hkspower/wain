@@ -137,15 +137,23 @@ function sporta_db_connect(string $role, string $dsn, ?string $user, ?string $pa
 {
     $pool = sporta_db_pool_settings($role, $cfg);
     if ($pool === null) return new PDO($dsn, $user, $pass, $options);
+    // ONE wrapper per handle per request. Two roles that name the same account and database (the store and the SEO
+    // pages) share a persistent handle; a second wrapper would run the start-of-request reset on a connection the
+    // first one is using, and release the first one's locks in the middle of its request.
+    static $open = [];
+    $key = $role . "\0" . $dsn . "\0" . (string)$user;
+    if (isset($open[$key]) && $open[$key]->poolAlive()) return $open[$key];
     $dbname = '';
     if (preg_match('/(?:^|;)dbname=([^;]*)/', $dsn, $m) === 1) $dbname = $m[1];
-    return sporta_db_pool_open(
+    $pdo = sporta_db_pool_open(
         static fn(): SportaPooledPDO => new SportaPooledPDO($dsn, $user, $pass, [PDO::ATTR_PERSISTENT => 'sporta-' . $role] + $options),
         static fn(): PDO => new PDO($dsn, $user, $pass, $options),
         $pool,
         'sporta:pool:' . substr(sha1($dsn . "\0" . (string)$user), 0, 10) . ':' . $role . ':',
         $dbname,
     );
+    if ($pdo instanceof SportaPooledPDO) $open[$key] = $pdo;
+    return $pdo;
 }
 
 /**
@@ -363,6 +371,12 @@ final class SportaPooledPDO extends PDO
         $id = $this->poolConnId;
         $this->poolConnId = 0;
         try { parent::exec('KILL ' . $id); } catch (Throwable $e) { /* 1927 Connection was killed */ }
+    }
+
+    /** Still usable by a second caller in the same request: not discarded, not ended. */
+    public function poolAlive(): bool
+    {
+        return !$this->poolEnded;
     }
 
     public function __destruct()

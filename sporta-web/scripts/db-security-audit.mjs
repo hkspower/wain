@@ -1273,6 +1273,10 @@ check('sch.other_databases', 'schema', 'No other databases are visible (and no t
 })
 
 // ---------------- secrets (shape only)
+// A data check that finds no column at all has looked at nothing (information_schema shows an account only the tables it holds
+// a privilege on): that is UNKNOWN, never "0 columns scanned, PASS".
+async function seesColumns(ctx) { return (await appColumns(ctx)).some((r) => inApp(ctx, r)) }
+const noColumns = (ctx) => unknown(`no column of ${ctx.schema} is visible to this account (information_schema lists only tables the account holds a privilege on), so nothing could be checked`)
 async function credentialColumns(ctx) {
   const cols = (await appColumns(ctx)).filter((r) => inApp(ctx, r) && /char|text|blob|binary|json/.test(r.data_type) && CRED_NAME.test(r.column_name) && credentialKind(r.column_name))
   return cols
@@ -1298,6 +1302,7 @@ async function credentialReport(ctx) {
 }
 const credCheck = (kinds, bad, okText, failText) => async (ctx) => {
   if (!ctx.schema) return unknown('no schema selected (set DB_NAME or --schema)')
+  if (!(await seesColumns(ctx))) return noColumns(ctx)
   const rep = (await credentialReport(ctx)).filter((r) => kinds.includes(r.kind))
   const hits = rep.filter((r) => bad.includes(r.verdict))
   if (hits.length) return fail(failText(hits.length), hits.map((r) => `${r.key} (${r.kind}): ${r.note}`))
@@ -1312,6 +1317,7 @@ check('sec.recoverable_secrets', 'secrets', 'Secrets the server must read back a
 const SECRET_IN_TEXT = '(?i)(secret|token|passw(or)?d|passcode|pwd|api[_-]?key|bearer|authorization)[a-z_-]{0,12}["\' ]*[:=]["\' ]*[^\\s"\',;]{10,}'
 check('sec.secrets_in_text', 'secrets', 'No secret-shaped text in free-text or JSON columns', async (ctx) => {
   if (!ctx.schema) return unknown('no schema selected (set DB_NAME or --schema)')
+  if (!(await seesColumns(ctx))) return noColumns(ctx)
   const skip = new Set((await credentialColumns(ctx)).map((c) => `${c.table_name}.${c.column_name}`))
   const cols = (await appColumns(ctx)).filter((r) => inApp(ctx, r) && /^(varchar|char|tinytext|text|mediumtext|longtext|json)$/.test(r.data_type) && !skip.has(`${r.table_name}.${r.column_name}`) && !/^(image|logo|images)$/.test(r.column_name) && num(r.character_maximum_length, 99999) >= 24)
   const bad = []
@@ -1330,6 +1336,7 @@ const CARD_PREFILTER = '[0-9\u0660-\u0669\u06f0-\u06f9\uff10-\uff19][0-9\u0660-\
 const CARD_EXCLUDE = /^(cbk_|knet_|payment|track_id$|order_track_id$|reference$|wa_message_id$|sku$|slug$|image|logo$|to_e164$|contact_phone$|customer_phone$|phone$)/i
 check('hyg.card_numbers', 'hygiene', 'No card-like numbers in free text', async (ctx) => {
   if (!ctx.schema) return unknown('no schema selected (set DB_NAME or --schema)')
+  if (!(await seesColumns(ctx))) return noColumns(ctx)
   const cols = (await appColumns(ctx)).filter((r) => inApp(ctx, r) && /^(varchar|char|tinytext|text|mediumtext|longtext|json)$/.test(r.data_type) && num(r.character_maximum_length, 99999) >= 13 && !CARD_EXCLUDE.test(r.column_name) && !credentialKind(r.column_name))
   const bad = []; let scanned = 0
   for (const c of cols) {

@@ -309,7 +309,8 @@ async function run() {
       const top = ls(p) ?? []
       const world = [], dumps = [], logs = []
       for (const n of top) {
-        const fs_ = lstatSync(join(p, n))
+        let fs_
+        try { fs_ = lstatSync(join(p, n)) } catch { continue } // a live database creates and removes files (temporary tables, binary logs) while we look
         if (fs_.isFile() && (fs_.mode & 0o004)) world.push(n)
         if (/\.(sql|dump|bak|old|zip|7z|tgz)(\.|$)|\.tar(\.|$)|\.sql\.(gz|zst|bz2|xz)$|backup/i.test(n)) dumps.push(`${n} (${oct(fs_.mode)}, ${Math.round(fs_.size / 1024)} KiB)`)
         if (/^(general|slow|query|mysql-slow)[-_.a-z]*\.(log|csv)$|general_log/i.test(n)) logs.push(`${n} (${oct(fs_.mode)})`)
@@ -412,7 +413,10 @@ async function run() {
   add('host.firewall', UNK, 'The firewall closes 3306 to the internet', "the project's firewall is Hostinger's (group \"KVM4 Restricted Web Firewall\"), outside the machine: read its rules with the Hostinger API (vps firewall tools) and confirm no rule allows 3306; host.port_reachable above is the practical test", [], 'only 80, 443 and SSH from one owner address are allowed in')
 }
 
-await run()
+// One unreadable or odd file must not cost the whole report: say what stopped it (the error's code or type, never a value).
+try { await run() } catch (e) {
+  add('host.audit_error', UNK, 'The audit ran to the end', `it stopped part-way (${e?.code ?? e?.name ?? 'error'}); the facts above are what it had; the rest are not known`, [], 'no error')
+}
 const fails = results.filter((r) => r.status === FAIL).length, unknowns = results.filter((r) => r.status === UNK).length
 if (OPTS.json) console.log(JSON.stringify({ tool: 'host-audit', results, summary: { pass: results.length - fails - unknowns, fail: fails, unknown: unknowns } }, null, 2))
 else {

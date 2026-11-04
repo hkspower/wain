@@ -100,6 +100,17 @@ if ($act === 'naked' && $dir === 'api') {
     exit;
 }
 
+if ($act === 'twice' && $dir === 'api') {
+    // The store and the SEO pages in ONE request, on the same account: they must get the same wrapper, and the
+    // lock the first one took must still be held after the second was asked for.
+    $db->query("select get_lock('twice-lock', 0)")->fetchAll();
+    require_once __DIR__ . '/seo-runtime.php';
+    $seo = sporta_seo_db();
+    $held = $db->query("select (is_used_lock('twice-lock') = connection_id())")->fetchColumn();
+    echo json_encode(['same' => $db === $seo, 'held' => (int)$held, 'class' => get_class($db)]);
+    exit;
+}
+
 if ($act === 'info') {
     echo json_encode(probe_info($db));
     exit;

@@ -25,7 +25,8 @@
  * What a shopper hit on /cart (measured on the captured live app, Arabic and English, 360-1280px, bags of 1-5 lines):
  *   - in Arabic the size ("M", "XL") sat on the far edge of the card, a column away from the name it belongs to: the
  *     bundle marks it dir="auto", a Latin letter resolves to left-to-right, and "start" then means LEFT   [ux-cart-1]
- *   - a greyed "+" says nothing about why                                                                [ux-cart-2]
+ *   - a greyed "+" says nothing about why; and the "-" on a line of ONE deletes the line (the bundle turns a quantity
+ *     of 0 into a removal), at once, no undo, from a control labelled "Decrease quantity"                  [ux-cart-2]
  *   - the remove "x" was slate-400: 2.6:1 on the white card, under the 3:1 a control needs                [ux-cart-3]
  *   - a finished tap leaves the card lifted and the button tinted (:hover sticks on touch), no press shows [ux-cart-4]
  *   - the summary: "Subtotal" at 18px bold outweighing its own amount, a 36px blank between heading and
@@ -57,8 +58,14 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
   text-align: left;
 }
 
-/* [ux-cart-2] When "+" is disabled (the quantity has reached the stock of that size, or 99) the line says why, under
- * the price, in the accent colour (5.5:1 on white). */
+/* [ux-cart-2] The stepper's two limits. When "+" is disabled (the quantity has reached the stock of that size, or 99) the
+ * line says why, under the price, in the accent colour (5.5:1 on white). And the minus on a line of one, which the
+ * script in sporta-footer-call.js marks aria-disabled (the bundle would delete the line), is drawn as disabled as the
+ * "+" is, the bundle's own look for it (35%, no pointer). */
+.purchase-cart .purchase-quantity > button[aria-disabled="true"] {
+  opacity: .35;
+  cursor: not-allowed;
+}
 .purchase-cart .cart-line:has(.purchase-quantity > button:last-of-type:disabled) > div:not(.cart-line__controls) > p:last-child::after {
   content: var(--ux-max);
   display: block;
@@ -83,7 +90,7 @@ html[dir="ltr"] .purchase-cart .cart-line :is(h3, p)[dir="auto"] {
 .purchase-cart .cart-line__controls button {
   touch-action: manipulation;
 }
-.purchase-cart .purchase-quantity button:active:not(:disabled),
+.purchase-cart .purchase-quantity button:active:not(:disabled):not([aria-disabled="true"]),
 .purchase-cart .cart-line__controls > button:last-child:active {
   background: color-mix(in srgb, var(--brand) 16%, transparent);
 }

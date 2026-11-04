@@ -43,7 +43,7 @@ function ScreenError({ label, chunk, tries, onRetry }) {
         <p className="font-bold">{chunk ? `${label} could not be loaded` : `${label} stopped working`}</p>
         <p className="mt-1 text-sm leading-relaxed">
           {chunk
-            ? 'The screen’s code did not arrive. This is usually a dropped connection, or the site was updated while this page was open.'
+            ? 'The screen’s code did not arrive. This is usually a dropped connection, or the site was updated while this page was open. If Try again does nothing, reload the page.'
             : 'Something went wrong while drawing this screen. Nothing was saved or lost on the server.'}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">

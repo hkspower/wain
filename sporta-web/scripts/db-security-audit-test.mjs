@@ -310,6 +310,11 @@ async function unit(rep, toolPath) {
   const accStat = []
   for (const id of noAcc) accStat.push(await status(id, {}))
   rep.is(accStat.every((s) => s === 'UNKNOWN'), 'with unreadable account tables every account check is UNKNOWN', JSON.stringify(accStat))
+  // An account that can see no column at all has looked at nothing: the data checks are UNKNOWN, not "0 columns scanned, PASS".
+  const blind = { ...base, objs: async () => [], rows: async () => [] }
+  const blindStat = []
+  for (const id of ['hyg.card_numbers', 'sec.secrets_in_text', 'sec.password_hashes', 'sec.token_storage', 'sec.hash_columns', 'sec.recoverable_secrets']) blindStat.push((await CHECKS.find((c) => c.id === id).run(blind)).status)
+  rep.is(blindStat.every((x) => x === 'UNKNOWN'), 'with no visible column the card, secret-text and credential-shape checks are UNKNOWN, never PASS', JSON.stringify(blindStat))
   // Readable account list, but one account's grants (or a role it holds) cannot be read: not "nothing to use", not PASS.
   const unusedCtx = { ...base, accounts: async () => ({ ok: true, list: [{ user: 'app', host: '10.0.0.5', label: 'app@10.0.0.5', isRole: false, locked: false }] }), grantsOf: async () => null, rows: async () => [['sporta']] }
   rep.is((await CHECKS.find((c) => c.id === 'acct.unused').run(unusedCtx)).status === 'UNKNOWN', 'acct.unused: an account whose grants cannot be read makes the check UNKNOWN, never PASS')
@@ -771,6 +776,7 @@ const MUTATIONS = [
   { name: 'the secret-in-text value stops at the first punctuation mark', find: String.raw`[^\\s"\',;]{10,}'`, repl: String.raw`[A-Za-z0-9+/_.=-]{10,}'`, groups: ['reach'] },
   { name: 'short map links (maps.app.goo.gl) are not location lines', find: 'maps[.]app[.]goo[.]gl|goo[.]gl/maps|', repl: '', groups: ['reach'] },
   { name: 'the connect and idle timeout is removed', find: "sock.setTimeout?.(this.ready ? (this.o.idleMs ?? 120000) : (this.o.connectMs ?? 30000), () => sock.destroy(new Error('the server did not answer in time')))", repl: 'void 0', groups: ['silent'] },
+  { name: 'a data check that sees no column at all passes', find: 'async function seesColumns(ctx) { return (await appColumns(ctx)).some((r) => inApp(ctx, r)) }', repl: 'async function seesColumns(ctx) { return true }', groups: ['unit'] },
   { name: 'an unreadable account is counted as having something to use', find: 'return unread ? unknown(', repl: 'return false ? unknown(', groups: ['unit'] },
   { name: 'a hash would be selected from the account table', find: "IF(IFNULL(JSON_VALUE(Priv, '$.authentication_string'), '') = '', 1, 0) AS main_empty, ", repl: "JSON_VALUE(Priv, '$.authentication_string') AS main_empty, ", groups: ['insecure'] },
 ]
@@ -890,8 +896,20 @@ const HOST_EVIDENCE = {
 }
 const hostRun = (script, root, extra = []) => runTool(script, {}, ['--root', root, '--proc', join(root, 'proc'), '--json', ...extra])
 
+// A corrupt runtime file (here: an environment list that is not a list) must cost one row, not the whole report.
+function hostRobust(rep, script) {
+  const root = mkdtempSync(join(tmpdir(), 'dba-host-odd-')); hostRoots.push(root)
+  mkdirSync(join(root, 'containers', 'odd01'), { recursive: true }); mkdirSync(join(root, 'proc'), { recursive: true })
+  writeFileSync(join(root, 'containers', 'odd01', 'config.v2.json'), JSON.stringify({ Name: '/sporta-db-1', Config: { Image: 'mariadb:11.8', Env: 'not-a-list' }, State: { Running: true } }))
+  const r = hostRun(script, root), j = json(r)
+  rep.is(r.status === 0 && j && j.results.some((x) => x.id === 'host.audit_error' && x.status === 'UNKNOWN') && !/at .*\.mjs:\d+/.test(r.all), 'a corrupt runtime file ends the report with one UNKNOWN row (host.audit_error), exit 0, no stack trace', `exit ${r.status} ${r.err.slice(0, 120)}`)
+  const t = runTool(script, {}, ['--root', root, '--proc', join(root, 'proc')])
+  rep.is(/HOST_AUDIT_DONE fail=0 unknown=1 pass=0/.test(t.out), 'and the text report still ends with the greppable HOST_AUDIT_DONE line', t.out.trim().split('\n').pop())
+}
+
 async function hostAudit(rep, script, good, badRoot) {
   rep.head('host audit: a good host, a bad host, and what is never printed')
+  hostRobust(rep, script)
   // an open database port on a local address for the bad host; a closed one for the good host
   const listener = await new Promise((resolve) => { const s = net.createServer((c) => c.destroy()); s.listen(0, '127.0.0.2', () => resolve(s)) }).catch(() => null)
   const closed = await new Promise((resolve) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)) }) })
@@ -975,6 +993,8 @@ const HOST_MUTATIONS = [
   { name: 'host: privileged container ignored', find: 'if (c.host.privileged) bad.push(', repl: 'if (false) bad.push(' },
   { name: 'host: cap_drop not checked', find: 'const capdrop = dbs.filter((c) => !c.host.capDrop.some(', repl: 'const capdrop = dbs.filter((c) => false && !c.host.capDrop.some(' },
   { name: 'host: literal password in the environment ignored', find: "|(^|_)PWD$)/i.test(name)) && val !== '') lit.push(", repl: "|(^|_)PWD$)/i.test(name)) && false) lit.push(" },
+  { name: 'host: one corrupt file stops the whole report', find: "try { await run() } catch (e) {", repl: "try { await run() } catch (e) { throw e;" },
+  { name: 'host: a file that vanishes mid-scan stops the report', find: "try { fs_ = lstatSync(join(p, n)) } catch { continue }", repl: "fs_ = lstatSync(join(p, n))" },
   { name: 'host: the database subnet is not printed', find: "return sn.length ? `info: database network", repl: "return false ? `info: database network" },
   { name: 'host: world-readable data files ignored', find: 'if (world.length) bad.push(', repl: 'if (false) bad.push(' },
   { name: 'host: backup folder mode ignored', find: 'if (s.mode & 0o077) bad.push(`the folder itself is mode', repl: 'if (false) bad.push(`the folder itself is mode' },
