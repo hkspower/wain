@@ -1209,8 +1209,9 @@ function assistant_change_of_mind_alone(string $t): bool
 
 // WITHDRAWING CONSENT OR ASKING FOR ONE'S DATA — to stop messages, be taken off a list, have an account
 // or a number deleted, or to know what the shop holds and whom it is shared with. The shop messages its
-// customers (order updates, a birthday email), and src/pages/Privacy.jsx tells them to ask on WhatsApp or by
-// email; the assistant used to answer these as a failed product search. A person's job, with its own line
+// customers (order updates, a birthday email), and the Privacy page (the Privacy component under the app's
+// pages) tells them to ask on WhatsApp or by email; the assistant used to answer these as a failed product
+// search. A person's job, with its own line
 // (privacy_request) that says where to write. "Delete my order" is not here: it is a cancellation, and its
 // rule runs first.
 function assistant_privacy_request(string $t): bool

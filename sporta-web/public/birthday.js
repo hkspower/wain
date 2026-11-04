@@ -232,7 +232,7 @@
  * in THIS file because it is the one add-on that every page loads deferred, so it costs no first paint (boot.js blocks it,
  * and is kept small), and the live index.html lists it before the app's own script, so it is in place before the app starts.
  * Each guard is its own block and is wrapped, so none can stop the page or the others. The repo's own app does the first job itself
- * (src/lib/cart.jsx) and says so with window.__sportaCartOwn, which makes the first block stand down. Proven by
+ * (the cart module under the app's lib folder) and says so with window.__sportaCartOwn, which makes the first block stand down. Proven by
  * scripts/race-client-test.mjs against the captured live storefront.
  *
  * 1. THE BAG IS SHARED BY EVERY TAB. The compiled bag keeps its lines in React state and, after every change, writes the

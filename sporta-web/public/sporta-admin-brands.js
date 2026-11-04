@@ -1758,8 +1758,8 @@
   /** Arabic counts the noun, it does not just put a digit in front of the singular. A token
    *  {k|zero|one|two|few|many} in a string is replaced by the form the number needs, '#' standing for the digits:
    *  0 -> zero, 1 -> one (the noun carries the count), 2 -> two (the dual), 3-10 (and x03-x10) -> few (plural), anything else
-   *  -> many (back to the singular). The same five cases as arabicCount() in src/i18n/translations.js, which this file
-   *  cannot import. A token with other than five forms is left as written, so a typo shows rather than hides. */
+   *  -> many (back to the singular). The same five cases as arabicCount() in the app's i18n translations module, which
+   *  this file cannot import. A token with other than five forms is left as written, so a typo shows rather than hides. */
   function plural(s, vars) {
     return s.replace(/\{([a-z]+)\|([^{}]*)\}/g, function (all, key, body) {
       var f = body.split('|')
